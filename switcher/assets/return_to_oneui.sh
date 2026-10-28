@@ -795,8 +795,17 @@ ip rule show 2>/dev/null | "$BB" diff "$BASE/iprule" - >> "$IPLOG" 2>&1 || say "
 v=$("$BB" sed -n 's/^persist\.sys\.disable_rescue=//p' $S/persist_props.snapshot 2>/dev/null | "$BB" head -n 1)
 if [ -n "$v" ]; then "$RP" -n persist.sys.disable_rescue "$v" 2>/dev/null; else "$RP" --delete persist.sys.disable_rescue 2>/dev/null; fi
 /system/bin/sh $S/check_host_apex.sh after-inplace >> "$IPLOG" 2>&1 || say "!!! a One UI APEX file read failed after the restart (see return_inplace.log)"
-# Two more minutes of the session's logcat capture for anything late.
-"$BB" sh -c 'sleep 120; pkill -f "^logcat .*/data/local/tmp/oneos_logs/boot.log"' </dev/null >/dev/null 2>&1 &
+# Two more minutes of the session's logcat capture for anything late, then
+# this return stops it, unless a session started meanwhile: that one keeps the
+# capture as its own (oneos_switch.sh) and deletes $LOGS/logcat.stop, and the
+# stop below then leaves it running. S25 Ultra, 28 Oct: the next session
+# started 78 s after a return, and this stop ended its capture 40 s into it,
+# with no logcat of the session at all.
+if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
+    STOP_TOKEN="$(date +%s).$$"
+    echo "$STOP_TOKEN" > "$LOGS/logcat.stop" 2>/dev/null
+    "$BB" sh -c "sleep 120; [ \"\$(cat $LOGS/logcat.stop 2>/dev/null)\" = $STOP_TOKEN ] || exit 0; rm -f $LOGS/logcat.stop; pkill -f '^logcat .*/data/local/tmp/oneos_logs/boot.log'" </dev/null >/dev/null 2>&1 &
+fi
 "$BB" rm -rf $NODES
 echo "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) $(date +%s)" > $S/return_inplace.done
 echo oneos_return > /sys/power/wake_unlock 2>/dev/null

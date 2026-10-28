@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.25. Samsung flagships with Snapdragon, plus the first two
+App version 0.4.26. Samsung flagships with Snapdragon, plus the first two
 Exynos phones; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -141,7 +141,10 @@ everything OneOS put on the phone: the system you set up (with the apps and
 accounts in it), older copies and the session logs. It checks first that
 nothing of a session is still connected to One UI, and refuses otherwise. One
 UI and its data are not touched, and downloaded system files stay where you
-saved them. Then uninstall the app as usual.
+saved them. Then uninstall the app as usual. Without the app, the same cleanup
+runs from a root shell such as Termux: `sh remove-oneos-data.sh` (from
+`scripts/`; it asks su for root, and `--dry-run` shows first what it would
+delete).
 
 ## How it works
 

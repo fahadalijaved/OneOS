@@ -456,6 +456,9 @@ if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
     # after the switch started (adbd 14:40:51.03, START 14:40:57.03).
     lp=$(pgrep -f "^logcat .*$LOGS/boot.log" 2>/dev/null | head -1)
     if [ -n "$lp" ]; then
+        # The last return stops its capture two minutes after One UI is up
+        # (return_to_oneui.sh) unless its token is gone: this session keeps it.
+        rm -f "$LOGS/logcat.stop"
         echo "Logcat capture already running (pid $lp): kept, its head/ left as it is"
     else
         rm -rf "$LOGS.prev"; [ -d "$LOGS" ] && mv "$LOGS" "$LOGS.prev"

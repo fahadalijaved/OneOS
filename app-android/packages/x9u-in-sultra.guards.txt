@@ -1,6 +1,6 @@
-# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000 and nousers guards
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers and nativeservices guards
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
-21c25898b9fd64ddfe50bb0d63ece7c69e81e95bef58c42c6b050ac2f4d1552f  services_patched.jar
+6855f21ad47358bfa77abf9b75be6d78e52c8d6cb5806c7ca27befc555a48040  services_patched.jar
 3e5e452055308d5dee02340c2c69c39440bccd8968906e4ba5616dbea306e523  oplus-services_patched.jar
 2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so

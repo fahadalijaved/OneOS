@@ -245,8 +245,9 @@ android {
         // 0.3.5: Old stages (delete the stages Prepare moved aside).
         // 0.3.7: the Pixel 11 Fold image and its set on the Fold; the Find X9 Ultra IN image is gone.
         // 0.4.24: Pixel guests' camera calls with One UI's transaction codes (framework_patched.jar).
-        versionCode = 41
-        versionName = "0.4.25"
+        // 0.4.26: a native-only service fails to start in the guest (Chrome stalled every app start).
+        versionCode = 43
+        versionName = "0.4.26"
     }
 
     // One codebase, two apps (docs/app/DESIGN.md, 0.3.4): "full" is OneOS, the app

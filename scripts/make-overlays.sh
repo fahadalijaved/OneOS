@@ -185,6 +185,10 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_own_idmap.py" "$W
 # Ultra IN, session 77e7789e: system_server died 60 s into boot;
 # patches/guest_webview_zygote_safe.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_webview_zygote_safe.py" "$WORK/services")"
+# A native-only service fails to start instead of waiting on One UI's
+# zygote_next (S25 Ultra, Pixel 9 Pro XL, app 0.4.25: Chrome's renderer held
+# every process start of the session; patches/guest_no_native_services.py).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_native_services.py" "$WORK/services")"
 # The guest's own vold as "gvld", with vold_patched above; no guest call left
 # that reaches One UI's "vold" (patches/guest_own_vold.py).
 if [ "$VOLD_GVLD" = 1 ]; then
@@ -483,7 +487,7 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 # service.incremental_patched.so are listed with the services_patched.jar that
 # looks up "gvld": guest_prepare.sh binds all three or none of them.
 {
-    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000 and nousers guards"
+    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers and nativeservices guards"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
     [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
     [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
