@@ -38,6 +38,9 @@
 #   purge <name>                      delete one of those (0.3.5), after checks
 #   restore <name>                    use a set-aside stage again (0.4.10): the
 #                                     stage moves aside, oneos.old-<name> back
+#   remove                            delete everything OneOS put on the phone
+#                                     (0.4.25): every copy, the stage, the log
+#                                     capture and the session's helper files
 #
 # Writes: only under $STAGE. Documented exceptions, nothing else:
 #   - begin aside renames $STAGE to its sibling $STAGE.old-<epoch>;
@@ -48,6 +51,11 @@
 #     a session still open or one that never returned (a session earlier in
 #     this boot that returned is fine); if the second rename fails, the first
 #     is undone;
+#   - remove moves $DATA/local/tmp/oneos_logs and the session's six helper
+#     files there (adb_watchdog.sh/.log, ims_watchdog.sh/.log,
+#     ui_activator.log, restore_app.log) into the stage, purges every copy,
+#     then renames the stage to $STAGE.old-<epoch> and purges it, all after
+#     purge's and restore's checks for every one of them;
 #   - purge renames one oneos.old-<epoch>[-<pid>] to oneos.trash-<epoch>
 #     and deletes it, only when it is root's, not a link, nothing is mounted
 #     at or under it in any readable mount table, no loop device uses a file
@@ -59,7 +67,7 @@
 #   - before its verb, every run renames the stage and its copies from their
 #     names up to app 0.3.6 (lineage_stage, lineage_stage.old-*, .trash-*) to
 #     the OneOS names, each only while it is idle (migrate_legacy).
-# Apart from purge, nothing is ever deleted except this script's own files: incoming/*.part,
+# Apart from purge (and remove, through it), nothing is ever deleted except this script's own files: incoming/*.part,
 # incoming/plan and incoming/received, and an old system.raw that a new one
 # replaces (an image, never user data). Everything else that is in the way is
 # moved to $STAGE/attic/<epoch>/. Every refusal comes before the first change
@@ -108,7 +116,7 @@ SCRIPTS="oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_t
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
-SET_PIXEL="services_patched.jar vold_patched service.incremental_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
+SET_PIXEL="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
 ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_RETURN_MODE"
@@ -986,11 +994,9 @@ do_old_list() {
 }
 # The only deletion of user data in this script, and its audited exception
 # (StageAudit): OLDDIR is exactly $OLD_PARENT/<checked name>, TRASH its
-# oneos.trash-<epoch> sibling, rm -rf only on "$TRASH".
-do_purge() {
-    [ $# -eq 1 ] || usage "purge <name>"
-    old_name_ok "$1" || usage "purge: '$1' is not an old stage name"
-    mountinfo_ok
+# oneos.trash-<epoch> sibling, rm -rf only on "$TRASH". purge and remove
+# (each copy, and the stage once it is renamed to one) both go through it.
+purge_one() { # <name>, already old_name_ok
     asked=$1
     # Listed under its name up to 0.3.6 and renamed since (migrate_legacy).
     case "$1" in
@@ -1020,7 +1026,69 @@ do_purge() {
     rm -rf "$TRASH" || true
     [ ! -e "$TRASH" ] || die "could not delete all of ${TRASH#$T}; it stays as ${TRASH##*/}"
     say "@@RESULT purged $asked $kb"
-    say "@@OK purge $asked"
+}
+do_purge() {
+    [ $# -eq 1 ] || usage "purge <name>"
+    old_name_ok "$1" || usage "purge: '$1' is not an old stage name"
+    mountinfo_ok
+    purge_one "$1"
+    say "@@OK purge $1"
+}
+
+# Everything OneOS put on the phone (0.4.25, Advanced > Remove OneOS data;
+# owner: "remove the folders it creates ... clean stages, or whole OneOS
+# folders"): every old copy, the stage with the guest's data, the session's
+# log capture ($OLD_PARENT/oneos_logs) and the session's helper files in
+# $OLD_PARENT. Every check comes first, for all of them, so it refuses before
+# its first change: the stage as restore checks it (nothing mounted at or
+# under it anywhere, no loop device on its files, no session running or one
+# that never returned), no bridge up, each copy as purge checks it, and the log
+# folder root's with nothing mounted in it. The log folder and the helper files
+# are then moved into the stage (the only writes outside it: $LOGS and $HELPER,
+# exactly these names, StageAudit); the copies are purged, and the stage is
+# renamed to an old copy and purged like one (purge_one checks again before and
+# after its rename). Nothing else in /data/local/tmp is touched. This script
+# runs on from its open file once its folder is gone.
+do_remove() {
+    [ $# -eq 0 ] || usage "remove"
+    mountinfo_ok
+    restore_checks "$STAGE"
+    b=$(bridged | head -n 3 | tr '\n' ' ')
+    [ -z "$b" ] || refuse "still bridged from a session: $b- restart the phone first"
+    copies=""
+    for d in "$OLD_PARENT"/oneos.old-* "$OLD_PARENT"/oneos.trash-* "$OLD_PARENT"/lineage_stage.old-* "$OLD_PARENT"/lineage_stage.trash-*; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        old_name_ok "${d##*/}" || continue
+        old_checks "$d"
+        copies="$copies ${d##*/}"
+    done
+    LOGS="$OLD_PARENT/oneos_logs"
+    if [ -e "$LOGS" ] || [ -L "$LOGS" ]; then
+        [ -d "$LOGS" ] && [ ! -L "$LOGS" ] && [ "$(stat -c %u "$LOGS" 2>/dev/null)" = "$ROOT_UID" ] ||
+            refuse "${LOGS#$T} is not a root-owned folder"
+        m=$(mounted_anywhere "$LOGS" | head -n 3 | tr '\n' ' ')
+        [ -z "$m" ] || refuse "something is mounted in ${LOGS#$T}: $m- restart the phone first"
+    fi
+    kb=$(du -sk "$STAGE" 2>/dev/null | cut -f1)
+    is_dec "$kb" || kb=0
+    mkdir_mine "$STAGE/removed" || die "could not make the stage's removed folder"
+    if [ -d "$LOGS" ]; then
+        step "move ${LOGS#$T} into the stage"
+        mv "$LOGS" "$STAGE/removed/" || die "could not move ${LOGS#$T} into the stage"
+    fi
+    for HELPER in "$OLD_PARENT/adb_watchdog.sh" "$OLD_PARENT/adb_watchdog.log" "$OLD_PARENT/ims_watchdog.sh" "$OLD_PARENT/ims_watchdog.log" "$OLD_PARENT/ui_activator.log" "$OLD_PARENT/restore_app.log"; do
+        [ -f "$HELPER" ] || [ -L "$HELPER" ] || continue
+        mv "$HELPER" "$STAGE/removed/" || die "could not move ${HELPER#$T} into the stage"
+    done
+    for c in $copies; do purge_one "$c"; done
+    OLD="$STAGE.old-$(date +%s)"
+    [ -e "$OLD" ] && OLD="$OLD-$$"
+    [ ! -e "$OLD" ] || die "${OLD#$T} exists already; the copies are gone, the stage stays"
+    step "aside ${STAGE#$T}"
+    mv "$STAGE" "$OLD" || die "could not move the stage aside; the copies are gone, the stage stays"
+    purge_one "${OLD##*/}"
+    say "@@RESULT removed $kb"
+    say "@@OK remove"
 }
 
 # Use a set-aside stage again (0.4.10). Like purge's checks, but a session
@@ -1140,7 +1208,7 @@ migrate_legacy() { # <stage|copies>
 [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
 verb=$1
 case "$verb" in
-    begin|receive|keep-raw|table|env|finish|launch|recover|restore) migrate_legacy stage ;;
+    begin|receive|keep-raw|table|env|finish|launch|recover|restore|remove) migrate_legacy stage ;;
     old-list|purge) migrate_legacy copies ;;
 esac
 [ -d "$STAGE" ] && mine "$STAGE" || refuse "$STAGE is not root's folder"
@@ -1158,5 +1226,6 @@ case "$verb" in
     old-list) do_old_list "$@" ;;
     purge) do_purge "$@" ;;
     restore) do_restore "$@" ;;
+    remove) do_remove "$@" ;;
     *) usage "unknown verb '$verb'" ;;
 esac

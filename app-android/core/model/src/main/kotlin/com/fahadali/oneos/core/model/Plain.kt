@@ -281,6 +281,8 @@ object Plain {
             ImageIdentifier.R_NO_RAW, ImageIdentifier.R_RAW_NOT_OURS, ImageIdentifier.R_RAW_WRONG_PHONE, ImageIdentifier.R_RAW_DAMAGED ->
                 m("The system on this phone can't be used", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
             SwitchGates.R_IMAGE_NOT_IN_BUILD -> m("No system for this phone in this version", "Update OneOS.", FixAction.NONE)
+            // The series download: the finding names the right one.
+            SwitchGates.R_IMAGE_OTHER_SERIES -> m(f.title, f.detail, FixAction.NONE)
             // Switching: what is set up.
             SwitchGates.R_IMAGE_NOTHING -> m("Set up a system first", "Choose one and set it up. It takes about 15 minutes.", FixAction.CHOOSE_SYSTEM)
             SwitchGates.R_IMAGE_NOT_READ -> m("Couldn't check your phone", "Root didn't answer. Try again in a moment.", FixAction.TRY_AGAIN)

@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.23. Samsung flagships with Snapdragon, plus the first two
+App version 0.4.25. Samsung flagships with Snapdragon, plus the first two
 Exynos phones; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -76,6 +76,11 @@ a heat cap (Advanced > Cool down when hot):
 One UI's own heat control does not run in the other system, so from 45 °C
 OneOS slows the processor until the phone cools.
 
+Camera in the Pixel systems (0.4.24): the flashlight tile and apps that use
+the Camera2 API work (Open Camera: Settings › Camera API › Camera2). Apps
+that use the older camera API still fail; Pixel Camera itself needs Google's
+camera hardware support and will not work on a Galaxy.
+
 Known open issues for each system are in `docs/pixel-guest.md` and
 `docs/coloros-on-fold.md`.
 
@@ -111,7 +116,14 @@ release).
 
 **Then:**
 
-5. Install the OneOS app and allow it in your root manager.
+5. Install the OneOS app made for your phone's series and allow it in your
+   root manager. From 0.4.25 there are three downloads, each about half the
+   size of the old single app:
+   `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7),
+   `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26) and
+   `OneOS-<version>-s25.apk` (Galaxy S25 Ultra, S25+, S25, S24 Ultra, S23,
+   S23+, Z Flip7). Installed the wrong one? OneOS tells you which file your
+   phone needs.
 6. In OneOS open **Systems**, tap **Download** on the system made for your
    phone and download it, on Wi-Fi (3.3 to 5.3 GB).
 7. Back in OneOS tap **I have the file**, pick the download, then **Set up**.
@@ -123,6 +135,13 @@ release).
    **Power + Volume Down** to restart into One UI.
 
 If your root does not survive a restart, activate it again after you come back.
+
+**Removing OneOS:** in OneOS open **Advanced › Remove OneOS data**. It deletes
+everything OneOS put on the phone: the system you set up (with the apps and
+accounts in it), older copies and the session logs. It checks first that
+nothing of a session is still connected to One UI, and refuses otherwise. One
+UI and its data are not touched, and downloaded system files stay where you
+saved them. Then uninstall the app as usual.
 
 ## How it works
 

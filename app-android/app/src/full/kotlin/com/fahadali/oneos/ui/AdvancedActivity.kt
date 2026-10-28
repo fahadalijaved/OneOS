@@ -3,6 +3,8 @@ package com.fahadali.oneos.ui
 import android.content.Intent
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.Images
@@ -11,6 +13,7 @@ import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.OutcomeKind
 import com.fahadali.oneos.session.LogJob
 import com.fahadali.oneos.session.OldStagesJob
+import com.fahadali.oneos.session.RemoveJob
 import com.fahadali.oneos.session.SessionPrefs
 import com.fahadali.oneos.session.StageCheck
 import dev.oneuiproject.oneui.R as OuiIcons
@@ -41,6 +44,7 @@ class AdvancedFragment : CardsFragment() {
         subs += LogJob.observe { redraw() }
         subs += OldStagesJob.observe { redraw() }
         subs += StageCheck.observe { redraw() }
+        subs += RemoveJob.observe { redraw() }
     }
 
     override fun onResume() {
@@ -64,6 +68,15 @@ class AdvancedFragment : CardsFragment() {
         Cards.row(system, OuiIcons.drawable.ic_oui_refresh, getString(R.string.prepare_title), getString(R.string.advanced_setup_summary), open(PrepareActivity::class.java))
         Cards.row(system, OuiIcons.drawable.ic_oui_folder_open, getString(R.string.image_title), getString(R.string.advanced_file_summary), open(ImageActivity::class.java))
         Cards.row(system, OuiIcons.drawable.ic_oui_manage_storage_outline, getString(R.string.space_title), spaceSummary(), open(OldStagesActivity::class.java))
+        // Remove OneOS data (0.4.25): everything OneOS put on the phone, after root checks it all.
+        val removing = RemoveJob.state
+        if (removing.busy) {
+            CardRows.tint(Cards.row(system, OuiIcons.drawable.ic_oui_delete_outline, getString(R.string.remove_running), null), Level.INFO)
+        } else {
+            Cards.row(system, OuiIcons.drawable.ic_oui_delete_outline, getString(R.string.remove_title), removing.message ?: getString(R.string.remove_summary)) {
+                confirmRemove()
+            }
+        }
 
         // Sessions.
         val sessions = Cards.section(column, getString(R.string.advanced_card_sessions), rows = true)
@@ -95,6 +108,20 @@ class AdvancedFragment : CardsFragment() {
         // The technical screens, behind one entry.
         val team = Cards.section(column, title = null, rows = true)
         Cards.row(team, OuiIcons.drawable.ic_oui_tool_outline, getString(R.string.team_title), getString(R.string.advanced_team_summary), open(TeamActivity::class.java))
+    }
+
+    private fun confirmRemove() {
+        val ctx = context ?: return
+        if (!RemoveJob.canStart()) {
+            Toast.makeText(ctx, R.string.remove_busy, Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(ctx)
+            .setTitle(R.string.remove_confirm_title)
+            .setMessage(R.string.remove_confirm_message)
+            .setPositiveButton(R.string.remove_confirm_run) { _, _ -> RemoveJob.start(ctx) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** Free space, and the old copies when they were read (the Free up space screen reads them as root). */

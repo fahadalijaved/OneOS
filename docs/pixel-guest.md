@@ -956,6 +956,77 @@ needs the listener's 9 ignored and Samsung's five-field
 camera API1 clients go through the guest's native libraries, which were not
 looked at.
 
+The fix (0.4.24, untested on a phone): `switcher/patches/pixel_camera_abi.py`,
+table-driven like the installd bridge. The host table is
+`switcher/patches/host_camera.txt`, `scripts/aidl-table.py` on One UI 9's
+`framework.jar` (the Z Fold8 Ultra's, CP2A.260605.016; the other One UI 9 phones
+are expected to match, as installd's table did). For every interface in it the
+guest's `Stub$Proxy` gets the host's code in the `const` that feeds
+`IBinder.transact`, method by method, only with equal signatures; a guest-only
+method on a service interface stops the build. For the interfaces the host
+calls into the guest (`ICameraServiceListener`, `ICameraDeviceCallbacks`) a
+guest `onTransact` case whose code is another method on the host is dropped
+from the packed switch, so the call returns false instead of being misparsed.
+`CameraCompatibilityInfo` stops writing and reading its sixth field. The result
+is `framework_patched.jar` (`scripts/patch-framework-camera.sh`: the image's
+jar with only the changed dex files replaced, as the other patched jars),
+bound over the guest's `framework.jar` by `guest_prepare.sh` and pinned in
+`guards.txt`; `make-overlays.sh` builds it for any image without
+`oplus-services.jar`. A rebuild of the Pixel 11 sets needs their image or the
+jar from a stage on the phone (`oneos.old-*/system.raw`, mounted read-only).
+
+First run of the fix (S25 Ultra, Pixel 9 Pro XL, 0.4.24, bundle 6de3017c): the
+jar was bound, the flashlight tile works and the listener callbacks parse (the
+Java side is done); Open Camera in Camera2 mode works. In its default mode it
+still fails: "Connect camera (legacy API)" answered `EX_NULL_POINTER` by
+Samsung's camera service six times. That is the legacy camera API, marshalled
+by the guest's own native client library, `/system/lib64/libcamera_client.so`
+(`BpCameraService::connect`, with the native `CameraCompatibilityInfo`), which
+the jar patch does not touch. The NDK camera2 path rides on the same library.
+
+What is left, as a native overlay (`libcamera_client_patched.so`, bound and
+pinned like `vold_patched`, per image build): the same two changes as the Java
+side. In `BpCameraService` the four renumbered calls (createDefaultRequest,
+isSessionConfigurationWithParametersSupported, getSessionCharacteristics,
+warmUp) and in `BpCameraDeviceUser` the sixteen from getInputSurface to
+updateOutputConfigurations pass their code to `IBinder::transact` as an
+immediate; each becomes One UI's number from `host_camera.txt`. In the Pixel 9
+Pro XL build the native `CameraCompatibilityInfo::writeToParcel` writes the
+sixth field last; that write goes. `BnCameraServiceListener::onTransact` has
+the same code-9 case as the Java listener (NDK clients only). Both libraries
+(Pixel 11 build CD1A.261005.003.B1, Pixel 9 Pro XL CP3A.261005.005) are in the
+images; the Pixel 11 one can be read from the Fold's old stage like the jar.
+The "could not get camera service worker" lines in that bundle are One UI's
+cameraserver restarting after the return, not part of the failure.
+Until then: Camera2 apps work, legacy-API apps do not (Open Camera: Settings >
+Camera API > Camera2).
+
+The native overlay (unreleased, untested on a phone): `switcher/patches/pixel_camera_native.py`
+reads the library's dynamic symbols and aarch64 encodings with no disassembler.
+`BpCameraService` and `BpCameraDeviceUser` pass the code as `mov w1, #N` (the last
+one in each method): the 9 Pro XL's build gets exactly the Java patcher's changes
+(4 + 16 renumbered calls); `BnCameraServiceListener::onTransact`'s `cmp w1, #9;
+b.ne` becomes `b` (code 9 ignored); `libcameracompatbilityinfo.so`'s sixth field
+(`shouldOverrideLensFacingFrontToBack`, +0x1d) loses its last write and read call.
+`scripts/patch-camera-native.sh` builds `libcamera_client_patched.so` and
+`libcameracompatbilityinfo_patched.so`, `make-overlays.sh` runs it, `guest_prepare.sh`
+binds and checks them (guards.txt). `pixel_camera_native.py --dump lib.so` prints a
+library's Bp table.
+
+ColorOS (X9U image, OP61A9L1) is not AOSP's numbering either: ICameraService
+21-28 are Oplus's (`notifySmartWindowChange` 21, `notifyDisplayRotationChange` 22,
+`notifyDeviceStateChange` 23, ...) and ICameraDeviceUser 13-28 are one lower than
+One UI's, so the same renumbering applies; the two Oplus methods are void and go to
+code 200 (One UI answers "unknown transaction"). Its native
+CameraCompatibilityInfo already writes five fields, and its listener has no 9.
+`make-overlays.sh` now builds the camera files for ColorOS images too. Not yet
+done: the sets' file lists (`PackageSets.kt`, `SET_PIXEL`/`SET_COMMON`) and the
+rebuilt sets, and the Pixel 11 libraries (their images are gone: pull
+`/system/lib64/libcamera_client.so` and `libcameracompatbilityinfo.so` from the
+Fold's old stage like the jar). Still to check on the phone: the legacy
+`ICamera`/`ICameraClient` calls after connect (handwritten Bp classes in the same
+library; compare `--dump` of One UI's own libcamera_client.so with the guest's).
+
 Calls, Bluetooth and the speakers in the same session (nothing was paired and
 no call was made):
 - SIM 1 was in service on LTE with carrier aggregation, at 2-3 bars from

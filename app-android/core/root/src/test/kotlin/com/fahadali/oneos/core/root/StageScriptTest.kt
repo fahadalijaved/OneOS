@@ -254,7 +254,8 @@ class StageScriptTest {
         ok(s.receive("host_installd.txt"))
         refused(s.table("samsung/other/m3q:17/X:user/release-keys"), "not for this One UI build")
         // A file that is not in the set, and one that is too short or wrong.
-        assertTrue(RootScript.problems(RootScript.Verb.RECEIVE, listOf("framework_patched.jar", "1", "a".repeat(64))).isNotEmpty())
+        // 0.4.24: framework_patched.jar is a Pixel set file now; a name no set carries.
+        assertTrue(RootScript.problems(RootScript.Verb.RECEIVE, listOf("framework_other_patched.jar", "1", "a".repeat(64))).isNotEmpty())
         refused(s.receive("OneOSWallpapersFoldGrid.apk", "x".toByteArray()), "not a file of x9u-sultra")
         val b = s.files.getValue("art_payload.img")
         refused(s.receive("art_payload.img", b, send = b.copyOf(b.size - 3)), "arrived with")
@@ -371,6 +372,80 @@ class StageScriptTest {
         val trash = File(tmp, "oneos.trash-1792000200").apply { File(this, "x").mkdirs() }
         ok(fr.run(RootScript.Verb.PURGE, trash.name))
         assertFalse(trash.exists())
+    }
+
+    /** 0.4.25: remove deletes the stage, every copy, the log capture and the helper files, and nothing else. */
+    @Test
+    fun removeDeletesEverythingOursAndNothingElse() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val tmp = File(fr.root, "data/local/tmp")
+        val a = oldStage(fr, "oneos.old-1792000000")
+        oldStage(fr, "oneos.old-1792000100-12")
+        File(tmp, "oneos.trash-1792000200").apply { File(this, "x").mkdirs() }
+        File(tmp, "oneos_logs/head").mkdirs()
+        File(tmp, "oneos_logs/boot.log").writeText("log\n")
+        val helpers = listOf("adb_watchdog.sh", "adb_watchdog.log", "ims_watchdog.sh", "ims_watchdog.log", "ui_activator.log", "restore_app.log")
+        for (h in helpers) File(tmp, h).writeText("x\n")
+        // Not ours: kept, also through links inside what is deleted.
+        val tunnel = File(tmp, "oneos_tunnel").apply { mkdirs(); File(this, "key").writeText("k\n") }
+        File(tmp, "oneos.other").mkdirs()
+        File(tmp, "lineage_backups/b").mkdirs()
+        File(tmp, "notes.txt").writeText("n\n")
+        java.nio.file.Files.createSymbolicLink(File(fr.stage, "tunnel_link").toPath(), tunnel.toPath())
+        java.nio.file.Files.createSymbolicLink(File(a, "data/tunnel_link").toPath(), tunnel.toPath())
+
+        val r = fr.run(RootScript.Verb.REMOVE)
+        ok(r)
+        assertTrue(r.toString(), r.reply.results.any { it.startsWith("removed ") })
+        assertFalse(fr.stage.exists())
+        assertEquals(
+            setOf("oneos_tunnel", "oneos.other", "lineage_backups", "notes.txt"),
+            tmp.list()!!.toSet(),
+        )
+        assertEquals("k\n", File(tunnel, "key").readText())
+        assertTrue(File(tmp, "lineage_backups/b").isDirectory)
+    }
+
+    @Test
+    fun removeRefusesEveryUnsafeCaseAndChangesNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val tmp = File(fr.root, "data/local/tmp")
+        val old = oldStage(fr, "oneos.old-1792000000")
+        File(tmp, "oneos_logs").mkdirs()
+        val before = fr.snapshot()
+        fun removeRefused(part: String) {
+            refused(fr.run(RootScript.Verb.REMOVE), part)
+            assertEquals(before, fr.snapshot())
+        }
+        // Mounted in the stage, in a copy or in the log folder.
+        fr.mountinfo(listOf("${fr.stage.path}/rootfs"))
+        removeRefused("mounted")
+        fr.mountinfo(listOf("${old.path}/data"))
+        removeRefused("mounted")
+        fr.mountinfo(listOf("${tmp.path}/oneos_logs/x"))
+        removeRefused("mounted")
+        fr.mountinfo(emptyList())
+        // A loop device on the staged image.
+        File(fr.root, "sys/block/loop0/loop/backing_file").writeText("${fr.stage.path}/system.raw\n")
+        removeRefused("loop device")
+        File(fr.root, "sys/block/loop0/loop/backing_file").delete()
+        // A host /data tree still bridged.
+        fr.mountinfo(listOf("${fr.root.path}/data/app"))
+        removeRefused("still bridged")
+        fr.mountinfo(emptyList())
+        // A session running now, or one that never returned.
+        File(fr.stage, "guest_props.boot").writeText("11111111-2222-3333-4444-555555555555\n")
+        refused(fr.run(RootScript.Verb.REMOVE), "session running")
+        File(fr.stage, "guest_props.boot").delete()
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=99999999-0000-0000-0000-000000000000\n")
+        refused(fr.run(RootScript.Verb.REMOVE), "never returned")
+        File(fr.stage, "persist_session.active").delete()
+        assertEquals(before, fr.snapshot())
+        // No arguments.
+        assertTrue(RootScript.problems(RootScript.Verb.REMOVE, listOf("x")).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.REMOVE, emptyList()))
     }
 
     /** 0.4.10: restore puts a set-aside stage back and keeps the one set up now as another old copy. */

@@ -29,7 +29,7 @@ class PackageSetsTest {
     fun setsAsData() {
         assertEquals(25, n6.files.size)
         assertEquals(24, x9u.files.size)
-        assertEquals(34, pixel.files.size)
+        assertEquals(35, pixel.files.size) // 0.4.24: framework_patched.jar (One UI's camera transaction codes)
         assertEquals(Images.ID_FIND_N6, n6.imageId)
         assertEquals(Images.ID_FIND_X9U, x9u.imageId)
         assertEquals(Images.ID_PIXEL_YOGI, pixel.imageId)
@@ -134,6 +134,7 @@ class PackageSetsTest {
     fun pixelSetIsWhatAPixelSessionUses() {
         val roles = pixel.files.associate { it.name to it.role }
         assertEquals(FileRole.GUARD_JAR, roles["services_patched.jar"])
+        assertEquals(FileRole.GUARD_JAR, roles["framework_patched.jar"])
         assertEquals(FileRole.GUARD_EXECUTABLE, roles["vold_patched"])
         assertEquals(FileRole.GUARD_LIBRARY, roles["service.incremental_patched.so"])
         assertEquals(FileRole.INJECTION_JAR, roles["oneos-telephony.jar"])
@@ -141,7 +142,7 @@ class PackageSetsTest {
         assertEquals(FileRole.RRO, roles["OneOSPhoneInjection.apk"])
         assertEquals(FileRole.RRO, roles["OneOSPixelStatusBar.apk"])
         assertEquals(FileRole.GUEST_APP, roles[PackageSets.GUEST_APP])
-        assertEquals(listOf("services_patched.jar", "vold_patched", "service.incremental_patched.so"), pixel.files.filter { it.role in PackageFile.GUARDED }.map { it.name })
+        assertEquals(listOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so"), pixel.files.filter { it.role in PackageFile.GUARDED }.map { it.name })
         assertEquals("0755", pixel.file("vold_patched")!!.mode)
         assertEquals("0644", pixel.file("service.incremental_patched.so")!!.mode)
         // 22 payloads: every set's 15, Google's cellbroadcast/bt/nfcservices, the image's own
@@ -220,7 +221,7 @@ class PackageSetsTest {
     fun pixelGuardsPinTheGuestVoldToo() {
         val g = guards(pixel)
         val sums = shas(pixel)
-        assertEquals(setOf("services_patched.jar", "vold_patched", "service.incremental_patched.so"), ShaList.parse(g).entries.keys)
+        assertEquals(setOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so"), ShaList.parse(g).entries.keys)
         assertTrue(g.lines().first().startsWith("#"))
         assertEquals(emptyList<String>(), pixel.checkGuards(g, sums))
         // Only one of the two gvld binaries (a half-built set): refused, as the session scripts do.

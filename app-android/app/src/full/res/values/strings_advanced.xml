@@ -35,6 +35,13 @@
     <string name="advanced_before_summary">What can break, backups and the screen lock</string>
     <string name="advanced_about_summary">Version, safety and credits</string>
     <string name="advanced_team_summary">Technical screens, for when the OneOS team asks</string>
+    <string name="remove_title">Remove OneOS data</string>
+    <string name="remove_summary">Delete the system, old copies and logs OneOS put on this phone</string>
+    <string name="remove_running">Removing OneOS data…</string>
+    <string name="remove_busy">OneOS is busy with your phone. Try again in a moment.</string>
+    <string name="remove_confirm_title">Remove all OneOS data?</string>
+    <string name="remove_confirm_message">This deletes everything OneOS put on this phone: the system you set up, with the apps and accounts in it, every old copy, and the session logs. One UI and its apps and data are not touched. OneOS stays installed, and downloaded system files stay where you saved them. This can\'t be undone.</string>
+    <string name="remove_confirm_run">Remove</string>
 
     <!-- For the OneOS team -->
     <string name="team_title">For the OneOS team</string>

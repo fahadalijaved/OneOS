@@ -267,6 +267,8 @@ object PackageSets {
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */
     private val PIXEL_FILES: List<PackageFile> = listOf(
         PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+        // 0.4.24: the image's framework.jar with One UI's camera transaction codes (pixel_camera_abi.py).
+        PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
         PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
         PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
         PackageFile("guards.txt", FileRole.GUARDS),

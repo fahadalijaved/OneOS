@@ -444,12 +444,35 @@ else
 fi
 rm -rf "$WORK/inj" "$WORK/TeleService.apk" "$WORK/telephony-common.jar"
 
+# A Pixel (AOSP) or ColorOS guest's camera calls with One UI's transaction codes
+# (patches/pixel_camera_abi.py and pixel_camera_native.py, docs/pixel-guest.md
+# "What differs"): the image's framework.jar as framework_patched.jar and its
+# native client libraries as libcamera_client_patched.so and
+# libcameracompatbilityinfo_patched.so (the legacy camera API and the NDK ride
+# on those). guest_prepare.sh binds them and guards.txt pins them. ColorOS's
+# ICameraService has Oplus methods and its own numbering (21-28), the same
+# treatment as the Pixels'. scripts/patch-framework-camera.sh and
+# patch-camera-native.sh do the same for a set whose image is no longer on the
+# server, from files pulled from the phone.
+rm -f "$OUT/framework_patched.jar" "$OUT/libcamera_client_patched.so" "$OUT/libcameracompatbilityinfo_patched.so"
+if in_image /system/framework/framework.jar; then
+    "$DEBUGFS" -R "dump /system/framework/framework.jar $WORK/framework-cam.jar" "$IMG" 2>/dev/null
+    "$ROOT/scripts/patch-framework-camera.sh" "$WORK/framework-cam.jar" "$OUT"
+    rm -f "$WORK/framework-cam.jar"
+fi
+if in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
+    "$DEBUGFS" -R "dump /system/lib64/libcamera_client.so $WORK/libcamera_client.so" "$IMG" 2>/dev/null
+    "$DEBUGFS" -R "dump /system/lib64/libcameracompatbilityinfo.so $WORK/libcameracompatbilityinfo.so" "$IMG" 2>/dev/null
+    "$ROOT/scripts/patch-camera-native.sh" "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so" "$OUT"
+    rm -f "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so"
+fi
+
 # ART rejects a whole class for an empty try range, which a patcher leaves when
 # it drops the only call inside a try block (run 26: Installer, system_server
 # died at boot). Fail the build instead.
 JARS=""
 for j in services_patched.jar oplus-services_patched.jar ims-ext-common_patched.jar oplus-telephony-common_patched.jar \
-         oneos-telephony.jar; do
+         oneos-telephony.jar framework_patched.jar; do
     [ -f "$OUT/$j" ] && JARS="$JARS $OUT/$j"
 done
 python3 -I "$ROOT/scripts/check-dex.py" $JARS
@@ -462,8 +485,13 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 {
     echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000 and nousers guards"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
+    [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
+    [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
     (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
-        $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so))
+        $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
+        $([ -f framework_patched.jar ] && echo framework_patched.jar) \
+        $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
+        $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
 } > "$OUT/guards.txt"
 
 # surfaceflinger: skip the Qualcomm composer extension client, so every frame

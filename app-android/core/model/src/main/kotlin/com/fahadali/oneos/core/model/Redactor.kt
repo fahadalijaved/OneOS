@@ -129,6 +129,77 @@ class Redactor(private val salt: ByteArray) {
         val ignoreCase: Boolean get() = kind in CASE_FREE
     }
 
+    /**
+     * What a line holds, read in one pass, so a rule skips a line it cannot match
+     * (0.4.25: every rule scanned every line, and a session's 180 MB log capture
+     * took minutes to read). Only for ASCII lines: with letters outside ASCII,
+     * `(?i)` and `ignoreCase` also match other spellings (`ſ` for `s`), so every
+     * rule runs as before.
+     */
+    private class Shape(val s: String) {
+        val ascii: Boolean
+        /** The longest run of digits 0-9 (`\d`). */
+        val digits: Int
+        /** The longest chain of hex pairs each followed by `:` or `-` (`a4:c3:`... of a MAC address has 5). */
+        val pairs: Int
+
+        /** The longest run of digits right after a `.` (`48.1234` has 4). */
+        val decimals: Int
+
+        init {
+            var a = true
+            var run = 0
+            var longest = 0
+            var chain = 0
+            var lastSep = -4
+            var most = 0
+            var afterDot = false
+            var dec = 0
+            for (i in s.indices) {
+                val c = s[i]
+                if (c.code >= 0x80) a = false
+                if (c in '0'..'9') {
+                    run++
+                    if (run > longest) longest = run
+                    if (afterDot && run > dec) dec = run
+                } else {
+                    run = 0
+                    afterDot = c == '.'
+                    if ((c == ':' || c == '-') && i >= 2 && hex(s[i - 1]) && hex(s[i - 2])) {
+                        chain = if (lastSep == i - 3) chain + 1 else 1
+                        lastSep = i
+                        if (chain > most) most = chain
+                    }
+                }
+            }
+            ascii = a
+            digits = longest
+            pairs = most
+            decimals = dec
+        }
+
+        private fun hex(c: Char) = c in '0'..'9' || c in 'a'..'f' || c in 'A'..'F'
+
+        /** The line in lower case (ASCII lines only, where [has] uses it). */
+        val lower: String by lazy(LazyThreadSafetyMode.NONE) { s.lowercase(Locale.ROOT) }
+
+        fun has(text: String) = s.contains(text)
+
+        /** [text] right before a character [next] accepts (`+` before `1`-`9`). */
+        fun hasBefore(text: String, next: (Char) -> Boolean): Boolean {
+            var i = s.indexOf(text)
+            while (i >= 0) {
+                val j = i + text.length
+                if (j < s.length && next(s[j])) return true
+                i = s.indexOf(text, i + 1)
+            }
+            return false
+        }
+
+        /** [text] in lower case: true when the line holds it in any letter case. */
+        fun hasAnyCase(text: String) = lower.contains(text)
+    }
+
     private val known = LinkedHashMap<String, Known>()
     private var knownSorted: List<Map.Entry<String, Known>>? = null
 
@@ -226,7 +297,7 @@ class Redactor(private val salt: ByteArray) {
 
     /** Any other text file. `prop.name=value` lines get the key-name rules too. */
     fun redactText(text: String, file: String): String =
-        text.split('\n').joinToString("\n") { redactLine(it, file) }
+        if ('\n' !in text) redactLine(text, file) else text.split('\n').joinToString("\n") { redactLine(it, file) }
 
     private fun redactLine(line: String, file: String): String {
         val kv = KEY_VALUE_LINE.matchEntire(line)
@@ -256,9 +327,23 @@ class Redactor(private val salt: ByteArray) {
     /** [context]: the property name of a getprop value, for rules that look at the whole line. */
     private fun redactValue(input: String, file: String, context: String? = null): String {
         var s = input
-        for (rule in VALUE_RULES) s = rule.apply(s, file, context)
+        var shape = Shape(s)
+        for (rule in VALUE_RULES) {
+            if (shape.ascii && !rule.could(shape)) continue
+            val t = rule.apply(s, file, context)
+            if (t != s) {
+                s = t
+                shape = Shape(s)
+            }
+        }
         for ((value, k) in sortedKnown()) {
-            if (!s.contains(value, ignoreCase = k.ignoreCase)) continue
+            if (shape.s !== s) shape = Shape(s)
+            val present = when {
+                !k.ignoreCase -> s.contains(value)
+                shape.ascii && value.all { it.code < 0x80 } -> shape.hasAnyCase(value.lowercase(Locale.ROOT))
+                else -> s.contains(value, ignoreCase = true)
+            }
+            if (!present) continue
             val t = token(k.kind, k.canonical)
             var from = 0
             while (true) {
@@ -375,6 +460,8 @@ class Redactor(private val salt: ByteArray) {
         /** Only lines that also match this (null = every line). */
         val onlyIn: Regex? = null,
         val accept: (String) -> Boolean = { true },
+        /** False only when [regex] cannot match an ASCII line of this [Shape] (text it needs is not there). */
+        val could: (Shape) -> Boolean = { true },
     ) {
         fun apply(s: String, file: String, context: String? = null): String {
             if (!regex.containsMatchIn(s)) return s
@@ -407,14 +494,20 @@ class Redactor(private val salt: ByteArray) {
             Regex("""(?<![A-Za-z0-9._%+@-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?![A-Za-z0-9@-]|\.[A-Za-z0-9])"""),
             group = 0,
             accept = { it.substringAfterLast('.').lowercase(Locale.ROOT) !in FILE_EXTENSIONS },
+            could = { it.has("@") },
         ),
-        ValueRule(RedactionKind.ACCOUNT, Regex("""Account \{name=([^,}]+)""")),
+        ValueRule(RedactionKind.ACCOUNT, Regex("""Account \{name=([^,}]+)"""), could = { it.has("Account {name=") }),
         ValueRule(
             RedactionKind.ACCOUNT,
             Regex("""(?i)\b(?:account_?name|account)["']?[ \t]*[=:][ \t]*"?([^\s",}<>\]]+)"""),
             accept = { it.length >= 3 && !TRIVIAL.matches(it) },
+            could = { it.hasAnyCase("account") },
         ),
-        ValueRule(RedactionKind.BSSID, Regex("""(?i)\bbssid["']?[ \t]*[=:][ \t]*"?((?:[0-9A-F]{2}[:-]){5}[0-9A-F]{2})""")),
+        ValueRule(
+            RedactionKind.BSSID,
+            Regex("""(?i)\bbssid["']?[ \t]*[=:][ \t]*"?((?:[0-9A-F]{2}[:-]){5}[0-9A-F]{2})"""),
+            could = { it.pairs >= 5 && it.hasAnyCase("bssid") },
+        ),
         // A prefix such as `wifi:` (Wi-Fi display ids) or `mac:` may touch the address; a
         // hex pair before it (`11:` of a longer colon run) may not.
         ValueRule(
@@ -424,32 +517,57 @@ class Redactor(private val salt: ByteArray) {
                     """(?![0-9A-Za-z]|[:-][0-9A-Fa-f])""",
             ),
             accept = { it.lowercase(Locale.ROOT).replace('-', ':') !in MAC_PLACEHOLDERS },
+            could = { it.pairs >= 5 },
         ),
         // Input devices: a USB accessory's serial number (Bluetooth ones hold a MAC, removed above).
-        ValueRule(RedactionKind.SERIAL, Regex("""\bUniq=([^\s<]\S*)""")),
+        ValueRule(RedactionKind.SERIAL, Regex("""\bUniq=([^\s<]\S*)"""), could = { it.has("Uniq=") }),
         // The names of virtual displays (Smart View, a TV's name) and Wi-Fi displays.
-        ValueRule(RedactionKind.DEVICE_NAME, Regex("""\buniqueId[=' "]{1,3}virtual:[^,"'\n]*,\d+,([^"'\n]+),\d+["']""")),
+        ValueRule(
+            RedactionKind.DEVICE_NAME,
+            Regex("""\buniqueId[=' "]{1,3}virtual:[^,"'\n]*,\d+,([^"'\n]+),\d+["']"""),
+            could = { it.has("uniqueId") },
+        ),
         ValueRule(
             RedactionKind.DEVICE_NAME,
             Regex("""\{"([^"\n]+)"[:,](?=[^\n]*?\buniqueId[=' "]{1,3}(?:virtual|wifi):)"""),
+            could = { it.has("uniqueId") },
         ),
-        ValueRule(RedactionKind.EID, Regex("""(?<![0-9A-Za-z])(89\d{30})(?![0-9A-Za-z])""")),
-        ValueRule(RedactionKind.ICCID, Regex("""(?<![0-9A-Za-z])(89\d{17,18}[0-9Ff]?)(?![0-9A-Za-z])""")),
-        ValueRule(RedactionKind.IMSI, Regex("""(?i)imsi[^0-9\n]{0,20}?(\d{14,15})(?!\d)""")),
-        ValueRule(RedactionKind.MEID, Regex("""(?i)meid[^0-9A-Za-z\n]{0,20}([0-9A-Fa-f]{14}|\d{18})(?![0-9A-Za-z])""")),
-        ValueRule(RedactionKind.IMEI, Regex("""(?i)imei[^0-9\n]{0,20}?(\d{14,16})(?!\d)""")),
-        ValueRule(RedactionKind.IMEI, Regex("""(?<![0-9A-Za-z.])(\d{15})(?![0-9A-Za-z.])"""), accept = { luhn(it) }),
+        ValueRule(RedactionKind.EID, Regex("""(?<![0-9A-Za-z])(89\d{30})(?![0-9A-Za-z])"""), could = { it.digits >= 32 }),
+        ValueRule(RedactionKind.ICCID, Regex("""(?<![0-9A-Za-z])(89\d{17,18}[0-9Ff]?)(?![0-9A-Za-z])"""), could = { it.digits >= 19 }),
+        ValueRule(
+            RedactionKind.IMSI,
+            Regex("""(?i)imsi[^0-9\n]{0,20}?(\d{14,15})(?!\d)"""),
+            could = { it.digits >= 14 && it.hasAnyCase("imsi") },
+        ),
+        ValueRule(
+            RedactionKind.MEID,
+            Regex("""(?i)meid[^0-9A-Za-z\n]{0,20}([0-9A-Fa-f]{14}|\d{18})(?![0-9A-Za-z])"""),
+            could = { it.hasAnyCase("meid") },
+        ),
+        ValueRule(
+            RedactionKind.IMEI,
+            Regex("""(?i)imei[^0-9\n]{0,20}?(\d{14,16})(?!\d)"""),
+            could = { it.digits >= 14 && it.hasAnyCase("imei") },
+        ),
+        ValueRule(
+            RedactionKind.IMEI,
+            Regex("""(?<![0-9A-Za-z.])(\d{15})(?![0-9A-Za-z.])"""),
+            accept = { luhn(it) },
+            could = { it.digits >= 15 },
+        ),
         ValueRule(
             RedactionKind.SERIAL,
             Regex("""(?i)\bserial(?:[ _]?no|[ _]?number)?["']?[ \t]*[=:][ \t]*["']?([A-Za-z0-9]{6,})"""),
+            could = { it.hasAnyCase("serial") },
         ),
-        ValueRule(RedactionKind.PHONE, Regex("""(?<![\w+])(\+[1-9](?:[ -]?\d){7,14})(?!\d)""")),
-        ValueRule(RedactionKind.PHONE, Regex("""(?<![\w+])((?:00)?966[ -]?5(?:[ -]?\d){8})(?!\d)""")),
-        ValueRule(RedactionKind.PHONE, Regex("""(?<![\w+.])(05\d(?:[ -]?\d){7})(?![\w.])""")),
+        ValueRule(RedactionKind.PHONE, Regex("""(?<![\w+])(\+[1-9](?:[ -]?\d){7,14})(?!\d)"""), could = { s -> s.hasBefore("+") { it in '1'..'9' } }),
+        ValueRule(RedactionKind.PHONE, Regex("""(?<![\w+])((?:00)?966[ -]?5(?:[ -]?\d){8})(?!\d)"""), could = { s -> s.hasBefore("966") { it == '5' || it == ' ' || it == '-' } }),
+        ValueRule(RedactionKind.PHONE, Regex("""(?<![\w+.])(05\d(?:[ -]?\d){7})(?![\w.])"""), could = { s -> s.hasBefore("05") { it in '0'..'9' } }),
         ValueRule(
             RedactionKind.SSID,
             Regex("""(?i)\bssid["']?[ \t]*[=:][ \t]*("[^"\n]*"|[^\s,}\]]+)"""),
             accept = { it != "\"\"" },
+            could = { it.hasAnyCase("ssid") },
         ),
         // An unlabelled pair only on a line about a location: refresh rates
         // (60.00001, 48.000008) and cutout paths (192.6666666666667,0) are pairs too.
@@ -458,10 +576,19 @@ class Redactor(private val salt: ByteArray) {
             Regex("""(?<![\d.])(-?\d{1,3}\.\d{4,}[ \t]*,[ \t]*-?\d{1,3}\.\d{4,})(?![\d.])"""),
             onlyIn = LOCATION_CONTEXT,
             accept = { plausibleLatLon(it) },
+            could = { it.decimals >= 4 && it.has(",") },
         ),
-        ValueRule(RedactionKind.GEO, Regex("""(?i)\b(?:lat|lon|lng|latitude|longitude)["']?[ \t]*[=:][ \t]*(-?\d{1,3}\.\d+)""")),
+        ValueRule(
+            RedactionKind.GEO,
+            Regex("""(?i)\b(?:lat|lon|lng|latitude|longitude)["']?[ \t]*[=:][ \t]*(-?\d{1,3}\.\d+)"""),
+            could = { it.decimals >= 1 && (it.hasAnyCase("lat") || it.hasAnyCase("lon") || it.hasAnyCase("lng")) },
+        ),
         // Cell ids (CellIdentity* toString) place the phone within a few hundred metres.
-        ValueRule(RedactionKind.GEO, Regex("""\bm(?:Ci|Pci|Tac|Lac|Nci|Cid)=(\d{2,})""")),
+        ValueRule(
+            RedactionKind.GEO,
+            Regex("""\bm(?:Ci|Pci|Tac|Lac|Nci|Cid)=(\d{2,})"""),
+            could = { s -> CELL_KEYS.any { s.has(it) } },
+        ),
     )
 
     companion object {
@@ -487,6 +614,7 @@ class Redactor(private val salt: ByteArray) {
 
         /** A replacement this redactor wrote: `<kind:6 hex>`. */
         private val TOKEN = Regex("<[a-z-]+:[0-9a-f]{6}>")
+        private val CELL_KEYS = listOf("mCi=", "mPci=", "mTac=", "mLac=", "mNci=", "mCid=")
 
         private val PROP_LINE = Regex("""^\[([^\]]+)]: \[(.*)]$""")
         private val PROP_START = Regex("""^\[([^\]]+)]: \[(.*)$""")

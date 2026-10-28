@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.SystemClock
 import com.fahadali.oneos.BuildConfig
 import com.fahadali.oneos.core.device.FactProbe
+import com.fahadali.oneos.core.model.ApkSeries
 import com.fahadali.oneos.core.model.ClassPath
 import com.fahadali.oneos.core.model.DeviceFacts
 import com.fahadali.oneos.core.model.Finding
@@ -212,6 +213,7 @@ object StageCheck : BackgroundJob<StageCheck.State>(State(), "oneos-check") {
             reclaimBytes = reclaimBytes,
             appVersionCode = BuildConfig.VERSION_CODE,
             uncollectedLogs = launch != null && !launch.logsCollected && launch.rebootedSince(),
+            series = ApkSeries.byId(BuildConfig.SERIES),
         )
         return SwitchGates.evaluate(phase, input)
     }

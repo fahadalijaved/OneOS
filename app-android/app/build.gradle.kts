@@ -51,6 +51,21 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
     "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo") to listOf("tethering_payload.img")),
 )
+// The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
+// app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
+// ApkSeriesTest), the full edition's version name ends in "-<id>" and
+// BuildConfig.SERIES names it. Without the property: every set, SERIES "".
+val seriesId: String? = (findProperty("oneos.series") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+val seriesSets: Map<String, Set<String>> = File(packagesDir, "series.txt").readLines()
+    .map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+    .associate { l -> l.split(Regex("\\s+")).let { it.first() to it.drop(1).toSet() } }
+val packedSets: Set<String> = if (seriesId == null) {
+    packageSets.keys
+} else {
+    val sets = seriesSets[seriesId] ?: throw GradleException("oneos.series: '$seriesId' is not in packages/series.txt (${seriesSets.keys})")
+    (sets - packageSets.keys).takeIf { it.isNotEmpty() }?.let { throw GradleException("packages/series.txt: $seriesId names unknown sets $it") }
+    sets
+}
 // Session scripts copied from switcher/assets at build time (plus the expected
 // installd table). oneos_tunnel.sh (the server tunnel) and 7zz are never shipped.
 val sessionScripts: Map<String, File> = linkedMapOf(
@@ -200,10 +215,10 @@ abstract class OneOsFilesTask : DefaultTask() {
 val oneosFiles = tasks.register<OneOsFilesTask>("oneosFiles") {
     group = "build"
     description = "Packs the OneOS package sets and session scripts into the APK's assets, checked against app-android/packages."
-    for ((dir, _) in packageSets.values) sources.from(fileTree(dir))
+    for ((dir, _) in packageSets.filterKeys { it in packedSets }.values) sources.from(fileTree(dir))
     for (f in sessionScripts.values) sources.from(f)
     sources.from(fileTree(File(repoRoot, "switcher/assets")))
-    sets.set(packageSets.mapValues { (_, v) -> "${v.first.path}|${v.second.joinToString(",")}" })
+    sets.set(packageSets.filterKeys { it in packedSets }.mapValues { (_, v) -> "${v.first.path}|${v.second.joinToString(",")}" })
     scripts.set(sessionScripts.mapValues { it.value.path })
     notShipped.set(switcherNotShipped)
     packages.set(packagesDir)
@@ -229,8 +244,9 @@ android {
         // 0.3.4: the Galaxy S25 profile, and OneOS Probe as its own app (flavor probe).
         // 0.3.5: Old stages (delete the stages Prepare moved aside).
         // 0.3.7: the Pixel 11 Fold image and its set on the Fold; the Find X9 Ultra IN image is gone.
-        versionCode = 38
-        versionName = "0.4.23"
+        // 0.4.24: Pixel guests' camera calls with One UI's transaction codes (framework_patched.jar).
+        versionCode = 41
+        versionName = "0.4.25"
     }
 
     // One codebase, two apps (docs/app/DESIGN.md, 0.3.4): "full" is OneOS, the app
@@ -247,6 +263,8 @@ android {
             buildConfigField("String", "ROOT_SCRIPT_SHA256", "\"${sha256(rootBytes)}\"")
             buildConfigField("long", "ROOT_SCRIPT_BYTES", "${rootBytes.size}L")
             buildConfigField("String", "SCRIPTS_SHA256", "\"${sha256(scriptsList.toByteArray())}\"")
+            buildConfigField("String", "SERIES", "\"${seriesId.orEmpty()}\"")
+            if (seriesId != null) versionNameSuffix = "-$seriesId"
             for ((id, _) in packageSets) {
                 val f = File(packagesDir, "$id.sha256")
                 val list = if (f.isFile) renderShaList(readShaList(f)) else ""

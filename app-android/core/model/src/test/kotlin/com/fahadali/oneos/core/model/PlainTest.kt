@@ -32,7 +32,7 @@ class PlainTest {
         add(SwitchGates.ID_FORM, Level.BLOCK, SwitchGates.R_FORM_MISMATCH)
         add(
             SwitchGates.ID_IMAGE, Level.BLOCK,
-            SwitchGates.R_IMAGE_NOT_IN_BUILD, SwitchGates.R_IMAGE_NONE, SwitchGates.R_IMAGE_NOT_READ, SwitchGates.R_IMAGE_NOTHING,
+            SwitchGates.R_IMAGE_NOT_IN_BUILD, SwitchGates.R_IMAGE_OTHER_SERIES, SwitchGates.R_IMAGE_NONE, SwitchGates.R_IMAGE_NOT_READ, SwitchGates.R_IMAGE_NOTHING,
             SwitchGates.R_IMAGE_OTHER_PHONE, SwitchGates.R_IMAGE_OTHER_VERSION, SwitchGates.R_IMAGE_OTHER_SET, SwitchGates.R_IMAGE_FILES_CHANGED,
             ImageIdentifier.R_SIZE_UNKNOWN, ImageIdentifier.R_UNCOMPRESSED, ImageIdentifier.R_NOT_OURS, ImageIdentifier.R_WRONG_PHONE,
             ImageIdentifier.R_NOT_CHECKED, ImageIdentifier.R_DAMAGED, ImageIdentifier.R_NO_RAW, ImageIdentifier.R_RAW_NOT_OURS,

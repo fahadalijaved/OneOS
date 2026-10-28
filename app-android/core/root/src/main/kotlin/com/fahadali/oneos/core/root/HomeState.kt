@@ -210,7 +210,8 @@ data class HomeState(
             // 4. Not a phone, Android, form or One UI this build switches on (or no system for it in this build).
             UNSUPPORTED_GATES.firstNotNullOfOrNull { id -> r.gates.firstOrNull { it.id == id && it.level == Level.BLOCK }?.finding }
                 ?.let { return state(Kind.UNSUPPORTED, it) }
-            block(SwitchGates.ID_IMAGE)?.takeIf { it.reason == SwitchGates.R_IMAGE_NOT_IN_BUILD }?.let { return state(Kind.UNSUPPORTED, it) }
+            block(SwitchGates.ID_IMAGE)?.takeIf { it.reason == SwitchGates.R_IMAGE_NOT_IN_BUILD || it.reason == SwitchGates.R_IMAGE_OTHER_SERIES }
+                ?.let { return state(Kind.UNSUPPORTED, it) }
             // 5. The old switcher.
             block(SwitchGates.ID_OLD_SWITCHER)?.let { return state(Kind.OLD_SWITCHER, it) }
             // 6. Something of the last session is still in place, or the stage could not be read.

@@ -85,7 +85,7 @@ fi
 # oplus-services_patched.jar too when guards.txt lists it; an image with
 # oplus-services.jar is refused below unless that one is bound. So are
 # vold_patched and service.incremental_patched.so (the guest vold as "gvld").
-for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" { print $2 }' "$STAGE/guards.txt"); do
+for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" || $2 == "framework_patched.jar" || $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" { print $2 }' "$STAGE/guards.txt"); do
     sum=$(awk -v n="$need" '$2 == n {print $1}' "$STAGE/guards.txt")
     if [ -z "$sum" ] || [ "$(sha256sum "$STAGE/$need" 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         echo "ERROR: $STAGE/$need missing or not the guarded build in guards.txt; not starting the guest"
@@ -911,11 +911,25 @@ if [ "${ONEOS_GUEST_SEAPP:-1}" = 1 ]; then
         done
     fi
 fi
+# framework_patched.jar: a Pixel guest's framework.jar with One UI's camera
+# transaction codes (patches/pixel_camera_abi.py). Listed in guards.txt and
+# checked above, so a stage that has the jar binds the one the set was built
+# with or does not start.
 if [ -f "$STAGE/framework_patched.jar" ]; then
     $BB umount -l "$ROOTFS/system/framework/framework.jar" 2>/dev/null || true
     $BB mount --bind "$STAGE/framework_patched.jar" "$ROOTFS/system/framework/framework.jar"
     echo "Bound framework_patched.jar -> $ROOTFS/system/framework/framework.jar"
 fi
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the guest's
+# native camera client (legacy camera API, NDK camera2) with One UI's codes
+# (patches/pixel_camera_native.py); guards.txt lists them, checked above.
+for pair in libcamera_client_patched.so:libcamera_client.so libcameracompatbilityinfo_patched.so:libcameracompatbilityinfo.so; do
+    if [ -f "$STAGE/${pair%%:*}" ]; then
+        $BB umount -l "$ROOTFS/system/lib64/${pair#*:}" 2>/dev/null || true
+        $BB mount --bind "$STAGE/${pair%%:*}" "$ROOTFS/system/lib64/${pair#*:}"
+        echo "Bound ${pair%%:*} -> $ROOTFS/system/lib64/${pair#*:}"
+    fi
+done
 if [ -f "$STAGE/libaudio_aidl_conversion_common_cpp_patched.so" ]; then
     $BB umount -l "$ROOTFS/system/lib64/libaudio_aidl_conversion_common_cpp.so" 2>/dev/null || true
     $BB mount --bind "$STAGE/libaudio_aidl_conversion_common_cpp_patched.so" "$ROOTFS/system/lib64/libaudio_aidl_conversion_common_cpp.so"
