@@ -6,8 +6,10 @@ import java.util.Locale
  * The system an image is a build of. Guest data stays with its own system:
  * a stage's ColorOS data is never kept for the Pixel image, nor Pixel data
  * for a ColorOS image (StageStatus.beginModes, root's `begin keep`, 0.3.7).
+ * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
+ * packages too, and its updater, com.infinity.updater, tells it apart.
  */
-enum class SystemFamily { COLOROS, PIXEL }
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX }
 
 /**
  * One OneOS OS image as friends download it (a gzip of the ext4 system
@@ -108,6 +110,7 @@ object Images {
     const val ID_PIXEL_YOGI = "pixel11fold-yogi"
     const val ID_PIXEL_KODIAK = "pixel11pro-kodiak"
     const val ID_PIXEL_KOMODO = "pixel9proxl-komodo"
+    const val ID_INFINITYX = "infinityx41-findx9u"
 
     /** Where root stages the unpacked image. */
     const val STAGE_NAME = "system.raw"
@@ -297,7 +300,48 @@ object Images {
         family = SystemFamily.PIXEL,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO)
+    /**
+     * Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse,
+     * `infinity_lighthouse-user`, CP2A.260605.016), from 0.4.27 on every phone:
+     * a custom Android 17 built from source on LineageOS, with Google's apps
+     * (Play services in a product gmssystem APEX, as Pixel 17 keeps it, so its
+     * set stages the payload and sessions present it) and OPPO's framework jars of
+     * ColorOS 16 (oplus-fwk.jar, oplus-services.jar) for its camera port. The
+     * unofficial 2026-10-18 GAPPS build, made with MysticGSI (which takes it
+     * for ColorOS) and not changed. Its own vold and service.incremental.so
+     * (make-overlays.sh pins them for the guest vold as gvld); its duress-PIN
+     * wipe and OPPO's extended wipe never run in the guest
+     * (guest_no_wipe_secrets.py). Disassembly (llvm-objdump, 2026-10-29) finds
+     * no SVE or SME in libutils, libbinder, libhwui, libgui,
+     * libandroid_runtime, libc++, surfaceflinger, servicemanager,
+     * app_process64 or init; only the loader's compiler-rt routines (cntd,
+     * rdsvl), behind the CPU feature bit. OPPO's camera and gallery libraries
+     * were not scanned. Untested.
+     */
+    val INFINITYX = ImageRef(
+        id = ID_INFINITYX,
+        label = "Infinity-X 4.1, Find X9 Ultra build",
+        shortName = "Infinity-X",
+        name = "Infinity-X 4.1",
+        variant = null,
+        blurb = "A custom Android 17 system made for the Find X9 Ultra, with Google Play and Google's apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_InfinityX_FindX9Ultra.img.gz",
+        gzBytes = 3_321_412_981L,
+        gzSha256 = "608bb8602dcc0c85fc80127a2f9713a695508438b8c2d31eef3df25d23109bb5",
+        rawBytes = 6_677_426_176L,
+        rawSha256 = "899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve2", "sme"),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.INFINITYX,
+    )
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

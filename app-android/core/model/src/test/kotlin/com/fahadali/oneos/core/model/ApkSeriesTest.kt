@@ -34,9 +34,13 @@ class ApkSeriesTest {
 
     @Test
     fun aSeriesDownloadIsMuchSmallerThanTheAllInOne() {
-        // The Fold's sets are not an S phone's, and the two S series share the ColorOS ones.
-        assertTrue(ApkSeries.FOLD.setIds().intersect(ApkSeries.S25.setIds()).isEmpty())
-        assertEquals(setOf(PackageSets.ID_X9U_SULTRA, PackageSets.ID_X9U_IN_SULTRA), ApkSeries.S26.setIds().intersect(ApkSeries.S25.setIds()))
+        // The Fold's sets are not an S phone's but Infinity-X's (0.4.27: one set on every phone), and the two
+        // S series share the ColorOS ones too.
+        assertEquals(setOf(PackageSets.ID_INFINITYX), ApkSeries.FOLD.setIds().intersect(ApkSeries.S25.setIds()))
+        assertEquals(
+            setOf(PackageSets.ID_X9U_SULTRA, PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_INFINITYX),
+            ApkSeries.S26.setIds().intersect(ApkSeries.S25.setIds()),
+        )
         for (s in ApkSeries.entries) assertNotEquals(s.id, PackageSets.ALL.size, s.setIds().size)
     }
 

@@ -35,6 +35,10 @@ class AboutFragment : PreferenceFragmentCompat() {
             openInBrowser(getString(R.string.about_credit_fold8_url))
             true
         }
+        findPreference<Preference>("credit_infinityx")?.setOnPreferenceClickListener {
+            openInBrowser(getString(R.string.about_credit_infinityx_url))
+            true
+        }
     }
 
     /** Hands the link to the browser; the app itself has no INTERNET permission. */

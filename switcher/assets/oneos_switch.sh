@@ -179,8 +179,7 @@ case "${ONEOS_HEAT_CAP:-1}" in 0|1) ;; *) refuse "ONEOS_HEAT_CAP=$ONEOS_HEAT_CAP
     refuse "ONEOS_GUEST_GMS is on (the default) with gmssystem_payload.img staged, and ONEOS_GUEST_HIDE_GMS=1 hides Google services: set one of them to 0"
 # The same guard and app-id checks as guest_prepare.sh, here so a refusal comes
 # before One UI's framework stops (after it, guest_prepare's exit 3 reboots).
-if [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ -f "$STAGE/gmssystem_payload.img" ] &&
-   ! grep -q ' oplus-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null; then
+if [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ -f "$STAGE/gmssystem_payload.img" ]; then
     for t in gatekeeper pdb apexd appid15000; do
         grep '^#' "$STAGE/guards.txt" 2>/dev/null | grep -qw "$t" ||
             refuse "Google services: guards.txt lacks the $t guard (ONEOS_GUEST_GMS=0 starts without Google services)"
@@ -1367,8 +1366,9 @@ while true; do
             # its swipe keyguard; there is no credential in the guest.
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm dismiss-keyguard 2>/dev/null || true
             # The guest's updaters could hand an OTA to the phone's own
-            # update_engine: ColorOS's, and Pixel's factory OTA.
-            for p in com.oplus.ota com.google.android.factoryota; do
+            # update_engine: ColorOS's, Pixel's factory OTA and Infinity-X's
+            # Updater.
+            for p in com.oplus.ota com.google.android.factoryota com.infinity.updater; do
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 \$p >/dev/null 2>&1 || true
             done
             # Cover panel. With the fold layout (guest_start.sh wrote

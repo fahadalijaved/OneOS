@@ -299,7 +299,11 @@ object SwitchGates {
                         val s = PackageSets.byId(c.packageSetId, sets)
                         i == null || s == null || s.imageId != i.id
                     } -> block(ID_IMAGE, "No image for this phone", "Profile ${profile.id} names an image or file set this build does not have.", R_IMAGE_NOT_IN_BUILD)
-                    input.series != null && profile.choices.none { it.packageSetId in input.series.setIds(profiles) } ->
+                    // The phone's own series (0.4.27: the Infinity-X set is in every series, so
+                    // carrying one of the phone's sets no longer tells); a profile in no series
+                    // is another series' when this APK carries none of its sets.
+                    input.series != null && (ApkSeries.of(profile.id)?.let { it != input.series }
+                        ?: profile.choices.none { it.packageSetId in input.series.setIds(profiles) }) ->
                         otherSeries(profile, input.series)
                     switching -> stagedImage(input, profile, choice, image, images)
                     identity != null -> identity.finding

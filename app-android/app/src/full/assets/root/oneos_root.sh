@@ -117,6 +117,9 @@ SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
 SET_PIXEL="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
+# Infinity-X (0.4.27): both guard jars, the camera codes, the guest vold, the AOSP
+# signal poll, the IMS backoff, the in-guest app and its own payloads.
+SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
 ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_RETURN_MODE"
@@ -194,6 +197,21 @@ profile_set() {
         "s-plus-9965 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip7 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip7 coloros17-findx9u") echo x9u-sultra ;;
+        "f8u infinityx41-findx9u") echo infinityx ;;
+        "f8 infinityx41-findx9u") echo infinityx ;;
+        "f7 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-8850-jp infinityx41-findx9u") echo infinityx ;;
+        "s-plus-9965 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8650 infinityx41-findx9u") echo infinityx ;;
+        "s-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8550 infinityx41-findx9u") echo infinityx ;;
+        "flip7 infinityx41-findx9u") echo infinityx ;;
         *) return 1 ;;
     esac
 }
@@ -212,6 +230,7 @@ image_raw() {
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
         pixel9proxl-komodo) echo "5837496320 2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c" ;;
+        infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
         *) return 1 ;;
     esac
 }
@@ -226,6 +245,7 @@ set_files() {
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk" ;;
         pixel-sultra) echo "$SET_PIXEL" ;;
         pixel9-sultra) echo "$SET_PIXEL" ;;
+        infinityx) echo "$SET_INFINITYX" ;;
         *) return 1 ;;
     esac
 }
@@ -239,6 +259,7 @@ set_image() {
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
+        infinityx) echo infinityx41-findx9u ;;
         *) return 1 ;;
     esac
 }
@@ -246,11 +267,13 @@ set_image() {
 # <image id>: the system it is a build of (ImageRef.family, 0.3.7). Guest data
 # is kept only for an image of its own system: the packages in its
 # packages.xml tell ColorOS data (com.oplus., com.coloros.) from Pixel data
-# (Pixel's launcher, com.google.android.apps.nexuslauncher) (data_family).
+# (Pixel's launcher, com.google.android.apps.nexuslauncher) and Infinity-X data
+# (its updater, com.infinity.updater; it has OPPO packages too) (data_family).
 image_family() {
     case "$1" in
         coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in) echo coloros ;;
         pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo) echo pixel ;;
+        infinityx41-findx9u) echo infinityx ;;
         *) return 1 ;;
     esac
 }
@@ -259,7 +282,9 @@ image_family() {
 # words in the same order as status.list); nothing when no package tells.
 data_family() {
     pk="$STAGE/data/system/packages.xml"
-    if grep -q -s -F "com.oplus." "$pk" || grep -q -s -F "com.coloros." "$pk"; then
+    if grep -q -s -F "com.infinity.updater" "$pk"; then
+        echo infinityx
+    elif grep -q -s -F "com.oplus." "$pk" || grep -q -s -F "com.coloros." "$pk"; then
         echo coloros
     elif grep -q -s -F "com.google.android.apps.nexuslauncher" "$pk"; then
         echo pixel

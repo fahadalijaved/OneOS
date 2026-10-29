@@ -160,6 +160,7 @@ object PackageSets {
     const val ID_PIXEL_F8 = "pixel-f8"
     const val ID_PIXEL_SULTRA = "pixel-sultra"
     const val ID_PIXEL9_SULTRA = "pixel9-sultra"
+    const val ID_INFINITYX = "infinityx"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
     const val TETHERING = "tethering_payload.img"
@@ -356,7 +357,45 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_SULTRA, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, N6_F8, PIXEL_F8, PIXEL9_SULTRA)
+    /**
+     * Infinity-X 4.1, the Find X9 Ultra build, on every phone (0.4.27), from
+     * out/overlays_infinityx: an AOSP-built system with OPPO's framework jars, so
+     * it takes from both sides. Guarded: services_patched.jar and
+     * oplus-services_patched.jar with every guard (and the wipe guard, which its
+     * duress-PIN wipe needs), the guest vold as gvld for its own vold build, and
+     * One UI's camera transaction codes in framework_patched.jar and
+     * libcamera_client_patched.so. The AOSP signal poll (no
+     * oplus-telephony-common.jar), the IMS extension backoff, OneOSGuest.apk and
+     * 22 APEX payloads: the 15 of every set, its cellbroadcast, bt and
+     * nfcservices modules, its telephonycore, conscrypt and profiling (no
+     * platform framework-telecom.jar, as Pixel) and GmsCore (its gmssystem APEX,
+     * Pixel's layout). No surfaceflinger (no QTI composer client in it).
+     */
+    val INFINITYX = PackageSet(
+        id = ID_INFINITYX,
+        imageId = Images.ID_INFINITYX,
+        sourceDir = "out/overlays_infinityx",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+        ) + (COMMON_PAYLOADS + listOf("cellbroadcast", "bt", "nfcservices", "telephonycore", "conscrypt", "profiling", "gmssystem"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING),
+        approxBytes = 554_488_930L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_SULTRA, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, N6_F8, PIXEL_F8, PIXEL9_SULTRA, INFINITYX)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

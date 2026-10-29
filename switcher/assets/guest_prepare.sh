@@ -96,7 +96,8 @@ echo "Guarded overlays verified: $(grep -v '^#' "$STAGE/guards.txt" | awk '{prin
 # Google Play services in a Pixel guest (docs/pixel-guest.md, "Google services"):
 # GmsCore from the image's own gmssystem APEX payload (make-overlays.sh stages
 # gmssystem_payload.img), presented in section 8 and after the hidden folders
-# below. ONEOS_GUEST_GMS=1 (default) presents it when the payload is staged,
+# below. Infinity-X (0.4.27) keeps Play services the same way, next to OPPO's
+# jars; ColorOS sets never stage the payload (guest_google.sh is theirs). ONEOS_GUEST_GMS=1 (default) presents it when the payload is staged,
 # 0 never. Refused here, before the first change:
 # - with ONEOS_GUEST_HIDE_GMS=1, which hides Google Services Framework, the Play
 #   Store and the PrebuiltGmsCore folder GmsCore is presented in;
@@ -110,7 +111,7 @@ echo "Guarded overlays verified: $(grep -v '^#' "$STAGE/guards.txt" | awk '{prin
 GMS_WANT=0
 case "${ONEOS_GUEST_GMS:-1}" in
     0) ;;
-    1) [ -f "$STAGE/gmssystem_payload.img" ] && ! grep -q ' oplus-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null && GMS_WANT=1 ;;
+    1) [ -f "$STAGE/gmssystem_payload.img" ] && GMS_WANT=1 ;;
     *) echo "ERROR: ONEOS_GUEST_GMS=$ONEOS_GUEST_GMS (0 or 1); not starting the guest"; exit 3 ;;
 esac
 if [ "$GMS_WANT" = 1 ]; then

@@ -135,12 +135,14 @@ class StageAuditTest {
         val families = Regex("""^\s+([a-z0-9|-]+)\) echo ([a-z]+) ;;$""", RegexOption.MULTILINE)
             .findAll(function("image_family")).flatMap { m -> m.groupValues[1].split('|').map { it to m.groupValues[2] } }.toMap()
         assertEquals(Images.ALL.associate { it.id to it.family.name.lowercase() }, families)
-        // data_family reads the same words as status.list, in the same order as StageStatus (ColorOS first, then Pixel).
+        // data_family reads the same words as status.list, in the same order as StageStatus (Infinity-X first,
+        // 0.4.27: its data has OPPO's packages too; then ColorOS, then Pixel).
         val data = function("data_family")
+        assertTrue(data.indexOf(StageStatus.INFINITYX_WORD) in 0 until data.indexOf("com.oplus."))
         assertTrue(data.indexOf("com.oplus.") in 0 until data.indexOf(StageStatus.PIXEL_WORD))
         assertTrue(data.contains("com.coloros."))
         val status = File(Shipped.fullAssets, "root/status.list").readText()
-        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD}; do"))
+        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD} ${StageStatus.INFINITYX_WORD}; do"))
         // Google services: the images whose services a session may hide (0.3.7: none; the Pixel image's sessions present them).
         assertEquals(Images.ALL.filter { it.gmsHideable }.map { it.id }, shVar("IMAGES_GMS").split(' ').filter { it.isNotEmpty() })
         // The sets' files (SET_COMMON for the ColorOS sets, SET_PIXEL for the Pixel set) and the image each was built from.

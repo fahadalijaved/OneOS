@@ -64,6 +64,7 @@ rm -f "$OUT/vold_patched" "$OUT/service.incremental_patched.so"
 "$DEBUGFS" -R "dump /system/apex/com.google.android.crashrecovery.apex $WORK/crashrecovery-google.apex" "$IMG" 2>/dev/null
 "$DEBUGFS" -R "dump /system/apex/com.android.crashrecovery.apex $WORK/crashrecovery-aosp.apex" "$IMG" 2>/dev/null
 "$DEBUGFS" -R "dump /system/apex/com.google.android.crashrecovery_compressed.apex $WORK/crashrecovery-google-compressed.apex" "$IMG" 2>/dev/null
+"$DEBUGFS" -R "dump /system/apex/com.android.crashrecovery.capex $WORK/crashrecovery-aosp.capex" "$IMG" 2>/dev/null
 python3 -I - "$WORK" "$OUT/vold_patched" "$OUT/service.incremental_patched.so" <<'PYEOF'
 import hashlib, os, sys
 work, vold_out, inc_out = sys.argv[1:4]
@@ -112,13 +113,25 @@ BUILDS = [
         "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
         "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
     }, [("vold", 0x104e6, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
+    # Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse, CP2A.260605.016),
+    # built from source: its own layout. start() takes the string at 0xe164
+    # (adrp 0xe000 + add 0x164), try_start's tbz w19 is at 0x64d8c (+0xd4, as
+    # above), service.incremental.so has the string at 0x646c1 with both
+    # lookups (adr at 0xc051c, adrp + add at 0xc2a7c). Its compressed
+    # crashrecovery APEX (.capex) holds the same service-crashrecovery.jar as
+    # Pixel's yogi, byte for byte.
+    ("Infinity-X 4.1 CP2A.260605.016 (Find X9 Ultra)", {
+        "vold": "7bc11b794ac19af6a2e1e7dc2bcf9baad3f3a673079f574b90132469a303c613",
+        "service.incremental.so": "c964e27681a3632a7f83acb1698acffa572b3ece773690bc64444dff7bfaf7a7",
+        "crashrecovery-aosp.capex": "1c4fa1a8417b233765db1621f3911b66de230049c39b248f116c3d18a8920ca6",
+    }, [("vold", 0xe163, NAME), ("vold", 0x64d8c, TRY_START), ("service.incremental.so", 0x646c0, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)
     return bytearray(open(p, "rb").read()) if os.path.isfile(p) else bytearray()
 def sha(d):
     return hashlib.sha256(d).hexdigest()
-data = {n: read(n) for n in ("vold", "service.incremental.so", "crashrecovery-google.apex", "crashrecovery-aosp.apex", "crashrecovery-google-compressed.apex")}
+data = {n: read(n) for n in ("vold", "service.incremental.so", "crashrecovery-google.apex", "crashrecovery-aosp.apex", "crashrecovery-google-compressed.apex", "crashrecovery-aosp.capex")}
 build = next((b for b in BUILDS if all(sha(data[n]) == want for n, want in b[1].items())), None)
 if build is None:
     have = ", ".join("%s %s" % (n, sha(d)[:12] if d else "missing") for n, d in data.items())
@@ -189,6 +202,10 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_webview_zygote_sa
 # zygote_next (S25 Ultra, Pixel 9 Pro XL, app 0.4.25: Chrome's renderer held
 # every process start of the session; patches/guest_no_native_services.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_native_services.py" "$WORK/services")"
+# The wipe paths never delete the phone's secrets: Secretkeeper, the secure
+# element, vold's storage and metadata keys (Infinity-X's duress wipe calls
+# them directly; patches/guest_no_wipe_secrets.py). Before guest_own_vold.py.
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_wipe_secrets.py" "$WORK/services")"
 # The guest's own vold as "gvld", with vold_patched above; no guest call left
 # that reaches One UI's "vold" (patches/guest_own_vold.py).
 if [ "$VOLD_GVLD" = 1 ]; then
@@ -256,6 +273,8 @@ if in_image /system/framework/oplus-services.jar; then
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/oplus")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_no_sysrq_crash.py" "$WORK/oplus")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_no_wipe_secrets.py" "$WORK/oplus")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     # With the guest vold as "gvld": OPPO's own "vold" lookup too
     # (OplusStorageManagerFeature, patches/guest_own_vold.py --oplus).
@@ -487,7 +506,7 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 # service.incremental_patched.so are listed with the services_patched.jar that
 # looks up "gvld": guest_prepare.sh binds all three or none of them.
 {
-    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers and nativeservices guards"
+    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices and wipesecrets guards"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
     [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
     [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"

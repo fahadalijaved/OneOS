@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.26. Samsung flagships with Snapdragon, plus the first two
+App version 0.4.27. Samsung flagships with Snapdragon, plus the first two
 Exynos phones; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -54,7 +54,9 @@ S26 (SM-S942, SC-51G), S25+ (SM-S936) and S24 Ultra (SM-S928) with ColorOS; the
 Pixel 11 Fold image on the Z Fold8, the Pixel 11 Pro image on the Galaxy S26
 Ultra, S26+ and S26, and the Pixel 9 Pro XL image on the Galaxy S25 Ultra, S25,
 S25+ and S24 Ultra (the Pixel 11 images need a newer CPU); and on every Galaxy S phone above, the Find X9 Ultra IN (global) build
-of ColorOS 17, with Google Play and the Play Store. Galaxy S23 (SM-S911) and
+of ColorOS 17, with Google Play and the Play Store; and on every phone above,
+Infinity-X 4.1 (0.4.27), a custom Android 17 made for the Find X9 Ultra, with
+Google Play and Google's apps. Galaxy S23 (SM-S911) and
 S23+ (SM-S916) are accepted for testing only:
 their vendor software is too old and the system will most likely not start
 (One UI comes back by itself; please share the session logs).
@@ -233,6 +235,9 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   Authors, Apache-2.0): builds the guest images OneOS runs (not part of this
   repository). MysticGSI includes TrebleDroid work by Pierre-Hugues Husson
   (phh) and contributors.
+- **[Project Infinity-X](https://github.com/ProjectInfinity-X)** and its Find X9
+  Ultra build ([X9UInfinityX](https://github.com/X9UInfinityX)): the Infinity-X
+  system OneOS runs from 0.4.27, unchanged, with OneOS's own framework patches.
 - **[OneUIProject](https://github.com/OneUIProject)**: SESL, oneui-design and
   oneui-icons (MIT) give the app its One UI look.
 - **[Josh Skinner (@thatjoshguy67)](https://github.com/thatjoshguy67)**: Galaxy
@@ -244,6 +249,6 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
 - smali/dexlib2, AndroidX, Kotlin, Guava, ZXing and others: the full list with
   licenses is in [CREDITS.md](CREDITS.md).
 
-Not affiliated with Samsung, Google, OPPO or OnePlus. Galaxy and One UI are
+Not affiliated with Samsung, Google, OPPO, OnePlus or Project Infinity-X. Galaxy and One UI are
 trademarks of Samsung Electronics; Android and Pixel of Google LLC; ColorOS of
 OPPO.

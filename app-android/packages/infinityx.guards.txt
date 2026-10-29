@@ -1,0 +1,10 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices and wipesecrets guards
+# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
+# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+2f5542c743ba1e20e89c0d3c381e59021365ae5314ba4c021a108b65d66fea43  services_patched.jar
+a718e593fbf61c8b0a53888599c5b85004b2bd2ab5c1829450e5237c3809d824  oplus-services_patched.jar
+654dcfa788bcfde4fc539935ffbcb707a3b0c2001e31b6de27edec5afe5de404  vold_patched
+d853cfa2f60c477a5c5224cf9972665f09a733fa66e659d71f43d521589fceb7  service.incremental_patched.so
+c6cafb102e1ee81c08ab9d9b8a3420b4a67cfaa055394ac78c1a80624cb6c6c0  framework_patched.jar
+1ba6a3b21d5321b225e93d93d024332936e339e5002a082f98e6e7a51c9449bd  libcamera_client_patched.so

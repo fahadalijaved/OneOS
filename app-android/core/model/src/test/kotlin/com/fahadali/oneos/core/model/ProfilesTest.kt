@@ -24,6 +24,8 @@ class ProfilesTest {
 
     @Test
     fun builtInTable() {
+        // 0.4.27: Infinity-X, last, on every phone, untested.
+        val ifx = ImageChoice(Images.ID_INFINITYX, PackageSets.ID_INFINITYX, tested = false)
         val f8u = Profiles.F8U
         assertEquals(listOf("SM-F976", "q8q", "SM8850"), listOf(f8u.modelPrefix, f8u.codename, f8u.socModel))
         assertEquals(FormFactor.FOLD, f8u.form)
@@ -32,6 +34,7 @@ class ProfilesTest {
                 ImageChoice("coloros17-findn6", "n6-f8u", tested = true),
                 // 0.3.7: the Pixel 11 Fold image, which runs 41-44 booted on this phone.
                 ImageChoice("pixel11fold-yogi", "pixel-f8u", tested = true),
+                ifx,
             ),
             f8u.choices,
         )
@@ -48,7 +51,7 @@ class ProfilesTest {
             ImageChoice("coloros17-findx9u", "x9u-sultra", tested = true),
         )
         // 0.4.10: and the Pixel 11 Pro image with its own set, untested.
-        assertEquals(sUltra + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false), s26.choices)
+        assertEquals(sUltra + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + ifx, s26.choices)
         assertTrue(s26.testedWithAnyImage && s26.enabled)
 
         val s25 = Profiles.S_ULTRA_8750
@@ -56,7 +59,7 @@ class ProfilesTest {
         assertEquals(FormFactor.BAR, s25.form)
         // 0.4.22: and the Pixel 9 Pro XL image with its own set, untested.
         val pixel9 = ImageChoice(Images.ID_PIXEL_KOMODO, PackageSets.ID_PIXEL9_SULTRA, tested = false)
-        assertEquals(sUltra + pixel9, s25.choices)
+        assertEquals(sUltra + pixel9 + ifx, s25.choices)
         assertTrue(s25.testedWithAnyImage && s25.enabled)
 
         // Galaxy S25 (0.3.4): the S Ultra image and set (tested since 0.4.7), the S25 Ultra's notes.
@@ -65,7 +68,7 @@ class ProfilesTest {
         assertEquals("Galaxy S25", s25Base.label)
         assertEquals(listOf("SM-S931", "pa1q", "SM8750"), listOf(s25Base.modelPrefix, s25Base.codename, s25Base.socModel))
         assertEquals(FormFactor.BAR, s25Base.form)
-        assertEquals(sUltra + pixel9, s25Base.choices)
+        assertEquals(sUltra + pixel9 + ifx, s25Base.choices)
         assertTrue(s25Base.testedWithAnyImage && s25Base.enabled)
         assertEquals(s25.notes, s25Base.notes)
         assertEquals(listOf("profile-vendor-older"), s25Base.notes.map { it.id })
@@ -75,7 +78,7 @@ class ProfilesTest {
         assertEquals("Galaxy Z Fold7", fold7.label)
         assertEquals(listOf("SM-F966", "q7q", "SM8750"), listOf(fold7.modelPrefix, fold7.codename, fold7.socModel))
         assertEquals(FormFactor.FOLD, fold7.form)
-        assertEquals(listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false)), fold7.choices)
+        assertEquals(listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), ifx), fold7.choices)
         assertTrue(fold7.enabled && !fold7.testedWithAnyImage)
         assertEquals(s25.notes, fold7.notes)
         assertTrue(fold7.choice(Images.ID_PIXEL_YOGI) == null)
@@ -84,7 +87,7 @@ class ProfilesTest {
         assertEquals(listOf("s-plus-8750", "Galaxy S25+"), listOf(s25Plus.id, s25Plus.label))
         assertEquals(listOf("SM-S936", "pa2q", "SM8750"), listOf(s25Plus.modelPrefix, s25Plus.codename, s25Plus.socModel))
         assertEquals(FormFactor.BAR, s25Plus.form)
-        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9), s25Plus.choices)
+        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifx), s25Plus.choices)
         assertEquals(s25.notes, s25Plus.notes)
         // Galaxy Z Fold8 (0.4.10): the Fold's images and sets, untested; no older-vendor note (vendor API 202504).
         val fold8 = Profiles.FOLD8
@@ -96,6 +99,7 @@ class ProfilesTest {
             listOf(
                 ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8, tested = true),
                 ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
+                ifx,
             ),
             fold8.choices,
         )
@@ -111,6 +115,7 @@ class ProfilesTest {
                 xin,
                 ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false),
                 ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false),
+                ifx,
             ),
             s26Base.choices,
         )
@@ -123,7 +128,7 @@ class ProfilesTest {
         val s24u = Profiles.S_ULTRA_8650
         assertEquals(listOf("s-ultra-8650", "Galaxy S24 Ultra"), listOf(s24u.id, s24u.label))
         assertEquals(listOf("SM-S928", "e3q", "SM8650"), listOf(s24u.modelPrefix, s24u.codename, s24u.socModel))
-        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9), s24u.choices)
+        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifx), s24u.choices)
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), s24u.notes.map { it.id })
         assertTrue(s24u.notes.single().detail.contains("vendor API 34 (Android 14) and kernel 6.1"))
         // Galaxy S26+ (0.4.12): the S26's images and sets, untested, no notes (vendor API 202504).
@@ -144,7 +149,7 @@ class ProfilesTest {
         assertEquals(listOf("flip7", "Galaxy Z Flip7"), listOf(flip7.id, flip7.label))
         assertEquals(listOf("SM-F766", "b7s", "s5e9955"), listOf(flip7.modelPrefix, flip7.codename, flip7.socModel))
         assertEquals(FormFactor.FLIP, flip7.form)
-        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false)), flip7.choices)
+        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), ifx), flip7.choices)
         for (p in listOf(s26PlusExynos, flip7)) {
             assertEquals(listOf(Profiles.ID_NOTE_EXYNOS), p.notes.map { it.id })
             assertEquals(Level.WARN, p.notes.single().level)
@@ -159,7 +164,7 @@ class ProfilesTest {
         assertEquals(listOf("SM-S916", "dm2q", "SM8550"), listOf(s23Plus.modelPrefix, s23Plus.codename, s23Plus.socModel))
         for (p in listOf(s23, s23Plus)) {
             assertEquals(FormFactor.BAR, p.form)
-            assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false)), p.choices)
+            assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), ifx), p.choices)
             assertEquals(listOf(Profiles.ID_NOTE_EXPECT_NO_START), p.notes.map { it.id })
             assertEquals(Level.WARN, p.notes.single().level)
         }
@@ -173,8 +178,9 @@ class ProfilesTest {
         )
 
         // Ids unique; every choice names an image and a set built from that image,
-        // each image once per profile; the fold grid with a ColorOS image (an oplus
-        // set) on the fold form only: the Pixel set has none (ColorOS's wallpaper app's).
+        // each image once per profile; the fold grid with a ColorOS image on the fold
+        // form only: the Pixel and Infinity-X sets have none (ColorOS's wallpaper app's;
+        // Infinity-X has OPPO's jars but not that app's layout).
         assertEquals(Profiles.BUILT_IN.size, Profiles.BUILT_IN.map { it.id }.toSet().size)
         for (p in Profiles.BUILT_IN) {
             assertTrue(p.id, p.choices.isNotEmpty())
@@ -185,7 +191,7 @@ class ProfilesTest {
                 assertNotNull("${p.id} ${c.imageId}", image)
                 assertNotNull("${p.id} ${c.packageSetId}", set)
                 assertEquals("${p.id} ${c.imageId}", image!!.id, set!!.imageId)
-                val colorOs = "oplus-services_patched.jar" in set.names
+                val colorOs = image.family == SystemFamily.COLOROS
                 assertEquals("${p.id} ${set.id}", p.form == FormFactor.FOLD && colorOs, PackageSets.WALLPAPER_GRID_RRO in set.names)
                 assertEquals(c, p.choice(c.imageId))
             }

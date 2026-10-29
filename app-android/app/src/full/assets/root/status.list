@@ -123,14 +123,14 @@ f="$S/persist_session.active"
 printf "active\n"
 grep -E "^(format|boot_id|epoch|app|profile)=" "$f"'
 
-#: Whose data the guest folder holds (ColorOS, LineageOS or Pixel packages: Pixel's launcher), without reading the data.
+#: Whose data the guest folder holds (ColorOS, LineageOS, Pixel or Infinity-X packages: Pixel's launcher, Infinity-X's updater), without reading the data.
 run stage.guest 10 stage/guest.txt '
 S=/data/local/tmp/oneos
 [ -e "$S" ] || [ -L "$S" ] || [ ! -d /data/local/tmp/lineage_stage ] || [ -L /data/local/tmp/lineage_stage ] || S=/data/local/tmp/lineage_stage
 p="$S/data/system/packages.xml"
 [ -d "$S/data" ] || exit 3
 [ -f "$p" ] || { echo "packages none"; exit 0; }
-for w in com.oplus. com.coloros. org.lineageos. com.google.android.apps.nexuslauncher; do
+for w in com.oplus. com.coloros. org.lineageos. com.google.android.apps.nexuslauncher com.infinity.updater; do
   if grep -q -s -F "$w" "$p"; then echo "packages $w"; fi
 done
 true'

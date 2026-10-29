@@ -128,6 +128,14 @@ object Profiles {
      */
     private val PIXEL9_CHOICE = ImageChoice(Images.ID_PIXEL_KOMODO, PackageSets.ID_PIXEL9_SULTRA, tested = false)
 
+    /**
+     * 0.4.27: Infinity-X (the Find X9 Ultra build) on every phone, untested,
+     * listed last so no phone's preselected system changes. Its system code
+     * has no SVE, so the SM8750 and older phones take it too; one set for all
+     * of them (a fold gets the fold layout from the session scripts).
+     */
+    private val INFINITYX_CHOICE = ImageChoice(Images.ID_INFINITYX, PackageSets.ID_INFINITYX, tested = false)
+
     private fun olderVendor(vendorApi: String, kernel: String) = Finding(
         ID_NOTE_OLDER_VENDOR, Level.WARN, "Older vendor software",
         "This phone has vendor API $vendorApi and kernel $kernel; the other systems' display path has only run on " +
@@ -190,6 +198,7 @@ object Profiles {
             // Tested: runs 41-44 booted it here (staged over adb by
             // scripts/deploy-phone.sh, not yet from the app).
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, tested = true),
+            INFINITYX_CHOICE,
         ),
     )
 
@@ -202,7 +211,7 @@ object Profiles {
         form = FormFactor.BAR,
         // 0.4.10: the Pixel 11 Pro image too, untested. SM8850 has the SVE that
         // Pixel's system code needs; the SM8750 phones do not.
-        choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false),
+        choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_CHOICE,
     )
 
     val S_ULTRA_8750 = PhoneProfile(
@@ -214,7 +223,7 @@ object Profiles {
         form = FormFactor.BAR,
         // Off in 0.3.0 (the S26 Ultra was to go first); on from 0.3.1 (owner: the
         // friend's S25 Ultra is on Android 17 and ready). Untested: ticks as the S26 Ultra.
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -233,7 +242,7 @@ object Profiles {
         codename = "pa1q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -256,7 +265,7 @@ object Profiles {
         codename = "q7q",
         socModel = "SM8750",
         form = FormFactor.FOLD,
-        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false)),
+        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -274,7 +283,7 @@ object Profiles {
         codename = "pa2q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -301,6 +310,7 @@ object Profiles {
         choices = listOf(
             ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8, tested = true),
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
+            INFINITYX_CHOICE,
         ),
     )
 
@@ -309,6 +319,7 @@ object Profiles {
         X9U_IN_CHOICE,
         ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false),
         ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false),
+        INFINITYX_CHOICE,
     )
 
     /**
@@ -362,7 +373,7 @@ object Profiles {
         codename = "e3q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -379,7 +390,7 @@ object Profiles {
         codename = "dm1q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false)),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -390,7 +401,7 @@ object Profiles {
         codename = "dm2q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false)),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -433,7 +444,7 @@ object Profiles {
         codename = "b7s",
         socModel = "s5e9955",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false)),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
         notes = listOf(EXYNOS),
     )
 

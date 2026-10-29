@@ -32,8 +32,10 @@ say() { echo "Google apps: $*"; }
 # ColorOS sets only (their guards.txt lists oplus-services_patched.jar; Pixel
 # sets present the image's own Play services, guest_prepare.sh GMS_WANT), and
 # not when a launch hides Google services (ONEOS_GUEST_HIDE_GMS=1).
+# Not for a set that presents the image's own Play services from its
+# gmssystem payload (Infinity-X, 0.4.27, has OPPO's jars too).
 selected() {
-    grep -q ' oplus-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null &&
+    grep -q ' oplus-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null && [ ! -f "$STAGE/gmssystem_payload.img" ] &&
         [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ "${ONEOS_GUEST_HIDE_GMS:-0}" != 1 ]
 }
 # No links anywhere below the cache, a guest-planted link to host data included.

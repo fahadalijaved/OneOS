@@ -45,7 +45,9 @@ CALLBACK_IFACES = ("android.hardware.ICameraServiceListener", "android.hardware.
 UNUSED_CODE = 200
 COMPAT = "android/content/res/CameraCompatibilityInfo.smali"
 TRANSACT = "Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z"
-CONST = re.compile(r"^(\s*)const(?:/4|/16|)\s+(v\d+),\s*(-?0x[0-9a-f]+|-?\d+)\s*$")
+# v registers in R8 builds (Pixel, ColorOS); p registers too in a build with
+# debug info (Infinity-X's framework.jar: "const/16 p3, 0x17").
+CONST = re.compile(r"^(\s*)const(/4|/16|)\s+([vp]\d+),\s*(-?0x[0-9a-f]+|-?\d+)\s*$")
 
 
 def die(msg):
@@ -130,7 +132,7 @@ def patch_proxy(text, iface, host, guest, changed):
         ci = None
         for i in range(ti[0] - 1, -1, -1):
             m = CONST.match(lines[i])
-            if m and m.group(2) == code_reg:
+            if m and m.group(3) == code_reg:
                 ci = i
                 break
         if ci is None:
@@ -138,7 +140,8 @@ def patch_proxy(text, iface, host, guest, changed):
         val = int(lines[ci].split(",")[-1].strip(), 0)
         if val != gcode:
             die(f"{iface}.{name}: const {val} before transact, table says {gcode}")
-        width = "/4" if hcode < 8 else "/16"
+        # const/4 only reaches v0-v15; a p register may sit higher, so it keeps const/16.
+        width = "/4" if hcode < 8 and (code_reg.startswith("v") or CONST.match(lines[ci]).group(2) == "/4") else "/16"
         lines[ci] = f"{CONST.match(lines[ci]).group(1)}const{width} {code_reg}, {hex(hcode)}"
         pieces.append(text[pos:s]); pieces.append("\n".join(lines)); pos = e
         n += 1

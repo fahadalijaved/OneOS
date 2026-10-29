@@ -23,11 +23,13 @@ Usage: qti_ims_ext_backoff.py <smali root dir>
 Prints the smali_* directories (dex files) it changed, one per line.
 """
 import os
+import re
 import sys
 
 HEADER = ".method private bindQtiImsExtService()V"
-OLD = "    const-wide/16 v4, 0x1f4"
-NEW = "    const-wide/32 v4, 0xea60"
+# The register pair is v4 in ColorOS's build and v1 in Infinity-X's.
+OLD = re.compile(r"^    const-wide/16 (v\d+), 0x1f4$")
+NEW = "    const-wide/32 {}, 0xea60"
 
 
 def find(root, rel_suffix):
@@ -46,13 +48,15 @@ def main():
     if len(idx) != 1:
         sys.exit("QtiImsExtConnector.bindQtiImsExtService not found")
     end = lines.index(".end method", idx[0])
-    hits = [i for i in range(idx[0], end) if lines[i] == OLD]
+    hits = [i for i in range(idx[0], end) if OLD.match(lines[i])]
     if len(hits) != 1:
         sys.exit(f"expected one 500 ms retry delay in bindQtiImsExtService, found {len(hits)}")
-    # The constant feeds only sendEmptyMessageDelayed(1, v4:v5) right below it.
-    if "sendEmptyMessageDelayed(IJ)Z" not in lines[hits[0] + 2]:
+    reg = OLD.match(lines[hits[0]]).group(1)
+    # The constant feeds only sendEmptyMessageDelayed(1, reg:reg+1) right below it.
+    call = lines[hits[0] + 2]
+    if "sendEmptyMessageDelayed(IJ)Z" not in call or not re.search(r", %s, v%d\}" % (reg, int(reg[1:]) + 1), call):
         sys.exit("retry delay is not followed by sendEmptyMessageDelayed")
-    lines[hits[0]] = NEW
+    lines[hits[0]] = NEW.format(reg)
     lines[hits[0]:hits[0]] = ["    # OneOS: 60 s, not 500 ms; ims.apk is not installed in the guest (run 34)."]
     open(path, "w").write("\n".join(lines))
     print("QtiImsExtConnector.bindQtiImsExtService: retry 500 ms -> 60 s", file=sys.stderr)

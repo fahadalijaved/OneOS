@@ -27,6 +27,13 @@ enum class GuestData {
 
     /** Pixel's launcher, com.google.android.apps.nexuslauncher (the Pixel image's system_ext/priv-app), and no ColorOS package (0.3.7). */
     PIXEL,
+
+    /**
+     * Infinity-X's updater, com.infinity.updater (0.4.27): its data also has
+     * OPPO's (com.oplus., com.coloros.) and LineageOS's packages, so this
+     * word goes first.
+     */
+    INFINITYX,
     OTHER,
     ;
 
@@ -35,6 +42,7 @@ enum class GuestData {
         get() = when (this) {
             COLOROS -> SystemFamily.COLOROS
             PIXEL -> SystemFamily.PIXEL
+            INFINITYX -> SystemFamily.INFINITYX
             else -> null
         }
 
@@ -126,7 +134,8 @@ data class StageStatus(
             image != null && guest.otherSystemThan(image) -> listOf(RootScript.BeginMode.ASIDE)
             ours -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             partial && guest != GuestData.LINEAGEOS -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
-            guest == GuestData.COLOROS || guest == GuestData.PIXEL -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
+            guest == GuestData.COLOROS || guest == GuestData.PIXEL || guest == GuestData.INFINITYX ->
+                listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             else -> listOf(RootScript.BeginMode.ASIDE)
         }
     }
@@ -337,6 +346,7 @@ data class StageStatus(
             val guestLines = lines("stage.guest")
             val guest = when {
                 statuses["stage.guest"] != ProbeStatus.OK -> GuestData.NONE
+                guestLines.any { it == "packages $INFINITYX_WORD" } -> GuestData.INFINITYX
                 guestLines.any { it == "packages org.lineageos." } -> GuestData.LINEAGEOS
                 guestLines.any { it == "packages com.oplus." || it == "packages com.coloros." } -> GuestData.COLOROS
                 guestLines.any { it == "packages $PIXEL_WORD" } -> GuestData.PIXEL
@@ -377,6 +387,9 @@ data class StageStatus(
 
         /** The package status.list (and root's `begin keep`) takes for the Pixel guest's data: Pixel's launcher. */
         const val PIXEL_WORD = "com.google.android.apps.nexuslauncher"
+
+        /** Infinity-X's updater (its system_ext/priv-app/Updater). */
+        const val INFINITYX_WORD = "com.infinity.updater"
 
         /** `sha256sum` lines of the stage (status.list reads the old path while the stage is still there). */
         private val HASH_LINE = Regex("""^([0-9a-f]{64}) [ *](?:${Regex.escape(RootScript.STAGE)}|${Regex.escape(RootScript.LEGACY_STAGE)})/(\S+)$""")

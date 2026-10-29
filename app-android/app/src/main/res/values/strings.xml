@@ -117,9 +117,12 @@
     <string name="about_credit_fold8_summary">Josh Skinner (thatjoshguy67): the Fold8 sets and the hinge, with half-folded apps and the fold animations in ColorOS and Pixel on the Fold8 and Fold8 Ultra.</string>
     <string name="about_credit_fold8_url" translatable="false">https://github.com/fahadalijaved23/OneOS/pull/1</string>
     <string name="about_no_browser">No browser found to open the link</string>
+    <string name="about_credit_infinityx_title">Project Infinity-X</string>
+    <string name="about_credit_infinityx_summary">The Infinity-X system and its Find X9 Ultra build (X9UInfinityX), which OneOS runs with its own framework patches.</string>
+    <string name="about_credit_infinityx_url" translatable="false">https://github.com/ProjectInfinity-X</string>
     <string name="about_credit_oneui_title">One UI Design and SESL libraries</string>
     <string name="about_credit_oneui_summary">OneUIProject, MIT License.</string>
     <string name="about_cat_legal">Legal</string>
     <string name="about_legal_title">Not affiliated</string>
-    <string name="about_legal_summary">Not affiliated with Samsung, OPPO or Google. Galaxy, One UI, ColorOS, Pixel and Android are trademarks of their owners.</string>
+    <string name="about_legal_summary">Not affiliated with Samsung, OPPO, Google or Project Infinity-X. Galaxy, One UI, ColorOS, Pixel and Android are trademarks of their owners.</string>
 </resources>
