@@ -365,8 +365,9 @@ All reads are read-only: system properties (reflection on
 (`DisplayManager`, `InputManager`, `SensorManager`, `StatFs`,
 `BatteryManager`, `PackageManager` with a `<queries>` list of the root
 managers), `KeyguardManager` and `/proc/bus/input/devices` when SELinux allows
-it. The app has no INTERNET or storage permission (the OneLineage link is
-handed to the browser). It writes only inside its own storage: the Before
+it. The app has no storage permission, and INTERNET only for **Send to the
+OneOS team** (0.4.29: the report service in `reports/`, used only on that tap;
+the OneLineage link is handed to the browser). It writes only inside its own storage: the Before
 you start acknowledgement in its SharedPreferences and, after *Run tests*,
 `files/probe/` (the runner and list it runs) and `cache/probe-capture/` +
 `cache/findings/` (the raw capture is deleted once the redacted findings

@@ -93,6 +93,8 @@ object Profiles {
     const val ID_S_PLUS_8550 = "s-plus-8550"
     const val ID_S_PLUS_9965 = "s-plus-9965"
     const val ID_FLIP7 = "flip7"
+    const val ID_A57 = "a57"
+    const val ID_FLIP5 = "flip5"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -172,11 +174,14 @@ object Profiles {
      * through Android's standard interfaces, the same as on Snapdragon, and the
      * session scripts find Samsung's Exynos display composer
      * (vendor.hwcomposer-3) and backlight (/sys/class/backlight/panel)
-     * themselves; nothing has run on Exynos yet.
+     * themselves. The S26+ (Exynos) and Z Flip7 sessions of 0.4.17 to 0.4.20
+     * brought the Exynos host fixes (docs/exynos-hosts.md: ro.boot.hardware
+     * for the Qualcomm-built guests, Samsung's software watchdog); the next
+     * Exynos logs show how far a session gets with them.
      */
     private val EXYNOS = Finding(
         ID_NOTE_EXYNOS, Level.WARN, "First runs on Exynos",
-        "OneOS has only run on Snapdragon phones so far. The screen, phone calls, Wi-Fi or sound may not work; " +
+        "Exynos phones have had only a few test sessions so far. The screen, phone calls, Wi-Fi or sound may not work; " +
             "if the screen stays black, OneOS returns to One UI by itself. Share the session logs afterwards.",
         R_EXYNOS,
     )
@@ -448,10 +453,56 @@ object Profiles {
         notes = listOf(EXYNOS),
     )
 
+    /**
+     * Galaxy A57, from 0.4.29: a probe report of 2026-10-29 (SM-A576B, a57x,
+     * s5e8865 Exynos, One UI 9.0, Android 17 build CP2A.260605.016, vendor API
+     * 202504, kernel 6.12, one 1080 x 2340 panel on port 129 at density 450,
+     * sec_touchscreen, backlight /sys/class/backlight/panel (max 9180),
+     * composer vendor.hwcomposer-3 and the AIDL audio HAL, init.vendor.sysfw.rc
+     * like the S26+ (Exynos), SVE and SVE2 but no SME, installd table identical
+     * to host_installd.txt). The first A-series phone and the first mid-range
+     * chip: the Z Flip7's images (the Find X9 Ultra builds and Infinity-X, whose
+     * system code needs neither SVE nor SME), untested, with [EXYNOS].
+     */
+    val A57 = PhoneProfile(
+        id = ID_A57,
+        label = "Galaxy A57",
+        modelPrefix = "SM-A576",
+        codename = "a57x",
+        socModel = "s5e8865",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    /**
+     * Galaxy Z Flip5, from 0.4.29: a probe report of 2026-10-28 (SM-F731B, b5q,
+     * SM8550 like the Galaxy S23s, One UI 9.0, Android 17 build
+     * CP2A.260605.016, vendor API 33 and kernel 5.15, main panel 1080 x 2640 on
+     * port 131 at density 480 and a 748 x 720 cover on 132, sec_touchscreen
+     * and sec_touchscreen2, a "flip" lid switch, backlights panel0-backlight
+     * and panel1-backlight (max 765), the HIDL display composer and audio HAL
+     * (no composer3, no audio.core), no SVE, installd table identical to
+     * host_installd.txt). The S23s' images (both Find X9 Ultra builds and
+     * Infinity-X), run as a phone on the main screen like the Z Flip7 (no
+     * cover layout), with their [EXPECT_NO_START] note: the same chip and
+     * vendor, which no system has started on yet.
+     */
+    val FLIP5 = PhoneProfile(
+        id = ID_FLIP5,
+        label = "Galaxy Z Flip5",
+        modelPrefix = "SM-F731",
+        codename = "b5q",
+        socModel = "SM8550",
+        form = FormFactor.FLIP,
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
+        notes = listOf(EXPECT_NO_START),
+    )
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
-        S_PLUS_9965, FLIP7,
+        S_PLUS_9965, FLIP7, A57, FLIP5,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

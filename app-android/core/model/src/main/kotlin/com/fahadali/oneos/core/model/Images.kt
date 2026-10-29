@@ -99,7 +99,7 @@ data class ImageRef(
  */
 object Images {
     /** Where the images come from: the README (this repository does not host them). */
-    const val SHARED_FOLDER_URL = "https://github.com/fahadalijaved23/OneOS#where-the-images-come-from"
+    const val SHARED_FOLDER_URL = "https://github.com/fahadalijaved/OneOS#where-the-images-come-from"
 
     /** What fixed texts say when no image is known: they never name a system. */
     const val OTHER_SYSTEM = "the other system"

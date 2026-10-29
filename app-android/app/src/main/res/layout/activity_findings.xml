@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Findings preview: summary and file list as preference rows, and a fixed
-     footer with Share and Save to Downloads. -->
+     footer with Send to the OneOS team (0.4.29, when the build has the report
+     service) above Share and Save to Downloads, which always stay. -->
 <dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/toolbar_layout"
@@ -18,11 +19,25 @@
         android:id="@+id/findings_footer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:paddingHorizontal="24dp"
         android:paddingTop="12dp"
         android:paddingBottom="16dp"
         app:layout_location="footer">
+
+        <Button
+            android:id="@+id/findings_send"
+            style="@style/OneUI.ButtonStyleColored"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="@string/findings_send_team"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
         <Button
             android:id="@+id/findings_save"
@@ -41,6 +56,8 @@
             android:layout_marginStart="8dp"
             android:layout_weight="1"
             android:text="@string/findings_share" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

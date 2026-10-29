@@ -251,8 +251,19 @@ android {
         // 0.4.26: a native-only service fails to start in the guest (Chrome stalled every app start).
         // 0.4.27: the Infinity-X system on every phone.
         // 0.4.28: Infinity-X keeps One UI's cellbroadcast module, sees hwservicemanager on HIDL-only phones.
-        versionCode = 45
-        versionName = "0.4.28"
+        // 0.4.29: the Galaxy A57 (Exynos) and Z Flip5, in the s25 series; Send to the OneOS team.
+        versionCode = 46
+        versionName = "0.4.29"
+        // Send to the OneOS team (0.4.29, both editions): the report service's
+        // address and its upload-only key, from the team's server (reports/deploy.sh
+        // writes them). A build without them shows no Send; Share and Save stay.
+        val home = File(System.getProperty("user.home"))
+        val reportUrl = File(home, ".oneos-reports-url").takeIf { it.isFile }?.readText()?.trim()
+            ?.takeIf { Regex("https://[a-z0-9.-]+").matches(it) }.orEmpty()
+        val reportKey = File(home, ".oneos-reports-upload-key").takeIf { it.isFile }?.readText()?.trim()
+            ?.takeIf { Regex("[0-9a-f]{32,128}").matches(it) }.orEmpty()
+        buildConfigField("String", "REPORT_URL", "\"$reportUrl\"")
+        buildConfigField("String", "REPORT_KEY", "\"$reportKey\"")
     }
 
     // One codebase, two apps (docs/app/DESIGN.md, 0.3.4): "full" is OneOS, the app
@@ -430,7 +441,10 @@ abstract class ProbeApkCheckTask : DefaultTask() {
         }
         val m = manifest.get().asFile.readText()
         for (a in FULL_SCREENS) if (m.contains(".ui.$a\"")) problems += "the merged manifest declares $a"
-        if (m.contains("<uses-permission")) problems += "the merged manifest asks for a permission"
+        // Its only permission is INTERNET, for Send to the OneOS team (0.4.29).
+        for (p in Regex("""<uses-permission[^>]*android:name="([^"]+)"""").findAll(m).map { it.groupValues[1] }) {
+            if (p != "android.permission.INTERNET") problems += "the merged manifest asks for $p"
+        }
         if (problems.isNotEmpty()) throw GradleException("OneOS Probe carries what only OneOS may:\n  " + problems.distinct().joinToString("\n  "))
         report.get().asFile.writeText(lines.joinToString("\n", postfix = "\n"))
     }

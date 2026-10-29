@@ -150,11 +150,24 @@ class ProfilesTest {
         assertEquals(listOf("SM-F766", "b7s", "s5e9955"), listOf(flip7.modelPrefix, flip7.codename, flip7.socModel))
         assertEquals(FormFactor.FLIP, flip7.form)
         assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), ifx), flip7.choices)
-        for (p in listOf(s26PlusExynos, flip7)) {
+        // The Galaxy A57 (0.4.29): the first A-series phone, Exynos, a bar phone with the Flip7's images.
+        val a57 = Profiles.A57
+        assertEquals(listOf("a57", "Galaxy A57"), listOf(a57.id, a57.label))
+        assertEquals(listOf("SM-A576", "a57x", "s5e8865"), listOf(a57.modelPrefix, a57.codename, a57.socModel))
+        assertEquals(FormFactor.BAR, a57.form)
+        assertEquals(flip7.choices, a57.choices)
+        for (p in listOf(s26PlusExynos, flip7, a57)) {
             assertEquals(listOf(Profiles.ID_NOTE_EXYNOS), p.notes.map { it.id })
             assertEquals(Level.WARN, p.notes.single().level)
             assertFalse(p.testedWithAnyImage)
         }
+        // Galaxy Z Flip5 (0.4.29): the S23s' chip and vendor, a flip with their images and note.
+        val flip5 = Profiles.FLIP5
+        assertEquals(listOf("flip5", "Galaxy Z Flip5"), listOf(flip5.id, flip5.label))
+        assertEquals(listOf("SM-F731", "b5q", "SM8550"), listOf(flip5.modelPrefix, flip5.codename, flip5.socModel))
+        assertEquals(FormFactor.FLIP, flip5.form)
+        assertEquals(Profiles.S_8550.choices, flip5.choices)
+        assertEquals(listOf(Profiles.ID_NOTE_EXPECT_NO_START), flip5.notes.map { it.id })
         // Galaxy S23 and S23+ (0.4.11): the X9U image, untested, with the will-most-likely-not-start note.
         val s23 = Profiles.S_8550
         val s23Plus = Profiles.S_PLUS_8550
@@ -172,7 +185,7 @@ class ProfilesTest {
             listOf(
                 Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750, Profiles.FOLD8,
                 Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550, Profiles.S_PLUS_8850,
-                Profiles.S_PLUS_9965, Profiles.FLIP7,
+                Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A57, Profiles.FLIP5,
             ),
             Profiles.BUILT_IN,
         )
@@ -204,7 +217,7 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.F8U, Profiles.FOLD7, Profiles.FOLD8), Profiles.BUILT_IN.filter { it.form == FormFactor.FOLD })
         // The Find X9 Ultra builds run as a phone: the bar phones and (0.4.17) the Z Flip7 on its main screen.
         assertTrue(Profiles.BUILT_IN.filter { it.choice(Images.ID_FIND_X9U) != null }.all { it.form == FormFactor.BAR || it.form == FormFactor.FLIP })
-        assertEquals(listOf(Profiles.FLIP7), Profiles.BUILT_IN.filter { it.form == FormFactor.FLIP })
+        assertEquals(listOf(Profiles.FLIP7, Profiles.FLIP5), Profiles.BUILT_IN.filter { it.form == FormFactor.FLIP })
         // The Pixel 11 Fold image on the SM8850 folds (it ran on the Fold8 Ultra; 0.4.10 the Z Fold8, untested), with the Fold's set.
         assertEquals(listOf(Profiles.F8U, Profiles.FOLD8), Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_YOGI) != null })
         // The Pixel 11 images only on chips with SVE, which their system code needs: SM8850, and (0.4.17) the
@@ -261,6 +274,10 @@ class ProfilesTest {
         assertNull(profile("SM-S947B", "m2s", "SM8850"))
         assertEquals(Profiles.FLIP7, profile("SM-F766U", "b7s", "s5e9955"))
         assertEquals(Profiles.FLIP7, profile("SM-F766B", "B7S", "S5E9955"))
+        assertEquals(Profiles.A57, profile("SM-A576B", "a57x", "s5e8865"))
+        assertEquals(Profiles.FLIP5, profile("SM-F731B", "b5q", "SM8550"))
+        assertNull(profile("SM-F731B", "b5q", "SM8650"))
+        assertNull(profile("SM-A566B", "a56x", "s5e8855")) // the A56: no profile
         assertNull(profile("SM-F766U", "b7s", "s5e9965"))
         assertNull(profile("SM-S947U", "m3q", "SM8850")) // S26+ model number, S26 Ultra codename
         // Galaxy S23 and S23+ (0.4.11).

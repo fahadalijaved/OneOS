@@ -30,7 +30,7 @@ third parties to reuse the OneLineage-derived files.
 
 ## Galaxy Z Fold8 support, by Josh Skinner
 
-<https://github.com/thatjoshguy67>, [pull request #1](https://github.com/fahadalijaved23/OneOS/pull/1)
+<https://github.com/thatjoshguy67>, [pull request #1](https://github.com/fahadalijaved/OneOS/pull/1)
 (Apache-2.0, as a contribution to this repository).
 
 Josh brought OneOS to the Galaxy Z Fold8 (SM-F971B) and tested it there:

@@ -898,6 +898,9 @@ class StageScriptTest {
             // 0.4.17: the Exynos S26+ and Z Flip7 (root compares ro.soc.model as Android reports it).
             Profiles.S_PLUS_9965 to "SM-S947B",
             Profiles.FLIP7 to "SM-F766U",
+            // 0.4.29: the Galaxy A57.
+            Profiles.A57 to "SM-A576B",
+            Profiles.FLIP5 to "SM-F731B",
         )) {
             eachShell { fr ->
                 fr.props["ro.product.model"] = model

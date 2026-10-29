@@ -150,6 +150,8 @@ profile_info() {
         s-plus-8850) echo "SM-S947 m2q SM8850 bar" ;;
         s-plus-9965) echo "SM-S947 m2s s5e9965 bar" ;;
         flip7) echo "SM-F766 b7s s5e9955 flip" ;;
+        a57) echo "SM-A576 a57x s5e8865 bar" ;;
+        flip5) echo "SM-F731 b5q SM8550 flip" ;;
         *) return 1 ;;
     esac
 }
@@ -197,6 +199,10 @@ profile_set() {
         "s-plus-9965 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip7 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip7 coloros17-findx9u") echo x9u-sultra ;;
+        "a57 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a57 coloros17-findx9u") echo x9u-sultra ;;
+        "flip5 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip5 coloros17-findx9u") echo x9u-sultra ;;
         "f8u infinityx41-findx9u") echo infinityx ;;
         "f8 infinityx41-findx9u") echo infinityx ;;
         "f7 infinityx41-findx9u") echo infinityx ;;
@@ -212,6 +218,8 @@ profile_set() {
         "s-8550 infinityx41-findx9u") echo infinityx ;;
         "s-plus-8550 infinityx41-findx9u") echo infinityx ;;
         "flip7 infinityx41-findx9u") echo infinityx ;;
+        "a57 infinityx41-findx9u") echo infinityx ;;
+        "flip5 infinityx41-findx9u") echo infinityx ;;
         *) return 1 ;;
     esac
 }

@@ -129,11 +129,14 @@ class PlainTest {
         assertEquals("Free up 7.1 GB to set up ColorOS 17", space.title)
         assertEquals("It needs about 22.1 GB; you have 15.0 GB.", space.line)
         assertEquals(FixAction.FREE_UP_SPACE, space.action)
-        // The phone list comes from the profiles.
+        // The phone list comes from the profiles: every name while they fit one line (0.4.28),
+        // the families once they do not (0.4.29, with the A57 and Z Flip5).
         assertEquals(
-            "OneOS works on the Galaxy Z Fold (F8U), S26 Ultra, S25 Ultra, S25, Z Fold7, S25+, Z Fold8, S26, S24 Ultra, S23, S23+, S26+ and Z Flip7.",
+            "OneOS works on 15 Galaxy phones so far: Z Fold, S, Z Flip and A models; the README lists them.",
             of(SwitchGates.ID_PROFILE, SwitchGates.R_PROFILE_NONE).line,
         )
+        assertEquals("the Galaxy Z Fold (F8U), S26 Ultra and S25", Plain.phoneList(listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_8750)))
+        assertEquals("the Galaxy S26", Plain.phoneList(listOf(Profiles.S_8850, Profiles.S_8850_JP)))
         // Ticks: the same text as the gate's (part of the tick's key).
         val calls = Plain.of(Finding(SwitchGates.ID_CARRIER, Level.WARN, "", "", CarrierRules.R_VOLTE_ONLY), pixel, Profiles.F8U)
         assertEquals(FixAction.ACKNOWLEDGE, calls.action)

@@ -1,0 +1,19 @@
+# OneOS reports (reports/worker.js). reports/deploy.sh fills in the KV
+# namespace id and sets the secrets (UPLOAD_KEY, ADMIN_KEY, TG_TOKEN, TG_CHAT,
+# TG_THREAD) from files on the team's server; none of them is in the repository.
+name = "oneos-reports"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+# No preview addresses: only the production one serves the app.
+preview_urls = false
+
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "KV_NAMESPACE_ID"
+
+# 30 requests a minute per sender (a report is at most 4 parts and its record).
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+simple = { limit = 30, period = 60 }

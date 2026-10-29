@@ -1,6 +1,7 @@
 # Exynos phones (first runs, 0.4.17)
 
-Two probe reports of 2026-10-25 brought the first Exynos profiles:
+Two probe reports of 2026-10-25 brought the first Exynos profiles (a third, the
+Galaxy A57, came in 0.4.29; see the end):
 
 | | Galaxy S26+ (Exynos) | Galaxy Z Flip7 |
 | --- | --- | --- |
@@ -39,3 +40,17 @@ The compatibility check keeps every other Exynos phone blocked. With a
 profile, Exynos is a warning ("Exynos: first runs"), and both profiles carry
 a first-runs note at Switch. If the screen stays black, the black-screen
 auto-return brings One UI back; the session logs are what the next step needs.
+
+## Galaxy A57 (0.4.29)
+
+A probe report of 2026-10-29: SM-A576B, a57x, s5e8865 (Exynos, 3 x Cortex-A520
+and 5 x Cortex-A720), One UI 9.0, Android 17 build CP2A.260605.016, vendor API
+202504, kernel 6.12. One 1080 x 2340 panel on port 129 at density 450,
+sec_touchscreen, backlight /sys/class/backlight/panel (max 9180),
+vendor.hwcomposer-3 with the AIDL composer, allocator and audio HAL, Samsung's
+init.vendor.sysfw.rc (the softdog of docs/exynos-hosts.md), SVE and SVE2 but no
+SME, and an installd table identical to switcher/patches/host_installd.txt.
+Profile `a57`, in the s25 series, with the Z Flip7's images: both Find X9 Ultra
+builds and Infinity-X, whose system code needs neither SVE nor SME. It is the
+first A-series phone and the first mid-range chip; nothing about it differs
+from the S26+ (Exynos) in what the session scripts read.

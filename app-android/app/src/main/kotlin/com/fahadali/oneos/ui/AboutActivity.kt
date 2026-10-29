@@ -41,7 +41,7 @@ class AboutFragment : PreferenceFragmentCompat() {
         }
     }
 
-    /** Hands the link to the browser; the app itself has no INTERNET permission. */
+    /** Hands the link to the browser (the app's only network use is Send to the OneOS team). */
     private fun openInBrowser(url: String) {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
         try {

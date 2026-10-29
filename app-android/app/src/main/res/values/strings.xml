@@ -115,7 +115,7 @@
     <string name="about_credit_onelineage_url" translatable="false">https://github.com/WeWaffles/OneLineage</string>
     <string name="about_credit_fold8_title">Galaxy Z Fold8 support</string>
     <string name="about_credit_fold8_summary">Josh Skinner (thatjoshguy67): the Fold8 sets and the hinge, with half-folded apps and the fold animations in ColorOS and Pixel on the Fold8 and Fold8 Ultra.</string>
-    <string name="about_credit_fold8_url" translatable="false">https://github.com/fahadalijaved23/OneOS/pull/1</string>
+    <string name="about_credit_fold8_url" translatable="false">https://github.com/fahadalijaved/OneOS/pull/1</string>
     <string name="about_no_browser">No browser found to open the link</string>
     <string name="about_credit_infinityx_title">Project Infinity-X</string>
     <string name="about_credit_infinityx_summary">The Infinity-X system and its Find X9 Ultra build (X9UInfinityX), which OneOS runs with its own framework patches.</string>
@@ -125,4 +125,51 @@
     <string name="about_cat_legal">Legal</string>
     <string name="about_legal_title">Not affiliated</string>
     <string name="about_legal_summary">Not affiliated with Samsung, OPPO, Google or Project Infinity-X. Galaxy, One UI, ColorOS, Pixel and Android are trademarks of their owners.</string>
+
+    <!-- Send to the OneOS team (0.4.29): SendReportActivity. -->
+    <string name="send_title">Send to the OneOS team</string>
+    <string name="send_unavailable">Sending isn\'t available in this build. Use Share instead.</string>
+    <string name="send_cat_session">Session report</string>
+    <string name="send_cat_probe">Phone report</string>
+    <string name="send_session_summary">Session %1$s</string>
+    <string name="send_probe_summary">The findings of OneOS Probe</string>
+    <string name="send_cat_how">How did it go?</string>
+    <string name="send_start_title">Did it start?</string>
+    <string name="send_choose">Choose one</string>
+    <string name="send_works_title">What worked</string>
+    <string name="send_problems_title">What had problems</string>
+    <string name="send_none_ticked">Nothing ticked (not tried)</string>
+    <string name="send_cat_more">Anything else</string>
+    <string name="send_note_title">Note for the team</string>
+    <string name="send_note_hint">Optional: what happened, in a few words</string>
+    <string name="send_contact_title">Your Telegram name</string>
+    <string name="send_contact_hint">Optional, so the team can ask you more</string>
+    <string name="send_cat_what">What is sent</string>
+    <string name="send_attach_logs">Attach the logs</string>
+    <string name="send_attach_findings">Attach the findings</string>
+    <string name="send_attach_findings_summary">The findings zip, %1$s</string>
+    <string name="send_short_summary">The short log: the first minutes after the switch and the last 2 before it ended, usually under 2 MB</string>
+    <string name="send_full_summary">The whole session log, %1$s</string>
+    <string name="send_full_title">Send the whole session log</string>
+    <string name="send_full_auto">On because a problem is ticked: the team needs the whole session to find it</string>
+    <string name="send_full_hint">Only the short log is sent unless you turn this on</string>
+    <string name="send_privacy_title">What the team sees</string>
+    <string name="send_privacy_summary">The same file Share sends, with personal data already removed, and your answers. Reports are kept for 30 days. The public compatibility table counts only the answers: never your note, name or phone details.</string>
+    <string name="send_button">Send to the OneOS team</string>
+    <string name="send_button_summary">Uses mobile data or Wi-Fi</string>
+    <string name="send_preparing">Preparing…</string>
+    <string name="send_progress">Sending… %1$d%% of %2$s</string>
+    <string name="send_sending">Sending</string>
+    <string name="send_need_start">Choose whether it started first</string>
+    <string name="send_too_big">The file is too big to send (%1$s). Use Share instead.</string>
+    <string name="send_done_title">Sent. Thank you!</string>
+    <string name="send_done_summary">Report code %1$s. Tap to copy it, and mention it in Phone reports if you write there.</string>
+    <string name="send_copied">Report code copied</string>
+    <string name="send_again">Send again</string>
+    <string name="send_failed_title">Couldn\'t send</string>
+    <string name="send_share_instead">Share instead</string>
+    <string name="send_share_instead_summary">Send the file yourself, for example in the Telegram group</string>
+    <string name="findings_send_team">Send to the OneOS team</string>
+    <string name="last_send_summary">How it went and the logs, straight to the team</string>
+    <string name="last_send_sent">Sent, report code %1$s. Tap to send again.</string>
 </resources>
