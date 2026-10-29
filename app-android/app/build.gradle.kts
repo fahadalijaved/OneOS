@@ -50,8 +50,9 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8") to listOf("tethering_payload.img")),
     // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
     "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo") to listOf("tethering_payload.img")),
-    // Infinity-X image (0.4.27), every phone: one set from that image.
-    "infinityx" to (File(repoRoot, "out/overlays_infinityx") to listOf("tethering_payload.img")),
+    // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
+    // is built from source (0.4.28): the guest keeps One UI's, like tethering.
+    "infinityx" to (File(repoRoot, "out/overlays_infinityx") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -249,8 +250,9 @@ android {
         // 0.4.24: Pixel guests' camera calls with One UI's transaction codes (framework_patched.jar).
         // 0.4.26: a native-only service fails to start in the guest (Chrome stalled every app start).
         // 0.4.27: the Infinity-X system on every phone.
-        versionCode = 44
-        versionName = "0.4.27"
+        // 0.4.28: Infinity-X keeps One UI's cellbroadcast module, sees hwservicemanager on HIDL-only phones.
+        versionCode = 45
+        versionName = "0.4.28"
     }
 
     // One codebase, two apps (docs/app/DESIGN.md, 0.3.4): "full" is OneOS, the app

@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.27. Samsung flagships with Snapdragon, plus the first two
+App version 0.4.28. Samsung flagships with Snapdragon, plus the first two
 Exynos phones; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 

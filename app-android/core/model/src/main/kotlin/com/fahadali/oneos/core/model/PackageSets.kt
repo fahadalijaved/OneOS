@@ -172,7 +172,9 @@ object PackageSets {
      * Google's mainline cellbroadcast module (the Pixel image; the CN builds have
      * CellBroadcastService as an app and no payload). guest_prepare.sh mounts it
      * when it is staged, and refuses an app session whose image has the module
-     * but no staged payload.
+     * but no staged payload, except a module built from source
+     * (com.android.cellbroadcast.*, Infinity-X): One UI's stays then, the
+     * android.uid.networkstack group has One UI's signer ([PackageSets.INFINITYX]).
      */
     const val CELLBROADCAST = "cellbroadcast_payload.img"
 
@@ -366,10 +368,15 @@ object PackageSets {
      * One UI's camera transaction codes in framework_patched.jar and
      * libcamera_client_patched.so. The AOSP signal poll (no
      * oplus-telephony-common.jar), the IMS extension backoff, OneOSGuest.apk and
-     * 22 APEX payloads: the 15 of every set, its cellbroadcast, bt and
-     * nfcservices modules, its telephonycore, conscrypt and profiling (no
-     * platform framework-telecom.jar, as Pixel) and GmsCore (its gmssystem APEX,
-     * Pixel's layout). No surfaceflinger (no QTI composer client in it).
+     * 21 APEX payloads: the 15 of every set, its bt and nfcservices modules, its
+     * telephonycore, conscrypt and profiling (no platform framework-telecom.jar,
+     * as Pixel) and GmsCore (its gmssystem APEX, Pixel's layout). No
+     * surfaceflinger (no QTI composer client in it). Its cellbroadcast module is
+     * left out (0.4.28): built from source, it is signed with the build's
+     * networkstack key, and with One UI's tethering and NetworkStack in the
+     * guest system_server died on "Signature mismatch on system package
+     * com.android.cellbroadcastservice for shared user android.uid.networkstack"
+     * (S25 Ultra session 26ea59af). The guest keeps One UI's, as for tethering.
      */
     val INFINITYX = PackageSet(
         id = ID_INFINITYX,
@@ -388,10 +395,10 @@ object PackageSets {
             PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
             PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
             PackageFile(GUEST_APP, FileRole.GUEST_APP),
-        ) + (COMMON_PAYLOADS + listOf("cellbroadcast", "bt", "nfcservices", "telephonycore", "conscrypt", "profiling", "gmssystem"))
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling", "gmssystem"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
-        omitted = listOf(TETHERING),
-        approxBytes = 554_488_930L,
+        omitted = listOf(TETHERING, CELLBROADCAST),
+        approxBytes = 531_514_466L,
         hasReturnApp = true,
     )
 

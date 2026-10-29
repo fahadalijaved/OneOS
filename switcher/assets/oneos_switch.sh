@@ -1854,7 +1854,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
         echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        t=0; total=0; dead=0; prev_failed=0
+        t=0; total=0; dead=0; sfgone=0; prev_failed=0
         while [ \$t -lt $RETURN_MAX ]; do
             # The 10 s wait ends early on a request. Run 34: Volume Up + Volume
             # Down were held 3 s from 16:43:56, but the request was handled only
@@ -2063,6 +2063,21 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 dead=\$((dead + 10))
                 if [ \$dead -ge 30 ]; then
                     echo \"\$(date) guest zygote/system_server gone for \${dead}s after \${t}s, returning to One UI\"
+                    exec /system/bin/sh $STAGE/return_to_oneui.sh
+                fi
+            fi
+            # Nothing restarts the guest's surfaceflinger either: once
+            # guest_start.sh has started it (its takeover.log line), 30 s
+            # without one is a black screen for good, so it need not wait for
+            # ONEOS_RETURN_BLACK. S23 Ultra session 99ef8224: it aborted 27 s
+            # into the switch and the phone was force-restarted 47 s later
+            # (temp root lost), long before the 150 s.
+            if pidof surfaceflinger >/dev/null || ! grep -q 'SurfaceFlinger PID:' $STAGE/data/takeover.log 2>/dev/null; then
+                sfgone=0
+            else
+                sfgone=\$((sfgone + 10))
+                if [ \$sfgone -ge 30 ]; then
+                    echo \"\$(date) black screen after \${t}s (the guest's surfaceflinger gone for \${sfgone}s, nothing restarts it), returning to One UI\"
                     exec /system/bin/sh $STAGE/return_to_oneui.sh
                 fi
             fi

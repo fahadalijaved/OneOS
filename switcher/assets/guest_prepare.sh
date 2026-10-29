@@ -372,6 +372,28 @@ if [ -d "$GUEST_SYSTEM_EXT" ] && [ ! -f "$GUEST_SYSTEM_EXT/framework/oplus-telep
         echo "Signal poll: oneos-telephony.jar, .sha256 or OneOSPhoneInjection.apk not staged (make-overlays.sh builds them only for an image they fit)"
     fi
 fi
+# HIDL. libhidlbase uses hwservicemanager only when one of its binaries is
+# there (system/system_ext/bin, system_ext/bin or system/bin; access() only,
+# nothing runs it). Infinity-X is built for a phone without HIDL: its
+# system/bin/hwservicemanager links to a system_ext file it does not ship, so
+# every guest process took HIDL for absent. On the S23's HIDL-only display
+# composer its surfaceflinger aborted ("failed to get hwcomposer service") and
+# audioserver found no audio HAL (S23 Ultra session 99ef8224). One UI's
+# hwservicemanager serves /dev/hwbinder to the guest as to the images that
+# ship one (ColorOS), so an empty file at system_ext/bin/hwservicemanager in
+# the overlay below lets the guest's HIDL clients ask it. Only when the image
+# has none, One UI runs hwservicemanager, and this phone's vendor manifest
+# declares no AIDL display composer or no AIDL audio HAL (as return_to_oneui.sh
+# reads it): elsewhere the guests without one (Pixel) keep running as they do.
+HWSM=0
+HWSM_WHY=""
+"$BB" grep -rqs 'android.hardware.graphics.composer3' /vendor/etc/vintf/ || HWSM_WHY="display composer"
+"$BB" grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/ || HWSM_WHY="${HWSM_WHY:+$HWSM_WHY and }audio HAL"
+if [ -n "$HWSM_WHY" ] && [ -d "$GUEST_SYSTEM_EXT/bin" ] &&
+    [ ! -e "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ] && [ ! -L "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ] &&
+    { [ -L "$ROOTFS/system/bin/hwservicemanager" ] || [ ! -e "$ROOTFS/system/bin/hwservicemanager" ]; } && pidof hwservicemanager >/dev/null; then
+    HWSM=1
+fi
 # ColorOS's system_ext has no apex dir and the image is mounted read-only, so
 # put a thin overlayfs on it to create the mount point. Its upper layer is a
 # small tmpfs: overlayfs refuses an upper dir on the encrypted f2fs /data
@@ -383,14 +405,20 @@ fi
 # An overlay left by an earlier prepare is never unmounted here (umount
 # propagation); the signal poll then goes ahead only if it is that read-only one
 # with the same jar (checked below).
-if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ]; then
+if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
         echo "Overlay on $GUEST_SYSTEM_EXT already there (an earlier prepare), left as it is"
-    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ]; then
+    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ]; then
         OV="$STAGE/system_ext_ov"
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
         mkdir -p "$OV/up/apex"
+        if [ $HWSM = 1 ]; then
+            mkdir -p "$OV/up/bin" && : > "$OV/up/bin/hwservicemanager" &&
+                chmod 755 "$OV/up/bin" "$OV/up/bin/hwservicemanager" || HWSM=0
+            $BB chcon u:object_r:system_file:s0 "$OV/up/bin" 2>/dev/null || true
+            $BB chcon u:object_r:hwservicemanager_exec:s0 "$OV/up/bin/hwservicemanager" 2>/dev/null || true
+        fi
         if [ $INJ = 1 ]; then
             mkdir -p "$OV/up/framework" && cp "$STAGE/oneos-telephony.jar" "$OV/up/framework/" &&
                 chmod 755 "$OV/up" "$OV/up/framework" && chmod 644 "$OV/up/framework/oneos-telephony.jar"
@@ -405,11 +433,18 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ]; t
                 echo "Signal poll: off (read-only overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
-        if [ $INJ = 0 ] && [ ! -d "$GUEST_SYSTEM_EXT/apex" ]; then
+        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ]; }; then
             mkdir -p "$OV/work"
             $BB mount -t overlay overlay \
                 -o "lowerdir=$GUEST_SYSTEM_EXT,upperdir=$OV/up,workdir=$OV/work" \
-                "$GUEST_SYSTEM_EXT" && echo "Overlay on $GUEST_SYSTEM_EXT for the apex mount point"
+                "$GUEST_SYSTEM_EXT" && echo "Overlay on $GUEST_SYSTEM_EXT for the apex mount point$([ $HWSM = 1 ] && echo ' and bin/hwservicemanager')"
+        fi
+        if [ $HWSM = 1 ]; then
+            if [ -f "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ]; then
+                echo "HIDL: the guest sees system_ext/bin/hwservicemanager (an empty file; One UI's hwservicemanager $(pidof hwservicemanager) answers) for this phone's HIDL-only $HWSM_WHY"
+            else
+                echo "!!! HIDL: no system_ext/bin/hwservicemanager in the guest; it will not find this phone's HIDL-only $HWSM_WHY"
+            fi
         fi
     fi
     if [ -d /system_ext/apex ]; then
@@ -2342,6 +2377,22 @@ mount_payload() {
              com.google.android.${NAME}_compressed.apex com.google.android.${NAME}_tplus_compressed.apex; do
         [ -f "$ROOTFS/system/apex/$f" ] && { SRC="$ROOTFS/system/apex/$f"; break; }
     done
+    # The cell broadcast service shares android.uid.networkstack with
+    # tethering (always One UI's Google-signed module, see the list below) and
+    # NetworkStack (One UI's NetworkStackGoogle, after section 9). A module built from source
+    # (com.android.cellbroadcast.*: Infinity-X) is signed with the build's own
+    # networkstack key, so system_server died in its first package scan (S25
+    # Ultra session 26ea59af: "Signature mismatch on system package
+    # com.android.cellbroadcastservice for shared user android.uid.networkstack").
+    # The guest keeps One UI's module then, staged or not; Google's own (Pixel,
+    # the X9U IN) is mounted as before.
+    if [ "$NAME" = cellbroadcast ]; then
+        case "$SRC" in
+            */com.android.cellbroadcast.apex|*/com.android.cellbroadcast.capex)
+                echo "cellbroadcast: the image's ${SRC##*/} is built from source, not Google's; One UI's module stays (android.uid.networkstack has one signer)"
+                return 0 ;;
+        esac
+    fi
     if [ ! -f "$IMG" ] && [ "${ONEOS_APP:-0}" = 1 ]; then
         if [ -n "$SRC" ]; then
             echo "ERROR: the image has ${SRC##*/} but no ${NAME}_payload.img was staged; not starting the guest"

@@ -43,11 +43,15 @@ class PackageSetsTest {
             PackageSets.ALL,
         )
         // Infinity-X (0.4.27): both guard jars, the camera codes (Java and native), the guest vold, the
-        // AOSP signal poll, the IMS backoff, the guest app, the guards and 22 payloads, GmsCore's among them.
+        // AOSP signal poll, the IMS backoff, the guest app, the guards and 21 payloads, GmsCore's among them.
+        // Not its cellbroadcast module (0.4.28): One UI's stays, as tethering does.
         val ifx = PackageSets.INFINITYX
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
         assertEquals("out/overlays_infinityx", ifx.sourceDir)
-        assertEquals(34, ifx.files.size)
+        assertEquals(33, ifx.files.size)
+        assertEquals(21, ifx.files.count { it.role == FileRole.APEX_PAYLOAD })
+        assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), ifx.omitted)
+        assertTrue(ifx.file(PackageSets.CELLBROADCAST) == null)
         assertEquals(
             listOf("services_patched.jar", "oplus-services_patched.jar", "framework_patched.jar", "vold_patched",
                 "service.incremental_patched.so", "libcamera_client_patched.so"),
