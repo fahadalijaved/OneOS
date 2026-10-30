@@ -222,6 +222,12 @@ object Plain {
             }
             SwitchGates.ID_SCREEN_LOCK, ScreenLockRule.ID_SET, ScreenLockRule.ID_UNKNOWN -> when (r) {
                 ScreenLockRule.R_UNKNOWN -> m("Couldn't read your screen lock", "Set Screen lock type to None or Swipe, then try again.", FixAction.TRY_AGAIN)
+                // 0.4.32: the owner turned Advanced's switch on, so this warns instead of stopping.
+                ScreenLockRule.R_SET_ALLOWED -> m(
+                    "Your screen lock is on",
+                    "You chose to switch anyway. If the phone can't take your lock afterwards, the only way back erases it.",
+                    FixAction.NONE,
+                )
                 else -> m(
                     "Turn off your screen lock",
                     "Set Screen lock type to None or Swipe. OneOS can't switch while a lock is on.",

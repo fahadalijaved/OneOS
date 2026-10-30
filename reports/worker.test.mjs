@@ -34,6 +34,7 @@ function record(over = {}) {
     image: 'infinityx41-findx9u', imageName: 'Infinity-X 4.1', sessionId: '8aea312c31b8821d', outcome: { kind: 'GUEST_DEAD', afterSeconds: 120 },
     checklist: { start: 'home', items: { screen: 'works', wifi: 'works', calls: 'problem', camera: 'not_tried' } },
     note: 'calls drop', contact: '@tester',
+    sessionApp: { version: '0.4.19', versionCode: 32, date: '2026-10-19' },
     logs: { kind: 'session', name: 'oneos-logs-8aea312c31b8821d.zip', full: true, bytes: 5, sha256: 'ab'.repeat(32), parts: 1 },
     ...over,
   }
@@ -113,7 +114,18 @@ test('bad input is refused', async () => {
   assert.equal(e.REPORTS.m.size, 0)
 })
 
-test('the ping says what was checked, never the note or the contact', async () => {
+test('the record keeps the app the session ran on, and refuses a bad one', async () => {
+  const e = env()
+  assert.equal((await call(e, 'POST', '/v1/report', { body: JSON.stringify(record({ logs: null })), headers: up })).status, 200)
+  const stored = JSON.parse(new TextDecoder().decode([...e.REPORTS.m.values()][0].bytes))
+  assert.deepEqual(stored.sessionApp, { version: '0.4.19', versionCode: 32, date: '2026-10-19' })
+  for (const bad of [{ version: 'a b' }, { version: '0.4.19', versionCode: 'x' }, { version: '0.4.19', date: '19-10-2026' }]) {
+    const body = JSON.stringify(record({ logs: null, sessionApp: bad, reportId: 'sa0x-00ff' }))
+    assert.equal((await call(e, 'POST', '/v1/report', { body, headers: up })).status, 400)
+  }
+})
+
+test('the ping says what was checked and who sent it, never the note', async () => {
   const sent = []
   const realFetch = globalThis.fetch
   globalThis.fetch = async (u, init) => { sent.push({ u: String(u), body: JSON.parse(init.body) }); return new Response('{}') }
@@ -130,7 +142,25 @@ test('the ping says what was checked, never the note or the contact', async () =
     assert.match(t, /✅ Screen, Wi-Fi/)
     assert.match(t, /❌ Calls/)
     assert.match(t, /Note: sent to the team/)
-    assert.doesNotMatch(t, /calls drop|@tester/)
+    // Who sent it (0.4.31): a Telegram username, as a mention. The note stays private.
+    assert.match(t, /From: @tester/)
+    assert.doesNotMatch(t, /calls drop/)
+    // Anything that is not a username is named, not printed: the group is public.
+    for (const [contact, shown] of [
+      ['tester@example.com', 'From: an e-mail address, in the record'],
+      ['+1 555 0123', 'From: a phone number, in the record'],
+      ['A Tester', 'From: a contact in the record'],
+      [null, 'From: no contact given'],
+    ]) {
+      sent.length = 0
+      ctx.waits = []
+      const body = JSON.stringify(record({ logs: null, contact, reportId: `c${Math.abs(shown.length)}x-00ff` }))
+      assert.equal((await call(e, 'POST', '/v1/report', { body, headers: up })).status, 200)
+      await Promise.all(ctx.waits)
+      const got = sent[0].body.text
+      assert.match(got, new RegExp(shown.replace(/[.+]/g, '\\$&')))
+      if (contact) assert.doesNotMatch(got, new RegExp(contact.replace(/[.+()]/g, '\\$&')))
+    }
   } finally {
     globalThis.fetch = realFetch
   }

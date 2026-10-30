@@ -48,6 +48,7 @@ internal object SwitchConfirm {
         val asks = report.toTick.filter { it.tickKey !in remembered }
         val hideGms = SessionPrefs.hideGms(a) && image.gmsHideable
         val secIms = SessionPrefs.secIms(a)
+        val edmStub = SessionPrefs.edmStub(a)
 
         val inflater = LayoutInflater.from(a)
         val view = inflater.inflate(R.layout.dialog_switch, null)
@@ -63,6 +64,7 @@ internal object SwitchConfirm {
             if (hideGms) add(a.getString(R.string.confirm_gms_hidden))
             if (!SessionPrefs.heatCap(a)) add(a.getString(R.string.confirm_heat_cap_off))
             if (secIms) add(a.getString(R.string.confirm_sec_ims, system))
+            if (edmStub) add(a.getString(R.string.confirm_edm_stub, system))
             // An image whose sessions present Google services runs its own setup wizard on a new stage:
             // sign-in and a screen lock are skipped there (docs/pixel-guest.md, "Setup").
             if (image.presentsGms) add(a.getString(R.string.confirm_setup_wizard, system))
@@ -126,7 +128,7 @@ internal object SwitchConfirm {
             }
             val ticked = remembered + boxes.mapNotNull { it.tag as? String }
             dialog.dismiss()
-            LaunchJob.start(a, dryRun = false, ticked = ticked, hideGms = hideGms, secIms = secIms)
+            LaunchJob.start(a, dryRun = false, ticked = ticked, hideGms = hideGms, secIms = secIms, edmStub = edmStub)
         }
         dialog.show()
     }

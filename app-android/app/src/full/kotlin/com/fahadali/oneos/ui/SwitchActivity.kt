@@ -176,7 +176,7 @@ class SwitchFragment : CardsFragment() {
             .setTitle(if (dry) getString(R.string.switch_dry_dialog_title) else getString(R.string.switch_go_dialog_title, system))
             .setMessage(message)
             .setPositiveButton(if (dry) getString(R.string.switch_dry_title) else getString(R.string.switch_go_title, system)) { _, _ ->
-                LaunchJob.start(requireContext(), dry, ticked.toSet(), hide, SessionPrefs.secIms(requireContext()))
+                LaunchJob.start(requireContext(), dry, ticked.toSet(), hide, SessionPrefs.secIms(requireContext()), SessionPrefs.edmStub(requireContext()))
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

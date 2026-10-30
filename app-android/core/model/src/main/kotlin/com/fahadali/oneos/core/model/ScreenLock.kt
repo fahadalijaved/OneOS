@@ -28,13 +28,27 @@ object ScreenLockRule {
     const val R_SET = "set"
     const val R_UNKNOWN = "unknown"
 
-    /** [deviceSecure]: `KeyguardManager.isDeviceSecure()` read right before Switch, null when it could not be read. */
-    fun switchGate(deviceSecure: Boolean?): Finding = when (deviceSecure) {
-        true -> Finding(
+    /** [Finding.reason]: a lock is set and the owner turned the Advanced switch on. */
+    const val R_SET_ALLOWED = "set-allowed"
+
+    /**
+     * [deviceSecure]: `KeyguardManager.isDeviceSecure()` read right before Switch, null when it could not be read.
+     * [allowed] (0.4.32): the owner turned Advanced's "Switch with a screen lock set" on, so a lock warns
+     * instead of blocking. An unreadable lock state still blocks: not knowing is not a choice.
+     */
+    fun switchGate(deviceSecure: Boolean?, allowed: Boolean = false): Finding = when (deviceSecure) {
+        true -> if (allowed) Finding(
+            ID_GATE, Level.WARN, "Switching with a screen lock set",
+            "A PIN, pattern, password, fingerprint or face lock is on, and you turned this on in Advanced. " +
+                "Your One UI data is encrypted behind that lock: if a session leaves the phone unable to " +
+                "accept it, the way back is a factory reset, which erases the phone. That has happened to a " +
+                "tester. Turn the switch off in Advanced to go back to removing the lock first.",
+            R_SET_ALLOWED,
+        ) else Finding(
             ID_GATE, Level.BLOCK, "Remove the screen lock to switch",
             "A PIN, pattern, password, fingerprint or face lock is on. If the phone boot-loops, a locked " +
                 "phone may not get into Download Mode to recover. Set Screen lock type to None or Swipe in " +
-                "Settings, then come back. This check cannot be skipped.",
+                "Settings, then come back. Advanced has a switch to do it anyway, at your own risk.",
             R_SET,
         )
         false -> Finding(ID_GATE, Level.OK, "No screen lock", "Keep it off while you use OneOS.")

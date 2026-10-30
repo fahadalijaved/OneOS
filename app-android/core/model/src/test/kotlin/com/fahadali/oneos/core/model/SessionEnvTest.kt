@@ -28,6 +28,7 @@ class SessionEnvTest {
             ONEOS_GUEST_HIDE_GMS=0
             ONEOS_HEAT_CAP=1
             ONEOS_GUEST_SEC_IMS=0
+            ONEOS_GUEST_EDM_STUB=0
             ONEOS_RETURN_MODE=inplace
 
             """.trimIndent(),
@@ -55,6 +56,7 @@ class SessionEnvTest {
             ONEOS_GUEST_HIDE_GMS=0
             ONEOS_HEAT_CAP=1
             ONEOS_GUEST_SEC_IMS=0
+            ONEOS_GUEST_EDM_STUB=0
             ONEOS_RETURN_MODE=inplace
 
             """.trimIndent(),
@@ -138,7 +140,7 @@ class SessionEnvTest {
         assertTrue(problems(good.removeSuffix("\n")).contains("must end with a newline"))
         assertTrue(problems(good.replace("\n", "\r\n")).isNotEmpty())
         assertTrue(problems("# comment\n$good").contains("line 1 is not KEY=VALUE"))
-        assertTrue(problems("$good\n").contains("line 18 is not KEY=VALUE"))
+        assertTrue(problems("$good\n").contains("line 19 is not KEY=VALUE"))
         assertTrue(problems(good.replace("ONEOS_APP=1", "export ONEOS_APP=1")).isNotEmpty())
         assertTrue(problems(good.replace("ONEOS_GUEST_FOLD=off", "ONEOS_GUEST_FOLD=\$(reboot)")).isNotEmpty())
         // A fold value in an S Ultra file: the profile decides the form.
@@ -186,8 +188,11 @@ class SessionEnvTest {
         }
         // 0.4.11: the Find X9 Ultra IN build's Google services (in the image, not presented) may be hidden.
         assertEquals(listOf(Images.FIND_X9U_IN), Images.ALL.filter { it.gmsHideable })
-        assertEquals(listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_GUEST_SEC_IMS", "ONEOS_RETURN_MODE"), SessionEnv.ALLOWED.keys.toList().takeLast(4))
-        assertEquals("ONEOS_GUEST_SEC_IMS", SessionEnv.ALLOWED.keys.toList().dropLast(1).last())
+        assertEquals(
+            listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_GUEST_SEC_IMS", "ONEOS_GUEST_EDM_STUB", "ONEOS_RETURN_MODE"),
+            SessionEnv.ALLOWED.keys.toList().takeLast(5),
+        )
+        assertEquals("ONEOS_GUEST_EDM_STUB", SessionEnv.ALLOWED.keys.toList().dropLast(1).last())
         for (p in Profiles.BUILT_IN.filter { it.enabled }) {
             val text = SessionEnv.generate(p)
             assertTrue(p.id, text.lines().contains("${SessionEnv.SEC_IMS}=0"))
@@ -195,6 +200,11 @@ class SessionEnvTest {
             assertEquals(emptyList<String>(), SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0", "${SessionEnv.SEC_IMS}=1")))
             for (bad in listOf("2", "", "on")) assertTrue(bad, SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0", "${SessionEnv.SEC_IMS}=$bad")).isNotEmpty())
             assertTrue(SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0\n", "")).contains("${SessionEnv.SEC_IMS} missing"))
+            // 0.4.32: the Knox edm stub, a launch's choice on any phone and image, the same way.
+            assertTrue(p.id, text.lines().contains("${SessionEnv.EDM_STUB}=0"))
+            assertEquals(emptyList<String>(), SessionEnv.validate(text.replace("${SessionEnv.EDM_STUB}=0", "${SessionEnv.EDM_STUB}=1")))
+            for (bad in listOf("2", "", "on")) assertTrue(bad, SessionEnv.validate(text.replace("${SessionEnv.EDM_STUB}=0", "${SessionEnv.EDM_STUB}=$bad")).isNotEmpty())
+            assertTrue(SessionEnv.validate(text.replace("${SessionEnv.EDM_STUB}=0\n", "")).contains("${SessionEnv.EDM_STUB} missing"))
         }
     }
 

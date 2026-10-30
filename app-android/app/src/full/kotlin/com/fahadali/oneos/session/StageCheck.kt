@@ -204,6 +204,7 @@ object StageCheck : BackgroundJob<StageCheck.State>(State(), "oneos-check") {
         val input = GateInput(
             facts = facts,
             screenLockSet = screenLock,
+            allowScreenLock = SessionPrefs.allowScreenLock(app),
             oldSwitcherInstalled = r.oldSwitcher,
             installd = r.installd,
             stage = st.stageState(profile),

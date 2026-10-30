@@ -86,6 +86,11 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "fold8_pixel.sh" to File(repoRoot, "switcher/assets/fold8_pixel.sh"),
     "guest_google.sh" to File(repoRoot, "switcher/assets/guest_google.sh"),
     "zygote_exec" to File(repoRoot, "switcher/assets/zygote_exec"),
+    // 0.4.32: the Knox edmnativehelper stand-in (switcher/patches/OneOSEdmStub.java,
+    // built by build_edm_stub.sh). It ships with the scripts, not in a package set,
+    // so every image gets it without rebuilding one. oneos_switch.sh runs it only
+    // when ONEOS_GUEST_EDM_STUB=1.
+    "OneOSEdmStub.dex" to File(repoRoot, "switcher/assets/OneOSEdmStub.dex"),
     "host_installd.txt" to File(repoRoot, "switcher/patches/host_installd.txt"),
 )
 val switcherNotShipped = setOf("oneos_tunnel.sh", "7zz")
@@ -262,8 +267,12 @@ android {
         // guest for VoLTE (Infinity-X and HyperOS, where the services.jar carve-out is); the guest's dp
         // scale, cutout, status bar height and corner radius from the phone itself on every image; the
         // Galaxy A56, in the s25 series.
-        versionCode = 48
-        versionName = "0.4.31"
+        // 0.4.32: HyperOS starts on the Galaxy S25 Ultra, S25 and S24-era phones again (Xiaomi's
+        // auto-installer took the guest's system_server down at boot phase 520); the camera opens
+        // without the 5 s Knox wait when Advanced's switch is on (Z Flip5); the composer's panel
+        // modes are recorded before the guest's SurfaceFlinger starts, so a display failure says why.
+        versionCode = 49
+        versionName = "0.4.32"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.

@@ -27,6 +27,18 @@ def version_of(app):
     return re.sub(r"-(fold|s26|s25|probe)$", "", app.get("version", "?"))
 
 
+def ran_on(record):
+    """The version the session ran on, which is not always the one that sent it.
+
+    "Send to the OneOS team" sends the session the phone has stored, and that can
+    predate the installed app: a Z Fold7 report of 2026-10-30 came from 0.4.31
+    carrying a 0.4.19 session. reports/pull.py copies the log bundle's own app
+    into sessionApp; count by that where it exists, so a release is credited only
+    with runs that were actually made on it.
+    """
+    return version_of(record.get("sessionApp") or record.get("app") or {})
+
+
 def cell(works, tried):
     if tried == 0:
         return "–"
@@ -46,7 +58,7 @@ def table(records):
         # A session's report only: OneOS Probe's phone reports have no session and no answers.
         if not c or not r.get("sessionId"):
             continue
-        v = version_of(r.get("app", {}))
+        v = ran_on(r)
         codes[v] = max(codes.get(v, 0), r.get("app", {}).get("versionCode", 0))
         phone = safe((r.get("phone") or {}).get("label"), "Other phone")
         system = safe(r.get("imageName"), "Other system")

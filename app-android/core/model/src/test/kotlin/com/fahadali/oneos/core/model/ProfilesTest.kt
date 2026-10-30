@@ -26,6 +26,9 @@ class ProfilesTest {
     fun builtInTable() {
         // 0.4.27: Infinity-X, last, on every phone, untested.
         val ifx = ImageChoice(Images.ID_INFINITYX, PackageSets.ID_INFINITYX, tested = false)
+        // 0.4.31: tested where a tester's session reached the home screen on it
+        // (reports of 2026-10-29/30, docs/compatibility.md).
+        val ifxT = ifx.copy(tested = true)
         // 0.4.31: HyperOS after it, on every phone, untested.
         val hyper = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
         val f8u = Profiles.F8U
@@ -50,12 +53,13 @@ class ProfilesTest {
         // The Find X9 Ultra CN image, tested on the S Ultras and the S25 since 0.4.7; from
         // 0.4.11 the IN build first, untested.
         val xin = ImageChoice(Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, tested = false)
+        val xinT = xin.copy(tested = true)
         val sUltra = listOf(
             xin,
             ImageChoice("coloros17-findx9u", "x9u-sultra", tested = true),
         )
         // 0.4.10: and the Pixel 11 Pro image with its own set, untested.
-        assertEquals(sUltra + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + ifx + hyper, s26.choices)
+        assertEquals(sUltra + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + ifxT + hyper, s26.choices)
         assertTrue(s26.testedWithAnyImage && s26.enabled)
 
         val s25 = Profiles.S_ULTRA_8750
@@ -63,7 +67,7 @@ class ProfilesTest {
         assertEquals(FormFactor.BAR, s25.form)
         // 0.4.22: and the Pixel 9 Pro XL image with its own set, untested.
         val pixel9 = ImageChoice(Images.ID_PIXEL_KOMODO, PackageSets.ID_PIXEL9_SULTRA, tested = false)
-        assertEquals(sUltra + pixel9 + ifx + hyper, s25.choices)
+        assertEquals(sUltra + pixel9 + ifxT + hyper, s25.choices)
         assertTrue(s25.testedWithAnyImage && s25.enabled)
 
         // Galaxy S25 (0.3.4): the S Ultra image and set (tested since 0.4.7), the S25 Ultra's notes.
@@ -72,7 +76,7 @@ class ProfilesTest {
         assertEquals("Galaxy S25", s25Base.label)
         assertEquals(listOf("SM-S931", "pa1q", "SM8750"), listOf(s25Base.modelPrefix, s25Base.codename, s25Base.socModel))
         assertEquals(FormFactor.BAR, s25Base.form)
-        assertEquals(sUltra + pixel9 + ifx + hyper, s25Base.choices)
+        assertEquals(sUltra + pixel9 + ifxT + hyper, s25Base.choices)
         assertTrue(s25Base.testedWithAnyImage && s25Base.enabled)
         assertEquals(s25.notes, s25Base.notes)
         assertEquals(listOf("profile-vendor-older"), s25Base.notes.map { it.id })
@@ -134,7 +138,7 @@ class ProfilesTest {
         val s24u = Profiles.S_ULTRA_8650
         assertEquals(listOf("s-ultra-8650", "Galaxy S24 Ultra"), listOf(s24u.id, s24u.label))
         assertEquals(listOf("SM-S928", "e3q", "SM8650"), listOf(s24u.modelPrefix, s24u.codename, s24u.socModel))
-        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifx, hyper), s24u.choices)
+        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifxT, hyper), s24u.choices)
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), s24u.notes.map { it.id })
         assertTrue(s24u.notes.single().detail.contains("vendor API 34 (Android 14) and kernel 6.1"))
         // Galaxy S26+ (0.4.12): the S26's images and sets, untested, no notes (vendor API 202504).
@@ -161,14 +165,20 @@ class ProfilesTest {
         assertEquals(listOf("a57", "Galaxy A57"), listOf(a57.id, a57.label))
         assertEquals(listOf("SM-A576", "a57x", "s5e8865"), listOf(a57.modelPrefix, a57.codename, a57.socModel))
         assertEquals(FormFactor.BAR, a57.form)
-        assertEquals(flip7.choices, a57.choices)
+        // 0.4.31: a tester's session reached home on the CN ColorOS build (2026-10-30),
+        // the first A-series report; the rest is still the Flip7's list.
+        assertEquals(
+            listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = true), pixel9, ifx, hyper),
+            a57.choices,
+        )
+        assertTrue(a57.testedWithAnyImage)
         // The Galaxy A56 (0.4.31): the A57's smaller sibling, one Exynos generation down.
         val a56 = Profiles.A56
         assertEquals(listOf("a56", "Galaxy A56"), listOf(a56.id, a56.label))
         assertEquals(listOf("SM-A566", "a56x", "s5e8855"), listOf(a56.modelPrefix, a56.codename, a56.socModel))
         assertEquals(FormFactor.BAR, a56.form)
-        assertEquals(a57.choices, a56.choices)
-        for (p in listOf(s26PlusExynos, flip7, a57, a56)) {
+        assertEquals(flip7.choices, a56.choices)
+        for (p in listOf(s26PlusExynos, flip7, a56)) {
             assertEquals(listOf(Profiles.ID_NOTE_EXYNOS), p.notes.map { it.id })
             assertEquals(Level.WARN, p.notes.single().level)
             assertFalse(p.testedWithAnyImage)
@@ -178,7 +188,12 @@ class ProfilesTest {
         assertEquals(listOf("flip5", "Galaxy Z Flip5"), listOf(flip5.id, flip5.label))
         assertEquals(listOf("SM-F731", "b5q", "SM8550"), listOf(flip5.modelPrefix, flip5.codename, flip5.socModel))
         assertEquals(FormFactor.FLIP, flip5.form)
-        assertEquals(Profiles.S_8550.choices, flip5.choices)
+        // 0.4.31: reported on the global ColorOS build and Infinity-X (camera broken on both),
+        // so it is no longer the S23's untested list.
+        assertEquals(
+            listOf(xinT, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifxT, hyper),
+            flip5.choices,
+        )
         assertEquals(listOf(Profiles.ID_NOTE_EXPECT_NO_START), flip5.notes.map { it.id })
         // Galaxy S23 and S23+ (0.4.11): the X9U image, untested, with the will-most-likely-not-start note.
         val s23 = Profiles.S_8550
@@ -250,7 +265,7 @@ class ProfilesTest {
         // 0.4.11: every bar phone that takes the CN build takes the IN build too, listed first; never a fold.
         assertEquals(
             Profiles.BUILT_IN.filter { it.choice(Images.ID_FIND_X9U) != null },
-            Profiles.BUILT_IN.filter { it.choices.firstOrNull() == xin },
+            Profiles.BUILT_IN.filter { it.choices.firstOrNull()?.imageId == Images.ID_FIND_X9U_IN },
         )
         assertTrue(Profiles.BUILT_IN.filter { it.form == FormFactor.FOLD }.all { it.choice(Images.ID_FIND_X9U_IN) == null })
         // Where the CN build has run it stays the preselected one until the IN build has.

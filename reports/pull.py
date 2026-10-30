@@ -22,8 +22,11 @@ read them with python -I, as with any upload.
 """
 import argparse
 import hashlib
+import io
+import zipfile
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -67,6 +70,31 @@ class Service:
                 return out
 
 
+def session_app(data):
+    """The app of the log bundle in `data` (its own report.json), or None.
+
+    The zip is a tester's upload: read the one member by exact name, bounded,
+    and never extract to disk.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(bytes(data))) as z:
+            names = [n for n in z.namelist() if n.endswith("/report.json") or n == "report.json"]
+            if len(names) != 1:
+                return None
+            info = z.getinfo(names[0])
+            if info.file_size > 256 * 1024:
+                return None
+            app = json.loads(z.read(names[0]).decode("utf-8", "replace")).get("app")
+    except Exception:
+        return None
+    if not isinstance(app, dict):
+        return None
+    v, c = app.get("version"), app.get("versionCode")
+    if not isinstance(v, str) or not re.fullmatch(r"[0-9A-Za-z.+_-]{1,32}", v):
+        return None
+    return {"version": v, "versionCode": c if isinstance(c, int) else None}
+
+
 def collect(svc, name, dest, keep):
     record = json.loads(svc.call("GET", "/v1/get", key=name))
     rid = record.get("reportId", "")
@@ -91,6 +119,14 @@ def collect(svc, name, dest, keep):
             return f"waiting {rid}: the parts do not match the record (size or SHA-256)"
         with open(os.path.join(folder, zname), "wb") as f:
             f.write(data)
+        # The version the SESSION ran on, which is not always the version that
+        # sent it: a Z Fold7 report of 2026-10-30 was sent from 0.4.31 and held a
+        # 0.4.19 ColorOS session the phone still had stored, so the compatibility
+        # table credited an old run to the new release. The log bundle records its
+        # own app in report.json; keep it beside the record under sessionApp.
+        ran = session_app(data)
+        if ran:
+            record["sessionApp"] = ran
     with open(os.path.join(folder, "report.json"), "w") as f:
         json.dump(record, f, indent=2)
         f.write("\n")
@@ -111,7 +147,16 @@ def collect(svc, name, dest, keep):
     start = (record.get("checklist") or {}).get("start")
     kind = "findings" if logs and logs.get("kind") == "probe" else "full log" if logs and logs.get("full") else "short log"
     size = f"{logs['bytes'] / 1048576:.1f} MB {kind}" if logs else "no logs"
-    return f"new {rid}: {phone}, {record.get('imageName') or record.get('image')}, OneOS {record['app']['version']}, start {start}, {size} -> {folder}"
+    # Say loudly when the session predates the app that sent it: "Send to the
+    # OneOS team" sends the session the phone has stored, which can be many
+    # releases old (Z Fold7, 2026-10-30: 0.4.31 sent a 0.4.19 session). Those are
+    # not evidence about the build we just shipped and must not be read as such.
+    sent = record["app"]["version"]
+    ran = (record.get("sessionApp") or {}).get("version")
+    ver = f"OneOS {sent}"
+    if ran and ran.split("-")[0] != sent.split("-")[0]:
+        ver = f"OneOS {sent} !! STALE SESSION: it ran on {ran}, not {sent} !!"
+    return f"new {rid}: {phone}, {record.get('imageName') or record.get('image')}, {ver}, start {start}, {size} -> {folder}"
 
 
 def main():

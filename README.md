@@ -38,15 +38,26 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.31. Samsung flagships with Snapdragon, plus the first three
+App version 0.4.31. Samsung flagships with Snapdragon, plus the first four
 Exynos phones; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
-| Guest system | Tested on |
+Where each system has actually started, on our phones and on testers' (One UI
+9 throughout). What they reported working, item by item, is in
+[docs/compatibility.md](docs/compatibility.md).
+
+| Guest system | Has run on |
 | --- | --- |
-| Pixel 11 Fold (Android 17) | Galaxy Z Fold8 Ultra (SM-F976B), One UI 9 |
-| ColorOS 17, Find N6 build | Galaxy Z Fold8 Ultra (SM-F976B), One UI 9 |
-| ColorOS 17, Find X9 Ultra CN build | Galaxy S25 (SM-S931), Galaxy S25 Ultra (SM-S938), Galaxy S26 Ultra (SM-S948) |
+| Pixel 11 Fold (Android 17) | Galaxy Z Fold8 Ultra (SM-F976B), Z Fold8 (SM-F971B) |
+| ColorOS 17, Find N6 build | Galaxy Z Fold8 Ultra (SM-F976B), Z Fold8 (SM-F971B) |
+| ColorOS 17, Find X9 Ultra CN build | Galaxy S26 Ultra (SM-S948), S25 Ultra (SM-S938), S25 (SM-S931), A57 (SM-A576B) |
+| ColorOS 17, Find X9 Ultra IN (global) build | Galaxy Z Flip5 (SM-F731B) |
+| Infinity-X 4.1 | Galaxy S26 Ultra (SM-S948), S25 Ultra (SM-S938), S25 (SM-S931), S24 Ultra (SM-S928), Z Flip5 (SM-F731B) |
+
+Started is not the same as finished: on Infinity-X the reports so far say calls
+do not work and SMS only sometimes, which is what the IMS switch in Advanced is
+for (0.4.31, Infinity-X and HyperOS). On the Z Flip5 the camera was broken in
+both systems; 0.4.31 carries the fix.
 
 Untested profiles, where the app asks you to tick that you know before
 switching: Galaxy Z Fold8 (SM-F971) and Z Fold7 (SM-F966), Galaxy S26+ (SM-S947),
@@ -124,6 +135,10 @@ release).
    **None** or **Swipe**: no PIN, pattern, password, fingerprint or face. If
    something goes wrong and the phone boot-loops, a locked phone may need a
    factory reset to recover. OneOS will not switch while a lock is set.
+   From 0.4.32 Advanced has a switch, under **Risky**, to do it anyway: your
+   One UI apps and photos are encrypted behind that lock, so a session that
+   leaves the phone unable to accept it is a factory reset, not an
+   inconvenience. Leave it off unless you have a reason and accept that.
 4. **Root, battery and heat.** The phone must be rooted (tested with KernelSU),
    charged to at least 30 % and not hot (under 42 °C).
 

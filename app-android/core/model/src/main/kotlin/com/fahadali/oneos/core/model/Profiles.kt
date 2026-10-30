@@ -119,6 +119,9 @@ object Profiles {
      */
     private val X9U_IN_CHOICE = ImageChoice(Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, tested = false)
 
+    /** The same image where a tester's session has reached the home screen (docs/compatibility.md). */
+    private val X9U_IN_TESTED = X9U_IN_CHOICE.copy(tested = true)
+
     private val S_ULTRA_CHOICES = listOf(
         X9U_IN_CHOICE,
         ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = true),
@@ -138,6 +141,14 @@ object Profiles {
      * of them (a fold gets the fold layout from the session scripts).
      */
     private val INFINITYX_CHOICE = ImageChoice(Images.ID_INFINITYX, PackageSets.ID_INFINITYX, tested = false)
+
+    /**
+     * 0.4.31: the phones whose testers' sessions reached the home screen on it
+     * (reports of 2026-10-29/30, docs/compatibility.md): the Galaxy S26 Ultra,
+     * S25 Ultra, S25, S24 Ultra and Z Flip5. Calls and SMS are the open ones
+     * there, which is what the IMS work is for.
+     */
+    private val INFINITYX_TESTED = INFINITYX_CHOICE.copy(tested = true)
 
     /**
      * HyperOS (0.4.31, owner: "Allow all users to try"), made for the Z Fold8 Ultra
@@ -224,7 +235,7 @@ object Profiles {
         form = FormFactor.BAR,
         // 0.4.10: the Pixel 11 Pro image too, untested. SM8850 has the SVE that
         // Pixel's system code needs; the SM8750 phones do not.
-        choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_CHOICE + HYPEROS_CHOICE,
+        choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_TESTED + HYPEROS_CHOICE,
     )
 
     val S_ULTRA_8750 = PhoneProfile(
@@ -236,7 +247,7 @@ object Profiles {
         form = FormFactor.BAR,
         // Off in 0.3.0 (the S26 Ultra was to go first); on from 0.3.1 (owner: the
         // friend's S25 Ultra is on Android 17 and ready). Untested: ticks as the S26 Ultra.
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_CHOICE + HYPEROS_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -255,7 +266,7 @@ object Profiles {
         codename = "pa1q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_CHOICE + HYPEROS_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -386,7 +397,7 @@ object Profiles {
         codename = "e3q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -482,7 +493,7 @@ object Profiles {
         codename = "a57x",
         socModel = "s5e8865",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = true), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS),
     )
 
@@ -527,7 +538,7 @@ object Profiles {
         codename = "b5q",
         socModel = "SM8550",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_TESTED, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 

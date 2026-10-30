@@ -175,6 +175,31 @@ object SessionPrefs {
     }
 
     /**
+     * Answer Knox's edmnativehelper while the other system runs, so a camera open
+     * is not 5 s late (Advanced; `ONEOS_GUEST_EDM_STUB`). Off by default: the
+     * stand-in answers every Knox question "allowed", and answering wrongly would
+     * turn the camera off rather than just make it slow.
+     */
+    fun edmStub(ctx: Context): Boolean = p(ctx).getBoolean("edm_stub", false)
+
+    fun setEdmStub(ctx: Context, on: Boolean) {
+        p(ctx).edit().putBoolean("edm_stub", on).apply()
+    }
+
+    /**
+     * Switch with a screen lock set (Advanced, 0.4.32; owner's call). Off by
+     * default. One UI's data is encrypted behind the lock, so a session that
+     * leaves the phone unable to accept the credential is a factory reset, not
+     * an inconvenience: a tester lost a phone that way on 2026-10-23, before the
+     * weaver and gatekeeper guards. An unreadable lock state still blocks.
+     */
+    fun allowScreenLock(ctx: Context): Boolean = p(ctx).getBoolean("allow_screen_lock", false)
+
+    fun setAllowScreenLock(ctx: Context, on: Boolean) {
+        p(ctx).edit().putBoolean("allow_screen_lock", on).apply()
+    }
+
+    /**
      * Cool down when hot (Advanced; owner 2026-10-27), `ONEOS_HEAT_CAP` for every
      * launch. On by default: One UI's heat control (SSRM) does not run in the
      * other system, so the session caps the CPU from 45 °C skin (oneos_switch.sh).

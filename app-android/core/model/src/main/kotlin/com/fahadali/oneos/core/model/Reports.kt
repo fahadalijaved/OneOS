@@ -155,6 +155,17 @@ data class ReportRecord(
     /** The system's name ("Infinity-X 4.1"). */
     val imageName: String?,
     val sessionId: String?,
+    /**
+     * The OneOS the session itself ran on, and when it ran. Send sends the session
+     * the phone has stored, which can be older than the app sending it (a Z Fold7
+     * report of 2026-10-30 came from 0.4.31 with a 0.4.19 session), so [app] alone
+     * says nothing about which build a result is evidence for. Null for a probe
+     * report and for a bundle too old to record its own app.
+     */
+    val sessionAppVersion: String? = null,
+    val sessionAppCode: Int? = null,
+    /** When the session's log bundle was written (its `generatedAt`, date only). */
+    val sessionDate: String? = null,
     val outcomeKind: String?,
     val afterSeconds: Int?,
     val checklist: Checklist?,
@@ -174,6 +185,9 @@ data class ReportRecord(
             "image" to imageId,
             "imageName" to imageName,
             "sessionId" to sessionId,
+            "sessionApp" to sessionAppVersion?.let {
+                linkedMapOf("version" to it, "versionCode" to sessionAppCode, "date" to sessionDate)
+            },
             "outcome" to outcomeKind?.let { linkedMapOf("kind" to it, "afterSeconds" to afterSeconds) },
             "checklist" to c?.toMap(form),
             "note" to c?.note?.ifEmpty { null },

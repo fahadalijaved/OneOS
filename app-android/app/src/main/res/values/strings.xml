@@ -132,6 +132,9 @@
     <string name="send_cat_session">Session report</string>
     <string name="send_cat_probe">Phone report</string>
     <string name="send_session_summary">Session %1$s</string>
+    <string name="send_session_summary_full">%1$s · ran on OneOS %2$s · session %3$s</string>
+    <string name="send_session_old_title">This is an older session</string>
+    <string name="send_session_old_summary">It ran on OneOS %1$s, and this phone now has %2$s. Sending it is fine, but it says nothing about the version you have now. For that, switch again and send the new session.</string>
     <string name="send_probe_summary">The findings of OneOS Probe</string>
     <string name="send_cat_how">How did it go?</string>
     <string name="send_start_title">Did it start?</string>

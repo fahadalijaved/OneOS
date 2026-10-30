@@ -87,6 +87,9 @@ class ReportsTest {
             imageId = "infinityx41-findx9u",
             imageName = "Infinity-X 4.1",
             sessionId = "8aea312c31b8821d",
+            sessionAppVersion = "0.4.28-s25",
+            sessionAppCode = 45,
+            sessionDate = "2026-10-28",
             outcomeKind = "GUEST_DEAD",
             afterSeconds = 120,
             checklist = Checklist(start = StartAnswer.BLACK, note = ""),
@@ -95,6 +98,10 @@ class ReportsTest {
         )
         val m = r.toMap()
         assertEquals(Reports.SCHEMA, m["schema"])
+        // 0.4.32: the app the SESSION ran on travels with the record, so a release is
+        // never credited with a run made on an older one (a Z Fold7 report of
+        // 2026-10-30 was sent by 0.4.31 and held a 0.4.19 session).
+        assertEquals(mapOf("version" to "0.4.28-s25", "versionCode" to 45, "date" to "2026-10-28"), m["sessionApp"])
         assertNull(m["note"])
         assertNull(m["contact"])
         assertEquals("black", (m["checklist"] as Map<*, *>)["start"])

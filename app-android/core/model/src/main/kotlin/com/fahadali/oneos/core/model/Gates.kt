@@ -162,6 +162,12 @@ data class GateInput(
      * [SwitchGates.R_IMAGE_OTHER_SERIES].
      */
     val series: ApkSeries? = null,
+    /**
+     * 0.4.32: Advanced's "Switch with a screen lock set" is on, so a set lock warns
+     * instead of blocking. Last, with a default, so the positional constructors in
+     * the tests keep working. An unreadable lock state blocks whatever this says.
+     */
+    val allowScreenLock: Boolean = false,
 )
 
 /**
@@ -317,7 +323,7 @@ object SwitchGates {
         space(phase, input, image, set)?.let { out += Gate(it) }
         out += Gate(
             if (switching) {
-                ScreenLockRule.switchGate(input.screenLockSet)
+                ScreenLockRule.switchGate(input.screenLockSet, input.allowScreenLock)
             } else {
                 ScreenLockRule.finding(input.screenLockSet).copy(id = ID_SCREEN_LOCK)
             },

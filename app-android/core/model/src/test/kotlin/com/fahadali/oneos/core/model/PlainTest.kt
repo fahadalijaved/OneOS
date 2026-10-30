@@ -46,7 +46,7 @@ class PlainTest {
         )
         add(SwitchGates.ID_SPACE, Level.BLOCK, SwitchGates.R_SPACE_UNKNOWN, SwitchGates.R_SPACE_SETUP, SwitchGates.R_SPACE_SWITCH)
         add(SwitchGates.ID_SCREEN_LOCK, Level.BLOCK, ScreenLockRule.R_SET, ScreenLockRule.R_UNKNOWN)
-        add(SwitchGates.ID_SCREEN_LOCK, Level.WARN, ScreenLockRule.R_SET, ScreenLockRule.R_UNKNOWN)
+        add(SwitchGates.ID_SCREEN_LOCK, Level.WARN, ScreenLockRule.R_SET, ScreenLockRule.R_UNKNOWN, ScreenLockRule.R_SET_ALLOWED)
         add(SwitchGates.ID_BATTERY, Level.BLOCK, SwitchGates.R_BATTERY_NOT_READ, SwitchGates.R_BATTERY_LOW, SwitchGates.R_BATTERY_HOT)
         add(SwitchGates.ID_CARRIER, Level.WARN, CarrierRules.R_VOLTE_ONLY, CarrierRules.R_UNKNOWN)
         add(SwitchGates.ID_CARRIER, Level.INFO, CarrierRules.R_2G_3G)

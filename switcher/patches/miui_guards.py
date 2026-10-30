@@ -40,7 +40,9 @@ found exactly once, or nothing is written (fail closed).
 
 apprecovery.proinstaller.jar (also on system_server's class path): its
 InstallService installs apps by itself (auto_install) into /data/app; with
---proinstaller its onStart returns at entry.
+--proinstaller its onStart and installApks return at entry (installApks is
+reached from onBootPhase, not from onStart, and it is what crashed the guest's
+system_server on the S25 Ultra and S25 -- see the PROINSTALLER table).
 
 Usage: miui_guards.py [--proinstaller] <apktool decoded jar directory>
 Prints the smali_* directories (dex files) it changed, one per line.
@@ -184,6 +186,19 @@ def oemnetd_methods(smali):
 
 PROINSTALLER = [
     ("com/miui/me/server/auto_install/InstallService", ".method public onStart()V", "V"),
+    # onStart was not the only way in: onBootPhase(520) posts InstallService$2 on
+    # an AsyncTask, which calls installApks() whatever onStart did. That method is
+    # the installer itself, so it belongs here -- and it also takes the guest's
+    # system_server down. Its first act is
+    #     if (listAutoAPkFile().isEmpty()) { install_status = -1;
+    #                                        mInstallFinishListener.updateEvent(true); }
+    # and mInstallFinishListener is assigned nowhere in the jar, so the empty case
+    # is an NPE. On a Xiaomi phone /data/miui/app/auto holds the preinstall APKs
+    # and the branch never runs; in the guest that directory does not exist, the
+    # list is always empty, and the uncaught exception reaches
+    # RuntimeInit$KillApplicationHandler, which kills system_server at boot phase
+    # 520 -- about 50 s in, every time (S25 Ultra and S25 reports, 2026-10-30).
+    ("com/miui/me/server/auto_install/InstallService", ".method private installApks()V", "V"),
 ]
 
 

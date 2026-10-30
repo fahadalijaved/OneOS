@@ -13,7 +13,11 @@
 // sender's address is used for the rate limit only, never stored.
 //
 // The ping carries only checked fields (ids, versions, the fixed checklist
-// answers): the user's note and contact go to the team, never to the group.
+// answers) and, from 0.4.31, who sent it: the owner asked, since a report that
+// names no one cannot be followed up. The contact is free text the tester typed,
+// so only a Telegram username is shown, as a mention; an e-mail or a phone
+// number is named as such and stays in the record (t.me/TheoneOS is a public
+// group). The note still goes to the team only.
 
 const PART_MAX = 20 * 1024 * 1024
 const RECORD_MAX = 32 * 1024
@@ -118,6 +122,14 @@ function check(r) {
   if (r.image != null && !TOKEN.test(r.image)) fail('image')
   if (r.imageName != null && !LABEL.test(r.imageName)) fail('image name')
   if (r.sessionId != null && !/^[0-9a-f]{8,32}$/.test(r.sessionId)) fail('sessionId')
+  // 0.4.32: the app that ran the session, which can be older than the one sending
+  // it. Checked like app.version, so the record says which build a result is for.
+  if (r.sessionApp != null) {
+    const sa = r.sessionApp
+    if (!TOKEN.test(sa.version ?? '')) fail('sessionApp')
+    if (sa.versionCode != null && !Number.isInteger(sa.versionCode)) fail('sessionApp')
+    if (sa.date != null && !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(sa.date)) fail('sessionApp')
+  }
   if (r.outcome != null && (!KIND.test(r.outcome.kind ?? '') || (r.outcome.afterSeconds != null && !Number.isInteger(r.outcome.afterSeconds)))) fail('outcome')
   if (r.checklist != null) {
     const c = r.checklist
@@ -137,6 +149,9 @@ function check(r) {
     app: { id: app.id, version: app.version, versionCode: app.versionCode, series: app.series ?? '' },
     phone: { model: phone.model, device: phone.device, profile: phone.profile ?? null, label: phone.label ?? null },
     image: r.image ?? null, imageName: r.imageName ?? null, sessionId: r.sessionId ?? null, outcome: r.outcome ?? null,
+    sessionApp: r.sessionApp
+      ? { version: r.sessionApp.version, versionCode: r.sessionApp.versionCode ?? null, date: r.sessionApp.date ?? null }
+      : null,
     checklist: r.checklist ?? null, note: r.note ?? null, contact: r.contact ?? null, logs: r.logs ?? null,
   }
 }
@@ -163,8 +178,24 @@ async function report(req, env, ctx) {
   return reply(200, { ok: true, reportId: r.reportId })
 }
 
+// A Telegram username: 5-32 characters, starts with a letter. Anything else the
+// tester may have typed (an e-mail, a phone number, a name) is not put in the
+// group; the record keeps it for the team (reports/pull.py).
+const TG_USER = /^@?([A-Za-z][A-Za-z0-9_]{4,31})$/
+
+function fromLine(contact) {
+  const c = (contact ?? '').trim()
+  if (!c) return 'From: no contact given'
+  const m = TG_USER.exec(c)
+  if (m) return `From: @${m[1]}`
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c)) return 'From: an e-mail address, in the record'
+  if (/^[+0-9][0-9 ()-]{5,}$/.test(c)) return 'From: a phone number, in the record'
+  return 'From: a contact in the record'
+}
+
 function pingText(r) {
   const lines = [`📋 New report ${r.reportId}`]
+  lines.push(fromLine(r.contact))
   lines.push(`${r.phone.label ?? r.phone.model} (${r.phone.model}) · OneOS ${r.app.version}`)
   if (r.image) lines.push(`System: ${r.imageName ?? r.image}`)
   if (r.outcome) lines.push(`Ended: ${r.outcome.kind}${r.outcome.afterSeconds != null ? ` after ${r.outcome.afterSeconds} s` : ''}`)

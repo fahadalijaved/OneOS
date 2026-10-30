@@ -243,6 +243,39 @@ while [ $n -lt 20 ] && pidof surfaceflinger >/dev/null; do
 done
 echo "[Pivoted Root] Host surfaceflinger after composer restart: $(pidof surfaceflinger || echo none)"
 
+# What the composer has to offer, recorded BEFORE the guest's SurfaceFlinger
+# asks for it. The diag rounds in oneos_switch.sh all start from
+# `pidof surfaceflinger`, so a guest SF that dies leaves no display diag at all:
+# the Galaxy S24 Ultra report of 2026-10-30 aborted with "No matching frame rate
+# modes for primary range" and its bundle had nothing to say why, while its
+# One UI offers 21 modes (its probe the same day). This runs first and keeps the
+# mode list whatever SF then does with it.
+# Reads files, and one lshal bounded by timeout, on a composer that has just
+# registered: no plain dumpsys and no service walk here, the host's
+# system_server is frozen at this point (0.4.11 hung every switch that way).
+CD=$STAGE/diag_composer
+mkdir -p "$CD"
+{
+    echo "== composer service ${COMPOSER_SVC:-none found}"
+    [ -z "$COMPOSER_SVC" ] || echo "init.svc.$COMPOSER_SVC: $(getprop "init.svc.$COMPOSER_SVC")"
+    service check android.hardware.graphics.composer3.IComposer/default 2>&1
+    echo
+    echo "== panel modes the kernel reports (/sys/class/drm)"
+    for c in /sys/class/drm/card*-*; do
+        [ -r "$c/modes" ] || continue
+        echo "-- $(basename "$c") status=$(cat "$c/status" 2>/dev/null) enabled=$(cat "$c/enabled" 2>/dev/null)"
+        cat "$c/modes" 2>/dev/null
+    done
+    echo
+    echo "== vendor display configs (the file name is the display id it is for)"
+    ls -l /vendor/etc/displayconfig /odm/etc/displayconfig 2>&1
+} > "$CD/composer_before_sf.txt" 2>&1
+# The composer's own dump: SDM lists its displays and each one's configs.
+if command -v lshal >/dev/null 2>&1; then
+    timeout 5 lshal debug android.hardware.graphics.composer3.IComposer/default \
+        > "$CD/composer_debug.txt" 2>&1 || echo "lshal debug: no answer in 5 s" >> "$CD/composer_debug.txt"
+fi
+
 # Shader caches. init.rc makes /data/misc/surfaceflinger (0700 system system)
 # and sets service.sf.cache_dir_available; the container has no init, so the
 # guest's RenderEngine could not save one (run 32 all.log:276689, 39 times:

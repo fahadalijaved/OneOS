@@ -119,15 +119,16 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
     private class Refused(message: String, val plain: PlainMessage?, val finding: Finding? = null, val image: ImageRef? = null) : Exception(message)
 
     /**
-     * [hideGms]: hide Google services for this launch only (off by default). [secIms]: this phone's Samsung IMS app in the
+     * [hideGms]: hide Google services for this launch only (off by default). [edmStub]: answer Knox's
+     * edmnativehelper so a camera open is not 5 s late (Advanced, off by default). [secIms]: this phone's Samsung IMS app in the
      * guest for VoLTE (Advanced; off by default). [ticked]: the ticks given now; the remembered ones count too.
      */
-    fun start(ctx: Context, dryRun: Boolean, ticked: Set<String>, hideGms: Boolean, secIms: Boolean = false) {
+    fun start(ctx: Context, dryRun: Boolean, ticked: Set<String>, hideGms: Boolean, secIms: Boolean = false, edmStub: Boolean = false) {
         if (state.busy || StageCheck.state.busy || PrepareJob.state.busy || LogJob.state.busy) return
         val app = ctx.applicationContext
         update(State(Phase.RUNNING, dryRun, "Checking the screen lock…"))
         executor.execute {
-            val r = runCatching { run(app, dryRun, ticked, hideGms, secIms) }
+            val r = runCatching { run(app, dryRun, ticked, hideGms, secIms, edmStub) }
             r.exceptionOrNull()?.let { e ->
                 val refused = e as? Refused
                 update(
@@ -145,17 +146,20 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
         if (!state.busy) update(State())
     }
 
-    private fun lockRefusal(lock: Boolean?): Refused {
-        val f = ScreenLockRule.switchGate(lock)
+    private fun lockRefusal(lock: Boolean?, allowed: Boolean): Refused {
+        val f = ScreenLockRule.switchGate(lock, allowed)
         return Refused(
-            if (lock == true) "A screen lock is set. Set Screen lock type to None or Swipe in Settings, then come back." else "Could not read whether a screen lock is set.",
+            if (lock == true) "A screen lock is set. Set Screen lock type to None or Swipe in Settings, then come back. Advanced has a switch to do it anyway." else "Could not read whether a screen lock is set.",
             Plain.of(f, null, null), f,
         )
     }
 
-    private fun run(app: Context, dryRun: Boolean, ticked: Set<String>, hideGms: Boolean, secIms: Boolean) {
+    private fun run(app: Context, dryRun: Boolean, ticked: Set<String>, hideGms: Boolean, secIms: Boolean, edmStub: Boolean) {
         val lock = FactProbe.screenLockSet(app)
-        if (lock != false) throw lockRefusal(lock)
+        // 0.4.32: a lock set may be the owner's choice (Advanced). Not being able to
+        // read the lock state never is, so null still stops here.
+        val allowLock = SessionPrefs.allowScreenLock(app)
+        if (lock == null || (lock && !allowLock)) throw lockRefusal(lock, allowLock)
         // The last check when it is fresh and complete (installd read); else this job's own, published for Home.
         val last = StageCheck.state.result?.takeIf { it.ageMs <= StageCheck.FRESH_MS && it.installd != null }
         val fresh = if (last == null) {
@@ -205,7 +209,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
             app, RootScript.Verb.LAUNCH,
             listOf(
                 if (dryRun) "dry" else "session", BuildConfig.VERSION_CODE.toString(), sid, if (hideGms) "1" else "0",
-                if (SessionPrefs.heatCap(app)) "1" else "0", if (secIms) "1" else "0",
+                if (SessionPrefs.heatCap(app)) "1" else "0", if (secIms) "1" else "0", if (edmStub) "1" else "0",
             ),
             silenceMs = 5 * 60_000L,
         )

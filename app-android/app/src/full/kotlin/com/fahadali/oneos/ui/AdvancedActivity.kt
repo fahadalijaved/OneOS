@@ -105,6 +105,22 @@ class AdvancedFragment : CardsFragment() {
         CardRows.toggle(calls, getString(R.string.advanced_sec_ims_title), getString(R.string.advanced_sec_ims_summary), SessionPrefs.secIms(ctx)) { on ->
             SessionPrefs.setSecIms(ctx, on)
         }
+        // Camera (0.4.32): One UI's camera service asks Knox on every open and waits
+        // 5 s for a service the other system does not have, so the camera app gives
+        // up first. Experimental, off by default.
+        CardRows.toggle(calls, getString(R.string.advanced_edm_stub_title), getString(R.string.advanced_edm_stub_summary), SessionPrefs.edmStub(ctx)) { on ->
+            SessionPrefs.setEdmStub(ctx, on)
+        }
+
+        // Risky (0.4.32, owner's call): things that can cost the phone's data. The
+        // card is headed in red so it does not read like the switches above it.
+        val risky = Cards.section(
+            column, getString(R.string.advanced_card_risky),
+            trailing = getString(R.string.advanced_card_risky_tag), trailingLevel = Level.BLOCK, rows = true,
+        )
+        CardRows.toggle(risky, getString(R.string.advanced_allow_lock_title), getString(R.string.advanced_allow_lock_summary), SessionPrefs.allowScreenLock(ctx)) { on ->
+            SessionPrefs.setAllowScreenLock(ctx, on)
+        }
 
         // Help.
         val help = Cards.section(column, getString(R.string.advanced_card_help), rows = true)

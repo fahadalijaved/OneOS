@@ -33,6 +33,14 @@ package com.fahadali.oneos.core.model
  * launch writes the Advanced screen's choice. 1 stages this phone's own Samsung
  * IMS app into the guest for VoLTE (guest_prepare.sh, docs/samsung-ims-in-guest.md);
  * any image, any Samsung phone: the scripts check the phone's files themselves.
+ * [EDM_STUB] (0.4.32) is the third: Prepare writes 0, a launch writes Advanced's
+ * choice. 1 registers a stand-in for Knox's edmnativehelper while the guest runs
+ * (oneos_switch.sh, switcher/patches/OneOSEdmStub.java). One UI's cameraserver is
+ * shared with the guest and asks Knox on every camera open; only One UI's
+ * system_server registers that name, so the lookup blocks libbinder's full 5 s
+ * while the camera app gives up at 3 s (Z Flip5 reports on 0.4.29 and 0.4.31,
+ * both images, two different camera apps). Opt-in: the stub answers every code
+ * "allowed", and answering wrongly would turn the camera off rather than slow.
  */
 object SessionEnv {
     const val FILE_NAME = "session.env"
@@ -48,6 +56,8 @@ object SessionEnv {
     const val HEAT_CAP = "ONEOS_HEAT_CAP"
     /** 1: this phone's Samsung IMS app (VoLTE) staged into the guest for this session (guest_prepare.sh); experimental. */
     const val SEC_IMS = "ONEOS_GUEST_SEC_IMS"
+    /** 1: answer Knox's edmnativehelper while the guest runs, so a camera open is not 5 s late (oneos_switch.sh); experimental. */
+    const val EDM_STUB = "ONEOS_GUEST_EDM_STUB"
 
     /** How the return brings One UI back: always in place, with the reboot as its failsafe (return_to_oneui.sh). */
     const val RETURN_MODE = "ONEOS_RETURN_MODE"
@@ -70,6 +80,7 @@ object SessionEnv {
         HIDE_GMS to Regex("[01]"),
         HEAT_CAP to Regex("[01]"),
         SEC_IMS to Regex("[01]"),
+        EDM_STUB to Regex("[01]"),
         RETURN_MODE to Regex("inplace"),
     )
 
@@ -134,6 +145,7 @@ object SessionEnv {
         out[HIDE_GMS] = "0"
         out[HEAT_CAP] = "1"
         out[SEC_IMS] = "0"
+        out[EDM_STUB] = "0"
         out[RETURN_MODE] = "inplace"
         return out
     }
@@ -188,6 +200,7 @@ object SessionEnv {
                     // Either value is the launch's own choice (the pattern allows only 0 or 1).
                     k == HEAT_CAP -> Unit
                     k == SEC_IMS -> {} // 0 or 1, a launch's choice on any phone and image
+                    k == EDM_STUB -> {} // 0 or 1, a launch's choice on any phone and image
                     k != HIDE_GMS -> if (got != v) p += "$k=$got does not match profile $id ($v)"
                     got == "1" && image?.gmsHideable != true -> p += if (image?.googleServices == true) {
                         "$HIDE_GMS=1, but the ${image.shortName} image's sessions present Google services, which cannot be hidden"

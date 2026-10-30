@@ -97,6 +97,11 @@ class SendReportFragment : PreferenceFragmentCompat() {
         val imageId: String?,
         val outcomeKind: String?,
         val afterSeconds: Int?,
+        /** The OneOS the session ran on, which can be older than this app (0.4.32). */
+        val sessionAppVersion: String? = null,
+        val sessionAppCode: Int? = null,
+        /** The day the session's bundle was written, from its generatedAt. */
+        val sessionDate: String? = null,
     )
 
     private lateinit var facts: Facts
@@ -161,6 +166,9 @@ class SendReportFragment : PreferenceFragmentCompat() {
                 imageId = imageId,
                 outcomeKind = outcome?.optString("kind")?.takeIf { it.isNotEmpty() },
                 afterSeconds = outcome?.takeIf { it.has("afterSeconds") && !it.isNull("afterSeconds") }?.optInt("afterSeconds"),
+                sessionAppVersion = json.optJSONObject("app")?.optString("version")?.takeIf { it.isNotEmpty() },
+                sessionAppCode = json.optJSONObject("app")?.optInt("versionCode")?.takeIf { it > 0 },
+                sessionDate = json.optString("generatedAt").takeIf { it.length >= 10 }?.take(10),
             )
         } else {
             val device = json?.optJSONObject("device")
@@ -210,10 +218,27 @@ class SendReportFragment : PreferenceFragmentCompat() {
 
         // Which report this is.
         val about = category(getString(if (facts.session) R.string.send_cat_session else R.string.send_cat_probe))
+        // 0.4.32: say which session this is, not just its id. Send sends the session
+        // the phone has stored, and a tester sent one twelve releases old without
+        // knowing (Z Fold7, 2026-10-30), so the date, the system and the OneOS it
+        // ran on are on the screen, and an older one says so in as many words.
+        val ran = facts.sessionAppVersion
+        val stale = facts.session && ran != null &&
+            ran.substringBefore('-') != com.fahadali.oneos.BuildConfig.VERSION_NAME.substringBefore('-')
         about.row(
             listOfNotNull(facts.profile?.label ?: Build.MODEL, facts.image?.let { imageLabel(it) }).joinToString(" · "),
-            if (facts.session) getString(R.string.send_session_summary, facts.sessionId ?: "?") else getString(R.string.send_probe_summary),
+            when {
+                !facts.session -> getString(R.string.send_probe_summary)
+                ran == null -> getString(R.string.send_session_summary, facts.sessionId ?: "?")
+                else -> getString(
+                    R.string.send_session_summary_full,
+                    facts.sessionDate ?: "?", ran, facts.sessionId ?: "?",
+                )
+            },
         )
+        if (ran != null && stale) {
+            about.row(getString(R.string.send_session_old_title), getString(R.string.send_session_old_summary, ran, com.fahadali.oneos.BuildConfig.VERSION_NAME))
+        }
 
         if (facts.session) {
             val how = category(getString(R.string.send_cat_how))
@@ -374,6 +399,9 @@ class SendReportFragment : PreferenceFragmentCompat() {
                     imageId = f.imageId,
                     imageName = f.image?.let { imageLabel(it) },
                     sessionId = f.sessionId,
+                    sessionAppVersion = f.sessionAppVersion,
+                    sessionAppCode = f.sessionAppCode,
+                    sessionDate = f.sessionDate,
                     outcomeKind = f.outcomeKind,
                     afterSeconds = f.afterSeconds,
                     checklist = if (f.session) c else Checklist(note = c.note, contact = c.contact),
