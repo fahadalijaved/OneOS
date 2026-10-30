@@ -21,7 +21,8 @@ import java.io.IOException
  * (GuestReturn.dc.html), then the other ways back: the Quick Settings tile
  * and Volume Up + Volume Down. A tap (or the tile) asks first; on Return it
  * writes the request ([ReturnRequest]) and the session's watcher on the host
- * takes the phone back to One UI.
+ * takes the phone back to One UI. 0.4.30: How's it going? opens the
+ * checklist ([ChecklistActivity]) kept for Send to the OneOS team.
  */
 class MainActivity : Activity() {
 
@@ -49,6 +50,7 @@ class MainActivity : Activity() {
         status = findViewById(R.id.status)
         addTile = findViewById(R.id.add_tile)
         back.setOnClickListener { ask(ReturnRequest.REASON_APP) }
+        findViewById<Button>(R.id.checklist).setOnClickListener { startActivity(Intent(this, ChecklistActivity::class.java)) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             addTile.setOnClickListener { requestTile() }
         } else {

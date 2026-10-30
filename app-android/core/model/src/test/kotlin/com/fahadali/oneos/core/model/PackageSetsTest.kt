@@ -39,7 +39,7 @@ class PackageSetsTest {
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
         assertEquals("out/overlays_pixel_f8u", pixel.sourceDir)
         assertEquals(
-            listOf(n6, x9u, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.N6_F8, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA, PackageSets.INFINITYX),
+            listOf(n6, x9u, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.N6_F8, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA, PackageSets.INFINITYX, PackageSets.HYPER_F8U),
             PackageSets.ALL,
         )
         // Infinity-X (0.4.27): both guard jars, the camera codes (Java and native), the guest vold, the
@@ -58,6 +58,20 @@ class PackageSetsTest {
             ifx.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(ifx.file(PackageSets.GMS_PAYLOAD) != null && ifx.hasReturnApp)
+        // HyperOS (0.4.31 on every phone; made for the Z Fold8 Ultra and Z Fold8): services.jar, Xiaomi's guard jars,
+        // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
+        val hyper = PackageSets.HYPER_F8U
+        assertEquals(Images.ID_HYPEROS_LHASA, hyper.imageId)
+        assertEquals("out/overlays_hyperos_r10", hyper.sourceDir)
+        assertEquals(33, hyper.files.size)
+        assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so"), hyper.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
+        assertEquals(
+            listOf("services_patched.jar", "miui-services_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
+                "miui-wifi-service_patched.jar", "miui-telephony-common_patched.jar", "vold_patched", "service.incremental_patched.so",
+                "libcamera_client_patched.so"),
+            hyper.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
+        )
+        assertTrue(hyper.hasReturnApp && "vold_patched" in hyper.names)
         // The Z Fold8's Find N6 set (0.4.14, pull request #1): the Fold's files and five Fold8 fixes.
         val f8 = PackageSets.N6_F8
         assertEquals(Images.ID_FIND_N6, f8.imageId)

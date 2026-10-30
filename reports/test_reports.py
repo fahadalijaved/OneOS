@@ -17,7 +17,7 @@ def record(rid="8aea312c31b8821d-3f2a", **over):
         "schema": "oneos.report/1", "reportId": rid, "receivedAt": "2026-10-30T09:00:00.000Z",
         "app": {"id": "com.fahadali.oneos", "version": "0.4.29-s25", "versionCode": 46, "series": "s25"},
         "phone": {"model": "SM-S938B", "device": "pa3q", "profile": "s-ultra-8750", "label": "Galaxy S25 Ultra"},
-        "image": "infinityx41-findx9u", "imageName": "Infinity-X 4.1",
+        "image": "infinityx41-findx9u", "imageName": "Infinity-X 4.1", "sessionId": "8aea312c31b8821d",
         "checklist": {"start": "home", "items": {"screen": "works", "wifi": "works", "calls": "problem", "camera": "not_tried"}},
         "note": "calls drop", "contact": "@tester", "logs": None,
     }
@@ -82,6 +82,8 @@ class CompatTest(unittest.TestCase):
             record(rid="d-0003", app={"version": "0.4.28-s26", "versionCode": 45}, phone={"label": "Galaxy S26 Ultra"}),
             record(rid="e-0004", checklist=None),
             record(rid="f-0005", phone={"label": "<script>"}, imageName="| bad |"),
+            # OneOS Probe: no session, an empty checklist; not counted.
+            record(rid="g-0006", sessionId=None, phone={"label": "Galaxy Z Flip5"}, checklist={"start": None, "items": {"wifi": "not_tried"}}),
         ]
         md = compat.render(recs, today="2026-10-30")
         self.assertLess(md.index("## OneOS 0.4.29"), md.index("## OneOS 0.4.28"))
@@ -90,6 +92,7 @@ class CompatTest(unittest.TestCase):
         self.assertEqual(cells[2:7], ["3", "⚠️ 2/3", "✅ 2/2", "⚠️ 1/2", "–"])
         self.assertEqual(cells[7], "❌ 0/2")
         self.assertIn("| Other phone | Other system |", md)
+        self.assertNotIn("Galaxy Z Flip5", md)
         for private in ("calls drop", "@tester", "SM-S938B", "8aea312c", "<script>"):
             self.assertNotIn(private, md)
 

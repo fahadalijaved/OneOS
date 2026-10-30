@@ -11,3 +11,8 @@ STRIP="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
     -o "$DIR/../assets/zygote_exec" "$DIR/zygote_launcher.c"
 "$STRIP" "$DIR/../assets/zygote_exec"
 ls -la "$DIR/../assets/zygote_exec"
+
+"$CC" --target=aarch64-linux-android29 -static -O2 -Wall -Wextra \
+    -o "$DIR/bin/socket_exec" "$DIR/socket_exec.c"
+"$STRIP" "$DIR/bin/socket_exec"
+ls -la "$DIR/bin/socket_exec"

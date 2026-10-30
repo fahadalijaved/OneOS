@@ -30,7 +30,7 @@ import com.fahadali.oneos.core.model.PackageSets
  * ([problems]), so nothing in the command needs quoting. `begin` and `finish`
  * name the profile, the image and its file set (root refuses a set that is not
  * that image's on that phone); `launch` carries this launch's
- * `ONEOS_GUEST_HIDE_GMS` and `ONEOS_HEAT_CAP` (0 or 1 each).
+ * `ONEOS_GUEST_HIDE_GMS`, `ONEOS_HEAT_CAP` and `ONEOS_GUEST_SEC_IMS` (0 or 1 each).
  */
 object RootScript {
     const val ASSET = "root/oneos_root.sh"
@@ -161,12 +161,13 @@ object RootScript {
                 arg(3, DEC, "a versionCode")
             }
             Verb.LAUNCH -> {
-                need(5)
+                need(6)
                 args.getOrNull(0)?.let { if (it != "session" && it != "dry") p += "launch: mode '$it'" }
                 arg(1, DEC, "a versionCode")
                 arg(2, HEX16, "a session id")
                 args.getOrNull(3)?.let { if (it != "0" && it != "1") p += "launch: hide Google services '$it' is not 0 or 1" }
                 args.getOrNull(4)?.let { if (it != "0" && it != "1") p += "launch: heat cap '$it' is not 0 or 1" }
+                args.getOrNull(5)?.let { if (it != "0" && it != "1") p += "launch: Samsung IMS '$it' is not 0 or 1" }
             }
             Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE -> need(0)
             Verb.PURGE -> {

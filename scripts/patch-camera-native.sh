@@ -19,7 +19,11 @@ for pair in "$1:libcamera_client_patched.so" "$2:libcameracompatbilityinfo_patch
     src=${pair%%:*}; name=${pair#*:}
     rm -f "$OUT/$name"
     sed -i "/ $name\$/d" "$OUT/guards.txt" 2>/dev/null || true
-    if [ "$(python3 -I "$ROOT/switcher/patches/pixel_camera_native.py" "$TABLE" "$src" "$OUT/$name")" = changed ]; then
+    # A refusal (exit 1) stops the build: inside $(...) set -e would not (0.4.31,
+    # HyperOS's library was left unpatched and reported as "not needed").
+    res=$(python3 -I "$ROOT/switcher/patches/pixel_camera_native.py" "$TABLE" "$src" "$OUT/$name") ||
+        { echo "ERROR: $name: pixel_camera_native.py refused $src" >&2; exit 1; }
+    if [ "$res" = changed ]; then
         chmod 644 "$OUT/$name"
         [ -f "$OUT/guards.txt" ] && (cd "$OUT" && sha256sum "$name") >> "$OUT/guards.txt"
         echo "built $OUT/$name"

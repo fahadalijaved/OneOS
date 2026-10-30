@@ -29,10 +29,17 @@ the vendor name, and a service.incremental.so that looks up "gvld"
    DFS fuse, tmp storage, SD lock), becomes "gvld". Left as it was, those
    calls would reach One UI's vold, whose transaction codes are not OPPO's.
 
+4. With --miui, the same for HyperOS's miui-services.jar: ExtendMImpl.connect
+   (Xiaomi's memory extension, whose IVold calls - runExtMFlush and others -
+   go by reflection with Xiaomi's transaction codes) and
+   AppCacheOptimizer.connectVold. miui_guards.py runs first: its factory
+   resets (RescuePartyXM) are the jar's only rebootPromptAndWipeUserData
+   callers.
+
 make-overlays.sh runs this only when it built vold_patched (Pixel 17 and
 ColorOS 17 CP2A.260605.016); other images keep "vold".
 
-Usage: guest_own_vold.py [--oplus] <smali root dir>
+Usage: guest_own_vold.py [--oplus | --miui] <smali root dir>
 Prints the smali_* directories (dex files) it changed, one per line.
 """
 import os
@@ -57,6 +64,10 @@ OPTIONAL = {
 }
 WANT_OPLUS = {
     ("com/android/server/storage/OplusStorageManagerFeature", "connectVold"),
+}
+WANT_MIUI = {
+    ("com/android/server/ExtendMImpl", "connect"),
+    ("com/android/server/appcacheopt/AppCacheOptimizer", "connectVold"),
 }
 WIPE = "Landroid/os/RecoverySystem;->rebootPromptAndWipeUserData("
 
@@ -120,5 +131,7 @@ def main(root, want, jar, optional=frozenset()):
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--oplus"]:
         main(sys.argv[2], WANT_OPLUS, "oplus-services.jar")
+    elif sys.argv[1:2] == ["--miui"]:
+        main(sys.argv[2], WANT_MIUI, "miui-services.jar")
     else:
         main(sys.argv[1], WANT, "services.jar", OPTIONAL)

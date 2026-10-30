@@ -26,8 +26,9 @@ android {
         applicationId = "com.fahadali.oneos.guest"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        // 0.2 (OneOS 0.4.30): How's it going?, the checklist for Send to the OneOS team.
+        versionCode = 2
+        versionName = "0.2"
     }
 
     signingConfigs {

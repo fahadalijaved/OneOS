@@ -110,6 +110,9 @@ class SendReportFragment : PreferenceFragmentCompat() {
     private var failure: String? = null
     private var progress: String? = null
 
+    /** The answers came from How's it going? in the other system (0.4.30). */
+    private var fromGuest = false
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         val host = requireActivity() as SendReportActivity
         val zip = host.zip
@@ -128,6 +131,13 @@ class SendReportFragment : PreferenceFragmentCompat() {
                 else -> null
             },
         )
+        // How's it going? (0.4.30): what the user ticked in the other system, when it is this session's.
+        if (facts.session) {
+            guestAnswers(zip)?.let { g ->
+                checklist = checklist.copy(start = StartAnswer.HOME, works = g.works - g.problems, problems = g.problems, note = g.note)
+                fromGuest = true
+            }
+        }
         redraw()
     }
 
@@ -165,6 +175,32 @@ class SendReportFragment : PreferenceFragmentCompat() {
 
     private val full: Boolean get() = facts.session && (fullChoice ?: checklist.wantsFullLogs)
 
+    /**
+     * The guest OneOS app's How's it going? in the bundle (logs.guest copies it as
+     * guest/…oneos_checklist.json), when it was saved in this session: not before the
+     * session's start in stage/current.json (guest_prepare.sh also deletes it at each switch).
+     */
+    private fun guestAnswers(zip: File): Checklist? {
+        val folder = ProbeSession.folderOf(zip)
+        val f = File(folder, "guest").listFiles { x -> x.isFile && x.name.endsWith("oneos_checklist.json") }?.firstOrNull() ?: return null
+        val json = runCatching { JSONObject(f.readText()) }.getOrNull() ?: return null
+        val started = runCatching { JSONObject(File(folder, "stage/current.json").readText()).optLong("epoch") }.getOrNull() ?: 0L
+        if (started > 0 && json.optLong("updatedAt") < started) return null
+        val items = json.optJSONObject("items") ?: return null
+        val works = mutableSetOf<CheckItem>()
+        val problems = mutableSetOf<CheckItem>()
+        for (k in items.keys()) {
+            val item = CheckItem.byId(k) ?: continue
+            when (items.optString(k)) {
+                "works" -> works += item
+                "problem" -> problems += item
+            }
+        }
+        val note = Reports.cleanText(json.optString("note"), Reports.NOTE_MAX)
+        if (works.isEmpty() && problems.isEmpty() && note.isEmpty()) return null
+        return Checklist(works = works, problems = problems, note = note)
+    }
+
     private fun redraw() {
         val zip = (requireActivity() as SendReportActivity).zip ?: return
         preferenceScreen.removeAll()
@@ -181,6 +217,7 @@ class SendReportFragment : PreferenceFragmentCompat() {
 
         if (facts.session) {
             val how = category(getString(R.string.send_cat_how))
+            if (fromGuest) how.row(getString(R.string.send_from_guest), getString(R.string.send_from_guest_summary))
             how.row(getString(R.string.send_start_title), checklist.start?.label ?: getString(R.string.send_choose), enabled = !sending) {
                 val starts = StartAnswer.entries
                 AlertDialog.Builder(ctx)

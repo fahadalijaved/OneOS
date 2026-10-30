@@ -1,6 +1,6 @@
 # OneOS package set pixel-sultra: sha256sum of out/overlays_pixel_kodiak (scripts/make-overlays.sh, 2026-10-27; services_patched.jar with patches/guest_no_native_services.py, 2026-10-28), minus tethering_payload.img.
 # app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_pixel_kodiak differs.
-29e464733052e8224c6a167f8518232ad44474be74a1e6bb78908752a70ef016  OneOSGuest.apk
+b50f5e4ae8e5998b67e90bd296695b4d049d2ea9e1bcbb70d2522c65cd255763  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
 466e8b95c9805c6544f736c0a134f6b0de6035232b4473897dc64508bb91114a  OneOSPixelStatusBar.apk
 6d19e2a1b3d2f9114d6dd1a8923e13b738be146bd6681bd3b66da29c7067988c  adservices_payload.img

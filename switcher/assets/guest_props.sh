@@ -107,13 +107,36 @@ add)
             if (substr($0, i + 4) == "]" && (k !~ /^persist\./ || (k in b))) next
             print k
         }' > "$HOST"
+    # The image's system_ext and product: inside system in MysticGSI's merged
+    # images; at the image root in HyperOS's, where system/system_ext and
+    # system/product are absolute links (-> /system_ext, /product) that root
+    # follows to One UI's own files here on the host. Until the eighth HyperOS
+    # run the guest got none of its product, system_ext or mi_ext props (no
+    # ro.miui.ui.font.* or ro.miui.ui.version.code: themes, fonts and
+    # wallpapers did not apply and the launcher's own pages drew no text).
+    # From root partitions only ro.* keys, and no vendor, surface_flinger,
+    # nnapi or odm ones: their persist.*, debug.*, dalvik.* and bluetooth.*
+    # keys are Xiaomi's tuning for its own 10-core chip and daemons (core sets
+    # 8-9, persist.sys.stability.reboot_days, vendor.zram.disable, traced's
+    # relay port), and One UI's daemons share this property area.
+    GSE="$ROOTFS/system/system_ext"; GPR="$ROOTFS/system/product"; ROOTPARTS=""
+    [ -L "$GSE" ] && GSE="$ROOTFS/system_ext" && ROOTPARTS="$ROOTPARTS $GSE/etc/build.prop"
+    [ -L "$GPR" ] && GPR="$ROOTFS/product" && ROOTPARTS="$ROOTPARTS $GPR/etc/build.prop"
+    [ -n "$ROOTPARTS" ] && ROOTPARTS="$ROOTPARTS $ROOTFS/mi_ext/etc/build.prop"
     # Lowest priority first; a later file wins for a key defined twice.
-    ls "$ROOTFS"/system/build.prop \
-       "$ROOTFS"/system/system_ext/etc/build.prop \
-       "$ROOTFS"/system/product/etc/build.prop \
-       "$ROOTFS"/my_*/build.prop \
-       "$ROOTFS"/my_*/etc/build.prop 2>/dev/null |
-    xargs cat |
+    {
+        ls "$ROOTFS"/system/build.prop \
+           "$ROOTFS"/system/system_ext/etc/build.prop \
+           "$ROOTFS"/system/product/etc/build.prop \
+           "$ROOTFS"/my_*/build.prop \
+           "$ROOTFS"/my_*/etc/build.prop 2>/dev/null | while read -r f; do
+            case "$f" in "$ROOTFS"/system/build.prop|"$ROOTFS"/my_*) cat "$f" ;; *) [ -L "${f%/etc/build.prop}" ] || cat "$f" ;; esac
+        done
+        for f in $ROOTPARTS; do
+            [ -f "$f" ] && [ ! -L "$f" ] || continue
+            grep -E '^[ \t]*ro\.' "$f" | grep -v -E '^[ \t]*ro\.(vendor|surface_flinger|nnapi|odm)\.'
+        done
+    } |
     awk -v hostfile="$HOST" '
         BEGIN { while ((getline k < hostfile) > 0) host[k] = 1 }
         /^[ \t]*(#|import|$)/ { next }
@@ -363,6 +386,103 @@ add)
             echo "guest_props: $NM=true for the session (Night Light: the image's treble NightMode overlay)"
         fi
     fi
+    # HyperOS on a fold: Xiaomi's fold flag lives in the phone's vendor props,
+    # which the GSI does not carry. MiWallpaper (a fold build: the image is
+    # Xiaomi's fold lhasa) loads the cover screen's two wallpaper records only
+    # when persist.sys.muiltdisplay_type is 2, then reads them anyway, and
+    # crashed at every start without them (sixth HyperOS run: NPE in
+    # WallpaperTypeUtils.f for which=4/8, no wallpaper). MiuiMultiDisplayTypeInfo
+    # reads the same value for the rest of HyperOS (isFoldDevice: without it
+    # the seventh run laid HyperOS's phone UI out on the inner panel, "zoomed
+    # in", and the theme pickers failed). Memory only, blanked by remove,
+    # never over a value One UI has. The image's own fold_disp marks a fold
+    # build; not $NEW, which skips it: One UI defines ro.config.fold_disp too
+    # (Samsung's "2256,2504,1080,2520"), so the run 6 check never matched.
+    MDT=persist.sys.muiltdisplay_type
+    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && grep -q '^ro\.config\.fold_disp=' "$ROOTFS"/system/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null &&
+        { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; }; then
+        if grep -qxF "$MDT" "$HOST"; then
+            echo "guest_props: $MDT is One UI's ($(getprop "$MDT")), left alone"
+        else
+            sed -i '/^persist\.sys\.muiltdisplay_type=/d' "$NEW"
+            echo "$MDT=2" >> "$NEW"
+            echo "guest_props: $MDT=2 for the session (HyperOS fold: cover screen wallpapers)"
+        fi
+    fi
+    # HyperOS's rust runtime (its launcher among the packages): the image's
+    # init.hyos_spawner.rc sets rust.runtime_version when zygote runs and
+    # starts hyos_spawner on rust.runtime_active=1, and system_server sends
+    # rust packages to the spawner only while that is 1. One UI's init has
+    # neither; guest_start.sh starts the spawner, and the two values are added
+    # here so that remove deletes them again (system_server sets the second
+    # one itself as well).
+    if [ -f "$ROOTFS/system/system_ext/bin/hyos_spawner" ] || [ -f "$ROOTFS/system_ext/bin/hyos_spawner" ]; then
+        for kv in rust.runtime_version=3.1.0 rust.runtime_active=1; do
+            k=${kv%%=*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: rust.runtime_version=3.1.0 rust.runtime_active=1 for the session (HyperOS rust packages through hyos_spawner)"
+    fi
+    # HyperOS's telephony (xiaomi-opt-telephony.jar, XmTelephonyUtils.ModemProvider)
+    # takes the modem's maker from ro.vendor.radio.modem.provider, else from
+    # ro.mi.os.soc.vendor, which the image's own build.prop sets to xring. On
+    # "xring" VendorRIL.setupDataCall goes to Xiaomi's radio extension
+    # (RadioInterfaceManager, setupDataCallEx), which Samsung's vendor never
+    # registers: run 10 "onSetupDataCallComplete. resultCode = 4", cause
+    # RADIO_NOT_AVAILABLE, no mobile data. With "qcom" (the Snapdragon modem
+    # it is) every data call takes RIL's own IRadioData path. One UI's vendor
+    # does not define the name.
+    if { [ -f "$ROOTFS/system/system_ext/framework/xiaomi-opt-telephony.jar" ] || [ -f "$ROOTFS/system_ext/framework/xiaomi-opt-telephony.jar" ]; } &&
+        ! grep -qxF ro.vendor.radio.modem.provider "$HOST"; then
+        if [ "$(getprop ro.soc.manufacturer)" = QTI ]; then
+            sed -i '/^ro\.vendor\.radio\.modem\.provider=/d' "$NEW"
+            echo "ro.vendor.radio.modem.provider=qcom" >> "$NEW"
+            echo "guest_props: ro.vendor.radio.modem.provider=qcom for the session (HyperOS data calls through IRadioData, not Xiaomi's XRING extension)"
+        else
+            echo "guest_props: ro.vendor.radio.modem.provider left unset: $(getprop ro.soc.manufacturer) is not a Qualcomm SoC"
+        fi
+    fi
+    # HyperOS's XRING helpers fail on every frame and log each time: libxqos
+    # ("XQos: Failed to open /dev/xr_fbt" and "Failed to initialize", 300,000
+    # lines in run 10's 12 minutes, 258,000 in run 6's four), SurfaceFlinger's
+    # PerfFlinger client (17,000) and the Dolby renderer's metadata reads
+    # (51,000): a third of the session's log and of OneOS's capture. liblog
+    # checks log.tag.<tag> before it formats a line; S drops these three tags
+    # in every process. Xiaomi's and Dolby's own tags only, never AOSP ones
+    # (BufferQueueProducer and SurfaceFlinger carry real errors too). Run 11
+    # added: RadioProxyEx (Xiaomi's radio extension proxy, never ready on
+    # Samsung's vendor: 9,500 lines a file), com.xiaomi.type (Xiaomi's
+    # keyboard dumping its key table, 8,000) and, down to W only, AdrenoVK-0
+    # (Qualcomm's Vulkan driver: "Unknown struct ... provided to
+    # vkCmdBeginRenderPass" on every frame HyperOS draws, 16,600 a file).
+    if [ -f "$ROOTFS/system/lib64/libxqos.so" ]; then
+        for tl in XQos:S perfflinger_client:S DolbyRenderer:S RadioProxyEx:S com.xiaomi.type:S AdrenoVK-0:W; do
+            k=log.tag.${tl%:*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$k=${tl##*:}" >> "$NEW"
+        done
+        echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type = S and AdrenoVK-0 = W for the session (failures and dumps on every frame or call)"
+    fi
+    # HyperOS's libhwui encodes JPEG and HEIF through Xiaomi's XRING VPU
+    # (JpegXEncoder) and waits for vendor.xring.hardware.graphics.vpu.jpeg.
+    # IJpegXCodecStore/default, which Samsung's vendor never registers: every
+    # Bitmap.compress hung (run 9: wallpaper apply, the lock screen editor's
+    # apply and screenshots, system_server's own wallpaper thread). With bit 0
+    # of debug.video.jpegopt.enable / heifopt.enable clear (default 1) Skia
+    # uses libjpeg and its HEIF encoder. Only when the image's libhwui reads
+    # them; not the vendor.video.* ones, which One UI's vendor might read.
+    if grep -qF debug.video.jpegopt.enable "$ROOTFS/system/lib64/libhwui.so" 2>/dev/null; then
+        for kv in debug.video.jpegopt.enable=0 debug.video.heifopt.enable=0; do
+            k=${kv%%=*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: debug.video.jpegopt.enable=0 debug.video.heifopt.enable=0 for the session (no XRING JPEG/HEIF codec)"
+    fi
     # ColorOS's first-boot clock. OplusNewNetworkTimeUpdateServiceFeature.
     # checkSystemTime (oplus-services.jar) takes every boot with
     # persist.sys.device_first_boot unset (default true) for the phone's first
@@ -405,8 +525,8 @@ add)
     if [ "${ONEOS_GUEST_RINGTONES:-1}" = 1 ]; then
         for key in ro.config.ringtone ro.config.notification_sound ro.config.alarm_alert; do
             # The same files and order as above (Pixel sets these in product).
-            g=$(cat "$ROOTFS"/system/build.prop "$ROOTFS"/system/system_ext/etc/build.prop \
-                "$ROOTFS"/system/product/etc/build.prop "$ROOTFS"/my_*/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
+            g=$(cat "$ROOTFS"/system/build.prop "$GSE"/etc/build.prop \
+                "$GPR"/etc/build.prop "$ROOTFS"/my_*/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
             h=$(getprop "$key")
             [ -n "$g" ] && [ -n "$h" ] && [ "$g" != "$h" ] || continue
             echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
@@ -426,8 +546,8 @@ add)
     # g_call_sim_slot then reaches the HAL only through guest_start.sh's call
     # keeper, which sends it to IModule/default directly while this is not true.
     for key in ro.audio.ihaladaptervendorextension_enabled; do
-        g=$(cat "$ROOTFS"/system/build.prop "$ROOTFS"/system/system_ext/etc/build.prop \
-            "$ROOTFS"/system/product/etc/build.prop "$ROOTFS"/my_*/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
+        g=$(cat "$ROOTFS"/system/build.prop "$GSE"/etc/build.prop \
+            "$GPR"/etc/build.prop "$ROOTFS"/my_*/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
         h=$(getprop "$key")
         [ -n "$g" ] && [ -n "$h" ] && [ "$g" != "$h" ] || continue
         echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&

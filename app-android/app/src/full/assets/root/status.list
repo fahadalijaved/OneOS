@@ -123,14 +123,14 @@ f="$S/persist_session.active"
 printf "active\n"
 grep -E "^(format|boot_id|epoch|app|profile)=" "$f"'
 
-#: Whose data the guest folder holds (ColorOS, LineageOS, Pixel or Infinity-X packages: Pixel's launcher, Infinity-X's updater), without reading the data.
+#: Whose data the guest folder holds (ColorOS, LineageOS, Pixel packages: Pixel's launcher, Infinity-X's updater, or HyperOS: com.miui.), without reading the data.
 run stage.guest 10 stage/guest.txt '
 S=/data/local/tmp/oneos
 [ -e "$S" ] || [ -L "$S" ] || [ ! -d /data/local/tmp/lineage_stage ] || [ -L /data/local/tmp/lineage_stage ] || S=/data/local/tmp/lineage_stage
 p="$S/data/system/packages.xml"
 [ -d "$S/data" ] || exit 3
 [ -f "$p" ] || { echo "packages none"; exit 0; }
-for w in com.oplus. com.coloros. org.lineageos. com.google.android.apps.nexuslauncher com.infinity.updater; do
+for w in com.oplus. com.coloros. org.lineageos. com.google.android.apps.nexuslauncher com.infinity.updater com.miui.; do
   if grep -q -s -F "$w" "$p"; then echo "packages $w"; fi
 done
 true'
@@ -138,6 +138,15 @@ true'
 #: Stages moved aside earlier (oneos.old-*, and lineage_stage.old-* up to 0.3.6).
 run stage.old 10 stage/old.txt '
 for d in /data/local/tmp/oneos.old-* /data/local/tmp/lineage_stage.old-*; do [ -e "$d" ] && printf "%s\n" "$d"; done
+true'
+
+#: The system each copy moved aside by OneOS holds (its marker's image id), for Home's other systems (0.4.30).
+run stage.old_images 10 stage/old_images.txt '
+for d in /data/local/tmp/oneos.old-*; do
+  m="$d/.oneos_stage"
+  [ -f "$m" ] && [ ! -L "$m" ] || continue
+  printf "%s %s\n" "${d##*/}" "$(grep -m 1 -F "\"image\":" "$m" | cut -d\" -f4)"
+done
 true'
 
 #: Executables in the root manager's folders, where the session scripts look for busybox and its prop tool.

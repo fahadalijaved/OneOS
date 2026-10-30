@@ -95,7 +95,8 @@ if [ "$SE_AT_RETURN" != Permissive ]; then
     echo "SELinux was ${SE_AT_RETURN:-unreadable} at the return: Permissive again for it ($(getenforce 2>/dev/null))"
 fi
 
-# The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log)
+# The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log;
+# HyperOS: hyos_spawner.log)
 # next to the session's logcat capture (oneos_switch.sh), first, before anything
 # is stopped and on both return paths. Run 44: both calls came after diag_90 and
 # the reboot return leaves no diag_final, so the per-call keeper lines were in
@@ -103,7 +104,7 @@ fi
 # can fail the return.
 LOGS=/data/local/tmp/oneos_logs
 if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
-    for f in call_audio.log audio_keeper.log oneos_a2dp.log; do
+    for f in call_audio.log audio_keeper.log oneos_a2dp.log hyos_spawner.log; do
         [ -f "$S/data/$f" ] && [ ! -L "$S/data/$f" ] || continue
         rm -f "$LOGS/$f" 2>/dev/null
         cp "$S/data/$f" "$LOGS/$f" 2>/dev/null
@@ -237,6 +238,8 @@ fi
 # into run 43's return; it has no business in the return.
 pkill -9 -f "$S/rootfs/system/build.prop" 2>/dev/null || true
 rm -f /data/local/tmp/oneos/guest_mntns
+# HyperOS: the spawner's socket (guest_start.sh made it in /dev/socket).
+rm -f /dev/socket/hyos_spawner 2>/dev/null
 
 # The guest zygote's sockets were bound onto themselves in init's mount
 # namespace (oneos_switch.sh, protect_zygote_sockets), so that init could not
@@ -670,12 +673,16 @@ done < "$BASE/gc_urgent"
 # Display: the composer still holds the guest's dead surfaceflinger as its
 # client (guest_start.sh restarted it for the guest); its onrestart starts One
 # UI's surfaceflinger, which starts the boot animation.
-# Snapdragon's composer service, or Samsung's Exynos one (guest_start.sh).
+# Snapdragon's composer service, or Samsung's Exynos one, or -- when the phone
+# names it something else, as the Galaxy A56 does -- whichever running init
+# service calls itself the display composer (guest_start.sh restarts the same
+# one). Only then is there nothing to restart and the return cannot finish.
 COMPOSER_SVC=""
 for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
     [ -n "$(getprop init.svc.$c)" ] && { COMPOSER_SVC=$c; break; }
 done
-[ -n "$COMPOSER_SVC" ] || failsafe "no known display composer service"
+[ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
+[ -n "$COMPOSER_SVC" ] || failsafe "no display composer service found"
 setprop ctl.restart "$COMPOSER_SVC"
 # The SM8550 phones (Galaxy S23) have only the HIDL composer
 # (android.hardware.graphics.composer@2.x): waiting for the AIDL one rebooted
@@ -758,6 +765,11 @@ say "One UI's zygote started ($(getprop init.svc.zygote))"
 if [ "$(base_prop init.svc.zygote_secondary)" = running ] && [ "$(getprop init.svc.zygote_secondary)" != running ]; then
     setprop ctl.start zygote_secondary
     say "One UI's zygote_secondary started"
+fi
+# One UI's zygote_next if anything stopped it (0.4.25-hyperos's switch did).
+if [ "$(base_prop init.svc.zygote_next)" = running ] && [ "$(getprop init.svc.zygote_next)" != running ]; then
+    setprop ctl.start zygote_next
+    say "One UI's zygote_next started"
 fi
 
 # Gate C: system_server must come up and keep its pid until user 0 is

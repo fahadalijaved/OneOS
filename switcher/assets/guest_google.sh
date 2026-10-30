@@ -29,13 +29,14 @@ STAGE=${STAGE:-/data/local/tmp/oneos}
 BB=${BB:-/data/oneos_bin/busybox}
 CACHE="$STAGE/google_apps"
 say() { echo "Google apps: $*"; }
-# ColorOS sets only (their guards.txt lists oplus-services_patched.jar; Pixel
-# sets present the image's own Play services, guest_prepare.sh GMS_WANT), and
-# not when a launch hides Google services (ONEOS_GUEST_HIDE_GMS=1).
-# Not for a set that presents the image's own Play services from its
-# gmssystem payload (Infinity-X, 0.4.27, has OPPO's jars too).
+# ColorOS sets (their guards.txt lists oplus-services_patched.jar) and HyperOS
+# sets (miui-services_patched.jar; the Xiaomi 18 Fold CN build has the same
+# GmsCore folder with only m and the same Play Store stub, in product). Pixel
+# sets present the image's own Play services (guest_prepare.sh GMS_WANT), and
+# so does a set with a gmssystem payload (Infinity-X, 0.4.27, which has OPPO's
+# jars too). Not when a launch hides Google services (ONEOS_GUEST_HIDE_GMS=1).
 selected() {
-    grep -q ' oplus-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null && [ ! -f "$STAGE/gmssystem_payload.img" ] &&
+    grep -q -E ' (oplus|miui)-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null && [ ! -f "$STAGE/gmssystem_payload.img" ] &&
         [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ "${ONEOS_GUEST_HIDE_GMS:-0}" != 1 ]
 }
 # No links anywhere below the cache, a guest-planted link to host data included.

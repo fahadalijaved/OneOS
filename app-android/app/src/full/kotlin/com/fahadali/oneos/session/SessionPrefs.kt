@@ -167,6 +167,13 @@ object SessionPrefs {
         p(ctx).edit().putBoolean("hide_gms", on).apply()
     }
 
+    /** This phone's Samsung IMS app in the other system, for VoLTE (Advanced; ONEOS_GUEST_SEC_IMS). Off by default. */
+    fun secIms(ctx: Context): Boolean = p(ctx).getBoolean("sec_ims", false)
+
+    fun setSecIms(ctx: Context, on: Boolean) {
+        p(ctx).edit().putBoolean("sec_ims", on).apply()
+    }
+
     /**
      * Cool down when hot (Advanced; owner 2026-10-27), `ONEOS_HEAT_CAP` for every
      * launch. On by default: One UI's heat control (SSRM) does not run in the

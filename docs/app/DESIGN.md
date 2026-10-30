@@ -1270,9 +1270,9 @@ writes are in M5, only under `$STAGE`; the app's first guest boot is M7.
 - **Root.** `begin` and `finish` name the set; `profile_set` (profile, image
   → set) and `set_image` (set → image) must agree, or root refuses (begin,
   plan, finish, launch). Marker `oneos.stage/2` with the set (`/1` still read
-  for keep and recover, never switched). `launch` takes `hideGms` and writes
-  `ONEOS_GUEST_HIDE_GMS` into `session.env` after its checks;
-  `current.json` records image, set and `hideGms`. Guest data stays with
+  for keep and recover, never switched). `launch` takes `hideGms` and (0.4.20) `secIms` and writes
+  `ONEOS_GUEST_HIDE_GMS` and `ONEOS_GUEST_SEC_IMS` into `session.env` after
+  its checks; `current.json` records image, set, `hideGms` and `secIms`. Guest data stays with
   the image that made it: `begin keep` refuses another image's (marker, or
   the plan of an unfinished preparation) and Prepare offers only Move it
   aside then. The launcher also installs the pinned script for `recover` (a

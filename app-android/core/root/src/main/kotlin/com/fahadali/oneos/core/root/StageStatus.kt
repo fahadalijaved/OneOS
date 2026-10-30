@@ -34,6 +34,8 @@ enum class GuestData {
      * word goes first.
      */
     INFINITYX,
+    /** Xiaomi's com.miui. packages (HyperOS), and no ColorOS or Pixel package. */
+    HYPEROS,
     OTHER,
     ;
 
@@ -43,6 +45,7 @@ enum class GuestData {
             COLOROS -> SystemFamily.COLOROS
             PIXEL -> SystemFamily.PIXEL
             INFINITYX -> SystemFamily.INFINITYX
+            HYPEROS -> SystemFamily.HYPEROS
             else -> null
         }
 
@@ -87,6 +90,8 @@ data class StageStatus(
     val oldStages: List<String>,
     val tools: List<String>,
     val props: Map<String, String>,
+    /** 0.4.30: the system each copy OneOS moved aside holds (oneos.old-<time> to its marker's image id). */
+    val oldImages: Map<String, String> = emptyMap(),
 ) {
     val exists: Boolean get() = kind != StageKind.ABSENT
 
@@ -134,7 +139,7 @@ data class StageStatus(
             image != null && guest.otherSystemThan(image) -> listOf(RootScript.BeginMode.ASIDE)
             ours -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             partial && guest != GuestData.LINEAGEOS -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
-            guest == GuestData.COLOROS || guest == GuestData.PIXEL || guest == GuestData.INFINITYX ->
+            guest == GuestData.COLOROS || guest == GuestData.PIXEL || guest == GuestData.INFINITYX || guest == GuestData.HYPEROS ->
                 listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             else -> listOf(RootScript.BeginMode.ASIDE)
         }
@@ -262,7 +267,7 @@ data class StageStatus(
          * Flat names the session scripts bind, run or read (oneos_switch.sh's ONEOS_APP check, and more):
          * root's check_files list, with the Pixel set's oneos-telephony.jar and .sha256 (0.3.7).
          */
-        val LEFTOVER = Regex("""^(.*_patched.*|.*_payload\.img|.*\.apk|.*\.jar|.*\.so|.*\.sh|Fold8AngleRelay\.dex|zygote_exec|clean_apex_info_list\.xml|oneos-.*)$""")
+        val LEFTOVER = Regex("""^(.*_patched.*|.*_payload\.img|.*\.apk|.*\.jar|.*\.so|.*\.sh|Fold8AngleRelay\.dex|zygote_exec|socket_exec|clean_apex_info_list\.xml|oneos-.*)$""")
 
         /** The list's entry ids and their output files. */
         val OUTPUTS: Map<String, String> = linkedMapOf(
@@ -280,6 +285,7 @@ data class StageStatus(
             "stage.session" to "stage/session.txt",
             "stage.guest" to "stage/guest.txt",
             "stage.old" to "stage/old.txt",
+            "stage.old_images" to "stage/old_images.txt",
             "stage.tools" to "stage/tools.txt",
             "stage.props" to "stage/props.txt",
         )
@@ -350,6 +356,7 @@ data class StageStatus(
                 guestLines.any { it == "packages org.lineageos." } -> GuestData.LINEAGEOS
                 guestLines.any { it == "packages com.oplus." || it == "packages com.coloros." } -> GuestData.COLOROS
                 guestLines.any { it == "packages $PIXEL_WORD" } -> GuestData.PIXEL
+                guestLines.any { it == "packages $HYPEROS_WORD" } -> GuestData.HYPEROS
                 guestLines.any { it == "packages none" } -> GuestData.EMPTY
                 else -> GuestData.OTHER
             }
@@ -380,6 +387,11 @@ data class StageStatus(
                 oldStages = lines("stage.old"),
                 tools = lines("stage.tools"),
                 props = lines("stage.props").filter { it.contains('=') }.associate { it.substringBefore('=') to it.substringAfter('=') },
+                oldImages = lines("stage.old_images").mapNotNull { l ->
+                    val name = l.substringBefore(' ')
+                    val image = l.substringAfter(' ', "").trim()
+                    if (name.startsWith("oneos.old-") && Regex("[a-z0-9-]{1,40}").matches(image)) name to image else null
+                }.toMap(),
             )
         }
 
@@ -387,6 +399,7 @@ data class StageStatus(
 
         /** The package status.list (and root's `begin keep`) takes for the Pixel guest's data: Pixel's launcher. */
         const val PIXEL_WORD = "com.google.android.apps.nexuslauncher"
+        const val HYPEROS_WORD = "com.miui."
 
         /** Infinity-X's updater (its system_ext/priv-app/Updater). */
         const val INFINITYX_WORD = "com.infinity.updater"

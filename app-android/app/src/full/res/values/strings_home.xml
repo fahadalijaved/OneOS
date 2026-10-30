@@ -88,4 +88,16 @@
     <string name="home_sheet_back_keys_line">Both together for 3 seconds</string>
     <string name="home_sheet_back_stuck">Stuck on the logo?</string>
     <string name="home_sheet_back_stuck_line">Hold Power + Volume Down to restart into One UI</string>
+
+    <!-- Quick switch (0.4.30): the other systems set up earlier, on Home. -->
+    <string name="home_other_switch">Switch to %1$s</string>
+    <string name="home_other_since">kept since %1$s</string>
+    <string name="home_other_kept">with its apps and data</string>
+    <string name="home_other_getting_ready">Getting %1$s ready…</string>
+    <string name="home_other_getting_ready_line">Putting it back. If its OneOS files are older, they\'re updated next.</string>
+    <string name="home_other_confirm_title">Switch to %1$s?</string>
+    <string name="home_other_confirm_message">%1$s is put back with its apps and data, and %2$s is kept the same way, so you can come back to it from here. If its OneOS files are older than this app, OneOS updates them first (about 2 minutes). Then the switch opens as usual.</string>
+    <string name="home_other_current_unknown">the system set up now</string>
+    <string name="home_other_confirm_go">Get it ready</string>
+    <string name="home_other_failed">Couldn\'t put it back</string>
 </resources>

@@ -160,6 +160,8 @@
     <string name="send_preparing">Preparing…</string>
     <string name="send_progress">Sending… %1$d%% of %2$s</string>
     <string name="send_sending">Sending</string>
+    <string name="send_from_guest">Filled in from How\'s it going?</string>
+    <string name="send_from_guest_summary">What you ticked in the other system. Change anything below before sending.</string>
     <string name="send_need_start">Choose whether it started first</string>
     <string name="send_too_big">The file is too big to send (%1$s). Use Share instead.</string>
     <string name="send_done_title">Sent. Thank you!</string>

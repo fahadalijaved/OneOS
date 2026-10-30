@@ -19,10 +19,10 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
     ),
     S25(
         "s25",
-        "Galaxy S25, S24, S23, Z Flip7, Z Flip5 and A57",
+        "Galaxy S25, S24, S23, Z Flip7, Z Flip5, A57 and A56",
         listOf(
             Profiles.ID_S_ULTRA_8750, Profiles.ID_S_PLUS_8750, Profiles.ID_S_8750, Profiles.ID_S_ULTRA_8650,
-            Profiles.ID_S_8550, Profiles.ID_S_PLUS_8550, Profiles.ID_FLIP7, Profiles.ID_A57, Profiles.ID_FLIP5,
+            Profiles.ID_S_8550, Profiles.ID_S_PLUS_8550, Profiles.ID_FLIP7, Profiles.ID_A56, Profiles.ID_A57, Profiles.ID_FLIP5,
         ),
     ),
     ;

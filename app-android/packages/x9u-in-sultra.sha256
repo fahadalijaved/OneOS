@@ -1,6 +1,6 @@
 # OneOS package set x9u-in-sultra: sha256sum of out/overlays_x9u_in_r51 (scripts/make-overlays.sh, 2026-10-25; services_patched.jar with patches/guest_no_native_services.py, 2026-10-28), minus tethering_payload.img OneOSWallpapersFoldGrid.apk.
 # app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_x9u_in_r51 differs.
-29e464733052e8224c6a167f8518232ad44474be74a1e6bb78908752a70ef016  OneOSGuest.apk
+b50f5e4ae8e5998b67e90bd296695b4d049d2ea9e1bcbb70d2522c65cd255763  OneOSGuest.apk
 63a54a1d705e387966c1174a6707fe02b85035b311fa1fbda1c7fcf0991a202a  adservices_payload.img
 88ce090179da9e71ff718a72b7e027bdf0813ddbcde5b17e2b05d03fc20f6fcb  appsearch_payload.img
 391e25c00f71217669879482c4055ae27855e8b5be8df9f4dfcd018fa02fc148  art_payload.img

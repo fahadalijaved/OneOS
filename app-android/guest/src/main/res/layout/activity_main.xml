@@ -76,6 +76,26 @@
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="14sp" />
 
+            <!-- How's it going? (0.4.30): the checklist for Send to the OneOS team. -->
+            <Button
+                android:id="@+id/checklist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/checklist_open"
+                android:textAllCaps="false"
+                android:textSize="17sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/checklist_open_caption"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="14sp" />
+
             <!-- Returning, no answer after 30 s, or the failure. -->
             <TextView
                 android:id="@+id/status"

@@ -27,11 +27,13 @@ import com.fahadali.oneos.core.model.Finding
 import com.fahadali.oneos.core.model.FixAction
 import com.fahadali.oneos.core.model.GatePhase
 import com.fahadali.oneos.core.model.GateReport
+import com.fahadali.oneos.core.model.ImageRef
 import com.fahadali.oneos.core.model.Images
 import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.core.model.PackageSets
 import com.fahadali.oneos.core.model.Plain
 import com.fahadali.oneos.core.model.PlainMessage
+import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.RootKind
 import com.fahadali.oneos.core.model.ScreenLockRule
 import com.fahadali.oneos.core.model.Sentence
@@ -43,11 +45,13 @@ import com.fahadali.oneos.core.root.HomeInput
 import com.fahadali.oneos.core.root.HomeJob
 import com.fahadali.oneos.core.root.HomeState
 import com.fahadali.oneos.core.root.LastSession
+import com.fahadali.oneos.core.root.OldStage
 import com.fahadali.oneos.core.root.OutcomeKind
 import com.fahadali.oneos.session.LaunchJob
 import com.fahadali.oneos.session.LogJob
 import com.fahadali.oneos.session.OldStagesJob
 import com.fahadali.oneos.session.PrepareJob
+import com.fahadali.oneos.session.QuickSwitch
 import com.fahadali.oneos.session.Readiness
 import com.fahadali.oneos.session.SessionPrefs
 import com.fahadali.oneos.session.StageCheck
@@ -281,6 +285,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         footer(activity, s)
         spaceCards(root)
         refusalDialog(activity)
+        quickSwitch(activity, s)
     }
 
     // Hero ===================================================================
@@ -556,6 +561,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
             }
         }
         lastRow(card, s)
+        otherSystems(activity, card, s)
         // Another system or a downloaded file; not while checking or working, nor when the main button does the same.
         val choosing = s.kind == HomeState.Kind.NOTHING_SET_UP && s.primary == FixAction.CHOOSE_SYSTEM
         if (s.kind != HomeState.Kind.CHECKING && s.kind !in BUSY && !choosing) {
@@ -565,6 +571,118 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         }
         Cards.row(card, R.drawable.ic_oneos_row_advanced, getString(R.string.home_advanced), getString(R.string.home_row_advanced_summary)) {
             startActivity(Intent(ctx, AdvancedActivity::class.java))
+        }
+    }
+
+    // Quick switch (0.4.30) =====================================================
+
+    /**
+     * One row per other system set up earlier on this phone: each copy OneOS
+     * moved aside that holds a system this phone takes (the stage check reads
+     * which, stage.old_images), newest first. A tap offers Switch to it
+     * ([QuickSwitch]) or Delete it; the copy being put back shows as working.
+     */
+    private fun otherSystems(activity: MainActivity, card: LinearLayout, s: HomeState) {
+        val ctx = card.context
+        val r = StageCheck.state.result ?: return
+        val status = r.status
+        val profile = Profiles.resolve(r.facts).profile ?: return
+        val pending = QuickSwitch.pending
+        val copies = status.oldStages.map { it.substringAfterLast('/') }.distinct().mapNotNull { name ->
+            status.oldImages[name]?.let { Images.byId(it) }?.takeIf { profile.choice(it.id) != null }?.let { name to it }
+        }.sortedByDescending { setAside(it.first) ?: 0 }
+        val working = s.kind == HomeState.Kind.CHECKING || s.kind in BUSY || OldStagesJob.state.busy || pending != null
+        for ((name, image) in copies) {
+            val since = setAside(name)?.let { getString(R.string.home_other_since, DateFormat.getMediumDateFormat(ctx).format(Date(it * 1000))) }
+            if (pending?.copy == name) {
+                CardRows.tint(
+                    Cards.row(card, R.drawable.ic_oneos_row_systems, getString(R.string.home_other_getting_ready, image.name), getString(R.string.home_other_getting_ready_line)),
+                    Level.INFO,
+                )
+                continue
+            }
+            CardRows.row(
+                card, R.drawable.ic_oneos_row_systems, getString(R.string.home_other_switch, image.name),
+                listOfNotNull(since, getString(R.string.home_other_kept)).joinToString(" · "),
+                enabled = !working,
+            ) { chooseOther(activity, name, image, since) }
+        }
+    }
+
+    /** When the copy was set aside: the seconds in its name (oneos.old-<time>[-<pid>]). */
+    private fun setAside(name: String): Long? = name.removePrefix("oneos.old-").substringBefore('-').toLongOrNull()
+
+    private fun chooseOther(activity: MainActivity, name: String, image: ImageRef, since: String?) {
+        val items = arrayOf(getString(R.string.home_other_switch, image.name), getString(R.string.space_choose_delete))
+        AlertDialog.Builder(activity)
+            .setTitle(listOfNotNull(image.name, since).joinToString(", "))
+            .setItems(items) { _, i -> if (i == 0) confirmQuickSwitch(activity, name, image) else confirmDeleteOther(activity, name, image, since) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun confirmQuickSwitch(activity: MainActivity, name: String, image: ImageRef) {
+        val now = StageCheck.state.result?.status?.marker?.imageId?.let { Images.byId(it) }?.name ?: getString(R.string.home_other_current_unknown)
+        AlertDialog.Builder(activity)
+            .setTitle(getString(R.string.home_other_confirm_title, image.name))
+            .setMessage(getString(R.string.home_other_confirm_message, image.name, now))
+            .setPositiveButton(R.string.home_other_confirm_go) { _, _ ->
+                QuickSwitch.start(activity, name, image.id)
+                redraw()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun confirmDeleteOther(activity: MainActivity, name: String, image: ImageRef, since: String?) {
+        AlertDialog.Builder(activity)
+            .setTitle(R.string.space_delete_title)
+            .setMessage(getString(R.string.space_delete_message, getString(R.string.space_delete_what_of, image.name), since ?: name))
+            .setPositiveButton(R.string.space_delete_run) { _, _ -> OldStagesJob.delete(activity, OldStage(name, 0, image.id, hasData = true, busy = false)) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Quick switch's next step, from Home's redraw: once root has put the copy
+     * back and a stage check that ended after it read that system, Update when
+     * Home asks for it (once), else the Switch confirm; anything else (a check
+     * to fix first) ends it, and Home shows the problem as usual.
+     */
+    private fun quickSwitch(activity: MainActivity, s: HomeState) {
+        val p = QuickSwitch.pending ?: return
+        val old = OldStagesJob.state
+        if (old.phase == OldStagesJob.Phase.RESTORING) return
+        if (old.restoreFailed) {
+            QuickSwitch.cancel()
+            AlertDialog.Builder(activity)
+                .setTitle(R.string.home_other_failed)
+                .setMessage(old.message ?: getString(R.string.space_not_restored_line))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+        if (!old.restored) return
+        val check = StageCheck.state
+        // Only a stage check that ended after the copy came back; one that failed, or read
+        // another system, ends it (Home shows what it found).
+        if (check.busy || PrepareJob.state.busy || check.endedAt <= old.restoredAt) return
+        if (check.phase == StageCheck.Phase.FAILED || check.result?.status?.marker?.imageId != p.imageId) {
+            QuickSwitch.cancel()
+            return
+        }
+        when (s.primary) {
+            FixAction.UPDATE -> if (!p.updateStarted) {
+                p.updateStarted = true
+                FixActions.run(activity, FixAction.UPDATE, s.image)
+            } else {
+                QuickSwitch.cancel()
+            }
+            FixAction.SWITCH -> {
+                QuickSwitch.cancel()
+                FixActions.run(activity, FixAction.SWITCH, s.image)
+            }
+            else -> QuickSwitch.cancel()
         }
     }
 

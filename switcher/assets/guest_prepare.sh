@@ -84,8 +84,13 @@ if [ ! -f "$STAGE/guards.txt" ]; then
 fi
 # oplus-services_patched.jar too when guards.txt lists it; an image with
 # oplus-services.jar is refused below unless that one is bound. So are
-# vold_patched and service.incremental_patched.so (the guest vold as "gvld").
-for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" || $2 == "framework_patched.jar" || $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" { print $2 }' "$STAGE/guards.txt"); do
+# vold_patched and service.incremental_patched.so (the guest vold as "gvld"),
+# HyperOS's miui-services_patched.jar and apprecovery.proinstaller_patched.jar,
+# and the Pixel camera client libraries.
+for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" ||
+                                        $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
+                                        $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
+                                        $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" { print $2 }' "$STAGE/guards.txt"); do
     sum=$(awk -v n="$need" '$2 == n {print $1}' "$STAGE/guards.txt")
     if [ -z "$sum" ] || [ "$(sha256sum "$STAGE/$need" 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         echo "ERROR: $STAGE/$need missing or not the guarded build in guards.txt; not starting the guest"
@@ -144,6 +149,9 @@ rm -f "$STAGE/data/oneos_gms_present"
 # old parse ("Could not resolve the networking module" in run 25). ColorOS's
 # watchdog counts kills across sessions in watchdog_timestamps.
 rm -rf "$STAGE/data/system/package_cache" "$STAGE/data/system/watchdog_timestamps" 2>/dev/null
+# How's it going? (0.4.30): the guest OneOS app's checklist is one session's;
+# a new session starts without the last one's answers.
+rm -f "$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_checklist.json" 2>/dev/null
 
 echo "=== 1. Ensuring Watchdog Feeder is Active ==="
 # One UI's system_server opens /dev/watchdog (Samsung's softdog) unless
@@ -394,6 +402,120 @@ if [ -n "$HWSM_WHY" ] && [ -d "$GUEST_SYSTEM_EXT/bin" ] &&
     { [ -L "$ROOTFS/system/bin/hwservicemanager" ] || [ ! -e "$ROOTFS/system/bin/hwservicemanager" ]; } && pidof hwservicemanager >/dev/null; then
     HWSM=1
 fi
+# --- Samsung's IMS stack in the guest (ONEOS_GUEST_SEC_IMS=1) ----------------
+# VoLTE on a Samsung phone is the system app com.sec.imsservice (the SIP stack
+# is its libsec-ims.so). It reaches the modem through the vendor HAL channel
+# vendor.samsung.hardware.radio.channel.ISehRadioChannel/imsd and the host
+# daemon imsd over /dev/socket/imsd; both survive the switch (the guest sees
+# the host's /dev), the app does not: it dies with One UI's framework, so every
+# guest ran calls on 3G and a VoLTE-only carrier (T-Mobile US) got none. The
+# app is a plain android.telephony.ims.ImsService (BIND_IMS_SERVICE), so the
+# guest's telephony can bind it like its own. Nothing of it is shipped: every
+# One UI build has its own, so it is taken from THIS phone's One UI at every
+# prepare, read from /system and copied into $STAGE/secims, a lower layer of
+# the guest's system_ext (below): the APK as a system_ext priv-app with its
+# privapp-permissions list, its library jars with their XMLs, the three native
+# libraries (the system linker namespace searches /system_ext/lib64). The 33
+# Samsung-only framework classes it needs (307 with what they pull in: Sem*
+# managers, CSC features, the HAL stubs) come from One UI's own framework.jar,
+# handed to it as the optional library "secimshttpclient" that the app's
+# manifest already declares and One UI does not define; the guest's boot
+# classes win on every duplicate name, so only the Samsung classes load from
+# it. The guest's package manager takes this Samsung-signed package into
+# android.uid.system only from this staged path (a services.jar carve-out,
+# scripts/make-overlays.sh patches/guest_sec_ims_signature.py; recorded as the
+# secims word in guards.txt). Off unless ONEOS_GUEST_SEC_IMS=1.
+SEC_IMS=0
+SECIMS="$STAGE/secims"
+rm -f "$STAGE/data/oneos_sec_ims"
+sec_ims_off() { echo "Samsung IMS in the guest: off ($1)"; rm -rf "$SECIMS" 2>/dev/null; }
+sec_ims_stage() {
+    rm -rf "$SECIMS"
+    mkdir -p "$SECIMS/priv-app/OneOSSecIms" "$SECIMS/framework" "$SECIMS/lib64" "$SECIMS/etc/permissions" || return 1
+    cp /system/priv-app/imsservice/imsservice.apk "$SECIMS/priv-app/OneOSSecIms/" || return 1
+    cp /system/framework/imsmanager.jar /system/framework/rcsopenapi.jar "$SECIMS/framework/" || return 1
+    cp /system/framework/framework.jar "$SECIMS/framework/oneos-secims-compat.jar" || return 1
+    cp /system/lib64/libsec-ims.so /system/lib64/libresampler_ims.so /system/lib64/libaresdns.so "$SECIMS/lib64/" || return 1
+    cp /system/etc/permissions/privapp-permissions-com.sec.imsservice.phone.xml "$SECIMS/etc/permissions/" || return 1
+    # Libraries the manifest lists as not required: along when One UI has them.
+    for lib in vsimmanager EpdgManager; do
+        [ -f "/system/framework/$lib.jar" ] && { cp "/system/framework/$lib.jar" "$SECIMS/framework/" || return 1; }
+    done
+    # The library XMLs name the guest's copies.
+    for pair in imsmanager:imsmanager.jar rcsopenapi:rcsopenapi.jar secimshttpclient:oneos-secims-compat.jar \
+                vsimmanager:vsimmanager.jar EpdgManager:EpdgManager.jar; do
+        [ -f "$SECIMS/framework/${pair#*:}" ] || continue
+        printf '<?xml version="1.0" encoding="utf-8"?>\n<permissions>\n    <library name="%s" file="/system_ext/framework/%s"/>\n</permissions>\n' \
+            "${pair%%:*}" "${pair#*:}" > "$SECIMS/etc/permissions/${pair%%:*}_library.xml" || return 1
+    done
+    # Make the guest advertise IMS support. An AOSP-based guest (Infinity-X, the
+    # Pixels) only starts ImsResolver when the device has FEATURE_TELEPHONY_IMS;
+    # without it PhoneFactory logs "IMS is not supported on this device, skipping
+    # ImsResolver" and the staged app is installed but never bound (report
+    # 707642218d0049a0: S24 Ultra on Infinity-X, calls stayed on 3G/failed).
+    # system_ext/etc/permissions is scanned for <feature>. One UI/ColorOS images
+    # already declare it, so this is a no-op there.
+    printf '<?xml version="1.0" encoding="utf-8"?>\n<permissions>\n    <feature name="android.hardware.telephony.ims"/>\n</permissions>\n' \
+        > "$SECIMS/etc/permissions/oneos-telephony-ims.xml" || return 1
+    find "$SECIMS" -type d -exec chmod 755 {} + && find "$SECIMS" -type f -exec chmod 644 {} + || return 1
+    $BB chcon -h -R u:object_r:system_file:s0 "$SECIMS" 2>/dev/null || true
+    $BB chcon -h u:object_r:system_lib_file:s0 "$SECIMS"/lib64/*.so 2>/dev/null || true
+    return 0
+}
+# Bind the staged Samsung IMS tree onto the guest's system_ext (made writable by
+# the overlay below) a file at a time, rather than adding $SECIMS as a second
+# overlay lower layer: some kernels (Galaxy S24 Ultra, report 8fe87c0c9064a2a2)
+# reject an overlay with more than one lower dir (mount ... : Invalid argument).
+# Only empty mount points are created in the overlay's tmpfs upper; the content
+# stays on the staged copy. The return path unmounts every mount under the stage.
+sec_ims_bind() {
+    local gse="$GUEST_SYSTEM_EXT" n=0 f t d
+    mkdir -p "$gse/priv-app/OneOSSecIms" || return 1
+    $BB mount --bind "$SECIMS/priv-app/OneOSSecIms" "$gse/priv-app/OneOSSecIms" || return 1
+    $BB mount --make-rslave "$gse/priv-app/OneOSSecIms" 2>/dev/null || true
+    for d in framework lib64 etc/permissions; do
+        [ -d "$SECIMS/$d" ] || continue
+        mkdir -p "$gse/$d" || return 1
+        for f in "$SECIMS/$d"/*; do
+            [ -f "$f" ] || continue
+            t="$gse/$d/$(basename "$f")"
+            [ -e "$t" ] || : > "$t" || return 1
+            $BB mount --bind "$f" "$t" || return 1
+            $BB mount --make-rslave "$t" 2>/dev/null || true
+            n=$((n + 1))
+        done
+    done
+    echo "Samsung IMS in the guest: staged set bind-mounted onto $gse (OneOSSecIms priv-app + $n files; this kernel rejects a second overlay lower layer)"
+    return 0
+}
+if [ "${ONEOS_GUEST_SEC_IMS:-0}" = 1 ]; then
+    secims_missing=""
+    for f in /system/priv-app/imsservice/imsservice.apk /system/framework/framework.jar /system/framework/imsmanager.jar \
+             /system/framework/rcsopenapi.jar /system/lib64/libsec-ims.so /system/lib64/libresampler_ims.so \
+             /system/lib64/libaresdns.so /system/etc/permissions/privapp-permissions-com.sec.imsservice.phone.xml; do
+        [ -f "$f" ] || secims_missing="$secims_missing $f"
+    done
+    if [ ! -d "$GUEST_SYSTEM_EXT" ]; then sec_ims_off "the guest has no system_ext"
+    elif [ -L "$SECIMS" ]; then echo "ERROR: $SECIMS is a symlink; not starting the guest"; exit 3
+    # Only the sets whose services.jar carries the carve-out can keep the
+    # Samsung-signed package in android.uid.system; on the others the guest's
+    # scan drops it and calls stay on 3G with nothing in the log to say why.
+    # Say it here instead of staging 40 MB the guest will throw away.
+    elif ! grep '^#' "$STAGE/guards.txt" | grep -qw secims; then
+        sec_ims_off "this system's overlays were built without the secims carve-out (guards.txt): the guest would drop com.sec.imsservice"
+    elif [ -n "$secims_missing" ]; then sec_ims_off "this One UI lacks$secims_missing"
+    elif [ -f /system/etc/permissions/secimshttpclient_library.xml ] || [ -f /system_ext/etc/permissions/secimshttpclient_library.xml ]; then
+        sec_ims_off "this One UI defines the secimshttpclient library itself; the compat jar needs that name"
+    elif sec_ims_stage; then
+        SEC_IMS=1
+        touch "$STAGE/data/oneos_sec_ims"
+        echo "Samsung IMS in the guest: staged from this One UI ($(du -sk "$SECIMS" 2>/dev/null | cut -f1) KB: $(ls "$SECIMS/framework" | tr '\n' ' ')$(ls "$SECIMS/lib64" | tr '\n' ' '))"
+    else
+        sec_ims_off "copy from /system failed"
+    fi
+else
+    rm -rf "$SECIMS" 2>/dev/null
+fi
 # ColorOS's system_ext has no apex dir and the image is mounted read-only, so
 # put a thin overlayfs on it to create the mount point. Its upper layer is a
 # small tmpfs: overlayfs refuses an upper dir on the encrypted f2fs /data
@@ -405,10 +527,16 @@ fi
 # An overlay left by an earlier prepare is never unmounted here (umount
 # propagation); the signal poll then goes ahead only if it is that read-only one
 # with the same jar (checked below).
-if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ]; then
+# With the Samsung IMS set (SEC_IMS=1) the staged tree is bind-mounted onto the
+# guest's system_ext after the overlay is up (sec_ims_bind), not added as a second
+# overlay lower layer, which some kernels reject (EINVAL). An overlay left by an
+# earlier prepare cannot take it.
+SECIMS_BOUND=0
+if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
         echo "Overlay on $GUEST_SYSTEM_EXT already there (an earlier prepare), left as it is"
-    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ]; then
+        [ $SEC_IMS = 1 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (that overlay has no secims layer)"; }
+    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ]; then
         OV="$STAGE/system_ext_ov"
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
@@ -433,12 +561,26 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "Signal poll: off (read-only overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
-        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ]; }; then
+        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ]; }; then
             mkdir -p "$OV/work"
-            $BB mount -t overlay overlay \
+            if $BB mount -t overlay overlay \
                 -o "lowerdir=$GUEST_SYSTEM_EXT,upperdir=$OV/up,workdir=$OV/work" \
-                "$GUEST_SYSTEM_EXT" && echo "Overlay on $GUEST_SYSTEM_EXT for the apex mount point$([ $HWSM = 1 ] && echo ' and bin/hwservicemanager')"
+                "$GUEST_SYSTEM_EXT"; then
+                echo "Overlay on $GUEST_SYSTEM_EXT for the apex mount point$([ $HWSM = 1 ] && echo ' and bin/hwservicemanager')"
+                if [ $SEC_IMS = 1 ]; then
+                    if sec_ims_bind; then SECIMS_BOUND=1; else
+                        SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
+                        echo "Samsung IMS in the guest: off (bind-mount onto $GUEST_SYSTEM_EXT failed)"
+                    fi
+                fi
+            elif [ $SEC_IMS = 1 ]; then
+                SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
+                echo "Samsung IMS in the guest: off (overlay on $GUEST_SYSTEM_EXT refused)"
+            fi
         fi
+        # The Samsung IMS set needs the writable overlay above to bind onto; a
+        # read-only (signal poll) or an earlier prepare's overlay has none.
+        [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no writable overlay to bind onto)"; }
         if [ $HWSM = 1 ]; then
             if [ -f "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ]; then
                 echo "HIDL: the guest sees system_ext/bin/hwservicemanager (an empty file; One UI's hwservicemanager $(pidof hwservicemanager) answers) for this phone's HIDL-only $HWSM_WHY"
@@ -486,12 +628,24 @@ fi
 # curve (the Z Fold8's are other panels on the same ports).
 # ColorOS has its own brightness path (samsung_backlight_curve.py).
 # ONEOS_GUEST_DISPLAY_CONFIG=0 leaves it out.
+# ddc_xml wide: the same curve from the lowest float to 1.0, for a framework
+# whose brightness range is wider than One UI's (HyperOS: 3.66255E-4 to 1.0;
+# with the plain curve DisplayDeviceConfig threw "Min or max values are
+# invalid" and system_server died at once, fifth HyperOS run). Samsung's
+# composer maps the float linearly onto the panel's backlight, and the curve's
+# own slope (0.196 = 520 nits, a quarter of the backlight about 660) puts 1.0
+# at about 2600 nits, the panel's peak.
 ddc_xml() {
+    if [ "$1" = wide ]; then LOW='        <point><value>0.000366255</value><nits>0.3</nits></point>'; HIGH='        <point><value>1.0</value><nits>2600.0</nits></point>'
+    else LOW=''; HIGH=''; fi
     cat <<'DDCEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <!-- OneOS (guest_prepare.sh): One UI's nits for Samsung's composer float on this panel, and Samsung's IR proximity sensor. -->
 <displayConfiguration>
     <screenBrightnessMap>
+DDCEOF
+    [ -z "$LOW" ] || echo "$LOW"
+    cat <<'DDCEOF'
         <point><value>0.0026</value><nits>2.21</nits></point>
         <point><value>0.00333</value><nits>3.0</nits></point>
         <point><value>0.005015</value><nits>5.0</nits></point>
@@ -512,6 +666,9 @@ ddc_xml() {
         <point><value>0.158918</value><nits>400.0</nits></point>
         <point><value>0.188764</value><nits>500.0</nits></point>
         <point><value>0.196299</value><nits>520.0</nits></point>
+DDCEOF
+    [ -z "$HIGH" ] || echo "$HIGH"
+    cat <<'DDCEOF'
     </screenBrightnessMap>
     <proxSensor>
         <type>com.samsung.sensor.physical_proximity</type>
@@ -530,16 +687,25 @@ elif [ ! -d "$PETC" ] || [ -L "$PETC" ]; then
     echo "Display config: no product/etc folder in the image, left out"
 elif mount | grep -q " $PETC type overlay"; then
     echo "Display config: overlay on product/etc already there (an earlier prepare), left as it is"
-elif [ -e "$PETC/displayconfig" ]; then
-    echo "Display config: the image has its own product/etc/displayconfig, left as it is"
+elif [ -e "$PETC/displayconfig/display_port_147.xml" ] || [ -e "$PETC/displayconfig/display_port_148.xml" ]; then
+    echo "Display config: the image has its own display_port_147/148, left as it is"
 else
+    # An image with configs for its own panels only (HyperOS: display_id_<Xiaomi
+    # panel>.xml) gets ours next to them in the merged folder; without a nits
+    # mapping for the Fold's panels Xiaomi's brightness code ignored the slider
+    # ("requesting nits when no mapping exists", 3 % brightness; 2026-10-25).
+    DDC_RANGE=""
+    if [ -e "$PETC/displayconfig" ]; then
+        echo "Display config: the image's own product/etc/displayconfig ($(ls "$PETC/displayconfig" | tr '\n' ' ')) is kept; the Fold's two port files are added, over its whole brightness range"
+        DDC_RANGE=wide
+    fi
     DOV="$STAGE/product_etc_ov"
     mkdir -p "$DOV"
     if ! mount | grep -q " $DOV "; then
         $BB mount -t tmpfs -o size=256k,mode=755 tmpfs "$DOV" && $BB mount --make-private "$DOV" 2>/dev/null
     fi
     mkdir -p "$DOV/up/displayconfig"
-    for port in 147 148; do ddc_xml > "$DOV/up/displayconfig/display_port_$port.xml"; done
+    for port in 147 148; do ddc_xml $DDC_RANGE > "$DOV/up/displayconfig/display_port_$port.xml"; done
     chmod 755 "$DOV/up" "$DOV/up/displayconfig" && chmod 644 "$DOV/up/displayconfig/"*.xml
     $BB chcon -R u:object_r:system_file:s0 "$DOV/up" 2>/dev/null || true
     if $BB mount -t overlay overlay -o "ro,lowerdir=$DOV/up:$PETC" "$PETC"; then
@@ -623,6 +789,56 @@ if [ -e "$ROOTFS/system/framework/oplus-services.jar" ] || [ -L "$ROOTFS/system/
     fi
 else
     echo "No oplus-services.jar in the guest image: only services.jar carries guards"
+fi
+# HyperOS: Xiaomi's miui-services.jar (recovery, factory resets, preinstall
+# copiers, vold, netd) and apprecovery.proinstaller.jar (installs apps by
+# itself), both on the system server class path, guarded like
+# oplus-services.jar (patches/miui_guards.py, docs/hyperos.md), and
+# miui-wifi-service.jar, whose casts of One UI's Wi-Fi HAL extensions only
+# take Xiaomi's (patches/hyperos_hal_ext.py), and miui-telephony-common.jar,
+# whose IMS controller works without an IMS phone (patches/hyperos_telephony.py). Bound on the guest's system_ext
+# after its overlay above; an image with miui-services.jar starts only with
+# both guarded jars in place.
+MIUI_FW="$GUEST_SYSTEM_EXT/framework"
+if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; then
+    for j in miui-services apprecovery.proinstaller miui-wifi-service miui-telephony-common; do
+        if [ -f "$STAGE/${j}_patched.jar" ] && [ -f "$MIUI_FW/$j.jar" ] && [ ! -L "$MIUI_FW/$j.jar" ]; then
+            $BB umount -l "$MIUI_FW/$j.jar" 2>/dev/null || true
+            $BB mount --bind "$STAGE/${j}_patched.jar" "$MIUI_FW/$j.jar"
+        fi
+        MJ=$(stat -c %d:%i "$MIUI_FW/$j.jar" 2>/dev/null)
+        if [ -z "$MJ" ] || [ "$MJ" != "$(stat -c %d:%i "$STAGE/${j}_patched.jar" 2>/dev/null)" ] ||
+            ! awk -v n="${j}_patched.jar" '$2 == n { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
+            echo "ERROR: the guarded $j.jar is not in place; not starting the guest"
+            exit 3
+        fi
+        echo "Bound ${j}_patched.jar -> $MIUI_FW/$j.jar"
+    done
+    # framework.jar with AOSP's CameraStatus parcel (patches/hyperos_framework.py):
+    # Xiaomi's two extra fields made every status from One UI's cameraserver
+    # after the first null, and system_server died in BiometricService.
+    HFW="$ROOTFS/system/framework/framework.jar"
+    if [ -f "$STAGE/framework_patched.jar" ] && [ -f "$HFW" ] && [ ! -L "$HFW" ] && [ ! -L "$ROOTFS/system/framework" ]; then
+        $BB umount -l "$HFW" 2>/dev/null || true
+        $BB mount --bind "$STAGE/framework_patched.jar" "$HFW"
+    fi
+    MJ=$(stat -c %d:%i "$HFW" 2>/dev/null)
+    if [ -z "$MJ" ] || [ "$MJ" != "$(stat -c %d:%i "$STAGE/framework_patched.jar" 2>/dev/null)" ] ||
+        ! awk '$2 == "framework_patched.jar" { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
+        echo "ERROR: HyperOS's framework.jar with One UI's camera status format is not in place; not starting the guest"
+        exit 3
+    fi
+    echo "Bound framework_patched.jar -> $HFW"
+    # HyperOS's audioserver without an audio HAL adapter vendor extension
+    # (patches/hyperos_audio_ext.py): only One UI's own audioserver serves one,
+    # it is stopped for the session, and HyperOS's waited for it with no time
+    # limit. Sound only, so a missing or odd file leaves the image's library.
+    HAH="$ROOTFS/system/lib64/libaudiohal@aidl.so"
+    if [ -f "$STAGE/libaudiohal_aidl_patched.so" ] && [ -f "$HAH" ] && [ ! -L "$HAH" ] && [ ! -L "$ROOTFS/system/lib64" ]; then
+        $BB umount -l "$HAH" 2>/dev/null || true
+        $BB mount --bind "$STAGE/libaudiohal_aidl_patched.so" "$HAH" &&
+            echo "Bound libaudiohal_aidl_patched.so -> $HAH (no audio HAL adapter vendor extension)"
+    fi
 fi
 
 # ims-ext-common.jar with a 60 s QtiImsExtConnector bind retry instead of 500 ms
@@ -1167,12 +1383,19 @@ fi
 # display_density_forced (display 0 at boot, whichever panel it is) stay as
 # they are: auto = the panel's real dpi down to a multiple of 20 (420 here,
 # also one of ColorOS's own display sizes), only under the base density, and
-# never over a size chosen in ColorOS (an entry with forcedDensity).
+# never over a size chosen in the guest (an entry with forcedDensity).
 # ONEOS_GUEST_COVER_DENSITY=off|auto|<dpi 120-640>.
+# HyperOS too (run 10, owner: "feels like a zoomed in fold display like the
+# dynamic island stuff is going out of bounds"): its cover ran at 480, 360 dp,
+# and the Dynamic Island's window went past the right edge. Not the Pixel
+# image, whose own cover is a 480 phone layout.
 DSET="$STAGE/data/system/display_settings.xml"
 CVD=$(cat "$STAGE/host_cover_display" 2>/dev/null)
 CDEN="${ONEOS_GUEST_COVER_DENSITY:-auto}"
-if [ "$FORM" != fold ] || [ ! -e "$ROOTFS/system/framework/oplus-services.jar" ] || [ "$CDEN" = off ]; then
+CV_GUEST=""
+[ -e "$ROOTFS/system/framework/oplus-services.jar" ] && CV_GUEST=ColorOS
+{ [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ]; } && CV_GUEST=HyperOS
+if [ "$FORM" != fold ] || [ -z "$CV_GUEST" ] || [ "$CDEN" = off ]; then
     :
 elif [ "$(echo "$CVD" | wc -w)" != 5 ]; then
     echo "Cover density: not set (the cover panel was not read)"
@@ -1203,7 +1426,7 @@ else
         if [ ! -s "$DTXT" ] || ! grep -q '</display-settings>' "$DTXT"; then
             echo "Cover density: not set (display_settings.xml not readable)"
         elif grep "<display name=\"$CV_NAME\"" "$DTXT" | grep -q 'forcedDensity='; then
-            echo "Cover density: $(grep "<display name=\"$CV_NAME\"" "$DTXT" | sed -n 's/.*forcedDensity="\([0-9]*\)".*/\1/p') kept (chosen in ColorOS)"
+            echo "Cover density: $(grep "<display name=\"$CV_NAME\"" "$DTXT" | sed -n 's/.*forcedDensity="\([0-9]*\)".*/\1/p') kept (chosen in $CV_GUEST)"
         else
             if grep -q "<display name=\"$CV_NAME\"" "$DTXT"; then
                 sed -i "s|<display name=\"$CV_NAME\"|<display name=\"$CV_NAME\" forcedDensity=\"$CDEN\"|" "$DTXT"
@@ -1483,6 +1706,51 @@ mkdir -p "$STAGE/data/preapps-lib" 2>/dev/null
 chown 1000:1000 "$STAGE/data/preapps-lib" 2>/dev/null || true
 chmod 0771 "$STAGE/data/preapps-lib" 2>/dev/null || true
 
+# HyperOS's own /data folders. Its init rc files (system, system_ext, product)
+# make /data/system/theme, theme_magic and fonts (owner system_theme, 6101 in
+# the image's passwd), mcd, whetstone, miuilog and more at boot; One UI's init
+# never reads them, and nothing else creates them in the guest's /data. Theme
+# Store could not create them itself (seventh HyperOS run: "mkdirs failed",
+# chmod ENOENT), and icons, fonts, lock styles and wallpapers could not be
+# applied. Missing ones under /data/system and /data/miuilog are made in the
+# guest's own /data with the rc's mode and owners; names the guest's
+# passwd/group files lack fall back to system.
+# GUEST_SYSTEM_EXT and GUEST_PRODUCT, never system/system_ext or system/product:
+# HyperOS has both at its root and system/ links to them with absolute links,
+# which here on the host are One UI's folders (r7 checked those, found no
+# miui-services.jar and made nothing: eighth HyperOS run, "mkdirs failed" again).
+if [ -e "$GUEST_SYSTEM_EXT/framework/miui-services.jar" ]; then
+    aid() { # <name> <passwd or group file>: the id
+        case "$1" in
+            root) echo 0 ;; system) echo 1000 ;; radio) echo 1001 ;; bluetooth) echo 1002 ;;
+            graphics) echo 1003 ;; input) echo 1004 ;; audio) echo 1005 ;; camera) echo 1006 ;;
+            log) echo 1007 ;; wifi) echo 1010 ;; media) echo 1013 ;; media_rw) echo 1023 ;;
+            audioserver) echo 1041 ;; cameraserver) echo 1047 ;; shell) echo 2000 ;; cache) echo 2001 ;;
+            *) i=$(awk -F: -v n="$1" '$1 == n {print $3; exit}' "$2" 2>/dev/null)
+               case "$i" in ''|*[!0-9]*) echo 1000 ;; *) echo "$i" ;; esac ;;
+        esac
+    }
+    made=0
+    for f in "$ROOTFS"/system/etc/init/*.rc "$GUEST_SYSTEM_EXT"/etc/init/*.rc "$GUEST_PRODUCT"/etc/init/*.rc; do
+        [ -f "$f" ] && [ ! -L "$f" ] && cat "$f"
+    done | awk '$1 == "mkdir" && $2 ~ /^\/data\/(system|miuilog)(\/|$)/ && $2 !~ /[$.][.]|[$]/ { sub(/\/$/, "", $2); print $2, ($3 ~ /^[0-7]+$/ ? $3 : "0771"), ($4 == "" ? "root" : $4), ($5 == "" ? ($4 == "" ? "root" : $4) : $5) }' |
+        sort -u -k1,1 > "$STAGE/miui_data_dirs.txt"
+    while read -r p mode u g; do
+        d="$STAGE$p"
+        [ -e "$d" ] || [ -L "$d" ] && continue
+        # Root runs this on the host: never through a link the guest made.
+        q="$STAGE/data"; ok=1
+        for part in $(echo "${p#/data/}" | tr '/' ' '); do
+            q="$q/$part"; [ -L "$q" ] && { ok=0; break; }
+        done
+        [ $ok = 1 ] || { echo "HyperOS /data folder $p: a link on the way, skipped"; continue; }
+        mkdir -p "$d" && chmod "$mode" "$d" && chown "$(aid "$u" "$ROOTFS/system/etc/passwd"):$(aid "$g" "$ROOTFS/system/etc/group")" "$d" &&
+            made=$((made + 1))
+    done < "$STAGE/miui_data_dirs.txt"
+    echo "HyperOS /data folders from its init rc files: $made made ($(wc -l < "$STAGE/miui_data_dirs.txt") listed)"
+    rm -f "$STAGE/miui_data_dirs.txt"
+fi
+
 # Device states for the guest. Its DeviceStateProviderImpl reads /odm (the
 # container has none), then /data/system/devicestate, then the host's
 # /vendor/etc/devicestate (run 30: 0 CLOSE and 3 OPEN on the lid switch).
@@ -1595,6 +1863,65 @@ DSX
 else
     # The staged /data persists between sessions: never leave an old file behind.
     rm -f "$DSDIR/device_state_configuration.xml"
+fi
+
+# HyperOS's device states. Its DeviceStateProviderImpl (Xiaomi's change) reads
+# product/etc/devicestate/device_state_configuration.xml, whose states all wait
+# on Xiaomi's hinge sensor (xiaomi.sensor.fold_status). This phone has none:
+# "No declared device states match any of the required conditions", no state
+# was ever committed, DisplayManager stayed on the inner panel's default layout
+# and the cover screen never came on (seventh HyperOS run). A copy with
+# Xiaomi's ids, names and properties is bound over it in the guest's view:
+# 0 (CLOSED) on the lid switch closed and 3 (OPENED) on it open, like
+# Samsung's own 0 and 3; the other states that waited on the sensor (TENT,
+# HALF_OPENED) can only be requested (PROPERTY_EMULATED_ONLY). guest_start.sh
+# writes the matching display layout.
+# The guest's own product (r7 looked under system/product, One UI's /product
+# from here, and bound nothing: no device state was ever committed in the
+# eighth run either, "Failed to find Sensor with type: xiaomi.sensor.fold_status").
+HDSC="$GUEST_PRODUCT/etc/devicestate/device_state_configuration.xml"
+if [ -e "$GUEST_SYSTEM_EXT/framework/miui-services.jar" ] && [ -f "$HDSC" ] && [ ! -L "$HDSC" ] &&
+   grep -q 'xiaomi.sensor.fold_status' "$HDSC" && [ "${ONEOS_GUEST_FORM:-fold}" = fold ]; then
+    awk '
+        function flush(   i, out) {
+            if (n == 0) return
+            for (i = 1; i <= n; i++) {
+                if (skip[i]) continue
+                out = buf[i]
+                if (emul && buf[i] ~ /<\/properties>/)
+                    print "            <property>com.android.server.policy.PROPERTY_EMULATED_ONLY</property>"
+                print out
+                if (lid != "" && buf[i] ~ /<\/properties>/) {
+                    print "        <conditions>"
+                    print "            <lid-switch>"
+                    print "                <open>" lid "</open>"
+                    print "            </lid-switch>"
+                    print "        </conditions>"
+                }
+            }
+            n = 0
+        }
+        /<device-state>/ { flush(); inst = 1; id = ""; cond = 0; n = 0; emul = 0; lid = "" }
+        !inst { print; next }
+        {
+            buf[++n] = $0; skip[n] = 0
+            if ($0 ~ /<identifier>/) { id = $0; gsub(/[^0-9]/, "", id) }
+            if ($0 ~ /<conditions>/) cond = 1
+            if (cond) skip[n] = 1
+            if ($0 ~ /<\/conditions>/) {
+                cond = 0
+                if (id == "0") lid = "false"; else if (id == "3") lid = "true"; else emul = 1
+            }
+            if ($0 ~ /<\/device-state>/) { flush(); inst = 0 }
+        }
+        END { flush() }' "$HDSC" > "$STAGE/hyperos_device_state.xml"
+    if grep -q '<lid-switch>' "$STAGE/hyperos_device_state.xml" && ! grep -q 'xiaomi.sensor' "$STAGE/hyperos_device_state.xml"; then
+        chmod 644 "$STAGE/hyperos_device_state.xml"
+        $BB mount --bind "$STAGE/hyperos_device_state.xml" "$HDSC" &&
+            echo "Guest device states: HyperOS's file on the lid switch (0 CLOSED closed, 3 OPENED open; $(grep -c 'PROPERTY_EMULATED_ONLY' "$STAGE/hyperos_device_state.xml") request-only)"
+    else
+        echo "!!! HyperOS device states: the copy did not come out as expected, the image's file is left (no cover screen)"
+    fi
 fi
 
 # SELinux labels matter just as much as modes here. Every directory below lives

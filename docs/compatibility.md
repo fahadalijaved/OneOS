@@ -4,4 +4,8 @@ What testers reported from the OneOS app (**Send to the OneOS team** on the Last
 
 Updated 2026-10-29. Every system is still experimental: read the warnings in the [README](../README.md) first.
 
-No reports yet.
+## OneOS 0.4.29
+
+| Phone | System | Reports | Started | Screen | Wi-Fi | Mobile data | Calls | SMS | Bluetooth | Sound | Camera | Google | Location | Back to One UI | Heat | Both screens | Last report |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Galaxy S24 Ultra | Infinity-X 4.1 | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | 2026-10-29 |

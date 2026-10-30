@@ -43,7 +43,8 @@ def table(records):
     codes = {}
     for r in records:
         c = r.get("checklist")
-        if not c:
+        # A session's report only: OneOS Probe's phone reports have no session and no answers.
+        if not c or not r.get("sessionId"):
             continue
         v = version_of(r.get("app", {}))
         codes[v] = max(codes.get(v, 0), r.get("app", {}).get("versionCode", 0))

@@ -30,6 +30,8 @@ object OldStagesJob : BackgroundJob<OldStagesJob.State>(State(), "oneos-old-stag
         val restored: Boolean = false,
         /** The last [restore] did not happen (its reason is [message]). */
         val restoreFailed: Boolean = false,
+        /** `elapsedRealtime` the last [restore] put a copy back at (Quick switch waits for a stage check after it); 0 otherwise. */
+        val restoredAt: Long = 0,
         val message: String? = null,
         /** What the last delete freed (KiB), for Free up space's result line; null otherwise. */
         val freedKib: Long? = null,
@@ -154,6 +156,7 @@ object OldStagesJob : BackgroundJob<OldStagesJob.State>(State(), "oneos-old-stag
                 state.copy(
                     phase = if (reply?.ok == true) Phase.DONE else Phase.FAILED, restoring = null, stages = after ?: state.stages,
                     message = msg, restored = reply?.ok == true, restoreFailed = reply?.ok != true,
+                    restoredAt = if (reply?.ok == true) android.os.SystemClock.elapsedRealtime() else 0,
                 ),
             )
             if (reply?.ok == true) StageCheck.start(app, StageCheck.Mode.STAGE_ONLY)

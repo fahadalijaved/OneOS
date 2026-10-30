@@ -77,7 +77,9 @@ and Pixel.
 - **Other Pixel models**: the same framework; the Pixel patches apply, with
   new pins.
 - **HyperOS, MagicOS, Flyme**: new OEM frameworks, so expect ColorOS-sized
-  work. MysticGSI's patch sets show what each needs as a GSI.
+  work. MysticGSI's patch sets show what each needs as a GSI. HyperOS's
+  framework (miui-services.jar) is guarded and audited (`docs/hyperos.md`);
+  it has not had a phone run yet.
 
 Whatever the system, the app shows a new image or build as untested until
 it has run on a named phone. Its first sessions run over adb with the owner

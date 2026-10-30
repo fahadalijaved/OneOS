@@ -29,6 +29,10 @@ package com.fahadali.oneos.core.model
  * [HEAT_CAP] (0.4.23) is the other: Prepare writes 1, and root's `launch`
  * writes Advanced's Cool down when hot. 1 caps the CPU while the skin is hot
  * (oneos_switch.sh), 0 leaves it at full clock. Neither touches the way back.
+ * [SEC_IMS] (0.4.20) is the second key a launch changes: Prepare writes 0, a
+ * launch writes the Advanced screen's choice. 1 stages this phone's own Samsung
+ * IMS app into the guest for VoLTE (guest_prepare.sh, docs/samsung-ims-in-guest.md);
+ * any image, any Samsung phone: the scripts check the phone's files themselves.
  */
 object SessionEnv {
     const val FILE_NAME = "session.env"
@@ -42,6 +46,8 @@ object SessionEnv {
 
     /** 1: cap the CPU from 45 °C skin during the session (oneos_switch.sh); 0: full clock all session. */
     const val HEAT_CAP = "ONEOS_HEAT_CAP"
+    /** 1: this phone's Samsung IMS app (VoLTE) staged into the guest for this session (guest_prepare.sh); experimental. */
+    const val SEC_IMS = "ONEOS_GUEST_SEC_IMS"
 
     /** How the return brings One UI back: always in place, with the reboot as its failsafe (return_to_oneui.sh). */
     const val RETURN_MODE = "ONEOS_RETURN_MODE"
@@ -63,6 +69,7 @@ object SessionEnv {
         "ONEOS_GUEST_WALLPAPER_GRID" to Regex("[01]"),
         HIDE_GMS to Regex("[01]"),
         HEAT_CAP to Regex("[01]"),
+        SEC_IMS to Regex("[01]"),
         RETURN_MODE to Regex("inplace"),
     )
 
@@ -126,6 +133,7 @@ object SessionEnv {
         out.putAll(form)
         out[HIDE_GMS] = "0"
         out[HEAT_CAP] = "1"
+        out[SEC_IMS] = "0"
         out[RETURN_MODE] = "inplace"
         return out
     }
@@ -179,6 +187,7 @@ object SessionEnv {
                 when {
                     // Either value is the launch's own choice (the pattern allows only 0 or 1).
                     k == HEAT_CAP -> Unit
+                    k == SEC_IMS -> {} // 0 or 1, a launch's choice on any phone and image
                     k != HIDE_GMS -> if (got != v) p += "$k=$got does not match profile $id ($v)"
                     got == "1" && image?.gmsHideable != true -> p += if (image?.googleServices == true) {
                         "$HIDE_GMS=1, but the ${image.shortName} image's sessions present Google services, which cannot be hidden"

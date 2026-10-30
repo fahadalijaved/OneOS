@@ -44,7 +44,9 @@ enum class FileRole {
      * pull request #1): the patched SystemUI bound over the image's, the
      * hinge-angle relay dex, and OPPO's AOD, UMS and Instant APKs from the
      * same firmware, installed in the guest (switcher/assets/fold8_coloros.sh).
-     * Never run in One UI.
+     * In hyper-f8u: socket_exec (guest_start.sh starts hyos_spawner with it)
+     * and libaudiohal_aidl_patched.so (bound over the image's). Never run in
+     * One UI.
      */
     GUEST_FIX,
 }
@@ -159,6 +161,7 @@ object PackageSets {
     const val ID_PIXEL_F8U = "pixel-f8u"
     const val ID_PIXEL_F8 = "pixel-f8"
     const val ID_PIXEL_SULTRA = "pixel-sultra"
+    const val ID_HYPER_F8U = "hyper-f8u"
     const val ID_PIXEL9_SULTRA = "pixel9-sultra"
     const val ID_INFINITYX = "infinityx"
 
@@ -402,7 +405,53 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_SULTRA, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, N6_F8, PIXEL_F8, PIXEL9_SULTRA, INFINITYX)
+    /**
+     * HyperOS image (docs/hyperos.md), made for the Z Fold (F8U) and from 0.4.31 on every phone, from
+     * out/overlays_hyperos_r10: services_patched.jar and Xiaomi's two guarded
+     * jars (miui-services, apprecovery.proinstaller), framework.jar with One
+     * UI's camera status format, miui-wifi-service.jar with checked HAL
+     * extension casts, miui-telephony-common.jar without an IMS phone, the signal poll, the QTI IMS bind backoff,
+     * socket_exec (starts hyos_spawner, which runs the launcher; r9: with --seqpacket, unused since run 12),
+     * libaudiohal_aidl_patched.so (the guest audioserver without an audio
+     * HAL adapter vendor extension), OneOSGuest.apk and the 16 APEX payloads
+     * guest_prepare.sh mounts from this image (the 15 of every set and bt).
+     * r7: the guest vold as "gvld" (vold_patched, service.incremental_patched.so;
+     * services and miui-services look up gvld), so Back to One UI returns in place.
+     * r8: services.jar's second built-in panel (the fold's cover) neither private nor
+     * own-content-only (patches/qti_builtin_display_public.py).
+     * r10 (0.4.31): One UI's camera transaction codes in framework_patched.jar
+     * (patches/pixel_camera_abi.py) and libcamera_client_patched.so, the native
+     * camera client with them (patches/pixel_camera_native.py); OneOSGuest.apk 0.2.
+     */
+    val HYPER_F8U = PackageSet(
+        id = ID_HYPER_F8U,
+        imageId = Images.ID_HYPEROS_LHASA,
+        sourceDir = "out/overlays_hyperos_r10",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("apprecovery.proinstaller_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-wifi-service_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("socket_exec", FileRole.GUEST_FIX),
+            PackageFile("libaudiohal_aidl_patched.so", FileRole.GUEST_FIX),
+        ) + (COMMON_PAYLOADS + "bt").map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING),
+        approxBytes = 422_134_172L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_SULTRA, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, N6_F8, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

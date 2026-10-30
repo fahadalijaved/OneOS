@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.29. Samsung flagships with Snapdragon, plus the first three
+App version 0.4.31. Samsung flagships with Snapdragon, plus the first three
 Exynos phones; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -53,10 +53,14 @@ switching: Galaxy Z Fold8 (SM-F971) and Z Fold7 (SM-F966), Galaxy S26+ (SM-S947)
 S26 (SM-S942, SC-51G), S25+ (SM-S936) and S24 Ultra (SM-S928) with ColorOS; the
 Pixel 11 Fold image on the Z Fold8, the Pixel 11 Pro image on the Galaxy S26
 Ultra, S26+ and S26, and the Pixel 9 Pro XL image on the Galaxy S25 Ultra, S25,
-S25+ and S24 Ultra (the Pixel 11 images need a newer CPU); and on every Galaxy S phone above, the Find X9 Ultra IN (global) build
+S25+ and S24 Ultra (the Pixel 11 images need a newer CPU), and from 0.4.30 also on
+the Galaxy S23, S23+, Z Flip5, Z Flip7, A57 and (0.4.31) A56; and on every Galaxy S phone above, the Find X9 Ultra IN (global) build
 of ColorOS 17, with Google Play and the Play Store; and on every phone above,
 Infinity-X 4.1 (0.4.27), a custom Android 17 made for the Find X9 Ultra, with
-Google Play and Google's apps. Galaxy S23 (SM-S911),
+Google Play and Google's apps; and from 0.4.31, on every phone above, HyperOS,
+Xiaomi's system from the Xiaomi 18 Fold, made for the Galaxy Z Fold8 Ultra and Z
+Fold8 (its cover screen layout runs on the cover; other phones may try it too,
+where it runs as a phone). Galaxy S23 (SM-S911),
 S23+ (SM-S916) and, from 0.4.29, the Galaxy Z Flip5 (SM-F731, used as a phone on
 the main screen) are accepted for testing only:
 their vendor software is too old and the system will most likely not start
@@ -65,8 +69,10 @@ their vendor software is too old and the system will most likely not start
 Exynos, first runs: the Galaxy S26+ with Exynos (SM-S947B, m2s) with both
 Find X9 Ultra builds and the Pixel 11 Pro image, the Galaxy Z Flip7
 (SM-F766, Exynos 2500) with both Find X9 Ultra builds, used as a phone on the
-main screen (no cover screen layout yet), and from 0.4.29 the Galaxy A57
-(SM-A576, a57x) with both Find X9 Ultra builds, the first A-series phone. The
+main screen (no cover screen layout yet), from 0.4.29 the Galaxy A57
+(SM-A576, a57x) with both Find X9 Ultra builds, the first A-series phone, and
+from 0.4.31 its smaller sibling the Galaxy A56 (SM-A566, a56x), with the same
+images. The
 S26+ and Z Flip7 test sessions fixed the first Exynos problems (the phone
 restarting after the switch); every system on Exynos is still untested. Each
 of them also offers Infinity-X.
@@ -129,7 +135,7 @@ release).
    `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7),
    `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26) and
    `OneOS-<version>-s25.apk` (Galaxy S25 Ultra, S25+, S25, S24 Ultra, S23,
-   S23+, Z Flip7, Z Flip5, A57). Installed the wrong one? OneOS tells you which file your
+   S23+, Z Flip7, Z Flip5, A57, A56). Installed the wrong one? OneOS tells you which file your
    phone needs.
 6. In OneOS open **Systems**, tap **Download** on the system made for your
    phone and download it, on Wi-Fi (3.3 to 5.3 GB).
@@ -155,6 +161,17 @@ sending does not work. What everyone reported is counted in
 [docs/compatibility.md](docs/compatibility.md): per OneOS version, phone and
 system, how many reports started and what worked (answers only: no names,
 notes or phone details).
+
+You can tick what works while you are still in the other system (from
+0.4.30): open the OneOS app there and tap **How's it going?**. Back in One UI,
+**Send to the OneOS team** has your answers filled in.
+
+**More than one system** (from 0.4.30): when you set up another system, the
+one you had stays on the phone as a copy, with its apps and data. Home lists
+each of them as **Switch to <system>**. One tap puts it back (the system set
+up now is kept the same way), updates OneOS's files in it if they are older
+than the app (about 2 minutes) and opens the switch. A copy you no longer
+need can be deleted there too, or in **Advanced › Free up space**.
 
 **Removing OneOS:** in OneOS open **Advanced › Remove OneOS data**. It deletes
 everything OneOS put on the phone: the system you set up (with the apps and

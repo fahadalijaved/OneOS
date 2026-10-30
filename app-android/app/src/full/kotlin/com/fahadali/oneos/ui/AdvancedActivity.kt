@@ -100,6 +100,12 @@ class AdvancedFragment : CardsFragment() {
             }
         }
 
+        // Calls (0.4.20): this phone's Samsung IMS app in the other system, for VoLTE. Experimental, off by default.
+        val calls = Cards.section(column, getString(R.string.advanced_card_calls), rows = true)
+        CardRows.toggle(calls, getString(R.string.advanced_sec_ims_title), getString(R.string.advanced_sec_ims_summary), SessionPrefs.secIms(ctx)) { on ->
+            SessionPrefs.setSecIms(ctx, on)
+        }
+
         // Help.
         val help = Cards.section(column, getString(R.string.advanced_card_help), rows = true)
         Cards.row(help, OuiIcons.drawable.ic_oui_help_outline, getString(R.string.before_title), getString(R.string.advanced_before_summary), open(BeforeYouStartActivity::class.java))

@@ -103,6 +103,35 @@ INVOKE = re.compile(r"^\s*invoke-[a-z-]+(?:/range)? \{([^}]*)\}, (L[^;\s]+;->\S+
 # mUsers itself, or the accessor inner classes use to reach it.
 USERS_REFS = (f"{CLS}->mUsers:Landroid/util/SparseArray;", f"{CLS}->-$$Nest$fgetmUsers(")
 SPARSE_WRITE = re.compile(r"Landroid/util/SparseArray;->(?:put|append|set|setValueAt|putAll)\(")
+# A SparseArray write and the register it writes to (invoke's first register).
+SPARSE_WRITE_RECV = re.compile(r"^\s*invoke-\S+ \{(v\d+|p\d+)[,}].*Landroid/util/SparseArray;->(?:put|append|set|setValueAt|putAll)\(")
+# What last went into a register: a fresh SparseArray, or anything else.
+NEW_SPARSE = re.compile(r"^\s*new-instance (v\d+), Landroid/util/SparseArray;")
+ASSIGN = re.compile(r"^\s*(?:const\S*|move\S*|new-\S+|[ais]get\S*|check-cast|instance-of|array-length) (v\d+|p\d+)(?:,|$)")
+
+
+def writes_only_fresh_arrays(body):
+    """Every SparseArray write in body goes to an array made with new-instance in it.
+
+    A linear scan of the most recent assignment of each register (fail closed:
+    a register last loaded from anything else, or never assigned here, counts
+    as possibly mUsers). HyperOS's repairProfileGroupIdIfNecessaryLP copies the
+    users into a new SparseArray this way, for XSpace's repair, and only saves
+    existing users (writeUserLP): no user is added.
+    """
+    fresh = {}
+    for line in body:
+        m = SPARSE_WRITE_RECV.search(line)
+        if m and not fresh.get(m.group(1), False):
+            return False
+        m = NEW_SPARSE.search(line)
+        if m:
+            fresh[m.group(1)] = True
+            continue
+        m = ASSIGN.search(line)
+        if m:
+            fresh[m.group(1)] = False
+    return True
 # An instruction whose first register is a destination.
 WRITES = r"^\s*(?:const\S*|move\S*|new-\S+|[ais]get\S*|instance-of|array-length|neg-\S+|not-\S+|\S+-to-\S+|(?:add|sub|rsub|mul|div|rem|and|or|xor|shl|shr|ushr)-\S+|cmp\S*) {r}(?:,|$)"
 
@@ -211,6 +240,9 @@ def check_system_user_path(defs, edges, callers, files, funnel):
     for k, (path, i, j) in defs.items():
         body = files[path][i:j]
         if any(r in l for l in body for r in USERS_REFS) and any(SPARSE_WRITE.search(l) for l in body):
+            if writes_only_fresh_arrays(body):
+                print(f"{label(k)} reads mUsers and writes only a SparseArray of its own: not a writer", file=sys.stderr)
+                continue
             writers.append(label(k))
     if writers != ["UserManagerService.addUserDataLU"]:
         sys.exit(f"methods writing UserManagerService.mUsers are {writers}, expected only addUserDataLU")

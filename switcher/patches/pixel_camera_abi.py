@@ -21,8 +21,11 @@ scripts/aidl-table.py's output for One UI's framework.jar (patches/host_camera.t
     (the const feeding IBinder.transact), only when the signatures are equal;
     a host method the guest lacks is left to it (never called); a guest method
     the host lacks goes to UNUSED_CODE when it returns void (ColorOS's
-    notifySmartWindowChange, notifyDisplayRotationChange) and is refused when
-    it has a result (the switch would reach a Samsung method).
+    notifySmartWindowChange, notifyDisplayRotationChange), and when it has a
+    result (HyperOS's ICameraService.addFaceListener, 23 on Xiaomi, where One
+    UI has notifyDeviceStateChangeSync) the Proxy method throws
+    RemoteException at entry: nothing reaches One UI's cameraserver, and the
+    caller handles it like a dead service.
   - the guest's Stub.onTransact, for the interfaces the host calls into the
     guest (ICameraServiceListener, ICameraDeviceCallbacks): a guest case whose
     code is a different method on the host is dropped from the packed switch,
@@ -48,6 +51,9 @@ TRANSACT = "Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parce
 # v registers in R8 builds (Pixel, ColorOS); p registers too in a build with
 # debug info (Infinity-X's framework.jar: "const/16 p3, 0x17").
 CONST = re.compile(r"^(\s*)const(/4|/16|)\s+([vp]\d+),\s*(-?0x[0-9a-f]+|-?\d+)\s*$")
+
+
+LOCALS_RE = re.compile(r"^(\s*)\.locals (\d+)$")
 
 
 def die(msg):
@@ -98,6 +104,30 @@ def sig_of(header):
     return (m.group(1), m.group(2)) if m else (None, None)
 
 
+def refuse_at_entry(body, iface, name):
+    """The method body with a RemoteException thrown before anything else (an instance Proxy method)."""
+    lines = body.split("\n")
+    li = next((i for i, l in enumerate(lines) if LOCALS_RE.match(l)), None)
+    if li is None:
+        die(f"{iface}.{name}: no .locals line")
+    if int(LOCALS_RE.match(lines[li]).group(2)) < 2:
+        lines[li] = f"{LOCALS_RE.match(lines[li]).group(1)}.locals 2"
+    j = li + 1
+    while j < len(lines) and (lines[j].strip() == "" or lines[j].lstrip().startswith((".param", ".end param", ".annotation"))):
+        if lines[j].lstrip().startswith(".annotation"):
+            j = next(k for k in range(j, len(lines)) if lines[k].strip() == ".end annotation")
+        j += 1
+    lines[j:j] = [
+        "    # OneOS: One UI's camera service has no such method (pixel_camera_abi.py).",
+        "    new-instance v0, Landroid/os/RemoteException;",
+        f'    const-string v1, "OneOS: {iface}.{name} is not on this phone"',
+        "    invoke-direct {v0, v1}, Landroid/os/RemoteException;-><init>(Ljava/lang/String;)V",
+        "    throw v0",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def patch_proxy(text, iface, host, guest, changed):
     """Renumber the const that feeds transact in each Proxy method."""
     pieces, pos, n = [], 0, 0
@@ -111,9 +141,12 @@ def patch_proxy(text, iface, host, guest, changed):
             # ColorOS adds notifySmartWindowChange and notifyDisplayRotationChange. A void
             # call goes to a code One UI does not have: its Binder answers "unknown
             # transaction" (transact() returns false) and the Proxy goes on. A call with
-            # a result would read garbage, so those stop the build.
+            # a result would read garbage, so it throws before transact instead (fail closed).
             if not gsig.endswith(")V"):
-                die(f"{iface}.{name} ({gcode}) is not in the host table: the host would take it for another method")
+                pieces.append(text[pos:s]); pieces.append(refuse_at_entry(body, iface, name)); pos = e
+                n += 1
+                changed.append(f"{iface}.{name}: {gcode} -> RemoteException at entry")
+                continue
             hcode, hsig = UNUSED_CODE, gsig
         else:
             hcode, hsig = host[name]

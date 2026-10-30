@@ -198,11 +198,17 @@ fi
 # client.
 # Snapdragon's composer service is vendor.qti.hardware.display.composer,
 # Samsung's Exynos one vendor.hwcomposer-3 (Galaxy S26+ Exynos and Z Flip7
-# probes, 2026-10-25).
+# probes, 2026-10-25). Not every phone uses one of those two names -- the
+# Galaxy A56 probe (2026-10-30) runs the AIDL composer as
+# android.hardware.graphics.composer3-service.exynos -- so when neither is
+# there, take the running init service whose own name says it is the display
+# composer rather than skip the restart (here) or fail the return
+# (return_to_oneui.sh).
 COMPOSER_SVC=""
 for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
     [ -n "$(getprop init.svc.$c)" ] && { COMPOSER_SVC=$c; break; }
 done
+[ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
 echo "[Pivoted Root] Restarting the vendor display composer (${COMPOSER_SVC:-none found})..."
 [ -z "$COMPOSER_SVC" ] || setprop ctl.restart "$COMPOSER_SVC"
 # With the gap splash, the black that is left is from here to the first boot
@@ -357,6 +363,13 @@ if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
             done
             [ "$STATES" != "0:$COVER:$INNER" ] || STATES="$STATES 3:$INNER:$COVER"
             LNOTE="Samsung's device states: 0 (lid closed) on the cover, the others ($(echo "$STATES" | tr ' ' '\n' | sed -n 's/:.*//p' | grep -v '^0$' | tr '\n' ' ')) on the inner panel."
+        elif [ -e /system/system_ext/framework/miui-services.jar ] || [ -e /system_ext/framework/miui-services.jar ]; then
+            # HyperOS's own states (guest_prepare.sh binds a lid-switch copy of
+            # its product device_state_configuration.xml): 0 CLOSED and 1 TENT
+            # outer primary, 2 HALF_OPENED and 3 OPENED inner, 4 OPENED_REVERSE
+            # outer (the Pixel order below put 3 on the cover).
+            STATES="0:$COVER:$INNER 1:$COVER:$INNER 2:$INNER:$COVER 3:$INNER:$COVER 4:$COVER:$INNER"
+            LNOTE="HyperOS fold states 0 closed and 1 tent on the cover, 2 half open and 3 open on the inner panel, 4 reverse on the cover."
         else
             STATES="0:$COVER:$INNER 1:$INNER:$COVER 2:$INNER:$COVER 3:$COVER:$INNER"
             LNOTE="AOSP fold states 0 closed, 1 half open, 2 open, 3 rear display."
@@ -573,9 +586,11 @@ if [ "$(cat /data/oneos_vold_name 2>/dev/null)" = gvld ]; then
     # services.jar: one that still looked up "vold" would hand the guest
     # StorageManagerService One UI's vold (connectVold, then IVold.reset()).
     # Its patched dex is stored, not deflated (make-overlays.sh: zip -0). On
-    # ColorOS also oplus-services.jar (OplusStorageManagerFeature.connectVold).
+    # ColorOS also oplus-services.jar (OplusStorageManagerFeature.connectVold),
+    # HyperOS miui-services.jar (ExtendMImpl, AppCacheOptimizer).
     for f in /system/bin/vold /system/lib64/service.incremental.so /system/framework/services.jar \
-             $([ -f /system/framework/oplus-services.jar ] && echo /system/framework/oplus-services.jar); do
+             $([ -f /system/framework/oplus-services.jar ] && echo /system/framework/oplus-services.jar) \
+             $([ -f /system/system_ext/framework/miui-services.jar ] && echo /system/system_ext/framework/miui-services.jar); do
         $BB grep -q gvld "$f" || why="$f is not the gvld build"
     done
     [ "$(cat /sys/fs/selinux/enforce 2>/dev/null)" = 1 ] && why="SELinux is enforcing: servicemanager refuses gvld (default_android_service)"
@@ -1112,6 +1127,23 @@ fi
 
 echo "[Pivoted Root] Cleaning stale sockets..."
 rm -f /dev/socket/zygote /dev/socket/usap_pool_primary 2>/dev/null || true
+
+# HyperOS starts its "rust" packages (the launcher with Recents, Weather; their
+# code is a Flutter library, the APK has no dex) through hyos_spawner, a
+# zygote-like server its own init starts with "socket hyos_spawner stream 0660
+# root system" once zygote runs and rust.runtime_active=1. One UI's init has
+# no such service: with the rust path off (0.4.16) zygote started the launcher
+# with no code, and it died 1008 times in 4 minutes (sixth HyperOS run). Start
+# it here with its socket (socket_exec, the HyperOS set's), as root with the
+# socket for group system like the image's rc. guest_props.sh set the two
+# properties HyperOS's init would (rust.runtime_version, rust.runtime_active=1),
+# and the return sweeps the spawner with the other guest processes.
+if [ -x /system_ext/bin/hyos_spawner ] && [ -x /data/socket_exec ]; then
+    rm -f /dev/socket/hyos_spawner
+    /data/socket_exec hyos_spawner /system_ext/bin/hyos_spawner /system_ext/bin --spawner --start-spawner-server \
+        </dev/null >/data/hyos_spawner.log 2>&1 &
+    echo "[Pivoted Root] hyos_spawner PID: $! (socket /dev/socket/hyos_spawner)"
+fi
 
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 exec /data/zygote_exec

@@ -53,6 +53,9 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
     // is built from source (0.4.28): the guest keeps One UI's, like tethering.
     "infinityx" to (File(repoRoot, "out/overlays_infinityx") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
+    // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
+    // the signal poll and the image's payloads.
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r10") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -252,8 +255,15 @@ android {
         // 0.4.27: the Infinity-X system on every phone.
         // 0.4.28: Infinity-X keeps One UI's cellbroadcast module, sees hwservicemanager on HIDL-only phones.
         // 0.4.29: the Galaxy A57 (Exynos) and Z Flip5, in the s25 series; Send to the OneOS team.
-        versionCode = 46
-        versionName = "0.4.29"
+        // 0.4.30: Quick switch between the systems set up on the phone; How's it going? in the guest;
+        // the Pixel 9 Pro XL image on every s25 phone.
+        // 0.4.31: HyperOS (the Xiaomi lhasa image) for everyone: made for the Z Fold8 Ultra and Z Fold8, the
+        // other phones may try it (the cover layout runs as the phone's screen); Samsung's IMS stack in the
+        // guest for VoLTE (Infinity-X and HyperOS, where the services.jar carve-out is); the guest's dp
+        // scale, cutout, status bar height and corner radius from the phone itself on every image; the
+        // Galaxy A56, in the s25 series.
+        versionCode = 48
+        versionName = "0.4.31"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.

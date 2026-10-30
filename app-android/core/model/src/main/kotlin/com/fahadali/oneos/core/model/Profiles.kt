@@ -93,6 +93,7 @@ object Profiles {
     const val ID_S_PLUS_8550 = "s-plus-8550"
     const val ID_S_PLUS_9965 = "s-plus-9965"
     const val ID_FLIP7 = "flip7"
+    const val ID_A56 = "a56"
     const val ID_A57 = "a57"
     const val ID_FLIP5 = "flip5"
 
@@ -137,6 +138,13 @@ object Profiles {
      * of them (a fold gets the fold layout from the session scripts).
      */
     private val INFINITYX_CHOICE = ImageChoice(Images.ID_INFINITYX, PackageSets.ID_INFINITYX, tested = false)
+
+    /**
+     * HyperOS (0.4.31, owner: "Allow all users to try"), made for the Z Fold8 Ultra
+     * and Z Fold8: on every phone, last, after Infinity-X. One set everywhere; on a
+     * bar phone its cover-screen layout runs as the phone's screen.
+     */
+    private val HYPEROS_CHOICE = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
 
     private fun olderVendor(vendorApi: String, kernel: String) = Finding(
         ID_NOTE_OLDER_VENDOR, Level.WARN, "Older vendor software",
@@ -203,7 +211,7 @@ object Profiles {
             // Tested: runs 41-44 booted it here (staged over adb by
             // scripts/deploy-phone.sh, not yet from the app).
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, tested = true),
-            INFINITYX_CHOICE,
+            INFINITYX_CHOICE, HYPEROS_CHOICE,
         ),
     )
 
@@ -216,7 +224,7 @@ object Profiles {
         form = FormFactor.BAR,
         // 0.4.10: the Pixel 11 Pro image too, untested. SM8850 has the SVE that
         // Pixel's system code needs; the SM8750 phones do not.
-        choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_CHOICE,
+        choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_CHOICE + HYPEROS_CHOICE,
     )
 
     val S_ULTRA_8750 = PhoneProfile(
@@ -228,7 +236,7 @@ object Profiles {
         form = FormFactor.BAR,
         // Off in 0.3.0 (the S26 Ultra was to go first); on from 0.3.1 (owner: the
         // friend's S25 Ultra is on Android 17 and ready). Untested: ticks as the S26 Ultra.
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_CHOICE + HYPEROS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -247,7 +255,7 @@ object Profiles {
         codename = "pa1q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_CHOICE + HYPEROS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -270,7 +278,7 @@ object Profiles {
         codename = "q7q",
         socModel = "SM8750",
         form = FormFactor.FOLD,
-        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE),
+        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -288,7 +296,7 @@ object Profiles {
         codename = "pa2q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -315,7 +323,7 @@ object Profiles {
         choices = listOf(
             ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8, tested = true),
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
-            INFINITYX_CHOICE,
+            INFINITYX_CHOICE, HYPEROS_CHOICE,
         ),
     )
 
@@ -324,7 +332,7 @@ object Profiles {
         X9U_IN_CHOICE,
         ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false),
         ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false),
-        INFINITYX_CHOICE,
+        INFINITYX_CHOICE, HYPEROS_CHOICE,
     )
 
     /**
@@ -378,7 +386,7 @@ object Profiles {
         codename = "e3q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -386,7 +394,10 @@ object Profiles {
      * Galaxy S23 and S23+, from 0.4.11: probe reports of 2026-10-25
      * (SM-S911B dm1q and SM-S916U dm2q, SM8550, One UI 9.0, Android 17, one
      * panel on port 147, no SVE or SME, installd 85 methods). The S Ultra's
-     * image and set with [EXPECT_NO_START].
+     * image and set with [EXPECT_NO_START]. 0.4.30: also the Pixel 9 Pro XL
+     * image (no SVE needed), with the S23s, the Z Flip7, the A57 and the Z
+     * Flip5: Infinity-X started on an S23 once the HIDL-only phones got the
+     * hwservicemanager marker (guest_prepare.sh), which Pixel lacks as well.
      */
     val S_8550 = PhoneProfile(
         id = ID_S_8550,
@@ -395,7 +406,7 @@ object Profiles {
         codename = "dm1q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -406,7 +417,7 @@ object Profiles {
         codename = "dm2q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -449,7 +460,7 @@ object Profiles {
         codename = "b7s",
         socModel = "s5e9955",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS),
     )
 
@@ -471,7 +482,28 @@ object Profiles {
         codename = "a57x",
         socModel = "s5e8865",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    /**
+     * Galaxy A56, from 0.4.31: a probe report of 2026-10-30 (SM-A566B, a56x,
+     * s5e8855 Exynos, One UI 9.0, Android 17 build CP2A.260605.016, vendor API
+     * 202404, one 1080 x 2340 panel at density 450, sec_touchscreen, composer
+     * android.hardware.graphics.composer3-service.exynos, SVE and SVE2 but no
+     * SME, installd table identical to host_installd.txt). The A57's smaller
+     * sibling, one Exynos generation down (s5e8855 against s5e8865) and the same
+     * in everything the switch reads, so it takes the A57's images, untested,
+     * with [EXYNOS].
+     */
+    val A56 = PhoneProfile(
+        id = ID_A56,
+        label = "Galaxy A56",
+        modelPrefix = "SM-A566",
+        codename = "a56x",
+        socModel = "s5e8855",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS),
     )
 
@@ -495,14 +527,14 @@ object Profiles {
         codename = "b5q",
         socModel = "SM8550",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
-        S_PLUS_9965, FLIP7, A57, FLIP5,
+        S_PLUS_9965, FLIP7, A56, A57, FLIP5,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

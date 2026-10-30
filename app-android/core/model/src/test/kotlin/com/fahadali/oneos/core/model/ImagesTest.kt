@@ -60,7 +60,19 @@ class ImagesTest {
         assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX), Images.ALL.filter { it.presentsGms })
         assertEquals(listOf(xin), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
-        assertEquals(listOf(n6, x9u, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX), Images.ALL)
+        assertEquals(listOf(n6, x9u, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA), Images.ALL)
+        // HyperOS (docs/hyperos.md): on the shared folder from 0.4.31; its own system family.
+        val hyper = Images.HYPEROS_LHASA
+        assertEquals("hyperos-lhasa", hyper.id)
+        assertEquals("OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz", hyper.gzName)
+        assertEquals(4_666_011_150L, hyper.gzBytes)
+        assertEquals("745e43c2d116c4277af06b65c5d8fbaefec11731dcc23f0c067631fce04554a3", hyper.gzSha256)
+        assertEquals(7_749_939_200L, hyper.rawBytes)
+        assertEquals("269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac", hyper.rawSha256)
+        assertEquals(Images.SHARED_FOLDER_URL, hyper.downloadUrl)
+        assertEquals(null, hyper.testedOn)
+        assertEquals(SystemFamily.HYPEROS, hyper.family)
+        assertEquals("HyperOS (Android 17)", hyper.displayName)
         // 0.4.11: the Find X9 Ultra IN build is back (0.3.3-0.3.6, dropped in 0.3.7), the same file.
         assertEquals("coloros17-findx9u-in", xin.id)
         assertEquals("OneOS_ColorOS17_FindX9Ultra_IN.img.gz", xin.gzName)
@@ -79,7 +91,10 @@ class ImagesTest {
         assertEquals("Find N6", Images.shortName(n6.id))
         assertEquals("not-an-image", Images.shortName("not-an-image"))
         // Guest data stays with its own system (0.3.7): the ColorOS builds and the Pixel images.
-        assertEquals(listOf(SystemFamily.COLOROS, SystemFamily.COLOROS, SystemFamily.COLOROS, SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.INFINITYX), Images.ALL.map { it.family })
+        assertEquals(
+            listOf(SystemFamily.COLOROS, SystemFamily.COLOROS, SystemFamily.COLOROS, SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.INFINITYX, SystemFamily.HYPEROS),
+            Images.ALL.map { it.family },
+        )
         // The Pixel 9 Pro XL image (0.4.22) needs no SVE, unlike the Pixel 11 builds.
         assertEquals(emptyList<String>(), Images.PIXEL_KOMODO.cpuRequired)
         assertEquals(listOf("sve", "sve2"), Images.PIXEL_KODIAK.cpuRequired)
@@ -145,7 +160,7 @@ class ImagesTest {
         assertEquals(
             "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN.img.gz) " +
                 "or the Find X9 Ultra image (OneOS_ColorOS17_FindX9Ultra_S26U.img.gz) or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
-                "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz).",
+                "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz).",
             n6OnS26.finding.detail,
         )
         // The Pixel image is the Fold's only (0.3.7): refused on an S Ultra and the Galaxy S25, by size alone already.
@@ -157,13 +172,13 @@ class ImagesTest {
                 assertTrue(pixelOnBar.finding.detail, pixelOnBar.finding.detail.startsWith("This is the Pixel 11 Fold image; ${p.label} takes the Find X9 Ultra IN image"))
             }
         }
-        // The Galaxy Z Fold7 takes the Find N6 image and Infinity-X (0.4.27), no Pixel: Pixel 11's system code needs
+        // The Galaxy Z Fold7 takes the Find N6 image, Infinity-X (0.4.27) and HyperOS (0.4.31), no Pixel: Pixel 11's system code needs
         // SVE, which SM8750 lacks.
         val pixelOnFold7 = ImageIdentifier.identify(ImageFileCheck(null, pixel.gzBytes, pixel.gzSha256, pixel.gzBytes), Profiles.FOLD7)
         assertEquals(ImageState.WRONG_FOR_PHONE, pixelOnFold7.state)
         assertEquals(
             "This is the Pixel 11 Fold image; Galaxy Z Fold7 takes the Find N6 image (OneOS_ColorOS17_FindN6_ZFold8.img.gz) " +
-                "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz).",
+                "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz).",
             pixelOnFold7.finding.detail,
         )
         // The owner does not want the X9U (CN) image on his Fold; by size alone already.
@@ -174,7 +189,8 @@ class ImagesTest {
             assertEquals(x9u, x9uOnFold.image)
             assertEquals(
                 "This is the Find X9 Ultra image; Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_ZFold8.img.gz) " +
-                    "or the Pixel 11 Fold image (OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz).",
+                    "or the Pixel 11 Fold image (OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) " +
+                    "or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz).",
                 x9uOnFold.finding.detail,
             )
         }
@@ -188,25 +204,26 @@ class ImagesTest {
     @Test
     fun identifiesWhichImageThePhoneTakes() {
         fun verified(i: ImageRef, p: PhoneProfile) = ImageIdentifier.identify(ImageFileCheck(i.gzName, i.gzBytes, i.gzSha256, i.gzBytes), p)
-        // 0.4.27: Infinity-X, last, on every phone.
+        // 0.4.27: Infinity-X, on every phone; 0.4.31: HyperOS after it, on every phone too.
         val ifx = Images.INFINITYX
+        val hyper = Images.HYPEROS_LHASA
         val takes = mapOf(
-            Profiles.F8U to listOf(n6, pixel, ifx),
-            Profiles.S_ULTRA_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx),
+            Profiles.F8U to listOf(n6, pixel, ifx, hyper),
+            Profiles.S_ULTRA_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper),
             // 0.4.22: the Pixel 9 Pro XL image on the phones without SVE.
-            Profiles.S_ULTRA_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx),
-            Profiles.S_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx),
-            Profiles.FOLD7 to listOf(n6, ifx),
-            Profiles.S_PLUS_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx),
-            Profiles.FOLD8 to listOf(n6, pixel, ifx),
-            Profiles.S_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx),
-            Profiles.S_ULTRA_8650 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx),
-            Profiles.S_8550 to listOf(xin, x9u, ifx),
-            Profiles.S_PLUS_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx),
-            Profiles.S_PLUS_9965 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx),
-            Profiles.FLIP7 to listOf(xin, x9u, ifx),
-            Profiles.A57 to listOf(xin, x9u, ifx),
-            Profiles.FLIP5 to listOf(xin, x9u, ifx),
+            Profiles.S_ULTRA_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.S_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.FOLD7 to listOf(n6, ifx, hyper),
+            Profiles.S_PLUS_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.FOLD8 to listOf(n6, pixel, ifx, hyper),
+            Profiles.S_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper),
+            Profiles.S_ULTRA_8650 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.S_8550 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.S_PLUS_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper),
+            Profiles.S_PLUS_9965 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper),
+            Profiles.FLIP7 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.A57 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.FLIP5 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
         )
         for ((p, good) in takes) {
             assertEquals(p.id, good, p.images())
@@ -235,13 +252,13 @@ class ImagesTest {
         // Nothing picked: what the phone takes.
         assertEquals(
             "Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_ZFold8.img.gz) or the Pixel 11 Fold image " +
-                "(OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz)",
+                "(OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz)",
             ImageIdentifier.accepts(Profiles.F8U),
         )
         assertEquals(
             "Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN.img.gz) or the Find X9 Ultra image " +
                 "(OneOS_ColorOS17_FindX9Ultra_S26U.img.gz) or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
-                "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz)",
+                "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz)",
             ImageIdentifier.accepts(Profiles.S_ULTRA_8850),
         )
     }

@@ -252,6 +252,9 @@
     <string name="switch_dry_title">Test run</string>
     <string name="switch_dry_summary">One UI closes while %1$s is set up and checked, then One UI comes back. %1$s doesn\'t start.</string>
     <string name="switch_go_summary">Every check runs again, then One UI closes and %1$s starts</string>
+    <string name="advanced_card_calls">Calls</string>
+    <string name="advanced_sec_ims_title">Use One UI\'s calling service (VoLTE)</string>
+    <string name="advanced_sec_ims_summary">Experimental. Takes this phone\'s own Samsung calling service (IMS) into the other system so calls can use VoLTE instead of 3G. Nothing is sent to anyone; One UI\'s files are only read. May not work yet.</string>
     <string name="switch_hide_gms_title">Hide Google apps this time</string>
     <string name="switch_hide_gms_summary">Leaves Play services and the Play Store out of %1$s this time only. Nothing else changes.</string>
     <string name="switch_dialog_gms_hidden">Google apps are hidden this time.</string>

@@ -27,6 +27,7 @@ class SessionEnvTest {
             ONEOS_GUEST_WALLPAPER_GRID=1
             ONEOS_GUEST_HIDE_GMS=0
             ONEOS_HEAT_CAP=1
+            ONEOS_GUEST_SEC_IMS=0
             ONEOS_RETURN_MODE=inplace
 
             """.trimIndent(),
@@ -53,6 +54,7 @@ class SessionEnvTest {
             ONEOS_GUEST_WALLPAPER_GRID=0
             ONEOS_GUEST_HIDE_GMS=0
             ONEOS_HEAT_CAP=1
+            ONEOS_GUEST_SEC_IMS=0
             ONEOS_RETURN_MODE=inplace
 
             """.trimIndent(),
@@ -136,7 +138,7 @@ class SessionEnvTest {
         assertTrue(problems(good.removeSuffix("\n")).contains("must end with a newline"))
         assertTrue(problems(good.replace("\n", "\r\n")).isNotEmpty())
         assertTrue(problems("# comment\n$good").contains("line 1 is not KEY=VALUE"))
-        assertTrue(problems("$good\n").contains("line 17 is not KEY=VALUE"))
+        assertTrue(problems("$good\n").contains("line 18 is not KEY=VALUE"))
         assertTrue(problems(good.replace("ONEOS_APP=1", "export ONEOS_APP=1")).isNotEmpty())
         assertTrue(problems(good.replace("ONEOS_GUEST_FOLD=off", "ONEOS_GUEST_FOLD=\$(reboot)")).isNotEmpty())
         // A fold value in an S Ultra file: the profile decides the form.
@@ -184,7 +186,16 @@ class SessionEnvTest {
         }
         // 0.4.11: the Find X9 Ultra IN build's Google services (in the image, not presented) may be hidden.
         assertEquals(listOf(Images.FIND_X9U_IN), Images.ALL.filter { it.gmsHideable })
-        assertEquals(listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_RETURN_MODE"), SessionEnv.ALLOWED.keys.toList().takeLast(3))
+        assertEquals(listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_GUEST_SEC_IMS", "ONEOS_RETURN_MODE"), SessionEnv.ALLOWED.keys.toList().takeLast(4))
+        assertEquals("ONEOS_GUEST_SEC_IMS", SessionEnv.ALLOWED.keys.toList().dropLast(1).last())
+        for (p in Profiles.BUILT_IN.filter { it.enabled }) {
+            val text = SessionEnv.generate(p)
+            assertTrue(p.id, text.lines().contains("${SessionEnv.SEC_IMS}=0"))
+            for (i in Images.ALL) assertEquals(emptyList<String>(), SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0", "${SessionEnv.SEC_IMS}=1"), image = i))
+            assertEquals(emptyList<String>(), SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0", "${SessionEnv.SEC_IMS}=1")))
+            for (bad in listOf("2", "", "on")) assertTrue(bad, SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0", "${SessionEnv.SEC_IMS}=$bad")).isNotEmpty())
+            assertTrue(SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0\n", "")).contains("${SessionEnv.SEC_IMS} missing"))
+        }
     }
 
     /** Every knob the file sets is read by the session scripts under that exact name. */

@@ -1,0 +1,16 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices and wipesecrets guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
+# HyperOS: miui-services_patched.jar and apprecovery.proinstaller_patched.jar (patches/miui_guards.py)
+# HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)
+# HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)
+# HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+23292ec3f404ee347985b19059716207e59a642d23e96e9a793bfb71848e4bac  services_patched.jar
+fede41d8e9e6471fb38bfad8c848439de99038e46b876c394bec14d977dd141e  miui-services_patched.jar
+31a0697f1edfc17d5d158488e7a5b2e4629ecf32ba1c8b740865c08a2c0a8115  apprecovery.proinstaller_patched.jar
+a7603e362cc7fb26f6971daa3c72da134b3dfeb21aa164f68ceef1fe152b57d7  framework_patched.jar
+1fd2494a789880aec01a38385aea4e188831ef536145ed3178be1cee889981fd  miui-wifi-service_patched.jar
+4695072ecf2b6da0bddbe9441558de8676c79c3a672f39b89d8e77a6135bf9e7  miui-telephony-common_patched.jar
+dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
+282447b888645136c61cab74548e75fd5cec656636c8a16d57a47bcf21e04ff4  service.incremental_patched.so
+977059f2193c2d04987e4fd96be604a2a042aa207841ce3f31e63a3ac9b33e59  libcamera_client_patched.so

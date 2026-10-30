@@ -1,7 +1,7 @@
 # Exynos phones (first runs, 0.4.17)
 
 Two probe reports of 2026-10-25 brought the first Exynos profiles (a third, the
-Galaxy A57, came in 0.4.29; see the end):
+Galaxy A57, came in 0.4.29, and a fourth, the A56, in 0.4.31; see the end):
 
 | | Galaxy S26+ (Exynos) | Galaxy Z Flip7 |
 | --- | --- | --- |
@@ -54,3 +54,16 @@ Profile `a57`, in the s25 series, with the Z Flip7's images: both Find X9 Ultra
 builds and Infinity-X, whose system code needs neither SVE nor SME. It is the
 first A-series phone and the first mid-range chip; nothing about it differs
 from the S26+ (Exynos) in what the session scripts read.
+
+## Galaxy A56 (0.4.31)
+
+A probe report of 2026-10-30: SM-A566B, a56x, s5e8855 (Exynos), One UI 9.0,
+Android 17 build CP2A.260605.016, vendor API 202404. One 1080 x 2340 panel at
+density 450, sec_touchscreen, the AIDL composer under its Exynos name
+(`android.hardware.graphics.composer3-service.exynos`, where the A57 has
+`vendor.hwcomposer-3`; the switch reads the composer only to wait for it, so
+either name does), SVE and SVE2 but no SME, and an installd table identical to
+switcher/patches/host_installd.txt. Profile `a56`, in the s25 series, with the
+A57's images — the A57's smaller sibling, one Exynos generation down (s5e8855
+against s5e8865) and the same in everything the switch reads, so it is listed
+untested, with the Exynos first-runs warning.

@@ -86,8 +86,8 @@ class StageScriptTest {
 
         fun finish(setId: String = set.id) = fr.run(RootScript.Verb.FINISH, profile.id, imageId, setId, code)
 
-        fun launch(mode: String = "session", hideGms: String = "0", code: String = this.code, heatCap: String = "1") =
-            fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap)
+        fun launch(mode: String = "session", hideGms: String = "0", code: String = this.code, heatCap: String = "1", secIms: String = "0") =
+            fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms)
 
         fun prepare(mode: String = "new") {
             ok(begin(mode))
@@ -900,6 +900,8 @@ class StageScriptTest {
             Profiles.FLIP7 to "SM-F766U",
             // 0.4.29: the Galaxy A57.
             Profiles.A57 to "SM-A576B",
+            // 0.4.31: the Galaxy A56.
+            Profiles.A56 to "SM-A566B",
             Profiles.FLIP5 to "SM-F731B",
         )) {
             eachShell { fr ->
@@ -1168,6 +1170,11 @@ class StageScriptTest {
             assertEquals(env.readLines().size, SessionEnv.generate(s.profile).lines().filter { it.isNotEmpty() }.size)
             refused(s.launch(hideGms = "0"), "test root: every launch check passed")
             assertEquals(SessionEnv.generate(s.profile), env.readText())
+            // 0.4.20: the Samsung IMS choice the same way, on any image; nothing else of the file moves.
+            refused(s.launch(secIms = "1"), "test root: every launch check passed")
+            assertEquals(SessionEnv.generate(s.profile).replace("ONEOS_GUEST_SEC_IMS=0", "ONEOS_GUEST_SEC_IMS=1"), env.readText())
+            refused(s.launch(), "test root: every launch check passed")
+            assertEquals(SessionEnv.generate(s.profile), env.readText())
             // env accepts the 1 for that image (Prepare writes 0; a launch decides).
             ok(s.begin("keep"))
             s.ok(s.env(SessionEnv.generate(s.profile).replace("ONEOS_GUEST_HIDE_GMS=0", "ONEOS_GUEST_HIDE_GMS=1")))
@@ -1427,13 +1434,16 @@ class StageScriptTest {
         assertTrue(RootScript.problems(RootScript.Verb.BEGIN, listOf("new", "f8u", "coloros17-findn6", "4")).isNotEmpty())
         assertTrue(RootScript.problems(RootScript.Verb.FINISH, listOf("f8u", "coloros17-findn6", "4")).isNotEmpty())
         assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.FINISH, listOf("f8u", "coloros17-findn6", "n6-f8u", "4")))
-        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "\$(id)", "0", "1")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "\$(id)", "0", "1", "0")).isNotEmpty())
         assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef")).isNotEmpty())
-        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "2", "1")).isNotEmpty())
-        // 0.4.23: launch carries the heat cap too (0 or 1), and needs it.
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "2", "1", "0")).isNotEmpty())
+        // 0.4.23: launch carries the heat cap too (0 or 1); 0.4.25: and secIms (0 or 1). Both needed.
         assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0")).isNotEmpty())
-        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "2")).isNotEmpty())
-        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.LAUNCH, listOf("dry", "4", "0123456789abcdef", "1", "0")))
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "2", "0")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "2")).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.LAUNCH, listOf("dry", "4", "0123456789abcdef", "1", "0", "0")))
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "1")))
         assertTrue(RootScript.problems(RootScript.Verb.RECOVER, listOf("x")).isNotEmpty())
         assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.KEEP_RAW, listOf("10385141760", "a".repeat(64))))
         // Rendered, the arguments are one plain `set --` line.

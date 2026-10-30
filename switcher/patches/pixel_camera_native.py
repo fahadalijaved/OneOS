@@ -10,8 +10,12 @@ It carries the same differences, which an aarch64 build exposes as immediates:
     Each becomes One UI's number from the host table (host_camera.txt, the
     same file the Java patcher reads; Bp<Interface> = android.hardware.I<...>).
     A guest-only method (ColorOS's notifySmartWindowChange and
-    notifyDisplayRotationChange, both void) goes to UNUSED_CODE, which One UI
-    answers with "unknown transaction"; any other one stops the build.
+    notifyDisplayRotationChange, both void; 0.4.31: HyperOS's addFaceListener
+    and removeFaceListener, which return a result) goes to UNUSED_CODE, which
+    One UI answers with "unknown transaction". The C++ Bp code checks that
+    status and returns the error without reading a reply (unlike Java's
+    Proxy, where pixel_camera_abi.py throws instead); any other one stops
+    the build.
   - BnCameraServiceListener / BnCameraDeviceCallbacks::onTransact: a case whose
     code is another method on the host (the Pixel 9 Pro XL's
     onStatusChangedBatched at 9, One UI's onCameraDeviceStateChanged) is
@@ -40,6 +44,8 @@ import sys
 
 UNUSED_CODE = 200
 GUEST_ONLY_VOID = {"notifySmartWindowChange", "notifyDisplayRotationChange"}
+# Guest-only methods with a result whose Bp returns transact's error status as it is (HyperOS).
+GUEST_ONLY_STATUS = {"addFaceListener", "removeFaceListener"}
 NOP = 0xD503201F
 # (interface, mangled namespace, Bp class, Bn class)
 AIDL = {
@@ -146,7 +152,7 @@ def patch_bp(elf, host, changed):
         for meth, (o, gcode) in sorted(guest.items()):
             if meth in host[iface]:
                 hcode = host[iface][meth]
-            elif meth in GUEST_ONLY_VOID:
+            elif meth in GUEST_ONLY_VOID or meth in GUEST_ONLY_STATUS:
                 hcode = UNUSED_CODE
             else:
                 die(f"{iface}.{meth} ({gcode}) is not in the host table: the host would take it for another method")

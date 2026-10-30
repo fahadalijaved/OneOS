@@ -9,7 +9,7 @@ import java.util.Locale
  * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
  * packages too, and its updater, com.infinity.updater, tells it apart.
  */
-enum class SystemFamily { COLOROS, PIXEL, INFINITYX }
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS }
 
 /**
  * One OneOS OS image as friends download it (a gzip of the ext4 system
@@ -109,6 +109,7 @@ object Images {
     const val ID_FIND_X9U_IN = "coloros17-findx9u-in"
     const val ID_PIXEL_YOGI = "pixel11fold-yogi"
     const val ID_PIXEL_KODIAK = "pixel11pro-kodiak"
+    const val ID_HYPEROS_LHASA = "hyperos-lhasa"
     const val ID_PIXEL_KOMODO = "pixel9proxl-komodo"
     const val ID_INFINITYX = "infinityx41-findx9u"
 
@@ -341,7 +342,39 @@ object Images {
         family = SystemFamily.INFINITYX,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX)
+    /**
+     * Xiaomi's HyperOS from the Xiaomi 18 Fold (lhasa, CN OTA OS4.0.26.0.XPNCNXM,
+     * `CP2A.260605.016`), MysticGSI's HyperOS patch set
+     * (`mysticgsi/out/oneos-hyperos-lhasa`). Local builds only up to 0.4.30;
+     * from 0.4.31 on every phone (owner, 2026-10-29: "Allow all users to try",
+     * made for the Z Fold8 Ultra and Z Fold8). Guarded like the other images,
+     * plus Xiaomi's own framework (docs/hyperos.md); no gvld pins yet, so Back
+     * to One UI restarts the phone. The CPU scan found MOPS only in the linker
+     * and libc ifunc variants, as in the Find N6 image. Untested.
+     */
+    val HYPEROS_LHASA = ImageRef(
+        id = ID_HYPEROS_LHASA,
+        label = "HyperOS, Xiaomi 18 Fold build",
+        shortName = "Xiaomi 18 Fold",
+        name = "HyperOS",
+        variant = null,
+        blurb = "Xiaomi's system from the Xiaomi 18 Fold. No Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz",
+        gzBytes = 4_666_011_150L,
+        gzSha256 = "745e43c2d116c4277af06b65c5d8fbaefec11731dcc23f0c067631fce04554a3",
+        rawBytes = 7_749_939_200L,
+        rawSha256 = "269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = false,
+        family = SystemFamily.HYPEROS,
+    )
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

@@ -125,6 +125,19 @@ BUILDS = [
         "service.incremental.so": "c964e27681a3632a7f83acb1698acffa572b3ece773690bc64444dff7bfaf7a7",
         "crashrecovery-aosp.capex": "1c4fa1a8417b233765db1621f3911b66de230049c39b248f116c3d18a8920ca6",
     }, [("vold", 0xe163, NAME), ("vold", 0x64d8c, TRY_START), ("service.incremental.so", 0x646c0, NAME)]),
+    # HyperOS OS4.0 (Xiaomi lhasa, 2026-10): start() takes "vold" at 0xf3fd
+    # (adrp 0xf000 + add 0x3fd at 0x6e8f4, the binary's only "\0vold\0"),
+    # try_start's tbz w19, #0, +0xd4 is at 0x6e2d4, and service.incremental.so
+    # has the string at 0x64746 with its two lookups (adr at 0xc0794, adrp + add
+    # at 0xc2e28). Its crashrecovery APEX (com.android.crashrecovery.capex) has
+    # AOSP's RescueParty.isDisabled (persist.sys.disable_rescue), and the wipe
+    # behind it. The seventh HyperOS run's guest vold took "vold", and the
+    # return could only reboot ("vold is not registered").
+    ("HyperOS OS4.0 (lhasa)", {
+        "vold": "06c00894fa5ce1bb1c6bc7821ef60ae18907ed9d9a213d37987cdfe633c798f7",
+        "service.incremental.so": "e7da297ddedc625df330317c2321b5a2fd25f4dd2535f9c65a1490b5b8d6687d",
+        "crashrecovery-aosp.capex": "d31bc1ccbb9bd60d2c78f0bd045cbb194838f936aafe2b551ab5d8344c9f2cd8",
+    }, [("vold", 0xf3fc, NAME), ("vold", 0x6e2d4, TRY_START), ("service.incremental.so", 0x64745, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)
@@ -202,6 +215,13 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_webview_zygote_sa
 # zygote_next (S25 Ultra, Pixel 9 Pro XL, app 0.4.25: Chrome's renderer held
 # every process start of the session; patches/guest_no_native_services.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_native_services.py" "$WORK/services")"
+# Samsung's VoLTE app (com.sec.imsservice) keeps android.uid.system in the guest,
+# but only from the staged read-only path /system_ext/priv-app/OneOSSecIms
+# (guest_prepare.sh, ONEOS_GUEST_SEC_IMS=1): verifySignatures admits that one
+# package there despite its Samsung platform signature, and nothing else
+# (patches/guest_sec_ims_signature.py, docs/samsung-ims-in-guest.md). Always
+# applied; dormant unless such a package is staged at that path.
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_sec_ims_signature.py" "$WORK/services")"
 # The wipe paths never delete the phone's secrets: Secretkeeper, the secure
 # element, vold's storage and metadata keys (Infinity-X's duress wipe calls
 # them directly; patches/guest_no_wipe_secrets.py). Before guest_own_vold.py.
@@ -228,6 +248,10 @@ else
     KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_blur_no_thermal.py" "$WORK/services")"
     echo "Window blur: not turned off by heat (BlurController.updateBlurEnabled)"
 fi
+# Qualcomm's display additions make a second built-in panel private, and the
+# Z Fold's cover becomes display 0 when it folds: no app could use it
+# (patches/qti_builtin_display_public.py; nothing in images without them).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/qti_builtin_display_public.py" "$WORK/services")"
 # A dex the added OneOS classes push past 65536 method references (the Pixel 9
 # Pro XL's classes2: 65568) gets them moved to a dex of their own after the
 # last one: one jar, one class loader, so they keep their package access.
@@ -308,6 +332,129 @@ if in_image /system/framework/oplus-services.jar; then
 else
     rm -f "$OUT/oplus-services_patched.jar"
     echo "oplus-services.jar: not in the image, nothing to patch"
+fi
+
+# HyperOS: Xiaomi's miui-services.jar runs in the same system_server, with its
+# own recovery, factory reset, preinstall and vold paths (patches/miui_guards.py,
+# docs/hyperos.md), the storage guards and installd callers like
+# oplus-services.jar's, and with "gvld" its two "vold" lookups
+# (guest_own_vold.py --miui). apprecovery.proinstaller.jar (also on the system
+# server class path) installs apps by itself: its InstallService does nothing
+# (miui_guards.py --proinstaller). Only in HyperOS images; guest_prepare.sh
+# refuses one without them.
+MIUI_JAR=/system/system_ext/framework/miui-services.jar
+PRO_JAR=/system/system_ext/framework/apprecovery.proinstaller.jar
+if in_image $MIUI_JAR; then
+    "$DEBUGFS" -R "dump $MIUI_JAR $WORK/miui-services.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/miui" "$WORK/miui-services.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/miui_guards.py" "$WORK/miui")
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/miui")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" --callers "$WORK/miui")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    if [ "$VOLD_GVLD" = 1 ]; then
+        NEW=$(python3 -I "$ROOT/switcher/patches/guest_own_vold.py" --miui "$WORK/miui")
+        DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    fi
+    # HAL extension casts (patches/hyperos_hal_ext.py): the vibrator's.
+    NEW=$(python3 -I "$ROOT/switcher/patches/hyperos_hal_ext.py" --expect 1 "$WORK/miui" HalExtServices)
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    java -jar "$APKTOOL" b -q -o "$WORK/miui-rebuilt.jar" "$WORK/miui"
+    cp "$WORK/miui-services.jar" "$OUT/miui-services_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/miui-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-services_patched.jar" "$DEX")
+        echo "built $OUT/miui-services_patched.jar (replaced $DEX)"
+    done
+    in_image $PRO_JAR || { echo "ERROR: $MIUI_JAR without $PRO_JAR: another HyperOS layout, not guarded" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $PRO_JAR $WORK/proinstaller.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/pro" "$WORK/proinstaller.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/miui_guards.py" --proinstaller "$WORK/pro")
+    java -jar "$APKTOOL" b -q -o "$WORK/pro-rebuilt.jar" "$WORK/pro"
+    cp "$WORK/proinstaller.jar" "$OUT/apprecovery.proinstaller_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/pro-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/apprecovery.proinstaller_patched.jar" "$DEX")
+        echo "built $OUT/apprecovery.proinstaller_patched.jar (replaced $DEX)"
+    done
+    # miui-wifi-service.jar (MiuiWifiService in system_server): its casts of
+    # the Wi-Fi HALs' extensions (supplicant, hardware, hostapd) to Xiaomi
+    # interfaces, which One UI's HALs answer with Samsung's
+    # (patches/hyperos_hal_ext.py; the third HyperOS run died in
+    # ISupplicantXm.registerCallback).
+    WIFI_JAR=/system/system_ext/framework/miui-wifi-service.jar
+    in_image $WIFI_JAR || { echo "ERROR: $MIUI_JAR without $WIFI_JAR" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $WIFI_JAR $WORK/miui-wifi-service.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mwifi" "$WORK/miui-wifi-service.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_hal_ext.py" --expect 5 "$WORK/mwifi" HalExtWifi)
+    java -jar "$APKTOOL" b -q -o "$WORK/mwifi-rebuilt.jar" "$WORK/mwifi"
+    cp "$WORK/miui-wifi-service.jar" "$OUT/miui-wifi-service_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/mwifi-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-wifi-service_patched.jar" "$DEX")
+        echo "built $OUT/miui-wifi-service_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/mwifi" "$WORK/mwifi-rebuilt.jar"
+    # miui-telephony-common.jar (com.android.phone): Xiaomi's IMS controller
+    # without an IMS phone (patches/hyperos_telephony.py; the fourth HyperOS
+    # run's phone process died on every service state poll).
+    TEL_JAR=/system/system_ext/framework/miui-telephony-common.jar
+    in_image $TEL_JAR || { echo "ERROR: $MIUI_JAR without $TEL_JAR" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $TEL_JAR $WORK/miui-telephony-common.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mtel" "$WORK/miui-telephony-common.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_telephony.py" "$WORK/mtel")
+    java -jar "$APKTOOL" b -q -o "$WORK/mtel-rebuilt.jar" "$WORK/mtel"
+    cp "$WORK/miui-telephony-common.jar" "$OUT/miui-telephony-common_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/mtel-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-telephony-common_patched.jar" "$DEX")
+        echo "built $OUT/miui-telephony-common_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/mtel" "$WORK/mtel-rebuilt.jar"
+    # libaudiohal@aidl.so: HyperOS's audioserver waited for an audio HAL
+    # adapter vendor extension that only One UI's own audioserver serves, and
+    # a session stops it (patches/hyperos_audio_ext.py, sixth run: no sound).
+    AH_LIB=/system/lib64/libaudiohal@aidl.so
+    in_image $AH_LIB || { echo "ERROR: $MIUI_JAR without $AH_LIB" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $AH_LIB $WORK/libaudiohal_aidl.so" "$IMG" 2>/dev/null
+    python3 -I "$ROOT/switcher/patches/hyperos_audio_ext.py" "$WORK/libaudiohal_aidl.so" "$OUT/libaudiohal_aidl_patched.so"
+    rm -f "$WORK/libaudiohal_aidl.so"
+    # socket_exec (switcher/native): guest_start.sh starts hyos_spawner with
+    # it, the service that runs HyperOS's rust packages (the launcher).
+    cp -f "$ROOT/switcher/native/bin/socket_exec" "$OUT/socket_exec"
+    # framework.jar: Xiaomi's CameraStatus parcel back to AOSP's fields, as One
+    # UI's cameraserver writes them (patches/hyperos_framework.py; the first
+    # HyperOS run died in BiometricService on a null CameraStatus).
+    FW_JAR=/system/framework/framework.jar
+    in_image $FW_JAR || { echo "ERROR: $MIUI_JAR without $FW_JAR" >&2; exit 1; }
+    # The camera transaction codes step further down builds on this jar (HYPEROS_FW).
+    HYPEROS_FW=1
+    "$DEBUGFS" -R "dump $FW_JAR $WORK/framework.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$WORK/framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_framework.py" "$WORK/fw")
+    java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"
+    cp "$WORK/framework.jar" "$OUT/framework_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/fw-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/framework_patched.jar" "$DEX")
+        echo "built $OUT/framework_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/framework.jar"
+else
+    rm -f "$OUT/miui-services_patched.jar" "$OUT/apprecovery.proinstaller_patched.jar" "$OUT/framework_patched.jar" "$OUT/miui-wifi-service_patched.jar" \
+          "$OUT/miui-telephony-common_patched.jar" "$OUT/socket_exec" \
+          "$OUT/libaudiohal_aidl_patched.so"
+    echo "miui-services.jar: not in the image, nothing to patch"
 fi
 
 
@@ -477,9 +624,14 @@ rm -rf "$WORK/inj" "$WORK/TeleService.apk" "$WORK/telephony-common.jar"
 # treatment as the Pixels'. scripts/patch-framework-camera.sh and
 # patch-camera-native.sh do the same for a set whose image is no longer on the
 # server, from files pulled from the phone.
+# HyperOS (0.4.31): on top of its own framework_patched.jar (hyperos_framework.py's
+# CameraStatus, made above in this run), so the set carries both.
+if [ "${HYPEROS_FW:-0}" = 1 ] && [ -f "$OUT/framework_patched.jar" ]; then
+    cp "$OUT/framework_patched.jar" "$WORK/framework-cam.jar"
+fi
 rm -f "$OUT/framework_patched.jar" "$OUT/libcamera_client_patched.so" "$OUT/libcameracompatbilityinfo_patched.so"
 if in_image /system/framework/framework.jar; then
-    "$DEBUGFS" -R "dump /system/framework/framework.jar $WORK/framework-cam.jar" "$IMG" 2>/dev/null
+    [ -f "$WORK/framework-cam.jar" ] || "$DEBUGFS" -R "dump /system/framework/framework.jar $WORK/framework-cam.jar" "$IMG" 2>/dev/null
     "$ROOT/scripts/patch-framework-camera.sh" "$WORK/framework-cam.jar" "$OUT"
     rm -f "$WORK/framework-cam.jar"
 fi
@@ -495,26 +647,44 @@ fi
 # died at boot). Fail the build instead.
 JARS=""
 for j in services_patched.jar oplus-services_patched.jar ims-ext-common_patched.jar oplus-telephony-common_patched.jar \
-         oneos-telephony.jar framework_patched.jar; do
+         oneos-telephony.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar \
+         miui-wifi-service_patched.jar miui-telephony-common_patched.jar; do
     [ -f "$OUT/$j" ] && JARS="$JARS $OUT/$j"
 done
 python3 -I "$ROOT/scripts/check-dex.py" $JARS
 
 # The phone refuses jars that were not built with the guards above
 # (guest_prepare.sh checks these hashes, and needs oplus-services_patched.jar
-# whenever the image has oplus-services.jar). vold_patched and
+# whenever the image has oplus-services.jar, miui-services_patched.jar and
+# apprecovery.proinstaller_patched.jar whenever it has miui-services.jar). vold_patched and
 # service.incremental_patched.so are listed with the services_patched.jar that
 # looks up "gvld": guest_prepare.sh binds all three or none of them.
 {
-    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices and wipesecrets guards"
+    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices and wipesecrets guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
-    [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
-    [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
-    (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
-        $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
-        $([ -f framework_patched.jar ] && echo framework_patched.jar) \
-        $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
-        $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
+    # HyperOS images (miui-services_patched.jar) and Pixel images list their
+    # files in the order and with the notes each set was built with.
+    if [ -f "$OUT/miui-services_patched.jar" ]; then
+        echo "# HyperOS: miui-services_patched.jar and apprecovery.proinstaller_patched.jar (patches/miui_guards.py)"
+        [ -f "$OUT/framework_patched.jar" ] && echo "# HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)"
+        [ -f "$OUT/miui-wifi-service_patched.jar" ] && echo "# HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)"
+        [ -f "$OUT/miui-telephony-common_patched.jar" ] && echo "# HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)"
+        [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
+        (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
+            miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar \
+            miui-telephony-common_patched.jar \
+            $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
+            $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
+            $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
+    else
+        [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
+        [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
+        (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
+            $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
+            $([ -f framework_patched.jar ] && echo framework_patched.jar) \
+            $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
+            $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
+    fi
 } > "$OUT/guards.txt"
 
 # surfaceflinger: skip the Qualcomm composer extension client, so every frame
