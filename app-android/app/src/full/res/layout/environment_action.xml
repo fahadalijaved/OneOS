@@ -4,6 +4,8 @@
     android:layout_height="wrap_content"
     android:layout_gravity="bottom"
     android:paddingVertical="12dp">
+    <FrameLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal">
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/environment_boot"
         style="@style/OneUI.ContainedButton"
@@ -11,4 +13,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal" />
+    <com.fahadali.oneos.ui.LoadingSpinner
+        android:id="@+id/environment_action_spinner"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_gravity="center"
+        android:elevation="8dp"
+        android:indeterminate="true"
+        android:indeterminateTint="@android:color/white"
+        android:importantForAccessibility="no"
+        android:visibility="gone" />
+    </FrameLayout>
 </FrameLayout>

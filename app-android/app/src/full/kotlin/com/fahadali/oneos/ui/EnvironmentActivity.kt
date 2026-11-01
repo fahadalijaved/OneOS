@@ -38,6 +38,7 @@ import dev.oneuiproject.oneui.R as Icons
 class EnvironmentActivity : EdgeToEdgeActivity() {
     private lateinit var image: ImageRef
     private var preview = false
+    private lateinit var actionTextColors: ColorStateList
     private var facts: DeviceFacts? = null
     private val subscriptions = mutableListOf<() -> Unit>()
     private val io = java.util.concurrent.Executors.newSingleThreadExecutor()
@@ -50,6 +51,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         image = selected
         preview = DebugPreview.enabled(this) && intent.getBooleanExtra("preview", false)
         setContentView(R.layout.activity_environment)
+        actionTextColors = findViewById<Button>(R.id.environment_boot).textColors
         findViewById<View>(R.id.environment_window).setOnApplyWindowInsetsListener { root, insets ->
             val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
             root.setPadding(bars.left, bars.top, bars.right, bars.bottom)
@@ -73,6 +75,10 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             // The native fade belongs to the scrolling content behind the fixed action.
             // Bottom padding lets the final row scroll fully clear of the button.
             val clearance = footer.height + dp(16)
+            // Keep the fixed action backed by the native fade even with short or
+            // temporarily incomplete checking content, not just when scrollable.
+            scroll.seslForceBottomFadingEdgeClamped(footer.height + dp(24))
+            scroll.invalidate()
             if (scroll.paddingBottom != clearance) {
                 scroll.setPadding(scroll.paddingLeft, scroll.paddingTop, scroll.paddingRight, clearance)
                 scroll.seslSetFadingEdgeEnabled(true, dp(24), footer.height + dp(24))
@@ -219,10 +225,13 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             Cards.row(Cards.section(column, null, rows = true), Cards.badge(Level.BLOCK), plain.title, plain.line) {
                 FixActions.run(this, plain.action, image)
             }
-        } else if (!preview && (StageCheck.state.busy || report == null)) {
-            val message = StageCheck.state.failure?.let { Plain.of(it, image, null).line } ?: getString(R.string.environment_checking)
+        } else if (!preview && !StageCheck.state.busy && StageCheck.state.failure != null) {
+            val message = Plain.of(StageCheck.state.failure!!, image, null).line
             CardRows.text(Cards.section(column, null), message, R.style.OneOS_Text_Caption)
         }
+        val checking = !preview && (StageCheck.state.busy || StageCheck.state.phase == StageCheck.Phase.IDLE ||
+            (StageCheck.state.phase != StageCheck.Phase.FAILED && report == null))
+        findViewById<View>(R.id.environment_action_spinner).visibility = if (checking) View.VISIBLE else View.GONE
         fun readyToBoot(): Boolean = preview || (StageCheck.state.phase == StageCheck.Phase.DONE &&
             StageCheck.state.result === result && result != null && result.ageMs <= Readiness.CHECK_AGE_MS &&
             report != null && (report.image?.id == image.id || (maintenance != null && ImageMaintenance.identifiedImage(result)?.id == image.id)) &&
@@ -230,7 +239,11 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             !com.fahadali.oneos.session.RemoveJob.state.busy)
         findViewById<Button>(R.id.environment_boot).apply {
             text = getString(if (maintenance != null) R.string.environment_update else R.string.environment_boot, image.name)
-            isEnabled = readyToBoot()
+            isEnabled = !checking && readyToBoot()
+            // Preserve the native button's text measurement while replacing its label
+            // visually with the centred SESL spinner during the read-only check.
+            setTextColor(if (checking) ColorStateList.valueOf(Color.TRANSPARENT) else actionTextColors)
+            contentDescription = if (checking) getString(R.string.environment_checking) else text
             setOnClickListener {
                 if (!readyToBoot()) {
                     Readiness.tick(this@EnvironmentActivity)
