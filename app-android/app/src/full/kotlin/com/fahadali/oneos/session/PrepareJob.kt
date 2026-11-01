@@ -242,6 +242,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         // selection names a different OS. Fresh prepare gates below decide it again.
         val stagedCandidate = st.staged(profile)?.first
             ?: st.marker?.takeIf { st.ours && it.profileId == profile.id }?.let { m -> Images.byId(m.imageId)?.takeIf { profile.choice(it.id) != null } }
+            ?: st.pendingUpdate?.takeIf { st.partial && it.profileId == profile.id }
+                ?.let { m -> Images.byId(m.imageId)?.takeIf { profile.choice(it.id) != null } }
             // An interrupted setup has no marker, but root can identify its raw image.
             ?: profile.images().firstOrNull { st.partial && st.rawVerifiedSha256 == it.rawSha256 }
         val candidate = if (plan.source == SessionPrefs.Source.ON_PHONE) stagedCandidate else

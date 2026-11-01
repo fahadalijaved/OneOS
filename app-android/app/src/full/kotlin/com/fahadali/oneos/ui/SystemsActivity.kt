@@ -550,7 +550,7 @@ class SystemsFragment : Fragment() {
         }
         when {
             settingUp -> only(getString(R.string.systems_show_progress), true) { a?.let { startArtwork(it, Intent(it, SetupProgressActivity::class.java), v.findViewById(R.id.systems_artwork)) } }
-            setUp && maintenance != null -> only(getString(R.string.catalog_update),
+            setUp && maintenance != null -> only(maintenance.actionLabel ?: getString(R.string.catalog_update),
                 !jobsBusy && StageCheck.state.phase == StageCheck.Phase.DONE,
                 onCardClick = { a?.let { startArtwork(it, EnvironmentNavigation.intent(it, image), v.findViewById(R.id.systems_artwork)) } }) {
                 a?.let {

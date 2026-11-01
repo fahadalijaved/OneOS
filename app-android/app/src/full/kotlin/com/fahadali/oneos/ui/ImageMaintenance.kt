@@ -22,12 +22,19 @@ internal object ImageMaintenance {
         val stage = result.status
         stage.marker?.takeIf { stage.ours }?.imageId?.let(Images::byId)?.let { return it }
         if (!stage.partial) return null
+        stage.pendingUpdate?.takeIf { it.profileId == Profiles.resolve(result.facts).profile?.id }
+            ?.imageId?.let(Images::byId)?.let { return it }
         val verified = stage.rawVerifiedSha256
         return Profiles.resolve(result.facts).profile?.images()?.firstOrNull { verified != null && it.rawSha256 == verified }
     }
 
     fun message(ctx: Context, image: ImageRef, result: StageCheck.Result?, report: GateReport? = null): PlainMessage? {
         if (result == null || identifiedImage(result)?.id != image.id) return null
+        if (result.status.pendingUpdate != null && result.status.partial) return PlainMessage(
+            ctx.getString(R.string.update_interrupted_title, image.name),
+            ctx.getString(R.string.update_interrupted_summary),
+            FixAction.UPDATE, ctx.getString(R.string.retry_update), Level.BLOCK,
+        )
         if (result.status.partial) return PlainMessage(
             ctx.getString(R.string.environment_restage_title, image.name),
             ctx.getString(R.string.environment_restage_summary),

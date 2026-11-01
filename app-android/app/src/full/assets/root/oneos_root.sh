@@ -704,6 +704,9 @@ do_begin() {
                 made=""
                 if [ "$ours" = 1 ]; then
                     made=$M_IMAGE
+                elif [ -f "$STAGE/.oneos_update" ] && mine "$STAGE/.oneos_update"; then
+                    made=$(sed -n 's/^  "image": "\([a-z0-9-]*\)",$/\1/p' "$STAGE/.oneos_update")
+                    is_id "$made" || made="another image"
                 elif [ -f "$PLAN" ] && mine "$PLAN"; then
                     { read -r pp made pr < "$PLAN" && is_id "$made"; } || made="another image"
                 fi
@@ -745,6 +748,12 @@ do_begin() {
         [ -e "$f" ] || [ -L "$f" ] || continue
         if [ -f "$f" ] || [ -L "$f" ]; then rm -f "$f"; else to_attic "incoming/${f##*/}"; fi
     done
+    # A durable identity checkpoint survives app death, reboot and repeated retries.
+    # It never authorizes boot; launch refuses it until finish commits everything.
+    if [ "$mode" = keep ] && [ "$ours" = 1 ]; then
+        cp "$STAGE/.oneos_stage" "$STAGE/.oneos_update.tmp" && own "$STAGE/.oneos_update.tmp" 0644 &&
+            mv -f "$STAGE/.oneos_update.tmp" "$STAGE/.oneos_update" || die "could not checkpoint the installed system"
+    fi
     # The last preparation's records: the new one writes its own, and a
     # half-prepared stage has none (the app and the scripts then refuse).
     to_attic .oneos_stage files.sha256 system.raw.id session.env host_installd.table
@@ -870,7 +879,7 @@ do_finish() {
         [ -e "$f" ] || [ -L "$f" ] || continue
         [ -d "$f" ] && [ ! -L "$f" ] && continue
         n=${f##*/}
-        in_list "$n" "$P_FILES system.raw system.raw.id files.sha256 session.env host_installd.table" && continue
+        in_list "$n" "$P_FILES system.raw system.raw.id files.sha256 session.env host_installd.table .oneos_update" && continue
         case "$n" in
             *.log|persist_props.snapshot|persist_session.active|guest_locale|guest_props.added|guest_props.overridden|guest_props.boot|guest_props.blanked|guest_props.blanked.boot|\
             host_wifi_on|host_adb_on|host_mobile_data|host_supplicant_svc|host_apex.before|host_apex.after|guest_mntns|guest_rootdev) continue ;;
@@ -880,7 +889,7 @@ do_finish() {
     check_files "$P_FILES"
     marker_text "$P_CODE" "$P_PROFILE" "$P_IMAGE" "$P_SET" "$(date +%s)" > "$STAGE/.oneos_stage.tmp" && own "$STAGE/.oneos_stage.tmp" 0644 &&
         mv -f "$STAGE/.oneos_stage.tmp" "$STAGE/.oneos_stage" || die "could not write the marker"
-    rm -f "$PLAN" "$RECEIVED"
+    rm -f "$STAGE/.oneos_update" "$PLAN" "$RECEIVED"
     say "@@OK finish"
 }
 
@@ -910,6 +919,7 @@ do_launch() {
     case "$verbose" in 0|1) ;; *) usage "launch verboseBoot $verbose" ;; esac
     [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
     step "checks"
+    [ ! -e "$STAGE/.oneos_update" ] || refuse "the installed system update did not finish: retry the update"
     read_marker || refuse "the stage has no OneOS marker: prepare first"
     [ "$M_CODE" = "$code" ] || refuse "prepared by app build $M_CODE, this is build $code: prepare again"
     pinfo=$(profile_info "$M_PROFILE") || refuse "the stage is prepared for $M_PROFILE, which this build does not switch"

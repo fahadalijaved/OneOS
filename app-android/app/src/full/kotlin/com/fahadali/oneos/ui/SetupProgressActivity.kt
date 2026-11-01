@@ -388,7 +388,9 @@ class SetupProgressFragment : Fragment() {
             }
             PrepareJob.Phase.STOPPED, PrepareJob.Phase.FAILED -> {
                 val fix = s.plain?.takeIf { it.action != FixAction.NONE && it.action != FixAction.ACKNOWLEDGE && it.actionLabel != null }
-                show(primary, fix?.actionLabel) { if (fix != null) FixActions.run(a, fix.action, s.image) }
+                if (s.plan?.keepsData == true) {
+                    show(primary, getString(R.string.retry_update)) { FixActions.run(a, FixAction.UPDATE, s.image) }
+                } else show(primary, fix?.actionLabel) { if (fix != null) FixActions.run(a, fix.action, s.image) }
                 show(secondary, getString(R.string.setup_close)) { SystemsNav.home(a) }
             }
             PrepareJob.Phase.IDLE -> {

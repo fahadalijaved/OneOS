@@ -256,7 +256,8 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             (maintenance != null || !report.blocked) && !Readiness.anyBusy() &&
             !com.fahadali.oneos.session.RemoveJob.state.busy)
         findViewById<Button>(R.id.environment_boot).apply {
-            text = getString(if (maintenance != null) R.string.environment_update else R.string.environment_boot, image.name)
+            text = if (result?.status?.pendingUpdate != null && maintenance != null) getString(R.string.retry_update)
+                else getString(if (maintenance != null) R.string.environment_update else R.string.environment_boot, image.name)
             isEnabled = !checking && readyToBoot()
             // Preserve the native button's text measurement while replacing its label
             // visually with the centred SESL spinner during the read-only check.

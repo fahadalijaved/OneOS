@@ -1453,6 +1453,33 @@ class StageScriptTest {
     }
 
     @Test
+    fun interruptedUpdateRetainsItsIdentityAndDataThroughRepeatedRetries() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val guestData = File(fr.stage, "data/kept-apps").apply { parentFile.mkdirs(); writeText("user apps and settings") }
+        val origin = File(fr.stage, ".oneos_stage").readText()
+        s.ok(s.begin("keep"))
+        assertEquals(origin, File(fr.stage, ".oneos_update").readText())
+        assertFalse(File(fr.stage, ".oneos_stage").exists())
+        refused(s.launch(), "update did not finish")
+        // Each verb uses a fresh shell, like retrying after process death or reboot.
+        s.ok(s.begin("keep"))
+        assertEquals(origin, File(fr.stage, ".oneos_update").readText())
+        assertEquals("user apps and settings", guestData.readText())
+        for (name in s.files.keys) s.ok(s.receive(name))
+        val rawIdentity = File(fr.stage, "system.raw").let { java.nio.file.Files.getAttribute(it.toPath(), "unix:ino") }
+        s.ok(fr.run(RootScript.Verb.KEEP_RAW, s.raw.size.toString(), Hashes.sha256(s.raw)))
+        assertEquals(rawIdentity, java.nio.file.Files.getAttribute(File(fr.stage, "system.raw").toPath(), "unix:ino"))
+        s.ok(s.table())
+        s.ok(s.env())
+        s.ok(s.finish())
+        assertFalse(File(fr.stage, ".oneos_update").exists())
+        assertTrue(File(fr.stage, ".oneos_stage").isFile)
+        assertEquals("user apps and settings", guestData.readText())
+        refused(s.launch(), "test root: every launch check passed")
+    }
+
+    @Test
     fun argumentsAreCheckedBeforeTheLauncherIsBuilt() {
         assertTrue(RootScript.problems(RootScript.Verb.RECEIVE, listOf("../x", "1", "a".repeat(64))).isNotEmpty())
         assertTrue(RootScript.problems(RootScript.Verb.RECEIVE, listOf("services_patched.jar", "1;reboot", "a".repeat(64))).isNotEmpty())
