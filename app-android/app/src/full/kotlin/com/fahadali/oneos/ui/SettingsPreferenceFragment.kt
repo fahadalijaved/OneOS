@@ -51,12 +51,12 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         }
         val sessions = category(R.string.advanced_card_sessions)
         row(sessions, R.string.last_title, target = LastSessionActivity::class.java)
-        toggle(sessions, R.string.advanced_heat_cap_title, R.string.advanced_heat_cap_summary, SessionPrefs.heatCap(ctx)) { SessionPrefs.setHeatCap(ctx, it) }
-        val experimental = category(R.string.advanced_card_calls)
+        toggle(sessions, R.string.settings_thermal, R.string.advanced_heat_cap_summary, SessionPrefs.heatCap(ctx)) { SessionPrefs.setHeatCap(ctx, it) }
+        val experimental = category(R.string.settings_experimental)
         toggle(experimental, R.string.advanced_sec_ims_title, R.string.advanced_sec_ims_summary, SessionPrefs.secIms(ctx)) { SessionPrefs.setSecIms(ctx, it) }
-        toggle(experimental, R.string.advanced_edm_stub_title, R.string.advanced_edm_stub_summary, SessionPrefs.edmStub(ctx)) { SessionPrefs.setEdmStub(ctx, it) }
+        toggle(experimental, R.string.settings_camera, R.string.advanced_edm_stub_summary, SessionPrefs.edmStub(ctx)) { SessionPrefs.setEdmStub(ctx, it) }
         val risky = category(R.string.advanced_card_risky)
-        toggle(risky, R.string.advanced_allow_lock_title, R.string.advanced_allow_lock_summary, SessionPrefs.allowScreenLock(ctx)) { SessionPrefs.setAllowScreenLock(ctx, it) }
+        toggle(risky, R.string.settings_allow_lock, R.string.advanced_allow_lock_summary, SessionPrefs.allowScreenLock(ctx)) { SessionPrefs.setAllowScreenLock(ctx, it) }
         LogJob.latestZip(ctx)?.let { zip ->
             sessions.addPreference(Preference(ctx).apply {
                 setTitle(R.string.logs_title)
