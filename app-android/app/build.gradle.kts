@@ -27,7 +27,16 @@ fun sha256(f: File): String {
 // those hashes, or the build fails. Deduplicated by SHA-256 into
 // assets/oneos/files/<sha256>; per-set lists in assets/oneos/sets/.
 val repoRoot: File = rootProject.projectDir.parentFile
-val packagesDir: File = rootProject.file("packages")
+// Explicit local test payloads can carry a newly built guest without changing release pins.
+val testPackagesDir = providers.gradleProperty("oneos.testPackagesDir").orNull
+val packagesDir: File = rootProject.file(testPackagesDir ?: "packages")
+if (testPackagesDir != null) {
+    gradle.taskGraph.whenReady {
+        check(allTasks.none { it.name.contains("Release", ignoreCase = true) }) {
+            "oneos.testPackagesDir is for local debug builds only; release builds use the checked-in package pins."
+        }
+    }
+}
 // Every set carries OneOSGuest.apk (app-android/guest, the in-guest "Back to
 // One UI" app; the ColorOS sets since their 2026-10-25 rebuild), and
 // guest_prepare.sh puts it in the guest's /oem/app.

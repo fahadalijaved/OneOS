@@ -9,7 +9,17 @@ import dev.oneuiproject.oneui.ktx.startPopOverActivity
 import dev.oneuiproject.oneui.popover.PopOverOptions
 
 class LauncherActivity : SystemsActivity() {
-    override val screenTitle: CharSequence get() = getString(R.string.app_name)
+    override val screenTitle: CharSequence get() = android.text.SpannableString(getString(R.string.app_name)).apply {
+        setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.oneos_blue)), length - 2, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        toolbarLayout.toolbar.apply {
+            setLogo(R.drawable.toolbar_brand_logo)
+            logoDescription = getString(R.string.app_name)
+            titleMarginStart = (12 * resources.displayMetrics.density).toInt()
+        }
+    }
     override val showBack = false
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menu.add(0, 900, 0, R.string.catalog_settings).apply {

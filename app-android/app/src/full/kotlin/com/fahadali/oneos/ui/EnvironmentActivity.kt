@@ -82,7 +82,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         findViewById<NestedScrollView>(R.id.environment_scroll).apply {
             isNestedScrollingEnabled = !resources.getBoolean(R.bool.home_two_pane)
             seslSetFadingEdgeEnabled(true)
-            seslSetFadingEdgeColor(Color.BLACK)
+            seslSetFadingEdgeColor(getColor(R.color.oneos_page_background))
             seslSetFadingEdgeWindowBottomAlignment(nativeToolbar != null)
             seslSetAllowTopFadingEdgeWithoutEdgeToEdge(true)
         }
@@ -188,7 +188,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 val surface = RoundedLinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     val level = tileLevel(tileGates[rowIndex * 2 + index])
-                    val neutral = Color.rgb(46, 46, 48)
+                    val neutral = getColor(R.color.oneos_check_surface)
                     setBackgroundColor(if (level == Level.INFO) neutral else
                         androidx.core.graphics.ColorUtils.blendARGB(neutral, Cards.levelColor(this@EnvironmentActivity, level), .16f))
                     roundedCorners = androidx.appcompat.util.SeslRoundedCorner.ROUNDED_CORNER_NONE
@@ -210,7 +210,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                     iconSize = dp(24)
                     minimumHeight = dp(if (wide) 88 else 104)
                     gravity = android.view.Gravity.CENTER_VERTICAL
-                    getIconImageView().imageTintList = ColorStateList.valueOf(Color.WHITE)
+                    getIconImageView().imageTintList = ColorStateList.valueOf(getColor(R.color.oneos_icon))
                     // Compact the stock card row for a two-column fact tile; it has no badge or end widget.
                     (getTitleView().parent as View).setPadding(dp(12), 0, dp(12), 0)
                     (getIconImageView().parent as View).setPadding(0, 0, dp(12), 0)

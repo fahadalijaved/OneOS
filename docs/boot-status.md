@@ -39,3 +39,9 @@ this guest in those payloads requires the existing OneOS release key and the
 normal package hash updates. A debug guest must not replace that pinned artifact
 or bypass its signature checks. Updating only the host does not update the
 bundled guest APK or the phone's existing stage.
+
+For a local debug-only guest update trial, `-Poneos.testPackagesDir=<folder>`
+selects an explicit copy of the package manifests. The local payload folders
+carry the rebuilt guest and those manifests pin its exact SHA-256. Both the
+compiled list pins and packaged asset lists use that copy; normal release
+manifests stay unchanged. The build rejects this override for any Release task.

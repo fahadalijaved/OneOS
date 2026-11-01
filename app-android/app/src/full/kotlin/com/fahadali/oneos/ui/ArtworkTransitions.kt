@@ -40,7 +40,7 @@ internal object ArtworkTransitions {
             fadeProgressThresholds = MaterialContainerTransform.ProgressThresholds(.12f, .96f)
             fitMode = MaterialContainerTransform.FIT_MODE_AUTO
             scrimColor = Color.TRANSPARENT
-            setAllContainerColors(Color.BLACK)
+            setAllContainerColors(activity.getColor(com.fahadali.oneos.R.color.oneos_page_background))
             startShapeAppearanceModel = shape(activity)
             endShapeAppearanceModel = shape(activity)
             isElevationShadowEnabled = false

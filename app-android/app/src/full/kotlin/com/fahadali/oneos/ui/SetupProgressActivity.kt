@@ -131,7 +131,7 @@ class SetupProgressFragment : Fragment() {
             isNestedScrollingEnabled = false
             clipToPadding = false
             seslSetFadingEdgeEnabled(true)
-            seslSetFadingEdgeColor(android.graphics.Color.BLACK)
+            seslSetFadingEdgeColor(requireContext().getColor(R.color.oneos_page_background))
             seslSetFadingEdgeWindowBottomAlignment(false)
             seslSetAllowTopFadingEdgeWithoutEdgeToEdge(true)
         }

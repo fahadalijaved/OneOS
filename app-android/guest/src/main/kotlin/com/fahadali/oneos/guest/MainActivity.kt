@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
             }
             insets
         }
-        scroll.seslSetFadingEdgeColor(android.graphics.Color.BLACK)
+        scroll.seslSetFadingEdgeColor(getColor(R.color.guest_page_background))
         scroll.seslSetFadingEdgeWindowBottomAlignment(!wide)
         val fadeGap = (24 * resources.displayMetrics.density).toInt()
         footer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
