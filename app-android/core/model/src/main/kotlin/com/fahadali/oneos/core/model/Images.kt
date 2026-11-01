@@ -6,8 +6,10 @@ import java.util.Locale
  * The system an image is a build of. Guest data stays with its own system:
  * a stage's ColorOS data is never kept for the Pixel image, nor Pixel data
  * for a ColorOS image (StageStatus.beginModes, root's `begin keep`, 0.3.7).
+ * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
+ * packages too, and its updater, com.infinity.updater, tells it apart.
  */
-enum class SystemFamily { COLOROS, PIXEL }
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING }
 
 /**
  * One OneOS OS image as friends download it (a gzip of the ext4 system
@@ -97,7 +99,7 @@ data class ImageRef(
  */
 object Images {
     /** Where the images come from: the README (this repository does not host them). */
-    const val SHARED_FOLDER_URL = "https://github.com/fahadalijaved23/OneOS#where-the-images-come-from"
+    const val SHARED_FOLDER_URL = "https://github.com/fahadalijaved/OneOS#where-the-images-come-from"
 
     /** What fixed texts say when no image is known: they never name a system. */
     const val OTHER_SYSTEM = "the other system"
@@ -107,6 +109,10 @@ object Images {
     const val ID_FIND_X9U_IN = "coloros17-findx9u-in"
     const val ID_PIXEL_YOGI = "pixel11fold-yogi"
     const val ID_PIXEL_KODIAK = "pixel11pro-kodiak"
+    const val ID_HYPEROS_LHASA = "hyperos-lhasa"
+    const val ID_PIXEL_KOMODO = "pixel9proxl-komodo"
+    const val ID_INFINITYX = "infinityx41-findx9u"
+    const val ID_NOTHING_METROID = "nothingos5-metroid"
 
     /** Where root stages the unpacked image. */
     const val STAGE_NAME = "system.raw"
@@ -261,7 +267,151 @@ object Images {
         family = SystemFamily.PIXEL,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK)
+    /**
+     * Google's Pixel 9 Pro XL system (komodo, `google/komodo/komodo:17/CP3A.261005.005`),
+     * from 0.4.22 for the phones without SVE (Galaxy S25 Ultra, S25, S25+, S24
+     * Ultra): the factory image (owner's link), MysticGSI `--type pixel
+     * --no-debloat`, then Pixel Camera, PixelCameraServices, PixelDisplayService
+     * and grilservice removed, as for the Pixel 11 images. Disassembly
+     * (llvm-objdump, 2026-10-26) finds no SVE in libutils, libbinder, libhwui,
+     * libgui, libandroid_runtime, init, surfaceflinger, servicemanager,
+     * app_process64 or the boot image; the loader's only SVE (two cntd, which
+     * MysticGSI's build warning names) is in compiler-rt's SME state routines,
+     * behind the CPU feature bit. No app or library scan beyond those. Untested.
+     */
+    val PIXEL_KOMODO = ImageRef(
+        id = ID_PIXEL_KOMODO,
+        label = "Pixel 9 Pro XL, komodo build",
+        shortName = "Pixel 9 Pro XL",
+        name = "Pixel 9 Pro XL",
+        variant = null,
+        blurb = "Google's system from the Pixel 9 Pro XL, with Google Play and Google's apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP3A.261005.005",
+        gzName = "OneOS_Pixel9ProXL_Full_S25U.img.gz",
+        gzBytes = 2_925_465_896L,
+        gzSha256 = "b49a3f8e8825241083d564c6e49118e59049f5bc887443e19411909e6d770266",
+        rawBytes = 5_837_496_320L,
+        rawSha256 = "2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.PIXEL,
+    )
+
+    /**
+     * Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse,
+     * `infinity_lighthouse-user`, CP2A.260605.016), from 0.4.27 on every phone:
+     * a custom Android 17 built from source on LineageOS, with Google's apps
+     * (Play services in a product gmssystem APEX, as Pixel 17 keeps it, so its
+     * set stages the payload and sessions present it) and OPPO's framework jars of
+     * ColorOS 16 (oplus-fwk.jar, oplus-services.jar) for its camera port. The
+     * unofficial 2026-10-18 GAPPS build, made with MysticGSI (which takes it
+     * for ColorOS) and not changed. Its own vold and service.incremental.so
+     * (make-overlays.sh pins them for the guest vold as gvld); its duress-PIN
+     * wipe and OPPO's extended wipe never run in the guest
+     * (guest_no_wipe_secrets.py). Disassembly (llvm-objdump, 2026-10-29) finds
+     * no SVE or SME in libutils, libbinder, libhwui, libgui,
+     * libandroid_runtime, libc++, surfaceflinger, servicemanager,
+     * app_process64 or init; only the loader's compiler-rt routines (cntd,
+     * rdsvl), behind the CPU feature bit. OPPO's camera and gallery libraries
+     * were not scanned. Untested.
+     */
+    val INFINITYX = ImageRef(
+        id = ID_INFINITYX,
+        label = "Infinity-X 4.1, Find X9 Ultra build",
+        shortName = "Infinity-X",
+        name = "Infinity-X 4.1",
+        variant = null,
+        blurb = "A custom Android 17 system made for the Find X9 Ultra, with Google Play and Google's apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_InfinityX_FindX9Ultra.img.gz",
+        gzBytes = 3_321_412_981L,
+        gzSha256 = "608bb8602dcc0c85fc80127a2f9713a695508438b8c2d31eef3df25d23109bb5",
+        rawBytes = 6_677_426_176L,
+        rawSha256 = "899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve2", "sme"),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.INFINITYX,
+    )
+
+    /**
+     * Xiaomi's HyperOS from the Xiaomi 18 Fold (lhasa, CN OTA OS4.0.26.0.XPNCNXM,
+     * `CP2A.260605.016`), MysticGSI's HyperOS patch set
+     * (`mysticgsi/out/oneos-hyperos-lhasa`). Local builds only up to 0.4.30;
+     * from 0.4.31 on every phone (owner, 2026-10-29: "Allow all users to try",
+     * made for the Z Fold8 Ultra and Z Fold8). Guarded like the other images,
+     * plus Xiaomi's own framework (docs/hyperos.md); no gvld pins yet, so Back
+     * to One UI restarts the phone. The CPU scan found MOPS only in the linker
+     * and libc ifunc variants, as in the Find N6 image. Untested.
+     */
+    val HYPEROS_LHASA = ImageRef(
+        id = ID_HYPEROS_LHASA,
+        label = "HyperOS, Xiaomi 18 Fold build",
+        shortName = "Xiaomi 18 Fold",
+        name = "HyperOS",
+        variant = null,
+        blurb = "Xiaomi's system from the Xiaomi 18 Fold. No Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz",
+        gzBytes = 4_666_011_150L,
+        gzSha256 = "745e43c2d116c4277af06b65c5d8fbaefec11731dcc23f0c067631fce04554a3",
+        rawBytes = 7_749_939_200L,
+        rawSha256 = "269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = false,
+        family = SystemFamily.HYPEROS,
+    )
+
+    /**
+     * Nothing OS 5.0 (0.4.33), from the Nothing Archive dump of the A024
+     * "Metroid" (nothing_archive, Metroid_C5.0-260924-2115). Android 17 on a
+     * Qualcomm qssi_64 system image, like the ColorOS and Infinity-X builds.
+     *
+     * It keeps Google services (GmsCore and the Play Store are ordinary
+     * priv-apps in its product partition, not the APEX the Pixel images
+     * present), so a launch may hide them. No CPU requirement (0.4.36): the
+     * linker's and libc's SVE/SME instructions are the SME support routines,
+     * run only when the CPU reports SME (the Pixel 9 Pro XL, which runs on the
+     * S25 Ultra, has the same two), and of its ~1000 native files only
+     * libraries that choose their code at run time (libjxl, BoringSSL) hold
+     * SVE; the core libraries have none, unlike the Pixel 11 images'.
+     */
+    val NOTHING_METROID = ImageRef(
+        id = ID_NOTHING_METROID,
+        label = "Nothing OS 5.0, Metroid build",
+        shortName = "Nothing OS",
+        name = "Nothing OS 5.0",
+        variant = null,
+        blurb = "Nothing's system from the A024 (Metroid). With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "AQ3A.250924.001",
+        gzName = "OneOS_NothingOS5_Metroid.img.gz",
+        gzBytes = 3_276_156_748L,
+        gzSha256 = "3026923ea476e998fd1ae828f441937106ffbe8fbaf613a316bce444998997bd",
+        rawBytes = 6_067_867_648L,
+        rawSha256 = "484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.NOTHING,
+    )
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

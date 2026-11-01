@@ -10,8 +10,9 @@ the vendor name, and a service.incremental.so that looks up "gvld"
 
 1. The three "vold" lookups become "gvld": StorageManagerService.connectVold,
    StorageManagerService$StorageManagerInternalImpl.prepareStorageDirs and
-   StatsPullAtomService.getIVoldService. Fails unless exactly those three
-   change and services.jar has no other "vold" string.
+   StatsPullAtomService.getIVoldService. Fails unless those three change
+   (plus, in some builds, the OPTIONAL ones below) and services.jar has no
+   other "vold" string.
 2. Fails if services.jar still calls RecoverySystem.rebootPromptAndWipeUserData.
    That framework.jar method (boot class path, not patched) runs
    checkService("vold") in the caller's process, which would now be One UI's
@@ -28,10 +29,17 @@ the vendor name, and a service.incremental.so that looks up "gvld"
    DFS fuse, tmp storage, SD lock), becomes "gvld". Left as it was, those
    calls would reach One UI's vold, whose transaction codes are not OPPO's.
 
+4. With --miui, the same for HyperOS's miui-services.jar: ExtendMImpl.connect
+   (Xiaomi's memory extension, whose IVold calls - runExtMFlush and others -
+   go by reflection with Xiaomi's transaction codes) and
+   AppCacheOptimizer.connectVold. miui_guards.py runs first: its factory
+   resets (RescuePartyXM) are the jar's only rebootPromptAndWipeUserData
+   callers.
+
 make-overlays.sh runs this only when it built vold_patched (Pixel 17 and
 ColorOS 17 CP2A.260605.016); other images keep "vold".
 
-Usage: guest_own_vold.py [--oplus] <smali root dir>
+Usage: guest_own_vold.py [--oplus | --miui] <smali root dir>
 Prints the smali_* directories (dex files) it changed, one per line.
 """
 import os
@@ -46,13 +54,25 @@ WANT = {
     ("com/android/server/StorageManagerService$StorageManagerInternalImpl", "prepareStorageDirs"),
     ("com/android/server/stats/pull/StatsPullAtomService", "getIVoldService"),
 }
+# Lookups some builds add (Infinity-X 4.1): a shell command's read
+# (checkNonCeStorageKeys) and ExtendedWipeWithoutReboot.run, which
+# guest_no_wipe_secrets.py (run before this) makes return at entry. Both may
+# take "gvld" too; WANT must still be there.
+OPTIONAL = {
+    ("com/android/server/locksettings/LockSettingsShellCommand", "handleCheckNonCeStorageKeys"),
+    ("com/android/server/recoverysystem/ExtendedWipeWithoutReboot", "run"),
+}
 WANT_OPLUS = {
     ("com/android/server/storage/OplusStorageManagerFeature", "connectVold"),
+}
+WANT_MIUI = {
+    ("com/android/server/ExtendMImpl", "connect"),
+    ("com/android/server/appcacheopt/AppCacheOptimizer", "connectVold"),
 }
 WIPE = "Landroid/os/RecoverySystem;->rebootPromptAndWipeUserData("
 
 
-def main(root, want, jar):
+def main(root, want, jar, optional=frozenset()):
     # Written only once every file has passed (a failed run leaves the tree as it was).
     pending, sites = {}, set()
     for dirpath, _, files in os.walk(root):
@@ -98,7 +118,7 @@ def main(root, want, jar):
                 print(f'{cls}.{method}: {lk.group(2)}("vold") -> "gvld"', file=sys.stderr)
             if dirty:
                 pending[path] = "\n".join(lines)
-    if sites != want:
+    if not want <= sites or not sites - want <= optional:
         sys.exit(f'expected the "vold" lookups {sorted(want)}, found {sorted(sites)}')
     for path, text in pending.items():
         with open(path, "w") as f:
@@ -111,5 +131,7 @@ def main(root, want, jar):
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--oplus"]:
         main(sys.argv[2], WANT_OPLUS, "oplus-services.jar")
+    elif sys.argv[1:2] == ["--miui"]:
+        main(sys.argv[2], WANT_MIUI, "miui-services.jar")
     else:
-        main(sys.argv[1], WANT, "services.jar")
+        main(sys.argv[1], WANT, "services.jar", OPTIONAL)

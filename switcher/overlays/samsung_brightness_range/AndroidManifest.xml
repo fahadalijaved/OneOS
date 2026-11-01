@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One UI's brightness range for the guest's slider. Samsung's composer maps the
+     brightness float straight onto the panel's backlight, and One UI uses
+     0.0026 (about 2 nits) to 0.196299 (520 nits) for the slider, the same
+     points as the nits table guest_prepare.sh writes. Nothing OS 5.0 leaves the
+     float settings at -2 and takes them from its integers 10..255 of 255:
+     0.0354 to 1.0, about 70 nits at the bottom and the panel's 2600-nit peak at
+     the top, with the steps spread over that (owner, Nothing run 23: "lowest
+     still very bright, top too bright, steps weird"). Read at boot: a static
+     overlay in the guest's /oem (guest_prepare.sh, Nothing images for now). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.samsung.brightnessrange">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="android"
+        android:isStatic="true"
+        android:priority="3"/>
+</manifest>

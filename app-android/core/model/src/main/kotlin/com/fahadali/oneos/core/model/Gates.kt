@@ -156,6 +156,18 @@ data class GateInput(
     val appVersionCode: Int? = null,
     /** The last session's logs are not collected yet (WARN only). */
     val uncollectedLogs: Boolean = false,
+    /**
+     * The series this APK was built for (BuildConfig.SERIES); null = the
+     * all-in-one build with every set. A phone of another series gets
+     * [SwitchGates.R_IMAGE_OTHER_SERIES].
+     */
+    val series: ApkSeries? = null,
+    /**
+     * 0.4.32: Advanced's "Switch with a screen lock set" is on, so a set lock warns
+     * instead of blocking. Last, with a default, so the positional constructors in
+     * the tests keep working. An unreadable lock state blocks whatever this says.
+     */
+    val allowScreenLock: Boolean = false,
 )
 
 /**
@@ -206,6 +218,7 @@ object SwitchGates {
     const val R_ANDROID_DIFFERS = "differs"
     const val R_FORM_MISMATCH = "mismatch"
     const val R_IMAGE_NOT_IN_BUILD = "not-in-build"
+    const val R_IMAGE_OTHER_SERIES = "other-series"
     const val R_IMAGE_NONE = "none"
     const val R_IMAGE_NOT_READ = "not-read"
     const val R_IMAGE_NOTHING = "nothing"
@@ -292,6 +305,12 @@ object SwitchGates {
                         val s = PackageSets.byId(c.packageSetId, sets)
                         i == null || s == null || s.imageId != i.id
                     } -> block(ID_IMAGE, "No image for this phone", "Profile ${profile.id} names an image or file set this build does not have.", R_IMAGE_NOT_IN_BUILD)
+                    // The phone's own series (0.4.27: the Infinity-X set is in every series, so
+                    // carrying one of the phone's sets no longer tells); a profile in no series
+                    // is another series' when this APK carries none of its sets.
+                    input.series != null && (ApkSeries.of(profile.id)?.let { it != input.series }
+                        ?: profile.choices.none { it.packageSetId in input.series.setIds(profiles) }) ->
+                        otherSeries(profile, input.series)
                     switching -> stagedImage(input, profile, choice, image, images)
                     identity != null -> identity.finding
                     else -> block(ID_IMAGE, "Pick the image first", "${ImageIdentifier.accepts(profile, images)}.", R_IMAGE_NONE)
@@ -304,7 +323,7 @@ object SwitchGates {
         space(phase, input, image, set)?.let { out += Gate(it) }
         out += Gate(
             if (switching) {
-                ScreenLockRule.switchGate(input.screenLockSet)
+                ScreenLockRule.switchGate(input.screenLockSet, input.allowScreenLock)
             } else {
                 ScreenLockRule.finding(input.screenLockSet).copy(id = ID_SCREEN_LOCK)
             },
@@ -332,6 +351,21 @@ object SwitchGates {
     }
 
     private fun block(id: String, title: String, detail: String, reason: String) = Finding(id, Level.BLOCK, title, detail, reason)
+
+    /** A series APK on a phone of another series: which download it needs. */
+    private fun otherSeries(profile: PhoneProfile, series: ApkSeries): Finding {
+        val needed = ApkSeries.of(profile.id)
+        return block(
+            ID_IMAGE,
+            "This OneOS is for the ${series.label}",
+            if (needed != null) {
+                "Your ${profile.label} needs OneOS for the ${needed.label} (the file ending in -${needed.id}.apk) from the OneOS download folder."
+            } else {
+                "No OneOS download has the systems for your ${profile.label} yet."
+            },
+            R_IMAGE_OTHER_SERIES,
+        )
+    }
 
     private fun root(f: DeviceFacts): Finding = rootFinding(f.root.probe)
 

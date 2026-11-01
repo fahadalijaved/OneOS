@@ -70,11 +70,14 @@ S=/data/local/tmp/oneos
 for f in "$S"/*.log; do [ -f "$f" ] && printf "%s\n" "$f"; done
 true'
 
-#: The guest's logs in its /data (takeover.log, call_audio.log, audio_keeper.log, backlight.log, ...).
+#: The guest's logs in its /data (takeover.log, call_audio.log, audio_keeper.log, backlight.log, ...),
+#: and (0.4.30) the guest OneOS app's checklist, How's it going?, for Send to the OneOS team.
 files logs.guest 120 guest '
 S=/data/local/tmp/oneos
 [ -e "$S" ] || [ -L "$S" ] || [ ! -d /data/local/tmp/lineage_stage ] || [ -L /data/local/tmp/lineage_stage ] || S=/data/local/tmp/lineage_stage
 for f in "$S"/data/*.log; do [ -f "$f" ] && printf "%s\n" "$f"; done
+c="$S/data/user/0/com.fahadali.oneos.guest/files/oneos_checklist.json"
+[ -f "$c" ] && [ ! -L "$c" ] && printf "%s\n" "$c"
 true'
 
 #: Host helper logs (UI activator, adb and IMS watchdogs).

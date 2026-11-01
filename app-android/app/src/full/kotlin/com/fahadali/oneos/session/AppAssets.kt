@@ -49,7 +49,8 @@ object AppAssets {
     }
 
     private fun list(ctx: Context, id: String): Map<String, String> {
-        val text = read(ctx, "oneos/sets/$id.sha256")
+        val text = runCatching { read(ctx, "oneos/sets/$id.sha256") }
+            .getOrElse { throw Broken("this OneOS download does not carry the $id set (another series' download has it)") }
         if (Hashes.sha256(text) != pinned(id)) throw Broken("the app's $id list is not the pinned one")
         val parsed = ShaList.parse(text.toString(Charsets.UTF_8))
         if (parsed.problems.isNotEmpty()) throw Broken("$id: ${parsed.problems.first()}")

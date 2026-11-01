@@ -31,9 +31,17 @@ class AboutFragment : PreferenceFragmentCompat() {
             openInBrowser(getString(R.string.about_credit_onelineage_url))
             true
         }
+        findPreference<Preference>("credit_fold8")?.setOnPreferenceClickListener {
+            openInBrowser(getString(R.string.about_credit_fold8_url))
+            true
+        }
+        findPreference<Preference>("credit_infinityx")?.setOnPreferenceClickListener {
+            openInBrowser(getString(R.string.about_credit_infinityx_url))
+            true
+        }
     }
 
-    /** Hands the link to the browser; the app itself has no INTERNET permission. */
+    /** Hands the link to the browser (the app's only network use is Send to the OneOS team). */
     private fun openInBrowser(url: String) {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
         try {

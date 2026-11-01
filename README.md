@@ -38,34 +38,123 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.17. Samsung flagships with Snapdragon, plus the first two
-Exynos phones; root is required (tested with KernelSU; Magisk and APatch are
+App version 0.4.36. Samsung flagships with Snapdragon, plus the first five
+Exynos phones and (0.4.33) the first MediaTek phone; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
-| Guest system | Tested on |
+Where each system has actually started, on our phones and on testers' (One UI
+9 throughout). What they reported working, item by item, is in
+[docs/compatibility.md](docs/compatibility.md).
+
+| Guest system | Has run on |
 | --- | --- |
-| Pixel 11 Fold (Android 17) | Galaxy Z Fold8 Ultra (SM-F976B), One UI 9 |
-| ColorOS 17, Find N6 build | Galaxy Z Fold8 Ultra (SM-F976B), One UI 9 |
-| ColorOS 17, Find X9 Ultra CN build | Galaxy S25 (SM-S931), Galaxy S25 Ultra (SM-S938), Galaxy S26 Ultra (SM-S948) |
+| Pixel 11 Fold (Android 17) | Galaxy Z Fold8 Ultra (SM-F976B), Z Fold8 (SM-F971B) |
+| ColorOS 17, Find N6 build | Galaxy Z Fold8 Ultra (SM-F976B), Z Fold8 (SM-F971B) |
+| ColorOS 17, Find X9 Ultra CN build | Galaxy S26 Ultra (SM-S948), S25 Ultra (SM-S938), S25 (SM-S931), A57 (SM-A576B) |
+| ColorOS 17, Find X9 Ultra IN (global) build | Galaxy Z Flip5 (SM-F731B) |
+| Infinity-X 4.1 | Galaxy S26 Ultra (SM-S948), S25 Ultra (SM-S938), S25 (SM-S931), S24 Ultra (SM-S928), Z Flip5 (SM-F731B) |
+| Nothing OS 5.0 | Galaxy Z Fold8 Ultra (SM-F976B) |
+
+Started is not the same as finished: on Infinity-X the reports so far say calls
+do not work and SMS only sometimes, which is what the IMS switch in Advanced is
+for (0.4.31, Infinity-X and HyperOS). On the Z Flip5 the camera was broken in
+both systems; 0.4.31 carries the fix.
 
 Untested profiles, where the app asks you to tick that you know before
 switching: Galaxy Z Fold8 (SM-F971) and Z Fold7 (SM-F966), Galaxy S26+ (SM-S947),
 S26 (SM-S942, SC-51G), S25+ (SM-S936) and S24 Ultra (SM-S928) with ColorOS; the
-Pixel 11 Fold image on the Z Fold8, and the Pixel 11 Pro image on the Galaxy S26
-Ultra, S26+ and S26; and on every Galaxy S phone above, the Find X9 Ultra IN (global) build
-of ColorOS 17, with Google Play and the Play Store. Galaxy S23 (SM-S911) and
-S23+ (SM-S916) are accepted for testing only:
+Pixel 11 Fold image on the Z Fold8, the Pixel 11 Pro image on the Galaxy S26
+Ultra, S26+ and S26, and the Pixel 9 Pro XL image on the Galaxy S25 Ultra, S25,
+S25+ and S24 Ultra (the Pixel 11 images need a newer CPU), and from 0.4.30 also on
+the Galaxy S23, S23+, Z Flip5, Z Flip7, A57 and (0.4.31) A56; and on every Galaxy S phone above, the Find X9 Ultra IN (global) build
+of ColorOS 17, with Google Play and the Play Store; and on every phone above,
+Infinity-X 4.1 (0.4.27), a custom Android 17 made for the Find X9 Ultra, with
+Google Play and Google's apps; and from 0.4.31, on every phone above, HyperOS,
+Xiaomi's system from the Xiaomi 18 Fold, made for the Galaxy Z Fold8 Ultra and Z
+Fold8 (its cover screen layout runs on the cover; other phones may try it too,
+where it runs as a phone). Galaxy S23 (SM-S911),
+S23+ (SM-S916) and, from 0.4.29, the Galaxy Z Flip5 (SM-F731, used as a phone on
+the main screen) are accepted for testing only:
 their vendor software is too old and the system will most likely not start
 (One UI comes back by itself; please share the session logs).
 
 Exynos, first runs: the Galaxy S26+ with Exynos (SM-S947B, m2s) with both
-Find X9 Ultra builds and the Pixel 11 Pro image, and the Galaxy Z Flip7
+Find X9 Ultra builds and the Pixel 11 Pro image, the Galaxy Z Flip7
 (SM-F766, Exynos 2500) with both Find X9 Ultra builds, used as a phone on the
-main screen (no cover screen layout yet). Nothing has run on Exynos yet.
+main screen (no cover screen layout yet), from 0.4.29 the Galaxy A57
+(SM-A576, a57x) with both Find X9 Ultra builds, the first A-series phone, and
+from 0.4.31 its smaller sibling the Galaxy A56 (SM-A566, a56x), with the same
+images. The
+S26+ and Z Flip7 test sessions fixed the first Exynos problems (the phone
+restarting after the switch); every system on Exynos is still untested. Each
+of them also offers Infinity-X.
+
+New in 0.4.33, untested: the Galaxy Z Fold6 (SM-F956, q6q, the S24 Ultra's
+Snapdragon 8 Gen 3) with the Find N6 build and Infinity-X, and the Galaxy A07
+(SM-A075, MediaTek MT6789, One UI 9), the first MediaTek phone, with Infinity-X
+only. The Galaxy A16 and A17 on One UI 8.5 (Android 16) are not supported yet:
+every system here is Android 17.
+
+New in 0.4.36: brightness by your phone's own panel in every system. Each
+system's brightness steps came from the Galaxy Z Fold8 Ultra's panel, which is
+right on the S26, S25 and S24 phones and the Z Fold6, Fold8 and Flip8, but
+gave an A56 or A36 about two thirds, a Z Fold5 or Flip5 a little over half and an S23 under
+half of the brightness each step asks for. OneOS now reads your panel's scale
+from One UI before the switch. **Nothing OS on more phones**, untested: the
+Galaxy S25 Ultra, S25, S25+, S24 Ultra, Z Fold7 and Z Fold6 (it turned out
+not to need the newest CPUs). New, untested: the Galaxy Z Fold5 (SM-F946,
+Snapdragon 8 Gen 2) with the Find N6 build and Infinity-X.
+
+New in 0.4.35: **Nothing OS 5.0** (Nothing's system from the Phone (3), with
+Google apps) on the Galaxy Z Fold8 Ultra, where it was made, and, untested, on
+the Z Fold8, S26 Ultra, S26+, S26 and the new Z Flip8: its Glyph ringtones and
+sounds, the boot animation on both screens of a Fold, One UI's brightness
+range, Essential Space on a double press of the power key, and an About phone
+page with your phone's picture, processor, RAM, storage, screens and battery.
+**One UI's own camera runs inside Nothing OS** (One UI's camera app, adapted
+on our side for a system that is not One UI): photos, both selfie cameras on
+a Fold, lens switching, and no 5 s wait at the start. New phones, untested:
+the Galaxy Z Flip8 (SM-F776, Exynos 2600) and the Galaxy A36 (SM-A366,
+Snapdragon). Fixes: the Pixel 9 Pro XL starts again on every phone but the
+Fold8 Ultra (0.4.34's brightness curve stopped it at the boot animation);
+the processor is no longer held at a low clock during and after a session
+when One UI had capped it before the switch (it stayed slow until power
+saving was turned on and off); the screen turns off while charging.
+Thanks to Josh for the ColorOS work on the Z Fold8 in this release (smoother
+switching and returning, the power key without a 5 s wait, cover screen
+spacing, wallpaper and lock screen editor layouts).
+
+New in 0.4.34: sound and the microphone in Infinity-X on the S25 series (its
+audio service waited for a One UI extension that is not there during a
+session); the Bluetooth audio bridge starts on the phones that need it (0.4.33
+checked too early and skipped it); the camera opens without a 5 s wait and a
+refusal on the S25 Ultra's firmware; One UI's brightness curve for every
+phone's own screen in Pixel and HyperOS; HyperOS's preinstalled apps
+(Downloads, Weather, Game Center, WPS) find their libraries.
+
+Also in 0.4.33: Bluetooth audio on the phones whose One UI has only Samsung's
+Bluetooth audio HAL (S25, S24, S23, Z Fold7, Z Flip7 and Flip5, A57, A56;
+untested there), through a small bridge to Samsung's HAL; Chrome loads pages
+again in every system (it is told to use its Java renderers); the camera opens
+without Knox's 5 s wait by default; on bar phones the Pixel and Infinity-X
+status bar takes One UI's height and corner size.
 
 Pixel 11 Fold on the Galaxy Z Fold8 Ultra: calls and SMS on both SIMs, 5G and
 Wi-Fi, Bluetooth audio, Google Play and Google's apps, the inner and cover
 screens, blur, and Back to One UI (usually without a restart).
+
+Pixel 9 Pro XL on the Galaxy S25 Ultra (first session, 0.4.22): it starts,
+runs Google's setup wizard, has mobile data on SIM 1, Bluetooth and stereo
+speakers, and Back to One UI works. The phone got very hot. 0.4.23 fixes the
+crash loop behind that, renders at 120 Hz instead of dropping to 60, and adds
+a heat cap (Advanced > Cool down when hot):
+One UI's own heat control does not run in the other system, so from 45 °C
+OneOS slows the processor until the phone cools.
+
+Camera in the Pixel systems (0.4.24): the flashlight tile and apps that use
+the Camera2 API work (Open Camera: Settings › Camera API › Camera2). Apps
+that use the older camera API still fail; Pixel Camera itself needs Google's
+camera hardware support and will not work on a Galaxy.
 
 Known open issues for each system are in `docs/pixel-guest.md` and
 `docs/coloros-on-fold.md`.
@@ -77,9 +166,9 @@ Android versions) is refused by the app's compatibility checks.
 
 Run **OneOS Probe** on it. It is a separate read-only app: it changes nothing,
 and it strips the IMEI, phone numbers and Wi-Fi names from its report (it
-needs root to read the system). Tap **Run tests**, then **Share**, and post the
-zip with your phone model in **Phone reports** in the
-[OneOS Telegram group](https://t.me/TheoneOS). New releases are announced
+needs root to read the system). Tap **Run tests**, then **Send to the OneOS
+team** (from 0.4.29), or **Share** and post the zip with your phone model in
+**Phone reports** in the [OneOS Telegram group](https://t.me/TheoneOS). New releases are announced
 there too. Probe is in the same download folder as the app (see the latest
 release).
 
@@ -97,14 +186,25 @@ release).
    **None** or **Swipe**: no PIN, pattern, password, fingerprint or face. If
    something goes wrong and the phone boot-loops, a locked phone may need a
    factory reset to recover. OneOS will not switch while a lock is set.
+   From 0.4.32 Advanced has a switch, under **Risky**, to do it anyway: your
+   One UI apps and photos are encrypted behind that lock, so a session that
+   leaves the phone unable to accept it is a factory reset, not an
+   inconvenience. Leave it off unless you have a reason and accept that.
 4. **Root, battery and heat.** The phone must be rooted (tested with KernelSU),
    charged to at least 30 % and not hot (under 42 °C).
 
 **Then:**
 
-5. Install the OneOS app and allow it in your root manager.
+5. Install the OneOS app made for your phone's series and allow it in your
+   root manager. From 0.4.25 there are three downloads, each about half the
+   size of the old single app:
+   `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6, Z Fold5),
+   `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26, Z Flip8) and
+   `OneOS-<version>-s25.apk` (Galaxy S25 Ultra, S25+, S25, S24 Ultra, S23,
+   S23+, Z Flip7, Z Flip5, A57, A56, A36, A07). Installed the wrong one? OneOS tells you which file your
+   phone needs.
 6. In OneOS open **Systems**, tap **Download** on the system made for your
-   phone and download it, on Wi-Fi (3.3 to 5.3 GB).
+   phone and download it, on Wi-Fi (3.3 to 5.9 GB).
 7. Back in OneOS tap **I have the file**, pick the download, then **Set up**.
    Setup takes about 15 minutes: keep OneOS open and the phone plugged in. One
    UI keeps working meanwhile.
@@ -114,6 +214,40 @@ release).
    **Power + Volume Down** to restart into One UI.
 
 If your root does not survive a restart, activate it again after you come back.
+
+**Tell us how it went** (from 0.4.29): after a session, open **Last session**
+and tap **Send to the OneOS team**. Say whether the system started and tick
+what worked and what had problems (Wi-Fi, calls, Bluetooth, camera and so on);
+a note and your Telegram name are optional. By default the app sends the short
+log (the first minutes after the switch and the last two before it ended); it
+sends the whole session's log when you tick a problem or turn it on. The logs
+are the same file **Share** sends, with personal data already removed, and the
+team keeps reports for 30 days. **Share** and **Save** are still there if
+sending does not work. What everyone reported is counted in
+[docs/compatibility.md](docs/compatibility.md): per OneOS version, phone and
+system, how many reports started and what worked (answers only: no names,
+notes or phone details).
+
+You can tick what works while you are still in the other system (from
+0.4.30): open the OneOS app there and tap **How's it going?**. Back in One UI,
+**Send to the OneOS team** has your answers filled in.
+
+**More than one system** (from 0.4.30): when you set up another system, the
+one you had stays on the phone as a copy, with its apps and data. Home lists
+each of them as **Switch to <system>**. One tap puts it back (the system set
+up now is kept the same way), updates OneOS's files in it if they are older
+than the app (about 2 minutes) and opens the switch. A copy you no longer
+need can be deleted there too, or in **Advanced › Free up space**.
+
+**Removing OneOS:** in OneOS open **Advanced › Remove OneOS data**. It deletes
+everything OneOS put on the phone: the system you set up (with the apps and
+accounts in it), older copies and the session logs. It checks first that
+nothing of a session is still connected to One UI, and refuses otherwise. One
+UI and its data are not touched, and downloaded system files stay where you
+saved them. Then uninstall the app as usual. Without the app, the same cleanup
+runs from a root shell such as Termux: `sh remove-oneos-data.sh` (from
+`scripts/`; it asks su for root, and `--dry-run` shows first what it would
+delete).
 
 ## How it works
 
@@ -148,7 +282,7 @@ If your root does not survive a restart, activate it again after you come back.
 ## Building from source
 
 ```sh
-git clone https://github.com/fahadalijaved23/OneOS.git
+git clone https://github.com/fahadalijaved/OneOS.git
 cd OneOS/app-android
 ./gradlew assembleProbeDebug     # OneOS Probe: needs nothing outside this repository
 ./gradlew test                   # unit tests (dash or busybox for the root script tests)
@@ -202,11 +336,20 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   Authors, Apache-2.0): builds the guest images OneOS runs (not part of this
   repository). MysticGSI includes TrebleDroid work by Pierre-Hugues Husson
   (phh) and contributors.
+- **[Project Infinity-X](https://github.com/ProjectInfinity-X)** and its Find X9
+  Ultra build ([X9UInfinityX](https://github.com/X9UInfinityX)): the Infinity-X
+  system OneOS runs from 0.4.27, unchanged, with OneOS's own framework patches.
 - **[OneUIProject](https://github.com/OneUIProject)**: SESL, oneui-design and
   oneui-icons (MIT) give the app its One UI look.
+- **[Josh Skinner (@thatjoshguy67)](https://github.com/thatjoshguy67)**: Galaxy
+  Z Fold8 support ([pull request #1](https://github.com/fahadalijaved/OneOS/pull/1)):
+  the Fold8's Find N6 ColorOS set, its cover display, Quick Settings, AOD, widgets,
+  Pocket Studio and Google fixes, and Samsung's hinge sensor for half-folded
+  postures and the open/close animations in ColorOS and Pixel, which the Z Fold8
+  Ultra uses too.
 - smali/dexlib2, AndroidX, Kotlin, Guava, ZXing and others: the full list with
   licenses is in [CREDITS.md](CREDITS.md).
 
-Not affiliated with Samsung, Google, OPPO or OnePlus. Galaxy and One UI are
+Not affiliated with Samsung, Google, OPPO, OnePlus or Project Infinity-X. Galaxy and One UI are
 trademarks of Samsung Electronics; Android and Pixel of Google LLC; ColorOS of
 OPPO.

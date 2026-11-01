@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Galaxy Z Fold8's lenses and picture, over the Z Fold8 Ultra's
+         (switcher/overlays/nothing_about, aapt2 link -R): two rear lenses. -->
+    <string-array name="about_phone_rear_info">
+        <item>Wide</item>
+        <item>Ultra wide</item>
+    </string-array>
+    <string-array name="about_phone_front_info">
+        <item>Cover</item>
+        <item>Inner</item>
+    </string-array>
+</resources>

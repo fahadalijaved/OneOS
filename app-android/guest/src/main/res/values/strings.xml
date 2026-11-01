@@ -31,6 +31,31 @@
     <string name="way_keys_title">Volume Up + Volume Down</string>
     <string name="way_keys_summary">Hold both for 3 seconds</string>
 
+    <!-- How's it going? (0.4.30): the checklist kept for Send to the OneOS team. -->
+    <string name="checklist_open">How\'s it going?</string>
+    <string name="checklist_open_caption">Tick what works while you try it. OneOS sends it with the logs when you\'re back in One UI.</string>
+    <string name="checklist_title">How\'s it going?</string>
+    <string name="checklist_intro">Tick what works and what has problems while you try it. Nothing is sent from here: back in One UI, open OneOS, then Last session, and tap Send to the OneOS team. Your answers are filled in there.</string>
+    <string name="checklist_note">Note for the team</string>
+    <string name="checklist_note_hint">Optional: what happened, in a few words</string>
+    <string name="checklist_saved">Saved as you go.</string>
+    <string name="checklist_not_saved">Could not save (%1$s)</string>
+    <string name="answer_works">Works</string>
+    <string name="answer_problem">Problem</string>
+    <string name="answer_not_tried">Didn\'t try</string>
+    <string name="item_screen">Screen and touch</string>
+    <string name="item_wifi">Wi-Fi</string>
+    <string name="item_data">Mobile data</string>
+    <string name="item_calls">Calls</string>
+    <string name="item_sms">SMS</string>
+    <string name="item_bluetooth">Bluetooth</string>
+    <string name="item_sound">Sound</string>
+    <string name="item_camera">Camera</string>
+    <string name="item_google">Google sign-in and Play Store</string>
+    <string name="item_location">Location</string>
+    <string name="item_heat">Heat and battery</string>
+    <string name="item_fold">Both screens, folding and unfolding (Fold only)</string>
+
     <string name="tile_label">Back to One UI</string>
     <string name="tile_subtitle">OneOS</string>
 </resources>

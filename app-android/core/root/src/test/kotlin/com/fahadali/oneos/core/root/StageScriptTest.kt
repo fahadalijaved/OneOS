@@ -86,8 +86,10 @@ class StageScriptTest {
 
         fun finish(setId: String = set.id) = fr.run(RootScript.Verb.FINISH, profile.id, imageId, setId, code)
 
-        fun launch(mode: String = "session", hideGms: String = "0", code: String = this.code) =
-            fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms)
+        fun launch(
+            mode: String = "session", hideGms: String = "0", code: String = this.code,
+            heatCap: String = "1", secIms: String = "0", edmStub: String = "0",
+        ) = fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub)
 
         fun prepare(mode: String = "new") {
             ok(begin(mode))
@@ -254,7 +256,8 @@ class StageScriptTest {
         ok(s.receive("host_installd.txt"))
         refused(s.table("samsung/other/m3q:17/X:user/release-keys"), "not for this One UI build")
         // A file that is not in the set, and one that is too short or wrong.
-        assertTrue(RootScript.problems(RootScript.Verb.RECEIVE, listOf("framework_patched.jar", "1", "a".repeat(64))).isNotEmpty())
+        // 0.4.24: framework_patched.jar is a Pixel set file now; a name no set carries.
+        assertTrue(RootScript.problems(RootScript.Verb.RECEIVE, listOf("framework_other_patched.jar", "1", "a".repeat(64))).isNotEmpty())
         refused(s.receive("OneOSWallpapersFoldGrid.apk", "x".toByteArray()), "not a file of x9u-sultra")
         val b = s.files.getValue("art_payload.img")
         refused(s.receive("art_payload.img", b, send = b.copyOf(b.size - 3)), "arrived with")
@@ -371,6 +374,80 @@ class StageScriptTest {
         val trash = File(tmp, "oneos.trash-1792000200").apply { File(this, "x").mkdirs() }
         ok(fr.run(RootScript.Verb.PURGE, trash.name))
         assertFalse(trash.exists())
+    }
+
+    /** 0.4.25: remove deletes the stage, every copy, the log capture and the helper files, and nothing else. */
+    @Test
+    fun removeDeletesEverythingOursAndNothingElse() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val tmp = File(fr.root, "data/local/tmp")
+        val a = oldStage(fr, "oneos.old-1792000000")
+        oldStage(fr, "oneos.old-1792000100-12")
+        File(tmp, "oneos.trash-1792000200").apply { File(this, "x").mkdirs() }
+        File(tmp, "oneos_logs/head").mkdirs()
+        File(tmp, "oneos_logs/boot.log").writeText("log\n")
+        val helpers = listOf("adb_watchdog.sh", "adb_watchdog.log", "ims_watchdog.sh", "ims_watchdog.log", "ui_activator.log", "restore_app.log")
+        for (h in helpers) File(tmp, h).writeText("x\n")
+        // Not ours: kept, also through links inside what is deleted.
+        val tunnel = File(tmp, "oneos_tunnel").apply { mkdirs(); File(this, "key").writeText("k\n") }
+        File(tmp, "oneos.other").mkdirs()
+        File(tmp, "lineage_backups/b").mkdirs()
+        File(tmp, "notes.txt").writeText("n\n")
+        java.nio.file.Files.createSymbolicLink(File(fr.stage, "tunnel_link").toPath(), tunnel.toPath())
+        java.nio.file.Files.createSymbolicLink(File(a, "data/tunnel_link").toPath(), tunnel.toPath())
+
+        val r = fr.run(RootScript.Verb.REMOVE)
+        ok(r)
+        assertTrue(r.toString(), r.reply.results.any { it.startsWith("removed ") })
+        assertFalse(fr.stage.exists())
+        assertEquals(
+            setOf("oneos_tunnel", "oneos.other", "lineage_backups", "notes.txt"),
+            tmp.list()!!.toSet(),
+        )
+        assertEquals("k\n", File(tunnel, "key").readText())
+        assertTrue(File(tmp, "lineage_backups/b").isDirectory)
+    }
+
+    @Test
+    fun removeRefusesEveryUnsafeCaseAndChangesNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val tmp = File(fr.root, "data/local/tmp")
+        val old = oldStage(fr, "oneos.old-1792000000")
+        File(tmp, "oneos_logs").mkdirs()
+        val before = fr.snapshot()
+        fun removeRefused(part: String) {
+            refused(fr.run(RootScript.Verb.REMOVE), part)
+            assertEquals(before, fr.snapshot())
+        }
+        // Mounted in the stage, in a copy or in the log folder.
+        fr.mountinfo(listOf("${fr.stage.path}/rootfs"))
+        removeRefused("mounted")
+        fr.mountinfo(listOf("${old.path}/data"))
+        removeRefused("mounted")
+        fr.mountinfo(listOf("${tmp.path}/oneos_logs/x"))
+        removeRefused("mounted")
+        fr.mountinfo(emptyList())
+        // A loop device on the staged image.
+        File(fr.root, "sys/block/loop0/loop/backing_file").writeText("${fr.stage.path}/system.raw\n")
+        removeRefused("loop device")
+        File(fr.root, "sys/block/loop0/loop/backing_file").delete()
+        // A host /data tree still bridged.
+        fr.mountinfo(listOf("${fr.root.path}/data/app"))
+        removeRefused("still bridged")
+        fr.mountinfo(emptyList())
+        // A session running now, or one that never returned.
+        File(fr.stage, "guest_props.boot").writeText("11111111-2222-3333-4444-555555555555\n")
+        refused(fr.run(RootScript.Verb.REMOVE), "session running")
+        File(fr.stage, "guest_props.boot").delete()
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=99999999-0000-0000-0000-000000000000\n")
+        refused(fr.run(RootScript.Verb.REMOVE), "never returned")
+        File(fr.stage, "persist_session.active").delete()
+        assertEquals(before, fr.snapshot())
+        // No arguments.
+        assertTrue(RootScript.problems(RootScript.Verb.REMOVE, listOf("x")).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.REMOVE, emptyList()))
     }
 
     /** 0.4.10: restore puts a set-aside stage back and keeps the one set up now as another old copy. */
@@ -823,6 +900,14 @@ class StageScriptTest {
             // 0.4.17: the Exynos S26+ and Z Flip7 (root compares ro.soc.model as Android reports it).
             Profiles.S_PLUS_9965 to "SM-S947B",
             Profiles.FLIP7 to "SM-F766U",
+            // 0.4.29: the Galaxy A57.
+            Profiles.A57 to "SM-A576B",
+            // 0.4.31: the Galaxy A56.
+            Profiles.A56 to "SM-A566B",
+            Profiles.FLIP5 to "SM-F731B",
+            // 0.4.35: the Galaxy Z Flip8 and A36.
+            Profiles.FLIP8 to "SM-F776B",
+            Profiles.A36 to "SM-A366B",
         )) {
             eachShell { fr ->
                 fr.props["ro.product.model"] = model
@@ -1077,8 +1162,12 @@ class StageScriptTest {
      */
     @Test
     fun aHideableImagesLaunchWritesItsGoogleServicesChoice() {
-        // 0.4.11: the Find X9 Ultra IN build, the one image whose Google services a launch may hide.
-        assertTrue(Shipped.rootScriptText.contains("\nIMAGES_GMS=\"coloros17-findx9u-in\"\n"))
+        // 0.4.11: the Find X9 Ultra IN build; 0.4.33: Nothing OS too (its GmsCore is an ordinary priv-app,
+        // not an APEX its sessions present). IMAGES_GMS is root's copy of ImageRef.gmsHideable.
+        assertEquals(
+            Images.ALL.filter { it.gmsHideable }.joinToString(" ") { it.id },
+            Shipped.rootScriptText.substringAfter("\nIMAGES_GMS=\"").substringBefore("\"\n"),
+        )
         eachShell { fr ->
             val s = Stager(fr, Profiles.S_ULTRA_8850, Images.ID_FIND_X9U_IN)
             assertEquals(PackageSets.X9U_IN_SULTRA, s.set)
@@ -1090,9 +1179,42 @@ class StageScriptTest {
             assertEquals(env.readLines().size, SessionEnv.generate(s.profile).lines().filter { it.isNotEmpty() }.size)
             refused(s.launch(hideGms = "0"), "test root: every launch check passed")
             assertEquals(SessionEnv.generate(s.profile), env.readText())
+            // 0.4.20: the Samsung IMS choice the same way, on any image; nothing else of the file moves.
+            refused(s.launch(secIms = "1"), "test root: every launch check passed")
+            assertEquals(SessionEnv.generate(s.profile).replace("ONEOS_GUEST_SEC_IMS=0", "ONEOS_GUEST_SEC_IMS=1"), env.readText())
+            // 0.4.32: the Knox edm stub choice the same way.
+            refused(s.launch(edmStub = "1"), "test root: every launch check passed")
+            assertEquals(SessionEnv.generate(s.profile).replace("ONEOS_GUEST_EDM_STUB=0", "ONEOS_GUEST_EDM_STUB=1"), env.readText())
+            refused(s.launch(), "test root: every launch check passed")
+            assertEquals(SessionEnv.generate(s.profile), env.readText())
             // env accepts the 1 for that image (Prepare writes 0; a launch decides).
             ok(s.begin("keep"))
             s.ok(s.env(SessionEnv.generate(s.profile).replace("ONEOS_GUEST_HIDE_GMS=0", "ONEOS_GUEST_HIDE_GMS=1")))
+        }
+    }
+
+    /**
+     * 0.4.23, Cool down when hot (Advanced): Prepare writes ONEOS_HEAT_CAP=1, a launch writes its own
+     * choice after every check, env takes 0 or 1 and nothing else, and launch needs the word.
+     */
+    @Test
+    fun aLaunchWritesItsHeatCap() {
+        eachShell { fr ->
+            val s = Stager(fr)
+            s.prepare()
+            val env = File(fr.stage, "session.env")
+            assertTrue(env.readLines().contains("ONEOS_HEAT_CAP=1"))
+            refused(s.launch(heatCap = "0"), "test root: every launch check passed")
+            assertTrue(env.readLines().contains("ONEOS_HEAT_CAP=0"))
+            assertEquals(SessionEnv.generate(s.profile).replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0"), env.readText())
+            refused(s.launch(heatCap = "1"), "test root: every launch check passed")
+            assertEquals(SessionEnv.generate(s.profile), env.readText())
+            // The launcher never builds a launch without the word (RootScript.problems, tested below).
+            assertTrue(runCatching { fr.run(RootScript.Verb.LAUNCH, "session", s.code, "0123456789abcdef", "0") }.isFailure)
+            ok(s.begin("keep"))
+            s.ok(s.env(SessionEnv.generate(s.profile).replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0")))
+            ok(s.begin("keep"))
+            refused(s.env(SessionEnv.generate(s.profile).replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=2")), "ONEOS_HEAT_CAP=2")
         }
     }
 
@@ -1324,10 +1446,18 @@ class StageScriptTest {
         assertTrue(RootScript.problems(RootScript.Verb.BEGIN, listOf("new", "f8u", "coloros17-findn6", "4")).isNotEmpty())
         assertTrue(RootScript.problems(RootScript.Verb.FINISH, listOf("f8u", "coloros17-findn6", "4")).isNotEmpty())
         assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.FINISH, listOf("f8u", "coloros17-findn6", "n6-f8u", "4")))
-        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "\$(id)", "0")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "\$(id)", "0", "1", "0", "0")).isNotEmpty())
         assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef")).isNotEmpty())
-        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "2")).isNotEmpty())
-        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.LAUNCH, listOf("dry", "4", "0123456789abcdef", "1")))
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "2", "1", "0", "0")).isNotEmpty())
+        // 0.4.23: launch carries the heat cap too (0 or 1); 0.4.25: and secIms; 0.4.32: and edmStub. All needed.
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "2", "0", "0")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "2", "0")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "2")).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.LAUNCH, listOf("dry", "4", "0123456789abcdef", "1", "0", "0", "0")))
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "1", "1")))
         assertTrue(RootScript.problems(RootScript.Verb.RECOVER, listOf("x")).isNotEmpty())
         assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.KEEP_RAW, listOf("10385141760", "a".repeat(64))))
         // Rendered, the arguments are one plain `set --` line.

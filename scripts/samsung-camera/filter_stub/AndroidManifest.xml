@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stands in for One UI's Filter Provider (com.samsung.android.provider.filterprovider,
+     /system/app/FilterProvider) in a guest that runs One UI's camera: the camera
+     registers an observer on it at start and stopped with "Failed to find provider
+     ... filterprovider" (Nothing run 16). The real one runs as android.uid.system
+     with Samsung's platform key, which no guest can give it. No filters: every query
+     is an empty table with the columns asked for. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.samcam.filterstub">
+    <application android:hasCode="true" android:label="Filters">
+        <provider android:name="oneos.samfilter.FilterStubProvider"
+            android:authorities="com.samsung.android.provider.filterprovider"
+            android:exported="true"/>
+    </application>
+</manifest>

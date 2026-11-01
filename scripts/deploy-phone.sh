@@ -108,7 +108,10 @@ if adb_ shell pm path com.wewaffles.onelineage 2>/dev/null | grep -q package:; t
 fi
 
 adb_ shell "mkdir -p $INCOMING"
-adb_ push "$ROOT"/switcher/assets/*.sh "$ROOT"/switcher/assets/zygote_exec "$INCOMING/"
+# The session's other files: helpers the scripts run (the app ships the same
+# list, sessionScripts in app/build.gradle.kts).
+HELPERS="zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex"
+adb_ push "$ROOT"/switcher/assets/*.sh $(for h in $HELPERS; do printf "%s " "$ROOT/switcher/assets/$h"; done) "$INCOMING/"
 # The stage's names up to 0.3.6 become the OneOS ones before anything is
 # pushed into the stage (scripts/stage-migrate.sh, run as root on the phone).
 adb_ push "$ROOT/scripts/stage-migrate.sh" "$INCOMING/stage-migrate"
@@ -126,7 +129,7 @@ if [ "$FRESH" = 1 ] && su_ "[ -d $STAGE ] && echo yes" | grep -q yes; then
 fi
 
 # The stage is root's and writable by root only: every file in it runs as root.
-su_ "mkdir -p $STAGE && chown 0:0 $STAGE && chmod 755 $STAGE && cp -f $INCOMING/*.sh $INCOMING/zygote_exec $STAGE/ && chmod 755 $STAGE/*.sh $STAGE/zygote_exec"
+su_ "mkdir -p $STAGE && chown 0:0 $STAGE && chmod 755 $STAGE && cp -f $INCOMING/*.sh $(for h in $HELPERS; do printf "%s " "$INCOMING/$h"; done) $STAGE/ && chmod 755 $STAGE/*.sh $STAGE/zygote_exec $STAGE/oneos_btaudio && chmod 644 $STAGE/OneOSEdmStub.dex $STAGE/OneOSOverlayDimen.dex"
 
 # Framework overlays from scripts/make-overlays.sh (bind-mounted by
 # guest_prepare.sh). Only pushed when they differ from what is staged.

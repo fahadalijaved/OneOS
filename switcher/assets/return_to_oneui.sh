@@ -95,7 +95,8 @@ if [ "$SE_AT_RETURN" != Permissive ]; then
     echo "SELinux was ${SE_AT_RETURN:-unreadable} at the return: Permissive again for it ($(getenforce 2>/dev/null))"
 fi
 
-# The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log)
+# The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log;
+# HyperOS: hyos_spawner.log)
 # next to the session's logcat capture (oneos_switch.sh), first, before anything
 # is stopped and on both return paths. Run 44: both calls came after diag_90 and
 # the reboot return leaves no diag_final, so the per-call keeper lines were in
@@ -103,7 +104,7 @@ fi
 # can fail the return.
 LOGS=/data/local/tmp/oneos_logs
 if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
-    for f in call_audio.log audio_keeper.log oneos_a2dp.log; do
+    for f in call_audio.log audio_keeper.log oneos_a2dp.log hyos_spawner.log; do
         [ -f "$S/data/$f" ] && [ ! -L "$S/data/$f" ] || continue
         rm -f "$LOGS/$f" 2>/dev/null
         cp "$S/data/$f" "$LOGS/$f" 2>/dev/null
@@ -161,6 +162,8 @@ echo "=== [1/4] Terminating Container Supervision & Zygote ==="
 # guest (a 30 KB unplayable file) and its retry logged 'Failed to get display
 # id' once SurfaceFlinger was gone.
 touch /data/local/tmp/oneos/data/oneos_rec_stop 2>/dev/null
+# Restore only limits still owned by this session before One UI resumes.
+STAGE="$S" BB="$BB" /system/bin/sh "$S/fold8_coloros.sh" performance-restore || echo "Performance limits: restore failed; see performance_handover.log"
 # The return-keys readers (oneos_switch.sh) live in the host namespace.
 # Only kill a listed PID when it was armed this boot AND is still a
 # oneos_switch.sh shell: after a reboot the pids file is stale and the ids
@@ -188,6 +191,31 @@ pkill -9 -f "system_server" 2>/dev/null || true
 pkill -9 -f org.lineageos 2>/dev/null || true
 pkill -9 -x zygote64 2>/dev/null || true
 kill -9 $(pidof surfaceflinger) 2>/dev/null || true
+# The heat cap (oneos_switch.sh) is stopped (its loop names system_server, so
+# the pkill above may have done it already) before the CPU policies get their
+# full clock back, for One UI's SSRM to set its own.
+pkill -9 -f "oneos_heat_cap" 2>/dev/null || true
+if [ -f $S/heat_cap.active ]; then
+    hc=""
+    # Samsung's CPU ceiling vote, if the heat cap released it (power saving was
+    # off): -1 again, for One UI's new SSRM to vote afresh. Restoring One UI's
+    # last vote kept the phone at 2.2 of 3.5 GHz after the return until power
+    # saving went on and off (0.4.34 report bdbb0509).
+    CFL=/sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit
+    if [ -f $S/cpufreq_max_limit.released ] && [ -w $CFL ]; then
+        echo -1 > $CFL 2>/dev/null
+        hc=" cpufreq_max_limit=$(cat $CFL 2>/dev/null) (One UI's was $(cat $S/cpufreq_max_limit.released))"
+        rm -f $S/cpufreq_max_limit.released
+    fi
+    for p in /sys/devices/system/cpu/cpufreq/policy*; do
+        hw=$(cat "$p/cpuinfo_max_freq" 2>/dev/null)
+        case "$hw" in ''|*[!0-9]*) continue ;; esac
+        echo "$hw" > "$p/scaling_max_freq" 2>/dev/null
+        hc="$hc ${p##*/}=$(cat "$p/scaling_max_freq" 2>/dev/null)/$hw"
+    done
+    rm -f $S/heat_cap.active
+    echo "Heat cap: stopped, CPU policies at full clock:$hc"
+fi
 
 # Every process still in the container's mount namespace (recorded by
 # oneos_switch.sh). The host's own namespace is never touched.
@@ -222,6 +250,8 @@ fi
 # into run 43's return; it has no business in the return.
 pkill -9 -f "$S/rootfs/system/build.prop" 2>/dev/null || true
 rm -f /data/local/tmp/oneos/guest_mntns
+# HyperOS: the spawner's socket (guest_start.sh made it in /dev/socket).
+rm -f /dev/socket/hyos_spawner 2>/dev/null
 
 # The guest zygote's sockets were bound onto themselves in init's mount
 # namespace (oneos_switch.sh, protect_zygote_sockets), so that init could not
@@ -248,6 +278,29 @@ done
 if [ -n "$zs_left" ]; then
     echo "!!! still bound:$zs_left (One UI's zygote could not make its sockets); rebooting"
     ONEOS_RETURN_MODE=reboot
+fi
+
+# The Bluetooth audio bridge (oneos_switch.sh, Samsung-only HAL phones): stop
+# it and take Android's factory out of the device manifest again before One
+# UI's framework starts. One UI's Bluetooth asks for Android's factory first
+# when it is declared and would wait for it. The touch makes servicemanager
+# read the manifests again. A declaration that stays means a reboot return.
+pkill -9 -f "$S/oneos_btaudio" 2>/dev/null || true
+BT_FRAG=$(cat $S/bt_bridge_vintf 2>/dev/null)
+if [ -n "$BT_FRAG" ]; then
+    n=0
+    while [ $n -lt 5 ] && awk -v m="$BT_FRAG" '$5 == m { f = 1 } END { exit !f }' /proc/1/mountinfo 2>/dev/null; do
+        if [ -n "$BB" ]; then in_init_ns "$BB" umount -l "$BT_FRAG" 2>/dev/null; else in_init_ns umount -D -l "$BT_FRAG" 2>/dev/null; fi
+        n=$((n + 1))
+    done
+    in_init_ns touch /apex/apex-info-list.xml
+    if awk -v m="$BT_FRAG" '$5 == m { f = 1 } END { exit !f }' /proc/1/mountinfo 2>/dev/null; then
+        echo "!!! Bluetooth audio bridge: $BT_FRAG still bound (One UI's Bluetooth would wait for Android's factory); rebooting"
+        ONEOS_RETURN_MODE=reboot
+    else
+        rm -f $S/bt_bridge_vintf $S/oneos_bt_vintf.xml
+        echo "Bluetooth audio bridge: stopped, $BT_FRAG is the vendor's again ($([ -x $S/oneos_btaudio ] && $S/oneos_btaudio --check 2>&1))"
+    fi
 fi
 
 # Put the host's own /data trees back FIRST: guest_prepare.sh bridges the
@@ -655,12 +708,16 @@ done < "$BASE/gc_urgent"
 # Display: the composer still holds the guest's dead surfaceflinger as its
 # client (guest_start.sh restarted it for the guest); its onrestart starts One
 # UI's surfaceflinger, which starts the boot animation.
-# Snapdragon's composer service, or Samsung's Exynos one (guest_start.sh).
+# Snapdragon's composer service, or Samsung's Exynos one, or -- when the phone
+# names it something else, as the Galaxy A56 does -- whichever running init
+# service calls itself the display composer (guest_start.sh restarts the same
+# one). Only then is there nothing to restart and the return cannot finish.
 COMPOSER_SVC=""
 for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
     [ -n "$(getprop init.svc.$c)" ] && { COMPOSER_SVC=$c; break; }
 done
-[ -n "$COMPOSER_SVC" ] || failsafe "no known display composer service"
+[ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
+[ -n "$COMPOSER_SVC" ] || failsafe "no display composer service found"
 setprop ctl.restart "$COMPOSER_SVC"
 # The SM8550 phones (Galaxy S23) have only the HIDL composer
 # (android.hardware.graphics.composer@2.x): waiting for the AIDL one rebooted
@@ -734,6 +791,19 @@ say "Gate B: no guest process, One UI's services up, SELinux $(getenforce)"
 # (the guest's system_server took its one-time unstable interface) and its
 # own onrestart starts zygote; ctl.start covers a netd without one.
 timeout 10 vdc volume abort_fuse >/dev/null 2>&1
+# One UI's zygote_next (native-only processes, app zygotes) ran through the
+# whole session: the switch leaves it alone and the guest may have used it. A
+# boot gives One UI a fresh one; so does this, before One UI's zygote is back.
+# After in-place returns the owner saw apps hang on their splash screens,
+# Chrome stop loading and later soft reboots until a full reboot (owner,
+# 31 Oct), the symptoms of process starts waiting on a zygote that does not
+# answer. Its children are logged first.
+zn=$(pidof zygote_next 2>/dev/null)
+if [ -n "$zn" ] && [ "$(base_prop init.svc.zygote_next)" = running ]; then
+    kids=$(ps -A -o PPID,PID,NAME 2>/dev/null | "$BB" awk -v p="$zn" 'NR > 1 && $1 == p {printf "%s:%s ", $2, $3}')
+    say "One UI's zygote_next $zn at the return, children: ${kids:-none}; restarting it"
+    setprop ctl.restart zygote_next
+fi
 setprop ctl.restart netd
 n=0
 while [ $n -lt 20 ] && [ "$(getprop init.svc.zygote)" != running ]; do sleep 0.5; n=$((n + 1)); done
@@ -743,6 +813,11 @@ say "One UI's zygote started ($(getprop init.svc.zygote))"
 if [ "$(base_prop init.svc.zygote_secondary)" = running ] && [ "$(getprop init.svc.zygote_secondary)" != running ]; then
     setprop ctl.start zygote_secondary
     say "One UI's zygote_secondary started"
+fi
+# One UI's zygote_next if anything stopped it (0.4.25-hyperos's switch did).
+if [ "$(base_prop init.svc.zygote_next)" = running ] && [ "$(getprop init.svc.zygote_next)" != running ]; then
+    setprop ctl.start zygote_next
+    say "One UI's zygote_next started"
 fi
 
 # Gate C: system_server must come up and keep its pid until user 0 is
@@ -780,8 +855,18 @@ ip rule show 2>/dev/null | "$BB" diff "$BASE/iprule" - >> "$IPLOG" 2>&1 || say "
 v=$("$BB" sed -n 's/^persist\.sys\.disable_rescue=//p' $S/persist_props.snapshot 2>/dev/null | "$BB" head -n 1)
 if [ -n "$v" ]; then "$RP" -n persist.sys.disable_rescue "$v" 2>/dev/null; else "$RP" --delete persist.sys.disable_rescue 2>/dev/null; fi
 /system/bin/sh $S/check_host_apex.sh after-inplace >> "$IPLOG" 2>&1 || say "!!! a One UI APEX file read failed after the restart (see return_inplace.log)"
-# Two more minutes of the session's logcat capture for anything late.
-"$BB" sh -c 'sleep 120; pkill -f "^logcat .*/data/local/tmp/oneos_logs/boot.log"' </dev/null >/dev/null 2>&1 &
+# Ten more minutes of the session's logcat capture for anything late (two
+# until 0.4.33: the apps hanging after a return came later), then
+# this return stops it, unless a session started meanwhile: that one keeps the
+# capture as its own (oneos_switch.sh) and deletes $LOGS/logcat.stop, and the
+# stop below then leaves it running. S25 Ultra, 28 Oct: the next session
+# started 78 s after a return, and this stop ended its capture 40 s into it,
+# with no logcat of the session at all.
+if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
+    STOP_TOKEN="$(date +%s).$$"
+    echo "$STOP_TOKEN" > "$LOGS/logcat.stop" 2>/dev/null
+    "$BB" sh -c "sleep 600; [ \"\$(cat $LOGS/logcat.stop 2>/dev/null)\" = $STOP_TOKEN ] || exit 0; rm -f $LOGS/logcat.stop; pkill -f '^logcat .*/data/local/tmp/oneos_logs/boot.log'" </dev/null >/dev/null 2>&1 &
+fi
 "$BB" rm -rf $NODES
 echo "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) $(date +%s)" > $S/return_inplace.done
 echo oneos_return > /sys/power/wake_unlock 2>/dev/null

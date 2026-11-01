@@ -19,6 +19,18 @@ SERIAL="${ANDROID_SERIAL:-127.0.0.1:5565}"
 OUT="$ROOT/out/logs/$NAME"
 TMP=/data/local/tmp/oneos_pull
 mkdir -p "$OUT"
+# The guest's own /data logs (call_audio, audio_keeper, oneos_a2dp, backlight,
+# oneos_composer_before_sf, ...) are swept, not named one by one: the app's
+# collector takes the same sweep (assets/logs/collect.list, logs.guest), and
+# naming them meant a new one was silently left on the phone -- the composer
+# diagnostics added in 0.4.32 were, on the run they were added for.
+#
+# Everything below runs inside a single-quoted su argument, so no apostrophe
+# may appear in it, in a comment or anywhere else: it closes that quote and the
+# rest of the script is handed to the shell as nonsense ("no closing quote",
+# 2026-10-31). scripts/check-shell.py reads these bodies since the same day and
+# fails on a quote that ends one early.
+#
 # The stage (/data/local/tmp/oneos), or its path up to 0.3.6 while it is still there.
 ${ADB:-adb} -s "$SERIAL" shell "su -c '
 S=/data/local/tmp/oneos
@@ -39,7 +51,17 @@ for f in \$L/head/*; do
 done
 cp -r \$S/*.log \$S/diag_* $TMP/ 2>/dev/null
 cp \$S/data/takeover.log $TMP/takeover_inner.log 2>/dev/null
-cp \$S/data/call_audio.log \$S/data/audio_keeper.log \$S/data/oneos_a2dp.log $TMP/ 2>/dev/null
+# Every other .log the guest wrote in its own /data (call_audio, audio_keeper,
+# oneos_a2dp, backlight, oneos_composer_before_sf, ...). The collector of the app
+# takes the same sweep (assets/logs/collect.list, logs.guest); naming them one
+# by one here meant a new one was silently left behind, the composer
+# diagnostics of 0.4.32 were. takeover.log is already in, under its own name.
+# (No apostrophe anywhere in this body: it is inside a single-quoted su -c.)
+for f in \$S/data/*.log; do
+  [ -f \$f ] || continue
+  case \$f in */takeover.log) continue ;; esac
+  cp \$f $TMP/ 2>/dev/null
+done
 cp /data/local/tmp/ui_activator.log $TMP/ 2>/dev/null
 cd $TMP && /data/adb/ksu/bin/busybox tar czf $TMP.tgz . && chmod 644 $TMP.tgz && rm -rf $TMP
 ls -l $TMP.tgz'"

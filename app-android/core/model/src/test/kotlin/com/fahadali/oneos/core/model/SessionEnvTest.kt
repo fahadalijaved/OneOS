@@ -26,6 +26,9 @@ class SessionEnvTest {
             ONEOS_GUEST_COMPACT_WINDOW=1
             ONEOS_GUEST_WALLPAPER_GRID=1
             ONEOS_GUEST_HIDE_GMS=0
+            ONEOS_HEAT_CAP=1
+            ONEOS_GUEST_SEC_IMS=0
+            ONEOS_GUEST_EDM_STUB=0
             ONEOS_RETURN_MODE=inplace
 
             """.trimIndent(),
@@ -51,6 +54,9 @@ class SessionEnvTest {
             ONEOS_GUEST_COMPACT_WINDOW=0
             ONEOS_GUEST_WALLPAPER_GRID=0
             ONEOS_GUEST_HIDE_GMS=0
+            ONEOS_HEAT_CAP=1
+            ONEOS_GUEST_SEC_IMS=0
+            ONEOS_GUEST_EDM_STUB=0
             ONEOS_RETURN_MODE=inplace
 
             """.trimIndent(),
@@ -114,6 +120,10 @@ class SessionEnvTest {
         fun problems(text: String) = SessionEnv.validate(text)
 
         assertTrue(problems(good + "ONEOS_RETURN_MAX=0\n").contains("forbidden key ONEOS_RETURN_MAX"))
+        // 0.4.23: Cool down when hot is the launch's choice, 0 or 1 only.
+        assertTrue(good.contains("ONEOS_HEAT_CAP=1\n"))
+        assertEquals(emptyList<String>(), problems(good.replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=0")))
+        assertTrue(problems(good.replace("ONEOS_HEAT_CAP=1", "ONEOS_HEAT_CAP=2")).isNotEmpty())
         assertTrue(problems(good + "ONEOS_RETURN_KEYS=0\n").contains("forbidden key ONEOS_RETURN_KEYS"))
         // 0.4.7: the return is always in place (a failed check reboots); nothing else may be asked for.
         assertTrue(good.contains("ONEOS_RETURN_MODE=inplace\n"))
@@ -130,7 +140,7 @@ class SessionEnvTest {
         assertTrue(problems(good.removeSuffix("\n")).contains("must end with a newline"))
         assertTrue(problems(good.replace("\n", "\r\n")).isNotEmpty())
         assertTrue(problems("# comment\n$good").contains("line 1 is not KEY=VALUE"))
-        assertTrue(problems("$good\n").contains("line 16 is not KEY=VALUE"))
+        assertTrue(problems("$good\n").contains("line 19 is not KEY=VALUE"))
         assertTrue(problems(good.replace("ONEOS_APP=1", "export ONEOS_APP=1")).isNotEmpty())
         assertTrue(problems(good.replace("ONEOS_GUEST_FOLD=off", "ONEOS_GUEST_FOLD=\$(reboot)")).isNotEmpty())
         // A fold value in an S Ultra file: the profile decides the form.
@@ -176,9 +186,27 @@ class SessionEnvTest {
             }
             assertTrue(SessionEnv.validate(text.replace("${SessionEnv.HIDE_GMS}=0\n", ""), image = hideable).contains("${SessionEnv.HIDE_GMS} missing"))
         }
-        // 0.4.11: the Find X9 Ultra IN build's Google services (in the image, not presented) may be hidden.
-        assertEquals(listOf(Images.FIND_X9U_IN), Images.ALL.filter { it.gmsHideable })
-        assertEquals("ONEOS_GUEST_HIDE_GMS", SessionEnv.ALLOWED.keys.toList().dropLast(1).last())
+        // 0.4.11: the Find X9 Ultra IN build's Google services (in the image, not presented) may be hidden;
+        // 0.4.33: Nothing OS's too, for the same reason -- its set stages no gmssystem_payload.img.
+        assertEquals(listOf(Images.FIND_X9U_IN, Images.NOTHING_METROID), Images.ALL.filter { it.gmsHideable })
+        assertEquals(
+            listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_GUEST_SEC_IMS", "ONEOS_GUEST_EDM_STUB", "ONEOS_RETURN_MODE"),
+            SessionEnv.ALLOWED.keys.toList().takeLast(5),
+        )
+        assertEquals("ONEOS_GUEST_EDM_STUB", SessionEnv.ALLOWED.keys.toList().dropLast(1).last())
+        for (p in Profiles.BUILT_IN.filter { it.enabled }) {
+            val text = SessionEnv.generate(p)
+            assertTrue(p.id, text.lines().contains("${SessionEnv.SEC_IMS}=0"))
+            for (i in Images.ALL) assertEquals(emptyList<String>(), SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0", "${SessionEnv.SEC_IMS}=1"), image = i))
+            assertEquals(emptyList<String>(), SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0", "${SessionEnv.SEC_IMS}=1")))
+            for (bad in listOf("2", "", "on")) assertTrue(bad, SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0", "${SessionEnv.SEC_IMS}=$bad")).isNotEmpty())
+            assertTrue(SessionEnv.validate(text.replace("${SessionEnv.SEC_IMS}=0\n", "")).contains("${SessionEnv.SEC_IMS} missing"))
+            // 0.4.32: the Knox edm stub, a launch's choice on any phone and image, the same way.
+            assertTrue(p.id, text.lines().contains("${SessionEnv.EDM_STUB}=0"))
+            assertEquals(emptyList<String>(), SessionEnv.validate(text.replace("${SessionEnv.EDM_STUB}=0", "${SessionEnv.EDM_STUB}=1")))
+            for (bad in listOf("2", "", "on")) assertTrue(bad, SessionEnv.validate(text.replace("${SessionEnv.EDM_STUB}=0", "${SessionEnv.EDM_STUB}=$bad")).isNotEmpty())
+            assertTrue(SessionEnv.validate(text.replace("${SessionEnv.EDM_STUB}=0\n", "")).contains("${SessionEnv.EDM_STUB} missing"))
+        }
     }
 
     /** Every knob the file sets is read by the session scripts under that exact name. */

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The COVER panel only. The two arrays index together: a display whose
+     uniqueId is in the first takes the path at the same position in the
+     second, and a display in neither keeps the default path.
+
+     The inner panel is deliberately NOT named here. Naming it with an empty
+     path does describe this phone correctly (One UI reports initCutout=null
+     for it, so there is no camera cutout at all), but the guest's status bar
+     inset then collapsed to zero and apps drew under the status bar with no
+     gap (the owner, run 9). The inherited cutout it falls back to is the
+     cover's hole, which is wrong for this panel but produces the top inset
+     the status bar needs, and looks right. Until the inset can be made to
+     come from the status bar height instead, leave the inner alone. -->
+<resources>
+    <string-array name="config_displayUniqueIdArray" translatable="false">
+        <item>local:4630946379103915412</item>
+    </string-array>
+    <string-array name="config_displayCutoutPathArray" translatable="false">
+        <item>M 505,0 L 575,0 L 575,108 L 505,108 Z</item>
+    </string-array>
+</resources>

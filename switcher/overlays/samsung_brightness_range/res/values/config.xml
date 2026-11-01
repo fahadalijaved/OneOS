@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="config_screenBrightnessSettingMinimumFloat" format="float" type="dimen">0.0026</item>
+    <item name="config_screenBrightnessSettingMaximumFloat" format="float" type="dimen">0.196299</item>
+    <!-- 100 nits. -->
+    <item name="config_screenBrightnessSettingDefaultFloat" format="float" type="dimen">0.054391</item>
+    <!-- Dimmed before sleep: about 10 nits (Nothing's 0.05 is about 92). -->
+    <item name="config_screenBrightnessDimFloat" format="float" type="dimen">0.008891</item>
+</resources>

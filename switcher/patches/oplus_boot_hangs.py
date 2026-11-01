@@ -17,7 +17,8 @@
    62 s: no app could start, the home screen stayed black (run 28). Make it
    return at entry (oneos_switch.sh also turns the controller off).
 
-4. KeyGestureControllerExtlmpl.getTpInfo (every Power + Volume Down screenshot)
+4. KeyGestureControllerExtlmpl.getTpInfo (PhoneWindowManagerExtImpl's in the
+   ColorOS 16 jar Infinity-X carries; every Power + Volume Down screenshot)
    and StrategyBlackscreenshot.getTpInfo (Volume Up + Volume Down with the
    screen off) start the OPPO init service "gettpinfo". The host's init has
    none, setprop ctl.start threw on android.display and system_server killed
@@ -126,9 +127,16 @@ def fix_tp_info(root):
     """Drop the setprop in both getTpInfo(key, val) methods; their only callers
     pass ctl.start gettpinfo."""
     dirs = set()
+    # The key gesture one is KeyGestureControllerExtlmpl's in ColorOS 17 and
+    # PhoneWindowManagerExtImpl's in the ColorOS 16 jar Infinity-X carries.
+    key_gesture = [os.path.join("com", "android", "server", d, c + ".smali") for d, c in
+                   (("input", "KeyGestureControllerExtlmpl"), ("policy", "PhoneWindowManagerExtImpl"))]
+    public = ".method public getTpInfo(Ljava/lang/String;Ljava/lang/String;)V"
+    has = [rel for rel in key_gesture if public in open(find(root, rel)).read().split("\n")]
+    if len(has) != 1:
+        sys.exit(f"getTpInfo found in {has}, expected in one of {key_gesture}")
     for rel, header in (
-            (os.path.join("com", "android", "server", "input", "KeyGestureControllerExtlmpl.smali"),
-             ".method public getTpInfo(Ljava/lang/String;Ljava/lang/String;)V"),
+            (has[0], public),
             (os.path.join("com", "android", "server", "policy", "StrategyBlackscreenshot.smali"),
              ".method private getTpInfo(Ljava/lang/String;Ljava/lang/String;)V")):
         path = find(root, rel)

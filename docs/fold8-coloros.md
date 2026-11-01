@@ -8,6 +8,9 @@ profile (OneOS's Galaxy Z Fold8 profile since 0.4.10) as its own package set,
 widen any hardware match, enable a new image, or change the screen-lock or
 OneLineage startup requirements.
 
+Follow-up work, exact tested app/source versions and remaining limitations:
+[ColorOS session handover and Fold8 personalisation](patch-notes/2026-10-31-coloros-fold8.md).
+
 ## Included
 
 - Cover camera bounds centered on its 1248 px panel, restoring status-bar width.
@@ -171,6 +174,12 @@ HALF_OPENED. The display-layout generator reads the same prepared state file,
 so state 2 retains the inner panel. A missing sensor falls back to the
 lid-only open state. Explicit `ONEOS_GUEST_DEVICE_STATES=vendor` retains the
 previous behavior; `oneos` retains the earlier two-state property config.
+
+The Z Fold8 Ultra's `n6-f8u` gets the same device-state file and live posture
+since 0.4.21: its own vendor file has the same lid states (0 CLOSE, 3 OPEN) and
+the phone has the same sensor. It keeps the Find N6's own SystemUI (the Fold8
+SystemUI patches are measured for the Fold8's cover display), so it gets the
+half-open posture, not the Fold8's reveal animation.
 
 The guest fold-line setting now follows live posture for `n6-f8`, retaining
 `ONEOS_GUEST_POSTURE=flat` as an explicit opt-out. Other profiles and package

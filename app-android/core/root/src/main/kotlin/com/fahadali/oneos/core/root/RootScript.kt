@@ -30,7 +30,8 @@ import com.fahadali.oneos.core.model.PackageSets
  * ([problems]), so nothing in the command needs quoting. `begin` and `finish`
  * name the profile, the image and its file set (root refuses a set that is not
  * that image's on that phone); `launch` carries this launch's
- * `ONEOS_GUEST_HIDE_GMS` (0 or 1).
+ * `ONEOS_GUEST_HIDE_GMS`, `ONEOS_HEAT_CAP`, `ONEOS_GUEST_SEC_IMS` and (0.4.32)
+ * `ONEOS_GUEST_EDM_STUB` (0 or 1 each).
  */
 object RootScript {
     const val ASSET = "root/oneos_root.sh"
@@ -85,6 +86,9 @@ object RootScript {
 
         /** Uses a set-aside stage (`oneos.old-*`) again; the stage moves aside (0.4.10). */
         RESTORE("restore", Stdin.SCRIPT),
+
+        /** Deletes every copy, the stage, the log capture and the session's helper files (0.4.25). */
+        REMOVE("remove", Stdin.SCRIPT),
     }
 
     /**
@@ -101,7 +105,7 @@ object RootScript {
     /** Session scripts from switcher/assets and the expected installd table, staged with every set. */
     val SCRIPTS: List<String> = listOf(
         "oneos_switch.sh", "guest_prepare.sh", "guest_start.sh", "guest_props.sh", "return_to_oneui.sh",
-        "check_host_apex.sh", "bridges.sh", "fold8_coloros.sh", "fold8_pixel.sh", "guest_google.sh", "zygote_exec", "host_installd.txt",
+        "check_host_apex.sh", "bridges.sh", "fold8_coloros.sh", "OneOSFold8Geometry.dex", "fold8_pixel.sh", "guest_google.sh", "zygote_exec", "OneOSEdmStub.dex", "oneos_btaudio", "OneOSOverlayDimen.dex", "host_installd.txt",
     )
 
     const val RAW_NAME = "system.raw"
@@ -158,13 +162,16 @@ object RootScript {
                 arg(3, DEC, "a versionCode")
             }
             Verb.LAUNCH -> {
-                need(4)
+                need(7)
                 args.getOrNull(0)?.let { if (it != "session" && it != "dry") p += "launch: mode '$it'" }
                 arg(1, DEC, "a versionCode")
                 arg(2, HEX16, "a session id")
                 args.getOrNull(3)?.let { if (it != "0" && it != "1") p += "launch: hide Google services '$it' is not 0 or 1" }
+                args.getOrNull(4)?.let { if (it != "0" && it != "1") p += "launch: heat cap '$it' is not 0 or 1" }
+                args.getOrNull(5)?.let { if (it != "0" && it != "1") p += "launch: Samsung IMS '$it' is not 0 or 1" }
+                args.getOrNull(6)?.let { if (it != "0" && it != "1") p += "launch: Knox edm stub '$it' is not 0 or 1" }
             }
-            Verb.RECOVER, Verb.OLD_LIST -> need(0)
+            Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE -> need(0)
             Verb.PURGE -> {
                 need(1)
                 args.getOrNull(0)?.let { if (!OLD_STAGE_NAME.matches(it)) p += "purge: '${it.take(40)}' is not an old stage" }
@@ -206,7 +213,7 @@ object RootScript {
 
     /**
      * The launcher. Runs the installed script when it is root's and has the
-     * pinned hash; otherwise only `begin` continues, and `recover` when the
+     * pinned hash; otherwise only `begin` and `remove` (0.4.25) continue, and `recover` when the
      * stage has a marker and the stage and its `bin` are root's folders
      * already (0.3.3: a 0.3.2 stage's script differs from this build's pin,
      * and its unfinished session must still be restorable; nothing is made
@@ -240,7 +247,7 @@ if mine "$S" && mine "$S/bin" && mine "$F" && [ "$(sha256sum "$F" 2>/dev/null | 
     exec @SH@ "$F" "$@"
 fi
 case "$1" in
-    begin) ;;
+    begin|remove) ;;
     recover)
         if [ ! -f "$S/.oneos_stage" ] || [ ! -d "$S/bin" ] || ! mine "$S" || ! mine "$S/bin"; then
             echo "@@REFUSED OneOS's root script is not in the stage: nothing to restore"

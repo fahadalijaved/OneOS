@@ -64,6 +64,7 @@ rm -f "$OUT/vold_patched" "$OUT/service.incremental_patched.so"
 "$DEBUGFS" -R "dump /system/apex/com.google.android.crashrecovery.apex $WORK/crashrecovery-google.apex" "$IMG" 2>/dev/null
 "$DEBUGFS" -R "dump /system/apex/com.android.crashrecovery.apex $WORK/crashrecovery-aosp.apex" "$IMG" 2>/dev/null
 "$DEBUGFS" -R "dump /system/apex/com.google.android.crashrecovery_compressed.apex $WORK/crashrecovery-google-compressed.apex" "$IMG" 2>/dev/null
+"$DEBUGFS" -R "dump /system/apex/com.android.crashrecovery.capex $WORK/crashrecovery-aosp.capex" "$IMG" 2>/dev/null
 python3 -I - "$WORK" "$OUT/vold_patched" "$OUT/service.incremental_patched.so" <<'PYEOF'
 import hashlib, os, sys
 work, vold_out, inc_out = sys.argv[1:4]
@@ -84,6 +85,18 @@ BUILDS = [
         "service.incremental.so": "3add0c259ba1e76378359d556d792136f96ce75197c99ff9d3d7fe850d8e4a92",
         "crashrecovery-google.apex": "8ae8917117e528bc876f8658633a65ed370b32ac1f8b77180909a94a5d1f87b9",
     }, [("vold", 0xde11, NAME), ("vold", 0x64ac8, TRY_START), ("service.incremental.so", 0x64128, NAME)]),
+    # The Pixel 9 Pro XL (komodo) image, CP3A.261005.005: the same code at other
+    # offsets. start() takes the string at 0xdbcb (adrp 0x653f0 + add 0x653f4; the
+    # other 9 references are umount/remountStorageDirs log tags), try_start's tbz
+    # on isDeclared() is at +0x68 (0x64db8), service.incremental.so has both
+    # lookups (adr 0xc0f7c, adrp + add 0xc3870 with String16(s, 4)) on the string
+    # at 0x64328. Its crashrecovery APEX (compressed) has the same
+    # RescueParty.isDisabled() as yogi's.
+    ("Pixel 17 (komodo)", {
+        "vold": "498c6d86fb7232e1b7d486ac6202672aab60837dd1e665bfc303ba14ff31c16a",
+        "service.incremental.so": "b519753a86b5389434b170434913e8216c263de73606dd368d1098b04d583e9c",
+        "crashrecovery-google.apex": "4c47853948d58166facca39a6b58d00bf47302e38b6e8a8989c622a0e15c6521",
+    }, [("vold", 0xdbca, NAME), ("vold", 0x64db8, TRY_START), ("service.incremental.so", 0x64327, NAME)]),
     ("ColorOS 17 CP2A.260605.016 (Find N6, Find X9 Ultra)", {
         "vold": "3df4d13bb9636cb9833a6ee2027d189c6acfd25b0404058ca130afb164a55896",
         "service.incremental.so": "43ae83091df41f9cd43fa985e7b629e09ba9f581d93336d0efb38dd05de1bab8",
@@ -100,13 +113,57 @@ BUILDS = [
         "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
         "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
     }, [("vold", 0x104e6, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
+    # Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse, CP2A.260605.016),
+    # built from source: its own layout. start() takes the string at 0xe164
+    # (adrp 0xe000 + add 0x164), try_start's tbz w19 is at 0x64d8c (+0xd4, as
+    # above), service.incremental.so has the string at 0x646c1 with both
+    # lookups (adr at 0xc051c, adrp + add at 0xc2a7c). Its compressed
+    # crashrecovery APEX (.capex) holds the same service-crashrecovery.jar as
+    # Pixel's yogi, byte for byte.
+    ("Infinity-X 4.1 CP2A.260605.016 (Find X9 Ultra)", {
+        "vold": "7bc11b794ac19af6a2e1e7dc2bcf9baad3f3a673079f574b90132469a303c613",
+        "service.incremental.so": "c964e27681a3632a7f83acb1698acffa572b3ece773690bc64444dff7bfaf7a7",
+        "crashrecovery-aosp.capex": "1c4fa1a8417b233765db1621f3911b66de230049c39b248f116c3d18a8920ca6",
+    }, [("vold", 0xe163, NAME), ("vold", 0x64d8c, TRY_START), ("service.incremental.so", 0x646c0, NAME)]),
+    # HyperOS OS4.0 (Xiaomi lhasa, 2026-10): start() takes "vold" at 0xf3fd
+    # (adrp 0xf000 + add 0x3fd at 0x6e8f4, the binary's only "\0vold\0"),
+    # try_start's tbz w19, #0, +0xd4 is at 0x6e2d4, and service.incremental.so
+    # has the string at 0x64746 with its two lookups (adr at 0xc0794, adrp + add
+    # at 0xc2e28). Its crashrecovery APEX (com.android.crashrecovery.capex) has
+    # AOSP's RescueParty.isDisabled (persist.sys.disable_rescue), and the wipe
+    # behind it. The seventh HyperOS run's guest vold took "vold", and the
+    # return could only reboot ("vold is not registered").
+    ("HyperOS OS4.0 (lhasa)", {
+        "vold": "06c00894fa5ce1bb1c6bc7821ef60ae18907ed9d9a213d37987cdfe633c798f7",
+        "service.incremental.so": "e7da297ddedc625df330317c2321b5a2fd25f4dd2535f9c65a1490b5b8d6687d",
+        "crashrecovery-aosp.capex": "d31bc1ccbb9bd60d2c78f0bd045cbb194838f936aafe2b551ab5d8344c9f2cd8",
+    }, [("vold", 0xf3fc, NAME), ("vold", 0x6e2d4, TRY_START), ("service.incremental.so", 0x64745, NAME)]),
+    # Nothing OS 5.0 (Metroid, AQ3A.250924.001): start() takes "vold" at 0xe1e8
+    # (adrp 0xe000 + add 0x1e8 at 0x64d38, then String16 and a new
+    # VoldNativeService; the binary's only "\0vold\0", whose other 9 references
+    # are __android_log_print tags around 0xa56c0, as on the Pixel builds).
+    # try_start's tbz w19, #0, +0xd4 is at 0x64728, right after the
+    # isDeclared("android.system.vold.IVold/default", the string at 0x14316)
+    # call through the service manager's vtable +0x48; patched it always takes
+    # the not-declared path, which logs and returns 0 without registering the
+    # AIDL instance. service.incremental.so has the string at 0x64411 with its
+    # two lookups (adr at 0xc005c, adrp + add at 0xc2714). Its compressed
+    # crashrecovery APEX holds AOSP's RescueParty.isDisabled -- the same four
+    # tests in the same order (persist.sys.enable_rescue,
+    # persist.device_config.configuration.disable_rescue_party, eng/userdebug,
+    # persist.sys.disable_rescue) -- so guest_start.sh's property check holds.
+    ("Nothing OS 5.0 AQ3A.250924.001 (Metroid)", {
+        "vold": "536cc0b286923afbb6be2aad9457b8420dbd93e78bfe14fcfdbfef06f6901148",
+        "service.incremental.so": "7509ea1a751e70400057bf1afd79876b2630ad0fd1ee2e993ff06a8f1528ca74",
+        "crashrecovery-google-compressed.apex": "e2661820811896284537a044664dee933e5fd62a879efe02b5104d1388f43816",
+    }, [("vold", 0xe1e7, NAME), ("vold", 0x64728, TRY_START), ("service.incremental.so", 0x64410, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)
     return bytearray(open(p, "rb").read()) if os.path.isfile(p) else bytearray()
 def sha(d):
     return hashlib.sha256(d).hexdigest()
-data = {n: read(n) for n in ("vold", "service.incremental.so", "crashrecovery-google.apex", "crashrecovery-aosp.apex", "crashrecovery-google-compressed.apex")}
+data = {n: read(n) for n in ("vold", "service.incremental.so", "crashrecovery-google.apex", "crashrecovery-aosp.apex", "crashrecovery-google-compressed.apex", "crashrecovery-aosp.capex")}
 build = next((b for b in BUILDS if all(sha(data[n]) == want for n, want in b[1].items())), None)
 if build is None:
     have = ", ".join("%s %s" % (n, sha(d)[:12] if d else "missing") for n, d in data.items())
@@ -173,6 +230,27 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_own_idmap.py" "$W
 # Ultra IN, session 77e7789e: system_server died 60 s into boot;
 # patches/guest_webview_zygote_safe.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_webview_zygote_safe.py" "$WORK/services")"
+# A native-only service fails to start instead of waiting on One UI's
+# zygote_next (S25 Ultra, Pixel 9 Pro XL, app 0.4.25: Chrome's renderer held
+# every process start of the session; patches/guest_no_native_services.py).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_native_services.py" "$WORK/services")"
+# Samsung's VoLTE app (com.sec.imsservice) keeps android.uid.system in the guest,
+# but only from the staged read-only path /system_ext/priv-app/OneOSSecIms
+# (guest_prepare.sh, ONEOS_GUEST_SEC_IMS=1): verifySignatures admits that one
+# package there despite its Samsung platform signature, and nothing else
+# (patches/guest_sec_ims_signature.py, docs/samsung-ims-in-guest.md). Always
+# applied; dormant unless such a package is staged at that path.
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_sec_ims_signature.py" "$WORK/services")"
+# The wipe paths never delete the phone's secrets: Secretkeeper, the secure
+# element, vold's storage and metadata keys (Infinity-X's duress wipe calls
+# them directly; patches/guest_no_wipe_secrets.py). Before guest_own_vold.py.
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_wipe_secrets.py" "$WORK/services")"
+# The guest's StorageManagerService keeps no handle on the phone's own A/B
+# updater (patches/guest_no_update_engine.py). oneos_switch.sh stops
+# update_engine for the session, and a build whose StorageManagerService
+# constructs an UpdateEngine then dies at boot (Nothing OS 5.0, first run);
+# a build that has none is left alone (Pixel).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_update_engine.py" "$WORK/services")"
 # The guest's own vold as "gvld", with vold_patched above; no guest call left
 # that reaches One UI's "vold" (patches/guest_own_vold.py).
 if [ "$VOLD_GVLD" = 1 ]; then
@@ -195,7 +273,31 @@ else
     KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_blur_no_thermal.py" "$WORK/services")"
     echo "Window blur: not turned off by heat (BlurController.updateBlurEnabled)"
 fi
-java -jar "$APKTOOL" b -q -o "$WORK/rebuilt.jar" "$WORK/services"
+# Qualcomm's display additions make a second built-in panel private, and the
+# Z Fold's cover becomes display 0 when it folds: no app could use it
+# (patches/qti_builtin_display_public.py; nothing in images without them).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/qti_builtin_display_public.py" "$WORK/services")"
+# A dex the added OneOS classes push past 65536 method references (the Pixel 9
+# Pro XL's classes2: 65568) gets them moved to a dex of their own after the
+# last one: one jar, one class loader, so they keep their package access.
+# Builds that fit are unchanged.
+if ! java -jar "$APKTOOL" b -q -o "$WORK/rebuilt.jar" "$WORK/services" 2> "$WORK/apktool.err"; then
+    FULL=$(sed -n 's/.*Could not smali folder: \(smali[_a-z0-9]*\).*/\1/p' "$WORK/apktool.err" | head -1)
+    if [ -z "$FULL" ] || ! grep -q 'Unsigned short value out of range' "$WORK/apktool.err" ||
+       [ -z "$(cd "$WORK/services/$FULL" && find . -name 'OneOS*.smali')" ]; then
+        cat "$WORK/apktool.err" >&2
+        exit 1
+    fi
+    LAST=$(ls -d "$WORK"/services/smali_classes* 2>/dev/null | sed 's/.*smali_classes//' | sort -n | tail -1)
+    OWN="smali_classes$((${LAST:-1} + 1))"
+    (cd "$WORK/services/$FULL" && find . -name 'OneOS*.smali') | while read -r f; do
+        mkdir -p "$WORK/services/$OWN/$(dirname "$f")"
+        mv "$WORK/services/$FULL/$f" "$WORK/services/$OWN/$f"
+        echo "services.jar: $FULL is past 65536 method references, $f moved to $OWN"
+    done
+    java -jar "$APKTOOL" b -q -o "$WORK/rebuilt.jar" "$WORK/services"
+    KEY_DIRS="$KEY_DIRS $OWN"
+fi
 cp "$WORK/services.jar" "$OUT/services_patched.jar"
 for d in $(printf '%s\n' "$DISPLAY_DIR" $KEY_DIRS | sort -u); do
     DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
@@ -220,6 +322,8 @@ if in_image /system/framework/oplus-services.jar; then
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/oplus")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_no_sysrq_crash.py" "$WORK/oplus")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_no_wipe_secrets.py" "$WORK/oplus")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     # With the guest vold as "gvld": OPPO's own "vold" lookup too
     # (OplusStorageManagerFeature, patches/guest_own_vold.py --oplus).
@@ -255,6 +359,129 @@ else
     echo "oplus-services.jar: not in the image, nothing to patch"
 fi
 
+# HyperOS: Xiaomi's miui-services.jar runs in the same system_server, with its
+# own recovery, factory reset, preinstall and vold paths (patches/miui_guards.py,
+# docs/hyperos.md), the storage guards and installd callers like
+# oplus-services.jar's, and with "gvld" its two "vold" lookups
+# (guest_own_vold.py --miui). apprecovery.proinstaller.jar (also on the system
+# server class path) installs apps by itself: its InstallService does nothing
+# (miui_guards.py --proinstaller). Only in HyperOS images; guest_prepare.sh
+# refuses one without them.
+MIUI_JAR=/system/system_ext/framework/miui-services.jar
+PRO_JAR=/system/system_ext/framework/apprecovery.proinstaller.jar
+if in_image $MIUI_JAR; then
+    "$DEBUGFS" -R "dump $MIUI_JAR $WORK/miui-services.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/miui" "$WORK/miui-services.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/miui_guards.py" "$WORK/miui")
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/miui")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" --callers "$WORK/miui")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    if [ "$VOLD_GVLD" = 1 ]; then
+        NEW=$(python3 -I "$ROOT/switcher/patches/guest_own_vold.py" --miui "$WORK/miui")
+        DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    fi
+    # HAL extension casts (patches/hyperos_hal_ext.py): the vibrator's.
+    NEW=$(python3 -I "$ROOT/switcher/patches/hyperos_hal_ext.py" --expect 1 "$WORK/miui" HalExtServices)
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    java -jar "$APKTOOL" b -q -o "$WORK/miui-rebuilt.jar" "$WORK/miui"
+    cp "$WORK/miui-services.jar" "$OUT/miui-services_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/miui-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-services_patched.jar" "$DEX")
+        echo "built $OUT/miui-services_patched.jar (replaced $DEX)"
+    done
+    in_image $PRO_JAR || { echo "ERROR: $MIUI_JAR without $PRO_JAR: another HyperOS layout, not guarded" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $PRO_JAR $WORK/proinstaller.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/pro" "$WORK/proinstaller.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/miui_guards.py" --proinstaller "$WORK/pro")
+    java -jar "$APKTOOL" b -q -o "$WORK/pro-rebuilt.jar" "$WORK/pro"
+    cp "$WORK/proinstaller.jar" "$OUT/apprecovery.proinstaller_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/pro-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/apprecovery.proinstaller_patched.jar" "$DEX")
+        echo "built $OUT/apprecovery.proinstaller_patched.jar (replaced $DEX)"
+    done
+    # miui-wifi-service.jar (MiuiWifiService in system_server): its casts of
+    # the Wi-Fi HALs' extensions (supplicant, hardware, hostapd) to Xiaomi
+    # interfaces, which One UI's HALs answer with Samsung's
+    # (patches/hyperos_hal_ext.py; the third HyperOS run died in
+    # ISupplicantXm.registerCallback).
+    WIFI_JAR=/system/system_ext/framework/miui-wifi-service.jar
+    in_image $WIFI_JAR || { echo "ERROR: $MIUI_JAR without $WIFI_JAR" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $WIFI_JAR $WORK/miui-wifi-service.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mwifi" "$WORK/miui-wifi-service.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_hal_ext.py" --expect 5 "$WORK/mwifi" HalExtWifi)
+    java -jar "$APKTOOL" b -q -o "$WORK/mwifi-rebuilt.jar" "$WORK/mwifi"
+    cp "$WORK/miui-wifi-service.jar" "$OUT/miui-wifi-service_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/mwifi-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-wifi-service_patched.jar" "$DEX")
+        echo "built $OUT/miui-wifi-service_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/mwifi" "$WORK/mwifi-rebuilt.jar"
+    # miui-telephony-common.jar (com.android.phone): Xiaomi's IMS controller
+    # without an IMS phone (patches/hyperos_telephony.py; the fourth HyperOS
+    # run's phone process died on every service state poll).
+    TEL_JAR=/system/system_ext/framework/miui-telephony-common.jar
+    in_image $TEL_JAR || { echo "ERROR: $MIUI_JAR without $TEL_JAR" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $TEL_JAR $WORK/miui-telephony-common.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mtel" "$WORK/miui-telephony-common.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_telephony.py" "$WORK/mtel")
+    java -jar "$APKTOOL" b -q -o "$WORK/mtel-rebuilt.jar" "$WORK/mtel"
+    cp "$WORK/miui-telephony-common.jar" "$OUT/miui-telephony-common_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/mtel-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-telephony-common_patched.jar" "$DEX")
+        echo "built $OUT/miui-telephony-common_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/mtel" "$WORK/mtel-rebuilt.jar"
+    # libaudiohal@aidl.so: HyperOS's audioserver waited for an audio HAL
+    # adapter vendor extension that only One UI's own audioserver serves, and
+    # a session stops it (patches/hyperos_audio_ext.py, sixth run: no sound).
+    AH_LIB=/system/lib64/libaudiohal@aidl.so
+    in_image $AH_LIB || { echo "ERROR: $MIUI_JAR without $AH_LIB" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $AH_LIB $WORK/libaudiohal_aidl.so" "$IMG" 2>/dev/null
+    python3 -I "$ROOT/switcher/patches/hyperos_audio_ext.py" "$WORK/libaudiohal_aidl.so" "$OUT/libaudiohal_aidl_patched.so"
+    rm -f "$WORK/libaudiohal_aidl.so"
+    # socket_exec (switcher/native): guest_start.sh starts hyos_spawner with
+    # it, the service that runs HyperOS's rust packages (the launcher).
+    cp -f "$ROOT/switcher/native/bin/socket_exec" "$OUT/socket_exec"
+    # framework.jar: Xiaomi's CameraStatus parcel back to AOSP's fields, as One
+    # UI's cameraserver writes them (patches/hyperos_framework.py; the first
+    # HyperOS run died in BiometricService on a null CameraStatus).
+    FW_JAR=/system/framework/framework.jar
+    in_image $FW_JAR || { echo "ERROR: $MIUI_JAR without $FW_JAR" >&2; exit 1; }
+    # The camera transaction codes step further down builds on this jar (HYPEROS_FW).
+    HYPEROS_FW=1
+    "$DEBUGFS" -R "dump $FW_JAR $WORK/framework.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$WORK/framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_framework.py" "$WORK/fw")
+    java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"
+    cp "$WORK/framework.jar" "$OUT/framework_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/fw-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/framework_patched.jar" "$DEX")
+        echo "built $OUT/framework_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/framework.jar"
+else
+    rm -f "$OUT/miui-services_patched.jar" "$OUT/apprecovery.proinstaller_patched.jar" "$OUT/framework_patched.jar" "$OUT/miui-wifi-service_patched.jar" \
+          "$OUT/miui-telephony-common_patched.jar" "$OUT/socket_exec" \
+          "$OUT/libaudiohal_aidl_patched.so"
+    echo "miui-services.jar: not in the image, nothing to patch"
+fi
+
 
 # product/framework/ims-ext-common.jar: QtiImsExtConnector retries a failed
 # bind every 60 s instead of every 500 ms (patches/qti_ims_ext_backoff.py).
@@ -275,6 +502,96 @@ if in_image /system/product/framework/ims-ext-common.jar; then
 else
     rm -f "$OUT/ims-ext-common_patched.jar"
     echo "ims-ext-common.jar: not in the image, nothing to patch"
+fi
+
+# Nothing OS loads its telephony extension in a class loader of its own holding
+# exactly one jar (telephony-common.jar's NtTelephonyFactory:
+# new PathClassLoader("/system_ext/framework/nt-telephony-common.jar", parent)),
+# and NrModeUpdaterQc$1 in that jar extends com.qti.extphone.ExtPhoneCallbackBase,
+# which lives in extphonelib.jar and is not in that loader. So com.android.phone
+# died with NoClassDefFoundError in PhoneFactory.makeDefaultPhone at every start
+# ("crashed too many times, killing"): no RILJ, no ServiceState, and the lock
+# screen read "Emergency calls only", though rild itself was up and had
+# registered IRadioSim and IRadioNetwork for both slots (first Nothing run,
+# 2026-10-31).
+#
+# extphonelib's dex is put into the jar that loader does read, as classes2.dex:
+# a PathClassLoader takes classes.dex, classes2.dex, ... from each path it is
+# given, so the superclass resolves inside the same loader. The alternative was
+# to add a second path to that string in telephony-common.jar, which is on the
+# boot class path; this leaves it alone. The dex is copied, not rebuilt, so
+# nothing in either jar changes meaning. Only for an image that has both.
+in_image_either() {
+    for p in "/system_ext/framework/$1" "/system/system_ext/framework/$1"; do
+        in_image "$p" && { echo "$p"; return 0; }
+    done
+    return 1
+}
+NT_TC=$(in_image_either nt-telephony-common.jar || true)
+# The jars it needs that the loader's parent does not already cover, from a
+# scan of all 54 references its 7169 classes make outside the boot class path:
+#   extphonelib            ExtPhoneCallbackBase, NrModeUpdaterQc$1's superclass
+#   qcrilhook             OemHookCallback
+#   qti-telephony-common  QtiRilInterface, which RrcIndicationEnablerQc wants
+#   qti-telephony-utils, qti-telephony-hidl-wrapper   qcrilhook's own declared
+#                          dependencies
+# Everything else resolves from the boot class path (framework.jar,
+# telephony-common.jar, nt-framework.jar, nt-telephony-interface.jar):
+# com/android/{ims,telephony,server/net}, com/nothing/{experience,kafka,
+# onlineconfig,thermal,telephony,internal/telephony/ext} and com/sysaac/haptic.
+# Each missing one only showed itself when the one before it was in, a run at a
+# time, so the list is taken from the scan now rather than from the next crash.
+NT_ADD=""
+for j in extphonelib.jar qcrilhook.jar qti-telephony-common.jar \
+         qti-telephony-utils.jar qti-telephony-hidl-wrapper.jar; do
+    p=$(in_image_either "$j" || true)
+    [ -n "$p" ] && NT_ADD="$NT_ADD $p"
+done
+rm -f "$OUT/nt-telephony-common_patched.jar"
+if [ -n "$NT_TC" ] && [ -n "$NT_ADD" ]; then
+    "$DEBUGFS" -R "dump $NT_TC $WORK/nt_base.jar" "$IMG" 2>/dev/null
+    NT_FILES=""
+    mkdir -p "$WORK/ntadd"
+    for p in $NT_ADD; do
+        b=$(basename "$p")
+        "$DEBUGFS" -R "dump $p $WORK/ntadd/$b" "$IMG" 2>/dev/null
+        NT_FILES="$NT_FILES $WORK/ntadd/$b"
+    done
+    # shellcheck disable=SC2086
+    python3 -I - "$OUT/nt-telephony-common_patched.jar" "$WORK/nt_base.jar" $NT_FILES <<'PYEOF'
+import os, sys, zipfile
+out, src = sys.argv[1:3]
+adds = sys.argv[3:]
+zi = zipfile.ZipFile(src)
+have = [e for e in zi.namelist() if e.endswith(".dex")]
+if have != ["classes.dex"]:
+    sys.exit("nt-telephony-common.jar has %s, not one classes.dex; not merged" % have)
+need = {b"com/qti/extphone/ExtPhoneCallbackBase", b"com/qualcomm/qcrilhook/OemHookCallback",
+        b"com/qualcomm/qti/internal/telephony/QtiRilInterface"}
+seen, dexes = set(), []
+for a in adds:
+    za = zipfile.ZipFile(a)
+    ad = [e for e in za.namelist() if e.endswith(".dex")]
+    if ad != ["classes.dex"]:
+        sys.exit("%s has %s, not one classes.dex; not merged" % (os.path.basename(a), ad))
+    d = za.read("classes.dex")
+    dexes.append((os.path.basename(a), d))
+    seen |= {c for c in need if c in d}
+missing = need - seen
+if missing:
+    sys.exit("none of the added jars has %s; not merged" % b", ".join(sorted(missing)).decode())
+with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as zo:
+    for e in zi.infolist():
+        zo.writestr(e, zi.read(e.filename))
+    for i, (name, d) in enumerate(dexes, start=2):
+        zo.writestr("classes%d.dex" % i, d)
+print("built %s (its classes.dex, plus %s)" % (
+    out, ", ".join("%s as classes%d.dex" % (n, i) for i, (n, _) in enumerate(dexes, start=2))))
+PYEOF
+elif [ -n "$NT_TC" ]; then
+    echo "nt-telephony-common.jar: none of the jars it needs are in the image, left as it is"
+else
+    echo "nt-telephony-common.jar: not in the image, nothing to merge"
 fi
 
 
@@ -348,6 +665,7 @@ else
         INJ_WHY="TeleService.apk declares overlayable resources"
     else
         INJ_PHONE_RROS=0
+        INJ_OVERRIDES=""
         for d in /system/product/overlay /system/overlay /system/system_ext/overlay; do
             in_image "$d" || continue
             rm -rf "$WORK/ovl" && mkdir -p "$WORK/ovl"
@@ -357,12 +675,29 @@ else
                 "$BT/aapt2" dump badging "$a" 2>/dev/null | grep -q "targetPackage='com.android.phone'" || continue
                 INJ_PHONE_RROS=$((INJ_PHONE_RROS + 1))
                 if "$BT/aapt2" dump resources "$a" 2>/dev/null | grep -q ' xml/telephony_injection$'; then
-                    INJ_WHY="$INJ_WHY${INJ_WHY:+, }$d/${a#"$WORK"/ovl/*/} overrides xml/telephony_injection"
+                    INJ_OVERRIDES="$INJ_OVERRIDES${INJ_OVERRIDES:+, }$d/${a#"$WORK"/ovl/*/}"
                 fi
             done < "$WORK/ovl.txt"
         done
         rm -rf "$WORK/ovl" "$WORK/ovl.txt"
         echo "signal poll injection: $INJ_PHONE_RROS RRO(s) in the image target com.android.phone"
+        # An image RRO that sets xml/telephony_injection itself (Nothing OS 5.0:
+        # product/overlay/TelephonyResCommon_Sys.apk, Qualcomm's factory) used to
+        # rule the poll out. Run 10 showed the guest's static overlay order:
+        # system_ext < product < vendor < oem, so ours in /oem (guest_prepare.sh)
+        # comes last and wins; from system_ext it lost, and Qualcomm's factory,
+        # loading now that the read-only layer made its jars "protected",
+        # crash-looped com.android.phone (org.codeaurora.ims is not on its class
+        # path). That order only holds without an overlay ordering file, so an
+        # image with one is still left out.
+        if [ -n "$INJ_OVERRIDES" ]; then
+            for c in /system/overlay/config/config.xml /system/product/overlay/config/config.xml \
+                     /product/overlay/config/config.xml /system/system_ext/overlay/config/config.xml \
+                     /system_ext/overlay/config/config.xml /system/etc/overlay/config.xml; do
+                in_image "$c" && INJ_WHY="$INJ_WHY${INJ_WHY:+, }$INJ_OVERRIDES overrides xml/telephony_injection and $c sets the overlay order"
+            done
+            [ -n "$INJ_WHY" ] || echo "signal poll injection: $INJ_OVERRIDES overrides xml/telephony_injection; ours goes in /oem, which comes after it"
+        fi
         if [ -z "$INJ_WHY" ]; then
             # Another image's jar that apktool cannot read only leaves this out,
             # like every other reason here: not a failed build.
@@ -412,26 +747,77 @@ else
 fi
 rm -rf "$WORK/inj" "$WORK/TeleService.apk" "$WORK/telephony-common.jar"
 
+# A Pixel (AOSP) or ColorOS guest's camera calls with One UI's transaction codes
+# (patches/pixel_camera_abi.py and pixel_camera_native.py, docs/pixel-guest.md
+# "What differs"): the image's framework.jar as framework_patched.jar and its
+# native client libraries as libcamera_client_patched.so and
+# libcameracompatbilityinfo_patched.so (the legacy camera API and the NDK ride
+# on those). guest_prepare.sh binds them and guards.txt pins them. ColorOS's
+# ICameraService has Oplus methods and its own numbering (21-28), the same
+# treatment as the Pixels'. scripts/patch-framework-camera.sh and
+# patch-camera-native.sh do the same for a set whose image is no longer on the
+# server, from files pulled from the phone.
+# HyperOS (0.4.31): on top of its own framework_patched.jar (hyperos_framework.py's
+# CameraStatus, made above in this run), so the set carries both.
+if [ "${HYPEROS_FW:-0}" = 1 ] && [ -f "$OUT/framework_patched.jar" ]; then
+    cp "$OUT/framework_patched.jar" "$WORK/framework-cam.jar"
+fi
+rm -f "$OUT/framework_patched.jar" "$OUT/libcamera_client_patched.so" "$OUT/libcameracompatbilityinfo_patched.so"
+if in_image /system/framework/framework.jar; then
+    [ -f "$WORK/framework-cam.jar" ] || "$DEBUGFS" -R "dump /system/framework/framework.jar $WORK/framework-cam.jar" "$IMG" 2>/dev/null
+    "$ROOT/scripts/patch-framework-camera.sh" "$WORK/framework-cam.jar" "$OUT"
+    rm -f "$WORK/framework-cam.jar"
+fi
+if in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
+    "$DEBUGFS" -R "dump /system/lib64/libcamera_client.so $WORK/libcamera_client.so" "$IMG" 2>/dev/null
+    "$DEBUGFS" -R "dump /system/lib64/libcameracompatbilityinfo.so $WORK/libcameracompatbilityinfo.so" "$IMG" 2>/dev/null
+    "$ROOT/scripts/patch-camera-native.sh" "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so" "$OUT"
+    rm -f "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so"
+fi
+
 # ART rejects a whole class for an empty try range, which a patcher leaves when
 # it drops the only call inside a try block (run 26: Installer, system_server
 # died at boot). Fail the build instead.
 JARS=""
 for j in services_patched.jar oplus-services_patched.jar ims-ext-common_patched.jar oplus-telephony-common_patched.jar \
-         oneos-telephony.jar; do
+         oneos-telephony.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar \
+         miui-wifi-service_patched.jar miui-telephony-common_patched.jar; do
     [ -f "$OUT/$j" ] && JARS="$JARS $OUT/$j"
 done
 python3 -I "$ROOT/scripts/check-dex.py" $JARS
 
 # The phone refuses jars that were not built with the guards above
 # (guest_prepare.sh checks these hashes, and needs oplus-services_patched.jar
-# whenever the image has oplus-services.jar). vold_patched and
+# whenever the image has oplus-services.jar, miui-services_patched.jar and
+# apprecovery.proinstaller_patched.jar whenever it has miui-services.jar). vold_patched and
 # service.incremental_patched.so are listed with the services_patched.jar that
 # looks up "gvld": guest_prepare.sh binds all three or none of them.
 {
-    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000 and nousers guards"
+    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices and wipesecrets guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
-    (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
-        $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so))
+    # HyperOS images (miui-services_patched.jar) and Pixel images list their
+    # files in the order and with the notes each set was built with.
+    if [ -f "$OUT/miui-services_patched.jar" ]; then
+        echo "# HyperOS: miui-services_patched.jar and apprecovery.proinstaller_patched.jar (patches/miui_guards.py)"
+        [ -f "$OUT/framework_patched.jar" ] && echo "# HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)"
+        [ -f "$OUT/miui-wifi-service_patched.jar" ] && echo "# HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)"
+        [ -f "$OUT/miui-telephony-common_patched.jar" ] && echo "# HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)"
+        [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
+        (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
+            miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar \
+            miui-telephony-common_patched.jar \
+            $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
+            $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
+            $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
+    else
+        [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
+        [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
+        (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
+            $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
+            $([ -f framework_patched.jar ] && echo framework_patched.jar) \
+            $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
+            $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
+    fi
 } > "$OUT/guards.txt"
 
 # surfaceflinger: skip the Qualcomm composer extension client, so every frame
@@ -449,7 +835,10 @@ python3 -I - "$WORK/surfaceflinger" "$OUT/surfaceflinger_patched" <<'PYEOF'
 import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
-SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178}
+SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
+         # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
+         # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
+         "e5a8726a6687": 0x452a50}
 off = SITES.get(hashlib.sha1(data).hexdigest()[:12])
 if off is None and b"IQtiComposer3Client" not in data:
     # Google's own build (Pixel image): no QTI composer client to skip.
@@ -468,11 +857,21 @@ print("built %s (QTI composer client skipped)" % dst)
 PYEOF
 [ ! -f "$OUT/surfaceflinger_patched" ] || chmod 755 "$OUT/surfaceflinger_patched"
 
+# bootanimation on every panel (patch-bootanim-multidisplay.py; guest_prepare.sh
+# binds it under the image's own name): without Android's multidisplay flag it
+# drew on the Fold's inner panel only, the cover black when started folded.
+for l in libbootanimation_preapex libbootanimation; do
+    rm -f "$OUT/${l}_patched.so" "$WORK/$l.so"
+    "$DEBUGFS" -R "dump /system/lib64/$l.so $WORK/$l.so" "$IMG" 2>/dev/null
+    [ -s "$WORK/$l.so" ] || continue
+    python3 -I "$ROOT/scripts/patch-bootanim-multidisplay.py" "$WORK/$l.so" "$OUT/${l}_patched.so" || rm -f "$OUT/${l}_patched.so"
+done
+
 # com.oplus.wallpapers "Home screen, Lock screen & style": with type.fold the app
 # uses its Find N6 inner-screen page, a 4x4 grid where every card is 2x2 = half
 # the panel (run 30: 1072 px cards, "too zoomed in"). This static RRO
-# (switcher/overlays/wallpapers_fold_grid) makes it 8x2, one row of four ~520 px
-# cards; guest_prepare.sh binds it in the guest's /oem/overlay. Built only if
+# (switcher/overlays/wallpapers_fold_grid) keeps 4x4 in embedded panes and
+# chooses 8x2 only for windows at least 800dp wide; guest_prepare.sh binds it in the guest's /oem/overlay. Built only if
 # the image's layout is still the 4x4 one it was written against.
 RRO="$ROOT/switcher/overlays/wallpapers_fold_grid"
 "$DEBUGFS" -R "dump /my_stock/priv-app/Wallpapers/Wallpapers.apk $WORK/Wallpapers.apk" "$IMG" 2>/dev/null
@@ -486,10 +885,62 @@ if [ -n "$LAYOUT" ] && "$BT/aapt2" dump xmltree --file "$LAYOUT" "$WORK/Wallpape
         --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
         --out "$OUT/OneOSWallpapersFoldGrid.apk" "$WORK/rro-aligned.apk"
     rm -f "$OUT/OneOSWallpapersFoldGrid.apk.idsig"
-    echo "built $OUT/OneOSWallpapersFoldGrid.apk (Wallpapers fold grid 8x2)"
+    echo "built $OUT/OneOSWallpapersFoldGrid.apk (Wallpapers responsive fold grid)"
 else
     rm -f "$OUT/OneOSWallpapersFoldGrid.apk"
     echo "Wallpapers.apk: fold card layout not as expected, grid overlay not built"
+fi
+
+# Patch one dex of a system APK and splice it back with the signing block as
+# it was (scripts/apk-replace-dex.py): PackageManager does not check the digests
+# of an APK on a system partition and still reads the platform certificate.
+# patch_apk_dex <apk> <out apk> <patcher in switcher/patches> <class the image
+# must have> <what it does>. The patcher refuses a body it was not written for;
+# then nothing is built.
+patch_apk_dex() {
+    rm -f "$2"
+    if ! unzip -p "$1" 'classes*.dex' 2>/dev/null | grep -aq "$4"; then
+        echo "$(basename "$1"): no $4, $5: not built"
+        return 0
+    fi
+    rm -rf "$WORK/pad"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/pad" "$1"
+    if PAD_DIR=$(python3 -I "$ROOT/switcher/patches/$3" "$WORK/pad"); then
+        # Rebuild that one dex only; the others are left out of the build.
+        for d in "$WORK"/pad/smali*; do
+            [ "$(basename "$d")" = "$PAD_DIR" ] || rm -rf "$d"
+        done
+        PAD_DEX="$(echo "$PAD_DIR" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        java -jar "$APKTOOL" b -q -o "$WORK/pad-rebuilt.apk" "$WORK/pad"
+        rm -rf "$WORK/pad-dex" "$WORK/pad-dex.jar" && mkdir -p "$WORK/pad-dex"
+        unzip -q -o "$WORK/pad-rebuilt.apk" "$PAD_DEX" -d "$WORK/pad-dex"
+        (cd "$WORK/pad-dex" && zip -q -0 "$WORK/pad-dex.jar" "$PAD_DEX")
+        python3 -I "$ROOT/scripts/check-dex.py" "$WORK/pad-dex.jar"
+        python3 -I "$ROOT/scripts/apk-replace-dex.py" "$1" "$PAD_DEX" "$WORK/pad-dex/$PAD_DEX" "$2"
+        echo "built $2 ($5, $PAD_DEX)"
+    else
+        echo "$(basename "$1"): $5: not built (see above)"
+    fi
+    rm -rf "$WORK/pad" "$WORK/pad-rebuilt.apk" "$WORK/pad-dex" "$WORK/pad-dex.jar"
+}
+
+# HyperOS's wallpaper app on a one-panel phone (switcher/patches/
+# hyperos_miwallpaper_null.py): it died in Application.onCreate on every start
+# when the lock wallpaper had no effect type yet (0.4.32, Galaxy S25), so there
+# was no wallpaper. guest_prepare.sh binds MiWallpaper_patched.apk over the
+# image's. HyperOS images keep /product at the image root.
+rm -f "$OUT/MiWallpaper_patched.apk"
+MIWP=""
+for p in /product/app/MiWallpaper/MiWallpaper.apk /system/product/app/MiWallpaper/MiWallpaper.apk; do
+    in_image "$p" && { MIWP=$p; break; }
+done
+if [ -n "$MIWP" ]; then
+    "$DEBUGFS" -R "dump $MIWP $WORK/MiWallpaper.apk" "$IMG" 2>/dev/null
+    patch_apk_dex "$WORK/MiWallpaper.apk" "$OUT/MiWallpaper_patched.apk" hyperos_miwallpaper_null.py \
+        'Lcom/miui/miwallpaper/utils/WallpaperTypeUtils;' "wallpaper app starts with an unknown effect type"
+    rm -f "$WORK/MiWallpaper.apk"
+else
+    echo "MiWallpaper.apk: not in the image, nothing to patch"
 fi
 
 # Pixel's status bar (run 42): SystemUIGoogle's StatusBarContentInsetsProvider
@@ -507,6 +958,15 @@ fi
 # configuration the overlay lacks and a phone panel can match: that target
 # value would win over the overlay's (sw1000dp and up is ignored here).
 SYSUI=/system/system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk
+# Infinity-X (0.4.33): AOSP's SystemUI has the same insets provider and the same
+# gap (rounded_corner_content_padding points to the framework's 0dp on Samsung's
+# vendor; A56 report a321c25b: "the clock padding on status bar is too close to
+# the right corner"). Not ColorOS's SystemUI (same package, OPPO's own layout):
+# an image with oplus-telephony-common.jar keeps its own.
+if ! in_image "$SYSUI" && ! in_image /system/system_ext/framework/oplus-telephony-common.jar &&
+   in_image /system/system_ext/priv-app/SystemUI/SystemUI.apk; then
+    SYSUI=/system/system_ext/priv-app/SystemUI/SystemUI.apk
+fi
 SB_RRO="$ROOT/switcher/overlays/pixel_statusbar"
 SB_DIMENS="rounded_corner_content_padding ongoing_appops_dot_min_padding status_bar_padding_end"
 # "<name> <(config)>" for each of those dimens in an APK's resource dump.
@@ -525,9 +985,9 @@ if in_image "$SYSUI"; then
     done
     SB_OVERLAYABLE=$("$BT/aapt2" dump overlayable "$WORK/SystemUIGoogle.apk" 2>/dev/null | head -n 3) || true
     if [ -n "$SB_MISSING" ]; then
-        echo "SystemUIGoogle.apk: no dimen$SB_MISSING, status bar overlay not built"
+        echo "$(basename "$SYSUI"): no dimen$SB_MISSING, status bar overlay not built"
     elif [ -n "$SB_OVERLAYABLE" ]; then
-        echo "SystemUIGoogle.apk declares overlayable resources, status bar overlay not built"
+        echo "$(basename "$SYSUI") declares overlayable resources, status bar overlay not built"
     else
         # No deduping: aapt2 drops the sw600dp value equal to the default one,
         # and the image's sw600dp 0dp would then win on the inner panel.
@@ -546,7 +1006,7 @@ if in_image "$SYSUI"; then
             echo "pixel_statusbar overlay: unexpected resources ($(tr '\n' ' ' < "$WORK/sb_cfgs.txt")), not built" >&2
             exit 1
         elif [ -n "$SB_UNCOVERED" ]; then
-            echo "SystemUIGoogle.apk has$SB_UNCOVERED, which the overlay does not cover: status bar overlay not built"
+            echo "$(basename "$SYSUI") has$SB_UNCOVERED, which the overlay does not cover: status bar overlay not built"
         else
             "$BT/zipalign" -p -f 4 "$WORK/sb.apk" "$WORK/sb-aligned.apk"
             "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
@@ -557,7 +1017,215 @@ if in_image "$SYSUI"; then
         fi
     fi
 else
-    echo "SystemUIGoogle.apk: not in the image, no status bar overlay"
+    echo "SystemUIGoogle.apk (or an AOSP SystemUI.apk): not in the image, no status bar overlay"
+fi
+
+# Patch one dex of a system APK and splice it back with the signing block as
+# it was (scripts/apk-replace-dex.py): PackageManager does not check the digests
+# of an APK on a system partition and still reads the platform certificate.
+# patch_apk_dex <apk> <out apk> <patcher in switcher/patches> <class the image
+# must have> <what it does>. The patcher refuses a body it was not written for;
+# then nothing is built.
+# Quick settings on a tablet-width panel. Nothing OS's SystemUI has
+# config_use_split_notification_shade for (land) and (sw600dp-land) but no
+# sw600dp-port value, so on the Z Fold's inner panel in portrait (sw902dp) it
+# fell back to the () phone shade and the tiles were stretched over 2256 px,
+# while config_use_large_screen_shade_header, which does have an (sw600dp)
+# value, had already gone large-screen: the two disagreed (the owner, first
+# Nothing runs). The overlay gives both a value under sw600dp, which covers
+# portrait as well; the cover panel is below 600dp and keeps the phone shade.
+# Built only when the image's SystemUI has both bools and declares no
+# overlayable resources (an /oem overlay may then override any of them).
+QS_SYSUI=""
+for p in /system_ext/priv-app/SystemUI/SystemUI.apk /system/system_ext/priv-app/SystemUI/SystemUI.apk; do
+    in_image "$p" && { QS_SYSUI=$p; break; }
+done
+QS_RRO="$ROOT/switcher/overlays/nothing_tablet_qs"
+QS_BOOLS="config_use_split_notification_shade config_use_large_screen_shade_header"
+rm -f "$OUT/OneOSTabletQs.apk" "$OUT/SystemUI_patched.apk"
+if [ -n "$QS_SYSUI" ]; then
+    "$DEBUGFS" -R "dump $QS_SYSUI $WORK/SystemUI.apk" "$IMG" 2>/dev/null
+    "$BT/aapt2" dump resources "$WORK/SystemUI.apk" > "$WORK/qs_res.txt" 2>/dev/null || true
+    QS_MISSING=""
+    for b in $QS_BOOLS; do
+        grep -q " bool/$b\$" "$WORK/qs_res.txt" || QS_MISSING="$QS_MISSING $b"
+    done
+    QS_OVERLAYABLE=$("$BT/aapt2" dump overlayable "$WORK/SystemUI.apk" 2>/dev/null | head -n 3) || true
+    if [ -n "$QS_MISSING" ]; then
+        echo "SystemUI.apk: no bool$QS_MISSING, tablet quick settings overlay not built"
+    elif [ -n "$QS_OVERLAYABLE" ]; then
+        echo "SystemUI.apk declares overlayable resources, tablet quick settings overlay not built"
+    else
+        # The tile sizes are not resources: run 10 had sw600dp dimens here,
+        # scaled from the image's own, and the overlay enabled above Nothing's
+        # own, with no effect. The panel draws at a density of its own
+        # (SystemUI_patched.apk below).
+        "$BT/aapt2" compile --dir "$QS_RRO/res" -o "$WORK/qs.zip"
+        "$BT/aapt2" link -o "$WORK/qs.apk" -I "$AJ" --manifest "$QS_RRO/AndroidManifest.xml" \
+            --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/qs.zip"
+        "$BT/zipalign" -p -f 4 "$WORK/qs.apk" "$WORK/qs-aligned.apk"
+        "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+            --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+            --out "$OUT/OneOSTabletQs.apk" "$WORK/qs-aligned.apk"
+        rm -f "$OUT/OneOSTabletQs.apk.idsig"
+        echo "built $OUT/OneOSTabletQs.apk (split shade and large-screen header from sw600dp)"
+    fi
+    # Nothing's quick settings panel at the screen's own density on a panel of
+    # sw600dp and up (switcher/patches/nothing_qs_density.py): it lays itself
+    # out as if every screen were 420 dp wide, which on the Fold's inner panel
+    # is 859 dpi, tiles twice the size and half the panel off the screen. One
+    # method in one dex; scripts/apk-replace-dex.py puts that dex back without
+    # touching the signing block, so PackageManager, which does not check the
+    # digests of an APK on a system partition, still reads the platform
+    # certificate. Only for the build the patch was written for: the patcher
+    # refuses any other body.
+    patch_apk_dex "$WORK/SystemUI.apk" "$OUT/SystemUI_patched.apk" nothing_qs_density.py \
+        'Lcom/nothing/systemui/qs/workspace/workspace/CellLayoutKt;' \
+        "quick settings at the screen's density from sw600dp"
+else
+    echo "SystemUI.apk: not in the image, no tablet quick settings overlay"
+fi
+
+# Nothing's app drawer with more category boxes per row on a wide panel
+# (switcher/patches/nothing_launcher_drawer.py): it has two per row on any
+# screen, sized from the width, and on the Fold's inner panel each box came out
+# about 1000 x 1100 px around four normal icons (the owner, Nothing run 11).
+LAUNCHER=""
+for p in /system_ext/priv-app/NothingLauncher3/NothingLauncher3.apk /system/system_ext/priv-app/NothingLauncher3/NothingLauncher3.apk; do
+    in_image "$p" && { LAUNCHER=$p; break; }
+done
+rm -f "$OUT/NothingLauncher3_patched.apk"
+if [ -n "$LAUNCHER" ]; then
+    "$DEBUGFS" -R "dump $LAUNCHER $WORK/NothingLauncher3.apk" "$IMG" 2>/dev/null
+    patch_apk_dex "$WORK/NothingLauncher3.apk" "$OUT/NothingLauncher3_patched.apk" nothing_launcher_drawer.py \
+        'Lcom/nothing/launcher/allapps/smart/z;' "drawer category boxes per row from the width"
+    rm -f "$WORK/NothingLauncher3.apk"
+else
+    echo "NothingLauncher3.apk: not in the image, drawer left as it is"
+fi
+
+# Nothing OS's About phone with the phone's own hardware (switcher/overlays/
+# nothing_about): its own-phone mode, the Fold's cameras and picture. Only for
+# an image with Nothing's Settings; guest_prepare.sh installs it on the F8U.
+NA_RRO="$ROOT/switcher/overlays/nothing_about"
+rm -f "$OUT/OneOSNtAbout.apk" "$OUT"/OneOSNtAbout?*.apk
+for p in /system_ext/priv-app/NothingSettings/NothingSettings.apk /system/system_ext/priv-app/NothingSettings/NothingSettings.apk; do
+    in_image "$p" || continue
+    "$BT/aapt2" compile --dir "$NA_RRO/res" -o "$WORK/na.zip"
+    # No --min-sdk-version: it would drop the -v4 of values-xxhdpi-v4, and the
+    # pictures must match Nothing's drawable-xxhdpi-v4 exactly to win.
+    "$BT/aapt2" link -o "$WORK/na.apk" -I "$AJ" --manifest "$NA_RRO/AndroidManifest.xml" \
+        --target-sdk-version 36 --no-resource-deduping "$WORK/na.zip"
+    "$BT/zipalign" -p -f 4 "$WORK/na.apk" "$WORK/na-aligned.apk"
+    "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+        --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+        --out "$OUT/OneOSNtAbout.apk" "$WORK/na-aligned.apk"
+    rm -f "$OUT/OneOSNtAbout.apk.idsig"
+    echo "built $OUT/OneOSNtAbout.apk (Nothing About phone: own-phone mode, cameras, picture)"
+    # The other Nothing phones (0.4.35): the Z Fold8 with the Fold's resources
+    # and its own picture and lenses over them; the S26 family and the Z Flip8
+    # with nothing_about_phone (the processor's whole name, the S26's picture),
+    # the S26 Ultra's and the flip's pictures and lenses over that.
+    NP_RRO="$ROOT/switcher/overlays/nothing_about_phone"
+    "$BT/aapt2" compile --dir "$NP_RRO/res" -o "$WORK/np.zip"
+    for v in Fold8 Phone S26U Flip; do
+        case $v in
+            Fold8) base="$WORK/na.zip"; man="$NA_RRO/AndroidManifest.xml"; layer=nothing_about_fold8 ;;
+            Phone) base="$WORK/np.zip"; man="$NP_RRO/AndroidManifest.xml"; layer="" ;;
+            S26U) base="$WORK/np.zip"; man="$NP_RRO/AndroidManifest.xml"; layer=nothing_about_s26u ;;
+            Flip) base="$WORK/np.zip"; man="$NP_RRO/AndroidManifest.xml"; layer=nothing_about_flip ;;
+        esac
+        extra=""
+        if [ -n "$layer" ]; then
+            "$BT/aapt2" compile --dir "$ROOT/switcher/overlays/$layer/res" -o "$WORK/nl.zip"
+            extra="-R $WORK/nl.zip"
+        fi
+        # shellcheck disable=SC2086
+        "$BT/aapt2" link -o "$WORK/np.apk" -I "$AJ" --manifest "$man" \
+            --target-sdk-version 36 --no-resource-deduping "$base" $extra
+        "$BT/zipalign" -p -f 4 "$WORK/np.apk" "$WORK/np-aligned.apk"
+        "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+            --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+            --out "$OUT/OneOSNtAbout$v.apk" "$WORK/np-aligned.apk"
+        rm -f "$OUT/OneOSNtAbout$v.apk.idsig" "$WORK/np.apk" "$WORK/np-aligned.apk" "$WORK/nl.zip"
+        echo "built $OUT/OneOSNtAbout$v.apk (Nothing About phone, $v)"
+    done
+    break
+done
+
+# One UI's brightness range (switcher/overlays/samsung_brightness_range), for a
+# Nothing image for now (guest_prepare.sh installs it there).
+BR_RRO="$ROOT/switcher/overlays/samsung_brightness_range"
+rm -f "$OUT/OneOSBrightnessRange.apk"
+if in_image /system_ext/framework/nt-telephony-common.jar || in_image /system/system_ext/framework/nt-telephony-common.jar; then
+    "$BT/aapt2" compile --dir "$BR_RRO/res" -o "$WORK/br.zip"
+    "$BT/aapt2" link -o "$WORK/br.apk" -I "$AJ" --manifest "$BR_RRO/AndroidManifest.xml" \
+        --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/br.zip"
+    "$BT/zipalign" -p -f 4 "$WORK/br.apk" "$WORK/br-aligned.apk"
+    "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+        --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+        --out "$OUT/OneOSBrightnessRange.apk" "$WORK/br-aligned.apk"
+    rm -f "$OUT/OneOSBrightnessRange.apk.idsig"
+    echo "built $OUT/OneOSBrightnessRange.apk (One UI's brightness range)"
+fi
+
+# Essential Space from a double press of power (switcher/overlays/
+# nothing_essential_key), for an image with Nothing's Essential Space.
+NE_RRO="$ROOT/switcher/overlays/nothing_essential_key"
+rm -f "$OUT/OneOSNtEssentialKey.apk"
+if in_image /product/overlayfs_origin/system/noth/priv-app/EssentialSpace/EssentialSpace.apk; then
+    "$BT/aapt2" compile --dir "$NE_RRO/res" -o "$WORK/ne.zip"
+    "$BT/aapt2" link -o "$WORK/ne.apk" -I "$AJ" --manifest "$NE_RRO/AndroidManifest.xml" \
+        --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/ne.zip"
+    "$BT/zipalign" -p -f 4 "$WORK/ne.apk" "$WORK/ne-aligned.apk"
+    "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+        --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+        --out "$OUT/OneOSNtEssentialKey.apk" "$WORK/ne-aligned.apk"
+    rm -f "$OUT/OneOSNtEssentialKey.apk.idsig"
+    echo "built $OUT/OneOSNtEssentialKey.apk (Essential Space on a double press of power)"
+fi
+
+# Per-panel display cutout for the Z Fold (switcher/overlays/fold_display_cutout).
+# An image whose framework-res leaves config_displayUniqueIdArray empty takes
+# the cutout from Samsung's vendor framework overlay, which /vendor shares with
+# the guest, and applies the cover's punch hole to whichever panel is on: the
+# inner panel, which has no cutout on this phone, got a phantom 108 px notch
+# (Nothing OS run 7). The overlay names the cover panel only (arrays.xml says
+# why not the inner); in run 10 the inner then had no cutout and a 24 dp status
+# bar inset. guest_prepare.sh installs it on the Z Fold (F8U) only, since the
+# ids and the hole are that phone's.
+CO_RRO="$ROOT/switcher/overlays/fold_display_cutout"
+CO_ARRAYS="config_displayUniqueIdArray config_displayCutoutPathArray"
+CO_DIMENS="status_bar_height status_bar_height_default status_bar_height_portrait"
+rm -f "$OUT/OneOSFoldCutout.apk"
+if in_image /system/framework/framework-res.apk; then
+    "$DEBUGFS" -R "dump /system/framework/framework-res.apk $WORK/framework-res.apk" "$IMG" 2>/dev/null
+    "$BT/aapt2" dump resources "$WORK/framework-res.apk" > "$WORK/co_res.txt" 2>/dev/null || true
+    CO_MISSING=""
+    for a in $CO_ARRAYS; do
+        grep -q " array/$a\$" "$WORK/co_res.txt" || CO_MISSING="$CO_MISSING $a"
+    done
+    for d in $CO_DIMENS; do
+        grep -q " dimen/$d\$" "$WORK/co_res.txt" || CO_MISSING="$CO_MISSING $d"
+    done
+    CO_OVERLAYABLE=$("$BT/aapt2" dump overlayable "$WORK/framework-res.apk" 2>/dev/null | head -n 3) || true
+    if [ -n "$CO_MISSING" ]; then
+        echo "framework-res.apk: no$CO_MISSING, fold cutout overlay not built"
+    elif [ -n "$CO_OVERLAYABLE" ]; then
+        echo "framework-res.apk declares overlayable resources, fold cutout overlay not built"
+    else
+        "$BT/aapt2" compile --dir "$CO_RRO/res" -o "$WORK/co.zip"
+        "$BT/aapt2" link -o "$WORK/co.apk" -I "$AJ" --manifest "$CO_RRO/AndroidManifest.xml" \
+            --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/co.zip"
+        "$BT/zipalign" -p -f 4 "$WORK/co.apk" "$WORK/co-aligned.apk"
+        "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+            --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+            --out "$OUT/OneOSFoldCutout.apk" "$WORK/co-aligned.apk"
+        rm -f "$OUT/OneOSFoldCutout.apk.idsig"
+        echo "built $OUT/OneOSFoldCutout.apk (inner panel no cutout and 24dp status bar, cover 505,0-575,108 and 54dp)"
+    fi
+else
+    echo "framework-res.apk: not in the image, no fold cutout overlay"
 fi
 
 # The guest's own APEX payloads, which guest_prepare.sh loop-mounts into the

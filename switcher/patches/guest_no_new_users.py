@@ -45,6 +45,12 @@ which is called only from readUserListLP(); and neither the constructor nor
 that system user path reaches the patched method. Every user/profile entry
 point listed above must reach it.
 
+Pixel 17 CP3A (the Pixel 9 Pro XL's komodo build) adds a trailing String[] to
+createUserInternalUnchecked() and the method, and a second in-process entry,
+UserManagerInternal.createProfileForUserEvenWhenDisallowed; the patcher takes
+whichever of the two signatures the build has (exactly one) and checks every
+create*User/Profile method as before.
+
 Pixel's services.jar (R8) has the method as public final with p registers and
 no debug info; ColorOS's as private, with .param/.line/.local and a Throws
 annotation, and an OPPO hook (ensureCanCreateStudyUserOrThrowIfNeeded) first.
@@ -63,8 +69,14 @@ CLS = "Lcom/android/server/pm/UserManagerService;"
 LOCAL = "Lcom/android/server/pm/UserManagerService$LocalService;"
 UI = "Landroid/content/pm/UserInfo;"
 SA = "Ljava/lang/String;"
-FUNNEL = f"{CLS}->createUserInternalUncheckedNoTracing({SA}{SA}IIZ[{SA}Lcom/android/server/utils/TimingsTraceAndSlog;Ljava/lang/Object;){UI}"
-UNCHECKED = f"{CLS}->createUserInternalUnchecked({SA}{SA}IIZ[{SA}Ljava/lang/Object;){UI}"
+# (createUserInternalUncheckedNoTracing, createUserInternalUnchecked): Pixel 17
+# CD1A and ColorOS 17 CP2A, then Pixel 17 CP3A with a trailing String[].
+SIGNATURES = (
+    (f"{CLS}->createUserInternalUncheckedNoTracing({SA}{SA}IIZ[{SA}Lcom/android/server/utils/TimingsTraceAndSlog;Ljava/lang/Object;){UI}",
+     f"{CLS}->createUserInternalUnchecked({SA}{SA}IIZ[{SA}Ljava/lang/Object;){UI}"),
+    (f"{CLS}->createUserInternalUncheckedNoTracing({SA}{SA}IIZ[{SA}Lcom/android/server/utils/TimingsTraceAndSlog;Ljava/lang/Object;[{SA}){UI}",
+     f"{CLS}->createUserInternalUnchecked({SA}{SA}IIZ[{SA}Ljava/lang/Object;[{SA}){UI}"),
+)
 SYSTEM_USER_INFO = f"{UI}-><init>(I{SA}{SA}I{SA})V"
 EXC = "Landroid/os/UserManager$CheckedUserOperationException;"
 EXC_INIT = f"{EXC}-><init>({SA}I)V"
@@ -87,12 +99,39 @@ ENTRIES = (
 CREATE_NAME = re.compile(r"^(?:create|preCreate)\w*(?:User|Profile)\w*$")
 
 MODS = r"(?:private |public |protected |final |static |synchronized )*"
-HEADER = re.compile(rf"^\.method {MODS}createUserInternalUncheckedNoTracing"
-                    + re.escape(FUNNEL.split("->createUserInternalUncheckedNoTracing", 1)[1]) + "$")
 INVOKE = re.compile(r"^\s*invoke-[a-z-]+(?:/range)? \{([^}]*)\}, (L[^;\s]+;->\S+)$")
 # mUsers itself, or the accessor inner classes use to reach it.
 USERS_REFS = (f"{CLS}->mUsers:Landroid/util/SparseArray;", f"{CLS}->-$$Nest$fgetmUsers(")
 SPARSE_WRITE = re.compile(r"Landroid/util/SparseArray;->(?:put|append|set|setValueAt|putAll)\(")
+# A SparseArray write and the register it writes to (invoke's first register).
+SPARSE_WRITE_RECV = re.compile(r"^\s*invoke-\S+ \{(v\d+|p\d+)[,}].*Landroid/util/SparseArray;->(?:put|append|set|setValueAt|putAll)\(")
+# What last went into a register: a fresh SparseArray, or anything else.
+NEW_SPARSE = re.compile(r"^\s*new-instance (v\d+), Landroid/util/SparseArray;")
+ASSIGN = re.compile(r"^\s*(?:const\S*|move\S*|new-\S+|[ais]get\S*|check-cast|instance-of|array-length) (v\d+|p\d+)(?:,|$)")
+
+
+def writes_only_fresh_arrays(body):
+    """Every SparseArray write in body goes to an array made with new-instance in it.
+
+    A linear scan of the most recent assignment of each register (fail closed:
+    a register last loaded from anything else, or never assigned here, counts
+    as possibly mUsers). HyperOS's repairProfileGroupIdIfNecessaryLP copies the
+    users into a new SparseArray this way, for XSpace's repair, and only saves
+    existing users (writeUserLP): no user is added.
+    """
+    fresh = {}
+    for line in body:
+        m = SPARSE_WRITE_RECV.search(line)
+        if m and not fresh.get(m.group(1), False):
+            return False
+        m = NEW_SPARSE.search(line)
+        if m:
+            fresh[m.group(1)] = True
+            continue
+        m = ASSIGN.search(line)
+        if m:
+            fresh[m.group(1)] = False
+    return True
 # An instruction whose first register is a destination.
 WRITES = r"^\s*(?:const\S*|move\S*|new-\S+|[ais]get\S*|instance-of|array-length|neg-\S+|not-\S+|\S+-to-\S+|(?:add|sub|rsub|mul|div|rem|and|or|xor|shl|shr|ushr)-\S+|cmp\S*) {r}(?:,|$)"
 
@@ -190,7 +229,7 @@ def only_called_from(callers, callee, allowed, what):
     return names
 
 
-def check_system_user_path(defs, edges, callers, files):
+def check_system_user_path(defs, edges, callers, files, funnel):
     """Prove that adding user 0 (first boot or later boots) never reaches the patched method."""
     def key(name):
         found = [k for k in defs if k.startswith(f"{CLS}->{name}(")]
@@ -201,6 +240,9 @@ def check_system_user_path(defs, edges, callers, files):
     for k, (path, i, j) in defs.items():
         body = files[path][i:j]
         if any(r in l for l in body for r in USERS_REFS) and any(SPARSE_WRITE.search(l) for l in body):
+            if writes_only_fresh_arrays(body):
+                print(f"{label(k)} reads mUsers and writes only a SparseArray of its own: not a writer", file=sys.stderr)
+                continue
             writers.append(label(k))
     if writers != ["UserManagerService.addUserDataLU"]:
         sys.exit(f"methods writing UserManagerService.mUsers are {writers}, expected only addUserDataLU")
@@ -227,7 +269,7 @@ def check_system_user_path(defs, edges, callers, files):
             sys.exit(f"UserManagerService.fallbackToSingleUserLP: UserInfo id set by {first!r}, expected user 0")
     starts = key("<init>") + key("readUserListLP") + key("fallbackToSingleUserLP") + key("putUserInfo") + key("addUserDataLU")
     for s in starts:
-        p = path_to(edges, s, FUNNEL)
+        p = path_to(edges, s, funnel)
         if p:
             sys.exit(f"the system user path reaches the patched method: {' -> '.join(p)}")
     shown = {" -> ".join(p) for p in (path_to(edges, k, key("putUserInfo")[0]) for k in key("<init>")) if p}
@@ -239,19 +281,19 @@ def check_system_user_path(defs, edges, callers, files):
     print(f"none of {sorted({name_of(s) for s in starts})} reaches createUserInternalUncheckedNoTracing", file=sys.stderr)
 
 
-def check_entries(defs, edges, callers):
-    if callers.get(FUNNEL, []) != [UNCHECKED]:
-        sys.exit(f"createUserInternalUncheckedNoTracing called from {callers.get(FUNNEL, [])}, expected once from createUserInternalUnchecked")
+def check_entries(defs, edges, callers, funnel, unchecked):
+    if callers.get(funnel, []) != [unchecked]:
+        sys.exit(f"createUserInternalUncheckedNoTracing called from {callers.get(funnel, [])}, expected once from createUserInternalUnchecked")
     entries = list(ENTRIES)
     for k in defs:
         cls = k.split("->", 1)[0]
         if (cls == CLS or cls.startswith(CLS[:-1] + "$")) and CREATE_NAME.match(name_of(k)) \
-                and k not in entries and k not in (FUNNEL, UNCHECKED):
+                and k not in entries and k not in (funnel, unchecked):
             entries.append(k)
     for k in entries:
         if k not in defs:
             sys.exit(f"entry point {k} not found, unexpected build")
-        p = path_to(edges, k, FUNNEL)
+        p = path_to(edges, k, funnel)
         if not p:
             sys.exit(f"entry point {k} does not reach createUserInternalUncheckedNoTracing: a user could be created around the guard")
         print(f"entry {label(k)}: {' -> '.join(p[1:])}", file=sys.stderr)
@@ -298,13 +340,19 @@ def main(root):
     lines = files[path]
     if any(MESSAGE in l for l in lines):
         sys.exit(f"{path}: already patched")
-    heads = [k for k, l in enumerate(lines) if HEADER.match(l)]
-    if len(heads) != 1 or FUNNEL not in defs:
+    found = [(f, u) for f, u in SIGNATURES if f in defs]
+    if len(found) != 1:
+        have = sorted(k.split("->", 1)[1] for k in defs if k.startswith(f"{CLS}->createUserInternalUncheckedNoTracing("))
+        sys.exit(f"{path}: createUserInternalUncheckedNoTracing with a known signature found {len(found)} times, expected once (have {have})")
+    funnel, unchecked = found[0]
+    header = re.compile(rf"^\.method {MODS}" + re.escape(funnel.split("->", 1)[1]) + "$")
+    heads = [k for k, l in enumerate(lines) if header.match(l)]
+    if len(heads) != 1:
         sys.exit(f"{path}: createUserInternalUncheckedNoTracing found {len(heads)} times, expected once")
     i = heads[0]
-    end = defs[FUNNEL][2]
-    n = check_entries(defs, edges, callers)
-    check_system_user_path(defs, edges, callers, files)
+    end = defs[funnel][2]
+    n = check_entries(defs, edges, callers, funnel, unchecked)
+    check_system_user_path(defs, edges, callers, files, funnel)
     if not any(l.strip().endswith(EXC_INIT) for l in lines):
         sys.exit(f"{path}: CheckedUserOperationException(String, int) not used, unexpected build")
     if not any(l.strip().endswith(THROW_HELPER) for l in lines[i:end]):

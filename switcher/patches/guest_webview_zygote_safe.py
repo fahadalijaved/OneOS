@@ -9,6 +9,9 @@ directory", then "Attempt to invoke virtual method ... getZygoteProcessAsManaged
 on a null object reference"); OneOS returned to One UI. The global build's Google
 WebView uses the WebView zygote; the CN builds' WebView does not.
 
+Pixel 17 CP3A (the Pixel 9 Pro XL's komodo build) declares getProcess() as
+returning android.os.IZygoteProcess; the call is kept as the build has it.
+
 The call is wrapped in a catch of RuntimeException that logs a warning and
 returns: WebView then has no zygote (pages may fail to render), and the system
 keeps running.
@@ -28,11 +31,15 @@ ORIGINAL = """    .locals 0
     .line 256
     return-void
 .end method"""
-CALL = "invoke-static {}, Landroid/webkit/WebViewZygote;->getProcess()Landroid/os/ZygoteProcess;"
+# getProcess() returning ZygoteProcess, or IZygoteProcess (Pixel 17 CP3A).
+CALLS = (
+    "invoke-static {}, Landroid/webkit/WebViewZygote;->getProcess()Landroid/os/ZygoteProcess;",
+    "invoke-static {}, Landroid/webkit/WebViewZygote;->getProcess()Landroid/os/IZygoteProcess;",
+)
 PATCHED = """    .locals 2
 
     :oneos_webview_try_start
-    invoke-static {}, Landroid/webkit/WebViewZygote;->getProcess()Landroid/os/ZygoteProcess;
+    {call}
     :oneos_webview_try_end
     .catch Ljava/lang/RuntimeException; {:oneos_webview_try_start .. :oneos_webview_try_end} :oneos_webview_catch
 
@@ -81,9 +88,9 @@ def main():
     body = smali[body_start:end]
     # Any .line numbers: only the one call and a return in between.
     lines = [l.strip() for l in body.splitlines() if l.strip() and not l.strip().startswith((".line", ".locals"))]
-    if lines != [CALL, "return-void", ".end method"]:
+    if len(lines) != 3 or lines[0] not in CALLS or lines[1:] != ["return-void", ".end method"]:
         sys.exit("SystemImpl.ensureZygoteStarted is not the expected single call")
-    smali = smali[:body_start] + PATCHED + smali[end:]
+    smali = smali[:body_start] + PATCHED.replace("{call}", lines[0]) + smali[end:]
     open(path, "w").write(smali)
     print("SystemImpl.ensureZygoteStarted: a failed WebView zygote start is logged, not fatal", file=sys.stderr)
     print(os.path.relpath(path, root).split(os.sep)[0])

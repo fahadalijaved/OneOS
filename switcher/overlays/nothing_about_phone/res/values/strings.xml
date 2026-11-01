@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ro.product.cpu_info carries the whole name here (guest_props.sh:
+         "Snapdragon 8 Elite Gen 5", "Exynos 2600"); the custom one is taken on
+         phones with Nothing features 61 or 62 and was empty. -->
+    <string name="nt_processor_summary">%s</string>
+    <string name="nt_processor_summary_custom">%s</string>
+</resources>

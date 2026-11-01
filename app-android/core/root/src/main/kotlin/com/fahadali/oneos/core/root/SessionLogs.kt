@@ -73,6 +73,9 @@ object LogRules {
     private fun xmlText(s: String): String =
         s.replace("&quot;", "\"").replace("&apos;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
 
+    /** Text every [USER_FILE] match holds. */
+    val USER_ROOTS = listOf("/storage/emulated/", "/sdcard", "/data/media/")
+
     /**
      * A file under shared storage (a name with an extension): the folders
      * stay, the file name is masked.
@@ -143,6 +146,12 @@ class RedactingOutputStream(
             return
         }
         var s = redactor.redactText(text, file)
+        // The literal text USER_FILE needs first: most lines name no user file.
+        if (LogRules.USER_ROOTS.none { s.contains(it) }) {
+            out.write(s.toByteArray(Charsets.UTF_8))
+            out.write('\n'.code)
+            return
+        }
         s = LogRules.USER_FILE.replace(s) { m ->
             val name = m.groupValues[1]
             if (name.startsWith("<")) {

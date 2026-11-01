@@ -14,7 +14,8 @@ import com.fahadali.oneos.core.root.HomeSnapshot
  * last launch (session id, wall-clock and boot time, and how it ended once
  * its logs were read), so the next open can tell that the phone restarted
  * since and show it on Home; the warnings already ticked, per phone and
- * system; Hide Google apps; which "Welcome back" was seen; and the Home of
+ * system; Hide Google apps; Cool down when hot; which "Welcome back" was
+ * seen; and the Home of
  * the last finished check, for the next cold start.
  */
 object SessionPrefs {
@@ -164,6 +165,54 @@ object SessionPrefs {
 
     fun setHideGms(ctx: Context, on: Boolean) {
         p(ctx).edit().putBoolean("hide_gms", on).apply()
+    }
+
+    /** This phone's Samsung IMS app in the other system, for VoLTE (Advanced; ONEOS_GUEST_SEC_IMS). Off by default. */
+    fun secIms(ctx: Context): Boolean = p(ctx).getBoolean("sec_ims", false)
+
+    fun setSecIms(ctx: Context, on: Boolean) {
+        p(ctx).edit().putBoolean("sec_ims", on).apply()
+    }
+
+    /**
+     * Answer Knox's edmnativehelper while the other system runs, so a camera open
+     * is not 5 s late (Advanced; `ONEOS_GUEST_EDM_STUB`). On by default since
+     * 0.4.33: in the 0.4.32 reports every camera open in Infinity-X, Pixel 9 Pro
+     * XL and ColorOS sessions waited the full 5 s for it (Z Flip5 48 times, S23
+     * 16, S24/S25 Ultra, A56, A57) and CameraX apps gave up at 3 s
+     * (ERROR_CAMERA_OPEN_TIMEOUT), so the camera "did not work" while Open Camera,
+     * which waits longer, did. The stand-in answers "allowed", what One UI's own
+     * service answers on a phone without a Knox camera policy; it can be turned
+     * off in Advanced.
+     */
+    fun edmStub(ctx: Context): Boolean = p(ctx).getBoolean("edm_stub", true)
+
+    fun setEdmStub(ctx: Context, on: Boolean) {
+        p(ctx).edit().putBoolean("edm_stub", on).apply()
+    }
+
+    /**
+     * Switch with a screen lock set (Advanced, 0.4.32; owner's call). Off by
+     * default. One UI's data is encrypted behind the lock, so a session that
+     * leaves the phone unable to accept the credential is a factory reset, not
+     * an inconvenience: a tester lost a phone that way on 2026-10-23, before the
+     * weaver and gatekeeper guards. An unreadable lock state still blocks.
+     */
+    fun allowScreenLock(ctx: Context): Boolean = p(ctx).getBoolean("allow_screen_lock", false)
+
+    fun setAllowScreenLock(ctx: Context, on: Boolean) {
+        p(ctx).edit().putBoolean("allow_screen_lock", on).apply()
+    }
+
+    /**
+     * Cool down when hot (Advanced; owner 2026-10-27), `ONEOS_HEAT_CAP` for every
+     * launch. On by default: One UI's heat control (SSRM) does not run in the
+     * other system, so the session caps the CPU from 45 °C skin (oneos_switch.sh).
+     */
+    fun heatCap(ctx: Context): Boolean = p(ctx).getBoolean("heat_cap", true)
+
+    fun setHeatCap(ctx: Context, on: Boolean) {
+        p(ctx).edit().putBoolean("heat_cap", on).apply()
     }
 
     /**

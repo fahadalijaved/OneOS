@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Every colour variant shows the phone (the Galaxy S26 here, the S26
+         Ultra and Z Flip8 in their -R layers; scripts/make-about-picture.py
+         from the owner's product shots). Under xxhdpi like Nothing's own
+         (drawable-xxhdpi-v4): an overlay value only wins with a configuration at
+         least as specific as the target's (run 17: in values, Nothing's picture
+         stayed). -->
+    <drawable name="ic_about_phone_black">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_blue">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_brown">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_chocolate">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_coffee">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_color_edition">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_community_edition">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_coral">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_cyan">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_dark">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_deepavali_edition">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_deeppurple">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_grass">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_gray">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_grey">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_light_green">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_lime">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_limit_edition">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_milk">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_moss">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_orange">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_pink">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_red">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_ruby">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_silver">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_special_edition">@drawable/oneos_about_phone</drawable>
+    <drawable name="ic_about_phone_white">@drawable/oneos_about_phone</drawable>
+</resources>

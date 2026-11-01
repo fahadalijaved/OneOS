@@ -27,7 +27,7 @@ tasks.test {
     inputs.dir(probeAssets).withPropertyName("probeAssets")
     inputs.file(installdFixture).withPropertyName("installdFixture")
     inputs.files(fileTree(switcherAssets) { include("*.sh") }).withPropertyName("switcherScripts")
-    inputs.files(fileTree(packagesDir) { include("*.sha256") }).withPropertyName("packageLists")
+    inputs.files(fileTree(packagesDir) { include("*.sha256", "series.txt") }).withPropertyName("packageLists")
     systemProperty("oneos.probeDir", probeAssets.asFile.path)
     systemProperty("oneos.installdFixture", installdFixture.asFile.path)
     systemProperty("oneos.switcherAssets", switcherAssets.asFile.path)

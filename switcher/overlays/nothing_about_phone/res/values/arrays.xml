@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Galaxy S26's and S26+'s lenses; the S26 Ultra's and the Z Flip8's
+         are switcher/overlays/nothing_about_s26u and nothing_about_flip. -->
+    <string-array name="about_phone_rear_info">
+        <item>Wide</item>
+        <item>Ultra wide</item>
+        <item>Telephoto</item>
+    </string-array>
+    <string-array name="about_phone_front_info">
+        <item>Front</item>
+    </string-array>
+</resources>

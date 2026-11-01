@@ -32,6 +32,21 @@ what has to be pinned per build, and what depends on the OS family.
   gatekeeper, APEX), eSIM guard (any `Euicc*` app), the in-guest OneOS app,
   logs and diagnostics.
 
+## Before any of it: getting the image out of the firmware
+
+the image build (MysticGSI, not in this repository) drives the MysticGSI submodule, whose payload extractor
+does not know `OP_REPLACE_ZSTD` (op type 14). Android 17 full OTAs use it --
+Infinity-X's and Nothing's both do -- and the op arrives as an unknown protobuf
+field rather than an error, so an unpatched extractor fails in a way that does
+not name the cause.
+
+**This server's `mysticgsi` checkout carries that fix as an uncommitted working
+-tree patch** to `tools/extractor/formats/payload.py` (marked "OneOS local
+patch"), made during the Infinity-X port. It is in neither repository, so a
+fresh clone cannot extract a modern full OTA until it is redone: add op 14 to
+`FULL_OPS`, decode it with `zstd`, and read the type from
+`UnknownFieldSet(op)` when `op.HasField("type")` is false.
+
 ## Per build (pinned by SHA-256)
 
 A new build ID of an image already supported counts as a new build here.
@@ -45,7 +60,14 @@ A new build ID of an image already supported counts as a new build here.
   `OplusStorageManagerFeature`, `guest_own_vold.py --oplus`). Without this
   the image still runs, and the return reboots.
 - **surfaceflinger**: only a SurfaceFlinger with Qualcomm's composer
-  extension client needs the composer skip (ColorOS); Google's needs nothing.
+  extension client needs the composer skip (ColorOS, and Nothing OS 5.0 since
+  0.4.33); Google's needs nothing. Do **not** decide this by looking for the
+  string `qtiExecuteCommands`: ColorOS's binary does not contain it either and
+  still needs the patch, because the call goes through a vtable. Check for the
+  three-instruction site (`bl AIBinder_getExtension`, `ldr x8`, `cbz x8`,
+  `bl IQtiComposer3Client::fromBinder`) instead; `make-overlays.sh` refuses a
+  binary that has `IQtiComposer3Client` at an unknown site, which is the check
+  that matters.
 - **App data**: `Images.kt` (size, SHA-256), the package set
   (`PackageSets.kt`, `packages/<set>.sha256`, root's `SET_*` lists) and the
   profile's tested flags.
@@ -77,7 +99,9 @@ and Pixel.
 - **Other Pixel models**: the same framework; the Pixel patches apply, with
   new pins.
 - **HyperOS, MagicOS, Flyme**: new OEM frameworks, so expect ColorOS-sized
-  work. MysticGSI's patch sets show what each needs as a GSI.
+  work. MysticGSI's patch sets show what each needs as a GSI. HyperOS's
+  framework (miui-services.jar) is guarded and audited (`docs/hyperos.md`);
+  it has not had a phone run yet.
 
 Whatever the system, the app shows a new image or build as untested until
 it has run on a named phone. Its first sessions run over adb with the owner

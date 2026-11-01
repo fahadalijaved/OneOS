@@ -23,6 +23,12 @@
             </intent-filter>
         </activity>
 
+        <!-- How's it going? (0.4.30): the checklist, saved in this app's own folder. -->
+        <activity
+            android:name=".ChecklistActivity"
+            android:exported="false"
+            android:label="@string/checklist_title" />
+
         <!-- Quick Settings tile. Only SystemUI (BIND_QUICK_SETTINGS_TILE) binds it;
              a tap opens the confirmation above. -->
         <service

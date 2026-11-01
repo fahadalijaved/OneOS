@@ -3,6 +3,8 @@ package com.fahadali.oneos.ui
 import android.content.Intent
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.Images
@@ -11,6 +13,7 @@ import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.OutcomeKind
 import com.fahadali.oneos.session.LogJob
 import com.fahadali.oneos.session.OldStagesJob
+import com.fahadali.oneos.session.RemoveJob
 import com.fahadali.oneos.session.SessionPrefs
 import com.fahadali.oneos.session.StageCheck
 import dev.oneuiproject.oneui.R as OuiIcons
@@ -43,6 +46,7 @@ class AdvancedFragment : CardsFragment() {
         subs += LogJob.observe { redraw() }
         subs += OldStagesJob.observe { redraw() }
         subs += StageCheck.observe { redraw() }
+        subs += RemoveJob.observe { redraw() }
     }
 
     override fun onResume() {
@@ -66,10 +70,23 @@ class AdvancedFragment : CardsFragment() {
         Cards.row(system, OuiIcons.drawable.ic_oui_refresh, getString(R.string.prepare_title), getString(R.string.advanced_setup_summary), open(PrepareActivity::class.java))
         Cards.row(system, OuiIcons.drawable.ic_oui_folder_open, getString(R.string.image_title), getString(R.string.advanced_file_summary), open(ImageActivity::class.java))
         Cards.row(system, OuiIcons.drawable.ic_oui_manage_storage_outline, getString(R.string.space_title), spaceSummary(), open(OldStagesActivity::class.java))
+        // Remove OneOS data (0.4.25): everything OneOS put on the phone, after root checks it all.
+        val removing = RemoveJob.state
+        if (removing.busy) {
+            CardRows.tint(Cards.row(system, OuiIcons.drawable.ic_oui_delete_outline, getString(R.string.remove_running), null), Level.INFO)
+        } else {
+            Cards.row(system, OuiIcons.drawable.ic_oui_delete_outline, getString(R.string.remove_title), removing.message ?: getString(R.string.remove_summary)) {
+                confirmRemove()
+            }
+        }
 
         // Sessions.
         val sessions = Cards.section(column, getString(R.string.advanced_card_sessions), rows = true)
         Cards.row(sessions, R.drawable.ic_oneos_row_last_time, getString(R.string.last_title), lastSummary(), open(LastSessionActivity::class.java))
+        // Read by every launch (LaunchJob), from Home or the Switch screen.
+        CardRows.toggle(sessions, getString(R.string.advanced_heat_cap_title), getString(R.string.advanced_heat_cap_summary), SessionPrefs.heatCap(ctx)) { on ->
+            SessionPrefs.setHeatCap(ctx, on)
+        }
         val logs = LogJob.state
         val zip = LogJob.latestZip(ctx)
         if (zip != null && !logs.busy) {
@@ -85,6 +102,28 @@ class AdvancedFragment : CardsFragment() {
             }
         }
 
+        // Calls (0.4.20): this phone's Samsung IMS app in the other system, for VoLTE. Experimental, off by default.
+        val calls = Cards.section(column, getString(R.string.advanced_card_calls), rows = true)
+        CardRows.toggle(calls, getString(R.string.advanced_sec_ims_title), getString(R.string.advanced_sec_ims_summary), SessionPrefs.secIms(ctx)) { on ->
+            SessionPrefs.setSecIms(ctx, on)
+        }
+        // Camera (0.4.32): One UI's camera service asks Knox on every open and waits
+        // 5 s for a service the other system does not have, so the camera app gives
+        // up first. On by default since 0.4.33 (every 0.4.32 camera report waited).
+        CardRows.toggle(calls, getString(R.string.advanced_edm_stub_title), getString(R.string.advanced_edm_stub_summary), SessionPrefs.edmStub(ctx)) { on ->
+            SessionPrefs.setEdmStub(ctx, on)
+        }
+
+        // Risky (0.4.32, owner's call): things that can cost the phone's data. The
+        // card is headed in red so it does not read like the switches above it.
+        val risky = Cards.section(
+            column, getString(R.string.advanced_card_risky),
+            trailing = getString(R.string.advanced_card_risky_tag), trailingLevel = Level.BLOCK, rows = true,
+        )
+        CardRows.toggle(risky, getString(R.string.advanced_allow_lock_title), getString(R.string.advanced_allow_lock_summary), SessionPrefs.allowScreenLock(ctx)) { on ->
+            SessionPrefs.setAllowScreenLock(ctx, on)
+        }
+
         // Help.
         val help = Cards.section(column, getString(R.string.advanced_card_help), rows = true)
         Cards.row(help, OuiIcons.drawable.ic_oui_help_outline, getString(R.string.before_title), getString(R.string.advanced_before_summary), open(BeforeYouStartActivity::class.java))
@@ -93,6 +132,20 @@ class AdvancedFragment : CardsFragment() {
         // The technical screens, behind one entry.
         val team = Cards.section(column, title = null, rows = true)
         Cards.row(team, OuiIcons.drawable.ic_oui_tool_outline, getString(R.string.team_title), getString(R.string.advanced_team_summary), open(TeamActivity::class.java))
+    }
+
+    private fun confirmRemove() {
+        val ctx = context ?: return
+        if (!RemoveJob.canStart()) {
+            Toast.makeText(ctx, R.string.remove_busy, Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(ctx)
+            .setTitle(R.string.remove_confirm_title)
+            .setMessage(R.string.remove_confirm_message)
+            .setPositiveButton(R.string.remove_confirm_run) { _, _ -> RemoveJob.start(ctx) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** Free space, and the old copies when they were read (the Free up space screen reads them as root). */

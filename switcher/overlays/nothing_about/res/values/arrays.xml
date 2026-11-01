@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The lenses the Fold's camera HAL reports: three rear, a cover and an
+         inner front camera. Megapixels are not given: the HAL reports binned
+         sizes (4080 x 3060 for every rear sensor). -->
+    <string-array name="about_phone_rear_info">
+        <item>Wide</item>
+        <item>Ultra wide</item>
+        <item>Telephoto</item>
+    </string-array>
+    <string-array name="about_phone_front_info">
+        <item>Cover</item>
+        <item>Inner</item>
+    </string-array>
+</resources>

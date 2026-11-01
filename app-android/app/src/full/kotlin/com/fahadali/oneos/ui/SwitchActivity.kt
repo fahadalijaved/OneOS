@@ -9,6 +9,7 @@ import com.fahadali.oneos.core.model.GatePhase
 import com.fahadali.oneos.core.model.Images
 import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.session.LaunchJob
+import com.fahadali.oneos.session.SessionPrefs
 import com.fahadali.oneos.session.StageCheck
 import dev.oneuiproject.oneui.R as OuiIcons
 
@@ -169,12 +170,13 @@ class SwitchFragment : CardsFragment() {
         val back = if (backApp) getString(R.string.switch_go_dialog_back_app, system) else getString(R.string.switch_go_dialog_back_keys)
         val message = (if (dry) getString(R.string.switch_dry_dialog_message, system) else getString(R.string.switch_go_dialog_message, system, back)) +
             (if (!dry && setupNote) "\n\n" + getString(R.string.confirm_setup_wizard, system) else "") +
-            if (hide) "\n\n" + getString(R.string.switch_dialog_gms_hidden) else ""
+            (if (hide) "\n\n" + getString(R.string.switch_dialog_gms_hidden) else "") +
+            if (!dry && !SessionPrefs.heatCap(requireContext())) "\n\n" + getString(R.string.confirm_heat_cap_off) else ""
         AlertDialog.Builder(requireContext())
             .setTitle(if (dry) getString(R.string.switch_dry_dialog_title) else getString(R.string.switch_go_dialog_title, system))
             .setMessage(message)
             .setPositiveButton(if (dry) getString(R.string.switch_dry_title) else getString(R.string.switch_go_title, system)) { _, _ ->
-                LaunchJob.start(requireContext(), dry, ticked.toSet(), hide)
+                LaunchJob.start(requireContext(), dry, ticked.toSet(), hide, SessionPrefs.secIms(requireContext()), SessionPrefs.edmStub(requireContext()))
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

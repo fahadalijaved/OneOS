@@ -28,6 +28,22 @@ to publish OneOS on top of OneLineage with full credit, here and in the app's
 About screen. That permission covers this publication; it is not a license for
 third parties to reuse the OneLineage-derived files.
 
+## Galaxy Z Fold8 support, by Josh Skinner
+
+<https://github.com/thatjoshguy67>, [pull request #1](https://github.com/fahadalijaved/OneOS/pull/1)
+(Apache-2.0, as a contribution to this repository).
+
+Josh brought OneOS to the Galaxy Z Fold8 (SM-F971B) and tested it there:
+the `n6-f8` set and `scripts/make-fold8-coloros.py` (cover display, Quick
+Settings, AOD, widgets, taskbar, Pocket Studio), the Google snapshot that became
+`switcher/assets/guest_google.sh`, `switcher/assets/fold8_coloros.sh`, and the
+hinge work: Samsung's folding-angle sensor relay
+(`switcher/patches/fold8-coloros/OneOSAngleRelay.java`), the half-open device
+state, the reveal and closing animations, and the Pixel side
+(`switcher/assets/fold8_pixel.sh`, `switcher/patches/fold8-pixel/`,
+`scripts/make-fold8-pixel.py`). The Z Fold8 Ultra uses his hinge relay, the
+Pixel SystemUI adapter and the half-open state as well.
+
 ## MysticGSI
 
 <https://github.com/MysticGSI/mysticgsi>, Apache License 2.0,

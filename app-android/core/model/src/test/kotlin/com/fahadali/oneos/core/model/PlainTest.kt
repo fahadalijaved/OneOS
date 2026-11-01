@@ -32,7 +32,7 @@ class PlainTest {
         add(SwitchGates.ID_FORM, Level.BLOCK, SwitchGates.R_FORM_MISMATCH)
         add(
             SwitchGates.ID_IMAGE, Level.BLOCK,
-            SwitchGates.R_IMAGE_NOT_IN_BUILD, SwitchGates.R_IMAGE_NONE, SwitchGates.R_IMAGE_NOT_READ, SwitchGates.R_IMAGE_NOTHING,
+            SwitchGates.R_IMAGE_NOT_IN_BUILD, SwitchGates.R_IMAGE_OTHER_SERIES, SwitchGates.R_IMAGE_NONE, SwitchGates.R_IMAGE_NOT_READ, SwitchGates.R_IMAGE_NOTHING,
             SwitchGates.R_IMAGE_OTHER_PHONE, SwitchGates.R_IMAGE_OTHER_VERSION, SwitchGates.R_IMAGE_OTHER_SET, SwitchGates.R_IMAGE_FILES_CHANGED,
             ImageIdentifier.R_SIZE_UNKNOWN, ImageIdentifier.R_UNCOMPRESSED, ImageIdentifier.R_NOT_OURS, ImageIdentifier.R_WRONG_PHONE,
             ImageIdentifier.R_NOT_CHECKED, ImageIdentifier.R_DAMAGED, ImageIdentifier.R_NO_RAW, ImageIdentifier.R_RAW_NOT_OURS,
@@ -46,7 +46,7 @@ class PlainTest {
         )
         add(SwitchGates.ID_SPACE, Level.BLOCK, SwitchGates.R_SPACE_UNKNOWN, SwitchGates.R_SPACE_SETUP, SwitchGates.R_SPACE_SWITCH)
         add(SwitchGates.ID_SCREEN_LOCK, Level.BLOCK, ScreenLockRule.R_SET, ScreenLockRule.R_UNKNOWN)
-        add(SwitchGates.ID_SCREEN_LOCK, Level.WARN, ScreenLockRule.R_SET, ScreenLockRule.R_UNKNOWN)
+        add(SwitchGates.ID_SCREEN_LOCK, Level.WARN, ScreenLockRule.R_SET, ScreenLockRule.R_UNKNOWN, ScreenLockRule.R_SET_ALLOWED)
         add(SwitchGates.ID_BATTERY, Level.BLOCK, SwitchGates.R_BATTERY_NOT_READ, SwitchGates.R_BATTERY_LOW, SwitchGates.R_BATTERY_HOT)
         add(SwitchGates.ID_CARRIER, Level.WARN, CarrierRules.R_VOLTE_ONLY, CarrierRules.R_UNKNOWN)
         add(SwitchGates.ID_CARRIER, Level.INFO, CarrierRules.R_2G_3G)
@@ -129,11 +129,14 @@ class PlainTest {
         assertEquals("Free up 7.1 GB to set up ColorOS 17", space.title)
         assertEquals("It needs about 22.1 GB; you have 15.0 GB.", space.line)
         assertEquals(FixAction.FREE_UP_SPACE, space.action)
-        // The phone list comes from the profiles.
+        // The phone list comes from the profiles: every name while they fit one line (0.4.28),
+        // the families once they do not (0.4.29, with the A57 and Z Flip5).
         assertEquals(
-            "OneOS works on the Galaxy Z Fold (F8U), S26 Ultra, S25 Ultra, S25, Z Fold7, S25+, Z Fold8, S26, S24 Ultra, S23, S23+, S26+ and Z Flip7.",
+            "OneOS works on 21 Galaxy phones so far: Z Fold, S, Z Flip and A models; the README lists them.",
             of(SwitchGates.ID_PROFILE, SwitchGates.R_PROFILE_NONE).line,
         )
+        assertEquals("the Galaxy Z Fold (F8U), S26 Ultra and S25", Plain.phoneList(listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_8750)))
+        assertEquals("the Galaxy S26", Plain.phoneList(listOf(Profiles.S_8850, Profiles.S_8850_JP)))
         // Ticks: the same text as the gate's (part of the tick's key).
         val calls = Plain.of(Finding(SwitchGates.ID_CARRIER, Level.WARN, "", "", CarrierRules.R_VOLTE_ONLY), pixel, Profiles.F8U)
         assertEquals(FixAction.ACKNOWLEDGE, calls.action)

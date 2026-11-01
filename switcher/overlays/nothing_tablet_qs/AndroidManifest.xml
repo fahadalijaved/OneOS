@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing OS's quick settings on a tablet-width panel (the Z Fold's inner one).
+     Its SystemUI defines config_use_split_notification_shade for (land) and
+     (sw600dp-land) but has no sw600dp-port value, so in portrait on a 902dp
+     panel it fell back to the () phone shade and the tiles were stretched
+     across 2256 px (the owner, first Nothing runs). config_use_large_screen_
+     shade_header does have an (sw600dp) value, so the header was already the
+     large-screen one: the two disagreed. Resources are mapped by name
+     (SystemUI declares no overlayable resources); scripts/make-overlays.sh
+     builds it, guest_prepare.sh puts it in the guest's /oem/overlay.
+     Under values-sw600dp, so the cover panel keeps the phone shade. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.nothing.tabletqs">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="com.android.systemui"
+        android:isStatic="true"
+        android:priority="1"/>
+</manifest>

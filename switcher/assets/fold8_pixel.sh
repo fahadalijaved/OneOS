@@ -1,13 +1,17 @@
 #!/system/bin/sh
-# Pinned Pixel 11 Fold guest payloads on SM-F971B only. No host APK writes.
+# Pinned Pixel 11 Fold guest payloads on the Z Fold8 (pixel-f8) and Z Fold8 Ultra
+# (pixel-f8u), which have the same Samsung folding-angle sensor. No host APK writes.
 set -eu
 STAGE=${STAGE:-/data/local/tmp/oneos}
 BB=${BB:-/data/oneos_bin/busybox}
 fail() { echo "Fold8 Pixel: $*" >&2; exit 3; }
 selected() {
-    [ "${ONEOS_PROFILE:-}" = f8 ] &&
-        grep -q '^  "image": "pixel11fold-yogi",$' "$STAGE/.oneos_stage" &&
-        grep -q '^  "set": "pixel-f8",$' "$STAGE/.oneos_stage"
+    grep -q '^  "image": "pixel11fold-yogi",$' "$STAGE/.oneos_stage" || return 1
+    case "${ONEOS_PROFILE:-}" in
+        f8) grep -q '^  "set": "pixel-f8",$' "$STAGE/.oneos_stage" ;;
+        f8u) grep -q '^  "set": "pixel-f8u",$' "$STAGE/.oneos_stage" ;;
+        *) return 1 ;;
+    esac
 }
 case "$1" in
 prepare)

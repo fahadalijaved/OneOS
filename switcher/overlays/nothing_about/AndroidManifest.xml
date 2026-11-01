@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing OS's About phone on the Galaxy Z Fold8 Ultra (Nothing set only).
+     Nothing Settings shows a phone's own RAM, storage, battery, screen and
+     cameras only on Nothing's phones (Build.DEVICE Spacewar or Pong, or its
+     bool screen_size_for_mp); anywhere else 8GB, 128GB and empty cards, and
+     always a Nothing phone's picture, chosen by Nothing's colour property
+     (owner, run 16). This turns that mode on, names the Fold's cameras and
+     shows the Fold. The values it reads come from the phone: RAM
+     (ro.boot.ddr_size), processor (ro.product.cpu_info) and panels
+     (ro.vendor.display.panel.type) from guest_props.sh, the screen size and
+     battery capacity strings from the switch's activator. Resources are mapped
+     by name (Nothing Settings declares no overlayable resources);
+     scripts/make-overlays.sh builds it, guest_prepare.sh puts it in the
+     guest's /oem/overlay. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.nothing.about">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="com.android.settings"
+        android:isStatic="true"
+        android:priority="1"/>
+</manifest>

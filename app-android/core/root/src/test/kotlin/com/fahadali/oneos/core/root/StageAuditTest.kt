@@ -135,18 +135,21 @@ class StageAuditTest {
         val families = Regex("""^\s+([a-z0-9|-]+)\) echo ([a-z]+) ;;$""", RegexOption.MULTILINE)
             .findAll(function("image_family")).flatMap { m -> m.groupValues[1].split('|').map { it to m.groupValues[2] } }.toMap()
         assertEquals(Images.ALL.associate { it.id to it.family.name.lowercase() }, families)
-        // data_family reads the same words as status.list, in the same order as StageStatus (ColorOS first, then Pixel).
+        // data_family reads the same words as status.list, in the same order as StageStatus (Infinity-X first,
+        // 0.4.27: its data has OPPO's packages too; then ColorOS, then Pixel, then HyperOS).
         val data = function("data_family")
+        assertTrue(data.indexOf(StageStatus.INFINITYX_WORD) in 0 until data.indexOf("com.oplus."))
         assertTrue(data.indexOf("com.oplus.") in 0 until data.indexOf(StageStatus.PIXEL_WORD))
+        assertTrue(data.indexOf(StageStatus.PIXEL_WORD) < data.indexOf("\"${StageStatus.HYPEROS_WORD}\""))
         assertTrue(data.contains("com.coloros."))
         val status = File(Shipped.fullAssets, "root/status.list").readText()
-        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD}; do"))
+        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD} ${StageStatus.INFINITYX_WORD} ${StageStatus.HYPEROS_WORD}; do"))
         // Google services: the images whose services a session may hide (0.3.7: none; the Pixel image's sessions present them).
         assertEquals(Images.ALL.filter { it.gmsHideable }.map { it.id }, shVar("IMAGES_GMS").split(' ').filter { it.isNotEmpty() })
         // The sets' files (SET_COMMON for the ColorOS sets, SET_PIXEL for the Pixel set) and the image each was built from.
         val common = shVar("SET_COMMON").split(' ')
         assertEquals(PackageSets.X9U_SULTRA.names.toSet(), common.toSet())
-        assertEquals(PackageSets.PIXEL_F8U.names.toSet(), shVar("SET_PIXEL").split(' ').toSet())
+        assertEquals(PackageSets.PIXEL_SULTRA.names.toSet(), shVar("SET_PIXEL").split(' ').toSet())
         val setFiles = Regex("""^\s+([a-z0-9-]+)\) echo "\${'$'}(SET_[A-Z]+)([^"]*)" ;;$""", RegexOption.MULTILINE)
             .findAll(script).associate { it.groupValues[1] to (shVar(it.groupValues[2]).split(' ') + it.groupValues[3].split(' ').filter { n -> n.isNotEmpty() }) }
         assertEquals(PackageSets.ALL.map { it.id }.toSet(), setFiles.keys)
@@ -158,7 +161,8 @@ class StageAuditTest {
         val exec = Regex("""^\s+(\S+)\) echo 0755 ;;$""", RegexOption.MULTILINE).find(function("file_mode"))!!.groupValues[1].split('|')
         fun mode(n: String) = if (exec.any { glob(it, n) }) "0755" else "0644"
         for (set in PackageSets.ALL) for (f in set.files) assertEquals("${set.id} ${f.name}", f.mode, mode(f.name))
-        for (n in RootScript.SCRIPTS) assertEquals(n, if (n == "host_installd.txt") "0644" else "0755", mode(n))
+        val notExecutable = setOf("host_installd.txt", "OneOSEdmStub.dex", "OneOSOverlayDimen.dex", "OneOSFold8Geometry.dex")
+        for (n in RootScript.SCRIPTS) assertEquals(n, if (n in notExecutable) "0644" else "0755", mode(n))
         // session.env values: what root accepts is what the app generates (StageScriptTest runs it).
         for (p in enabled) SessionEnv.generate(p)
     }

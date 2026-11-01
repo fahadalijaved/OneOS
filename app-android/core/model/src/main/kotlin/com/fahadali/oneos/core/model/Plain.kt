@@ -72,17 +72,24 @@ data class PlainFacts(
  * is the image table's [ImageRef.name], else "the other system".
  */
 object Plain {
-    /** "Z Fold (F8U), Galaxy S26 Ultra, Galaxy S25 Ultra and Galaxy S25". */
+    /**
+     * "the Galaxy Z Fold (F8U), S26 Ultra and S25", while that fits one line
+     * after "OneOS works on "; past that (0.4.29, 15 phones) "15 Galaxy phones
+     * so far: Z Fold, Z Flip, S and A models; the README lists them".
+     */
     fun phoneList(profiles: List<PhoneProfile> = Profiles.BUILT_IN): String {
         // A regional variant ("Galaxy S26 (docomo)") is listed under its phone's name, and
         // "Galaxy" is said once: "Galaxy Z Fold (F8U), S26 Ultra and S25".
         val all = profiles.filter { it.enabled }.map { it.label.removePrefix("Galaxy ") }
         val names = all.filter { l -> all.none { l.startsWith("$it (") } }
-        return when (names.size) {
-            0 -> "phones listed in About"
-            1 -> "Galaxy " + names.single()
-            else -> "Galaxy " + names.dropLast(1).joinToString(", ") + " and " + names.last()
+        val list = when (names.size) {
+            0 -> "the phones listed in About"
+            1 -> "the Galaxy " + names.single()
+            else -> "the Galaxy " + names.dropLast(1).joinToString(", ") + " and " + names.last()
         }
+        if ("OneOS works on $list.".length <= PlainMessage.MAX_LINE) return list
+        val families = names.map { n -> listOf("Z Fold", "Z Flip").firstOrNull { n.startsWith(it) } ?: n.take(1) }.distinct()
+        return "${names.size} Galaxy phones so far: ${families.dropLast(1).joinToString(", ")} and ${families.last()} models; the README lists them"
     }
 
     /** [of] with the facts read from [report] and the phone's [facts]. */
@@ -142,7 +149,7 @@ object Plain {
                     SwitchGates.untestedAck(phone, image),
                     FixAction.ACKNOWLEDGE,
                 )
-                else -> m("This phone isn't supported yet", "OneOS works on the ${phoneList(profiles)}.", FixAction.SEND_PHONE_DETAILS)
+                else -> m("This phone isn't supported yet", "OneOS works on ${phoneList(profiles)}.", FixAction.SEND_PHONE_DETAILS)
             }
             SwitchGates.ID_ANDROID -> {
                 val want = image?.let { AndroidRelease.name(it.sdk) }
@@ -215,6 +222,12 @@ object Plain {
             }
             SwitchGates.ID_SCREEN_LOCK, ScreenLockRule.ID_SET, ScreenLockRule.ID_UNKNOWN -> when (r) {
                 ScreenLockRule.R_UNKNOWN -> m("Couldn't read your screen lock", "Set Screen lock type to None or Swipe, then try again.", FixAction.TRY_AGAIN)
+                // 0.4.32: the owner turned Advanced's switch on, so this warns instead of stopping.
+                ScreenLockRule.R_SET_ALLOWED -> m(
+                    "Your screen lock is on",
+                    "You chose to switch anyway. If the phone can't take your lock afterwards, the only way back erases it.",
+                    FixAction.NONE,
+                )
                 else -> m(
                     "Turn off your screen lock",
                     "Set Screen lock type to None or Swipe. OneOS can't switch while a lock is on.",
@@ -281,6 +294,8 @@ object Plain {
             ImageIdentifier.R_NO_RAW, ImageIdentifier.R_RAW_NOT_OURS, ImageIdentifier.R_RAW_WRONG_PHONE, ImageIdentifier.R_RAW_DAMAGED ->
                 m("The system on this phone can't be used", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
             SwitchGates.R_IMAGE_NOT_IN_BUILD -> m("No system for this phone in this version", "Update OneOS.", FixAction.NONE)
+            // The series download: the finding names the right one.
+            SwitchGates.R_IMAGE_OTHER_SERIES -> m(f.title, f.detail, FixAction.NONE)
             // Switching: what is set up.
             SwitchGates.R_IMAGE_NOTHING -> m("Set up a system first", "Choose one and set it up. It takes about 15 minutes.", FixAction.CHOOSE_SYSTEM)
             SwitchGates.R_IMAGE_NOT_READ -> m("Couldn't check your phone", "Root didn't answer. Try again in a moment.", FixAction.TRY_AGAIN)

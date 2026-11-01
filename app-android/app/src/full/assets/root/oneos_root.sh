@@ -24,10 +24,18 @@
 #   table <bytes>                     stdin: host_installd.table
 #   env <bytes>                       stdin: session.env
 #   finish <profile> <image> <set> <versionCode>
-#   launch <session|dry> <versionCode> <sessionId> <hideGms>
+#   launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub>
+#                                     secIms 0|1: this launch's
+#                                     ONEOS_GUEST_SEC_IMS (this phone's
+#                                     Samsung IMS app in the guest)
+#                                     edmStub 0|1: this launch's
+#                                     ONEOS_GUEST_EDM_STUB (answer Knox's
+#                                     edmnativehelper, so a camera open is
+#                                     not 5 s late)
 #                                     hideGms 0|1: this launch's
 #                                     ONEOS_GUEST_HIDE_GMS (1 only for an
-#                                     image in IMAGES_GMS)
+#                                     image in IMAGES_GMS); heatCap 0|1: its
+#                                     ONEOS_HEAT_CAP (Cool down when hot)
 #   recover                           restore One UI's persist props after a
 #                                     session that never returned (hard reset)
 #   old-list                          read only: every oneos.old-* and .trash-*
@@ -37,6 +45,9 @@
 #   purge <name>                      delete one of those (0.3.5), after checks
 #   restore <name>                    use a set-aside stage again (0.4.10): the
 #                                     stage moves aside, oneos.old-<name> back
+#   remove                            delete everything OneOS put on the phone
+#                                     (0.4.25): every copy, the stage, the log
+#                                     capture and the session's helper files
 #
 # Writes: only under $STAGE. Documented exceptions, nothing else:
 #   - begin aside renames $STAGE to its sibling $STAGE.old-<epoch>;
@@ -47,6 +58,11 @@
 #     a session still open or one that never returned (a session earlier in
 #     this boot that returned is fine); if the second rename fails, the first
 #     is undone;
+#   - remove moves $DATA/local/tmp/oneos_logs and the session's six helper
+#     files there (adb_watchdog.sh/.log, ims_watchdog.sh/.log,
+#     ui_activator.log, restore_app.log) into the stage, purges every copy,
+#     then renames the stage to $STAGE.old-<epoch> and purges it, all after
+#     purge's and restore's checks for every one of them;
 #   - purge renames one oneos.old-<epoch>[-<pid>] to oneos.trash-<epoch>
 #     and deletes it, only when it is root's, not a link, nothing is mounted
 #     at or under it in any readable mount table, no loop device uses a file
@@ -58,7 +74,7 @@
 #   - before its verb, every run renames the stage and its copies from their
 #     names up to app 0.3.6 (lineage_stage, lineage_stage.old-*, .trash-*) to
 #     the OneOS names, each only while it is idle (migrate_legacy).
-# Apart from purge, nothing is ever deleted except this script's own files: incoming/*.part,
+# Apart from purge (and remove, through it), nothing is ever deleted except this script's own files: incoming/*.part,
 # incoming/plan and incoming/received, and an old system.raw that a new one
 # replaces (an image, never user data). Everything else that is in the way is
 # moved to $STAGE/attic/<epoch>/. Every refusal comes before the first change
@@ -103,19 +119,29 @@ IMAGE_SDK=37
 # installd codes the guard jars carry (InstalldExpected.SHA256).
 INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
 # Session scripts from switcher/assets plus the expected installd table.
-SCRIPTS="oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh check_host_apex.sh bridges.sh fold8_coloros.sh fold8_pixel.sh guest_google.sh zygote_exec host_installd.txt"
+SCRIPTS="oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
-# The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10): services.jar with the guest vold as gvld, the signal
+# The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
-SET_PIXEL="services_patched.jar vold_patched service.incremental_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
+SET_PIXEL="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
+# Infinity-X (0.4.27): both guard jars, the camera codes, the guest vold, the AOSP
+# signal poll, the IMS backoff, the in-guest app and its own payloads.
+SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
+# The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
+# QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
+SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img"
+# Nothing OS 5.0 (0.4.33, the Z Fold8 Ultra): its system is close to AOSP, so only
+# services.jar and framework.jar need the guards; no vendor framework, no vold
+# patch (its build is unknown to the patcher) and no signal poll injection.
+SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_customringtone.tar nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched vold_patched wifi_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
-ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_RETURN_MODE"
+ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_RETURN_MODE"
 # Images whose Google services a session may hide (ONEOS_GUEST_HIDE_GMS=1;
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11). The
 # Pixel images have them too, but their sessions present their own GmsCore,
 # and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findx9u-in"
+IMAGES_GMS="coloros17-findx9u-in nothingos5-metroid"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -138,6 +164,14 @@ profile_info() {
         s-plus-8850) echo "SM-S947 m2q SM8850 bar" ;;
         s-plus-9965) echo "SM-S947 m2s s5e9965 bar" ;;
         flip7) echo "SM-F766 b7s s5e9955 flip" ;;
+        a56) echo "SM-A566 a56x s5e8855 bar" ;;
+        a57) echo "SM-A576 a57x s5e8865 bar" ;;
+        flip5) echo "SM-F731 b5q SM8550 flip" ;;
+        f6) echo "SM-F956 q6q SM8650 fold" ;;
+        f5) echo "SM-F946 q5q SM8550 fold" ;;
+        a07) echo "SM-A075 a07 MT6789 bar" ;;
+        flip8) echo "SM-F776 b8s s5e9965 flip" ;;
+        a36) echo "SM-A366 a36xq SM6475 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -149,16 +183,44 @@ profile_set() {
     case "$1 $2" in
         "f8u coloros17-findn6") echo n6-f8u ;;
         "f8u pixel11fold-yogi") echo pixel-f8u ;;
+        "f8u hyperos-lhasa") echo hyper-f8u ;;
+        "f8u nothingos5-metroid") echo nothing-f8u ;;
+        "f8 nothingos5-metroid") echo nothing-f8u ;;
+        "s-ultra-8850 nothingos5-metroid") echo nothing-f8u ;;
+        "s-8850 nothingos5-metroid") echo nothing-f8u ;;
+        "s-8850-jp nothingos5-metroid") echo nothing-f8u ;;
+        "s-plus-8850 nothingos5-metroid") echo nothing-f8u ;;
+        "s-plus-9965 nothingos5-metroid") echo nothing-f8u ;;
+        "flip8 nothingos5-metroid") echo nothing-f8u ;;
+        "s-ultra-8750 nothingos5-metroid") echo nothing-f8u ;;
+        "s-8750 nothingos5-metroid") echo nothing-f8u ;;
+        "s-plus-8750 nothingos5-metroid") echo nothing-f8u ;;
+        "s-ultra-8650 nothingos5-metroid") echo nothing-f8u ;;
+        "f7 nothingos5-metroid") echo nothing-f8u ;;
+        "f6 nothingos5-metroid") echo nothing-f8u ;;
+        "flip8 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip8 coloros17-findx9u") echo x9u-sultra ;;
+        "flip8 pixel11pro-kodiak") echo pixel-sultra ;;
+        "flip8 infinityx41-findx9u") echo infinityx ;;
+        "flip8 hyperos-lhasa") echo hyper-f8u ;;
+        "a36 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a36 coloros17-findx9u") echo x9u-sultra ;;
+        "a36 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "a36 infinityx41-findx9u") echo infinityx ;;
+        "a36 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8850 coloros17-findx9u") echo x9u-sultra ;;
         "s-ultra-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8750 coloros17-findx9u") echo x9u-sultra ;;
+        "s-ultra-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8750 coloros17-findx9u") echo x9u-sultra ;;
+        "s-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f7 coloros17-findn6") echo n6-f8u ;;
         "s-plus-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-8750 coloros17-findx9u") echo x9u-sultra ;;
+        "s-plus-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8 coloros17-findn6") echo n6-f8 ;;
         "f8 pixel11fold-yogi") echo pixel-f8 ;;
         "s-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
@@ -169,10 +231,13 @@ profile_set() {
         "s-8850-jp pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8650 coloros17-findx9u") echo x9u-sultra ;;
+        "s-ultra-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8550 coloros17-findx9u") echo x9u-sultra ;;
+        "s-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-8550 coloros17-findx9u") echo x9u-sultra ;;
+        "s-plus-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-8850 coloros17-findx9u") echo x9u-sultra ;;
         "s-plus-8850 pixel11pro-kodiak") echo pixel-sultra ;;
@@ -181,6 +246,56 @@ profile_set() {
         "s-plus-9965 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip7 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip7 coloros17-findx9u") echo x9u-sultra ;;
+        "flip7 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "a56 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a57 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a56 coloros17-findx9u") echo x9u-sultra ;;
+        "a57 coloros17-findx9u") echo x9u-sultra ;;
+        "a56 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "a57 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "flip5 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip5 coloros17-findx9u") echo x9u-sultra ;;
+        "flip5 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "f8u infinityx41-findx9u") echo infinityx ;;
+        "f8 infinityx41-findx9u") echo infinityx ;;
+        "f8 hyperos-lhasa") echo hyper-f8u ;;
+        "f7 infinityx41-findx9u") echo infinityx ;;
+        "f7 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8850-jp infinityx41-findx9u") echo infinityx ;;
+        "s-8850-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-9965 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-9965 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8650 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8650 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "flip7 infinityx41-findx9u") echo infinityx ;;
+        "flip7 hyperos-lhasa") echo hyper-f8u ;;
+        "a56 infinityx41-findx9u") echo infinityx ;;
+        "a57 infinityx41-findx9u") echo infinityx ;;
+        "a56 hyperos-lhasa") echo hyper-f8u ;;
+        "a57 hyperos-lhasa") echo hyper-f8u ;;
+        "flip5 infinityx41-findx9u") echo infinityx ;;
+        "flip5 hyperos-lhasa") echo hyper-f8u ;;
+        "f6 coloros17-findn6") echo n6-f8u ;;
+        "f6 infinityx41-findx9u") echo infinityx ;;
+        "f5 coloros17-findn6") echo n6-f8u ;;
+        "f5 infinityx41-findx9u") echo infinityx ;;
+        "a07 infinityx41-findx9u") echo infinityx ;;
         *) return 1 ;;
     esac
 }
@@ -198,6 +313,10 @@ image_raw() {
         coloros17-findx9u-in) echo "12069945344 a36ef550f4b2530fb9c7c6d363180d9eb4437e0497ebc87292697e4bf2a580b0" ;;
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
+        hyperos-lhasa) echo "7749939200 269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac" ;;
+        nothingos5-metroid) echo "6067867648 484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b" ;;
+        pixel9proxl-komodo) echo "5837496320 2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c" ;;
+        infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
         *) return 1 ;;
     esac
 }
@@ -208,9 +327,13 @@ set_files() {
         n6-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk Fold8SystemUI.apk Fold8AngleRelay.dex Fold8Aod.apk Fold8UMS.apk Fold8Instant.apk" ;;
         x9u-sultra) echo "$SET_COMMON" ;;
         x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img" ;;
-        pixel-f8u) echo "$SET_PIXEL" ;;
+        pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk" ;;
         pixel-sultra) echo "$SET_PIXEL" ;;
+        hyper-f8u) echo "$SET_HYPEROS" ;;
+        nothing-f8u) echo "$SET_NOTHING" ;;
+        pixel9-sultra) echo "$SET_PIXEL" ;;
+        infinityx) echo "$SET_INFINITYX" ;;
         *) return 1 ;;
     esac
 }
@@ -223,6 +346,10 @@ set_image() {
         x9u-in-sultra) echo coloros17-findx9u-in ;;
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
+        hyper-f8u) echo hyperos-lhasa ;;
+        nothing-f8u) echo nothingos5-metroid ;;
+        pixel9-sultra) echo pixel9proxl-komodo ;;
+        infinityx) echo infinityx41-findx9u ;;
         *) return 1 ;;
     esac
 }
@@ -230,11 +357,16 @@ set_image() {
 # <image id>: the system it is a build of (ImageRef.family, 0.3.7). Guest data
 # is kept only for an image of its own system: the packages in its
 # packages.xml tell ColorOS data (com.oplus., com.coloros.) from Pixel data
-# (Pixel's launcher, com.google.android.apps.nexuslauncher) (data_family).
+# (Pixel's launcher, com.google.android.apps.nexuslauncher), Infinity-X data
+# (its updater, com.infinity.updater; it has OPPO packages too) and HyperOS data
+# (com.miui.) (data_family).
 image_family() {
     case "$1" in
         coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in) echo coloros ;;
-        pixel11fold-yogi|pixel11pro-kodiak) echo pixel ;;
+        pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo) echo pixel ;;
+        infinityx41-findx9u) echo infinityx ;;
+        hyperos-lhasa) echo hyperos ;;
+        nothingos5-metroid) echo nothing ;;
         *) return 1 ;;
     esac
 }
@@ -243,10 +375,14 @@ image_family() {
 # words in the same order as status.list); nothing when no package tells.
 data_family() {
     pk="$STAGE/data/system/packages.xml"
-    if grep -q -s -F "com.oplus." "$pk" || grep -q -s -F "com.coloros." "$pk"; then
+    if grep -q -s -F "com.infinity.updater" "$pk"; then
+        echo infinityx
+    elif grep -q -s -F "com.oplus." "$pk" || grep -q -s -F "com.coloros." "$pk"; then
         echo coloros
     elif grep -q -s -F "com.google.android.apps.nexuslauncher" "$pk"; then
         echo pixel
+    elif grep -q -s -F "com.miui." "$pk"; then
+        echo hyperos
     fi
 }
 
@@ -261,7 +397,7 @@ pair_set() { # <profile> <image>
 # Executables 0755 (as scripts/deploy-phone.sh pushes them; PackageFile.mode).
 file_mode() {
     case "$1" in
-        *.sh|zygote_exec|surfaceflinger_patched|vold_patched) echo 0755 ;;
+        *.sh|zygote_exec|oneos_btaudio|surfaceflinger_patched|vold_patched) echo 0755 ;;
         *) echo 0644 ;;
     esac
 }
@@ -416,7 +552,8 @@ write_raw_id() {
 
 # --- Checks shared by table/env/finish and launch ---------------------------
 # session.env: every allowed key once, each with exactly the profile's value;
-# ONEOS_GUEST_HIDE_GMS 0, or 1 when the image is in IMAGES_GMS.
+# ONEOS_GUEST_HIDE_GMS 0, or 1 when the image is in IMAGES_GMS;
+# ONEOS_HEAT_CAP 1 (Prepare) or 0 (a launch with Cool down when hot off).
 env_value() {
     case "$1" in
         ONEOS_APP|ONEOS_LOGCAT) echo 1 ;;
@@ -428,6 +565,11 @@ env_value() {
         ONEOS_COVER_TSP|ONEOS_GUEST_FOLD_CONTINUE|ONEOS_GUEST_UNFOLD_PORTRAIT|ONEOS_GUEST_COMPACT_WINDOW|ONEOS_GUEST_WALLPAPER_GRID)
             if [ "$2" = fold ]; then echo 1; else echo 0; fi ;;
         ONEOS_GUEST_HIDE_GMS) echo 0 ;;
+        ONEOS_HEAT_CAP) echo 1 ;;
+        # 0.4.20: this phone's Samsung IMS app in the guest (VoLTE), a launch's choice, 0 or 1 on any phone.
+        ONEOS_GUEST_SEC_IMS) echo 0 ;;
+        # 0.4.32: the Knox edmnativehelper stand-in, a launch's choice, 0 or 1 on any phone.
+        ONEOS_GUEST_EDM_STUB) echo 0 ;;
         # 0.4.7: Back to One UI restarts One UI in place; a failed check reboots.
         ONEOS_RETURN_MODE) echo inplace ;;
         *) return 1 ;;
@@ -449,10 +591,14 @@ check_env() { # <file> <form> <profile> <image>
         case "$seen" in *" $key "*) refuse "session.env sets $key twice" ;; esac
         seen="$seen$key "
         want=$(env_value "$key" "$2" "$3") || refuse "session.env key $key is not allowed"
+        if [ "$key" = ONEOS_GUEST_SEC_IMS ] || [ "$key" = ONEOS_GUEST_EDM_STUB ]; then
+            case "$val" in 0|1) continue ;; *) refuse "session.env $key=$val is not 0 or 1" ;; esac
+        fi
         if [ "$key" = ONEOS_GUEST_HIDE_GMS ] && [ "$val" = 1 ]; then
             in_list "$4" "$IMAGES_GMS" || refuse "session.env hides Google services, but $4 has none a session may hide"
             continue
         fi
+        [ "$key" = ONEOS_HEAT_CAP ] && [ "$val" = 0 ] && continue
         [ "$val" = "$want" ] || refuse "session.env $key=$val (profile $3: $want)"
     done < "$f"
     for k in $ENV_KEYS; do
@@ -508,7 +654,7 @@ check_files() { # <names>
         [ -d "$f" ] && [ ! -L "$f" ] && continue
         n=${f##*/}
         case "$n" in
-            *_patched*|*_payload.img|*.apk|*.jar|*.so|*.sh|Fold8AngleRelay.dex|zygote_exec|clean_apex_info_list.xml|oneos-*)
+            *_patched*|*_payload.img|*.apk|*.jar|*.so|*.sh|*.tar|Fold8AngleRelay.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list.xml|oneos-*)
                 in_list "$n" "$1" || refuse "$n is in the stage but was not prepared (left from an older stage)" ;;
         esac
     done
@@ -751,13 +897,16 @@ find_tools() {
 }
 
 do_launch() {
-    [ $# -eq 4 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms>"
-    mode=$1 code=$2 sid=$3 gms=$4
+    [ $# -eq 7 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub>"
+    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7
     case "$mode" in session|dry) ;; *) usage "launch mode $mode" ;; esac
     is_dec "$code" || usage "launch versionCode $code"
     case "$sid" in *[!0-9a-f]*|'') usage "launch session id" ;; esac
     [ ${#sid} -eq 16 ] || usage "launch session id"
     case "$gms" in 0|1) ;; *) usage "launch hideGms $gms" ;; esac
+    case "$heat" in 0|1) ;; *) usage "launch heatCap $heat" ;; esac
+    case "$secims" in 0|1) ;; *) usage "launch secIms $secims" ;; esac
+    case "$edmstub" in 0|1) ;; *) usage "launch edmStub $edmstub" ;; esac
     [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
     step "checks"
     read_marker || refuse "the stage has no OneOS marker: prepare first"
@@ -808,11 +957,18 @@ do_launch() {
     [ $# -eq 2 ] && ge "$(awk -v a="$1" -v s="$2" 'BEGIN { printf "%.0f", a * s }')" 11811160064 ||
         refuse "less than 11 GiB free on /data"
 
-    # This launch's Google services choice (the Switch screen; Prepare wrote 0):
-    # the one line of session.env a launch changes, after every check. The next
+    # This launch's Google services choice (the Switch screen; Prepare wrote 0),
+    # its Cool down when hot (Advanced; Prepare wrote 1), its Samsung IMS choice
+    # and (0.4.32) its Knox edm stub choice (both Advanced; Prepare wrote 0): the
+    # four lines of session.env a launch changes, after every check. The next
     # launch writes its own. (Before the test root's stop, so the tests see it.)
-    sed "s/^ONEOS_GUEST_HIDE_GMS=.*/ONEOS_GUEST_HIDE_GMS=$gms/" "$STAGE/session.env" > "$STAGE/session.env.tmp" &&
-        grep -q -x "ONEOS_GUEST_HIDE_GMS=$gms" "$STAGE/session.env.tmp" && own "$STAGE/session.env.tmp" 0644 &&
+    sed -e "s/^ONEOS_GUEST_HIDE_GMS=.*/ONEOS_GUEST_HIDE_GMS=$gms/" -e "s/^ONEOS_HEAT_CAP=.*/ONEOS_HEAT_CAP=$heat/" \
+        -e "s/^ONEOS_GUEST_SEC_IMS=.*/ONEOS_GUEST_SEC_IMS=$secims/" \
+        -e "s/^ONEOS_GUEST_EDM_STUB=.*/ONEOS_GUEST_EDM_STUB=$edmstub/" "$STAGE/session.env" > "$STAGE/session.env.tmp" &&
+        grep -q -x "ONEOS_GUEST_HIDE_GMS=$gms" "$STAGE/session.env.tmp" && grep -q -x "ONEOS_HEAT_CAP=$heat" "$STAGE/session.env.tmp" &&
+        grep -q -x "ONEOS_GUEST_SEC_IMS=$secims" "$STAGE/session.env.tmp" &&
+        grep -q -x "ONEOS_GUEST_EDM_STUB=$edmstub" "$STAGE/session.env.tmp" &&
+        own "$STAGE/session.env.tmp" 0644 &&
         mv -f "$STAGE/session.env.tmp" "$STAGE/session.env" || die "could not write session.env for this launch"
     [ -z "$T" ] || refuse "test root: every launch check passed, nothing was started"
 
@@ -829,12 +985,14 @@ do_launch() {
         echo "  \"image\": \"$M_IMAGE\","
         echo "  \"set\": \"$M_SET\","
         echo "  \"hideGms\": $gms,"
+        echo "  \"secIms\": $secims,"
+        echo "  \"edmStub\": $edmstub,"
         echo "  \"files\": \"$(sha "$STAGE/files.sha256")\","
         echo "  \"table\": \"$(sha "$STAGE/host_installd.table")\""
         echo "}"
     } > "$STAGE/session/current.json.tmp" && own "$STAGE/session/current.json.tmp" 0644 &&
         mv -f "$STAGE/session/current.json.tmp" "$STAGE/session/current.json" || die "could not write session/current.json"
-    echo "=== OneOS app launch $sid $mode $(date '+%F %T') epoch $(date +%s) profile $M_PROFILE image $M_IMAGE set $M_SET hide-gms $gms ===" >> "$STAGE/takeover_app.log"
+    echo "=== OneOS app launch $sid $mode $(date '+%F %T') epoch $(date +%s) profile $M_PROFILE image $M_IMAGE set $M_SET hide-gms $gms sec-ims $secims edm-stub $edmstub ===" >> "$STAGE/takeover_app.log"
     # Out of the app's cgroup: ActivityManager kills an app's whole cgroup when
     # the app dies, and the app dies when One UI's framework stops.
     echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
@@ -865,9 +1023,10 @@ do_recover() {
     rc=$?
     case "$rc" in
         # guest_props.sh recover puts back only the language and OPPO's
-        # persist.oplus.* (props clearly the guest's): a Pixel session's other
-        # persist props stay in One UI (docs/pixel-guest.md), so say so.
-        0) if [ "$(image_family "$M_IMAGE")" = pixel ]; then
+        # persist.oplus.* (props clearly the guest's): a Pixel or HyperOS
+        # session's other persist props stay in One UI (docs/pixel-guest.md),
+        # so say so.
+        0) if [ "$(image_family "$M_IMAGE")" != coloros ]; then
                say "@@OK recover restored the language only (other settings the session saved stay)"
            else
                say "@@OK recover restored"
@@ -972,11 +1131,9 @@ do_old_list() {
 }
 # The only deletion of user data in this script, and its audited exception
 # (StageAudit): OLDDIR is exactly $OLD_PARENT/<checked name>, TRASH its
-# oneos.trash-<epoch> sibling, rm -rf only on "$TRASH".
-do_purge() {
-    [ $# -eq 1 ] || usage "purge <name>"
-    old_name_ok "$1" || usage "purge: '$1' is not an old stage name"
-    mountinfo_ok
+# oneos.trash-<epoch> sibling, rm -rf only on "$TRASH". purge and remove
+# (each copy, and the stage once it is renamed to one) both go through it.
+purge_one() { # <name>, already old_name_ok
     asked=$1
     # Listed under its name up to 0.3.6 and renamed since (migrate_legacy).
     case "$1" in
@@ -1006,7 +1163,69 @@ do_purge() {
     rm -rf "$TRASH" || true
     [ ! -e "$TRASH" ] || die "could not delete all of ${TRASH#$T}; it stays as ${TRASH##*/}"
     say "@@RESULT purged $asked $kb"
-    say "@@OK purge $asked"
+}
+do_purge() {
+    [ $# -eq 1 ] || usage "purge <name>"
+    old_name_ok "$1" || usage "purge: '$1' is not an old stage name"
+    mountinfo_ok
+    purge_one "$1"
+    say "@@OK purge $1"
+}
+
+# Everything OneOS put on the phone (0.4.25, Advanced > Remove OneOS data;
+# owner: "remove the folders it creates ... clean stages, or whole OneOS
+# folders"): every old copy, the stage with the guest's data, the session's
+# log capture ($OLD_PARENT/oneos_logs) and the session's helper files in
+# $OLD_PARENT. Every check comes first, for all of them, so it refuses before
+# its first change: the stage as restore checks it (nothing mounted at or
+# under it anywhere, no loop device on its files, no session running or one
+# that never returned), no bridge up, each copy as purge checks it, and the log
+# folder root's with nothing mounted in it. The log folder and the helper files
+# are then moved into the stage (the only writes outside it: $LOGS and $HELPER,
+# exactly these names, StageAudit); the copies are purged, and the stage is
+# renamed to an old copy and purged like one (purge_one checks again before and
+# after its rename). Nothing else in /data/local/tmp is touched. This script
+# runs on from its open file once its folder is gone.
+do_remove() {
+    [ $# -eq 0 ] || usage "remove"
+    mountinfo_ok
+    restore_checks "$STAGE"
+    b=$(bridged | head -n 3 | tr '\n' ' ')
+    [ -z "$b" ] || refuse "still bridged from a session: $b- restart the phone first"
+    copies=""
+    for d in "$OLD_PARENT"/oneos.old-* "$OLD_PARENT"/oneos.trash-* "$OLD_PARENT"/lineage_stage.old-* "$OLD_PARENT"/lineage_stage.trash-*; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        old_name_ok "${d##*/}" || continue
+        old_checks "$d"
+        copies="$copies ${d##*/}"
+    done
+    LOGS="$OLD_PARENT/oneos_logs"
+    if [ -e "$LOGS" ] || [ -L "$LOGS" ]; then
+        [ -d "$LOGS" ] && [ ! -L "$LOGS" ] && [ "$(stat -c %u "$LOGS" 2>/dev/null)" = "$ROOT_UID" ] ||
+            refuse "${LOGS#$T} is not a root-owned folder"
+        m=$(mounted_anywhere "$LOGS" | head -n 3 | tr '\n' ' ')
+        [ -z "$m" ] || refuse "something is mounted in ${LOGS#$T}: $m- restart the phone first"
+    fi
+    kb=$(du -sk "$STAGE" 2>/dev/null | cut -f1)
+    is_dec "$kb" || kb=0
+    mkdir_mine "$STAGE/removed" || die "could not make the stage's removed folder"
+    if [ -d "$LOGS" ]; then
+        step "move ${LOGS#$T} into the stage"
+        mv "$LOGS" "$STAGE/removed/" || die "could not move ${LOGS#$T} into the stage"
+    fi
+    for HELPER in "$OLD_PARENT/adb_watchdog.sh" "$OLD_PARENT/adb_watchdog.log" "$OLD_PARENT/ims_watchdog.sh" "$OLD_PARENT/ims_watchdog.log" "$OLD_PARENT/ui_activator.log" "$OLD_PARENT/restore_app.log"; do
+        [ -f "$HELPER" ] || [ -L "$HELPER" ] || continue
+        mv "$HELPER" "$STAGE/removed/" || die "could not move ${HELPER#$T} into the stage"
+    done
+    for c in $copies; do purge_one "$c"; done
+    OLD="$STAGE.old-$(date +%s)"
+    [ -e "$OLD" ] && OLD="$OLD-$$"
+    [ ! -e "$OLD" ] || die "${OLD#$T} exists already; the copies are gone, the stage stays"
+    step "aside ${STAGE#$T}"
+    mv "$STAGE" "$OLD" || die "could not move the stage aside; the copies are gone, the stage stays"
+    purge_one "${OLD##*/}"
+    say "@@RESULT removed $kb"
+    say "@@OK remove"
 }
 
 # Use a set-aside stage again (0.4.10). Like purge's checks, but a session
@@ -1126,7 +1345,7 @@ migrate_legacy() { # <stage|copies>
 [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
 verb=$1
 case "$verb" in
-    begin|receive|keep-raw|table|env|finish|launch|recover|restore) migrate_legacy stage ;;
+    begin|receive|keep-raw|table|env|finish|launch|recover|restore|remove) migrate_legacy stage ;;
     old-list|purge) migrate_legacy copies ;;
 esac
 [ -d "$STAGE" ] && mine "$STAGE" || refuse "$STAGE is not root's folder"
@@ -1144,5 +1363,6 @@ case "$verb" in
     old-list) do_old_list "$@" ;;
     purge) do_purge "$@" ;;
     restore) do_restore "$@" ;;
+    remove) do_remove "$@" ;;
     *) usage "unknown verb '$verb'" ;;
 esac

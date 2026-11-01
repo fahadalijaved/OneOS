@@ -407,7 +407,7 @@ object ShellScan {
  * phone's user data, reboots, settings, package wipes or mounts.
  */
 object StageAudit {
-    val VERBS = listOf("begin", "receive", "keep-raw", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore")
+    val VERBS = listOf("begin", "receive", "keep-raw", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove")
 
     val ALLOWED: Set<String> = setOf(
         "umask", "[", "echo", "printf", "id", "stat", "awk", "sed", "grep", "sort", "head", "tail", "cut", "tr", "wc",
@@ -439,12 +439,12 @@ object StageAudit {
     private const val CGROUP = "/sys/fs/cgroup/cgroup.procs"
 
     /**
-     * 0.3.5's one deletion of user data, `purge` (do_purge only): `$OLDDIR`
-     * is `$OLD_PARENT/$1` after old_name_ok, `$TRASH` its
-     * `oneos.trash-<epoch>` sibling, `$OLD_PARENT` is
+     * 0.3.5's one deletion of user data, `purge` (purge_one only, which purge
+     * and remove call): `$OLDDIR` is `$OLD_PARENT/$1` after old_name_ok,
+     * `$TRASH` its `oneos.trash-<epoch>` sibling, `$OLD_PARENT` is
      * `$DATA/local/tmp`; the only `rm -r` in the script is `rm -rf "$TRASH"`.
      */
-    private const val PURGE_FUNCTION = "do_purge"
+    private const val PURGE_FUNCTION = "purge_one"
     private val PURGE_VARS = setOf("OLDDIR", "TRASH")
     private const val PURGE_RM = "rm -rf \"\$TRASH\""
 
@@ -455,6 +455,18 @@ object StageAudit {
      */
     private const val RESTORE_FUNCTION = "do_restore"
     private val RESTORE_VARS = setOf("RFROM")
+
+    /**
+     * `remove` (do_remove only, 0.4.25) moves exactly these into the stage
+     * before purge_one deletes it: `$LOGS`, `$OLD_PARENT/oneos_logs`, and
+     * `$HELPER`, the variable of a loop over exactly the session's six helper
+     * files in `$OLD_PARENT`; no other write outside the stage there.
+     */
+    private const val REMOVE_FUNCTION = "do_remove"
+    private val REMOVE_VARS = setOf("LOGS", "HELPER")
+    private const val LOGS_VALUE = "\"\$OLD_PARENT/oneos_logs\""
+    private val HELPER_WORDS = listOf("adb_watchdog.sh", "adb_watchdog.log", "ims_watchdog.sh", "ims_watchdog.log", "ui_activator.log", "restore_app.log")
+        .map { "\"\$OLD_PARENT/$it\"" }
 
     /**
      * The renames from the names up to 0.3.6 (migrate_legacy only), and no
@@ -478,6 +490,7 @@ object StageAudit {
         val v = Regex("""^\$\{?([A-Za-z_][A-Za-z0-9_]*|1)""").find(a)?.groupValues?.get(1) ?: return false
         if (v in PURGE_VARS) return function == PURGE_FUNCTION
         if (v in RESTORE_VARS) return function == RESTORE_FUNCTION
+        if (v in REMOVE_VARS) return function == REMOVE_FUNCTION
         if (v in MIGRATE_VARS) return function == MIGRATE_FUNCTION
         return v in STAGE_VARS || v in EXCEPTION_VARS || v in loopVars || (v == "1" && function in WRITE_HELPERS)
     }
@@ -501,6 +514,7 @@ object StageAudit {
         val loopVars = scan.loops.filter { l -> l.words.isNotEmpty() && l.words.all { it.startsWith("\"\$STAGE") } }.map { it.variable }.toSet()
         for (l in scan.loops) {
             if (l.variable == "MFROM" && l.words != MFROM_WORDS) p += "line ${l.line}: for MFROM in ${l.words.joinToString(" ")}"
+            if (l.variable == "HELPER" && l.words != HELPER_WORDS) p += "line ${l.line}: for HELPER in ${l.words.joinToString(" ")}"
         }
         for (a in scan.assignments) {
             val v = a.value.removePrefix("\"")
@@ -511,6 +525,8 @@ object StageAudit {
                 ) p += "line ${a.line}: STAGE=${a.value}"
                 "LEGACY" -> if (a.value != LEGACY_VALUE || a.function != null) p += "line ${a.line}: LEGACY=${a.value}"
                 "MFROM" -> p += "line ${a.line}: MFROM=${a.value} (only the loop sets it)"
+                "HELPER" -> p += "line ${a.line}: HELPER=${a.value} (only the loop sets it)"
+                "LOGS" -> if (a.value != LOGS_VALUE || a.function != REMOVE_FUNCTION) p += "line ${a.line}: LOGS=${a.value}"
                 "MTO" -> if (a.value != MTO_VALUE || a.function != MIGRATE_FUNCTION) p += "line ${a.line}: MTO=${a.value}"
                 "S" -> if (a.value != RootScript.STAGE && a.value != "\$L" && !a.value.matches(Regex("^/[A-Za-z0-9._/-]+$"))) p += "line ${a.line}: S=${a.value}"
                 "L" -> if (a.value != RootScript.LEGACY_STAGE && !a.value.matches(Regex("^/[A-Za-z0-9._/-]+$"))) p += "line ${a.line}: L=${a.value}"

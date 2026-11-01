@@ -107,13 +107,36 @@ add)
             if (substr($0, i + 4) == "]" && (k !~ /^persist\./ || (k in b))) next
             print k
         }' > "$HOST"
+    # The image's system_ext and product: inside system in MysticGSI's merged
+    # images; at the image root in HyperOS's, where system/system_ext and
+    # system/product are absolute links (-> /system_ext, /product) that root
+    # follows to One UI's own files here on the host. Until the eighth HyperOS
+    # run the guest got none of its product, system_ext or mi_ext props (no
+    # ro.miui.ui.font.* or ro.miui.ui.version.code: themes, fonts and
+    # wallpapers did not apply and the launcher's own pages drew no text).
+    # From root partitions only ro.* keys, and no vendor, surface_flinger,
+    # nnapi or odm ones: their persist.*, debug.*, dalvik.* and bluetooth.*
+    # keys are Xiaomi's tuning for its own 10-core chip and daemons (core sets
+    # 8-9, persist.sys.stability.reboot_days, vendor.zram.disable, traced's
+    # relay port), and One UI's daemons share this property area.
+    GSE="$ROOTFS/system/system_ext"; GPR="$ROOTFS/system/product"; ROOTPARTS=""
+    [ -L "$GSE" ] && GSE="$ROOTFS/system_ext" && ROOTPARTS="$ROOTPARTS $GSE/etc/build.prop"
+    [ -L "$GPR" ] && GPR="$ROOTFS/product" && ROOTPARTS="$ROOTPARTS $GPR/etc/build.prop"
+    [ -n "$ROOTPARTS" ] && ROOTPARTS="$ROOTPARTS $ROOTFS/mi_ext/etc/build.prop"
     # Lowest priority first; a later file wins for a key defined twice.
-    ls "$ROOTFS"/system/build.prop \
-       "$ROOTFS"/system/system_ext/etc/build.prop \
-       "$ROOTFS"/system/product/etc/build.prop \
-       "$ROOTFS"/my_*/build.prop \
-       "$ROOTFS"/my_*/etc/build.prop 2>/dev/null |
-    xargs cat |
+    {
+        ls "$ROOTFS"/system/build.prop \
+           "$ROOTFS"/system/system_ext/etc/build.prop \
+           "$ROOTFS"/system/product/etc/build.prop \
+           "$ROOTFS"/my_*/build.prop \
+           "$ROOTFS"/my_*/etc/build.prop 2>/dev/null | while read -r f; do
+            case "$f" in "$ROOTFS"/system/build.prop|"$ROOTFS"/my_*) cat "$f" ;; *) [ -L "${f%/etc/build.prop}" ] || cat "$f" ;; esac
+        done
+        for f in $ROOTPARTS; do
+            [ -f "$f" ] && [ ! -L "$f" ] || continue
+            grep -E '^[ \t]*ro\.' "$f" | grep -v -E '^[ \t]*ro\.(vendor|surface_flinger|nnapi|odm)\.'
+        done
+    } |
     awk -v hostfile="$HOST" '
         BEGIN { while ((getline k < hostfile) > 0) host[k] = 1 }
         /^[ \t]*(#|import|$)/ { next }
@@ -162,6 +185,31 @@ add)
         elif ! grep -q "^$BLUR=" "$NEW"; then
             echo "$BLUR=1" >> "$NEW"
         fi
+    fi
+    # USB functions AOSP does not define. Samsung's persist.sys.usb.config is
+    # "sec_charging,adb"; UsbManager.usbFunctionsFromString knows no
+    # sec_charging and throws IllegalArgumentException, which killed the guest
+    # system_server on the android.fg thread in UsbDeviceManager.finishBoot
+    # (first Nothing run, 2026-10-31; its UsbHandlerLegacy reads the persist
+    # prop). The live sys.usb.config is already a plain AOSP value on this
+    # phone (mtp,adb), so the guest gets that for the session, and "adb" alone
+    # if it is not. Memory only: init watches sys.usb.config, not this one, so
+    # nothing is reconfigured by the override itself, and One UI's own value
+    # goes back with remove and restore-persist.
+    # ONEOS_GUEST_USB_CONFIG=0 leaves it alone.
+    if [ "${ONEOS_GUEST_USB_CONFIG:-1}" = 1 ]; then
+        UCK=persist.sys.usb.config
+        huv=$(getprop "$UCK")
+        case ",$huv," in
+            *,sec_*)
+                nuv=$(getprop sys.usb.config)
+                case ",$nuv," in ""|*,sec_*|,,) nuv=adb ;; esac
+                if grep -qxF "$UCK" "$HOST" && "$RP" -n "$UCK" "$nuv" 2>/dev/null; then
+                    echo "$UCK=$huv" >> "$OVR"
+                    echo "guest_props: $UCK=$huv overridden to $nuv for the session (AOSP's UsbManager rejects sec_charging)"
+                fi
+                ;;
+        esac
     fi
     # Bluetooth audio offload (run 44: the earbuds connected, audio stayed on the
     # speaker). A2DP keeps One UI's offload: Samsung's QTI HAL turns its offload
@@ -251,7 +299,8 @@ add)
     # aborts the whole Bluetooth process. On such a phone the LE Audio
     # profiles are off for the session (memory only, One UI's values go back
     # with remove), so classic Bluetooth starts. ONEOS_GUEST_LE_AUDIO=1 keeps
-    # them.
+    # them. Classic (A2DP) audio then goes through oneos_btaudio, which
+    # oneos_switch.sh starts after this check (0.4.33); LE Audio stays off.
     # Only `service check` (a servicemanager lookup): `service list` asks every
     # service for its interface, and One UI's surfaceflinger is frozen behind
     # the gap splash here, so it never answered and the switch hung before the
@@ -292,7 +341,17 @@ add)
     # POWERKEY_InputReaderProcessKey"). Only OPPO's Theia power key statistics
     # are skipped. Memory only (resetprop -n), deleted again by remove.
     # ONEOS_GUEST_SAUPWK=0 leaves it out.
-    if [ "${ONEOS_GUEST_SAUPWK:-1}" = 1 ] && ! grep -qxF persist.sys.saupwk_test "$HOST"; then
+    # The panel's brightness scale for OPPO's framework (ColorOS, Infinity-X:
+    # patches/OneOSPanelBacklight.smali, 0.4.36): the Z Fold8 Ultra's composer
+    # floats times 5.2980394 / this panel's brightnessMaximum (One UI's dumpsys
+    # display, captured by the switch; the same scale guest_prepare.sh gives
+    # the display configs of the other systems). 1000 = the Fold's own.
+    bm=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
+    sc=$(awk -v m="$bm" 'BEGIN { if (m + 0 >= 1.5 && m + 0 <= 8) printf "%d", 5298.0394 / m + 0.5; else print 1000 }')
+    sed -i '/^ro\.oneos\.panel_scale_milli=/d' "$NEW"
+    echo "ro.oneos.panel_scale_milli=$sc" >> "$NEW"
+    echo "guest_props: panel brightness scale $sc/1000 (One UI's brightnessMaximum ${bm:-unknown})"
+    if [ "${ONEOS_GUEST_SAUPWK:-1}" = 1 ]; then
         sed -i '/^persist\.sys\.saupwk_test=/d' "$NEW"
         echo "persist.sys.saupwk_test=1" >> "$NEW"
         echo "guest_props: persist.sys.saupwk_test=1 for the session (no 5 s HAL wait per power key press)"
@@ -363,6 +422,125 @@ add)
             echo "guest_props: $NM=true for the session (Night Light: the image's treble NightMode overlay)"
         fi
     fi
+    # HyperOS on a fold: Xiaomi's fold flag lives in the phone's vendor props,
+    # which the GSI does not carry. MiWallpaper (a fold build: the image is
+    # Xiaomi's fold lhasa) loads the cover screen's two wallpaper records only
+    # when persist.sys.muiltdisplay_type is 2, then reads them anyway, and
+    # crashed at every start without them (sixth HyperOS run: NPE in
+    # WallpaperTypeUtils.f for which=4/8, no wallpaper). MiuiMultiDisplayTypeInfo
+    # reads the same value for the rest of HyperOS (isFoldDevice: without it
+    # the seventh run laid HyperOS's phone UI out on the inner panel, "zoomed
+    # in", and the theme pickers failed). Memory only, blanked by remove,
+    # never over a value One UI has. The image's own fold_disp marks a fold
+    # build; not $NEW, which skips it: One UI defines ro.config.fold_disp too
+    # (Samsung's "2256,2504,1080,2520"), so the run 6 check never matched.
+    MDT=persist.sys.muiltdisplay_type
+    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && grep -q '^ro\.config\.fold_disp=' "$ROOTFS"/system/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null &&
+        { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; }; then
+        if grep -qxF "$MDT" "$HOST"; then
+            echo "guest_props: $MDT is One UI's ($(getprop "$MDT")), left alone"
+        else
+            sed -i '/^persist\.sys\.muiltdisplay_type=/d' "$NEW"
+            echo "$MDT=2" >> "$NEW"
+            echo "guest_props: $MDT=2 for the session (HyperOS fold: cover screen wallpapers)"
+        fi
+    fi
+    # HyperOS's rust runtime (its launcher among the packages): the image's
+    # init.hyos_spawner.rc sets rust.runtime_version when zygote runs and
+    # starts hyos_spawner on rust.runtime_active=1, and system_server sends
+    # rust packages to the spawner only while that is 1. One UI's init has
+    # neither; guest_start.sh starts the spawner, and the two values are added
+    # here so that remove deletes them again (system_server sets the second
+    # one itself as well).
+    if [ -f "$ROOTFS/system/system_ext/bin/hyos_spawner" ] || [ -f "$ROOTFS/system_ext/bin/hyos_spawner" ]; then
+        for kv in rust.runtime_version=3.1.0 rust.runtime_active=1; do
+            k=${kv%%=*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: rust.runtime_version=3.1.0 rust.runtime_active=1 for the session (HyperOS rust packages through hyos_spawner)"
+    fi
+    # HyperOS's telephony (xiaomi-opt-telephony.jar, XmTelephonyUtils.ModemProvider)
+    # takes the modem's maker from ro.vendor.radio.modem.provider, else from
+    # ro.mi.os.soc.vendor, which the image's own build.prop sets to xring. On
+    # "xring" VendorRIL.setupDataCall goes to Xiaomi's radio extension
+    # (RadioInterfaceManager, setupDataCallEx), which Samsung's vendor never
+    # registers: run 10 "onSetupDataCallComplete. resultCode = 4", cause
+    # RADIO_NOT_AVAILABLE, no mobile data. With "qcom" (the Snapdragon modem
+    # it is) every data call takes RIL's own IRadioData path. One UI's vendor
+    # does not define the name.
+    if { [ -f "$ROOTFS/system/system_ext/framework/xiaomi-opt-telephony.jar" ] || [ -f "$ROOTFS/system_ext/framework/xiaomi-opt-telephony.jar" ]; } &&
+        ! grep -qxF ro.vendor.radio.modem.provider "$HOST"; then
+        if [ "$(getprop ro.soc.manufacturer)" = QTI ]; then
+            sed -i '/^ro\.vendor\.radio\.modem\.provider=/d' "$NEW"
+            echo "ro.vendor.radio.modem.provider=qcom" >> "$NEW"
+            echo "guest_props: ro.vendor.radio.modem.provider=qcom for the session (HyperOS data calls through IRadioData, not Xiaomi's XRING extension)"
+        else
+            echo "guest_props: ro.vendor.radio.modem.provider left unset: $(getprop ro.soc.manufacturer) is not a Qualcomm SoC"
+        fi
+    fi
+    # HyperOS's XRING helpers fail on every frame and log each time: libxqos
+    # ("XQos: Failed to open /dev/xr_fbt" and "Failed to initialize", 300,000
+    # lines in run 10's 12 minutes, 258,000 in run 6's four), SurfaceFlinger's
+    # PerfFlinger client (17,000) and the Dolby renderer's metadata reads
+    # (51,000): a third of the session's log and of OneOS's capture. liblog
+    # checks log.tag.<tag> before it formats a line; S drops these three tags
+    # in every process. Xiaomi's and Dolby's own tags only, never AOSP ones
+    # (BufferQueueProducer and SurfaceFlinger carry real errors too). Run 11
+    # added: RadioProxyEx (Xiaomi's radio extension proxy, never ready on
+    # Samsung's vendor: 9,500 lines a file), com.xiaomi.type (Xiaomi's
+    # keyboard dumping its key table, 8,000) and, down to W only, AdrenoVK-0
+    # (Qualcomm's Vulkan driver: "Unknown struct ... provided to
+    # vkCmdBeginRenderPass" on every frame HyperOS draws, 16,600 a file).
+    if [ -f "$ROOTFS/system/lib64/libxqos.so" ]; then
+        for tl in XQos:S perfflinger_client:S DolbyRenderer:S RadioProxyEx:S com.xiaomi.type:S AdrenoVK-0:W; do
+            k=log.tag.${tl%:*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$k=${tl##*:}" >> "$NEW"
+        done
+        echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type = S and AdrenoVK-0 = W for the session (failures and dumps on every frame or call)"
+    fi
+    # Chrome draws nothing in the Nothing OS guest: its renderers never start
+    # (cr_ChildProcessConn "Failed to establish the service connection" 20
+    # times a page, run 11), while WebView in other apps works. One UI's
+    # log.tag is E, which the guest shares, so ActivityManager and the zygote
+    # said nothing about why. These tags at I for the session only (log.tag.*
+    # is not persistent), Nothing OS guests only, until the cause is known.
+    if [ -f "$GSE/framework/nt-telephony-common.jar" ]; then
+        # One UI's camera port (run 19: lens switches slow, which camera opens
+        # where): the camera service's opens, closes and evictions, and the
+        # app's device manager, at I. The policy's power presses (WindowManager at D:
+        # "powerPress: ... count=", run 26: a double press opened nothing, no line).
+        for tl in ActivityManager:I Zygote:I AppZygoteInit:I ActiveServices:I cr_ChildProcessConn:V cr_ChildProcLH:V cr_ChildProcessService:V cr_LibraryLoader:V \
+                  CameraService:I Camera3-Device:I CameraDeviceClient:I CameraProviderManager:I CameraDeviceManager:I CameraContext:I \
+                  ServiceManagerCppClient:I ServiceManagerCppClientCallback:I CameraServiceWorkerWrapper:I \
+                  WindowManager:D SingleKeyGesture:D; do
+            k=log.tag.${tl%:*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$k=${tl##*:}" >> "$NEW"
+        done
+        echo "guest_props: ActivityManager, Zygote, AppZygoteInit, ActiveServices and the camera service's tags at I, Chrome's child process tags at V for the session"
+    fi
+    # HyperOS's libhwui encodes JPEG and HEIF through Xiaomi's XRING VPU
+    # (JpegXEncoder) and waits for vendor.xring.hardware.graphics.vpu.jpeg.
+    # IJpegXCodecStore/default, which Samsung's vendor never registers: every
+    # Bitmap.compress hung (run 9: wallpaper apply, the lock screen editor's
+    # apply and screenshots, system_server's own wallpaper thread). With bit 0
+    # of debug.video.jpegopt.enable / heifopt.enable clear (default 1) Skia
+    # uses libjpeg and its HEIF encoder. Only when the image's libhwui reads
+    # them; not the vendor.video.* ones, which One UI's vendor might read.
+    if grep -qF debug.video.jpegopt.enable "$ROOTFS/system/lib64/libhwui.so" 2>/dev/null; then
+        for kv in debug.video.jpegopt.enable=0 debug.video.heifopt.enable=0; do
+            k=${kv%%=*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: debug.video.jpegopt.enable=0 debug.video.heifopt.enable=0 for the session (no XRING JPEG/HEIF codec)"
+    fi
     # ColorOS's first-boot clock. OplusNewNetworkTimeUpdateServiceFeature.
     # checkSystemTime (oplus-services.jar) takes every boot with
     # persist.sys.device_first_boot unset (default true) for the phone's first
@@ -382,7 +560,115 @@ add)
        grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage"; then
         key=ro.oplus.display.secondary.screenhole.position
         sed -i "/^$key=/d" "$NEW"
-        echo "$key=589,0:659,104" >> "$NEW"
+        # The accepted bar is 48dp =126px at density420. Centre the
+        # captured camera rectangle vertically in it, preserving its size/X.
+        h=$(cat "$STAGE/host_screenhole" 2>/dev/null || true)
+        aligned=$(echo "$h" | awk -F '[:,]' 'NF==4 && $1~/^[0-9]+$/ && $2~/^[0-9]+$/ && $3~/^[0-9]+$/ && $4~/^[0-9]+$/ && $3>$1 && $4>$2 && $4-$2<=126 {top=int((126-($4-$2))/2);printf "%d,%d:%d,%d",$1,top,$3,top+$4-$2}')
+        [ -n "$aligned" ] || aligned=589,11:659,115
+        echo "$key=$aligned" >> "$NEW"
+    fi
+    # Nothing OS: haptics through the phone's own vibrator. Nothing's feature
+    # bit 139 (bits from ro.build.nothing.feature.base, flipped by the diff
+    # props; NtFeaturesUtilsImpl) sends every vibration to AAC's RichTap
+    # (VintfHalVibrator's on() -> NtVibratorManagerImpl.ntVibrateOn), which it
+    # finds as IVibrator/default's extension. On a Galaxy that extension is
+    # Samsung's, so every RichTap call failed ("aac richtap doVibratorStop
+    # fail") and nothing vibrated (run 14: 1 HAL vibration in the session).
+    # The base with that bit cleared (hex digit 35 from the right, value 8; the
+    # number is too long for awk's arithmetic). No diff of this image sets it.
+    # ONEOS_GUEST_NT_RICHTAP=1 keeps the image's value.
+    key=ro.build.nothing.feature.base
+    v=$(sed -n "s/^$key=//p" "$NEW" | tail -n 1)
+    if [ -n "$v" ] && [ "${ONEOS_GUEST_NT_RICHTAP:-0}" != 1 ]; then
+        nv=$(echo "$v" | awk '{
+            s = $0; pre = ""; suf = ""
+            if (substr(s, 1, 2) == "0x" || substr(s, 1, 2) == "0X") { pre = substr(s, 1, 2); s = substr(s, 3) }
+            if (substr(s, length(s)) == "L") { suf = "L"; s = substr(s, 1, length(s) - 1) }
+            if (length(s) < 35) { print $0; exit }
+            p = length(s) - 34; d = tolower(substr(s, p, 1)); h = "0123456789abcdef"
+            x = index(h, d) - 1
+            if (x < 0) { print $0; exit }
+            if (x >= 8) x -= 8
+            print pre substr(s, 1, p - 1) substr(h, x + 1, 1) substr(s, p + 1) suf }')
+        if [ -n "$nv" ] && [ "$nv" != "$v" ]; then
+            sed -i "/^$key=/d" "$NEW"
+            echo "$key=$nv" >> "$NEW"
+            echo "guest_props: $key without feature 139 (RichTap haptics) for the session"
+        fi
+    fi
+    # ONEOS_GUEST_LOG_INFO=1 (a debug session, off by default): every tag at I
+    # for the session, so app-level logs (the camera's RecordingSession, the
+    # activity starts) reach the capture; One UI's own level is E. Restored on
+    # return like every session prop.
+    if [ -n "$v" ] && [ "${ONEOS_GUEST_LOG_INFO:-0}" = 1 ]; then
+        if grep -qxF log.tag "$HOST"; then
+            echo "guest_props: log.tag is One UI's ($(getprop log.tag)), left alone"
+        else
+            sed -i '/^log\.tag=/d' "$NEW"
+            echo "log.tag=I" >> "$NEW"
+            echo "guest_props: log.tag=I for this debug session"
+        fi
+    fi
+    # Nothing OS's ringtones: NothingGenerateRingtoneService composes each with a
+    # Glyph pattern from libgenerative_glyph, which sizes it by Nothing's vendor
+    # props (ro.vendor.glyph.*, the Phone (3)'s 25 x 25 matrix). Samsung's
+    # /vendor has none, so every pattern came out all zero frames; the service
+    # deleted it, took a new seed and tried again, 31 246 times in four minutes
+    # at full speed on its main thread (run 16: the phone hot, no ringtone, ANR
+    # after 200 s and a restart scheduled). The Metroid vendor image's values,
+    # for the session. No light is driven: nothing here has a Glyph device.
+    # ONEOS_GUEST_NT_GLYPH=0 leaves them out.
+    if [ -n "$v" ] && [ "${ONEOS_GUEST_NT_GLYPH:-1}" = 1 ]; then
+        for kv in ro.vendor.glyph.row=25 ro.vendor.glyph.column=25 ro.vendor.glyph.matrix_channels=625 \
+                  ro.vendor.glyph.channels=489 ro.vendor.glyph.generative.simulation.multiple=4; do
+            sed -i "/^${kv%%=*}=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: Nothing Glyph matrix 25 x 25 for the ringtone generator"
+    fi
+    # Nothing OS's About phone reads this phone's hardware once its "own phone"
+    # mode is on (switcher/overlays/nothing_about): RAM from ro.boot.ddr_size
+    # (MB; /proc/meminfo's total without it, 11 GB on the 12 GB Fold8 Ultra),
+    # the processor's name from ro.product.cpu_info, and the screen line as
+    # <screen_physical_size>" <ro.vendor.display.panel.type>. All from the
+    # phone: RAM rounded up to the next usual size, the SoC by its model, the
+    # panels' diagonals from the switch's display capture (pixels / dpi). The
+    # activator takes the inner size and the battery's design capacity from
+    # $STAGE/nt_about.txt for the two strings. ONEOS_GUEST_NT_ABOUT=0 leaves them.
+    if [ -n "$v" ] && [ "${ONEOS_GUEST_NT_ABOUT:-1}" = 1 ]; then
+        gb=$(awk '/^MemTotal:/ { g = $2 / 1048576; n = split("4 6 8 12 16 24 32 48 64", s, " "); for (i = 1; i <= n; i++) if (s[i] + 0 >= g) { print s[i]; exit } }' /proc/meminfo)
+        case "$(getprop ro.soc.model)" in
+            SM8850) cpu="8 Elite Gen 5" ;;
+            SM8750) cpu="8 Elite" ;;
+            SM8650) cpu="8 Gen 3" ;;
+            SM8550) cpu="8 Gen 2" ;;
+            s5e9965) cpu="Exynos 2600" ;;
+            s5e9955) cpu="Exynos 2500" ;;
+            *) cpu="" ;;
+        esac
+        # The Folds' overlay says "Qualcomm Snapdragon %s"; every other phone's
+        # (0.4.35, guest_prepare.sh) only "%s", so the name is whole here.
+        case "${ONEOS_PROFILE:-f8u}" in
+            f8u|f8|f7|f6) ;;
+            *) case "$cpu" in ''|Exynos*) ;; *) cpu="Snapdragon $cpu" ;; esac ;;
+        esac
+        # One "<diagonal>" per built-in panel, the largest first.
+        sizes=$(awk '/DisplayDeviceInfo\{"Built-in Screen"/ {
+                if (match($0, /, [0-9]+ x [0-9]+,/)) { split(substr($0, RSTART + 2, RLENGTH - 3), r, " x ") } else next
+                if (match($0, /, [0-9.]+ x [0-9.]+ dpi/)) { split(substr($0, RSTART + 2, RLENGTH - 6), d, " x ") } else next
+                if (d[1] + 0 <= 0 || d[2] + 0 <= 0) next
+                printf "%d\n", sqrt((r[1] / d[1]) ^ 2 + (r[2] / d[2]) ^ 2) * 10 }' "$STAGE/display_modes_host.log" 2>/dev/null |
+            sort -rn | awk '{ printf "%d.%d\n", $1 / 10, $1 % 10 }')
+        inner=$(echo "$sizes" | sed -n 1p); cover=$(echo "$sizes" | sed -n 2p)
+        mah=$(awk '{ printf "%d", $1 / 1000 }' /sys/class/power_supply/battery/charge_full_design 2>/dev/null)
+        for kv in "ro.boot.ddr_size=${gb:+$((gb * 1024))}" "ro.product.cpu_info=$cpu" \
+                  "ro.vendor.display.panel.type=${cover:+inner, $cover\" cover}"; do
+            [ -n "${kv#*=}" ] || continue
+            sed -i "/^${kv%%=*}=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        { echo "screen=$inner"; echo "battery=$mah"; } > "$STAGE/nt_about.txt"
+        echo "guest_props: Nothing About phone: ${gb:-?} GB, ${cpu:-?}, panels ${inner:-?}\" ${cover:+and $cover\" }, ${mah:-?} mAh"
     fi
     if "$RP" -n -f "$NEW" 2>/dev/null; then
         cut -d= -f1 "$NEW" > "$ADDED"
@@ -405,8 +691,8 @@ add)
     if [ "${ONEOS_GUEST_RINGTONES:-1}" = 1 ]; then
         for key in ro.config.ringtone ro.config.notification_sound ro.config.alarm_alert; do
             # The same files and order as above (Pixel sets these in product).
-            g=$(cat "$ROOTFS"/system/build.prop "$ROOTFS"/system/system_ext/etc/build.prop \
-                "$ROOTFS"/system/product/etc/build.prop "$ROOTFS"/my_*/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
+            g=$(cat "$ROOTFS"/system/build.prop "$GSE"/etc/build.prop \
+                "$GPR"/etc/build.prop "$ROOTFS"/my_*/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
             h=$(getprop "$key")
             [ -n "$g" ] && [ -n "$h" ] && [ "$g" != "$h" ] || continue
             echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
@@ -426,8 +712,8 @@ add)
     # g_call_sim_slot then reaches the HAL only through guest_start.sh's call
     # keeper, which sends it to IModule/default directly while this is not true.
     for key in ro.audio.ihaladaptervendorextension_enabled; do
-        g=$(cat "$ROOTFS"/system/build.prop "$ROOTFS"/system/system_ext/etc/build.prop \
-            "$ROOTFS"/system/product/etc/build.prop "$ROOTFS"/my_*/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
+        g=$(cat "$ROOTFS"/system/build.prop "$GSE"/etc/build.prop \
+            "$GPR"/etc/build.prop "$ROOTFS"/my_*/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
         h=$(getprop "$key")
         [ -n "$g" ] && [ -n "$h" ] && [ "$g" != "$h" ] || continue
         echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
@@ -448,6 +734,25 @@ add)
             echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
                 echo "guest_props: $key='$g' for the session (One UI: $h; the guest has no 32-bit zygote)"
         done
+    fi
+    # A Qualcomm-built guest on an Exynos phone (Galaxy S26+, 4cad07e6, 0.4.19).
+    # ColorOS's zygote preloads libqti_performance.so only when
+    # Build.IS_QCOM_PLATFORM is true, which framework.jar computes from
+    # ro.boot.hardware starting with "qcom" (ZygoteInit.preloadSharedLibraries).
+    # On the S26+ (ro.boot.hardware is Samsung's) nothing loaded it, every
+    # com.qualcomm.qti.Performance native was "No implementation found" (over
+    # 1,000 lines a session) and a game-launch broadcast dispatched on an OThread
+    # took system_server down with UnsatisfiedLinkError: black screen after a
+    # few seconds, then the return. QPerformance.jar is in the guest's boot image,
+    # so it cannot be patched; the image's own value for the session instead,
+    # whenever the guest ships that library and the phone is not Qualcomm's.
+    if [ -f "$ROOTFS/system/system_ext/lib64/libqti_performance.so" ]; then
+        h=$(getprop ro.boot.hardware)
+        case "$h" in
+            qcom*) ;;
+            *) echo "ro.boot.hardware=$h" >> "$OVR" && "$RP" -n ro.boot.hardware qcom 2>/dev/null &&
+                   echo "guest_props: ro.boot.hardware=qcom for the session (One UI: $h; the guest's zygote then preloads its Qualcomm perf library)" ;;
+        esac
     fi
     # No isolated compilation from the guest. SystemServer starts
     # IsolatedCompilationService when ro.config.isolated_compilation_enabled is
@@ -617,6 +922,8 @@ restore-persist)
         case "$1" in
             persist.sys.locale) return 0 ;;
             persist.oplus.*|persist.sys.oplus.*) return 0 ;;
+            # oneos_switch.sh's softdog off switch on the Exynos phones (0.4.22).
+            persist.vendor.softdog) return 0 ;;
         esac
         return 1
     }

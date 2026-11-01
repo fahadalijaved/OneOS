@@ -29,10 +29,19 @@
     <string name="advanced_last_test">%1$s · test run</string>
     <string name="advanced_logs_summary">Share them with the OneOS team. Personal info is removed first.</string>
     <string name="advanced_restore_summary">Only needed after a force restart during a session</string>
+    <string name="advanced_heat_cap_title">Cool down when hot</string>
+    <string name="advanced_heat_cap_summary">One UI\'s heat control doesn\'t run in the other system. From 45 °C, OneOS slows the processor there until the phone cools down.</string>
     <string name="advanced_card_help">Help</string>
     <string name="advanced_before_summary">What can break, backups and the screen lock</string>
     <string name="advanced_about_summary">Version, safety and credits</string>
     <string name="advanced_team_summary">Technical screens, for when the OneOS team asks</string>
+    <string name="remove_title">Remove OneOS data</string>
+    <string name="remove_summary">Delete the system, old copies and logs OneOS put on this phone</string>
+    <string name="remove_running">Removing OneOS data…</string>
+    <string name="remove_busy">OneOS is busy with your phone. Try again in a moment.</string>
+    <string name="remove_confirm_title">Remove all OneOS data?</string>
+    <string name="remove_confirm_message">This deletes everything OneOS put on this phone: the system you set up, with the apps and accounts in it, every old copy, and the session logs. One UI and its apps and data are not touched. OneOS stays installed, and downloaded system files stay where you saved them. This can\'t be undone.</string>
+    <string name="remove_confirm_run">Remove</string>
 
     <!-- For the OneOS team -->
     <string name="team_title">For the OneOS team</string>
@@ -243,6 +252,15 @@
     <string name="switch_dry_title">Test run</string>
     <string name="switch_dry_summary">One UI closes while %1$s is set up and checked, then One UI comes back. %1$s doesn\'t start.</string>
     <string name="switch_go_summary">Every check runs again, then One UI closes and %1$s starts</string>
+    <string name="advanced_card_calls">Calls</string>
+    <string name="advanced_sec_ims_title">Use One UI\'s calling service (VoLTE)</string>
+    <string name="advanced_sec_ims_summary">Experimental. Takes this phone\'s own Samsung calling service (IMS) into the other system so calls can use VoLTE instead of 3G. Nothing is sent to anyone; One UI\'s files are only read. May not work yet.</string>
+    <string name="advanced_edm_stub_title">Camera without the Knox wait</string>
+    <string name="advanced_edm_stub_summary">On by default. One UI\'s camera service asks Knox on every camera open and waits 5 seconds for a service the other system does not have, so most camera apps give up first. This answers for it. If the camera stops working with this on, turn it off.</string>
+    <string name="advanced_card_risky">Risky</string>
+    <string name="advanced_card_risky_tag">Can erase the phone</string>
+    <string name="advanced_allow_lock_title">Switch with a screen lock set</string>
+    <string name="advanced_allow_lock_summary">Normally OneOS will not switch while a PIN, pattern, password, fingerprint or face lock is on. Your One UI apps and photos are encrypted behind that lock: if a session leaves the phone unable to accept it, the only way back is a factory reset, which erases everything. This has happened to a tester. Turn this on only if you accept that risk.</string>
     <string name="switch_hide_gms_title">Hide Google apps this time</string>
     <string name="switch_hide_gms_summary">Leaves Play services and the Play Store out of %1$s this time only. Nothing else changes.</string>
     <string name="switch_dialog_gms_hidden">Google apps are hidden this time.</string>

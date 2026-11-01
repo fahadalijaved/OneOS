@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="wallpaper_my_theme_header_height">40dp</dimen>
+    <dimen name="wallpaper_my_theme_item_width">200dp</dimen>
+    <dimen name="wallpaper_my_theme_item_height">417.77344dp</dimen>
+    <dimen name="wallpaper_my_theme_image_width">168dp</dimen>
+    <dimen name="wallpaper_my_theme_image_height">272dp</dimen>
+    <dimen name="wallpaper_my_theme_recyclerview_mt">112dp</dimen>
+</resources>

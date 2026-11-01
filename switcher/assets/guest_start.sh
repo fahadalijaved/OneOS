@@ -198,11 +198,17 @@ fi
 # client.
 # Snapdragon's composer service is vendor.qti.hardware.display.composer,
 # Samsung's Exynos one vendor.hwcomposer-3 (Galaxy S26+ Exynos and Z Flip7
-# probes, 2026-10-25).
+# probes, 2026-10-25). Not every phone uses one of those two names -- the
+# Galaxy A56 probe (2026-10-30) runs the AIDL composer as
+# android.hardware.graphics.composer3-service.exynos -- so when neither is
+# there, take the running init service whose own name says it is the display
+# composer rather than skip the restart (here) or fail the return
+# (return_to_oneui.sh).
 COMPOSER_SVC=""
 for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
     [ -n "$(getprop init.svc.$c)" ] && { COMPOSER_SVC=$c; break; }
 done
+[ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
 echo "[Pivoted Root] Restarting the vendor display composer (${COMPOSER_SVC:-none found})..."
 [ -z "$COMPOSER_SVC" ] || setprop ctl.restart "$COMPOSER_SVC"
 # With the gap splash, the black that is left is from here to the first boot
@@ -236,6 +242,49 @@ while [ $n -lt 20 ] && pidof surfaceflinger >/dev/null; do
     n=$((n + 1)); sleep 0.1
 done
 echo "[Pivoted Root] Host surfaceflinger after composer restart: $(pidof surfaceflinger || echo none)"
+
+# What the composer has to offer, recorded BEFORE the guest's SurfaceFlinger
+# asks for it. The diag rounds in oneos_switch.sh all start from
+# `pidof surfaceflinger`, so a guest SF that dies leaves no display diag at all:
+# the Galaxy S24 Ultra report of 2026-10-30 aborted with "No matching frame rate
+# modes for primary range" and its bundle had nothing to say why, while its
+# One UI offers 21 modes (its probe the same day). This runs first and keeps the
+# mode list whatever SF then does with it.
+# Reads files, and one lshal bounded by timeout, on a composer that has just
+# registered: no plain dumpsys and no service walk here, the host's
+# system_server is frozen at this point (0.4.11 hung every switch that way).
+# $STAGE is the host side's name for the stage; this script runs inside the
+# pivoted root, where the stage's own /data IS /data. Write it where the log
+# collector already looks: collect.list takes "$S"/data/*.log for every guest
+# log (takeover.log and the rest), so one .log there needs no collector change.
+CD=/data/oneos_composer_before_sf.log
+{
+    echo "== composer service ${COMPOSER_SVC:-none found}"
+    [ -z "$COMPOSER_SVC" ] || echo "init.svc.$COMPOSER_SVC: $(getprop "init.svc.$COMPOSER_SVC")"
+    service check android.hardware.graphics.composer3.IComposer/default 2>&1
+    echo
+    echo "== panel modes the kernel reports (/sys/class/drm)"
+    for c in /sys/class/drm/card*-*; do
+        [ -r "$c/modes" ] || continue
+        echo "-- $(basename "$c") status=$(cat "$c/status" 2>/dev/null) enabled=$(cat "$c/enabled" 2>/dev/null)"
+        cat "$c/modes" 2>/dev/null
+    done
+    echo
+    echo "== vendor display configs (the file name is the display id it is for)"
+    ls -l /vendor/etc/displayconfig /odm/etc/displayconfig 2>&1
+    echo
+    echo "== the composer's own dump"
+    # An AIDL composer (every phone OneOS knows) answers dumpsys, not lshal
+    # debug (HIDL only); one named service, bounded.
+    timeout 5 dumpsys android.hardware.graphics.composer3.IComposer/default 2>&1 | head -n 400 ||
+        echo "dumpsys of the composer: no answer in 5 s"
+    if command -v lshal >/dev/null 2>&1; then
+        timeout 5 lshal debug android.hardware.graphics.composer3.IComposer/default 2>&1 ||
+            echo "lshal debug: no answer in 5 s"
+    else
+        echo "no lshal in this image"
+    fi
+} > "$CD" 2>&1
 
 # Shader caches. init.rc makes /data/misc/surfaceflinger (0700 system system)
 # and sets service.sf.cache_dir_available; the container has no init, so the
@@ -357,9 +406,50 @@ if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
             done
             [ "$STATES" != "0:$COVER:$INNER" ] || STATES="$STATES 3:$INNER:$COVER"
             LNOTE="Samsung's device states: 0 (lid closed) on the cover, the others ($(echo "$STATES" | tr ' ' '\n' | sed -n 's/:.*//p' | grep -v '^0$' | tr '\n' ' ')) on the inner panel."
+        elif [ -e /system/system_ext/framework/miui-services.jar ] || [ -e /system_ext/framework/miui-services.jar ]; then
+            # HyperOS's own states (guest_prepare.sh binds a lid-switch copy of
+            # its product device_state_configuration.xml): 0 CLOSED and 1 TENT
+            # outer primary, 2 HALF_OPENED and 3 OPENED inner, 4 OPENED_REVERSE
+            # outer (the Pixel order below put 3 on the cover).
+            STATES="0:$COVER:$INNER 1:$COVER:$INNER 2:$INNER:$COVER 3:$INNER:$COVER 4:$COVER:$INNER"
+            LNOTE="HyperOS fold states 0 closed and 1 tent on the cover, 2 half open and 3 open on the inner panel, 4 reverse on the cover."
         else
-            STATES="0:$COVER:$INNER 1:$INNER:$COVER 2:$INNER:$COVER 3:$COVER:$INNER"
-            LNOTE="AOSP fold states 0 closed, 1 half open, 2 open, 3 rear display."
+            # AOSP's numbering is only right for an image that brings its own
+            # device states, because it is its own file that makes 1 and 2
+            # happen (yogi: 0 closed, 1 half open, 2 open, 3 rear display).
+            # A bar-phone image brings none, so the guest falls back to the
+            # phone's /vendor/etc/devicestate, and this Fold declares just
+            # 0 CLOSE and 3 OPEN on the lid switch: under AOSP's numbering
+            # state 3 is the rear display, so folded AND unfolded both landed
+            # on the cover and the inner panel was never enabled at all
+            # (Nothing OS run 5, 2026-10-31 -- "inner display doesn't work").
+            # So ask the guest's own filesystem first. /vendor is the host's
+            # here and must not count as the image's.
+            GDSC=""
+            for f in /product/etc/devicestate /system/product/etc/devicestate \
+                     /system_ext/etc/devicestate /system/system_ext/etc/devicestate \
+                     /system/etc/devicestate /odm/etc/devicestate; do
+                [ -f "$f/device_state_configuration.xml" ] && { GDSC="$f/device_state_configuration.xml"; break; }
+            done
+            if [ -n "$GDSC" ]; then
+                STATES="0:$COVER:$INNER 1:$INNER:$COVER 2:$INNER:$COVER 3:$COVER:$INNER"
+                LNOTE="AOSP fold states 0 closed, 1 half open, 2 open, 3 rear display (the image's own $GDSC)."
+            else
+                # The states the guest will really be handed, in its own search
+                # order: 0 (lid closed) on the cover, every other one on the
+                # inner panel, as the ColorOS branch above does.
+                HDSC=/vendor/etc/devicestate/device_state_configuration.xml
+                if [ -f /data/system/devicestate/device_state_configuration.xml ] &&
+                        [ ! -L /data/system/devicestate/device_state_configuration.xml ]; then
+                    HDSC=/data/system/devicestate/device_state_configuration.xml
+                fi
+                STATES="0:$COVER:$INNER"
+                for id in $(sed -n 's/.*<identifier>\([0-9][0-9]*\)<\/identifier>.*/\1/p' "$HDSC" 2>/dev/null | sort -un); do
+                    [ "$id" = 0 ] || STATES="$STATES $id:$INNER:$COVER"
+                done
+                [ "$STATES" != "0:$COVER:$INNER" ] || STATES="$STATES 3:$INNER:$COVER"
+                LNOTE="the image brings no device states, so the phone's ($HDSC): 0 closed on the cover, every other one on the inner panel."
+            fi
         fi
         {
             echo '<?xml version="1.0" encoding="utf-8"?>'
@@ -399,15 +489,20 @@ fi
 # rates down to 1 Hz) SurfaceFlinger dropped to 1 Hz within 10 ms of every
 # window transition: 9 freezes of 1-2.4 s in 5 minutes (Davey 1038 ms, "Faking
 # VSYNC due to driver stall"). ColorOS kept [120, 120] and never did. Each
-# panel's primary and app-request render ranges are pinned to [60, 120] with
-# SurfaceFlinger's backdoor transaction 1035 (i32 mode id, i64 physical display
-# id, f min, f max; this image's surfaceflinger: readInt32, readUint64,
-# readFloat twice -> setActiveModeFromBackdoor), on the panel's active mode.
-# While pinned, SurfaceFlinger ignores DisplayManager's policies
+# panel's primary and app-request render ranges are pinned with SurfaceFlinger's
+# backdoor transaction 1035 (i32 mode id, i64 physical display id, f min, f max;
+# this image's surfaceflinger: readInt32, readUint64, readFloat twice ->
+# setActiveModeFromBackdoor), on the panel's active mode. While pinned,
+# SurfaceFlinger ignores DisplayManager's policies
 # (setDesiredDisplayModeSpecsInternal returns early on the backdoor flag), so
-# the guest's thermal cap and refresh settings no longer reach it; 60 Hz stays
-# inside the range SurfaceFlinger may choose itself. The parcel result and the
-# policy SurfaceFlinger then reports are logged. Pixel only (no
+# the guest's thermal cap and refresh settings no longer reach it. Up to 0.4.22
+# the range was [60, 120]: SurfaceFlinger's idle timer (250 ms) and content
+# detection then rendered "normal" frame-rate-category content at 60 Hz (S25
+# Ultra af6c2b17: 47 s of the first 2 minutes at 60 Hz, 74 s at 120; testers
+# said it felt like 60 Hz). Since 0.4.23 it is [N, 120] with N the active
+# mode's vsync rate, at most 120: 120 on the S25 Ultra and on the Fold's VRR
+# panels (240 Hz vsync), and never more than a panel can show. The parcel result
+# and the policy SurfaceFlinger then reports are logged. Pixel only (no
 # oplus-services.jar); ONEOS_GUEST_SF_PIN=0 leaves the ranges to DisplayManager.
 if [ -e /system/framework/oplus-services.jar ]; then
     :
@@ -417,14 +512,18 @@ else
     SFDUMP=$(dumpsys SurfaceFlinger 2>/dev/null)
     PINNED=0
     for id in $(dumpsys SurfaceFlinger --display-id 2>/dev/null | sed -n 's/^Display \([0-9][0-9]*\) (HWC display .*/\1/p'); do
-        mode=$(echo "$SFDUMP" | awk -v d="$id" '$0 == "Display " d { f = 1; next } f && /^Display / { f = 0 }
-            f && /^ *activeMode=\{id=[0-9]+,/ { m = $0; sub(/^ *activeMode=\{id=/, "", m); sub(/,.*/, "", m); print m; exit }')
-        case "$mode" in
-            ''|*[!0-9]*) echo "[Pivoted Root] SF render rate on $id: no active mode in the dump, left alone"; continue ;;
+        ml=$(echo "$SFDUMP" | awk -v d="$id" '$0 == "Display " d { f = 1; next } f && /^Display / { f = 0 }
+            f && /^ *activeMode=\{id=[0-9]+,/ { m = $0; sub(/^ *activeMode=\{id=/, "", m); sub(/,.*/, "", m)
+                v = $0; if (!sub(/.*vsyncRate=/, "", v)) v = 0; v = int(v + 0.5); if (v > 120) v = 120
+                print m, v; exit }')
+        mode=${ml% *} lo=${ml#* }
+        case "$mode:$lo" in
+            :*|*[!0-9:]*|*:) echo "[Pivoted Root] SF render rate on $id: no active mode in the dump, left alone"; continue ;;
         esac
+        [ "$lo" -ge 60 ] || lo=60
         # The call waits on SurfaceFlinger's main thread: never longer than 5 s here.
-        r=$(timeout 5 service call SurfaceFlinger 1035 i32 "$mode" i64 "$id" f 60 f 120 2>&1 | tr -s ' \n' ' ' | cut -c1-160)
-        echo "[Pivoted Root] SF render rate pinned to 60-120 Hz on $id (mode $mode): $r"
+        r=$(timeout 5 service call SurfaceFlinger 1035 i32 "$mode" i64 "$id" f "$lo" f 120 2>&1 | tr -s ' \n' ' ' | cut -c1-160)
+        echo "[Pivoted Root] SF render rate pinned to $lo-120 Hz on $id (mode $mode): $r"
         PINNED=$((PINNED + 1))
     done
     [ "$PINNED" = 0 ] && echo "[Pivoted Root] SF render rate: no physical displays listed yet, left to DisplayManager"
@@ -564,9 +663,11 @@ if [ "$(cat /data/oneos_vold_name 2>/dev/null)" = gvld ]; then
     # services.jar: one that still looked up "vold" would hand the guest
     # StorageManagerService One UI's vold (connectVold, then IVold.reset()).
     # Its patched dex is stored, not deflated (make-overlays.sh: zip -0). On
-    # ColorOS also oplus-services.jar (OplusStorageManagerFeature.connectVold).
+    # ColorOS also oplus-services.jar (OplusStorageManagerFeature.connectVold),
+    # HyperOS miui-services.jar (ExtendMImpl, AppCacheOptimizer).
     for f in /system/bin/vold /system/lib64/service.incremental.so /system/framework/services.jar \
-             $([ -f /system/framework/oplus-services.jar ] && echo /system/framework/oplus-services.jar); do
+             $([ -f /system/framework/oplus-services.jar ] && echo /system/framework/oplus-services.jar) \
+             $([ -f /system/system_ext/framework/miui-services.jar ] && echo /system/system_ext/framework/miui-services.jar); do
         $BB grep -q gvld "$f" || why="$f is not the gvld build"
     done
     [ "$(cat /sys/fs/selinux/enforce 2>/dev/null)" = 1 ] && why="SELinux is enforcing: servicemanager refuses gvld (default_android_service)"
@@ -586,7 +687,33 @@ if [ "$(cat /data/oneos_vold_name 2>/dev/null)" = gvld ]; then
     echo "[Pivoted Root] One UI's vold: pid $HOST_VOLD, android.system.vold.IVold/default: $(vdef); SELinux $(getenforce 2>/dev/null); the guest's will register gvld"
 fi
 echo "[Pivoted Root] Starting guest Vold..."
-/system/bin/vold --blkid_context=u:r:blkid:s0 --blkid_untrusted_context=u:r:blkid_untrusted:s0 --fsck_context=u:r:fsck:s0 --fsck_untrusted_context=u:r:fsck_untrusted:s0 > /data/vold.log 2>&1 &
+# The four SELinux contexts every vold since 3.0 takes, and any further
+# --*_context= flag this image's own vold.rc passes: a build that needs one and
+# does not get it dies in main() before it registers anything. Nothing OS 5.0
+# adds --fuseblk_fs_context=u:r:nt_ntfs_3g:s0 for its NTFS-3G helper, and
+# aborted on "Check failed: sFuseblkFsContext != nullptr" (main.cpp:195)
+# without it; the Pixel's Android 17 vold has no such flag. Taking them from
+# the image's vold.rc keeps the next vendor's addition working too. The
+# context only has to parse here: it is used when a fuseblk volume is mounted,
+# which a session never does, and One UI's policy has no nt_ntfs_3g.
+VOLD_RC=""
+for f in /system/etc/init/vold.rc /etc/init/vold.rc; do
+    [ -f "$f" ] && { VOLD_RC=$f; break; }
+done
+VOLD_EXTRA=""
+if [ -n "$VOLD_RC" ]; then
+    VOLD_EXTRA=$(awk '
+        /^service vold / { inv = 1 }
+        inv {
+            for (i = 1; i <= NF; i++)
+                if ($i ~ /^--[a-z_]+_context=/ && $i !~ /^--(blkid|blkid_untrusted|fsck|fsck_untrusted)_context=/)
+                    printf "%s ", $i
+            if ($0 !~ /\\$/) inv = 0
+        }' "$VOLD_RC")
+fi
+[ -z "$VOLD_EXTRA" ] || echo "[Pivoted Root] Guest vold flags from ${VOLD_RC}: $VOLD_EXTRA"
+# shellcheck disable=SC2086
+/system/bin/vold --blkid_context=u:r:blkid:s0 --blkid_untrusted_context=u:r:blkid_untrusted:s0 --fsck_context=u:r:fsck:s0 --fsck_untrusted_context=u:r:fsck_untrusted:s0 $VOLD_EXTRA > /data/vold.log 2>&1 &
 VOLD_PID=$!
 echo "[Pivoted Root] Vold PID: $VOLD_PID"
 n=0
@@ -1103,6 +1230,23 @@ fi
 
 echo "[Pivoted Root] Cleaning stale sockets..."
 rm -f /dev/socket/zygote /dev/socket/usap_pool_primary 2>/dev/null || true
+
+# HyperOS starts its "rust" packages (the launcher with Recents, Weather; their
+# code is a Flutter library, the APK has no dex) through hyos_spawner, a
+# zygote-like server its own init starts with "socket hyos_spawner stream 0660
+# root system" once zygote runs and rust.runtime_active=1. One UI's init has
+# no such service: with the rust path off (0.4.16) zygote started the launcher
+# with no code, and it died 1008 times in 4 minutes (sixth HyperOS run). Start
+# it here with its socket (socket_exec, the HyperOS set's), as root with the
+# socket for group system like the image's rc. guest_props.sh set the two
+# properties HyperOS's init would (rust.runtime_version, rust.runtime_active=1),
+# and the return sweeps the spawner with the other guest processes.
+if [ -x /system_ext/bin/hyos_spawner ] && [ -x /data/socket_exec ]; then
+    rm -f /dev/socket/hyos_spawner
+    /data/socket_exec hyos_spawner /system_ext/bin/hyos_spawner /system_ext/bin --spawner --start-spawner-server \
+        </dev/null >/data/hyos_spawner.log 2>&1 &
+    echo "[Pivoted Root] hyos_spawner PID: $! (socket /dev/socket/hyos_spawner)"
+fi
 
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 exec /data/zygote_exec

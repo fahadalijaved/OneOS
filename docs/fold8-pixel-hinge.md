@@ -50,3 +50,22 @@ accessibility and deliberately failed-relay cases are not exhaustively tested.
 Build 33 (`0.4.19-fold8-hinge`) is based on official OneOS 0.4.19. An in-place
 host-app update must be signed with the same OneOS release key as the installed
 APK. A local review build signed with a different key cannot update it.
+
+## Z Fold8 Ultra (0.4.21)
+
+The Fold8 Ultra (SM-F976B, profile `f8u`) runs the same Pixel 11 Fold image and
+has the same Samsung sensor (`Folding Angle  Non-wakeup`, type 65686, read on
+the phone 2026-10-26), so `pixel-f8u` now carries the same patched SystemUI and
+relay. Its unfold RRO is `OneOSPixelUnfold.apk`
+(`switcher/overlays/pixel_f8u_unfold`): only the two unfold gates, because the
+Fold8's 48dp status bar and AOD values were measured on the Fold8; the Ultra's
+bar stays with `OneOSPixelStatusBar.apk` and the host's measured height. Build:
+`scripts/make-fold8-pixel.py --variant f8u --base out/overlays_pixel_yogi ...
+--out out/overlays_pixel_f8u`. Both sets ship the same SystemUI build, so the
+APK packs it once. Posture follows the hinge by default on both Fold profiles;
+`ONEOS_GUEST_POSTURE=flat` keeps the old flat fold line (run 41 on the Ultra
+saw HALF_OPENED 3 s after a flat unfold with the public hinge sensor; watch for
+apps switching to tabletop after unfolding flat).
+
+The saved-wallpaper spacing fix now runs for every Pixel guest: the parser is
+Pixel 17's, not the Fold8's.

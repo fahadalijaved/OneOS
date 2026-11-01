@@ -38,6 +38,16 @@
             android:key="credit_onelineage"
             android:summary="@string/about_credit_onelineage_url"
             android:title="@string/about_credit_onelineage_title" />
+        <!-- Pull request #1; tap opens it. -->
+        <Preference
+            android:key="credit_fold8"
+            android:summary="@string/about_credit_fold8_summary"
+            android:title="@string/about_credit_fold8_title" />
+        <!-- The Infinity-X system (0.4.27); tap opens its sources. -->
+        <Preference
+            android:key="credit_infinityx"
+            android:summary="@string/about_credit_infinityx_summary"
+            android:title="@string/about_credit_infinityx_title" />
         <Preference
             android:selectable="false"
             android:summary="@string/about_credit_oneui_summary"

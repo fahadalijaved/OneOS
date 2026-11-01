@@ -40,15 +40,40 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // the CN set's files (shared by hash) and its cell broadcast module.
     "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r51") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
-    // OneOSGuest.apk included.
-    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_yogi") to listOf("tethering_payload.img")),
+    // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
+    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u") to listOf("tethering_payload.img")),
     // Pixel 11 Pro image (0.4.10), Galaxy S26 Ultra: the same files from that image.
     "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak") to listOf("tethering_payload.img")),
     // Find N6 image, Galaxy Z Fold8 (0.4.14, pull request #1): the Fold's set and the Fold8 fixes
     // scripts/make-fold8-coloros.py builds from it.
     "n6-f8" to (File(repoRoot, "out/overlays_n6_fold8") to listOf("tethering_payload.img")),
     "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8") to listOf("tethering_payload.img")),
+    // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
+    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo") to listOf("tethering_payload.img")),
+    // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
+    // is built from source (0.4.28): the guest keeps One UI's, like tethering.
+    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r2") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
+    // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
+    // the signal poll and the image's payloads.
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r11") to listOf("tethering_payload.img")),
+    // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r17") to listOf("tethering_payload.img")),
 )
+// The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
+// app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
+// ApkSeriesTest), the full edition's version name ends in "-<id>" and
+// BuildConfig.SERIES names it. Without the property: every set, SERIES "".
+val seriesId: String? = (findProperty("oneos.series") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+val seriesSets: Map<String, Set<String>> = File(packagesDir, "series.txt").readLines()
+    .map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+    .associate { l -> l.split(Regex("\\s+")).let { it.first() to it.drop(1).toSet() } }
+val packedSets: Set<String> = if (seriesId == null) {
+    packageSets.keys
+} else {
+    val sets = seriesSets[seriesId] ?: throw GradleException("oneos.series: '$seriesId' is not in packages/series.txt (${seriesSets.keys})")
+    (sets - packageSets.keys).takeIf { it.isNotEmpty() }?.let { throw GradleException("packages/series.txt: $seriesId names unknown sets $it") }
+    sets
+}
 // Session scripts copied from switcher/assets at build time (plus the expected
 // installd table). oneos_tunnel.sh (the server tunnel) and 7zz are never shipped.
 val sessionScripts: Map<String, File> = linkedMapOf(
@@ -60,9 +85,22 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "check_host_apex.sh" to File(repoRoot, "switcher/assets/check_host_apex.sh"),
     "bridges.sh" to File(repoRoot, "switcher/assets/bridges.sh"),
     "fold8_coloros.sh" to File(repoRoot, "switcher/assets/fold8_coloros.sh"),
+    "OneOSFold8Geometry.dex" to File(repoRoot, "switcher/assets/OneOSFold8Geometry.dex"),
     "fold8_pixel.sh" to File(repoRoot, "switcher/assets/fold8_pixel.sh"),
     "guest_google.sh" to File(repoRoot, "switcher/assets/guest_google.sh"),
     "zygote_exec" to File(repoRoot, "switcher/assets/zygote_exec"),
+    // 0.4.32: the Knox edmnativehelper stand-in (switcher/patches/OneOSEdmStub.java,
+    // built by build_edm_stub.sh). It ships with the scripts, not in a package set,
+    // so every image gets it without rebuilding one. oneos_switch.sh runs it only
+    // when ONEOS_GUEST_EDM_STUB=1.
+    "OneOSEdmStub.dex" to File(repoRoot, "switcher/assets/OneOSEdmStub.dex"),
+    // 0.4.33: Android's Bluetooth audio factory over Samsung's on the phones that
+    // only have Samsung's (switcher/native/oneos_btaudio.cpp, built by build.sh).
+    // oneos_switch.sh starts it only on such a phone.
+    "oneos_btaudio" to File(repoRoot, "switcher/assets/oneos_btaudio"),
+    // 0.4.33: the status bar's dimension overlays on bar phones
+    // (switcher/patches/OneOSOverlayDimen.java, build_overlay_dimen.sh).
+    "OneOSOverlayDimen.dex" to File(repoRoot, "switcher/assets/OneOSOverlayDimen.dex"),
     "host_installd.txt" to File(repoRoot, "switcher/patches/host_installd.txt"),
 )
 val switcherNotShipped = setOf("oneos_tunnel.sh", "7zz")
@@ -198,10 +236,10 @@ abstract class OneOsFilesTask : DefaultTask() {
 val oneosFiles = tasks.register<OneOsFilesTask>("oneosFiles") {
     group = "build"
     description = "Packs the OneOS package sets and session scripts into the APK's assets, checked against app-android/packages."
-    for ((dir, _) in packageSets.values) sources.from(fileTree(dir))
+    for ((dir, _) in packageSets.filterKeys { it in packedSets }.values) sources.from(fileTree(dir))
     for (f in sessionScripts.values) sources.from(f)
     sources.from(fileTree(File(repoRoot, "switcher/assets")))
-    sets.set(packageSets.mapValues { (_, v) -> "${v.first.path}|${v.second.joinToString(",")}" })
+    sets.set(packageSets.filterKeys { it in packedSets }.mapValues { (_, v) -> "${v.first.path}|${v.second.joinToString(",")}" })
     scripts.set(sessionScripts.mapValues { it.value.path })
     notShipped.set(switcherNotShipped)
     packages.set(packagesDir)
@@ -227,8 +265,46 @@ android {
         // 0.3.4: the Galaxy S25 profile, and OneOS Probe as its own app (flavor probe).
         // 0.3.5: Old stages (delete the stages Prepare moved aside).
         // 0.3.7: the Pixel 11 Fold image and its set on the Fold; the Find X9 Ultra IN image is gone.
-        versionCode = 35
-        versionName = "0.4.19-fold8-hinge3"
+        // 0.4.24: Pixel guests' camera calls with One UI's transaction codes (framework_patched.jar).
+        // 0.4.26: a native-only service fails to start in the guest (Chrome stalled every app start).
+        // 0.4.27: the Infinity-X system on every phone.
+        // 0.4.28: Infinity-X keeps One UI's cellbroadcast module, sees hwservicemanager on HIDL-only phones.
+        // 0.4.29: the Galaxy A57 (Exynos) and Z Flip5, in the s25 series; Send to the OneOS team.
+        // 0.4.30: Quick switch between the systems set up on the phone; How's it going? in the guest;
+        // the Pixel 9 Pro XL image on every s25 phone.
+        // 0.4.31: HyperOS (the Xiaomi lhasa image) for everyone: made for the Z Fold8 Ultra and Z Fold8, the
+        // other phones may try it (the cover layout runs as the phone's screen); Samsung's IMS stack in the
+        // guest for VoLTE (Infinity-X and HyperOS, where the services.jar carve-out is); the guest's dp
+        // scale, cutout, status bar height and corner radius from the phone itself on every image; the
+        // Galaxy A56, in the s25 series.
+        // 0.4.32: HyperOS starts on the Galaxy S25 Ultra, S25 and S24-era phones again (Xiaomi's
+        // auto-installer took the guest's system_server down at boot phase 520); the camera opens
+        // without the 5 s Knox wait when Advanced's switch is on (Z Flip5); the composer's panel
+        // modes are recorded before the guest's SurfaceFlinger starts, so a display failure says why.
+        // 0.4.33: the camera opens without Knox's 5 s wait by default (every 0.4.32
+        // camera report), Infinity-X's camera is Aperture (OPPO's needs the Find X9
+        // Ultra's camera config) and its status bar keeps off the corners, HyperOS's
+        // wallpaper app starts on one-panel phones, the composer capture is written
+        // where the logs are collected, and two new phones: Z Fold6, A07.
+        // 0.4.34: Infinity-X sound on the S25 series, the Bluetooth audio bridge
+        // actually starting, the camera worker stand-in, One UI's brightness curve
+        // on every phone (Pixel, HyperOS), HyperOS data apps' libraries.
+        // 0.4.35: Nothing OS on the SVE + SME phones with One UI's camera, the Z Flip8
+        // and A36, the Pixel 9 Pro XL brightness crash, Samsung's CPU vote released,
+        // the ColorOS Fold8 follow-up (pull request #2).
+        // 0.4.36: brightness by each panel's own scale (every system), the Z Fold5.
+        versionCode = 53
+        versionName = "0.4.36"
+        // Send to the OneOS team (0.4.29, both editions): the report service's
+        // address and its upload-only key, from the team's server (reports/deploy.sh
+        // writes them). A build without them shows no Send; Share and Save stay.
+        val home = File(System.getProperty("user.home"))
+        val reportUrl = File(home, ".oneos-reports-url").takeIf { it.isFile }?.readText()?.trim()
+            ?.takeIf { Regex("https://[a-z0-9.-]+").matches(it) }.orEmpty()
+        val reportKey = File(home, ".oneos-reports-upload-key").takeIf { it.isFile }?.readText()?.trim()
+            ?.takeIf { Regex("[0-9a-f]{32,128}").matches(it) }.orEmpty()
+        buildConfigField("String", "REPORT_URL", "\"$reportUrl\"")
+        buildConfigField("String", "REPORT_KEY", "\"$reportKey\"")
     }
 
     // One codebase, two apps (docs/app/DESIGN.md, 0.3.4): "full" is OneOS, the app
@@ -245,6 +321,8 @@ android {
             buildConfigField("String", "ROOT_SCRIPT_SHA256", "\"${sha256(rootBytes)}\"")
             buildConfigField("long", "ROOT_SCRIPT_BYTES", "${rootBytes.size}L")
             buildConfigField("String", "SCRIPTS_SHA256", "\"${sha256(scriptsList.toByteArray())}\"")
+            buildConfigField("String", "SERIES", "\"${seriesId.orEmpty()}\"")
+            if (seriesId != null) versionNameSuffix = "-$seriesId"
             for ((id, _) in packageSets) {
                 val f = File(packagesDir, "$id.sha256")
                 val list = if (f.isFile) renderShaList(readShaList(f)) else ""
@@ -383,9 +461,9 @@ abstract class ProbeApkCheckTask : DefaultTask() {
         val m = manifest.get().asFile.readText()
         for (a in FULL_SCREENS) if (m.contains(".ui.$a\"")) problems += "the merged manifest declares $a"
         val permissions = Regex("""<uses-permission\b[^>]*android:name="([^"]+)"""").findAll(m).map { it.groupValues[1] }.toList()
-        // Modern AndroidX Core protects its private dynamic receivers with an app-owned signature permission.
-        if (permissions.any { it != "com.fahadali.oneos.probe.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" }) {
-            problems += "the merged manifest asks for a platform or third-party permission"
+        // 0.4.36 sends reports over HTTPS; AndroidX also protects its private receivers.
+        if (permissions.any { it !in setOf("android.permission.INTERNET", "com.fahadali.oneos.probe.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION") }) {
+            problems += "the merged manifest asks for an unexpected permission"
         }
         if (problems.isNotEmpty()) throw GradleException("OneOS Probe carries what only OneOS may:\n  " + problems.distinct().joinToString("\n  "))
         report.get().asFile.writeText(lines.joinToString("\n", postfix = "\n"))

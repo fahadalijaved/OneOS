@@ -37,6 +37,7 @@ import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.RootProbe
 import com.fahadali.oneos.session.LaunchJob
 import com.fahadali.oneos.session.LogJob
+import com.fahadali.oneos.session.QuickSwitch
 import com.fahadali.oneos.session.Readiness
 import com.fahadali.oneos.session.PrepareJob
 import com.fahadali.oneos.session.SessionPrefs
@@ -280,14 +281,18 @@ class SystemsFragment : Fragment() {
         val settingUpId = prep.image?.id?.takeIf { prep.busy }
         fun image(family: com.fahadali.oneos.core.model.SystemFamily, fallback: ImageRef): ImageRef =
             available.firstOrNull { it.family == family && it.id == setUpId }
+                ?: available.firstOrNull { it.family == family && it.id in st?.oldImages.orEmpty().values }
                 ?: available.firstOrNull { it.family == family } ?: fallback
         val color = image(com.fahadali.oneos.core.model.SystemFamily.COLOROS, Images.FIND_N6)
         val pixel = image(com.fahadali.oneos.core.model.SystemFamily.PIXEL, Images.PIXEL_YOGI)
+        val infinity = image(com.fahadali.oneos.core.model.SystemFamily.INFINITYX, Images.INFINITYX)
+        val hyper = image(com.fahadali.oneos.core.model.SystemFamily.HYPEROS, Images.HYPEROS_LHASA)
+        val nothing = image(com.fahadali.oneos.core.model.SystemFamily.NOTHING, Images.NOTHING_METROID)
         val entries = listOf(
-            CatalogEntry("Infinity X", null, R.drawable.os_infinity, false),
-            CatalogEntry("HyperOS", null, R.drawable.os_hyperos, false),
+            CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, available.any { it.id == infinity.id }),
+            CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, available.any { it.id == hyper.id }),
             CatalogEntry(color.name, color, R.drawable.os_coloros, available.any { it.id == color.id }),
-            CatalogEntry("Nothing OS", null, R.drawable.os_nothing, false),
+            CatalogEntry(nothing.name, nothing, R.drawable.os_nothing, available.any { it.id == nothing.id }),
             CatalogEntry(pixel.name, pixel, R.drawable.os_pixel, available.any { it.id == pixel.id }),
         )
 
@@ -307,7 +312,7 @@ class SystemsFragment : Fragment() {
                     marginStart = 0; marginEnd = dp(16)
                 }
                 holder.box.addView(card(holder.box, p, entry, position,
-                    image?.id == setUpId && setUpId != null, image?.id == pickedId && pickedId != null, image?.id == settingUpId && settingUpId != null, prep.busy, jobsBusy))
+                    image?.id == setUpId && setUpId != null, image?.id == pickedId && pickedId != null, image?.id == settingUpId && settingUpId != null, prep.busy, jobsBusy, st?.oldImages?.entries?.firstOrNull { it.value == image?.id }?.key))
             }
         }
         if (carousel.layoutManager == null) {
@@ -339,11 +344,14 @@ class SystemsFragment : Fragment() {
         settingUp: Boolean,
         prepBusy: Boolean,
         jobsBusy: Boolean,
+        savedCopy: String?,
     ): View {
         val ctx = parent.context
         val inflater = LayoutInflater.from(ctx)
         val v = inflater.inflate(R.layout.systems_card, parent, false)
         val image = entry.image
+        v.contentDescription = entry.name
+        v.isScreenReaderFocusable = true
         v.findViewById<OsArtworkView>(R.id.systems_artwork).apply {
             if (entry.art != 0) bindArtwork(entry.art) else bind(image)
         }
@@ -386,6 +394,14 @@ class SystemsFragment : Fragment() {
         when {
             settingUp -> only(getString(R.string.systems_show_progress), true) { a?.let { SystemsNav.progress(it) } }
             setUp -> only(getString(R.string.catalog_boot), !jobsBusy) { a?.let { SystemsNav.home(it, image) } }
+            savedCopy != null -> only(getString(R.string.catalog_boot), !jobsBusy) {
+                val current = StageCheck.state.result?.status?.marker?.imageId?.let { Images.byId(it) }?.name ?: getString(R.string.home_other_current_unknown)
+                AlertDialog.Builder(ctx).setTitle(getString(R.string.home_other_confirm_title, image.name))
+                    .setMessage(getString(R.string.home_other_confirm_message, image.name, current))
+                    .setPositiveButton(R.string.home_other_confirm_go) { _, _ ->
+                        if (a != null) { QuickSwitch.start(a, savedCopy, image.id); SystemsNav.home(a, image) }
+                    }.setNegativeButton(android.R.string.cancel, null).show()
+            }
             picked -> only(getString(R.string.catalog_set_up), !jobsBusy) { a?.let { FixActions.run(it, FixAction.SET_UP, image) } }
             else -> only(getString(R.string.catalog_set_up), !jobsBusy) {
                 if (!entry.supported) { showUnsupported(entry.name); return@only }

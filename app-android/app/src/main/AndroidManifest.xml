@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- The screens both editions have (OneOS and OneOS Probe). No INTERNET,
-         no storage permission, no permission at all: findings are shared
-         through the share sheet (FileProvider below) or saved where the user
-         picks (ACTION_CREATE_DOCUMENT). The full edition's screens are in
+    <!-- The screens both editions have (OneOS and OneOS Probe). One
+         permission, INTERNET (0.4.29), used only when the user taps Send to
+         the OneOS team (SendReportActivity: the report service). No storage
+         permission: findings are also shared through the share sheet
+         (FileProvider below) or saved where the user picks
+         (ACTION_CREATE_DOCUMENT). The full edition's screens are in
          src/full/AndroidManifest.xml; the probe edition has none of them. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -48,6 +52,12 @@
             android:name=".ui.FindingsActivity"
             android:exported="false"
             android:parentActivityName=".ui.RunTestsActivity" />
+
+        <!-- 0.4.29: Send to the OneOS team (the report service), next to Share and Save. -->
+        <activity
+            android:name=".ui.SendReportActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.FindingsActivity" />
 
         <!-- SESL core's androidx FileProvider (stock androidx.core is excluded).
              Serves only the redacted bundles in the cache (res/xml/findings_paths.xml

@@ -5,6 +5,9 @@ import android.os.Bundle
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
+import androidx.appcompat.app.AlertDialog
+import com.fahadali.oneos.session.RemoveJob
 import com.fahadali.oneos.R
 import com.fahadali.oneos.session.LogJob
 import com.fahadali.oneos.session.SessionPrefs
@@ -12,6 +15,7 @@ import dev.oneuiproject.oneui.R as OuiIcons
 
 /** SESL9 preference rows, the same settings component used by Twidget. */
 class SettingsPreferenceFragment : PreferenceFragmentCompat() {
+    override fun onResume() { super.onResume(); onCreatePreferences(null, null) }
     override fun onCreatePreferences(state: Bundle?, rootKey: String?) {
         val ctx = preferenceManager.context
         preferenceScreen = preferenceManager.createPreferenceScreen(ctx)
@@ -29,8 +33,30 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         row(setup, R.string.settings_load_gsi, R.string.advanced_file_summary, OuiIcons.drawable.ic_oui_folder_open, ImageActivity::class.java)
         row(setup, R.string.settings_storage, R.string.advanced_space_summary, OuiIcons.drawable.ic_oui_manage_storage_outline, OldStagesActivity::class.java)
         row(setup, R.string.settings_repair, R.string.advanced_setup_summary, OuiIcons.drawable.ic_oui_refresh, PrepareActivity::class.java)
+        setup.addPreference(Preference(ctx).apply {
+            setTitle(R.string.remove_title); setSummary(R.string.remove_summary); setIcon(OuiIcons.drawable.ic_oui_delete_outline)
+            setOnPreferenceClickListener {
+                if (!RemoveJob.canStart()) android.widget.Toast.makeText(ctx, R.string.remove_busy, android.widget.Toast.LENGTH_LONG).show()
+                else AlertDialog.Builder(ctx).setTitle(R.string.remove_confirm_title).setMessage(R.string.remove_confirm_message)
+                    .setPositiveButton(R.string.remove_confirm_run) { _, _ -> RemoveJob.start(ctx) }
+                    .setNegativeButton(android.R.string.cancel, null).show()
+                true
+            }
+        })
+        fun toggle(group: PreferenceCategory, title: Int, summary: Int, value: Boolean, save: (Boolean) -> Unit) {
+            group.addPreference(SwitchPreferenceCompat(ctx).apply {
+                setTitle(title); setSummary(summary); isIconSpaceReserved = false; isPersistent = false; isChecked = value
+                setOnPreferenceChangeListener { _, next -> save(next as Boolean); true }
+            })
+        }
         val sessions = category(R.string.advanced_card_sessions)
         row(sessions, R.string.last_title, target = LastSessionActivity::class.java)
+        toggle(sessions, R.string.advanced_heat_cap_title, R.string.advanced_heat_cap_summary, SessionPrefs.heatCap(ctx)) { SessionPrefs.setHeatCap(ctx, it) }
+        val experimental = category(R.string.advanced_card_calls)
+        toggle(experimental, R.string.advanced_sec_ims_title, R.string.advanced_sec_ims_summary, SessionPrefs.secIms(ctx)) { SessionPrefs.setSecIms(ctx, it) }
+        toggle(experimental, R.string.advanced_edm_stub_title, R.string.advanced_edm_stub_summary, SessionPrefs.edmStub(ctx)) { SessionPrefs.setEdmStub(ctx, it) }
+        val risky = category(R.string.advanced_card_risky)
+        toggle(risky, R.string.advanced_allow_lock_title, R.string.advanced_allow_lock_summary, SessionPrefs.allowScreenLock(ctx)) { SessionPrefs.setAllowScreenLock(ctx, it) }
         LogJob.latestZip(ctx)?.let { zip ->
             sessions.addPreference(Preference(ctx).apply {
                 setTitle(R.string.logs_title)
