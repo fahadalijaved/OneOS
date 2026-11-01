@@ -13,9 +13,30 @@
 
 .field private static final NITS:[F
 
+# This panel's scale against the Z Fold8 Ultra's (0.4.36): the Fold's float
+# times 5.2980394 / its brightnessMaximum, from ro.oneos.panel_scale_milli
+# (guest_props.sh; 1000, the Fold's, when unset).
+.field private static final SCALE:F
+
 
 .method static constructor <clinit>()V
-    .locals 1
+    .locals 2
+
+    const-string v0, "ro.oneos.panel_scale_milli"
+
+    const/16 v1, 0x3e8
+
+    invoke-static {v0, v1}, Landroid/os/SystemProperties;->getInt(Ljava/lang/String;I)I
+
+    move-result v0
+
+    int-to-float v0, v0
+
+    const/high16 v1, 0x447a0000    # 1000.0f
+
+    div-float v0, v0, v1
+
+    sput v0, Lcom/android/server/display/OneOSPanelBacklight;->SCALE:F
 
     const/16 v0, 0x15
 
@@ -155,6 +176,10 @@
     add-float v0, v0, v4
 
     :clamp
+    sget v1, Lcom/android/server/display/OneOSPanelBacklight;->SCALE:F
+
+    mul-float v0, v0, v1
+
     const v1, 0x3b2a64c3    # 0.0026f
 
     invoke-static {v0, v1}, Ljava/lang/Math;->max(FF)F

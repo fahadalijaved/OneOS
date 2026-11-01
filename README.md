@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.35. Samsung flagships with Snapdragon, plus the first five
+App version 0.4.36. Samsung flagships with Snapdragon, plus the first five
 Exynos phones and (0.4.33) the first MediaTek phone; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -94,6 +94,16 @@ Snapdragon 8 Gen 3) with the Find N6 build and Infinity-X, and the Galaxy A07
 (SM-A075, MediaTek MT6789, One UI 9), the first MediaTek phone, with Infinity-X
 only. The Galaxy A16 and A17 on One UI 8.5 (Android 16) are not supported yet:
 every system here is Android 17.
+
+New in 0.4.36: brightness by your phone's own panel in every system. Each
+system's brightness steps came from the Galaxy Z Fold8 Ultra's panel, which is
+right on the S26, S25 and S24 phones and the Z Fold6, Fold8 and Flip8, but
+gave an A56 or A36 about two thirds, a Z Fold5 or Flip5 a little over half and an S23 under
+half of the brightness each step asks for. OneOS now reads your panel's scale
+from One UI before the switch. **Nothing OS on more phones**, untested: the
+Galaxy S25 Ultra, S25, S25+, S24 Ultra, Z Fold7 and Z Fold6 (it turned out
+not to need the newest CPUs). New, untested: the Galaxy Z Fold5 (SM-F946,
+Snapdragon 8 Gen 2) with the Find N6 build and Infinity-X.
 
 New in 0.4.35: **Nothing OS 5.0** (Nothing's system from the Phone (3), with
 Google apps) on the Galaxy Z Fold8 Ultra, where it was made, and, untested, on
@@ -188,7 +198,7 @@ release).
 5. Install the OneOS app made for your phone's series and allow it in your
    root manager. From 0.4.25 there are three downloads, each about half the
    size of the old single app:
-   `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6),
+   `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6, Z Fold5),
    `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26, Z Flip8) and
    `OneOS-<version>-s25.apk` (Galaxy S25 Ultra, S25+, S25, S24 Ultra, S23,
    S23+, Z Flip7, Z Flip5, A57, A56, A36, A07). Installed the wrong one? OneOS tells you which file your

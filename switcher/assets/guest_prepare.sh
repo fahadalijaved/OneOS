@@ -926,39 +926,34 @@ fi
 # composer maps the float linearly onto the panel's backlight, and the curve's
 # own slope (0.196 = 520 nits, a quarter of the backlight about 660) puts 1.0
 # at about 2600 nits, the panel's peak.
+# Every panel by its own scale (0.4.35): Samsung's composer float is One UI's
+# brightness over its brightnessMaximum (dumpsys display: the panel's peak
+# over about 500 nits; the backlight's max over it is 255 or 2550 on every
+# probe), so the Z Fold8 Ultra's floats (brightnessMaximum 5.2980394) times
+# 5.2980394 / this panel's give the same nits. Up to 0.4.34 every phone took
+# the Fold's floats: a Z Fold5 or Flip5 (3.0) or an S23 (2.4) got half to two
+# thirds of the nits each step asked for. $2 is the panel's brightnessMaximum
+# (display_modes_host.log); outside 1.5..8 the Fold's own floats.
 ddc_xml() {
-    if [ "$1" = wide ]; then LOW='        <point><value>0.000366255</value><nits>0.3</nits></point>'; HIGH='        <point><value>1.0</value><nits>2600.0</nits></point>'
-    else LOW=''; HIGH=''; fi
     cat <<'DDCEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <!-- OneOS (guest_prepare.sh): One UI's nits for Samsung's composer float on this panel, and Samsung's IR proximity sensor. -->
 <displayConfiguration>
     <screenBrightnessMap>
 DDCEOF
-    [ -z "$LOW" ] || echo "$LOW"
-    cat <<'DDCEOF'
-        <point><value>0.0026</value><nits>2.21</nits></point>
-        <point><value>0.00333</value><nits>3.0</nits></point>
-        <point><value>0.005015</value><nits>5.0</nits></point>
-        <point><value>0.00694</value><nits>7.5</nits></point>
-        <point><value>0.008891</value><nits>10.4</nits></point>
-        <point><value>0.012079</value><nits>15.0</nits></point>
-        <point><value>0.015279</value><nits>20.0</nits></point>
-        <point><value>0.021151</value><nits>30.0</nits></point>
-        <point><value>0.026566</value><nits>40.0</nits></point>
-        <point><value>0.03701</value><nits>60.0</nits></point>
-        <point><value>0.045723</value><nits>80.0</nits></point>
-        <point><value>0.054391</value><nits>100.0</nits></point>
-        <point><value>0.068653</value><nits>135.0</nits></point>
-        <point><value>0.082069</value><nits>170.0</nits></point>
-        <point><value>0.093062</value><nits>200.0</nits></point>
-        <point><value>0.110574</value><nits>250.0</nits></point>
-        <point><value>0.127287</value><nits>300.0</nits></point>
-        <point><value>0.158918</value><nits>400.0</nits></point>
-        <point><value>0.188764</value><nits>500.0</nits></point>
-        <point><value>0.196299</value><nits>520.0</nits></point>
-DDCEOF
-    [ -z "$HIGH" ] || echo "$HIGH"
+    awk -v wide="$1" -v m="${2:-}" 'BEGIN {
+        ref = 5.2980394; k = 1
+        if (m + 0 >= 1.5 && m + 0 <= 8) k = ref / m
+        n = split("0.0026:2.21 0.00333:3.0 0.005015:5.0 0.00694:7.5 0.008891:10.4 0.012079:15.0 0.015279:20.0 0.021151:30.0 0.026566:40.0 0.03701:60.0 0.045723:80.0 0.054391:100.0 0.068653:135.0 0.082069:170.0 0.093062:200.0 0.110574:250.0 0.127287:300.0 0.158918:400.0 0.188764:500.0 0.196299:520.0", pt, " ")
+        if (wide == "wide") printf "        <point><value>0.000366255</value><nits>0.3</nits></point>\n"
+        for (i = 1; i <= n; i++) {
+            split(pt[i], v, ":"); f = v[1] * k
+            if (f >= 1.0) break
+            printf "        <point><value>%.6g</value><nits>%s</nits></point>\n", f, v[2]
+        }
+        # The top: the panel peak, 2600 nits on the Fold (490.75 per unit of brightnessMaximum).
+        if (wide == "wide") printf "        <point><value>1.0</value><nits>%.1f</nits></point>\n", 2600.0 / k
+    }'
     cat <<'DDCEOF'
     </screenBrightnessMap>
     <proxSensor>
@@ -1021,15 +1016,21 @@ else
         DDC_PROX=0
     fi
     [ -n "$DDC_PORTS" ] || echo "Display config: no panel ports from One UI's SurfaceFlinger (display_modes_host.log), none written"
+    DDC_MAX=""
     for port in $DDC_PORTS; do
-        if [ $DDC_PROX = 1 ]; then ddc_xml $DDC_RANGE
-        else ddc_xml $DDC_RANGE | sed '/<proxSensor>/,/<\/proxSensor>/d'
+        # One UI's brightnessMaximum for this panel (dumpsys display, captured
+        # by the switch while One UI was up).
+        m=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | grep -E "port=$port[},]" |
+            sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
+        DDC_MAX="$DDC_MAX $port:${m:-?}"
+        if [ $DDC_PROX = 1 ]; then ddc_xml $DDC_RANGE "$m"
+        else ddc_xml $DDC_RANGE "$m" | sed '/<proxSensor>/,/<\/proxSensor>/d'
         fi > "$DOV/up/displayconfig/display_port_$port.xml"
     done
     chmod 755 "$DOV/up" "$DOV/up/displayconfig" && chmod 644 "$DOV/up/displayconfig/"*.xml
     $BB chcon -R u:object_r:system_file:s0 "$DOV/up" 2>/dev/null || true
     if $BB mount -t overlay overlay -o "ro,lowerdir=$DOV/up:$PETC" "$PETC"; then
-        echo "Display config: product/etc/displayconfig/display_port_ for ports ${DDC_PORTS:-none} (One UI's nits curve$([ $DDC_PROX = 1 ] && echo ", Samsung's IR proximity"))"
+        echo "Display config: product/etc/displayconfig/display_port_ for ports ${DDC_PORTS:-none} (One UI's nits curve, brightnessMaximum${DDC_MAX:- none}$([ $DDC_PROX = 1 ] && echo ", Samsung's IR proximity"))"
     else
         echo "Display config: read-only overlay on product/etc refused, left out"
     fi
@@ -1503,12 +1504,15 @@ fi
 # Nothing shows only on its own phones (switcher/overlays/nothing_about*): the
 # Z Fold8 Ultra's, and (0.4.35) the Z Fold8's, the S26 Ultra's, the Z Flip8's
 # and the S26's (also the S26+'s) from the owner's product shots, each with
-# its lenses; all but the Folds' with the processor's whole name.
+# its lenses; all but the Folds' with the processor's whole name. 0.4.36,
+# until their own pictures: the Z Fold7 and Fold6 the Fold8 Ultra's page (three
+# rear lenses, cover and inner), the S25 and S24 Ultra the S26 Ultra's, the S25
+# and S25+ the S26's.
 # ONEOS_GUEST_NT_ABOUT=0 leaves Nothing's page as it is.
 case "${ONEOS_PROFILE:-f8u}" in
-    f8u) NT_ABOUT=OneOSNtAbout.apk ;;
+    f8u|f7|f6) NT_ABOUT=OneOSNtAbout.apk ;;
     f8) NT_ABOUT=OneOSNtAboutFold8.apk ;;
-    s-ultra-8850) NT_ABOUT=OneOSNtAboutS26U.apk ;;
+    s-ultra-8850|s-ultra-8750|s-ultra-8650) NT_ABOUT=OneOSNtAboutS26U.apk ;;
     flip*) NT_ABOUT=OneOSNtAboutFlip.apk ;;
     *) NT_ABOUT=OneOSNtAboutPhone.apk ;;
 esac

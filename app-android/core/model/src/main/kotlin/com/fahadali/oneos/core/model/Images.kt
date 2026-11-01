@@ -382,9 +382,12 @@ object Images {
      *
      * It keeps Google services (GmsCore and the Play Store are ordinary
      * priv-apps in its product partition, not the APEX the Pixel images
-     * present), so a launch may hide them. Its linker64 uses SVE, SVE2 and SME,
-     * so it needs the same chips as the Pixel 11 images: the Z Fold8 Ultra and
-     * the S26 family, not the SM8750 and older phones.
+     * present), so a launch may hide them. No CPU requirement (0.4.36): the
+     * linker's and libc's SVE/SME instructions are the SME support routines,
+     * run only when the CPU reports SME (the Pixel 9 Pro XL, which runs on the
+     * S25 Ultra, has the same two), and of its ~1000 native files only
+     * libraries that choose their code at run time (libjxl, BoringSSL) hold
+     * SVE; the core libraries have none, unlike the Pixel 11 images'.
      */
     val NOTHING_METROID = ImageRef(
         id = ID_NOTHING_METROID,
@@ -402,7 +405,7 @@ object Images {
         rawBytes = 6_067_867_648L,
         rawSha256 = "484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b",
         testedOn = null,
-        cpuRequired = listOf("sve", "sve2"),
+        cpuRequired = emptyList(),
         cpuUsedByApps = emptyList(),
         googleServices = true,
         family = SystemFamily.NOTHING,

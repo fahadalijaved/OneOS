@@ -341,6 +341,16 @@ add)
     # POWERKEY_InputReaderProcessKey"). Only OPPO's Theia power key statistics
     # are skipped. Memory only (resetprop -n), deleted again by remove.
     # ONEOS_GUEST_SAUPWK=0 leaves it out.
+    # The panel's brightness scale for OPPO's framework (ColorOS, Infinity-X:
+    # patches/OneOSPanelBacklight.smali, 0.4.36): the Z Fold8 Ultra's composer
+    # floats times 5.2980394 / this panel's brightnessMaximum (One UI's dumpsys
+    # display, captured by the switch; the same scale guest_prepare.sh gives
+    # the display configs of the other systems). 1000 = the Fold's own.
+    bm=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
+    sc=$(awk -v m="$bm" 'BEGIN { if (m + 0 >= 1.5 && m + 0 <= 8) printf "%d", 5298.0394 / m + 0.5; else print 1000 }')
+    sed -i '/^ro\.oneos\.panel_scale_milli=/d' "$NEW"
+    echo "ro.oneos.panel_scale_milli=$sc" >> "$NEW"
+    echo "guest_props: panel brightness scale $sc/1000 (One UI's brightnessMaximum ${bm:-unknown})"
     if [ "${ONEOS_GUEST_SAUPWK:-1}" = 1 ]; then
         sed -i '/^persist\.sys\.saupwk_test=/d' "$NEW"
         echo "persist.sys.saupwk_test=1" >> "$NEW"
@@ -639,7 +649,7 @@ add)
         # The Folds' overlay says "Qualcomm Snapdragon %s"; every other phone's
         # (0.4.35, guest_prepare.sh) only "%s", so the name is whole here.
         case "${ONEOS_PROFILE:-f8u}" in
-            f8u|f8) ;;
+            f8u|f8|f7|f6) ;;
             *) case "$cpu" in ''|Exynos*) ;; *) cpu="Snapdragon $cpu" ;; esac ;;
         esac
         # One "<diagonal>" per built-in panel, the largest first.

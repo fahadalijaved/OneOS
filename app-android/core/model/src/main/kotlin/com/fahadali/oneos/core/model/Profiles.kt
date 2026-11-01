@@ -100,6 +100,7 @@ object Profiles {
     const val ID_A07 = "a07"
     const val ID_FLIP8 = "flip8"
     const val ID_A36 = "a36"
+    const val ID_FOLD5 = "f5"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -162,10 +163,12 @@ object Profiles {
     private val HYPEROS_CHOICE = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
 
     /**
-     * Nothing OS 5.0 (0.4.33), untested, last. Its linker64 needs SVE, SVE2 and
-     * SME, the Pixel 11 images' requirement, so only the phones whose chips have
-     * them: the Z Fold8 Ultra first, where it was made; 0.4.35 the Z Fold8, the
-     * S26 family (both chips) and the Z Flip8, untested.
+     * Nothing OS 5.0 (0.4.33), untested, last: the Z Fold8 Ultra first, where it
+     * was made; 0.4.35 the Z Fold8, the S26 family (both chips) and the Z Flip8;
+     * 0.4.36 the S25 Ultra, S25, S25+, S24 Ultra, Z Fold7 and Z Fold6 (it needs
+     * no SVE after all, Images.NOTHING_METROID). Only phones whose panels share
+     * the Fold's brightness scale (brightnessMaximum about 5): its brightness
+     * range overlay is the Fold's.
      */
     private val NOTHING_CHOICE = ImageChoice(Images.ID_NOTHING_METROID, PackageSets.ID_NOTHING_F8U, tested = false)
 
@@ -279,7 +282,7 @@ object Profiles {
         form = FormFactor.BAR,
         // Off in 0.3.0 (the S26 Ultra was to go first); on from 0.3.1 (owner: the
         // friend's S25 Ultra is on Android 17 and ready). Untested: ticks as the S26 Ultra.
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -298,7 +301,7 @@ object Profiles {
         codename = "pa1q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -321,7 +324,7 @@ object Profiles {
         codename = "q7q",
         socModel = "SM8750",
         form = FormFactor.FOLD,
-        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -339,7 +342,7 @@ object Profiles {
         codename = "pa2q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -429,7 +432,7 @@ object Profiles {
         codename = "e3q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, NOTHING_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -590,7 +593,7 @@ object Profiles {
         codename = "q6q",
         socModel = "SM8650",
         form = FormFactor.FOLD,
-        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE),
+        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, NOTHING_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -657,10 +660,30 @@ object Profiles {
         notes = listOf(OLDER_VENDOR),
     )
 
+    /**
+     * Galaxy Z Fold5, from 0.4.35: a probe report of 2026-11-01 (SM-F946B, q5q,
+     * SM8550 like the Z Flip5 and the S23s, One UI 9.0, Android 17, vendor API 33
+     * and kernel 5.15, inner 1812 x 2176 and cover 904 x 2316, device states 0
+     * CLOSE and 3 OPEN, the HIDL composer and Samsung's Bluetooth audio HAL, no
+     * SVE, installd 85 methods). A fold like the Z Fold6: the Find N6 build (its
+     * fold layout) and Infinity-X, which started on the Z Flip5's same platform,
+     * untested, with the older-vendor note.
+     */
+    val FOLD5 = PhoneProfile(
+        id = ID_FOLD5,
+        label = "Galaxy Z Fold5",
+        modelPrefix = "SM-F946",
+        codename = "q5q",
+        socModel = "SM8550",
+        form = FormFactor.FOLD,
+        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE),
+        notes = listOf(olderVendor("33 (Android 13)", "5.15")),
+    )
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
-        S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36,
+        S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

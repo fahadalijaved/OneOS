@@ -93,7 +93,7 @@ class ImagesTest {
         assertEquals("AQ3A.250924.001", nothing.buildId)
         assertEquals(Images.SHARED_FOLDER_URL, nothing.downloadUrl)
         assertEquals(null, nothing.testedOn)
-        assertEquals(listOf("sve", "sve2"), nothing.cpuRequired)
+        assertEquals(emptyList<String>(), nothing.cpuRequired) // 0.4.36: no SVE needed after all
         assertEquals(emptyList<String>(), nothing.cpuUsedByApps)
         assertEquals(SystemFamily.NOTHING, nothing.family)
         assertEquals("Nothing OS 5.0 (Android 17)", nothing.displayName)
@@ -208,7 +208,8 @@ class ImagesTest {
         assertEquals(ImageState.WRONG_FOR_PHONE, pixelOnFold7.state)
         assertEquals(
             "This is the Pixel 11 Fold image; Galaxy Z Fold7 takes the Find N6 image (OneOS_ColorOS17_FindN6_ZFold8.img.gz) " +
-                "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz).",
+                "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
+                "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
             pixelOnFold7.finding.detail,
         )
         // The owner does not want the X9U (CN) image on his Fold; by size alone already.
@@ -244,13 +245,13 @@ class ImagesTest {
             Profiles.F8U to listOf(n6, pixel, ifx, hyper, nothing),
             Profiles.S_ULTRA_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),
             // 0.4.22: the Pixel 9 Pro XL image on the phones without SVE.
-            Profiles.S_ULTRA_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
-            Profiles.S_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
-            Profiles.FOLD7 to listOf(n6, ifx, hyper),
-            Profiles.S_PLUS_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.S_ULTRA_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper, nothing),
+            Profiles.S_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper, nothing),
+            Profiles.FOLD7 to listOf(n6, ifx, hyper, nothing),
+            Profiles.S_PLUS_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper, nothing),
             Profiles.FOLD8 to listOf(n6, pixel, ifx, hyper, nothing),
             Profiles.S_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),
-            Profiles.S_ULTRA_8650 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.S_ULTRA_8650 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper, nothing),
             Profiles.S_8550 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
             Profiles.S_PLUS_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),
             Profiles.S_PLUS_9965 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),

@@ -11,7 +11,7 @@ package com.fahadali.oneos.core.model
  * Every profile is in exactly one series.
  */
 enum class ApkSeries(val id: String, val label: String, val profileIds: List<String>) {
-    FOLD("fold", "Galaxy Z Fold", listOf(Profiles.ID_F8U, Profiles.ID_FOLD8, Profiles.ID_FOLD7, Profiles.ID_FOLD6)),
+    FOLD("fold", "Galaxy Z Fold", listOf(Profiles.ID_F8U, Profiles.ID_FOLD8, Profiles.ID_FOLD7, Profiles.ID_FOLD6, Profiles.ID_FOLD5)),
     S26(
         "s26",
         "Galaxy S26 series and Z Flip8",

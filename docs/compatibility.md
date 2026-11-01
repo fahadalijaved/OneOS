@@ -4,13 +4,29 @@ What testers reported from the OneOS app (**Send to the OneOS team** on the Last
 
 Updated 2026-11-01. Every system is still experimental: read the warnings in the [README](../README.md) first.
 
+## OneOS 0.4.35
+
+| Phone | System | Reports | Started | Screen | Wi-Fi | Mobile data | Calls | SMS | Bluetooth | Sound | Camera | Google | Location | Back to One UI | Heat | Both screens | Last report |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Galaxy A57 | Infinity-X 4.1 | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | ✅ 1/1 | – | 2026-11-01 |
+| Galaxy S23 | HyperOS (Xiaomi 18 Fold) | 1 | ❌ 0/1 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-11-01 |
+| Galaxy S23 | Pixel 9 Pro XL | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | 2026-11-01 |
+| Galaxy S25 | ColorOS 17 (Find X9 Ultra IN) | 2 | ❌ 0/2 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-11-01 |
+| Galaxy S25 Ultra | ColorOS 17 (Find X9 Ultra IN) | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ❌ 0/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | – | – | – | 2026-11-01 |
+| Galaxy S25 Ultra | Pixel 9 Pro XL | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | ❌ 0/1 | – | 2026-11-01 |
+| Galaxy S25+ | HyperOS (Xiaomi 18 Fold) | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | – | ✅ 1/1 | – | 2026-11-01 |
+| Galaxy S26 Ultra | Nothing OS 5.0 | 1 | ✅ 1/1 | ✅ 1/1 | – | – | ❌ 0/1 | ❌ 0/1 | – | – | ❌ 0/1 | – | – | ✅ 1/1 | ✅ 1/1 | – | 2026-11-01 |
+
 ## OneOS 0.4.34
 
 | Phone | System | Reports | Started | Screen | Wi-Fi | Mobile data | Calls | SMS | Bluetooth | Sound | Camera | Google | Location | Back to One UI | Heat | Both screens | Last report |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Galaxy A56 | ColorOS 17 (Find X9 Ultra IN) | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | – | ✅ 1/1 | ❌ 0/1 | – | ✅ 1/1 | – | – | – | 2026-11-01 |
+| Galaxy A56 | HyperOS (Xiaomi 18 Fold) | 1 | ❌ 0/1 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-11-01 |
 | Galaxy S23 | HyperOS (Xiaomi 18 Fold) | 3 | ⚠️ 1/3 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ❌ 0/1 | ❌ 0/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 3/3 | – | – | 2026-10-31 |
 | Galaxy S23 | Pixel 9 Pro XL | 1 | ❌ 0/1 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-11-01 |
 | Galaxy S24 Ultra | HyperOS (Xiaomi 18 Fold) | 1 | ❌ 0/1 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-10-31 |
+| Galaxy S24 Ultra | Infinity-X 4.1 | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | 2026-11-01 |
 | Galaxy S25 Ultra | HyperOS (Xiaomi 18 Fold) | 1 | ✅ 1/1 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-10-31 |
 | Galaxy S25 Ultra | Infinity-X 4.1 | 1 | ✅ 1/1 | – | – | – | – | – | – | ✅ 1/1 | ✅ 1/1 | – | – | – | – | – | 2026-10-31 |
 | Galaxy S25 Ultra | Pixel 9 Pro XL | 2 | ❌ 0/2 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-10-31 |

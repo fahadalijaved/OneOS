@@ -71,7 +71,7 @@ class ProfilesTest {
         assertEquals(FormFactor.BAR, s25.form)
         // 0.4.22: and the Pixel 9 Pro XL image with its own set, untested.
         val pixel9 = ImageChoice(Images.ID_PIXEL_KOMODO, PackageSets.ID_PIXEL9_SULTRA, tested = false)
-        assertEquals(sUltra + pixel9 + ifxT + hyper, s25.choices)
+        assertEquals(sUltra + pixel9 + ifxT + hyper + nothing, s25.choices)
         assertTrue(s25.testedWithAnyImage && s25.enabled)
 
         // Galaxy S25 (0.3.4): the S Ultra image and set (tested since 0.4.7), the S25 Ultra's notes.
@@ -80,7 +80,7 @@ class ProfilesTest {
         assertEquals("Galaxy S25", s25Base.label)
         assertEquals(listOf("SM-S931", "pa1q", "SM8750"), listOf(s25Base.modelPrefix, s25Base.codename, s25Base.socModel))
         assertEquals(FormFactor.BAR, s25Base.form)
-        assertEquals(sUltra + pixel9 + ifxT + hyper, s25Base.choices)
+        assertEquals(sUltra + pixel9 + ifxT + hyper + nothing, s25Base.choices)
         assertTrue(s25Base.testedWithAnyImage && s25Base.enabled)
         assertEquals(s25.notes, s25Base.notes)
         assertEquals(listOf("profile-vendor-older"), s25Base.notes.map { it.id })
@@ -90,7 +90,7 @@ class ProfilesTest {
         assertEquals("Galaxy Z Fold7", fold7.label)
         assertEquals(listOf("SM-F966", "q7q", "SM8750"), listOf(fold7.modelPrefix, fold7.codename, fold7.socModel))
         assertEquals(FormFactor.FOLD, fold7.form)
-        assertEquals(listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), ifx, hyper), fold7.choices)
+        assertEquals(listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), ifx, hyper, nothing), fold7.choices)
         assertTrue(fold7.enabled && !fold7.testedWithAnyImage)
         assertEquals(s25.notes, fold7.notes)
         assertTrue(fold7.choice(Images.ID_PIXEL_YOGI) == null)
@@ -99,7 +99,7 @@ class ProfilesTest {
         assertEquals(listOf("s-plus-8750", "Galaxy S25+"), listOf(s25Plus.id, s25Plus.label))
         assertEquals(listOf("SM-S936", "pa2q", "SM8750"), listOf(s25Plus.modelPrefix, s25Plus.codename, s25Plus.socModel))
         assertEquals(FormFactor.BAR, s25Plus.form)
-        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifx, hyper), s25Plus.choices)
+        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifx, hyper, nothing), s25Plus.choices)
         assertEquals(s25.notes, s25Plus.notes)
         // Galaxy Z Fold8 (0.4.10): the Fold's images and sets, untested; no older-vendor note (vendor API 202504).
         val fold8 = Profiles.FOLD8
@@ -144,7 +144,7 @@ class ProfilesTest {
         val s24u = Profiles.S_ULTRA_8650
         assertEquals(listOf("s-ultra-8650", "Galaxy S24 Ultra"), listOf(s24u.id, s24u.label))
         assertEquals(listOf("SM-S928", "e3q", "SM8650"), listOf(s24u.modelPrefix, s24u.codename, s24u.socModel))
-        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifxT, hyper), s24u.choices)
+        assertEquals(listOf(xin, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), pixel9, ifxT, hyper, nothing), s24u.choices)
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), s24u.notes.map { it.id })
         assertTrue(s24u.notes.single().detail.contains("vendor API 34 (Android 14) and kernel 6.1"))
         // Galaxy S26+ (0.4.12): the S26's images and sets, untested, no notes (vendor API 202504).
@@ -213,12 +213,13 @@ class ProfilesTest {
         assertEquals(listOf("a36", "Galaxy A36"), listOf(a36.id, a36.label))
         assertEquals(listOf("SM-A366", "a36xq", "SM6475"), listOf(a36.modelPrefix, a36.codename, a36.socModel))
         assertEquals(FormFactor.BAR, a36.form)
-        assertEquals(s25Plus.choices, a36.choices)
+        assertEquals(s25Plus.choices - nothing, a36.choices)
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), a36.notes.map { it.id })
-        // Nothing OS (0.4.35) on exactly the SVE + SME phones: the SM8850 ones and the Exynos 2600 ones.
+        // Nothing OS (0.4.35) on the SVE + SME phones; 0.4.36 also the S25s, S24 Ultra, Fold7 and Fold6 (brightness scale ~5).
         assertEquals(
-            listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_PLUS_8850,
-                Profiles.S_PLUS_9965, Profiles.FLIP8),
+            listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750,
+                Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_PLUS_8850,
+                Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_NOTHING_METROID) != null },
         )
         // Galaxy S23 and S23+ (0.4.11): the X9U image, untested, with the will-most-likely-not-start note.
@@ -239,7 +240,7 @@ class ProfilesTest {
                 Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750, Profiles.FOLD8,
                 Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550, Profiles.S_PLUS_8850,
                 Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
-                Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36,
+                Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5,
             ),
             Profiles.BUILT_IN,
         )
@@ -268,7 +269,7 @@ class ProfilesTest {
         assertNull(Profiles.F8U.choice(Images.ID_FIND_X9U))
         // The owner does not want the X9U (CN) image on the Fold: only the N6 and Pixel images there.
         // The Fold7 (0.4.8) takes the N6 image only; the Fold6 (0.4.33) the same.
-        assertEquals(listOf(Profiles.F8U, Profiles.FOLD7, Profiles.FOLD8, Profiles.FOLD6), Profiles.BUILT_IN.filter { it.form == FormFactor.FOLD })
+        assertEquals(listOf(Profiles.F8U, Profiles.FOLD7, Profiles.FOLD8, Profiles.FOLD6, Profiles.FOLD5), Profiles.BUILT_IN.filter { it.form == FormFactor.FOLD })
         // The Find X9 Ultra builds run as a phone: the bar phones and (0.4.17) the Z Flip7 on its main screen.
         assertTrue(Profiles.BUILT_IN.filter { it.choice(Images.ID_FIND_X9U) != null }.all { it.form == FormFactor.BAR || it.form == FormFactor.FLIP })
         assertEquals(listOf(Profiles.FLIP7, Profiles.FLIP5, Profiles.FLIP8), Profiles.BUILT_IN.filter { it.form == FormFactor.FLIP })
@@ -341,7 +342,12 @@ class ProfilesTest {
         assertEquals(Profiles.FOLD6, profile("SM-F956B", "q6q", "SM8650"))
         assertNull(profile("SM-F956B", "q6q", "SM8750"))
         assertEquals(FormFactor.FOLD, Profiles.FOLD6.form)
-        assertEquals(listOf(Images.ID_FIND_N6, Images.ID_INFINITYX), Profiles.FOLD6.choices.map { it.imageId })
+        assertEquals(listOf(Images.ID_FIND_N6, Images.ID_INFINITYX, Images.ID_NOTHING_METROID), Profiles.FOLD6.choices.map { it.imageId })
+        // Galaxy Z Fold5 (0.4.35): the Z Flip5's platform as a fold, the Fold6's systems.
+        assertEquals(Profiles.FOLD5, profile("SM-F946B", "q5q", "SM8550"))
+        assertEquals(FormFactor.FOLD, Profiles.FOLD5.form)
+        assertEquals(listOf(Images.ID_FIND_N6, Images.ID_INFINITYX), Profiles.FOLD5.choices.map { it.imageId })
+        assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), Profiles.FOLD5.notes.map { it.id })
         assertEquals(Profiles.A07, profile("SM-A075F", "a07", "MT6789"))
         assertNull(profile("SM-A075F", "a07", "s5e8855"))
         assertEquals(listOf(Images.ID_INFINITYX), Profiles.A07.choices.map { it.imageId })
