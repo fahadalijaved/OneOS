@@ -34,7 +34,7 @@ public final class OneOSEdmStub {
   // one instead of registering over One UI's live Knox service.
   final String name = args.length > 1 ? args[1] : NAME;
   Looper.prepareMainLooper();
-  Binder b = new Binder() {
+  final Binder b = new Binder() {
    @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
      throws RemoteException {
     if (code == INTERFACE_TRANSACTION) { if (reply != null) reply.writeString(DESCRIPTOR); return true; }
@@ -44,17 +44,34 @@ public final class OneOSEdmStub {
     return true;
    }
   };
-  Class<?> sm = Class.forName("android.os.ServiceManager");
-  Method add = sm.getMethod("addService", String.class, IBinder.class, boolean.class, int.class);
+  final Class<?> sm = Class.forName("android.os.ServiceManager");
+  final Method add = sm.getMethod("addService", String.class, IBinder.class, boolean.class, int.class);
   // allowIsolated=false, dumpPriority NORMAL(1): the same call system_server makes.
   add.invoke(null, name, b, Boolean.FALSE, Integer.valueOf(1));
   Object got = sm.getMethod("checkService", String.class).invoke(null, name);
   if (got == null) throw new IllegalStateException("addService " + name + " did not take");
   System.out.println("READY " + name + " uid=" + android.os.Process.myUid() + " guest=" + guest);
   System.out.flush();
+  // Run 22: the name was gone 45 s after HOME (service check: not found) and
+  // every camera open waited the 5 s again. Registered again whenever it is
+  // missing; each event and the exit logged.
   final Handler h = new Handler(Looper.myLooper());
   h.postDelayed(new Runnable() { public void run() {
-   if (!new File("/proc/" + guest).exists()) System.exit(0);
+   if (!new File("/proc/" + guest).exists()) {
+    System.out.println("EXIT guest " + guest + " gone");
+    System.out.flush();
+    System.exit(0);
+   }
+   try {
+    if (sm.getMethod("checkService", String.class).invoke(null, name) == null) {
+     add.invoke(null, name, b, Boolean.FALSE, Integer.valueOf(1));
+     System.out.println("REREGISTERED " + name + " at " + android.os.SystemClock.elapsedRealtime());
+     System.out.flush();
+    }
+   } catch (Throwable t) {
+    System.out.println("recheck failed: " + t);
+    System.out.flush();
+   }
    h.postDelayed(this, 2000);
   } }, 2000);
   Looper.loop();

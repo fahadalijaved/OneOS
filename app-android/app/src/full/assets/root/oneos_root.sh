@@ -130,6 +130,10 @@ SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
 SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img"
+# Nothing OS 5.0 (0.4.33, the Z Fold8 Ultra): its system is close to AOSP, so only
+# services.jar and framework.jar need the guards; no vendor framework, no vold
+# patch (its build is unknown to the patcher) and no signal poll injection.
+SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_customringtone.tar nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched vold_patched wifi_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
 ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_RETURN_MODE"
@@ -137,7 +141,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11). The
 # Pixel images have them too, but their sessions present their own GmsCore,
 # and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findx9u-in"
+IMAGES_GMS="coloros17-findx9u-in nothingos5-metroid"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -165,6 +169,8 @@ profile_info() {
         flip5) echo "SM-F731 b5q SM8550 flip" ;;
         f6) echo "SM-F956 q6q SM8650 fold" ;;
         a07) echo "SM-A075 a07 MT6789 bar" ;;
+        flip8) echo "SM-F776 b8s s5e9965 flip" ;;
+        a36) echo "SM-A366 a36xq SM6475 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -177,6 +183,24 @@ profile_set() {
         "f8u coloros17-findn6") echo n6-f8u ;;
         "f8u pixel11fold-yogi") echo pixel-f8u ;;
         "f8u hyperos-lhasa") echo hyper-f8u ;;
+        "f8u nothingos5-metroid") echo nothing-f8u ;;
+        "f8 nothingos5-metroid") echo nothing-f8u ;;
+        "s-ultra-8850 nothingos5-metroid") echo nothing-f8u ;;
+        "s-8850 nothingos5-metroid") echo nothing-f8u ;;
+        "s-8850-jp nothingos5-metroid") echo nothing-f8u ;;
+        "s-plus-8850 nothingos5-metroid") echo nothing-f8u ;;
+        "s-plus-9965 nothingos5-metroid") echo nothing-f8u ;;
+        "flip8 nothingos5-metroid") echo nothing-f8u ;;
+        "flip8 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip8 coloros17-findx9u") echo x9u-sultra ;;
+        "flip8 pixel11pro-kodiak") echo pixel-sultra ;;
+        "flip8 infinityx41-findx9u") echo infinityx ;;
+        "flip8 hyperos-lhasa") echo hyper-f8u ;;
+        "a36 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a36 coloros17-findx9u") echo x9u-sultra ;;
+        "a36 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "a36 infinityx41-findx9u") echo infinityx ;;
+        "a36 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8850 coloros17-findx9u") echo x9u-sultra ;;
         "s-ultra-8850 pixel11pro-kodiak") echo pixel-sultra ;;
@@ -281,6 +305,7 @@ image_raw() {
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
         hyperos-lhasa) echo "7749939200 269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac" ;;
+        nothingos5-metroid) echo "6067867648 484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b" ;;
         pixel9proxl-komodo) echo "5837496320 2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c" ;;
         infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
         *) return 1 ;;
@@ -297,6 +322,7 @@ set_files() {
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk" ;;
         pixel-sultra) echo "$SET_PIXEL" ;;
         hyper-f8u) echo "$SET_HYPEROS" ;;
+        nothing-f8u) echo "$SET_NOTHING" ;;
         pixel9-sultra) echo "$SET_PIXEL" ;;
         infinityx) echo "$SET_INFINITYX" ;;
         *) return 1 ;;
@@ -312,6 +338,7 @@ set_image() {
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
         hyper-f8u) echo hyperos-lhasa ;;
+        nothing-f8u) echo nothingos5-metroid ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
         *) return 1 ;;
@@ -330,6 +357,7 @@ image_family() {
         pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo) echo pixel ;;
         infinityx41-findx9u) echo infinityx ;;
         hyperos-lhasa) echo hyperos ;;
+        nothingos5-metroid) echo nothing ;;
         *) return 1 ;;
     esac
 }
@@ -617,7 +645,7 @@ check_files() { # <names>
         [ -d "$f" ] && [ ! -L "$f" ] && continue
         n=${f##*/}
         case "$n" in
-            *_patched*|*_payload.img|*.apk|*.jar|*.so|*.sh|Fold8AngleRelay.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list.xml|oneos-*)
+            *_patched*|*_payload.img|*.apk|*.jar|*.so|*.sh|*.tar|Fold8AngleRelay.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list.xml|oneos-*)
                 in_list "$n" "$1" || refuse "$n is in the stage but was not prepared (left from an older stage)" ;;
         esac
     done

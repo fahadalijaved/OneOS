@@ -39,7 +39,8 @@ class PackageSetsTest {
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
         assertEquals("out/overlays_pixel_f8u", pixel.sourceDir)
         assertEquals(
-            listOf(n6, x9u, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.N6_F8, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA, PackageSets.INFINITYX, PackageSets.HYPER_F8U),
+            listOf(n6, x9u, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.N6_F8, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
+                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U),
             PackageSets.ALL,
         )
         // Infinity-X (0.4.27): both guard jars, the camera codes (Java and native), the guest vold, the
@@ -75,6 +76,33 @@ class PackageSetsTest {
             hyper.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(hyper.hasReturnApp && "vold_patched" in hyper.names)
+        // Nothing OS (0.4.33), the smallest set: Nothing ships no vendor framework jar, so services.jar and
+        // framework.jar carry every guard. The signal-poll injection RRO goes in /oem, after the image's own
+        // TelephonyResCommon_Sys.apk in this guest's overlay order (run 10).
+        val nothing = PackageSets.NOTHING_F8U
+        assertEquals(Images.ID_NOTHING_METROID, nothing.imageId)
+        assertEquals("out/overlays_nothing_r17", nothing.sourceDir)
+        assertEquals(47, nothing.files.size)
+        // r12: Nothing's SystemUI with its quick settings at the screen's own density on the inner panel;
+        // r13: its launcher with the drawer's category boxes per row from the width; r17: the ringtone kits
+        // the boot animation on both panels and the ringtone generator's device check; 0.4.35: One UI's camera.
+        assertEquals(listOf("SystemUI_patched.apk", "NothingLauncher3_patched.apk", "nothing_customringtone.tar",
+                "nothing_product_media.tar", "libbootanimation_preapex_patched.so", "NothingGenerateRingtoneService_patched.apk",
+                "samcam.tar"),
+            nothing.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
+        assertEquals(18, nothing.files.count { it.role == FileRole.APEX_PAYLOAD })
+        assertEquals(listOf(PackageSets.TETHERING), nothing.omitted)
+        // r2: the guest vold, so the guest registers "gvld" and the return needs no reboot.
+        assertEquals(
+            listOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so",
+                "libcamera_client_patched.so"),
+            nothing.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
+        )
+        // The first non-ColorOS set to carry the SurfaceFlinger patch (the QTI composer skip).
+        assertEquals(listOf("surfaceflinger_patched"), nothing.files.filter { it.role == FileRole.SURFACEFLINGER }.map { it.name })
+        // Its Google services are hidden by folder, not staged as a payload ([ImageRef.gmsHideable]).
+        assertTrue(nothing.file(PackageSets.GMS_PAYLOAD) == null)
+        assertTrue(nothing.hasReturnApp && nothing.file(PackageSets.CELLBROADCAST) != null)
         // The Z Fold8's Find N6 set (0.4.14, pull request #1): the Fold's files and five Fold8 fixes.
         val f8 = PackageSets.N6_F8
         assertEquals(Images.ID_FIND_N6, f8.imageId)

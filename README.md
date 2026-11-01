@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.34. Samsung flagships with Snapdragon, plus the first four
+App version 0.4.35. Samsung flagships with Snapdragon, plus the first five
 Exynos phones and (0.4.33) the first MediaTek phone; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -53,6 +53,7 @@ Where each system has actually started, on our phones and on testers' (One UI
 | ColorOS 17, Find X9 Ultra CN build | Galaxy S26 Ultra (SM-S948), S25 Ultra (SM-S938), S25 (SM-S931), A57 (SM-A576B) |
 | ColorOS 17, Find X9 Ultra IN (global) build | Galaxy Z Flip5 (SM-F731B) |
 | Infinity-X 4.1 | Galaxy S26 Ultra (SM-S948), S25 Ultra (SM-S938), S25 (SM-S931), S24 Ultra (SM-S928), Z Flip5 (SM-F731B) |
+| Nothing OS 5.0 | Galaxy Z Fold8 Ultra (SM-F976B) |
 
 Started is not the same as finished: on Infinity-X the reports so far say calls
 do not work and SMS only sometimes, which is what the IMS switch in Advanced is
@@ -93,6 +94,25 @@ Snapdragon 8 Gen 3) with the Find N6 build and Infinity-X, and the Galaxy A07
 (SM-A075, MediaTek MT6789, One UI 9), the first MediaTek phone, with Infinity-X
 only. The Galaxy A16 and A17 on One UI 8.5 (Android 16) are not supported yet:
 every system here is Android 17.
+
+New in 0.4.35: **Nothing OS 5.0** (Nothing's system from the Phone (3), with
+Google apps) on the Galaxy Z Fold8 Ultra, where it was made, and, untested, on
+the Z Fold8, S26 Ultra, S26+, S26 and the new Z Flip8: its Glyph ringtones and
+sounds, the boot animation on both screens of a Fold, One UI's brightness
+range, Essential Space on a double press of the power key, and an About phone
+page with your phone's picture, processor, RAM, storage, screens and battery.
+**One UI's own camera runs inside Nothing OS** (One UI's camera app, adapted
+on our side for a system that is not One UI): photos, both selfie cameras on
+a Fold, lens switching, and no 5 s wait at the start. New phones, untested:
+the Galaxy Z Flip8 (SM-F776, Exynos 2600) and the Galaxy A36 (SM-A366,
+Snapdragon). Fixes: the Pixel 9 Pro XL starts again on every phone but the
+Fold8 Ultra (0.4.34's brightness curve stopped it at the boot animation);
+the processor is no longer held at a low clock during and after a session
+when One UI had capped it before the switch (it stayed slow until power
+saving was turned on and off); the screen turns off while charging.
+Thanks to Josh for the ColorOS work on the Z Fold8 in this release (smoother
+switching and returning, the power key without a 5 s wait, cover screen
+spacing, wallpaper and lock screen editor layouts).
 
 New in 0.4.34: sound and the microphone in Infinity-X on the S25 series (its
 audio service waited for a One UI extension that is not there during a
@@ -169,12 +189,12 @@ release).
    root manager. From 0.4.25 there are three downloads, each about half the
    size of the old single app:
    `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6),
-   `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26) and
+   `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26, Z Flip8) and
    `OneOS-<version>-s25.apk` (Galaxy S25 Ultra, S25+, S25, S24 Ultra, S23,
-   S23+, Z Flip7, Z Flip5, A57, A56, A07). Installed the wrong one? OneOS tells you which file your
+   S23+, Z Flip7, Z Flip5, A57, A56, A36, A07). Installed the wrong one? OneOS tells you which file your
    phone needs.
 6. In OneOS open **Systems**, tap **Download** on the system made for your
-   phone and download it, on Wi-Fi (3.3 to 5.3 GB).
+   phone and download it, on Wi-Fi (3.3 to 5.9 GB).
 7. Back in OneOS tap **I have the file**, pick the download, then **Set up**.
    Setup takes about 15 minutes: keep OneOS open and the phone plugged in. One
    UI keeps working meanwhile.

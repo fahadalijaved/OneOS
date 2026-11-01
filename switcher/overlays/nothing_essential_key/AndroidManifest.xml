@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing OS's Essential Space on a phone without Nothing's Essential key.
+     Nothing opens Essential Space with a double press of that key (keycode 250,
+     PhoneWindowManager.handleKeyGesture -> NtEssentialKeyImpl); the Fold has no
+     such key (owner, Nothing run 23). A double press of the power key opens it
+     instead, through AOSP's own multi-press power behavior: 3, launch the target
+     activity (powerMultiPressAction's packed switch in this image), and the
+     double-tap camera gesture off so it does not take the press first. Read at
+     boot, so a static overlay in the guest's /oem (guest_prepare.sh), built by
+     scripts/make-overlays.sh for an image with Essential Space. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.nothing.essentialkey">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="android"
+        android:isStatic="true"
+        android:priority="2"/>
+</manifest>

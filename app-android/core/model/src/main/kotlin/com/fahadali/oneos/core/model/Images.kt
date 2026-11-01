@@ -9,7 +9,7 @@ import java.util.Locale
  * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
  * packages too, and its updater, com.infinity.updater, tells it apart.
  */
-enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS }
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING }
 
 /**
  * One OneOS OS image as friends download it (a gzip of the ext4 system
@@ -112,6 +112,7 @@ object Images {
     const val ID_HYPEROS_LHASA = "hyperos-lhasa"
     const val ID_PIXEL_KOMODO = "pixel9proxl-komodo"
     const val ID_INFINITYX = "infinityx41-findx9u"
+    const val ID_NOTHING_METROID = "nothingos5-metroid"
 
     /** Where root stages the unpacked image. */
     const val STAGE_NAME = "system.raw"
@@ -374,7 +375,40 @@ object Images {
         family = SystemFamily.HYPEROS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA)
+    /**
+     * Nothing OS 5.0 (0.4.33), from the Nothing Archive dump of the A024
+     * "Metroid" (nothing_archive, Metroid_C5.0-260924-2115). Android 17 on a
+     * Qualcomm qssi_64 system image, like the ColorOS and Infinity-X builds.
+     *
+     * It keeps Google services (GmsCore and the Play Store are ordinary
+     * priv-apps in its product partition, not the APEX the Pixel images
+     * present), so a launch may hide them. Its linker64 uses SVE, SVE2 and SME,
+     * so it needs the same chips as the Pixel 11 images: the Z Fold8 Ultra and
+     * the S26 family, not the SM8750 and older phones.
+     */
+    val NOTHING_METROID = ImageRef(
+        id = ID_NOTHING_METROID,
+        label = "Nothing OS 5.0, Metroid build",
+        shortName = "Nothing OS",
+        name = "Nothing OS 5.0",
+        variant = null,
+        blurb = "Nothing's system from the A024 (Metroid). With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "AQ3A.250924.001",
+        gzName = "OneOS_NothingOS5_Metroid.img.gz",
+        gzBytes = 3_276_156_748L,
+        gzSha256 = "3026923ea476e998fd1ae828f441937106ffbe8fbaf613a316bce444998997bd",
+        rawBytes = 6_067_867_648L,
+        rawSha256 = "484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b",
+        testedOn = null,
+        cpuRequired = listOf("sve", "sve2"),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.NOTHING,
+    )
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

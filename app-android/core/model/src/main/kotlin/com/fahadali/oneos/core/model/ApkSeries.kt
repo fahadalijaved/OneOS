@@ -14,16 +14,19 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
     FOLD("fold", "Galaxy Z Fold", listOf(Profiles.ID_F8U, Profiles.ID_FOLD8, Profiles.ID_FOLD7, Profiles.ID_FOLD6)),
     S26(
         "s26",
-        "Galaxy S26 series",
-        listOf(Profiles.ID_S_ULTRA_8850, Profiles.ID_S_PLUS_8850, Profiles.ID_S_8850, Profiles.ID_S_8850_JP, Profiles.ID_S_PLUS_9965),
+        "Galaxy S26 series and Z Flip8",
+        listOf(
+            Profiles.ID_S_ULTRA_8850, Profiles.ID_S_PLUS_8850, Profiles.ID_S_8850, Profiles.ID_S_8850_JP, Profiles.ID_S_PLUS_9965,
+            Profiles.ID_FLIP8,
+        ),
     ),
     S25(
         "s25",
-        "Galaxy S25, S24, S23, Z Flip7, Z Flip5, A57, A56 and A07",
+        "Galaxy S25, S24, S23, Z Flip7, Z Flip5, A57, A56, A36 and A07",
         listOf(
             Profiles.ID_S_ULTRA_8750, Profiles.ID_S_PLUS_8750, Profiles.ID_S_8750, Profiles.ID_S_ULTRA_8650,
             Profiles.ID_S_8550, Profiles.ID_S_PLUS_8550, Profiles.ID_FLIP7, Profiles.ID_A56, Profiles.ID_A57, Profiles.ID_FLIP5,
-            Profiles.ID_A07,
+            Profiles.ID_A07, Profiles.ID_A36,
         ),
     ),
     ;

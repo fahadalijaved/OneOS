@@ -72,7 +72,12 @@ LOOP = re.compile("\n".join([
     r"(?P=next)",
     r"add-int/lit8 (?P=i), (?P=i), 0x1",
     r"goto(?:/16|/32)? (?P=loop)",
-    r"(?P=full)",
+    # Nothing OS 5.0's build (SDK 37) emits a bare nop after this label, where the
+    # loop index goes out of scope; ColorOS's and Pixel's do not. It changes
+    # nothing, so accept it here rather than refuse the whole method. The match is
+    # only a check that this really is the stock loop: the patch itself is inserted
+    # at the method's entry, so a nop in the body cannot affect what is written.
+    r"(?P=full)(?:\nnop)?",
     rf"const/16 (?P<k>{R}), 0x270f",
     r"if-le (?P=size), (?P=k), (?P<append>:\w+)",
     rf"const/4 (?P<m>{R}), -0x1",

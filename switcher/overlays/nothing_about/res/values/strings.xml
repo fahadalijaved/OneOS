@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Filled with ro.product.cpu_info; the custom one is taken on phones
+         with Nothing features 61 or 62 and was empty. -->
+    <string name="nt_processor_summary">Qualcomm® Snapdragon® %s</string>
+    <string name="nt_processor_summary_custom">Qualcomm® Snapdragon® %s</string>
+</resources>

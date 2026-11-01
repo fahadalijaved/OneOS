@@ -56,6 +56,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
     "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r11") to listOf("tethering_payload.img")),
+    // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r17") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -287,8 +289,11 @@ android {
         // 0.4.34: Infinity-X sound on the S25 series, the Bluetooth audio bridge
         // actually starting, the camera worker stand-in, One UI's brightness curve
         // on every phone (Pixel, HyperOS), HyperOS data apps' libraries.
-        versionCode = 51
-        versionName = "0.4.34"
+        // 0.4.35: Nothing OS on the SVE + SME phones with One UI's camera, the Z Flip8
+        // and A36, the Pixel 9 Pro XL brightness crash, Samsung's CPU vote released,
+        // the ColorOS Fold8 follow-up (pull request #2).
+        versionCode = 52
+        versionName = "0.4.35"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.

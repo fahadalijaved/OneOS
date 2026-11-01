@@ -414,8 +414,42 @@ if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
             STATES="0:$COVER:$INNER 1:$COVER:$INNER 2:$INNER:$COVER 3:$INNER:$COVER 4:$COVER:$INNER"
             LNOTE="HyperOS fold states 0 closed and 1 tent on the cover, 2 half open and 3 open on the inner panel, 4 reverse on the cover."
         else
-            STATES="0:$COVER:$INNER 1:$INNER:$COVER 2:$INNER:$COVER 3:$COVER:$INNER"
-            LNOTE="AOSP fold states 0 closed, 1 half open, 2 open, 3 rear display."
+            # AOSP's numbering is only right for an image that brings its own
+            # device states, because it is its own file that makes 1 and 2
+            # happen (yogi: 0 closed, 1 half open, 2 open, 3 rear display).
+            # A bar-phone image brings none, so the guest falls back to the
+            # phone's /vendor/etc/devicestate, and this Fold declares just
+            # 0 CLOSE and 3 OPEN on the lid switch: under AOSP's numbering
+            # state 3 is the rear display, so folded AND unfolded both landed
+            # on the cover and the inner panel was never enabled at all
+            # (Nothing OS run 5, 2026-10-31 -- "inner display doesn't work").
+            # So ask the guest's own filesystem first. /vendor is the host's
+            # here and must not count as the image's.
+            GDSC=""
+            for f in /product/etc/devicestate /system/product/etc/devicestate \
+                     /system_ext/etc/devicestate /system/system_ext/etc/devicestate \
+                     /system/etc/devicestate /odm/etc/devicestate; do
+                [ -f "$f/device_state_configuration.xml" ] && { GDSC="$f/device_state_configuration.xml"; break; }
+            done
+            if [ -n "$GDSC" ]; then
+                STATES="0:$COVER:$INNER 1:$INNER:$COVER 2:$INNER:$COVER 3:$COVER:$INNER"
+                LNOTE="AOSP fold states 0 closed, 1 half open, 2 open, 3 rear display (the image's own $GDSC)."
+            else
+                # The states the guest will really be handed, in its own search
+                # order: 0 (lid closed) on the cover, every other one on the
+                # inner panel, as the ColorOS branch above does.
+                HDSC=/vendor/etc/devicestate/device_state_configuration.xml
+                if [ -f /data/system/devicestate/device_state_configuration.xml ] &&
+                        [ ! -L /data/system/devicestate/device_state_configuration.xml ]; then
+                    HDSC=/data/system/devicestate/device_state_configuration.xml
+                fi
+                STATES="0:$COVER:$INNER"
+                for id in $(sed -n 's/.*<identifier>\([0-9][0-9]*\)<\/identifier>.*/\1/p' "$HDSC" 2>/dev/null | sort -un); do
+                    [ "$id" = 0 ] || STATES="$STATES $id:$INNER:$COVER"
+                done
+                [ "$STATES" != "0:$COVER:$INNER" ] || STATES="$STATES 3:$INNER:$COVER"
+                LNOTE="the image brings no device states, so the phone's ($HDSC): 0 closed on the cover, every other one on the inner panel."
+            fi
         fi
         {
             echo '<?xml version="1.0" encoding="utf-8"?>'
@@ -653,7 +687,33 @@ if [ "$(cat /data/oneos_vold_name 2>/dev/null)" = gvld ]; then
     echo "[Pivoted Root] One UI's vold: pid $HOST_VOLD, android.system.vold.IVold/default: $(vdef); SELinux $(getenforce 2>/dev/null); the guest's will register gvld"
 fi
 echo "[Pivoted Root] Starting guest Vold..."
-/system/bin/vold --blkid_context=u:r:blkid:s0 --blkid_untrusted_context=u:r:blkid_untrusted:s0 --fsck_context=u:r:fsck:s0 --fsck_untrusted_context=u:r:fsck_untrusted:s0 > /data/vold.log 2>&1 &
+# The four SELinux contexts every vold since 3.0 takes, and any further
+# --*_context= flag this image's own vold.rc passes: a build that needs one and
+# does not get it dies in main() before it registers anything. Nothing OS 5.0
+# adds --fuseblk_fs_context=u:r:nt_ntfs_3g:s0 for its NTFS-3G helper, and
+# aborted on "Check failed: sFuseblkFsContext != nullptr" (main.cpp:195)
+# without it; the Pixel's Android 17 vold has no such flag. Taking them from
+# the image's vold.rc keeps the next vendor's addition working too. The
+# context only has to parse here: it is used when a fuseblk volume is mounted,
+# which a session never does, and One UI's policy has no nt_ntfs_3g.
+VOLD_RC=""
+for f in /system/etc/init/vold.rc /etc/init/vold.rc; do
+    [ -f "$f" ] && { VOLD_RC=$f; break; }
+done
+VOLD_EXTRA=""
+if [ -n "$VOLD_RC" ]; then
+    VOLD_EXTRA=$(awk '
+        /^service vold / { inv = 1 }
+        inv {
+            for (i = 1; i <= NF; i++)
+                if ($i ~ /^--[a-z_]+_context=/ && $i !~ /^--(blkid|blkid_untrusted|fsck|fsck_untrusted)_context=/)
+                    printf "%s ", $i
+            if ($0 !~ /\\$/) inv = 0
+        }' "$VOLD_RC")
+fi
+[ -z "$VOLD_EXTRA" ] || echo "[Pivoted Root] Guest vold flags from ${VOLD_RC}: $VOLD_EXTRA"
+# shellcheck disable=SC2086
+/system/bin/vold --blkid_context=u:r:blkid:s0 --blkid_untrusted_context=u:r:blkid_untrusted:s0 --fsck_context=u:r:fsck:s0 --fsck_untrusted_context=u:r:fsck_untrusted:s0 $VOLD_EXTRA > /data/vold.log 2>&1 &
 VOLD_PID=$!
 echo "[Pivoted Root] Vold PID: $VOLD_PID"
 n=0

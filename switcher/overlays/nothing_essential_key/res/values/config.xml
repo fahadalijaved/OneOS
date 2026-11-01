@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MULTI_PRESS_POWER_LAUNCH_TARGET_ACTIVITY -->
+    <integer name="config_doublePressOnPowerBehavior">3</integer>
+    <string name="config_doublePressOnPowerTargetActivity" translatable="false">com.nothing.ntessentialspace/com.nothing.ntessentialspace.MainActivity</string>
+    <!-- The double-tap camera gesture off (0: disabled). -->
+    <integer name="config_doubleTapPowerGestureMode">0</integer>
+    <bool name="config_cameraDoubleTapPowerGestureEnabled">false</bool>
+</resources>

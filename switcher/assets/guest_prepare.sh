@@ -516,6 +516,284 @@ if [ "${ONEOS_GUEST_SEC_IMS:-0}" = 1 ]; then
 else
     rm -rf "$SECIMS" 2>/dev/null
 fi
+# --- Samsung Camera in the guest (staged $STAGE/samcam_build) ------------------
+# Nothing OS's own camera needs Nothing's camera HAL; this phone's HAL and
+# camera service are Samsung's, which the guest already uses. So One UI's
+# camera app runs in the guest instead: its APK rewritten on the server so that
+# the Samsung (sem*) members of platform classes that a non-Samsung framework
+# lacks go to static shims, its two library jars likewise, and the One UI
+# classes it reaches (Sem* managers, floating/CSC features, MotionPhoto) in
+# oneos-camera-compat.jar, handed to it as its optional library
+# worker_wrapper_compat (switcher/samsung-camera.md). The app, the jars and
+# their permission files go onto the guest's system_ext (empty mount points in
+# that overlay's tmpfs layer, which may be the read-only one the signal poll
+# needs). What its native code opens by One UI's own paths goes onto the
+# guest's /system, through a read-only overlay of its own: the 101 native
+# libraries (bound from One UI's /system/lib64; two from Samsung's imagecodec
+# APEX are staged copies), /system/cameradata, /system/saiv and
+# floating_feature.xml (also at /system_ext/etc, where the compat copy of
+# SemFloatingFeature reads it). Only with the staged files;
+# ONEOS_GUEST_SAMSUNG_CAMERA=0 leaves it out.
+SAMCAM=0
+SAMCAM_SRC="$STAGE/samcam_build"
+SAMCAM_BOUND=0
+# The Nothing set's samcam.tar (0.4.35), unpacked into samcam_build when it is
+# not the one unpacked last (size and time). The camera is rewritten against
+# Nothing OS's framework, so only a Nothing image takes it; a samcam_build left
+# from a Nothing session stays out of every other system.
+SAMCAM_IMAGE=0
+[ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] && SAMCAM_IMAGE=1
+if [ $SAMCAM_IMAGE = 1 ] && [ -f "$STAGE/samcam.tar" ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
+    st=$(stat -c %s:%Y "$STAGE/samcam.tar")
+    if [ "$(cat "$SAMCAM_SRC/.from_tar" 2>/dev/null)" != "$st" ]; then
+        rm -rf "$SAMCAM_SRC" && mkdir -p "$SAMCAM_SRC" &&
+            $BB tar -xf "$STAGE/samcam.tar" -C "$SAMCAM_SRC" && echo "$st" > "$SAMCAM_SRC/.from_tar" &&
+            echo "Samsung Camera: the set's samcam.tar unpacked into $SAMCAM_SRC" ||
+            echo "Samsung Camera: samcam.tar did not unpack"
+    fi
+fi
+samcam_files() {
+    # "<sys|sysext> <path under the guest's /system or system_ext> <source>".
+    # Native code opens One UI's own paths (/system/cameradata, /system/saiv,
+    # /system/etc/floating_feature.xml, libraries by /system/lib64 path; run 12:
+    # "Feature file is not valid", the camera's feature list in
+    # /system/cameradata), so those go onto the guest's /system as they are.
+    echo "sysext priv-app/SamsungCamera/SamsungCamera.apk $SAMCAM_SRC/SamsungCamera.apk"
+    # An empty Filter Provider (scripts/samsung-camera/filter_stub): the camera
+    # observes One UI's at start and stopped without it (run 16: "Failed to
+    # find provider com.samsung.android.provider.filterprovider").
+    if [ -f "$SAMCAM_SRC/OneOSSamFilterStub.apk" ]; then echo "sysext app/OneOSSamFilterStub/OneOSSamFilterStub.apk $SAMCAM_SRC/OneOSSamFilterStub.apk"; fi
+    for j in semextendedformat.jar secimaging.jar oneos-camera-compat.jar; do
+        echo "sysext framework/$j $SAMCAM_SRC/$j"
+    done
+    echo "sysext etc/floating_feature.xml /system/etc/floating_feature.xml"
+    echo "sysext etc/permissions/privapp-permissions-com.sec.android.app.camera.xml /system/etc/permissions/privapp-permissions-com.sec.android.app.camera.xml"
+    for x in semextendedformat secimaging worker_wrapper_compat; do
+        echo "sysext etc/permissions/oneos-samcam-$x.xml $SAMCAM_SRC/oneos-samcam-$x.xml"
+    done
+    # Its native helpers read hidden framework fields over JNI
+    # (libcore2nativeutil: ImageReader$SurfaceImage.mNativeBuffer); One UI's
+    # camera may, ours is not platform-signed: "can't find
+    # android/graphics/ImageReader.mNativeBuffer", abort (run 17). A system
+    # app listed here may use them.
+    echo "sysext etc/sysconfig/oneos-samcam-hiddenapi.xml $SAMCAM_SRC/oneos-samcam-hiddenapi.xml"
+    while read -r lib from; do
+        case "$from" in
+            apex) echo "sys lib64/$lib $SAMCAM_SRC/$lib" ;;
+            *) echo "sys lib64/$lib /system/lib64/$lib" ;;
+        esac
+    done < "$SAMCAM_SRC/libs.txt"
+    echo "sys etc/floating_feature.xml /system/etc/floating_feature.xml"
+    for f in "$SAMCAM_SRC"/public.libraries-*.txt; do
+        [ -f "$f" ] && echo "sys etc/${f##*/} $f"
+    done
+    # The camera loads /system/framework/scamera_sdk_util.jar itself for
+    # setSamsungParameter (PdkUtil); One UI's calls CameraDevice.setParameters,
+    # which a non-Samsung framework lacks, so the set's copy sends the same
+    # binder call (scripts/samsung-camera/scamera_util). Without it the HAL got
+    # no Samsung parameters and configuring the streams failed (run 15).
+    if [ -f "$SAMCAM_SRC/scamera_sdk_util.jar" ]; then echo "sys framework/scamera_sdk_util.jar $SAMCAM_SRC/scamera_sdk_util.jar"; fi
+    for d in cameradata saiv; do
+        [ -d "/system/$d" ] && echo "sys $d /system/$d"
+    done
+}
+samcam_prepare() {
+    [ -f "$SAMCAM_SRC/SamsungCamera.apk" ] && [ -f "$SAMCAM_SRC/libs.txt" ] || return 1
+    [ -d /system/cameradata ] || { echo "Samsung Camera: this One UI has no /system/cameradata"; return 1; }
+    # The library declarations name the guest's copies. semextendedformat (the
+    # one the manifest requires) depends on the other two, so its loader sees
+    # the compat classes too.
+    printf '<?xml version="1.0" encoding="utf-8"?>\n<permissions>\n    <library name="semextendedformat" file="/system_ext/framework/semextendedformat.jar" dependency="secimaging:worker_wrapper_compat"/>\n</permissions>\n' \
+        > "$SAMCAM_SRC/oneos-samcam-semextendedformat.xml" || return 1
+    printf '<?xml version="1.0" encoding="utf-8"?>\n<permissions>\n    <library name="secimaging" file="/system_ext/framework/secimaging.jar" dependency="worker_wrapper_compat"/>\n    <feature name="com.sec.android.secimaging"/>\n</permissions>\n' \
+        > "$SAMCAM_SRC/oneos-samcam-secimaging.xml" || return 1
+    printf '<?xml version="1.0" encoding="utf-8"?>\n<permissions>\n    <library name="worker_wrapper_compat" file="/system_ext/framework/oneos-camera-compat.jar"/>\n</permissions>\n' \
+        > "$SAMCAM_SRC/oneos-samcam-worker_wrapper_compat.xml" || return 1
+    printf '<?xml version="1.0" encoding="utf-8"?>\n<config>\n    <hidden-api-whitelisted-app package="com.sec.android.app.camera"/>\n</config>\n' \
+        > "$SAMCAM_SRC/oneos-samcam-hiddenapi.xml" || return 1
+    # The native libraries the camera's manifest requires (uses-native-library:
+    # libMyFilterPlugin, libexifa, libjpega, libsecimaging(_pdk) .camera.samsung,
+    # libagifencoder.quram) are public only through One UI's
+    # /system/etc/public.libraries-<company>.txt. Without them the guest's
+    # package manager gave the camera no libraries at all, the compat jar
+    # included ("requires unavailable native shared library
+    # libMyFilterPlugin.camera.samsung.so", then NoClassDefFoundError
+    # oneos/semcompat/Sem). One UI's lists, cut to the libraries bound here.
+    rm -f "$SAMCAM_SRC"/public.libraries-*.txt
+    for f in /system/etc/public.libraries-*.txt; do
+        [ -f "$f" ] || continue
+        awk 'NR == FNR { if (NF) have[$1] = 1; next } { l = $1; sub(/#.*/, "", l) } l != "" && (l in have) { print l }' \
+            "$SAMCAM_SRC/libs.txt" "$f" > "$SAMCAM_SRC/${f##*/}" || return 1
+        [ -s "$SAMCAM_SRC/${f##*/}" ] || rm -f "$SAMCAM_SRC/${f##*/}"
+    done
+    chmod 755 "$SAMCAM_SRC"; chmod 644 "$SAMCAM_SRC"/*
+    $BB chcon -R u:object_r:system_file:s0 "$SAMCAM_SRC" 2>/dev/null || true
+    $BB chcon u:object_r:system_lib_file:s0 "$SAMCAM_SRC"/*.so 2>/dev/null || true
+    samcam_files | while read -r k t s; do
+        [ -e "$s" ] || { echo "Samsung Camera: $s missing"; exit 1; }
+    done || return 1
+    return 0
+}
+# Empty mount points of kind $2 in the overlay layer $1, before it is mounted.
+samcam_mountpoints() {
+    samcam_files | while read -r k t s; do
+        [ "$k" = "$2" ] || continue
+        if [ -d "$s" ]; then mkdir -p "$1/$t" || exit 1
+        else mkdir -p "$1/$(dirname "$t")" && : > "$1/$t" || exit 1
+        fi
+    done || return 1
+    find "$1" -type d -exec chmod 755 {} + 2>/dev/null
+    $BB chcon -R u:object_r:system_file:s0 "$1" 2>/dev/null || true
+    [ -d "$1/lib64" ] && $BB chcon -R u:object_r:system_lib_file:s0 "$1/lib64" 2>/dev/null
+    return 0
+}
+# Bind every source of kind $1 onto its mount point under $2.
+samcam_bind() {
+    local n=0 k t s
+    samcam_files > "$STAGE/samcam_files.txt" || return 1
+    while read -r k t s; do
+        [ "$k" = "$1" ] || continue
+        [ -e "$2/$t" ] || { echo "Samsung Camera: no mount point $2/$t"; return 1; }
+        $BB mount --bind "$s" "$2/$t" || return 1
+        $BB mount --make-rslave "$2/$t" 2>/dev/null || true
+        n=$((n + 1))
+    done < "$STAGE/samcam_files.txt"
+    echo "Samsung Camera in the guest: $n files and folders bound onto $2"
+    return 0
+}
+if [ -d "$SAMCAM_SRC" ] && [ $SAMCAM_IMAGE = 0 ]; then
+    echo "Samsung Camera in the guest: off (made for Nothing OS, not this system)"
+elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
+    if [ ! -d "$GUEST_SYSTEM_EXT" ]; then echo "Samsung Camera in the guest: off (the guest has no system_ext)"
+    elif [ -L "$SAMCAM_SRC" ]; then echo "ERROR: $SAMCAM_SRC is a symlink; not starting the guest"; exit 3
+    elif mount | grep -q " $ROOTFS/system type overlay"; then
+        echo "Samsung Camera in the guest: off (an overlay on $ROOTFS/system is already there)"
+    elif samcam_prepare; then
+        # The guest's /system: a read-only overlay whose top layer (a small
+        # tmpfs) holds only the mount points. Nothing is mounted under
+        # $ROOTFS/system yet, so the jar and library binds further down land on
+        # top of it as usual.
+        SOV="$STAGE/system_ov"
+        mkdir -p "$SOV"
+        mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SOV"
+        rm -rf "$SOV/up" && mkdir -p "$SOV/up"
+        if samcam_mountpoints "$SOV/up" sys &&
+           $BB mount -t overlay overlay -o "ro,lowerdir=$SOV/up:$ROOTFS/system" "$ROOTFS/system"; then
+            if samcam_bind sys "$ROOTFS/system"; then SAMCAM=1; else
+                echo "Samsung Camera in the guest: off (bind-mount onto $ROOTFS/system failed)"
+                awk -v r="$ROOTFS/system/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
+                $BB umount -l "$ROOTFS/system" 2>/dev/null || true
+            fi
+        else
+            echo "Samsung Camera in the guest: off (overlay on $ROOTFS/system refused)"
+        fi
+    else echo "Samsung Camera in the guest: off (staged files or One UI's camera files missing)"
+    fi
+elif [ -d "$SAMCAM_SRC" ]; then
+    echo "Samsung Camera in the guest: left out (ONEOS_GUEST_SAMSUNG_CAMERA=0)"
+fi
+# The camera's working folder /data/sec/camera, which One UI's init makes
+# (vendor_secdir, the camera's own uid): the camera cannot make it, "AccessDenied
+# /data/sec", and its post-processing lost every picture (run 19). In the
+# guest's own /data (the stage), for the guest camera's uid once it has one.
+if [ $SAMCAM = 1 ]; then
+    CUID=""
+    for CAMDATA in "$STAGE/data/user/0/com.sec.android.app.camera" "$STAGE/data/user_de/0/com.sec.android.app.camera" "$STAGE/data/data/com.sec.android.app.camera"; do
+        [ -d "$CAMDATA" ] && [ ! -L "$CAMDATA" ] && { CUID=$(stat -c %u "$CAMDATA" 2>/dev/null); break; }
+    done
+    if [ -n "$CUID" ] && [ "$CUID" -ge 10000 ] && [ ! -L "$STAGE/data/sec" ] && [ ! -L "$STAGE/data/sec/camera" ]; then
+        mkdir -p "$STAGE/data/sec/camera" && chown 0:0 "$STAGE/data/sec" && chmod 771 "$STAGE/data/sec" &&
+            chown "$CUID:$CUID" "$STAGE/data/sec/camera" && chmod 2770 "$STAGE/data/sec/camera" &&
+            $BB chcon -R u:object_r:app_data_file:s0 "$STAGE/data/sec" 2>/dev/null
+        echo "Samsung Camera in the guest: data/sec/camera for uid $CUID"
+    fi
+fi
+# Nothing OS: the apps under system/noth (Essential Space, Essential Recorder,
+# the ringtone generator, Rakuten Aura) are in product/overlayfs_origin/
+# system/noth, which a Nothing phone's init lays over /system/noth at boot; in
+# the image system/noth/priv-app/<app> holds only an empty "<app>Mkdir"
+# folder, so without init the apps were missing (run 15: no ringtones at all).
+# The same read-only overlay here, after the camera's overlay on /system (a
+# mount under it would be hidden by that one). ONEOS_GUEST_NOTH_APPS=0 leaves it.
+NOTH_UP="$GUEST_PRODUCT/overlayfs_origin/system/noth"
+if [ -d "$NOTH_UP" ] && [ -d "$ROOTFS/system/noth" ] && [ "${ONEOS_GUEST_NOTH_APPS:-1}" = 1 ]; then
+    if mount | grep -q " $ROOTFS/system/noth type overlay"; then
+        echo "Nothing apps: overlay on system/noth already there"
+    elif $BB mount -t overlay overlay -o "ro,lowerdir=$NOTH_UP:$ROOTFS/system/noth" "$ROOTFS/system/noth"; then
+        echo "Nothing apps: product/overlayfs_origin/system/noth over system/noth ($(ls "$NOTH_UP/priv-app" 2>/dev/null | tr '\n' ' '))"
+    else
+        echo "!!! WARNING: Nothing apps: the overlay on system/noth was refused"
+    fi
+    # The ringtone generator without its haptic library's Nothing Phone (3)
+    # check (switcher/patches/nothing_ringtone_device.py).
+    NTRG="$ROOTFS/system/noth/priv-app/NothingGenerateRingtoneService/NothingGenerateRingtoneService.apk"
+    if [ -f "$STAGE/NothingGenerateRingtoneService_patched.apk" ] && [ -f "$NTRG" ] && [ ! -L "$NTRG" ] &&
+       [ "${ONEOS_GUEST_NT_RINGTONES:-1}" = 1 ]; then
+        chmod 644 "$STAGE/NothingGenerateRingtoneService_patched.apk"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/NothingGenerateRingtoneService_patched.apk" 2>/dev/null || true
+        $BB mount --bind "$STAGE/NothingGenerateRingtoneService_patched.apk" "$NTRG" &&
+            $BB mount -o remount,bind,ro "$STAGE/NothingGenerateRingtoneService_patched.apk" "$NTRG" 2>/dev/null
+        if [ "$(stat -c %d:%i "$NTRG" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/NothingGenerateRingtoneService_patched.apk")" ]; then
+            echo "Nothing apps: NothingGenerateRingtoneService_patched.apk bound (haptics without a Nothing device name)"
+        else
+            echo "!!! WARNING: Nothing apps: the patched ringtone generator did not bind; the image's stays"
+        fi
+    fi
+fi
+# Nothing OS's ringtones: the generator (above) composes them from the kits in
+# Nothing's /vendor/etc/customringtone (.aif parts, from Nothing's own vendor
+# image; nothing_customringtone.tar in the set). The guest's /vendor is One
+# UI's, so a read-only overlay on the guest's vendor/etc adds that folder; One
+# UI's own /vendor is not touched (the guest's vendor is a slave bind).
+# ONEOS_GUEST_NT_RINGTONES=0 leaves it out.
+if [ -f "$STAGE/nothing_customringtone.tar" ] && [ "${ONEOS_GUEST_NT_RINGTONES:-1}" = 1 ] && [ -d "$ROOTFS/vendor/etc" ]; then
+    NRV="$STAGE/nt_vendor_etc"
+    if mount | grep -q " $ROOTFS/vendor/etc type overlay"; then
+        echo "Nothing ringtones: overlay on vendor/etc already there"
+    else
+        mkdir -p "$NRV" && { mount | grep -q " $NRV " || $BB mount -t tmpfs -o size=8m,mode=755 tmpfs "$NRV"; } &&
+            $BB mount --make-private "$NRV" 2>/dev/null
+        rm -rf "$NRV/up" && mkdir -p "$NRV/up" &&
+            $BB tar -xf "$STAGE/nothing_customringtone.tar" -C "$NRV/up" &&
+            chown -R 0:0 "$NRV/up" && find "$NRV/up" -type d -exec chmod 755 {} + && find "$NRV/up" -type f -exec chmod 644 {} +
+        $BB chcon -R u:object_r:vendor_configs_file:s0 "$NRV/up" 2>/dev/null || true
+        if [ -d "$NRV/up/customringtone" ] &&
+           $BB mount -t overlay overlay -o "ro,lowerdir=$NRV/up:$ROOTFS/vendor/etc" "$ROOTFS/vendor/etc"; then
+            echo "Nothing ringtones: vendor/etc/customringtone ($(ls "$NRV/up/customringtone" | tr '\n' ' '))"
+        else
+            echo "!!! WARNING: Nothing ringtones: the overlay on vendor/etc was refused"
+        fi
+    fi
+fi
+# Nothing OS's own sounds: the ringtones of "Nothing Signals" (01_crossing ..
+# 10_clwb), notifications, alarms and the UI sounds (camera click, ...) ship in
+# Nothing's vendor image under product/media/audio, which its init lays over
+# /product/media; the image's own product/media/audio holds four empty
+# sounds.xml lists, so every sound list in the guest was empty (run 18: "Nothing
+# Signals, 10 sounds", none shown; the defaults 01_crossing.ogg, 01_oi!.ogg and
+# 01_trad.ogg missing). nothing_product_media.tar (from Nothing's vendor image;
+# its haptic patterns, vendor/etc/richtapresources, are in the ringtone kit tar)
+# goes over the guest's product/media read-only, where the media scanner reads
+# built-in sounds. ONEOS_GUEST_NT_RINGTONES=0 leaves it out.
+if [ -f "$STAGE/nothing_product_media.tar" ] && [ "${ONEOS_GUEST_NT_RINGTONES:-1}" = 1 ] && [ -d "$GUEST_PRODUCT/media" ] && [ ! -L "$GUEST_PRODUCT/media" ]; then
+    NPM="$STAGE/nt_product_media"
+    if mount | grep -q " $(readlink -f "$GUEST_PRODUCT/media") type overlay"; then
+        echo "Nothing sounds: overlay on product/media already there"
+    else
+        mkdir -p "$NPM" && { mount | grep -q " $NPM " || $BB mount -t tmpfs -o size=16m,mode=755 tmpfs "$NPM"; } &&
+            $BB mount --make-private "$NPM" 2>/dev/null
+        rm -rf "$NPM/up" && mkdir -p "$NPM/up" &&
+            $BB tar -xf "$STAGE/nothing_product_media.tar" -C "$NPM/up" &&
+            chown -R 0:0 "$NPM/up" && find "$NPM/up" -type d -exec chmod 755 {} + && find "$NPM/up" -type f -exec chmod 644 {} +
+        $BB chcon -R u:object_r:system_file:s0 "$NPM/up" 2>/dev/null || true
+        if [ -d "$NPM/up/media/audio" ] &&
+           $BB mount -t overlay overlay -o "ro,lowerdir=$NPM/up/media:$GUEST_PRODUCT/media" "$GUEST_PRODUCT/media"; then
+            echo "Nothing sounds: product/media/audio ($(for d in "$NPM/up/media/audio"/*; do printf '%s %s, ' "$(ls "$d" | grep -c '\.ogg$')" "${d##*/}"; done))"
+        else
+            echo "!!! WARNING: Nothing sounds: the overlay on product/media was refused"
+        fi
+    fi
+fi
 # ColorOS's system_ext has no apex dir and the image is mounted read-only, so
 # put a thin overlayfs on it to create the mount point. Its upper layer is a
 # small tmpfs: overlayfs refuses an upper dir on the encrypted f2fs /data
@@ -532,15 +810,19 @@ fi
 # overlay lower layer, which some kernels reject (EINVAL). An overlay left by an
 # earlier prepare cannot take it.
 SECIMS_BOUND=0
-if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ]; then
+if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
         echo "Overlay on $GUEST_SYSTEM_EXT already there (an earlier prepare), left as it is"
         [ $SEC_IMS = 1 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (that overlay has no secims layer)"; }
-    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ]; then
+        [ $SAMCAM = 1 ] && { SAMCAM=0; echo "Samsung Camera in the guest: off (that overlay has no mount points for it)"; }
+    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
         OV="$STAGE/system_ext_ov"
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
         mkdir -p "$OV/up/apex"
+        if [ $SAMCAM = 1 ] && ! samcam_mountpoints "$OV/up" sysext; then
+            SAMCAM=0; echo "Samsung Camera in the guest: off (no room for its mount points on the overlay's tmpfs)"
+        fi
         if [ $HWSM = 1 ]; then
             mkdir -p "$OV/up/bin" && : > "$OV/up/bin/hwservicemanager" &&
                 chmod 755 "$OV/up/bin" "$OV/up/bin/hwservicemanager" || HWSM=0
@@ -561,7 +843,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "Signal poll: off (read-only overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
-        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ]; }; then
+        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; }; then
             mkdir -p "$OV/work"
             if $BB mount -t overlay overlay \
                 -o "lowerdir=$GUEST_SYSTEM_EXT,upperdir=$OV/up,workdir=$OV/work" \
@@ -581,6 +863,13 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         # The Samsung IMS set needs the writable overlay above to bind onto; a
         # read-only (signal poll) or an earlier prepare's overlay has none.
         [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no writable overlay to bind onto)"; }
+        # Samsung Camera's mount points are in the overlay's own layer, so the
+        # read-only form takes it as well.
+        if [ $SAMCAM = 1 ]; then
+            if mount | grep -q " $GUEST_SYSTEM_EXT type overlay" && samcam_bind sysext "$GUEST_SYSTEM_EXT"; then SAMCAM_BOUND=1; else
+                SAMCAM=0; echo "Samsung Camera in the guest: off (bind-mount onto $GUEST_SYSTEM_EXT failed)"
+            fi
+        fi
         if [ $HWSM = 1 ]; then
             if [ -f "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ]; then
                 echo "HIDL: the guest sees system_ext/bin/hwservicemanager (an empty file; One UI's hwservicemanager $(pidof hwservicemanager) answers) for this phone's HIDL-only $HWSM_WHY"
@@ -694,11 +983,22 @@ else
     # panel>.xml) gets ours next to them in the merged folder; without a nits
     # mapping for the Fold's panels Xiaomi's brightness code ignored the slider
     # ("requesting nits when no mapping exists", 3 % brightness; 2026-10-25).
-    DDC_RANGE=""
-    if [ -e "$PETC/displayconfig" ]; then
-        echo "Display config: the image's own product/etc/displayconfig ($(ls "$PETC/displayconfig" | tr '\n' ' ')) is kept; the Fold's two port files are added, over its whole brightness range"
-        DDC_RANGE=wide
-    fi
+    # Always the wide curve. Up to 0.4.32 it was used only for an image that
+    # ships its own product/etc/displayconfig, which says nothing about the
+    # range its framework asks for: HyperOS happened to have both, Nothing OS
+    # 5.0 has the wide range (0.035433073 = 4.5/127 to 1.0) and no folder, so
+    # it got the plain curve and DisplayDeviceConfig threw the same
+    # "Min or max values are invalid; raw min=0.0026; raw max=0.196299" as the
+    # fifth HyperOS run -- system_server died on the android.display thread
+    # before the first frame (first Nothing run, 2026-10-30).
+    # Between 0.0026 and 0.196299 the curve is unchanged, so a framework whose
+    # range sits inside One UI's reads exactly what it read before; the two
+    # extra points only carry the same slope out to the ends of the float
+    # range, which every Android brightness range is inside. There is no range
+    # the plain curve covers and this one does not.
+    DDC_RANGE=wide
+    [ -e "$PETC/displayconfig" ] &&
+        echo "Display config: the image's own product/etc/displayconfig ($(ls "$PETC/displayconfig" | tr '\n' ' ')) is kept; the Fold's two port files are added"
     DOV="$STAGE/product_etc_ov"
     mkdir -p "$DOV"
     if ! mount | grep -q " $DOV "; then
@@ -757,6 +1057,22 @@ if [ -f "$STAGE/surfaceflinger_patched" ] && [ "${ONEOS_STOCK_SF:-0}" != "1" ]; 
     $BB umount -l "$ROOTFS/system/bin/surfaceflinger" 2>/dev/null || true
     $BB mount --bind "$STAGE/surfaceflinger_patched" "$ROOTFS/system/bin/surfaceflinger"
     echo "Bound surfaceflinger_patched -> $ROOTFS/system/bin/surfaceflinger"
+fi
+# The guest's boot animation on every panel (scripts/patch-bootanim-multidisplay.py):
+# built without Android's multidisplay flag it drew on the first display only,
+# the Fold's inner panel, and the cover stayed black when the switch started
+# folded, though the guest's surfaceflinger lights every panel. The library
+# keeps the image's name. Looks only: a missing or odd file leaves the image's
+# own. ONEOS_GUEST_BOOTANIM_ALL=0 keeps it.
+if [ "${ONEOS_GUEST_BOOTANIM_ALL:-1}" = 1 ]; then
+    for l in libbootanimation_preapex libbootanimation; do
+        BAL="$ROOTFS/system/lib64/$l.so"
+        if [ -f "$STAGE/${l}_patched.so" ] && [ -f "$BAL" ] && [ ! -L "$BAL" ] && [ ! -L "$ROOTFS/system/lib64" ]; then
+            $BB umount -l "$BAL" 2>/dev/null || true
+            $BB mount --bind "$STAGE/${l}_patched.so" "$BAL" &&
+                echo "Bound ${l}_patched.so -> $BAL (boot animation on every display)"
+        fi
+    done
 fi
 # The guest's own vold as "gvld" (run 44; scripts/make-overlays.sh,
 # docs/inplace-return.md): vold_patched registers "gvld" and not
@@ -871,6 +1187,73 @@ if [ "${ONEOS_GUEST_IMS_EXT_BACKOFF:-1}" = 1 ] && [ -f "$STAGE/ims-ext-common_pa
     $BB umount -l "$GUEST_PRODUCT/framework/ims-ext-common.jar" 2>/dev/null || true
     $BB mount --bind "$STAGE/ims-ext-common_patched.jar" "$GUEST_PRODUCT/framework/ims-ext-common.jar"
     echo "Bound ims-ext-common_patched.jar -> $GUEST_PRODUCT/framework/ims-ext-common.jar"
+fi
+
+# nt-telephony-common.jar with extphonelib's dex alongside it as classes2.dex
+# (scripts/make-overlays.sh). Nothing loads this one jar in a class loader of
+# its own, and a class in it extends com.qti.extphone.ExtPhoneCallbackBase,
+# which that loader could not otherwise see: com.android.phone died at every
+# start and the guest had no telephony at all ("Emergency calls only", first
+# Nothing run). ONEOS_GUEST_NT_TELEPHONY=0 keeps the image's own jar.
+if [ "${ONEOS_GUEST_NT_TELEPHONY:-1}" = 1 ] && [ -f "$STAGE/nt-telephony-common_patched.jar" ] \
+   && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ]; then
+    chmod 644 "$STAGE/nt-telephony-common_patched.jar"
+    $BB umount -l "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" 2>/dev/null || true
+    $BB mount --bind "$STAGE/nt-telephony-common_patched.jar" "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar"
+    if [ "$(stat -c %d:%i "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" 2>/dev/null)" = \
+         "$(stat -c %d:%i "$STAGE/nt-telephony-common_patched.jar")" ]; then
+        echo "Bound nt-telephony-common_patched.jar -> $GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar"
+    else
+        echo "!!! WARNING: nt-telephony-common_patched.jar is not in place; the guest will have no telephony"
+    fi
+fi
+
+# Nothing OS's SystemUI with its quick settings panel drawn at the screen's own
+# density on a panel of sw600dp and up (scripts/make-overlays.sh,
+# patches/nothing_qs_density.py). Nothing lays the panel out as if every screen
+# were 420 dp wide: on the Fold's inner panel that is 859 dpi, tiles twice the
+# size and the lower half of the panel off the screen (Nothing runs 8 to 10).
+# The cover and phones keep Nothing's value. One dex changed, the signing block
+# as it was. ONEOS_GUEST_QS_DENSITY=0 keeps the image's own SystemUI.
+QS_APK="$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk"
+if [ -f "$STAGE/SystemUI_patched.apk" ] && [ -f "$QS_APK" ]; then
+    if [ "${ONEOS_GUEST_QS_DENSITY:-1}" = 1 ]; then
+        chmod 644 "$STAGE/SystemUI_patched.apk"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/SystemUI_patched.apk" 2>/dev/null || true
+        $BB umount -l "$QS_APK" 2>/dev/null || true
+        $BB mount --bind "$STAGE/SystemUI_patched.apk" "$QS_APK" &&
+            $BB mount -o remount,bind,ro "$STAGE/SystemUI_patched.apk" "$QS_APK" 2>/dev/null
+        if [ "$(stat -c %d:%i "$QS_APK" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/SystemUI_patched.apk")" ]; then
+            echo "Bound SystemUI_patched.apk -> $QS_APK (quick settings at the screen's density from sw600dp)"
+        else
+            echo "!!! WARNING: SystemUI_patched.apk is not in place; quick settings keep Nothing's own density"
+        fi
+    else
+        echo "Quick settings density patch left out (ONEOS_GUEST_QS_DENSITY=0)"
+    fi
+fi
+
+# Nothing OS's launcher with more category boxes per row in the app drawer on
+# a wide panel (scripts/make-overlays.sh, patches/nothing_launcher_drawer.py):
+# two per row on any screen, sized from the width, gave boxes of about
+# 1000 x 1100 px on the Fold's inner panel (Nothing run 11). The cover and
+# phones keep two. ONEOS_GUEST_LAUNCHER_DRAWER=0 keeps the image's own launcher.
+NL_APK="$GUEST_SYSTEM_EXT/priv-app/NothingLauncher3/NothingLauncher3.apk"
+if [ -f "$STAGE/NothingLauncher3_patched.apk" ] && [ -f "$NL_APK" ]; then
+    if [ "${ONEOS_GUEST_LAUNCHER_DRAWER:-1}" = 1 ]; then
+        chmod 644 "$STAGE/NothingLauncher3_patched.apk"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/NothingLauncher3_patched.apk" 2>/dev/null || true
+        $BB umount -l "$NL_APK" 2>/dev/null || true
+        $BB mount --bind "$STAGE/NothingLauncher3_patched.apk" "$NL_APK" &&
+            $BB mount -o remount,bind,ro "$STAGE/NothingLauncher3_patched.apk" "$NL_APK" 2>/dev/null
+        if [ "$(stat -c %d:%i "$NL_APK" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/NothingLauncher3_patched.apk")" ]; then
+            echo "Bound NothingLauncher3_patched.apk -> $NL_APK (drawer category boxes per row from the width)"
+        else
+            echo "!!! WARNING: NothingLauncher3_patched.apk is not in place; the drawer keeps two boxes per row"
+        fi
+    else
+        echo "Launcher drawer patch left out (ONEOS_GUEST_LAUNCHER_DRAWER=0)"
+    fi
 fi
 
 # HyperOS's wallpaper app with an unknown effect type allowed (scripts/
@@ -1102,6 +1485,79 @@ if [ -f "$STAGE/OneOSPixelStatusBar.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app
         echo "Pixel status bar overlay left out (ONEOS_GUEST_STATUSBAR_PADDING=0)"
     fi
 fi
+# Quick settings on a tablet-width panel: the split (two column) shade in
+# portrait too, which Nothing OS's SystemUI only has a landscape value for
+# (scripts/make-overlays.sh). Under sw600dp, so the cover keeps the phone
+# shade. ONEOS_GUEST_TABLET_QS=0 leaves the image's own values.
+if [ -f "$STAGE/OneOSTabletQs.apk" ]; then
+    if [ "${ONEOS_GUEST_TABLET_QS:-1}" = 1 ]; then
+        mkdir -p "$STAGE/oem/overlay" &&
+            cp "$STAGE/OneOSTabletQs.apk" "$STAGE/oem/overlay/" &&
+            chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSTabletQs.apk" &&
+            OEM_FILES="$OEM_FILES overlay/OneOSTabletQs.apk"
+    else
+        echo "Tablet quick settings overlay left out (ONEOS_GUEST_TABLET_QS=0)"
+    fi
+fi
+# Nothing OS's About phone with this phone's picture, cameras and the cards
+# Nothing shows only on its own phones (switcher/overlays/nothing_about*): the
+# Z Fold8 Ultra's, and (0.4.35) the Z Fold8's, the S26 Ultra's, the Z Flip8's
+# and the S26's (also the S26+'s) from the owner's product shots, each with
+# its lenses; all but the Folds' with the processor's whole name.
+# ONEOS_GUEST_NT_ABOUT=0 leaves Nothing's page as it is.
+case "${ONEOS_PROFILE:-f8u}" in
+    f8u) NT_ABOUT=OneOSNtAbout.apk ;;
+    f8) NT_ABOUT=OneOSNtAboutFold8.apk ;;
+    s-ultra-8850) NT_ABOUT=OneOSNtAboutS26U.apk ;;
+    flip*) NT_ABOUT=OneOSNtAboutFlip.apk ;;
+    *) NT_ABOUT=OneOSNtAboutPhone.apk ;;
+esac
+if [ -f "$STAGE/$NT_ABOUT" ] && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] && [ "${ONEOS_GUEST_NT_ABOUT:-1}" = 1 ]; then
+    mkdir -p "$STAGE/oem/overlay" &&
+        cp "$STAGE/$NT_ABOUT" "$STAGE/oem/overlay/" &&
+        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/$NT_ABOUT" &&
+        OEM_FILES="$OEM_FILES overlay/$NT_ABOUT"
+fi
+# One UI's brightness range for the slider (switcher/overlays/
+# samsung_brightness_range): Samsung's composer takes the float as the panel's
+# backlight, and Nothing OS's own range (0.0354 to 1.0) put its lowest step near
+# 70 nits and its highest at the panel's 2600-nit peak (Nothing run 23).
+# Nothing images for now. ONEOS_GUEST_BRIGHTNESS_RANGE=0 keeps the image's.
+if [ -f "$STAGE/OneOSBrightnessRange.apk" ] && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] &&
+   [ "${ONEOS_GUEST_BRIGHTNESS_RANGE:-1}" = 1 ]; then
+    mkdir -p "$STAGE/oem/overlay" &&
+        cp "$STAGE/OneOSBrightnessRange.apk" "$STAGE/oem/overlay/" &&
+        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSBrightnessRange.apk" &&
+        OEM_FILES="$OEM_FILES overlay/OneOSBrightnessRange.apk"
+fi
+# Essential Space from a double press of the power key, for a Nothing image
+# (switcher/overlays/nothing_essential_key): Nothing opens it with its own
+# Essential key, which no Galaxy has. Any phone; the double-tap camera gesture
+# goes with it. ONEOS_GUEST_NT_ESSENTIAL_KEY=0 leaves the power key alone.
+if [ -f "$STAGE/OneOSNtEssentialKey.apk" ] && [ -d "$GUEST_PRODUCT/overlayfs_origin/system/noth/priv-app/EssentialSpace" ] &&
+   [ "${ONEOS_GUEST_NT_ESSENTIAL_KEY:-1}" = 1 ]; then
+    mkdir -p "$STAGE/oem/overlay" &&
+        cp "$STAGE/OneOSNtEssentialKey.apk" "$STAGE/oem/overlay/" &&
+        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSNtEssentialKey.apk" &&
+        OEM_FILES="$OEM_FILES overlay/OneOSNtEssentialKey.apk"
+fi
+# Per-panel display cutout, the Z Fold (F8U) only: the ids and the hole in it
+# are this phone's, and on another phone the named displays would match nothing
+# and every panel would fall back to the default path. The inner panel has no
+# cutout here, so without this the guest put the cover's punch hole on it
+# (scripts/make-overlays.sh). ONEOS_GUEST_FOLD_CUTOUT=0 leaves it out.
+if [ -f "$STAGE/OneOSFoldCutout.apk" ] && [ "$FORM" = fold ] && [ "${ONEOS_PROFILE:-f8u}" = f8u ]; then
+    if [ "${ONEOS_GUEST_FOLD_CUTOUT:-1}" = 1 ]; then
+        mkdir -p "$STAGE/oem/overlay" &&
+            cp "$STAGE/OneOSFoldCutout.apk" "$STAGE/oem/overlay/" &&
+            chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSFoldCutout.apk" &&
+            OEM_FILES="$OEM_FILES overlay/OneOSFoldCutout.apk"
+    else
+        echo "Fold cutout overlay left out (ONEOS_GUEST_FOLD_CUTOUT=0)"
+    fi
+elif [ -f "$STAGE/OneOSFoldCutout.apk" ]; then
+    echo "Fold cutout overlay left out (profile ${ONEOS_PROFILE:-f8u}, form $FORM: its panel ids are the Z Fold Ultra's)"
+fi
 # Pixel 17's WallpaperDataParser calls next() once for <description>. Its
 # indented serializer writes whitespace there, so next() returns TEXT and the
 # saved component is skipped. Remove only whitespace between XML elements,
@@ -1153,6 +1609,11 @@ if [ -n "$UNFOLD_RRO" ] && [ -f "$STAGE/$UNFOLD_RRO" ]; then
         OEM_FILES="$OEM_FILES overlay/$UNFOLD_RRO"
 fi
 if [ $INJ = 1 ]; then
+    # In /oem, not in the read-only system_ext layer: run 10 (Nothing OS 5.0)
+    # ordered the static overlays system_ext < product < vendor < oem, so from
+    # system_ext ours lost to Nothing's TelephonyResCommon_Sys.apk (product),
+    # whose Qualcomm factory then crash-looped com.android.phone (no
+    # org.codeaurora.ims on its class path): no SIM at all. /oem came last.
     mkdir -p "$STAGE/oem/overlay" &&
         cp "$STAGE/OneOSPhoneInjection.apk" "$STAGE/oem/overlay/" &&
         chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSPhoneInjection.apk" &&
@@ -1647,6 +2108,15 @@ elif [ "$HOST_ADB" != 1 ]; then
     # The guest's own copy from an earlier session (stage only, not One UI's).
     rm -f "$STAGE/data/misc/adb/adb_keys"
 fi
+# WebView's shared RELRO directory, which init.rc makes (mkdir
+# /data/misc/shared_relro 0771 shared_relro shared_relro) and the container,
+# having no init, did not: WebView's RelroFileCreator failed on every session
+# ("Failed to create temporary file /data/misc/shared_relro/...: No such file
+# or directory", Nothing OS run 8). Stage only.
+mkdir -p "$STAGE/data/misc/shared_relro" &&
+    chown 1037:1037 "$STAGE/data/misc/shared_relro" 2>/dev/null &&
+    chmod 0771 "$STAGE/data/misc/shared_relro" 2>/dev/null &&
+    $BB chcon u:object_r:shared_relro_file:s0 "$STAGE/data/misc/shared_relro" 2>/dev/null || true
 if [ -f "$STAGE/zygote_exec" ]; then
     rm -f "$STAGE/data/zygote_exec"
     cp -f "$STAGE/zygote_exec" "$STAGE/data/zygote_exec"

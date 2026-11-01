@@ -31,6 +31,8 @@ class ProfilesTest {
         val ifxT = ifx.copy(tested = true)
         // 0.4.31: HyperOS after it, on every phone, untested.
         val hyper = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
+        // 0.4.35: Nothing OS, last, on every phone whose chip has its SVE, SVE2 and SME, untested.
+        val nothing = ImageChoice(Images.ID_NOTHING_METROID, PackageSets.ID_NOTHING_F8U, tested = false)
         val f8u = Profiles.F8U
         assertEquals(listOf("SM-F976", "q8q", "SM8850"), listOf(f8u.modelPrefix, f8u.codename, f8u.socModel))
         assertEquals(FormFactor.FOLD, f8u.form)
@@ -42,6 +44,8 @@ class ProfilesTest {
                 ifx,
                 // HyperOS (0.4.31: on every phone), untested.
                 ImageChoice("hyperos-lhasa", "hyper-f8u", tested = false),
+                // Nothing OS (0.4.33): this phone only, until a session on it is seen. Untested.
+                ImageChoice("nothingos5-metroid", "nothing-f8u", tested = false),
             ),
             f8u.choices,
         )
@@ -59,7 +63,7 @@ class ProfilesTest {
             ImageChoice("coloros17-findx9u", "x9u-sultra", tested = true),
         )
         // 0.4.10: and the Pixel 11 Pro image with its own set, untested.
-        assertEquals(sUltra + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + ifxT + hyper, s26.choices)
+        assertEquals(sUltra + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + ifxT + hyper + nothing, s26.choices)
         assertTrue(s26.testedWithAnyImage && s26.enabled)
 
         val s25 = Profiles.S_ULTRA_8750
@@ -109,6 +113,7 @@ class ProfilesTest {
                 ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
                 ifx,
                 hyper,
+                nothing,
             ),
             fold8.choices,
         )
@@ -126,6 +131,7 @@ class ProfilesTest {
                 ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false),
                 ifx,
                 hyper,
+                nothing,
             ),
             s26Base.choices,
         )
@@ -195,6 +201,26 @@ class ProfilesTest {
             flip5.choices,
         )
         assertEquals(listOf(Profiles.ID_NOTE_EXPECT_NO_START), flip5.notes.map { it.id })
+        // Galaxy Z Flip8 (0.4.35): the S26+ (Exynos)'s chip in a flip, its images and the Exynos note.
+        val flip8 = Profiles.FLIP8
+        assertEquals(listOf("flip8", "Galaxy Z Flip8"), listOf(flip8.id, flip8.label))
+        assertEquals(listOf("SM-F776", "b8s", "s5e9965"), listOf(flip8.modelPrefix, flip8.codename, flip8.socModel))
+        assertEquals(FormFactor.FLIP, flip8.form)
+        assertEquals(s26Base.choices, flip8.choices)
+        assertEquals(listOf(Profiles.ID_NOTE_EXYNOS), flip8.notes.map { it.id })
+        // Galaxy A36 (0.4.35): a mid-range Snapdragon with the S25s' vendor, the S25+'s images and note.
+        val a36 = Profiles.A36
+        assertEquals(listOf("a36", "Galaxy A36"), listOf(a36.id, a36.label))
+        assertEquals(listOf("SM-A366", "a36xq", "SM6475"), listOf(a36.modelPrefix, a36.codename, a36.socModel))
+        assertEquals(FormFactor.BAR, a36.form)
+        assertEquals(s25Plus.choices, a36.choices)
+        assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), a36.notes.map { it.id })
+        // Nothing OS (0.4.35) on exactly the SVE + SME phones: the SM8850 ones and the Exynos 2600 ones.
+        assertEquals(
+            listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_PLUS_8850,
+                Profiles.S_PLUS_9965, Profiles.FLIP8),
+            Profiles.BUILT_IN.filter { it.choice(Images.ID_NOTHING_METROID) != null },
+        )
         // Galaxy S23 and S23+ (0.4.11): the X9U image, untested, with the will-most-likely-not-start note.
         val s23 = Profiles.S_8550
         val s23Plus = Profiles.S_PLUS_8550
@@ -213,7 +239,7 @@ class ProfilesTest {
                 Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750, Profiles.FOLD8,
                 Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550, Profiles.S_PLUS_8850,
                 Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
-                Profiles.FOLD6, Profiles.A07,
+                Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36,
             ),
             Profiles.BUILT_IN,
         )
@@ -245,7 +271,7 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.F8U, Profiles.FOLD7, Profiles.FOLD8, Profiles.FOLD6), Profiles.BUILT_IN.filter { it.form == FormFactor.FOLD })
         // The Find X9 Ultra builds run as a phone: the bar phones and (0.4.17) the Z Flip7 on its main screen.
         assertTrue(Profiles.BUILT_IN.filter { it.choice(Images.ID_FIND_X9U) != null }.all { it.form == FormFactor.BAR || it.form == FormFactor.FLIP })
-        assertEquals(listOf(Profiles.FLIP7, Profiles.FLIP5), Profiles.BUILT_IN.filter { it.form == FormFactor.FLIP })
+        assertEquals(listOf(Profiles.FLIP7, Profiles.FLIP5, Profiles.FLIP8), Profiles.BUILT_IN.filter { it.form == FormFactor.FLIP })
         // The Pixel 11 Fold image on the SM8850 folds (it ran on the Fold8 Ultra; 0.4.10 the Z Fold8, untested), with the Fold's set.
         assertEquals(listOf(Profiles.F8U, Profiles.FOLD8), Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_YOGI) != null })
         // The Pixel 11 images only on chips with SVE, which their system code needs: SM8850, and (0.4.17) the
@@ -258,7 +284,7 @@ class ProfilesTest {
         assertEquals(
             listOf(
                 Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.S_PLUS_8750, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
-                Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
+                Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5, Profiles.A36,
             ),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_KOMODO) != null },
         )

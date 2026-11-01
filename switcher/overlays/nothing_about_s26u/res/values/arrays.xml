@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Galaxy S26 Ultra's lenses and picture, over nothing_about_phone's (aapt2 link -R). -->
+    <string-array name="about_phone_rear_info">
+        <item>Wide</item>
+        <item>Ultra wide</item>
+        <item>Telephoto 3x</item>
+        <item>Telephoto 5x</item>
+    </string-array>
+    <string-array name="about_phone_front_info">
+        <item>Front</item>
+    </string-array>
+</resources>

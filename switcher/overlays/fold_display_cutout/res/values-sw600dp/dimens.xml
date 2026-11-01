@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The inner panel has no cutout at all on this phone, so it keeps the
+     image's own 24dp. Needed explicitly: the image has no sw600dp value for
+     these either, so without this the overlay's default above (meant for the
+     cover) would win here too. -->
+<resources>
+    <dimen name="status_bar_height">24dp</dimen>
+    <dimen name="status_bar_height_default">24dp</dimen>
+    <dimen name="status_bar_height_portrait">24dp</dimen>
+</resources>

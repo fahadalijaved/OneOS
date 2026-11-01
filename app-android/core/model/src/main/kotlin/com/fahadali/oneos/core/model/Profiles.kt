@@ -98,6 +98,8 @@ object Profiles {
     const val ID_FLIP5 = "flip5"
     const val ID_FOLD6 = "f6"
     const val ID_A07 = "a07"
+    const val ID_FLIP8 = "flip8"
+    const val ID_A36 = "a36"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -158,6 +160,14 @@ object Profiles {
      * bar phone its cover-screen layout runs as the phone's screen.
      */
     private val HYPEROS_CHOICE = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
+
+    /**
+     * Nothing OS 5.0 (0.4.33), untested, last. Its linker64 needs SVE, SVE2 and
+     * SME, the Pixel 11 images' requirement, so only the phones whose chips have
+     * them: the Z Fold8 Ultra first, where it was made; 0.4.35 the Z Fold8, the
+     * S26 family (both chips) and the Z Flip8, untested.
+     */
+    private val NOTHING_CHOICE = ImageChoice(Images.ID_NOTHING_METROID, PackageSets.ID_NOTHING_F8U, tested = false)
 
     private fun olderVendor(vendorApi: String, kernel: String) = Finding(
         ID_NOTE_OLDER_VENDOR, Level.WARN, "Older vendor software",
@@ -243,7 +253,7 @@ object Profiles {
             // Tested: runs 41-44 booted it here (staged over adb by
             // scripts/deploy-phone.sh, not yet from the app).
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, tested = true),
-            INFINITYX_CHOICE, HYPEROS_CHOICE,
+            INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
         ),
     )
 
@@ -256,7 +266,8 @@ object Profiles {
         form = FormFactor.BAR,
         // 0.4.10: the Pixel 11 Pro image too, untested. SM8850 has the SVE that
         // Pixel's system code needs; the SM8750 phones do not.
-        choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_TESTED + HYPEROS_CHOICE,
+        choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_TESTED + HYPEROS_CHOICE +
+            NOTHING_CHOICE,
     )
 
     val S_ULTRA_8750 = PhoneProfile(
@@ -355,16 +366,16 @@ object Profiles {
         choices = listOf(
             ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8, tested = true),
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
-            INFINITYX_CHOICE, HYPEROS_CHOICE,
+            INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
         ),
     )
 
-    /** The Galaxy S26's images: the S Ultra's, both untested. */
+    /** The Galaxy S26's images: the S Ultra's, all untested; 0.4.35 Nothing OS too. */
     private val S_8850_CHOICES = listOf(
         X9U_IN_CHOICE,
         ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false),
         ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false),
-        INFINITYX_CHOICE, HYPEROS_CHOICE,
+        INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
     )
 
     /**
@@ -606,10 +617,50 @@ object Profiles {
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
+    /**
+     * Galaxy Z Flip8, from 0.4.35: a probe report of 2026-11-01 (SM-F776B, b8s,
+     * s5e9965 Exynos 2600 like the S26+ (Exynos), One UI 9.0, Android 17 build
+     * CP2A.260605.016, SVE, SVE2, SME and SME2, installd 85 methods). A flip run
+     * as a phone on its main screen like the Z Flip7, with the S26+ (Exynos)'s
+     * images (its chip has the SVE and SME the Pixel 11 Pro and Nothing OS need),
+     * untested, with [EXYNOS].
+     */
+    val FLIP8 = PhoneProfile(
+        id = ID_FLIP8,
+        label = "Galaxy Z Flip8",
+        modelPrefix = "SM-F776",
+        codename = "b8s",
+        socModel = "s5e9965",
+        form = FormFactor.FLIP,
+        choices = S_8850_CHOICES,
+        notes = listOf(EXYNOS),
+    )
+
+    /**
+     * Galaxy A36, from 0.4.35: a probe report of 2026-10-31 (SM-A366B, a36xq,
+     * Snapdragon SM6475 "parrot", One UI 9.0, Android 17 build CP2A.260605.016,
+     * vendor API 202404 and kernel 6.6 like the S25s, one panel on port 130,
+     * backlight panel0-backlight (max 8670), composer3 and the AIDL audio HAL,
+     * Cortex-A55/A78 with no SVE or SME, installd 85 methods). The first
+     * mid-range Snapdragon: the S25+'s images (the Find X9 Ultra builds, the
+     * Pixel 9 Pro XL, Infinity-X and HyperOS, none of which needs SVE),
+     * untested, with the S25s' older-vendor note.
+     */
+    val A36 = PhoneProfile(
+        id = ID_A36,
+        label = "Galaxy A36",
+        modelPrefix = "SM-A366",
+        codename = "a36xq",
+        socModel = "SM6475",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        notes = listOf(OLDER_VENDOR),
+    )
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
-        S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07,
+        S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nothing's "this is our phone" switch for About phone (i0.G0). -->
+    <bool name="screen_size_for_mp">true</bool>
+</resources>

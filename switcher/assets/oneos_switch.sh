@@ -860,6 +860,15 @@ skin_temp() {
     echo "thermal service $ts, thermal_core $tc"
 }
 STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" performance-snapshot || refuse "Performance limit snapshot failed"
+# Samsung's own CPU ceiling (cpufreq_limit/cpufreq_max_limit, SSRM's vote)
+# outlives One UI's framework: a 2.2 of 3.5 GHz vote from before the switch
+# held the whole HyperOS session on the S25 Ultra, and One UI after the return
+# until power saving was turned on and off (0.4.34 report bdbb0509); the heat
+# cap's full clock on scaling_max_freq does not lift it. The heat cap releases
+# it (-1) when power saving was off here, and the return releases it again for
+# One UI's new SSRM to vote afresh. Read now: settings needs the framework.
+HOST_LOW_POWER=$(timeout 3 settings get global low_power 2>/dev/null)
+echo "Before the stop: power saving ${HOST_LOW_POWER:-unknown}, cpufreq_max_limit $(cat /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit 2>/dev/null || echo none)"
 echo "=== [4b/6] Stopping the One UI framework ==="
 echo "Before the stop: CPU max/hw kHz: $(cpu_caps); skin: $(skin_temp)"
 pkill -f "while true; do [ \"\$(getprop init.svc.zygote)\"" 2>/dev/null || true
@@ -1429,9 +1438,23 @@ while true; do
             setprop service.bootanim.exit 1
             kill -9 \$(pidof bootanimation) 2>/dev/null
             sleep 1
-            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/svc power stayon true
-            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put global stay_on_while_plugged_in 7
-            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system screen_off_timeout 2147483647
+            # The screen's own timeout and the user's stay-awake choice: up to
+            # 0.4.34 every boot forced stay awake on any charger (svc power stayon,
+            # stay_on_while_plugged_in 7) and a timeout of 2^31-1 ms, left from
+            # early bring-up, so the screen never slept while charging and any
+            # timeout chosen in the guest was undone at the next session (owner,
+            # Nothing OS run 23). Once per stage the two forced values go back
+            # to off and one minute; anything else the user set stays.
+            if [ -L $STAGE/data/oneos_screen_timeout ]; then
+                echo '[UI Activator] screen timeout: data/oneos_screen_timeout is a link, not made by OneOS; left alone'
+            elif [ ! -e $STAGE/data/oneos_screen_timeout ]; then
+                SOP=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get global stay_on_while_plugged_in 2>/dev/null)
+                SOT=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_off_timeout 2>/dev/null)
+                [ \"\$SOP\" = 7 ] && $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put global stay_on_while_plugged_in 0
+                [ \"\$SOT\" = 2147483647 ] && $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system screen_off_timeout 60000
+                mkdir $STAGE/data/oneos_screen_timeout 2>/dev/null
+                echo \"[UI Activator] screen timeout: was stay_on_while_plugged_in=\${SOP:-?} screen_off_timeout=\${SOT:-?}; the forced values reset once (0, 60000)\"
+            fi
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system haptic_feedback_enabled 1
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate 120.0
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 120.0
@@ -1536,7 +1559,11 @@ while true; do
             # and ColorOS on the S23, S24/S25 Ultra, A56, A57, Z Flip5) and
             # CameraX apps gave up with ERROR_CAMERA_OPEN_TIMEOUT.
             if [ \"${ONEOS_GUEST_EDM_STUB:-0}\" = 1 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
-                (umask 027; CLASSPATH=$STAGE/OneOSEdmStub.dex $BB nohup $BB setuidgid system /system/bin/app_process /system/bin OneOSEdmStub \$PID > $STAGE/edm_stub.log 2>&1 </dev/null &)
+                # Inside the guest like the worker below: started on One UI's side
+                # (uid system) it was gone 45 s after HOME on the Fold8 Ultra and
+                # every open waited the 5 s again (run 22), while the worker in the
+                # guest stayed. It also registers itself again if the name goes.
+                ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSEdmStub \$PID > $STAGE/edm_stub.log 2>&1 </dev/null &)
                 sleep 2
                 echo \"[UI Activator] Knox edm stub: \$(head -n 1 $STAGE/edm_stub.log 2>/dev/null | tr -d '\n' || true); \$(timeout 10 service check edmnativehelper 2>&1 | tr -d '\n')\"
                 # The Samsung camera service worker (patches/OneOSCameraWorker.java, in
@@ -1544,9 +1571,11 @@ while true; do
                 # on the S25 Ultra firmware each connect waited 5 s for it and then
                 # refused the guest app (has been restricted, report 04857daa).
                 # Inside the guest, which knows the packages of its own apps; only
-                # while nothing serves the name.
+                # while nothing serves the name. The fold posture it sends the HAL
+                # only on a fold (ONEOS_CAMERA_POSTURE=1): a bar phone's one device
+                # state is 0, which would read as folded.
                 if ! timeout 10 service check media.camera.worker 2>/dev/null | grep -q ': found'; then
-                    ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSCameraWorker \$PID > $STAGE/camera_worker.log 2>&1 </dev/null &)
+                    ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex ONEOS_CAMERA_POSTURE=$GUEST_FOLD_FORM /system/bin/app_process /system/bin OneOSCameraWorker \$PID > $STAGE/camera_worker.log 2>&1 </dev/null &)
                     sleep 2
                 fi
                 echo \"[UI Activator] camera worker: \$(head -n 1 $STAGE/camera_worker.log 2>/dev/null | tr -d '\n' || true); \$(timeout 10 service check media.camera.worker 2>&1 | tr -d '\n')\"
@@ -1602,10 +1631,13 @@ while true; do
                     D=$GUEST_DENSITY
                     [ \$D = auto ] && D=\$((S * 160 / 840 / 20 * 20))
                     CUR=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure display_density_forced 2>/dev/null)
+                    AUTO=\$(cat $STAGE/data/oneos_auto_density 2>/dev/null)
                     if [ \$D = off ]; then
                         echo \"[UI Activator] density: left at base \$BD (ONEOS_GUEST_DENSITY=off)\"
-                    elif [ -n \"\$CUR\" ] && [ \"\$CUR\" != null ]; then
-                        echo \"[UI Activator] density: \$CUR kept (forced in the guest already; base \$BD)\"
+                    elif [ -n \"\$CUR\" ] && [ \"\$CUR\" != null ] && [ -n \"\$AUTO\" ] && [ \"\$CUR\" != \"\$AUTO\" ]; then
+                        echo \"[UI Activator] density: \$CUR kept (chosen in the guest; this panel wants \$D, base \$BD)\"
+                    elif [ -L $STAGE/data/oneos_auto_density ]; then
+                        echo \"[UI Activator] density: data/oneos_auto_density is a link, not made by OneOS; left at base \$BD\"
                     elif [ $GUEST_DENSITY = auto ] && { [ \$((D * 10)) -lt \$((XDPI * 9)) ] || [ \$D -ge \$BD ]; }; then
                         echo \"[UI Activator] density: left at base \$BD (inner \${W}x\${H} at \$XDPI dpi too small for 840 dp: \$D)\"
                     elif ! $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | grep -q -x \"Physical size: \${W}x\${H}\"; then
@@ -1613,7 +1645,8 @@ while true; do
                     else
                         # The density first: with a leading -d, wm only prints it.
                         $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density \$D -d 0 >/dev/null 2>&1
-                        echo \"[UI Activator] density: \$D (inner \${W}x\${H}, xdpi \$XDPI, base \$BD, was unforced) -> \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density -d 0 2>&1 | tr '\n' ' ')\"
+                        echo \$D > $STAGE/data/oneos_auto_density
+                        echo \"[UI Activator] density: \$D (inner \${W}x\${H}, xdpi \$XDPI, base \$BD, was \${CUR:-unforced}) -> \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density -d 0 2>&1 | tr '\n' ' ')\"
                     fi
                     F=\"fold-[\$((W / 2)),0,\$((W / 2)),\$H]\"
                     [ $GUEST_POSTURE_LIVE = 1 ] || F=\"\$F-flat\"
@@ -1771,6 +1804,93 @@ while true; do
                     DST=\"pm grant BLUETOOTH_CONNECT failed: \$(echo \"\$DR\" | tr '\n' ' ' | cut -c1-200)\"
                 fi
                 echo \"[UI Activator] dialer: \$DST; now \$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys package com.google.android.dialer 2>/dev/null | grep -m 1 -o 'android.permission.BLUETOOTH_CONNECT: granted=[a-z]*' || echo 'BLUETOOTH_CONNECT state not read')\"
+            fi
+            # Nothing's Gallery (com.nothing.gallery) opens only with read-media
+            # and media management (MANAGE_MEDIA app-op) granted, which a Nothing
+            # phone grants its own gallery up front; here it said \"either not a
+            # pre-installed application or not running on Nothing device\" and
+            # stopped (run 15). Granted once per stage, like the dialer's.
+            if [ -L $STAGE/data/oneos_ntgallery ]; then
+                echo '[UI Activator] Nothing Gallery: data/oneos_ntgallery is a link, not made by OneOS; nothing granted'
+            elif [ ! -e $STAGE/data/oneos_ntgallery ] &&
+                 timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path com.nothing.gallery >/dev/null 2>&1; then
+                GR=''
+                for perm in READ_MEDIA_IMAGES READ_MEDIA_VIDEO ACCESS_MEDIA_LOCATION; do
+                    timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm grant --user 0 com.nothing.gallery android.permission.\$perm >/dev/null 2>&1 && GR=\"\$GR \$perm\"
+                done
+                timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/appops set --user 0 com.nothing.gallery MANAGE_MEDIA allow >/dev/null 2>&1 && GR=\"\$GR MANAGE_MEDIA\"
+                mkdir $STAGE/data/oneos_ntgallery 2>/dev/null
+                echo \"[UI Activator] Nothing Gallery: granted\${GR:- nothing} (once per stage)\"
+            fi
+            # Nothing's Settings shows the phone's own RAM and storage in About
+            # phone only on Nothing's phones (Build.DEVICE Spacewar or Pong, or
+            # its bool screen_size_for_mp); anywhere else its strings def_ram and
+            # def_rom, 8GB and 128GB (run 15 on the 12 GB / 512 GB Fold8 Ultra).
+            # Fabricated over them: this phone's sizes as the box gives them, RAM
+            # from MemTotal up to the next usual size, storage from /data up to a
+            # power of two. Re-made every session. ONEOS_GUEST_NT_ABOUT=0 leaves
+            # Nothing's strings.
+            if [ \"${ONEOS_GUEST_NT_ABOUT:-1}\" = 1 ] &&
+               timeout 10 $BB nsenter -t \$PID -m /system/bin/sh -c '[ -f /system_ext/priv-app/NothingSettings/NothingSettings.apk ]' 2>/dev/null; then
+                NRAM=\$(awk '/^MemTotal:/ { g = \$2 / 1048576; n = split(\"4 6 8 12 16 24 32 48 64\", s, \" \"); for (i = 1; i <= n; i++) if (s[i] + 0 >= g) { print s[i] \"GB\"; exit } }' /proc/meminfo)
+                NROM=\$($BB df -k /data 2>/dev/null | awk 'NR == 2 { g = \$2 / 1000000; p = 16; while (p < g) p *= 2; if (p >= 1024) print p / 1024 \"TB\"; else print p \"GB\" }')
+                # With the About overlay's own-phone mode (guest_props.sh wrote
+                # nt_about.txt): the inner panel's diagonal for the screen line
+                # (else display 0's, the cover when folded) and the battery's
+                # design capacity (else the image's power profile).
+                NSCR=\$(sed -n 's/^screen=\([0-9.]*\)\$/\1/p' $STAGE/nt_about.txt 2>/dev/null | head -n 1)
+                NMAH=\$(sed -n 's/^battery=\([0-9]*\)\$/\1/p' $STAGE/nt_about.txt 2>/dev/null | head -n 1)
+                NON=''
+                for spec in \"OneOSNtRam:def_ram:\$NRAM\" \"OneOSNtRom:def_rom:\$NROM\" \"OneOSNtScreen:screen_physical_size:\$NSCR\" \"OneOSNtBattery:about_phone_hardware_battery_capacity_unit:\${NMAH:+\$NMAH mAh}\"; do
+                    v=\${spec##*:}; [ -n \"\$v\" ] || continue
+                    n=\${spec%%:*}; r=\${spec#*:}; r=\${r%%:*}
+                    timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay fabricate --target com.android.settings --name \$n com.android.settings:string/\$r string \"\$v\" >/dev/null 2>&1 &&
+                    timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay enable --user 0 com.android.shell:\$n >/dev/null 2>&1 && NON=\"\$NON \$r=\$v\"
+                done
+                # Nothing's ringtones were left half made by the sessions before
+                # the generator's fixes (runs 16-18: 3 of 10, no haptic tracks),
+                # and it takes a finished first boot as done. With no haptic
+                # track yet, Nothing's own regenerate request, 30 s after HOME.
+                NTG=$STAGE/data/media/0/NTGenerateRingtone
+                if [ -d \$NTG ] && [ -z \"\$(ls \$NTG/GenerateVibr 2>/dev/null)\" ]; then
+                    ( sleep 30; timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/am broadcast -a com.nothing.settings.nt_generative_ringtone_reset -n com.nothing.generateringtoneservice/.BootReceiver >/dev/null 2>&1 && echo \"[UI Activator] Nothing ringtones: regenerate requested (no haptic tracks yet)\" ) </dev/null &
+                fi
+                # Nothing's launcher on the inner panel (run 16): one phone-wide
+                # column of icons, no room at the sides, and the drawer's search
+                # bar under the navigation handle. Its own dump (DeviceProfile:
+                # two panels, grid, insets, taskbar) 40 s after HOME, folded or
+                # not, to diag_launcher.txt.
+                ( sleep 40; timeout 15 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys activity com.nothing.launcher > $STAGE/diag_launcher.txt 2>&1 ) </dev/null >/dev/null 2>&1 &
+                # The power key's double press (Essential Space, run 24: nothing
+                # opened): the policy's multi-press behavior and target, the
+                # overlays on android, 20 s after HOME (sessions can be a minute), to diag_power.txt.
+                ( sleep 20; {
+                      timeout 15 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys window policy 2>&1 | grep -i -E 'press|power|gesture|target' | head -n 40
+                      echo '== overlays (android)'
+                      timeout 15 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list android 2>&1 | head -n 40
+                      echo '== camera gesture settings'
+                      for k in camera_double_tap_power_gesture_disabled double_tap_power_button_gesture_enabled double_tap_power_button_gesture; do
+                          echo \"\$k=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure \$k 2>&1)\"
+                      done
+                  } > $STAGE/diag_power.txt 2>&1 ) </dev/null >/dev/null 2>&1 &
+                # One UI's cameraserver waits 5 s in every connect (runs 19-21,
+                # every app), right after its lookups of these services; the
+                # worker and the Knox stand-in both answer. Each name checked from
+                # One UI's side (the cameraserver's) and the guest's, timed, 45 s
+                # after HOME, to diag_camsvc.txt.
+                ( sleep 45; for n in activity appops permission processinfo sensor_privacy media.camera.proxy media.camera.worker edmnativehelper media.camera; do
+                      t0=\$(date +%s%N); h=\$(timeout 8 /system/bin/service check \$n 2>&1 | tr -d '\n'); t1=\$(date +%s%N)
+                      g=\$(timeout 8 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/service check \$n 2>&1 | tr -d '\n'); t2=\$(date +%s%N)
+                      echo \"\$n | host \$(( (t1 - t0) / 1000000 )) ms: \$h | guest \$(( (t2 - t1) / 1000000 )) ms: \$g\"
+                  done > $STAGE/diag_camsvc.txt 2>&1 ) </dev/null >/dev/null 2>&1 &
+                # With a staged OneOSDisplayProbe.dex (patches/OneOSDisplayProbe.java,
+                # diagnostics only): the default display's possible sizes as the
+                # launcher gets them, from 15 s after HOME, five times 30 s apart (folded and not).
+                if [ -f $STAGE/OneOSDisplayProbe.dex ] && [ ! -L $STAGE/data/oneos_display_probe.dex ]; then
+                    cp -f $STAGE/OneOSDisplayProbe.dex $STAGE/data/oneos_display_probe.dex && chmod 644 $STAGE/data/oneos_display_probe.dex
+                    ( sleep 15; for i in 1 2 3 4 5; do echo \"== \$(date +%T) device state \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd device_state print-state 2>&1 | tr '\n' ' ')\"; timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_display_probe.dex /system/bin/app_process /system/bin OneOSDisplayProbe 2>&1 | cut -c1-900; sleep 30; done > $STAGE/diag_displays.txt ) </dev/null >/dev/null 2>&1 &
+                fi
+                echo \"[UI Activator] Nothing About phone: RAM \${NRAM:-?}, storage \${NROM:-?}, screen \${NSCR:-?}, battery \${NMAH:-?} mAh; overlays on:\${NON:- none}\"
             fi
             # This phone's cutout, status bar height and corner radius in a guest
             # with AOSP's SystemUI: Pixel, and Infinity-X (the switch saved One UI's
@@ -1940,6 +2060,18 @@ while true; do
                       $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/screencap -p /data/local/tmp/fold_\$n.png 2>/dev/null
                       cp $STAGE/data/local/tmp/fold_\$n.png \$FD/ 2>/dev/null
                       [ \"\$val\" = 00000001 ] && [ -n \"\$TS2\" ] && timeout 10 getevent -lt \$TS2 > \$FD/cover_touch_\$n.txt 2>&1
+                      # Folded: the cover's size, cutout and the status bar inset apps
+                      # get, about 15 s on (an app opened by then). Nothing run 11: apps
+                      # on the cover started about 60 px down, under the drawn bar, and
+                      # the 20/40/90 s rounds had only the inner panel to show.
+                      if [ \"\$val\" = 00000001 ]; then
+                          sleep 2
+                          { echo \"== \$ts event \$n: folded, window state \$(date +%T)\"
+                            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys window displays 2>/dev/null |
+                                grep -E 'init=|mDisplayCutout=|type=statusBars frame|type=displayCutout|overrideConfig=' | head -n 12 | cut -c1-400
+                          } > \$FD/.event_\${n}c 2>&1
+                          cat \$FD/.event_\${n}c >> \$FD/fold_test.log; rm -f \$FD/.event_\${n}c
+                      fi
                       # Unfolded: the state again about 10 s on, to see whether a
                       # HALF_OPENED settles in OPENED (2) (run 44).
                       if [ \"\$val\" = 00000000 ]; then
@@ -2144,13 +2276,20 @@ PERF_HANDOVER=0
 if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "set": "n6-f8",$' "$STAGE/.oneos_stage"; then PERF_HANDOVER=1; fi
 if [ "${ONEOS_HEAT_CAP:-1}" = 1 ] && [ "$PERF_HANDOVER" = 0 ]; then
     : > "$STAGE/heat_cap.active"
+    rm -f "$STAGE/cpufreq_max_limit.released"
     $BB sh -c "
     : oneos_heat_cap
     echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
     F=$STAGE/heat_cap.log
+    CFL=/sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit
     echo \"# \$(date) OneOS heat cap: from 45, 47, 50 C skin every CPU policy at 80, 65, 50% of its top clock (2 C hysteresis)\" > \$F
     full() {
         c=''
+        if [ \"$HOST_LOW_POWER\" = 0 ] && [ -w \$CFL ] && [ \"\$(cat \$CFL 2>/dev/null)\" != -1 ]; then
+            v=\$(cat \$CFL 2>/dev/null)
+            echo -1 > \$CFL 2>/dev/null && echo \"\$v\" > $STAGE/cpufreq_max_limit.released
+            c=\" cpufreq_max_limit=\$v->\$(cat \$CFL 2>/dev/null)\"
+        fi
         for p in /sys/devices/system/cpu/cpufreq/policy*; do
             hw=\$(cat \$p/cpuinfo_max_freq 2>/dev/null)
             case \"\$hw\" in ''|*[!0-9]*) continue ;; esac
@@ -2306,6 +2445,15 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     for p in /sys/class/lcd/panel /sys/class/lcd/panel1; do [ -d \$p ] || continue; for n in vrr vrr_lfd; do echo \"\$p/\$n: \$(cat \$p/\$n 2>&1 | tr '\n' ' ' | cut -c1-600)\"; done; done > \$D/panel_refresh.txt 2>&1
                     timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys power > \$D/power.txt 2>&1
                     timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys device_state > \$D/device_state.txt 2>&1
+                    # Which of our /oem overlays the guest actually enabled, and
+                    # for which target. Run 9 staged two of them: the framework
+                    # one visibly worked and the SystemUI one changed nothing,
+                    # and nothing in the session told us whether it was enabled
+                    # at all -- the only record is here. Also the window state,
+                    # which carries each panel's DisplayCutout and the status
+                    # bar inset (dumpsys display does not).
+                    timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys overlay > \$D/overlay.txt 2>&1
+                    timeout 20 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys window displays > \$D/window_displays.txt 2>&1
                     timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys oplus_vrr_service > \$D/vrr.txt 2>&1
                     for s in media.audio_flinger media.audio_policy; do timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys \$s > \$D/dumpsys_\$s.txt 2>&1; done
                     # Bluetooth (run 43: A2DP and HFP went to a made-up identity

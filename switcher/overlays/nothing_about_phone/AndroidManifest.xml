@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing OS's About phone on the Galaxy S26 family and the Z Flip8
+     (0.4.35; the Z Fold8 Ultra and Z Fold8 take switcher/overlays/nothing_about).
+     The same own-phone mode, so RAM, storage, processor, screen and battery are
+     this phone's (guest_props.sh, the switch's activator), its picture, the
+     processor's whole name and its lenses. scripts/make-overlays.sh builds it
+     as OneOSNtAboutPhone.apk (the S26 and S26+), and with nothing_about_s26u's
+     and nothing_about_flip's pictures and lenses over these (aapt2 link -R) as
+     OneOSNtAboutS26U.apk and OneOSNtAboutFlip.apk. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.nothing.about.phone">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="com.android.settings"
+        android:isStatic="true"
+        android:priority="1"/>
+</manifest>

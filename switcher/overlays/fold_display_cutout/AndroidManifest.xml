@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-panel display cutout for the Z Fold (F8U) guest. The image's own
+     framework-res has an empty config_mainBuiltInDisplayCutout and an empty
+     config_displayUniqueIdArray, so the guest picked up Samsung's vendor
+     framework overlay instead (/vendor is the host's and is shared) and
+     applied the COVER's punch hole to whichever panel it was on: on the inner
+     panel, which has no cutout at all on this phone (One UI reports
+     initCutout=null for it), that was a phantom 108 px notch.
+     One UI's own values, read from dumpsys window displays on SM-F976B:
+       local:4630946722019192211  inner  no cutout
+       local:4630946379103915412  cover  Rect(505, 0 - 575, 108), top inset 108
+     Resources are mapped by name (framework-res declares no overlayable ones);
+     scripts/make-overlays.sh builds it, guest_prepare.sh puts it in the
+     guest's /oem/overlay. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.fold.cutout">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="android"
+        android:isStatic="true"
+        android:priority="1"/>
+</manifest>

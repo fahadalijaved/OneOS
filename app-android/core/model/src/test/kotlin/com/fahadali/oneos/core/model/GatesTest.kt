@@ -429,8 +429,12 @@ class GatesTest {
             // 0.4.10: the S26 Ultra also takes the Pixel 11 Pro image (SM8850 has SVE); 0.4.11: the IN build first;
             // 0.4.22: the SM8750 phones the Pixel 9 Pro XL image (no SVE needed).
             val usual = listOf(Images.FIND_X9U_IN, Images.FIND_X9U)
-            // 0.4.27: Infinity-X, on every phone; 0.4.31: HyperOS after it.
-            assertEquals(usual + (if (p == Profiles.S_ULTRA_8850) Images.PIXEL_KODIAK else Images.PIXEL_KOMODO) + Images.INFINITYX + Images.HYPEROS_LHASA, p.images())
+            // 0.4.27: Infinity-X, on every phone; 0.4.31: HyperOS after it; 0.4.35: Nothing OS on the S26 Ultra.
+            val last = if (p == Profiles.S_ULTRA_8850) listOf(Images.NOTHING_METROID) else emptyList()
+            assertEquals(
+                usual + (if (p == Profiles.S_ULTRA_8850) Images.PIXEL_KODIAK else Images.PIXEL_KOMODO) + Images.INFINITYX + Images.HYPEROS_LHASA + last,
+                p.images(),
+            )
             for ((image, set) in listOf(Images.FIND_X9U to PackageSets.X9U_SULTRA)) {
                 for (phase in GatePhase.entries) {
                     val r = eval(phase, input(phone, image = image))

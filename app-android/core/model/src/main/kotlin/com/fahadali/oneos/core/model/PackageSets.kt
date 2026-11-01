@@ -164,6 +164,7 @@ object PackageSets {
     const val ID_HYPER_F8U = "hyper-f8u"
     const val ID_PIXEL9_SULTRA = "pixel9-sultra"
     const val ID_INFINITYX = "infinityx"
+    const val ID_NOTHING_F8U = "nothing-f8u"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
     const val TETHERING = "tethering_payload.img"
@@ -455,7 +456,95 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_SULTRA, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, N6_F8, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U)
+    /**
+     * Nothing OS 5.0 (0.4.33), out/overlays_nothing_r11. The smallest set so far:
+     * Nothing's system is close enough to AOSP that only services.jar and
+     * framework.jar need the guards. It does have a vendor framework jar,
+     * nt-services.jar (system_server's class path, first run 2026-10-30), but
+     * unlike oplus-services.jar and miui-services.jar nothing in it reaches
+     * storage directly: its only "vold" is the property prefix "persist.vold."
+     * in NtOnlineConfigHelper, and its one StorageManager use is the framework
+     * API (checkPermissionReadImages in the lock-screen wallpaper), which goes
+     * through the guarded StorageManagerService. So it is left as it is.
+     * r2 adds the guest vold:
+     * its build is in make-overlays.sh's table from 0.4.33, so the guest
+     * registers "gvld" and Back to One UI returns in place, without a reboot.
+     *
+     * Not in it, each for a reason make-overlays.sh reported rather than failed on:
+     * - gmssystem_payload.img: its GmsCore is an ordinary priv-app, not an APEX
+     *   to present, so Google services are hideable ([ImageRef.gmsHideable]).
+     * It is the first set to carry surfaceflinger_patched for a non-ColorOS image.
+     */
+    val NOTHING_F8U = PackageSet(
+        id = ID_NOTHING_F8U,
+        imageId = Images.ID_NOTHING_METROID,
+        sourceDir = "out/overlays_nothing_r17",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("nt-telephony-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            // The split shade in portrait on a tablet-width panel, which this
+            // image only has a landscape value for, and the two panels' own
+            // cutouts (the inner one has none on this phone).
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            // Quick settings at the screen's own density on the inner panel
+            // (r12): Nothing draws them as if every screen were 420 dp wide,
+            // 859 dpi there, and half the panel was off the screen.
+            PackageFile("SystemUI_patched.apk", FileRole.GUEST_FIX),
+            // The app drawer's category boxes per row from the width (r13): two
+            // per row on any screen made boxes of about 1000 x 1100 px there.
+            PackageFile("NothingLauncher3_patched.apk", FileRole.GUEST_FIX),
+            // Nothing's ringtone kits from its own vendor image (r17): the
+            // ringtone generator composes every ringtone from them.
+            PackageFile("nothing_customringtone.tar", FileRole.GUEST_FIX),
+            // Nothing's own sounds (ringtones, notifications, alarms, UI) from
+            // its vendor image's product/media (r17); its haptic patterns are in
+            // the ringtone kit tar.
+            PackageFile("nothing_product_media.tar", FileRole.GUEST_FIX),
+            // The boot animation on both panels (r17): built for the first
+            // display only, it played on the inner panel with the phone folded.
+            PackageFile("libbootanimation_preapex_patched.so", FileRole.GUEST_FIX),
+            // The ringtone generator's haptic library reading an OneOS prop for
+            // its Nothing device check (r17): the Fold's own name stopped it.
+            PackageFile("NothingGenerateRingtoneService_patched.apk", FileRole.GUEST_FIX),
+            // The signal poll (r11): Samsung's RIL sends no signal strength
+            // indication, so the bar stayed at its first reading. The RRO goes
+            // in /oem, the last in this guest's overlay order (run 10), where it
+            // outranks the image's own product/overlay/TelephonyResCommon_Sys.apk
+            // injection config (Qualcomm's factory, which crash-looped the phone).
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            // About phone with the phone's own hardware, cameras and picture (r17).
+            PackageFile("OneOSNtAbout.apk", FileRole.RRO),
+            // The same on the other Nothing phones (0.4.35): their own pictures and lenses.
+            PackageFile("OneOSNtAboutFold8.apk", FileRole.RRO),
+            PackageFile("OneOSNtAboutPhone.apk", FileRole.RRO),
+            PackageFile("OneOSNtAboutS26U.apk", FileRole.RRO),
+            PackageFile("OneOSNtAboutFlip.apk", FileRole.RRO),
+            // Essential Space on a double press of power (no Essential key here).
+            PackageFile("OneOSNtEssentialKey.apk", FileRole.RRO),
+            // One UI's brightness range for the slider (Nothing's reached 2600 nits).
+            PackageFile("OneOSBrightnessRange.apk", FileRole.RRO),
+            // One UI's camera, rewritten for this image (scripts/samsung-camera,
+            // 0.4.35): guest_prepare.sh unpacks it into the stage's samcam_build.
+            PackageFile("samcam.tar", FileRole.GUEST_FIX),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
+            + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
+        omitted = listOf(TETHERING),
+        approxBytes = 823_235_139L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_SULTRA, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, N6_F8, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

@@ -905,6 +905,9 @@ class StageScriptTest {
             // 0.4.31: the Galaxy A56.
             Profiles.A56 to "SM-A566B",
             Profiles.FLIP5 to "SM-F731B",
+            // 0.4.35: the Galaxy Z Flip8 and A36.
+            Profiles.FLIP8 to "SM-F776B",
+            Profiles.A36 to "SM-A366B",
         )) {
             eachShell { fr ->
                 fr.props["ro.product.model"] = model
@@ -1159,8 +1162,12 @@ class StageScriptTest {
      */
     @Test
     fun aHideableImagesLaunchWritesItsGoogleServicesChoice() {
-        // 0.4.11: the Find X9 Ultra IN build, the one image whose Google services a launch may hide.
-        assertTrue(Shipped.rootScriptText.contains("\nIMAGES_GMS=\"coloros17-findx9u-in\"\n"))
+        // 0.4.11: the Find X9 Ultra IN build; 0.4.33: Nothing OS too (its GmsCore is an ordinary priv-app,
+        // not an APEX its sessions present). IMAGES_GMS is root's copy of ImageRef.gmsHideable.
+        assertEquals(
+            Images.ALL.filter { it.gmsHideable }.joinToString(" ") { it.id },
+            Shipped.rootScriptText.substringAfter("\nIMAGES_GMS=\"").substringBefore("\"\n"),
+        )
         eachShell { fr ->
             val s = Stager(fr, Profiles.S_ULTRA_8850, Images.ID_FIND_X9U_IN)
             assertEquals(PackageSets.X9U_IN_SULTRA, s.set)

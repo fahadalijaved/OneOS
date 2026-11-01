@@ -25,9 +25,9 @@ Each is left out when the build does not have it. Fail closed: afterwards,
 every ISecretkeeper.deleteAll(), IVold.destroyMetadataKey,
 destroySystemStorageKey and destroyUserStorageKeys2 call and every
 "sys.erase_secure_element" must be in deleteSecrets() or in
-ExtendedWipeWithoutReboot (IVold$Stub's dispatch is the server side, not a
-call), and no other class may call into ExtendedWipeWithoutReboot except its
-run().
+ExtendedWipeWithoutReboot (a generated AIDL Stub's dispatch is the server side,
+not a call: IVold$Stub, and ISecretkeeper$Stub where the build has it), and no
+other class may call into ExtendedWipeWithoutReboot except its run().
 
 Usage: guest_no_wipe_secrets.py <smali root dir>
 Prints the smali_* directories (dex files) it changed, one per line.
@@ -47,7 +47,17 @@ TARGETS = (
 DANGER = re.compile(r"Landroid/hardware/security/secretkeeper/ISecretkeeper;->deleteAll\("
                     r"|Landroid/os/IVold;->(?:destroyMetadataKey|destroySystemStorageKey|destroyUserStorageKeys2)\("
                     r'|"sys\.erase_secure_element"')
-STUB = "android/os/IVold$Stub"
+# A generated AIDL Stub's onTransact dispatches to the service that implements
+# the interface: `invoke-interface {p0}` is this object answering a transaction,
+# not the framework asking the phone's HAL to do something. Those classes are
+# exempt from the fail-closed sweep below. Only the exact $Stub names: a
+# $Stub$Proxy IS the client side and must never be exempt.
+STUBS = (
+    "android/os/IVold$Stub",
+    # Nothing OS 5.0 (SDK 37) carries the Secretkeeper stub in services.jar;
+    # ColorOS's and Pixel's builds do not.
+    "android/hardware/security/secretkeeper/ISecretkeeper$Stub",
+)
 LOCALS = re.compile(r"^(\s*)\.locals (\d+)$")
 
 
@@ -118,7 +128,7 @@ def main(root):
     for cls, path in found.items():
         lines = changed.get(path) or open(path).read().split("\n")
         text = "\n".join(lines)
-        if cls != STUB and cls != EXT:
+        if cls not in STUBS and cls != EXT:
             for i, line in enumerate(lines):
                 if DANGER.search(line) and not line.lstrip().startswith("#"):
                     if not (cls == RSS and method_of(lines, i) == "deleteSecrets()V"):

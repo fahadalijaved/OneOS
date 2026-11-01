@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The cover panel (sw540dp at 320 dpi on this phone, so below sw600dp).
+     Its punch hole is 108 px tall, which is 54dp there, and the image's status
+     bar is 24dp = 48 px: SystemUI drew its icons inside the camera band, which
+     is what "the status bar is not aligned to the camera cutout" looked like.
+     Matching the bar to the hole puts them under it. Landscape keeps the
+     image's own status_bar_height_landscape: the hole is on a side then and
+     the cutout insets handle it. status_bar_height_portrait too: the top
+     inset apps get is that one, so with it left at 24dp the bar was drawn
+     54dp tall while apps were told 24dp and drew under it (run 14: Phone,
+     Chrome and Contacts on the cover, statusBars frame [0,0][1080,60]). -->
+<resources>
+    <dimen name="status_bar_height">54dp</dimen>
+    <dimen name="status_bar_height_default">54dp</dimen>
+    <dimen name="status_bar_height_portrait">54dp</dimen>
+</resources>

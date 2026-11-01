@@ -186,6 +186,31 @@ add)
             echo "$BLUR=1" >> "$NEW"
         fi
     fi
+    # USB functions AOSP does not define. Samsung's persist.sys.usb.config is
+    # "sec_charging,adb"; UsbManager.usbFunctionsFromString knows no
+    # sec_charging and throws IllegalArgumentException, which killed the guest
+    # system_server on the android.fg thread in UsbDeviceManager.finishBoot
+    # (first Nothing run, 2026-10-31; its UsbHandlerLegacy reads the persist
+    # prop). The live sys.usb.config is already a plain AOSP value on this
+    # phone (mtp,adb), so the guest gets that for the session, and "adb" alone
+    # if it is not. Memory only: init watches sys.usb.config, not this one, so
+    # nothing is reconfigured by the override itself, and One UI's own value
+    # goes back with remove and restore-persist.
+    # ONEOS_GUEST_USB_CONFIG=0 leaves it alone.
+    if [ "${ONEOS_GUEST_USB_CONFIG:-1}" = 1 ]; then
+        UCK=persist.sys.usb.config
+        huv=$(getprop "$UCK")
+        case ",$huv," in
+            *,sec_*)
+                nuv=$(getprop sys.usb.config)
+                case ",$nuv," in ""|*,sec_*|,,) nuv=adb ;; esac
+                if grep -qxF "$UCK" "$HOST" && "$RP" -n "$UCK" "$nuv" 2>/dev/null; then
+                    echo "$UCK=$huv" >> "$OVR"
+                    echo "guest_props: $UCK=$huv overridden to $nuv for the session (AOSP's UsbManager rejects sec_charging)"
+                fi
+                ;;
+        esac
+    fi
     # Bluetooth audio offload (run 44: the earbuds connected, audio stayed on the
     # speaker). A2DP keeps One UI's offload: Samsung's QTI HAL turns its offload
     # path on from the vendor parameter l_a2dp_format, which guest_start.sh now
@@ -467,6 +492,28 @@ add)
         done
         echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type = S and AdrenoVK-0 = W for the session (failures and dumps on every frame or call)"
     fi
+    # Chrome draws nothing in the Nothing OS guest: its renderers never start
+    # (cr_ChildProcessConn "Failed to establish the service connection" 20
+    # times a page, run 11), while WebView in other apps works. One UI's
+    # log.tag is E, which the guest shares, so ActivityManager and the zygote
+    # said nothing about why. These tags at I for the session only (log.tag.*
+    # is not persistent), Nothing OS guests only, until the cause is known.
+    if [ -f "$GSE/framework/nt-telephony-common.jar" ]; then
+        # One UI's camera port (run 19: lens switches slow, which camera opens
+        # where): the camera service's opens, closes and evictions, and the
+        # app's device manager, at I. The policy's power presses (WindowManager at D:
+        # "powerPress: ... count=", run 26: a double press opened nothing, no line).
+        for tl in ActivityManager:I Zygote:I AppZygoteInit:I ActiveServices:I cr_ChildProcessConn:V cr_ChildProcLH:V cr_ChildProcessService:V cr_LibraryLoader:V \
+                  CameraService:I Camera3-Device:I CameraDeviceClient:I CameraProviderManager:I CameraDeviceManager:I CameraContext:I \
+                  ServiceManagerCppClient:I ServiceManagerCppClientCallback:I CameraServiceWorkerWrapper:I \
+                  WindowManager:D SingleKeyGesture:D; do
+            k=log.tag.${tl%:*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$k=${tl##*:}" >> "$NEW"
+        done
+        echo "guest_props: ActivityManager, Zygote, AppZygoteInit, ActiveServices and the camera service's tags at I, Chrome's child process tags at V for the session"
+    fi
     # HyperOS's libhwui encodes JPEG and HEIF through Xiaomi's XRING VPU
     # (JpegXEncoder) and waits for vendor.xring.hardware.graphics.vpu.jpeg.
     # IJpegXCodecStore/default, which Samsung's vendor never registers: every
@@ -509,6 +556,109 @@ add)
         aligned=$(echo "$h" | awk -F '[:,]' 'NF==4 && $1~/^[0-9]+$/ && $2~/^[0-9]+$/ && $3~/^[0-9]+$/ && $4~/^[0-9]+$/ && $3>$1 && $4>$2 && $4-$2<=126 {top=int((126-($4-$2))/2);printf "%d,%d:%d,%d",$1,top,$3,top+$4-$2}')
         [ -n "$aligned" ] || aligned=589,11:659,115
         echo "$key=$aligned" >> "$NEW"
+    fi
+    # Nothing OS: haptics through the phone's own vibrator. Nothing's feature
+    # bit 139 (bits from ro.build.nothing.feature.base, flipped by the diff
+    # props; NtFeaturesUtilsImpl) sends every vibration to AAC's RichTap
+    # (VintfHalVibrator's on() -> NtVibratorManagerImpl.ntVibrateOn), which it
+    # finds as IVibrator/default's extension. On a Galaxy that extension is
+    # Samsung's, so every RichTap call failed ("aac richtap doVibratorStop
+    # fail") and nothing vibrated (run 14: 1 HAL vibration in the session).
+    # The base with that bit cleared (hex digit 35 from the right, value 8; the
+    # number is too long for awk's arithmetic). No diff of this image sets it.
+    # ONEOS_GUEST_NT_RICHTAP=1 keeps the image's value.
+    key=ro.build.nothing.feature.base
+    v=$(sed -n "s/^$key=//p" "$NEW" | tail -n 1)
+    if [ -n "$v" ] && [ "${ONEOS_GUEST_NT_RICHTAP:-0}" != 1 ]; then
+        nv=$(echo "$v" | awk '{
+            s = $0; pre = ""; suf = ""
+            if (substr(s, 1, 2) == "0x" || substr(s, 1, 2) == "0X") { pre = substr(s, 1, 2); s = substr(s, 3) }
+            if (substr(s, length(s)) == "L") { suf = "L"; s = substr(s, 1, length(s) - 1) }
+            if (length(s) < 35) { print $0; exit }
+            p = length(s) - 34; d = tolower(substr(s, p, 1)); h = "0123456789abcdef"
+            x = index(h, d) - 1
+            if (x < 0) { print $0; exit }
+            if (x >= 8) x -= 8
+            print pre substr(s, 1, p - 1) substr(h, x + 1, 1) substr(s, p + 1) suf }')
+        if [ -n "$nv" ] && [ "$nv" != "$v" ]; then
+            sed -i "/^$key=/d" "$NEW"
+            echo "$key=$nv" >> "$NEW"
+            echo "guest_props: $key without feature 139 (RichTap haptics) for the session"
+        fi
+    fi
+    # ONEOS_GUEST_LOG_INFO=1 (a debug session, off by default): every tag at I
+    # for the session, so app-level logs (the camera's RecordingSession, the
+    # activity starts) reach the capture; One UI's own level is E. Restored on
+    # return like every session prop.
+    if [ -n "$v" ] && [ "${ONEOS_GUEST_LOG_INFO:-0}" = 1 ]; then
+        if grep -qxF log.tag "$HOST"; then
+            echo "guest_props: log.tag is One UI's ($(getprop log.tag)), left alone"
+        else
+            sed -i '/^log\.tag=/d' "$NEW"
+            echo "log.tag=I" >> "$NEW"
+            echo "guest_props: log.tag=I for this debug session"
+        fi
+    fi
+    # Nothing OS's ringtones: NothingGenerateRingtoneService composes each with a
+    # Glyph pattern from libgenerative_glyph, which sizes it by Nothing's vendor
+    # props (ro.vendor.glyph.*, the Phone (3)'s 25 x 25 matrix). Samsung's
+    # /vendor has none, so every pattern came out all zero frames; the service
+    # deleted it, took a new seed and tried again, 31 246 times in four minutes
+    # at full speed on its main thread (run 16: the phone hot, no ringtone, ANR
+    # after 200 s and a restart scheduled). The Metroid vendor image's values,
+    # for the session. No light is driven: nothing here has a Glyph device.
+    # ONEOS_GUEST_NT_GLYPH=0 leaves them out.
+    if [ -n "$v" ] && [ "${ONEOS_GUEST_NT_GLYPH:-1}" = 1 ]; then
+        for kv in ro.vendor.glyph.row=25 ro.vendor.glyph.column=25 ro.vendor.glyph.matrix_channels=625 \
+                  ro.vendor.glyph.channels=489 ro.vendor.glyph.generative.simulation.multiple=4; do
+            sed -i "/^${kv%%=*}=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: Nothing Glyph matrix 25 x 25 for the ringtone generator"
+    fi
+    # Nothing OS's About phone reads this phone's hardware once its "own phone"
+    # mode is on (switcher/overlays/nothing_about): RAM from ro.boot.ddr_size
+    # (MB; /proc/meminfo's total without it, 11 GB on the 12 GB Fold8 Ultra),
+    # the processor's name from ro.product.cpu_info, and the screen line as
+    # <screen_physical_size>" <ro.vendor.display.panel.type>. All from the
+    # phone: RAM rounded up to the next usual size, the SoC by its model, the
+    # panels' diagonals from the switch's display capture (pixels / dpi). The
+    # activator takes the inner size and the battery's design capacity from
+    # $STAGE/nt_about.txt for the two strings. ONEOS_GUEST_NT_ABOUT=0 leaves them.
+    if [ -n "$v" ] && [ "${ONEOS_GUEST_NT_ABOUT:-1}" = 1 ]; then
+        gb=$(awk '/^MemTotal:/ { g = $2 / 1048576; n = split("4 6 8 12 16 24 32 48 64", s, " "); for (i = 1; i <= n; i++) if (s[i] + 0 >= g) { print s[i]; exit } }' /proc/meminfo)
+        case "$(getprop ro.soc.model)" in
+            SM8850) cpu="8 Elite Gen 5" ;;
+            SM8750) cpu="8 Elite" ;;
+            SM8650) cpu="8 Gen 3" ;;
+            SM8550) cpu="8 Gen 2" ;;
+            s5e9965) cpu="Exynos 2600" ;;
+            s5e9955) cpu="Exynos 2500" ;;
+            *) cpu="" ;;
+        esac
+        # The Folds' overlay says "Qualcomm Snapdragon %s"; every other phone's
+        # (0.4.35, guest_prepare.sh) only "%s", so the name is whole here.
+        case "${ONEOS_PROFILE:-f8u}" in
+            f8u|f8) ;;
+            *) case "$cpu" in ''|Exynos*) ;; *) cpu="Snapdragon $cpu" ;; esac ;;
+        esac
+        # One "<diagonal>" per built-in panel, the largest first.
+        sizes=$(awk '/DisplayDeviceInfo\{"Built-in Screen"/ {
+                if (match($0, /, [0-9]+ x [0-9]+,/)) { split(substr($0, RSTART + 2, RLENGTH - 3), r, " x ") } else next
+                if (match($0, /, [0-9.]+ x [0-9.]+ dpi/)) { split(substr($0, RSTART + 2, RLENGTH - 6), d, " x ") } else next
+                if (d[1] + 0 <= 0 || d[2] + 0 <= 0) next
+                printf "%d\n", sqrt((r[1] / d[1]) ^ 2 + (r[2] / d[2]) ^ 2) * 10 }' "$STAGE/display_modes_host.log" 2>/dev/null |
+            sort -rn | awk '{ printf "%d.%d\n", $1 / 10, $1 % 10 }')
+        inner=$(echo "$sizes" | sed -n 1p); cover=$(echo "$sizes" | sed -n 2p)
+        mah=$(awk '{ printf "%d", $1 / 1000 }' /sys/class/power_supply/battery/charge_full_design 2>/dev/null)
+        for kv in "ro.boot.ddr_size=${gb:+$((gb * 1024))}" "ro.product.cpu_info=$cpu" \
+                  "ro.vendor.display.panel.type=${cover:+inner, $cover\" cover}"; do
+            [ -n "${kv#*=}" ] || continue
+            sed -i "/^${kv%%=*}=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        { echo "screen=$inner"; echo "battery=$mah"; } > "$STAGE/nt_about.txt"
+        echo "guest_props: Nothing About phone: ${gb:-?} GB, ${cpu:-?}, panels ${inner:-?}\" ${cover:+and $cover\" }, ${mah:-?} mAh"
     fi
     if "$RP" -n -f "$NEW" 2>/dev/null; then
         cut -d= -f1 "$NEW" > "$ADDED"

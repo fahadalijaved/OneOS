@@ -197,6 +197,16 @@ kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 pkill -9 -f "oneos_heat_cap" 2>/dev/null || true
 if [ -f $S/heat_cap.active ]; then
     hc=""
+    # Samsung's CPU ceiling vote, if the heat cap released it (power saving was
+    # off): -1 again, for One UI's new SSRM to vote afresh. Restoring One UI's
+    # last vote kept the phone at 2.2 of 3.5 GHz after the return until power
+    # saving went on and off (0.4.34 report bdbb0509).
+    CFL=/sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit
+    if [ -f $S/cpufreq_max_limit.released ] && [ -w $CFL ]; then
+        echo -1 > $CFL 2>/dev/null
+        hc=" cpufreq_max_limit=$(cat $CFL 2>/dev/null) (One UI's was $(cat $S/cpufreq_max_limit.released))"
+        rm -f $S/cpufreq_max_limit.released
+    fi
     for p in /sys/devices/system/cpu/cpufreq/policy*; do
         hw=$(cat "$p/cpuinfo_max_freq" 2>/dev/null)
         case "$hw" in ''|*[!0-9]*) continue ;; esac

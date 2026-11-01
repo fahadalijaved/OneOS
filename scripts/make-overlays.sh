@@ -138,6 +138,25 @@ BUILDS = [
         "service.incremental.so": "e7da297ddedc625df330317c2321b5a2fd25f4dd2535f9c65a1490b5b8d6687d",
         "crashrecovery-aosp.capex": "d31bc1ccbb9bd60d2c78f0bd045cbb194838f936aafe2b551ab5d8344c9f2cd8",
     }, [("vold", 0xf3fc, NAME), ("vold", 0x6e2d4, TRY_START), ("service.incremental.so", 0x64745, NAME)]),
+    # Nothing OS 5.0 (Metroid, AQ3A.250924.001): start() takes "vold" at 0xe1e8
+    # (adrp 0xe000 + add 0x1e8 at 0x64d38, then String16 and a new
+    # VoldNativeService; the binary's only "\0vold\0", whose other 9 references
+    # are __android_log_print tags around 0xa56c0, as on the Pixel builds).
+    # try_start's tbz w19, #0, +0xd4 is at 0x64728, right after the
+    # isDeclared("android.system.vold.IVold/default", the string at 0x14316)
+    # call through the service manager's vtable +0x48; patched it always takes
+    # the not-declared path, which logs and returns 0 without registering the
+    # AIDL instance. service.incremental.so has the string at 0x64411 with its
+    # two lookups (adr at 0xc005c, adrp + add at 0xc2714). Its compressed
+    # crashrecovery APEX holds AOSP's RescueParty.isDisabled -- the same four
+    # tests in the same order (persist.sys.enable_rescue,
+    # persist.device_config.configuration.disable_rescue_party, eng/userdebug,
+    # persist.sys.disable_rescue) -- so guest_start.sh's property check holds.
+    ("Nothing OS 5.0 AQ3A.250924.001 (Metroid)", {
+        "vold": "536cc0b286923afbb6be2aad9457b8420dbd93e78bfe14fcfdbfef06f6901148",
+        "service.incremental.so": "7509ea1a751e70400057bf1afd79876b2630ad0fd1ee2e993ff06a8f1528ca74",
+        "crashrecovery-google-compressed.apex": "e2661820811896284537a044664dee933e5fd62a879efe02b5104d1388f43816",
+    }, [("vold", 0xe1e7, NAME), ("vold", 0x64728, TRY_START), ("service.incremental.so", 0x64410, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)
@@ -226,6 +245,12 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_sec_ims_signature
 # element, vold's storage and metadata keys (Infinity-X's duress wipe calls
 # them directly; patches/guest_no_wipe_secrets.py). Before guest_own_vold.py.
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_wipe_secrets.py" "$WORK/services")"
+# The guest's StorageManagerService keeps no handle on the phone's own A/B
+# updater (patches/guest_no_update_engine.py). oneos_switch.sh stops
+# update_engine for the session, and a build whose StorageManagerService
+# constructs an UpdateEngine then dies at boot (Nothing OS 5.0, first run);
+# a build that has none is left alone (Pixel).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_update_engine.py" "$WORK/services")"
 # The guest's own vold as "gvld", with vold_patched above; no guest call left
 # that reaches One UI's "vold" (patches/guest_own_vold.py).
 if [ "$VOLD_GVLD" = 1 ]; then
@@ -479,6 +504,96 @@ else
     echo "ims-ext-common.jar: not in the image, nothing to patch"
 fi
 
+# Nothing OS loads its telephony extension in a class loader of its own holding
+# exactly one jar (telephony-common.jar's NtTelephonyFactory:
+# new PathClassLoader("/system_ext/framework/nt-telephony-common.jar", parent)),
+# and NrModeUpdaterQc$1 in that jar extends com.qti.extphone.ExtPhoneCallbackBase,
+# which lives in extphonelib.jar and is not in that loader. So com.android.phone
+# died with NoClassDefFoundError in PhoneFactory.makeDefaultPhone at every start
+# ("crashed too many times, killing"): no RILJ, no ServiceState, and the lock
+# screen read "Emergency calls only", though rild itself was up and had
+# registered IRadioSim and IRadioNetwork for both slots (first Nothing run,
+# 2026-10-31).
+#
+# extphonelib's dex is put into the jar that loader does read, as classes2.dex:
+# a PathClassLoader takes classes.dex, classes2.dex, ... from each path it is
+# given, so the superclass resolves inside the same loader. The alternative was
+# to add a second path to that string in telephony-common.jar, which is on the
+# boot class path; this leaves it alone. The dex is copied, not rebuilt, so
+# nothing in either jar changes meaning. Only for an image that has both.
+in_image_either() {
+    for p in "/system_ext/framework/$1" "/system/system_ext/framework/$1"; do
+        in_image "$p" && { echo "$p"; return 0; }
+    done
+    return 1
+}
+NT_TC=$(in_image_either nt-telephony-common.jar || true)
+# The jars it needs that the loader's parent does not already cover, from a
+# scan of all 54 references its 7169 classes make outside the boot class path:
+#   extphonelib            ExtPhoneCallbackBase, NrModeUpdaterQc$1's superclass
+#   qcrilhook             OemHookCallback
+#   qti-telephony-common  QtiRilInterface, which RrcIndicationEnablerQc wants
+#   qti-telephony-utils, qti-telephony-hidl-wrapper   qcrilhook's own declared
+#                          dependencies
+# Everything else resolves from the boot class path (framework.jar,
+# telephony-common.jar, nt-framework.jar, nt-telephony-interface.jar):
+# com/android/{ims,telephony,server/net}, com/nothing/{experience,kafka,
+# onlineconfig,thermal,telephony,internal/telephony/ext} and com/sysaac/haptic.
+# Each missing one only showed itself when the one before it was in, a run at a
+# time, so the list is taken from the scan now rather than from the next crash.
+NT_ADD=""
+for j in extphonelib.jar qcrilhook.jar qti-telephony-common.jar \
+         qti-telephony-utils.jar qti-telephony-hidl-wrapper.jar; do
+    p=$(in_image_either "$j" || true)
+    [ -n "$p" ] && NT_ADD="$NT_ADD $p"
+done
+rm -f "$OUT/nt-telephony-common_patched.jar"
+if [ -n "$NT_TC" ] && [ -n "$NT_ADD" ]; then
+    "$DEBUGFS" -R "dump $NT_TC $WORK/nt_base.jar" "$IMG" 2>/dev/null
+    NT_FILES=""
+    mkdir -p "$WORK/ntadd"
+    for p in $NT_ADD; do
+        b=$(basename "$p")
+        "$DEBUGFS" -R "dump $p $WORK/ntadd/$b" "$IMG" 2>/dev/null
+        NT_FILES="$NT_FILES $WORK/ntadd/$b"
+    done
+    # shellcheck disable=SC2086
+    python3 -I - "$OUT/nt-telephony-common_patched.jar" "$WORK/nt_base.jar" $NT_FILES <<'PYEOF'
+import os, sys, zipfile
+out, src = sys.argv[1:3]
+adds = sys.argv[3:]
+zi = zipfile.ZipFile(src)
+have = [e for e in zi.namelist() if e.endswith(".dex")]
+if have != ["classes.dex"]:
+    sys.exit("nt-telephony-common.jar has %s, not one classes.dex; not merged" % have)
+need = {b"com/qti/extphone/ExtPhoneCallbackBase", b"com/qualcomm/qcrilhook/OemHookCallback",
+        b"com/qualcomm/qti/internal/telephony/QtiRilInterface"}
+seen, dexes = set(), []
+for a in adds:
+    za = zipfile.ZipFile(a)
+    ad = [e for e in za.namelist() if e.endswith(".dex")]
+    if ad != ["classes.dex"]:
+        sys.exit("%s has %s, not one classes.dex; not merged" % (os.path.basename(a), ad))
+    d = za.read("classes.dex")
+    dexes.append((os.path.basename(a), d))
+    seen |= {c for c in need if c in d}
+missing = need - seen
+if missing:
+    sys.exit("none of the added jars has %s; not merged" % b", ".join(sorted(missing)).decode())
+with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as zo:
+    for e in zi.infolist():
+        zo.writestr(e, zi.read(e.filename))
+    for i, (name, d) in enumerate(dexes, start=2):
+        zo.writestr("classes%d.dex" % i, d)
+print("built %s (its classes.dex, plus %s)" % (
+    out, ", ".join("%s as classes%d.dex" % (n, i) for i, (n, _) in enumerate(dexes, start=2))))
+PYEOF
+elif [ -n "$NT_TC" ]; then
+    echo "nt-telephony-common.jar: none of the jars it needs are in the image, left as it is"
+else
+    echo "nt-telephony-common.jar: not in the image, nothing to merge"
+fi
+
 
 # oplus-telephony-common.jar (system_ext, not on the boot class path, so the
 # boot image stays valid): poll the signal strength every 20 s. Samsung's RIL
@@ -550,6 +665,7 @@ else
         INJ_WHY="TeleService.apk declares overlayable resources"
     else
         INJ_PHONE_RROS=0
+        INJ_OVERRIDES=""
         for d in /system/product/overlay /system/overlay /system/system_ext/overlay; do
             in_image "$d" || continue
             rm -rf "$WORK/ovl" && mkdir -p "$WORK/ovl"
@@ -559,12 +675,29 @@ else
                 "$BT/aapt2" dump badging "$a" 2>/dev/null | grep -q "targetPackage='com.android.phone'" || continue
                 INJ_PHONE_RROS=$((INJ_PHONE_RROS + 1))
                 if "$BT/aapt2" dump resources "$a" 2>/dev/null | grep -q ' xml/telephony_injection$'; then
-                    INJ_WHY="$INJ_WHY${INJ_WHY:+, }$d/${a#"$WORK"/ovl/*/} overrides xml/telephony_injection"
+                    INJ_OVERRIDES="$INJ_OVERRIDES${INJ_OVERRIDES:+, }$d/${a#"$WORK"/ovl/*/}"
                 fi
             done < "$WORK/ovl.txt"
         done
         rm -rf "$WORK/ovl" "$WORK/ovl.txt"
         echo "signal poll injection: $INJ_PHONE_RROS RRO(s) in the image target com.android.phone"
+        # An image RRO that sets xml/telephony_injection itself (Nothing OS 5.0:
+        # product/overlay/TelephonyResCommon_Sys.apk, Qualcomm's factory) used to
+        # rule the poll out. Run 10 showed the guest's static overlay order:
+        # system_ext < product < vendor < oem, so ours in /oem (guest_prepare.sh)
+        # comes last and wins; from system_ext it lost, and Qualcomm's factory,
+        # loading now that the read-only layer made its jars "protected",
+        # crash-looped com.android.phone (org.codeaurora.ims is not on its class
+        # path). That order only holds without an overlay ordering file, so an
+        # image with one is still left out.
+        if [ -n "$INJ_OVERRIDES" ]; then
+            for c in /system/overlay/config/config.xml /system/product/overlay/config/config.xml \
+                     /product/overlay/config/config.xml /system/system_ext/overlay/config/config.xml \
+                     /system_ext/overlay/config/config.xml /system/etc/overlay/config.xml; do
+                in_image "$c" && INJ_WHY="$INJ_WHY${INJ_WHY:+, }$INJ_OVERRIDES overrides xml/telephony_injection and $c sets the overlay order"
+            done
+            [ -n "$INJ_WHY" ] || echo "signal poll injection: $INJ_OVERRIDES overrides xml/telephony_injection; ours goes in /oem, which comes after it"
+        fi
         if [ -z "$INJ_WHY" ]; then
             # Another image's jar that apktool cannot read only leaves this out,
             # like every other reason here: not a failed build.
@@ -702,7 +835,10 @@ python3 -I - "$WORK/surfaceflinger" "$OUT/surfaceflinger_patched" <<'PYEOF'
 import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
-SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178}
+SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
+         # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
+         # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
+         "e5a8726a6687": 0x452a50}
 off = SITES.get(hashlib.sha1(data).hexdigest()[:12])
 if off is None and b"IQtiComposer3Client" not in data:
     # Google's own build (Pixel image): no QTI composer client to skip.
@@ -720,6 +856,16 @@ open(dst, "wb").write(data)
 print("built %s (QTI composer client skipped)" % dst)
 PYEOF
 [ ! -f "$OUT/surfaceflinger_patched" ] || chmod 755 "$OUT/surfaceflinger_patched"
+
+# bootanimation on every panel (patch-bootanim-multidisplay.py; guest_prepare.sh
+# binds it under the image's own name): without Android's multidisplay flag it
+# drew on the Fold's inner panel only, the cover black when started folded.
+for l in libbootanimation_preapex libbootanimation; do
+    rm -f "$OUT/${l}_patched.so" "$WORK/$l.so"
+    "$DEBUGFS" -R "dump /system/lib64/$l.so $WORK/$l.so" "$IMG" 2>/dev/null
+    [ -s "$WORK/$l.so" ] || continue
+    python3 -I "$ROOT/scripts/patch-bootanim-multidisplay.py" "$WORK/$l.so" "$OUT/${l}_patched.so" || rm -f "$OUT/${l}_patched.so"
+done
 
 # com.oplus.wallpapers "Home screen, Lock screen & style": with type.fold the app
 # uses its Find N6 inner-screen page, a 4x4 grid where every card is 2x2 = half
@@ -872,6 +1018,214 @@ if in_image "$SYSUI"; then
     fi
 else
     echo "SystemUIGoogle.apk (or an AOSP SystemUI.apk): not in the image, no status bar overlay"
+fi
+
+# Patch one dex of a system APK and splice it back with the signing block as
+# it was (scripts/apk-replace-dex.py): PackageManager does not check the digests
+# of an APK on a system partition and still reads the platform certificate.
+# patch_apk_dex <apk> <out apk> <patcher in switcher/patches> <class the image
+# must have> <what it does>. The patcher refuses a body it was not written for;
+# then nothing is built.
+# Quick settings on a tablet-width panel. Nothing OS's SystemUI has
+# config_use_split_notification_shade for (land) and (sw600dp-land) but no
+# sw600dp-port value, so on the Z Fold's inner panel in portrait (sw902dp) it
+# fell back to the () phone shade and the tiles were stretched over 2256 px,
+# while config_use_large_screen_shade_header, which does have an (sw600dp)
+# value, had already gone large-screen: the two disagreed (the owner, first
+# Nothing runs). The overlay gives both a value under sw600dp, which covers
+# portrait as well; the cover panel is below 600dp and keeps the phone shade.
+# Built only when the image's SystemUI has both bools and declares no
+# overlayable resources (an /oem overlay may then override any of them).
+QS_SYSUI=""
+for p in /system_ext/priv-app/SystemUI/SystemUI.apk /system/system_ext/priv-app/SystemUI/SystemUI.apk; do
+    in_image "$p" && { QS_SYSUI=$p; break; }
+done
+QS_RRO="$ROOT/switcher/overlays/nothing_tablet_qs"
+QS_BOOLS="config_use_split_notification_shade config_use_large_screen_shade_header"
+rm -f "$OUT/OneOSTabletQs.apk" "$OUT/SystemUI_patched.apk"
+if [ -n "$QS_SYSUI" ]; then
+    "$DEBUGFS" -R "dump $QS_SYSUI $WORK/SystemUI.apk" "$IMG" 2>/dev/null
+    "$BT/aapt2" dump resources "$WORK/SystemUI.apk" > "$WORK/qs_res.txt" 2>/dev/null || true
+    QS_MISSING=""
+    for b in $QS_BOOLS; do
+        grep -q " bool/$b\$" "$WORK/qs_res.txt" || QS_MISSING="$QS_MISSING $b"
+    done
+    QS_OVERLAYABLE=$("$BT/aapt2" dump overlayable "$WORK/SystemUI.apk" 2>/dev/null | head -n 3) || true
+    if [ -n "$QS_MISSING" ]; then
+        echo "SystemUI.apk: no bool$QS_MISSING, tablet quick settings overlay not built"
+    elif [ -n "$QS_OVERLAYABLE" ]; then
+        echo "SystemUI.apk declares overlayable resources, tablet quick settings overlay not built"
+    else
+        # The tile sizes are not resources: run 10 had sw600dp dimens here,
+        # scaled from the image's own, and the overlay enabled above Nothing's
+        # own, with no effect. The panel draws at a density of its own
+        # (SystemUI_patched.apk below).
+        "$BT/aapt2" compile --dir "$QS_RRO/res" -o "$WORK/qs.zip"
+        "$BT/aapt2" link -o "$WORK/qs.apk" -I "$AJ" --manifest "$QS_RRO/AndroidManifest.xml" \
+            --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/qs.zip"
+        "$BT/zipalign" -p -f 4 "$WORK/qs.apk" "$WORK/qs-aligned.apk"
+        "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+            --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+            --out "$OUT/OneOSTabletQs.apk" "$WORK/qs-aligned.apk"
+        rm -f "$OUT/OneOSTabletQs.apk.idsig"
+        echo "built $OUT/OneOSTabletQs.apk (split shade and large-screen header from sw600dp)"
+    fi
+    # Nothing's quick settings panel at the screen's own density on a panel of
+    # sw600dp and up (switcher/patches/nothing_qs_density.py): it lays itself
+    # out as if every screen were 420 dp wide, which on the Fold's inner panel
+    # is 859 dpi, tiles twice the size and half the panel off the screen. One
+    # method in one dex; scripts/apk-replace-dex.py puts that dex back without
+    # touching the signing block, so PackageManager, which does not check the
+    # digests of an APK on a system partition, still reads the platform
+    # certificate. Only for the build the patch was written for: the patcher
+    # refuses any other body.
+    patch_apk_dex "$WORK/SystemUI.apk" "$OUT/SystemUI_patched.apk" nothing_qs_density.py \
+        'Lcom/nothing/systemui/qs/workspace/workspace/CellLayoutKt;' \
+        "quick settings at the screen's density from sw600dp"
+else
+    echo "SystemUI.apk: not in the image, no tablet quick settings overlay"
+fi
+
+# Nothing's app drawer with more category boxes per row on a wide panel
+# (switcher/patches/nothing_launcher_drawer.py): it has two per row on any
+# screen, sized from the width, and on the Fold's inner panel each box came out
+# about 1000 x 1100 px around four normal icons (the owner, Nothing run 11).
+LAUNCHER=""
+for p in /system_ext/priv-app/NothingLauncher3/NothingLauncher3.apk /system/system_ext/priv-app/NothingLauncher3/NothingLauncher3.apk; do
+    in_image "$p" && { LAUNCHER=$p; break; }
+done
+rm -f "$OUT/NothingLauncher3_patched.apk"
+if [ -n "$LAUNCHER" ]; then
+    "$DEBUGFS" -R "dump $LAUNCHER $WORK/NothingLauncher3.apk" "$IMG" 2>/dev/null
+    patch_apk_dex "$WORK/NothingLauncher3.apk" "$OUT/NothingLauncher3_patched.apk" nothing_launcher_drawer.py \
+        'Lcom/nothing/launcher/allapps/smart/z;' "drawer category boxes per row from the width"
+    rm -f "$WORK/NothingLauncher3.apk"
+else
+    echo "NothingLauncher3.apk: not in the image, drawer left as it is"
+fi
+
+# Nothing OS's About phone with the phone's own hardware (switcher/overlays/
+# nothing_about): its own-phone mode, the Fold's cameras and picture. Only for
+# an image with Nothing's Settings; guest_prepare.sh installs it on the F8U.
+NA_RRO="$ROOT/switcher/overlays/nothing_about"
+rm -f "$OUT/OneOSNtAbout.apk" "$OUT"/OneOSNtAbout?*.apk
+for p in /system_ext/priv-app/NothingSettings/NothingSettings.apk /system/system_ext/priv-app/NothingSettings/NothingSettings.apk; do
+    in_image "$p" || continue
+    "$BT/aapt2" compile --dir "$NA_RRO/res" -o "$WORK/na.zip"
+    # No --min-sdk-version: it would drop the -v4 of values-xxhdpi-v4, and the
+    # pictures must match Nothing's drawable-xxhdpi-v4 exactly to win.
+    "$BT/aapt2" link -o "$WORK/na.apk" -I "$AJ" --manifest "$NA_RRO/AndroidManifest.xml" \
+        --target-sdk-version 36 --no-resource-deduping "$WORK/na.zip"
+    "$BT/zipalign" -p -f 4 "$WORK/na.apk" "$WORK/na-aligned.apk"
+    "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+        --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+        --out "$OUT/OneOSNtAbout.apk" "$WORK/na-aligned.apk"
+    rm -f "$OUT/OneOSNtAbout.apk.idsig"
+    echo "built $OUT/OneOSNtAbout.apk (Nothing About phone: own-phone mode, cameras, picture)"
+    # The other Nothing phones (0.4.35): the Z Fold8 with the Fold's resources
+    # and its own picture and lenses over them; the S26 family and the Z Flip8
+    # with nothing_about_phone (the processor's whole name, the S26's picture),
+    # the S26 Ultra's and the flip's pictures and lenses over that.
+    NP_RRO="$ROOT/switcher/overlays/nothing_about_phone"
+    "$BT/aapt2" compile --dir "$NP_RRO/res" -o "$WORK/np.zip"
+    for v in Fold8 Phone S26U Flip; do
+        case $v in
+            Fold8) base="$WORK/na.zip"; man="$NA_RRO/AndroidManifest.xml"; layer=nothing_about_fold8 ;;
+            Phone) base="$WORK/np.zip"; man="$NP_RRO/AndroidManifest.xml"; layer="" ;;
+            S26U) base="$WORK/np.zip"; man="$NP_RRO/AndroidManifest.xml"; layer=nothing_about_s26u ;;
+            Flip) base="$WORK/np.zip"; man="$NP_RRO/AndroidManifest.xml"; layer=nothing_about_flip ;;
+        esac
+        extra=""
+        if [ -n "$layer" ]; then
+            "$BT/aapt2" compile --dir "$ROOT/switcher/overlays/$layer/res" -o "$WORK/nl.zip"
+            extra="-R $WORK/nl.zip"
+        fi
+        # shellcheck disable=SC2086
+        "$BT/aapt2" link -o "$WORK/np.apk" -I "$AJ" --manifest "$man" \
+            --target-sdk-version 36 --no-resource-deduping "$base" $extra
+        "$BT/zipalign" -p -f 4 "$WORK/np.apk" "$WORK/np-aligned.apk"
+        "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+            --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+            --out "$OUT/OneOSNtAbout$v.apk" "$WORK/np-aligned.apk"
+        rm -f "$OUT/OneOSNtAbout$v.apk.idsig" "$WORK/np.apk" "$WORK/np-aligned.apk" "$WORK/nl.zip"
+        echo "built $OUT/OneOSNtAbout$v.apk (Nothing About phone, $v)"
+    done
+    break
+done
+
+# One UI's brightness range (switcher/overlays/samsung_brightness_range), for a
+# Nothing image for now (guest_prepare.sh installs it there).
+BR_RRO="$ROOT/switcher/overlays/samsung_brightness_range"
+rm -f "$OUT/OneOSBrightnessRange.apk"
+if in_image /system_ext/framework/nt-telephony-common.jar || in_image /system/system_ext/framework/nt-telephony-common.jar; then
+    "$BT/aapt2" compile --dir "$BR_RRO/res" -o "$WORK/br.zip"
+    "$BT/aapt2" link -o "$WORK/br.apk" -I "$AJ" --manifest "$BR_RRO/AndroidManifest.xml" \
+        --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/br.zip"
+    "$BT/zipalign" -p -f 4 "$WORK/br.apk" "$WORK/br-aligned.apk"
+    "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+        --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+        --out "$OUT/OneOSBrightnessRange.apk" "$WORK/br-aligned.apk"
+    rm -f "$OUT/OneOSBrightnessRange.apk.idsig"
+    echo "built $OUT/OneOSBrightnessRange.apk (One UI's brightness range)"
+fi
+
+# Essential Space from a double press of power (switcher/overlays/
+# nothing_essential_key), for an image with Nothing's Essential Space.
+NE_RRO="$ROOT/switcher/overlays/nothing_essential_key"
+rm -f "$OUT/OneOSNtEssentialKey.apk"
+if in_image /product/overlayfs_origin/system/noth/priv-app/EssentialSpace/EssentialSpace.apk; then
+    "$BT/aapt2" compile --dir "$NE_RRO/res" -o "$WORK/ne.zip"
+    "$BT/aapt2" link -o "$WORK/ne.apk" -I "$AJ" --manifest "$NE_RRO/AndroidManifest.xml" \
+        --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/ne.zip"
+    "$BT/zipalign" -p -f 4 "$WORK/ne.apk" "$WORK/ne-aligned.apk"
+    "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+        --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+        --out "$OUT/OneOSNtEssentialKey.apk" "$WORK/ne-aligned.apk"
+    rm -f "$OUT/OneOSNtEssentialKey.apk.idsig"
+    echo "built $OUT/OneOSNtEssentialKey.apk (Essential Space on a double press of power)"
+fi
+
+# Per-panel display cutout for the Z Fold (switcher/overlays/fold_display_cutout).
+# An image whose framework-res leaves config_displayUniqueIdArray empty takes
+# the cutout from Samsung's vendor framework overlay, which /vendor shares with
+# the guest, and applies the cover's punch hole to whichever panel is on: the
+# inner panel, which has no cutout on this phone, got a phantom 108 px notch
+# (Nothing OS run 7). The overlay names the cover panel only (arrays.xml says
+# why not the inner); in run 10 the inner then had no cutout and a 24 dp status
+# bar inset. guest_prepare.sh installs it on the Z Fold (F8U) only, since the
+# ids and the hole are that phone's.
+CO_RRO="$ROOT/switcher/overlays/fold_display_cutout"
+CO_ARRAYS="config_displayUniqueIdArray config_displayCutoutPathArray"
+CO_DIMENS="status_bar_height status_bar_height_default status_bar_height_portrait"
+rm -f "$OUT/OneOSFoldCutout.apk"
+if in_image /system/framework/framework-res.apk; then
+    "$DEBUGFS" -R "dump /system/framework/framework-res.apk $WORK/framework-res.apk" "$IMG" 2>/dev/null
+    "$BT/aapt2" dump resources "$WORK/framework-res.apk" > "$WORK/co_res.txt" 2>/dev/null || true
+    CO_MISSING=""
+    for a in $CO_ARRAYS; do
+        grep -q " array/$a\$" "$WORK/co_res.txt" || CO_MISSING="$CO_MISSING $a"
+    done
+    for d in $CO_DIMENS; do
+        grep -q " dimen/$d\$" "$WORK/co_res.txt" || CO_MISSING="$CO_MISSING $d"
+    done
+    CO_OVERLAYABLE=$("$BT/aapt2" dump overlayable "$WORK/framework-res.apk" 2>/dev/null | head -n 3) || true
+    if [ -n "$CO_MISSING" ]; then
+        echo "framework-res.apk: no$CO_MISSING, fold cutout overlay not built"
+    elif [ -n "$CO_OVERLAYABLE" ]; then
+        echo "framework-res.apk declares overlayable resources, fold cutout overlay not built"
+    else
+        "$BT/aapt2" compile --dir "$CO_RRO/res" -o "$WORK/co.zip"
+        "$BT/aapt2" link -o "$WORK/co.apk" -I "$AJ" --manifest "$CO_RRO/AndroidManifest.xml" \
+            --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/co.zip"
+        "$BT/zipalign" -p -f 4 "$WORK/co.apk" "$WORK/co-aligned.apk"
+        "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+            --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+            --out "$OUT/OneOSFoldCutout.apk" "$WORK/co-aligned.apk"
+        rm -f "$OUT/OneOSFoldCutout.apk.idsig"
+        echo "built $OUT/OneOSFoldCutout.apk (inner panel no cutout and 24dp status bar, cover 505,0-575,108 and 54dp)"
+    fi
+else
+    echo "framework-res.apk: not in the image, no fold cutout overlay"
 fi
 
 # The guest's own APEX payloads, which guest_prepare.sh loop-mounts into the
