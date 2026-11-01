@@ -1,5 +1,7 @@
 package com.fahadali.oneos.guest
 
+import dev.oneuiproject.oneui.utils.applyEdgeToEdge
+
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AlertDialog
 import android.app.StatusBarManager
@@ -28,7 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var back: Button
     private lateinit var status: TextView
-    private lateinit var addTile: Button
+    private lateinit var addTile: dev.oneuiproject.oneui.widget.CardItemView
     private var confirm: AlertDialog? = null
     private var confirmReason: String? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -36,22 +38,31 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyEdgeToEdge()
         setContentView(R.layout.activity_main)
+        findViewById<dev.oneuiproject.oneui.widget.RoundedLinearLayout>(R.id.guest_options).apply {
+            roundedCorners = androidx.appcompat.util.SeslRoundedCorner.ROUNDED_CORNER_ALL
+            val color = android.util.TypedValue()
+            theme.resolveAttribute(androidx.appcompat.R.attr.roundedCornerColor, color, true)
+            roundedCornersColor = color.data
+        }
         val system = GuestName.read()
         findViewById<GuestArtworkView>(R.id.guest_artwork).bind(system)
         findViewById<TextView>(R.id.title).text =
             if (system != null) getString(R.string.title_in, system) else getString(R.string.title_in_other)
         // Edge to edge (target 35+): keep the content clear of the system bars and cutouts.
-        findViewById<View>(R.id.root).setOnApplyWindowInsetsListener { v, insets ->
+        val root = findViewById<View>(R.id.root)
+        val left = root.paddingLeft; val top = root.paddingTop; val right = root.paddingRight; val bottom = root.paddingBottom
+        root.setOnApplyWindowInsetsListener { v, insets ->
             val b = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            v.setPadding(b.left, b.top, b.right, b.bottom)
+            v.setPadding(left + b.left, top + b.top, right + b.right, bottom + b.bottom)
             insets
         }
         back = findViewById(R.id.back)
         status = findViewById(R.id.status)
         addTile = findViewById(R.id.add_tile)
         back.setOnClickListener { ask(ReturnRequest.REASON_APP) }
-        findViewById<Button>(R.id.checklist).setOnClickListener { startActivity(Intent(this, ChecklistActivity::class.java)) }
+        findViewById<dev.oneuiproject.oneui.widget.CardItemView>(R.id.checklist).setOnClickListener { startActivity(Intent(this, ChecklistActivity::class.java)) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             addTile.setOnClickListener { requestTile() }
         } else {
@@ -161,7 +172,7 @@ class MainActivity : AppCompatActivity() {
             if (result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
                 result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
             ) {
-                addTile.setText(R.string.tile_added)
+                addTile.title = getString(R.string.tile_added)
                 addTile.contentDescription = getString(R.string.tile_added_description)
                 addTile.isEnabled = false
             }

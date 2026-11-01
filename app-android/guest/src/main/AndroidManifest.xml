@@ -5,6 +5,7 @@
          request is a file in the app's own data folder, which the session's
          watcher on the host reads (switcher/assets/oneos_switch.sh). -->
     <application
+        android:enableOnBackInvokedCallback="true"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"

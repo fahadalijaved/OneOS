@@ -4,4 +4,7 @@
 <string name="catalog_unsupported_message">This system isn’t available for this device yet.</string>
 <string name="settings_load_gsi">Load custom GSI</string><string name="settings_storage">Manage OneOS storage</string><string name="settings_repair">Repair OneOS patches</string><string name="settings_help">Help and about</string><string name="settings_onboarding">Before you start</string><string name="settings_debug">Debug</string>
 <string name="settings_thermal">Enable OneOS thermal manager</string><string name="settings_experimental">Experimental</string><string name="settings_camera">Enable camera fix</string><string name="settings_allow_lock">Allow switch with screen lock</string>
+<string name="catalog_open_checks">Open pre-boot checks for %1$s</string>
+<string name="catalog_update">Update</string>
+<string name="catalog_switch">Switch</string>
 </resources>

@@ -33,6 +33,8 @@ import dev.oneuiproject.oneui.R as OuiIcons
 class AdvancedActivity : ToolbarActivity() {
     override val screenTitle: CharSequence get() = getString(R.string.advanced_title)
 
+    override val preferenceInsets = true
+
     override fun createFragment(): Fragment = SettingsPreferenceFragment()
 
     override val layoutRes: Int get() = R.layout.activity_systems
@@ -126,7 +128,6 @@ class AdvancedFragment : CardsFragment() {
 
         // Help.
         val help = Cards.section(column, getString(R.string.advanced_card_help), rows = true)
-        Cards.row(help, OuiIcons.drawable.ic_oui_help_outline, getString(R.string.before_title), getString(R.string.advanced_before_summary), open(BeforeYouStartActivity::class.java))
         Cards.row(help, OuiIcons.drawable.ic_oui_info_outline, getString(R.string.about_title), getString(R.string.advanced_about_summary), open(AboutActivity::class.java))
 
         // The technical screens, behind one entry.

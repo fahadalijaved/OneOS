@@ -9,7 +9,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.device.FactProbe
 import com.fahadali.oneos.core.model.RootKind
@@ -18,9 +17,12 @@ import com.fahadali.oneos.core.root.RootProbe
 import dev.oneuiproject.oneui.R as OuiIcons
 
 /** Figma's welcome → prerequisites → before-you-start flow. It never relaxes the switching gates. */
-class OnboardingActivity : AppCompatActivity() {
+class OnboardingActivity : EdgeToEdgeActivity() {
     private var hasResumed = false
     private var page = 0
+    private val stepBack = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() { page--; render(animate = true) }
+    }
     private var welcomeSpring: androidx.dynamicanimation.animation.SpringAnimation? = null
     private var welcomeFade: android.animation.ObjectAnimator? = null
     private val animationHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -33,9 +35,7 @@ class OnboardingActivity : AppCompatActivity() {
             v.setPadding(b.left, b.top, b.right, b.bottom)
             insets
         }
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() { if (page > 0) { page--; render(animate = true) } else finish() }
-        })
+        onBackPressedDispatcher.addCallback(this, stepBack)
         findViewById<Button>(R.id.onboarding_next).setOnClickListener {
             if (page < 2) { page++; render(animate = true) }
             else {
@@ -62,12 +62,17 @@ class OnboardingActivity : AppCompatActivity() {
         val rows = findViewById<LinearLayout>(R.id.onboarding_rows)
         rows.removeAllViews()
         findViewById<View>(R.id.onboarding_icon).visibility = if (page == 0) View.VISIBLE else View.GONE
-        val scroll = findViewById<ScrollView>(R.id.onboarding_card_scroll)
-        scroll.visibility = if (page == 0) View.GONE else View.VISIBLE
-        val width = (412 * resources.displayMetrics.density).toInt()
-        scroll.layoutParams = (scroll.layoutParams as android.widget.FrameLayout.LayoutParams).apply {
-            this.width = minOf(width, resources.displayMetrics.widthPixels - (48 * resources.displayMetrics.density).toInt())
+        stepBack.isEnabled = page > 0
+        rows.visibility = if (page == 0) View.GONE else View.VISIBLE
+        val body = findViewById<LinearLayout>(R.id.onboarding_body)
+        val density = resources.displayMetrics.density
+        body.setPadding(0, if (page == 0) 0 else (94 * density).toInt(), 0, 0)
+        body.layoutParams = (body.layoutParams as android.widget.FrameLayout.LayoutParams).apply {
+            width = minOf((480 * density).toInt(), resources.displayMetrics.widthPixels - (48 * density).toInt())
+            height = if (page == 0) android.view.ViewGroup.LayoutParams.MATCH_PARENT else android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            gravity = android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL
         }
+        body.gravity = if (page == 0) android.view.Gravity.CENTER else android.view.Gravity.CENTER_HORIZONTAL
         findViewById<AnimatedTitleView>(R.id.onboarding_title).setTitle(getString(when(page) {
             0 -> R.string.onboarding_welcome
             1 -> R.string.onboarding_prerequisites
@@ -76,11 +81,45 @@ class OnboardingActivity : AppCompatActivity() {
         findViewById<Button>(R.id.onboarding_next).setText(if (page == 0) R.string.onboarding_start else R.string.before_continue)
         animatePage(animate)
         if (page == 0) return
-        rows.layoutParams = rows.layoutParams.apply { height = ((if (page == 1) 300 else 350) * resources.displayMetrics.density * resources.configuration.fontScale).toInt() }
-        supportFragmentManager.beginTransaction().replace(R.id.onboarding_rows,
-            OnboardingPreferenceFragment().apply { arguments = Bundle().apply { putInt("page", page) } }
-        ).commitNow()
+        fun row(title: Int, summary: CharSequence, icon: Int, status: CharSequence? = null, action: (() -> Unit)? = null) {
+            val item = layoutInflater.inflate(R.layout.onboarding_permission_row, rows, false)
+            item.findViewById<TextView>(R.id.onboarding_row_title).setText(title)
+            item.findViewById<TextView>(R.id.onboarding_row_summary).text = summary
+            item.findViewById<TextView>(R.id.onboarding_row_status).apply {
+                text = status
+                visibility = if (status == null) View.GONE else View.VISIBLE
+            }
+            item.findViewById<android.widget.ImageView>(R.id.onboarding_row_icon).setImageResource(icon)
+            item.isClickable = action != null
+            item.isFocusable = action != null
+            if (action != null) item.setOnClickListener { action() }
+            rows.addView(item)
+        }
+        if (page == 1) {
+            val root = RootRules.kind(RootProbe(this).signals())
+            row(R.string.onboarding_root,
+                if (root == RootKind.NONE) getString(R.string.onboarding_no_root) else root.label,
+                OuiIcons.drawable.ic_oui_security) {
+                startActivity(Intent(this, DeviceReportActivity::class.java))
+            }
+            row(R.string.onboarding_nearby, getString(R.string.onboarding_nearby_summary), R.drawable.ic_catalog_device)
+            val lockStatus = when (FactProbe.screenLockSet(this)) {
+                true -> R.string.environment_lock_on
+                false -> R.string.environment_lock_off
+                null -> R.string.environment_unknown
+            }
+            row(R.string.onboarding_lock, getString(R.string.onboarding_lock_summary), OuiIcons.drawable.ic_oui_page_lock,
+                getString(lockStatus)) {
+                startActivity(Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS))
+            }
+        } else {
+            row(R.string.onboarding_experimental, getString(R.string.onboarding_experimental_summary), OuiIcons.drawable.ic_oui_info_outline)
+            row(R.string.onboarding_backup, getString(R.string.onboarding_backup_summary), OuiIcons.drawable.ic_oui_folder_open)
+            row(R.string.onboarding_data, getString(R.string.onboarding_data_summary), OuiIcons.drawable.ic_oui_manage_storage_outline)
+        }
+        findViewById<ScrollView>(R.id.onboarding_card_scroll).scrollTo(0, 0)
     }
+
     /** Reused from Twidget: per-letter title reveal, spring button entrance, and quiet step fades. */
     private fun animatePage(animate: Boolean) {
         val title = findViewById<AnimatedTitleView>(R.id.onboarding_title)

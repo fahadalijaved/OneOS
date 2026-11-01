@@ -70,7 +70,10 @@ import dev.oneuiproject.oneui.R as OuiIcons
 internal object EditionHome {
     fun onboarding(a: MainActivity) = android.content.Intent(a, OnboardingActivity::class.java)
 
-    fun redirect(a: MainActivity): android.content.Intent? = if (a.intent.getBooleanExtra("system_detail", false)) null else android.content.Intent(a, LauncherActivity::class.java)
+    fun redirect(a: MainActivity): android.content.Intent? {
+        if (a.intent.getBooleanExtra("system_detail", false)) return null
+        return Intent(a, LauncherActivity::class.java)
+    }
 
     val layoutRes: Int get() = R.layout.activity_home
 

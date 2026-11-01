@@ -1,0 +1,4 @@
+<dev.oneuiproject.oneui.widget.RoundedLinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/guest_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?android:attr/colorBackground">
+    <dev.oneuiproject.oneui.widget.CardItemView android:id="@+id/add_tile" android:layout_width="match_parent" android:layout_height="wrap_content" app:title="@string/add_tile_title" />
+    <dev.oneuiproject.oneui.widget.CardItemView android:id="@+id/checklist" android:layout_width="match_parent" android:layout_height="wrap_content" app:title="@string/guest_report" app:showTopDivider="true" />
+</dev.oneuiproject.oneui.widget.RoundedLinearLayout>

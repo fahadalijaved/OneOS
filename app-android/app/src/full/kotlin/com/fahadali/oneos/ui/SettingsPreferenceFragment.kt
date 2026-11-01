@@ -14,14 +14,15 @@ import com.fahadali.oneos.session.SessionPrefs
 import dev.oneuiproject.oneui.R as OuiIcons
 
 /** SESL9 preference rows, the same settings component used by Twidget. */
-class SettingsPreferenceFragment : PreferenceFragmentCompat() {
+class SettingsPreferenceFragment : InsetPreferenceFragment() {
     override fun onResume() { super.onResume(); onCreatePreferences(null, null) }
     override fun onCreatePreferences(state: Bundle?, rootKey: String?) {
         val ctx = preferenceManager.context
         preferenceScreen = preferenceManager.createPreferenceScreen(ctx)
         fun category(title: Int) = PreferenceCategory(ctx).apply { setTitle(title); preferenceScreen.addPreference(this) }
         fun row(group: PreferenceCategory, title: Int, summary: Int? = null, icon: Int = 0, target: Class<*>) {
-            group.addPreference(Preference(ctx).apply {
+            group.addDescribedPreference(Preference(ctx).apply {
+                key = "setting_$title"
                 setTitle(title)
                 if (summary != null) setSummary(summary)
                 isIconSpaceReserved = icon != 0
@@ -33,7 +34,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         row(setup, R.string.settings_load_gsi, R.string.advanced_file_summary, OuiIcons.drawable.ic_oui_folder_open, ImageActivity::class.java)
         row(setup, R.string.settings_storage, R.string.advanced_space_summary, OuiIcons.drawable.ic_oui_manage_storage_outline, OldStagesActivity::class.java)
         row(setup, R.string.settings_repair, R.string.advanced_setup_summary, OuiIcons.drawable.ic_oui_refresh, PrepareActivity::class.java)
-        setup.addPreference(Preference(ctx).apply {
+        setup.addDescribedPreference(Preference(ctx).apply {
+            key = "remove_data"
             setTitle(R.string.remove_title); setSummary(R.string.remove_summary); setIcon(OuiIcons.drawable.ic_oui_delete_outline)
             setOnPreferenceClickListener {
                 if (!RemoveJob.canStart()) android.widget.Toast.makeText(ctx, R.string.remove_busy, android.widget.Toast.LENGTH_LONG).show()
@@ -44,7 +46,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             }
         })
         fun toggle(group: PreferenceCategory, title: Int, summary: Int, value: Boolean, save: (Boolean) -> Unit) {
-            group.addPreference(SwitchPreferenceCompat(ctx).apply {
+            group.addDescribedPreference(SwitchPreferenceCompat(ctx).apply {
+                key = "setting_$title"
                 setTitle(title); setSummary(summary); isIconSpaceReserved = false; isPersistent = false; isChecked = value
                 setOnPreferenceChangeListener { _, next -> save(next as Boolean); true }
             })
@@ -58,7 +61,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         val risky = category(R.string.advanced_card_risky)
         toggle(risky, R.string.settings_allow_lock, R.string.advanced_allow_lock_summary, SessionPrefs.allowScreenLock(ctx)) { SessionPrefs.setAllowScreenLock(ctx, it) }
         LogJob.latestZip(ctx)?.let { zip ->
-            sessions.addPreference(Preference(ctx).apply {
+            sessions.addDescribedPreference(Preference(ctx).apply {
+                key = "session_logs"
                 setTitle(R.string.logs_title)
                 setSummary(R.string.advanced_logs_summary)
                 isIconSpaceReserved = false
@@ -68,14 +72,14 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             })
         }
         if (SessionRestore.offered(ctx)) {
-            sessions.addPreference(Preference(ctx).apply {
+            sessions.addDescribedPreference(Preference(ctx).apply {
                 setTitle(R.string.last_restore_title); isIconSpaceReserved = false
                 setOnPreferenceClickListener { activity?.let { SessionRestore.confirm(it) }; true }
             })
         }
         val help = category(R.string.settings_help)
         row(help, R.string.about_title, target = AboutActivity::class.java)
-        row(help, R.string.settings_onboarding, target = OnboardingActivity::class.java)
-        row(help, R.string.settings_debug, R.string.advanced_team_summary, target = TeamActivity::class.java)
+        row(help, R.string.settings_debug, R.string.advanced_team_summary, target = DebugSettingsActivity::class.java)
+        preferenceScreen.addBottomInset()
     }
 }

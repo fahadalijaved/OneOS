@@ -129,6 +129,7 @@ internal object SwitchConfirm {
             val ticked = remembered + boxes.mapNotNull { it.tag as? String }
             dialog.dismiss()
             LaunchJob.start(a, dryRun = false, ticked = ticked, hideGms = hideGms, secIms = secIms, edmStub = edmStub)
+            if (LaunchJob.state.busy) ArtworkTransitions.start(a, BootProgressActivity.intent(a, image), a.findViewById(R.id.environment_artwork))
         }
         dialog.show()
     }

@@ -1,0 +1,13 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/environment_window" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@android:color/black">
+<androidx.appcompat.widget.Toolbar android:id="@+id/environment_toolbar" android:layout_width="match_parent" android:layout_height="?attr/actionBarSize" android:background="@android:color/black" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+    <androidx.core.widget.NestedScrollView android:id="@+id/environment_scroll" android:layout_width="match_parent" android:layout_height="match_parent" android:clipToPadding="false" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="12dp" android:paddingTop="8dp" android:paddingBottom="20dp">
+            <include layout="@layout/environment_artwork" android:layout_width="match_parent" android:layout_height="356dp" />
+            <androidx.appcompat.widget.AppCompatTextView android:id="@+id/environment_title" style="@style/OneOS.Setup.Title" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" />
+            <LinearLayout android:id="@+id/environment_cards" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="16dp" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+    <include layout="@layout/environment_action" />
+    </FrameLayout>
+</LinearLayout>

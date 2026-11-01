@@ -12,10 +12,9 @@ import dev.oneuiproject.oneui.layout.ToolbarLayout
 
 /**
  * One screen = One UI collapsing [ToolbarLayout] + one preference fragment.
- * Target SDK 36 always draws edge to edge, and the 2022 ToolbarLayout does not
- * handle insets itself, so the content view is padded by the system bars.
+ * Uses Twidget's SESL9 floating-toolbar bridge and preference-list insets.
  */
-abstract class ToolbarActivity : AppCompatActivity() {
+abstract class ToolbarActivity : EdgeToEdgeActivity() {
     protected lateinit var toolbarLayout: ToolbarLayout
         private set
 
@@ -28,6 +27,8 @@ abstract class ToolbarActivity : AppCompatActivity() {
     /** Layout holding [R.id.toolbar_layout] and [R.id.fragment_container]. */
     @get:LayoutRes
     protected open val layoutRes: Int get() = R.layout.activity_toolbar
+
+    protected open val preferenceInsets: Boolean = false
 
     protected abstract fun createFragment(): Fragment
 
@@ -42,8 +43,8 @@ abstract class ToolbarActivity : AppCompatActivity() {
             return
         }
         setContentView(layoutRes)
-        padForSystemBars(findViewById(android.R.id.content))
         toolbarLayout = findViewById(R.id.toolbar_layout)
+        if (preferenceInsets) applyPreferenceScreenInsets(toolbarLayout) else applyEdgeToEdgeInsets(toolbarLayout)
         toolbarLayout.setTitle(screenTitle)
         toolbarLayout.showNavigationButtonAsBack = showBack
         if (showBack) toolbarLayout.setNavigationButtonOnClickListener { onBackPressedDispatcher.onBackPressed() }
@@ -58,11 +59,4 @@ abstract class ToolbarActivity : AppCompatActivity() {
         toolbarLayout.expandedSubtitle = text
     }
 
-    private fun padForSystemBars(root: View) {
-        root.setOnApplyWindowInsetsListener { v, insets ->
-            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            WindowInsets.CONSUMED
-        }
-    }
 }

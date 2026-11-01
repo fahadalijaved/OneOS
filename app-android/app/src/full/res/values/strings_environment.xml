@@ -1,0 +1,23 @@
+<resources>
+    <string name="environment_boot">Boot into %1$s</string>
+    <string name="environment_root">Root</string>
+    <string name="environment_storage">Storage space</string>
+    <string name="environment_battery">Battery</string>
+    <string name="environment_lock">Screen lock</string>
+    <string name="environment_guest_root">Guest root access</string>
+    <string name="environment_guest_root_status">Enabled by OneOS’s existing guest root bridge</string>
+    <string name="environment_no_root">Root not detected</string>
+    <string name="environment_lock_off">Off</string>
+    <string name="environment_lock_on">On</string>
+    <string name="environment_unknown">Not checked</string>
+    <string name="environment_free">%1$s free</string>
+    <string name="environment_active">%1$s active</string>
+    <string name="environment_report">Report issue to OneOS team</string>
+    <string name="environment_checking">Checking the phone and prepared system…</string>
+    <string name="environment_preview">Preview mode · simulated environment and boot</string>
+    <string name="environment_boot_cancelled">Boot cancelled</string>
+    <string name="environment_boot_cancelling">Cancelling…</string>
+    <string name="environment_update">Update %1$s</string>
+    <string name="environment_restage_title">%1$s needs to be set up again</string>
+    <string name="environment_restage_summary">The previous setup did not finish. Update its setup before booting.</string>
+</resources>

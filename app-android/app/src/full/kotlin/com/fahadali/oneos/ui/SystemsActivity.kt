@@ -64,6 +64,7 @@ open class SystemsActivity : ToolbarActivity() {
         pick = registerForActivityResult(SystemsNav.OpenGz()) { uri -> if (uri != null) picked(uri) }
         pickFor = savedInstanceState?.getString(KEY_PICK_FOR)
         super.onCreate(savedInstanceState)
+        ArtworkTransitions.prepare(this)
         toolbarLayout.setAdaptiveMarginProvider(dev.oneuiproject.oneui.widget.AdaptiveCoordinatorLayout.MARGIN_PROVIDER_ZERO)
         toolbarLayout.setEdgeInsetHorizontal(0f)
         findViewById<dev.oneuiproject.oneui.widget.RoundedFrameLayout>(dev.oneuiproject.oneui.design.R.id.tbl_main_content).apply {
@@ -71,6 +72,19 @@ open class SystemsActivity : ToolbarActivity() {
             fillHorizontalPadding = false
         }
         findViewById<View>(dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners).visibility = View.GONE
+    }
+
+    override fun onActivityReenter(resultCode: Int, data: Intent?) {
+        super.onActivityReenter(resultCode, data)
+        postponeEnterTransition()
+        val root = findViewById<View>(R.id.fragment_container)
+        root.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                root.viewTreeObserver.removeOnPreDrawListener(this)
+                startPostponedEnterTransition()
+                return true
+            }
+        })
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -157,6 +171,9 @@ class SystemsFragment : Fragment() {
     private var profileRead = false
     private var lastKey: List<Any?>? = null
     private var snapHelper: androidx.recyclerview.widget.PagerSnapHelper? = null
+    private var revealed = false
+    private var initialDraw: android.view.ViewTreeObserver.OnPreDrawListener? = null
+    private var currentEntries: List<CatalogEntry> = emptyList()
     private var swiping = false
     private var swipeStart = androidx.recyclerview.widget.RecyclerView.NO_POSITION
 
@@ -166,7 +183,13 @@ class SystemsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val carousel = view.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)
+        carousel.alpha = 0f
+        carousel.translationY = dp(6).toFloat()
+        carousel.itemAnimator = null
+        lastKey = null
+        carousel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> scaleCards(carousel) }
         carousel.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            override fun onScrolled(rv: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) = scaleCards(rv)
             override fun onScrollStateChanged(rv: androidx.recyclerview.widget.RecyclerView, state: Int) {
                 val layout = rv.layoutManager ?: return
                 if (state == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_DRAGGING) {
@@ -176,10 +199,13 @@ class SystemsFragment : Fragment() {
                 if (state == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE && swiping) rv.post {
                     if (rv.scrollState != androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE || !swiping) return@post
                     val selected = snapHelper?.findSnapView(layout)?.let(layout::getPosition)
+                    if (selected != null && currentEntries.isNotEmpty()) currentEntries[selected % currentEntries.size].image?.let { CarouselSelection.remember(rv.context, it) }
                     if (selected != null && selected != swipeStart) {
-                        rv.performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 34)
-                            android.view.HapticFeedbackConstants.SEGMENT_TICK else android.view.HapticFeedbackConstants.CLOCK_TICK)
-                        if (com.fahadali.oneos.BuildConfig.DEBUG) android.util.Log.d("OneOSCarousel", "Settled card tick: $selected")
+                        val samsungTick = if (androidx.reflect.DeviceInfo.isOneUI())
+                            androidx.reflect.view.SeslHapticFeedbackConstantsReflector.semGetVibrationIndex(41) else -1
+                        val accepted = if (samsungTick >= 0 && rv.performHapticFeedback(samsungTick)) true
+                            else rv.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+                        if (com.fahadali.oneos.BuildConfig.DEBUG) android.util.Log.d("OneOSCarousel", "Settled card tick: $selected accepted=$accepted samsung=$samsungTick")
                     }
                     swiping = false
                 }
@@ -213,9 +239,9 @@ class SystemsFragment : Fragment() {
 
     override fun onStart() {
         super.onStart()
-        lastKey = null
         subs += StageCheck.observe { redraw() }
         subs += PrepareJob.observe { redraw() }
+        subs += OldStagesJob.observe { redraw() }
         subs += com.fahadali.oneos.session.RemoveJob.observe { redraw() }
     }
 
@@ -223,6 +249,16 @@ class SystemsFragment : Fragment() {
         subs.forEach { it() }
         subs.clear()
         super.onStop()
+    }
+
+    override fun onDestroyView() {
+        view?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)?.let { rv ->
+            initialDraw?.let { rv.viewTreeObserver.removeOnPreDrawListener(it) }
+            rv.animate().cancel()
+        }
+        initialDraw = null; revealed = false; currentEntries = emptyList()
+        snapHelper?.attachToRecyclerView(null); snapHelper = null
+        super.onDestroyView()
     }
 
     override fun onDestroy() {
@@ -286,13 +322,13 @@ class SystemsFragment : Fragment() {
         val check = StageCheck.state
         val prep = PrepareJob.state
         val picked = SessionPrefs.picked(ctx)
-        val jobsBusy = prep.busy || check.busy || LaunchJob.state.busy || LogJob.state.busy || com.fahadali.oneos.session.RemoveJob.state.busy
+        val jobsBusy = prep.busy || LaunchJob.state.busy || LogJob.state.busy || OldStagesJob.state.busy || com.fahadali.oneos.session.RemoveJob.state.busy
         // PrepareJob reports every few MB: redraw only when something on the cards changes.
         val key = listOf(
             p?.id, profileRead, check.busy, check.result?.at, prep.phase, prep.image?.id,
             picked?.uri, picked?.sha256, jobsBusy, resources.configuration.screenWidthDp,
         )
-        if (!force && key == lastKey) return
+        if (key == lastKey && root.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel).adapter != null) return
         lastKey = key
 
         root.findViewById<TextView>(R.id.systems_hero_subtitle).apply {
@@ -302,12 +338,17 @@ class SystemsFragment : Fragment() {
         val carousel = root.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)
         val available = p?.images().orEmpty()
         val st = check.result?.status
+        val rememberedImage = EnvironmentNavigation.preparedImage(ctx)
         val setUpId = st?.marker?.takeIf { st.ours && it.profileId == p?.id }?.imageId
+            ?: check.result?.takeIf { it.status.partial }?.let(ImageMaintenance::identifiedImage)?.id
+            ?: rememberedImage?.id?.takeIf { st?.complete != true }
+        val maintenance = rememberedImage?.let { ImageMaintenance.message(ctx, it, check.result) }
         val pickedId = p?.let { FixActions.pickedImage(ctx, it)?.id }
         val settingUpId = prep.image?.id?.takeIf { prep.busy }
         fun image(family: com.fahadali.oneos.core.model.SystemFamily, fallback: ImageRef): ImageRef =
             available.firstOrNull { it.family == family && it.id == setUpId }
                 ?: available.firstOrNull { it.family == family && it.id in st?.oldImages.orEmpty().values }
+                ?: rememberedImage?.takeIf { it.family == family && it.id == setUpId }
                 ?: available.firstOrNull { it.family == family } ?: fallback
         val color = image(com.fahadali.oneos.core.model.SystemFamily.COLOROS, Images.FIND_N6)
         val pixel = image(com.fahadali.oneos.core.model.SystemFamily.PIXEL, Images.PIXEL_YOGI)
@@ -323,7 +364,8 @@ class SystemsFragment : Fragment() {
         )
 
 
-        val state = carousel.layoutManager?.onSaveInstanceState()
+        currentEntries = entries
+        val state = if (revealed) carousel.layoutManager?.onSaveInstanceState() else null
         carousel.adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<CarouselHolder>() {
             override fun getItemCount() = Int.MAX_VALUE
             override fun onCreateViewHolder(parent: ViewGroup, type: Int): CarouselHolder =
@@ -332,13 +374,14 @@ class SystemsFragment : Fragment() {
                 val entry = entries[position % entries.size]
                 val image = entry.image
                 holder.box.removeAllViews()
-                val height = visibleCardHeight(carousel)
-                val width = (height / resources.displayMetrics.density * cardAspect()).toInt().coerceAtLeast(180)
-                holder.box.layoutParams = androidx.recyclerview.widget.RecyclerView.LayoutParams(dp(width), height).apply {
-                    marginStart = 0; marginEnd = dp(16)
+                val (width, height) = cardSize(carousel)
+                val verticalInset = ((visibleCardHeight(carousel) - height) / 2).coerceAtLeast(0)
+                holder.box.layoutParams = androidx.recyclerview.widget.RecyclerView.LayoutParams(width, height).apply {
+                    marginStart = cardSideMargin(); marginEnd = cardSideMargin()
+                    topMargin = verticalInset; bottomMargin = verticalInset
                 }
                 holder.box.addView(card(holder.box, p, entry, position,
-                    image?.id == setUpId && setUpId != null, image?.id == pickedId && pickedId != null, image?.id == settingUpId && settingUpId != null, prep.busy, jobsBusy, st?.oldImages?.entries?.firstOrNull { it.value == image?.id }?.key))
+                    image?.id == setUpId && setUpId != null, image?.id == pickedId && pickedId != null, image?.id == settingUpId && settingUpId != null, prep.busy, jobsBusy, maintenance?.takeIf { image?.id == setUpId }, st?.oldImages?.entries?.firstOrNull { it.value == image?.id }?.key))
             }
         }
         if (carousel.layoutManager == null) {
@@ -346,13 +389,55 @@ class SystemsFragment : Fragment() {
             snapHelper = androidx.recyclerview.widget.PagerSnapHelper().also { it.attachToRecyclerView(carousel) }
         }
         if (state != null) carousel.layoutManager?.onRestoreInstanceState(state)
-        carousel.post {
-            carousel.adapter?.notifyDataSetChanged()
-            if (state == null) {
-                val h = visibleCardHeight(carousel)
-                val w = (h / resources.displayMetrics.density * cardAspect()).toInt().coerceAtLeast(180)
-                (carousel.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager)?.scrollToPositionWithOffset(Int.MAX_VALUE / 2 - (Int.MAX_VALUE / 2 % entries.size) + 2, (carousel.width - dp(w)) / 2)
-            }
+        if (!revealed) {
+            initialDraw?.let { carousel.viewTreeObserver.removeOnPreDrawListener(it) }
+            val family = CarouselSelection.family(ctx)
+            val selected = entries.indexOfFirst { it.image?.family == family }.takeIf { it >= 0 } ?: 2
+            val target = Int.MAX_VALUE / 2 - (Int.MAX_VALUE / 2 % entries.size) + selected
+            initialDraw = object : android.view.ViewTreeObserver.OnPreDrawListener {
+                override fun onPreDraw(): Boolean {
+                    val manager = carousel.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return true
+                    if (carousel.width == 0 || carousel.height == 0) return false
+                    val card = manager.findViewByPosition(target)
+                    if (card == null) {
+                        val (width, _) = cardSize(carousel)
+                        manager.scrollToPositionWithOffset(target, (carousel.width - width - 2 * cardSideMargin()) / 2)
+                        carousel.postInvalidateOnAnimation()
+                        return false
+                    }
+                    val distance = snapHelper?.calculateDistanceToFinalSnap(manager, card)
+                    if (distance != null && (distance[0] != 0 || distance[1] != 0)) {
+                        carousel.scrollBy(distance[0], distance[1])
+                        carousel.postInvalidateOnAnimation()
+                        return false
+                    }
+                    carousel.viewTreeObserver.removeOnPreDrawListener(this)
+                    initialDraw = null
+                    revealed = true
+                    scaleCards(carousel)
+                    carousel.animate().alpha(1f).translationY(0f).setDuration(220)
+                        .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+                    return true
+                }
+            }.also { carousel.viewTreeObserver.addOnPreDrawListener(it) }
+        }
+    }
+
+    /** Continuous, layout-independent emphasis; snapping still uses the unscaled card bounds. */
+    private fun scaleCards(carousel: androidx.recyclerview.widget.RecyclerView) {
+        val centre = carousel.paddingLeft + (carousel.width - carousel.paddingLeft - carousel.paddingRight) / 2f
+        for (index in 0 until carousel.childCount) {
+            val child = carousel.getChildAt(index)
+            if (child.width == 0) continue
+            val params = child.layoutParams as androidx.recyclerview.widget.RecyclerView.LayoutParams
+            val step = child.width + params.leftMargin + params.rightMargin
+            val distance = (kotlin.math.abs((child.left + child.right) / 2f - centre) / step).coerceIn(0f, 1f)
+            val eased = distance * distance * (3f - 2f * distance)
+            val scale = 1f - .08f * eased
+            child.pivotX = child.width / 2f
+            child.pivotY = child.height / 2f
+            child.scaleX = scale
+            child.scaleY = scale
         }
     }
 
@@ -370,6 +455,7 @@ class SystemsFragment : Fragment() {
         settingUp: Boolean,
         prepBusy: Boolean,
         jobsBusy: Boolean,
+        maintenance: com.fahadali.oneos.core.model.PlainMessage?,
         savedCopy: String?,
     ): View {
         val ctx = parent.context
@@ -405,61 +491,93 @@ class SystemsFragment : Fragment() {
                 menu.add(R.string.home_details_all).setOnMenuItemClickListener {
                     startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true)); true
                 }
-                if (com.fahadali.oneos.BuildConfig.DEBUG) {
-                    menu.add(R.string.setup_preview_menu).setOnMenuItemClickListener { startPreview(image); true }
-                }
                 menu.add(R.string.catalog_details).setOnMenuItemClickListener {
                     AlertDialog.Builder(ctx).setTitle(image.displayName).setMessage(image.blurb + "\n\n" + image.variant.orEmpty() + "\n" + Units.bytes(image.gzBytes)).setPositiveButton(android.R.string.ok, null).show(); true
                 }
             }.show()
         }
         val a = activity as? SystemsActivity
-        fun only(text: CharSequence, enabled: Boolean, onClick: () -> Unit) {
+        fun makeCardClickable(description: CharSequence, enabled: Boolean, onClick: () -> Unit) {
+            v.isFocusable = true
+            v.isEnabled = enabled
+            v.contentDescription = description
+            val attributes = ctx.obtainStyledAttributes(intArrayOf(androidx.appcompat.R.attr.colorControlHighlight))
+            val highlight = attributes.getColorStateList(0) ?: android.content.res.ColorStateList.valueOf(0)
+            attributes.recycle()
+            v.foreground = android.graphics.drawable.RippleDrawable(highlight, v.foreground,
+                androidx.appcompat.content.res.AppCompatResources.getDrawable(ctx, R.drawable.catalog_card_bg))
+            v.setOnClickListener { CarouselSelection.remember(ctx, image); onClick() }
+        }
+        fun only(text: CharSequence, enabled: Boolean, onCardClick: (() -> Unit)? = null, onClick: () -> Unit) {
             primary.visibility = View.VISIBLE
             primary.text = text
             primary.isEnabled = enabled
-            primary.setOnClickListener { onClick() }
+            primary.setOnClickListener { CarouselSelection.remember(ctx, image); onClick() }
+            makeCardClickable("$text ${image.nameWithVariant}", if (onCardClick != null) true else enabled, onCardClick ?: onClick)
+        }
+        fun openCard(onClick: () -> Unit) {
+            primary.visibility = View.GONE
+            makeCardClickable(getString(R.string.catalog_open_checks, image.nameWithVariant), true, onClick)
         }
         when {
-            settingUp -> only(getString(R.string.systems_show_progress), true) { a?.let { SystemsNav.progress(it) } }
-            setUp -> only(getString(R.string.catalog_boot), !jobsBusy) { a?.let { SystemsNav.home(it, image) } }
-            savedCopy != null -> only(getString(R.string.catalog_boot), !jobsBusy) {
+            settingUp -> only(getString(R.string.systems_show_progress), true) { a?.let { ArtworkTransitions.start(it, Intent(it, SetupProgressActivity::class.java), v.findViewById(R.id.systems_artwork)) } }
+            setUp && maintenance != null -> only(getString(R.string.catalog_update),
+                !jobsBusy && StageCheck.state.phase == StageCheck.Phase.DONE,
+                onCardClick = { a?.let { ArtworkTransitions.start(it, EnvironmentNavigation.intent(it, image), v.findViewById(R.id.systems_artwork)) } }) {
+                a?.let {
+                    if (maintenance.action == FixAction.SET_UP_AGAIN) askDownloaded(image, v.findViewById(R.id.systems_artwork))
+                    else FixActions.run(it, maintenance.action, image)
+                }
+            }
+            setUp -> openCard { a?.let { ArtworkTransitions.start(it, EnvironmentNavigation.intent(it, image), v.findViewById(R.id.systems_artwork)) } }
+            savedCopy != null -> only(getString(R.string.catalog_switch), !jobsBusy && !StageCheck.state.busy) {
                 val current = StageCheck.state.result?.status?.marker?.imageId?.let { Images.byId(it) }?.name ?: getString(R.string.home_other_current_unknown)
                 AlertDialog.Builder(ctx).setTitle(getString(R.string.home_other_confirm_title, image.name))
                     .setMessage(getString(R.string.home_other_confirm_message, image.name, current))
                     .setPositiveButton(R.string.home_other_confirm_go) { _, _ ->
-                        if (a != null) { QuickSwitch.start(a, savedCopy, image.id); SystemsNav.home(a, image) }
+                        if (a != null) {
+                            OldStagesJob.restore(a, com.fahadali.oneos.core.root.OldStage(savedCopy, 0, image.id, hasData = true, busy = false))
+                            if (OldStagesJob.state.restoring == savedCopy && OldStagesJob.state.busy) {
+                                ArtworkTransitions.start(a, EnvironmentNavigation.intent(a, image), v.findViewById(R.id.systems_artwork))
+                            }
+                        }
                     }.setNegativeButton(android.R.string.cancel, null).show()
             }
-            picked -> only(getString(R.string.catalog_set_up), !jobsBusy) { a?.let { FixActions.run(it, FixAction.SET_UP, image) } }
-            else -> only(getString(R.string.catalog_set_up), !jobsBusy) {
-                if (!entry.supported) { showUnsupported(entry.name); return@only }
-                AlertDialog.Builder(ctx).setTitle(image.displayName)
-                    .setItems(arrayOf(getString(R.string.systems_download), getString(R.string.systems_have_file))) { _, which ->
-                        if (which == 0) image.downloadUrl?.let { url -> a?.let { SystemsNav.open(it, url) } } else a?.choose(image.id)
-                    }.show()
-            }
+            else -> only(getString(R.string.catalog_set_up), !jobsBusy) { askDownloaded(image, v.findViewById(R.id.systems_artwork)) }
         }
+
         primary.contentDescription = primary.text.toString() + " " + image.nameWithVariant
         return v
     }
 
-    private fun startPreview(image: ImageRef) {
-        if (!com.fahadali.oneos.BuildConfig.DEBUG) return
+    private fun askDownloaded(image: ImageRef, artwork: OsArtworkView) {
+        val a = activity as? SystemsActivity ?: return
+        AlertDialog.Builder(a).setTitle(getString(R.string.setup_mock_title, image.name))
+            .setMessage(R.string.setup_download_question)
+            .setPositiveButton(R.string.setup_download_yes) { _, _ ->
+                if (DebugPreview.enabled(a)) startPreview(image, artwork)
+                else a.choose(image.id)
+            }
+            .setNegativeButton(R.string.setup_download_no) { _, _ ->
+                image.downloadUrl?.let { SystemsNav.open(a, it) }
+            }
+            .setNeutralButton(android.R.string.cancel, null).show()
+    }
+
+    private fun startPreview(image: ImageRef, artwork: OsArtworkView) {
+        if (!DebugPreview.enabled(requireContext())) return
         if (PrepareJob.state.busy || LaunchJob.state.busy || StageCheck.state.busy || LogJob.state.busy || OldStagesJob.state.busy || com.fahadali.oneos.session.RemoveJob.state.busy) {
             Toast.makeText(requireContext(), R.string.setup_preview_busy, Toast.LENGTH_LONG).show()
             return
         }
-        startActivity(Intent(requireContext(), SetupProgressActivity::class.java)
-            .putExtra(SetupProgressActivity.EXTRA_PREVIEW_IMAGE, image.id))
+        val a = activity ?: return
+        ArtworkTransitions.start(a, Intent(a, SetupProgressActivity::class.java)
+            .putExtra(SetupProgressActivity.EXTRA_PREVIEW_IMAGE, image.id), artwork)
     }
 
     private fun showUnsupported(name: String) {
         val dialog = AlertDialog.Builder(requireContext()).setTitle(name)
             .setMessage(R.string.catalog_unsupported_message).setPositiveButton(android.R.string.ok, null)
-        if (com.fahadali.oneos.BuildConfig.DEBUG) Images.ALL.firstOrNull { it.name == name }?.let { image ->
-            dialog.setNeutralButton(R.string.setup_preview_menu) { _, _ -> startPreview(image) }
-        }
         dialog.show()
     }
 
@@ -479,7 +597,18 @@ class SystemsFragment : Fragment() {
         if (!carousel.getGlobalVisibleRect(visible) || visible.height() <= 0) return dp(500)
         val navigation = carousel.rootWindowInsets?.getInsets(android.view.WindowInsets.Type.navigationBars())?.bottom ?: 0
         val safeBottom = carousel.rootView.height - navigation
-        return (minOf(visible.bottom, safeBottom) - visible.top - carousel.paddingTop - carousel.paddingBottom).coerceAtLeast(dp(180))
+        return (minOf(visible.bottom, safeBottom) - visible.top - carousel.paddingTop - carousel.paddingBottom).coerceAtLeast(1)
+    }
+
+    private fun cardSideMargin() = dp(if (resources.getBoolean(R.bool.home_two_pane)) 8 else 4)
+
+    private fun cardSize(carousel: View): Pair<Int, Int> {
+        val height = visibleCardHeight(carousel)
+        val aspect = cardAspect()
+        val viewport = carousel.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        val widthLimit = if (resources.getBoolean(R.bool.home_two_pane)) Int.MAX_VALUE else (viewport * .78f).toInt()
+        val width = minOf((height * aspect).toInt(), widthLimit).coerceAtLeast(1)
+        return width to (width / aspect).toInt().coerceIn(1, height)
     }
 
     private fun cardAspect(): Float = if (resources.getBoolean(R.bool.home_two_pane)) 1050f / 1548f else 730f / 1464f

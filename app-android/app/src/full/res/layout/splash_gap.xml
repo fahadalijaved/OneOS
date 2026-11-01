@@ -1,42 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- The gap splash (Splash.dc.html): the mark, the "OneOS" wordmark and
-     "Starting {system}" on black. Surfaceflinger freezes on the first frame,
-     so everything here is final when GapSplashActivity.onCreate returns:
-     system fonts only, no animation, the text set before the first draw. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/splash_root"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@android:color/black"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:paddingHorizontal="24dp">
-
-    <ImageView
-        android:id="@+id/splash_mark"
-        android:layout_width="112dp"
-        android:layout_height="112dp"
-        android:importantForAccessibility="no"
-        android:src="@drawable/ic_oneos_mark" />
-
-    <!-- "One" + "OS" in two colours (spans set in onCreate). -->
-    <TextView
-        android:id="@+id/splash_wordmark"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="28dp"
-        android:fontFamily="sans-serif-medium"
-        android:letterSpacing="-0.01"
-        android:maxLines="1"
-        android:textColor="@color/oneos_splash_text"
-        android:textSize="48sp" />
-
-    <TextView
-        android:id="@+id/splash_starting"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:gravity="center"
-        android:textColor="@color/oneos_splash_text_secondary"
-        android:textSize="18sp" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/splash_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:background="@android:color/black" android:padding="24dp">
+    <com.fahadali.oneos.ui.OsArtworkView android:tag="heading" android:id="@+id/splash_artwork" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:background="@drawable/catalog_card_bg" android:foreground="@drawable/catalog_card_outline" android:clipToOutline="true" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:orientation="vertical" android:paddingVertical="40dp">
+        <androidx.appcompat.widget.AppCompatTextView android:id="@+id/splash_wordmark" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:textSize="32sp" android:textStyle="bold" android:textColor="#FFFFFF" />
+        <androidx.appcompat.widget.AppCompatTextView android:id="@+id/splash_starting" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:textSize="20sp" android:textColor="#FFFFFF" android:layout_marginTop="24dp" />
+        <androidx.appcompat.widget.AppCompatTextView android:id="@+id/splash_preview" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:textSize="13sp" android:textColor="#848487" android:text="@string/setup_preview_badge" android:layout_marginTop="16dp" android:visibility="gone" />
+    </LinearLayout>
 </LinearLayout>

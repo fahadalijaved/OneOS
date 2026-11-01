@@ -1,4 +1,9 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="500" android:viewportHeight="500">
-<path android:fillColor="#99FFFFFF" android:pathData="M259,105H326Q370,105 370,149V331Q370,375 326,375H259Q215,375 215,331V149Q215,105 259,105Z"/>
-<path android:fillColor="#FFFFFF" android:pathData="M175,125H242Q286,125 286,169V351Q286,395 242,395H175Q131,395 131,351V169Q131,125 175,125Z"/>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Figma 395:11658: original 500 x 500 foreground geometry. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="500" android:viewportHeight="500">
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.6"
+        android:pathData="M259,105H326A44,44 0,0 1,370 149V331A44,44 0,0 1,326 375H259A44,44 0,0 1,215 331V149A44,44 0,0 1,259 105Z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M175,125H242A44,44 0,0 1,286 169V351A44,44 0,0 1,242 395H175A44,44 0,0 1,131 351V169A44,44 0,0 1,175 125Z" />
 </vector>

@@ -5,11 +5,9 @@
 
     <!-- Surfaces ============================================================ -->
 
-    <!-- One UI card: ?android:colorBackground, 26dp corners (a shape, not
-         MaterialCardView, which crashes under OneUITheme). Clips its children
-         to the corners, so row ripples stay inside. Put it on the window colour. -->
+    <!-- Native SESL surface and oneui-design RoundedLinearLayout corner rendering. -->
     <style name="OneOS.Card" parent="">
-        <item name="android:background">@drawable/oneos_card_bg</item>
+        <item name="android:background">?android:attr/colorBackground</item>
         <item name="android:clipToOutline">true</item>
         <item name="android:orientation">vertical</item>
         <item name="android:paddingStart">@dimen/oneos_card_padding</item>
@@ -50,8 +48,8 @@
     <!-- Buttons ============================================================= -->
 
     <!-- The one main action: a 52dp pill in ?attr/colorPrimary, white bold 17sp. -->
-    <style name="OneOS.Button.Primary" parent="Widget.AppCompat.Button.Colored" />
-    <style name="OneOS.Button.Secondary" parent="Widget.AppCompat.Button" />
+    <style name="OneOS.Button.Primary" parent="OneUI.ContainedButton"><item name="android:theme">@style/OneUI.ContainedPrimaryColorButtonTheme</item></style>
+    <style name="OneOS.Button.Secondary" parent="OneUI.ContainedButton"><item name="android:theme">@style/OneUI.ContainedButtonTheme</item></style>
 
     <!-- A minor action: bold primary-blue text, rounded ripple, 48dp tall. -->
     <style name="OneOS.Button.Text" parent="OneUI.ButtonStyleTransparent">
@@ -70,7 +68,7 @@
 
     <!-- The system name under the hero picture. -->
     <style name="OneOS.Text.Hero" parent="">
-        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">-0.01</item>
         <item name="android:textColor">?android:attr/textColorPrimary</item>
         <item name="android:textSize">32sp</item>
@@ -122,5 +120,11 @@
     <!-- A card header's trailing status ("4 of 4 checks"); Cards sets the level colour. -->
     <style name="OneOS.Text.Caption.Strong" parent="OneOS.Text.Caption">
         <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+    <style name="Theme.OneOS.Handoff" parent="Theme.OneOS">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowFullscreen">true</item>
     </style>
 </resources>

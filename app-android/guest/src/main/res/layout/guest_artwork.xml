@@ -1,0 +1,4 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/catalog_card_bg" android:foreground="@drawable/catalog_card_outline" android:clipToOutline="true">
+    <com.fahadali.oneos.guest.GuestArtworkView android:id="@+id/guest_artwork" android:layout_width="match_parent" android:layout_height="match_parent" />
+    <androidx.appcompat.widget.AppCompatButton android:id="@+id/back" style="@style/OneUI.ContainedButton" android:theme="@style/OneUI.ContainedPrimaryColorButtonTheme" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="bottom|center_horizontal" android:layout_margin="24dp" android:text="@string/back" />
+</FrameLayout>

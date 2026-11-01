@@ -1,5 +1,7 @@
 package com.fahadali.oneos.guest
 
+import dev.oneuiproject.oneui.utils.applyEdgeToEdge
+
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.text.Editable
@@ -31,6 +33,7 @@ class ChecklistActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyEdgeToEdge()
         Checklist.read(this).let { answers += it.items; note = it.note }
         val pad = dp(24)
         val column = LinearLayout(this).apply {
