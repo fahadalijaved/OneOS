@@ -548,6 +548,7 @@ fi
 # kills surfaceflinger as before when the splash is not up (no 'Status: ok'
 # from am start, e.g. the component is not installed).
 # ONEOS_GAP_SPLASH=0: the black gap of run 32.
+. "$STAGE/boot_status.sh"
 GAP_SPLASH_LOG="$STAGE/gap_splash.log"
 rm -f "$GAP_SPLASH_LOG" "$STAGE/data/oneos_host_sf_frozen"
 if [ "${ONEOS_GAP_SPLASH:-1}" = 1 ]; then
@@ -567,6 +568,7 @@ fi
 # return_to_oneui.sh restores enforcing.
 setenforce 0 2>/dev/null || true
 echo "SELinux mode: $(getenforce 2>/dev/null || echo unknown)"
+oneos_boot_begin enter
 
 # --- IMS / SMS REGISTRATION GATE -----------------------------------------
 # The guest has no ImsService of its own, so the modem's IMS registration is
@@ -885,9 +887,18 @@ if [ "${ONEOS_GAP_SPLASH:-1}" = 1 ]; then
     SFP=$(pidof surfaceflinger)
     if grep -q '^Status: ok' "$GAP_SPLASH_LOG" 2>/dev/null && grep -q '^settled' "$GAP_SPLASH_LOG" &&
        [ -n "$SFP" ] && [ "$SFP" = "${SFP%% *}" ] && echo "$SFP" > "$STAGE/data/oneos_host_sf_frozen"; then
-        if kill -STOP "$SFP" 2>/dev/null; then SF_FROZEN=$SFP; else rm -f "$STAGE/data/oneos_host_sf_frozen"; fi
+        if [ "${ONEOS_VERBOSE_BOOT:-0}" = 1 ] && oneos_boot_ready; then
+            # Keep the compositor live for the root status layer, with the same
+            # guest_start/safety-net cleanup as the ordinary frozen frame.
+            SF_FROZEN=$SFP
+            echo "Verbose boot: surfaceflinger $SFP kept live for status updates"
+        elif kill -STOP "$SFP" 2>/dev/null; then SF_FROZEN=$SFP; else rm -f "$STAGE/data/oneos_host_sf_frozen"; fi
     fi
-    echo "Gap splash: $(grep -E '^(Status|LaunchState|TotalTime|Error)' "$GAP_SPLASH_LOG" 2>/dev/null | tr '\n' ' ')waited $((n / 5)).$((n % 5 * 2))s; One UI's surfaceflinger ${SF_FROZEN:-not frozen, black gap}${SF_FROZEN:+ frozen on it at $(date +%T)}"
+    if [ "${ONEOS_VERBOSE_BOOT:-0}" = 1 ] && oneos_boot_ready; then
+        echo "Gap splash: live process status on surfaceflinger ${SF_FROZEN:-unavailable}"
+    else
+        echo "Gap splash: $(grep -E '^(Status|LaunchState|TotalTime|Error)' "$GAP_SPLASH_LOG" 2>/dev/null | tr '\n' ' ')waited $((n / 5)).$((n % 5 * 2))s; One UI's surfaceflinger ${SF_FROZEN:-not frozen, black gap}${SF_FROZEN:+ frozen on it at $(date +%T)}"
+    fi
 fi
 setprop ctl.stop zygote
 # zygote64_32 phones (Galaxy S23): One UI's 32-bit zygote is a service of its

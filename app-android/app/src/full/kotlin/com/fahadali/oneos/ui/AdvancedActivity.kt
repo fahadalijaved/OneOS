@@ -116,6 +116,10 @@ class AdvancedFragment : CardsFragment() {
             SessionPrefs.setEdmStub(ctx, on)
         }
 
+        CardRows.toggle(calls, getString(R.string.verbose_boot_title), getString(R.string.verbose_boot_summary), SessionPrefs.verboseBoot(ctx)) { on ->
+            SessionPrefs.setVerboseBoot(ctx, on)
+        }
+
         // Risky (0.4.32, owner's call): things that can cost the phone's data. The
         // card is headed in red so it does not read like the switches above it.
         val risky = Cards.section(

@@ -1,0 +1,1 @@
+<resources><string name="verbose_boot_title">Verbose boot</string><string name="verbose_boot_summary">Show live process and system-service events while entering the guest and returning to One UI.</string><string name="splash_launching_into">Launching into %1$s</string></resources>

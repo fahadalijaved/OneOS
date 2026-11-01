@@ -85,6 +85,16 @@ class FakeRoot(
         frameworkJar.parentFile.mkdirs()
         frameworkJar.writeBytes(ByteArray(4096) { (it * 7).toByte() })
         stubs.mkdirs()
+        // Fake-device capacity must not depend on the developer machine's disk.
+        // All actual file identity/mode checks still use the real stat implementation.
+        val stat = exec(listOf("sh", "-c", "command -v stat")).trim()
+        stub("stat", """
+            if [ "${'$'}1" = -f ] && [ "${'$'}2" = -c ] && [ "${'$'}3" = '%a %S' ]; then
+                echo '8388608 4096'
+            else
+                exec '$stat' "${'$'}@"
+            fi
+        """)
         stub("getprop", """
             [ -n "${'$'}1" ] || exit 0
             sed -n "s|^${'$'}1=||p" "${'$'}ONEOS_TEST_ROOT/props" | head -n 1

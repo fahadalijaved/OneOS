@@ -1,0 +1,3 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/guest_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom" android:paddingVertical="12dp">
+    <androidx.appcompat.widget.AppCompatButton android:id="@+id/back" style="@style/OneUI.ContainedButton" android:theme="@style/OneUI.ContainedPrimaryColorButtonTheme" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center_horizontal" android:text="@string/return_shortcut" />
+</FrameLayout>

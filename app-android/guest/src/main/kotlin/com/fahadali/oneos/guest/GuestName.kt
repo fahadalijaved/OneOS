@@ -7,7 +7,8 @@ import java.io.File
  * The name of the system this app runs in, for "You're in {system}", or null
  * when it cannot tell (the screen then names no system).
  *
- * The host tells the guest nothing, and the property area is One UI's
+ * The session writes a bounded friendly system name into its private data tree.
+ * Older stages fall back to build.prop. The property area is One UI's
  * (guest_props.sh only adds the props One UI lacks), so [Build.MODEL] and
  * every `ro.product.*` the app could ask for are the Samsung phone's. The
  * guest's build.prop files are its own, though: a phone's product partition
@@ -42,6 +43,9 @@ internal object GuestName {
 
     /** A few small files, read on the main thread: the title is set once, before the first frame. */
     fun read(): String? {
+        runCatching { File("/data/oneos_bootui/system_name").takeIf { it.isFile && it.length() in 1..128 }?.readText()?.trim() }
+            .getOrNull()?.takeIf { it.isNotBlank() && it.none(Char::isISOControl) }?.let { return it }
+
         val props = files.mapNotNull { path ->
             runCatching {
                 File(path).takeIf { it.isFile && it.length() in 1L..MAX_FILE_BYTES }?.let(::parse)

@@ -27,8 +27,8 @@ android {
         minSdk = 31
         targetSdk = 36
         // 0.2 (OneOS 0.4.30): How's it going?, the checklist for Send to the OneOS team.
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3"
     }
 
     signingConfigs {
@@ -97,6 +97,8 @@ configurations.configureEach {
 }
 
 dependencies {
+    implementation(project(":core:model"))
+    implementation(libs.oneui.icons)
     implementation(libs.oneui.design) {
         // The design library's optional barcode scanner is unused; keep OneOS offline.
         exclude(group = "com.google.android.gms", module = "play-services-mlkit-barcode-scanning")

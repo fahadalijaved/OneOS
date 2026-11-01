@@ -88,8 +88,8 @@ class StageScriptTest {
 
         fun launch(
             mode: String = "session", hideGms: String = "0", code: String = this.code,
-            heatCap: String = "1", secIms: String = "0", edmStub: String = "0",
-        ) = fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub)
+            heatCap: String = "1", secIms: String = "0", edmStub: String = "0", verboseBoot: String = "0",
+        ) = fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub, verboseBoot)
 
         fun prepare(mode: String = "new") {
             ok(begin(mode))
@@ -1435,6 +1435,21 @@ class StageScriptTest {
         assertTrue(File(fr.stage, "bin/oneos_root.sh").isFile)
         assertTrue(java.nio.file.Files.isSymbolicLink(fr.legacy.toPath()))
         assertTrue(other.list()!!.isEmpty())
+    }
+
+    @Test
+    fun verboseBootChoiceIsWrittenOnlyAfterLaunchChecks() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val env = File(fr.stage, "session.env")
+        refused(s.launch(verboseBoot = "1"), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_VERBOSE_BOOT=1"))
+        refused(s.launch(), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_VERBOSE_BOOT=0"))
+        val before = env.readText()
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { s.launch(verboseBoot = "2") }
+        assertEquals(before, env.readText())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "1;reboot")).isNotEmpty())
     }
 
     @Test

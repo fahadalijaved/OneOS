@@ -1,10 +1,13 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
-    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="20dp" android:gravity="center" android:textSize="32sp" android:textStyle="bold" android:accessibilityHeading="true" />
-    <androidx.core.widget.NestedScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="12dp" android:paddingBottom="16dp">
-            <include layout="@layout/guest_artwork" android:layout_width="match_parent" android:layout_height="440dp" />
-            <include layout="@layout/guest_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" />
-            <androidx.appcompat.widget.AppCompatTextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="20dp" android:accessibilityLiveRegion="polite" android:visibility="gone" />
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-</LinearLayout>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+        <androidx.appcompat.widget.AppCompatTextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="56dp" android:paddingHorizontal="20dp" android:gravity="center_vertical" android:textSize="20sp" android:textStyle="bold" android:accessibilityHeading="true" />
+        <androidx.core.widget.NestedScrollView android:id="@+id/guest_scroll" android:layout_width="match_parent" android:layout_height="match_parent" android:clipToPadding="false" android:fillViewport="true">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="12dp" android:paddingTop="8dp">
+                <include layout="@layout/guest_artwork" android:layout_width="match_parent" android:layout_height="356dp" />
+                <include layout="@layout/guest_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" />
+                <androidx.appcompat.widget.AppCompatTextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="20dp" android:accessibilityLiveRegion="polite" android:visibility="gone" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </LinearLayout>
+    <include layout="@layout/guest_footer" />
+</FrameLayout>

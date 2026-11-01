@@ -95,6 +95,8 @@ if [ "$SE_AT_RETURN" != Permissive ]; then
     echo "SELinux was ${SE_AT_RETURN:-unreadable} at the return: Permissive again for it ($(getenforce 2>/dev/null))"
 fi
 
+[ ! -f "$S/boot_status.sh" ] || { . "$S/boot_status.sh"; oneos_boot_begin return; }
+
 # The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log;
 # HyperOS: hyos_spawner.log)
 # next to the session's logcat capture (oneos_switch.sh), first, before anything
@@ -187,8 +189,10 @@ pkill -9 -f "zygote_exec" 2>/dev/null || true
 # system_server comes back, so it cannot fight init over sys.usb.config.
 pkill -9 -f "adb_watchdog.sh" 2>/dev/null || true
 pkill -9 -f "ims_watchdog.sh" 2>/dev/null || true
+oneos_boot_event "Stopping guest system_server"
 pkill -9 -f "system_server" 2>/dev/null || true
 pkill -9 -f org.lineageos 2>/dev/null || true
+oneos_boot_event "Stopping guest zygote"
 pkill -9 -x zygote64 2>/dev/null || true
 kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 # The heat cap (oneos_switch.sh) is stopped (its loop names system_server, so
@@ -238,6 +242,7 @@ if [ -n "$GUEST_NS" ] && [ "$GUEST_NS" != "$HOST_NS" ]; then
             fi
             pid=${p#/proc/}
             killed="$killed $pid:$(cat "$p/comm" 2>/dev/null)"
+            oneos_boot_event "Stopping $(cat "$p/comm" 2>/dev/null) (PID $pid)"
             kill -9 "$pid" 2>/dev/null
         done
         if [ $pass = 1 ]; then echo "Killed guest processes:${killed:- none}"

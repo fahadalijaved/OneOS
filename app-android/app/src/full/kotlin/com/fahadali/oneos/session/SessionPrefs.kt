@@ -209,6 +209,9 @@ object SessionPrefs {
      * launch. On by default: One UI's heat control (SSRM) does not run in the
      * other system, so the session caps the CPU from 45 °C skin (oneos_switch.sh).
      */
+    fun verboseBoot(ctx: Context): Boolean = p(ctx).getBoolean("verbose_boot", false)
+    fun setVerboseBoot(ctx: Context, enabled: Boolean) { p(ctx).edit().putBoolean("verbose_boot", enabled).apply() }
+
     fun heatCap(ctx: Context): Boolean = p(ctx).getBoolean("heat_cap", true)
 
     fun setHeatCap(ctx: Context, on: Boolean) {

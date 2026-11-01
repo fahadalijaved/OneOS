@@ -15,7 +15,8 @@ import com.fahadali.oneos.core.model.Images
 import com.fahadali.oneos.session.SessionPrefs
 
 /**
- * The still handoff frame from Figma: OS artwork, system name, and "Shutting down One UI".
+ * The Figma handoff frame: OneOS icon and the target system name.
+ * The optional root renderer takes over with live process events during teardown.
  * The switch script waits for this activity's first frame before freezing surfaceflinger.
  * All content is bound synchronously and the real handoff has no animation.
  * The debug preview only shows this UI for five seconds, then returns.
@@ -41,10 +42,10 @@ class GapSplashActivity : EdgeToEdgeActivity() {
         val preview = if (DebugPreview.enabled(this)) intent.getStringExtra(SetupProgressActivity.EXTRA_PREVIEW_IMAGE)?.let(Images::byId) else null
         val launch = SessionPrefs.lastLaunch(this)?.takeIf { SystemClock.elapsedRealtime() - it.elapsedMs in 0L..FRESH_MS && !it.rebootedSince() }
         val image = preview ?: launch?.let { Images.byId(it.imageId) } ?: SessionPrefs.homeSnapshot(this)?.image
-        findViewById<OsArtworkView>(R.id.splash_artwork).bind(image)
-        findViewById<TextView>(R.id.splash_wordmark).text = Images.systemName(image)
+        findViewById<TextView>(R.id.splash_wordmark).text = getString(R.string.splash_launching_into, Images.systemName(image))
         findViewById<TextView>(R.id.splash_starting).setText(if (launch?.dryRun == true && preview == null) R.string.splash_test_status else R.string.splash_shutdown)
         findViewById<android.view.View>(R.id.splash_preview).visibility = if (preview != null) android.view.View.VISIBLE else android.view.View.GONE
+        if (!SessionPrefs.verboseBoot(this)) findViewById<TextView>(R.id.splash_starting).visibility = android.view.View.GONE
         // The debug path only displays this same UI and returns; no root or launch action.
         if (preview != null) main.postDelayed(::finish, 5_000L)
 

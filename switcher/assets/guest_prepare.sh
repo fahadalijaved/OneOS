@@ -1625,6 +1625,9 @@ if [ $INJ = 1 ]; then
         echo "Signal poll: TelephonyComponentFactory injection (oneos-telephony.jar), GET_SIGNAL_STRENGTH every 20 s with the screen on"
 fi
 if [ "${ONEOS_GUEST_APP:-1}" = 1 ]; then
+    mkdir -p "$STAGE/data/oneos_bootui"
+    cp "$STAGE/boot_status.sh" "$STAGE/data/oneos_bootui/boot_status.sh"
+    chmod 644 "$STAGE/data/oneos_bootui/boot_status.sh"
     if [ -f "$STAGE/OneOSGuest.apk" ]; then
         mkdir -p "$STAGE/oem/app/OneOSGuest" &&
             cp "$STAGE/OneOSGuest.apk" "$STAGE/oem/app/OneOSGuest/" &&
