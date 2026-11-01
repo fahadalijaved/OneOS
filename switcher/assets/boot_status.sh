@@ -32,6 +32,65 @@ oneos_boot_wait_ready() {
         sleep 0.1
     done
 }
+# The guest compositor must die before the return's mount/device checks. Hold
+# its last presented frame in the vendor composer while no SurfaceFlinger
+# exists. This retains only a display buffer, never a guest process or mount.
+# A separate, bounded guard thaws it even if the return script exits early.
+oneos_boot_composer_identity() {
+    cat "/proc/$1/stat" 2>/dev/null | sed 's/.*) //' | awk '{print $20}'
+}
+oneos_boot_composer_signal() {
+    [ -n "$2" ] && [ -n "$3" ] || return 1
+    [ "$(oneos_boot_composer_identity "$2")" = "$3" ] || return 1
+    kill "-$1" "$2" 2>/dev/null
+}
+oneos_boot_release_display() {
+    [ -f "$ONEOS_BOOT_DIR/held_composer" ] || return 0
+    read -r held_pid held_identity held_lease < "$ONEOS_BOOT_DIR/held_composer"
+    oneos_boot_composer_signal CONT "$held_pid" "$held_identity" || true
+    rm -f "$ONEOS_BOOT_DIR/held_composer"
+}
+oneos_boot_hold_display() {
+    oneos_boot_ready || return 0
+    composer_pid=""
+    for composer_svc in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
+        [ "$(getprop "init.svc.$composer_svc")" = running ] || continue
+        composer_pid=$(getprop "init.svc_debug_pid.$composer_svc")
+        break
+    done
+    case "$composer_pid" in ''|*[!0-9]*) return 0;; esac
+    # Refuse a stale init pid or an unrelated process.
+    case "$(tr '\0' ' ' 2>/dev/null < "/proc/$composer_pid/cmdline")" in
+        /vendor/bin/*composer*) ;;
+        *) return 0;;
+    esac
+    composer_identity=$(oneos_boot_composer_identity "$composer_pid")
+    [ -n "$composer_identity" ] || return 0
+    oneos_boot_event 'Restoring One UI'
+    sleep 0.3  # let the live renderer post the return status before holding it
+    composer_lease=$(cat "$ONEOS_BOOT_DIR/generation")
+    composer_hold="$composer_pid $composer_identity $composer_lease"
+    rm -f "$ONEOS_BOOT_DIR/held_composer_guard"
+    oneos_boot_write held_composer "$composer_hold"
+    # Arm the recovery BEFORE stopping the composer. It is in the host mount
+    # namespace and outside the app's cgroup, just like the renderer supervisor.
+    /system/bin/sh /data/local/tmp/oneos/boot_status.sh thaw "$composer_pid" "$composer_identity" "$composer_lease" </dev/null >> "$ONEOS_BOOT_DIR/renderer.log" 2>&1 &
+    composer_guard=$!
+    composer_guard_deadline=$(( $(date +%s) + 2 ))
+    while [ "$(cat "$ONEOS_BOOT_DIR/held_composer_guard" 2>/dev/null)" != "$composer_hold" ]; do
+        if [ "$(date +%s)" -ge "$composer_guard_deadline" ]; then
+            oneos_boot_release_display
+            return 0
+        fi
+        sleep 0.1
+    done
+    if [ "$(cat "$ONEOS_BOOT_DIR/held_composer" 2>/dev/null)" != "$composer_hold" ] || ! kill -0 "$composer_guard" 2>/dev/null; then
+        oneos_boot_release_display
+        return 0
+    fi
+    echo "Return splash: holding composer $composer_pid (bounded recovery armed)"
+    oneos_boot_composer_signal STOP "$composer_pid" "$composer_identity" || oneos_boot_release_display
+}
 oneos_boot_begin() {
     [ ! -L "$ONEOS_BOOT_DIR" ] || return 0
     mkdir -p "$ONEOS_BOOT_DIR" || return 0
@@ -39,7 +98,8 @@ oneos_boot_begin() {
     # A generation also retires any old worker after the stop flag is cleared.
     oneos_boot_write generation "$(date +%s)-$$"
     sleep 0.2
-    rm -f "$ONEOS_BOOT_DIR/stop" "$ONEOS_BOOT_DIR/ready"
+    oneos_boot_release_display
+    rm -f "$ONEOS_BOOT_DIR/stop" "$ONEOS_BOOT_DIR/ready" "$ONEOS_BOOT_DIR/framework"
     if [ "$1" = enter ]; then
         : > "$ONEOS_BOOT_DIR/events.log"
         : > "$ONEOS_BOOT_DIR/renderer.log"
@@ -61,6 +121,27 @@ setprop() {
     case "$1" in ctl.start) oneos_boot_event "Starting $2";; ctl.stop) oneos_boot_event "Stopping $2";; ctl.restart) oneos_boot_event "Restarting $2";; esac
     /system/bin/setprop "$@"
 }
+if [ "${1:-}" = thaw ]; then
+    echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null || true
+    echo -500 > /proc/$$/oom_score_adj 2>/dev/null || true
+    thaw_pid=$2; thaw_identity=$3; thaw_hold="$2 $3 ${4:-}"
+    thaw() {
+        # Never thaw a later handoff's hold on the same long-lived HAL pid.
+        next_hold=$(cat "$ONEOS_BOOT_DIR/held_composer" 2>/dev/null)
+        [ -z "$next_hold" ] || [ "$next_hold" = "$thaw_hold" ] || return 0
+        oneos_boot_composer_signal CONT "$thaw_pid" "$thaw_identity" || true
+    }
+    trap thaw EXIT
+    trap 'exit 0' HUP INT TERM
+    oneos_boot_write held_composer_guard "$thaw_hold"
+    # Do not depend on the return shell or a renderer generation surviving.
+    remaining=180
+    while [ "$remaining" -gt 0 ] && [ "$(cat "$ONEOS_BOOT_DIR/held_composer" 2>/dev/null)" = "$thaw_hold" ]; do
+        sleep 1
+        remaining=$((remaining - 1))
+    done
+    exit 0
+fi
 if [ "${1:-}" = supervise ]; then
     # The launching app's cgroup is stopped with its framework. Detach this
     # optional display worker; the separate return watcher remains protected.
@@ -77,8 +158,8 @@ if [ "${1:-}" = supervise ]; then
         new_framework=0
         while IFS= read -r event && current; do
             case "$event" in
-                *boot_progress_system_run*) new_framework=1; oneos_boot_event 'Starting system_server';;
-                *boot_progress_pms_start*) new_framework=1; oneos_boot_event 'Loading package manager';;
+                *boot_progress_system_run*) new_framework=1; oneos_boot_write framework "$generation"; oneos_boot_event 'Starting system_server';;
+                *boot_progress_pms_start*) new_framework=1; oneos_boot_write framework "$generation"; oneos_boot_event 'Loading package manager';;
                 *boot_progress_pms_ready*) oneos_boot_event 'Package manager ready';;
                 *boot_progress_ams_ready*) oneos_boot_event 'Activity manager ready';;
                 *boot_progress_enable_screen*) [ "$new_framework" = 1 ] && { oneos_boot_event 'Display ready'; sleep 0.4; current && oneos_boot_stop; break; };;
@@ -111,7 +192,11 @@ if [ "${1:-}" = supervise ]; then
         while current && kill -0 "$worker" 2>/dev/null && [ "$(date +%s)" -lt "$end" ]; do
             case "$(getprop service.bootanim.exit 2>/dev/null)" in
                 0) saw_animation=1 ;;
-                1) [ "$saw_animation" = 0 ] || { oneos_boot_event 'Display ready'; oneos_boot_stop; break; } ;;
+                # The outgoing guest can set exit=1 during teardown. Only a
+                # new framework's completion is allowed to dismiss this layer.
+                1) if [ "$saw_animation" = 1 ] && [ "$(cat "$ONEOS_BOOT_DIR/framework" 2>/dev/null)" = "$generation" ]; then
+                       oneos_boot_event 'Display ready'; oneos_boot_stop; break
+                   fi ;;
             esac
             [ "$(pidof surfaceflinger 2>/dev/null)" = "$sf" ] || break
             sleep 0.3

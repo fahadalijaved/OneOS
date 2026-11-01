@@ -7,6 +7,8 @@ import androidx.appcompat.app.AlertDialog
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
@@ -32,6 +34,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         applyEdgeToEdge()
         setContentView(R.layout.activity_main)
+        ensureReturnShortcut()
+        for (id in listOf(R.id.add_tile, R.id.checklist)) {
+            findViewById<dev.oneuiproject.oneui.widget.CardItemView>(id).showTopDivider = false
+        }
         for (id in listOf(R.id.tile_card, R.id.report_card)) {
             findViewById<dev.oneuiproject.oneui.widget.RoundedLinearLayout>(id).apply {
                 roundedCorners = androidx.appcompat.util.SeslRoundedCorner.ROUNDED_CORNER_ALL
@@ -115,6 +121,24 @@ class MainActivity : AppCompatActivity() {
     private fun fromTile(i: Intent?) {
         val reason = i?.getStringExtra(EXTRA_REASON) ?: return
         if (reason == ReturnRequest.REASON_TILE || reason == REASON_SHORTCUT) ask(reason)
+    }
+
+    /** Existing staged system apps can retain an older manifest-shortcut cache. */
+    private fun ensureReturnShortcut() {
+        val shortcuts = getSystemService(ShortcutManager::class.java) ?: return
+        runCatching {
+            if (shortcuts.manifestShortcuts.any { it.id == "return_to_oneui" }) return
+            shortcuts.addDynamicShortcuts(listOf(
+                ShortcutInfo.Builder(this, "return_to_oneui")
+                    .setShortLabel(getString(R.string.return_shortcut))
+                    .setLongLabel(getString(R.string.return_shortcut))
+                    .setIcon(Icon.createWithResource(this, R.drawable.ic_tile))
+                    .setActivity(ComponentName(this, MainActivity::class.java))
+                    .setIntent(Intent(this, MainActivity::class.java)
+                        .setAction(Intent.ACTION_VIEW).putExtra(EXTRA_REASON, REASON_SHORTCUT))
+                    .build()
+            ))
+        }.onFailure { android.util.Log.w("OneOSGuest", "Could not refresh return shortcut", it) }
     }
 
     /** "Return to One UI now? Unsaved work in apps will be lost." Cancel from the tile closes the screen again. */

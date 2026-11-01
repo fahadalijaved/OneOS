@@ -98,9 +98,7 @@ fi
 if [ -f "$S/boot_status.sh" ]; then
     . "$S/boot_status.sh"
     oneos_boot_begin return
-    if [ "$(cat "$ONEOS_BOOT_DIR/verbose" 2>/dev/null)" = 1 ]; then
-        oneos_boot_wait_ready 5 || echo "Verbose return: live renderer not ready after 5 s"
-    fi
+    oneos_boot_wait_ready 5 || echo "Return splash: live renderer not ready after 5 s"
 fi
 
 # The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log;
@@ -200,6 +198,7 @@ pkill -9 -f "system_server" 2>/dev/null || true
 pkill -9 -f org.lineageos 2>/dev/null || true
 oneos_boot_event "Stopping guest zygote"
 pkill -9 -x zygote64 2>/dev/null || true
+oneos_boot_hold_display
 kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 # The heat cap (oneos_switch.sh) is stopped (its loop names system_server, so
 # the pkill above may have done it already) before the CPU policies get their
@@ -420,6 +419,7 @@ fi
 # would persist (guest persist.* props; /data binds and mounts are gone above)
 # and reboot cleanly. ONEOS_RETURN_MODE=inplace: see below.
 if [ "$MODE" != inplace ]; then
+    oneos_boot_release_display
     rm -f /data/local/tmp/oneos/data/guest_audio.flag /data/local/tmp/oneos/host_audio_hal_svcs
     STAGE=/data/local/tmp/oneos /system/bin/sh /data/local/tmp/oneos/guest_props.sh restore-persist
     pkill -9 -f "app_storage_loop.sh" 2>/dev/null || true
@@ -470,6 +470,7 @@ say() {
 }
 failsafe() {
     say "FAILSAFE: $* - rebooting into One UI instead"
+    oneos_boot_release_display
     # Permissive for the restore and the reboot requests (run 46: refused under
     # Enforcing, the phone stayed black).
     [ "$(getenforce 2>/dev/null)" = Permissive ] || setenforce 0 2>/dev/null
@@ -729,6 +730,7 @@ for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
 done
 [ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
 [ -n "$COMPOSER_SVC" ] || failsafe "no display composer service found"
+oneos_boot_release_display
 setprop ctl.restart "$COMPOSER_SVC"
 # The SM8550 phones (Galaxy S23) have only the HIDL composer
 # (android.hardware.graphics.composer@2.x): waiting for the AIDL one rebooted

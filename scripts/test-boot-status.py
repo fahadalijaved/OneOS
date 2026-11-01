@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the real boot event parser with inert local Android command stand-ins."""
 from pathlib import Path
-import subprocess,tempfile,os,time
+import subprocess,tempfile,os,time,signal
 script=(Path(__file__).resolve().parents[1]/'switcher/assets/boot_status.sh').read_text()
 with tempfile.TemporaryDirectory(prefix='oneos-status-test-') as t:
  d=Path(t); (d/'generation').write_text('test1\n'); (d/'verbose').write_text('1\n')
@@ -41,6 +41,56 @@ EOF
  assert not (d/'stop').exists(), 'old supervisor stopped the new session'
  assert not list(d.glob('*.pipe'))
  print('PASS: an old generation cannot stop a new handoff')
+
+ # The outgoing boot animation finishing must not dismiss a return splash.
+ (d/'generation').write_text('test-return\n')
+ (d/'framework').unlink(missing_ok=True)
+ (d/'logcat').write_text('#!/bin/sh\nexec sleep 20\n')
+ (d/'getprop').write_text('#!/bin/sh\nif [ -f "$ONEOS_BOOT_DIR/animation-ended" ]; then echo 1; else echo 0; fi\n')
+ supervisor=subprocess.Popen(['/bin/sh',str(source),'supervise','test-return'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+ time.sleep(.5)
+ (d/'animation-ended').touch()
+ time.sleep(.6)
+ assert supervisor.poll() is None and not (d/'stop').exists(), 'outgoing animation dismissed the return layer'
+ (d/'framework').write_text('test-return\n')
+ supervisor.communicate(timeout=4)
+ assert (d/'stop').exists()
+ print('PASS: outgoing animation cannot dismiss the splash before the new framework starts')
+
+ # Run the independent thaw guard against a harmless stopped local process.
+ # This verifies timeout recovery without stopping any phone service.
+ thaw=d/'thaw-test.sh'
+ thaw.write_text(source.read_text().replace('remaining=180','remaining=1'))
+ sleeper=subprocess.Popen(['sleep','20'])
+ try:
+  identity='fixture-process'
+  # Linux /proc is unavailable on macOS; keep the real guard and signals, only
+  # replace its process identity lookup with the fixture's known identity.
+  thaw.write_text(thaw.read_text().replace('cat "/proc/$1/stat" 2>/dev/null | sed \'s/.*) //\' | awk \'{print $20}\'', 'echo fixture-process'))
+  (d/'held_composer').write_text(f'{sleeper.pid} {identity} return-test\n')
+  os.kill(sleeper.pid,signal.SIGSTOP)
+  subprocess.run(['/bin/sh',str(thaw),'thaw',str(sleeper.pid),identity,'return-test'],env=env,check=True,timeout=4,capture_output=True)
+  # A running sleeper must respond to TERM. A stopped one needs CONT first.
+  sleeper.terminate(); sleeper.wait(timeout=2)
+  print('PASS: independent bounded guard thaws the held display if return stalls')
+ finally:
+  if sleeper.poll() is None:
+   os.kill(sleeper.pid,signal.SIGCONT); sleeper.kill(); sleeper.wait()
+
+ sleeper=subprocess.Popen(['sleep','20'])
+ try:
+  (d/'held_composer').write_text(f'{sleeper.pid} fixture-process normal-return\n')
+  os.kill(sleeper.pid,signal.SIGSTOP)
+  subprocess.run(['/bin/sh','-c','. "$1"; oneos_boot_release_display','sh',str(thaw)],env=env,check=True,timeout=2)
+  assert not (d/'held_composer').exists()
+  sleeper.terminate(); sleeper.wait(timeout=2)
+  print('PASS: normal compositor restart releases the exact held process before continuing')
+ finally:
+  if sleeper.poll() is None:
+   os.kill(sleeper.pid,signal.SIGCONT); sleeper.kill(); sleeper.wait()
+
+ # Restore the inert commands used by the remaining entry tests.
+ (d/'stop').unlink(missing_ok=True)
 
  # Exercise the actual compositor decision with a delayed first frame.
  switch=(Path(__file__).resolve().parents[1]/'switcher/assets/oneos_switch.sh').read_text()
