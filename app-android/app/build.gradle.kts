@@ -83,6 +83,7 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "check_host_apex.sh" to File(repoRoot, "switcher/assets/check_host_apex.sh"),
     "bridges.sh" to File(repoRoot, "switcher/assets/bridges.sh"),
     "fold8_coloros.sh" to File(repoRoot, "switcher/assets/fold8_coloros.sh"),
+    "OneOSFold8Geometry.dex" to File(repoRoot, "switcher/assets/OneOSFold8Geometry.dex"),
     "fold8_pixel.sh" to File(repoRoot, "switcher/assets/fold8_pixel.sh"),
     "guest_google.sh" to File(repoRoot, "switcher/assets/guest_google.sh"),
     "zygote_exec" to File(repoRoot, "switcher/assets/zygote_exec"),

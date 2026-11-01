@@ -724,8 +724,8 @@ PYEOF
 # com.oplus.wallpapers "Home screen, Lock screen & style": with type.fold the app
 # uses its Find N6 inner-screen page, a 4x4 grid where every card is 2x2 = half
 # the panel (run 30: 1072 px cards, "too zoomed in"). This static RRO
-# (switcher/overlays/wallpapers_fold_grid) makes it 8x2, one row of four ~520 px
-# cards; guest_prepare.sh binds it in the guest's /oem/overlay. Built only if
+# (switcher/overlays/wallpapers_fold_grid) keeps 4x4 in embedded panes and
+# chooses 8x2 only for windows at least 800dp wide; guest_prepare.sh binds it in the guest's /oem/overlay. Built only if
 # the image's layout is still the 4x4 one it was written against.
 RRO="$ROOT/switcher/overlays/wallpapers_fold_grid"
 "$DEBUGFS" -R "dump /my_stock/priv-app/Wallpapers/Wallpapers.apk $WORK/Wallpapers.apk" "$IMG" 2>/dev/null
@@ -739,7 +739,7 @@ if [ -n "$LAYOUT" ] && "$BT/aapt2" dump xmltree --file "$LAYOUT" "$WORK/Wallpape
         --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
         --out "$OUT/OneOSWallpapersFoldGrid.apk" "$WORK/rro-aligned.apk"
     rm -f "$OUT/OneOSWallpapersFoldGrid.apk.idsig"
-    echo "built $OUT/OneOSWallpapersFoldGrid.apk (Wallpapers fold grid 8x2)"
+    echo "built $OUT/OneOSWallpapersFoldGrid.apk (Wallpapers responsive fold grid)"
 else
     rm -f "$OUT/OneOSWallpapersFoldGrid.apk"
     echo "Wallpapers.apk: fold card layout not as expected, grid overlay not built"

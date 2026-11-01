@@ -859,6 +859,7 @@ skin_temp() {
     if [ -n "$tc" ]; then tc="$((tc / 10)).$((tc % 10)) C"; else tc="none logged"; fi
     echo "thermal service $ts, thermal_core $tc"
 }
+STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" performance-snapshot || refuse "Performance limit snapshot failed"
 echo "=== [4b/6] Stopping the One UI framework ==="
 echo "Before the stop: CPU max/hw kHz: $(cpu_caps); skin: $(skin_temp)"
 pkill -f "while true; do [ \"\$(getprop init.svc.zygote)\"" 2>/dev/null || true
@@ -2070,6 +2071,9 @@ while true; do
 done
 " </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
+# Samsung CPU/GPU votes survive the host framework; Fold8/Find N6 only.
+STAGE="$STAGE" BB="$BB" "$BB" nohup /system/bin/sh "$STAGE/fold8_coloros.sh" performance-worker </dev/null >>"$STAGE/performance_handover.log" 2>&1 &
+
 # Session sampler (run 44: nothing was recorded after the 90 s round; window
 # blur went off and on with the guest's thermal status, not the setting, while
 # One UI's last CPU cap stayed). Every 30 s until the return, one line in
@@ -2136,7 +2140,9 @@ echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 # One UI's SSRM to set its own. ONEOS_HEAT_CAP=0 (Advanced: Cool down when hot
 # off): not started. Out of the app cgroup, like the sampler.
 rm -f "$STAGE/heat_cap.active"
-if [ "${ONEOS_HEAT_CAP:-1}" = 1 ]; then
+PERF_HANDOVER=0
+if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "set": "n6-f8",$' "$STAGE/.oneos_stage"; then PERF_HANDOVER=1; fi
+if [ "${ONEOS_HEAT_CAP:-1}" = 1 ] && [ "$PERF_HANDOVER" = 0 ]; then
     : > "$STAGE/heat_cap.active"
     $BB sh -c "
     : oneos_heat_cap

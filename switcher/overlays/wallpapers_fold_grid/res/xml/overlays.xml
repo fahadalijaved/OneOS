@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <overlay>
+    <item target="dimen/wallpaper_my_theme_header_height" value="@dimen/wallpaper_my_theme_header_height"/>
     <item target="layout/personal_card_fold_large_layout" value="@layout/personal_card_fold_large_layout"/>
     <item target="attr/columnCount" value="@attr/columnCount"/>
     <item target="attr/rowCount" value="@attr/rowCount"/>
@@ -11,4 +12,9 @@
     <item target="id/iconCardView" value="@id/iconCardView"/>
     <item target="id/fontCardView" value="@id/fontCardView"/>
     <item target="id/moreCardView" value="@id/moreCardView"/>
+    <item target="dimen/wallpaper_my_theme_item_width" value="@dimen/wallpaper_my_theme_item_width"/>
+    <item target="dimen/wallpaper_my_theme_item_height" value="@dimen/wallpaper_my_theme_item_height"/>
+    <item target="dimen/wallpaper_my_theme_image_width" value="@dimen/wallpaper_my_theme_image_width"/>
+    <item target="dimen/wallpaper_my_theme_image_height" value="@dimen/wallpaper_my_theme_image_height"/>
+    <item target="dimen/wallpaper_my_theme_recyclerview_mt" value="@dimen/wallpaper_my_theme_recyclerview_mt"/>
 </overlay>

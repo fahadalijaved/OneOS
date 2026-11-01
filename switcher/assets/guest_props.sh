@@ -316,7 +316,7 @@ add)
     # POWERKEY_InputReaderProcessKey"). Only OPPO's Theia power key statistics
     # are skipped. Memory only (resetprop -n), deleted again by remove.
     # ONEOS_GUEST_SAUPWK=0 leaves it out.
-    if [ "${ONEOS_GUEST_SAUPWK:-1}" = 1 ] && ! grep -qxF persist.sys.saupwk_test "$HOST"; then
+    if [ "${ONEOS_GUEST_SAUPWK:-1}" = 1 ]; then
         sed -i '/^persist\.sys\.saupwk_test=/d' "$NEW"
         echo "persist.sys.saupwk_test=1" >> "$NEW"
         echo "guest_props: persist.sys.saupwk_test=1 for the session (no 5 s HAL wait per power key press)"
@@ -503,7 +503,12 @@ add)
        grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage"; then
         key=ro.oplus.display.secondary.screenhole.position
         sed -i "/^$key=/d" "$NEW"
-        echo "$key=589,0:659,104" >> "$NEW"
+        # The accepted bar is 48dp =126px at density420. Centre the
+        # captured camera rectangle vertically in it, preserving its size/X.
+        h=$(cat "$STAGE/host_screenhole" 2>/dev/null || true)
+        aligned=$(echo "$h" | awk -F '[:,]' 'NF==4 && $1~/^[0-9]+$/ && $2~/^[0-9]+$/ && $3~/^[0-9]+$/ && $4~/^[0-9]+$/ && $3>$1 && $4>$2 && $4-$2<=126 {top=int((126-($4-$2))/2);printf "%d,%d:%d,%d",$1,top,$3,top+$4-$2}')
+        [ -n "$aligned" ] || aligned=589,11:659,115
+        echo "$key=$aligned" >> "$NEW"
     fi
     if "$RP" -n -f "$NEW" 2>/dev/null; then
         cut -d= -f1 "$NEW" > "$ADDED"

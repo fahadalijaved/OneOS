@@ -162,6 +162,8 @@ echo "=== [1/4] Terminating Container Supervision & Zygote ==="
 # guest (a 30 KB unplayable file) and its retry logged 'Failed to get display
 # id' once SurfaceFlinger was gone.
 touch /data/local/tmp/oneos/data/oneos_rec_stop 2>/dev/null
+# Restore only limits still owned by this session before One UI resumes.
+STAGE="$S" BB="$BB" /system/bin/sh "$S/fold8_coloros.sh" performance-restore || echo "Performance limits: restore failed; see performance_handover.log"
 # The return-keys readers (oneos_switch.sh) live in the host namespace.
 # Only kill a listed PID when it was armed this boot AND is still a
 # oneos_switch.sh shell: after a reboot the pids file is stale and the ids

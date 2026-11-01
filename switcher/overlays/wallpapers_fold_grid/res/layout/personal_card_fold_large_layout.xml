@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ColorOS's fold layout with 8 columns x 2 rows instead of 4 x 4: the fold
-     fragment makes every card 2x2 (no AOD card), so the four cards sit in one
-     row at a quarter of the width instead of a 2x2 block at half the width. -->
+<!-- Narrow embedded Settings panes retain two cards across. Use current
+     window width, rather than physical display size, to choose the layout. -->
 <com.oplus.wallpapers.business.personalize.view.PersonalCardLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@id/personalCardLayout"
     android:padding="16dp"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:columnCount="8"
-    app:rowCount="2">
+    app:columnCount="4"
+    app:rowCount="4">
     <com.oplus.wallpapers.business.personalize.view.WallpaperCardView
         android:id="@id/wallpaperCardView"
         android:layout_width="0dp"

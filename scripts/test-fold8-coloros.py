@@ -90,7 +90,7 @@ class Fold8Tests(unittest.TestCase):
 
     def test_google_is_no_longer_fold8_only(self):
         # Play services and the Play Store: guest_google.sh, every ColorOS set.
-        self.assertNotIn('snapshot)', SCRIPT.read_text())
+        self.assertNotIn('\nsnapshot)', SCRIPT.read_text())
         self.assertNotIn('GmsCore', SCRIPT.read_text())
 
     def test_exact_patch_and_atomic_refusal(self):

@@ -8,6 +8,9 @@ profile (OneOS's Galaxy Z Fold8 profile since 0.4.10) as its own package set,
 widen any hardware match, enable a new image, or change the screen-lock or
 OneLineage startup requirements.
 
+Follow-up work, exact tested app/source versions and remaining limitations:
+[ColorOS session handover and Fold8 personalisation](patch-notes/2026-10-31-coloros-fold8.md).
+
 ## Included
 
 - Cover camera bounds centered on its 1248 px panel, restoring status-bar width.
