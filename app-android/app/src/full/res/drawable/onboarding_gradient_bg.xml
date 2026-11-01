@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Top-center radial glow matching the Figma onboarding backdrop. Android
+    radials are circular (the Figma one is a tall ellipse), so a large radius
+    from the top-center approximates it: accent blue at the top, deepening to
+    the theme background toward the bottom. Colors resolve per theme via
+    values-night.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:centerX="0.5"
+        android:centerY="0.0"
+        android:gradientRadius="900dp"
+        android:startColor="@color/onboarding_grad_end"
+        android:centerColor="@color/onboarding_grad_center"
+        android:endColor="@color/onboarding_grad_start" />
+</shape>

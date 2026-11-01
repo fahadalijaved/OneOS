@@ -1,0 +1,9 @@
+<resources>
+<string name="onboarding_welcome">Welcome to OneOS</string><string name="onboarding_start">Get started</string>
+<string name="onboarding_prerequisites">Prerequisites</string><string name="onboarding_root">Root provider</string><string name="onboarding_no_root">Root not detected. You can browse available systems.</string>
+<string name="onboarding_nearby">Nearby devices</string><string name="onboarding_nearby_summary">Not required for local switching</string>
+<string name="onboarding_lock">No screen lock</string><string name="onboarding_lock_summary">Removing your PIN, pattern, password, fingerprint and face unlock can allow restoring stock firmware if something goes wrong</string>
+<string name="onboarding_experimental">OneOS is experimental</string><string name="onboarding_experimental_summary">The app switches the device from One UI to another system without flashing. Things may break.</string>
+<string name="onboarding_backup">Back up your data</string><string name="onboarding_backup_summary">Back up your accounts and critical data first.</string>
+<string name="onboarding_data">Data and apps</string><string name="onboarding_data_summary">Apps in the other system get the same root privileges as One UI. Data is not shared, but anything that touches the system will have full access. Be sensible.</string>
+</resources>

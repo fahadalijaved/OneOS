@@ -20,9 +20,9 @@
     <color name="oneos_on_status">#010101</color>
 
     <!-- The dark functional colours already reach 5.3:1 or more. -->
-    <color name="oneos_ok_text">@color/oui_functional_green_color</color>
-    <color name="oneos_warn_text">@color/oui_functional_orange_color</color>
-    <color name="oneos_block_text">@color/oui_functional_red_color</color>
+    <color name="oneos_ok_text">@color/oui_des_functional_green_color</color>
+    <color name="oneos_warn_text">@color/oui_des_functional_orange_color</color>
+    <color name="oneos_block_text">@color/oui_des_functional_red_color</color>
 
     <color name="oneos_button_secondary_bg">#333333</color>
 </resources>

@@ -37,32 +37,17 @@ import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.RootProbe
 import com.fahadali.oneos.session.LaunchJob
 import com.fahadali.oneos.session.LogJob
+import com.fahadali.oneos.session.Readiness
 import com.fahadali.oneos.session.PrepareJob
 import com.fahadali.oneos.session.SessionPrefs
 import com.fahadali.oneos.session.StageCheck
 import java.util.concurrent.Executors
 import dev.oneuiproject.oneui.R as OuiIcons
 
-/**
- * Choose a system (SystemPicker.dc.html; Home's "Choose a system", and the
- * fixes Choose a system, Choose another file and Set up again): one card per
- * system this phone takes (`profile.images()`), with its device glyph, name,
- * blurb, facts and state, and its buttons:
- * - set up already: "Use this one" (back to Home, which offers the switch);
- * - setting up now: "Show progress";
- * - its download picked: "Set up {system}", the same confirm as Home's
- *   (FixActions SET_UP; the job and root check everything again);
- * - else "Download" (opens [ImageRef.downloadUrl] in the browser; hidden
- *   without one) and "I have the file" (the system file picker, then the
- *   size identity check of the OS image page; the SHA-256 is checked by the
- *   setup's "Check the download", or by Check file on the file page).
- * After a good pick with nothing set up, Home's button becomes "Set up
- * {system}", so the screen goes back there. The OS image page stays the
- * technical file page (the last row here, and Advanced).
- */
-class SystemsActivity : ToolbarActivity() {
+/** Figma's height-adaptive catalogue. File identity, setup jobs and launch gates retain their existing paths. */
+open class SystemsActivity : ToolbarActivity() {
     // The bar shows the title only once the hero has scrolled away (setBarTitle).
-    override val screenTitle: CharSequence get() = ""
+    override val screenTitle: CharSequence get() = getString(R.string.app_name)
 
     override val layoutRes: Int get() = R.layout.activity_systems
 
@@ -77,6 +62,13 @@ class SystemsActivity : ToolbarActivity() {
         pick = registerForActivityResult(SystemsNav.OpenGz()) { uri -> if (uri != null) picked(uri) }
         pickFor = savedInstanceState?.getString(KEY_PICK_FOR)
         super.onCreate(savedInstanceState)
+        toolbarLayout.setAdaptiveMarginProvider(dev.oneuiproject.oneui.widget.AdaptiveCoordinatorLayout.MARGIN_PROVIDER_ZERO)
+        toolbarLayout.setEdgeInsetHorizontal(0f)
+        findViewById<dev.oneuiproject.oneui.widget.RoundedFrameLayout>(dev.oneuiproject.oneui.design.R.id.tbl_main_content).apply {
+            roundedCorners = 0
+            fillHorizontalPadding = false
+        }
+        findViewById<View>(dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners).visibility = View.GONE
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -124,8 +116,8 @@ class SystemsActivity : ToolbarActivity() {
 /** Navigation shared by Choose a system and Setting up. */
 internal object SystemsNav {
     /** Back to Home (the instance already open, else a new one), closing the screens above it. */
-    fun home(a: Activity) {
-        a.startActivity(Intent(a, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+    fun home(a: Activity, image: ImageRef? = null) {
+        a.startActivity(Intent(a, MainActivity::class.java).putExtra("system_detail", true).putExtra("system_name", image?.name).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
         a.finish()
     }
 
@@ -162,24 +154,12 @@ class SystemsFragment : Fragment() {
     private var profile: PhoneProfile? = null
     private var profileRead = false
     private var lastKey: List<Any?>? = null
-    private var barTitleShown = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         inflater.inflate(R.layout.systems_screen, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val heroTitle = view.findViewById<TextView>(R.id.systems_hero_title)
-        view.findViewById<NestedScrollView>(R.id.systems_scroll).setOnScrollChangeListener(
-            NestedScrollView.OnScrollChangeListener { _, _, scrollY, _, _ ->
-                val show = scrollY > heroTitle.bottom
-                if (show != barTitleShown) {
-                    barTitleShown = show
-                    (activity as? SystemsActivity)?.setBarTitle(if (show) getString(R.string.systems_title) else "")
-                }
-            },
-        )
-
         // This phone: from the last check when there is one, else read now (no root), as the OS image page does.
         StageCheck.state.result?.facts?.let { f -> Profiles.resolve(f).profile }?.let {
             profile = it
@@ -197,6 +177,12 @@ class SystemsFragment : Fragment() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Readiness.onResume(requireContext())
+        redraw(force = true)
     }
 
     override fun onStart() {
@@ -282,76 +268,71 @@ class SystemsFragment : Fragment() {
         if (!force && key == lastKey) return
         lastKey = key
 
-        root.findViewById<TextView>(R.id.systems_hero_subtitle).text =
-            if (p != null) getString(R.string.systems_subtitle, p.label) else getString(R.string.systems_subtitle_unknown)
-        val column = root.findViewById<LinearLayout>(R.id.systems_column)
-        column.removeAllViews()
-
-        val images = p?.images().orEmpty()
-        if (p == null || images.isEmpty()) {
-            if (!profileRead) {
-                note(column, getString(R.string.systems_reading), null, Level.INFO)
-            } else {
-                note(column, getString(R.string.systems_none_title), getString(R.string.systems_none_line), Level.BLOCK)
-            }
-            return
+        root.findViewById<TextView>(R.id.systems_hero_subtitle).apply {
+            text = if (p != null) getString(R.string.systems_subtitle, p.label) else getString(R.string.systems_none_line)
+            visibility = View.GONE
         }
-
+        val carousel = root.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)
+        val available = p?.images().orEmpty()
         val st = check.result?.status
-        val setUpId = st?.marker?.takeIf { st.ours && it.profileId == p.id }?.imageId
-        val pickedId = FixActions.pickedImage(ctx, p)?.id
+        val setUpId = st?.marker?.takeIf { st.ours && it.profileId == p?.id }?.imageId
+        val pickedId = p?.let { FixActions.pickedImage(ctx, it)?.id }
         val settingUpId = prep.image?.id?.takeIf { prep.busy }
+        fun image(family: com.fahadali.oneos.core.model.SystemFamily, fallback: ImageRef): ImageRef =
+            available.firstOrNull { it.family == family && it.id == setUpId }
+                ?: available.firstOrNull { it.family == family } ?: fallback
+        val color = image(com.fahadali.oneos.core.model.SystemFamily.COLOROS, Images.FIND_N6)
+        val pixel = image(com.fahadali.oneos.core.model.SystemFamily.PIXEL, Images.PIXEL_YOGI)
+        val entries = listOf(
+            CatalogEntry("Infinity X", null, R.drawable.os_infinity, false),
+            CatalogEntry("HyperOS", null, R.drawable.os_hyperos, false),
+            CatalogEntry(color.name, color, R.drawable.os_coloros, available.any { it.id == color.id }),
+            CatalogEntry("Nothing OS", null, R.drawable.os_nothing, false),
+            CatalogEntry(pixel.name, pixel, R.drawable.os_pixel, available.any { it.id == pixel.id }),
+        )
 
-        // One column on the cover screen, two side by side on the inner screen.
-        val columns = if (resources.configuration.screenWidthDp >= 600) 2 else 1
-        val gap = resources.getDimension(R.dimen.oneos_card_gap).toInt()
-        var line: LinearLayout? = null
-        for ((i, image) in images.withIndex()) {
-            if (i % columns == 0) {
-                val l = LinearLayout(ctx)
-                l.orientation = LinearLayout.HORIZONTAL
-                l.isBaselineAligned = false
-                val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                if (i > 0) lp.topMargin = gap
-                column.addView(l, lp)
-                line = l
-            }
-            val row = line ?: continue
-            val card = card(
-                row, p, image, i,
-                setUp = image.id == setUpId,
-                picked = image.id == pickedId,
-                settingUp = image.id == settingUpId,
-                prepBusy = prep.busy,
-                jobsBusy = jobsBusy,
-            )
-            val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            if (i % columns > 0) lp.marginStart = gap
-            row.addView(card, lp)
-        }
-        // A short last line keeps its cards at one column's width.
-        val rest = images.size % columns
-        if (rest != 0) {
-            line?.let { l ->
-                repeat(columns - rest) {
-                    val lp = LinearLayout.LayoutParams(0, 1, 1f)
-                    lp.marginStart = gap
-                    l.addView(View(ctx), lp)
+
+        val state = carousel.layoutManager?.onSaveInstanceState()
+        carousel.adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<CarouselHolder>() {
+            override fun getItemCount() = Int.MAX_VALUE
+            override fun onCreateViewHolder(parent: ViewGroup, type: Int): CarouselHolder =
+                CarouselHolder(android.widget.FrameLayout(parent.context))
+            override fun onBindViewHolder(holder: CarouselHolder, position: Int) {
+                val entry = entries[position % entries.size]
+                val image = entry.image
+                holder.box.removeAllViews()
+                val height = visibleCardHeight(carousel)
+                val width = (height / resources.displayMetrics.density * cardAspect()).toInt().coerceAtLeast(180)
+                holder.box.layoutParams = androidx.recyclerview.widget.RecyclerView.LayoutParams(dp(width), height).apply {
+                    marginStart = 0; marginEnd = dp(16)
                 }
+                holder.box.addView(card(holder.box, p, entry, position,
+                    image?.id == setUpId && setUpId != null, image?.id == pickedId && pickedId != null, image?.id == settingUpId && settingUpId != null, prep.busy, jobsBusy))
             }
         }
-
-        // The technical file page: Check file (SHA-256), or the system already on this phone.
-        val more = Cards.section(column, title = null, rows = true)
-        Cards.row(more, OuiIcons.drawable.ic_oui_folder_open, getString(R.string.systems_more_title), getString(R.string.systems_more_summary)) {
-            startActivity(Intent(ctx, ImageActivity::class.java))
+        if (carousel.layoutManager == null) {
+            carousel.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(ctx, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
+            androidx.recyclerview.widget.PagerSnapHelper().attachToRecyclerView(carousel)
+        }
+        if (state != null) carousel.layoutManager?.onRestoreInstanceState(state)
+        carousel.post {
+            carousel.adapter?.notifyDataSetChanged()
+            if (state == null) {
+                val h = visibleCardHeight(carousel)
+                val w = (h / resources.displayMetrics.density * cardAspect()).toInt().coerceAtLeast(180)
+                (carousel.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager)?.scrollToPositionWithOffset(Int.MAX_VALUE / 2 - (Int.MAX_VALUE / 2 % entries.size) + 2, (carousel.width - dp(w)) / 2)
+            }
         }
     }
 
+    private data class CatalogEntry(val name: String, val image: ImageRef?, val art: Int, val supported: Boolean)
+
+    private class CarouselHolder(val box: android.widget.FrameLayout) : androidx.recyclerview.widget.RecyclerView.ViewHolder(box)
+
     private fun card(
         parent: ViewGroup,
-        p: PhoneProfile,
-        image: ImageRef,
+        p: PhoneProfile?,
+        entry: CatalogEntry,
         index: Int,
         setUp: Boolean,
         picked: Boolean,
@@ -362,54 +343,41 @@ class SystemsFragment : Fragment() {
         val ctx = parent.context
         val inflater = LayoutInflater.from(ctx)
         val v = inflater.inflate(R.layout.systems_card, parent, false)
-        if (setUp) v.setBackgroundResource(R.drawable.oneos_systems_card_selected_bg)
-
-        v.findViewById<ImageView>(R.id.systems_glyph).setImageResource(GLYPHS[index % GLYPHS.size])
-        v.findViewById<ChipFlowLayout>(R.id.systems_name_row).gap = dp(8)
-        v.findViewById<TextView>(R.id.systems_name).text = image.name
-        v.findViewById<TextView>(R.id.systems_variant).apply {
-            text = image.variant
-            visibility = if (image.variant.isNullOrEmpty()) View.GONE else View.VISIBLE
+        val image = entry.image
+        v.findViewById<OsArtworkView>(R.id.systems_artwork).apply {
+            if (entry.art != 0) bindArtwork(entry.art) else bind(image)
         }
-        v.findViewById<TextView>(R.id.systems_blurb).text = image.blurb
-
         val badge = v.findViewById<TextView>(R.id.systems_badge)
-        fun softBadge(@StringRes text: Int) {
-            badge.setText(text)
-            badge.setBackgroundResource(R.drawable.oneos_systems_badge_soft_bg)
-            badge.setTextColor(ctx.getColor(R.color.oneos_primary_text))
-            badge.visibility = View.VISIBLE
-        }
-        when {
-            settingUp -> softBadge(R.string.systems_badge_setting_up)
-            setUp -> {
-                badge.setText(R.string.systems_badge_set_up)
-                badge.visibility = View.VISIBLE
+        badge.text = getString(when {
+            !entry.supported -> R.string.catalog_unsupported
+            p?.choice(image?.id.orEmpty())?.tested == true -> R.string.catalog_optimised
+            else -> R.string.catalog_experimental
+        })
+        badge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_catalog_device, 0, 0, 0)
+        badge.compoundDrawablePadding = dp(8)
+        if (image == null) {
+            v.findViewById<Button>(R.id.systems_primary).apply {
+                setText(R.string.catalog_set_up)
+                setOnClickListener { showUnsupported(entry.name) }
             }
-            picked -> softBadge(R.string.systems_badge_picked)
-            else -> badge.visibility = View.GONE
+            v.findViewById<View>(R.id.systems_more).setOnClickListener { showUnsupported(entry.name) }
+            return v
         }
-
-        val chips = v.findViewById<ChipFlowLayout>(R.id.systems_chips)
-        val facts = buildList {
-            add(getString(R.string.systems_chip_android, AndroidRelease.name(image.sdk)))
-            add(getString(if (p.choice(image.id)?.tested == true) R.string.systems_chip_tested else R.string.systems_chip_untested))
-            if (image.googleServices) add(getString(R.string.systems_chip_google))
-            add(getString(R.string.systems_chip_download, Units.bytes(image.gzBytes)))
-        }
-        for (fact in facts) {
-            val chip = inflater.inflate(R.layout.systems_chip, chips, false) as TextView
-            chip.text = fact
-            chips.addView(chip)
-        }
-
-        val download = v.findViewById<Button>(R.id.systems_download)
-        val haveFile = v.findViewById<Button>(R.id.systems_have_file)
         val primary = v.findViewById<Button>(R.id.systems_primary)
+        v.findViewById<View>(R.id.systems_more).setOnClickListener { anchor ->
+            androidx.appcompat.widget.PopupMenu(ctx, anchor).apply {
+                menu.add(R.string.systems_download).setOnMenuItemClickListener { image.downloadUrl?.let { url -> activity?.let { SystemsNav.open(it, url) } }; true }
+                menu.add(R.string.systems_have_file).setOnMenuItemClickListener { (activity as? SystemsActivity)?.choose(image.id); true }
+                menu.add(R.string.home_details_all).setOnMenuItemClickListener {
+                    startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true)); true
+                }
+                menu.add(R.string.catalog_details).setOnMenuItemClickListener {
+                    AlertDialog.Builder(ctx).setTitle(image.displayName).setMessage(image.blurb + "\n\n" + image.variant.orEmpty() + "\n" + Units.bytes(image.gzBytes)).setPositiveButton(android.R.string.ok, null).show(); true
+                }
+            }.show()
+        }
         val a = activity as? SystemsActivity
         fun only(text: CharSequence, enabled: Boolean, onClick: () -> Unit) {
-            download.visibility = View.GONE
-            haveFile.visibility = View.GONE
             primary.visibility = View.VISIBLE
             primary.text = text
             primary.isEnabled = enabled
@@ -417,24 +385,24 @@ class SystemsFragment : Fragment() {
         }
         when {
             settingUp -> only(getString(R.string.systems_show_progress), true) { a?.let { SystemsNav.progress(it) } }
-            setUp -> only(getString(R.string.systems_use), true) { a?.let { SystemsNav.home(it) } }
-            // The same action and confirm as Home's "Set up {system}"; off while a job or the check runs (as on Home).
-            picked -> only(getString(R.string.systems_set_up, Images.systemName(image, p)), !jobsBusy) {
-                a?.let { FixActions.run(it, FixAction.SET_UP, image) }
-            }
-            else -> {
-                primary.visibility = View.GONE
-                val url = image.downloadUrl
-                download.visibility = if (url != null) View.VISIBLE else View.GONE
-                download.setOnClickListener { if (url != null && a != null) SystemsNav.open(a, url) }
-                haveFile.visibility = View.VISIBLE
-                // A setup reads the picked file: no new pick while one runs.
-                haveFile.isEnabled = !prepBusy
-                (haveFile.layoutParams as? LinearLayout.LayoutParams)?.marginStart = if (url != null) dp(8) else 0
-                haveFile.setOnClickListener { a?.choose(image.id) }
+            setUp -> only(getString(R.string.catalog_boot), !jobsBusy) { a?.let { SystemsNav.home(it, image) } }
+            picked -> only(getString(R.string.catalog_set_up), !jobsBusy) { a?.let { FixActions.run(it, FixAction.SET_UP, image) } }
+            else -> only(getString(R.string.catalog_set_up), !jobsBusy) {
+                if (!entry.supported) { showUnsupported(entry.name); return@only }
+                AlertDialog.Builder(ctx).setTitle(image.displayName)
+                    .setItems(arrayOf(getString(R.string.systems_download), getString(R.string.systems_have_file))) { _, which ->
+                        if (which == 0) image.downloadUrl?.let { url -> a?.let { SystemsNav.open(it, url) } } else a?.choose(image.id)
+                    }.show()
             }
         }
+        primary.contentDescription = primary.text.toString() + " " + image.nameWithVariant
         return v
+    }
+
+    private fun showUnsupported(name: String) {
+        AlertDialog.Builder(requireContext()).setTitle(name)
+            .setMessage(R.string.catalog_unsupported_message)
+            .setPositiveButton(android.R.string.ok, null).show()
     }
 
     /** A card with a header and an optional line (reading this phone, or no system for it). */
@@ -447,6 +415,16 @@ class SystemsFragment : Fragment() {
             card.addView(t, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
     }
+
+    private fun visibleCardHeight(carousel: View): Int {
+        val visible = android.graphics.Rect()
+        if (!carousel.getGlobalVisibleRect(visible) || visible.height() <= 0) return dp(500)
+        val navigation = carousel.rootWindowInsets?.getInsets(android.view.WindowInsets.Type.navigationBars())?.bottom ?: 0
+        val safeBottom = carousel.rootView.height - navigation
+        return (minOf(visible.bottom, safeBottom) - visible.top - carousel.paddingTop - carousel.paddingBottom).coerceAtLeast(dp(180))
+    }
+
+    private fun cardAspect(): Float = if (resources.getBoolean(R.bool.home_two_pane)) 1050f / 1548f else 730f / 1464f
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 

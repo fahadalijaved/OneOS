@@ -18,14 +18,14 @@ import com.fahadali.oneos.R
  */
 class MainActivity : ToolbarActivity() {
     override val screenTitle: CharSequence get() = getString(R.string.app_name)
-    override val showBack: Boolean = false
+    override val showBack: Boolean get() = intent.getBooleanExtra("system_detail", false)
     override val layoutRes: Int get() = EditionHome.layoutRes
 
     override fun createFragment(): Fragment = EditionHome.createFragment()
 
     /** Until Before you start is acknowledged, every launch goes there first. */
     override fun redirect(): Intent? =
-        if (BeforeYouStart.isAcknowledged(this)) null else Intent(this, BeforeYouStartActivity::class.java)
+        if (BeforeYouStart.isAcknowledged(this)) EditionHome.redirect(this) else EditionHome.onboarding(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

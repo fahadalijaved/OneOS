@@ -6,8 +6,8 @@ import java.util.Properties
 // (switcher/assets/oneos_switch.sh) sees it and returns. guest_prepare.sh
 // installs it in every guest as a system app (/oem/app/OneOSGuest), from
 // $STAGE/OneOSGuest.apk (scripts/make-overlays.sh copies the release build).
-// Plain framework UI (DeviceDefault): it runs on Pixel and ColorOS, not One UI,
-// so no SESL and no library at all. No permission, no network.
+// SESL9 supplies the same native components on Pixel and ColorOS.
+// No permission and no network access.
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -71,4 +71,35 @@ tasks.matching { it.name == "packageRelease" }.configureEach {
     doFirst {
         check(hasKey) { "No release key: ~/.oneos-release/keystore.properties is missing (see app-android/README.md, section Build)." }
     }
+}
+
+configurations.configureEach {
+    exclude(group = "androidx.core", module = "core")
+    exclude(group = "androidx.core", module = "core-ktx")
+    exclude(group = "androidx.customview", module = "customview")
+    exclude(group = "androidx.coordinatorlayout", module = "coordinatorlayout")
+    exclude(group = "androidx.drawerlayout", module = "drawerlayout")
+    exclude(group = "androidx.viewpager2", module = "viewpager2")
+    exclude(group = "androidx.viewpager", module = "viewpager")
+    exclude(group = "androidx.appcompat", module = "appcompat")
+    // Play Services pulls stock Fragment, but One UI Design supplies the SESL
+    // implementation under the same AndroidX package names.
+    exclude(group = "androidx.fragment", module = "fragment")
+    // SESL9 Core and Fragment include their Kotlin extensions.
+    exclude(group = "sesl.androidx.core", module = "core-ktx")
+    exclude(group = "androidx.fragment", module = "fragment-ktx")
+    exclude(group = "androidx.preference", module = "preference")
+    exclude(group = "androidx.recyclerview", module = "recyclerview")
+    exclude(group = "androidx.swiperefreshlayout", module = "swiperefreshlayout")
+    exclude(group = "androidx.slidingpanelayout", module = "slidingpanelayout")
+    exclude(group = "com.google.android.material", module = "material")
+}
+
+dependencies {
+    implementation(libs.oneui.design) {
+        // The design library's optional barcode scanner is unused; keep OneOS offline.
+        exclude(group = "com.google.android.gms", module = "play-services-mlkit-barcode-scanning")
+        exclude(group = "com.google.mlkit", module = "barcode-scanning-common")
+    }
+    implementation(libs.bundles.sesl9)
 }

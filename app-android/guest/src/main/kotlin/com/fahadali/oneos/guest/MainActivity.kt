@@ -1,7 +1,7 @@
 package com.fahadali.oneos.guest
 
-import android.app.Activity
-import android.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Intent
@@ -23,7 +23,7 @@ import java.io.IOException
  * writes the request ([ReturnRequest]) and the session's watcher on the host
  * takes the phone back to One UI.
  */
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var back: Button
     private lateinit var status: TextView
@@ -37,6 +37,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         val system = GuestName.read()
+        findViewById<GuestArtworkView>(R.id.guest_artwork).bind(system)
         findViewById<TextView>(R.id.title).text =
             if (system != null) getString(R.string.title_in, system) else getString(R.string.title_in_other)
         // Edge to edge (target 35+): keep the content clear of the system bars and cutouts.

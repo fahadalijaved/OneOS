@@ -12,6 +12,10 @@ import com.fahadali.oneos.R
  * Run tests, Before you start, About. No footer, no menu.
  */
 internal object EditionHome {
+    fun onboarding(a: MainActivity) = android.content.Intent(a, BeforeYouStartActivity::class.java)
+
+    fun redirect(a: MainActivity): android.content.Intent? = null
+
     val layoutRes: Int get() = R.layout.activity_toolbar
 
     fun createFragment(): Fragment = HomeFragment()

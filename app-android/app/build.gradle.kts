@@ -306,28 +306,6 @@ tasks.matching { it.name == "packageFullRelease" || it.name == "packageProbeRele
     }
 }
 
-// SESL ships its own androidx.* / material classes. The stock artifacts must
-// never land next to them (duplicate classes), and picker-color shares
-// picker-basic's androidx.picker namespace (manifest merger fails), so both
-// are excluded everywhere (docs/app/DESIGN.md, top: "Two build gotchas").
-configurations.configureEach {
-    exclude(group = "androidx.core", module = "core")
-    exclude(group = "androidx.core", module = "core-ktx")
-    exclude(group = "androidx.customview", module = "customview")
-    exclude(group = "androidx.coordinatorlayout", module = "coordinatorlayout")
-    exclude(group = "androidx.drawerlayout", module = "drawerlayout")
-    exclude(group = "androidx.viewpager2", module = "viewpager2")
-    exclude(group = "androidx.viewpager", module = "viewpager")
-    exclude(group = "androidx.appcompat", module = "appcompat")
-    exclude(group = "androidx.fragment", module = "fragment")
-    exclude(group = "androidx.fragment", module = "fragment-ktx")
-    exclude(group = "androidx.preference", module = "preference")
-    exclude(group = "androidx.recyclerview", module = "recyclerview")
-    exclude(group = "androidx.swiperefreshlayout", module = "swiperefreshlayout")
-    exclude(group = "com.google.android.material", module = "material")
-    exclude(group = "io.github.oneuiproject.sesl", module = "picker-color")
-}
-
 /**
  * OneOS Probe must stay the read-only app (owner, 0.3.4): checks its packaged
  * APK and merged manifest after every probe build. The app's own assets are
@@ -404,7 +382,11 @@ abstract class ProbeApkCheckTask : DefaultTask() {
         }
         val m = manifest.get().asFile.readText()
         for (a in FULL_SCREENS) if (m.contains(".ui.$a\"")) problems += "the merged manifest declares $a"
-        if (m.contains("<uses-permission")) problems += "the merged manifest asks for a permission"
+        val permissions = Regex("""<uses-permission\b[^>]*android:name="([^"]+)"""").findAll(m).map { it.groupValues[1] }.toList()
+        // Modern AndroidX Core protects its private dynamic receivers with an app-owned signature permission.
+        if (permissions.any { it != "com.fahadali.oneos.probe.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" }) {
+            problems += "the merged manifest asks for a platform or third-party permission"
+        }
         if (problems.isNotEmpty()) throw GradleException("OneOS Probe carries what only OneOS may:\n  " + problems.distinct().joinToString("\n  "))
         report.get().asFile.writeText(lines.joinToString("\n", postfix = "\n"))
     }
@@ -433,7 +415,8 @@ androidComponents {
                     // The session scripts, the root script and its lists, and every file of the package sets.
                     val setNames = packageSets.keys.flatMap { id -> File(packagesDir, "$id.sha256").takeIf { it.isFile }?.let { readShaList(it).keys }.orEmpty() }
                     forbiddenNames.set(sessionScripts.keys + setOf("oneos_root.sh", "status.list", "installd.list", "collect.list") + setNames)
-                    maxBytes.set(30L * 1000 * 1000)
+                    // SESL9 unshrunk debug libraries are ~48 MB; release keeps the original cap.
+                    maxBytes.set((if (variant.buildType == "debug") 60L else 30L) * 1000 * 1000)
                     report.set(layout.buildDirectory.file("reports/probe-apk/${variant.name}.txt"))
                 }
                 tasks.matching { it.name == "assemble$name" }.configureEach { dependsOn(check) }
@@ -442,17 +425,40 @@ androidComponents {
     }
 }
 
+configurations.configureEach {
+    exclude(group = "androidx.core", module = "core")
+    exclude(group = "androidx.core", module = "core-ktx")
+    exclude(group = "androidx.customview", module = "customview")
+    exclude(group = "androidx.coordinatorlayout", module = "coordinatorlayout")
+    exclude(group = "androidx.drawerlayout", module = "drawerlayout")
+    exclude(group = "androidx.viewpager2", module = "viewpager2")
+    exclude(group = "androidx.viewpager", module = "viewpager")
+    exclude(group = "androidx.appcompat", module = "appcompat")
+    // Play Services pulls stock Fragment, but One UI Design supplies the SESL
+    // implementation under the same AndroidX package names.
+    exclude(group = "androidx.fragment", module = "fragment")
+    // SESL9 Core and Fragment include their Kotlin extensions.
+    exclude(group = "sesl.androidx.core", module = "core-ktx")
+    exclude(group = "androidx.fragment", module = "fragment-ktx")
+    exclude(group = "androidx.preference", module = "preference")
+    exclude(group = "androidx.recyclerview", module = "recyclerview")
+    exclude(group = "androidx.swiperefreshlayout", module = "swiperefreshlayout")
+    exclude(group = "androidx.slidingpanelayout", module = "slidingpanelayout")
+    exclude(group = "com.google.android.material", module = "material")
+}
+
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:device"))
     implementation(project(":core:root"))
     implementation(project(":core:safety"))
 
-    implementation(libs.sesl.core)
-    implementation(libs.sesl.appcompat)
-    implementation(libs.sesl.material)
-    implementation(libs.sesl.recyclerview)
-    implementation(libs.sesl.preference)
-    implementation(libs.oneui.design)
+    implementation(libs.bundles.sesl9)
+    implementation(libs.androidx.dynamicanimation)
+    implementation(libs.oneui.design) {
+        // The design library's optional barcode scanner is unused; keep OneOS offline.
+        exclude(group = "com.google.android.gms", module = "play-services-mlkit-barcode-scanning")
+        exclude(group = "com.google.mlkit", module = "barcode-scanning-common")
+    }
     implementation(libs.oneui.icons)
 }

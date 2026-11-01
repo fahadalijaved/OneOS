@@ -10,7 +10,7 @@
     <string name="advanced_details">Details</string>
 
     <!-- Advanced -->
-    <string name="advanced_title">Advanced</string>
+    <string name="advanced_title">Settings</string>
     <string name="advanced_card_system">Setup and space</string>
     <string name="advanced_setup_summary">Set it up again, keeping its apps and data or starting fresh</string>
     <string name="advanced_file_summary">Pick the file you downloaded and check it</string>

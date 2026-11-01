@@ -84,13 +84,13 @@ class SetupProgressFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        expanded = savedInstanceState?.getBoolean(KEY_EXPANDED) ?: false
+        expanded = savedInstanceState?.getBoolean(KEY_EXPANDED) ?: true
         val inflater = LayoutInflater.from(view.context)
 
         // The inner screen: one centred column of at most 600dp, its footer button too.
         val density = resources.displayMetrics.density
         val extra = ((resources.configuration.screenWidthDp - MAX_COLUMN_DP) / 2).coerceAtLeast(0)
-        if (extra > 0) {
+        if (extra > 0 && !resources.getBoolean(R.bool.home_two_pane)) {
             val column = view.findViewById<LinearLayout>(R.id.setup_column)
             val side = column.paddingStart + (extra * density).toInt()
             column.setPaddingRelative(side, column.paddingTop, side, column.paddingBottom)
@@ -162,6 +162,11 @@ class SetupProgressFragment : Fragment() {
         val image = s.image ?: FixActions.pickedImage(ctx, profile)
         val system = image?.let { Images.systemName(it, profile) }
 
+        root.findViewById<OsArtworkView>(R.id.setup_artwork).bind(image)
+        root.findViewById<androidx.appcompat.widget.SeslProgressBar>(R.id.setup_linear_progress).apply {
+            isIndeterminate = s.busy && s.percent == null
+            progress = if (phase == PrepareJob.Phase.DONE) 100 else s.percent ?: 0
+        }
         // The ring.
         val percent = if (phase == PrepareJob.Phase.DONE) 100 else s.percent ?: 0
         val ring = root.findViewById<SetupRingView>(R.id.setup_ring)
@@ -185,7 +190,7 @@ class SetupProgressFragment : Fragment() {
         }
         root.findViewById<TextView>(R.id.setup_eta).text = under
         val ringBox = root.findViewById<View>(R.id.setup_ring_box)
-        ringBox.visibility = if (idle) View.GONE else View.VISIBLE
+        ringBox.visibility = View.GONE
         ringBox.contentDescription = getString(R.string.setup_ring_desc, percent, under)
 
         // The title and its line (the result's plain message once it stops).

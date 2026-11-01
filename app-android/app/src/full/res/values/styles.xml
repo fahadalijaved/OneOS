@@ -50,27 +50,8 @@
     <!-- Buttons ============================================================= -->
 
     <!-- The one main action: a 52dp pill in ?attr/colorPrimary, white bold 17sp. -->
-    <style name="OneOS.Button.Primary" parent="Widget.AppCompat.Button">
-        <item name="android:background">@drawable/oneos_button_primary_bg</item>
-        <item name="android:elevation">0dp</item>
-        <item name="android:minHeight">@dimen/oneos_button_height</item>
-        <item name="android:minWidth">64dp</item>
-        <item name="android:paddingStart">24dp</item>
-        <item name="android:paddingEnd">24dp</item>
-        <item name="android:paddingTop">12dp</item>
-        <item name="android:paddingBottom">12dp</item>
-        <item name="android:stateListAnimator">@null</item>
-        <item name="android:textAllCaps">false</item>
-        <item name="android:textColor">@color/oneos_button_primary_text</item>
-        <item name="android:textSize">17sp</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-
-    <!-- A second action of the same weight: the grey One UI pill. -->
-    <style name="OneOS.Button.Secondary" parent="OneOS.Button.Primary">
-        <item name="android:background">@drawable/oneos_button_secondary_bg</item>
-        <item name="android:textColor">?android:attr/textColorPrimary</item>
-    </style>
+    <style name="OneOS.Button.Primary" parent="Widget.AppCompat.Button.Colored" />
+    <style name="OneOS.Button.Secondary" parent="Widget.AppCompat.Button" />
 
     <!-- A minor action: bold primary-blue text, rounded ripple, 48dp tall. -->
     <style name="OneOS.Button.Text" parent="OneUI.ButtonStyleTransparent">
@@ -89,7 +70,7 @@
 
     <!-- The system name under the hero picture. -->
     <style name="OneOS.Text.Hero" parent="">
-        <item name="android:fontFamily">sans-serif-light</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:letterSpacing">-0.01</item>
         <item name="android:textColor">?android:attr/textColorPrimary</item>
         <item name="android:textSize">32sp</item>

@@ -1,0 +1,1 @@
+<resources><declare-styleable name="AnimatedTitleView"><attr name="android:text"/><attr name="android:textSize"/><attr name="android:textColor"/></declare-styleable></resources>

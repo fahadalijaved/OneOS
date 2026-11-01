@@ -45,7 +45,8 @@ abstract class ToolbarActivity : AppCompatActivity() {
         padForSystemBars(findViewById(android.R.id.content))
         toolbarLayout = findViewById(R.id.toolbar_layout)
         toolbarLayout.setTitle(screenTitle)
-        if (showBack) toolbarLayout.setNavigationButtonAsBack()
+        toolbarLayout.showNavigationButtonAsBack = showBack
+        if (showBack) toolbarLayout.setNavigationButtonOnClickListener { onBackPressedDispatcher.onBackPressed() }
         if (savedInstanceState == null) {
             supportFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, createFragment())
@@ -54,7 +55,7 @@ abstract class ToolbarActivity : AppCompatActivity() {
     }
 
     fun setExpandedSubtitle(text: CharSequence) {
-        toolbarLayout.setExpandedSubtitle(text)
+        toolbarLayout.expandedSubtitle = text
     }
 
     private fun padForSystemBars(root: View) {

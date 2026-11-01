@@ -30,7 +30,9 @@ import dev.oneuiproject.oneui.R as OuiIcons
 class AdvancedActivity : ToolbarActivity() {
     override val screenTitle: CharSequence get() = getString(R.string.advanced_title)
 
-    override fun createFragment(): Fragment = AdvancedFragment()
+    override fun createFragment(): Fragment = SettingsPreferenceFragment()
+
+    override val layoutRes: Int get() = R.layout.activity_systems
 }
 
 class AdvancedFragment : CardsFragment() {

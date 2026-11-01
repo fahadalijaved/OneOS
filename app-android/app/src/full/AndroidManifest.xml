@@ -6,7 +6,9 @@
          picker (ACTION_OPEN_DOCUMENT, a read grant for that one file). Every
          change on the phone is a verb of assets/root/oneos_root.sh, run as
          root from a screen the user confirmed. -->
-    <application>
+    <application android:name=".ui.OneOsApplication">
+        <activity android:name=".ui.OnboardingActivity" android:exported="false" />
+        <activity android:name=".ui.LauncherActivity" android:exported="false" />
 
         <!-- Build 2: pick and check the image, prepare the stage, switch, the last session. -->
         <activity

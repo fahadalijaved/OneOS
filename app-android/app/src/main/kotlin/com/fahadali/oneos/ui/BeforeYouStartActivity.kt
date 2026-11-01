@@ -17,7 +17,7 @@ import com.fahadali.oneos.R
  * screen's content changes so everyone reads it again.
  */
 object BeforeYouStart {
-    const val VERSION = 2
+    const val VERSION = 3
     private const val PREFS = "oneos"
     private const val KEY_ACK_VERSION = "before_you_start_ack_version"
 
