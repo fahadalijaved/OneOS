@@ -23,7 +23,7 @@ import java.lang.ref.WeakReference
 internal object ArtworkTransitions {
     private const val NAME = "oneos_selected_artwork"
     private const val EXTRA = "oneos.artwork_transition"
-    private const val DURATION = 320L
+    private const val DURATION = 420L
 
     private fun shape(activity: Activity) = ShapeAppearanceModel.builder()
         .setAllCornerSizes(28 * activity.resources.displayMetrics.density).build()
@@ -31,10 +31,13 @@ internal object ArtworkTransitions {
     fun prepare(activity: Activity) {
         fun transform(returning: Boolean) = MaterialContainerTransform().apply {
             addTarget(NAME)
-            duration = if (returning) 280L else DURATION
+            duration = if (returning) 320L else DURATION
             interpolator = PathInterpolator(.2f, 0f, 0f, 1f)
             drawingViewId = android.R.id.content
-            fadeMode = MaterialContainerTransform.FADE_MODE_CROSS
+            // Keep the source opaque underneath the destination, avoiding the
+            // double fade through black when the thin/wide artwork crops differ.
+            fadeMode = MaterialContainerTransform.FADE_MODE_IN
+            fadeProgressThresholds = MaterialContainerTransform.ProgressThresholds(.12f, .96f)
             fitMode = MaterialContainerTransform.FIT_MODE_AUTO
             scrimColor = Color.TRANSPARENT
             setAllContainerColors(Color.BLACK)

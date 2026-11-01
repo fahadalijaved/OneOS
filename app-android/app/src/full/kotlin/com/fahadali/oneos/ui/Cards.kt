@@ -97,8 +97,8 @@ internal object Cards {
         round(card)
         val res = card.resources
         if (rows) {
-            val v = res.getDimensionPixelSize(R.dimen.oneos_card_list_padding)
-            card.setPaddingRelative(0, v, 0, v)
+            // CardItemView owns the SESL row's vertical and horizontal spacing.
+            card.setPaddingRelative(0, 0, 0, 0)
             val h = res.getDimensionPixelSize(R.dimen.oneos_row_padding_horizontal)
             val header = card.findViewById<View>(R.id.oneos_section_header)
             header.setPaddingRelative(h, res.getDimensionPixelSize(R.dimen.oneos_tile_padding), h, 0)
@@ -200,7 +200,8 @@ internal object Cards {
     ): View {
         val v = CardItemView(parent.context)
         bindRow(v, icon, title, summary, onClick)
-        v.showTopDivider = parent.getChildAt(parent.childCount - 1) is CardItemView
+        val previous = parent.getChildAt(parent.childCount - 1)
+        v.showTopDivider = previous is CardItemView || previous is dev.oneuiproject.oneui.widget.SwitchItemView
         parent.addView(v, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return v
     }

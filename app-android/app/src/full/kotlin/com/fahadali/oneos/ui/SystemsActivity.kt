@@ -174,6 +174,8 @@ class SystemsFragment : Fragment() {
     private var revealed = false
     private var initialDraw: android.view.ViewTreeObserver.OnPreDrawListener? = null
     private var currentEntries: List<CatalogEntry> = emptyList()
+    private var viewportKey: List<Int>? = null
+    private var navigatingAway = false
     private var swiping = false
     private var swipeStart = androidx.recyclerview.widget.RecyclerView.NO_POSITION
 
@@ -183,11 +185,28 @@ class SystemsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val carousel = view.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)
+        navigatingAway = false
         carousel.alpha = 0f
         carousel.translationY = dp(6).toFloat()
         carousel.itemAnimator = null
         lastKey = null
-        carousel.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> scaleCards(carousel) }
+        viewportKey = null
+        carousel.viewTreeObserver.addOnGlobalLayoutListener {
+            // Fold/unfold can change ancestor clipping or insets without changing
+            // RecyclerView's own bounds in the same frame.
+            val key = listOf(carousel.width, carousel.height, visibleCardHeight(carousel),
+                if (resources.getBoolean(R.bool.home_two_pane)) 1 else 0)
+            if (key != viewportKey) {
+                viewportKey = key
+                carousel.post { resizeVisibleCards(carousel) }
+            }
+        }
+        carousel.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            scaleCards(carousel)
+            if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
+                carousel.post { resizeVisibleCards(carousel) }
+            }
+        }
         carousel.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) = scaleCards(rv)
             override fun onScrollStateChanged(rv: androidx.recyclerview.widget.RecyclerView, state: Int) {
@@ -234,7 +253,16 @@ class SystemsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         Readiness.onResume(requireContext())
-        redraw(force = true)
+        if (navigatingAway) {
+            // Keep the mapped source attached until the 280 ms shared return finishes.
+            view?.postDelayed({
+                if (isResumed) {
+                    navigatingAway = false
+                    view?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)?.suppressLayout(false)
+                    redraw(force = true)
+                }
+            }, 500)
+        } else redraw(force = true)
     }
 
     override fun onStart() {
@@ -316,6 +344,7 @@ class SystemsFragment : Fragment() {
     }
 
     private fun redraw(force: Boolean = false) {
+        if (navigatingAway) return
         val root = view ?: return
         val ctx = context ?: return
         val p = profile
@@ -520,16 +549,16 @@ class SystemsFragment : Fragment() {
             makeCardClickable(getString(R.string.catalog_open_checks, image.nameWithVariant), true, onClick)
         }
         when {
-            settingUp -> only(getString(R.string.systems_show_progress), true) { a?.let { ArtworkTransitions.start(it, Intent(it, SetupProgressActivity::class.java), v.findViewById(R.id.systems_artwork)) } }
+            settingUp -> only(getString(R.string.systems_show_progress), true) { a?.let { startArtwork(it, Intent(it, SetupProgressActivity::class.java), v.findViewById(R.id.systems_artwork)) } }
             setUp && maintenance != null -> only(getString(R.string.catalog_update),
                 !jobsBusy && StageCheck.state.phase == StageCheck.Phase.DONE,
-                onCardClick = { a?.let { ArtworkTransitions.start(it, EnvironmentNavigation.intent(it, image), v.findViewById(R.id.systems_artwork)) } }) {
+                onCardClick = { a?.let { startArtwork(it, EnvironmentNavigation.intent(it, image), v.findViewById(R.id.systems_artwork)) } }) {
                 a?.let {
                     if (maintenance.action == FixAction.SET_UP_AGAIN) askDownloaded(image, v.findViewById(R.id.systems_artwork))
                     else FixActions.run(it, maintenance.action, image)
                 }
             }
-            setUp -> openCard { a?.let { ArtworkTransitions.start(it, EnvironmentNavigation.intent(it, image), v.findViewById(R.id.systems_artwork)) } }
+            setUp -> openCard { a?.let { startArtwork(it, EnvironmentNavigation.intent(it, image), v.findViewById(R.id.systems_artwork)) } }
             savedCopy != null -> only(getString(R.string.catalog_switch), !jobsBusy && !StageCheck.state.busy) {
                 val current = StageCheck.state.result?.status?.marker?.imageId?.let { Images.byId(it) }?.name ?: getString(R.string.home_other_current_unknown)
                 AlertDialog.Builder(ctx).setTitle(getString(R.string.home_other_confirm_title, image.name))
@@ -538,7 +567,7 @@ class SystemsFragment : Fragment() {
                         if (a != null) {
                             OldStagesJob.restore(a, com.fahadali.oneos.core.root.OldStage(savedCopy, 0, image.id, hasData = true, busy = false))
                             if (OldStagesJob.state.restoring == savedCopy && OldStagesJob.state.busy) {
-                                ArtworkTransitions.start(a, EnvironmentNavigation.intent(a, image), v.findViewById(R.id.systems_artwork))
+                                startArtwork(a, EnvironmentNavigation.intent(a, image), v.findViewById(R.id.systems_artwork))
                             }
                         }
                     }.setNegativeButton(android.R.string.cancel, null).show()
@@ -548,6 +577,14 @@ class SystemsFragment : Fragment() {
 
         primary.contentDescription = primary.text.toString() + " " + image.nameWithVariant
         return v
+    }
+
+    /** Freeze the actual source view while Android captures and returns the shared artwork. */
+    private fun startArtwork(a: Activity, intent: Intent, artwork: OsArtworkView) {
+        if (navigatingAway) return
+        navigatingAway = true
+        view?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)?.suppressLayout(true)
+        ArtworkTransitions.start(a, intent, artwork)
     }
 
     private fun askDownloaded(image: ImageRef, artwork: OsArtworkView) {
@@ -571,7 +608,7 @@ class SystemsFragment : Fragment() {
             return
         }
         val a = activity ?: return
-        ArtworkTransitions.start(a, Intent(a, SetupProgressActivity::class.java)
+        startArtwork(a, Intent(a, SetupProgressActivity::class.java)
             .putExtra(SetupProgressActivity.EXTRA_PREVIEW_IMAGE, image.id), artwork)
     }
 
@@ -593,11 +630,47 @@ class SystemsFragment : Fragment() {
     }
 
     private fun visibleCardHeight(carousel: View): Int {
-        val visible = android.graphics.Rect()
-        if (!carousel.getGlobalVisibleRect(visible) || visible.height() <= 0) return dp(500)
+        // A shared-element return can temporarily hide the view. Its measured
+        // viewport is still valid; getGlobalVisibleRect would fall back to an
+        // oversized card while hidden.
+        val location = IntArray(2)
+        carousel.getLocationInWindow(location)
         val navigation = carousel.rootWindowInsets?.getInsets(android.view.WindowInsets.Type.navigationBars())?.bottom ?: 0
         val safeBottom = carousel.rootView.height - navigation
-        return (minOf(visible.bottom, safeBottom) - visible.top - carousel.paddingTop - carousel.paddingBottom).coerceAtLeast(1)
+        val measured = carousel.height.takeIf { it > 0 } ?: carousel.measuredHeight
+        var safeHeight = if (safeBottom > location[1]) minOf(measured, safeBottom - location[1]) else measured
+        val visible = android.graphics.Rect()
+        if (carousel.getGlobalVisibleRect(visible) && visible.height() > 0) {
+            safeHeight = minOf(safeHeight, visible.height())
+        }
+        return (safeHeight - carousel.paddingTop - carousel.paddingBottom).coerceAtLeast(1)
+    }
+
+    private fun resizeVisibleCards(carousel: androidx.recyclerview.widget.RecyclerView) {
+        if (navigatingAway || carousel.width <= 0 || carousel.height <= 0) return
+        val manager = carousel.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
+        val selected = snapHelper?.findSnapView(manager)?.let(manager::getPosition)
+        val (width, height) = cardSize(carousel)
+        val verticalInset = ((visibleCardHeight(carousel) - height) / 2).coerceAtLeast(0)
+        var changed = false
+        for (index in 0 until carousel.childCount) {
+            val child = carousel.getChildAt(index)
+            val params = child.layoutParams as androidx.recyclerview.widget.RecyclerView.LayoutParams
+            val side = cardSideMargin()
+            if (params.width != width || params.height != height || params.topMargin != verticalInset || params.bottomMargin != verticalInset ||
+                params.marginStart != side || params.marginEnd != side) {
+                child.layoutParams = params.apply {
+                    this.width = width; this.height = height
+                    topMargin = verticalInset; bottomMargin = verticalInset
+                    marginStart = side; marginEnd = side
+                }
+                changed = true
+            }
+        }
+        if (changed && selected != null && selected != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
+            manager.scrollToPositionWithOffset(selected, (carousel.width - width - 2 * cardSideMargin()) / 2)
+            carousel.post { scaleCards(carousel) }
+        }
     }
 
     private fun cardSideMargin() = dp(if (resources.getBoolean(R.bool.home_two_pane)) 8 else 4)

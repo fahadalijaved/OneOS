@@ -82,14 +82,11 @@ class OnboardingActivity : EdgeToEdgeActivity() {
         animatePage(animate)
         if (page == 0) return
         fun row(title: Int, summary: CharSequence, icon: Int, status: CharSequence? = null, action: (() -> Unit)? = null) {
-            val item = layoutInflater.inflate(R.layout.onboarding_permission_row, rows, false)
-            item.findViewById<TextView>(R.id.onboarding_row_title).setText(title)
-            item.findViewById<TextView>(R.id.onboarding_row_summary).text = summary
-            item.findViewById<TextView>(R.id.onboarding_row_status).apply {
-                text = status
-                visibility = if (status == null) View.GONE else View.VISIBLE
-            }
-            item.findViewById<android.widget.ImageView>(R.id.onboarding_row_icon).setImageResource(icon)
+            val item = layoutInflater.inflate(R.layout.onboarding_permission_row, rows, false) as dev.oneuiproject.oneui.widget.CardItemView
+            item.title = getString(title)
+            item.summary = listOfNotNull(summary, status).joinToString("\n")
+            item.icon = androidx.appcompat.content.res.AppCompatResources.getDrawable(this, icon)
+            item.showTopDivider = rows.childCount > 0
             item.isClickable = action != null
             item.isFocusable = action != null
             if (action != null) item.setOnClickListener { action() }

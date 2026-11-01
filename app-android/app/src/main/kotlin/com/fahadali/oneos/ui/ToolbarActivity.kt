@@ -44,7 +44,10 @@ abstract class ToolbarActivity : EdgeToEdgeActivity() {
         }
         setContentView(layoutRes)
         toolbarLayout = findViewById(R.id.toolbar_layout)
-        if (preferenceInsets) applyPreferenceScreenInsets(toolbarLayout) else applyEdgeToEdgeInsets(toolbarLayout)
+        if (preferenceInsets) applyPreferenceScreenInsets(toolbarLayout) else {
+            applyEdgeToEdgeInsets(toolbarLayout)
+            applyScrollingNavigationInsets(toolbarLayout)
+        }
         toolbarLayout.setTitle(screenTitle)
         toolbarLayout.showNavigationButtonAsBack = showBack
         if (showBack) toolbarLayout.setNavigationButtonOnClickListener { onBackPressedDispatcher.onBackPressed() }

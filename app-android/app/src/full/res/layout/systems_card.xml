@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/catalog_card_bg" android:foreground="@drawable/catalog_card_outline" android:clipToOutline="true">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/catalog_card_clip" android:clipToOutline="true">
     <com.fahadali.oneos.ui.OsArtworkView android:id="@+id/systems_artwork" android:layout_width="match_parent" android:layout_height="match_parent" />
     <TextView android:id="@+id/systems_badge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="12dp" android:paddingHorizontal="16dp" android:paddingVertical="12dp" android:background="@drawable/catalog_overlay_bg" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
     <androidx.appcompat.widget.AppCompatImageButton android:id="@+id/systems_more" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="end|top" android:layout_margin="12dp" android:background="@drawable/catalog_overlay_bg" android:src="@drawable/ic_catalog_more" android:contentDescription="@string/catalog_more" />

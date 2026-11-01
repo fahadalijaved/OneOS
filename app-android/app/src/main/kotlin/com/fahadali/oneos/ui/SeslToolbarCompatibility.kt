@@ -62,9 +62,17 @@ internal object SeslToolbarCompatibility {
     }
 
     fun install(root: ViewGroup) {
+        // The older wrapper adds a bottom corner mask over its scrolling page.
+        // Keep all host pages open to the transparent navigation edge.
+        descendants(root).filter { it.id == dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners }
+            .forEach { it.visibility = View.GONE }
         val fadingViews = WeakHashMap<View, Boolean>()
         fun enableNativeFadingEdges() {
             for (view in descendants(root)) {
+                if (view.id == dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners) {
+                    if (view.visibility != View.GONE) view.visibility = View.GONE
+                    continue
+                }
                 if (fadingViews.containsKey(view)) continue
                 when (view) {
                     is NestedScrollView -> view.seslSetFadingEdgeEnabled(true)

@@ -16,12 +16,12 @@
         <item name="android:paddingBottom">@dimen/oneos_card_padding_bottom</item>
     </style>
 
-    <!-- A card that holds oneos_row items: no side padding, 6dp top and bottom. -->
+    <!-- Native list rows own their padding; the enclosing card adds none. -->
     <style name="OneOS.Card.List" parent="OneOS.Card">
         <item name="android:paddingStart">0dp</item>
         <item name="android:paddingEnd">0dp</item>
-        <item name="android:paddingTop">@dimen/oneos_card_list_padding</item>
-        <item name="android:paddingBottom">@dimen/oneos_card_list_padding</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
     </style>
 
     <!-- Check tile inside a card: 16dp corners on @color/oneos_tile_bg. -->

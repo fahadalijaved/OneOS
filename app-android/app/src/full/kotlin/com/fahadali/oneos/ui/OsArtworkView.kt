@@ -20,6 +20,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
         scaleType = ScaleType.CENTER_CROP
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         setBackgroundResource(R.drawable.catalog_card_bg)
+        foreground = androidx.appcompat.content.res.AppCompatResources.getDrawable(context, R.drawable.catalog_card_outline)
         clipToOutline = true
     }
     fun bind(image: ImageRef?) = bindArtwork(when (image?.family) {
@@ -42,6 +43,13 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
         frame()
     }
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { super.onSizeChanged(w, h, oldw, oldh); frame() }
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Thin/wide qualifiers share the same resource ID. Reload its drawable
+        // after a display change even if this view survives the configuration.
+        rendered = 0
+        frame()
+    }
     private fun frame() {
         if (artwork == 0) return
         val header = tag?.toString()?.startsWith("heading") == true && height > 0 && width.toFloat() / height > .8f

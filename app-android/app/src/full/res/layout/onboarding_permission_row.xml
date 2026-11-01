@@ -1,13 +1,2 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/onboarding_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="0dp" android:background="?android:attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:minHeight="96dp" android:orientation="horizontal" android:paddingStart="8dp" android:paddingTop="12dp" android:paddingEnd="8dp" android:paddingBottom="12dp">
-
-                        <ImageView android:layout_width="32dp" android:layout_height="32dp" android:contentDescription="@null" android:src="@drawable/ic_oui_info_outline" app:tint="?android:textColorPrimary" android:id="@+id/onboarding_row_icon" />
-
-                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="20dp" android:layout_weight="1" android:orientation="vertical">
-
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:fontFamily="sec" android:text="@string/onboarding_root" android:textColor="?android:textColorPrimary" android:textSize="18sp" android:id="@+id/onboarding_row_title" />
-
-                            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:fontFamily="sec" android:lineSpacingExtra="2dp" android:text="@string/onboarding_no_root" android:textColor="?android:textColorSecondary" android:textSize="14sp" android:id="@+id/onboarding_row_summary" />
-
-                            <TextView android:id="@+id/onboarding_row_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:fontFamily="sec" android:text="@string/onboarding_nearby_summary" android:textColor="?android:textColorSecondary" android:textSize="13sp" android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
+<dev.oneuiproject.oneui.widget.CardItemView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" />

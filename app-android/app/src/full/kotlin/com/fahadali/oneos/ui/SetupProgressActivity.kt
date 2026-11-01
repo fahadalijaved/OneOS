@@ -141,7 +141,6 @@ class SetupProgressFragment : Fragment() {
         Cards.round(steps)
         stepRows = checklist.map { (title, _) ->
             (Cards.row(steps, R.drawable.ic_oneos_step_pending, title) as dev.oneuiproject.oneui.widget.CardItemView).apply {
-                iconSize = (24 * resources.displayMetrics.density).toInt()
                 isClickable = false
                 isFocusable = false
             }

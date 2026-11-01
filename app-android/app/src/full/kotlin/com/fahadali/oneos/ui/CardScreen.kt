@@ -153,8 +153,21 @@ internal object CardRows {
         compound(card, AppCompatCheckBox(card.context), CheckBox::class.java.name, title, summary, checked, enabled, onChange)
 
     /** An on/off row (the One UI switch); the whole row is the tap target. Not saved: the screen keeps it. */
-    fun toggle(card: LinearLayout, title: CharSequence, summary: CharSequence?, on: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit): View =
-        compound(card, SwitchCompat(card.context), android.widget.Switch::class.java.name, title, summary, on, enabled, onChange)
+    fun toggle(card: LinearLayout, title: CharSequence, summary: CharSequence?, on: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit): View {
+        val previous = card.getChildAt(card.childCount - 1)
+        return dev.oneuiproject.oneui.widget.SwitchItemView(card.context).apply {
+            this.title = title
+            summaryOn = summary
+            summaryOff = summary
+            separateSwitch = false
+            isChecked = on
+            isEnabled = enabled
+            showTopDivider = previous is dev.oneuiproject.oneui.widget.CardItemView ||
+                previous is dev.oneuiproject.oneui.widget.SwitchItemView
+            onCheckedChangedListener = { _, checked -> onChange(checked) }
+            card.addView(this, LinearLayout.LayoutParams(-1, -2))
+        }
+    }
 
     private fun compound(
         card: LinearLayout,
@@ -172,8 +185,6 @@ internal object CardRows {
         box.isClickable = false
         box.isFocusable = false
         box.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        lp.marginStart = card.resources.getDimension(R.dimen.oneos_row_icon_gap).toInt()
         val end = (row as dev.oneuiproject.oneui.widget.CardItemView).getEndImageView()
         val content = end.parent as ViewGroup
         box.id = end.id

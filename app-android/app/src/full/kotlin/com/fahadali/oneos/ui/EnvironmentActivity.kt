@@ -52,36 +52,54 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         preview = DebugPreview.enabled(this) && intent.getBooleanExtra("preview", false)
         setContentView(R.layout.activity_environment)
         actionTextColors = findViewById<Button>(R.id.environment_boot).textColors
-        findViewById<View>(R.id.environment_window).setOnApplyWindowInsetsListener { root, insets ->
+        val nativeToolbar = findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout)
+        if (nativeToolbar != null) {
+            // Same fixed-height ToolbarLayout and native SESL floating bridge as Twidget.
+            applyEdgeToEdgeInsets(nativeToolbar, onNavigationBarInset = {})
+            findViewById<View>(R.id.environment_window).setOnApplyWindowInsetsListener { _, insets ->
+                val bottom = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()).bottom
+                findViewById<View>(R.id.environment_footer).updateBottomMarginForNavigationBar(0, bottom)
+                insets
+            }
+            nativeToolbar.setAdaptiveMarginProvider(dev.oneuiproject.oneui.widget.AdaptiveCoordinatorLayout.MARGIN_PROVIDER_ZERO)
+            nativeToolbar.setEdgeInsetHorizontal(0f)
+            findViewById<dev.oneuiproject.oneui.widget.RoundedFrameLayout>(dev.oneuiproject.oneui.design.R.id.tbl_main_content).apply {
+                roundedCorners = 0
+                fillHorizontalPadding = false
+            }
+            findViewById<View>(dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners).visibility = View.GONE
+        } else findViewById<View>(R.id.environment_window).setOnApplyWindowInsetsListener { root, insets ->
             val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
             root.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
-        findViewById<Toolbar>(R.id.environment_toolbar).apply {
+        environmentToolbar().apply {
             setNavigationIcon(Icons.drawable.ic_oui_back)
             setNavigationContentDescription(androidx.appcompat.R.string.abc_action_bar_up_description)
             setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
             if (preview) subtitle = getString(R.string.environment_preview)
         }
         findViewById<NestedScrollView>(R.id.environment_scroll).apply {
-            isNestedScrollingEnabled = false
+            isNestedScrollingEnabled = !resources.getBoolean(R.bool.home_two_pane)
             seslSetFadingEdgeEnabled(true)
             seslSetFadingEdgeColor(Color.BLACK)
-            seslSetFadingEdgeWindowBottomAlignment(false)
+            seslSetFadingEdgeWindowBottomAlignment(nativeToolbar != null)
             seslSetAllowTopFadingEdgeWithoutEdgeToEdge(true)
         }
         val scroll = findViewById<NestedScrollView>(R.id.environment_scroll)
         findViewById<View>(R.id.environment_footer).addOnLayoutChangeListener { footer, _, _, _, _, _, _, _, _ ->
             // The native fade belongs to the scrolling content behind the fixed action.
             // Bottom padding lets the final row scroll fully clear of the button.
-            val clearance = footer.height + dp(16)
+            val navigation = if (nativeToolbar != null) (footer.layoutParams as? ViewGroup.MarginLayoutParams)?.bottomMargin ?: 0 else 0
+            val clearance = footer.height + navigation + dp(16)
+            val fadeHeight = footer.height + navigation + dp(24)
             // Keep the fixed action backed by the native fade even with short or
             // temporarily incomplete checking content, not just when scrollable.
-            scroll.seslForceBottomFadingEdgeClamped(footer.height + dp(24))
+            scroll.seslForceBottomFadingEdgeClamped(fadeHeight)
             scroll.invalidate()
             if (scroll.paddingBottom != clearance) {
                 scroll.setPadding(scroll.paddingLeft, scroll.paddingTop, scroll.paddingRight, clearance)
-                scroll.seslSetFadingEdgeEnabled(true, dp(24), footer.height + dp(24))
+                scroll.seslSetFadingEdgeEnabled(true, dp(24), fadeHeight)
             }
         }
         render()
@@ -126,7 +144,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         findViewById<OsArtworkView>(R.id.environment_artwork).bind(image)
         findViewById<TextView>(R.id.environment_title).text = image.name
         val wide = resources.getBoolean(R.bool.home_two_pane)
-        if (!wide) findViewById<Toolbar>(R.id.environment_toolbar).title = image.name
+        if (!wide) findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout).setTitle(image.name)
         val column = findViewById<LinearLayout>(R.id.environment_cards)
         column.removeAllViews()
         val checks = Cards.section(column, null)
@@ -260,5 +278,9 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             }
         }
     }
+    private fun environmentToolbar(): Toolbar =
+        findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout)?.toolbar
+            ?: findViewById(R.id.environment_toolbar)
+
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 }
