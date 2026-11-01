@@ -27,7 +27,7 @@ class PackageSetsTest {
 
     @Test
     fun setsAsData() {
-        assertEquals(25, n6.files.size)
+        assertEquals(28, n6.files.size) // 0.4.37: + framework_patched.jar, libcamera_client_patched.so, samcam.tar
         assertEquals(24, x9u.files.size)
         assertEquals(35, pixel.files.size) // 0.4.24: framework_patched.jar (One UI's camera transaction codes)
         assertEquals(Images.ID_FIND_N6, n6.imageId)
@@ -107,11 +107,10 @@ class PackageSetsTest {
         val f8 = PackageSets.N6_F8
         assertEquals(Images.ID_FIND_N6, f8.imageId)
         assertEquals("out/overlays_n6_fold8", f8.sourceDir)
-        assertEquals(n6.files, f8.files.filter { it.role != FileRole.GUEST_FIX })
-        assertEquals(
-            listOf("Fold8SystemUI.apk", "Fold8AngleRelay.dex", "Fold8Aod.apk", "Fold8UMS.apk", "Fold8Instant.apk"),
-            f8.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name },
-        )
+        val f8Fixes = listOf("Fold8SystemUI.apk", "Fold8AngleRelay.dex", "Fold8Aod.apk", "Fold8UMS.apk", "Fold8Instant.apk")
+        assertEquals(n6.files, f8.files.filter { it.name !in f8Fixes })
+        // 0.4.37: the Fold's samcam.tar (One UI's camera) comes first, from its files.
+        assertEquals(listOf("samcam.tar") + f8Fixes, f8.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
         // Its base files are the Fold's, byte for byte (built from out/overlays_n6_r50).
         val fold = ShaList.parse(shas(n6)).entries
         val fold8 = ShaList.parse(shas(f8)).entries
@@ -151,11 +150,16 @@ class PackageSetsTest {
         }
         // The ColorOS sets (0.4.8, rebuilt 2026-10-25): both guard jars, the guest vold
         // as gvld (ColorOS 17 CP2A.260605.016) and the in-guest app.
+        // 0.4.37: the Find N6 and IN sets with One UI's camera codes too (framework_patched.jar,
+        // libcamera_client_patched.so); the CN set's image is not on the server yet.
+        val camera = listOf("framework_patched.jar", "libcamera_client_patched.so")
         for (s in listOf(n6, x9u)) {
-            assertEquals(listOf("services_patched.jar", "oplus-services_patched.jar"), s.files.filter { it.role == FileRole.GUARD_JAR }.map { it.name })
+            val cam = if (s == n6) camera else emptyList()
+            assertEquals(listOf("services_patched.jar", "oplus-services_patched.jar") + cam.take(cam.size.coerceAtMost(1)),
+                s.files.filter { it.role == FileRole.GUARD_JAR }.map { it.name })
             assertEquals(
                 s.id,
-                listOf("services_patched.jar", "oplus-services_patched.jar", "vold_patched", "service.incremental_patched.so"),
+                listOf("services_patched.jar", "oplus-services_patched.jar", "vold_patched", "service.incremental_patched.so") + cam,
                 s.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
             )
             assertEquals(s.id, 15, s.files.count { it.role == FileRole.APEX_PAYLOAD })
@@ -163,14 +167,14 @@ class PackageSetsTest {
             assertEquals(FileRole.GUEST_APP, s.file(PackageSets.GUEST_APP)!!.role)
             assertTrue(s.hasReturnApp)
         }
-        assertEquals(n6.names - PackageSets.WALLPAPER_GRID_RRO, x9u.names)
+        assertEquals(n6.names - PackageSets.WALLPAPER_GRID_RRO - camera - "samcam.tar", x9u.names)
         // The IN build's set (0.4.11): the CN set's files and its cell broadcast module, with
         // both guard jars and its own guest vold as gvld (its own pins in make-overlays.sh).
-        assertEquals(x9u.names + PackageSets.CELLBROADCAST, xin.names)
+        assertEquals(x9u.names + PackageSets.CELLBROADCAST + camera + "samcam.tar", xin.names) // 0.4.37: One UI's camera
         assertEquals(x9u.omitted, xin.omitted)
         assertEquals(16, xin.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(
-            listOf("services_patched.jar", "oplus-services_patched.jar", "vold_patched", "service.incremental_patched.so"),
+            listOf("services_patched.jar", "oplus-services_patched.jar", "vold_patched", "service.incremental_patched.so") + camera,
             xin.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(xin.hasReturnApp)
@@ -271,8 +275,9 @@ class PackageSetsTest {
         // N6 guards with the X9U jars: never mix builds. (The two images share one
         // vold and service.incremental.so, so only the guard jars differ.)
         val mixed = x9u.checkGuards(guards(n6), shas(x9u))
-        assertEquals(2, mixed.size)
-        assertTrue(mixed.all { it.startsWith("guards.txt: ") && it.contains("the set has") })
+        assertEquals(4, mixed.size) // the two guard jars, and (0.4.37) the N6 set's camera files, not the CN set's
+        assertTrue(mixed.all { it.startsWith("guards.txt: ") })
+        assertEquals(2, mixed.count { it.contains("the set has") })
         // A guards.txt that lists something else, or misses a jar.
         assertTrue(x9u.checkGuards(guards(x9u) + "${"b".repeat(64)}  framework_patched.jar\n", shas(x9u)).single().contains("not a guard jar"))
         assertTrue(x9u.checkGuards(guards(x9u).lines().filterNot { it.endsWith("oplus-services_patched.jar") }.joinToString("\n"), shas(x9u)).single().contains("missing"))

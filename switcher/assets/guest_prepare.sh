@@ -537,12 +537,13 @@ fi
 SAMCAM=0
 SAMCAM_SRC="$STAGE/samcam_build"
 SAMCAM_BOUND=0
-# The Nothing set's samcam.tar (0.4.35), unpacked into samcam_build when it is
-# not the one unpacked last (size and time). The camera is rewritten against
-# Nothing OS's framework, so only a Nothing image takes it; a samcam_build left
-# from a Nothing session stays out of every other system.
+# The set's samcam.tar (0.4.35 Nothing OS, 0.4.37 ColorOS), unpacked into
+# samcam_build when it is not the one unpacked last (size and time). Each set's
+# camera is rewritten against its own image's framework, so only a stage whose
+# set brought a samcam.tar takes it (setup moves every other set's files to the
+# attic); a samcam_build left from another system stays out.
 SAMCAM_IMAGE=0
-[ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] && SAMCAM_IMAGE=1
+[ -f "$STAGE/samcam.tar" ] && [ ! -L "$STAGE/samcam.tar" ] && SAMCAM_IMAGE=1
 if [ $SAMCAM_IMAGE = 1 ] && [ -f "$STAGE/samcam.tar" ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
     st=$(stat -c %s:%Y "$STAGE/samcam.tar")
     if [ "$(cat "$SAMCAM_SRC/.from_tar" 2>/dev/null)" != "$st" ]; then
@@ -577,10 +578,15 @@ samcam_files() {
     # android/graphics/ImageReader.mNativeBuffer", abort (run 17). A system
     # app listed here may use them.
     echo "sysext etc/sysconfig/oneos-samcam-hiddenapi.xml $SAMCAM_SRC/oneos-samcam-hiddenapi.xml"
+    # One UI's libraries this phone has: the camera was built from the Z Fold8
+    # Ultra's, which loads some only for features this phone's own camera list
+    # (cameradata) does not turn on; an S24 Ultra or Z Fold6 has no
+    # libAIDeflicker.camera.samsung.so, and the whole camera was off (0.4.36
+    # reports 81f8194c, 8d915c9b). samcam_prepare names the ones left out.
     while read -r lib from; do
         case "$from" in
             apex) echo "sys lib64/$lib $SAMCAM_SRC/$lib" ;;
-            *) echo "sys lib64/$lib /system/lib64/$lib" ;;
+            *) [ -e "/system/lib64/$lib" ] && echo "sys lib64/$lib /system/lib64/$lib" ;;
         esac
     done < "$SAMCAM_SRC/libs.txt"
     echo "sys etc/floating_feature.xml /system/etc/floating_feature.xml"
@@ -632,6 +638,8 @@ samcam_prepare() {
     samcam_files | while read -r k t s; do
         [ -e "$s" ] || { echo "Samsung Camera: $s missing"; exit 1; }
     done || return 1
+    SKIP=$(awk '$2 == "system" { print $1 }' "$SAMCAM_SRC/libs.txt" | while read -r lib; do [ -e "/system/lib64/$lib" ] || printf ' %s' "$lib"; done)
+    [ -z "$SKIP" ] || echo "Samsung Camera: One UI here has no$SKIP (left out; this phone's camera does not use them)"
     return 0
 }
 # Empty mount points of kind $2 in the overlay layer $1, before it is mounted.
@@ -662,7 +670,7 @@ samcam_bind() {
     return 0
 }
 if [ -d "$SAMCAM_SRC" ] && [ $SAMCAM_IMAGE = 0 ]; then
-    echo "Samsung Camera in the guest: off (made for Nothing OS, not this system)"
+    echo "Samsung Camera in the guest: off (this system's set has no samcam.tar; samcam_build is another system's)"
 elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
     if [ ! -d "$GUEST_SYSTEM_EXT" ]; then echo "Samsung Camera in the guest: off (the guest has no system_ext)"
     elif [ -L "$SAMCAM_SRC" ]; then echo "ERROR: $SAMCAM_SRC is a symlink; not starting the guest"; exit 3
@@ -1406,6 +1414,32 @@ if [ -f "$FEAT" ]; then
         ADDED="$ADDED oplus.software.flexible_freeform.support oplus.software.pocketstudio.support"
         ADDED="$ADDED oplus.software.wallpaper.separate_wallpaper_for_multi_display"
         ADDED="$ADDED oplus.software.audio.haptic_channel_support"
+    elif [ "$FORM" = fold ] && grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage"; then
+        # The same on every other fold with the Find N6 build (0.4.36: the Z Fold8
+        # Ultra, Fold7, Fold6, Fold5), except AOD and haptics, which go with the
+        # Fold8 set's donor AOD app and its own tuning.
+        ADDED="$ADDED oplus.software.support_fluid_entry oplus.software.fluid_replace_ntf"
+        ADDED="$ADDED oplus.software.adaptive_smooth_animation oplus.software.flexible_exchange_animation"
+        ADDED="$ADDED oplus.software.flexible_freeform.support oplus.software.pocketstudio.support"
+        ADDED="$ADDED oplus.software.wallpaper.separate_wallpaper_for_multi_display"
+    fi
+    # Every ColorOS image (0.4.36): the UI features its own stock catalogue
+    # (my_stock/etc/extension/com.oplus.oplus-feature.xml) declares, which the
+    # container does not load: Live Alerts, the smooth and exchange animations,
+    # flexible freeform windows, Pocket Studio, separate wallpapers. The Find X9
+    # Ultra builds list the first five. Its other entries (memory, swap, binder,
+    # preload and boot tuning) expect OPPO's kernel and stay out.
+    # ONEOS_GUEST_STOCK_FEATURES=0 leaves them out.
+    STOCKF="$ROOTFS/my_stock/etc/extension/com.oplus.oplus-feature.xml"
+    if [ "${ONEOS_GUEST_STOCK_FEATURES:-1}" = 1 ] && [ -f "$STOCKF" ] && [ ! -L "$STOCKF" ]; then
+        SF=""
+        for x in oplus.software.support_fluid_entry oplus.software.fluid_replace_ntf oplus.software.adaptive_smooth_animation \
+                 oplus.software.flexible_exchange_animation oplus.software.flexible_freeform.support oplus.software.pocketstudio.support \
+                 oplus.software.wallpaper.separate_wallpaper_for_multi_display; do
+            grep -q "name=\"$x\"" "$STOCKF" || continue
+            case " $ADDED " in *" $x "*) ;; *) ADDED="$ADDED $x"; SF="$SF ${x#oplus.software.}" ;; esac
+        done
+        echo "ColorOS features from the image's stock catalogue:${SF:- none new}"
     fi
     case "$FORM" in
         fold) ADDED="$ADDED oplus.hardware.type.fold"

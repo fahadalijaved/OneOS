@@ -817,7 +817,11 @@ if [ -f /data/guest_audio.flag ]; then
     # 2097152) and again whenever the HAL restarts. Never l_support_sec_audio_feature,
     # which would switch the HAL to One UI's module config. The value lives in the
     # HAL process only, and the return restarts the HAL before One UI's
-    # audioserver. ColorOS guests: untouched. ONEOS_GUEST_A2DP_FORMAT=0 skips it.
+    # audioserver. ColorOS and Infinity-X too since 0.4.37: on the S25 Ultra and
+    # S25+ their earbuds connected and played nothing, the HAL logging
+    # "bt_offload state is disabled" at each connect as the Pixel did before
+    # this (reports 1b63fc7a, 65339344); they were left out only by caution.
+    # ONEOS_GUEST_A2DP_FORMAT=0 skips it.
     # Each send is checked against the HAL's own log, as the call keeper does
     # (run 43: a binder reply of 00000000 for a key the HAL never got), and
     # oneos_a2dp.log gets the HAL's line ("configured l_a2dp_format", or "not
@@ -825,7 +829,7 @@ if [ -f /data/guest_audio.flag ]; then
     # logs, grows across sessions: each session starts with a dated line.
     A2F=${ONEOS_GUEST_A2DP_FORMAT:-2097152}
     case "$A2F" in ""|*[!0-9]*) A2F=0 ;; esac
-    if [ "$A2F" != 0 ] && [ ! -f /system/framework/oplus-services.jar ]; then
+    if [ "$A2F" != 0 ]; then
         echo "=== $(date '+%F %T') session: l_a2dp_format=$A2F to the audio HAL" >> /data/oneos_a2dp.log
         $BB sh -c 'v=$1; bb=$2
             s16() { echo $((4 + (${#1} * 2 + 5) / 4 * 4)); }
@@ -851,7 +855,7 @@ if [ -f /data/guest_audio.flag ]; then
             done' oneos_a2dp "$A2F" "$BB" >> /data/oneos_a2dp.log 2>&1 &
         echo "[Pivoted Root] A2DP offload: l_a2dp_format=$A2F to the audio HAL, again on every HAL restart, each send checked in the HAL log (/data/oneos_a2dp.log)"
     else
-        echo "[Pivoted Root] A2DP offload: l_a2dp_format not sent ($([ "$A2F" = 0 ] && echo ONEOS_GUEST_A2DP_FORMAT=0 || echo ColorOS guest))"
+        echo "[Pivoted Root] A2DP offload: l_a2dp_format not sent (ONEOS_GUEST_A2DP_FORMAT=0)"
     fi
     /system/bin/audioserver > /dev/null 2>&1 &
     AS_PID=$!

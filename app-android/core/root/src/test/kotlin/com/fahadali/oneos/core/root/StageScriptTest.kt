@@ -598,7 +598,7 @@ class StageScriptTest {
         File(st, "data/system/packages.xml").writeText("com.oplus.launcher com.coloros.gallery3d")
         File(st, "data/takeover.log").writeText("guest log")
         File(st, "system.raw").writeBytes(s.raw)
-        File(st, "framework_patched.jar").writeText("old run")
+        File(st, "miui-services_patched.jar").writeText("old run") // 0.4.37: the N6 set has its own framework_patched.jar
         File(st, "tethering_payload.img").writeText("never mounted")
         File(st, "auto_return.log").writeText("old session\n")
         File(st, "persist_session.active").writeText("format=2\nboot_id=x\n")
@@ -617,11 +617,11 @@ class StageScriptTest {
         ok(s.finish())
         // Guest data untouched; leftovers the scripts would bind are in the attic; logs stay.
         assertEquals("guest log", File(st, "data/takeover.log").readText())
-        assertFalse(File(st, "framework_patched.jar").exists())
+        assertFalse(File(st, "miui-services_patched.jar").exists())
         assertFalse(File(st, "tethering_payload.img").exists())
         assertTrue(File(st, "auto_return.log").isFile)
         val attics = File(st, "attic").walkTopDown().filter { it.isFile }.map { it.name }.toSet()
-        assertTrue(attics.containsAll(listOf("framework_patched.jar", "tethering_payload.img", "persist_props.snapshot")))
+        assertTrue(attics.containsAll(listOf("miui-services_patched.jar", "tethering_payload.img", "persist_props.snapshot")))
         assertTrue(File(st, "system.raw").isFile)
     }
 

@@ -267,9 +267,9 @@ class GatesTest {
         val need = SpaceRule.toStage(Images.FIND_X9U, PackageSets.X9U_SULTRA)
         assertEquals(Level.OK, eval(GatePhase.PREPARE, i.copy(freeBytes = need)).level(SwitchGates.ID_SPACE))
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(freeBytes = need - 1)).level(SwitchGates.ID_SPACE))
-        // The F8U's N6 image is smaller: the same free space is enough there.
+        // The F8U's N6 image by its own size (0.4.37: its set carries One UI's camera, so it is no longer smaller).
         val n6Need = SpaceRule.toStage(Images.FIND_N6, PackageSets.N6_F8U)
-        assertTrue(n6Need < need)
+        assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, input(Bundles.F8U).copy(freeBytes = n6Need - 1)).level(SwitchGates.ID_SPACE))
         assertEquals(Level.OK, eval(GatePhase.PREPARE, input(Bundles.F8U).copy(freeBytes = n6Need)).level(SwitchGates.ID_SPACE))
         // An adopted stage's old system.raw that root removes first counts.
         assertEquals(Level.OK, eval(GatePhase.PREPARE, i.copy(freeBytes = need - 100, reclaimBytes = 100)).level(SwitchGates.ID_SPACE))

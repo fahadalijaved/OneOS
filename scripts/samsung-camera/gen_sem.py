@@ -30,7 +30,11 @@ SPECIAL = {
     "Landroid/os/UserHandle;->semGetMyUserId": ["invoke-static {}, Landroid/os/Process;->myUid()I", "move-result v0", "const v1, 0x186a0", "div-int/2addr v0, v1", "return v0"],
     "Landroid/app/ActivityManager;->semGetCurrentUser": ["invoke-static {}, Landroid/os/Process;->myUid()I", "move-result v0", "const v1, 0x186a0", "div-int/2addr v0, v1", "return v0"],
     # 0 = SEM_DISPLAY_DEVICE_TYPE_MAIN (the inner panel), 5 = _SUB (the cover).
-    "Landroid/content/res/Configuration;->semDisplayDeviceType": ["iget v0, p0, Landroid/content/res/Configuration;->smallestScreenWidthDp:I", "const/16 v1, 0x258", "if-ge v0, v1, :main", "const/4 v0, 0x5", "return v0", ":main", "const/4 v0, 0x0", "return v0"],
+    # A phone with fewer than two device states (a bar phone) has only a main
+    # screen: by the width alone (under 600dp = the cover) the S25 Ultra's
+    # camera took itself for a Fold's cover, with its layout and rotation
+    # (0.4.36 report: shutter off the left edge, icons turned).
+    "Landroid/content/res/Configuration;->semDisplayDeviceType": ["const/4 v2, 0x0", ":try_start", "const-string v0, \"device_state\"", "invoke-static {v0}, Landroid/os/ServiceManager;->getService(Ljava/lang/String;)Landroid/os/IBinder;", "move-result-object v0", "invoke-static {v0}, Landroid/hardware/devicestate/IDeviceStateManager$Stub;->asInterface(Landroid/os/IBinder;)Landroid/hardware/devicestate/IDeviceStateManager;", "move-result-object v0", "invoke-interface {v0}, Landroid/hardware/devicestate/IDeviceStateManager;->getDeviceStateInfo()Landroid/hardware/devicestate/DeviceStateInfo;", "move-result-object v0", "iget-object v1, v0, Landroid/hardware/devicestate/DeviceStateInfo;->supportedStates:Ljava/util/ArrayList;", "invoke-virtual {v1}, Ljava/util/ArrayList;->size()I", "move-result v1", "add-int/lit8 v1, v1, -0x2", "if-gez v1, :fold", "const/4 v2, 0x1", ":fold", "nop", ":try_end", ".catch Ljava/lang/Exception; {:try_start .. :try_end} :cfg", "goto :decide", ":cfg", "const/4 v2, 0x0", ":decide", "if-nez v2, :main", "iget v0, p0, Landroid/content/res/Configuration;->smallestScreenWidthDp:I", "const/16 v1, 0x258", "if-ge v0, v1, :main", "const/4 v0, 0x5", "return v0", ":main", "const/4 v0, 0x0", "return v0"],
     # One UI: new OutputConfiguration(group, surface, rotation) / (size, class),
     # then mStreamUseCase = scenario << 16, a vendor stream use case that
     # Samsung's HAL reads as the stream's scenario type. Up to run 17 the

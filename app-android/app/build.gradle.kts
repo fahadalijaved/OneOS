@@ -305,6 +305,9 @@ android {
         // and A36, the Pixel 9 Pro XL brightness crash, Samsung's CPU vote released,
         // the ColorOS Fold8 follow-up (pull request #2).
         // 0.4.36: brightness by each panel's own scale (every system), the Z Fold5.
+        // 0.4.37: ColorOS's stock UI features on every phone and the Fold8's on every Find N6 fold,
+        // One UI's camera codes in the ColorOS IN and Find N6 sets, A2DP offload for ColorOS and Infinity-X.
+        // 0.4.38: SESL9 redesign, verbose boot/return handoff and interrupted-update recovery.
         versionCode = 55
         versionName = "0.4.38"
         // Send to the OneOS team (0.4.29, both editions): the report service's
