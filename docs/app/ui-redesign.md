@@ -23,4 +23,10 @@ Probe retains its asset/code/permission audit. AndroidX Core's app-private signa
 
 The emulator verifies UI flows and unsupported-device behavior. It cannot establish that a real rooted Samsung device can stage and switch an OS. The native Samsung popover presentation also needs a One UI device; the app uses the same platform-aware API as Twidget.
 
-Current model and safety verification on the 0.4.36 base: 207 model tests and 6 safety tests passed. Root-script fixture execution on this macOS host was not established; earlier fixture runs hit host ownership checks. No switching safety check was bypassed to make tests pass.
+Current model and safety verification on the 0.4.36 base: 211 model tests and 6 safety tests passed. Root-script fixture execution on this macOS host was not established; earlier fixture runs hit host ownership checks. No switching safety check was bypassed to make tests pass.
+
+## Debug setup preview
+
+A debug card menu offers **Preview setup**, also available from an unsupported card's explanation. It binds the real setup progress layout to a pure local timeline, with no setup/launch/root-job subscription. Cancellation freezes that timeline; the preview boot confirmation only finishes the preview. It refuses entry while an actual OneOS operation is busy. Release builds do not expose this entry. Timeline tests cover completion boundaries, cancellation and restoration.
+
+Catalogue actions use `OneUI.ContainedButton` / `OneUI.ContainedButtonTheme`. A 1dp translucent foreground stroke outlines each artwork card. The carousel requests the same native selection haptic used by Twidget after a user drag settles on a different snapped position; initial/programmatic positioning is silent.

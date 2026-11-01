@@ -15,6 +15,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
 import com.fahadali.oneos.R
+import com.fahadali.oneos.BuildConfig
+import com.fahadali.oneos.core.model.SetupPreviewTimeline
 import com.fahadali.oneos.core.model.FixAction
 import com.fahadali.oneos.core.model.ImageRef
 import com.fahadali.oneos.core.model.Images
@@ -37,6 +39,9 @@ import dev.oneuiproject.oneui.R as OuiIcons
  * aside are behind Details. The technical Prepare page stays in Advanced.
  */
 class SetupProgressActivity : ToolbarActivity() {
+    val previewImage: ImageRef? get() = if (BuildConfig.DEBUG) intent.getStringExtra(EXTRA_PREVIEW_IMAGE)?.let(Images::byId) else null
+    companion object { const val EXTRA_PREVIEW_IMAGE = "oneos.debug.preview_image" }
+
     // The bar shows the title only once the hero has scrolled away (setBarTitle).
     override val screenTitle: CharSequence get() = ""
 
@@ -52,6 +57,7 @@ class SetupProgressActivity : ToolbarActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (previewImage != null) return
         unsubscribe = PrepareJob.observe { s ->
             if (s.busy) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
@@ -66,6 +72,38 @@ class SetupProgressActivity : ToolbarActivity() {
 
 class SetupProgressFragment : Fragment() {
     private enum class StepState { DONE, CURRENT, PENDING, STOPPED, FAILED }
+    private val previewImage: ImageRef? get() = (activity as? SetupProgressActivity)?.previewImage
+    private val previewTimeline = SetupPreviewTimeline(PrepareJob.Step.entries.size)
+    private val previewHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var previewElapsedMs = 0L
+    private var previewResumedAt = 0L
+    private var previewCancelledAt: Long? = null
+    private fun elapsedPreview(): Long = previewElapsedMs + if (previewResumedAt == 0L) 0 else android.os.SystemClock.uptimeMillis() - previewResumedAt
+    private fun displayedState(): PrepareJob.State {
+        val image = previewImage ?: return PrepareJob.state
+        val snap = previewTimeline.at(elapsedPreview(), previewCancelledAt)
+        return PrepareJob.State(
+            phase = when (snap.phase) {
+                SetupPreviewTimeline.Phase.RUNNING -> PrepareJob.Phase.RUNNING
+                SetupPreviewTimeline.Phase.DONE -> PrepareJob.Phase.DONE
+                SetupPreviewTimeline.Phase.CANCELLED -> PrepareJob.Phase.STOPPED
+            },
+            step = snap.currentStep?.let { PrepareJob.Step.entries[it] },
+            done = PrepareJob.Step.entries.take(snap.completedSteps).toSet(),
+            image = image, bytesDone = snap.percent.toLong(), bytesTotal = 100,
+            detail = getString(R.string.setup_preview_simulated),
+            etaSeconds = ((previewTimeline.durationMs - elapsedPreview()).coerceAtLeast(0) / 1000).toInt(),
+        )
+    }
+    private val previewTick = object : Runnable {
+        override fun run() {
+            if (!isAdded || view == null || previewImage == null) return
+            val state = displayedState()
+            bind(state)
+            if (state.busy) previewHandler.postDelayed(this, 160)
+        }
+    }
+
 
     private var unsubscribe: (() -> Unit)? = null
     private var expanded = false
@@ -85,6 +123,8 @@ class SetupProgressFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         expanded = savedInstanceState?.getBoolean(KEY_EXPANDED) ?: true
+        previewElapsedMs = savedInstanceState?.getLong("preview_elapsed") ?: 0L
+        previewCancelledAt = savedInstanceState?.getLong("preview_cancelled", -1)?.takeIf { it >= 0 }
         val inflater = LayoutInflater.from(view.context)
 
         // The inner screen: one centred column of at most 600dp, its footer button too.
@@ -112,7 +152,7 @@ class SetupProgressFragment : Fragment() {
         val card = Cards.section(slot, title = null, rows = true, gapAbove = false)
         detailsRow = Cards.row(card, OuiIcons.drawable.ic_oui_info_outline, getString(R.string.setup_details), getString(R.string.setup_details_summary)) {
             expanded = !expanded
-            bind(PrepareJob.state)
+            bind(displayedState())
         }
         val list = LinearLayout(view.context)
         list.orientation = LinearLayout.VERTICAL
@@ -133,13 +173,22 @@ class SetupProgressFragment : Fragment() {
 
     override fun onStart() {
         super.onStart()
+        if (previewImage != null) {
+            previewResumedAt = android.os.SystemClock.uptimeMillis()
+            previewHandler.post(previewTick)
+            return
+        }
         val prepare = PrepareJob.observe { bind(it) }
         // Delete the old copy (0.4.11) runs in OldStagesJob.
-        val old = OldStagesJob.observe { bind(PrepareJob.state) }
+        val old = OldStagesJob.observe { bind(displayedState()) }
         unsubscribe = { prepare(); old() }
     }
 
     override fun onStop() {
+        if (previewImage != null) {
+            previewElapsedMs = elapsedPreview(); previewResumedAt = 0L
+            previewHandler.removeCallbacks(previewTick)
+        }
         unsubscribe?.invoke()
         unsubscribe = null
         super.onStop()
@@ -148,6 +197,10 @@ class SetupProgressFragment : Fragment() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean(KEY_EXPANDED, expanded)
+        if (previewImage != null) {
+            outState.putLong("preview_elapsed", elapsedPreview())
+            outState.putLong("preview_cancelled", previewCancelledAt ?: -1)
+        }
     }
 
     private fun bind(s: PrepareJob.State) {
@@ -232,6 +285,16 @@ class SetupProgressFragment : Fragment() {
         root.findViewById<View>(R.id.setup_details_slot).visibility = if (idle) View.GONE else View.VISIBLE
         bindDetails(s)
         bindFooter(s)
+        if (previewImage != null) {
+            titleView.text = getString(R.string.setup_preview_title, system.orEmpty())
+            subtitleView.setText(when (phase) {
+                PrepareJob.Phase.STOPPED -> R.string.setup_preview_cancelled
+                PrepareJob.Phase.DONE -> R.string.setup_preview_finished
+                else -> R.string.setup_preview_simulated
+            })
+            subtitleView.visibility = View.VISIBLE
+            root.findViewById<View>(R.id.setup_keep_open).visibility = View.GONE
+        }
     }
 
     private fun stepState(u: PrepareJob.UserStep, s: PrepareJob.State): StepState {
@@ -358,6 +421,8 @@ class SetupProgressFragment : Fragment() {
 
     /** Stop while it runs; then Done, or the plain message's fix and Close. */
     private fun bindFooter(s: PrepareJob.State) {
+        if (previewImage != null) { bindPreviewFooter(s); return }
+
         val a = activity as? SetupProgressActivity ?: return
         val primary = a.findViewById<Button>(R.id.setup_primary) ?: return
         val secondary = a.findViewById<Button>(R.id.setup_secondary) ?: return
@@ -381,7 +446,7 @@ class SetupProgressFragment : Fragment() {
                     // As before: stops after the current file, no confirm (nothing is lost; set up again later).
                     stopping = true
                     PrepareJob.cancel()
-                    bind(PrepareJob.state)
+                    bind(displayedState())
                 }
             }
             PrepareJob.Phase.DONE -> {
@@ -418,6 +483,33 @@ class SetupProgressFragment : Fragment() {
         if (lp.topMargin != top) {
             lp.topMargin = top
             secondary.layoutParams = lp
+        }
+    }
+
+    /** Deliberately independent of PrepareJob.cancel/start, LaunchJob and old-stage operations. */
+    private fun bindPreviewFooter(state: PrepareJob.State) {
+        val a = activity as? SetupProgressActivity ?: return
+        val primary = a.findViewById<Button>(R.id.setup_primary)
+        val secondary = a.findViewById<Button>(R.id.setup_secondary)
+        primary.visibility = if (state.phase == PrepareJob.Phase.DONE) View.VISIBLE else View.GONE
+        primary.setText(R.string.setup_preview_boot)
+        primary.setOnClickListener {
+            AlertDialog.Builder(a).setTitle(getString(R.string.setup_preview_boot_title, state.image?.name.orEmpty()))
+                .setMessage(R.string.setup_preview_boot_message)
+                .setPositiveButton(R.string.setup_preview_finish) { _, _ ->
+                    AlertDialog.Builder(a).setTitle(R.string.setup_preview_complete)
+                        .setMessage(R.string.setup_preview_simulated).setPositiveButton(android.R.string.ok) { _, _ -> a.finish() }.show()
+                }.setNegativeButton(android.R.string.cancel, null).show()
+        }
+        secondary.visibility = View.VISIBLE
+        secondary.isEnabled = true
+        secondary.setText(if (state.busy) R.string.setup_preview_cancel else R.string.setup_close)
+        secondary.setOnClickListener {
+            if (state.busy) {
+                previewCancelledAt = elapsedPreview()
+                previewHandler.removeCallbacks(previewTick)
+                bind(displayedState())
+            } else a.finish()
         }
     }
 

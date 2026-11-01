@@ -37,6 +37,7 @@ import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.RootProbe
 import com.fahadali.oneos.session.LaunchJob
 import com.fahadali.oneos.session.LogJob
+import com.fahadali.oneos.session.OldStagesJob
 import com.fahadali.oneos.session.QuickSwitch
 import com.fahadali.oneos.session.Readiness
 import com.fahadali.oneos.session.PrepareJob
@@ -155,12 +156,36 @@ class SystemsFragment : Fragment() {
     private var profile: PhoneProfile? = null
     private var profileRead = false
     private var lastKey: List<Any?>? = null
+    private var snapHelper: androidx.recyclerview.widget.PagerSnapHelper? = null
+    private var swiping = false
+    private var swipeStart = androidx.recyclerview.widget.RecyclerView.NO_POSITION
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         inflater.inflate(R.layout.systems_screen, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        val carousel = view.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)
+        carousel.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(rv: androidx.recyclerview.widget.RecyclerView, state: Int) {
+                val layout = rv.layoutManager ?: return
+                if (state == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_DRAGGING) {
+                    swiping = true
+                    swipeStart = snapHelper?.findSnapView(layout)?.let(layout::getPosition) ?: androidx.recyclerview.widget.RecyclerView.NO_POSITION
+                }
+                if (state == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE && swiping) rv.post {
+                    if (rv.scrollState != androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE || !swiping) return@post
+                    val selected = snapHelper?.findSnapView(layout)?.let(layout::getPosition)
+                    if (selected != null && selected != swipeStart) {
+                        rv.performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 34)
+                            android.view.HapticFeedbackConstants.SEGMENT_TICK else android.view.HapticFeedbackConstants.CLOCK_TICK)
+                        if (com.fahadali.oneos.BuildConfig.DEBUG) android.util.Log.d("OneOSCarousel", "Settled card tick: $selected")
+                    }
+                    swiping = false
+                }
+            }
+        })
+
         // This phone: from the last check when there is one, else read now (no root), as the OS image page does.
         StageCheck.state.result?.facts?.let { f -> Profiles.resolve(f).profile }?.let {
             profile = it
@@ -191,6 +216,7 @@ class SystemsFragment : Fragment() {
         lastKey = null
         subs += StageCheck.observe { redraw() }
         subs += PrepareJob.observe { redraw() }
+        subs += com.fahadali.oneos.session.RemoveJob.observe { redraw() }
     }
 
     override fun onStop() {
@@ -260,7 +286,7 @@ class SystemsFragment : Fragment() {
         val check = StageCheck.state
         val prep = PrepareJob.state
         val picked = SessionPrefs.picked(ctx)
-        val jobsBusy = prep.busy || check.busy || LaunchJob.state.busy || LogJob.state.busy
+        val jobsBusy = prep.busy || check.busy || LaunchJob.state.busy || LogJob.state.busy || com.fahadali.oneos.session.RemoveJob.state.busy
         // PrepareJob reports every few MB: redraw only when something on the cards changes.
         val key = listOf(
             p?.id, profileRead, check.busy, check.result?.at, prep.phase, prep.image?.id,
@@ -317,7 +343,7 @@ class SystemsFragment : Fragment() {
         }
         if (carousel.layoutManager == null) {
             carousel.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(ctx, androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL, false)
-            androidx.recyclerview.widget.PagerSnapHelper().attachToRecyclerView(carousel)
+            snapHelper = androidx.recyclerview.widget.PagerSnapHelper().also { it.attachToRecyclerView(carousel) }
         }
         if (state != null) carousel.layoutManager?.onRestoreInstanceState(state)
         carousel.post {
@@ -379,6 +405,9 @@ class SystemsFragment : Fragment() {
                 menu.add(R.string.home_details_all).setOnMenuItemClickListener {
                     startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true)); true
                 }
+                if (com.fahadali.oneos.BuildConfig.DEBUG) {
+                    menu.add(R.string.setup_preview_menu).setOnMenuItemClickListener { startPreview(image); true }
+                }
                 menu.add(R.string.catalog_details).setOnMenuItemClickListener {
                     AlertDialog.Builder(ctx).setTitle(image.displayName).setMessage(image.blurb + "\n\n" + image.variant.orEmpty() + "\n" + Units.bytes(image.gzBytes)).setPositiveButton(android.R.string.ok, null).show(); true
                 }
@@ -415,10 +444,23 @@ class SystemsFragment : Fragment() {
         return v
     }
 
+    private fun startPreview(image: ImageRef) {
+        if (!com.fahadali.oneos.BuildConfig.DEBUG) return
+        if (PrepareJob.state.busy || LaunchJob.state.busy || StageCheck.state.busy || LogJob.state.busy || OldStagesJob.state.busy || com.fahadali.oneos.session.RemoveJob.state.busy) {
+            Toast.makeText(requireContext(), R.string.setup_preview_busy, Toast.LENGTH_LONG).show()
+            return
+        }
+        startActivity(Intent(requireContext(), SetupProgressActivity::class.java)
+            .putExtra(SetupProgressActivity.EXTRA_PREVIEW_IMAGE, image.id))
+    }
+
     private fun showUnsupported(name: String) {
-        AlertDialog.Builder(requireContext()).setTitle(name)
-            .setMessage(R.string.catalog_unsupported_message)
-            .setPositiveButton(android.R.string.ok, null).show()
+        val dialog = AlertDialog.Builder(requireContext()).setTitle(name)
+            .setMessage(R.string.catalog_unsupported_message).setPositiveButton(android.R.string.ok, null)
+        if (com.fahadali.oneos.BuildConfig.DEBUG) Images.ALL.firstOrNull { it.name == name }?.let { image ->
+            dialog.setNeutralButton(R.string.setup_preview_menu) { _, _ -> startPreview(image) }
+        }
+        dialog.show()
     }
 
     /** A card with a header and an optional line (reading this phone, or no system for it). */

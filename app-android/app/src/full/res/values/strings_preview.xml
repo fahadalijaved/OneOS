@@ -1,0 +1,10 @@
+<resources>
+<string name="setup_preview_menu">Preview setup</string><string name="setup_preview_title">Setup preview · %1$s</string>
+<string name="setup_preview_simulated">Simulated setup. No OS files are changed and no operating system will start.</string>
+<string name="setup_preview_cancel">Cancel preview</string><string name="setup_preview_boot">Preview boot</string>
+<string name="setup_preview_boot_title">Preview boot into %1$s?</string><string name="setup_preview_boot_message">This only previews the confirmation. One UI stays running and no root commands are executed.</string>
+<string name="setup_preview_finish">Finish preview</string><string name="setup_preview_complete">Preview complete</string>
+<string name="setup_preview_busy">Wait for the current OneOS operation to finish before previewing setup.</string>
+<string name="setup_preview_cancelled">Preview cancelled. No OS files were changed.</string>
+<string name="setup_preview_finished">Setup preview finished. No OS files were changed.</string>
+</resources>
