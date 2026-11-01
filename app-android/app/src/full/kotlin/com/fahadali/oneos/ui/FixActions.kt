@@ -126,10 +126,15 @@ internal object FixActions {
     /** Starts the setup job and, when it started, opens Setting up (SettingUp.dc.html) over the screen that asked. */
     private fun startSetup(a: FragmentActivity, plan: PrepareJob.Plan, updating: Boolean = false) {
         PrepareJob.start(a, plan)
-        if (PrepareJob.state.busy && a !is SetupProgressActivity) a.startActivity(Intent(a, SetupProgressActivity::class.java)
-            .putExtra(SetupProgressActivity.EXTRA_UPDATE, updating)
-            .putExtra(SetupProgressActivity.EXTRA_REUSE_IMAGE, plan.source == SessionPrefs.Source.ON_PHONE)
-            .putExtra(SetupProgressActivity.EXTRA_IMAGE, if (updating) StageCheck.state.result?.let(ImageMaintenance::identifiedImage)?.id else null))
+        if (PrepareJob.state.busy && a !is SetupProgressActivity) {
+            val fromChecks = a is EnvironmentActivity
+            val intent = Intent(a, SetupProgressActivity::class.java)
+                .putExtra(SetupProgressActivity.EXTRA_UPDATE, updating)
+                .putExtra(SetupProgressActivity.EXTRA_REUSE_IMAGE, plan.source == SessionPrefs.Source.ON_PHONE)
+                .putExtra(SetupProgressActivity.EXTRA_IMAGE, if (updating) StageCheck.state.result?.let(ImageMaintenance::identifiedImage)?.id else null)
+                .putExtra(SetupProgressActivity.EXTRA_RETURN_TO_CHECKS, fromChecks)
+            ArtworkTransitions.start(a, intent, if (fromChecks) a.findViewById(R.id.environment_artwork) else null)
+        }
     }
 
     /**

@@ -31,6 +31,7 @@ class SetupProgressActivity : EdgeToEdgeActivity() {
         const val EXTRA_UPDATE = "oneos.setup.update"
         const val EXTRA_REUSE_IMAGE = "oneos.setup.reuse_image"
         const val EXTRA_IMAGE = "oneos.setup.image"
+        const val EXTRA_RETURN_TO_CHECKS = "oneos.setup.return_to_checks"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -204,6 +205,12 @@ class SetupProgressFragment : Fragment() {
             val a = activity ?: return
             val simulated = previewImage != null
             EnvironmentNavigation.remember(a, s.image, simulated)
+            if (!simulated && a.intent.getBooleanExtra(SetupProgressActivity.EXTRA_RETURN_TO_CHECKS, false)) {
+                // Return through the same shared element to the checks page underneath.
+                // Its normal observers refresh the gates; no duplicate checks page is pushed.
+                a.finishAfterTransition()
+                return
+            }
             ArtworkTransitions.start(a, EnvironmentNavigation.intent(a, s.image, simulated),
                 root.findViewById(R.id.setup_artwork), finishSource = true)
             return
