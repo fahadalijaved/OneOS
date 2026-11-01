@@ -122,3 +122,28 @@ EOF
   assert writer.returncode==0 and not stderr,(stdout,stderr)
  assert (d/'status').read_text().strip() in {f'{i}:5' for i in range(3)}
  print('PASS: concurrent status writers publish complete lines without temporary-file collisions')
+
+ # Run the real return-start and framework-stop blocks. The outgoing framework
+ # can blank its display on death: the return frame must already be held then.
+ returning=(Path(__file__).resolve().parents[1]/'switcher/assets/return_to_oneui.sh').read_text()
+ begin=returning[returning.index('echo oneos_return > /sys/power/wake_lock'):returning.index('# The call keepers')]
+ begin=begin.replace('/sys/power/wake_lock',str(d/'wake_lock'))
+ stop=returning[returning.index('oneos_boot_event "Stopping guest system_server"'):returning.index('# The heat cap')]
+ mock=d/'return-fixture'; mock.mkdir()
+ (mock/'boot_status.sh').write_text('''
+oneos_boot_begin() { echo return-frame > "$S/frame"; }
+oneos_boot_wait_ready() { return 0; }
+oneos_boot_hold_display() { cp "$S/frame" "$S/held"; }
+oneos_boot_event() { :; }
+''')
+ fixture=d/'return-order.sh'
+ fixture.write_text('S="$1"\n'+begin+'''
+pkill() { [ ! -f "$S/held" ] && echo blank > "$S/frame"; return 0; }
+pidof() { echo 123; }
+kill() { [ ! -f "$S/held" ] && echo blank > "$S/frame"; return 0; }
+'''+stop)
+ subprocess.run(['/bin/sh',str(fixture),str(mock)],check=True,timeout=3)
+ assert (mock/'held').read_text().strip()=='return-frame'
+ assert (mock/'frame').read_text().strip()=='return-frame'
+ assert (d/'wake_lock').read_text().strip()=='oneos_return'
+ print('PASS: return splash and wake lock precede outgoing framework teardown')

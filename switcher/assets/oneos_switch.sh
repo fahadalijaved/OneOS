@@ -2221,7 +2221,7 @@ while true; do
 done
 " </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
-# Samsung CPU/GPU votes survive the host framework; Fold8/Find N6 only.
+# Samsung CPU/GPU votes survive the host framework; capability-detected on every profile.
 STAGE="$STAGE" BB="$BB" "$BB" nohup /system/bin/sh "$STAGE/fold8_coloros.sh" performance-worker </dev/null >>"$STAGE/performance_handover.log" 2>&1 &
 
 # Session sampler (run 44: nothing was recorded after the 90 s round; window
@@ -2291,7 +2291,7 @@ echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 # off): not started. Out of the app cgroup, like the sampler.
 rm -f "$STAGE/heat_cap.active"
 PERF_HANDOVER=0
-if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "set": "n6-f8",$' "$STAGE/.oneos_stage"; then PERF_HANDOVER=1; fi
+if STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" performance-supported; then PERF_HANDOVER=1; fi
 if [ "${ONEOS_HEAT_CAP:-1}" = 1 ] && [ "$PERF_HANDOVER" = 0 ]; then
     : > "$STAGE/heat_cap.active"
     rm -f "$STAGE/cpufreq_max_limit.released"

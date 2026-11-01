@@ -188,3 +188,17 @@ the accepted phone trial used the equivalent separate helpers.
   as a saved configuration trial. A general code fallback is still pending.
 - OEM depth saving can change file modes; provisioning is not a claim that
   the OEM save-time chmod has been redesigned.
+
+## Performance scope update, 2026-11-01
+
+The performance backend is now attempted for every device profile and guest,
+without a Fold8/Find N6 model gate. It detects the supported Samsung CPU request,
+GPU maximum, GPU telemetry/frequency table and writable CPU-policy controls.
+CPU clusters are enumerated; policy6 is no longer assumed. Unsupported hosts
+retain the legacy CPU heat worker. Fold8 UI/APK integration remains scoped to
+Fold8/Find N6. Power-saving preservation, temperature gates, hysteresis,
+external-writer precedence and restoration on return remain unchanged.
+
+This is a source change; no newly supported device has been runtime-tested or
+updated by this change. Fixture tests cover a non-Fold8 selection with policy4
+instead of policy6 and a host missing the GPU interface.

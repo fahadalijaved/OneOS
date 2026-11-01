@@ -95,10 +95,16 @@ if [ "$SE_AT_RETURN" != Permissive ]; then
     echo "SELinux was ${SE_AT_RETURN:-unreadable} at the return: Permissive again for it ($(getenforce 2>/dev/null))"
 fi
 
+# Hold the panel awake before its framework is removed, not only once Gate A
+# begins. Otherwise autosuspend can blank the retained frame during teardown.
+echo oneos_return > /sys/power/wake_lock 2>/dev/null
 if [ -f "$S/boot_status.sh" ]; then
     . "$S/boot_status.sh"
     oneos_boot_begin return
     oneos_boot_wait_ready 5 || echo "Return splash: live renderer not ready after 5 s"
+    # system_server / zygote teardown can blank the outgoing display. Retain
+    # the posted return frame while ColorOS still owns a working display.
+    oneos_boot_hold_display
 fi
 
 # The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log;
@@ -198,7 +204,6 @@ pkill -9 -f "system_server" 2>/dev/null || true
 pkill -9 -f org.lineageos 2>/dev/null || true
 oneos_boot_event "Stopping guest zygote"
 pkill -9 -x zygote64 2>/dev/null || true
-oneos_boot_hold_display
 kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 # The heat cap (oneos_switch.sh) is stopped (its loop names system_server, so
 # the pkill above may have done it already) before the CPU policies get their
@@ -506,9 +511,8 @@ wait_found() { # <name> <seconds>
     return 1
 }
 
-# No system wakelock is held while no framework runs: keep the phone from
-# suspending in the middle of the return. Released when One UI is up.
-echo oneos_return > /sys/power/wake_lock 2>/dev/null
+# The return wakelock was acquired before the outgoing framework was stopped;
+# it is released when One UI is up.
 say "In-place return (baseline: $(cat "$BASE/kmsg" 2>/dev/null); SELinux at the return: ${SE_AT_RETURN:-unreadable}, now $(getenforce 2>/dev/null))"
 
 echo "=== [3/4] Checking One UI's modules (in place) ==="

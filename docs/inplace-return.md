@@ -77,7 +77,9 @@ mounted and the guest asked for no shutdown. Otherwise the reboot return.
 ### Return splash
 
 The guest app first draws its return screen. The root renderer then posts its
-own frame before the guest framework is stopped. While the guest compositor
+own frame and holds it before the guest framework is stopped. Holding it only
+after killing system_server/zygote can preserve a frame they already blanked.
+The return wakelock also begins before teardown. While the guest compositor
 is removed and Gates A and the property restoration run, `boot_status.sh`
 holds that last frame in the vendor composer. It does not keep any guest
 process or mount alive, and does not start One UI ahead of the safety checks.

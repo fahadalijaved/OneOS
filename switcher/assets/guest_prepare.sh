@@ -3807,4 +3807,7 @@ if [ -n "$LEAKED" ]; then
 fi
 echo "One UI's partitions: no mount added by the setup"
 
+# Capture existing preferences before the first signed-launcher startup;
+# the bounded worker overlays only the pinned APKs after package scanning.
+STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" addons-prepare || exit 3
 echo "=== ALL MOUNTS PREPARED SUCCESSFULLY ==="
