@@ -25,20 +25,32 @@ the compositor changes and stops at the new framework's display-ready event or
 boot animation completion, with a ten-minute upper bound. The original frozen
 splash is retained when the live renderer is unavailable. Reboot fallback,
 return keys, the return watchdog and stage/signature/hash checks are unchanged.
-A compositor restart can still leave a short black gap; the renderer cannot draw
-while no compositor exists or across a kernel reboot.
+On return, the last splash frame is held before stopping ColorOS's framework,
+with a return wakelock acquired before teardown. The vendor-composer hold has
+an independent 180-second recovery guard and is released before One UI's
+composer restarts, or before either reboot fallback. The interval without a
+compositor is static; live events resume when One UI's compositor is available.
+The renderer cannot draw across a kernel reboot.
 
 Run `python3 scripts/test-boot-status.py` for the event parser and cleanup tests.
-Android emulator testing verified the isolated native entry layer; a full device
-boot/return cycle is still needed. The device hub failed before final guest and
-return UI verification.
+The owner verified both entry and return on the physical Fold8 with the
+0.4.38 debug host/stage pair, including the retained return frame. That pair
+also included the updated guest APK. This validates the tested Fold8/Find N6
+path; the compositor-hold fallback is not verified on other devices. The
+subsequent merge of upstream 0.4.37 has source/build checks recorded in the PR,
+and has not been installed over that accepted device pair.
 
-The redesigned guest builds as `:guest:assembleDebug` (version 0.3). Official
+The redesigned guest builds as `:guest:assembleDebug` (version 0.4). Official
 host payloads still pin the original release-signed `OneOSGuest.apk`. Shipping
 this guest in those payloads requires the existing OneOS release key and the
 normal package hash updates. A debug guest must not replace that pinned artifact
 or bypass its signature checks. Updating only the host does not update the
 bundled guest APK or the phone's existing stage.
+
+Guest 0.4 also refreshes the return launcher shortcut when an existing staged
+system app retains an older shortcut cache, and removes dividers from its
+single-item cards. Release integration must sign/rebuild this guest and update
+the package-set hashes before distributing the new guest UI.
 
 For a local debug-only guest update trial, `-Poneos.testPackagesDir=<folder>`
 selects an explicit copy of the package manifests. The local payload folders
