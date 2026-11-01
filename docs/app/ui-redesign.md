@@ -79,3 +79,7 @@ Final validation: Full debug, Probe isolation audit and guest source build pass.
 Pre-boot → update/setup now enters through the same shared-artwork transform, including when a downloaded-file confirmation is required first. A successful update returns through the reverse transform to the existing checks page, whose observers refresh its gates, instead of pushing a duplicate checks activity. Other setup entry points retain their normal destination.
 
 While environment checks run, the disabled native action button shows a centred SESL spinner instead of its label. It retains the native label measurement and exposes the checking state to accessibility. The spinner uses Twidget's lifecycle cleanup for the SESL animation callback. The scroll view forces its native bottom fade to the measured action clearance even when temporary checking content does not overflow; no checking row sits under the button.
+
+Setup/update artwork has a local transparent-to-dark status scrim behind the white state label and stock SESL horizontal progress bar. A lighter blue native progress tint and translucent track keep both determinate and indeterminate states visible on bright exports. The original progress values and timing are unchanged.
+
+During the user's real ColorOS update, the update-specific checklist was observed through cleanup, then the existing pre-boot page returned with Boot into ColorOS 17 restored. No boot was triggered by the agent. Contrast installation waited until this update completed.
