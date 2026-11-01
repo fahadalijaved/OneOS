@@ -77,6 +77,14 @@ sed -i 's|"/system/etc/floating_feature.xml"|"/system_ext/etc/floating_feature.x
 # states are OneOS's: "Permission required to request device state", crash on
 # every cover start (run 18). The request is dropped; cancel and the log stay.
 sed -i '/DeviceStateManagerGlobal;->requestState(Landroid\/hardware\/devicestate\/DeviceStateRequest;/d' out/compat/smali/com/samsung/android/view/SemWindowManager.smali
+# The executor that request took is then unused; an image without One UI's
+# PendingIntent$$ExternalSyntheticLambda1 (the Find N6 build) got a constructor
+# shim named <init>, which smali refuses. Both lines and that shim go.
+sed -i '/PendingIntent\$\$ExternalSyntheticLambda1/d' out/compat/smali/com/samsung/android/view/SemWindowManager.smali
+grep -q 'PendingIntent__ExternalSyntheticLambda1__<init>' out/shims.txt && {
+    sed -i '/PendingIntent__ExternalSyntheticLambda1__<init>/d' out/shims.txt
+    python3 -I "$HERE/gen_sem.py" out/shims.txt out/compat/smali/oneos/semcompat/Sem.smali
+}
 rm -rf proj_compat && mkdir proj_compat && cp -r out/compat/smali proj_compat/smali
 cp -r "$HERE/compat_extra/." proj_compat/smali/
 printf 'version: 3.0.3\napkFileName: oneos-camera-compat.jar\nsdkInfo:\n  minSdkVersion: 36\ndoNotCompress:\n- dex\n' > proj_compat/apktool.yml

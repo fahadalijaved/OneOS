@@ -4,10 +4,27 @@ What testers reported from the OneOS app (**Send to the OneOS team** on the Last
 
 Updated 2026-11-01. Every system is still experimental: read the warnings in the [README](../README.md) first.
 
+## OneOS 0.4.36
+
+| Phone | System | Reports | Started | Screen | Wi-Fi | Mobile data | Calls | SMS | Bluetooth | Sound | Camera | Google | Location | Back to One UI | Heat | Both screens | Last report |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Galaxy A56 | Infinity-X 4.1 | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | – | 2026-11-01 |
+| Galaxy S23 | HyperOS (Xiaomi 18 Fold) | 1 | ❌ 0/1 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-11-01 |
+| Galaxy S24 Ultra | Nothing OS 5.0 | 2 | ✅ 2/2 | ✅ 2/2 | ✅ 2/2 | ✅ 2/2 | ❌ 0/1 | ❌ 0/1 | ✅ 2/2 | ✅ 2/2 | ⚠️ 1/2 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 2/2 | – | 2026-11-01 |
+| Galaxy S25 | HyperOS (Xiaomi 18 Fold) | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | – | – | ❌ 0/1 | ✅ 1/1 | – | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | 2026-11-01 |
+| Galaxy S25 Ultra | Nothing OS 5.0 | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | – | – | – | 2026-11-01 |
+| Galaxy S25+ | ColorOS 17 (Find X9 Ultra IN) | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | ❌ 0/1 | ❌ 0/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | – | ✅ 1/1 | – | 2026-11-01 |
+| Galaxy S25+ | HyperOS (Xiaomi 18 Fold) | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | – | ✅ 1/1 | – | 2026-11-01 |
+| Galaxy S25+ | Nothing OS 5.0 | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | ✅ 1/1 | – | 2026-11-01 |
+| Galaxy S26 | Nothing OS 5.0 | 1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | – | – | – | ✅ 1/1 | – | ✅ 1/1 | ✅ 1/1 | – | ✅ 1/1 | – | 2026-11-01 |
+| Galaxy Z Fold5 | ColorOS 17 (Find N6) | 1 | ✅ 1/1 | – | – | – | – | – | – | – | – | – | – | ❌ 0/1 | – | – | 2026-11-01 |
+| Galaxy Z Fold6 | Nothing OS 5.0 | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ❌ 0/1 | ❌ 0/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | 2026-11-01 |
+
 ## OneOS 0.4.35
 
 | Phone | System | Reports | Started | Screen | Wi-Fi | Mobile data | Calls | SMS | Bluetooth | Sound | Camera | Google | Location | Back to One UI | Heat | Both screens | Last report |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Galaxy A56 | Pixel 9 Pro XL | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | – | 2026-11-01 |
 | Galaxy A57 | Infinity-X 4.1 | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | ✅ 1/1 | – | 2026-11-01 |
 | Galaxy S23 | HyperOS (Xiaomi 18 Fold) | 1 | ❌ 0/1 | – | – | – | – | – | – | – | – | – | – | – | – | – | 2026-11-01 |
 | Galaxy S23 | Pixel 9 Pro XL | 1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ❌ 0/1 | ✅ 1/1 | ✅ 1/1 | ✅ 1/1 | – | – | 2026-11-01 |

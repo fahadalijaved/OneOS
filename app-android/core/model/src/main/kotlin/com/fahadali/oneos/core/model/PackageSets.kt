@@ -226,9 +226,13 @@ object PackageSets {
         id = ID_N6_F8U,
         imageId = Images.ID_FIND_N6,
         sourceDir = "out/overlays_n6_r50",
-        files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO),
+        // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
+        files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY) +
+            // 0.4.37: One UI's camera, rewritten for the Find N6 image (scripts/samsung-camera/build-cached.sh).
+            PackageFile("samcam.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        approxBytes = 267_168_254L,
+        approxBytes = 410_996_047L,
         hasReturnApp = true,
     )
 
@@ -246,7 +250,7 @@ object PackageSets {
             "Fold8SystemUI.apk", "Fold8AngleRelay.dex", "Fold8Aod.apk", "Fold8UMS.apk", "Fold8Instant.apk",
         ).map { PackageFile(it, FileRole.GUEST_FIX) },
         omitted = listOf(TETHERING),
-        approxBytes = 662_821_337L,
+        approxBytes = 806_649_130L,
         hasReturnApp = true,
     )
 
@@ -260,14 +264,21 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    /** Find X9 Ultra IN image, the bar phones (0.4.11): the CN set's files and its cell broadcast module. */
+    /**
+     * Find X9 Ultra IN image, the bar phones (0.4.11): the CN set's files and its cell broadcast module;
+     * 0.4.37 One UI's camera transaction codes (framework_patched.jar, libcamera_client_patched.so): ColorOS's
+     * ICameraDeviceUser is one code off from One UI's, and every camera open was refused ("access restricted").
+     */
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
         sourceDir = "out/overlays_x9u_in_r51",
-        files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
+        files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY) +
+            // 0.4.37: One UI's camera, rewritten for this image (scripts/samsung-camera).
+            PackageFile("samcam.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
-        approxBytes = 327_686_370L,
+        approxBytes = 471_539_935L,
         hasReturnApp = true,
     )
 

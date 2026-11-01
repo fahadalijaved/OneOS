@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.36. Samsung flagships with Snapdragon, plus the first five
+App version 0.4.37. Samsung flagships with Snapdragon, plus the first five
 Exynos phones and (0.4.33) the first MediaTek phone; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -94,6 +94,21 @@ Snapdragon 8 Gen 3) with the Find N6 build and Infinity-X, and the Galaxy A07
 (SM-A075, MediaTek MT6789, One UI 9), the first MediaTek phone, with Infinity-X
 only. The Galaxy A16 and A17 on One UI 8.5 (Android 16) are not supported yet:
 every system here is Android 17.
+
+New in 0.4.37: **the camera in ColorOS and HyperOS.** Every camera app was
+refused on the S25, S26 and A phones: ColorOS sent One UI's camera service the
+app's screen name instead of its package, and its camera calls were numbered
+one off from One UI's. Both fixed in ColorOS (Find X9 Ultra IN and Find N6
+builds) and the first in HyperOS. **Samsung Camera in ColorOS** too (the Find X9
+Ultra IN build and the Find N6 build on the folds), as in Nothing OS. Bluetooth
+audio in ColorOS and Infinity-X on the S25 and A phones (the earbuds connected
+and played nothing). ColorOS turns on the features its own build declares and
+our container skipped: Live Alerts, smoother app and window animations,
+floating windows and Pocket Studio, and on the folds separate wallpapers per
+screen. Samsung Camera on bar phones uses the phone's layout (it took the Fold's
+cover-screen layout), and runs on the S24 Ultra and Z Fold6 too. Nothing OS
+draws the camera cutout as a round hole, not a bar from the top edge. The Z
+Fold6 no longer restarts on the way back to One UI.
 
 New in 0.4.36: brightness by your phone's own panel in every system. Each
 system's brightness steps came from the Galaxy Z Fold8 Ultra's panel, which is

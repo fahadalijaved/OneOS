@@ -47,7 +47,11 @@ apex_state() {
         case $d in
             dm-*)
                 echo "dev $mm $d name=$("$BB" cat $b/dm/name 2>/dev/null) uuid=$("$BB" cat $b/dm/uuid 2>/dev/null) size=$("$BB" cat $b/size 2>/dev/null) ro=$("$BB" cat $b/ro 2>/dev/null) slaves=$("$BB" ls $b/slaves 2>/dev/null | "$BB" tr '\n' ,)"
-                for l in $("$BB" ls $b/slaves 2>/dev/null); do loop_line "$l"; done ;;
+                # Only loop slaves have a loop line; a partition under a dm device
+                # (sda50 on the Z Fold6) is in slaves= above, and its empty loop
+                # line came and went between the switch and the return: a
+                # failsafe reboot for nothing (0.4.36 report 8d915c9b).
+                for l in $("$BB" ls $b/slaves 2>/dev/null); do case $l in loop*) loop_line "$l" ;; esac; done ;;
             loop*) echo "dev $mm $d"; loop_line "$d" ;;
             *) echo "dev $mm $d size=$("$BB" cat $b/size 2>/dev/null)" ;;
         esac

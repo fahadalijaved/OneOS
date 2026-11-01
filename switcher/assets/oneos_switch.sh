@@ -1461,6 +1461,13 @@ while true; do
             # ColorOS's touch idle (OTI) pushes SurfaceFlinger to 240/60 Hz over the
             # 120 Hz policy on this panel (run 29); also staged off by guest_prepare.sh.
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys oplus_vrr_service oti false >/dev/null 2>&1 && echo '[UI Activator] refresh rate: ColorOS touch idle off'
+            # Live Alerts (0.4.36, every ColorOS image with the stock features of
+            # guest_prepare.sh): OPPO's fluid cloud stays off while this global
+            # says unsupported, as the Fold8 runtime of pull request #2 found.
+            if [ \"${ONEOS_GUEST_STOCK_FEATURES:-1}\" = 1 ] &&
+               timeout 10 $BB nsenter -t \$PID -m /system/bin/sh -c '[ -f /my_stock/etc/extension/com.oplus.oplus-feature.xml ]' 2>/dev/null; then
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put global fluid_cloud_not_support 0 && echo '[UI Activator] Live Alerts: fluid_cloud_not_support 0'
+            fi
             # Navigation mode belongs to ColorOS: its SystemUI sets the navbar
             # overlay and navigation_mode from secure hide_navigationbar_enable
             # (0 buttons, 2/3 gestures). Forcing AOSP's gestural overlay left that
@@ -1905,11 +1912,24 @@ while true; do
             if [ $GUEST_AOSP_SYSUI = 1 ] && [ \"${ONEOS_GUEST_HOST_CUTOUT:-1}\" = 1 ] && [ -f $STAGE/host_statusbar ] && [ ! -L $STAGE/host_statusbar ]; then
                 gxo() { timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay \"\$@\" >/dev/null 2>&1; }
                 HCS=\$(sed -n 's/^spec=//p' $STAGE/host_statusbar | head -n 1)
+                # One UI gives the punch hole as a rectangle from the top edge
+                # to the camera's bottom (M 0,0 H -a V b H a V 0 H 0 Z @dp): its own
+                # SystemUI only spaces by it. Nothing OS's draws the cutout, and a
+                # rectangle from the top down to the camera showed on the S24, S25
+                # and S26 Ultras (0.4.36 reports 81f8194c, 8d299b5f, c90a0f14). The
+                # cutout is the circle of the rectangle's width at its bottom (the
+                # hole); the rect approximation stays One UI's.
+                # ONEOS_GUEST_CUTOUT_ROUND=0 keeps One UI's rectangle for both.
+                HCSC=\$HCS
+                if [ \"${ONEOS_GUEST_CUTOUT_ROUND:-1}\" = 1 ]; then
+                    HCSC=\$(printf '%s\\n' \"\$HCS\" | awk '{ n = split(\$0, t, \" \") } n == 14 && t[1] == \"M\" && t[2] == \"0,0\" && t[3] == \"H\" && t[5] == \"V\" && t[7] == \"H\" && t[14] == \"@dp\" { a = t[8] + 0; b = t[6] + 0; if (a > 0 && b >= 2 * a) { printf \"M 0,%.4f a %.4f,%.4f 0 1,0 0,%.4f a %.4f,%.4f 0 1,0 0,-%.4f Z @dp\", b - 2 * a, a, a, 2 * a, a, a, 2 * a; next } } { print }')
+                    [ -n \"\$HCSC\" ] || HCSC=\$HCS
+                fi
                 HSB=\$(sed -n 's/^height=//p' $STAGE/host_statusbar | head -n 1)
                 HRC=\$(sed -n 's/^radius=//p' $STAGE/host_statusbar | head -n 1)
                 OVS=''
                 if [ -n \"\$HCS\" ] &&
-                   gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string \"\$HCS\" &&
+                   gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string \"\$HCSC\" &&
                    gxo fabricate --target android --name OneOSCutoutRect android:string/config_mainBuiltInDisplayCutoutRectApproximation string \"\$HCS\"; then
                     OVS='OneOSCutout OneOSCutoutRect'
                 fi
