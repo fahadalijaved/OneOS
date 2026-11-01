@@ -3,7 +3,10 @@
 ONEOS_BOOT_DIR=${ONEOS_BOOT_DIR:-/data/local/tmp/oneos/data/oneos_bootui}
 oneos_boot_write() {
     [ -d "$ONEOS_BOOT_DIR" ] || return 0
-    printf '%s\n' "$2" > "$ONEOS_BOOT_DIR/$1.$$" && mv -f "$ONEOS_BOOT_DIR/$1.$$" "$ONEOS_BOOT_DIR/$1"
+    oneos_boot_tmp=$(mktemp "$ONEOS_BOOT_DIR/$1.XXXXXX") || return 0
+    if ! { printf '%s\n' "$2" > "$oneos_boot_tmp" && mv -f "$oneos_boot_tmp" "$ONEOS_BOOT_DIR/$1"; }; then
+        rm -f "$oneos_boot_tmp"
+    fi
 }
 oneos_boot_event() {
     [ "$(cat "$ONEOS_BOOT_DIR/verbose" 2>/dev/null)" = 1 ] || return 0
@@ -12,9 +15,22 @@ oneos_boot_event() {
 }
 oneos_boot_stop() { touch "$ONEOS_BOOT_DIR/stop" 2>/dev/null; }
 oneos_boot_ready() {
-    oneos_boot_pid=$(cat "$ONEOS_BOOT_DIR/ready" 2>/dev/null)
+    [ -f "$ONEOS_BOOT_DIR/ready" ] || return 1
+    read -r oneos_boot_pid oneos_boot_token < "$ONEOS_BOOT_DIR/ready" || return 1
     case "$oneos_boot_pid" in ''|*[!0-9]*) return 1;; esac
-    tr '\0' ' ' < "/proc/$oneos_boot_pid/cmdline" 2>/dev/null | grep -q 'OneOSBootStatus' && kill -0 "$oneos_boot_pid" 2>/dev/null
+    [ "$oneos_boot_token" = "$(cat "$ONEOS_BOOT_DIR/generation" 2>/dev/null)" ] || return 1
+    tr '\0' ' ' 2>/dev/null < "/proc/$oneos_boot_pid/cmdline" | grep -q 'OneOSBootStatus' && kill -0 "$oneos_boot_pid" 2>/dev/null
+}
+# A cold renderer must post its first buffer before we choose a live handoff.
+# Never freeze its compositor while it is still initializing fonts/buffers.
+oneos_boot_wait_ready() {
+    oneos_boot_deadline=$(( $(date +%s) + ${1:-5} ))
+    while :; do
+        oneos_boot_ready && return 0
+        [ ! -f "$ONEOS_BOOT_DIR/stop" ] || return 1
+        [ "$(date +%s)" -lt "$oneos_boot_deadline" ] || return 1
+        sleep 0.1
+    done
 }
 oneos_boot_begin() {
     [ ! -L "$ONEOS_BOOT_DIR" ] || return 0
@@ -74,7 +90,7 @@ if [ "${1:-}" = supervise ]; then
     monitor=$!
     stop_worker() {
         [ -n "${worker:-}" ] || return 0
-        case "$(tr '\0' ' ' < "/proc/$worker/cmdline" 2>/dev/null)" in
+        case "$(tr '\0' ' ' 2>/dev/null < "/proc/$worker/cmdline")" in
             *"OneOSBootStatus $ONEOS_BOOT_DIR $generation"*) kill "$worker" 2>/dev/null ;;
         esac
     }
@@ -103,6 +119,9 @@ if [ "${1:-}" = supervise ]; then
         # Reconnect a fresh SurfaceComposer client after the compositor is replaced.
         stop_worker
         wait "$worker" 2>/dev/null
+        if [ "$(cut -d ' ' -f1 "$ONEOS_BOOT_DIR/ready" 2>/dev/null)" = "$worker" ]; then
+            rm -f "$ONEOS_BOOT_DIR/ready"
+        fi
         current || break
         sleep 0.5
     done

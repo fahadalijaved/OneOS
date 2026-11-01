@@ -41,3 +41,34 @@ EOF
  assert not (d/'stop').exists(), 'old supervisor stopped the new session'
  assert not list(d.glob('*.pipe'))
  print('PASS: an old generation cannot stop a new handoff')
+
+ # Exercise the actual compositor decision with a delayed first frame.
+ switch=(Path(__file__).resolve().parents[1]/'switcher/assets/oneos_switch.sh').read_text()
+ decision=switch[switch.index('SF_FROZEN=""'):switch.index('setprop ctl.stop zygote',switch.index('SF_FROZEN=""'))]
+ (d/'data').mkdir()
+ (d/'gap.log').write_text('Status: ok\nsettled now\n')
+ fixture=d/'freeze-test.sh'
+ fixture.write_text('. "$1"\n'
+  'STAGE=$ONEOS_BOOT_DIR\nGAP_SPLASH_LOG=$STAGE/gap.log\nONEOS_VERBOSE_BOOT=1\n'
+  'oneos_boot_ready() { [ -f "$ONEOS_BOOT_DIR/first-frame" ]; }\n'
+  'pidof() { echo 12345; }\n'
+  'kill() { echo "$*" >> "$ONEOS_BOOT_DIR/signals"; }\n'+decision)
+ producer=subprocess.Popen(['/bin/sh','-c','sleep .4; touch "$ONEOS_BOOT_DIR/first-frame"'],env=env)
+ result=subprocess.run(['/bin/sh',str(fixture),str(source)],env=env,timeout=8,capture_output=True,text=True)
+ producer.wait(timeout=2)
+ assert result.returncode==0,(result.stdout,result.stderr)
+ assert 'kept live for status updates' in result.stdout,result.stdout
+ assert not (d/'signals').exists(), 'compositor frozen before the delayed renderer could post its frame'
+ print('PASS: delayed renderer handshake keeps the compositor live')
+ (d/'first-frame').unlink()
+ fixture.write_text(fixture.read_text().replace('oneos_boot_wait_ready 5','oneos_boot_wait_ready 0'))
+ result=subprocess.run(['/bin/sh',str(fixture),str(source)],env=env,timeout=2,capture_output=True,text=True)
+ assert '-STOP 12345' in (d/'signals').read_text(), (result.stdout,result.stderr)
+ print('PASS: unavailable renderer retains the bounded static fallback')
+
+ writers=[subprocess.Popen(['/bin/sh','-c','. "$1"; for n in 1 2 3 4 5; do oneos_boot_write status "$2:$n"; done','sh',str(source),str(i)],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True) for i in range(3)]
+ for writer in writers:
+  stdout,stderr=writer.communicate(timeout=5)
+  assert writer.returncode==0 and not stderr,(stdout,stderr)
+ assert (d/'status').read_text().strip() in {f'{i}:5' for i in range(3)}
+ print('PASS: concurrent status writers publish complete lines without temporary-file collisions')

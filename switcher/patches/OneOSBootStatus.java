@@ -25,6 +25,8 @@ public final class OneOSBootStatus {
     }
     private static void run(String[] args) throws Exception {
         if (args.length != 2 || Process.myUid() != 0) throw new IllegalArgumentException("root and a status directory required");
+        long started = android.os.SystemClock.elapsedRealtime();
+        boolean published = false;
         File dir = new File(args[0]);
         String generation = args[1];
         if (!generation.equals(read(dir, "generation", ""))) { System.err.println("Retired handoff generation " + generation); return; }
@@ -93,14 +95,21 @@ public final class OneOSBootStatus {
                     }
                 } finally { surface.unlockCanvasAndPost(canvas); }
                 // Readiness is published only after posting a real frame.
-                try (FileWriter out = new FileWriter(new File(dir, "ready"))) { out.write(Integer.toString(Process.myPid())); }
+                if (!generation.equals(read(dir, "generation", ""))) break;
+                File ready = new File(dir, "ready." + Process.myPid());
+                try (FileWriter out = new FileWriter(ready)) { out.write(Process.myPid() + " " + generation + "\n"); }
+                if (!ready.renameTo(new File(dir, "ready"))) throw new IllegalStateException("Cannot publish live frame readiness");
+                if (!published) {
+                    System.err.println("First frame posted after " + (android.os.SystemClock.elapsedRealtime() - started) + " ms; pid " + Process.myPid());
+                    published = true;
+                }
                 Thread.sleep(150);
             }
         } finally {
             try { call(transaction, "remove", new Class<?>[]{sc}, layer); call(transaction, "apply", new Class<?>[]{}); } catch (Exception ignored) { }
             surface.release();
             try { call(queue, "destroy", new Class<?>[]{}); } catch (Exception ignored) { }
-            if (read(dir, "ready", "").equals(Integer.toString(Process.myPid()))) new File(dir, "ready").delete();
+            if (read(dir, "ready", "").equals(Process.myPid() + " " + generation)) new File(dir, "ready").delete();
         }
     }
     private static void fit(Paint p, String s, float width) {

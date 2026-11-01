@@ -95,7 +95,13 @@ if [ "$SE_AT_RETURN" != Permissive ]; then
     echo "SELinux was ${SE_AT_RETURN:-unreadable} at the return: Permissive again for it ($(getenforce 2>/dev/null))"
 fi
 
-[ ! -f "$S/boot_status.sh" ] || { . "$S/boot_status.sh"; oneos_boot_begin return; }
+if [ -f "$S/boot_status.sh" ]; then
+    . "$S/boot_status.sh"
+    oneos_boot_begin return
+    if [ "$(cat "$ONEOS_BOOT_DIR/verbose" 2>/dev/null)" = 1 ]; then
+        oneos_boot_wait_ready 5 || echo "Verbose return: live renderer not ready after 5 s"
+    fi
+fi
 
 # The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log;
 # HyperOS: hyos_spawner.log)

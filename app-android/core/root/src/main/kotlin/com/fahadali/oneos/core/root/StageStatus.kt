@@ -202,7 +202,7 @@ data class StageStatus(
      * not complete or could not read the mount table (fail closed). The files
      * count as verified only for the image and set the marker names ([staged]).
      */
-    fun stageState(profile: PhoneProfile?): StageState? {
+    fun stageState(profile: PhoneProfile?, expectedHashes: Map<String, String>? = null): StageState? {
         if (!complete || !mountinfoRead) return null
         val staged = staged(profile)
         return StageState(
@@ -210,7 +210,8 @@ data class StageStatus(
             activeBridges = bridges,
             sessionActive = sessionActive,
             marker = if (ours) marker else pendingUpdate?.takeIf { partial },
-            filesVerified = profile != null && staged != null && verify(profile, staged.first, staged.second).isEmpty(),
+            filesVerified = profile != null && staged != null && verify(profile, staged.first, staged.second).isEmpty() &&
+                (expectedHashes == null || (expectedHashes.isNotEmpty() && expectedHashes.all { (name, sha) -> hashes[name] == sha })),
             unfinishedSession = unfinishedSession,
         )
     }

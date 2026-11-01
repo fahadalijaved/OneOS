@@ -19,6 +19,16 @@ class SetupPlanTest {
     private val app = 4
 
     @Test
+    fun selfConsistentOldPayloadsStillRequireTheNewApksUpdate() {
+        val st = status(prepared(fold, n6, PackageSets.N6_F8U))
+        assertTrue(st.stageState(fold, st.hashes)!!.filesVerified)
+        // The old stage's checksums still agree with its own files, but the APK ships a new renderer.
+        val currentApk = st.hashes + ("OneOSBootStatus.dex" to "e".repeat(64))
+        assertFalse(st.stageState(fold, currentApk)!!.filesVerified)
+        assertFalse(st.stageState(fold, emptyMap())!!.filesVerified)
+    }
+
+    @Test
     fun interruptedUpdateRemainsAnUpdateWithoutTheRawVerificationRecord() {
         val complete = prepared(fold, n6, PackageSets.N6_F8U)
         val interrupted = status(complete + ("stage.marker" to "updating\n${complete.getValue("stage.marker")}"))

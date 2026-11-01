@@ -884,6 +884,13 @@ SF_FROZEN=""
 if [ "${ONEOS_GAP_SPLASH:-1}" = 1 ]; then
     n=0
     while [ $n -lt 15 ] && ! grep -q '^settled' "$GAP_SPLASH_LOG" 2>/dev/null; do n=$((n + 1)); sleep 0.2; done
+    if [ "${ONEOS_VERBOSE_BOOT:-0}" = 1 ]; then
+        if oneos_boot_wait_ready 5; then
+            echo "Verbose boot: live renderer posted its first frame at $(date +%T)"
+        else
+            echo "Verbose boot: live renderer not ready after 5 s; retaining static fallback"
+        fi
+    fi
     SFP=$(pidof surfaceflinger)
     if grep -q '^Status: ok' "$GAP_SPLASH_LOG" 2>/dev/null && grep -q '^settled' "$GAP_SPLASH_LOG" &&
        [ -n "$SFP" ] && [ "$SFP" = "${SFP%% *}" ] && echo "$SFP" > "$STAGE/data/oneos_host_sf_frozen"; then

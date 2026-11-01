@@ -75,6 +75,14 @@ object AppAssets {
         }
     }
 
+    private val expectedStages = java.util.concurrent.ConcurrentHashMap<String, Map<String, String>>()
+
+    /** Compare the installed stage with this APK, not only its own older manifest. */
+    fun expectedStageHashes(ctx: Context, set: PackageSet): Map<String, String> =
+        expectedStages.computeIfAbsent(set.id) {
+            files(ctx, set).associate { it.name to it.sha256 } + ("bin/oneos_root.sh" to BuildConfig.ROOT_SCRIPT_SHA256)
+        }
+
     fun open(ctx: Context, f: Staged): InputStream = ctx.applicationContext.assets.open("oneos/files/${f.sha256}")
 
     /** switcher/patches/host_installd.txt as the app ships it (the installd gate's expected table). */
