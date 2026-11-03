@@ -99,6 +99,18 @@ if [ "$SE_AT_RETURN" != Permissive ]; then
     echo "SELinux was ${SE_AT_RETURN:-unreadable} at the return: Permissive again for it ($(getenforce 2>/dev/null))"
 fi
 
+# Hold the panel awake before its framework is removed, not only once Gate A
+# begins. Otherwise autosuspend can blank the retained frame during teardown.
+echo oneos_return > /sys/power/wake_lock 2>/dev/null
+if [ -f "$S/boot_status.sh" ]; then
+    . "$S/boot_status.sh"
+    oneos_boot_begin return
+    oneos_boot_wait_ready 5 || echo "Return splash: live renderer not ready after 5 s"
+    # system_server / zygote teardown can blank the outgoing display. Retain
+    # the posted return frame while ColorOS still owns a working display.
+    oneos_boot_hold_display
+fi
+
 # The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log;
 # HyperOS: hyos_spawner.log)
 # next to the session's logcat capture (oneos_switch.sh), first, before anything
@@ -191,8 +203,10 @@ pkill -9 -f "zygote_exec" 2>/dev/null || true
 # system_server comes back, so it cannot fight init over sys.usb.config.
 pkill -9 -f "adb_watchdog.sh" 2>/dev/null || true
 pkill -9 -f "ims_watchdog.sh" 2>/dev/null || true
+oneos_boot_event "Stopping guest system_server"
 pkill -9 -f "system_server" 2>/dev/null || true
 pkill -9 -f org.lineageos 2>/dev/null || true
+oneos_boot_event "Stopping guest zygote"
 pkill -9 -x zygote64 2>/dev/null || true
 kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 # The heat cap (oneos_switch.sh) is stopped (its loop names system_server, so
@@ -242,6 +256,7 @@ if [ -n "$GUEST_NS" ] && [ "$GUEST_NS" != "$HOST_NS" ]; then
             fi
             pid=${p#/proc/}
             killed="$killed $pid:$(cat "$p/comm" 2>/dev/null)"
+            oneos_boot_event "Stopping $(cat "$p/comm" 2>/dev/null) (PID $pid)"
             kill -9 "$pid" 2>/dev/null
         done
         if [ $pass = 1 ]; then echo "Killed guest processes:${killed:- none}"
@@ -413,6 +428,7 @@ fi
 # would persist (guest persist.* props; /data binds and mounts are gone above)
 # and reboot cleanly. ONEOS_RETURN_MODE=inplace: see below.
 if [ "$MODE" != inplace ]; then
+    oneos_boot_release_display
     rm -f /data/local/tmp/oneos/data/guest_audio.flag /data/local/tmp/oneos/host_audio_hal_svcs
     STAGE=/data/local/tmp/oneos /system/bin/sh /data/local/tmp/oneos/guest_props.sh restore-persist
     pkill -9 -f "app_storage_loop.sh" 2>/dev/null || true
@@ -463,6 +479,7 @@ say() {
 }
 failsafe() {
     say "FAILSAFE: $* - rebooting into One UI instead"
+    oneos_boot_release_display
     # Permissive for the restore and the reboot requests (run 46: refused under
     # Enforcing, the phone stayed black).
     [ "$(getenforce 2>/dev/null)" = Permissive ] || setenforce 0 2>/dev/null
@@ -498,9 +515,8 @@ wait_found() { # <name> <seconds>
     return 1
 }
 
-# No system wakelock is held while no framework runs: keep the phone from
-# suspending in the middle of the return. Released when One UI is up.
-echo oneos_return > /sys/power/wake_lock 2>/dev/null
+# The return wakelock was acquired before the outgoing framework was stopped;
+# it is released when One UI is up.
 say "In-place return (baseline: $(cat "$BASE/kmsg" 2>/dev/null); SELinux at the return: ${SE_AT_RETURN:-unreadable}, now $(getenforce 2>/dev/null))"
 
 echo "=== [3/4] Checking One UI's modules (in place) ==="
@@ -722,6 +738,7 @@ for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
 done
 [ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
 [ -n "$COMPOSER_SVC" ] || failsafe "no display composer service found"
+oneos_boot_release_display
 setprop ctl.restart "$COMPOSER_SVC"
 # The SM8550 phones (Galaxy S23) have only the HIDL composer
 # (android.hardware.graphics.composer@2.x): waiting for the AIDL one rebooted

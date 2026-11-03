@@ -26,6 +26,8 @@ fi
 # busybox (run 36a: /data/oneos_busybox answered every call 'applet not found').
 /data/oneos_bin/busybox true 2>/dev/null && BB=/data/oneos_bin/busybox
 echo "[Pivoted Root] busybox: $BB"
+ONEOS_BOOT_DIR=/data/oneos_bootui
+[ ! -f "$ONEOS_BOOT_DIR/boot_status.sh" ] || . "$ONEOS_BOOT_DIR/boot_status.sh"
 $BB mount -t proc proc /proc
 # OneOS: the kernel is the phone's. No sysrq from the guest (its watchdog
 # writes 'c' to crash the kernel; the framework patch stops that too).

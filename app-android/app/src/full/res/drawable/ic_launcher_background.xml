@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Figma 395:11655: full-bleed #5288E8 to #1C5FD6 gradient, extended for adaptive motion. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0H108V108H0Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="54" android:startY="18" android:endX="54" android:endY="90"
+                android:startColor="#5288E8" android:endColor="#1C5FD6" android:tileMode="clamp" />
+        </aapt:attr>
+    </path>
+</vector>

@@ -1,6 +1,6 @@
 #!/system/bin/sh
-# Fold8 / Find N6 only. Called by the checked session scripts; never in One UI
-# for runtime. Binaries come through the normal pinned n6-f8 package set.
+# Fold8 / Find N6 UI integration plus capability-detected performance handover
+# for all profiles and guests. UI runtime still runs only in the selected guest.
 set -e
 STAGE=${STAGE:-/data/local/tmp/oneos}
 BB=${BB:-/data/oneos_bin/busybox}
@@ -20,6 +20,23 @@ plain_tree() {
 }
 # Samsung's userspace votes survive framework shutdown. Own only requests we
 # change, preserve a host snapshot, and yield to external policy writers.
+# This backend is shared by every profile/guest. Probe the Samsung request
+# interfaces instead of assuming a model, cluster number or GPU frequency.
+perf_supported() {
+    for node in /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit /sys/kernel/gpu/gpu_max_clock /sys/kernel/gpu/gpu_tmu /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies; do
+        [ -r "$node" ] || return 1
+    done
+    [ -w /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit ] && [ -w /sys/kernel/gpu/gpu_max_clock ] || return 1
+    count=0
+    for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+        [ -r "$policy/cpuinfo_max_freq" ] && [ -w "$policy/scaling_max_freq" ] || return 1
+        maximum=$(cat "$policy/cpuinfo_max_freq")
+        case "$maximum" in ''|*[!0-9]*) return 1;; esac
+        [ "$maximum" -gt 0 ] || return 1
+        count=$((count + 1))
+    done
+    [ "$count" -gt 0 ]
+}
 perf_state() { echo "$STAGE/performance_handover"; }
 perf_log() { echo "$(date +%T) $*" >> "$STAGE/performance_handover.log"; }
 perf_guest() {
@@ -29,7 +46,7 @@ perf_guest() {
     return 1
 }
 perf_snapshot() {
-    selected || return 0
+    perf_supported || return 0
     PSTATE=$(perf_state); plain_tree "$PSTATE"
     [ -f /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit ] && [ -f /sys/kernel/gpu/gpu_max_clock ] || return 0
     [ ! -f "$PSTATE/pid" ] || ! kill -0 "$(cat "$PSTATE/pid")" 2>/dev/null || fail 'performance worker already active'
@@ -55,7 +72,7 @@ perf_snapshot() {
 perf_valid() {
     PSTATE=$(perf_state)
     plain_tree "$PSTATE"
-    [ -f "$PSTATE/boot" ] && [ "$(cat "$PSTATE/boot")" = "$(cat /proc/sys/kernel/random/boot_id)" ]
+    perf_supported && [ -f "$PSTATE/boot" ] && [ "$(cat "$PSTATE/boot")" = "$(cat /proc/sys/kernel/random/boot_id)" ]
 }
 perf_restore_one() {
     node=$1; tag=$2
@@ -90,8 +107,8 @@ perf_write() {
     perf_log "requested $tag=$target; effective $(cat "$node")"
 }
 perf_worker() {
-    selected || return 0
-    perf_valid || fail 'no performance snapshot for this boot'
+    perf_supported || return 0
+    perf_valid || return 0
     mkdir "$PSTATE/worker.lock" 2>/dev/null || fail 'performance worker already running'
     echo $$ > "$PSTATE/pid"
     echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null || true
@@ -109,7 +126,7 @@ perf_worker() {
     while [ ! -f "$PSTATE/stop" ] && [ ! -f "$STAGE/data/oneos_rec_stop" ]; do
         gp=$(perf_guest) || return 0
         skin=$(timeout 3 "$BB" nsenter -t "$gp" -m -r -- /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys thermalservice 2>/dev/null |
-          sed -n '/^Current temperatures from HAL:/,/^Current cooling devices/p' | sed -n 's/.*mValue=\([0-9.]*\), mType=3, mName=SKIN,.*/\1/p' | head -1)
+          sed -n '/^Current temperatures from HAL:/,/^Current cooling devices/p' | sed -n 's/.*mValue=\([0-9.]*\), mType=3,.*/\1/p' | awk 'NF {if(!seen || $1>max) max=$1; seen=1} END {if(seen) print max}')
         gpu_t=$(cat /sys/kernel/gpu/gpu_tmu)
         case "$gpu_t" in ''|*[!0-9]*) skin='';; esac
         if [ -z "$skin" ]; then
@@ -123,7 +140,7 @@ perf_worker() {
         if [ "$released" = 0 ]; then
             [ -n "$skin" ] && awk -v s="$skin" -v g="$gpu_t" 'BEGIN{exit !(s<38&&g<65000)}' || { sleep 2; continue; }
             before=$(cat "$PSTATE/cpu.before")
-            prime=$(cat /sys/devices/system/cpu/cpufreq/policy6/cpuinfo_max_freq)
+            prime=$(cat /sys/devices/system/cpu/cpufreq/policy*/cpuinfo_max_freq | awk '$1>m{m=$1} END{print m}')
             # A deliberately restricted host is preserved. Live repair is an
             # explicit diagnostic command for the already observed stale vote.
             power_save=$(cat "$PSTATE/power_save")
@@ -152,9 +169,118 @@ perf_worker() {
 }
 
 case "$1" in
+addons-prepare|addons-worker|addons-verify)
+    selected || exit 0
+    # Locally retained optional APKs: absent on stock stages. Never trust a
+    # manifest supplied by guest data; this exact accepted bundle is pinned.
+    [ -d "$STAGE/verified_addons" ] || exit 0
+    OVERLAY_MANIFEST_SHA256=dc070965265f33c3b8c6825b0bd3ffae2877f847a4de41b39d24594ae9d748fc
+    export OVERLAY_MANIFEST_SHA256
+    set -- "${1#addons-}"
+stopped=
+trap 'for stopped_pid in $stopped; do kill -CONT "$stopped_pid" 2>/dev/null || true; done' EXIT
+: "${STAGE:?}" "${BB:?}"
+DIR="$STAGE/verified_addons"
+[ ! -L "$DIR" ] && [ -d "$DIR" ] || exit 3
+[ -z "$(find "$DIR" -type l -print -quit)" ] || exit 3
+: "${OVERLAY_MANIFEST_SHA256:?Expected manifest digest is required}"
+MANIFEST="$DIR/overlays.list"
+verify() {
+    [ "$(sha256sum "$MANIFEST" | cut -d' ' -f1)" = "$OVERLAY_MANIFEST_SHA256" ] || return 3
+    while read -r package original patched file; do
+        case "$package" in ''|*[!a-zA-Z0-9._]*|*..*) return 3;; esac
+        case "$file" in ''|*[!a-zA-Z0-9._-]*|*..*) return 3;; esac
+        [ "${#original}" = 64 ] && [ "${#patched}" = 64 ] || return 3
+        case "$original$patched" in *[!0-9a-f]*) return 3;; esac
+        [ -f "$DIR/$file" ] || return 3
+        [ "$(sha256sum "$DIR/$file" | cut -d' ' -f1)" = "$patched" ] || return 3
+    done < "$MANIFEST"
+}
+# Paths below shared guest /data must not resolve through a guest-planted
+# symlink into the host. Check the existing parent before creating a leaf.
+safe_data_path() {
+    [ ! -L "$1" ] || return 3
+    parent=$("$BB" readlink -f "${1%/*}") || return 3
+    case "$parent/" in "$STAGE/data/"*) return 0;; *) return 3;; esac
+}
+guest() { pid=$1; shift; "$BB" nsenter -t "$pid" -m -r -- /system/bin/sh /data/oneos_genv.sh "$@"; }
+verify
+[ "${1:-prepare}" != verify ] || exit 0
+if [ "${1:-prepare}" = prepare ]; then
+    chmod 700 "$DIR"
+    rm -f "$DIR/launcher-grid-values.xml"
+    GRID="$STAGE/data/user_de/0/com.android.launcher/shared_prefs/com.android.launcher_unique_shared_prefs.xml"
+    if [ -f "$GRID" ]; then
+        safe_data_path "$GRID" || exit 3
+        cp -p "$GRID" "$DIR/launcher-grid-before.xml"
+        grep -E 'name="(layout_cellcount_[xy]|LastStandardModeCell[XY]|LastDrawModeCell[XY])"' "$GRID" > "$DIR/launcher-grid-values.xml" || true
+    fi
+    # Chrome's Java startup reads this cache before native feature initialization.
+    F="$STAGE/data/user/0/com.android.chrome/shared_prefs/com.android.chrome_preferences.xml"
+    if [ -f "$F" ]; then
+        safe_data_path "$F" || exit 3
+        uid=$(stat -c %u "$F"); gid=$(stat -c %g "$F")
+        cp -p "$F" "$DIR/chrome-before.xml"
+        sed 's/name="Chrome.Flags.CachedFlag.JavalessRendererExperimentOn" value="true"/name="Chrome.Flags.CachedFlag.JavalessRendererExperimentOn" value="false"/' "$F" > "$DIR/chrome-fixed.xml"
+        cat "$DIR/chrome-fixed.xml" > "$F"
+        chown "$uid:$gid" "$F"
+    fi
+    "$BB" sh "$0" addons-worker </dev/null >> "$STAGE/verified_overlays.log" 2>&1 &
+    exit 0
+fi
+[ "$1" = worker ] || exit 2
+# Never mistake One UI or another guest for this stage. Bound the wait.
+ready=
+for attempt in $(seq 1 150); do
+    launcher=$(pidof com.android.launcher | cut -d' ' -f1)
+    if [ -n "$launcher" ] && [ "$(stat -Lc '%d:%i' /proc/$launcher/root/data 2>/dev/null)" = "$(stat -Lc '%d:%i' "$STAGE/data")" ]; then
+        ready=1; break
+    fi
+    sleep 2
+done
+[ "$ready" = 1 ] || { echo 'verified overlays: no guest launcher within 300s; originals retained'; exit 1; }
+verify
+cache="$STAGE/data/local/tmp/oneos_verified_overlays"
+safe_data_path "$cache" || exit 3
+mkdir -p "$cache"
+chmod 700 "$cache"
+while read -r package original patched file; do
+    target=$(guest "$launcher" /system/bin/pm path "$package" | sed -n 's/^package://p' | head -1)
+    case "$target" in /data/app/*/base.apk|/system/*/*.apk|/my_stock/*/*.apk) ;; *) echo "verified overlays: $package has no supported APK path; skipped"; continue ;; esac
+    current=$(sha256sum "/proc/$launcher/root$target" | cut -d' ' -f1)
+    [ "$current" = "$original" ] || { echo "verified overlays: $package changed; skipped"; continue; }
+    copy="/data/local/tmp/oneos_verified_overlays/$file"
+    safe_data_path "$cache/$file" || exit 3
+    cp "$DIR/$file" "$cache/$file"
+    chmod 644 "/proc/$launcher/root$copy"
+    if [ "$package" = com.android.launcher ] && [ -s "$DIR/launcher-grid-values.xml" ]; then
+        for p in $(pidof "$package"); do
+            [ "$(stat -Lc %d:%i /proc/$p/root/data 2>/dev/null)" = "$(stat -Lc %d:%i "$STAGE/data")" ] || continue
+            stopped="$stopped $p"; kill -STOP "$p"; done
+        GRID="$STAGE/data/user_de/0/com.android.launcher/shared_prefs/com.android.launcher_unique_shared_prefs.xml"
+        safe_data_path "$GRID" || exit 3
+        cp -p "$GRID" "$DIR/launcher-before-restore.xml"
+        awk 'FNR==NR { lines=lines $0 ORS; next } /name="(layout_cellcount_[xy]|LastStandardModeCell[XY]|LastDrawModeCell[XY])"/ {next} /<\/map>/ {printf "%s",lines} {print}' "$DIR/launcher-grid-values.xml" "$GRID" > "$DIR/grid-restored.xml"
+        cat "$DIR/grid-restored.xml" > "$GRID"
+    fi
+    # Guest zygote is the parent's parent for apps, but resolve by namespace data.
+    for p in $(pidof zygote64 system_server com.android.launcher "$package"); do
+        [ "$(stat -Lc '%d:%i' /proc/$p/root/data 2>/dev/null)" = "$(stat -Lc '%d:%i' "$STAGE/data")" ] || continue
+        "$BB" nsenter -t "$p" -m -r -- /system/bin/mount --bind "$copy" "$target"
+    done
+    echo "verified overlays: applied $package ($patched)"
+    # Refresh only the patched app, after the zygote namespace sees its overlay.
+    for p in $(pidof "$package"); do
+        [ "$(stat -Lc %d:%i /proc/$p/root/data 2>/dev/null)" = "$(stat -Lc %d:%i "$STAGE/data")" ] || continue
+        kill -9 "$p"
+    done
+done < "$MANIFEST"
+echo 'verified overlays: complete'
+    ;;
+performance-supported) perf_supported ;;
 performance-snapshot) perf_snapshot host ;;
 performance-live)
-    selected || exit 0
+    perf_supported || exit 0
     perf_guest >/dev/null || fail 'live repair requires this ColorOS guest'
     perf_snapshot live
     perf_worker
@@ -176,6 +302,27 @@ performance-restore)
 prepare)
     selected || exit 0
     ROOTFS="$STAGE/rootfs"
+    # Official global Photos must replace the donor directory before package
+    # scanning, otherwise duplicate permissions keep the donor active.
+    if [ -f "$STAGE/verified_addons/PhotosGlobal.apk" ]; then
+        plain_tree "$STAGE/verified_addons"
+SOURCE="$STAGE/verified_addons/PhotosGlobal.apk"
+TARGET="$ROOTFS/my_stock/priv-app/OppoGallery2"
+[ -f "$SOURCE" ] && [ ! -L "$SOURCE" ] || exit 3
+[ "$(sha256sum "$SOURCE" | cut -d' ' -f1)" = af2801326bd3f5db80f2583644cf7e7a8ddfa2740022b72ae9ed099b038329ac ] || exit 3
+[ "$(sha256sum "$TARGET/OppoGallery2.apk" | cut -d' ' -f1)" = 9610c7efab2b3b45a547d8caa7c75df74ebb614c2dea0322b33343cf2fff2198 ] || exit 3
+# Clean directory avoids mixing old gallery libraries with the global APK.
+REPLACEMENT="$STAGE/verified_addons/gallery_global_system"
+[ ! -L "$REPLACEMENT" ] || exit 3
+plain_tree "$REPLACEMENT"
+mkdir -p "$REPLACEMENT"
+[ ! -L "$REPLACEMENT/Photos.apk" ] || exit 3
+cp "$SOURCE" "$REPLACEMENT/Photos.apk"
+chmod 755 "$REPLACEMENT"
+chmod 644 "$REPLACEMENT/Photos.apk"
+"$BB" mount --bind "$REPLACEMENT" "$TARGET"
+echo 'Official global Photos replaces donor gallery for guest package scan'
+    fi
     target="$ROOTFS/system/system_ext/priv-app/SystemUI/SystemUI.apk"
     "$BB" umount -l "$target" 2>/dev/null || true
     [ -f "$target" ] && [ ! -L "$target" ] || fail 'unexpected SystemUI path'

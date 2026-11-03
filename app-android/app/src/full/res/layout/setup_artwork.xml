@@ -1,0 +1,9 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/setup_hero" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/catalog_card_clip" android:clipToOutline="true">
+    <com.fahadali.oneos.ui.OsArtworkView android:tag="heading_progress" android:id="@+id/setup_artwork" android:layout_width="match_parent" android:layout_height="match_parent" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom" android:orientation="vertical" android:gravity="center_horizontal" android:paddingHorizontal="36dp" android:paddingTop="48dp" android:paddingBottom="40dp" android:background="@drawable/setup_status_scrim">
+        <androidx.appcompat.widget.AppCompatTextView android:id="@+id/setup_artwork_state" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:textSize="24sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginBottom="24dp" />
+        <androidx.appcompat.widget.SeslProgressBar android:id="@+id/setup_linear_progress" style="@style/Widget.AppCompat.ProgressBar.Horizontal" android:layout_width="match_parent" android:layout_height="10dp" android:max="100" android:progressTint="#6E9BFF" android:progressBackgroundTint="#26FFFFFF" android:indeterminateTint="#6E9BFF" />
+    </LinearLayout>
+</FrameLayout>

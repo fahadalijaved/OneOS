@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Fades in over the blue gradient on the "You're all set" step: transparent
+    at the top, then quickly settles into near-white (light) / near-black
+    (dark), visually shrinking the blue gradient toward the top edge.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="270"
+        android:startColor="@color/onboarding_settle_fade"
+        android:centerColor="@color/onboarding_settle_background"
+        android:endColor="@color/onboarding_settle_background"
+        android:type="linear" />
+</shape>

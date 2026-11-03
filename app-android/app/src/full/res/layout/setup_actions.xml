@@ -1,0 +1,4 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/setup_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center_horizontal" android:paddingTop="12dp" android:paddingBottom="8dp">
+    <androidx.appcompat.widget.AppCompatButton android:id="@+id/setup_primary" style="@style/OneUI.ContainedButton" android:theme="@style/OneUI.ContainedPrimaryColorButtonTheme" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="176dp" android:visibility="gone" />
+    <androidx.appcompat.widget.AppCompatButton android:id="@+id/setup_secondary" style="@style/OneUI.ContainedButton" android:theme="@style/OneUI.ContainedButtonTheme" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="176dp" android:text="@android:string/cancel" />
+</LinearLayout>

@@ -548,6 +548,7 @@ fi
 # kills surfaceflinger as before when the splash is not up (no 'Status: ok'
 # from am start, e.g. the component is not installed).
 # ONEOS_GAP_SPLASH=0: the black gap of run 32.
+. "$STAGE/boot_status.sh"
 GAP_SPLASH_LOG="$STAGE/gap_splash.log"
 rm -f "$GAP_SPLASH_LOG" "$STAGE/data/oneos_host_sf_frozen"
 if [ "${ONEOS_GAP_SPLASH:-1}" = 1 ]; then
@@ -567,6 +568,7 @@ fi
 # return_to_oneui.sh restores enforcing.
 setenforce 0 2>/dev/null || true
 echo "SELinux mode: $(getenforce 2>/dev/null || echo unknown)"
+oneos_boot_begin enter
 
 # --- IMS / SMS REGISTRATION GATE -----------------------------------------
 # The guest has no ImsService of its own, so the modem's IMS registration is
@@ -882,12 +884,28 @@ SF_FROZEN=""
 if [ "${ONEOS_GAP_SPLASH:-1}" = 1 ]; then
     n=0
     while [ $n -lt 15 ] && ! grep -q '^settled' "$GAP_SPLASH_LOG" 2>/dev/null; do n=$((n + 1)); sleep 0.2; done
+    if [ "${ONEOS_VERBOSE_BOOT:-0}" = 1 ]; then
+        if oneos_boot_wait_ready 5; then
+            echo "Verbose boot: live renderer posted its first frame at $(date +%T)"
+        else
+            echo "Verbose boot: live renderer not ready after 5 s; retaining static fallback"
+        fi
+    fi
     SFP=$(pidof surfaceflinger)
     if grep -q '^Status: ok' "$GAP_SPLASH_LOG" 2>/dev/null && grep -q '^settled' "$GAP_SPLASH_LOG" &&
        [ -n "$SFP" ] && [ "$SFP" = "${SFP%% *}" ] && echo "$SFP" > "$STAGE/data/oneos_host_sf_frozen"; then
-        if kill -STOP "$SFP" 2>/dev/null; then SF_FROZEN=$SFP; else rm -f "$STAGE/data/oneos_host_sf_frozen"; fi
+        if [ "${ONEOS_VERBOSE_BOOT:-0}" = 1 ] && oneos_boot_ready; then
+            # Keep the compositor live for the root status layer, with the same
+            # guest_start/safety-net cleanup as the ordinary frozen frame.
+            SF_FROZEN=$SFP
+            echo "Verbose boot: surfaceflinger $SFP kept live for status updates"
+        elif kill -STOP "$SFP" 2>/dev/null; then SF_FROZEN=$SFP; else rm -f "$STAGE/data/oneos_host_sf_frozen"; fi
     fi
-    echo "Gap splash: $(grep -E '^(Status|LaunchState|TotalTime|Error)' "$GAP_SPLASH_LOG" 2>/dev/null | tr '\n' ' ')waited $((n / 5)).$((n % 5 * 2))s; One UI's surfaceflinger ${SF_FROZEN:-not frozen, black gap}${SF_FROZEN:+ frozen on it at $(date +%T)}"
+    if [ "${ONEOS_VERBOSE_BOOT:-0}" = 1 ] && oneos_boot_ready; then
+        echo "Gap splash: live process status on surfaceflinger ${SF_FROZEN:-unavailable}"
+    else
+        echo "Gap splash: $(grep -E '^(Status|LaunchState|TotalTime|Error)' "$GAP_SPLASH_LOG" 2>/dev/null | tr '\n' ' ')waited $((n / 5)).$((n % 5 * 2))s; One UI's surfaceflinger ${SF_FROZEN:-not frozen, black gap}${SF_FROZEN:+ frozen on it at $(date +%T)}"
+    fi
 fi
 setprop ctl.stop zygote
 # zygote64_32 phones (Galaxy S23): One UI's 32-bit zygote is a service of its
@@ -2223,7 +2241,7 @@ while true; do
 done
 " </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
-# Samsung CPU/GPU votes survive the host framework; Fold8/Find N6 only.
+# Samsung CPU/GPU votes survive the host framework; capability-detected on every profile.
 STAGE="$STAGE" BB="$BB" "$BB" nohup /system/bin/sh "$STAGE/fold8_coloros.sh" performance-worker </dev/null >>"$STAGE/performance_handover.log" 2>&1 &
 
 # Session sampler (run 44: nothing was recorded after the 90 s round; window
@@ -2293,7 +2311,7 @@ echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 # off): not started. Out of the app cgroup, like the sampler.
 rm -f "$STAGE/heat_cap.active"
 PERF_HANDOVER=0
-if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "set": "n6-f8",$' "$STAGE/.oneos_stage"; then PERF_HANDOVER=1; fi
+if STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" performance-supported; then PERF_HANDOVER=1; fi
 if [ "${ONEOS_HEAT_CAP:-1}" = 1 ] && [ "$PERF_HANDOVER" = 0 ]; then
     : > "$STAGE/heat_cap.active"
     rm -f "$STAGE/cpufreq_max_limit.released"

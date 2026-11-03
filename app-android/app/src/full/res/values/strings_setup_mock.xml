@@ -1,0 +1,22 @@
+<resources>
+    <string name="setup_mock_title">Set up %1$s</string>
+    <string name="setup_installing">Installing</string>
+    <string name="setup_preview_badge">Preview · simulated setup</string>
+    <string name="setup_check_phone">Check phone and stage</string>
+    <string name="setup_check_files">Check local files</string>
+    <string name="setup_image">System image</string>
+    <string name="setup_files_patches">OneOS files and patches</string>
+    <string name="setup_table">installd table</string>
+    <string name="setup_session">Session settings</string>
+    <string name="setup_cleanup">Clean up</string>
+    <string name="setup_download_question">Have you downloaded the file?</string>
+    <string name="setup_preview_setting">Preview mode</string>
+    <string name="setup_preview_setting_summary">Simulate setup and boot screens. On a system card, tap Set up, then Yes to skip file selection. No files are changed and no OS starts.</string>
+    <string name="setup_download_yes">Yes</string>
+    <string name="setup_download_no">No</string>
+    <string name="setup_preview_cancelled_title">Preview cancelled</string>
+    <string name="setup_update_title">Update %1$s</string>
+    <string name="setup_updating">Updating</string>
+    <string name="setup_check_update">Check phone and update requirements</string>
+    <string name="setup_verify_existing_image">Verify existing system image</string>
+</resources>

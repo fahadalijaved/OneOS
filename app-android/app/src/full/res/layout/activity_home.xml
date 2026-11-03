@@ -9,6 +9,8 @@
     android:id="@+id/toolbar_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    app:handleInsets="false"
+    app:mainRoundedCorners="top"
     app:expandable="false"
     app:expanded="false">
 
@@ -32,7 +34,7 @@
         <Button
             android:id="@+id/home_primary"
             style="@style/OneOS.Button.Primary"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/home_choose" />
 
@@ -48,7 +50,7 @@
         <Button
             android:id="@+id/home_secondary"
             style="@style/OneOS.Button.Text"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:visibility="gone" />

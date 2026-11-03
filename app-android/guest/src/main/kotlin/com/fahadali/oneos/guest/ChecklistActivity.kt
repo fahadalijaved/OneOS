@@ -1,6 +1,8 @@
 package com.fahadali.oneos.guest
 
-import android.app.Activity
+import dev.oneuiproject.oneui.utils.applyEdgeToEdge
+
+import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.text.Editable
 import android.text.InputFilter
@@ -10,27 +12,28 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
-import android.widget.EditText
+import androidx.appcompat.widget.AppCompatEditText as EditText
 import android.widget.LinearLayout
-import android.widget.RadioButton
+import androidx.appcompat.widget.AppCompatRadioButton as RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
-import android.widget.TextView
+import androidx.appcompat.widget.AppCompatTextView as TextView
 import android.widget.Toast
 import java.io.IOException
 
 /**
  * How's it going? (0.4.30): one row per item (Works, Problem, Didn't try) and
- * a note, saved as the user taps ([Checklist]). Plain framework UI like the
+ * a note, saved as the user taps ([Checklist]). Native SESL widgets like the
  * rest of this app; nothing leaves the phone from here: OneOS sends it with
  * the logs from One UI when the user taps Send to the OneOS team.
  */
-class ChecklistActivity : Activity() {
+class ChecklistActivity : AppCompatActivity() {
     private val answers = mutableMapOf<String, String>()
     private var note = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyEdgeToEdge()
         Checklist.read(this).let { answers += it.items; note = it.note }
         val pad = dp(24)
         val column = LinearLayout(this).apply {

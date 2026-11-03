@@ -11,6 +11,8 @@ import android.widget.TextView
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.LayoutRes
+import dev.oneuiproject.oneui.widget.CardItemView
+import dev.oneuiproject.oneui.widget.RoundedLinearLayout
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.Level
 
@@ -92,10 +94,11 @@ internal object Cards {
         gapAbove: Boolean = parent.childCount > 0,
     ): LinearLayout {
         val card = inflate(parent, R.layout.oneos_card_section) as LinearLayout
+        round(card)
         val res = card.resources
         if (rows) {
-            val v = res.getDimensionPixelSize(R.dimen.oneos_card_list_padding)
-            card.setPaddingRelative(0, v, 0, v)
+            // CardItemView owns the SESL row's vertical and horizontal spacing.
+            card.setPaddingRelative(0, 0, 0, 0)
             val h = res.getDimensionPixelSize(R.dimen.oneos_row_padding_horizontal)
             val header = card.findViewById<View>(R.id.oneos_section_header)
             header.setPaddingRelative(h, res.getDimensionPixelSize(R.dimen.oneos_tile_padding), h, 0)
@@ -195,9 +198,11 @@ internal object Cards {
         summary: CharSequence? = null,
         onClick: ((View) -> Unit)? = null,
     ): View {
-        val v = inflate(parent, R.layout.oneos_row)
+        val v = CardItemView(parent.context)
         bindRow(v, icon, title, summary, onClick)
-        parent.addView(v)
+        val previous = parent.getChildAt(parent.childCount - 1)
+        v.showTopDivider = previous is CardItemView || previous is dev.oneuiproject.oneui.widget.SwitchItemView
+        parent.addView(v, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         return v
     }
 
@@ -209,17 +214,11 @@ internal object Cards {
         summary: CharSequence?,
         onClick: ((View) -> Unit)?,
     ) {
-        val iconView = row.findViewById<ImageView>(R.id.oneos_row_icon)
-        if (icon == 0) {
-            iconView.visibility = View.GONE
-        } else {
-            iconView.visibility = View.VISIBLE
-            iconView.setImageResource(icon)
-        }
-        row.findViewById<TextView>(R.id.oneos_row_title).text = title
-        val summaryView = row.findViewById<TextView>(R.id.oneos_row_summary)
-        summaryView.text = summary
-        summaryView.visibility = if (summary.isNullOrEmpty()) View.GONE else View.VISIBLE
+        val item = row as CardItemView
+        item.title = title
+        item.summary = summary
+        item.icon = if (icon == 0) null else androidx.appcompat.content.res.AppCompatResources.getDrawable(row.context, icon)
+
         if (onClick == null) {
             row.setOnClickListener(null)
             row.isClickable = false
@@ -233,13 +232,24 @@ internal object Cards {
 
     /** Shows [drawable] (for example [badge]) at the row's end; 0 hides it. */
     fun setRowEnd(row: View, @DrawableRes drawable: Int) {
-        val end = row.findViewById<ImageView>(R.id.oneos_row_end)
+        val end = (row as CardItemView).getEndImageView()
         if (drawable == 0) {
             end.visibility = View.GONE
             end.setImageDrawable(null)
         } else {
             end.setImageResource(drawable)
             end.visibility = View.VISIBLE
+        }
+    }
+
+    /** Stock oneui-design corner renderer, matching SESL preference cards. */
+    fun round(card: LinearLayout) {
+        (card as? RoundedLinearLayout)?.apply {
+            roundedCorners = androidx.appcompat.util.SeslRoundedCorner.ROUNDED_CORNER_ALL
+            val color = android.util.TypedValue()
+            context.theme.resolveAttribute(androidx.appcompat.R.attr.roundedCornerColor, color, true)
+            roundedCornersColor = color.data
+            fillHorizontalPadding = false
         }
     }
 

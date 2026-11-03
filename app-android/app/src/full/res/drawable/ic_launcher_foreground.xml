@@ -1,16 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Two phones: One UI in front, the guest OS behind it. 108dp adaptive canvas,
-     content inside the 66dp safe zone. -->
+<!-- Figma 395:11658: original 500 x 500 foreground geometry. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillAlpha="0.55"
-        android:fillColor="#FFFFFF"
-        android:pathData="M57,33h13a5,5 0,0 1,5 5v32a5,5 0,0 1,-5 5h-13a5,5 0,0 1,-5 -5v-32a5,5 0,0 1,5 -5z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M39,29h15a5,5 0,0 1,5 5v40a5,5 0,0 1,-5 5h-15a5,5 0,0 1,-5 -5v-40a5,5 0,0 1,5 -5z" />
+    android:width="108dp" android:height="108dp" android:viewportWidth="500" android:viewportHeight="500">
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.6"
+        android:pathData="M259,105H326A44,44 0,0 1,370 149V331A44,44 0,0 1,326 375H259A44,44 0,0 1,215 331V149A44,44 0,0 1,259 105Z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M175,125H242A44,44 0,0 1,286 169V351A44,44 0,0 1,242 395H175A44,44 0,0 1,131 351V169A44,44 0,0 1,175 125Z" />
 </vector>

@@ -68,13 +68,20 @@ import dev.oneuiproject.oneui.R as OuiIcons
  * The probe edition has its own object with the old rows.
  */
 internal object EditionHome {
+    fun onboarding(a: MainActivity) = android.content.Intent(a, OnboardingActivity::class.java)
+
+    fun redirect(a: MainActivity): android.content.Intent? {
+        if (a.intent.getBooleanExtra("system_detail", false)) return null
+        return Intent(a, LauncherActivity::class.java)
+    }
+
     val layoutRes: Int get() = R.layout.activity_home
 
     fun createFragment(): Fragment = StatusHomeFragment()
 
     /** On the cover the hero under the bar says "OneOS", so the bar has no title; the inner screen's bar has it. */
     fun created(a: MainActivity) {
-        if (!a.resources.getBoolean(R.bool.home_two_pane)) a.findViewById<ToolbarLayout>(R.id.toolbar_layout)?.setTitle("")
+        a.findViewById<ToolbarLayout>(R.id.toolbar_layout)?.setTitle(a.intent.getStringExtra("system_name") ?: a.getString(R.string.app_name))
     }
 
     fun createMenu(a: MainActivity, menu: Menu): Boolean {
@@ -292,7 +299,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
 
     private fun hero(root: View, s: HomeState, showChecks: Boolean) {
         val outcome = s.last?.outcome?.takeIf { s.kind == HomeState.Kind.WELCOME_BACK }
-        root.findViewById<ImageView>(R.id.home_hero_art).visibility = if (outcome == null) View.VISIBLE else View.GONE
+        root.findViewById<OsArtworkView>(R.id.home_hero_art).apply { bind(s.image); visibility = if (outcome == null) View.VISIBLE else View.GONE }
         root.findViewById<ImageView>(R.id.home_hero_badge).apply {
             visibility = if (outcome != null) View.VISIBLE else View.GONE
             if (outcome != null) setImageResource(if (outcome.good) R.drawable.home_welcome_ok else R.drawable.home_welcome_warn)

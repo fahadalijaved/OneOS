@@ -39,6 +39,15 @@ done'
 run stage.marker 10 stage/marker.txt '
 S=/data/local/tmp/oneos
 [ -e "$S" ] || [ -L "$S" ] || [ ! -d /data/local/tmp/lineage_stage ] || [ -L /data/local/tmp/lineage_stage ] || S=/data/local/tmp/lineage_stage
+f="$S/.oneos_update"
+if [ -f "$f" ] && [ ! -L "$f" ]; then
+  owner=$(stat -c "%u %a" "$f")
+  [ "$owner" = "0 644" ] || [ "$owner" = "0 600" ] || exit 3
+  [ "$(stat -c %s "$f")" -le 4096 ] || exit 3
+  echo updating
+  cat "$f"
+  exit 0
+fi
 f="$S/.oneos_stage"
 [ -f "$f" ] || exit 3
 cat "$f"'

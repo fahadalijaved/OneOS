@@ -13,7 +13,7 @@ import java.io.File
 class StringsNeutralSystemsTest {
     private val src = Shipped.appSources
 
-    private val names = Regex("""ColorOS|OPPO|Lineage|Pixel|Find N6|Find X9|lineage_stage""")
+    private val names = Regex("""\b(?:ColorOS|OPPO|Lineage|Pixel|Find N6|Find X9|lineage_stage)\b""")
 
     @Test
     fun theSystemsStringsNameNoSystem() {

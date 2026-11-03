@@ -124,9 +124,17 @@ internal object FixActions {
     }
 
     /** Starts the setup job and, when it started, opens Setting up (SettingUp.dc.html) over the screen that asked. */
-    private fun startSetup(a: FragmentActivity, plan: PrepareJob.Plan) {
+    private fun startSetup(a: FragmentActivity, plan: PrepareJob.Plan, updating: Boolean = false) {
         PrepareJob.start(a, plan)
-        if (PrepareJob.state.busy && a !is SetupProgressActivity) a.startActivity(Intent(a, SetupProgressActivity::class.java))
+        if (PrepareJob.state.busy && a !is SetupProgressActivity) {
+            val fromChecks = a is EnvironmentActivity
+            val intent = Intent(a, SetupProgressActivity::class.java)
+                .putExtra(SetupProgressActivity.EXTRA_UPDATE, updating)
+                .putExtra(SetupProgressActivity.EXTRA_REUSE_IMAGE, plan.source == SessionPrefs.Source.ON_PHONE)
+                .putExtra(SetupProgressActivity.EXTRA_IMAGE, if (updating) StageCheck.state.result?.let(ImageMaintenance::identifiedImage)?.id else null)
+                .putExtra(SetupProgressActivity.EXTRA_RETURN_TO_CHECKS, fromChecks)
+            ArtworkTransitions.start(a, intent, if (fromChecks) a.findViewById(R.id.environment_artwork) else null)
+        }
     }
 
     /**
@@ -141,19 +149,20 @@ internal object FixActions {
         val st = r.status
         val image = st.staged(profile)?.first
             ?: st.marker?.takeIf { st.ours && it.profileId == profile.id }?.let { m -> Images.byId(m.imageId)?.takeIf { profile.choice(it.id) != null } }
+            ?: ImageMaintenance.identifiedImage(r)?.takeIf { profile.choice(it.id) != null }
             ?: return a.startActivity(Intent(a, SystemsActivity::class.java))
         val system = image.name
         when {
             // One tap (the redesign: "Update now", about 2 minutes): the system stays, only OneOS's files are written.
             SetupPlan.reusesInstalled(st, image, profile, BuildConfig.VERSION_CODE) ->
-                startSetup(a, PrepareJob.Plan(RootScript.BeginMode.KEEP, SessionPrefs.Source.ON_PHONE))
+                startSetup(a, PrepareJob.Plan(RootScript.BeginMode.KEEP, SessionPrefs.Source.ON_PHONE), updating = true)
             // The download is written into the stage (10 GB): confirmed first.
             SessionPrefs.picked(a)?.let { ImageIdentifier.identify(it.check, profile).image?.id == image.id } == true ->
                 AlertDialog.Builder(a)
                     .setTitle(a.getString(R.string.confirm_setup_title, system))
                     .setMessage(a.getString(R.string.confirm_setup_file, system))
                     .setPositiveButton(R.string.confirm_setup_go) { _, _ ->
-                        startSetup(a, PrepareJob.Plan(RootScript.BeginMode.KEEP, SessionPrefs.Source.GZ))
+                        startSetup(a, PrepareJob.Plan(RootScript.BeginMode.KEEP, SessionPrefs.Source.GZ), updating = true)
                     }
                     .setNegativeButton(android.R.string.cancel, null)
                     .show()

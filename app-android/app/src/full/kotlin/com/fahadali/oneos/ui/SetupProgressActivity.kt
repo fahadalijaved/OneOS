@@ -1,20 +1,17 @@
 package com.fahadali.oneos.ui
 
-import android.content.res.ColorStateList
-import android.graphics.Typeface
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
 import com.fahadali.oneos.R
+import com.fahadali.oneos.core.model.SetupPreviewTimeline
 import com.fahadali.oneos.core.model.FixAction
 import com.fahadali.oneos.core.model.ImageRef
 import com.fahadali.oneos.core.model.Images
@@ -24,34 +21,51 @@ import com.fahadali.oneos.session.OldStagesJob
 import com.fahadali.oneos.session.PrepareJob
 import com.fahadali.oneos.session.SessionPrefs
 import com.fahadali.oneos.session.StageCheck
-import dev.oneuiproject.oneui.R as OuiIcons
 
-/**
- * Setting up (SettingUp.dc.html; Home's "Show progress", and every setup a
- * fix action starts): the ring with percent and time left from
- * [PrepareJob.State], "Setting up {system}", the three user steps
- * ([PrepareJob.UserStep]) with the current one's detail, the "keep OneOS
- * open" note, Stop (as before: [PrepareJob.cancel], no confirm), the screen
- * kept on while it runs, then the result with its plain message's own fix
- * button. The nine technical steps, the job's message and what was moved
- * aside are behind Details. The technical Prepare page stays in Advanced.
- */
-class SetupProgressActivity : ToolbarActivity() {
-    // The bar shows the title only once the hero has scrolled away (setBarTitle).
-    override val screenTitle: CharSequence get() = ""
+/** The Figma setup screen, driven by the original PrepareJob or an isolated debug timeline. */
+class SetupProgressActivity : EdgeToEdgeActivity() {
+    var previewImage: ImageRef? = null
+        private set
+    companion object {
+        const val EXTRA_PREVIEW_IMAGE = "oneos.debug.preview_image"
+        const val EXTRA_UPDATE = "oneos.setup.update"
+        const val EXTRA_REUSE_IMAGE = "oneos.setup.reuse_image"
+        const val EXTRA_IMAGE = "oneos.setup.image"
+        const val EXTRA_RETURN_TO_CHECKS = "oneos.setup.return_to_checks"
+    }
 
-    override val layoutRes: Int get() = R.layout.activity_setup_progress
-
-    override fun createFragment(): Fragment = SetupProgressFragment()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        previewImage = if (DebugPreview.enabled(this)) intent.getStringExtra(EXTRA_PREVIEW_IMAGE)?.let(Images::byId) else null
+        super.onCreate(savedInstanceState)
+        ArtworkTransitions.prepare(this)
+        setContentView(R.layout.activity_setup_progress)
+        findViewById<View>(R.id.setup_window).setOnApplyWindowInsetsListener { root, insets ->
+            val bars = insets.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
+            root.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+        findViewById<androidx.appcompat.widget.Toolbar>(R.id.setup_toolbar).apply {
+            setNavigationIcon(dev.oneuiproject.oneui.R.drawable.ic_oui_back)
+            setNavigationContentDescription(androidx.appcompat.R.string.abc_action_bar_up_description)
+            setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        }
+        if (savedInstanceState == null) supportFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, SetupProgressFragment()).commit()
+    }
 
     private var unsubscribe: (() -> Unit)? = null
 
     fun setBarTitle(text: CharSequence) {
-        toolbarLayout.setTitle(text)
+        findViewById<androidx.appcompat.widget.Toolbar>(R.id.setup_toolbar).title = text
+    }
+
+    fun setExpandedSubtitle(text: CharSequence) {
+        findViewById<androidx.appcompat.widget.Toolbar>(R.id.setup_toolbar).subtitle = text
     }
 
     override fun onStart() {
         super.onStart()
+        if (previewImage != null) return
         unsubscribe = PrepareJob.observe { s ->
             if (s.busy) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
@@ -65,81 +79,109 @@ class SetupProgressActivity : ToolbarActivity() {
 }
 
 class SetupProgressFragment : Fragment() {
-    private enum class StepState { DONE, CURRENT, PENDING, STOPPED, FAILED }
+    private val previewImage: ImageRef? get() = (activity as? SetupProgressActivity)?.previewImage
+    private val previewTimeline = SetupPreviewTimeline(PrepareJob.Step.entries.size, stepDurationMs = 3000)
+    private val previewHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var previewElapsedMs = 0L
+    private var previewResumedAt = 0L
+    private var previewCancelledAt: Long? = null
+    private fun elapsedPreview(): Long = previewElapsedMs + if (previewResumedAt == 0L) 0 else android.os.SystemClock.uptimeMillis() - previewResumedAt
+    private fun displayedState(): PrepareJob.State {
+        val image = previewImage ?: return PrepareJob.state
+        val snap = previewTimeline.at(elapsedPreview(), previewCancelledAt)
+        return PrepareJob.State(
+            phase = when (snap.phase) {
+                SetupPreviewTimeline.Phase.RUNNING -> PrepareJob.Phase.RUNNING
+                SetupPreviewTimeline.Phase.DONE -> PrepareJob.Phase.DONE
+                SetupPreviewTimeline.Phase.CANCELLED -> PrepareJob.Phase.STOPPED
+            },
+            step = snap.currentStep?.let { PrepareJob.Step.entries[it] },
+            done = PrepareJob.Step.entries.take(snap.completedSteps).toSet(),
+            image = image, bytesDone = snap.percent.toLong(), bytesTotal = 100,
+            detail = getString(R.string.setup_preview_simulated),
+            etaSeconds = ((previewTimeline.durationMs - elapsedPreview()).coerceAtLeast(0) / 1000).toInt(),
+        )
+    }
+    private val previewTick = object : Runnable {
+        override fun run() {
+            if (!isAdded || view == null || previewImage == null) return
+            val state = displayedState()
+            bind(state)
+            if (state.busy) previewHandler.postDelayed(this, 160)
+        }
+    }
+
 
     private var unsubscribe: (() -> Unit)? = null
-    private var expanded = false
     private var stopping = false
-    private var barTitle: CharSequence = ""
-    private var barTitleShown = false
-    private var stepRows: List<View> = emptyList()
-    private var titleColors: ColorStateList? = null
-    private var detailsRow: View? = null
+    private var routed = false
+    private var lastChecklistState: Any? = null
+    private var stepRows: List<dev.oneuiproject.oneui.widget.CardItemView> = emptyList()
     /** The set-aside copy the old copies were listed for (once per screen). */
     private var listedFor: String? = null
-    private var techList: LinearLayout? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         inflater.inflate(R.layout.setup_progress_screen, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        expanded = savedInstanceState?.getBoolean(KEY_EXPANDED) ?: false
-        val inflater = LayoutInflater.from(view.context)
-
-        // The inner screen: one centred column of at most 600dp, its footer button too.
-        val density = resources.displayMetrics.density
-        val extra = ((resources.configuration.screenWidthDp - MAX_COLUMN_DP) / 2).coerceAtLeast(0)
-        if (extra > 0) {
-            val column = view.findViewById<LinearLayout>(R.id.setup_column)
-            val side = column.paddingStart + (extra * density).toInt()
-            column.setPaddingRelative(side, column.paddingTop, side, column.paddingBottom)
-            activity?.findViewById<View>(R.id.setup_footer)?.let { f ->
-                val fs = f.paddingStart + (extra * density).toInt()
-                f.setPaddingRelative(fs, f.paddingTop, fs, f.paddingBottom)
+        previewElapsedMs = savedInstanceState?.getLong("preview_elapsed") ?: 0L
+        previewCancelledAt = savedInstanceState?.getLong("preview_cancelled", -1)?.takeIf { it >= 0 }
+        view.findViewById<androidx.core.widget.NestedScrollView>(R.id.setup_scroll).apply {
+            isNestedScrollingEnabled = false
+            clipToPadding = false
+            seslSetFadingEdgeEnabled(true)
+            seslSetFadingEdgeColor(requireContext().getColor(R.color.oneos_page_background))
+            seslSetFadingEdgeWindowBottomAlignment(false)
+            seslSetAllowTopFadingEdgeWithoutEdgeToEdge(true)
+        }
+        ArtworkTransitions.bindTarget(requireActivity(), view.findViewById(R.id.setup_artwork))
+        lastChecklistState = null
+        val steps = view.findViewById<LinearLayout>(R.id.setup_steps)
+        Cards.round(steps)
+        stepRows = checklist.map { (title, _) ->
+            (Cards.row(steps, R.drawable.ic_oneos_step_pending, title) as dev.oneuiproject.oneui.widget.CardItemView).apply {
+                isClickable = false
+                isFocusable = false
             }
         }
-
-        val steps = view.findViewById<LinearLayout>(R.id.setup_steps)
-        stepRows = PrepareJob.UserStep.entries.map {
-            val row = inflater.inflate(R.layout.setup_step, steps, false)
-            steps.addView(row)
-            row
-        }
-        titleColors = stepRows.firstOrNull()?.findViewById<TextView>(R.id.setup_step_title)?.textColors
-
-        val slot = view.findViewById<LinearLayout>(R.id.setup_details_slot)
-        val card = Cards.section(slot, title = null, rows = true, gapAbove = false)
-        detailsRow = Cards.row(card, OuiIcons.drawable.ic_oui_info_outline, getString(R.string.setup_details), getString(R.string.setup_details_summary)) {
-            expanded = !expanded
-            bind(PrepareJob.state)
-        }
-        val list = LinearLayout(view.context)
-        list.orientation = LinearLayout.VERTICAL
-        card.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        techList = list
-
-        val heroTitle = view.findViewById<TextView>(R.id.setup_title)
-        view.findViewById<NestedScrollView>(R.id.setup_scroll).setOnScrollChangeListener(
-            NestedScrollView.OnScrollChangeListener { _, _, scrollY, _, _ ->
-                val show = scrollY > heroTitle.bottom
-                if (show != barTitleShown) {
-                    barTitleShown = show
-                    (activity as? SetupProgressActivity)?.setBarTitle(if (show) barTitle else "")
+        if (!resources.getBoolean(R.bool.home_two_pane)) {
+            view.findViewById<View>(R.id.setup_title).visibility = View.GONE
+            view.post {
+                val hero = view.findViewById<View>(R.id.setup_hero)
+                val viewport = view.height
+                hero.layoutParams = hero.layoutParams.apply {
+                    val image = previewImage ?: PrepareJob.state.image
+                    val family = image?.family ?: com.fahadali.oneos.core.model.SystemFamily.COLOROS
+                    val heading = com.fahadali.oneos.core.model.ArtworkFraming.heading(family, true)
+                    val headingHeight = (heading.bottom - heading.top) * 1548 * hero.width / 1050f
+                    val readable = headingHeight + 144 * resources.displayMetrics.density
+                    height = maxOf(minOf((hero.width * 356f / 392f).toInt(), (viewport * .55f).toInt()), readable.toInt())
+                        .coerceAtLeast((180 * resources.displayMetrics.density).toInt())
                 }
-            },
-        )
+            }
+        }
+        if (previewImage != null) (activity as? SetupProgressActivity)?.setExpandedSubtitle(getString(R.string.setup_preview_badge))
     }
 
     override fun onStart() {
         super.onStart()
+        if (previewImage != null) {
+            previewResumedAt = android.os.SystemClock.uptimeMillis()
+            previewHandler.post(previewTick)
+            return
+        }
         val prepare = PrepareJob.observe { bind(it) }
         // Delete the old copy (0.4.11) runs in OldStagesJob.
-        val old = OldStagesJob.observe { bind(PrepareJob.state) }
+        val old = OldStagesJob.observe { bind(displayedState()) }
         unsubscribe = { prepare(); old() }
     }
 
     override fun onStop() {
+        if (previewImage != null) {
+            previewElapsedMs = elapsedPreview(); previewResumedAt = 0L
+            previewHandler.removeCallbacks(previewTick)
+        }
         unsubscribe?.invoke()
         unsubscribe = null
         super.onStop()
@@ -147,47 +189,48 @@ class SetupProgressFragment : Fragment() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putBoolean(KEY_EXPANDED, expanded)
+        if (previewImage != null) {
+            outState.putLong("preview_elapsed", elapsedPreview())
+            outState.putLong("preview_cancelled", previewCancelledAt ?: -1)
+        }
     }
 
     private fun bind(s: PrepareJob.State) {
         val root = view ?: return
         val ctx = root.context
         val phase = s.phase
+        if (phase == PrepareJob.Phase.DONE && !routed && s.image != null) {
+            routed = true
+            val a = activity ?: return
+            val simulated = previewImage != null
+            EnvironmentNavigation.remember(a, s.image, simulated)
+            if (!simulated && a.intent.getBooleanExtra(SetupProgressActivity.EXTRA_RETURN_TO_CHECKS, false)) {
+                // Return through the same shared element to the checks page underneath.
+                // Its normal observers refresh the gates; no duplicate checks page is pushed.
+                a.finishAfterTransition()
+                return
+            }
+            ArtworkTransitions.start(a, EnvironmentNavigation.intent(a, s.image, simulated),
+                root.findViewById(R.id.setup_artwork), finishSource = true)
+            return
+        }
         if (phase != PrepareJob.Phase.RUNNING) stopping = false
-        val idle = phase == PrepareJob.Phase.IDLE
 
         // The system: the job's, else (its first seconds) the picked download's.
         val profile = StageCheck.state.result?.facts?.let { Profiles.resolve(it).profile }
-        val image = s.image ?: FixActions.pickedImage(ctx, profile)
+        val image = s.image ?: activity?.intent?.getStringExtra(SetupProgressActivity.EXTRA_IMAGE)?.let(Images::byId)
+            ?: FixActions.pickedImage(ctx, profile)
+        val updating = activity?.intent?.getBooleanExtra(SetupProgressActivity.EXTRA_UPDATE, false) == true ||
+            s.plan?.kind in setOf(com.fahadali.oneos.core.root.SetupPlan.Kind.UPDATE, com.fahadali.oneos.core.root.SetupPlan.Kind.REPAIR)
+        val reuseImage = if (s.source != null) s.source == SessionPrefs.Source.ON_PHONE else
+            activity?.intent?.getBooleanExtra(SetupProgressActivity.EXTRA_REUSE_IMAGE, false) == true
         val system = image?.let { Images.systemName(it, profile) }
 
-        // The ring.
-        val percent = if (phase == PrepareJob.Phase.DONE) 100 else s.percent ?: 0
-        val ring = root.findViewById<SetupRingView>(R.id.setup_ring)
-        ring.setArcColor(
-            ctx.getColor(
-                when (phase) {
-                    PrepareJob.Phase.STOPPED -> R.color.oneos_warn_text
-                    PrepareJob.Phase.FAILED -> R.color.oneos_block_text
-                    else -> R.color.oneos_primary_text
-                },
-            ),
-        )
-        ring.setPercent(percent)
-        root.findViewById<TextView>(R.id.setup_percent).text = getString(R.string.setup_percent, percent)
-        val under = when (phase) {
-            PrepareJob.Phase.RUNNING -> eta(s.etaSeconds)
-            PrepareJob.Phase.DONE -> getString(R.string.setup_ring_done)
-            PrepareJob.Phase.STOPPED -> getString(R.string.setup_ring_stopped)
-            PrepareJob.Phase.FAILED -> getString(R.string.setup_ring_failed)
-            PrepareJob.Phase.IDLE -> ""
+        root.findViewById<OsArtworkView>(R.id.setup_artwork).bind(image)
+        root.findViewById<androidx.appcompat.widget.SeslProgressBar>(R.id.setup_linear_progress).apply {
+            isIndeterminate = s.busy && s.percent == null
+            progress = if (phase == PrepareJob.Phase.DONE) 100 else s.percent ?: 0
         }
-        root.findViewById<TextView>(R.id.setup_eta).text = under
-        val ringBox = root.findViewById<View>(R.id.setup_ring_box)
-        ringBox.visibility = if (idle) View.GONE else View.VISIBLE
-        ringBox.contentDescription = getString(R.string.setup_ring_desc, percent, under)
-
         // The title and its line (the result's plain message once it stops).
         val title: String
         val subtitle: String
@@ -197,8 +240,8 @@ class SetupProgressFragment : Fragment() {
                 subtitle = getString(R.string.setup_idle_subtitle)
             }
             PrepareJob.Phase.RUNNING -> {
-                title = system?.let { getString(R.string.setup_title, it) } ?: getString(R.string.setup_label)
-                subtitle = getString(R.string.setup_subtitle)
+                title = system?.let { getString(if (updating) R.string.setup_update_title else R.string.setup_mock_title, it) } ?: getString(R.string.setup_label)
+                subtitle = ""
             }
             PrepareJob.Phase.DONE -> {
                 title = system?.let { getString(R.string.setup_done_title, it) } ?: getString(R.string.setup_ring_done)
@@ -212,147 +255,92 @@ class SetupProgressFragment : Fragment() {
         val titleView = root.findViewById<TextView>(R.id.setup_title)
         // Set only on a change: it is a polite live region.
         if (titleView.text.toString() != title) titleView.text = title
+        if (!resources.getBoolean(R.bool.home_two_pane)) (activity as? SetupProgressActivity)?.setBarTitle(title)
         val subtitleView = root.findViewById<TextView>(R.id.setup_subtitle)
         subtitleView.text = subtitle
         subtitleView.visibility = if (subtitle.isEmpty()) View.GONE else View.VISIBLE
-        barTitle = title
-        if (barTitleShown) (activity as? SetupProgressActivity)?.setBarTitle(title)
 
-        // The three steps.
-        root.findViewById<View>(R.id.setup_steps).visibility = if (idle) View.GONE else View.VISIBLE
-        val noDownload = s.plan?.let { !it.needsDownload } ?: (SessionPrefs.source(ctx) == SessionPrefs.Source.ON_PHONE)
-        PrepareJob.UserStep.entries.zip(stepRows).forEach { (u, row) -> bindStep(row, u, s, stepState(u, s), system, image, noDownload) }
-
-        root.findViewById<View>(R.id.setup_keep_open).visibility = if (phase == PrepareJob.Phase.RUNNING) View.VISIBLE else View.GONE
-        root.findViewById<View>(R.id.setup_details_slot).visibility = if (idle) View.GONE else View.VISIBLE
-        bindDetails(s)
+        root.findViewById<TextView>(R.id.setup_artwork_state).text = when (phase) {
+            PrepareJob.Phase.RUNNING -> getString(if (updating) R.string.setup_updating else R.string.setup_installing)
+            PrepareJob.Phase.DONE -> getString(R.string.setup_ring_done)
+            PrepareJob.Phase.STOPPED -> getString(R.string.setup_ring_stopped)
+            PrepareJob.Phase.FAILED -> getString(R.string.setup_ring_failed)
+            PrepareJob.Phase.IDLE -> ""
+        }
+        val checklistState = listOf(updating, reuseImage, s.phase, s.step, s.done, if (s.step == PrepareJob.Step.IMAGE) s.detail else null, s.plain?.line, s.message)
+        if (checklistState != lastChecklistState) {
+            lastChecklistState = checklistState
+            stepRows.zip(checklist).forEach { (row, item) ->
+                val (defaultLabel, stages) = item
+                val label = when {
+                    reuseImage && PrepareJob.Step.IMAGE in stages -> getString(R.string.setup_verify_existing_image)
+                    updating && PrepareJob.Step.CHECK in stages -> getString(R.string.setup_check_update)
+                    else -> defaultLabel
+                }
+                // No downloaded-file hash is performed when reusing the installed image.
+                // BEGIN completes the grouped local-files row when HASH was already cached.
+                val completed = phase == PrepareJob.Phase.DONE || stages.all { it in s.done ||
+                    (it == PrepareJob.Step.HASH && (reuseImage || PrepareJob.Step.BEGIN in s.done)) }
+                val current = s.step in stages
+                val failed = current && phase in setOf(PrepareJob.Phase.FAILED, PrepareJob.Phase.STOPPED)
+                row.title = label
+                row.summary = when {
+                    current && s.busy && s.step == PrepareJob.Step.IMAGE && previewImage == null -> s.detail
+                    failed -> s.plain?.line ?: s.message
+                    else -> null
+                }
+                val drawable = when {
+                    completed -> R.drawable.ic_setup_complete
+                    failed -> R.drawable.oneos_badge_warn
+                    current && s.busy -> R.drawable.ic_oneos_step_current
+                    else -> R.drawable.ic_oneos_step_pending
+                }
+                row.icon = androidx.appcompat.content.res.AppCompatResources.getDrawable(ctx, drawable)
+                row.contentDescription = "$label, " + getString(when {
+                    completed -> R.string.setup_state_done
+                    failed -> R.string.setup_state_failed
+                    current && s.busy -> R.string.setup_state_current
+                    else -> R.string.setup_state_pending
+                }) + row.summary?.let { ", $it" }.orEmpty()
+            }
+        }
+        // Failure diagnostics stay available without duplicating every step in a second card.
+        val slot = root.findViewById<LinearLayout>(R.id.setup_details_slot)
+        slot.removeAllViews()
+        slot.visibility = if (phase == PrepareJob.Phase.FAILED) View.VISIBLE else View.GONE
+        if (phase == PrepareJob.Phase.FAILED) {
+            val card = Cards.section(slot, null, rows = true)
+            s.finding?.let { CardRows.finding(card, it) }
+            s.message?.let { Cards.row(card, 0, getString(R.string.setup_details_result), it) }
+        }
         bindFooter(s)
-    }
-
-    private fun stepState(u: PrepareJob.UserStep, s: PrepareJob.State): StepState {
-        val current = s.userStep
-        return when {
-            s.phase == PrepareJob.Phase.DONE -> StepState.DONE
-            s.phase == PrepareJob.Phase.IDLE || current == null -> StepState.PENDING
-            u.ordinal < current.ordinal -> StepState.DONE
-            u.ordinal > current.ordinal -> StepState.PENDING
-            s.phase == PrepareJob.Phase.RUNNING -> StepState.CURRENT
-            s.phase == PrepareJob.Phase.STOPPED -> StepState.STOPPED
-            else -> StepState.FAILED
+        if (previewImage != null) {
+            subtitleView.visibility = View.GONE
+            (activity as? SetupProgressActivity)?.setExpandedSubtitle(getString(when (phase) {
+                PrepareJob.Phase.RUNNING -> R.string.setup_preview_badge
+                PrepareJob.Phase.STOPPED -> R.string.setup_preview_cancelled
+                else -> R.string.setup_preview_finished
+            }))
+            if (phase == PrepareJob.Phase.STOPPED) titleView.setText(R.string.setup_preview_cancelled_title)
         }
     }
 
-    private fun bindStep(
-        row: View,
-        u: PrepareJob.UserStep,
-        s: PrepareJob.State,
-        state: StepState,
-        system: String?,
-        image: ImageRef?,
-        noDownload: Boolean,
-    ) {
-        val ctx = row.context
-        val title = when (u) {
-            PrepareJob.UserStep.CHECK_DOWNLOAD -> getString(if (noDownload) R.string.setup_step_check_phone else R.string.setup_step_check)
-            PrepareJob.UserStep.INSTALL -> system?.let { getString(R.string.setup_step_install, it) } ?: getString(R.string.setup_step_install_generic)
-            PrepareJob.UserStep.FINISH -> getString(R.string.setup_step_finish)
-        }
-        val pending = getString(
-            when (u) {
-                PrepareJob.UserStep.CHECK_DOWNLOAD -> if (noDownload) R.string.setup_step_check_phone_pending else R.string.setup_step_check_pending
-                PrepareJob.UserStep.INSTALL -> R.string.setup_step_install_pending
-                PrepareJob.UserStep.FINISH -> R.string.setup_step_finish_pending
-            },
-        )
-        val done = getString(
-            when (u) {
-                PrepareJob.UserStep.CHECK_DOWNLOAD -> if (noDownload) R.string.setup_step_check_phone_done else R.string.setup_step_check_done
-                PrepareJob.UserStep.INSTALL -> R.string.setup_step_install_done
-                PrepareJob.UserStep.FINISH -> R.string.setup_step_finish_done
-            },
-        )
-        val detail = when (state) {
-            StepState.DONE -> done
-            StepState.PENDING -> pending
-            StepState.CURRENT -> currentDetail(u, s, image) ?: pending
-            StepState.STOPPED -> getString(R.string.setup_step_stopped)
-            StepState.FAILED -> getString(R.string.setup_step_failed)
-        }
-        row.findViewById<ImageView>(R.id.setup_step_icon).setImageResource(
-            when (state) {
-                StepState.DONE -> R.drawable.oneos_badge_ok
-                StepState.CURRENT -> R.drawable.ic_oneos_step_current
-                StepState.PENDING -> R.drawable.ic_oneos_step_pending
-                StepState.STOPPED -> R.drawable.oneos_badge_warn
-                StepState.FAILED -> R.drawable.oneos_badge_block
-            },
-        )
-        val titleView = row.findViewById<TextView>(R.id.setup_step_title)
-        titleView.text = title
-        titleView.setTypeface(null, if (state == StepState.CURRENT) Typeface.BOLD else Typeface.NORMAL)
-        if (state == StepState.PENDING) {
-            titleView.setTextColor(ctx.getColor(R.color.oneos_text_body))
-        } else {
-            titleColors?.let { titleView.setTextColor(it) }
-        }
-        row.findViewById<TextView>(R.id.setup_step_detail).text = detail
-        val stateWord = getString(
-            when (state) {
-                StepState.DONE -> R.string.setup_state_done
-                StepState.CURRENT -> R.string.setup_state_current
-                StepState.PENDING -> R.string.setup_state_pending
-                StepState.STOPPED -> R.string.setup_state_stopped
-                StepState.FAILED -> R.string.setup_state_failed
-            },
-        )
-        row.contentDescription = getString(R.string.setup_step_desc, title, stateWord, detail)
-    }
-
-    /** The live line of the step in progress ("1.2 GB of 2.5 GB"); null = its fixed line. */
-    private fun currentDetail(u: PrepareJob.UserStep, s: PrepareJob.State, image: ImageRef?): String? = when (u) {
-        // Hashing the download: bytes read of the download's size.
-        PrepareJob.UserStep.CHECK_DOWNLOAD ->
-            if (s.step == PrepareJob.Step.HASH && s.bytesDone > 0 && image != null) {
-                getString(R.string.setup_step_bytes, Units.bytes(s.bytesDone.coerceAtMost(image.gzBytes)), Units.bytes(image.gzBytes))
-            } else {
-                null
-            }
-        // Unpacking: the job's own "2.0 GB of 4.7 GB" (or "Making sure it installed correctly…").
-        PrepareJob.UserStep.INSTALL -> if (s.step == PrepareJob.Step.IMAGE) s.detail else null
-        PrepareJob.UserStep.FINISH -> null
-    }
-
-    /** Details: the nine technical steps (as the Prepare page), the job's message, the check that stopped it, what was moved aside. */
-    private fun bindDetails(s: PrepareJob.State) {
-        val row = detailsRow ?: return
-        val list = techList ?: return
-        row.stateDescription = getString(if (expanded) R.string.setup_expanded else R.string.setup_collapsed)
-        Cards.setRowEnd(row, if (expanded) OuiIcons.drawable.ic_oui_keyboard_arrow_up else OuiIcons.drawable.ic_oui_keyboard_arrow_down)
-        list.removeAllViews()
-        list.visibility = if (expanded) View.VISIBLE else View.GONE
-        if (!expanded) return
-
-        fun untinted(r: View) {
-            // Status drawables carry their own colours; oneos_row tints line icons.
-            r.findViewById<ImageView>(R.id.oneos_row_icon).imageTintList = null
-        }
-        for (step in PrepareJob.Step.entries) {
-            val icon = when {
-                s.phase == PrepareJob.Phase.DONE || step in s.done -> R.drawable.oneos_badge_ok
-                step == s.step && s.busy -> R.drawable.ic_oneos_step_current
-                step == s.step && s.phase == PrepareJob.Phase.STOPPED -> R.drawable.oneos_badge_warn
-                step == s.step && s.phase == PrepareJob.Phase.FAILED -> R.drawable.oneos_badge_block
-                else -> R.drawable.ic_oneos_step_pending
-            }
-            untinted(Cards.row(list, icon, step.label, if (step == s.step) s.detail else null))
-        }
-        s.message?.let { Cards.row(list, 0, getString(R.string.setup_details_result), it) }
-        s.finding?.let { f -> untinted(Cards.row(list, Cards.badge(f.level), f.title, f.detail.ifEmpty { null })) }
-        s.infos.takeIf { it.isNotEmpty() }?.let { Cards.row(list, 0, getString(R.string.setup_details_moved), it.joinToString("\n")) }
-    }
+    /** Group backend stages into the eight rows shown in the design; no job semantics change. */
+    private val checklist: List<Pair<String, Set<PrepareJob.Step>>> get() = listOf(
+        getString(R.string.setup_check_phone) to setOf(PrepareJob.Step.CHECK),
+        getString(R.string.setup_check_files) to setOf(PrepareJob.Step.HASH, PrepareJob.Step.BEGIN),
+        getString(R.string.setup_image) to setOf(PrepareJob.Step.IMAGE),
+        getString(R.string.setup_files_patches) to setOf(PrepareJob.Step.FILES),
+        getString(R.string.setup_table) to setOf(PrepareJob.Step.TABLE),
+        getString(R.string.setup_session) to setOf(PrepareJob.Step.ENV),
+        getString(R.string.setup_cleanup) to setOf(PrepareJob.Step.FINISH),
+        getString(R.string.setup_step_finish) to setOf(PrepareJob.Step.VERIFY),
+    )
 
     /** Stop while it runs; then Done, or the plain message's fix and Close. */
     private fun bindFooter(s: PrepareJob.State) {
+        if (previewImage != null) { bindPreviewFooter(s); return }
+
         val a = activity as? SetupProgressActivity ?: return
         val primary = a.findViewById<Button>(R.id.setup_primary) ?: return
         val secondary = a.findViewById<Button>(R.id.setup_secondary) ?: return
@@ -372,11 +360,11 @@ class SetupProgressFragment : Fragment() {
         when (s.phase) {
             PrepareJob.Phase.RUNNING -> {
                 show(primary, null)
-                show(secondary, getString(if (stopping) R.string.setup_stopping else R.string.setup_stop), enabled = !stopping) {
+                show(secondary, getString(if (stopping) R.string.setup_stopping else android.R.string.cancel), enabled = !stopping) {
                     // As before: stops after the current file, no confirm (nothing is lost; set up again later).
                     stopping = true
                     PrepareJob.cancel()
-                    bind(PrepareJob.state)
+                    bind(displayedState())
                 }
             }
             PrepareJob.Phase.DONE -> {
@@ -400,7 +388,9 @@ class SetupProgressFragment : Fragment() {
             }
             PrepareJob.Phase.STOPPED, PrepareJob.Phase.FAILED -> {
                 val fix = s.plain?.takeIf { it.action != FixAction.NONE && it.action != FixAction.ACKNOWLEDGE && it.actionLabel != null }
-                show(primary, fix?.actionLabel) { if (fix != null) FixActions.run(a, fix.action, s.image) }
+                if (s.plan?.keepsData == true) {
+                    show(primary, getString(R.string.retry_update)) { FixActions.run(a, FixAction.UPDATE, s.image) }
+                } else show(primary, fix?.actionLabel) { if (fix != null) FixActions.run(a, fix.action, s.image) }
                 show(secondary, getString(R.string.setup_close)) { SystemsNav.home(a) }
             }
             PrepareJob.Phase.IDLE -> {
@@ -413,6 +403,33 @@ class SetupProgressFragment : Fragment() {
         if (lp.topMargin != top) {
             lp.topMargin = top
             secondary.layoutParams = lp
+        }
+    }
+
+    /** Deliberately independent of PrepareJob.cancel/start, LaunchJob and old-stage operations. */
+    private fun bindPreviewFooter(state: PrepareJob.State) {
+        val a = activity as? SetupProgressActivity ?: return
+        val primary = a.findViewById<Button>(R.id.setup_primary)
+        val secondary = a.findViewById<Button>(R.id.setup_secondary)
+        primary.visibility = if (state.phase == PrepareJob.Phase.DONE) View.VISIBLE else View.GONE
+        primary.setText(R.string.setup_preview_boot)
+        primary.setOnClickListener {
+            AlertDialog.Builder(a).setTitle(getString(R.string.setup_preview_boot_title, state.image?.name.orEmpty()))
+                .setMessage(R.string.setup_preview_boot_message)
+                .setPositiveButton(R.string.setup_preview_finish) { _, _ ->
+                    startActivity(android.content.Intent(a, GapSplashActivity::class.java)
+                        .putExtra(SetupProgressActivity.EXTRA_PREVIEW_IMAGE, state.image?.id))
+                }.setNegativeButton(android.R.string.cancel, null).show()
+        }
+        secondary.visibility = View.VISIBLE
+        secondary.isEnabled = true
+        secondary.setText(if (state.busy) android.R.string.cancel else R.string.setup_close)
+        secondary.setOnClickListener {
+            if (state.busy) {
+                previewCancelledAt = elapsedPreview()
+                previewHandler.removeCallbacks(previewTick)
+                bind(displayedState())
+            } else a.finish()
         }
     }
 
@@ -434,14 +451,4 @@ class SetupProgressFragment : Fragment() {
             .show()
     }
 
-    private fun eta(seconds: Int?): String = when {
-        seconds == null -> getString(R.string.setup_eta_estimating)
-        seconds < 60 -> getString(R.string.setup_eta_soon)
-        else -> getString(R.string.setup_eta_minutes, (seconds + 59) / 60)
-    }
-
-    private companion object {
-        const val KEY_EXPANDED = "details_expanded"
-        const val MAX_COLUMN_DP = 600
-    }
 }

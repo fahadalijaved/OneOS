@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- One UI look from io.github.oneuiproject:design (light and dark). -->
-    <style name="Theme.OneOS" parent="OneUITheme" />
+    <style name="Theme.OneOS" parent="OneUITheme">
+        <item name="android:windowActivityTransitions">true</item>
+        <item name="android:windowContentTransitions">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+    </style>
 </resources>

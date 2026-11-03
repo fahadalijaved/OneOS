@@ -5,6 +5,7 @@
          Probe keeps the stock look. OneUITheme switches to its dark parent by
          itself; the colours come from values(-night)/colors.xml. -->
     <style name="Theme.OneOS" parent="OneUITheme">
+        <item name="android:windowBackground">@color/oneos_page_background</item>
         <item name="colorPrimary">@color/oneos_primary</item>
         <item name="colorPrimaryDark">@color/oneos_primary_text</item>
         <item name="colorControlActivated">@color/oneos_primary_text</item>

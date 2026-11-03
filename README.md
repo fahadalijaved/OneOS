@@ -38,9 +38,15 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.37. Samsung flagships with Snapdragon, plus the first five
+App version 0.4.38. Samsung flagships with Snapdragon, plus the first five
 Exynos phones and (0.4.33) the first MediaTek phone; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
+
+The app now uses an adaptive SESL9 card picker, a new OneOS icon, dedicated
+setup/update and pre-boot checks, and optional verbose entry/return screens.
+See the [UI gallery](docs/app/redesign-gallery.md) for Fold8 cover and inner
+screen screenshots, and [boot handoff notes](docs/boot-status.md) for the
+display lifecycle and release packaging requirements.
 
 Where each system has actually started, on our phones and on testers' (One UI
 9 throughout). What they reported working, item by item, is in

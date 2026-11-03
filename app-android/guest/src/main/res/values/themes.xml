@@ -1,0 +1,1 @@
+<resources><style name="Theme.OneOSGuest" parent="OneUITheme"><item name="android:windowBackground">@color/guest_page_background</item></style></resources>

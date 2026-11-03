@@ -88,8 +88,8 @@ class StageScriptTest {
 
         fun launch(
             mode: String = "session", hideGms: String = "0", code: String = this.code,
-            heatCap: String = "1", secIms: String = "0", edmStub: String = "0",
-        ) = fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub)
+            heatCap: String = "1", secIms: String = "0", edmStub: String = "0", verboseBoot: String = "0",
+        ) = fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub, verboseBoot)
 
         fun prepare(mode: String = "new") {
             ok(begin(mode))
@@ -1435,6 +1435,48 @@ class StageScriptTest {
         assertTrue(File(fr.stage, "bin/oneos_root.sh").isFile)
         assertTrue(java.nio.file.Files.isSymbolicLink(fr.legacy.toPath()))
         assertTrue(other.list()!!.isEmpty())
+    }
+
+    @Test
+    fun verboseBootChoiceIsWrittenOnlyAfterLaunchChecks() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val env = File(fr.stage, "session.env")
+        refused(s.launch(verboseBoot = "1"), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_VERBOSE_BOOT=1"))
+        refused(s.launch(), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_VERBOSE_BOOT=0"))
+        val before = env.readText()
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { s.launch(verboseBoot = "2") }
+        assertEquals(before, env.readText())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "1;reboot")).isNotEmpty())
+    }
+
+    @Test
+    fun interruptedUpdateRetainsItsIdentityAndDataThroughRepeatedRetries() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val guestData = File(fr.stage, "data/kept-apps").apply { parentFile.mkdirs(); writeText("user apps and settings") }
+        val origin = File(fr.stage, ".oneos_stage").readText()
+        s.ok(s.begin("keep"))
+        assertEquals(origin, File(fr.stage, ".oneos_update").readText())
+        assertFalse(File(fr.stage, ".oneos_stage").exists())
+        refused(s.launch(), "update did not finish")
+        // Each verb uses a fresh shell, like retrying after process death or reboot.
+        s.ok(s.begin("keep"))
+        assertEquals(origin, File(fr.stage, ".oneos_update").readText())
+        assertEquals("user apps and settings", guestData.readText())
+        for (name in s.files.keys) s.ok(s.receive(name))
+        val rawIdentity = File(fr.stage, "system.raw").let { java.nio.file.Files.getAttribute(it.toPath(), "unix:ino") }
+        s.ok(fr.run(RootScript.Verb.KEEP_RAW, s.raw.size.toString(), Hashes.sha256(s.raw)))
+        assertEquals(rawIdentity, java.nio.file.Files.getAttribute(File(fr.stage, "system.raw").toPath(), "unix:ino"))
+        s.ok(s.table())
+        s.ok(s.env())
+        s.ok(s.finish())
+        assertFalse(File(fr.stage, ".oneos_update").exists())
+        assertTrue(File(fr.stage, ".oneos_stage").isFile)
+        assertEquals("user apps and settings", guestData.readText())
+        refused(s.launch(), "test root: every launch check passed")
     }
 
     @Test

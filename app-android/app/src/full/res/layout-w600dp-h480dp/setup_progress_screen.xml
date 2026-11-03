@@ -1,0 +1,16 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:paddingHorizontal="32dp" android:paddingTop="12dp" android:paddingBottom="16dp" android:baselineAligned="false">
+    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+        <include layout="@layout/setup_artwork" />
+    </FrameLayout>
+    <LinearLayout android:id="@+id/setup_column" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="32dp" android:orientation="vertical">
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/setup_title" style="@style/OneOS.Setup.Title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:layout_marginBottom="40dp" android:accessibilityHeading="true" android:accessibilityLiveRegion="polite" />
+    <androidx.core.widget.NestedScrollView android:id="@+id/setup_scroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="false">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <dev.oneuiproject.oneui.widget.RoundedLinearLayout android:id="@+id/setup_steps" style="@style/OneOS.Card.List" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingVertical="0dp" />
+            <androidx.appcompat.widget.AppCompatTextView android:id="@+id/setup_subtitle" style="@style/OneOS.Text.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center" android:visibility="gone" />
+            <LinearLayout android:id="@+id/setup_details_slot" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+    <include layout="@layout/setup_actions" />
+    </LinearLayout>
+</LinearLayout>

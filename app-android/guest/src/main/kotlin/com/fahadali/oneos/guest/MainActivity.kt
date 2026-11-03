@@ -1,10 +1,14 @@
 package com.fahadali.oneos.guest
 
-import android.app.Activity
-import android.app.AlertDialog
+import dev.oneuiproject.oneui.utils.applyEdgeToEdge
+
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AlertDialog
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
@@ -14,21 +18,13 @@ import android.view.View
 import android.view.WindowInsets
 import android.widget.Button
 import android.widget.TextView
-import java.io.IOException
 
-/**
- * "You're in {system}" and one large "Back to One UI" button
- * (GuestReturn.dc.html), then the other ways back: the Quick Settings tile
- * and Volume Up + Volume Down. A tap (or the tile) asks first; on Return it
- * writes the request ([ReturnRequest]) and the session's watcher on the host
- * takes the phone back to One UI. 0.4.30: How's it going? opens the
- * checklist ([ChecklistActivity]) kept for Send to the OneOS team.
- */
-class MainActivity : Activity() {
+/** Native guest landing page; all return entry points confirm before the handoff frame. */
+class MainActivity : AppCompatActivity() {
 
     private lateinit var back: Button
     private lateinit var status: TextView
-    private lateinit var addTile: Button
+    private lateinit var addTile: dev.oneuiproject.oneui.widget.CardItemView
     private var confirm: AlertDialog? = null
     private var confirmReason: String? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -36,25 +32,59 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyEdgeToEdge()
         setContentView(R.layout.activity_main)
+        ensureReturnShortcut()
+        for (id in listOf(R.id.add_tile, R.id.checklist)) {
+            findViewById<dev.oneuiproject.oneui.widget.CardItemView>(id).showTopDivider = false
+        }
+        for (id in listOf(R.id.tile_card, R.id.report_card)) {
+            findViewById<dev.oneuiproject.oneui.widget.RoundedLinearLayout>(id).apply {
+                roundedCorners = androidx.appcompat.util.SeslRoundedCorner.ROUNDED_CORNER_ALL
+                val color = android.util.TypedValue()
+                theme.resolveAttribute(androidx.appcompat.R.attr.roundedCornerColor, color, true)
+                roundedCornersColor = color.data
+            }
+        }
         val system = GuestName.read()
-        findViewById<TextView>(R.id.title).text =
-            if (system != null) getString(R.string.title_in, system) else getString(R.string.title_in_other)
-        // Edge to edge (target 35+): keep the content clear of the system bars and cutouts.
-        findViewById<View>(R.id.root).setOnApplyWindowInsetsListener { v, insets ->
-            val b = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            v.setPadding(b.left, b.top, b.right, b.bottom)
+        findViewById<GuestArtworkView>(R.id.guest_artwork).bind(system)
+        findViewById<TextView>(R.id.title).text = system ?: getString(R.string.app_name)
+        val root = findViewById<View>(R.id.root)
+        val footer = findViewById<View>(R.id.guest_footer)
+        val scroll = findViewById<androidx.core.widget.NestedScrollView>(R.id.guest_scroll)
+        val wide = root is android.widget.LinearLayout
+        val left = root.paddingLeft; val top = root.paddingTop; val right = root.paddingRight; val bottom = root.paddingBottom
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+            v.setPadding(left + bars.left, top + bars.top, right + bars.right, bottom + if (wide) bars.bottom else 0)
+            if (!wide) {
+                (footer.layoutParams as android.view.ViewGroup.MarginLayoutParams).apply { bottomMargin = bars.bottom; footer.layoutParams = this }
+            }
             insets
+        }
+        scroll.seslSetFadingEdgeColor(getColor(R.color.guest_page_background))
+        scroll.seslSetFadingEdgeWindowBottomAlignment(!wide)
+        val fadeGap = (24 * resources.displayMetrics.density).toInt()
+        footer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val nav = if (wide) 0 else (footer.layoutParams as android.view.ViewGroup.MarginLayoutParams).bottomMargin
+            val clearance = if (wide) fadeGap else footer.height + nav + fadeGap
+            if (scroll.paddingBottom != clearance) scroll.setPadding(0, 0, 0, clearance)
+            scroll.seslSetFadingEdgeEnabled(true, fadeGap, clearance)
+            if (!wide) scroll.seslForceBottomFadingEdgeClamped(clearance)
         }
         back = findViewById(R.id.back)
         status = findViewById(R.id.status)
         addTile = findViewById(R.id.add_tile)
+        findViewById<dev.oneuiproject.oneui.widget.CardItemView>(R.id.checklist).getEndImageView()?.apply {
+            setImageResource(dev.oneuiproject.oneui.R.drawable.ic_oui_arrow_right)
+            visibility = View.VISIBLE
+        }
         back.setOnClickListener { ask(ReturnRequest.REASON_APP) }
-        findViewById<Button>(R.id.checklist).setOnClickListener { startActivity(Intent(this, ChecklistActivity::class.java)) }
+        findViewById<dev.oneuiproject.oneui.widget.CardItemView>(R.id.checklist).setOnClickListener { startActivity(Intent(this, ChecklistActivity::class.java)) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             addTile.setOnClickListener { requestTile() }
         } else {
-            addTile.visibility = View.GONE
+            findViewById<View>(R.id.tile_card).visibility = View.GONE
         }
         showState()
         if (savedInstanceState != null) {
@@ -64,6 +94,8 @@ class MainActivity : Activity() {
             fromTile(intent)
         }
     }
+
+    override fun onResume() { super.onResume(); if (::back.isInitialized) showState() }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -87,7 +119,26 @@ class MainActivity : Activity() {
     }
 
     private fun fromTile(i: Intent?) {
-        if (i?.getStringExtra(EXTRA_REASON) == ReturnRequest.REASON_TILE) ask(ReturnRequest.REASON_TILE)
+        val reason = i?.getStringExtra(EXTRA_REASON) ?: return
+        if (reason == ReturnRequest.REASON_TILE || reason == REASON_SHORTCUT) ask(reason)
+    }
+
+    /** Existing staged system apps can retain an older manifest-shortcut cache. */
+    private fun ensureReturnShortcut() {
+        val shortcuts = getSystemService(ShortcutManager::class.java) ?: return
+        runCatching {
+            if (shortcuts.manifestShortcuts.any { it.id == "return_to_oneui" }) return
+            shortcuts.addDynamicShortcuts(listOf(
+                ShortcutInfo.Builder(this, "return_to_oneui")
+                    .setShortLabel(getString(R.string.return_shortcut))
+                    .setLongLabel(getString(R.string.return_shortcut))
+                    .setIcon(Icon.createWithResource(this, R.drawable.ic_tile))
+                    .setActivity(ComponentName(this, MainActivity::class.java))
+                    .setIntent(Intent(this, MainActivity::class.java)
+                        .setAction(Intent.ACTION_VIEW).putExtra(EXTRA_REASON, REASON_SHORTCUT))
+                    .build()
+            ))
+        }.onFailure { android.util.Log.w("OneOSGuest", "Could not refresh return shortcut", it) }
     }
 
     /** "Return to One UI now? Unsaved work in apps will be lost." Cancel from the tile closes the screen again. */
@@ -114,7 +165,7 @@ class MainActivity : Activity() {
             confirm = null
             confirmReason = null
             // Cancel (button, back, outside): from the tile, back to where the user was.
-            if (reason == ReturnRequest.REASON_TILE && !answered) finish()
+            if (reason in setOf(ReturnRequest.REASON_TILE, REASON_SHORTCUT) && !answered) finish()
         }
         confirm = dialog
         confirmReason = reason
@@ -122,16 +173,7 @@ class MainActivity : Activity() {
     }
 
     private fun send(reason: String) {
-        try {
-            ReturnRequest.send(this, reason)
-        } catch (e: IOException) {
-            handler.removeCallbacks(noAnswer)
-            back.isEnabled = true
-            status.text = getString(R.string.status_failed, e.message ?: e.javaClass.simpleName)
-            status.visibility = View.VISIBLE
-            return
-        }
-        showState()
+        startActivity(Intent(this, ReturnSplashActivity::class.java).putExtra(EXTRA_REASON, reason))
     }
 
     /** A request is pending until the watcher takes it (and the phone restarts into One UI). */
@@ -160,7 +202,7 @@ class MainActivity : Activity() {
             if (result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
                 result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
             ) {
-                addTile.setText(R.string.tile_added)
+                addTile.title = getString(R.string.tile_added)
                 addTile.contentDescription = getString(R.string.tile_added_description)
                 addTile.isEnabled = false
             }
@@ -168,6 +210,7 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        private const val REASON_SHORTCUT = "shortcut"
         const val EXTRA_REASON = "com.fahadali.oneos.guest.REASON"
         private const val STATE_CONFIRM = "confirm"
 

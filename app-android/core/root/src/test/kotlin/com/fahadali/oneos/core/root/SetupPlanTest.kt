@@ -19,6 +19,47 @@ class SetupPlanTest {
     private val app = 4
 
     @Test
+    fun selfConsistentOldPayloadsStillRequireTheNewApksUpdate() {
+        val st = status(prepared(fold, n6, PackageSets.N6_F8U))
+        assertTrue(st.stageState(fold, st.hashes)!!.filesVerified)
+        // The old stage's checksums still agree with its own files, but the APK ships a new renderer.
+        val currentApk = st.hashes + ("OneOSBootStatus.dex" to "e".repeat(64))
+        assertFalse(st.stageState(fold, currentApk)!!.filesVerified)
+        assertFalse(st.stageState(fold, emptyMap())!!.filesVerified)
+    }
+
+    @Test
+    fun interruptedUpdateRemainsAnUpdateWithoutTheRawVerificationRecord() {
+        val complete = prepared(fold, n6, PackageSets.N6_F8U)
+        val interrupted = status(complete + ("stage.marker" to "updating\n${complete.getValue("stage.marker")}"))
+            .copy(rawId = null)
+        assertFalse(interrupted.ours)
+        assertTrue(interrupted.partial)
+        assertNull(interrupted.marker)
+        assertEquals(n6.id, interrupted.pendingUpdate?.imageId)
+        assertFalse(interrupted.stageState(fold)!!.filesVerified)
+        val retry = SetupPlan.decide(interrupted, n6, fold, app, hasDownload = true)!!
+        assertEquals(SetupPlan.Kind.UPDATE, retry.kind)
+        assertEquals(BeginMode.KEEP, retry.mode)
+        assertEquals(SetupPlan.Source.ON_PHONE, retry.source)
+        assertTrue(SetupPlan.updateWithoutDownload(interrupted, n6, fold, app))
+        // This is permission to re-hash the existing image, never permission to boot it.
+        assertFalse(SetupPlan.reusesInstalled(interrupted.copy(rawSize = 1), n6, fold, app))
+        val other = SetupPlan.decide(interrupted, Images.PIXEL_YOGI, fold, app, false)!!
+        assertEquals(BeginMode.ASIDE, other.mode)
+        assertTrue(other.setsAsideData)
+    }
+
+    @Test
+    fun invalidUpdateCheckpointDoesNotSupplyAnInstalledIdentity() {
+        val complete = prepared(fold, n6, PackageSets.N6_F8U)
+        val broken = status(complete + ("stage.marker" to "updating\nnot a stage marker"))
+        assertNull(broken.marker)
+        assertNull(broken.pendingUpdate)
+        assertFalse(broken.stageState(fold)!!.filesVerified)
+    }
+
+    @Test
     fun nothingThereStartsNew() {
         val p = SetupPlan.decide(StageFixtures.absent, n6, fold, app, hasDownload = true)!!
         assertEquals(BeginMode.NEW, p.mode)

@@ -1,0 +1,5 @@
+<resources>
+    <string name="retry_update">Retry update</string>
+    <string name="update_interrupted_title">Finish updating %1$s</string>
+    <string name="update_interrupted_summary">The update did not finish. Your apps and data are kept. Retry to verify the existing system image and finish updating OneOS files.</string>
+</resources>

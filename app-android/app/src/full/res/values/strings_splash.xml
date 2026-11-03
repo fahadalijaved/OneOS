@@ -5,4 +5,6 @@
     <string name="splash_starting">Starting %1$s</string>
     <!-- A test run stops One UI too, sets the system up, checks it and restarts into One UI. -->
     <string name="splash_test_run">Test run: checking %1$s</string>
+    <string name="splash_shutdown">Shutting down One UI</string>
+    <string name="splash_test_status">Test run: checking the system</string>
 </resources>

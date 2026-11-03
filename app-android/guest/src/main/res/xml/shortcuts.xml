@@ -1,0 +1,10 @@
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="return_to_oneui" android:enabled="true"
+        android:icon="@drawable/ic_tile" android:shortcutShortLabel="@string/return_shortcut"
+        android:shortcutLongLabel="@string/return_shortcut">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="com.fahadali.oneos.guest" android:targetClass="com.fahadali.oneos.guest.MainActivity">
+            <extra android:name="com.fahadali.oneos.guest.REASON" android:value="shortcut" />
+        </intent>
+    </shortcut>
+</shortcuts>

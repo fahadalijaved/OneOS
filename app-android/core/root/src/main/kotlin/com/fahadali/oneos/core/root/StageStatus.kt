@@ -92,6 +92,8 @@ data class StageStatus(
     val props: Map<String, String>,
     /** 0.4.30: the system each copy OneOS moved aside holds (oneos.old-<time> to its marker's image id). */
     val oldImages: Map<String, String> = emptyMap(),
+    /** Last installed identity while an update is incomplete; never a prepared/bootable marker. */
+    val pendingUpdate: StageMarker? = null,
 ) {
     val exists: Boolean get() = kind != StageKind.ABSENT
 
@@ -151,7 +153,7 @@ data class StageStatus(
      * build's /data. Null for the same image, no guest data, or no image yet.
      */
     fun otherImageData(imageId: String?): String? =
-        marker?.imageId?.takeIf { ours && guest != GuestData.NONE && imageId != null && it != imageId }
+        (marker?.takeIf { ours } ?: pendingUpdate?.takeIf { partial })?.imageId?.takeIf { guest != GuestData.NONE && imageId != null && it != imageId }
 
     /** OneOS's own session never returned (a hard reset): its persist snapshot must be restored first. */
     val unfinishedSession: Boolean
@@ -200,15 +202,16 @@ data class StageStatus(
      * not complete or could not read the mount table (fail closed). The files
      * count as verified only for the image and set the marker names ([staged]).
      */
-    fun stageState(profile: PhoneProfile?): StageState? {
+    fun stageState(profile: PhoneProfile?, expectedHashes: Map<String, String>? = null): StageState? {
         if (!complete || !mountinfoRead) return null
         val staged = staged(profile)
         return StageState(
             mounts = mounts,
             activeBridges = bridges,
             sessionActive = sessionActive,
-            marker = if (ours) marker else null,
-            filesVerified = profile != null && staged != null && verify(profile, staged.first, staged.second).isEmpty(),
+            marker = if (ours) marker else pendingUpdate?.takeIf { partial },
+            filesVerified = profile != null && staged != null && verify(profile, staged.first, staged.second).isEmpty() &&
+                (expectedHashes == null || (expectedHashes.isNotEmpty() && expectedHashes.all { (name, sha) -> hashes[name] == sha })),
             unfinishedSession = unfinishedSession,
         )
     }
@@ -368,7 +371,8 @@ data class StageStatus(
                 mode = dir.getOrNull(3),
                 entries = entries,
                 markerText = markerText,
-                marker = markerText?.let(StageMarker::parse),
+                marker = markerText?.takeUnless { it.startsWith("updating\n") }?.let(StageMarker::parse),
+                pendingUpdate = markerText?.takeIf { it.startsWith("updating\n") }?.removePrefix("updating\n")?.let(StageMarker::parse),
                 sumsText = out("stage.sums"),
                 hashes = hashes,
                 rawSize = rawSize,

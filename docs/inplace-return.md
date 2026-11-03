@@ -74,6 +74,30 @@ mounted and the guest asked for no shutdown. Otherwise the reboot return.
     differences are logged, the session's logcat stops 2 minutes later, and
     `return_inplace.done` is written.
 
+### Return splash
+
+The guest app first draws its return screen. The root renderer then posts its
+own frame and holds it before the guest framework is stopped. Holding it only
+after killing system_server/zygote can preserve a frame they already blanked.
+The return wakelock also begins before teardown. While the guest compositor
+is removed and Gates A and the property restoration run, `boot_status.sh`
+holds that last frame in the vendor composer. It does not keep any guest
+process or mount alive, and does not start One UI ahead of the safety checks.
+This interval shows a static "Returning to One UI" / "Restoring One UI" frame;
+live verbose events resume when One UI's SurfaceFlinger is available.
+
+The hold requires a ready renderer, a validated composer pid/start time, and
+an independently armed recovery process. The normal display restart and both
+reboot paths release it. The recovery also releases it after 180 seconds if
+the return shell stalls; a recycled pid is never signalled. Unsupported
+composer names retain the original display teardown.
+
+The outgoing guest's `service.bootanim.exit` cannot dismiss the root layer.
+Completion is accepted only after the new framework starts, or from that
+framework's display-ready event. `scripts/test-boot-status.py` covers this
+distinction, the normal release and the independent recovery timeout. A real
+guest-to-One-UI cycle is still required to validate panel behaviour.
+
 **Known limits.**
 
 - A kernel restart during Gate A (dm-verity in restart mode, a hung task) comes

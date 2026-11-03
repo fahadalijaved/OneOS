@@ -146,5 +146,35 @@ perf_worker
 [ ! -f "$PSTATE/released" ]
 ''')
 
+    def test_non_fold8_profiles_use_supported_backend_without_policy6(self):
+        self.run_case('''
+selected() { return 1; }
+BASE=$(dirname "$STAGE")
+mv "$BASE/sys/devices/system/cpu/cpufreq/policy6" "$BASE/sys/devices/system/cpu/cpufreq/policy4"
+timeout() {
+ if [ "$2" = settings ]; then echo 0; else
+  echo 'Current temperatures from HAL:'
+  echo 'Temperature{mValue=35.0, mType=3, mName=SKIN, mStatus=0}'
+  echo 'Current cooling devices'
+ fi
+}
+perf_snapshot host
+perf_guest() { echo 123; }
+sleep() { touch "$PSTATE/stop"; }
+perf_worker
+[ -f "$PSTATE/released" ]
+grep -q 'requested policy4=4742400' "$STAGE/performance_handover.log"
+''')
+
+    def test_missing_gpu_controls_skip_backend_without_snapshot(self):
+        self.run_case('''
+BASE=$(dirname "$STAGE")
+rm "$BASE/sys/kernel/gpu/gpu_max_clock"
+if perf_supported; then exit 1; fi
+perf_snapshot host
+perf_worker
+[ ! -e "$STAGE/performance_handover/boot" ]
+''')
+
 if __name__ == '__main__':
     unittest.main()

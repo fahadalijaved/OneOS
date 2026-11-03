@@ -1,0 +1,13 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:paddingHorizontal="32dp" android:paddingVertical="24dp" android:baselineAligned="false">
+    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"><include layout="@layout/guest_artwork" /></FrameLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="32dp" android:orientation="vertical">
+        <androidx.appcompat.widget.AppCompatTextView android:id="@+id/title" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingVertical="24dp" android:gravity="center" android:textSize="28sp" android:textStyle="bold" android:accessibilityHeading="true" />
+        <androidx.core.widget.NestedScrollView android:id="@+id/guest_scroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true" android:clipToPadding="false">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center_vertical">
+                <include layout="@layout/guest_options" />
+                <androidx.appcompat.widget.AppCompatTextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="20dp" android:accessibilityLiveRegion="polite" android:visibility="gone" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+        <include layout="@layout/guest_footer" />
+    </LinearLayout>
+</LinearLayout>

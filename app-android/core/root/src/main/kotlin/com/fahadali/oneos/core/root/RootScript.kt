@@ -104,7 +104,7 @@ object RootScript {
 
     /** Session scripts from switcher/assets and the expected installd table, staged with every set. */
     val SCRIPTS: List<String> = listOf(
-        "oneos_switch.sh", "guest_prepare.sh", "guest_start.sh", "guest_props.sh", "return_to_oneui.sh",
+        "oneos_switch.sh", "boot_status.sh", "OneOSBootStatus.dex", "oneos_boot_icon.png", "guest_prepare.sh", "guest_start.sh", "guest_props.sh", "return_to_oneui.sh",
         "check_host_apex.sh", "bridges.sh", "fold8_coloros.sh", "OneOSFold8Geometry.dex", "fold8_pixel.sh", "guest_google.sh", "zygote_exec", "OneOSEdmStub.dex", "oneos_btaudio", "OneOSOverlayDimen.dex", "host_installd.txt",
     )
 
@@ -162,7 +162,7 @@ object RootScript {
                 arg(3, DEC, "a versionCode")
             }
             Verb.LAUNCH -> {
-                need(7)
+                if (args.size !in 7..8) need(8)
                 args.getOrNull(0)?.let { if (it != "session" && it != "dry") p += "launch: mode '$it'" }
                 arg(1, DEC, "a versionCode")
                 arg(2, HEX16, "a session id")
@@ -170,6 +170,7 @@ object RootScript {
                 args.getOrNull(4)?.let { if (it != "0" && it != "1") p += "launch: heat cap '$it' is not 0 or 1" }
                 args.getOrNull(5)?.let { if (it != "0" && it != "1") p += "launch: Samsung IMS '$it' is not 0 or 1" }
                 args.getOrNull(6)?.let { if (it != "0" && it != "1") p += "launch: Knox edm stub '$it' is not 0 or 1" }
+                args.getOrNull(7)?.let { if (it != "0" && it != "1") p += "launch: verbose boot is not 0 or 1" }
             }
             Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE -> need(0)
             Verb.PURGE -> {

@@ -64,7 +64,7 @@ data class SetupPlan(
             val modes = status.beginModes(image.id)
             if (modes.isEmpty()) return null
             if (modes == listOf(BeginMode.NEW)) return SetupPlan(BeginMode.NEW, Source.DOWNLOAD, Kind.NEW, null, setsAsideData = false)
-            val marker = status.marker?.takeIf { status.ours }
+            val marker = status.marker?.takeIf { status.ours } ?: status.pendingUpdate?.takeIf { status.partial }
             val sameOurs = marker != null && marker.imageId == image.id && (profile == null || marker.profileId == profile.id)
             // A preparation of OneOS's that stopped: keep it only while nothing in it can be another system's:
             // no data, or this image's own system's data (ColorOS or Pixel, 0.3.7) with system.raw root verified as it.
@@ -79,9 +79,10 @@ data class SetupPlan(
             }
             val verified = status.rawVerifiedSha256 == image.rawSha256
             val sameSize = status.rawSize == image.rawBytes
-            val source = if (verified || (!hasDownload && sameSize)) Source.ON_PHONE else Source.DOWNLOAD
+            val source = if (verified || (status.pendingUpdate != null && sameOurs && sameSize) || (!hasDownload && sameSize)) Source.ON_PHONE else Source.DOWNLOAD
             val wantSet = profile?.choice(image.id)?.packageSetId
             val kind = when {
+                status.pendingUpdate != null && sameOurs -> Kind.UPDATE
                 marker == null -> Kind.REPAIR
                 appVersionCode != null && marker.versionCode != appVersionCode -> Kind.UPDATE
                 wantSet != null && marker.setId != wantSet -> Kind.UPDATE
@@ -96,7 +97,8 @@ data class SetupPlan(
          */
         fun reusesInstalled(status: StageStatus, image: ImageRef, profile: PhoneProfile?, appVersionCode: Int?): Boolean {
             val p = decide(status, image, profile, appVersionCode, hasDownload = false) ?: return false
-            return p.keepsData && p.source == Source.ON_PHONE && status.rawVerifiedSha256 == image.rawSha256
+            return p.keepsData && p.source == Source.ON_PHONE && (status.rawVerifiedSha256 == image.rawSha256 ||
+                (status.partial && status.pendingUpdate?.imageId == image.id && status.rawSize == image.rawBytes))
         }
 
         /**

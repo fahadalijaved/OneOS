@@ -1,0 +1,1 @@
+<com.fahadali.oneos.guest.GuestArtworkView xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/guest_artwork" android:tag="heading" android:layout_width="match_parent" android:layout_height="match_parent" />

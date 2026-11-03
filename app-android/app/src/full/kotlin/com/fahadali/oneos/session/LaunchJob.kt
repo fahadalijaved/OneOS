@@ -112,9 +112,14 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
         val plain: PlainMessage? = null,
         /** The gate that refused, for Details. */
         val finding: Finding? = null,
+        val cancellable: Boolean = false,
     ) {
         val busy: Boolean get() = phase == Phase.RUNNING
     }
+
+    @Volatile private var attempt: com.fahadali.oneos.core.model.LaunchCommitGuard? = null
+    private class Cancelled : Exception()
+    fun cancel(): Boolean = state.busy && state.cancellable && attempt?.cancel() == true
 
     private class Refused(message: String, val plain: PlainMessage?, val finding: Finding? = null, val image: ImageRef? = null) : Exception(message)
 
@@ -126,14 +131,20 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
     fun start(ctx: Context, dryRun: Boolean, ticked: Set<String>, hideGms: Boolean, secIms: Boolean = false, edmStub: Boolean = false) {
         if (state.busy || StageCheck.state.busy || PrepareJob.state.busy || LogJob.state.busy) return
         val app = ctx.applicationContext
-        update(State(Phase.RUNNING, dryRun, "Checking the screen lock…"))
+        val guard = com.fahadali.oneos.core.model.LaunchCommitGuard()
+        attempt = guard
+        update(State(Phase.RUNNING, dryRun, "Checking the screen lock…", cancellable = true))
         executor.execute {
-            val r = runCatching { run(app, dryRun, ticked, hideGms, secIms, edmStub) }
+            val r = runCatching { run(app, dryRun, ticked, hideGms, secIms, edmStub, guard) }
             r.exceptionOrNull()?.let { e ->
+                if (e is Cancelled) {
+                    update(State(image = state.image, message = "Boot cancelled"))
+                    return@let
+                }
                 val refused = e as? Refused
                 update(
                     state.copy(
-                        phase = Phase.FAILED, detail = null, message = e.message ?: e.javaClass.simpleName,
+                        phase = Phase.FAILED, cancellable = false, detail = null, message = e.message ?: e.javaClass.simpleName,
                         plain = refused?.plain, finding = refused?.finding, image = refused?.image ?: state.image,
                     ),
                 )
@@ -154,7 +165,8 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
         )
     }
 
-    private fun run(app: Context, dryRun: Boolean, ticked: Set<String>, hideGms: Boolean, secIms: Boolean, edmStub: Boolean) {
+    private fun run(app: Context, dryRun: Boolean, ticked: Set<String>, hideGms: Boolean, secIms: Boolean, edmStub: Boolean, guard: com.fahadali.oneos.core.model.LaunchCommitGuard) {
+        if (guard.isCancelled()) throw Cancelled()
         val lock = FactProbe.screenLockSet(app)
         // 0.4.32: a lock set may be the owner's choice (Advanced). Not being able to
         // read the lock state never is, so null still stops here.
@@ -176,6 +188,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
             val facts = StageCheck.facts(app, last.su, status)
             last.copy(facts = facts, status = status, oldSwitcher = RootProbe(app).oldSwitcherInstalled(), at = SystemClock.elapsedRealtime())
         }
+        if (guard.isCancelled()) throw Cancelled()
         StageCheck.publish(fresh)
         val facts = fresh.facts
         val report = StageCheck.gates(app, fresh, GatePhase.SWITCH, screenLock = FactProbe.screenLockSet(app), facts = facts)
@@ -199,6 +212,8 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
                 else "The ${image.shortName} image has no Google services to hide.",
             )
         }
+        if (!guard.commit()) throw Cancelled()
+        update(state.copy(cancellable = false))
         val sid = ByteArray(8).also { SecureRandom().nextBytes(it) }.let(Hashes::hex)
         SessionPrefs.saveLaunch(
             app,
@@ -210,6 +225,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
             listOf(
                 if (dryRun) "dry" else "session", BuildConfig.VERSION_CODE.toString(), sid, if (hideGms) "1" else "0",
                 if (SessionPrefs.heatCap(app)) "1" else "0", if (secIms) "1" else "0", if (edmStub) "1" else "0",
+                if (SessionPrefs.verboseBoot(app)) "1" else "0",
             ),
             silenceMs = 5 * 60_000L,
         )

@@ -5,23 +5,27 @@
          request is a file in the app's own data folder, which the session's
          watcher on the host reads (switcher/assets/oneos_switch.sh). -->
     <application
+        android:enableOnBackInvokedCallback="true"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.DayNight">
+        android:theme="@style/Theme.OneOSGuest">
 
         <!-- singleTop: the tile brings an open screen forward and asks there. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop">
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity android:name=".ReturnSplashActivity" android:exported="false" android:launchMode="singleTop" />
 
         <!-- How's it going? (0.4.30): the checklist, saved in this app's own folder. -->
         <activity

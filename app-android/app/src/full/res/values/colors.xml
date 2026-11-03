@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- OneOS blue; OneOS Probe's icon is green (src/probe). -->
-    <color name="ic_launcher_background">#1C5FD6</color>
+    <color name="ic_launcher_background">#387AFF</color>
 
     <!-- Redesign tokens (docs/app/redesign-2.md). Full edition only: OneOS
          Probe keeps the stock One UI look. Dark values in values-night. -->
@@ -32,9 +32,9 @@
     <color name="oneos_tile_bg_block">#FCECEB</color>
 
     <!-- Status fills (badges): the One UI functional colours. -->
-    <color name="oneos_ok">@color/oui_functional_green_color</color>
-    <color name="oneos_warn">@color/oui_functional_orange_color</color>
-    <color name="oneos_block">@color/oui_functional_red_color</color>
+    <color name="oneos_ok">@color/oui_des_functional_green_color</color>
+    <color name="oneos_warn">@color/oui_des_functional_orange_color</color>
+    <color name="oneos_block">@color/oui_des_functional_red_color</color>
     <color name="oneos_info">#5E5E5E</color>
     <!-- The glyph drawn on a status fill. -->
     <color name="oneos_on_status">#FFFFFF</color>

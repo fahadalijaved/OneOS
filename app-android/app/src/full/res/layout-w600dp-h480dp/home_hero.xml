@@ -10,13 +10,9 @@
     android:gravity="center_horizontal"
     android:orientation="vertical">
 
-    <ImageView
-        android:id="@+id/home_hero_art"
-        android:layout_width="@dimen/home_hero_art_width"
-        android:layout_height="@dimen/home_hero_art_height"
-        android:importantForAccessibility="no"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_oneos_hero" />
+    <com.fahadali.oneos.ui.OsArtworkView
+        android:id="@+id/home_hero_art" android:layout_width="match_parent" android:layout_height="320dp"
+        android:background="@drawable/catalog_card_bg" android:foreground="@drawable/catalog_card_outline" android:clipToOutline="true" />
 
     <ImageView
         android:id="@+id/home_hero_badge"

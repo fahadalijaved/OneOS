@@ -123,7 +123,7 @@ internal object CardRows {
     /** A row whose icon is [level]'s filled badge (the badge keeps its own colours). */
     fun status(card: LinearLayout, level: Level, title: CharSequence, summary: CharSequence?, onClick: ((View) -> Unit)? = null): View {
         val row = Cards.row(card, Cards.badge(level), title, summary, onClick)
-        row.findViewById<ImageView>(R.id.oneos_row_icon).imageTintList = null
+        (row as dev.oneuiproject.oneui.widget.CardItemView).getIconImageView().imageTintList = null
         return row
     }
 
@@ -132,13 +132,13 @@ internal object CardRows {
 
     /** Tints [row]'s icon by [level] (a check that runs, a copy in use). */
     fun tint(row: View, level: Level): View {
-        row.findViewById<ImageView>(R.id.oneos_row_icon).imageTintList = ColorStateList.valueOf(Cards.levelColor(row.context, level))
+        (row as dev.oneuiproject.oneui.widget.CardItemView).getIconImageView().imageTintList = ColorStateList.valueOf(Cards.levelColor(row.context, level))
         return row
     }
 
     /** Colours [row]'s title (the main action). */
     fun titleColor(row: View, color: Int): View {
-        row.findViewById<TextView>(R.id.oneos_row_title).setTextColor(row.context.getColor(color))
+        (row as dev.oneuiproject.oneui.widget.CardItemView).getTitleView().setTextColor(row.context.getColor(color))
         return row
     }
 
@@ -153,8 +153,21 @@ internal object CardRows {
         compound(card, AppCompatCheckBox(card.context), CheckBox::class.java.name, title, summary, checked, enabled, onChange)
 
     /** An on/off row (the One UI switch); the whole row is the tap target. Not saved: the screen keeps it. */
-    fun toggle(card: LinearLayout, title: CharSequence, summary: CharSequence?, on: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit): View =
-        compound(card, SwitchCompat(card.context), android.widget.Switch::class.java.name, title, summary, on, enabled, onChange)
+    fun toggle(card: LinearLayout, title: CharSequence, summary: CharSequence?, on: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit): View {
+        val previous = card.getChildAt(card.childCount - 1)
+        return dev.oneuiproject.oneui.widget.SwitchItemView(card.context).apply {
+            this.title = title
+            summaryOn = summary
+            summaryOff = summary
+            separateSwitch = false
+            isChecked = on
+            isEnabled = enabled
+            showTopDivider = previous is dev.oneuiproject.oneui.widget.CardItemView ||
+                previous is dev.oneuiproject.oneui.widget.SwitchItemView
+            onCheckedChangedListener = { _, checked -> onChange(checked) }
+            card.addView(this, LinearLayout.LayoutParams(-1, -2))
+        }
+    }
 
     private fun compound(
         card: LinearLayout,
@@ -172,9 +185,13 @@ internal object CardRows {
         box.isClickable = false
         box.isFocusable = false
         box.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        lp.marginStart = card.resources.getDimension(R.dimen.oneos_row_icon_gap).toInt()
-        row.addView(box, lp)
+        val end = (row as dev.oneuiproject.oneui.widget.CardItemView).getEndImageView()
+        val content = end.parent as ViewGroup
+        box.id = end.id
+        val endParams = end.layoutParams
+        content.removeView(end)
+        content.addView(box, endParams)
+
         // TalkBack reads the row as the box: its title, summary and state.
         row.accessibilityDelegate = object : View.AccessibilityDelegate() {
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {

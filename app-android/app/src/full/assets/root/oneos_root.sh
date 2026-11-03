@@ -119,7 +119,7 @@ IMAGE_SDK=37
 # installd codes the guard jars carry (InstalldExpected.SHA256).
 INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
 # Session scripts from switcher/assets plus the expected installd table.
-SCRIPTS="oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
+SCRIPTS="oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
@@ -136,7 +136,7 @@ SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinsta
 SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_customringtone.tar nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched vold_patched wifi_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
-ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_RETURN_MODE"
+ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_RETURN_MODE"
 # Images whose Google services a session may hide (ONEOS_GUEST_HIDE_GMS=1;
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11). The
 # Pixel images have them too, but their sessions present their own GmsCore,
@@ -569,7 +569,7 @@ env_value() {
         # 0.4.20: this phone's Samsung IMS app in the guest (VoLTE), a launch's choice, 0 or 1 on any phone.
         ONEOS_GUEST_SEC_IMS) echo 0 ;;
         # 0.4.32: the Knox edmnativehelper stand-in, a launch's choice, 0 or 1 on any phone.
-        ONEOS_GUEST_EDM_STUB) echo 0 ;;
+        ONEOS_GUEST_EDM_STUB|ONEOS_VERBOSE_BOOT) echo 0 ;;
         # 0.4.7: Back to One UI restarts One UI in place; a failed check reboots.
         ONEOS_RETURN_MODE) echo inplace ;;
         *) return 1 ;;
@@ -591,7 +591,7 @@ check_env() { # <file> <form> <profile> <image>
         case "$seen" in *" $key "*) refuse "session.env sets $key twice" ;; esac
         seen="$seen$key "
         want=$(env_value "$key" "$2" "$3") || refuse "session.env key $key is not allowed"
-        if [ "$key" = ONEOS_GUEST_SEC_IMS ] || [ "$key" = ONEOS_GUEST_EDM_STUB ]; then
+        if [ "$key" = ONEOS_GUEST_SEC_IMS ] || [ "$key" = ONEOS_GUEST_EDM_STUB ] || [ "$key" = ONEOS_VERBOSE_BOOT ]; then
             case "$val" in 0|1) continue ;; *) refuse "session.env $key=$val is not 0 or 1" ;; esac
         fi
         if [ "$key" = ONEOS_GUEST_HIDE_GMS ] && [ "$val" = 1 ]; then
@@ -704,6 +704,9 @@ do_begin() {
                 made=""
                 if [ "$ours" = 1 ]; then
                     made=$M_IMAGE
+                elif [ -f "$STAGE/.oneos_update" ] && mine "$STAGE/.oneos_update"; then
+                    made=$(sed -n 's/^  "image": "\([a-z0-9-]*\)",$/\1/p' "$STAGE/.oneos_update")
+                    is_id "$made" || made="another image"
                 elif [ -f "$PLAN" ] && mine "$PLAN"; then
                     { read -r pp made pr < "$PLAN" && is_id "$made"; } || made="another image"
                 fi
@@ -745,6 +748,12 @@ do_begin() {
         [ -e "$f" ] || [ -L "$f" ] || continue
         if [ -f "$f" ] || [ -L "$f" ]; then rm -f "$f"; else to_attic "incoming/${f##*/}"; fi
     done
+    # A durable identity checkpoint survives app death, reboot and repeated retries.
+    # It never authorizes boot; launch refuses it until finish commits everything.
+    if [ "$mode" = keep ] && [ "$ours" = 1 ]; then
+        cp "$STAGE/.oneos_stage" "$STAGE/.oneos_update.tmp" && own "$STAGE/.oneos_update.tmp" 0644 &&
+            mv -f "$STAGE/.oneos_update.tmp" "$STAGE/.oneos_update" || die "could not checkpoint the installed system"
+    fi
     # The last preparation's records: the new one writes its own, and a
     # half-prepared stage has none (the app and the scripts then refuse).
     to_attic .oneos_stage files.sha256 system.raw.id session.env host_installd.table
@@ -870,7 +879,7 @@ do_finish() {
         [ -e "$f" ] || [ -L "$f" ] || continue
         [ -d "$f" ] && [ ! -L "$f" ] && continue
         n=${f##*/}
-        in_list "$n" "$P_FILES system.raw system.raw.id files.sha256 session.env host_installd.table" && continue
+        in_list "$n" "$P_FILES system.raw system.raw.id files.sha256 session.env host_installd.table .oneos_update" && continue
         case "$n" in
             *.log|persist_props.snapshot|persist_session.active|guest_locale|guest_props.added|guest_props.overridden|guest_props.boot|guest_props.blanked|guest_props.blanked.boot|\
             host_wifi_on|host_adb_on|host_mobile_data|host_supplicant_svc|host_apex.before|host_apex.after|guest_mntns|guest_rootdev) continue ;;
@@ -880,7 +889,7 @@ do_finish() {
     check_files "$P_FILES"
     marker_text "$P_CODE" "$P_PROFILE" "$P_IMAGE" "$P_SET" "$(date +%s)" > "$STAGE/.oneos_stage.tmp" && own "$STAGE/.oneos_stage.tmp" 0644 &&
         mv -f "$STAGE/.oneos_stage.tmp" "$STAGE/.oneos_stage" || die "could not write the marker"
-    rm -f "$PLAN" "$RECEIVED"
+    rm -f "$STAGE/.oneos_update" "$PLAN" "$RECEIVED"
     say "@@OK finish"
 }
 
@@ -897,8 +906,8 @@ find_tools() {
 }
 
 do_launch() {
-    [ $# -eq 7 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub>"
-    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7
+    [ $# -eq 7 ] || [ $# -eq 8 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot]"
+    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0}
     case "$mode" in session|dry) ;; *) usage "launch mode $mode" ;; esac
     is_dec "$code" || usage "launch versionCode $code"
     case "$sid" in *[!0-9a-f]*|'') usage "launch session id" ;; esac
@@ -907,8 +916,10 @@ do_launch() {
     case "$heat" in 0|1) ;; *) usage "launch heatCap $heat" ;; esac
     case "$secims" in 0|1) ;; *) usage "launch secIms $secims" ;; esac
     case "$edmstub" in 0|1) ;; *) usage "launch edmStub $edmstub" ;; esac
+    case "$verbose" in 0|1) ;; *) usage "launch verboseBoot $verbose" ;; esac
     [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
     step "checks"
+    [ ! -e "$STAGE/.oneos_update" ] || refuse "the installed system update did not finish: retry the update"
     read_marker || refuse "the stage has no OneOS marker: prepare first"
     [ "$M_CODE" = "$code" ] || refuse "prepared by app build $M_CODE, this is build $code: prepare again"
     pinfo=$(profile_info "$M_PROFILE") || refuse "the stage is prepared for $M_PROFILE, which this build does not switch"
@@ -960,13 +971,15 @@ do_launch() {
     # This launch's Google services choice (the Switch screen; Prepare wrote 0),
     # its Cool down when hot (Advanced; Prepare wrote 1), its Samsung IMS choice
     # and (0.4.32) its Knox edm stub choice (both Advanced; Prepare wrote 0): the
-    # four lines of session.env a launch changes, after every check. The next
+    # five lines of session.env a launch changes, after every check. The next
     # launch writes its own. (Before the test root's stop, so the tests see it.)
     sed -e "s/^ONEOS_GUEST_HIDE_GMS=.*/ONEOS_GUEST_HIDE_GMS=$gms/" -e "s/^ONEOS_HEAT_CAP=.*/ONEOS_HEAT_CAP=$heat/" \
         -e "s/^ONEOS_GUEST_SEC_IMS=.*/ONEOS_GUEST_SEC_IMS=$secims/" \
+        -e "s/^ONEOS_VERBOSE_BOOT=.*/ONEOS_VERBOSE_BOOT=$verbose/" \
         -e "s/^ONEOS_GUEST_EDM_STUB=.*/ONEOS_GUEST_EDM_STUB=$edmstub/" "$STAGE/session.env" > "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_HIDE_GMS=$gms" "$STAGE/session.env.tmp" && grep -q -x "ONEOS_HEAT_CAP=$heat" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_SEC_IMS=$secims" "$STAGE/session.env.tmp" &&
+        grep -q -x "ONEOS_VERBOSE_BOOT=$verbose" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_EDM_STUB=$edmstub" "$STAGE/session.env.tmp" &&
         own "$STAGE/session.env.tmp" 0644 &&
         mv -f "$STAGE/session.env.tmp" "$STAGE/session.env" || die "could not write session.env for this launch"

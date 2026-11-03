@@ -1,90 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- StatusHomeFragment on the inner screen (HomeInner.dc.html), two panes:
-     on the left a card with the hero and the main button (with the line and
-     the text button under it), on the right the cards (checks, setup
-     progress or Welcome back's session, and the rows). Each pane scrolls on
-     its own. The same ids as the cover's layouts. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:baselineAligned="false"
-    android:orientation="horizontal"
-    android:paddingStart="12dp"
-    android:paddingEnd="12dp"
-    android:paddingBottom="16dp">
-
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:fillViewport="true">
-
-        <LinearLayout
-            style="@style/OneOS.Card"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center_horizontal"
-            android:paddingStart="28dp"
-            android:paddingTop="28dp"
-            android:paddingEnd="28dp"
-            android:paddingBottom="24dp">
-
-            <FrameLayout
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1">
-
-                <include
-                    layout="@layout/home_hero"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center" />
-
-            </FrameLayout>
-
-            <Button
-                android:id="@+id/home_primary"
-                style="@style/OneOS.Button.Primary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:text="@string/home_choose" />
-
-            <TextView
-                android:id="@+id/home_caption"
-                style="@style/OneOS.Text.Caption"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:gravity="center"
-                android:visibility="gone" />
-
-            <Button
-                android:id="@+id/home_secondary"
-                style="@style/OneOS.Button.Text"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:visibility="gone" />
-
-        </LinearLayout>
-
-    </androidx.core.widget.NestedScrollView>
-
-    <androidx.core.widget.NestedScrollView
-        android:id="@+id/home_scroll"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_marginStart="12dp"
-        android:layout_weight="1"
-        android:clipToPadding="false">
-
-        <LinearLayout
-            android:id="@+id/home_cards"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
-
-    </androidx.core.widget.NestedScrollView>
-
-</LinearLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:paddingHorizontal="32dp" android:paddingBottom="16dp" android:baselineAligned="false">
+<com.fahadali.oneos.ui.OsArtworkView android:tag="heading" android:id="@+id/home_hero_art" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@drawable/catalog_card_bg" android:foreground="@drawable/catalog_card_outline" android:clipToOutline="true" />
+<LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="32dp" android:orientation="vertical">
+<androidx.core.widget.NestedScrollView android:id="@+id/home_scroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+<include layout="@layout/home_detail_header" />
+<LinearLayout android:id="@+id/home_cards" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+</LinearLayout></androidx.core.widget.NestedScrollView>
+<Button android:id="@+id/home_primary" style="@style/OneOS.Button.Primary" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center_horizontal" />
+<TextView android:id="@+id/home_caption" style="@style/OneOS.Text.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:visibility="gone" />
+<Button android:id="@+id/home_secondary" style="@style/OneOS.Button.Text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center_horizontal" android:visibility="gone" />
+</LinearLayout></LinearLayout>
