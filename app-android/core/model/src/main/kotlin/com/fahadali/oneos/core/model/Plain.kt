@@ -309,7 +309,8 @@ object Plain {
                 },
                 FixAction.UPDATE,
             )
-            SwitchGates.R_IMAGE_FILES_CHANGED -> m("$sys needs a repair", "Some of its files changed since setup.", FixAction.REPAIR)
+            // 0.4.38: mostly a newer OneOS build with new files for this system (testers tapped "Repair" for an update).
+            SwitchGates.R_IMAGE_FILES_CHANGED -> m("Update $sys", "OneOS has newer files for it. No download, about 2 minutes. Your apps and data stay.", FixAction.REPAIR)
             else -> null
         }
     }

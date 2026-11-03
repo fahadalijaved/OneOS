@@ -100,11 +100,12 @@ for f in "$S"/diag_*/*; do
 done
 true'
 
-#: The session's full log capture (oneos_logs/boot.log*, all buffers, 32 MB each), after the files of the boot that only head/ still has.
+#: The session's log capture (oneos_logs, all buffers, 32 MB each): the files of the boot that only head/ still has,
+#: then the newest two (0.4.38: a crash loop wrote 480 MB and collecting all of it held Boot and Update for 20 minutes).
 files logs.capture 300 capture '
 L=/data/local/tmp/oneos_logs
 T=" "
-for f in "$L"/boot.log*; do
+for f in "$L"/boot.log "$L"/boot.log.01; do
   [ -f "$f" ] || continue
   i=$(stat -c %i "$f")
   [ -n "$i" ] && T="$T$i "
@@ -115,5 +116,5 @@ for f in "$L"/head/boot.log*; do
   [ -n "$i" ] && printf "%s\n" "$T" | grep -q " $i " && continue
   printf "%s\n" "$f"
 done
-for f in "$L"/boot.log*; do [ -f "$f" ] && printf "%s\n" "$f"; done
+for f in "$L"/boot.log "$L"/boot.log.01; do [ -f "$f" ] && printf "%s\n" "$f"; done
 true'

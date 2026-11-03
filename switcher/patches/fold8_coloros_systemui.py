@@ -38,10 +38,25 @@ def apply_hunks(original, diff):
     return ''.join(out)
 
 
+# (class pins, patch): the CN Find N6 build Josh's patch was made on, and the
+# global build (CPH2765 EX01, 0.4.38) the same hunks were re-applied to.
+VARIANTS = (('classes.json', 'systemui.patch'), ('classes-global.json', 'systemui-global.patch'))
+
+
+def variant(root):
+    """The variant whose every patched class is this SystemUI's, before or after."""
+    for pins_name, patch_name in VARIANTS:
+        pins = json.loads((BUNDLE / pins_name).read_text())
+        if all(p['before'] is None or ((root / n).exists() and digest((root / n).read_bytes()) in (p['before'], p['after']))
+               for n, p in pins.items()):
+            return pins, patch_name
+    raise ValueError('not a supported Find N6 SystemUI (neither the CN nor the global build)')
+
+
 def patch(root):
-    pins = json.loads((BUNDLE / 'classes.json').read_text())
+    pins, patch_name = variant(root)
     changes = {}
-    diffs = re.split(r'^--- a/', (BUNDLE / 'systemui.patch').read_text(), flags=re.M)[1:]
+    diffs = re.split(r'^--- a/', (BUNDLE / patch_name).read_text(), flags=re.M)[1:]
     for section in diffs:
         name, body = section.split('\n', 1)
         changes[name] = body.split('\n', 1)[1]

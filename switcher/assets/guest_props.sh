@@ -23,7 +23,7 @@ BLANKED="$STAGE/guest_props.blanked"
 # Missing is fatal: exiting 0 here (OneLineage) skipped the persist snapshot and
 # its restore without a word, and One UI then booted with the guest's settings.
 RP=""
-for c in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop; do
+for c in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop /debug_ramdisk/resetprop /sbin/resetprop; do
     [ -x "$c" ] && { RP=$c; break; }
 done
 [ -n "$RP" ] || [ "${ONEOS_APP:-0}" = 1 ] || RP=$(command -v resetprop 2>/dev/null)

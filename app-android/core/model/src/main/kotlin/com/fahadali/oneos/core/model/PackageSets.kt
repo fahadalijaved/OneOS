@@ -155,7 +155,6 @@ data class PackageSet(
 
 object PackageSets {
     const val ID_N6_F8U = "n6-f8u"
-    const val ID_N6_F8 = "n6-f8"
     const val ID_X9U_SULTRA = "x9u-sultra"
     const val ID_X9U_IN_SULTRA = "x9u-in-sultra"
     const val ID_PIXEL_F8U = "pixel-f8u"
@@ -225,32 +224,21 @@ object PackageSets {
     val N6_F8U = PackageSet(
         id = ID_N6_F8U,
         imageId = Images.ID_FIND_N6,
-        sourceDir = "out/overlays_n6_r50",
+        // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
+        // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
+        // other global build's (x9u-in-sultra).
+        sourceDir = "out/overlays_n6g_r2",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
-        files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
+        files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY) +
             // 0.4.37: One UI's camera, rewritten for the Find N6 image (scripts/samsung-camera/build-cached.sh).
-            PackageFile("samcam.tar", FileRole.GUEST_FIX),
+            PackageFile("samcam.tar", FileRole.GUEST_FIX) +
+            // 0.4.38: pull request #1's Fold8 SystemUI and hinge-angle relay, re-applied to the global
+            // build (scripts/make-fold8-coloros.py --into); used on the Z Fold8 and Z Fold8 Ultra only.
+            PackageFile("Fold8SystemUI.apk", FileRole.GUEST_FIX) + PackageFile("Fold8AngleRelay.dex", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        approxBytes = 410_996_047L,
-        hasReturnApp = true,
-    )
-
-    /**
-     * Find N6 image on the Galaxy Z Fold8 (0.4.14, ported from pull request
-     * #1): the Fold's set and the [FileRole.GUEST_FIX] files
-     * scripts/make-fold8-coloros.py builds from it (cover status bar and Quick
-     * Settings, hinge angle, wallpaper handoff, AOD, widgets, taskbar).
-     */
-    val N6_F8 = PackageSet(
-        id = ID_N6_F8,
-        imageId = Images.ID_FIND_N6,
-        sourceDir = "out/overlays_n6_fold8",
-        files = N6_F8U.files + listOf(
-            "Fold8SystemUI.apk", "Fold8AngleRelay.dex", "Fold8Aod.apk", "Fold8UMS.apk", "Fold8Instant.apk",
-        ).map { PackageFile(it, FileRole.GUEST_FIX) },
-        omitted = listOf(TETHERING),
-        approxBytes = 806_649_130L,
+        approxBytes = 595_528_368L,
         hasReturnApp = true,
     )
 
@@ -272,13 +260,13 @@ object PackageSets {
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
-        sourceDir = "out/overlays_x9u_in_r51",
+        sourceDir = "out/overlays_x9u_in_r52",
         files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY) +
             // 0.4.37: One UI's camera, rewritten for this image (scripts/samsung-camera).
             PackageFile("samcam.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
-        approxBytes = 471_539_935L,
+        approxBytes = 479_113_874L,
         hasReturnApp = true,
     )
 
@@ -451,6 +439,8 @@ object PackageSets {
             PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
             PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
             PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            // 0.4.37: SurfaceFlinger with the mode group read whole (patches/hyperos_sf_group.py).
+            PackageFile("libsurfaceflinger_patched.so", FileRole.GUARD_LIBRARY),
             PackageFile("guards.txt", FileRole.GUARDS),
             PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
             PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
@@ -463,7 +453,7 @@ object PackageSets {
             PackageFile("MiWallpaper_patched.apk", FileRole.GUEST_FIX),
         ) + (COMMON_PAYLOADS + "bt").map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
         omitted = listOf(TETHERING),
-        approxBytes = 437_391_809L,
+        approxBytes = 451_250_913L,
         hasReturnApp = true,
     )
 
@@ -489,7 +479,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r17",
+        sourceDir = "out/overlays_nothing_r18",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -555,7 +545,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_SULTRA, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, N6_F8, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U)
+    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_SULTRA, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

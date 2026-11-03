@@ -62,7 +62,11 @@ def check(body,label,depth,fails,total):
         # outer variables appear as $NAME: harmless for -n
         check(inner,label+f"@{pos}",depth+1,fails,total)
 fails=[];total=[0]
-for p in sys.argv[1:]:
+# No arguments: every session script (0.4.38: run without any, it checked nothing and said all parse,
+# while a quote in a comment had cut the UI activator short, F8U test11).
+paths = sys.argv[1:] or sorted(__import__('glob').glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'switcher', 'assets', '*.sh'))) + [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'app-android', 'app', 'src', 'full', 'assets', 'root', 'oneos_root.sh')]
+for p in paths:
     t=open(p).read()
     for q,b,pos in extract(t):
         line=t.count('\n',0,pos)+1

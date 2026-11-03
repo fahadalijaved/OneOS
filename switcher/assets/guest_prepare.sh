@@ -90,7 +90,8 @@ fi
 for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" ||
                                         $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
                                         $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
-                                        $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" { print $2 }' "$STAGE/guards.txt"); do
+                                        $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
+                                        $2 == "libsurfaceflinger_patched.so" { print $2 }' "$STAGE/guards.txt"); do
     sum=$(awk -v n="$need" '$2 == n {print $1}' "$STAGE/guards.txt")
     if [ -z "$sum" ] || [ "$(sha256sum "$STAGE/$need" 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         echo "ERROR: $STAGE/$need missing or not the guarded build in guards.txt; not starting the guest"
@@ -437,16 +438,32 @@ sec_ims_stage() {
     cp /system/framework/framework.jar "$SECIMS/framework/oneos-secims-compat.jar" || return 1
     cp /system/lib64/libsec-ims.so /system/lib64/libresampler_ims.so /system/lib64/libaresdns.so "$SECIMS/lib64/" || return 1
     cp /system/etc/permissions/privapp-permissions-com.sec.imsservice.phone.xml "$SECIMS/etc/permissions/" || return 1
+    # Samsung's EngineeringModeManager (in the framework classes above) loads
+    # lib.engmodejni.samsung.so; without it the app died at start (F8U test5:
+    # UnsatisfiedLinkError, after the class loader fix). Public through One UI's
+    # own list for it, which the guest reads from system_ext/etc like /system/etc.
+    if [ -f /system/lib64/lib.engmodejni.samsung.so ] && [ -f /system/etc/public.libraries-engmodejni.samsung.txt ]; then
+        mkdir -p "$SECIMS/etc" &&
+            cp /system/lib64/lib.engmodejni.samsung.so "$SECIMS/lib64/" &&
+            cp /system/etc/public.libraries-engmodejni.samsung.txt "$SECIMS/etc/" || return 1
+    fi
     # Libraries the manifest lists as not required: along when One UI has them.
     for lib in vsimmanager EpdgManager; do
         [ -f "/system/framework/$lib.jar" ] && { cp "/system/framework/$lib.jar" "$SECIMS/framework/" || return 1; }
     done
-    # The library XMLs name the guest's copies.
+    # The library XMLs name the guest's copies. Each Samsung library gets its own
+    # class loader, which sees only the libraries it depends on: imsmanager's
+    # com.sec.ims.util.DeviceCategory needs android.os.SemSystemProperties, so
+    # without the dependency on secimshttpclient (One UI's framework classes) the
+    # app died at start with NoClassDefFoundError and Android stopped restarting
+    # it (F8U, Find N6 global, 0.4.38 test4: no IMS, no SMS).
     for pair in imsmanager:imsmanager.jar rcsopenapi:rcsopenapi.jar secimshttpclient:oneos-secims-compat.jar \
                 vsimmanager:vsimmanager.jar EpdgManager:EpdgManager.jar; do
         [ -f "$SECIMS/framework/${pair#*:}" ] || continue
-        printf '<?xml version="1.0" encoding="utf-8"?>\n<permissions>\n    <library name="%s" file="/system_ext/framework/%s"/>\n</permissions>\n' \
-            "${pair%%:*}" "${pair#*:}" > "$SECIMS/etc/permissions/${pair%%:*}_library.xml" || return 1
+        dep=' dependency="secimshttpclient"'
+        [ "${pair%%:*}" != secimshttpclient ] || dep=''
+        printf '<?xml version="1.0" encoding="utf-8"?>\n<permissions>\n    <library name="%s" file="/system_ext/framework/%s"%s/>\n</permissions>\n' \
+            "${pair%%:*}" "${pair#*:}" "$dep" > "$SECIMS/etc/permissions/${pair%%:*}_library.xml" || return 1
     done
     # Make the guest advertise IMS support. An AOSP-based guest (Infinity-X, the
     # Pixels) only starts ImsResolver when the device has FEATURE_TELEPHONY_IMS;
@@ -473,7 +490,7 @@ sec_ims_bind() {
     mkdir -p "$gse/priv-app/OneOSSecIms" || return 1
     $BB mount --bind "$SECIMS/priv-app/OneOSSecIms" "$gse/priv-app/OneOSSecIms" || return 1
     $BB mount --make-rslave "$gse/priv-app/OneOSSecIms" 2>/dev/null || true
-    for d in framework lib64 etc/permissions; do
+    for d in framework lib64 etc etc/permissions; do
         [ -d "$SECIMS/$d" ] || continue
         mkdir -p "$gse/$d" || return 1
         for f in "$SECIMS/$d"/*; do
@@ -553,6 +570,43 @@ if [ $SAMCAM_IMAGE = 1 ] && [ -f "$STAGE/samcam.tar" ] && [ ! -L "$SAMCAM_SRC" ]
             echo "Samsung Camera: samcam.tar did not unpack"
     fi
 fi
+# The camera's JNI libraries, which it loads by name from Java (uses-native-library
+# and System.loadLibrary). libs.txt is the closure build-cached.sh derives from
+# its native dependencies, which misses them; the Nothing set's (scripts/
+# samsung-camera/build.sh) has all 36. Without libMyFilterPlugin the package
+# manager gave the camera none of its libraries (NoClassDefFoundError
+# oneos/semcompat/Sem; S25+ IN, F8U test1); without libcore2nativeutil its
+# preview surface could not be measured and the capture session failed at once
+# ("surfaceNativeUtil is null", "Unknown error -2147483648": a black preview, F8U
+# test5). Bound from One UI's /system/lib64 only where the guest image has no
+# library of that name, so none of the image's own is replaced.
+SAMCAM_JNI="libAEBHDR_wrapper.camera.samsung.so libAIQSolution_MPISingleRGB40.camera.samsung.so \
+    libDeflickerHDR.camera.samsung.so libDocMagnetEngine.camera.samsung.so \
+    libDocRectifyWrapper.camera.samsung.so libDualCamBokehCapture.camera.samsung.so \
+    libEventDetector.camera.samsung.so libFaceRestoration.camera.samsung.so libFoodDetector.camera.samsung.so \
+    libLttEngine.camera.samsung.so libMyFilter.camera.samsung.so libMyFilterPlugin.camera.samsung.so \
+    libPortraitSolution.camera.samsung.so libQREngine.camera.samsung.so libRectify.camera.samsung.so \
+    libSDKMoireDetector.spenocr.samsung.so libSDKRecognitionOCR.spenocr.samsung.so \
+    libSmartScan.camera.samsung.so libStereoSolution.camera.samsung.so libStride.camera.samsung.so \
+    libUltraWideDistortionCorrection.camera.samsung.so libWideDistortionCorrection.camera.samsung.so \
+    libagifencoder.quram.so libcommon-jni.vexfwk.samsung.so libcore2nativeutil.camera.samsung.so \
+    libexifa.camera.samsung.so libhybridHDR_wrapper.camera.samsung.so libimage_enhancement.arcsoft.so \
+    libjpega.camera.samsung.so libsdk-v2-jni.vexfwk.samsung.so libsecimaging.camera.samsung.so \
+    libsecimaging_pdk.camera.samsung.so libsimba.cfa.media.samsung.so libsum_jni.media.samsung.so \
+    libsume_jni.media.samsung.so libsume_mediabuffer_jni.media.samsung.so"
+# libs.txt's names and the JNI libraries bound here, one per line.
+samcam_jni_here() { # <lib>: One UI has it, libs.txt does not name it, the image has none of its own
+    # A library of the image is never empty; the empty file there is this
+    # function's own mount point (samcam_mountpoints), made before the binds
+    # ask again (0.4.38 test6: -e saw it, nothing was bound, "file offset ...
+    # >= file size: 0 >= 0").
+    ! grep -q "^$1 " "$SAMCAM_SRC/libs.txt" && [ -e "/system/lib64/$1" ] &&
+        [ ! -s "$ROOTFS/system/lib64/$1" ] && [ ! -L "$ROOTFS/system/lib64/$1" ]
+}
+samcam_libs() {
+    awk '{ print $1 }' "$SAMCAM_SRC/libs.txt"
+    for lib in $SAMCAM_JNI; do samcam_jni_here "$lib" && echo "$lib"; done
+}
 samcam_files() {
     # "<sys|sysext> <path under the guest's /system or system_ext> <source>".
     # Native code opens One UI's own paths (/system/cameradata, /system/saiv,
@@ -589,6 +643,9 @@ samcam_files() {
             *) [ -e "/system/lib64/$lib" ] && echo "sys lib64/$lib /system/lib64/$lib" ;;
         esac
     done < "$SAMCAM_SRC/libs.txt"
+    for lib in $SAMCAM_JNI; do
+        samcam_jni_here "$lib" && echo "sys lib64/$lib /system/lib64/$lib"
+    done
     echo "sys etc/floating_feature.xml /system/etc/floating_feature.xml"
     for f in "$SAMCAM_SRC"/public.libraries-*.txt; do
         [ -f "$f" ] && echo "sys etc/${f##*/} $f"
@@ -628,8 +685,8 @@ samcam_prepare() {
     rm -f "$SAMCAM_SRC"/public.libraries-*.txt
     for f in /system/etc/public.libraries-*.txt; do
         [ -f "$f" ] || continue
-        awk 'NR == FNR { if (NF) have[$1] = 1; next } { l = $1; sub(/#.*/, "", l) } l != "" && (l in have) { print l }' \
-            "$SAMCAM_SRC/libs.txt" "$f" > "$SAMCAM_SRC/${f##*/}" || return 1
+        samcam_libs | awk 'NR == FNR { if (NF) have[$1] = 1; next } { l = $1; sub(/#.*/, "", l) } l != "" && (l in have) { print l }' \
+            - "$f" > "$SAMCAM_SRC/${f##*/}" || return 1
         [ -s "$SAMCAM_SRC/${f##*/}" ] || rm -f "$SAMCAM_SRC/${f##*/}"
     done
     chmod 755 "$SAMCAM_SRC"; chmod 644 "$SAMCAM_SRC"/*
@@ -638,7 +695,7 @@ samcam_prepare() {
     samcam_files | while read -r k t s; do
         [ -e "$s" ] || { echo "Samsung Camera: $s missing"; exit 1; }
     done || return 1
-    SKIP=$(awk '$2 == "system" { print $1 }' "$SAMCAM_SRC/libs.txt" | while read -r lib; do [ -e "/system/lib64/$lib" ] || printf ' %s' "$lib"; done)
+    SKIP=$( { awk '$2 == "system" { print $1 }' "$SAMCAM_SRC/libs.txt"; for lib in $SAMCAM_JNI; do echo "$lib"; done; } | sort -u | while read -r lib; do [ -e "/system/lib64/$lib" ] || printf ' %s' "$lib"; done)
     [ -z "$SKIP" ] || echo "Samsung Camera: One UI here has no$SKIP (left out; this phone's camera does not use them)"
     return 0
 }
@@ -828,6 +885,29 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
         mkdir -p "$OV/up/apex"
+        # Features my_product declares (0.4.38): the container does not load
+        # /my_product/etc/permissions, so the Find N6 global build had no Circle to
+        # Search (ContextualManagerServiceExtImpl: mIsSupportCircleToSearch false; no
+        # option under Gestures) and no large-screen mode (three-app split screen).
+        # Only these software features, and only those the image itself declares;
+        # its hardware ones (sensors, the curved display, eSIM) stay out.
+        MPF=""
+        for x in com.google.android.feature.CONTEXTUAL_SEARCH com.google.android.feature.CONTEXTUAL_SEARCH_LIVE_TRANSLATE \
+                 com.google.android.feature.GEMINI_POWER_MENU com.google.lens.feature.CAMERA_INTEGRATION \
+                 com.google.lens.feature.IMAGE_INTEGRATION oplus.feature.largescreen oplus.feature.largescreen.land; do
+            case "$x" in oplus.feature.largescreen*) [ "${ONEOS_GUEST_FORM:-fold}" = fold ] || continue ;; esac
+            grep -l -s "<feature name=\"$x\"" "$ROOTFS"/my_product/etc/permissions/*.xml >/dev/null || continue
+            MPF="$MPF $x"
+        done
+        if [ -n "$MPF" ]; then
+            mkdir -p "$OV/up/etc/permissions" &&
+                { echo '<?xml version="1.0" encoding="utf-8"?>'; echo '<permissions>'
+                  for x in $MPF; do echo "    <feature name=\"$x\" />"; done
+                  echo '</permissions>'; } > "$OV/up/etc/permissions/oneos-my-product-features.xml" &&
+                chmod 755 "$OV/up/etc" "$OV/up/etc/permissions" && chmod 644 "$OV/up/etc/permissions/oneos-my-product-features.xml" &&
+                $BB chcon -R u:object_r:system_file:s0 "$OV/up/etc" 2>/dev/null
+            echo "Features from my_product:$MPF"
+        fi
         if [ $SAMCAM = 1 ] && ! samcam_mountpoints "$OV/up" sysext; then
             SAMCAM=0; echo "Samsung Camera in the guest: off (no room for its mount points on the overlay's tmpfs)"
         fi
@@ -1174,6 +1254,24 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
         exit 3
     fi
     echo "Bound framework_patched.jar -> $HFW"
+    # Xiaomi's SurfaceFlinger with the display mode group read whole
+    # (patches/hyperos_sf_group.py): it compared a mode's group with the default
+    # mode's low byte, and One UI numbers the groups by panel width on the S23,
+    # S24 Ultra and Z Flip5 (1440 against 160): no mode matched and SurfaceFlinger
+    # aborted at the first display, a black screen every session there.
+    HSF="$GUEST_SYSTEM_EXT/lib64/libsurfaceflinger.so"
+    if [ -f "$STAGE/libsurfaceflinger_patched.so" ] && [ -f "$HSF" ] && [ ! -L "$HSF" ]; then
+        chmod 644 "$STAGE/libsurfaceflinger_patched.so"
+        $BB chcon u:object_r:system_lib_file:s0 "$STAGE/libsurfaceflinger_patched.so" 2>/dev/null || true
+        $BB umount -l "$HSF" 2>/dev/null || true
+        $BB mount --bind "$STAGE/libsurfaceflinger_patched.so" "$HSF"
+        if [ "$(stat -c %d:%i "$HSF" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/libsurfaceflinger_patched.so")" ]; then
+            echo "Bound libsurfaceflinger_patched.so -> $HSF (mode groups read whole)"
+        else
+            echo "ERROR: HyperOS's SurfaceFlinger with whole mode groups is not in place; not starting the guest"
+            exit 3
+        fi
+    fi
     # HyperOS's audioserver without an audio HAL adapter vendor extension
     # (patches/hyperos_audio_ext.py): only One UI's own audioserver serves one,
     # it is stopped for the session, and HyperOS's waited for it with no time
@@ -1336,6 +1434,13 @@ STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/guest_google.sh" prepare ||
 # After the system_ext overlay above: a bind made under system_ext before it is
 # hidden by it (0.4.14 on the Z Fold8: SystemUI kept the image's, no fold layout).
 STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" prepare || exit 3
+# Pull request #1's SystemUI reads oneos.unfold_transition for Android's unfold
+# reveal (0.4.38). The Z Fold8 Ultra waited 2.0-2.2 s for its inner screen on every
+# unfold with it, 0.1-1.0 s without (test3 against test4): off there, on elsewhere
+# (the Z Fold8, as pull request #1 tested it). setprop oneos.unfold_transition 1 and
+# a SystemUI restart turn it on for a session.
+if [ "${ONEOS_PROFILE:-}" = f8u ]; then setprop oneos.unfold_transition 0; else setprop oneos.unfold_transition 1; fi
+echo "Unfold reveal: oneos.unfold_transition=$(getprop oneos.unfold_transition)"
 STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_pixel.sh" prepare || exit 3
 # ColorOS feature switches the guest needs, added to com.oplus.features_config.xml
 # in its system_ext, a feature file it already loads (the my_* feature files are
@@ -1404,7 +1509,9 @@ if [ -f "$FEAT" ]; then
     ADDED="oplus.software.display.multibits_dimming_support"
     # Galaxy Z Fold8, Find N6 (pull request #1): Live Alerts, AOD, fold animations,
     # separate wallpapers per panel and haptic sounds, as the Find N6 declares them.
-    if [ "${ONEOS_PROFILE:-}" = f8 ] &&
+    # 0.4.38: the Z Fold8 Ultra too wherever pull request #1's SystemUI is staged (the
+    # global build ships its own AOD app, so no donor is needed for the AOD switch).
+    if { [ "${ONEOS_PROFILE:-}" = f8 ] || { [ "${ONEOS_PROFILE:-}" = f8u ] && [ -f "$STAGE/Fold8SystemUI.apk" ]; }; } &&
        grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage"; then
         ADDED="$ADDED oplus.software.support_fluid_entry oplus.software.fluid_replace_ntf"
         ADDED="$ADDED oplus.software.display.aod_support oplus.software.adaptive_smooth_animation"
@@ -1441,6 +1548,18 @@ if [ -f "$FEAT" ]; then
         done
         echo "ColorOS features from the image's stock catalogue:${SF:- none new}"
     fi
+    # Circle to Search (0.4.38): the global builds switch OPPO's long press on the
+    # gesture handle to Google's contextual search with my_product's
+    # feature_contextualsearch_navbarhidden*.xml, which the container does not load
+    # either (no Circle to Search, F8U test10). Only those files' features.
+    CS=""
+    for f in "$ROOTFS"/my_product/etc/extension/feature_contextualsearch_*.xml; do
+        [ -f "$f" ] && [ ! -L "$f" ] || continue
+        for x in $(sed -n 's/.*<oplus-feature name="\(oplus\.software\.[a-z0-9_.]*\)".*/\1/p' "$f"); do
+            case " $ADDED " in *" $x "*) ;; *) ADDED="$ADDED $x"; CS="$CS ${x#oplus.software.}" ;; esac
+        done
+    done
+    [ -z "$CS" ] || echo "ColorOS contextual search features from my_product:$CS"
     case "$FORM" in
         fold) ADDED="$ADDED oplus.hardware.type.fold"
             if [ "${ONEOS_GUEST_UNFOLD_PORTRAIT:-1}" = 1 ]; then
@@ -2348,10 +2467,12 @@ fi
 DSDIR="$STAGE/data/system/devicestate"
 DS_DEFAULT=vendor
 FOLD8_COLOR_HINGE=0
+# 0.4.38: the Z Fold8 runs the Find N6 global image with n6-f8u too (n6-f8's UI
+# patches were the CN build's); its hinge stays.
 # The Z Fold8 Ultra (n6-f8u) has the same lid states (0 CLOSE, 3 OPEN) and the
 # same sensor ("Folding Angle  Non-wakeup", 65686, read on SM-F976B 2026-10-26).
 if grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" &&
-        { { [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "set": "n6-f8",$' "$STAGE/.oneos_stage"; } ||
+        { { [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q -e '^  "set": "n6-f8",$' -e '^  "set": "n6-f8u",$' "$STAGE/.oneos_stage"; } ||
           { [ "${ONEOS_PROFILE:-}" = f8u ] && grep -q '^  "set": "n6-f8u",$' "$STAGE/.oneos_stage"; }; }; then
     DS_DEFAULT=fold8-hinge
     FOLD8_COLOR_HINGE=1

@@ -42,6 +42,8 @@ object RootRules {
         "me.weishu.kernelsu" to RootKind.KERNELSU,
         "com.rifsxd.ksunext" to RootKind.KERNELSU,
         "com.sukisu.ultra" to RootKind.KERNELSU,
+        // A friend's KernelSU fork (0.4.38 tester: "su (unknown manager)" though it roots fine).
+        "app.kitsusu.manager" to RootKind.KERNELSU,
         "com.topjohnwu.magisk" to RootKind.MAGISK,
         "io.github.vvb2060.magisk" to RootKind.MAGISK,
         "io.github.huskydg.magisk" to RootKind.MAGISK,

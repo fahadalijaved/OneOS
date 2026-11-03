@@ -128,17 +128,17 @@ def fix_tp_info(root):
     pass ctl.start gettpinfo."""
     dirs = set()
     # The key gesture one is KeyGestureControllerExtlmpl's in ColorOS 17 and
-    # PhoneWindowManagerExtImpl's in the ColorOS 16 jar Infinity-X carries.
+    # PhoneWindowManagerExtImpl's in the ColorOS 16 jar Infinity-X carries; the
+    # Find N6 global build (CPH2765 EX01) has both, each with the same setprop.
     key_gesture = [os.path.join("com", "android", "server", d, c + ".smali") for d, c in
                    (("input", "KeyGestureControllerExtlmpl"), ("policy", "PhoneWindowManagerExtImpl"))]
     public = ".method public getTpInfo(Ljava/lang/String;Ljava/lang/String;)V"
     has = [rel for rel in key_gesture if public in open(find(root, rel)).read().split("\n")]
-    if len(has) != 1:
-        sys.exit(f"getTpInfo found in {has}, expected in one of {key_gesture}")
-    for rel, header in (
-            (has[0], public),
+    if not has:
+        sys.exit(f"getTpInfo found in none of {key_gesture}")
+    for rel, header in [(r, public) for r in has] + [
             (os.path.join("com", "android", "server", "policy", "StrategyBlackscreenshot.smali"),
-             ".method private getTpInfo(Ljava/lang/String;Ljava/lang/String;)V")):
+             ".method private getTpInfo(Ljava/lang/String;Ljava/lang/String;)V")]:
         path = find(root, rel)
         lines = open(path).read().split("\n")
         idx = [i for i, l in enumerate(lines) if l == header]

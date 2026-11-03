@@ -32,12 +32,14 @@ class ImagesTest {
         assertEquals(1_795_207_168L, x9u.gzIsize)
 
         assertEquals("coloros17-findn6", n6.id)
-        assertEquals("OneOS_ColorOS17_FindN6_ZFold8.img.gz", n6.gzName)
-        assertEquals(5_285_345_619L, n6.gzBytes)
-        assertEquals("4d371cbeb5da0b7c4b67ff44ce437ca56a244b0e3a93e1a696099ab6071d1809", n6.gzSha256)
-        assertEquals(10_276_003_840L, n6.rawBytes)
-        assertEquals("bdf5ef00aee3333758afdde152a29e0d2ca7bdaf89029ccd74bad34eec5bf444", n6.rawSha256)
-        assertEquals(SpaceRule.TYPICAL_IMAGE_BYTES, n6.rawBytes)
+        assertEquals("OneOS_ColorOS17_FindN6_Global.img.gz", n6.gzName)
+        // 0.4.38: the global build (CPH2765 EX01, no debloat), 2026-11-01.
+        assertEquals(7_213_271_568L, n6.gzBytes)
+        assertEquals("b3061160ab3fdb37cd491e94c05e41238898320c1a5efb016debabc20991f3ee", n6.gzSha256)
+        assertEquals(14_829_686_784L, n6.rawBytes)
+        assertEquals("eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c", n6.rawSha256)
+        // The typical size the space hints quote stays the CN build's; a chosen image uses its own.
+        assertTrue(n6.rawBytes > SpaceRule.TYPICAL_IMAGE_BYTES)
 
         // 0.3.7: the Pixel 11 Fold image, verified on the server (gunzip of the .gz == image, 2026-10-24).
         assertEquals("pixel11fold-yogi", pixel.id)
@@ -55,15 +57,16 @@ class ImagesTest {
         assertEquals(listOf("sve", "sve2"), pixel.cpuRequired)
         assertEquals(emptyList<String>(), pixel.cpuUsedByApps)
         // The Pixel images and Infinity-X (0.4.27) have Google services and their sessions present them; the
-        // Find X9 Ultra IN build and Nothing OS (0.4.33) have them in the image and a launch may hide them
+        // Find X9 Ultra IN build, Nothing OS (0.4.33) and the Find N6 global build (0.4.38) have them in the
+        // image and a launch may hide them
         // (Nothing's are product/priv-app GmsCore, Phonesky, GooglePartnerSetup, GoogleRestore, ConfigUpdater
         // and system_ext/priv-app GoogleServicesFramework: six folders guest_prepare.sh's patterns cover).
         assertEquals(
-            listOf(xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_METROID),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_METROID),
             Images.ALL.filter { it.googleServices },
         )
         assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX), Images.ALL.filter { it.presentsGms })
-        assertEquals(listOf(xin, Images.NOTHING_METROID), Images.ALL.filter { it.gmsHideable })
+        assertEquals(listOf(n6, xin, Images.NOTHING_METROID), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
             listOf(n6, x9u, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID),
@@ -98,17 +101,17 @@ class ImagesTest {
         assertEquals(SystemFamily.NOTHING, nothing.family)
         assertEquals("Nothing OS 5.0 (Android 17)", nothing.displayName)
         assertEquals(6_067_867_648L - (1L shl 32), nothing.gzIsize)
-        // 0.4.11: the Find X9 Ultra IN build is back (0.3.3-0.3.6, dropped in 0.3.7), the same file.
+        // 0.4.11: the Find X9 Ultra IN build is back (0.3.3-0.3.6, dropped in 0.3.7); 0.4.38: rebuilt without the debloat.
         assertEquals("coloros17-findx9u-in", xin.id)
-        assertEquals("OneOS_ColorOS17_FindX9Ultra_IN.img.gz", xin.gzName)
-        assertEquals(5_882_128_321L, xin.gzBytes)
-        assertEquals("413380426cdff8b5e760f1424895fc5b43e7a6ffe5f889e0406e437590c0d04e", xin.gzSha256)
-        assertEquals(12_069_945_344L, xin.rawBytes)
-        assertEquals("a36ef550f4b2530fb9c7c6d363180d9eb4437e0497ebc87292697e4bf2a580b0", xin.rawSha256)
+        assertEquals("OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz", xin.gzName)
+        assertEquals(7_071_596_999L, xin.gzBytes)
+        assertEquals("c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab", xin.gzSha256)
+        assertEquals(14_669_168_640L, xin.rawBytes)
+        assertEquals("92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6", xin.rawSha256)
         assertEquals(x9u.buildId, xin.buildId)
         assertEquals(null, xin.testedOn)
-        assertEquals(xin, Images.byGzSize(5_882_128_321L))
-        assertEquals(xin, Images.byRawSize(12_069_945_344L))
+        assertEquals(xin, Images.byGzSize(7_071_596_999L))
+        assertEquals(xin, Images.byRawSize(14_669_168_640L))
         assertEquals("Find X9 Ultra IN", Images.shortName(xin.id))
         // No image is retired now; a retired image's name stays known (old stages, the last session).
         assertEquals(emptyList<RetiredImage>(), Images.RETIRED)
@@ -137,7 +140,7 @@ class ImagesTest {
         val sizes = Images.ALL.flatMap { listOf(it.gzBytes, it.rawBytes) }
         assertEquals(sizes.size, sizes.toSet().size)
         assertEquals(x9u, Images.byGzSize(5_290_346_735L))
-        assertEquals(n6, Images.byRawSize(10_276_003_840L))
+        assertEquals(n6, Images.byRawSize(14_829_686_784L))
         assertNull(Images.byGzSize(5_290_346_734L))
         assertTrue(x9u.rawMatches(10_385_141_760L, x9u.rawSha256.uppercase()))
         assertTrue(!x9u.rawMatches(10_385_141_759L, x9u.rawSha256))
@@ -182,12 +185,12 @@ class ImagesTest {
 
     @Test
     fun wrongImageForThePhone() {
-        val n6OnS26 = id(ImageFileCheck("OneOS_ColorOS17_FindN6_ZFold8.img.gz", n6.gzBytes, n6.gzSha256, n6.gzBytes))
+        val n6OnS26 = id(ImageFileCheck("OneOS_ColorOS17_FindN6_Global.img.gz", n6.gzBytes, n6.gzSha256, n6.gzBytes))
         assertEquals(ImageState.WRONG_FOR_PHONE, n6OnS26.state)
         assertEquals(Level.BLOCK, n6OnS26.finding.level)
         // The BLOCK names every image the phone takes.
         assertEquals(
-            "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN.img.gz) " +
+            "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
                 "or the Find X9 Ultra image (OneOS_ColorOS17_FindX9Ultra_S26U.img.gz) or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
@@ -207,7 +210,7 @@ class ImagesTest {
         val pixelOnFold7 = ImageIdentifier.identify(ImageFileCheck(null, pixel.gzBytes, pixel.gzSha256, pixel.gzBytes), Profiles.FOLD7)
         assertEquals(ImageState.WRONG_FOR_PHONE, pixelOnFold7.state)
         assertEquals(
-            "This is the Pixel 11 Fold image; Galaxy Z Fold7 takes the Find N6 image (OneOS_ColorOS17_FindN6_ZFold8.img.gz) " +
+            "This is the Pixel 11 Fold image; Galaxy Z Fold7 takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
             pixelOnFold7.finding.detail,
@@ -219,7 +222,7 @@ class ImagesTest {
             assertEquals(Level.BLOCK, x9uOnFold.finding.level)
             assertEquals(x9u, x9uOnFold.image)
             assertEquals(
-                "This is the Find X9 Ultra image; Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_ZFold8.img.gz) " +
+                "This is the Find X9 Ultra image; Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) " +
                     "or the Pixel 11 Fold image (OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) " +
                     "or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                     "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
@@ -287,13 +290,13 @@ class ImagesTest {
         assertEquals(pixel, mixed.image)
         // Nothing picked: what the phone takes.
         assertEquals(
-            "Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_ZFold8.img.gz) or the Pixel 11 Fold image " +
+            "Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) or the Pixel 11 Fold image " +
                 "(OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image " +
                 "(OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz)",
             ImageIdentifier.accepts(Profiles.F8U),
         )
         assertEquals(
-            "Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN.img.gz) or the Find X9 Ultra image " +
+            "Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) or the Find X9 Ultra image " +
                 "(OneOS_ColorOS17_FindX9Ultra_S26U.img.gz) or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz)",
@@ -340,7 +343,7 @@ class ImagesTest {
         assertTrue(cnOnFold.finding.detail.contains("Find X9 Ultra image; Z Fold (F8U) takes the Find N6 image"))
         val n6OnS26 = staged(n6.rawBytes, n6.rawSha256, Profiles.S_ULTRA_8850)
         assertEquals(ImageState.WRONG_FOR_PHONE, n6OnS26.state)
-        assertTrue(n6OnS26.finding.detail, n6OnS26.finding.detail.contains("Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN.img.gz) or the Find X9 Ultra image (OneOS_ColorOS17_FindX9Ultra_S26U.img.gz)"))
+        assertTrue(n6OnS26.finding.detail, n6OnS26.finding.detail.contains("Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) or the Find X9 Ultra image (OneOS_ColorOS17_FindX9Ultra_S26U.img.gz)"))
         val pixelOnS26 = staged(pixel.rawBytes, pixel.rawSha256, Profiles.S_ULTRA_8850)
         assertEquals(ImageState.WRONG_FOR_PHONE, pixelOnS26.state)
         assertEquals(pixel, pixelOnS26.image)
@@ -396,7 +399,7 @@ class ImagesTest {
             assertEquals(p.id, names.size, names.toSet().size)
             assertTrue(p.id, p.recommended != null)
         }
-        assertEquals("ColorOS 17 · Find N6 build (Android 17)", n6.displayName)
+        assertEquals("ColorOS 17 · Find N6 global build (Android 17)", n6.displayName)
         assertEquals("Pixel 11 Fold", pixel.nameWithVariant)
         assertEquals("Pixel 11 Fold (Android 17)", pixel.displayName)
         assertEquals("Pixel 11 Fold", Images.systemName(pixel, Profiles.F8U))
@@ -407,7 +410,7 @@ class ImagesTest {
         assertEquals("ColorOS 17 · Find X9 Ultra build", Images.systemName(x9u, Profiles.S_ULTRA_8850))
         assertEquals("ColorOS 17 · global build", Images.systemName(xin, Profiles.S_ULTRA_8850))
         val twin = Profiles.F8U.copy(choices = Profiles.F8U.choices + ImageChoice(x9u.id, PackageSets.ID_X9U_SULTRA, false))
-        assertEquals("ColorOS 17 · Find N6 build", Images.systemName(n6, twin))
+        assertEquals("ColorOS 17 · Find N6 global build", Images.systemName(n6, twin))
         assertEquals("the other system", Images.systemName(null))
         // The Fold's recommended system is the one that has run on it.
         assertEquals(Images.ID_FIND_N6, Profiles.F8U.recommended!!.imageId)

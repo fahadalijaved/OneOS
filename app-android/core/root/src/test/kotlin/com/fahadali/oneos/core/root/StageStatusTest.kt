@@ -162,7 +162,7 @@ class StageStatusTest {
         val fold = Profiles.F8U
         val n6 = Images.FIND_N6
         val pixelId = Images.ID_PIXEL_YOGI
-        // The Fold's stage of the Find N6 build with its ColorOS data.
+        // The Fold's stage of the Find N6 global build with its ColorOS data.
         val st = status(prepared(image = n6, set = PackageSets.N6_F8U, profile = fold))
         assertEquals(listOf(k, a), st.beginModes(n6.id))
         assertNull(st.otherImageData(n6.id))
@@ -312,6 +312,8 @@ class StageStatusTest {
         for (n in listOf("OneOSPixelStatusBar.apk", "OneOSPhoneInjection.apk", "oneos-telephony.jar", "oneos-telephony.sha256", "gmssystem_payload.img")) {
             assertTrue(n, problems(Images.FIND_N6, PackageSets.N6_F8U, "f 0 644 10 $n\n").contains("$n is in the stage but was not prepared"))
         }
+        // The session's own watchdog feeder is not another set's file.
+        assertFalse(problems(Images.FIND_N6, PackageSets.N6_F8U, "f 0 700 10 oneos_wdog_feeder.sh\n").any { "oneos_wdog_feeder.sh" in it })
         // ColorOS's files in the Pixel stage.
         for (n in listOf("surfaceflinger_patched", "oplus-services_patched.jar", "OneOSWallpapersFoldGrid.apk")) {
             assertTrue(n, problems(Images.PIXEL_YOGI, PackageSets.PIXEL_F8U, "f 0 644 10 $n\n").contains("$n is in the stage but was not prepared"))

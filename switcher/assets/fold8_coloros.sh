@@ -5,10 +5,14 @@ set -e
 STAGE=${STAGE:-/data/local/tmp/oneos}
 BB=${BB:-/data/oneos_bin/busybox}
 fail() { echo "Fold8 ColorOS: $*" >&2; exit 3; }
+# 0.4.38: the Find N6 global image on the Z Fold8 and the Z Fold8 Ultra (set n6-f8u,
+# which carries the global build's Fold8SystemUI.apk and angle relay); the CN build's
+# n6-f8 is retired. Only where the patched SystemUI is staged.
 selected() {
-    [ "${ONEOS_PROFILE:-}" = f8 ] &&
-        grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" &&
-        grep -q '^  "set": "n6-f8",$' "$STAGE/.oneos_stage"
+    case "${ONEOS_PROFILE:-}" in f8|f8u) ;; *) return 1 ;; esac
+    grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" &&
+        grep -q -e '^  "set": "n6-f8",$' -e '^  "set": "n6-f8u",$' "$STAGE/.oneos_stage" &&
+        [ -f "$STAGE/Fold8SystemUI.apk" ] && [ ! -L "$STAGE/Fold8SystemUI.apk" ]
 }
 # Reject links anywhere below the new folder, including a guest-planted link
 # to host data. Existing stage/namespace checks run before this script.
@@ -22,10 +26,23 @@ plain_tree() {
 # change, preserve a host snapshot, and yield to external policy writers.
 # This backend is shared by every profile/guest. Probe the Samsung request
 # interfaces instead of assuming a model, cluster number or GPU frequency.
+# The GPU's frequencies in gpu_max_clock's unit. Snapdragon: Qualcomm's kgsl
+# table in Hz, gpu_max_clock in MHz (the Fold8's tested path). Without kgsl
+# (Exynos: Galaxy Z Flip8, the Exynos S26 and S26+), Samsung's own
+# gpu_freq_table, which its driver prints in gpu_max_clock's unit.
+gpu_freqs() {
+    if [ -r /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies ]; then
+        awk '{for(i=1;i<=NF;i++)if($i~/^[0-9]+$/)printf "%d ", int($i/1000000)}' /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies
+    elif [ -r /sys/kernel/gpu/gpu_freq_table ]; then
+        awk '{for(i=1;i<=NF;i++)if($i~/^[0-9]+$/)printf "%d ", $i}' /sys/kernel/gpu/gpu_freq_table
+    fi
+}
+gpu_max() { gpu_freqs | awk '{for(i=1;i<=NF;i++)if($i>m)m=$i}END{print m+0}'; }
 perf_supported() {
-    for node in /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit /sys/kernel/gpu/gpu_max_clock /sys/kernel/gpu/gpu_tmu /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies; do
+    for node in /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit /sys/kernel/gpu/gpu_max_clock /sys/kernel/gpu/gpu_tmu; do
         [ -r "$node" ] || return 1
     done
+    [ "$(gpu_max)" -gt 0 ] || return 1
     [ -w /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit ] && [ -w /sys/kernel/gpu/gpu_max_clock ] || return 1
     count=0
     for policy in /sys/devices/system/cpu/cpufreq/policy*; do
@@ -67,7 +84,7 @@ perf_snapshot() {
     fi
     echo "$power_save" > "$PSTATE/power_save"
     echo "${1:-host}" > "$PSTATE/mode"
-    perf_log "snapshot ($1): cpu=$(cat "$PSTATE/cpu.before") gpu=$(cat "$PSTATE/gpu.before")MHz"
+    perf_log "snapshot ($1): cpu=$(cat "$PSTATE/cpu.before") gpu=$(cat "$PSTATE/gpu.before")"
 }
 perf_valid() {
     PSTATE=$(perf_state)
@@ -120,8 +137,8 @@ perf_worker() {
         sleep 2
     done
     [ -n "${gp:-}" ] || return 1
-    gpu_top=$(awk '{for(i=1;i<=NF;i++)if($i>m)m=$i}END{print int(m/1000000)}' /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies)
-    case "$gpu_top" in ''|*[!0-9]*) return 1;; esac
+    gpu_top=$(gpu_max)
+    case "$gpu_top" in ''|0|*[!0-9]*) return 1;; esac
     mode=$(cat "$PSTATE/mode"); released=0; level=-1
     while [ ! -f "$PSTATE/stop" ] && [ ! -f "$STAGE/data/oneos_rec_stop" ]; do
         gp=$(perf_guest) || return 0
@@ -159,7 +176,9 @@ perf_worker() {
                 perf_write "$p/scaling_max_freq" "${p##*/}" "$target"
             done
             ceiling=$(cat "$PSTATE/gpu.before"); if [ "$mode" = live ] || [ "$(cat "$PSTATE/power_save")" = 0 ]; then ceiling=$gpu_top; fi
-            target=$(awk -v max="$((gpu_top * pct / 100))" -v ceiling="$ceiling" '{for(i=1;i<=NF;i++){v=int($i/1000000);if(v<=max&&v<=ceiling&&v>m)m=v}}END{print m}' /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies)
+            target=$(gpu_freqs | awk -v max="$((gpu_top * pct / 100))" -v ceiling="$ceiling" '{for(i=1;i<=NF;i++){v=$i;if(v<=max&&v<=ceiling&&v>m)m=v}}END{print m}')
+            # No table step under this level's cap: the lowest one, never an empty write.
+            case "$target" in ''|0) target=$(gpu_freqs | awk '{for(i=1;i<=NF;i++)if(!m||$i<m)m=$i}END{print m}');; esac
             perf_write /sys/kernel/gpu/gpu_max_clock gpu "$target"
             perf_log "thermal level $level->$new skin=${skin:-unknown} gpu=$gpu_t"
             level=$new
@@ -310,7 +329,8 @@ SOURCE="$STAGE/verified_addons/PhotosGlobal.apk"
 TARGET="$ROOTFS/my_stock/priv-app/OppoGallery2"
 [ -f "$SOURCE" ] && [ ! -L "$SOURCE" ] || exit 3
 [ "$(sha256sum "$SOURCE" | cut -d' ' -f1)" = af2801326bd3f5db80f2583644cf7e7a8ddfa2740022b72ae9ed099b038329ac ] || exit 3
-[ "$(sha256sum "$TARGET/OppoGallery2.apk" | cut -d' ' -f1)" = 9610c7efab2b3b45a547d8caa7c75df74ebb614c2dea0322b33343cf2fff2198 ] || exit 3
+# The CN build's gallery only; the global build has its own Photos (left as it is).
+if [ "$(sha256sum "$TARGET/OppoGallery2.apk" 2>/dev/null | cut -d' ' -f1)" = 9610c7efab2b3b45a547d8caa7c75df74ebb614c2dea0322b33343cf2fff2198 ]; then
 # Clean directory avoids mixing old gallery libraries with the global APK.
 REPLACEMENT="$STAGE/verified_addons/gallery_global_system"
 [ ! -L "$REPLACEMENT" ] || exit 3
@@ -322,24 +342,33 @@ chmod 755 "$REPLACEMENT"
 chmod 644 "$REPLACEMENT/Photos.apk"
 "$BB" mount --bind "$REPLACEMENT" "$TARGET"
 echo 'Official global Photos replaces donor gallery for guest package scan'
+fi
     fi
     target="$ROOTFS/system/system_ext/priv-app/SystemUI/SystemUI.apk"
     "$BB" umount -l "$target" 2>/dev/null || true
     [ -f "$target" ] && [ ! -L "$target" ] || fail 'unexpected SystemUI path'
-    [ "$(sha256sum "$target" | cut -d' ' -f1)" = e6bf0e49649dc82117e7b9584c13dbcf737183d17c461cd6edcedcc127165f7e ] || fail 'SystemUI donor differs'
+    # The CN build's SystemUI or (0.4.38) the global build's, each with its own Fold8SystemUI.apk.
+    case "$(sha256sum "$target" | cut -d' ' -f1)" in
+        e6bf0e49649dc82117e7b9584c13dbcf737183d17c461cd6edcedcc127165f7e|735e43e076bfcef6e73508ea366f3675a69a5a8bb0750cd92d0e3612b2cd7c54) ;;
+        *) fail 'SystemUI donor differs' ;;
+    esac
     "$BB" mount --bind "$STAGE/Fold8SystemUI.apk" "$target"
     "$BB" mount --make-private "$target"
     "$BB" mount -o remount,bind,ro "$STAGE/Fold8SystemUI.apk" "$target"
     dest="$STAGE/data/oneos_fold8"
     plain_tree "$dest"
     mkdir -p "$dest"
+    # The CN build's donor apps only where staged (the global build has its own).
     for f in Fold8Aod.apk Fold8UMS.apk Fold8Instant.apk Fold8AngleRelay.dex; do
+        [ -f "$STAGE/$f" ] || { rm -f "$dest/$f"; continue; }
         cp -f "$STAGE/$f" "$dest/$f"
         chmod 644 "$dest/$f"
     done
     cp -f "$STAGE/OneOSFold8Geometry.dex" "$dest/OneOSFold8Geometry.dex"
     chmod 644 "$dest/OneOSFold8Geometry.dex"
     cp -f "$STAGE/fold8_coloros.sh" "$dest/runtime.sh"
+    # The runtime runs in the guest without the session's environment.
+    echo "${ONEOS_PROFILE:-}" > "$dest/profile"
     chmod 755 "$dest"; chmod 644 "$dest/runtime.sh"
     chown -R 0:0 "$dest"
     chcon -R u:object_r:system_data_file:s0 "$dest"
@@ -360,6 +389,7 @@ runtime)
     done
     for spec in com.oplus.aod:Fold8Aod.apk com.oplus.pantanal.ums:Fold8UMS.apk com.nearme.instant.platform:Fold8Instant.apk; do
         pkg=${spec%:*}; apk="$D/${spec#*:}"
+        [ -f "$apk" ] || continue
         if [ -z "$(pm path "$pkg" 2>/dev/null)" ]; then
             pm install -r --abi arm64-v8a --user 0 "$apk"
         fi
@@ -402,6 +432,15 @@ runtime)
     esac
     settings put global fluid_cloud_not_support 0
     uri=content://com.oplus.customize.coreapp.configmanager.configprovider.AppFeatureProvider/app_feature
+    profile=$(cat "$D/profile" 2>/dev/null)
+    # Z Fold8 Ultra: 0.4.38 test8 turned the taskbar off (its window held the cover
+    # screen 0.9 s on a fold); the owner wants it, and large-screen mode now loads
+    # (guest_prepare.sh, my_product features). Back on once where test8 took it off.
+    if [ "$profile" = f8u ] && [ -f "$D/no-taskbar-v1" ] && [ ! -f "$D/taskbar-back-v1" ]; then
+        settings put system enable_launcher_taskbar 1
+        touch "$D/taskbar-back-v1"
+        reload=1
+    fi
     if ! content query --uri "$uri" --where 'featurename="com.android.launcher.TASKBAR_ENABLE"' 2>/dev/null | grep -q 'featurename=com.android.launcher.TASKBAR_ENABLE'; then
         content insert --uri "$uri" --bind featurename:s:com.android.launcher.TASKBAR_ENABLE --bind parameters:s:
         reload=1
@@ -411,8 +450,17 @@ runtime)
         content delete --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"'
         settings put system system_tokyo_search_ai_enable 1
         reload=1
-    elif ! content query --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"' 2>/dev/null | grep -q 'featurename=com.android.launcher.CN_VERSION'; then
-        content insert --uri "$uri" --bind featurename:s:com.android.launcher.CN_VERSION --bind parameters:s:
+    elif pm path com.oppo.quicksearchbox >/dev/null 2>&1; then
+        if ! content query --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"' 2>/dev/null | grep -q 'featurename=com.android.launcher.CN_VERSION'; then
+            content insert --uri "$uri" --bind featurename:s:com.android.launcher.CN_VERSION --bind parameters:s:
+            reload=1
+        fi
+    # The global build has neither CN search app and is an export launcher:
+    # CN_VERSION makes FeatureOption.isExp false, which turns off Circle to
+    # Search on the taskbar handle (0.4.38: isSupportCircleToSearchHandle).
+    # Earlier sessions inserted it here; the guest's data keeps it.
+    elif content query --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"' 2>/dev/null | grep -q 'featurename=com.android.launcher.CN_VERSION'; then
+        content delete --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"'
         reload=1
     fi
     if [ ! -f "$D/defaults-v1" ]; then

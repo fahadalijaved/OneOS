@@ -106,10 +106,10 @@ class ProfilesTest {
         assertEquals(listOf("f8", "Galaxy Z Fold8"), listOf(fold8.id, fold8.label))
         assertEquals(listOf("SM-F971", "h8q", "SM8850"), listOf(fold8.modelPrefix, fold8.codename, fold8.socModel))
         assertEquals(FormFactor.FOLD, fold8.form)
-        // 0.4.14 (pull request #1): the Find N6 image with its own set n6-f8, run on the friend's SM-F971B.
+        // 0.4.38: the Find N6 global image with the Folds' set (n6-f8 of pull request #1 was the CN build's).
         assertEquals(
             listOf(
-                ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8, tested = true),
+                ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false),
                 ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
                 ifx,
                 hyper,
@@ -118,7 +118,8 @@ class ProfilesTest {
             fold8.choices,
         )
         assertTrue(fold8.notes.isEmpty() && fold8.testedWithAnyImage)
-        assertEquals(Images.ID_FIND_N6, fold8.recommended?.imageId)
+        // 0.4.38: the Pixel image, the one the Fold8 has run (the Find N6 global build not yet).
+        assertEquals(Images.ID_PIXEL_YOGI, fold8.recommended?.imageId)
         // Galaxy S26 (0.4.11): the S Ultra's images and sets, untested; one profile per model number.
         val s26Base = Profiles.S_8850
         assertEquals(listOf("s-8850", "Galaxy S26"), listOf(s26Base.id, s26Base.label))

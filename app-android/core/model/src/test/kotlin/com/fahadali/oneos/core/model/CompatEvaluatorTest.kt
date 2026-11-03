@@ -18,15 +18,15 @@ class CompatEvaluatorTest {
         assertEquals(Verdict.COMPATIBLE, r.verdict)
         assertEquals(Level.OK, r.level("tested-model"))
         // Where it has run comes from the image table, not a fixed text.
-        assertEquals("Has run on the Z Fold (F8U): ColorOS 17 · Find N6 build; Pixel 11 Fold.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Z Fold (F8U): ColorOS 17 · Find N6 global build; Pixel 11 Fold.", r.find("tested-model")!!.detail)
         // 0.4.31: the testers' reports of 2026-10-29/30 (docs/compatibility.md) add
         // Infinity-X on the S26 Ultra, S25 Ultra, S25, S24 Ultra and Z Flip5, the CN
         // ColorOS build on the Galaxy A57, and the global build on the Z Flip5.
-        assertEquals("Has run on: ColorOS 17 · Find N6 build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U); " +
+        assertEquals("Has run on: ColorOS 17 · Find N6 global build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U); " +
             "ColorOS 17 · Find X9 Ultra build on the Galaxy S26 Ultra; Infinity-X 4.1 on the Galaxy S26 Ultra; " +
             "ColorOS 17 · Find X9 Ultra build on the Galaxy S25 Ultra; Infinity-X 4.1 on the Galaxy S25 Ultra; " +
             "ColorOS 17 · Find X9 Ultra build on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
-            "ColorOS 17 · Find N6 build on the Galaxy Z Fold8; Pixel 11 Fold on the Galaxy Z Fold8; " +
+            "Pixel 11 Fold on the Galaxy Z Fold8; " +
             "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · Find X9 Ultra build on the Galaxy A57; " +
             "ColorOS 17 · global build on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5.",
             CompatEvaluator.TESTED_SCOPE,

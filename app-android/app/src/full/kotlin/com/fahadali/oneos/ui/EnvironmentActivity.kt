@@ -42,6 +42,8 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
     private var facts: DeviceFacts? = null
     private val subscriptions = mutableListOf<() -> Unit>()
     private val io = java.util.concurrent.Executors.newSingleThreadExecutor()
+    // A check is good for Readiness.CHECK_AGE_MS: when it runs out on this screen, check again by itself.
+    private val recheck = Runnable { if (!isDestroyed && !preview) { Readiness.tick(this); render() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -123,7 +125,10 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         super.onResume()
         if (::image.isInitialized && !preview) { Readiness.onResume(this); render() }
     }
-    override fun onStop() { subscriptions.forEach { it() }; subscriptions.clear(); super.onStop() }
+    override fun onStop() {
+        window.decorView.removeCallbacks(recheck)
+        subscriptions.forEach { it() }; subscriptions.clear(); super.onStop()
+    }
     override fun onDestroy() { io.shutdownNow(); super.onDestroy() }
 
     private fun catalogue() {
@@ -147,6 +152,11 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         if (!wide) findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout).setTitle(image.name)
         val column = findViewById<LinearLayout>(R.id.environment_cards)
         column.removeAllViews()
+        // 0.4.38: say what is running, so a waiting button is never a silent one (top: the fixed action covers the bottom).
+        if (!preview && !StageCheck.state.busy && (Readiness.anyBusy() || com.fahadali.oneos.session.RemoveJob.state.busy)) {
+            val why = if (com.fahadali.oneos.session.LogJob.state.busy) R.string.environment_busy_logs else R.string.environment_busy_other
+            CardRows.text(Cards.section(column, null), getString(why), R.style.OneOS_Text_Caption)
+        }
         val checks = Cards.section(column, null)
         checks.setPadding(dp(8), dp(8), dp(8), dp(8))
         val rootValue = if (preview) "KernelSU active" else currentFacts?.rootKind?.takeUnless { it == com.fahadali.oneos.core.model.RootKind.NONE }?.label?.let { getString(R.string.environment_active, it) }
@@ -247,18 +257,26 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             val message = Plain.of(StageCheck.state.failure!!, image, null).line
             CardRows.text(Cards.section(column, null), message, R.style.OneOS_Text_Caption)
         }
+        // Any job (0.4.38: the log collection after a return can run for minutes) shows the spinner,
+        // not a button whose tap readyToBoot() then ignores.
         val checking = !preview && (StageCheck.state.busy || StageCheck.state.phase == StageCheck.Phase.IDLE ||
-            (StageCheck.state.phase != StageCheck.Phase.FAILED && report == null))
+            (StageCheck.state.phase != StageCheck.Phase.FAILED && report == null) ||
+            Readiness.anyBusy() || com.fahadali.oneos.session.RemoveJob.state.busy)
         findViewById<View>(R.id.environment_action_spinner).visibility = if (checking) View.VISIBLE else View.GONE
         fun readyToBoot(): Boolean = preview || (StageCheck.state.phase == StageCheck.Phase.DONE &&
             StageCheck.state.result === result && result != null && result.ageMs <= Readiness.CHECK_AGE_MS &&
             report != null && (report.image?.id == image.id || (maintenance != null && ImageMaintenance.identifiedImage(result)?.id == image.id)) &&
             (maintenance != null || !report.blocked) && !Readiness.anyBusy() &&
             !com.fahadali.oneos.session.RemoveJob.state.busy)
+        window.decorView.removeCallbacks(recheck)
+        if (!preview && !checking && result != null && StageCheck.state.phase == StageCheck.Phase.DONE)
+            window.decorView.postDelayed(recheck, (Readiness.CHECK_AGE_MS - result.ageMs).coerceAtLeast(0L) + 500L)
         findViewById<Button>(R.id.environment_boot).apply {
             text = if (result?.status?.pendingUpdate != null && maintenance != null) getString(R.string.retry_update)
                 else getString(if (maintenance != null) R.string.environment_update else R.string.environment_boot, image.name)
-            isEnabled = !checking && readyToBoot()
+            // Tappable whenever no check runs: a tap on a check that ran out starts a fresh one (below).
+            // Disabled, an expired check left the button dead until the screen was left (0.4.38, F8U).
+            isEnabled = !checking
             // Preserve the native button's text measurement while replacing its label
             // visually with the centred SESL spinner during the read-only check.
             setTextColor(if (checking) ColorStateList.valueOf(Color.TRANSPARENT) else actionTextColors)

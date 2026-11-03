@@ -23,6 +23,21 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$JAR"
 DIRS=$(python3 -I "$ROOT/switcher/patches/pixel_camera_abi.py" "$WORK/fw" "$TABLE")
+# ColorOS (extendGetComponentName) and HyperOS ("<package>&<activity>"): the
+# app's package name, not a component, for One UI's cameraserver
+# (switcher/patches/coloros_camera_client.py, 0.4.37). AOSP has neither site.
+CM=$(find "$WORK/fw" -path '*/android/hardware/camera2/CameraManager.smali' | head -1)
+if [ -n "$CM" ] && grep -q -e 'ICameraManagerExt;->extendGetComponentName' -e '^ *const-string v[0-9]*, "&"$' "$CM"; then
+    python3 -I "$ROOT/switcher/patches/coloros_camera_client.py" "$WORK/fw"
+    d=${CM#"$WORK/fw/"}; d=${d%%/*}
+    case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
+fi
+# Samsung IMS's framework additions as OneOS stand-ins (switcher/patches/
+# guest_secims_members.py, 0.4.38): only what the guest's classes lack.
+SD=$(python3 -I "$ROOT/switcher/patches/guest_secims_members.py" "$WORK/fw")
+for d in $SD; do
+    case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
+done
 if [ -z "$DIRS" ]; then
     rm -f "$OUT/framework_patched.jar"
     sed -i '/ framework_patched\.jar$/d' "$OUT/guards.txt" 2>/dev/null || true

@@ -364,10 +364,10 @@ object Profiles {
         codename = "h8q",
         socModel = "SM8850",
         form = FormFactor.FOLD,
-        // 0.4.14: the Find N6 image with its own set, n6-f8 (pull request #1; the
-        // owner's friend has run ColorOS on his SM-F971B, so it counts as tested).
+        // 0.4.38: the Find N6 global image with the Z Folds' set (n6-f8 of 0.4.14,
+        // pull request #1, patched the CN build's SystemUI); not run here yet.
         choices = listOf(
-            ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8, tested = true),
+            ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false),
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
             INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
         ),
@@ -582,7 +582,7 @@ object Profiles {
      * SM8650 like the Galaxy S24 Ultra, One UI 9.0, Android 17 build
      * CP2A.260605.016, vendor API 34 and kernel 6.1, density 420, installd table
      * identical to host_installd.txt; the tester asked for a build). A fold like
-     * the Z Fold7: the Find N6 build (its fold layout) and Infinity-X, untested.
+     * the Z Fold7: the Find N6 global build (its fold layout) and Infinity-X, untested.
      * Not HyperOS: on the S24 Ultra, the same chip, its SurfaceFlinger aborts at
      * the first display (0.4.32, four sessions), so it would only show black.
      */
@@ -665,7 +665,7 @@ object Profiles {
      * SM8550 like the Z Flip5 and the S23s, One UI 9.0, Android 17, vendor API 33
      * and kernel 5.15, inner 1812 x 2176 and cover 904 x 2316, device states 0
      * CLOSE and 3 OPEN, the HIDL composer and Samsung's Bluetooth audio HAL, no
-     * SVE, installd 85 methods). A fold like the Z Fold6: the Find N6 build (its
+     * SVE, installd 85 methods). A fold like the Z Fold6: the Find N6 global build (its
      * fold layout) and Infinity-X, which started on the Z Flip5's same platform,
      * untested, with the older-vendor note.
      */

@@ -1,10 +1,10 @@
-# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers and nativeservices guards
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices and wipesecrets guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
-# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py; 0.4.37, ColorOS: ICameraDeviceUser one code off from One UI's; the package name, not the component, as the client: patches/coloros_camera_client.py)
-# libcamera_client_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
-6855f21ad47358bfa77abf9b75be6d78e52c8d6cb5806c7ca27befc555a48040  services_patched.jar
-1c5186c1dff6929fd23d076ce097a2272cbd725ace5b7271ee489b3eeffd5810  oplus-services_patched.jar
+# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+697bb06bf4e4eeecc89b1a9890db68e23e35754190a0b37bfb0380abcd8ca9bb  services_patched.jar
+46e6cee0fe2b5448517aa180d5fc0b7cf35e025b37de9aee6c274b552ae5dc86  oplus-services_patched.jar
 2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so
-58d274b93e0468ac879ecde1f7f73948c82530434534a35b81edcbd250cd82d5  framework_patched.jar
+08a71cfc8356ba6f678dfde80a174dbe52e72e01b7f195cafe8906408c1810c0  framework_patched.jar
 fae755c0225bb9cdd3553fc26a11092fd035984c8432adbf22c3c8d70275fa30  libcamera_client_patched.so

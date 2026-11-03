@@ -53,6 +53,7 @@ for n in SamsungCamera semextendedformat secimaging; do
     [ -d "out/camera/dec_$n" ] && cp -r "out/camera/dec_$n/." "proj_$n/"
 done
 python3 -I "$HERE/fix_recorder_location.py" proj_SamsungCamera
+python3 -I "$HERE/fix_bar_width.py" proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o SamsungCamera-rw.apk proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o semextendedformat-rw.jar proj_semextendedformat
 java -jar "$APKTOOL" b -q -o secimaging-rw.jar proj_secimaging

@@ -58,6 +58,12 @@ oneos_boot_hold_display() {
         composer_pid=$(getprop "init.svc_debug_pid.$composer_svc")
         break
     done
+    # Other composer service names (return_to_oneui.sh's own fallback): the
+    # cmdline check below still refuses anything but a vendor composer binary.
+    if [ -z "$composer_pid" ]; then
+        composer_svc=$(getprop | sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
+        [ -z "$composer_svc" ] || composer_pid=$(getprop "init.svc_debug_pid.$composer_svc")
+    fi
     case "$composer_pid" in ''|*[!0-9]*) return 0;; esac
     # Refuse a stale init pid or an unrelated process.
     case "$(tr '\0' ' ' 2>/dev/null < "/proc/$composer_pid/cmdline")" in

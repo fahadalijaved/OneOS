@@ -28,7 +28,7 @@ data class ImageRef(
      * credits and in the legal line.
      */
     val name: String,
-    /** Tells two images of the same [name] apart on the cards: "Find N6 build", "Find X9 Ultra build"; null = none needed. */
+    /** Tells two images of the same [name] apart on the cards: "Find N6 global build", "Find X9 Ultra build"; null = none needed. */
     val variant: String?,
     /** One line for its card: "Google's Pixel software." */
     val blurb: String,
@@ -74,11 +74,11 @@ data class ImageRef(
      */
     val gmsHideable: Boolean get() = googleServices && !presentsGms
 
-    /** "Pixel 11 Fold (Android 17)", "ColorOS 17 · Find N6 build (Android 17)": unique on a phone ([ImagesTest]). */
+    /** "Pixel 11 Fold (Android 17)", "ColorOS 17 · Find N6 global build (Android 17)": unique on a phone ([ImagesTest]). */
     val displayName: String
         get() = "$nameWithVariant (Android ${AndroidRelease.name(sdk)})"
 
-    /** "ColorOS 17 · Find N6 build", or just [name] when there is no [variant]. */
+    /** "ColorOS 17 · Find N6 global build", or just [name] when there is no [variant]. */
     val nameWithVariant: String get() = listOfNotNull(name, variant).joinToString(" · ")
 
     /** The gzip ISIZE trailer: the unpacked size mod 2^32 (RFC 1952), an early check before the hash. */
@@ -123,25 +123,26 @@ object Images {
 
     val FIND_N6 = ImageRef(
         id = ID_FIND_N6,
-        label = "ColorOS 17, Find N6 build",
+        label = "ColorOS 17, Find N6 global build",
         shortName = "Find N6",
         name = "ColorOS 17",
-        variant = "Find N6 build",
-        blurb = "OPPO's system from the Find N6. No Google apps.",
+        variant = "Find N6 global build",
+        blurb = "OPPO's global system from the Find N6, with Google Play, Live Alerts and the Dynamic Island.",
         downloadUrl = SHARED_FOLDER_URL,
         sdk = 37,
         buildId = "CP2A.260605.016",
-        gzName = "OneOS_ColorOS17_FindN6_ZFold8.img.gz",
-        gzBytes = 5_285_345_619L,
-        gzSha256 = "4d371cbeb5da0b7c4b67ff44ce437ca56a244b0e3a93e1a696099ab6071d1809",
-        rawBytes = 10_276_003_840L,
-        rawSha256 = "bdf5ef00aee3333758afdde152a29e0d2ca7bdaf89029ccd74bad34eec5bf444",
-        testedOn = "Z Fold (F8U)",
-        // MysticGSI's build warning on linker64 (SVE/SVE2, SME); the Find N6
-        // image has only run on a CPU that has them.
-        cpuRequired = CpuRules.COLOROS_REQUIRED,
-        cpuUsedByApps = emptyList(),
-        googleServices = false,
+        // 0.4.38: CPH2765_17.0.0.101(EX01) built without MysticGSI's debloat (UMS, Aod,
+        // Metis, LockAssistant kept), replacing the CN build. Same base as the Find
+        // X9 Ultra IN build (one vold, service.incremental and surfaceflinger).
+        gzName = "OneOS_ColorOS17_FindN6_Global.img.gz",
+        gzBytes = 7_213_271_568L,
+        gzSha256 = "b3061160ab3fdb37cd491e94c05e41238898320c1a5efb016debabc20991f3ee",
+        rawBytes = 14_829_686_784L,
+        rawSha256 = "eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c",
+        testedOn = "Galaxy Z Fold8 Ultra",
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve2", "sme"),
+        googleServices = true,
         family = SystemFamily.COLOROS,
     )
 
@@ -174,7 +175,9 @@ object Images {
      * took it; 0.3.7 dropped it when its server build was deleted for space):
      * Google's mainline modules, Play services and the Play Store in
      * my_product (owner: "IN build is just better"; friends run it). The
-     * upload of 2026-10-25 is the 0.3.3 file, byte for byte.
+     * upload of 2026-10-25 is the 0.3.3 file, byte for byte. 0.4.38: rebuilt
+     * from the same OTA (CPH2841IN) without MysticGSI's debloat, like the
+     * Find N6 build (UMS, Aod, Metis kept: the Dynamic Island, Live Alerts).
      */
     val FIND_X9U_IN = ImageRef(
         id = ID_FIND_X9U_IN,
@@ -182,15 +185,15 @@ object Images {
         shortName = "Find X9 Ultra IN",
         name = "ColorOS 17",
         variant = "global build",
-        blurb = "OPPO's global system from the Find X9 Ultra, with Google Play and the Play Store.",
+        blurb = "OPPO's global system from the Find X9 Ultra, with Google Play, Live Alerts and the Dynamic Island.",
         downloadUrl = SHARED_FOLDER_URL,
         sdk = 37,
         buildId = "CP2A.260605.016",
-        gzName = "OneOS_ColorOS17_FindX9Ultra_IN.img.gz",
-        gzBytes = 5_882_128_321L,
-        gzSha256 = "413380426cdff8b5e760f1424895fc5b43e7a6ffe5f889e0406e437590c0d04e",
-        rawBytes = 12_069_945_344L,
-        rawSha256 = "a36ef550f4b2530fb9c7c6d363180d9eb4437e0497ebc87292697e4bf2a580b0",
+        gzName = "OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz",
+        gzBytes = 7_071_596_999L,
+        gzSha256 = "c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab",
+        rawBytes = 14_669_168_640L,
+        rawSha256 = "92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6",
         testedOn = null,
         cpuRequired = emptyList(),
         cpuUsedByApps = listOf("sve2", "sme"),
@@ -435,7 +438,7 @@ object Images {
     /**
      * `{system}` in a plain text: [image]'s name ("ColorOS 17", "Pixel 11
      * Fold"), with its variant when [profile] takes another image of the same
-     * name, so the two are never confused ("ColorOS 17 · Find N6 build"); "the
+     * name, so the two are never confused ("ColorOS 17 · Find N6 global build"); "the
      * other system" when no image is known.
      */
     fun systemName(image: ImageRef?, profile: PhoneProfile? = null, images: List<ImageRef> = ALL): String {

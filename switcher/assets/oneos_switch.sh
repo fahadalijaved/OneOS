@@ -43,7 +43,7 @@ for c in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/bus
     [ -x "$c" ] && { BB=$c; break; }
 done
 RP=""
-for c in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop; do
+for c in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop /debug_ramdisk/resetprop /sbin/resetprop; do
     [ -x "$c" ] && { RP=$c; break; }
 done
 if [ "$APP" != 1 ]; then
@@ -741,6 +741,11 @@ rm -f "$STAGE/guest_mntns" "$STAGE/guest_rootdev"
 # failure): return_to_oneui.sh kills the PIDs listed there, which after a
 # reboot are recycled and belong to other processes (run: a stale pids file
 # signalled vold/apexd or the return script itself).
+# A reader a return did not stop (its shell acts on SIGTERM only after getevent
+# ends) ends by itself on its next key event, once the session file below is
+# not its own. Never walked or killed from here: 0.4.38's pgrep cleanup at this
+# spot hung the switch behind the splash (and in the return, behind the frozen
+# composer).
 rm -rf "$STAGE/return_keys"
 
 # OneOS: ColorOS components (the launcher among them) only log their info and
@@ -1432,7 +1437,8 @@ esac
 # Live by default with the hinge sets of pull request #1 (Fold8) and the Fold8 Ultra's.
 POSTURE_DEFAULT=flat
 case "${ONEOS_PROFILE:-}:$GUEST_OPLUS" in
-    f8:1) HINGE_SET=n6-f8 ;;
+    # 0.4.38: n6-f8u on the Z Fold8 too (the Find N6 global image).
+    f8:1) HINGE_SET=n6-f8u ;;
     f8:0) HINGE_SET=pixel-f8 ;;
     f8u:1) HINGE_SET=n6-f8u ;;
     f8u:0) HINGE_SET=pixel-f8u ;;
@@ -1479,12 +1485,41 @@ while true; do
             # ColorOS's touch idle (OTI) pushes SurfaceFlinger to 240/60 Hz over the
             # 120 Hz policy on this panel (run 29); also staged off by guest_prepare.sh.
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys oplus_vrr_service oti false >/dev/null 2>&1 && echo '[UI Activator] refresh rate: ColorOS touch idle off'
+            # Samsung Camera's working folder (guest_prepare.sh makes it when the
+            # camera already has a uid): on a phone's first session with the
+            # camera the package is only installed by this boot, the folder was
+            # never made and no photo was saved (0.4.37, Z Fold6 report 034a7e05).
+            # Made here once the camera's data folder exists.
+            CAMD=$STAGE/data/user/0/com.sec.android.app.camera
+            if [ -d $STAGE/samcam_build ] && [ ! -d $STAGE/data/sec/camera ] && [ -d \$CAMD ] && [ ! -L \$CAMD ] && [ ! -L $STAGE/data/sec ]; then
+                CU=\$(stat -c %u \$CAMD 2>/dev/null)
+                if [ -n \"\$CU\" ] && [ \"\$CU\" -ge 10000 ]; then
+                    mkdir -p $STAGE/data/sec/camera && chown 0:0 $STAGE/data/sec && chmod 771 $STAGE/data/sec &&
+                        chown \$CU:\$CU $STAGE/data/sec/camera && chmod 2770 $STAGE/data/sec/camera &&
+                        $BB chcon -R u:object_r:app_data_file:s0 $STAGE/data/sec 2>/dev/null
+                    echo \"[UI Activator] Samsung Camera: data/sec/camera made for uid \$CU (first session with the camera)\"
+                fi
+            fi
             # Live Alerts (0.4.36, every ColorOS image with the stock features of
             # guest_prepare.sh): OPPO's fluid cloud stays off while this global
             # says unsupported, as the Fold8 runtime of pull request #2 found.
             if [ \"${ONEOS_GUEST_STOCK_FEATURES:-1}\" = 1 ] &&
                timeout 10 $BB nsenter -t \$PID -m /system/bin/sh -c '[ -f /my_stock/etc/extension/com.oplus.oplus-feature.xml ]' 2>/dev/null; then
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put global fluid_cloud_not_support 0 && echo '[UI Activator] Live Alerts: fluid_cloud_not_support 0'
+            fi
+            # Circle to Search (0.4.38): the global builds wire it to Google
+            # (contextual_search_package) but leave OPPO's press and hold on the
+            # gesture handle or home button off until their setup turns it on, which
+            # the guest skips (F8U test12: isCircleToSearchGestureEnable false,
+            # oplus_gesture_handle_cui_enable 0). Once per stage, where the image has
+            # the feature, so a later choice in Settings stays.
+            if [ ! -e $STAGE/data/oneos_cts_default ] && [ ! -L $STAGE/data/oneos_cts_default ] &&
+               timeout 10 $BB nsenter -t \$PID -m /system/bin/sh -c 'ls /my_product/etc/extension/feature_contextualsearch_*.xml' >/dev/null 2>&1; then
+                for k in oplus_gesture_handle_cui_enable oplus_home_button_cui_enable; do
+                    timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put secure \$k 1
+                done
+                mkdir $STAGE/data/oneos_cts_default 2>/dev/null
+                echo \"[UI Activator] Circle to Search: press and hold on, \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure oplus_gesture_handle_cui_enable) (once per stage)\"
             fi
             # Navigation mode belongs to ColorOS: its SystemUI sets the navbar
             # overlay and navigation_mode from secure hide_navigationbar_enable
@@ -1530,12 +1565,39 @@ while true; do
             # is in data the guest can write: -e and never a link (see the blur
             # marker below).
             if [ -e $STAGE/data/oneos_sec_ims ] && [ ! -L $STAGE/data/oneos_sec_ims ]; then
+                # 0.4.38: ColorOS's device MMTEL ImsService is Qualcomm's org.codeaurora.ims,
+                # so its ImsResolver skipped Samsung's (F8U test10: IMS registered, never used,
+                # no SMS either way). test12: set-ims-service -d without -f answered true and
+                # left Qualcomm's bound; the carrier config route is refused for root. Now:
+                # (1) the device override with explicit features (0 emergency, 1 MMTEL);
+                # (2) if neither slot binds Samsung's, a fabricated overlay of the device
+                # setting config_ims_mmtel_package and a restart of the phone process, whose
+                # ImsResolver reads it at start. Each step and what is bound, logged.
+                G=\"timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh\"
+                ims_bound() { \$G /system/bin/cmd phone ims get-ims-service -s \$1 -d -f 1 2>&1 | tr -d '\\r' | tail -1; }
+                SB=0
                 for s in 0 1; do
-                    timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd phone cc set-value -s \$s -p config_ims_mmtel_package_override_string com.sec.imsservice >/dev/null 2>&1
+                    echo \"[UI Activator] Samsung IMS: slot \$s override: \$(\$G /system/bin/cmd phone ims set-ims-service -s \$s -d -f 0,1 com.sec.imsservice 2>&1 | tr '\\n' ' ' | cut -c1-120)\"
+                    b=\$(ims_bound \$s); echo \"[UI Activator] Samsung IMS: slot \$s bound: \$b\"
+                    [ \"\$b\" = com.sec.imsservice ] && SB=1
                 done
+                if [ \$SB = 0 ]; then
+                    \$G /system/bin/cmd overlay fabricate --target android --name OneOSImsMmtel android:string/config_ims_mmtel_package string com.sec.imsservice >/dev/null 2>&1
+                    echo \"[UI Activator] Samsung IMS: device setting overlay: \$(\$G /system/bin/cmd overlay enable --user 0 com.android.shell:OneOSImsMmtel 2>&1 | tr '\\n' ' ' | cut -c1-120)\"
+                    PP=\$(\$G /system/bin/pidof com.android.phone 2>/dev/null)
+                    [ -n \"\$PP\" ] && \$G /system/bin/kill -9 \$PP 2>/dev/null
+                    sleep 15
+                    for s in 0 1; do
+                        \$G /system/bin/cmd phone ims set-ims-service -s \$s -d -f 0,1 com.sec.imsservice >/dev/null 2>&1
+                        echo \"[UI Activator] Samsung IMS: slot \$s bound after the phone restart: \$(ims_bound \$s)\"
+                    done
+                fi
                 echo \"[UI Activator] Samsung IMS: package \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path com.sec.imsservice 2>/dev/null | head -1 | cut -c9-)\"
                 echo \"[UI Activator] Samsung IMS: mmtel override \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd phone cc get-value -s 0 config_ims_mmtel_package_override_string 2>/dev/null | tail -1)\"
                 timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys phone 2>/dev/null | grep -i -m 6 'ImsResolver\|imsservice\|MmTel' | sed 's/^/[UI Activator] Samsung IMS: /'
+            else
+                # Samsung IMS off: the device setting overlay of an earlier session goes.
+                timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay disable --user 0 com.android.shell:OneOSImsMmtel >/dev/null 2>&1
             fi
             if [ $WIFI_VERBOSE = 1 ]; then WV=enabled; else WV=disabled; fi
             timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd wifi set-verbose-logging \$WV >/dev/null 2>&1
@@ -1847,6 +1909,23 @@ while true; do
                 mkdir $STAGE/data/oneos_ntgallery 2>/dev/null
                 echo \"[UI Activator] Nothing Gallery: granted\${GR:- nothing} (once per stage)\"
             fi
+            # Samsung Camera (samcam.tar): One UI grants its own camera these up
+            # front. In a fresh ColorOS guest it asked for nothing and kept a black
+            # preview (\"isEngineStartAvailable : Can't start Engine - failed to
+            # grant permissions\"; F8U, Find N6 global, 0.4.38). Camera,
+            # microphone, media and notifications, once per stage; not location
+            # (geotags stay the user's choice).
+            if [ -L $STAGE/data/oneos_samcam_perms ]; then
+                echo '[UI Activator] Samsung Camera: data/oneos_samcam_perms is a link, not made by OneOS; nothing granted'
+            elif [ ! -e $STAGE/data/oneos_samcam_perms ] &&
+                 timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path com.sec.android.app.camera >/dev/null 2>&1; then
+                GR=''
+                for perm in CAMERA RECORD_AUDIO READ_MEDIA_IMAGES READ_MEDIA_VIDEO READ_MEDIA_AUDIO POST_NOTIFICATIONS; do
+                    timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm grant --user 0 com.sec.android.app.camera android.permission.\$perm >/dev/null 2>&1 && GR=\"\$GR \$perm\"
+                done
+                mkdir $STAGE/data/oneos_samcam_perms 2>/dev/null
+                echo \"[UI Activator] Samsung Camera: granted\${GR:- nothing} (once per stage)\"
+            fi
             # Nothing's Settings shows the phone's own RAM and storage in About
             # phone only on Nothing's phones (Build.DEVICE Spacewar or Pong, or
             # its bool screen_size_for_mp); anywhere else its strings def_ram and
@@ -1908,6 +1987,19 @@ while true; do
                       g=\$(timeout 8 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/service check \$n 2>&1 | tr -d '\n'); t2=\$(date +%s%N)
                       echo \"\$n | host \$(( (t1 - t0) / 1000000 )) ms: \$h | guest \$(( (t2 - t1) / 1000000 )) ms: \$g\"
                   done > $STAGE/diag_camsvc.txt 2>&1 ) </dev/null >/dev/null 2>&1 &
+                # Samsung Camera's libraries as the guest's package manager has them
+                # (ColorOS on the S25+: ClassNotFoundException oneos.semcompat.Sem,
+                # the compat library declared and read; report 6ddd6a87), 50 s
+                # after HOME, to diag_samcam.txt. Read-only.
+                if [ -d $STAGE/samcam_build ]; then
+                    ( sleep 50; {
+                        timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys package com.sec.android.app.camera 2>&1 | grep -A14 -E 'usesLibraries|usesOptionalLibraries|usesLibraryFiles|usesLibraryInfos|sharedLibrar'
+                        echo '== library declarations'
+                        timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys package libraries 2>&1 | grep -E 'worker_wrapper_compat|semextendedformat|secimaging'
+                        echo '== files'
+                        timeout 10 $BB nsenter -t \$PID -m /system/bin/sh -c 'ls -laZ /system_ext/framework/oneos-camera-compat.jar /system_ext/framework/semextendedformat.jar /system_ext/framework/secimaging.jar' 2>&1
+                      } > $STAGE/diag_samcam.txt 2>&1 ) </dev/null >/dev/null 2>&1 &
+                fi
                 # With a staged OneOSDisplayProbe.dex (patches/OneOSDisplayProbe.java,
                 # diagnostics only): the default display's possible sizes as the
                 # launcher gets them, from 15 s after HOME, five times 30 s apart (folded and not).
@@ -2175,7 +2267,7 @@ while true; do
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/local/tmp/fix_app_dirs.sh 2>/dev/null || true
 
             # Galaxy Z Fold8, Find N6 set: AOD, widgets, taskbar and the hinge relay in the guest.
-            if [ \"${ONEOS_PROFILE:-}\" = f8 ] && grep -q coloros17-findn6 \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_fold8/runtime.sh\" ]; then
+            if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q coloros17-findn6 \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_fold8/runtime.sh\" ]; then
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_fold8/runtime.sh runtime >\"$STAGE/fold8_runtime.log\" 2>&1 || echo '[UI Activator] Fold8 runtime setup failed; see fold8_runtime.log'
             fi
 
@@ -2242,7 +2334,15 @@ done
 " </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
 # Samsung CPU/GPU votes survive the host framework; capability-detected on every profile.
-STAGE="$STAGE" BB="$BB" "$BB" nohup /system/bin/sh "$STAGE/fold8_coloros.sh" performance-worker </dev/null >>"$STAGE/performance_handover.log" 2>&1 &
+# 0.4.38: only with the heat cap off (Cool down when hot, Advanced). With it on, the heat cap
+# below caps from 45 C and lifts One UI's stale vote itself; the worker only releases under
+# 38 C and caps after a release, so a hot guest had no cap at all (F8U, Find N6 global:
+# 55.6 C skin at full clock).
+if [ "${ONEOS_HEAT_CAP:-1}" != 1 ]; then
+    STAGE="$STAGE" BB="$BB" "$BB" nohup /system/bin/sh "$STAGE/fold8_coloros.sh" performance-worker </dev/null >>"$STAGE/performance_handover.log" 2>&1 &
+else
+    echo "$(date +%T) heat cap on: the worker is not started (the heat cap owns the limits)" >> "$STAGE/performance_handover.log"
+fi
 
 # Session sampler (run 44: nothing was recorded after the 90 s round; window
 # blur went off and on with the guest's thermal status, not the setting, while
@@ -2310,9 +2410,7 @@ echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 # One UI's SSRM to set its own. ONEOS_HEAT_CAP=0 (Advanced: Cool down when hot
 # off): not started. Out of the app cgroup, like the sampler.
 rm -f "$STAGE/heat_cap.active"
-PERF_HANDOVER=0
-if STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" performance-supported; then PERF_HANDOVER=1; fi
-if [ "${ONEOS_HEAT_CAP:-1}" = 1 ] && [ "$PERF_HANDOVER" = 0 ]; then
+if [ "${ONEOS_HEAT_CAP:-1}" = 1 ]; then
     : > "$STAGE/heat_cap.active"
     rm -f "$STAGE/cpufreq_max_limit.released"
     $BB sh -c "
@@ -2674,6 +2772,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
     # shortcut in the staged settings (ONEOS_GUEST_A11Y_SHORTCUT=1 keeps it).
     if [ "${ONEOS_RETURN_KEYS:-1}" = 1 ]; then
         KS="$STAGE/return_keys"; rm -rf "$KS"; mkdir -p "$KS"
+        KTOK="$$.$(date +%s)"; echo "$KTOK" > "$KS/session"
         # Stamp this boot: return_to_oneui.sh only kills a listed PID when the
         # boot matches (and the PID is still a oneos_switch.sh shell).
         cat /proc/sys/kernel/random/boot_id 2>/dev/null > "$KS/boot"
@@ -2685,6 +2784,9 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             ( echo 0 > /sys/fs/cgroup/cgroup.procs 2>/dev/null
               echo -1000 > /proc/self/oom_score_adj 2>/dev/null
               getevent -lq "$kd" 2>/dev/null | while read -r typ code val rest; do
+                # A later switch (or none: the stage's file gone) ends this
+                # reader; getevent then ends on its next write.
+                [ "$(cat "$KS/session" 2>/dev/null)" = "$KTOK" ] || exit 0
                 case "$code" in KEY_VOLUMEUP) k=up ;; KEY_VOLUMEDOWN) k=down ;; *) continue ;; esac
                 echo "$val" > "$KS/$k"
                 if [ "$(cat "$KS/up" 2>/dev/null)" = DOWN ] && [ "$(cat "$KS/down" 2>/dev/null)" = DOWN ]; then

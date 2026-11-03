@@ -14,6 +14,8 @@
     <string name="environment_active">%1$s active</string>
     <string name="environment_report">Report issue to OneOS team</string>
     <string name="environment_checking">Checking the phone and prepared system…</string>
+    <string name="environment_busy_logs">Saving the last session’s logs (personal data removed). Boot and Update start when this finishes, usually within a few minutes.</string>
+    <string name="environment_busy_other">OneOS is finishing another task. Boot and Update start when it is done.</string>
     <string name="environment_preview">Preview mode · simulated environment and boot</string>
     <string name="environment_boot_cancelled">Boot cancelled</string>
     <string name="environment_boot_cancelling">Cancelling…</string>

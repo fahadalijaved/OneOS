@@ -21,7 +21,7 @@ package com.fahadali.oneos.core.model
  * ([ScreenLockRule]); free space unknown.
  */
 object CompatEvaluator {
-    /** "Has run on: ColorOS 17 · Find N6 build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U).", from the profiles' tested choices (the image table names the systems). */
+    /** "Has run on: ColorOS 17 · Find N6 global build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U).", from the profiles' tested choices (the image table names the systems). */
     val TESTED_SCOPE: String get() = testedScope()
 
     fun testedScope(profiles: List<PhoneProfile> = Profiles.BUILT_IN, images: List<ImageRef> = Images.ALL): String {

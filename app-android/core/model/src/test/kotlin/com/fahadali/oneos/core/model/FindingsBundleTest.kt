@@ -132,12 +132,12 @@ class FindingsBundleTest {
         assertTrue(report.contains("\"verdict\": \"WARN\""))
         assertTrue(report.contains("\"version\": \"0.2.0-probe\""))
         assertTrue(report.contains("\"versionCode\": 2"))
-        assertTrue(report.contains("\"id\": \"cpu-features-missing\""))
+        assertTrue(report.contains("\"id\": \"${CpuRules.ID_APP_FEATURES}\""))
         assertTrue(report.contains("\"status\": \"timed out\""))
         assertTrue(report.contains("\"status\": \"not run\""))
 
         // Verdict: the CPU from the root capture (the app could not read it) lacks SVE2/SME.
-        assertEquals(Level.WARN, r.report.find(CpuRules.ID_MISSING)?.level)
+        assertEquals(Level.WARN, r.report.find(CpuRules.ID_APP_FEATURES)?.level)
         assertEquals(Level.OK, r.report.find("installd-table")?.level)
         assertEquals(Level.OK, r.report.find("selinux-types")?.level)
         assertEquals(Level.INFO, r.report.find("probes-incomplete")?.level)
@@ -145,8 +145,8 @@ class FindingsBundleTest {
 
         val summary = File(r.folder, "summary.txt").readText()
         assertTrue(summary.contains("Verdict:  Warning"))
-        // The Fold's first image names the system (the image table's name, not a fixed text).
-        assertTrue(summary.contains("CPU lacks SVE2, SME used by ColorOS 17"))
+        // The Fold's first image (0.4.38: the Find N6 global build) needs no SVE2 or SME itself, only some apps.
+        assertTrue(summary.contains("Some app and media features may crash"))
         assertTrue(summary.contains("installd: 85 methods from /system/framework/services.jar!classes.dex"))
         assertTrue(summary.contains("timed out"))
 

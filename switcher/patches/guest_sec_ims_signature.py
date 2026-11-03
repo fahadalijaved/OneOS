@@ -49,6 +49,11 @@ PME = "Lcom/android/server/pm/PackageManagerException;"
 MSG = " has no signatures that match those in shared user "
 PKGNAME = "com.sec.imsservice"
 STAGED = "/system_ext/priv-app/OneOSSecIms"
+# The same folder where the image keeps system_ext under system (ColorOS, MysticGSI's
+# layout): the package manager scans it as /system/system_ext/... (F8U, Find N6 global,
+# 0.4.38: no match, "Signature mismatch on system package com.sec.imsservice" killed
+# system_server at every boot). Read-only like the other; never an app's install path.
+STAGED_UNDER_SYSTEM = "/system" + STAGED
 GETNAME = "invoke-virtual {p0}, Lcom/android/server/pm/PackageSetting;->getPackageName()Ljava/lang/String;"
 
 
@@ -179,8 +184,17 @@ def main(root):
         "",
         f"    move-result {a}",
         "",
+        f"    if-nez {a}, :cond_oneos_secims_staged",
+        "",
+        f'    const-string {a}, "{STAGED_UNDER_SYSTEM}"',
+        "",
+        f"    invoke-virtual {{{b}, {a}}}, Ljava/lang/String;->startsWith(Ljava/lang/String;)Z",
+        "",
+        f"    move-result {a}",
+        "",
         f"    if-eqz {a}, :cond_oneos_secims_done",
         "",
+        "    :cond_oneos_secims_staged",
         f'    const-string {a}, "OneOS"',
         "",
         f'    const-string {b}, "verifySignatures: com.sec.imsservice from the staged {STAGED} kept in android.uid.system despite its Samsung platform signature"',

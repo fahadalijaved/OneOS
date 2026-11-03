@@ -39,11 +39,15 @@ class Fold8Tests(unittest.TestCase):
     def test_selected_profile_refuses_unexpected_systemui_before_mounts(self):
         with tempfile.TemporaryDirectory() as tmp:
             stage = Path(tmp)
-            (stage / '.oneos_stage').write_text(json.dumps(dict(image='coloros17-findn6', set='n6-f8', created=0), indent=2) + '\n')
-            env = dict(os.environ, STAGE=tmp, ONEOS_PROFILE='f8', BB='/does/not/exist')
-            r = subprocess.run(['/bin/sh', str(SCRIPT), 'prepare'], env=env, capture_output=True)
-            self.assertNotEqual(0, r.returncode)
-            self.assertIn(b'unexpected SystemUI path', r.stderr)
+            # 0.4.38: selected wherever the patched SystemUI is staged, on the Z Fold8 and the
+            # Z Fold8 Ultra with the Find N6 global set as on the Fold8 with the CN one.
+            (stage / 'Fold8SystemUI.apk').write_bytes(b'')
+            for profile, fileset in [('f8', 'n6-f8'), ('f8', 'n6-f8u'), ('f8u', 'n6-f8u')]:
+                (stage / '.oneos_stage').write_text(json.dumps(dict(image='coloros17-findn6', set=fileset, created=0), indent=2) + '\n')
+                env = dict(os.environ, STAGE=tmp, ONEOS_PROFILE=profile, BB='/does/not/exist')
+                r = subprocess.run(['/bin/sh', str(SCRIPT), 'prepare'], env=env, capture_output=True)
+                self.assertNotEqual(0, r.returncode)
+                self.assertIn(b'unexpected SystemUI path', r.stderr)
             self.assertFalse((stage / 'data').exists())
 
     def test_hinge_state_config_scope_and_explicit_opt_out(self):
@@ -58,7 +62,8 @@ class Fold8Tests(unittest.TestCase):
                 ('f8', 'coloros17-findn6', 'n6-f8', '', [0, 1, 2, 3]),
                 ('f8u', 'coloros17-findn6', 'n6-f8u', '', [0, 1, 2, 3]),
                 ('f8u', 'coloros17-findn6', 'n6-f8', '', []),
-                ('f8', 'coloros17-findn6', 'n6-f8u', '', []),
+                # 0.4.38: the Z Fold8 runs the Find N6 global image with n6-f8u, hinge included.
+                ('f8', 'coloros17-findn6', 'n6-f8u', '', [0, 1, 2, 3]),
                 ('f8u', 'pixel11fold-yogi', 'pixel-f8u', '', []),
                 ('f8', 'pixel11fold-yogi', 'pixel-f8', '', []),
                 ('f8', 'coloros17-findn6', 'n6-f8', 'vendor', []),

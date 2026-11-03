@@ -5,6 +5,7 @@
 # HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)
 # HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+# libsurfaceflinger_patched.so: Xiaomi's SurfaceFlinger with the display mode group read 32-bit (patches/hyperos_sf_group.py; 0.4.37: S23, S24 Ultra, Z Flip5 black screen)
 d5ee33b74d68e0f557eb8ab6dbb9c4a7be8678296dde58c89fd82b0dff3ac044  services_patched.jar
 bc275abc635c71d88df70be48e6fbe89d413b2685a88d6967f2ce26cd224086e  miui-services_patched.jar
 5e70dbe022ca34bca76c5da686d20263f527edea54e433ba0758d46462b8679b  apprecovery.proinstaller_patched.jar
@@ -14,3 +15,4 @@ d75caf178a99009cc8a206adf533297cc6400fce3948617d457056d03c05b81e  miui-telephony
 dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
 282447b888645136c61cab74548e75fd5cec656636c8a16d57a47bcf21e04ff4  service.incremental_patched.so
 977059f2193c2d04987e4fd96be604a2a042aa207841ce3f31e63a3ac9b33e59  libcamera_client_patched.so
+cad079d7e95621efbd26ba5cd7115896ba09114cd949cf4b9f7f6d52d1f570ef  libsurfaceflinger_patched.so

@@ -41,21 +41,18 @@ if (testPackagesDir != null) {
 // One UI" app; the ColorOS sets since their 2026-10-25 rebuild), and
 // guest_prepare.sh puts it in the guest's /oem/app.
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
-    // Find N6 image, Z Fold (F8U). tethering_payload.img is never mounted.
-    "n6-f8u" to (File(repoRoot, "out/overlays_n6_r50") to listOf("tethering_payload.img")),
+    // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
+    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r2") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
     "x9u-sultra" to (File(repoRoot, "out/overlays_x9u_r50") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r51") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r52") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u") to listOf("tethering_payload.img")),
     // Pixel 11 Pro image (0.4.10), Galaxy S26 Ultra: the same files from that image.
     "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak") to listOf("tethering_payload.img")),
-    // Find N6 image, Galaxy Z Fold8 (0.4.14, pull request #1): the Fold's set and the Fold8 fixes
-    // scripts/make-fold8-coloros.py builds from it.
-    "n6-f8" to (File(repoRoot, "out/overlays_n6_fold8") to listOf("tethering_payload.img")),
     "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8") to listOf("tethering_payload.img")),
     // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
     "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo") to listOf("tethering_payload.img")),
@@ -66,7 +63,7 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // the signal poll and the image's payloads.
     "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r11") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r17") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r18") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -307,7 +304,9 @@ android {
         // 0.4.36: brightness by each panel's own scale (every system), the Z Fold5.
         // 0.4.37: ColorOS's stock UI features on every phone and the Fold8's on every Find N6 fold,
         // One UI's camera codes in the ColorOS IN and Find N6 sets, A2DP offload for ColorOS and Infinity-X.
-        // 0.4.38: SESL9 redesign, verbose boot/return handoff and interrupted-update recovery.
+        // 0.4.38: Magisk's resetprop, HyperOS's mode groups (S23, S24 Ultra, Z Flip5), the camera folder on a
+        // first session, diag_samcam.txt; pull request #3: SESL9 redesign, verbose boot/return handoff and
+        // interrupted-update recovery.
         versionCode = 55
         versionName = "0.4.38"
         // Send to the OneOS team (0.4.29, both editions): the report service's
@@ -508,8 +507,9 @@ androidComponents {
                     // The session scripts, the root script and its lists, and every file of the package sets.
                     val setNames = packageSets.keys.flatMap { id -> File(packagesDir, "$id.sha256").takeIf { it.isFile }?.let { readShaList(it).keys }.orEmpty() }
                     forbiddenNames.set(sessionScripts.keys + setOf("oneos_root.sh", "status.list", "installd.list", "collect.list") + setNames)
-                    // SESL9 unshrunk debug libraries are ~48 MB; release keeps the original cap.
-                    maxBytes.set((if (variant.buildType == "debug") 60L else 30L) * 1000 * 1000)
+                    // SESL9 unshrunk debug libraries are ~48 MB. Release is not shrunk either (R8 off):
+                    // 0.4.38's release Probe is 38 MB, all of it code (no asset beyond probe/).
+                    maxBytes.set((if (variant.buildType == "debug") 60L else 50L) * 1000 * 1000)
                     report.set(layout.buildDirectory.file("reports/probe-apk/${variant.name}.txt"))
                 }
                 tasks.matching { it.name == "assemble$name" }.configureEach { dependsOn(check) }

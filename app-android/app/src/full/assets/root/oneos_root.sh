@@ -129,7 +129,7 @@ SET_PIXEL="services_patched.jar framework_patched.jar vold_patched service.incre
 SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
-SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img"
+SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so"
 # Nothing OS 5.0 (0.4.33, the Z Fold8 Ultra): its system is close to AOSP, so only
 # services.jar and framework.jar need the guards; no vendor framework, no vold
 # patch (its build is unknown to the patcher) and no signal poll injection.
@@ -138,10 +138,10 @@ SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
 ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_RETURN_MODE"
 # Images whose Google services a session may hide (ONEOS_GUEST_HIDE_GMS=1;
-# ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11). The
-# Pixel images have them too, but their sessions present their own GmsCore,
-# and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findx9u-in nothingos5-metroid"
+# ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
+# the Find N6 global build (0.4.38). The Pixel images have them too, but their
+# sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in nothingos5-metroid"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -221,7 +221,7 @@ profile_set() {
         "s-plus-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-8750 coloros17-findx9u") echo x9u-sultra ;;
         "s-plus-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "f8 coloros17-findn6") echo n6-f8 ;;
+        "f8 coloros17-findn6") echo n6-f8u ;;
         "f8 pixel11fold-yogi") echo pixel-f8 ;;
         "s-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8850 coloros17-findx9u") echo x9u-sultra ;;
@@ -308,9 +308,9 @@ image_raw() {
         return 0
     fi
     case "$1" in
-        coloros17-findn6) echo "10276003840 bdf5ef00aee3333758afdde152a29e0d2ca7bdaf89029ccd74bad34eec5bf444" ;;
+        coloros17-findn6) echo "14829686784 eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c" ;;
         coloros17-findx9u) echo "10385141760 302467fc4e77998e84c10e037326508a39ab9e4be34058b751f0a768c7ff23e7" ;;
-        coloros17-findx9u-in) echo "12069945344 a36ef550f4b2530fb9c7c6d363180d9eb4437e0497ebc87292697e4bf2a580b0" ;;
+        coloros17-findx9u-in) echo "14669168640 92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6" ;;
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
         hyperos-lhasa) echo "7749939200 269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac" ;;
@@ -323,8 +323,7 @@ image_raw() {
 
 set_files() {
     case "$1" in
-        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk framework_patched.jar libcamera_client_patched.so samcam.tar" ;;
-        n6-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk framework_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex Fold8Aod.apk Fold8UMS.apk Fold8Instant.apk" ;;
+        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex" ;;
         x9u-sultra) echo "$SET_COMMON" ;;
         x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar libcamera_client_patched.so samcam.tar" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk" ;;
@@ -341,7 +340,7 @@ set_files() {
 # <set>: the image it was built from (scripts/make-overlays.sh, PackageSet.imageId).
 set_image() {
     case "$1" in
-        n6-f8u|n6-f8) echo coloros17-findn6 ;;
+        n6-f8u) echo coloros17-findn6 ;;
         x9u-sultra) echo coloros17-findx9u ;;
         x9u-in-sultra) echo coloros17-findx9u-in ;;
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
@@ -654,6 +653,8 @@ check_files() { # <names>
         [ -d "$f" ] && [ ! -L "$f" ] && continue
         n=${f##*/}
         case "$n" in
+            # guest_prepare.sh writes and starts it each switch; it outlives an in-place return
+            oneos_wdog_feeder.sh) ;;
             *_patched*|*_payload.img|*.apk|*.jar|*.so|*.sh|*.tar|Fold8AngleRelay.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list.xml|oneos-*)
                 in_list "$n" "$1" || refuse "$n is in the stage but was not prepared (left from an older stage)" ;;
         esac
@@ -900,7 +901,11 @@ find_tools() {
         [ -x "$c" ] && { BB=$c; break; }
     done
     RP=""
-    for c in "$ADB/ksu/bin/resetprop" "$ADB/ap/bin/resetprop"; do
+    # Magisk has no resetprop file in /data/adb/magisk: the magisk binary is
+    # resetprop by its name, linked in Magisk's own tmpfs (/debug_ramdisk, /sbin
+    # before Android 11). Without it every Magisk phone was refused at the switch
+    # ("Your root app is missing a tool", 0.4.37 report).
+    for c in "$ADB/ksu/bin/resetprop" "$ADB/ap/bin/resetprop" /debug_ramdisk/resetprop /sbin/resetprop; do
         [ -x "$c" ] && { RP=$c; break; }
     done
 }

@@ -17,6 +17,10 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 ORIGINAL_UI = 'e6bf0e49649dc82117e7b9584c13dbcf737183d17c461cd6edcedcc127165f7e'
+# The Find N6 global build's SystemUI (CPH2765_17.0.0.101(EX01), OneOS 0.4.38): the
+# same hunks (classes-global.json, systemui-global.patch); its own AOD, UMS and
+# Instant, so no donors. --into writes only the SystemUI and the angle relay.
+GLOBAL_UI = '735e43e076bfcef6'
 DONORS = {
     'Aod.apk': ('Fold8Aod.apk', '87bfba25e06a5081f5feef73aef15a90dbc9b9f39b1fe756c68fd9975ac38638'),
     'UMS.apk': ('Fold8UMS.apk', '511af17427dad4f204a7317511957027d4230ba86c178e0b5645cfb42e0e06ca'),
@@ -110,26 +114,73 @@ def check_guards(out):
                 raise ValueError(f'{name} is not the jar guards.txt vouches for')
 
 
+def build_ui(systemui, out, w, bt, android, apk):
+    """Fold8SystemUI.apk and Fold8AngleRelay.dex from SystemUI into out."""
+    geometry_classes = w / 'geometry-classes'; geometry_classes.mkdir()
+    geometry_dex = w / 'geometry-dex'; geometry_dex.mkdir()
+    run('javac', '--release', '8', '-classpath', android, '-d', geometry_classes,
+        ROOT / 'switcher/patches/fold8-coloros/Fold8RevealGeometry.java')
+    run(bt / 'd8', '--min-api', '31', '--lib', android, '--output', geometry_dex,
+        *sorted(geometry_classes.rglob('*.class')))
+    # Decode only the dex entries we replace. On macOS the complete
+    # 73k-class tree consumes over a GiB; other dex entries are copied
+    # directly from the original APK by repack(), never rebuilt.
+    filtered = w / 'systemui-input.apk'
+    touched = {'classes.dex', 'classes2.dex', 'classes3.dex', 'classes4.dex', 'classes7.dex'}
+    with zipfile.ZipFile(systemui) as src, zipfile.ZipFile(filtered, 'w') as dst:
+        for info in src.infolist():
+            if info.filename.startswith('classes') and info.filename.endswith('.dex') and info.filename not in touched:
+                continue
+            dst.writestr(info, src.read(info.filename))
+    decoded = w / 'systemui'
+    apk('d', '-f', '-r', '-o', decoded, filtered)
+    filtered.unlink()
+    run('python3', '-I', ROOT / 'switcher/patches/fold8_coloros_systemui.py', decoded)
+    rebuilt = w / 'rebuilt.apk'
+    apk('b', '-q', '-o', rebuilt, decoded)
+    shutil.rmtree(decoded)
+    repack(systemui, rebuilt, out / 'Fold8SystemUI.apk', bt / 'zipalign', geometry_dex / 'classes.dex')
+    rebuilt.unlink()
+    run('python3', '-I', ROOT / 'scripts/check-dex.py', out / 'Fold8SystemUI.apk')
+    classes = w / 'classes'; classes.mkdir()
+    run('javac', '--release', '8', '-classpath', android, '-d', classes,
+        ROOT / 'switcher/patches/fold8-coloros/OneOSAngleRelay.java')
+    dexdir = w / 'dex'; dexdir.mkdir()
+    run(bt / 'd8', '--min-api', '28', '--lib', android, '--output', dexdir, *sorted(classes.glob('*.class')))
+    shutil.copyfile(dexdir / 'classes.dex', out / 'Fold8AngleRelay.dex')
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--base', type=Path, required=True)
     p.add_argument('--systemui', type=Path, required=True)
-    p.add_argument('--donor', type=Path, required=True)
+    p.add_argument('--donor', type=Path)
+    p.add_argument('--into', type=Path, help='global build: add the SystemUI and the angle relay to this set folder')
     p.add_argument('--out', type=Path, default=ROOT / 'out/overlays_n6_fold8')
     p.add_argument('--write-pins', action='store_true',
                    help='write app-android/packages/n6-f8.sha256 from this build (an explicit, reviewed pin update)')
     a = p.parse_args()
-    if sha(a.systemui) != ORIGINAL_UI:
-        p.error('SystemUI is not the supported Find N6 build')
-    for name, (_, pin) in DONORS.items():
-        if sha(a.donor / name) != pin:
-            p.error(f'{name} is not the exact stock donor APK')
     sdk = Path(os.environ.get('ANDROID_HOME', '/opt/android-sdk'))
     bt = sdk / 'build-tools' / os.environ.get('ONEOS_BUILD_TOOLS', '36.1.0')
     android = sdk / 'platforms' / os.environ.get('ONEOS_ANDROID_PLATFORM', 'android-37') / 'android.jar'
     apktool = os.environ.get('APKTOOL', 'apktool')
     def apk(*args):
         run(*(['java', '-jar', apktool] if apktool.endswith('.jar') else [apktool]), *args)
+    if a.into:
+        if not sha(a.systemui).startswith(GLOBAL_UI):
+            p.error('SystemUI is not the Find N6 global build')
+        check_guards(a.into)
+        with tempfile.TemporaryDirectory(dir=a.into.parent, prefix='.fold8-') as tmp:
+            build_ui(a.systemui, a.into, Path(tmp), bt, android, apk)
+        print(f'Added Fold8SystemUI.apk and Fold8AngleRelay.dex to {a.into}')
+        return
+    if a.donor is None:
+        p.error('--donor is needed for the CN build')
+    if sha(a.systemui) != ORIGINAL_UI:
+        p.error('SystemUI is not the supported Find N6 build')
+    for name, (_, pin) in DONORS.items():
+        if sha(a.donor / name) != pin:
+            p.error(f'{name} is not the exact stock donor APK')
     # Publish only after all checks/builds succeed.
     a.out.parent.mkdir(parents=True, exist_ok=True)
     if a.out.exists():
@@ -145,38 +196,7 @@ def main():
                 p.error(f'{source} differs from the existing N6 set')
             shutil.copyfile(source, out / name)
         check_guards(out)
-        geometry_classes = w / 'geometry-classes'; geometry_classes.mkdir()
-        geometry_dex = w / 'geometry-dex'; geometry_dex.mkdir()
-        run('javac', '--release', '8', '-classpath', android, '-d', geometry_classes,
-            ROOT / 'switcher/patches/fold8-coloros/Fold8RevealGeometry.java')
-        run(bt / 'd8', '--min-api', '31', '--lib', android, '--output', geometry_dex,
-            *sorted(geometry_classes.rglob('*.class')))
-        # Decode only the dex entries we replace. On macOS the complete
-        # 73k-class tree consumes over a GiB; other dex entries are copied
-        # directly from the original APK by repack(), never rebuilt.
-        filtered = w / 'systemui-input.apk'
-        touched = {'classes.dex', 'classes2.dex', 'classes3.dex', 'classes4.dex', 'classes7.dex'}
-        with zipfile.ZipFile(a.systemui) as src, zipfile.ZipFile(filtered, 'w') as dst:
-            for info in src.infolist():
-                if info.filename.startswith('classes') and info.filename.endswith('.dex') and info.filename not in touched:
-                    continue
-                dst.writestr(info, src.read(info.filename))
-        decoded = w / 'systemui'
-        apk('d', '-f', '-r', '-o', decoded, filtered)
-        filtered.unlink()
-        run('python3', '-I', ROOT / 'switcher/patches/fold8_coloros_systemui.py', decoded)
-        rebuilt = w / 'rebuilt.apk'
-        apk('b', '-q', '-o', rebuilt, decoded)
-        shutil.rmtree(decoded)
-        repack(a.systemui, rebuilt, out / 'Fold8SystemUI.apk', bt / 'zipalign', geometry_dex / 'classes.dex')
-        rebuilt.unlink()
-        run('python3', '-I', ROOT / 'scripts/check-dex.py', out / 'Fold8SystemUI.apk')
-        classes = w / 'classes'; classes.mkdir()
-        run('javac', '--release', '8', '-classpath', android, '-d', classes,
-            ROOT / 'switcher/patches/fold8-coloros/OneOSAngleRelay.java')
-        dexdir = w / 'dex'; dexdir.mkdir()
-        run(bt / 'd8', '--min-api', '28', '--lib', android, '--output', dexdir, *sorted(classes.glob('*.class')))
-        shutil.copyfile(dexdir / 'classes.dex', out / 'Fold8AngleRelay.dex')
+        build_ui(a.systemui, out, w, bt, android, apk)
         for name, (dest, _) in DONORS.items():
             shutil.copyfile(a.donor / name, out / dest)
         pins = ROOT / 'app-android/packages/n6-f8.sha256'

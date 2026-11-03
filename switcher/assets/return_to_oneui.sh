@@ -193,6 +193,11 @@ if [ "$(cat "$KS/boot" 2>/dev/null)" = "$(cat /proc/sys/kernel/random/boot_id 2>
             *oneos_switch.sh*) kill "$p" 2>/dev/null ;;
         esac
     done
+    # A reader shell that survives this (it acts on SIGTERM only when its getevent
+    # ends) is stopped by the next switch's preflight, from this same list. Never
+    # pgrep here (0.4.38, F8U): with the guest's compositor and One UI's composer
+    # held for the return splash, reading other processes' /proc entries blocked
+    # this script after its first step and the phone needed a forced reboot.
 fi
 pkill -INT -x screenrecord 2>/dev/null && sleep 2
 pkill -9 -f "ctl.stop zygote" 2>/dev/null || true
@@ -404,7 +409,7 @@ umnt -l /data/local/tmp/oneos/system_ext_ov || true
 MODE=${ONEOS_RETURN_MODE:-reboot}
 if [ "$MODE" = inplace ]; then
     RP=""
-    for c in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop; do
+    for c in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop /debug_ramdisk/resetprop /sbin/resetprop; do
         [ -x "$c" ] && { RP=$c; break; }
     done
     why=""
@@ -771,6 +776,13 @@ for s in $AHAL; do setprop ctl.start $s; done
 rm -f $S/host_audio_hal_svcs
 setprop ctl.start audioserver
 wait_found media.audio_policy 20 || failsafe "One UI's audioserver did not register"
+# The camera HALs first (0.4.38): the guest's Samsung Camera drove them for the
+# whole session and the camera worker set their fold posture; One UI's camera
+# glitched after a return until a reboot (F8U test9), which restarts them too.
+# Running ones only (sec-camera-provider, vendor.camera.provider-ext on the F8U).
+for svc in $(getprop | sed -n 's/^\[init\.svc\.\([^]]*camera[.-]provider[^]]*\)\]: \[running\]$/\1/p'); do
+    setprop ctl.restart "$svc"
+done
 # zygote's own onrestart list, which ctl.start skips: cameraserver, media,
 # wificond (netd follows below). The guest held the GNSS HAL's callbacks.
 setprop ctl.restart cameraserver

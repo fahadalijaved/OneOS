@@ -79,7 +79,8 @@ class CpuAndVerdictTest {
         assertEquals(Verdict.COMPATIBLE, ok.verdict)
 
         val missing = CompatEvaluator.evaluate(Fixtures.facts(cpu = CpuInfoParser.parse(Fixtures.NO_SVE_CPUINFO)))
-        assertEquals(Level.WARN, missing.level(CpuRules.ID_MISSING))
+        // 0.4.38: the F8U's first image (Find N6 global) needs no SVE itself, only some of its apps.
+        assertEquals(Level.WARN, missing.level(CpuRules.ID_APP_FEATURES))
         assertEquals(Verdict.WARNING, missing.verdict)
 
         // Unreadable /proc/cpuinfo is a note, not a warning.

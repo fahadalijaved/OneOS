@@ -101,6 +101,12 @@ Snapdragon 8 Gen 3) with the Find N6 build and Infinity-X, and the Galaxy A07
 only. The Galaxy A16 and A17 on One UI 8.5 (Android 16) are not supported yet:
 every system here is Android 17.
 
+New in 0.4.38: **HyperOS starts on the Galaxy S23, S24 Ultra and Z Flip5**
+(Xiaomi's SurfaceFlinger read those screens' display mode groups as a single
+byte, found no mode and stopped at the first frame), and **Magisk** works as
+the root app (OneOS looked for its prop tool only where KernelSU and APatch
+keep theirs). Samsung Camera saves photos on a phone's first session with it.
+
 New in 0.4.37: **the camera in ColorOS and HyperOS.** Every camera app was
 refused on the S25, S26 and A phones: ColorOS sent One UI's camera service the
 app's screen name instead of its package, and its camera calls were numbered

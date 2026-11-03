@@ -1,0 +1,58 @@
+{
+  "smali/com/android/systemui/doze/DozeService.smali": {
+    "before": "7ef695f9fc5e3301ef9175e3246253d52c1e2815d44acc3b6c10734a0e92d78c",
+    "after": "06430f0d66062e444e65274db883403f8b6478809cce5804042cf7795d63767b"
+  },
+  "smali_classes2/com/android/systemui/wallpapers/ImageWallpaper$CanvasEngine.smali": {
+    "before": "44b19201ca85c7c99992acc4db492eeb09c29cc4e64b19c479be78471e3d8b6f",
+    "after": "acaae48975cf67c8bd409918e6e2f38317ce5617dfc329abf4b15d9456b04e29"
+  },
+  "smali_classes2/com/android/systemui/unfold/config/ResourceUnfoldTransitionConfig.smali": {
+    "before": "4155ac8586f050cd41318a4a01858adc4955197e2b9a6495e56c53779a4afcee",
+    "after": "075ad4f104cdcffe9868143a12ebd06f9fc18203094a92e408679b35504f66fc"
+  },
+  "smali_classes3/com/oplus/systemui/aod/display/AODDisplayUtil.smali": {
+    "before": "e892b61ce79a6907852b09ef007b439cba04c07c2296f0586b0d959bb5532c7d",
+    "after": "32dfb35d8045b6abef368a470504ade1e5c5836315d2ec952d2907de2a172568"
+  },
+  "smali_classes4/com/oplus/systemui/qs/res/domain/util/ResourcesUtil.smali": {
+    "before": "5b9c191443554388b6cf17a884a8f3be73ece610f50ea0d940fc2db62e854659",
+    "after": "baf0b695bfe0301cf3027c874e6ccd21c27bd9248b76fedb054f9b82f1493e86"
+  },
+  "smali_classes4/com/oplus/systemui/plugins/qs/OplusQSSpecialModeProvider$specialModeListener$1.smali": {
+    "before": "3ee4667959c6cf727f2271ce056c78bfd1344e36b6b0a3eaa742e1f6c167c1c7",
+    "after": "499ae3bebc085cbe97ba1f6e9fcff1d5c49e0df5216f0c6ced7f95b3b806438e"
+  },
+  "smali_classes4/com/oplus/systemui/plugins/qs/CellCalculatorManager$Companion.smali": {
+    "before": "96e86c28e9d5595a51390bcb57f019eef9adf9fe103561b37f804bf8a2c9abb7",
+    "after": "3c1571ed8fc463016c519c3a9f365605f2fb75123583c5dd65c12ba14b2ff0d3"
+  },
+  "smali_classes4/com/oplus/systemui/plugins/qs/CellCalculatorManager.smali": {
+    "before": "a31c3b6103f90a0a0757008bcfd432115fae0f66612d3888e3aaa3cb86feb7da",
+    "after": "20d2b6cf6b91b1beeaf3df247310d1984a6980a24b7678319bfb320051931a83"
+  },
+  "smali_classes7/com/android/systemui/unfold/updates/hinge/HingeSensorAngleProvider$stop$1.smali": {
+    "before": "43bb90c83b06ebb6aedb5afcdc5f4376d1e43f0baaa69d89974a14885078212d",
+    "after": "57f8a2326e450d08f3f0d5f9612291868edb803a7b7f1b4e6ce01a4f0c5fd6fe"
+  },
+  "smali_classes7/com/android/systemui/unfold/updates/hinge/HingeSensorAngleProvider.smali": {
+    "before": "b9bb26012a250f908139964bd73656bf144cee798c09000ab53d9f3d0a78e2d9",
+    "after": "b8334b53d5a1835546b1eb46cf0f67699b5175f5dd96294fb3c2f116fcf471c6"
+  },
+  "smali_classes2/com/android/systemui/wallpapers/Fold8WallpaperDrawReporter.smali": {
+    "before": null,
+    "after": "3be0b57563bd03196bd45521a0cf6a69e82f86d8682a02b26e69662c31dcbf84"
+  },
+  "smali_classes7/com/android/systemui/unfold/updates/hinge/Fold8HingeRelay.smali": {
+    "before": null,
+    "after": "02ae202a754a36150be20ce148e1fccf4ab622f9ea14d2e41104431387916db0"
+  },
+  "smali_classes7/com/android/systemui/unfold/FullscreenLightRevealAnimationController.smali": {
+    "before": "c81892f1c619dba56e3d8c8f48a62f21e3c7e1133530fad821d2a96b4e17bfdc",
+    "after": "17aac559bb0ccf7fbddd1bb7ab949815025950eb430d6dd83e22cac967e90f98"
+  },
+  "smali_classes7/com/android/systemui/unfold/UnfoldLightRevealOverlayAnimation.smali": {
+    "before": "212d100d94eb3f97c049b68880c74b2d610824f463a0b5ee189f70950ad91fd7",
+    "after": "3e8b68dff1f55bc9c939ff7ffc335c7a7452c2c0ef633faa97b4cfd887cf8cb7"
+  }
+}
