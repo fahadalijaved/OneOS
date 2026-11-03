@@ -323,9 +323,9 @@ image_raw() {
 
 set_files() {
     case "$1" in
-        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex" ;;
+        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex" ;;
         x9u-sultra) echo "$SET_COMMON" ;;
-        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar libcamera_client_patched.so samcam.tar" ;;
+        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk" ;;
         pixel-sultra) echo "$SET_PIXEL" ;;

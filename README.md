@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.38. Samsung flagships with Snapdragon, plus the first five
+App version 0.4.39. Samsung flagships with Snapdragon, plus the first five
 Exynos phones and (0.4.33) the first MediaTek phone; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -100,6 +100,15 @@ Snapdragon 8 Gen 3) with the Find N6 build and Infinity-X, and the Galaxy A07
 (SM-A075, MediaTek MT6789, One UI 9), the first MediaTek phone, with Infinity-X
 only. The Galaxy A16 and A17 on One UI 8.5 (Android 16) are not supported yet:
 every system here is Android 17.
+
+New in 0.4.39: **calls and SMS in ColorOS on more carriers.** Samsung's IMS
+waited for an "ISIM loaded" signal that only One UI sends (AT&T and other
+ISIM carriers never registered), and SMS named the message centre without its
+international "+" (the network answered "user unknown"). Also: One UI's camera
+lays out right on bar phones, HyperOS skips the start-up step that left the
+S23, S24 Ultra and A57 on a black screen (untested on those phones),
+ColorOS no longer resets the clock to 1 January (Google said "offline"), and a
+Pixel guest keeps its own audio service.
 
 New in 0.4.38: **HyperOS starts on the Galaxy S23, S24 Ultra and Z Flip5**
 (Xiaomi's SurfaceFlinger read those screens' display mode groups as a single

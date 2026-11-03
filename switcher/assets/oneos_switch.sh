@@ -107,7 +107,8 @@ done
 # they are checked the same way.
 GUARD_JARS="services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" ||
                                        $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
-                                       $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" { print $2 }' "$STAGE/guards.txt")"
+                                       $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
+                                       $2 == "telephony-common_patched.jar" { print $2 }' "$STAGE/guards.txt")"
 
 if [ "$APP" = 1 ]; then
     # Every staged file (files.sha256, written by the app's root script; all
@@ -188,7 +189,7 @@ if [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ -f "$STAGE/gmssystem_payload.img" ]; the
         grep '^#' "$STAGE/guards.txt" 2>/dev/null | grep -qw "$t" ||
             refuse "Google services: guards.txt lacks the $t guard (ONEOS_GUEST_GMS=0 starts without Google services)"
     done
-    awk '$2 ~ /^[0-9]+$/ && $2 >= 10000 && $2 <= 14999 { f = 1 } END { exit !f }' "$STAGE/data/system/packages.list" 2>/dev/null &&
+    awk -v ksu="me.weishu.kernelsu com.rifsxd.ksunext com.sukisu.ultra app.kitsusu.manager" 'BEGIN { split(ksu, a, " "); for (i in a) m[a[i]] = 1 } $2 ~ /^[0-9]+$/ && $2 >= 10000 && $2 <= 14999 && !($1 in m) { f = 1 } END { exit !f }' "$STAGE/data/system/packages.list" 2>/dev/null &&
         refuse "Google services: the stage has guest app ids 10000-14999 from before the app-id guard (a fresh guest data dir, or ONEOS_GUEST_GMS=0)"
 fi
 
@@ -483,6 +484,58 @@ if [ "${ONEOS_GUEST_FORM:-fold}" = fold ]; then
         echo "$CVD" > "$STAGE/host_cover_display" && echo "Host cover display: $CVD"
     else
         echo "Host cover display: not read"
+    fi
+fi
+# One UI's screen mode (Vivid) is a vendor render intent its composer applies
+# (F8U: DisplayRenderIntent 258, renderIntent=0x102 on both panels); a guest's
+# own SurfaceFlinger asks for COLORIMETRIC and every panel looked dull (0.4.38,
+# ColorOS cover screen). The UI activator asks the guest's for the same one.
+# Read here, while One UI's surfaceflinger still runs (never after [4b/6]).
+rm -f "$STAGE/host_render_intent"
+HRI=$(timeout 5 dumpsys SurfaceFlinger 2>/dev/null | sed -n 's/^DisplayRenderIntent: \([0-9][0-9]*\)$/\1/p' | head -n 1)
+if [ -n "$HRI" ] && [ "$HRI" -ge 256 ] 2>/dev/null && [ "$HRI" -le 65535 ]; then
+    echo "$HRI" > "$STAGE/host_render_intent" && echo "Host render intent: $HRI (One UI's screen mode, a vendor intent)"
+else
+    echo "Host render intent: ${HRI:-not read} (not a vendor intent; the guest keeps its own)"
+fi
+# One UI's staged installs (Google Play system updates): 0.4.39 test2 returned in
+# place with a train pending, and One UI's own system_server rebooted 5 s after
+# it started ("Rollback staged install"). Logged for the next such return.
+STG=$(timeout 10 pm list staged-sessions 2>/dev/null | grep -c 'sessionId')
+[ "${STG:-0}" -gt 0 ] && echo "One UI has $STG staged install session(s): $(timeout 10 pm list staged-sessions 2>/dev/null | sed -n 's/.*appPackageName = \([^;]*\); isStaged = true; isReady = \([a-z]*\); isApplied = \([a-z]*\).*/\1(ready \2, applied \3)/p' | tr '\n' ' ')"
+# KernelSU's manager inside the guest (0.4.39): the kernel knows the manager by
+# the app id One UI gave it, so the guest's package manager gives the same
+# package that id (patches/guest_ksu_manager_appid.py reads these two props) and
+# the UI activator installs One UI's own copy of the app. Only a KernelSU manager
+# (its kernel checks the uid) with an id below 15000 (no guest app has one).
+# Off by default since 0.4.39 (owner): root grants for guest apps and Zygisk are
+# not done yet; ONEOS_GUEST_KSU_MANAGER=1 turns it on. Off, nothing is staged and
+# the UI activator removes a manager an earlier session installed in the guest.
+setprop oneos.ksu.mgr_pkg "" 2>/dev/null
+setprop oneos.ksu.mgr_appid "" 2>/dev/null
+KSU_DIR="$STAGE/data/oneos_ksu"
+rm -f "$KSU_DIR/manager" "$KSU_DIR/manager.apk" 2>/dev/null
+if [ -x /data/adb/ksud ] && [ "${ONEOS_GUEST_KSU_MANAGER:-0}" = 1 ]; then
+    KSU_PKG="" KSU_ID=""
+    for p in me.weishu.kernelsu com.rifsxd.ksunext com.sukisu.ultra app.kitsusu.manager; do
+        u=$(awk -v p="$p" '$1 == p { print $2 }' /data/system/packages.list 2>/dev/null)
+        [ -n "$u" ] && { KSU_PKG=$p KSU_ID=$u; break; }
+    done
+    KSU_APK=$(timeout 10 pm path "$KSU_PKG" 2>/dev/null | sed -n 's/^package://p' | grep '/base\.apk$' | head -n 1)
+    case "$KSU_ID" in
+        1[0-4][0-9][0-9][0-9]) ;;
+        *) KSU_ID="" ;;
+    esac
+    if [ -n "$KSU_PKG" ] && [ -n "$KSU_ID" ] && [ -f "$KSU_APK" ] && mkdir -p "$KSU_DIR" &&
+       cp -f "$KSU_APK" "$KSU_DIR/manager.apk.new" && mv -f "$KSU_DIR/manager.apk.new" "$KSU_DIR/manager.apk"; then
+        chmod 755 "$KSU_DIR"; chmod 644 "$KSU_DIR/manager.apk"
+        echo "$KSU_PKG $KSU_ID" > "$KSU_DIR/manager"
+        setprop oneos.ksu.mgr_pkg "$KSU_PKG"
+        setprop oneos.ksu.mgr_appid "$KSU_ID"
+        echo "KernelSU manager for the guest: $KSU_PKG, One UI's app id $KSU_ID ($(stat -c %s "$KSU_DIR/manager.apk") bytes staged)"
+    else
+        rm -f "$KSU_DIR/manager" "$KSU_DIR/manager.apk"
+        echo "KernelSU manager for the guest: none (package '${KSU_PKG:-none}', app id '${KSU_ID:-none}', apk '${KSU_APK:-none}')"
     fi
 fi
 
@@ -1449,10 +1502,14 @@ if [ -n "$HINGE_SET" ] && grep -q "^  \"set\": \"$HINGE_SET\",\$" "$STAGE/.oneos
 fi
 GUEST_POSTURE_LIVE=0; [ "${ONEOS_GUEST_POSTURE:-$POSTURE_DEFAULT}" = live ] && GUEST_POSTURE_LIVE=1
 GUEST_FOLD_FORM=0; [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && GUEST_FOLD_FORM=1
-# Start UI Activator daemon
+# Start UI Activator daemon. One pass per boot of the guest: after a soft
+# reboot of it (guest_softreboot.sh bumps tmp/softreboot.gen, 0.4.39) the
+# same steps run again for the new boot; it ends with the session.
 $BB sh -c "
 BB=\"$BB\"
 [ -n \"\$BB\" ] || BB=\$(which busybox 2>/dev/null || echo /data/adb/ksu/bin/busybox)
+GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=1
+while true; do
 while true; do
     sleep 2
     PID=\$(pidof system_server | awk '{print \$1}')
@@ -1520,6 +1577,85 @@ while true; do
                 done
                 mkdir $STAGE/data/oneos_cts_default 2>/dev/null
                 echo \"[UI Activator] Circle to Search: press and hold on, \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure oplus_gesture_handle_cui_enable) (once per stage)\"
+            fi
+            # One UI's screen mode on every panel (0.4.38): the vendor render
+            # intent recorded before the switch, as SurfaceFlinger's display color
+            # setting (transaction 1023; 256 and up are vendor intents). The panels'
+            # intents before and after are logged, so a session shows whether the
+            # guest's own color service set them back.
+            HRI=\$(cat $STAGE/host_render_intent 2>/dev/null)
+            case \"\$HRI\" in
+                [0-9]*)
+                    B4=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys SurfaceFlinger 2>/dev/null | grep -o 'renderIntent=[A-Z0-9x_]*' | tr '\n' ' ')
+                    timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/service call SurfaceFlinger 1023 i32 \$HRI >/dev/null 2>&1
+                    sleep 1
+                    AF=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys SurfaceFlinger 2>/dev/null | grep -o 'renderIntent=[A-Z0-9x_]*' | tr '\n' ' ')
+                    echo \"[UI Activator] Screen mode: One UI's render intent \$HRI asked; panels before: \$B4, after: \$AF\" ;;
+            esac
+            # KernelSU's manager in the guest (0.4.39): One UI's own copy, staged by
+            # the preflight, installed once; the guest's package manager gives it One
+            # UI's app id (oneos.ksu.mgr_*), so the kernel takes it for the manager.
+            # An older install with another id (before the patch) is replaced; an
+            # install -r every session keeps it One UI's version (and its id).
+            if [ ! -f $STAGE/data/oneos_ksu/manager ]; then
+                # None staged (off by default since 0.4.39): a manager an earlier
+                # session installed here keeps One UI's app id (below 15000) and the
+                # kernel's trust; removed, with its data.
+                for KP in me.weishu.kernelsu com.rifsxd.ksunext com.sukisu.ultra app.kitsusu.manager; do
+                    KC=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm list packages -U \$KP 2>/dev/null | sed -n \"s/^package:\$KP uid://p\" | head -n 1)
+                    case \"\$KC\" in
+                        1[0-4][0-9][0-9][0-9])
+                            timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm uninstall --user 0 \$KP >/dev/null 2>&1
+                            echo \"[UI Activator] KernelSU manager: \$KP (app id \$KC) from an earlier session removed; off for this session\" ;;
+                    esac
+                done
+            fi
+            if [ -f $STAGE/data/oneos_ksu/manager ] && [ -f $STAGE/data/oneos_ksu/manager.apk ]; then
+                read KP KU < $STAGE/data/oneos_ksu/manager
+                kuid() { timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm list packages -U \$KP 2>/dev/null | sed -n \"s/^package:\$KP uid://p\" | head -n 1; }
+                KC=\$(kuid)
+                if [ -n \"\$KC\" ] && [ \"\$KC\" != \"\$KU\" ]; then
+                    timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm uninstall --user 0 \$KP >/dev/null 2>&1
+                    echo \"[UI Activator] KernelSU manager: \$KP had app id \$KC, not One UI's \$KU; reinstalling\"
+                    KC=''
+                fi
+                # Data dirs left by an install with another id (owner 15003 in 0.4.39
+                # test1): installd refused them, the app could not write its cache and
+                # its root service never listed the apps. Gone before the install, which
+                # makes them again under the right id.
+                for d in /data/user/0/\$KP /data/user_de/0/\$KP; do
+                    o=\$(timeout 10 $BB nsenter -t \$PID -m $BB stat -c %u \$d 2>/dev/null)
+                    [ -n \"\$o\" ] && [ \"\$o\" != \"\$KU\" ] && timeout 20 $BB nsenter -t \$PID -m $BB rm -rf \$d &&
+                        echo \"[UI Activator] KernelSU manager: removed \$d (owner \$o, not \$KU)\"
+                done
+                # Its root service's main.jar, which the app writes on every start and
+                # leaves read-only (0444): the next start could not open it for writing
+                # (0.4.39 test3: EACCES, no app list). Removed before each start here.
+                for d in /data/user/0/\$KP/cache /data/user_de/0/\$KP/cache; do
+                    timeout 10 $BB nsenter -t \$PID -m $BB rm -f \$d/main.jar 2>/dev/null
+                done
+                KR=\$(timeout 60 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm install -r --user 0 /data/oneos_ksu/manager.apk 2>&1 | tail -n 1)
+                # The app runs its own bundled ksud (lib/arm64/libksud.so), not
+                # /data/adb/ksud: in 0.4.39 test1 its soft reboot stopped and started
+                # services through One UI's init. That copy becomes the same wrapper.
+                KL=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path \$KP 2>/dev/null | sed -n 's/^package://p' | grep '/base\\.apk$' | head -n 1)
+                KL=\${KL%/base.apk}/lib/arm64/libksud.so
+                KW=''
+                if [ -f $STAGE/data/oneos_ksu/ksud ] && timeout 10 $BB nsenter -t \$PID -m $BB test -f \$KL &&
+                   timeout 20 $BB nsenter -t \$PID -m $BB cp -f /data/oneos_ksu/ksud \$KL &&
+                   timeout 10 $BB nsenter -t \$PID -m $BB chmod 755 \$KL; then
+                    KW=', its libksud.so is the OneOS wrapper'
+                else
+                    KW=\", its libksud.so NOT wrapped (\$KL)\"
+                fi
+                KN=\$(kuid)
+                echo \"[UI Activator] KernelSU manager: \$KP app id \$KN (One UI's \$KU)\${KR:+, install: \$KR}\$KW\"
+                # A system whose framework lacks guest_ksu_manager_appid.py gives it a
+                # guest id: the kernel would not take it for the manager. Not left there.
+                if [ -n \"\$KN\" ] && [ \"\$KN\" != \"\$KU\" ]; then
+                    timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm uninstall --user 0 \$KP >/dev/null 2>&1
+                    echo \"[UI Activator] KernelSU manager: this system's framework does not keep One UI's app id (no guest_ksu_manager_appid.py); removed again\"
+                fi
             fi
             # Navigation mode belongs to ColorOS: its SystemUI sets the navbar
             # overlay and navigation_mode from secure hide_navigationbar_enable
@@ -1595,6 +1731,23 @@ while true; do
                 echo \"[UI Activator] Samsung IMS: package \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path com.sec.imsservice 2>/dev/null | head -1 | cut -c9-)\"
                 echo \"[UI Activator] Samsung IMS: mmtel override \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd phone cc get-value -s 0 config_ims_mmtel_package_override_string 2>/dev/null | tail -1)\"
                 timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys phone 2>/dev/null | grep -i -m 6 'ImsResolver\|imsservice\|MmTel' | sed 's/^/[UI Activator] Samsung IMS: /'
+                # 0.4.39 (S25U AT&T report): One UI's telephony broadcasts
+                # android.intent.action.ISIM_LOADED once the SIM's ISIM files are read;
+                # the guest's AOSP telephony never does. Samsung IMS checks the ISIM once
+                # at SIM LOADED (0.46 s before the guest had read the IMPU), then waits
+                # for that broadcast forever: no registration, no calls or SMS on carriers
+                # with an ISIM. Sent here per slot with a loaded SIM, three times; IMS
+                # ignores it for a SIM without an ISIM app or once its ISIM is loaded.
+                ( for w in 10 30 90; do
+                    sleep \$w
+                    ss=\$(\$G /system/bin/getprop gsm.sim.state 2>/dev/null | tr -d '\\r')
+                    for s in 0 1; do
+                        st=\$(echo \"\$ss\" | cut -d, -f\$((s + 1)))
+                        [ \"\$st\" = LOADED ] || continue
+                        \$G /system/bin/am broadcast -a android.intent.action.ISIM_LOADED --ei phone \$s >/dev/null 2>&1
+                        echo \"[UI Activator] Samsung IMS: slot \$s ISIM_LOADED sent (after a \$w s wait)\"
+                    done
+                done ) &
             else
                 # Samsung IMS off: the device setting overlay of an earlier session goes.
                 timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay disable --user 0 com.android.shell:OneOSImsMmtel >/dev/null 2>&1
@@ -2155,7 +2308,7 @@ while true; do
                 else
                     echo \"[UI Activator] \$(inner_tsp_on 2>&1)\"
                 fi
-                [ -n \"\$FLIP\" ] && ( n=0; getevent -lq \$FLIP 2>/dev/null | while read typ code val rest; do
+                [ -n \"\$FLIP\" ] && [ \$PASS = 1 ] && ( n=0; getevent -lq \$FLIP 2>/dev/null | while read typ code val rest; do
                     [ \"\$code\" = SW_LID ] || continue
                     n=\$((n + 1)); ts=\$(date +%T)
                     case \"\$val\" in
@@ -2331,6 +2484,16 @@ while true; do
         fi
     fi
 done
+# This boot's pass is done: wait for a soft reboot of the guest, or end with
+# the session (the return's first step, or its namespace record gone).
+while [ \"\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null)\" = \"\$GEN\" ]; do
+    sleep 2
+    [ -f $STAGE/data/oneos_rec_stop ] && exit 0
+    [ -f $STAGE/guest_mntns ] || exit 0
+done
+GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=\$((PASS + 1))
+echo \"[UI Activator] soft reboot of the guest (generation \$GEN): pass \$PASS, waiting for its new boot\"
+done
 " </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
 # Samsung CPU/GPU votes survive the host framework; capability-detected on every profile.
@@ -2502,7 +2665,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
         echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        t=0; total=0; dead=0; sfgone=0; prev_failed=0
+        t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0
         while [ \$t -lt $RETURN_MAX ]; do
             # The 10 s wait ends early on a request. Run 34: Volume Up + Volume
             # Down were held 3 s from 16:43:56, but the request was handled only
@@ -2530,6 +2693,21 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # / PowerManagerService), the return keys or the guest's OneOS app end
             # the session from the host side, before the slow checks below.
             req=\$(getprop oneos.guest.powerctl)
+            # KernelSU's soft reboot inside the guest (its ksud wrapper, 0.4.39):
+            # this system alone starts again (guest_softreboot.sh); the timers
+            # start over, with grace for the new boot's zygote and surfaceflinger,
+            # and the home screen counts once this boot's activator pass says so.
+            if [ \"\$req\" = ksud:soft-reboot ] && [ -f $STAGE/tmp/guest_softreboot.sh ]; then
+                setprop oneos.guest.powerctl ''
+                echo \"\$(date) guest requested a soft reboot (\$req) after \${t}s\"
+                if BB=$BB timeout 120 /system/bin/sh $STAGE/tmp/guest_softreboot.sh \"\$req\"; then
+                    t=0; dead=-60; sfgone=-30; prev_failed=0
+                    homebase=\$(grep -c 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null)
+                    continue
+                fi
+                echo \"\$(date) soft reboot failed, returning to One UI\"
+                exec /system/bin/sh $STAGE/return_to_oneui.sh
+            fi
             if [ -n \"\$req\" ]; then
                 echo \"\$(date) guest requested '\$req' after \${t}s, returning to One UI\"
                 # Who asked: the guarded ShutdownThread logs under the tag OneOS (run
@@ -2540,7 +2718,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # Reaching the home screen only lifts the black-screen and time
             # limits; a dead guest still has to come back to One UI (the watcher
             # used to exit here and nothing returned after a later crash).
-            home=0; grep -q 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null && home=1
+            home=0; [ \"\$(grep -c 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null)\" -gt \"\${homebase:-0}\" ] && home=1
             # Display diagnostics from inside the guest (its own screencap and
             # dumpsys talk to its own surfaceflinger), kept in the stage dir.
             dname=''

@@ -880,7 +880,12 @@ if [ -f /data/guest_audio.flag ]; then
         # every session handed over at 0s and dropped guest_audio.flag
         # while the guest audioserver went on serving (run 33: 15587 owned
         # media.audio_policy from 14:41:42 next to Samsung 15619).
-        miss=0; r=0
+        # The 5 restarts before the hand-over count within 2 minutes: deaths far
+        # apart start again from 0 (0.4.38 S23 report 161be9f1: two deaths each at
+        # 7, 23 and 27 minutes, the fifth handed over to Samsung audioserver, whose
+        # product strategies carry Samsung usage 1005; a Pixel AudioService throws
+        # Invalid usage 1005 and system_server died).
+        miss=0; r=0; last=0
         while [ -f /data/guest_audio.flag ]; do
             sleep 3
             if ! kill -0 $as 2>/dev/null; then why="died"
@@ -888,7 +893,8 @@ if [ -f /data/guest_audio.flag ]; then
             else miss=0; continue; fi
             miss=$((miss + 1)); [ $miss -lt 2 ] && continue
             kill -9 $as 2>/dev/null
-            if [ $r -ge 4 ]; then handover "guest audioserver $why 5 times"; break; fi
+            now=$(date +%s); [ $((now - last)) -gt 120 ] && r=0; last=$now
+            if [ $r -ge 4 ]; then handover "guest audioserver $why 5 times within 2 minutes"; break; fi
             /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
         done' sh "$AS_PID" </dev/null >> /data/audio_keeper.log 2>&1 &

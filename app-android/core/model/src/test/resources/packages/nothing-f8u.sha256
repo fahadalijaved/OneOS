@@ -1,4 +1,4 @@
-# OneOS package set nothing-f8u: sha256sum of out/overlays_nothing_r18 (scripts/make-overlays.sh, 2026-10-31; r18: samcam.tar with scripts/samsung-camera/fix_bar_width.py, 2026-11-03), minus tethering_payload.img.
+# OneOS package set nothing-f8u: sha256sum of out/overlays_nothing_r19 (scripts/make-overlays.sh, 2026-10-31; r18: samcam.tar with scripts/samsung-camera/fix_bar_width.py, 2026-11-03; 0.4.39 r19: services_patched.jar with patches/guest_ksu_manager_appid.py, samcam.tar with the density in scripts/samsung-camera/fix_bar_width.py (repatch-bar-width.sh), 2026-11-03), minus tethering_payload.img.
 # app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_nothing_r17 differs.
 ea94999c71036fcdf39975b3da00e1ad7fc2b2d4524065cdc442b4bd16bf8cd8  NothingGenerateRingtoneService_patched.apk
 fa132285a5ecdd034ff38bd1e1be5fc73db719c876a66b9991b50d8603011d4d  NothingLauncher3_patched.apk
@@ -23,7 +23,7 @@ cc9abf3d1871add130f79ca55af6d5762f5e36b5c7210da0cbfcc24d8393a429  bt_payload.img
 fb572a3afe6617b71136bd5d54449de4a2a6b9dd1655f7293f4c244e5697073b  crashrecovery_payload.img
 392cf5bb8530b650f202ead6fba4a2c2a1b70c4a5792848d9bedabb3fbea7b3d  extservices_payload.img
 763d5e818a393fcbc2c59bd88437dc16f54a9a46a83b522bbe5c1aa77aa76c87  framework_patched.jar
-5cc675bfecab86f0c8e7d623ed37420b19292cd4a8039440a01ce1238bb245b6  guards.txt
+3f9d24b0ab3bbee651d2b32497196eb3acefcc865f76bb6832dfc87980d1058d  guards.txt
 178cbf61a3ec4e3f94f1149f9c4d4fa824a8f953e3d3736c70ed9ca86312d42c  healthfitness_payload.img
 86483c7ec3287db52592205dd05b2786a189007a6bea78741cea66a0c53fdbca  i18n_payload.img
 093076933527389ea1856092bc89d6e2e3bd5768f8e9ae196896271cb2202670  ims-ext-common_patched.jar
@@ -40,10 +40,10 @@ befe6c9a7ea411faa5342ccccda67da050f50a05505d98adfbaf0bb22390aa57  oneos-telephon
 e6fe9d1765bbe8164ad93abac6541d3479b0d84eaade1c42b3b2b3c630538d44  permission_payload.img
 3ee22de4f9d323e6a676462c968fc8643e6752b3320551930108bb41faaf8c41  rkpd_payload.img
 a5287b18de337adfe78d1fee50df0f9e3550cacdc5a1e9cea91addbaad97e2e3  runtime_payload.img
-a3d625e79ba2cfd02024e9fa63c42d30e238d3a594cc528c053a95f53e837a6b  samcam.tar
+be05e2ea55f76f53bebcfd258109a6b42a7851b5d9aba657f9e1ce048d91ba91  samcam.tar
 8ed7589969f1ca29fbdcf0a0f05386420001b94fdd8a76730cfd88933707a2ee  sdkext_payload.img
 f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so
-7904bb8f218a58298a90ceaf32e94b9ac4c275724949c31dcee8ce6cea1be662  services_patched.jar
+ea9f37a343f5337e8a737704078732a149ee9a6f206445438579bff6adc74079  services_patched.jar
 db540cc66852b3168fd617e39e68b42b7d40540326209bfdb98834bfa94e5b26  surfaceflinger_patched
 3d1e391a2a9042aba2d3238b91014c35a60c476ada648651b6306573a358d80e  vold_patched
 7c81dd62316f6599d7f7ca2f63893a00d8c3488cb7abca1192bac019ee7319d1  wifi_payload.img

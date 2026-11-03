@@ -219,8 +219,9 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_biometric_clea
 # guest apps get app ids from 15000 (no keystore namespace shared with One UI's
 # apps) and the guest makes no users or profiles (their per-user keys share
 # aliases with One UI's). patches/guest_no_gatekeeper.py, guest_pdb_readonly.py,
-# guest_no_apex_installs.py, guest_app_id_offset.py, guest_no_new_users.py.
-for g in guest_no_gatekeeper guest_pdb_readonly guest_no_apex_installs guest_app_id_offset guest_no_new_users; do
+# guest_no_apex_installs.py, guest_app_id_offset.py, guest_no_new_users.py; the KernelSU
+# manager keeps One UI's app id (guest_ksu_manager_appid.py, 0.4.39).
+for g in guest_no_gatekeeper guest_pdb_readonly guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
@@ -775,13 +776,26 @@ if in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcamer
     rm -f "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so"
 fi
 
+# telephony-common.jar: the SMS service centre as an international number
+# (patches/guest_smsc_international.py, 0.4.39). Samsung's radio answers
+# getSmscAddress as "972...",145; AOSP kept the digits and dropped the type, so
+# the guest's SMS named an unknown-type service centre (over IMS: SIP 404).
+# telephony-common.jar is on the boot class path: built only next to a
+# framework_patched.jar (that set's boot image is not used already).
+rm -f "$OUT/telephony-common_patched.jar"
+if [ -f "$OUT/framework_patched.jar" ] && in_image /system/framework/telephony-common.jar; then
+    "$DEBUGFS" -R "dump /system/framework/telephony-common.jar $WORK/telephony-common.jar" "$IMG" 2>/dev/null
+    "$ROOT/scripts/patch-built-jar.sh" "$WORK/telephony-common.jar" "$ROOT/switcher/patches/guest_smsc_international.py" "$OUT/telephony-common_patched.jar"
+    rm -f "$WORK/telephony-common.jar"
+fi
+
 # ART rejects a whole class for an empty try range, which a patcher leaves when
 # it drops the only call inside a try block (run 26: Installer, system_server
 # died at boot). Fail the build instead.
 JARS=""
 for j in services_patched.jar oplus-services_patched.jar ims-ext-common_patched.jar oplus-telephony-common_patched.jar \
          oneos-telephony.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar \
-         miui-wifi-service_patched.jar miui-telephony-common_patched.jar; do
+         miui-wifi-service_patched.jar miui-telephony-common_patched.jar telephony-common_patched.jar; do
     [ -f "$OUT/$j" ] && JARS="$JARS $OUT/$j"
 done
 python3 -I "$ROOT/scripts/check-dex.py" $JARS
@@ -793,7 +807,7 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 # service.incremental_patched.so are listed with the services_patched.jar that
 # looks up "gvld": guest_prepare.sh binds all three or none of them.
 {
-    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices and wipesecrets guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)"
+    echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
     # HyperOS images (miui-services_patched.jar) and Pixel images list their
     # files in the order and with the notes each set was built with.
@@ -802,19 +816,23 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
         [ -f "$OUT/framework_patched.jar" ] && echo "# HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)"
         [ -f "$OUT/miui-wifi-service_patched.jar" ] && echo "# HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)"
         [ -f "$OUT/miui-telephony-common_patched.jar" ] && echo "# HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)"
+        [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py)"
         [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
         (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
             miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar \
             miui-telephony-common_patched.jar \
             $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
+            $([ -f telephony-common_patched.jar ] && echo telephony-common_patched.jar) \
             $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
             $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
     else
         [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
+        [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py)"
         [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
         (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
             $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
             $([ -f framework_patched.jar ] && echo framework_patched.jar) \
+            $([ -f telephony-common_patched.jar ] && echo telephony-common_patched.jar) \
             $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
             $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
     fi

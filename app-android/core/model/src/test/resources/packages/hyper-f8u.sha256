@@ -1,5 +1,5 @@
-# OneOS package set hyper-f8u: sha256sum of out/overlays_hyperos_r11 (scripts/make-overlays.sh, 2026-10-31), minus tethering_payload.img.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_r11 differs.
+# OneOS package set hyper-f8u: sha256sum of out/overlays_hyperos_r12 (scripts/make-overlays.sh, 2026-10-31; 0.4.39 r12: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03), minus tethering_payload.img.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_r12 differs.
 0baff1b12c489eaa379df95c700bb42ed3025177c64d6da6357163e754e05401  MiWallpaper_patched.apk
 0b82108e50906dc6f4820b2a47cf471be81020ec6ea8b2fad14d99c16272eaa8  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
@@ -12,7 +12,7 @@ e1d111d250b1cc3f068d91bcdad01d4ee74dbd86ceaa1a9840bd750ac102dc94  bt_payload.img
 7516643e27215109299c7d4988fbce83bde754a01cb784372b8ccf5af5ae335c  crashrecovery_payload.img
 c1a0b9315d1466185ea0df7c2cc6234cce2ac4df620351ca35a3609d2212a122  extservices_payload.img
 c4df2d16706af6996424da294361213fe77535e9f3f42d7235b5abc7a49172c2  framework_patched.jar
-4b8bce50581f0fa4770d569c1cb9591f2c8334f7bc70809000b6f405e0c798ac  guards.txt
+1381a62ae718cf0e118643b2b06ea1116ce465378132bd24a44cc9379a7ea96d  guards.txt
 607785100e49bba0ee9fb4b7c114ec312c70722b08930c7725db7eedeb00285a  healthfitness_payload.img
 a1eb86c79666b62cc0f302c3c3431d858929a569b311ef9b59471d69f3d96705  i18n_payload.img
 a790fb812d630e5c4e2b0b49806a54b3e26a4be2fc1d91d8c311ef7853309889  ims-ext-common_patched.jar
@@ -31,7 +31,7 @@ c0e9c8c72f7c34afc221bc5d27812669524b97a72e2d57dcdee639cda4982324  permission_pay
 6c4208ab010abefb58175423d11d978083fb634e5d3db007cafeb686ea62e40f  runtime_payload.img
 5355e5a855bbe7315c41764a232878126bb8265b48ae54a3187350ca9340fe68  sdkext_payload.img
 282447b888645136c61cab74548e75fd5cec656636c8a16d57a47bcf21e04ff4  service.incremental_patched.so
-d5ee33b74d68e0f557eb8ab6dbb9c4a7be8678296dde58c89fd82b0dff3ac044  services_patched.jar
+4500f7bee710fd90315687323e648713a6d025eba669477384e191281583403b  services_patched.jar
 5970952d6399034217bcc56bad6c00a0cb203ea184215ebf46ccd8075bd98482  socket_exec
 dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
 668ec2b7df0e96a13abe45de1f0e8e5165630223ae60015a1e19d40692882b34  wifi_payload.img

@@ -445,21 +445,13 @@ runtime)
         content insert --uri "$uri" --bind featurename:s:com.android.launcher.TASKBAR_ENABLE --bind parameters:s:
         reload=1
     fi
-    # Prefer the export search path only when both global components exist.
-    if pm path com.oppo.quicksearchbox >/dev/null 2>&1 && pm path com.oplus.aiassistant >/dev/null 2>&1; then
-        content delete --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"'
-        settings put system system_tokyo_search_ai_enable 1
-        reload=1
-    elif pm path com.oppo.quicksearchbox >/dev/null 2>&1; then
-        if ! content query --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"' 2>/dev/null | grep -q 'featurename=com.android.launcher.CN_VERSION'; then
-            content insert --uri "$uri" --bind featurename:s:com.android.launcher.CN_VERSION --bind parameters:s:
-            reload=1
-        fi
-    # The global build has neither CN search app and is an export launcher:
-    # CN_VERSION makes FeatureOption.isExp false, which turns off Circle to
-    # Search on the taskbar handle (0.4.38: isSupportCircleToSearchHandle).
-    # Earlier sessions inserted it here; the guest's data keeps it.
-    elif content query --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"' 2>/dev/null | grep -q 'featurename=com.android.launcher.CN_VERSION'; then
+    # The Find N6 global build's launcher is an export launcher. Pull request #1
+    # marked it CN_VERSION for the CN build; on the global one that made
+    # FeatureOption.isExp false, and with it Circle to Search on the taskbar
+    # handle (0.4.38: the launcher restarted by this script took the Breeno
+    # branch). The global build has com.oppo.quicksearchbox too, so no app
+    # decides it: n6-f8u is global only, CN_VERSION goes wherever it is.
+    if content query --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"' 2>/dev/null | grep -q 'featurename=com.android.launcher.CN_VERSION'; then
         content delete --uri "$uri" --where 'featurename="com.android.launcher.CN_VERSION"'
         reload=1
     fi

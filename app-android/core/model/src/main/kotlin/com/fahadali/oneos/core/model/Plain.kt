@@ -291,7 +291,11 @@ object Plain {
                 m("That isn't a OneOS system file", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
             ImageIdentifier.R_RETIRED -> m("OneOS no longer sets up that system", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
             ImageIdentifier.R_NOT_CHECKED -> m("The download isn't checked yet", "OneOS checks it first when you set up $system.", FixAction.NONE)
-            ImageIdentifier.R_NO_RAW, ImageIdentifier.R_RAW_NOT_OURS, ImageIdentifier.R_RAW_WRONG_PHONE, ImageIdentifier.R_RAW_DAMAGED ->
+            // An older build of the system, or none (0.4.38's full Find X9 Ultra image): setup simply
+            // replaces it, which "can't be used" made sound like a fault (a Flip5 tester asked).
+            ImageIdentifier.R_NO_RAW, ImageIdentifier.R_RAW_NOT_OURS ->
+                m("The copy on this phone gets replaced", "Pick the file you downloaded for $system, then set it up.", FixAction.CHOOSE_FILE)
+            ImageIdentifier.R_RAW_WRONG_PHONE, ImageIdentifier.R_RAW_DAMAGED ->
                 m("The system on this phone can't be used", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
             SwitchGates.R_IMAGE_NOT_IN_BUILD -> m("No system for this phone in this version", "Update OneOS.", FixAction.NONE)
             // The series download: the finding names the right one.

@@ -8,11 +8,17 @@ the shutter row sat half a screen to the left (cut off at the edge in portrait,
 at the bottom in landscape; 0.4.37 report 360d6276, Nothing OS, and the same in
 ColorOS). At One UI's default zoom an S Ultra is about 411dp wide.
 
-The camera activity's base context now carries an override of only
+The camera activity's base context now carries an override of
 smallestScreenWidthDp (411) when the phone has fewer than two device states (a
 bar phone, as semDisplayDeviceType decides) and is wider than that. A fold keeps
 its real widths (its inner screen needs the large layouts). The override is a
 delta, so the resources follow rotations as before.
+
+0.4.39: and of densityDpi, scaled by the same factor (density x width / 411).
+With the width alone (0.4.38) the camera took the 411dp layouts but drew them
+at the guest's density, on a screen still 512dp wide (S25 Ultra report
+b84d57be: 1440 px at 450, the buttons off their places). Both are rotation
+invariant, so the delta still follows rotations.
 
 Found by class name (com.sec.android.app.camera.Camera); its superclass is read
 from the file, since the obfuscated names change with each camera version.
@@ -33,16 +39,16 @@ HELPER_SMALI = """.class public final Loneos/camera/OneOSBarWidth;
 
 
 .method public static wrap(Landroid/content/Context;)Landroid/content/Context;
-    .locals 4
+    .locals 6
 
     :try_start
     invoke-virtual {p0}, Landroid/content/Context;->getResources()Landroid/content/res/Resources;
     move-result-object v0
     invoke-virtual {v0}, Landroid/content/res/Resources;->getConfiguration()Landroid/content/res/Configuration;
-    move-result-object v0
-    iget v0, v0, Landroid/content/res/Configuration;->smallestScreenWidthDp:I
+    move-result-object v4
+    iget v5, v4, Landroid/content/res/Configuration;->smallestScreenWidthDp:I
     const/16 v1, CAPHEX
-    if-le v0, v1, :keep
+    if-le v5, v1, :keep
     const-string v0, "device_state"
     invoke-static {v0}, Landroid/os/ServiceManager;->getService(Ljava/lang/String;)Landroid/os/IBinder;
     move-result-object v0
@@ -58,10 +64,16 @@ HELPER_SMALI = """.class public final Loneos/camera/OneOSBarWidth;
     new-instance v0, Landroid/content/res/Configuration;
     invoke-direct {v0}, Landroid/content/res/Configuration;-><init>()V
     iput v1, v0, Landroid/content/res/Configuration;->smallestScreenWidthDp:I
+    iget v2, v4, Landroid/content/res/Configuration;->densityDpi:I
+    if-lez v2, :same_density
+    mul-int/2addr v2, v5
+    div-int/2addr v2, v1
+    iput v2, v0, Landroid/content/res/Configuration;->densityDpi:I
+    :same_density
     invoke-virtual {p0, v0}, Landroid/content/Context;->createConfigurationContext(Landroid/content/res/Configuration;)Landroid/content/Context;
     move-result-object v0
     const-string v2, "OneOSSem"
-    const-string v3, "bar phone: the camera's resources at smallestScreenWidthDp CAPDEC"
+    const-string v3, "bar phone: the camera's resources at smallestScreenWidthDp CAPDEC, the density scaled with it"
     invoke-static {v2, v3}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
     return-object v0
     :try_end

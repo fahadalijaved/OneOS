@@ -91,7 +91,7 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
                                         $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
-                                        $2 == "libsurfaceflinger_patched.so" { print $2 }' "$STAGE/guards.txt"); do
+                                        $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
     sum=$(awk -v n="$need" '$2 == n {print $1}' "$STAGE/guards.txt")
     if [ -z "$sum" ] || [ "$(sha256sum "$STAGE/$need" 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         echo "ERROR: $STAGE/$need missing or not the guarded build in guards.txt; not starting the guest"
@@ -130,7 +130,7 @@ if [ "$GMS_WANT" = 1 ]; then
         echo "ERROR: guards.txt does not list the $t guard: services_patched.jar was built without the guards Google services need (scripts/make-overlays.sh). ONEOS_GUEST_GMS=0 starts without them. Not starting the guest"
         exit 3
     done
-    GMS_LOW=$(awk '$2 ~ /^[0-9]+$/ && $2 >= 10000 && $2 <= 14999 { n++; if (n <= 3) l = l " " $1 "=" $2 } END { if (n) print n " (" substr(l, 2) ")" }' "$STAGE/data/system/packages.list" 2>/dev/null)
+    GMS_LOW=$(awk -v ksu="me.weishu.kernelsu com.rifsxd.ksunext com.sukisu.ultra app.kitsusu.manager" 'BEGIN { split(ksu, a, " "); for (i in a) m[a[i]] = 1 } $2 ~ /^[0-9]+$/ && $2 >= 10000 && $2 <= 14999 && !($1 in m) { n++; if (n <= 3) l = l " " $1 "=" $2 } END { if (n) print n " (" substr(l, 2) ")" }' "$STAGE/data/system/packages.list" 2>/dev/null)
     if [ -n "$GMS_LOW" ]; then
         echo "ERROR: the staged guest has $GMS_LOW app uids in 10000-14999 (a stage from before the app id guard: its apps share keystore namespaces with One UI's). Google services need a fresh guest data dir (deploy-phone.sh --fresh); ONEOS_GUEST_GMS=0 starts this stage without them. Not starting the guest"
         exit 3
@@ -1866,6 +1866,16 @@ if [ -f "$STAGE/framework_patched.jar" ]; then
     $BB mount --bind "$STAGE/framework_patched.jar" "$ROOTFS/system/framework/framework.jar"
     echo "Bound framework_patched.jar -> $ROOTFS/system/framework/framework.jar"
 fi
+# telephony-common_patched.jar: the SMS service centre as an international
+# number (patches/guest_smsc_international.py; Samsung's radio answers it in
+# the modem's AT form). Only built for sets that already bind a patched
+# framework.jar, so the boot image is not given up for it alone. Listed in
+# guards.txt and checked above.
+if [ -f "$STAGE/telephony-common_patched.jar" ] && [ -f "$ROOTFS/system/framework/telephony-common.jar" ]; then
+    $BB umount -l "$ROOTFS/system/framework/telephony-common.jar" 2>/dev/null || true
+    $BB mount --bind "$STAGE/telephony-common_patched.jar" "$ROOTFS/system/framework/telephony-common.jar"
+    echo "Bound telephony-common_patched.jar -> $ROOTFS/system/framework/telephony-common.jar"
+fi
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the guest's
 # native camera client (legacy camera API, NDK camera2) with One UI's codes
 # (patches/pixel_camera_native.py); guards.txt lists them, checked above.
@@ -3077,6 +3087,125 @@ fi
 # $ROOTFS/data/media is the staged $STAGE/data/media (section 5), not the
 # phone's: the guest never gets the real shared storage.
 
+# KernelSU inside the guest (0.4.39). The guest's KernelSU manager (oneos_switch.sh
+# installs One UI's) runs ksud as root; from here its init-level commands reach
+# the phone's own init, One UI's: soft-reboot stops every service (One UI's HALs
+# with the guest's), resets sys.boot_completed and runs the module stages, and
+# post-fs-data, services, boot-completed, late-load, unload, uninstall and the
+# boot-image commands are One UI's boot. And One UI's modules are One UI's: a
+# guest system keeps its own (owner: separate per system).
+# So in this namespace /data/adb is a tmpfs: One UI's entries bound read-only,
+# except modules and modules_update, which are this system's own folders in its
+# data (data/oneos_ksu; guest_modules.sh applies them to this system's tree), and
+# ksud, which is a wrapper: a soft reboot becomes a request to oneos_switch.sh's
+# watcher (oneos.guest.powerctl; guest_softreboot.sh restarts this system only),
+# those commands are refused, the rest is the real ksud (bound read-only at
+# /data/oneos_ksu/ksud.real; the manager's own bundled copy is replaced with the
+# same wrapper by the UI activator). su is not affected: KernelSU's su runs
+# /system/bin/sh, and the guest's /system/xbin/su is its own copy (section 6).
+# Every mount here is under the guest's private tree and made private itself;
+# init's mount table is checked afterwards, and all of it undone if anything
+# reached One UI's /data/adb.
+if [ -f /data/adb/ksud ] && [ "${ONEOS_GUEST_KSUD_WRAP:-1}" = 1 ]; then
+    KW="$STAGE/data/oneos_ksu"
+    GA="$ROOTFS/data/adb"
+    mkdir -p "$KW/modules" "$KW/modules_update" && chmod 755 "$KW" && chmod 755 "$KW/modules" "$KW/modules_update"
+    cat > "$KW/ksud" <<'KSUDWRAP'
+#!/system/bin/sh
+# OneOS: KernelSU's ksud inside a guest system. Commands that drive init would
+# act on the phone's own init (One UI's), so they never run from here.
+case "$1" in
+    soft-reboot)
+        setprop oneos.guest.powerctl "ksud:soft-reboot"
+        echo "OneOS: soft reboot of this system requested"
+        exit 0 ;;
+    post-fs-data|services|boot-completed|late-load|unload|uninstall|install|insmod|boot-patch|boot-patch-v2|boot-restore)
+        echo "OneOS: 'ksud $1' acts on One UI's boot; not run inside this system" >&2
+        exit 1 ;;
+    debug)
+        # The manager's root shell asks for the global mount namespace, which is
+        # One UI's (init's): module lists and installs there would be One UI's.
+        # This system's own namespace instead (its /data/adb view, its modules).
+        if [ "$2" = su ]; then
+            shift 2
+            n=$#
+            for a in "$@"; do case "$a" in -g|--global-mnt) ;; *) set -- "$@" "$a" ;; esac; done
+            shift $n
+            set -- debug su "$@"
+        fi ;;
+esac
+exec /data/oneos_ksu/ksud.real "$@"
+KSUDWRAP
+    chmod 755 "$KW/ksud"
+    : > "$KW/ksud.real" 2>/dev/null
+    # ksud's module commands (list, install, uninstall, enable, disable, action)
+    # first enter the mount namespace of pid 1, as format!("/proc/{}/ns/mnt", 1):
+    # from a guest that is One UI's init, whatever namespace they were run in. In
+    # 0.4.39 test4 two modules installed in ColorOS landed in One UI's
+    # /data/adb/modules_update. This kernel has no pid namespaces, and a mount
+    # namespace file cannot be bound into a newer namespace, so the guest's ksud is
+    # a copy whose format string reads /data/ instead of /proc/: pid 1's becomes
+    # /data/1/ns/mnt, which in this system's data links to /proc/self/ns/mnt, its
+    # own namespace. The template is checked byte by byte before and after; any
+    # other ksud build leaves KernelSU out of this session.
+    KG="$KW/ksud.guest"
+    rm -f "$KG" "$KG.tmp"
+    KT=''
+    if cp /data/adb/ksud "$KG.tmp"; then
+        KO=$(toybox grep -obaF /ns/mnt "$KG.tmp" 2>/dev/null | cut -d: -f1)
+        if [ "$(echo "$KO" | grep -c .)" = 1 ] &&
+           [ "$($BB dd if="$KG.tmp" bs=1 skip=$((KO - 9)) count=9 2>/dev/null | $BB od -An -tx1 | tr -d ' \n')" = 062f70726f632fc007 ]; then
+            printf /data/ | $BB dd of="$KG.tmp" bs=1 seek=$((KO - 8)) conv=notrunc 2>/dev/null
+            [ "$($BB dd if="$KG.tmp" bs=1 skip=$((KO - 9)) count=9 2>/dev/null | $BB od -An -tx1 | tr -d ' \n')" = 062f646174612fc007 ] &&
+                chmod 755 "$KG.tmp" && mv "$KG.tmp" "$KG" && KT=1
+        fi
+    fi
+    rm -f "$KG.tmp"
+    mkdir -p "$STAGE/data/1/ns" && ln -sfn /proc/self/ns/mnt "$STAGE/data/1/ns/mnt"
+    [ "$(readlink "$STAGE/data/1/ns/mnt")" = /proc/self/ns/mnt ] || KT=''
+    ADB_HOST_MNT=$(grep -c ' /data/adb' /proc/1/mounts)
+    awk '$2 ~ "^/data/adb" { print $2 }' /proc/1/mounts > "$STAGE/tmp/adb_mounts.before"
+    ok=1
+    [ "$KT" = 1 ] || { ok=0; echo "KernelSU in the guest: this ksud's module namespace switch was not found as expected; not patched"; }
+    if [ $ok = 1 ] && $BB mount --make-private "$GA" && $BB mount -t tmpfs -o mode=0700,nosuid,nodev tmpfs "$GA" &&
+       $BB mount --make-private "$GA"; then
+        for e in $(ls -A /data/adb 2>/dev/null); do
+            case "$e" in modules|modules_update) continue ;; esac
+            if [ "$e" = ksud ]; then
+                : > "$GA/ksud" && $BB mount --bind "$KW/ksud" "$GA/ksud" && $BB mount --make-private "$GA/ksud" || ok=0
+            elif [ -L "/data/adb/$e" ]; then
+                $BB cp -P "/data/adb/$e" "$GA/$e" 2>/dev/null
+            elif [ -d "/data/adb/$e" ]; then
+                mkdir "$GA/$e" && $BB mount --bind "/data/adb/$e" "$GA/$e" && $BB mount --make-private "$GA/$e" &&
+                    $BB mount -o remount,bind,ro "/data/adb/$e" "$GA/$e" || ok=0
+            elif [ -f "/data/adb/$e" ]; then
+                : > "$GA/$e" && $BB mount --bind "/data/adb/$e" "$GA/$e" && $BB mount --make-private "$GA/$e" &&
+                    $BB mount -o remount,bind,ro "/data/adb/$e" "$GA/$e" || ok=0
+            fi
+        done
+        for d in modules modules_update; do
+            mkdir "$GA/$d" && $BB mount --bind "$KW/$d" "$GA/$d" && $BB mount --make-private "$GA/$d" || ok=0
+        done
+        $BB mount --bind "$KG" "$ROOTFS/data/oneos_ksu/ksud.real" &&
+            $BB mount -o remount,bind,ro "$KG" "$ROOTFS/data/oneos_ksu/ksud.real" || ok=0
+    else
+        ok=0
+    fi
+    [ "$(grep -c ' /data/adb' /proc/1/mounts)" = "$ADB_HOST_MNT" ] || ok=0
+    if [ $ok = 1 ]; then
+        echo "KernelSU in the guest: /data/adb is this system's view (One UI's entries read-only, its own modules in data/oneos_ksu, ksud the OneOS wrapper)"
+    else
+        # Undo all of it, One UI's side first if anything got there.
+        for m in $(awk '$2 ~ "^/data/adb" { print $2 }' /proc/1/mounts | sort -r); do
+            grep -qx "$m" "$STAGE/tmp/adb_mounts.before" || { $BB umount -l "$m" && echo "!!! KernelSU in the guest: $m had reached One UI's namespace; unmounted"; }
+        done
+        $BB umount -l "$ROOTFS/data/oneos_ksu/ksud.real" 2>/dev/null
+        $BB umount -l "$GA" 2>/dev/null
+        echo "KernelSU in the guest: view not set up; the guest's /data/adb stays One UI's, read-only (its KernelSU app is not installed this session)"
+        rm -f "$KW/manager"
+    fi
+fi
+
 echo "=== 5e. Writing per-package data-dir helper ==="
 # Apps installed before the /data bridge existed have no CE/DE data dirs in the
 # guest tree, and the guest zygote refuses to fork them:
@@ -3366,7 +3495,10 @@ chmod 755 "$STAGE/data/local/tmp/app_storage_loop.sh" 2>/dev/null || true
 echo "=== 6. Setting up /system/xbin/su (KernelSU Bridge) ==="
 if ! mount | grep -q "$ROOTFS/system/xbin "; then
     $BB mount -t tmpfs tmpfs "$ROOTFS/system/xbin"
-    SU_SRC="/data/adb/ksud"
+    # The guest's ksud copy (section 5d) when there is one: as su, its -M
+    # (mount master) enters pid 1's namespace too, One UI's with the plain copy.
+    SU_SRC="$STAGE/data/oneos_ksu/ksud.guest"
+    [ -f "$SU_SRC" ] || SU_SRC="/data/adb/ksud"
     [ -f "$SU_SRC" ] || SU_SRC=$(which su 2>/dev/null)
     [ -f "$SU_SRC" ] || SU_SRC=$(find /data/adb /system/bin -name su 2>/dev/null | head -n 1)
     [ -f "$SU_SRC" ] && cp "$SU_SRC" "$ROOTFS/system/xbin/su" && chmod 755 "$ROOTFS/system/xbin/su"
@@ -3950,6 +4082,259 @@ fi
 # resources, system_server boot loop, reboot). A private bind does not change
 # the source mount.
 $BB mount --make-rprivate "$ROOTFS" 2>/dev/null || true
+
+# KernelSU in the guest (0.4.39): the host-side helpers for its own modules
+# and for a soft reboot of this system only (oneos_switch.sh's watcher runs
+# guest_softreboot.sh). In $STAGE/tmp: root's, never the guest's /data. The
+# modules go on once here, after the tree is private and before the check of
+# One UI's partitions below; guest_modules.sh checks One UI's mounts itself too.
+cat > "$STAGE/tmp/guest_modules.sh" <<'GUESTMODULES'
+#!/system/bin/sh
+# OneOS: this guest system's own KernelSU modules (data/oneos_ksu/modules, what
+# its KernelSU app installs; One UI's never load here) onto its tree, the way
+# KernelSU's magic mount does: a module's system/ files over the image's (vendor/,
+# product/, system_ext/ and odm/ at those partitions), new files and folders
+# through a tmpfs copy of the folder they go into, a folder with a .replace file
+# as a whole. Every target is resolved inside the guest's tree; a path that
+# leads out of it (an absolute link) is skipped. disable, remove, skip_mount and
+# modules_update are honoured. Modules' scripts (post-fs-data.sh, service.sh),
+# system.prop and sepolicy.rule are not run in a guest system. Run by
+# guest_prepare.sh at the switch and by guest_softreboot.sh before the guest
+# starts again; the previous application is undone first.
+S=${ONEOS_TEST_STAGE:-/data/local/tmp/oneos}
+R=$S/rootfs
+K=$S/data/oneos_ksu
+M=$K/modules
+U=$K/modules_update
+L=$S/tmp/module_mounts
+# The folder copies under the guest's private tree (no propagation to One UI's
+# namespaces, unlike the stage's own folders on /data).
+W=$R/data/oneos_ksu/.mirrors
+[ -n "$BB" ] || for c in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/busybox; do [ -x "$c" ] && { BB=$c; break; }; done
+[ -x "$BB" ] && [ -d "$M" ] || { echo "Modules: none for this system"; exit 0; }
+under() { case "$1" in "$R"|"$R"/*) return 0 ;; esac; return 1; }
+# One UI's own mounts (everything outside the stage) before: compared at the end.
+# and the module store itself (a mount there would be in /data's peer group).
+outside() { awk -v s="$S/" -v k="$K/" 'index($2, s) != 1 || index($2, k) == 1 { print $2 }' /proc/1/mounts | sort; }
+outside > "$S/tmp/module_outside.before"
+record() { echo "$1" >> "$L"; }
+
+# The last application (a soft reboot): its mounts off, deepest first.
+if [ -f "$L" ]; then
+    sort -r "$L" | while read -r t; do $BB umount -l "$t" 2>/dev/null; done
+    rm -f "$L"
+fi
+# Never rm -r here: a copy still mounted would delete through its binds. The
+# copies come off, then only their empty mount points go.
+if [ -d "$W" ]; then
+    for t in $(awk -v w="$W/" 'index($2, w) == 1 { print $2 }' /proc/self/mounts | sort -r); do $BB umount -l "$t" 2>/dev/null; done
+    for t in "$W"/*; do [ -d "$t" ] && rmdir "$t" 2>/dev/null; done
+    rm -f "$W/.mirrored"
+fi
+mkdir -p "$W" || { echo "Modules: no $W"; exit 0; }
+
+# Updates installed since the last start replace the module; removals go.
+for d in "$U"/*; do
+    [ -d "$d" ] && [ ! -L "$d" ] || continue
+    id=${d##*/}
+    rm -rf "$M/$id" && mv "$d" "$M/$id" && rm -f "$M/$id/update" && echo "Modules: $id updated"
+done
+for d in "$M"/*; do
+    [ -d "$d" ] && [ ! -L "$d" ] && [ -e "$d/remove" ] && rm -rf "$d" && echo "Modules: ${d##*/} removed"
+done
+
+# The image's folder for a path under a module's system/ (inside the tree only).
+target() {
+    case "$1" in
+        vendor/*|product/*|system_ext/*|odm/*) set -- "$R/$1" "$R/system/$1" ;;
+        *) set -- "$R/system/$1" ;;
+    esac
+    for c; do
+        p=$($BB realpath "$($BB dirname "$c")" 2>/dev/null) || continue
+        under "$p" && { echo "$p/${c##*/}"; return 0; }
+    done
+    return 1
+}
+# A tmpfs copy of folder $1 bound over it, so new entries can go in: every
+# entry of the original bound into the copy (links copied).
+mirror() {
+    a=$1
+    $BB awk -v m="$a" '$2 == m { f = 1 } END { exit !f }' "$W/.mirrored" 2>/dev/null && return 0
+    under "$a" && [ -d "$a" ] && [ ! -L "$a" ] || return 1
+    t=$W/$($BB echo "$a" | $BB md5sum | cut -c1-12)
+    mkdir -p "$t" && $BB mount -t tmpfs -o mode=0755 tmpfs "$t" || return 1
+    $BB chmod "$($BB stat -c %a "$a")" "$t"; $BB chown "$($BB stat -c %u:%g "$a")" "$t"
+    for e in $(ls -A "$a"); do
+        if [ -L "$a/$e" ]; then $BB cp -P "$a/$e" "$t/$e"
+        elif [ -d "$a/$e" ]; then mkdir "$t/$e" && $BB mount --rbind "$a/$e" "$t/$e"
+        else : > "$t/$e" && $BB mount --bind "$a/$e" "$t/$e"
+        fi
+    done
+    # Private before anything goes on top: a bind of a /data file (a module's) is
+    # in /data's peer group, and a mount on it would show up in One UI's /data.
+    $BB mount --make-rprivate "$t" 2>/dev/null
+    $BB mount --rbind "$t" "$a" || { $BB umount -l "$t"; return 1; }
+    $BB mount --make-rprivate "$a" 2>/dev/null
+    record "$a"
+    echo "$a" >> "$W/.mirrored"
+}
+# Make folder $2 (an absolute path inside the tree) exist, mirroring the
+# deepest existing ancestor so the new folders can be created.
+ensure_dir() {
+    [ -d "$1" ] && return 0
+    p=$1
+    while [ ! -d "$p" ]; do p=$($BB dirname "$p"); done
+    under "$p" || return 1
+    mirror "$p" || return 1
+    mkdir -p "$1"
+}
+
+n_mod=0
+for d in "$M"/*; do
+    [ -d "$d" ] && [ ! -L "$d" ] || continue
+    id=${d##*/}
+    [ -e "$d/disable" ] && { echo "Modules: $id disabled"; continue; }
+    n_mod=$((n_mod + 1))
+    note=""
+    for f in post-fs-data.sh service.sh post-mount.sh boot-completed.sh system.prop sepolicy.rule; do
+        [ -f "$d/$f" ] && note="$note $f"
+    done
+    [ -n "$note" ] && echo "Modules: $id has$note, not run in a guest system"
+    [ -e "$d/skip_mount" ] && { echo "Modules: $id: skip_mount"; continue; }
+    [ -d "$d/system" ] || { echo "Modules: $id: nothing to mount"; continue; }
+    files=0 new=0 skipped=0
+    # Folders with .replace first, as a whole.
+    for r in $(cd "$d/system" && find . -name .replace -type f 2>/dev/null | sed 's|^\./||; s|/\.replace$||'); do
+        tg=$(target "$r") || { skipped=$((skipped + 1)); continue; }
+        ensure_dir "$tg" && $BB mount --bind "$d/system/$r" "$tg" && $BB mount --make-rprivate "$tg" && record "$tg" && files=$((files + 1)) || skipped=$((skipped + 1))
+    done
+    for rel in $(cd "$d/system" && find . \( -type f -o -type l \) ! -name .replace 2>/dev/null | sed 's|^\./||'); do
+        skip=0
+        for r in $(cd "$d/system" && find . -name .replace -type f 2>/dev/null | sed 's|^\./||; s|/\.replace$||'); do
+            case "$rel" in "$r"/*) skip=1 ;; esac
+        done
+        [ $skip = 1 ] && continue
+        tg=$(target "$rel") || { skipped=$((skipped + 1)); continue; }
+        if [ -f "$tg" ] && [ ! -L "$tg" ] && [ ! -L "$d/system/$rel" ]; then
+            $BB mount --bind "$d/system/$rel" "$tg" && $BB mount --make-private "$tg" && record "$tg" && files=$((files + 1)) || skipped=$((skipped + 1))
+        else
+            dir=$($BB dirname "$tg")
+            if ensure_dir "$dir" && mirror "$dir"; then
+                if [ -L "$d/system/$rel" ]; then
+                    rm -f "$tg"; $BB cp -P "$d/system/$rel" "$tg" && new=$((new + 1))
+                else
+                    [ -L "$tg" ] && rm -f "$tg"
+                    : > "$tg" && $BB mount --bind "$d/system/$rel" "$tg" && $BB mount --make-private "$tg" && record "$tg" && new=$((new + 1)) || skipped=$((skipped + 1))
+                fi
+            else
+                skipped=$((skipped + 1))
+            fi
+        fi
+    done
+    echo "Modules: $id: $files replaced, $new added, $skipped skipped"
+done
+# Nothing may have landed outside the guest's tree; if it did, all of it goes.
+outside > "$S/tmp/module_outside.after"
+LEAK=$(awk 'NR == FNR { b[$0] = 1; next } !($0 in b)' "$S/tmp/module_outside.before" "$S/tmp/module_outside.after")
+if [ -n "$LEAK" ]; then
+    for t in $(echo "$LEAK" | sort -r); do $BB umount -l "$t" 2>/dev/null; done
+    [ -f "$L" ] && sort -r "$L" | while read -r t; do $BB umount -l "$t" 2>/dev/null; done
+    rm -f "$L"
+    echo "Modules: ERROR mounts outside the guest's tree ($(echo $LEAK)); all module mounts undone"
+    exit 1
+fi
+echo "Modules: $n_mod enabled for this system ($M)"
+GUESTMODULES
+cat > "$STAGE/tmp/guest_softreboot.sh" <<'GUESTSOFTREBOOT'
+#!/system/bin/sh
+# OneOS: a soft reboot of the guest system only (KernelSU's soft reboot inside
+# it, through the ksud wrapper; oneos_switch.sh's watcher runs this). Its
+# processes stop the way return_to_oneui.sh stops them (every process in its
+# mount namespace or on its root), the zygote sockets' pins come off, its own
+# modules are applied again (guest_modules.sh), and guest_start.sh starts it
+# again in a fresh namespace exactly as the switch did. One UI stays as the
+# switch left it (framework stopped, its zygote kept down), and so do the
+# session's host helpers (heat cap, keepers, watchdogs, the watcher). No /proc
+# file but the namespace link and root of each process is read. Exit 0 once
+# guest_start.sh runs again; anything else and the watcher returns to One UI.
+S=/data/local/tmp/oneos
+[ -n "$BB" ] || for c in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/busybox; do [ -x "$c" ] && { BB=$c; break; }; done
+[ -x "$BB" ] || { echo "soft reboot: no busybox"; exit 1; }
+GUEST_NS=$(cat $S/guest_mntns 2>/dev/null)
+HOST_NS=$(readlink /proc/1/ns/mnt)
+GUEST_DEV=$(cat $S/guest_rootdev 2>/dev/null)
+HOST_DEV=$(stat -L -c %d /proc/1/root/ 2>/dev/null)
+[ "$GUEST_DEV" = "$HOST_DEV" ] && GUEST_DEV=""
+[ -n "$GUEST_NS" ] && [ "$GUEST_NS" != "$HOST_NS" ] || { echo "soft reboot: no guest namespace recorded"; exit 1; }
+[ -f $S/data/guest_start.sh ] && [ -f $S/data/zygote_exec ] || { echo "soft reboot: guest_start.sh or zygote_exec missing"; exit 1; }
+echo "$(date +%T) soft reboot ($1): stopping the guest's processes"
+pass=1
+while [ $pass -le 5 ]; do
+    killed=""
+    for p in /proc/[0-9]*; do
+        if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
+            [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || continue
+        fi
+        pid=${p#/proc/}
+        killed="$killed $pid:$(cat "$p/comm" 2>/dev/null)"
+        kill -9 "$pid" 2>/dev/null
+    done
+    [ $pass = 1 ] && echo "$(date +%T) soft reboot: killed$(echo "$killed" | wc -w | sed 's/^/ /') guest processes"
+    [ -n "$killed" ] || break
+    pass=$((pass + 1)); sleep 0.3
+done
+[ $pass -le 5 ] || { echo "soft reboot: guest processes still running after 5 passes"; exit 1; }
+# The zygote sockets were bound onto themselves in init's namespace (the
+# switch's protect_zygote_sockets): off, so guest_start.sh can make new ones.
+for s in zygote usap_pool_primary; do
+    f=/dev/socket/$s
+    n=0
+    while [ $n -lt 5 ] && $BB awk -v m="$f" '$5 == m { f = 1 } END { exit !f }' /proc/self/mountinfo; do
+        $BB umount -l "$f" 2>/dev/null; n=$((n + 1))
+    done
+    rm -f "$f"
+done
+rm -f /dev/socket/hyos_spawner
+# The guest vold's name (gvld) leaves servicemanager with its process.
+n=0
+while [ $n -lt 30 ] && service check gvld 2>/dev/null | grep -q ': found'; do n=$((n + 1)); sleep 0.1; done
+# This system's modules, applied again (installs, updates and removals since).
+[ -f $S/tmp/guest_modules.sh ] && BB=$BB /system/bin/sh $S/tmp/guest_modules.sh
+rm -f $S/data/oneos_rec_stop
+echo "$(date +%T) soft reboot: starting the guest again"
+echo "=== OneOS soft reboot $(date '+%F %T') ($1) ===" >> $S/data/takeover.log
+$BB unshare -m $BB sh $S/data/guest_start.sh </dev/null >>$S/data/takeover.log 2>&1 &
+TP=$!
+sleep 0.5
+NEW_NS=$(readlink /proc/$TP/ns/mnt 2>/dev/null)
+[ -n "$NEW_NS" ] && [ "$NEW_NS" != "$HOST_NS" ] || { echo "soft reboot: the new guest did not start"; exit 1; }
+echo "$NEW_NS" > $S/guest_mntns
+stat -c %d $S/rootfs > $S/guest_rootdev 2>/dev/null
+# The new zygote's sockets pinned again once zygote_exec is app_process64.
+( n=0
+  while :; do
+      case "$(readlink /proc/$TP/exe 2>/dev/null)" in
+          */app_process64) break ;;
+          '') exit 0 ;;
+      esac
+      n=$((n + 1)); [ $n -lt 3000 ] || exit 0
+      sleep 0.1
+  done
+  for s in zygote usap_pool_primary; do
+      f=/dev/socket/$s
+      [ -S "$f" ] && ! $BB awk -v m="$f" '$5 == m { f = 1 } END { exit !f }' /proc/self/mountinfo &&
+          $BB mount --bind "$f" "$f" && echo "$(date +%T) soft reboot: $f pinned again"
+  done ) </dev/null >>$S/auto_return.log 2>&1 &
+g=$(cat $S/tmp/softreboot.gen 2>/dev/null); case "$g" in ''|*[!0-9]*) g=0 ;; esac
+echo $((g + 1)) > $S/tmp/softreboot.gen
+echo "$(date +%T) soft reboot: guest_start.sh running again (pid $TP, $NEW_NS), generation $((g + 1))"
+exit 0
+GUESTSOFTREBOOT
+chmod 700 "$STAGE/tmp/guest_modules.sh" "$STAGE/tmp/guest_softreboot.sh"
+rm -f "$STAGE/tmp/softreboot.gen" "$STAGE/tmp/module_mounts"
+if [ -d "$STAGE/data/oneos_ksu/modules" ]; then
+    BB=$BB /system/bin/sh "$STAGE/tmp/guest_modules.sh" || echo "Modules: not applied (see above)"
+fi
 
 # Nothing of the guest on One UI's own partitions (host_part_mounts, top).
 host_part_mounts > "$STAGE/host_part_mounts.after"

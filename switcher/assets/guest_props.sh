@@ -501,6 +501,20 @@ add)
             echo "$k=${tl##*:}" >> "$NEW"
         done
         echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type = S and AdrenoVK-0 = W for the session (failures and dumps on every frame or call)"
+        # HyperOS's SurfaceFlinger pre-warms its shaders at start with fake
+        # layers, and died there on two phones (0.4.38): S24 Ultra 548e7b73
+        # SIGSEGV in DolbyRenderer::requiresDolbyEffect, A57 609d7c2f abort
+        # "input buffer not gpu readable", both under Cache::primeShaderCache;
+        # the guest stayed black and OneOS returned. Off for the session: the
+        # shaders compile on first use instead (the Z Fold8 Ultra primed fine).
+        k=service.sf.prime_shader_cache
+        if grep -qxF "$k" "$HOST"; then
+            echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"
+        else
+            sed -i "/^service\.sf\.prime_shader_cache=/d" "$NEW"
+            echo "$k=0" >> "$NEW"
+            echo "guest_props: $k=0 for the session (HyperOS's SurfaceFlinger died pre-warming shaders on the S24 Ultra and A57)"
+        fi
     fi
     # Chrome draws nothing in the Nothing OS guest: its renderers never start
     # (cr_ChildProcessConn "Failed to establish the service connection" 20
@@ -547,12 +561,27 @@ add)
     # and sets the clock to 1 January of the build year: the shared kernel
     # clock read 2026-01-01 until network time came back (Galaxy S26+ 80387c66,
     # S25 Ultra 485d5ffa), and the Galaxy S23 (699602d7) returned to One UI on
-    # it. 0 for the session, not over a value One UI has.
+    # it. 0 for the session. Since 0.4.39 also over a value One UI has (its
+    # persist props are saved above and restored on the return): it was left
+    # alone then, and on an S25 Ultra (cdd75ef8) the reset came back, every
+    # HTTPS check failed on the clock and Google said offline.
+    # One UI's own value goes on the override list (put back on the return,
+    # as persist.sys.usb.config above); a key One UI lacks is added and removed.
     key=persist.sys.device_first_boot
-    if [ -f "$ROOTFS/system/framework/oplus-services.jar" ] && ! grep -qxF "$key" "$HOST"; then
-        sed -i "/^$key=/d" "$NEW"
-        echo "$key=0" >> "$NEW"
-        echo "guest_props: $key=0 for the session (no first-boot clock reset to 1 January)"
+    if [ -f "$ROOTFS/system/framework/oplus-services.jar" ] || [ -f "$ROOTFS/system/system_ext/framework/oplus-services.jar" ]; then
+        if grep -qxF "$key" "$HOST"; then
+            hv=$(getprop "$key")
+            if [ "$hv" = 0 ]; then
+                echo "guest_props: $key=0 already (One UI's), no first-boot clock reset"
+            elif "$RP" -n "$key" 0 2>/dev/null; then
+                echo "$key=$hv" >> "$OVR"
+                echo "guest_props: $key=$hv overridden to 0 for the session (no first-boot clock reset to 1 January)"
+            fi
+        else
+            sed -i "/^$key=/d" "$NEW"
+            echo "$key=0" >> "$NEW"
+            echo "guest_props: $key=0 for the session (no first-boot clock reset to 1 January)"
+        fi
     fi
     # Galaxy Z Fold8, Find N6 (pull request #1): the image's cover camera bounds are the
     # Find N6's; this cover is 1248 px wide. Session-only, removed on return.

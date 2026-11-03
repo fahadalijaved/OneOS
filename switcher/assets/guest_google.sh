@@ -146,7 +146,7 @@ snapshot)
     for t in gatekeeper pdb apexd appid15000; do
         grep '^#' "$STAGE/guards.txt" 2>/dev/null | grep -qw "$t" || skip "guards.txt lacks the $t guard"
     done
-    awk '$2 ~ /^[0-9]+$/ && $2 >= 10000 && $2 <= 14999 { f = 1 } END { exit !f }' "$STAGE/data/system/packages.list" 2>/dev/null &&
+    awk -v ksu="me.weishu.kernelsu com.rifsxd.ksunext com.sukisu.ultra app.kitsusu.manager" 'BEGIN { split(ksu, a, " "); for (i in a) m[a[i]] = 1 } $2 ~ /^[0-9]+$/ && $2 >= 10000 && $2 <= 14999 && !($1 in m) { f = 1 } END { exit !f }' "$STAGE/data/system/packages.list" 2>/dev/null &&
         skip "the guest has app ids 10000-14999 from before the app-id guard; set up again with fresh guest data for Google apps"
     [ ! -e "$CACHE" ] || { [ -d "$CACHE" ] && [ ! -L "$CACHE" ]; } || skip "$CACHE is not a directory"
     mkdir -p "$CACHE" || skip "cannot create $CACHE"
