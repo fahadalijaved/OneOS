@@ -33,9 +33,9 @@ class PackageSetsTest {
         assertEquals(Images.ID_FIND_N6, n6.imageId)
         assertEquals(Images.ID_FIND_X9U, x9u.imageId)
         assertEquals(Images.ID_PIXEL_YOGI, pixel.imageId)
-        assertEquals("out/overlays_n6g_r3", n6.sourceDir)
+        assertEquals("out/overlays_n6g_r4", n6.sourceDir)
         assertEquals("out/overlays_x9u_r51", x9u.sourceDir)
-        assertEquals("out/overlays_x9u_in_r53", xin.sourceDir)
+        assertEquals("out/overlays_x9u_in_r55", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
         assertEquals("out/overlays_pixel_f8u_r2", pixel.sourceDir)
         assertEquals(
@@ -65,7 +65,7 @@ class PackageSetsTest {
         // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
         val hyper = PackageSets.HYPER_F8U
         assertEquals(Images.ID_HYPEROS_LHASA, hyper.imageId)
-        assertEquals("out/overlays_hyperos_r12", hyper.sourceDir)
+        assertEquals("out/overlays_hyperos_r13", hyper.sourceDir)
         assertEquals(35, hyper.files.size) // 0.4.38: + libsurfaceflinger_patched.so
         assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk"),
             hyper.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
@@ -81,7 +81,7 @@ class PackageSetsTest {
         // TelephonyResCommon_Sys.apk in this guest's overlay order (run 10).
         val nothing = PackageSets.NOTHING_F8U
         assertEquals(Images.ID_NOTHING_METROID, nothing.imageId)
-        assertEquals("out/overlays_nothing_r19", nothing.sourceDir)
+        assertEquals("out/overlays_nothing_r20", nothing.sourceDir)
         assertEquals(47, nothing.files.size)
         // r12: Nothing's SystemUI with its quick settings at the screen's own density on the inner panel;
         // r13: its launcher with the drawer's category boxes per row from the width; r17: the ringtone kits

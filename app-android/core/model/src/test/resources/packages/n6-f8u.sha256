@@ -1,5 +1,5 @@
-# OneOS package set n6-f8u: sha256sum of out/overlays_n6g_r3 (scripts/make-overlays.sh on the Find N6 global image CPH2765_17.0.0.101(EX01), 2026-11-02; samcam.tar from scripts/samsung-camera/build-cached.sh; Fold8SystemUI.apk and Fold8AngleRelay.dex from scripts/make-fold8-coloros.py --into; 0.4.39 r3: services_patched.jar with patches/guest_ksu_manager_appid.py, telephony-common_patched.jar (patches/guest_smsc_international.py), 2026-11-03).
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_n6g_r3 differs.
+# OneOS package set n6-f8u: sha256sum of out/overlays_n6g_r4 (scripts/make-overlays.sh on the Find N6 global image CPH2765_17.0.0.101(EX01), 2026-11-02; samcam.tar from scripts/samsung-camera/build-cached.sh; Fold8SystemUI.apk and Fold8AngleRelay.dex from scripts/make-fold8-coloros.py --into; 0.4.39 r3: services_patched.jar with patches/guest_ksu_manager_appid.py, telephony-common_patched.jar (patches/guest_smsc_international.py), 2026-11-03; 0.4.40 r4: framework_patched.jar with patches/guest_secims_gba.py (GBA support, sem*State by SIM slot)).
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_n6g_r4 differs.
 ccf2fbddc462eca6d7cb7f112ca1b36620fe0ccd044ff6ba28bebe13cfe6b89e  Fold8AngleRelay.dex
 eca1dc6208f9ece70cc2fe663fdd7c91f50a5d2ee17523ec9a4ee1c4cb4af3cf  Fold8SystemUI.apk
 0b82108e50906dc6f4820b2a47cf471be81020ec6ea8b2fad14d99c16272eaa8  OneOSGuest.apk
@@ -11,8 +11,8 @@ eca67bef101d9f300f36f824c9af394c316c0f27d3d7c72d9e2e22d3ea7e0c7c  cellbroadcast_
 f8fc69250f59bd83b0d11399c17a4bfa4e63030d7297b2108eb84d9bc7dc94fd  configinfrastructure_payload.img
 2cda6104fa8266d2ee26ca9512532dfed6fef9c8c2a319663f890fd19986c0a0  crashrecovery_payload.img
 dddccf843beb0fb4552d3f0afe1c4f8bb8d7a1c4269f5a787f16ad1b08f8beaf  extservices_payload.img
-6466ce9a3697fd31b68d21126cd03c0155f2c9f401c0c241503d2f5f416f61d7  framework_patched.jar
-126d1c01ea5235ac0647bab78d1995cf104ae4d1acf45596d89924569a6f7e72  guards.txt
+e61f9bebe691ea90e540eeed79b0e5e70ed537c252d12d45cb46119d0d155230  framework_patched.jar
+2ff94fc2b70d8632b06a921eb0510577c6e347bae3ef698b47cef2b4d5ff5da3  guards.txt
 8f2a37629ed009b011d33f017714ac3d33caa5ffba838c2ced3a2c4f6a612efc  healthfitness_payload.img
 1750220fbfa2af1611a8ed7b1b3526074953b3a863f0e066a3fede2a4ea7d756  i18n_payload.img
 44ac958698b0dcd72b5ea77f84e5c16caba6716b153589388d09354abaadd6aa  ims-ext-common_patched.jar

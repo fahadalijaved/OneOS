@@ -1259,6 +1259,10 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
     # mode's low byte, and One UI numbers the groups by panel width on the S23,
     # S24 Ultra and Z Flip5 (1440 against 160): no mode matched and SurfaceFlinger
     # aborted at the first display, a black screen every session there.
+    # 0.4.40: and its DolbyRenderer no longer queries Xiaomi's Xring buffer
+    # metadata through a mapper the older Samsung vendors never load
+    # (patches/hyperos_dolby_mapper.py; S24 Ultra, S23, A57: SIGSEGV at the
+    # first GPU-composed frame, with or without the shader pre-warm).
     HSF="$GUEST_SYSTEM_EXT/lib64/libsurfaceflinger.so"
     if [ -f "$STAGE/libsurfaceflinger_patched.so" ] && [ -f "$HSF" ] && [ ! -L "$HSF" ]; then
         chmod 644 "$STAGE/libsurfaceflinger_patched.so"

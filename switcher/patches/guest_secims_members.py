@@ -14,7 +14,7 @@ rcsopenapi, vsimmanager and EpdgManager against the guest's boot class path.
 Each stand-in is OneOS's own small code, no Samsung code: the standard Android
 equivalent where there is one (service state, data state, cell info, subscriber
 id, call extras, the five-argument SMS error report), a failure or a neutral
-value where there is none (GBA bootstrapping, NR and VoNR modes, Samsung's OEM
+value where there is none (GBA bootstrapping; 0.4.40 GBA support from the ISIM service table, NR and VoNR modes, Samsung's OEM
 RIL requests, video-call network statistics). A member the class already has is
 left alone, so this is safe on any image; a class not found exactly once refuses.
 
@@ -44,6 +44,61 @@ def per_sub(call, ret):
             f"    return{'-object' if ret == 'obj' else ''} v0")
 
 
+def per_slot(call, ret):
+    """Samsung's sem*State(int) take the SIM slot (ImsSmsImpl's mPhoneId, the ePDG
+    listener's phone id), not a subscription: this.createForSubscriptionId(
+    SubscriptionManager.getSubscriptionId(p1)).<call>. 0.4.40: per_sub read slot 0 as
+    subscription 0, semGetServiceState returned null, ImsSmsImpl.canFallback said no,
+    and an SMS the IMS network refused never went over CS (Partner IL 0390db1c: SIP 404,
+    then status ERROR instead of FALLBACK)."""
+    return (".locals 1\n"
+            "    invoke-static {p1}, Landroid/telephony/SubscriptionManager;->getSubscriptionId(I)I\n"
+            "    move-result v0\n"
+            f"    invoke-virtual {{p0, v0}}, {TM}->createForSubscriptionId(I){TM}\n"
+            "    move-result-object v0\n"
+            f"    invoke-virtual {{v0}}, {TM}->{call}\n"
+            f"    move-result{'-object' if ret == 'obj' else ''} v0\n"
+            f"    return{'-object' if ret == 'obj' else ''} v0")
+
+
+def gba(ist_of):
+    """Service n°2 of the ISIM service table (EF_IST, 3GPP TS 31.103) is GBA:
+    bit 0x02 of its first byte, as getIsimIst() hands it over (hex). 0.4.40: the
+    stand-in answered false, and Samsung IMS builds no T-Mobile registration when
+    the carrier has GBA on and the SIM does not support it (S26 Ultra 3255561a:
+    "TMobile LTE/WiFi - Unsatisfying carrier requirement", no VoLTE, no calls)."""
+    return (".locals 3\n"
+            "    :try_start_gba\n"
+            f"{ist_of}"
+            "    move-result-object v0\n"
+            "    if-eqz v0, :gba_no\n"
+            "    invoke-virtual {v0}, Ljava/lang/String;->length()I\n"
+            "    move-result v1\n"
+            "    const/4 v2, 0x2\n"
+            "    if-lt v1, v2, :gba_no\n"
+            "    const/4 v1, 0x0\n"
+            "    invoke-virtual {v0, v1, v2}, Ljava/lang/String;->substring(II)Ljava/lang/String;\n"
+            "    move-result-object v0\n"
+            "    const/16 v1, 0x10\n"
+            "    invoke-static {v0, v1}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;I)I\n"
+            "    move-result v0\n"
+            "    and-int/lit8 v0, v0, 0x2\n"
+            "    if-eqz v0, :gba_no\n"
+            "    const/4 v0, 0x1\n"
+            "    return v0\n"
+            "    :try_end_gba\n"
+            "    .catch Ljava/lang/Throwable; {:try_start_gba .. :try_end_gba} :gba_no\n"
+            "    :gba_no\n"
+            "    const/4 v0, 0x0\n"
+            "    return v0")
+
+
+GBA_SELF = gba(f"    invoke-virtual {{p0}}, {TM}->getIsimIst()Ljava/lang/String;\n")
+GBA_SUB = gba(f"    invoke-virtual {{p0, p1}}, {TM}->createForSubscriptionId(I){TM}\n"
+              "    move-result-object v0\n"
+              f"    invoke-virtual {{v0}}, {TM}->getIsimIst()Ljava/lang/String;\n")
+
+
 # (class, member line (method header or field), body or None for a field)
 MEMBERS = [
     ("Landroid/os/Build$VERSION;", ".field public static final SEM_INT:I = 0xe75", None),  # One UI 9 (ro.build.version.sem 3701)
@@ -59,8 +114,8 @@ MEMBERS = [
     (TM, ".method public getSubscriberIdForUiccAppType(II)Ljava/lang/String;", per_sub("getSubscriberId()Ljava/lang/String;", "obj")),
     (TM, ".method public hasCall(Ljava/lang/String;)Z", FALSE),
     (TM, ".method public invokeOemRilRequestRawForPhone(I[B[B)I", ".locals 1\n    const/4 v0, -0x1\n    return v0"),
-    (TM, ".method public isGbaSupported()Z", FALSE),
-    (TM, ".method public isGbaSupported(I)Z", FALSE),
+    (TM, ".method public isGbaSupported()Z", GBA_SELF),
+    (TM, ".method public isGbaSupported(I)Z", GBA_SUB),
     (TM, ".method public semGetDataServiceState(I)I",
      ".locals 1\n"
      f"    invoke-virtual {{p0, p1}}, {TM}->createForSubscriptionId(I){TM}\n"
@@ -74,9 +129,9 @@ MEMBERS = [
      "    :oneos_no_state\n"
      "    const/4 v0, 0x1\n"
      "    return v0"),
-    (TM, ".method public semGetDataState(I)I", per_sub("getDataState()I", "int")),
+    (TM, ".method public semGetDataState(I)I", per_slot("getDataState()I", "int")),
     (TM, ".method public semGetNrMode(I)I", FALSE),
-    (TM, ".method public semGetServiceState(I)Landroid/telephony/ServiceState;", per_sub(f"getServiceState(){SS}", "obj")),
+    (TM, ".method public semGetServiceState(I)Landroid/telephony/ServiceState;", per_slot(f"getServiceState(){SS}", "obj")),
     (TM, ".method public static semGetTelephonyProperty(ILjava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
      ".locals 1\n    invoke-static {p1, p2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;\n"
      "    move-result-object v0\n    return-object v0"),

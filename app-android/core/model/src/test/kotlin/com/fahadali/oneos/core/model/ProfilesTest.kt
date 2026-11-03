@@ -242,6 +242,7 @@ class ProfilesTest {
                 Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550, Profiles.S_PLUS_8850,
                 Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5,
+                Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945,
             ),
             Profiles.BUILT_IN,
         )
@@ -273,7 +274,7 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.F8U, Profiles.FOLD7, Profiles.FOLD8, Profiles.FOLD6, Profiles.FOLD5), Profiles.BUILT_IN.filter { it.form == FormFactor.FOLD })
         // The Find X9 Ultra builds run as a phone: the bar phones and (0.4.17) the Z Flip7 on its main screen.
         assertTrue(Profiles.BUILT_IN.filter { it.choice(Images.ID_FIND_X9U) != null }.all { it.form == FormFactor.BAR || it.form == FormFactor.FLIP })
-        assertEquals(listOf(Profiles.FLIP7, Profiles.FLIP5, Profiles.FLIP8), Profiles.BUILT_IN.filter { it.form == FormFactor.FLIP })
+        assertEquals(listOf(Profiles.FLIP7, Profiles.FLIP5, Profiles.FLIP8, Profiles.FLIP6), Profiles.BUILT_IN.filter { it.form == FormFactor.FLIP })
         // The Pixel 11 Fold image on the SM8850 folds (it ran on the Fold8 Ultra; 0.4.10 the Z Fold8, untested), with the Fold's set.
         assertEquals(listOf(Profiles.F8U, Profiles.FOLD8), Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_YOGI) != null })
         // The Pixel 11 images only on chips with SVE, which their system code needs: SM8850, and (0.4.17) the
@@ -287,6 +288,7 @@ class ProfilesTest {
             listOf(
                 Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.S_PLUS_8750, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
                 Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5, Profiles.A36,
+                Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945,
             ),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_KOMODO) != null },
         )
@@ -359,7 +361,17 @@ class ProfilesTest {
         assertEquals(Profiles.S_8550, profile("SM-S911B", "dm1q", "SM8550"))
         assertEquals(Profiles.S_PLUS_8550, profile("SM-S916U", "dm2q", "SM8550"))
         assertNull(profile("SM-S911B", "dm2q", "SM8550"))
-        assertNull(profile("SM-S918B", "dm3q", "SM8550")) // S23 Ultra: no report, no profile
+        // 0.4.40: the Galaxy S23 Ultra (SM8550 like the S23s), Z Flip6 (SM8650) and S24 (Exynos 2400).
+        assertEquals(Profiles.S_ULTRA_8550, profile("SM-S918B", "dm3q", "SM8550"))
+        assertEquals(Profiles.S_ULTRA_8550, profile("SM-S918U1", "dm3q", "SM8550"))
+        assertNull(profile("SM-S918B", "dm1q", "SM8550")) // S23 Ultra model number, S23 codename
+        assertEquals(Profiles.FLIP6, profile("SM-F741B", "b6q", "SM8650"))
+        assertEquals(FormFactor.FLIP, Profiles.FLIP6.form)
+        assertNull(Profiles.FLIP6.choice(Images.ID_HYPEROS_LHASA)) // as the Z Fold6: HyperOS died on SM8650
+        assertEquals(Profiles.S_9945, profile("SM-S921N", "e1s", "s5e9945"))
+        assertEquals(Profiles.S_9945, profile("SM-S921B", "e1s", "s5e9945"))
+        assertNull(profile("SM-S921B", "e1q", "SM8650")) // a Snapdragon S24: no report, no profile
+        assertEquals(listOf(Profiles.ID_NOTE_EXYNOS, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.S_9945.notes.map { it.id })
         // Galaxy S25 (base): all three ids, like the others.
         assertEquals(Profiles.S_8750, profile("SM-S931B", "pa1q", "SM8750"))
         assertEquals(Profiles.S_8750, profile("SM-S931U1", "PA1Q", "sm8750"))

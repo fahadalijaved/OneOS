@@ -182,10 +182,10 @@ class GatesTest {
         val exynos = profileGate(Fixtures.facts(model = "SM-S948B", device = "m3s", soc = SocProps(manufacturer = "Samsung", model = "s5e9955")))
         assertEquals(Level.BLOCK, exynos.level(SwitchGates.ID_PROFILE))
         assertNull(exynos.profile)
-        // Galaxy S23 Ultra: no profile (the S24 Ultra has one since 0.4.11).
-        val s23u = profileGate(Fixtures.facts(model = "SM-S918B", device = "dm3q", soc = SocProps(manufacturer = "QTI", model = "SM8550")))
-        assertEquals(Level.BLOCK, s23u.level(SwitchGates.ID_PROFILE))
-        assertTrue(s23u.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("Galaxy S26 Ultra (SM-S948* / m3q / SM8850)"))
+        // Galaxy S22: no profile (the S23 Ultra has one since 0.4.40).
+        val s22 = profileGate(Fixtures.facts(model = "SM-S901E", device = "r0q", soc = SocProps(manufacturer = "QTI", model = "SM8450")))
+        assertEquals(Level.BLOCK, s22.level(SwitchGates.ID_PROFILE))
+        assertTrue(s22.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("Galaxy S26 Ultra (SM-S948* / m3q / SM8850)"))
         val wrongCodename = profileGate(Fixtures.s26Ultra().copy(device = "pa3q"))
         assertEquals(Level.BLOCK, wrongCodename.level(SwitchGates.ID_PROFILE))
         assertTrue(wrongCodename.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("codename pa3q (profile: m3q)"))

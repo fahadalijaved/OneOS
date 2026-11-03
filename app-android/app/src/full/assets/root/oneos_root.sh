@@ -172,6 +172,9 @@ profile_info() {
         a07) echo "SM-A075 a07 MT6789 bar" ;;
         flip8) echo "SM-F776 b8s s5e9965 flip" ;;
         a36) echo "SM-A366 a36xq SM6475 bar" ;;
+        s-ultra-8550) echo "SM-S918 dm3q SM8550 bar" ;;
+        flip6) echo "SM-F741 b6q SM8650 flip" ;;
+        s-9945) echo "SM-S921 e1s s5e9945 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -253,6 +256,15 @@ profile_set() {
         "a57 coloros17-findx9u") echo x9u-sultra ;;
         "a56 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a57 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-ultra-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip6 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8550 coloros17-findx9u") echo x9u-sultra ;;
+        "flip6 coloros17-findx9u") echo x9u-sultra ;;
+        "s-9945 coloros17-findx9u") echo x9u-sultra ;;
+        "s-ultra-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "flip6 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip5 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip5 coloros17-findx9u") echo x9u-sultra ;;
         "flip5 pixel9proxl-komodo") echo pixel9-sultra ;;
@@ -289,6 +301,11 @@ profile_set() {
         "a57 infinityx41-findx9u") echo infinityx ;;
         "a56 hyperos-lhasa") echo hyper-f8u ;;
         "a57 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8550 infinityx41-findx9u") echo infinityx ;;
+        "flip6 infinityx41-findx9u") echo infinityx ;;
+        "s-9945 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "s-9945 hyperos-lhasa") echo hyper-f8u ;;
         "flip5 infinityx41-findx9u") echo infinityx ;;
         "flip5 hyperos-lhasa") echo hyper-f8u ;;
         "f6 coloros17-findn6") echo n6-f8u ;;

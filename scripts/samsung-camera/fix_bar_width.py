@@ -10,7 +10,8 @@ ColorOS). At One UI's default zoom an S Ultra is about 411dp wide.
 
 The camera activity's base context now carries an override of
 smallestScreenWidthDp (411) when the phone has fewer than two device states (a
-bar phone, as semDisplayDeviceType decides) and is wider than that. A fold keeps
+bar phone, as semDisplayDeviceType decides) and is wider than that (0.4.40: or
+narrower). A fold keeps
 its real widths (its inner screen needs the large layouts). The override is a
 delta, so the resources follow rotations as before.
 
@@ -19,6 +20,11 @@ With the width alone (0.4.38) the camera took the 411dp layouts but drew them
 at the guest's density, on a screen still 512dp wide (S25 Ultra report
 b84d57be: 1440 px at 450, the buttons off their places). Both are rotation
 invariant, so the delta still follows rotations.
+
+0.4.40: narrower screens too. A guest density chosen larger than One UI's
+(S25+ fa83b3d7: 640, 360dp wide, later 342dp) gave the camera layouts for a
+screen narrower than any Galaxy's default; its interface was bugged there as
+well. Any width but 411 now gets 411 and the matching density.
 
 Found by class name (com.sec.android.app.camera.Camera); its superclass is read
 from the file, since the obfuscated names change with each camera version.
@@ -48,7 +54,7 @@ HELPER_SMALI = """.class public final Loneos/camera/OneOSBarWidth;
     move-result-object v4
     iget v5, v4, Landroid/content/res/Configuration;->smallestScreenWidthDp:I
     const/16 v1, CAPHEX
-    if-le v5, v1, :keep
+    if-eq v5, v1, :keep
     const-string v0, "device_state"
     invoke-static {v0}, Landroid/os/ServiceManager;->getService(Ljava/lang/String;)Landroid/os/IBinder;
     move-result-object v0

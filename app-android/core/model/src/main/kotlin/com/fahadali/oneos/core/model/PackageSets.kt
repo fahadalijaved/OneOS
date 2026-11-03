@@ -227,7 +227,7 @@ object PackageSets {
         // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
         // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
         // other global build's (x9u-in-sultra).
-        sourceDir = "out/overlays_n6g_r3",
+        sourceDir = "out/overlays_n6g_r4",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
         files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
@@ -262,7 +262,7 @@ object PackageSets {
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
-        sourceDir = "out/overlays_x9u_in_r53",
+        sourceDir = "out/overlays_x9u_in_r55",
         files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +
@@ -432,7 +432,7 @@ object PackageSets {
     val HYPER_F8U = PackageSet(
         id = ID_HYPER_F8U,
         imageId = Images.ID_HYPEROS_LHASA,
-        sourceDir = "out/overlays_hyperos_r12",
+        sourceDir = "out/overlays_hyperos_r13",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -483,7 +483,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r19",
+        sourceDir = "out/overlays_nothing_r20",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),

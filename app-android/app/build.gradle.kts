@@ -42,12 +42,12 @@ if (testPackagesDir != null) {
 // guest_prepare.sh puts it in the guest's /oem/app.
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
-    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r3") to listOf("tethering_payload.img")),
+    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r4") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
     "x9u-sultra" to (File(repoRoot, "out/overlays_x9u_r51") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r53") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r55") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r2") to listOf("tethering_payload.img")),
@@ -61,9 +61,9 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "infinityx" to (File(repoRoot, "out/overlays_infinityx_r3") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
-    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r12") to listOf("tethering_payload.img")),
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r13") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r19") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r20") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -310,8 +310,10 @@ android {
         // 0.4.39: Samsung IMS registration on ISIM carriers and the SMS service centre's international form
         // (ColorOS), the bar-phone camera's density, HyperOS without SurfaceFlinger's shader pre-warm, ColorOS's
         // first-boot clock reset, the audioserver hand-over only in a crash loop; KernelSU in the guest off.
-        versionCode = 56
-        versionName = "0.4.39"
+        // 0.4.40: Galaxy S23 Ultra, Z Flip6 and S24 (Exynos); Samsung IMS's GBA and SIM-slot stand-ins (T-Mobile
+        // registration, SMS fallback to CS), HyperOS's DolbyRenderer without Xiaomi's mapper, the camera's 411dp both ways.
+        versionCode = 57
+        versionName = "0.4.40"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.

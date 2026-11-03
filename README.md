@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.39. Samsung flagships with Snapdragon, plus the first five
+App version 0.4.40. Samsung flagships with Snapdragon, plus the first five
 Exynos phones and (0.4.33) the first MediaTek phone; root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
 
@@ -79,8 +79,8 @@ Google Play and Google's apps; and from 0.4.31, on every phone above, HyperOS,
 Xiaomi's system from the Xiaomi 18 Fold, made for the Galaxy Z Fold8 Ultra and Z
 Fold8 (its cover screen layout runs on the cover; other phones may try it too,
 where it runs as a phone). Galaxy S23 (SM-S911),
-S23+ (SM-S916) and, from 0.4.29, the Galaxy Z Flip5 (SM-F731, used as a phone on
-the main screen) are accepted for testing only:
+S23+ (SM-S916), from 0.4.29 the Galaxy Z Flip5 (SM-F731, used as a phone on
+the main screen) and from 0.4.40 the S23 Ultra (SM-S918) are accepted for testing only:
 their vendor software is too old and the system will most likely not start
 (One UI comes back by itself; please share the session logs).
 
@@ -90,7 +90,9 @@ Find X9 Ultra builds and the Pixel 11 Pro image, the Galaxy Z Flip7
 main screen (no cover screen layout yet), from 0.4.29 the Galaxy A57
 (SM-A576, a57x) with both Find X9 Ultra builds, the first A-series phone, and
 from 0.4.31 its smaller sibling the Galaxy A56 (SM-A566, a56x), with the same
-images. The
+images, and from 0.4.40 the Galaxy S24 with Exynos 2400 (SM-S921, e1s) with the S23s'
+images. The Galaxy Z Flip6 (SM-F741, Snapdragon 8 Gen 3 like the S24 Ultra) takes
+the S24 Ultra's images but HyperOS from 0.4.40, untested, used as a phone on the main screen. The
 S26+ and Z Flip7 test sessions fixed the first Exynos problems (the phone
 restarting after the switch); every system on Exynos is still untested. Each
 of them also offers Infinity-X.
@@ -100,6 +102,12 @@ Snapdragon 8 Gen 3) with the Find N6 build and Infinity-X, and the Galaxy A07
 (SM-A075, MediaTek MT6789, One UI 9), the first MediaTek phone, with Infinity-X
 only. The Galaxy A16 and A17 on One UI 8.5 (Android 16) are not supported yet:
 every system here is Android 17.
+
+New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
+Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
+support on the SIM), SMS that the IMS network refuses go out the classic way as
+on One UI, and HyperOS's display service no longer crashes in its Dolby renderer
+on the S24 Ultra, S23 and A57 (untested on those phones).
 
 New in 0.4.39: **calls and SMS in ColorOS on more carriers.** Samsung's IMS
 waited for an "ISIM loaded" signal that only One UI sends (AT&T and other
@@ -236,8 +244,8 @@ release).
    size of the old single app:
    `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6, Z Fold5),
    `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26, Z Flip8) and
-   `OneOS-<version>-s25.apk` (Galaxy S25 Ultra, S25+, S25, S24 Ultra, S23,
-   S23+, Z Flip7, Z Flip5, A57, A56, A36, A07). Installed the wrong one? OneOS tells you which file your
+   `OneOS-<version>-s25.apk` (Galaxy S25 Ultra, S25+, S25, S24 Ultra, S24, S23 Ultra, S23,
+   S23+, Z Flip7, Z Flip6, Z Flip5, A57, A56, A36, A07). Installed the wrong one? OneOS tells you which file your
    phone needs.
 6. In OneOS open **Systems**, tap **Download** on the system made for your
    phone and download it, on Wi-Fi (3.3 to 5.9 GB).

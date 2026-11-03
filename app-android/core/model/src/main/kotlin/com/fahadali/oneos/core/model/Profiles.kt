@@ -101,6 +101,9 @@ object Profiles {
     const val ID_FLIP8 = "flip8"
     const val ID_A36 = "a36"
     const val ID_FOLD5 = "f5"
+    const val ID_S_ULTRA_8550 = "s-ultra-8550"
+    const val ID_FLIP6 = "flip6"
+    const val ID_S_9945 = "s-9945"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -680,10 +683,64 @@ object Profiles {
         notes = listOf(olderVendor("33 (Android 13)", "5.15")),
     )
 
+    /**
+     * Galaxy S23 Ultra, from 0.4.40: probe reports of 2026-10-31 to 11-03 (SM-S918B, SM-S918U and
+     * SM-S918U1, dm3q, SM8550 like the S23 and S23+, One UI 9.0, Android 17 build CP2A.260605.016,
+     * vendor API 33 and kernel 5.15, no SVE or SME, installd 85 methods). The S23s' images and sets
+     * with their [EXPECT_NO_START] note; untested on it.
+     */
+    val S_ULTRA_8550 = PhoneProfile(
+        id = ID_S_ULTRA_8550,
+        label = "Galaxy S23 Ultra",
+        modelPrefix = "SM-S918",
+        codename = "dm3q",
+        socModel = "SM8550",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        notes = listOf(EXPECT_NO_START),
+    )
+
+    /**
+     * Galaxy Z Flip6, from 0.4.40: a probe report of 2026-11-02 (SM-F741B, b6q, SM8650 like the
+     * Galaxy S24 Ultra and Z Fold6, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and
+     * kernel 6.1, no SVE or SME, installd 85 methods). Run as a phone on the main screen like the
+     * Z Flip5 and Z Flip7, with the S24 Ultra's images except HyperOS (the Z Fold6's reason: its
+     * SurfaceFlinger died on that chip; 0.4.39's fix is untested there); untested on it.
+     */
+    val FLIP6 = PhoneProfile(
+        id = ID_FLIP6,
+        label = "Galaxy Z Flip6",
+        modelPrefix = "SM-F741",
+        codename = "b6q",
+        socModel = "SM8650",
+        form = FormFactor.FLIP,
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE),
+        notes = listOf(olderVendor("34 (Android 14)", "6.1")),
+    )
+
+    /**
+     * Galaxy S24 with Exynos, from 0.4.40: a probe report of 2026-11-03 (SM-S921N, e1s, s5e9945
+     * Exynos 2400, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and kernel 6.1,
+     * SVE and SVE2 but no SME, installd 85 methods; an SM-S921B probe the same). The S23s' images
+     * (both Find X9 Ultra builds, the Pixel 9 Pro XL, Infinity-X and HyperOS), untested, with
+     * [EXYNOS]: the first Exynos 2400.
+     */
+    val S_9945 = PhoneProfile(
+        id = ID_S_9945,
+        label = "Galaxy S24 (Exynos)",
+        modelPrefix = "SM-S921",
+        codename = "e1s",
+        socModel = "s5e9945",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, ImageChoice(Images.ID_FIND_X9U, PackageSets.ID_X9U_SULTRA, tested = false), PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
+    )
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
+        S_ULTRA_8550, FLIP6, S_9945,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

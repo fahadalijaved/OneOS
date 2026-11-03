@@ -1,5 +1,5 @@
-# OneOS package set nothing-f8u: sha256sum of out/overlays_nothing_r19 (scripts/make-overlays.sh, 2026-10-31; r18: samcam.tar with scripts/samsung-camera/fix_bar_width.py, 2026-11-03; 0.4.39 r19: services_patched.jar with patches/guest_ksu_manager_appid.py, samcam.tar with the density in scripts/samsung-camera/fix_bar_width.py (repatch-bar-width.sh), 2026-11-03), minus tethering_payload.img.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_nothing_r17 differs.
+# OneOS package set nothing-f8u: sha256sum of out/overlays_nothing_r20 (scripts/make-overlays.sh, 2026-10-31; r18: samcam.tar with scripts/samsung-camera/fix_bar_width.py, 2026-11-03; 0.4.39 r19: services_patched.jar with patches/guest_ksu_manager_appid.py, samcam.tar with the density in scripts/samsung-camera/fix_bar_width.py (repatch-bar-width.sh), 2026-11-03; 0.4.40: samcam.tar with fix_bar_width.py for narrower screens too), minus tethering_payload.img.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_nothing_r20 differs.
 ea94999c71036fcdf39975b3da00e1ad7fc2b2d4524065cdc442b4bd16bf8cd8  NothingGenerateRingtoneService_patched.apk
 fa132285a5ecdd034ff38bd1e1be5fc73db719c876a66b9991b50d8603011d4d  NothingLauncher3_patched.apk
 87d0f0e64e9e35c186851a9db95ff8770c437c5a947bbb2059174f910a608adc  OneOSBrightnessRange.apk
@@ -40,7 +40,7 @@ befe6c9a7ea411faa5342ccccda67da050f50a05505d98adfbaf0bb22390aa57  oneos-telephon
 e6fe9d1765bbe8164ad93abac6541d3479b0d84eaade1c42b3b2b3c630538d44  permission_payload.img
 3ee22de4f9d323e6a676462c968fc8643e6752b3320551930108bb41faaf8c41  rkpd_payload.img
 a5287b18de337adfe78d1fee50df0f9e3550cacdc5a1e9cea91addbaad97e2e3  runtime_payload.img
-be05e2ea55f76f53bebcfd258109a6b42a7851b5d9aba657f9e1ce048d91ba91  samcam.tar
+02c1a973c02832da58452c87dc33923e8616337df154e524aa72c80b0e26dc3c  samcam.tar
 8ed7589969f1ca29fbdcf0a0f05386420001b94fdd8a76730cfd88933707a2ee  sdkext_payload.img
 f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so
 ea9f37a343f5337e8a737704078732a149ee9a6f206445438579bff6adc74079  services_patched.jar
