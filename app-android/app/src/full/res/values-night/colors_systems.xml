@@ -3,6 +3,9 @@
     <!-- Dark values of values/colors_systems.xml. -->
     <color name="oneos_text_body">#D0D0D0</color>
 
+    <color name="oneos_update_banner">#18284A</color>
+    <color name="oneos_update_banner_icon">#6E9BFF</color>
+
     <!-- The pending circle is 3.7:1 on the dark card. -->
     <color name="oneos_ring_track">#2C313A</color>
     <color name="oneos_step_pending">#6B7280</color>

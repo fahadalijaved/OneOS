@@ -224,6 +224,15 @@ def main(root):
         text = changed.get(path) or open(path, encoding="utf-8").read()
         lines = text.split("\n")
         hit = [i for i, l in enumerate(lines) if l.startswith(".field ") and f" {name}:" in l]
+        if not hit:
+            # Pixel 17 (0.4.45): MmTelFeature declares no mContext of its own, so the app's
+            # subclass resolves its superclass's, ImsFeature's, which AOSP declares protected:
+            # nothing to widen. Anything else (no such field there, or a private one) refuses.
+            sup = next((l.split()[-1] for l in lines if l.startswith(".super ")), None)
+            shit = [l for l in open(find(root, sup), encoding="utf-8").read().split("\n")
+                    if l.startswith(".field ") and f" {name}:" in l] if sup else []
+            if len(shit) == 1 and " private " not in shit[0]:
+                continue
         if len(hit) != 1:
             sys.exit(f"{cls}.{name}: declared {len(hit)} times, expected once")
         line = lines[hit[0]]

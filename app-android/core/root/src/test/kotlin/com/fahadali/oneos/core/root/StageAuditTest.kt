@@ -22,6 +22,21 @@ class StageAuditTest {
     }
 
     @Test
+    fun selfUpdateGetsNoMoreThanItsOwnInstall() {
+        fun bad(from: String, to: String) {
+            assertTrue("no '$from' in the script", script.contains(from))
+            assertTrue("'$to' passed the audit", StageAudit.audit(script.replace(from, to)).isNotEmpty())
+        }
+        bad("pm install -r --pkg \"\$APP_PACKAGE\" \"\$upapk\"", "pm install -r \"\$upapk\"")
+        bad("pm install -r --pkg \"\$APP_PACKAGE\" \"\$upapk\"", "pm install -r --pkg \"\$APP_PACKAGE\" \"\$upsrc\"")
+        bad("am start -n \"\$APP_PACKAGE/.ui.MainActivity\"", "am start -n com.android.settings/.Settings")
+        bad("trap '' PIPE", "trap '' INT")
+        bad("upsrc=\"\$DATA/user/0/\$APP_PACKAGE/files/oneos-update/OneOS.apk\"", "upsrc=\"\$DATA/user/0/com.android.chrome/x.apk\"")
+        bad("    upd=\"\$STAGE/update\"\n", "    upd=\"\$STAGE/update\"\n    x=\"\$DATA/user/0\"\n")
+        bad("    upapk=\"\$STAGE/update/OneOS-\$code.apk\"", "    upapk=\"\$DATA/local/OneOS-\$code.apk\"")
+    }
+
+    @Test
     fun launcherPassesTheAudit() {
         val p = StageAudit.auditLauncher(launcher)
         assertTrue("launcher problems:\n${p.joinToString("\n")}", p.isEmpty())
@@ -131,10 +146,12 @@ class StageAuditTest {
         for (img in Images.ALL) {
             assertTrue(img.id, script.contains("${img.id}) echo \"${img.rawBytes} ${img.rawSha256}\" ;;"))
         }
-        // The system each image is a build of (keep never crosses systems): exactly the model's families.
+        // The system each image is a build of (keep never crosses systems): exactly the model's families,
+        // and the retired images' (0.4.51: the CN Find X9 Ultra build), so their stages are still known.
         val families = Regex("""^\s+([a-z0-9|-]+)\) echo ([a-z]+) ;;$""", RegexOption.MULTILINE)
             .findAll(function("image_family")).flatMap { m -> m.groupValues[1].split('|').map { it to m.groupValues[2] } }.toMap()
-        assertEquals(Images.ALL.associate { it.id to it.family.name.lowercase() }, families)
+        assertEquals(listOf("coloros17-findx9u"), Images.RETIRED.map { it.id })
+        assertEquals(Images.ALL.associate { it.id to it.family.name.lowercase() } + ("coloros17-findx9u" to "coloros"), families)
         // data_family reads the same words as status.list, in the same order as StageStatus (Infinity-X first,
         // 0.4.27: its data has OPPO's packages too; then ColorOS, then Pixel, then HyperOS).
         val data = function("data_family")
@@ -148,7 +165,13 @@ class StageAuditTest {
         assertEquals(Images.ALL.filter { it.gmsHideable }.map { it.id }, shVar("IMAGES_GMS").split(' ').filter { it.isNotEmpty() })
         // The sets' files (SET_COMMON for the ColorOS sets, SET_PIXEL for the Pixel set) and the image each was built from.
         val common = shVar("SET_COMMON").split(' ')
-        assertEquals(PackageSets.X9U_SULTRA.names.toSet(), common.toSet())
+        // 0.4.51: no set is SET_COMMON alone any more (the debloated Find X9 Ultra set retired); the IN set is
+        // SET_COMMON and its own files.
+        assertTrue(PackageSets.X9U_IN_SULTRA.names.containsAll(common))
+        assertEquals(
+            setOf("cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK),
+            PackageSets.X9U_IN_SULTRA.names.toSet() - common.toSet(),
+        )
         assertEquals(PackageSets.PIXEL_SULTRA.names.toSet(), shVar("SET_PIXEL").split(' ').toSet())
         val setFiles = Regex("""^\s+([a-z0-9-]+)\) echo "\${'$'}(SET_[A-Z]+)([^"]*)" ;;$""", RegexOption.MULTILINE)
             .findAll(script).associate { it.groupValues[1] to (shVar(it.groupValues[2]).split(' ') + it.groupValues[3].split(' ').filter { n -> n.isNotEmpty() }) }

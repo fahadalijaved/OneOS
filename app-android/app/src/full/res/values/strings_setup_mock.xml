@@ -2,13 +2,14 @@
     <string name="setup_mock_title">Set up %1$s</string>
     <string name="setup_installing">Installing</string>
     <string name="setup_preview_badge">Preview · simulated setup</string>
-    <string name="setup_check_phone">Check phone and stage</string>
-    <string name="setup_check_files">Check local files</string>
-    <string name="setup_image">System image</string>
-    <string name="setup_files_patches">OneOS files and patches</string>
-    <string name="setup_table">installd table</string>
-    <string name="setup_session">Session settings</string>
-    <string name="setup_cleanup">Clean up</string>
+    <string name="setup_check_phone">Check your phone</string>
+    <string name="setup_check_files">Check the download</string>
+    <string name="setup_image">Install the system</string>
+    <string name="setup_files_patches">Install OneOS\'s fixes</string>
+    <string name="setup_download_files">Download OneOS\'s fixes</string>
+    <string name="setup_table">Get app installs ready</string>
+    <string name="setup_session">Save switch settings</string>
+    <string name="setup_cleanup">Tidy up</string>
     <string name="setup_download_question">Have you downloaded the file?</string>
     <string name="setup_preview_setting">Preview mode</string>
     <string name="setup_preview_setting_summary">Simulate setup and boot screens. On a system card, tap Set up, then Yes to skip file selection. No files are changed and no OS starts.</string>
@@ -17,6 +18,16 @@
     <string name="setup_preview_cancelled_title">Preview cancelled</string>
     <string name="setup_update_title">Update %1$s</string>
     <string name="setup_updating">Updating</string>
-    <string name="setup_check_update">Check phone and update requirements</string>
-    <string name="setup_verify_existing_image">Verify existing system image</string>
+    <string name="setup_check_update">Check your phone for the update</string>
+    <string name="setup_verify_existing_image">Check the system already on this phone</string>
+    <!-- 0.4.41: the setup notification (PrepareService) while setup runs. -->
+    <string name="setup_notification_title">Setting up %1$s</string>
+    <string name="setup_notification_channel">Setting up a system</string>
+    <!-- 0.4.43 (UX audit): Stop asks first. -->
+    <string name="setup_stop_setup">Stop setup</string>
+    <string name="setup_stop_title">Stop setting up %1$s?</string>
+    <string name="setup_keep_going">Keep going</string>
+    <!-- 0.4.49: Set up tapped before the phone check finished, or on a phone OneOS has no profile for. -->
+    <string name="setup_wait_check">Checking your phone first. Tap Set up again in a moment.</string>
+    <string name="setup_no_profile">OneOS has no system for this phone, so it can\'t set one up.</string>
 </resources>

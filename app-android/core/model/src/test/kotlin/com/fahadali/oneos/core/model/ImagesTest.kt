@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ImagesTest {
-    private val x9u = Images.FIND_X9U
     private val n6 = Images.FIND_N6
     private val pixel = Images.PIXEL_YOGI
     private val xin = Images.FIND_X9U_IN
@@ -22,20 +21,13 @@ class ImagesTest {
 
     @Test
     fun builtInTable() {
-        assertEquals("coloros17-findx9u", x9u.id)
-        assertEquals("OneOS_ColorOS17_FindX9Ultra_S26U.img.gz", x9u.gzName)
-        assertEquals(5_290_346_735L, x9u.gzBytes)
-        assertEquals("9796d27676dfd709ab4b26caf30fa19bc78ab2a24f5cf19e974a3e8708e919fe", x9u.gzSha256)
-        assertEquals(10_385_141_760L, x9u.rawBytes)
-        assertEquals("302467fc4e77998e84c10e037326508a39ab9e4be34058b751f0a768c7ff23e7", x9u.rawSha256)
-        // gzip ISIZE of the upload (x9u-package study).
-        assertEquals(1_795_207_168L, x9u.gzIsize)
 
         assertEquals("coloros17-findn6", n6.id)
         assertEquals("OneOS_ColorOS17_FindN6_Global.img.gz", n6.gzName)
         // 0.4.38: the global build (CPH2765 EX01, no debloat), 2026-11-01.
         assertEquals(7_213_271_568L, n6.gzBytes)
         assertEquals("b3061160ab3fdb37cd491e94c05e41238898320c1a5efb016debabc20991f3ee", n6.gzSha256)
+        assertEquals(Images.SHARED_FOLDER_URL, n6.downloadUrl)
         assertEquals(14_829_686_784L, n6.rawBytes)
         assertEquals("eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c", n6.rawSha256)
         // The typical size the space hints quote stays the CN build's; a chosen image uses its own.
@@ -69,7 +61,7 @@ class ImagesTest {
         assertEquals(listOf(n6, xin, Images.NOTHING_METROID), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
-            listOf(n6, x9u, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID),
             Images.ALL,
         )
         // HyperOS (docs/hyperos.md): on the shared folder from 0.4.31; its own system family.
@@ -108,20 +100,21 @@ class ImagesTest {
         assertEquals("c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab", xin.gzSha256)
         assertEquals(14_669_168_640L, xin.rawBytes)
         assertEquals("92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6", xin.rawSha256)
-        assertEquals(x9u.buildId, xin.buildId)
         assertEquals(null, xin.testedOn)
         assertEquals(xin, Images.byGzSize(7_071_596_999L))
         assertEquals(xin, Images.byRawSize(14_669_168_640L))
         assertEquals("Find X9 Ultra IN", Images.shortName(xin.id))
-        // No image is retired now; a retired image's name stays known (old stages, the last session).
-        assertEquals(emptyList<RetiredImage>(), Images.RETIRED)
+        // 0.4.51: the debloated Find X9 Ultra build is retired; a retired image's name stays known (old stages,
+        // the last session), and its file is named, not called "not a OneOS image".
+        assertEquals(listOf("coloros17-findx9u"), Images.RETIRED.map { it.id })
+        assertEquals(ImageIdentifier.R_RETIRED, ImageIdentifier.identify(ImageFileCheck("OneOS_ColorOS17_FindX9Ultra_S26U.img.gz", 5_290_346_735L), Profiles.S_ULTRA_8850).finding.reason)
         assertEquals("Find X8 Ultra", Images.shortName(old.id, retired = listOf(old)))
         assertEquals("Find N6", Images.shortName(n6.id))
         assertEquals("not-an-image", Images.shortName("not-an-image"))
         // Guest data stays with its own system (0.3.7): the ColorOS builds and the Pixel images.
         assertEquals(
             listOf(
-                SystemFamily.COLOROS, SystemFamily.COLOROS, SystemFamily.COLOROS,
+                SystemFamily.COLOROS, SystemFamily.COLOROS,
                 SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL,
                 SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.NOTHING,
             ),
@@ -139,21 +132,21 @@ class ImagesTest {
         // Sizes tell the images apart (the picker identifies by size first).
         val sizes = Images.ALL.flatMap { listOf(it.gzBytes, it.rawBytes) }
         assertEquals(sizes.size, sizes.toSet().size)
-        assertEquals(x9u, Images.byGzSize(5_290_346_735L))
+        assertEquals(xin, Images.byGzSize(xin.gzBytes))
         assertEquals(n6, Images.byRawSize(14_829_686_784L))
         assertNull(Images.byGzSize(5_290_346_734L))
-        assertTrue(x9u.rawMatches(10_385_141_760L, x9u.rawSha256.uppercase()))
-        assertTrue(!x9u.rawMatches(10_385_141_759L, x9u.rawSha256))
+        assertTrue(xin.rawMatches(xin.rawBytes, xin.rawSha256.uppercase()))
+        assertTrue(!xin.rawMatches(xin.rawBytes - 1, xin.rawSha256))
     }
 
     private fun id(check: ImageFileCheck, profile: PhoneProfile? = Profiles.S_ULTRA_8850) = ImageIdentifier.identify(check, profile)
 
     @Test
     fun verifiedOnlyWithTheRightSizeAndHash() {
-        val ok = id(ImageFileCheck(x9u.gzName, x9u.gzBytes, x9u.gzSha256, x9u.gzBytes))
+        val ok = id(ImageFileCheck(xin.gzName, xin.gzBytes, xin.gzSha256, xin.gzBytes))
         assertEquals(ImageState.VERIFIED, ok.state)
         assertEquals(Level.OK, ok.finding.level)
-        assertEquals(x9u, ok.image)
+        assertEquals(xin, ok.image)
 
         val n6OnFold = ImageIdentifier.identify(ImageFileCheck(null, n6.gzBytes, n6.gzSha256, n6.gzBytes), Profiles.F8U)
         assertEquals(ImageState.VERIFIED, n6OnFold.state)
@@ -161,7 +154,7 @@ class ImagesTest {
 
     @Test
     fun sizeOnlyIsNotEnough() {
-        val r = id(ImageFileCheck("OneOS_ColorOS17_FindX9Ultra_S26U.img.gz", x9u.gzBytes))
+        val r = id(ImageFileCheck(xin.gzName, xin.gzBytes))
         assertEquals(ImageState.NOT_CHECKED, r.state)
         assertEquals(Level.BLOCK, r.finding.level)
         assertEquals("Check the file first", r.finding.title)
@@ -169,17 +162,17 @@ class ImagesTest {
 
     @Test
     fun wrongHashOrTruncatedIsDamaged() {
-        val badHash = id(ImageFileCheck("x.img.gz", x9u.gzBytes, "0".repeat(64), x9u.gzBytes))
+        val badHash = id(ImageFileCheck("x.img.gz", xin.gzBytes, "0".repeat(64), xin.gzBytes))
         assertEquals(ImageState.DAMAGED, badHash.state)
         assertEquals(Level.BLOCK, badHash.finding.level)
         assertTrue(badHash.finding.detail.contains("Download it again"))
 
         // The provider said the right size, but the stream ended early.
-        val short = id(ImageFileCheck("x.img.gz", x9u.gzBytes, x9u.gzSha256, x9u.gzBytes - 1))
+        val short = id(ImageFileCheck("x.img.gz", xin.gzBytes, xin.gzSha256, xin.gzBytes - 1))
         assertEquals(Level.BLOCK, short.finding.level)
 
         // Hash right, provider size different: refused.
-        val mixed = id(ImageFileCheck("x.img.gz", x9u.gzBytes + 1, x9u.gzSha256, x9u.gzBytes))
+        val mixed = id(ImageFileCheck("x.img.gz", xin.gzBytes + 1, xin.gzSha256, xin.gzBytes))
         assertEquals(ImageState.DAMAGED, mixed.state)
     }
 
@@ -191,7 +184,7 @@ class ImagesTest {
         // The BLOCK names every image the phone takes.
         assertEquals(
             "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
-                "or the Find X9 Ultra image (OneOS_ColorOS17_FindX9Ultra_S26U.img.gz) or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
+                "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
             n6OnS26.finding.detail,
@@ -216,13 +209,13 @@ class ImagesTest {
             pixelOnFold7.finding.detail,
         )
         // The owner does not want the X9U (CN) image on his Fold; by size alone already.
-        for (check in listOf(ImageFileCheck(null, x9u.gzBytes, x9u.gzSha256, x9u.gzBytes), ImageFileCheck(null, x9u.gzBytes))) {
+        for (check in listOf(ImageFileCheck(null, xin.gzBytes, xin.gzSha256, xin.gzBytes), ImageFileCheck(null, xin.gzBytes))) {
             val x9uOnFold = ImageIdentifier.identify(check, Profiles.F8U)
             assertEquals(ImageState.WRONG_FOR_PHONE, x9uOnFold.state)
             assertEquals(Level.BLOCK, x9uOnFold.finding.level)
-            assertEquals(x9u, x9uOnFold.image)
+            assertEquals(xin, x9uOnFold.image)
             assertEquals(
-                "This is the Find X9 Ultra image; Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) " +
+                "This is the Find X9 Ultra IN image; Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) " +
                     "or the Pixel 11 Fold image (OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) " +
                     "or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                     "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
@@ -246,23 +239,23 @@ class ImagesTest {
         val nothing = Images.NOTHING_METROID
         val takes = mapOf(
             Profiles.F8U to listOf(n6, pixel, ifx, hyper, nothing),
-            Profiles.S_ULTRA_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.S_ULTRA_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
             // 0.4.22: the Pixel 9 Pro XL image on the phones without SVE.
-            Profiles.S_ULTRA_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper, nothing),
-            Profiles.S_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper, nothing),
+            Profiles.S_ULTRA_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
+            Profiles.S_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
             Profiles.FOLD7 to listOf(n6, ifx, hyper, nothing),
-            Profiles.S_PLUS_8750 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper, nothing),
+            Profiles.S_PLUS_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
             Profiles.FOLD8 to listOf(n6, pixel, ifx, hyper, nothing),
-            Profiles.S_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),
-            Profiles.S_ULTRA_8650 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper, nothing),
-            Profiles.S_8550 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
-            Profiles.S_PLUS_8850 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),
-            Profiles.S_PLUS_9965 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),
-            Profiles.FLIP7 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
-            Profiles.A57 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
-            Profiles.FLIP5 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
-            Profiles.FLIP8 to listOf(xin, x9u, Images.PIXEL_KODIAK, ifx, hyper, nothing),
-            Profiles.A36 to listOf(xin, x9u, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
+            Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.S_PLUS_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.S_PLUS_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.FLIP7 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.FLIP5 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.FLIP8 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.A36 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
         )
         for ((p, good) in takes) {
             assertEquals(p.id, good, p.images())
@@ -296,8 +289,8 @@ class ImagesTest {
             ImageIdentifier.accepts(Profiles.F8U),
         )
         assertEquals(
-            "Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) or the Find X9 Ultra image " +
-                "(OneOS_ColorOS17_FindX9Ultra_S26U.img.gz) or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
+            "Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
+                "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz)",
             ImageIdentifier.accepts(Profiles.S_ULTRA_8850),
@@ -337,13 +330,13 @@ class ImagesTest {
         assertEquals(ImageState.DAMAGED, other.state)
         assertEquals(Level.BLOCK, other.finding.level)
         // An image this phone does not take: BLOCK naming what it takes.
-        val cnOnFold = staged(x9u.rawBytes)
+        val cnOnFold = staged(xin.rawBytes)
         assertEquals(ImageState.WRONG_FOR_PHONE, cnOnFold.state)
         assertEquals(Level.BLOCK, cnOnFold.finding.level)
-        assertTrue(cnOnFold.finding.detail.contains("Find X9 Ultra image; Z Fold (F8U) takes the Find N6 image"))
+        assertTrue(cnOnFold.finding.detail.contains("Find X9 Ultra IN image; Z Fold (F8U) takes the Find N6 image"))
         val n6OnS26 = staged(n6.rawBytes, n6.rawSha256, Profiles.S_ULTRA_8850)
         assertEquals(ImageState.WRONG_FOR_PHONE, n6OnS26.state)
-        assertTrue(n6OnS26.finding.detail, n6OnS26.finding.detail.contains("Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) or the Find X9 Ultra image (OneOS_ColorOS17_FindX9Ultra_S26U.img.gz)"))
+        assertTrue(n6OnS26.finding.detail, n6OnS26.finding.detail.contains("Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) or the Pixel 11 Pro image"))
         val pixelOnS26 = staged(pixel.rawBytes, pixel.rawSha256, Profiles.S_ULTRA_8850)
         assertEquals(ImageState.WRONG_FOR_PHONE, pixelOnS26.state)
         assertEquals(pixel, pixelOnS26.image)
@@ -355,14 +348,14 @@ class ImagesTest {
 
     @Test
     fun unpackedUnknownAndSizeless() {
-        val raw = id(ImageFileCheck("oneos-coloros-x9u.img", x9u.rawBytes))
+        val raw = id(ImageFileCheck("oneos-coloros-xin.img", xin.rawBytes))
         assertEquals(ImageState.UNCOMPRESSED, raw.state)
         assertEquals(Level.BLOCK, raw.finding.level)
 
         val other = id(ImageFileCheck("holiday.mp4", 123_456_789))
         assertEquals(ImageState.UNKNOWN, other.state)
         assertEquals(Level.BLOCK, other.finding.level)
-        assertTrue(other.finding.detail.contains("OneOS_ColorOS17_FindX9Ultra_S26U.img.gz"))
+        assertTrue(other.finding.detail.contains(xin.gzName))
 
         // A remembered .gz of a retired image: named, and not called "not a OneOS image".
         val oldGz = ImageIdentifier.identify(ImageFileCheck(old.gzName, old.gzBytes), Profiles.S_ULTRA_8850, retiredImages = listOf(old))
@@ -407,14 +400,15 @@ class ImagesTest {
         // (the Fold takes ColorOS 17 and Pixel 11 Fold; from 0.4.11 the bar phones take two ColorOS 17 builds).
         assertEquals("ColorOS 17", Images.systemName(n6))
         assertEquals("ColorOS 17", Images.systemName(n6, Profiles.F8U))
-        assertEquals("ColorOS 17 · Find X9 Ultra build", Images.systemName(x9u, Profiles.S_ULTRA_8850))
-        assertEquals("ColorOS 17 · global build", Images.systemName(xin, Profiles.S_ULTRA_8850))
-        val twin = Profiles.F8U.copy(choices = Profiles.F8U.choices + ImageChoice(x9u.id, PackageSets.ID_X9U_SULTRA, false))
+        // 0.4.51: the bar phones take one ColorOS 17 again (the debloated Find X9 Ultra build retired).
+        assertEquals("ColorOS 17", Images.systemName(xin, Profiles.S_ULTRA_8850))
+        assertEquals("Find X9 Ultra", Images.shortName("coloros17-findx9u"))
+        val twin = Profiles.F8U.copy(choices = Profiles.F8U.choices + ImageChoice(xin.id, PackageSets.ID_X9U_IN_SULTRA, false))
         assertEquals("ColorOS 17 · Find N6 global build", Images.systemName(n6, twin))
         assertEquals("the other system", Images.systemName(null))
         // The Fold's recommended system is the one that has run on it.
         assertEquals(Images.ID_FIND_N6, Profiles.F8U.recommended!!.imageId)
-        assertEquals(Images.ID_FIND_X9U, Profiles.S_ULTRA_8850.recommended!!.imageId)
+        assertEquals(Images.ID_FIND_X9U_IN, Profiles.S_ULTRA_8850.recommended!!.imageId)
     }
 
     @Test
@@ -423,7 +417,7 @@ class ImagesTest {
             ImageFileCheck(null, null),
             ImageFileCheck("x", 12345),
             ImageFileCheck("x", n6.rawBytes),
-            ImageFileCheck("x", x9u.gzBytes),
+            ImageFileCheck("x", xin.gzBytes),
             ImageFileCheck("x", n6.gzBytes),
             ImageFileCheck("x", n6.gzBytes, "0".repeat(64), n6.gzBytes),
             ImageFileCheck("x", old.gzBytes),
@@ -432,7 +426,7 @@ class ImagesTest {
             val f = ImageIdentifier.identify(c, Profiles.F8U, retiredImages = listOf(old)).finding
             if (f.level == Level.BLOCK) assertTrue("$c", f.reason != null)
         }
-        for (raw in listOf(StagedRaw(null), StagedRaw(1), StagedRaw(x9u.rawBytes), StagedRaw(n6.rawBytes, "0".repeat(64)))) {
+        for (raw in listOf(StagedRaw(null), StagedRaw(1), StagedRaw(xin.rawBytes), StagedRaw(n6.rawBytes, "0".repeat(64)))) {
             val f = ImageIdentifier.identifyStaged(raw, Profiles.F8U).finding
             if (f.level == Level.BLOCK) assertTrue("$raw", f.reason != null)
         }

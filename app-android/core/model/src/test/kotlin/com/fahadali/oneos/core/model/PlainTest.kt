@@ -132,7 +132,7 @@ class PlainTest {
         // The phone list comes from the profiles: every name while they fit one line (0.4.28),
         // the families once they do not (0.4.29, with the A57 and Z Flip5).
         assertEquals(
-            "OneOS works on 24 Galaxy phones so far: Z Fold, S, Z Flip and A models; the README lists them.",
+            "OneOS works on 29 Galaxy phones so far: Z Fold, S, Z Flip and A models; the README lists them.",
             of(SwitchGates.ID_PROFILE, SwitchGates.R_PROFILE_NONE).line,
         )
         assertEquals("the Galaxy Z Fold (F8U), S26 Ultra and S25", Plain.phoneList(listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_8750)))
@@ -167,7 +167,7 @@ class PlainTest {
                     good.copy(stage = StageState(emptyList(), listOf("/data/app"), false, marker, false, unfinishedSession = true)),
                     good.copy(stage = StageState(emptyList(), emptyList(), false, null, false), imageFile = gz.copy(sha256 = null)),
                     good.copy(stage = StageState(emptyList(), emptyList(), false, marker.copy(versionCode = 3), true), imageFile = gz.copy(sha256 = "0".repeat(64))),
-                    good.copy(stage = StageState(emptyList(), emptyList(), false, marker.copy(setId = "x9u-sultra"), true), imageFile = ImageFileCheck("a", 7)),
+                    good.copy(stage = StageState(emptyList(), emptyList(), false, marker.copy(setId = "x9u-in-sultra"), true), imageFile = ImageFileCheck("a", 7)),
                     good.copy(stage = StageState(emptyList(), emptyList(), false, marker.copy(profileId = "other"), true), imageFile = null),
                     good.copy(stage = StageState(emptyList(), emptyList(), false, marker, false), uncollectedLogs = true),
                 )

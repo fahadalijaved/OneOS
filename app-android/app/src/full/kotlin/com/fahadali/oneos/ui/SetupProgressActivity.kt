@@ -23,6 +23,10 @@ import com.fahadali.oneos.session.SessionPrefs
 import com.fahadali.oneos.session.StageCheck
 
 /** The Figma setup screen, driven by the original PrepareJob or an isolated debug timeline. */
+
+/** Steps that report their own bytes (PrepareJob.State.stepFraction): the hash, the downloads, the image, the files. */
+private val MEASURED_STEPS = setOf(PrepareJob.Step.HASH, PrepareJob.Step.DOWNLOAD, PrepareJob.Step.IMAGE, PrepareJob.Step.FILES)
+
 class SetupProgressActivity : EdgeToEdgeActivity() {
     var previewImage: ImageRef? = null
         private set
@@ -39,6 +43,13 @@ class SetupProgressActivity : EdgeToEdgeActivity() {
         super.onCreate(savedInstanceState)
         ArtworkTransitions.prepare(this)
         setContentView(R.layout.activity_setup_progress)
+        // The setup notification (PrepareService, 0.4.41) needs this on Android 13+; asked once
+        // here, where setup starts. Setup runs either way, without the notification if refused.
+        if (savedInstanceState == null && android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 41)
+        }
         findViewById<View>(R.id.setup_window).setOnApplyWindowInsetsListener { root, insets ->
             val bars = insets.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
             root.setPadding(bars.left, bars.top, bars.right, bars.bottom)
@@ -227,9 +238,11 @@ class SetupProgressFragment : Fragment() {
         val system = image?.let { Images.systemName(it, profile) }
 
         root.findViewById<OsArtworkView>(R.id.setup_artwork).bind(image)
+        // Step by step (0.4.41, owner: "it's not step wise"): each row of the checklist an equal
+        // part of the bar, the current one filled to its own progress.
         root.findViewById<androidx.appcompat.widget.SeslProgressBar>(R.id.setup_linear_progress).apply {
-            isIndeterminate = s.busy && s.percent == null
-            progress = if (phase == PrepareJob.Phase.DONE) 100 else s.percent ?: 0
+            isIndeterminate = false
+            progress = if (phase == PrepareJob.Phase.DONE) 100 else stepWisePercent(s, reuseImageFor(s))
         }
         // The title and its line (the result's plain message once it stops).
         val title: String
@@ -261,13 +274,21 @@ class SetupProgressFragment : Fragment() {
         subtitleView.visibility = if (subtitle.isEmpty()) View.GONE else View.VISIBLE
 
         root.findViewById<TextView>(R.id.setup_artwork_state).text = when (phase) {
-            PrepareJob.Phase.RUNNING -> getString(if (updating) R.string.setup_updating else R.string.setup_installing)
+            // "Installing · 42% · About 8 min left" (0.4.43, UX audit: the ETA was computed but never shown).
+            PrepareJob.Phase.RUNNING -> listOf(
+                getString(if (updating) R.string.setup_updating else R.string.setup_installing),
+                getString(R.string.setup_percent, stepWisePercent(s, reuseImageFor(s))),
+                s.etaSeconds?.let { if (it < 60) getString(R.string.setup_eta_soon) else getString(R.string.setup_eta_minutes, (it + 59) / 60) }
+                    ?: getString(R.string.setup_eta_estimating),
+            ).joinToString(" · ")
             PrepareJob.Phase.DONE -> getString(R.string.setup_ring_done)
             PrepareJob.Phase.STOPPED -> getString(R.string.setup_ring_stopped)
             PrepareJob.Phase.FAILED -> getString(R.string.setup_ring_failed)
             PrepareJob.Phase.IDLE -> ""
         }
-        val checklistState = listOf(updating, reuseImage, s.phase, s.step, s.done, if (s.step == PrepareJob.Step.IMAGE) s.detail else null, s.plain?.line, s.message)
+        val measured = s.step in MEASURED_STEPS
+        val checklistState = listOf(updating, reuseImage, s.phase, s.step, s.done, if (measured) s.detail else null,
+            if (measured) s.stepFraction?.let { (it * 100).toInt() } else null, s.plain?.line, s.message)
         if (checklistState != lastChecklistState) {
             lastChecklistState = checklistState
             stepRows.zip(checklist).forEach { (row, item) ->
@@ -279,13 +300,12 @@ class SetupProgressFragment : Fragment() {
                 }
                 // No downloaded-file hash is performed when reusing the installed image.
                 // BEGIN completes the grouped local-files row when HASH was already cached.
-                val completed = phase == PrepareJob.Phase.DONE || stages.all { it in s.done ||
-                    (it == PrepareJob.Step.HASH && (reuseImage || PrepareJob.Step.BEGIN in s.done)) }
+                val completed = rowCompleted(s, stages, reuseImage)
                 val current = s.step in stages
                 val failed = current && phase in setOf(PrepareJob.Phase.FAILED, PrepareJob.Phase.STOPPED)
                 row.title = label
                 row.summary = when {
-                    current && s.busy && s.step == PrepareJob.Step.IMAGE && previewImage == null -> s.detail
+                    current && s.busy && measured && previewImage == null -> s.detail
                     failed -> s.plain?.line ?: s.message
                     else -> null
                 }
@@ -295,7 +315,8 @@ class SetupProgressFragment : Fragment() {
                     current && s.busy -> R.drawable.ic_oneos_step_current
                     else -> R.drawable.ic_oneos_step_pending
                 }
-                row.icon = androidx.appcompat.content.res.AppCompatResources.getDrawable(ctx, drawable)
+                row.icon = if (current && s.busy && !completed && !failed) StepRingDrawable(ctx, if (measured) s.stepFraction else null)
+                    else androidx.appcompat.content.res.AppCompatResources.getDrawable(ctx, drawable)
                 row.contentDescription = "$label, " + getString(when {
                     completed -> R.string.setup_state_done
                     failed -> R.string.setup_state_failed
@@ -325,11 +346,46 @@ class SetupProgressFragment : Fragment() {
         }
     }
 
-    /** Group backend stages into the eight rows shown in the design; no job semantics change. */
+    /** Whether a checklist row is done: its steps are, or they were skipped and a later step runs. */
+    private fun rowCompleted(s: PrepareJob.State, stages: Set<PrepareJob.Step>, reuseImage: Boolean): Boolean {
+        if (s.phase == PrepareJob.Phase.DONE) return true
+        val now = s.step?.ordinal ?: -1
+        return stages.all {
+            it in s.done || when (it) {
+                // No hash when the image on the phone is reused; skipped, done once a later step runs.
+                PrepareJob.Step.HASH -> reuseImage || now > PrepareJob.Step.HASH.ordinal
+                PrepareJob.Step.DOWNLOAD -> now > PrepareJob.Step.DOWNLOAD.ordinal
+                else -> false
+            }
+        }
+    }
+
+    private fun reuseImageFor(s: PrepareJob.State): Boolean =
+        if (s.source != null) s.source == SessionPrefs.Source.ON_PHONE
+        else activity?.intent?.getBooleanExtra(SetupProgressActivity.EXTRA_REUSE_IMAGE, false) == true
+
+    /** The bar: every row an equal share, the current one filled to its step's own progress. */
+    private fun stepWisePercent(s: PrepareJob.State, reuseImage: Boolean): Int {
+        val rows = checklist
+        if (rows.isEmpty()) return 0
+        var done = 0f
+        for ((_, stages) in rows) {
+            done += when {
+                rowCompleted(s, stages, reuseImage) -> 1f
+                s.step in stages && s.step in MEASURED_STEPS -> s.stepFraction ?: 0f
+                else -> 0f
+            }
+        }
+        return (done * 100 / rows.size).toInt().coerceIn(0, 100)
+    }
+
+    /** Group backend stages into the rows shown in the design (0.4.41: nine, with the download); no job semantics change. */
     private val checklist: List<Pair<String, Set<PrepareJob.Step>>> get() = listOf(
         getString(R.string.setup_check_phone) to setOf(PrepareJob.Step.CHECK),
-        getString(R.string.setup_check_files) to setOf(PrepareJob.Step.HASH, PrepareJob.Step.BEGIN),
-        getString(R.string.setup_image) to setOf(PrepareJob.Step.IMAGE),
+        getString(R.string.setup_check_files) to setOf(PrepareJob.Step.HASH),
+        getString(R.string.setup_download_files) to setOf(PrepareJob.Step.DOWNLOAD),
+        // The stage folder (BEGIN) comes after the downloads (0.4.41): with the image, not the local files.
+        getString(R.string.setup_image) to setOf(PrepareJob.Step.BEGIN, PrepareJob.Step.IMAGE),
         getString(R.string.setup_files_patches) to setOf(PrepareJob.Step.FILES),
         getString(R.string.setup_table) to setOf(PrepareJob.Step.TABLE),
         getString(R.string.setup_session) to setOf(PrepareJob.Step.ENV),
@@ -360,11 +416,19 @@ class SetupProgressFragment : Fragment() {
         when (s.phase) {
             PrepareJob.Phase.RUNNING -> {
                 show(primary, null)
-                show(secondary, getString(if (stopping) R.string.setup_stopping else android.R.string.cancel), enabled = !stopping) {
-                    // As before: stops after the current file, no confirm (nothing is lost; set up again later).
-                    stopping = true
-                    PrepareJob.cancel()
-                    bind(displayedState())
+                show(secondary, getString(if (stopping) R.string.setup_stopping else R.string.setup_stop_setup), enabled = !stopping) {
+                    // Asked first (0.4.43, UX audit): one tap ended a 15-minute setup. Nothing is lost either way.
+                    val name = s.image?.name ?: getString(R.string.setup_label)
+                    androidx.appcompat.app.AlertDialog.Builder(a)
+                        .setTitle(getString(R.string.setup_stop_title, name))
+                        .setMessage(R.string.prepare_stop_summary)
+                        .setPositiveButton(R.string.setup_stop) { _, _ ->
+                            stopping = true
+                            PrepareJob.cancel()
+                            bind(displayedState())
+                        }
+                        .setNegativeButton(R.string.setup_keep_going, null)
+                        .show()
                 }
             }
             PrepareJob.Phase.DONE -> {

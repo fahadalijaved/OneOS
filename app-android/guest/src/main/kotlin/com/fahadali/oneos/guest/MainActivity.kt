@@ -48,7 +48,8 @@ class MainActivity : AppCompatActivity() {
         }
         val system = GuestName.read()
         findViewById<GuestArtworkView>(R.id.guest_artwork).bind(system)
-        findViewById<TextView>(R.id.title).text = system ?: getString(R.string.app_name)
+        // Where you are, in words (0.4.43, UX audit: the bare system name over artwork that repeats it).
+        findViewById<TextView>(R.id.title).text = system?.let { getString(R.string.title_in, it) } ?: getString(R.string.title_in_other)
         val root = findViewById<View>(R.id.root)
         val footer = findViewById<View>(R.id.guest_footer)
         val scroll = findViewById<androidx.core.widget.NestedScrollView>(R.id.guest_scroll)
@@ -65,12 +66,18 @@ class MainActivity : AppCompatActivity() {
         scroll.seslSetFadingEdgeColor(getColor(R.color.guest_page_background))
         scroll.seslSetFadingEdgeWindowBottomAlignment(!wide)
         val fadeGap = (24 * resources.displayMetrics.density).toInt()
+        val noFade = GuestName.read()?.contains("Infinity", ignoreCase = true) == true
         footer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             val nav = if (wide) 0 else (footer.layoutParams as android.view.ViewGroup.MarginLayoutParams).bottomMargin
             val clearance = if (wide) fadeGap else footer.height + nav + fadeGap
             if (scroll.paddingBottom != clearance) scroll.setPadding(0, 0, 0, clearance)
-            scroll.seslSetFadingEdgeEnabled(true, fadeGap, clearance)
-            if (!wide) scroll.seslForceBottomFadingEdgeClamped(clearance)
+            // Not on Infinity-X (0.4.43): its own libhwui crashed on this screen's first frame
+            // (SkCanvas::internalQuickReject, RenderThread, 37 times in report 71a26ead), so Back to
+            // One UI could not be reached from the app there. The fade is cosmetic.
+            if (!noFade) {
+                scroll.seslSetFadingEdgeEnabled(true, fadeGap, clearance)
+                if (!wide) scroll.seslForceBottomFadingEdgeClamped(clearance)
+            }
         }
         back = findViewById(R.id.back)
         status = findViewById(R.id.status)
@@ -80,11 +87,15 @@ class MainActivity : AppCompatActivity() {
             visibility = View.VISIBLE
         }
         back.setOnClickListener { ask(ReturnRequest.REASON_APP) }
-        findViewById<dev.oneuiproject.oneui.widget.CardItemView>(R.id.checklist).setOnClickListener { startActivity(Intent(this, ChecklistActivity::class.java)) }
+        findViewById<dev.oneuiproject.oneui.widget.CardItemView>(R.id.checklist).apply {
+            summary = getString(R.string.checklist_card_summary)
+            setOnClickListener { startActivity(Intent(this@MainActivity, ChecklistActivity::class.java)) }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             addTile.setOnClickListener { requestTile() }
         } else {
-            findViewById<View>(R.id.tile_card).visibility = View.GONE
+            // Only the tile row: the volume keys work on every Android (0.4.43).
+            addTile.visibility = View.GONE
         }
         showState()
         if (savedInstanceState != null) {

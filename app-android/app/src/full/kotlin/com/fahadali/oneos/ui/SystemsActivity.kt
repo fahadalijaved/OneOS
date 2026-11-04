@@ -253,6 +253,7 @@ class SystemsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         Readiness.onResume(requireContext())
+        com.fahadali.oneos.session.AppUpdater.check(requireContext())
         if (navigatingAway) {
             // Keep the mapped source attached until the 280 ms shared return finishes.
             view?.postDelayed({
@@ -267,7 +268,9 @@ class SystemsFragment : Fragment() {
 
     override fun onStart() {
         super.onStart()
-        subs += StageCheck.observe { redraw() }
+        // A finished check also reads the last session's logs (Readiness.tick), as Home does.
+        subs += StageCheck.observe { if (!it.busy) context?.let(Readiness::tick); redraw() }
+        subs += com.fahadali.oneos.session.AppUpdater.observe { updateLine() }
         subs += PrepareJob.observe { redraw() }
         subs += OldStagesJob.observe { redraw() }
         subs += com.fahadali.oneos.session.RemoveJob.observe { redraw() }
@@ -313,9 +316,18 @@ class SystemsFragment : Fragment() {
         if (cardId != null && good.id != cardId) {
             Toast.makeText(ctx, getString(R.string.systems_pick_other, Images.systemName(good, p)), Toast.LENGTH_LONG).show()
         }
-        // Home offers "Set up {system}" only while nothing is set up; else that button is on this card.
+        // Home offers "Set up {system}" only while nothing is set up. With another system set up, the
+        // file goes straight to the set-up confirmation (0.4.49, owner: "the hero card keeps saying Set up
+        // over and over, like it doesn't accept the gz": the card only redrew and asked for the file again).
         val st = StageCheck.state.result?.status
-        if (st?.ours == true || PrepareJob.state.busy) redraw(force = true) else SystemsNav.home(a)
+        when {
+            PrepareJob.state.busy -> redraw(force = true)
+            st?.ours == true -> {
+                redraw(force = true)
+                FixActions.run(a, FixAction.SET_UP, good)
+            }
+            else -> SystemsNav.home(a)
+        }
     }
 
     private fun badPick(a: SystemsActivity, p: PhoneProfile, id: ImageIdentity, cardId: String?) {
@@ -343,6 +355,62 @@ class SystemsFragment : Fragment() {
         b.setNegativeButton(R.string.systems_close, null).show()
     }
 
+    /**
+     * The line under the title (0.4.43, UX audit: the launch screen never showed a new OneOS, only the status
+     * Home did): a newer OneOS with its progress, tap to update; else the no-phone line when this phone is
+     * not supported; else hidden.
+     */
+    private fun updateLine() {
+        val root = view ?: return
+        val ctx = context ?: return
+        val line = root.findViewById<TextView>(R.id.systems_hero_subtitle)
+        val banner = root.findViewById<View>(R.id.systems_update_banner)
+        val u = com.fahadali.oneos.session.AppUpdater.state
+        val next = u.update?.takeIf { it.newerThan(com.fahadali.oneos.BuildConfig.VERSION_CODE) }
+        if (next != null && banner != null) {
+            // 0.4.47 (owner: "the update bar is so small on the main page"): a banner with the version,
+            // what it fixes or its progress, and an Update button; the whole card is the tap target.
+            val system = EnvironmentNavigation.preparedImage(ctx)?.takeIf { next.changes(it.id) }
+            root.findViewById<TextView>(R.id.systems_update_title).text = getString(R.string.systems_update_banner_title, next.versionName)
+            root.findViewById<TextView>(R.id.systems_update_text).text = when (u.phase) {
+                com.fahadali.oneos.session.AppUpdater.Phase.DOWNLOADING -> getString(R.string.home_update_downloading, u.percent)
+                com.fahadali.oneos.session.AppUpdater.Phase.INSTALLING -> getString(R.string.home_app_update_installing)
+                com.fahadali.oneos.session.AppUpdater.Phase.FAILED -> getString(R.string.systems_update_banner_failed)
+                com.fahadali.oneos.session.AppUpdater.Phase.CONFIRM -> getString(R.string.systems_update_banner_confirm)
+                else -> next.notes ?: system?.let { getString(R.string.systems_update_banner_for, it.name) }
+                    ?: getString(R.string.systems_update_banner_default)
+            }
+            val action = root.findViewById<TextView>(R.id.systems_update_action)
+            action.text = getString(
+                when (u.phase) {
+                    com.fahadali.oneos.session.AppUpdater.Phase.FAILED -> R.string.systems_update_action_retry
+                    com.fahadali.oneos.session.AppUpdater.Phase.CONFIRM -> R.string.systems_update_action_confirm
+                    else -> R.string.systems_update_action
+                },
+            )
+            action.visibility = if (u.busy) View.GONE else View.VISIBLE
+            val go = View.OnClickListener { activity?.let { if (!com.fahadali.oneos.session.AppUpdater.state.busy) FixActions.confirmAppUpdate(it) } }
+            banner.setOnClickListener(go)
+            action.setOnClickListener(go)
+            banner.isClickable = !u.busy
+            banner.contentDescription = root.findViewById<TextView>(R.id.systems_update_title).text.toString() + ". " +
+                root.findViewById<TextView>(R.id.systems_update_text).text
+            banner.visibility = View.VISIBLE
+            line.setOnClickListener(null)
+            line.visibility = View.GONE
+            return
+        }
+        banner?.visibility = View.GONE
+        line.setOnClickListener(null)
+        line.isClickable = false
+        if (profileRead && profile == null) {
+            line.text = getString(R.string.systems_none_line)
+            line.visibility = View.VISIBLE
+        } else {
+            line.visibility = View.GONE
+        }
+    }
+
     private fun redraw(force: Boolean = false) {
         if (navigatingAway) return
         val root = view ?: return
@@ -360,10 +428,7 @@ class SystemsFragment : Fragment() {
         if (key == lastKey && root.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel).adapter != null) return
         lastKey = key
 
-        root.findViewById<TextView>(R.id.systems_hero_subtitle).apply {
-            text = if (p != null) getString(R.string.systems_subtitle, p.label) else getString(R.string.systems_none_line)
-            visibility = View.GONE
-        }
+        updateLine()
         val carousel = root.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.systems_carousel)
         val available = p?.images().orEmpty()
         val st = check.result?.status
@@ -504,11 +569,14 @@ class SystemsFragment : Fragment() {
         })
         badge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_catalog_device, 0, 0, 0)
         badge.compoundDrawablePadding = dp(8)
-        if (image == null) {
+        // Not for this phone (0.4.43, UX audit): an Unsupported card used to run the whole setup flow and send
+        // people to a download of several GB. Its button now says so, and nothing else on it starts setup.
+        if (image == null || !entry.supported) {
             v.findViewById<Button>(R.id.systems_primary).apply {
-                setText(R.string.catalog_set_up)
+                setText(R.string.catalog_not_available)
                 setOnClickListener { showUnsupported(entry.name) }
             }
+            v.setOnClickListener { showUnsupported(entry.name) }
             v.findViewById<View>(R.id.systems_more).setOnClickListener { showUnsupported(entry.name) }
             return v
         }
@@ -517,7 +585,7 @@ class SystemsFragment : Fragment() {
             androidx.appcompat.widget.PopupMenu(ctx, anchor).apply {
                 menu.add(R.string.systems_download).setOnMenuItemClickListener { image.downloadUrl?.let { url -> activity?.let { SystemsNav.open(it, url) } }; true }
                 menu.add(R.string.systems_have_file).setOnMenuItemClickListener { (activity as? SystemsActivity)?.choose(image.id); true }
-                menu.add(R.string.home_details_all).setOnMenuItemClickListener {
+                menu.add(R.string.systems_phone_status).setOnMenuItemClickListener {
                     startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true)); true
                 }
                 menu.add(R.string.catalog_details).setOnMenuItemClickListener {
@@ -572,7 +640,13 @@ class SystemsFragment : Fragment() {
                         }
                     }.setNegativeButton(android.R.string.cancel, null).show()
             }
-            else -> only(getString(R.string.catalog_set_up), !jobsBusy) { askDownloaded(image, v.findViewById(R.id.systems_artwork)) }
+            else -> {
+                // The file of this system is already picked (0.4.49): Set up starts the setup, not another pick.
+                val ready = profile?.let { FixActions.pickedImage(ctx, it) }?.id == image.id
+                only(getString(R.string.catalog_set_up), !jobsBusy) {
+                    if (ready && a != null) FixActions.run(a, FixAction.SET_UP, image) else askDownloaded(image, v.findViewById(R.id.systems_artwork))
+                }
+            }
         }
 
         primary.contentDescription = primary.text.toString() + " " + image.nameWithVariant
@@ -614,7 +688,8 @@ class SystemsFragment : Fragment() {
 
     private fun showUnsupported(name: String) {
         val dialog = AlertDialog.Builder(requireContext()).setTitle(name)
-            .setMessage(R.string.catalog_unsupported_message).setPositiveButton(android.R.string.ok, null)
+            .setMessage(getString(R.string.catalog_unsupported_message, name, profile?.label ?: getString(R.string.catalog_this_phone)))
+            .setPositiveButton(android.R.string.ok, null)
         dialog.show()
     }
 

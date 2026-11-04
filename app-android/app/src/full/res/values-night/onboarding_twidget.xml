@@ -1,0 +1,10 @@
+<resources>
+    <!-- The dark first-run look (0.4.43: the light variants are in values/). -->
+    <color name="onboarding_grad_start">#101010</color>
+    <color name="onboarding_grad_center">#081928</color>
+    <color name="onboarding_grad_end">#00233F</color>
+    <color name="onboarding_widget_card">#4D000000</color>
+    <color name="onboarding_glass_stroke">#26FFFFFF</color>
+    <color name="onboarding_settle_background">#010101</color>
+    <color name="onboarding_settle_fade">#00010101</color>
+</resources>

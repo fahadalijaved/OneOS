@@ -72,6 +72,9 @@ object RootScript {
         BEGIN("begin", Stdin.SCRIPT),
         RECEIVE("receive", Stdin.DATA),
         KEEP_RAW("keep-raw", Stdin.NONE),
+
+        /** Set files the stage already has, recorded without being sent again (0.4.42): stdin is the set's sha256 list. */
+        KEEP_FILES("keep-files", Stdin.DATA),
         TABLE("table", Stdin.DATA),
         ENV("env", Stdin.DATA),
         FINISH("finish", Stdin.NONE),
@@ -89,6 +92,14 @@ object RootScript {
 
         /** Deletes every copy, the stage, the log capture and the session's helper files (0.4.25). */
         REMOVE("remove", Stdin.SCRIPT),
+
+        /**
+         * Installs the app's own update (0.4.41): the APK the app downloaded into
+         * `files/oneos-update/OneOS.apk`, with its size, SHA-256 and versionCode.
+         * Like begin and remove it may install the script first, so an update
+         * works before the first prepare and after an earlier update.
+         */
+        SELFUPDATE("selfupdate", Stdin.SCRIPT),
     }
 
     /**
@@ -150,6 +161,10 @@ object RootScript {
                 arg(0, DEC, "a size")
                 arg(1, HEX64, "a SHA-256")
             }
+            Verb.KEEP_FILES -> {
+                need(1)
+                arg(0, DEC, "a size")
+            }
             Verb.TABLE, Verb.ENV -> {
                 need(1)
                 arg(0, DEC, "a size")
@@ -173,6 +188,12 @@ object RootScript {
                 args.getOrNull(7)?.let { if (it != "0" && it != "1") p += "launch: verbose boot is not 0 or 1" }
             }
             Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE -> need(0)
+            Verb.SELFUPDATE -> {
+                need(3)
+                arg(0, DEC, "a size")
+                arg(1, HEX64, "a SHA-256")
+                arg(2, DEC, "a versionCode")
+            }
             Verb.PURGE -> {
                 need(1)
                 args.getOrNull(0)?.let { if (!OLD_STAGE_NAME.matches(it)) p += "purge: '${it.take(40)}' is not an old stage" }
@@ -214,7 +235,7 @@ object RootScript {
 
     /**
      * The launcher. Runs the installed script when it is root's and has the
-     * pinned hash; otherwise only `begin` and `remove` (0.4.25) continue, and `recover` when the
+     * pinned hash; otherwise only `begin`, `remove` (0.4.25) and `selfupdate` (0.4.41) continue, and `recover` when the
      * stage has a marker and the stage and its `bin` are root's folders
      * already (0.3.3: a 0.3.2 stage's script differs from this build's pin,
      * and its unfinished session must still be restorable; nothing is made
@@ -248,7 +269,7 @@ if mine "$S" && mine "$S/bin" && mine "$F" && [ "$(sha256sum "$F" 2>/dev/null | 
     exec @SH@ "$F" "$@"
 fi
 case "$1" in
-    begin|remove) ;;
+    begin|remove|selfupdate) ;;
     recover)
         if [ ! -f "$S/.oneos_stage" ] || [ ! -d "$S/bin" ] || ! mine "$S" || ! mine "$S/bin"; then
             echo "@@REFUSED OneOS's root script is not in the stage: nothing to restore"

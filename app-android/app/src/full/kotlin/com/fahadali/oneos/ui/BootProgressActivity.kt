@@ -43,6 +43,8 @@ class BootProgressActivity : EdgeToEdgeActivity() {
         }
         findViewById<OsArtworkView>(R.id.boot_artwork).bind(image)
         ArtworkTransitions.bindTarget(this, findViewById(R.id.boot_artwork))
+        // The ways back, said once more on the last screen before One UI closes (0.4.43, UX audit).
+        findViewById<TextView>(R.id.boot_back).text = getString(R.string.switch_go_dialog_back_app, image.name)
         findViewById<TextView>(R.id.boot_title).apply {
             text = image.name
             if (!resources.getBoolean(R.bool.home_two_pane)) visibility = View.GONE

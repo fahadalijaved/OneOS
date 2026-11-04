@@ -7,9 +7,10 @@ import androidx.preference.Preference
 import androidx.preference.SwitchPreferenceCompat
 import com.fahadali.oneos.BuildConfig
 import com.fahadali.oneos.R
+import com.fahadali.oneos.session.AppUpdater
 
 class DebugSettingsActivity : ToolbarActivity() {
-    override val screenTitle: CharSequence get() = getString(R.string.settings_debug)
+    override val screenTitle: CharSequence get() = getString(R.string.team_title)
     override val preferenceInsets = true
     override fun createFragment(): Fragment = DebugSettingsFragment()
 }
@@ -47,6 +48,12 @@ class DebugSettingsFragment : InsetPreferenceFragment() {
         val setup = category(R.string.team_card_setup)
         entry(setup, R.string.prepare_title_team, R.string.team_setup_summary, PrepareActivity::class.java, true)
         entry(setup, R.string.image_title_team, R.string.team_file_summary, ImageActivity::class.java, true)
+        setup.addPreference(SwitchPreferenceCompat(ctx).apply {
+            key = "update_test_channel"
+            setTitle(R.string.team_update_test); setSummary(R.string.team_update_test_summary)
+            isPersistent = false; isIconSpaceReserved = false; isChecked = AppUpdater.testChannel(ctx)
+            setOnPreferenceChangeListener { _, value -> AppUpdater.setTestChannel(ctx, value as Boolean); true }
+        })
         preferenceScreen.addBottomInset()
     }
 }

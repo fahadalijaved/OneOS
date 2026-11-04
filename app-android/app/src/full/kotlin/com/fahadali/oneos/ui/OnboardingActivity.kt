@@ -95,14 +95,13 @@ class OnboardingActivity : EdgeToEdgeActivity() {
         if (page == 1) {
             val root = RootRules.kind(RootProbe(this).signals())
             row(R.string.onboarding_root,
-                if (root == RootKind.NONE) getString(R.string.onboarding_no_root) else root.label,
+                if (root == RootKind.NONE) getString(R.string.onboarding_no_root) else getString(R.string.onboarding_root_found, root.label),
                 OuiIcons.drawable.ic_oui_security) {
                 startActivity(Intent(this, DeviceReportActivity::class.java))
             }
-            row(R.string.onboarding_nearby, getString(R.string.onboarding_nearby_summary), R.drawable.ic_catalog_device)
             val lockStatus = when (FactProbe.screenLockSet(this)) {
-                true -> R.string.environment_lock_on
-                false -> R.string.environment_lock_off
+                true -> R.string.onboarding_lock_on
+                false -> R.string.onboarding_lock_off
                 null -> R.string.environment_unknown
             }
             row(R.string.onboarding_lock, getString(R.string.onboarding_lock_summary), OuiIcons.drawable.ic_oui_page_lock,

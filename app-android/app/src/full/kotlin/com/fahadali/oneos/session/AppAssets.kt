@@ -14,7 +14,8 @@ import java.io.InputStream
  * `assets/root/oneos_root.sh` (pinned in BuildConfig), the per-set lists
  * `assets/oneos/sets/<set>.sha256` and `scripts.sha256` (their hashes pinned
  * in BuildConfig too), and every file once under `assets/oneos/files/<sha256>`
- * with its size in `index.txt`. Every list is checked against its pin before
+ * with its size in `index.txt`. 0.4.41: the set files are not in the APK; `remote.txt`
+ * names each one's Drive id and [SetDownloader] fetches the phone's set by hash. Every list is checked against its pin before
  * use; every file is hashed again while it streams to root, and root checks
  * it once more.
  */
@@ -83,7 +84,32 @@ object AppAssets {
             files(ctx, set).associate { it.name to it.sha256 } + ("bin/oneos_root.sh" to BuildConfig.ROOT_SCRIPT_SHA256)
         }
 
-    fun open(ctx: Context, f: Staged): InputStream = ctx.applicationContext.assets.open("oneos/files/${f.sha256}")
+    /** sha256 -> Drive file id of every set file the APK does not carry (0.4.41; empty in a packed test build). */
+    fun remoteIds(ctx: Context): Map<String, String> =
+        runCatching { read(ctx, "oneos/files/remote.txt") }.getOrNull()?.toString(Charsets.UTF_8)?.lines()
+            ?.filter { it.isNotBlank() }?.associate { it.substringBefore(' ') to it.substringAfter(' ') } ?: emptyMap()
+
+    private fun packed(ctx: Context): Set<String> =
+        ctx.applicationContext.assets.list("oneos/files")?.toSet() ?: emptySet()
+
+    /** The files of [files] that are neither in the APK nor downloaded yet, with their Drive ids. */
+    fun toDownload(ctx: Context, files: List<Staged>): List<Pair<Staged, String>> {
+        val inApk = packed(ctx)
+        val ids = remoteIds(ctx)
+        return files.filter { it.sha256 !in inApk && SetDownloader.cached(ctx, it) == null }.map { f ->
+            f to (ids[f.sha256] ?: throw Broken("${f.name} is neither in the app nor on its download list"))
+        }
+    }
+
+    /** Every set file hash any list in this app names: what the download cache may keep. */
+    fun allSetHashes(ctx: Context): Set<String> = remoteIds(ctx).keys
+
+    /** From the APK when it carries the file, else from the downloads ([SetDownloader]). */
+    fun open(ctx: Context, f: Staged): InputStream {
+        if (f.sha256 in packed(ctx)) return ctx.applicationContext.assets.open("oneos/files/${f.sha256}")
+        val file = SetDownloader.cached(ctx, f) ?: throw Broken("${f.name} is not downloaded")
+        return file.inputStream()
+    }
 
     /** switcher/patches/host_installd.txt as the app ships it (the installd gate's expected table). */
     fun hostInstalldTxt(ctx: Context): String {

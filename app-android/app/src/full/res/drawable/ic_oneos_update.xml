@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.4.47: the update banner's mark: an arrow down into a tray, in a circle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:fillColor="@color/oneos_update_banner_icon"
+        android:pathData="M20,0a20,20 0,1 1,0 40a20,20 0,1 1,0 -40z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M18.6,10h2.8v10.6l3.6,-3.6l2,2l-7,7l-7,-7l2,-2l3.6,3.6z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,27.5h16v2.5h-16z" />
+</vector>

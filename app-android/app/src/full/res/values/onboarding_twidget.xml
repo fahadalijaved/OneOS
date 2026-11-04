@@ -1,11 +1,12 @@
 <resources>
-    <color name="onboarding_grad_start">#101010</color>
-    <color name="onboarding_grad_center">#081928</color>
-    <color name="onboarding_grad_end">#00233F</color>
-    <color name="onboarding_widget_card">#4D000000</color>
-    <color name="onboarding_glass_stroke">#26FFFFFF</color>
+    <!-- 0.4.43 (UX audit): light first run; the dark one is in values-night (it showed dark text on near black in light mode). -->
+    <color name="onboarding_grad_start">#F6F6F6</color>
+    <color name="onboarding_grad_center">#E6F1FF</color>
+    <color name="onboarding_grad_end">#CFE2FF</color>
+    <color name="onboarding_widget_card">#0F000000</color>
+    <color name="onboarding_glass_stroke">#1A000000</color>
 <style name="OneOS.WrappingButton" parent="OneUI.ContainedButton">
 <item name="android:singleLine">false</item><item name="android:maxLines">2147483647</item><item name="android:ellipsize">none</item><item name="android:gravity">center</item><item name="android:minHeight">48dp</item><item name="android:paddingTop">12dp</item><item name="android:paddingBottom">12dp</item></style>
-    <color name="onboarding_settle_background">#010101</color>
-    <color name="onboarding_settle_fade">#00010101</color>
+    <color name="onboarding_settle_background">#F6F6F6</color>
+    <color name="onboarding_settle_fade">#00F6F6F6</color>
 </resources>

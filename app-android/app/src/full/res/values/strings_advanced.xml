@@ -153,7 +153,7 @@
     <string name="image_title">Use a downloaded file</string>
     <string name="image_title_team">File details and checks</string>
     <string name="image_no_profile_title">No system for this phone yet</string>
-    <string name="image_no_profile_summary">This version of OneOS has none for this phone. Phone details, in Advanced › For the OneOS team, shows why.</string>
+    <string name="image_no_profile_summary">This version of OneOS has none for this phone. Phone details, in Settings › For the OneOS team, shows why.</string>
     <string name="image_cat_file">Your file</string>
     <string name="image_pick_summary">Opens your files. OneOS reads only the file you pick.</string>
     <string name="image_not_used">%1$s · not used: setup reuses the system already on this phone</string>
@@ -244,7 +244,7 @@
     <string name="switch_back_keys_summary">Works once %1$s is starting: One UI comes back, usually without a restart. While the OneOS logo still shows, use Force restart.</string>
     <string name="switch_back_auto_title">OneOS brings you back by itself</string>
     <string name="switch_back_auto_summary">If %1$s doesn\'t finish starting, stops, or the screen stays black, One UI comes back by itself after a few minutes.</string>
-    <string name="switch_back_force_summary">Hold Power + Volume Down until it restarts into One UI. Afterwards, tap Restore One UI\'s settings in Advanced.</string>
+    <string name="switch_back_force_summary">Hold Power + Volume Down until it restarts into One UI. Afterwards, tap Restore One UI\'s settings in Settings › Last session.</string>
     <string name="switch_back_root_summary">If root needs turning on again after a restart, do that, then open OneOS. Last session shows how it went.</string>
     <string name="switch_check_summary">Every check again: root, the set-up system, the screen lock, battery and free space. Nothing on the phone changes.</string>
     <string name="switch_need_full">Tap Check again first</string>
@@ -286,4 +286,7 @@
     <!-- Session logs and the credits (main's texts, in plain words, for this edition) -->
     <string name="logs_delete_summary">Removes these logs from OneOS. The phone keeps its own copy in OneOS\'s folder until your next switch.</string>
     <string name="about_credit_oneos_summary">The app and the changes OneOS makes to each system. Its session scripts started from the project credited below.</string>
+    <!-- The team's test channel for the app's own update (0.4.41, AppUpdater). -->
+    <string name="team_update_test">Test updates</string>
+    <string name="team_update_test_summary">Get OneOS updates from the team\'s test channel before they are released</string>
 </resources>

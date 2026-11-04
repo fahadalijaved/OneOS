@@ -41,6 +41,26 @@ import com.fahadali.oneos.session.StageCheck
  * the Free up space screen (OldStagesActivity).
  */
 internal object FixActions {
+    /** The app's own update (0.4.42): what it downloads and does, then root installs it ([AppUpdater]). */
+    fun confirmAppUpdate(a: FragmentActivity) {
+        val st = com.fahadali.oneos.session.AppUpdater.state
+        val next = st.update ?: return
+        // Without root (0.4.45) Android's installer waits for the user: open it again, no second download.
+        if (st.phase == com.fahadali.oneos.session.AppUpdater.Phase.CONFIRM) {
+            com.fahadali.oneos.session.AppUpdater.confirm(a)
+            return
+        }
+        val mb = (next.bytes + 999_999) / 1_000_000
+        val text = a.getString(R.string.home_update_confirm, com.fahadali.oneos.BuildConfig.VERSION_NAME, next.versionName, mb)
+        val why = st.message?.takeIf { st.phase == com.fahadali.oneos.session.AppUpdater.Phase.FAILED }
+        androidx.appcompat.app.AlertDialog.Builder(a)
+            .setTitle(a.getString(R.string.home_update_title, next.versionName))
+            .setMessage(if (why != null) "$why\n\n$text" else text)
+            .setPositiveButton(R.string.home_update_run) { _, _ -> com.fahadali.oneos.session.AppUpdater.install(a) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     fun run(a: FragmentActivity, action: FixAction, image: ImageRef?) {
         if (action == FixAction.OPEN_LOCK_SETTINGS || action == FixAction.OPEN_ROOT_APP || action == FixAction.OPEN_OLD_SWITCHER_INFO) {
             Readiness.recheckOnResume()
@@ -68,6 +88,7 @@ internal object FixActions {
                 val url = image?.downloadUrl
                 if (url != null) open(a, Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)) else a.startActivity(Intent(a, SystemsActivity::class.java))
             }
+            FixAction.APP_UPDATE -> confirmAppUpdate(a)
             FixAction.UPDATE, FixAction.REPAIR -> setUpAgain(a)
             FixAction.SET_UP -> setUp(a)
             FixAction.SEND_PHONE_DETAILS -> a.startActivity(Intent(a, RunTestsActivity::class.java))
@@ -97,8 +118,12 @@ internal object FixActions {
      * [SetupPlan] and said here; PrepareJob decides it again from a fresh check.
      */
     private fun setUp(a: FragmentActivity) {
-        val r = StageCheck.state.result ?: return Readiness.tick(a, force = true)
-        val profile = Profiles.resolve(r.facts).profile ?: return
+        // Never a silent tap (0.4.49): the phone check first, then the profile.
+        val r = StageCheck.state.result ?: run {
+            toast(a, a.getString(R.string.setup_wait_check))
+            return Readiness.tick(a, force = true)
+        }
+        val profile = Profiles.resolve(r.facts).profile ?: return toast(a, a.getString(R.string.setup_no_profile))
         val image = pickedImage(a, profile) ?: return a.startActivity(Intent(a, SystemsActivity::class.java))
         val set = profile.choice(image.id)?.packageSetId?.let { PackageSets.byId(it) }
         val plan = SetupPlan.decide(r.status, image, profile, BuildConfig.VERSION_CODE, hasDownload = true)

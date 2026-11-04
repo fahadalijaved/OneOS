@@ -1,6 +1,9 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/guest_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
-    <dev.oneuiproject.oneui.widget.RoundedLinearLayout android:id="@+id/tile_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?android:attr/colorBackground">
-        <dev.oneuiproject.oneui.widget.CardItemView android:id="@+id/add_tile" android:layout_width="match_parent" android:layout_height="wrap_content" app:title="@string/add_tile_title" />
+    <!-- 0.4.43 (UX audit): the other ways back again, with the volume keys that work everywhere. -->
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/ways_header" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="24dp" android:paddingBottom="8dp" android:textSize="14sp" android:textStyle="bold" android:textColor="?android:attr/textColorSecondary" android:text="@string/ways_title" />
+    <dev.oneuiproject.oneui.widget.RoundedLinearLayout android:id="@+id/tile_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?android:attr/colorBackground">
+        <dev.oneuiproject.oneui.widget.CardItemView android:id="@+id/add_tile" android:layout_width="match_parent" android:layout_height="wrap_content" app:title="@string/add_tile_title" app:summary="@string/way_tile_summary" />
+        <dev.oneuiproject.oneui.widget.CardItemView android:id="@+id/way_keys" android:layout_width="match_parent" android:layout_height="wrap_content" android:clickable="false" android:focusable="false" app:title="@string/way_keys_title" app:summary="@string/way_keys_summary" />
     </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
     <dev.oneuiproject.oneui.widget.RoundedLinearLayout android:id="@+id/report_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="?android:attr/colorBackground">
         <dev.oneuiproject.oneui.widget.CardItemView android:id="@+id/checklist" android:layout_width="match_parent" android:layout_height="wrap_content" app:title="@string/guest_report" />

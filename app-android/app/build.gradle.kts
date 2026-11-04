@@ -42,20 +42,19 @@ if (testPackagesDir != null) {
 // guest_prepare.sh puts it in the guest's /oem/app.
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
-    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r4") to listOf("tethering_payload.img")),
+    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r6") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
-    "x9u-sultra" to (File(repoRoot, "out/overlays_x9u_r51") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r55") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r58") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
-    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r2") to listOf("tethering_payload.img")),
+    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r4") to listOf("tethering_payload.img")),
     // Pixel 11 Pro image (0.4.10), Galaxy S26 Ultra: the same files from that image.
-    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r2") to listOf("tethering_payload.img")),
-    "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r2") to listOf("tethering_payload.img")),
+    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r4") to listOf("tethering_payload.img")),
+    "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r4") to listOf("tethering_payload.img")),
     // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
-    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r2") to listOf("tethering_payload.img")),
+    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r4") to listOf("tethering_payload.img")),
     // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
     // is built from source (0.4.28): the guest keeps One UI's, like tethering.
     "infinityx" to (File(repoRoot, "out/overlays_infinityx_r3") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
@@ -63,7 +62,7 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // the signal poll and the image's payloads.
     "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r13") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r20") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r21") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -73,6 +72,18 @@ val seriesId: String? = (findProperty("oneos.series") as String?)?.trim()?.takeI
 val seriesSets: Map<String, Set<String>> = File(packagesDir, "series.txt").readLines()
     .map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
     .associate { l -> l.split(Regex("\\s+")).let { it.first() to it.drop(1).toSet() } }
+// 0.4.41 (owner: 1.5 GB APKs are too much): the set files stay out of the APK. It carries
+// every set's list and each file's size and Drive id (packages/remote.txt), and the app
+// downloads the files its phone's set needs, by hash. -Poneos.packSets=true packs them as
+// before (a local test build, no download).
+val packSetsInApk: Boolean = (findProperty("oneos.packSets") as String?)?.trim() == "true"
+val setRemoteIds: Map<String, String> = File(packagesDir, "remote.txt").takeIf { it.isFile }?.readLines()
+    ?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
+    ?.associate { l ->
+        val m = Regex("^([0-9a-f]{64}) ([A-Za-z0-9_-]{20,80})$").matchEntire(l)
+            ?: throw GradleException("packages/remote.txt: not a '<sha256> <drive id>' line: $l")
+        m.groupValues[1] to m.groupValues[2]
+    } ?: emptyMap()
 val packedSets: Set<String> = if (seriesId == null) {
     packageSets.keys
 } else {
@@ -155,6 +166,14 @@ abstract class OneOsFilesTask : DefaultTask() {
     @get:Input
     abstract val notShipped: SetProperty<String>
 
+    /** True: the set files go into the APK (local test builds). False: only their sizes and Drive ids. */
+    @get:Input
+    abstract val packSets: Property<Boolean>
+
+    /** sha256 -> Drive file id (packages/remote.txt). */
+    @get:Input
+    abstract val remoteIds: MapProperty<String, String>
+
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val packages: DirectoryProperty
@@ -198,10 +217,21 @@ abstract class OneOsFilesTask : DefaultTask() {
         val files = File(out, "oneos/files").apply { mkdirs() }
         val setsDir = File(out, "oneos/sets").apply { mkdirs() }
         val sizes = sortedMapOf<String, Long>()
+        val remote = sortedMapOf<String, String>()
+        val ids = remoteIds.get()
+        val pack = packSets.get()
         fun put(src: File, sum: String) {
             val dst = File(files, sum)
             if (!dst.exists()) src.copyTo(dst)
             sizes[sum] = src.length()
+        }
+        // A set file: in the APK (packSets), else its size and Drive id only.
+        fun putSet(src: File, sum: String, problems: MutableList<String>) {
+            if (pack) { put(src, sum); return }
+            val id = ids[sum]
+            if (id == null) { problems += "${src.name} ($sum) is not on Drive: run scripts/release-files.py"; return }
+            sizes[sum] = src.length()
+            remote[sum] = id
         }
         for ((id, spec) in sets.get()) {
             val dir = File(spec.substringBefore('|'))
@@ -220,7 +250,7 @@ abstract class OneOsFilesTask : DefaultTask() {
                     !f.isFile -> problems += "$n is missing from $dir"
                     f.length() > receiveMax -> problems += "$n is ${f.length()} bytes, over root's receive limit ($receiveMax)"
                     sha(f) != sum -> problems += "$n differs from packages/$id.sha256 (a rebuilt overlay?)"
-                    else -> put(f, sum)
+                    else -> putSet(f, sum, problems)
                 }
             }
             if (problems.isNotEmpty()) throw GradleException("package set $id:\n  " + problems.joinToString("\n  "))
@@ -239,6 +269,7 @@ abstract class OneOsFilesTask : DefaultTask() {
         if (unknown.isNotEmpty()) throw GradleException("switcher/assets has $unknown: add it to sessionScripts or switcherNotShipped in app/build.gradle.kts")
         File(setsDir, "scripts.sha256").writeText(render(scriptSums))
         File(files, "index.txt").writeText(sizes.entries.joinToString("") { "${it.key} ${it.value}\n" })
+        File(files, "remote.txt").writeText(remote.entries.joinToString("") { "${it.key} ${it.value}\n" })
     }
 }
 
@@ -251,6 +282,8 @@ val oneosFiles = tasks.register<OneOsFilesTask>("oneosFiles") {
     sets.set(packageSets.filterKeys { it in packedSets }.mapValues { (_, v) -> "${v.first.path}|${v.second.joinToString(",")}" })
     scripts.set(sessionScripts.mapValues { it.value.path })
     notShipped.set(switcherNotShipped)
+    packSets.set(packSetsInApk)
+    remoteIds.set(setRemoteIds)
     packages.set(packagesDir)
     outputDir.set(layout.buildDirectory.dir("generated/oneos/assets"))
 }
@@ -312,8 +345,37 @@ android {
         // first-boot clock reset, the audioserver hand-over only in a crash loop; KernelSU in the guest off.
         // 0.4.40: Galaxy S23 Ultra, Z Flip6 and S24 (Exynos); Samsung IMS's GBA and SIM-slot stand-ins (T-Mobile
         // registration, SMS fallback to CS), HyperOS's DolbyRenderer without Xiaomi's mapper, the camera's 411dp both ways.
-        versionCode = 57
-        versionName = "0.4.40"
+        // 0.4.41: one small APK for every phone (the set files downloaded by hash from the owner's Drive) and
+        // the app's own update from the latest GitHub release; Samsung Camera folded on bar phones, HyperOS's
+        // 64-bit ABI lists on 32-bit-capable phones, a guest's own KernelSU manager removed while guest root is off.
+        // 0.4.42: ColorOS's Theme Store on the Find N6 global build (its product config disabled it), setup
+        // keeps the stage files that did not change (root keep-files), downloads three files at a time and says
+        // when Drive is slow to start one, only the newest log bundle kept, without its unpacked folder.
+        // 0.4.43: UX audit (the launch screen shows a new OneOS and sends Welcome back/Restore to Home, one name for
+        // each screen in the copy, a light first run, Not available on unsupported systems, Stop asks first, percent and
+        // time left, plain setup steps, the blocking check's fix on the pre-boot button, the ways back before the
+        // switch, Remove's progress; guest app 0.6: where you are, the ways back incl. the volume keys, How's it going?);
+        // report fixes: guest app on Infinity-X, Samsung IMS on the read-only overlay, Exynos UniRender, vendor-ndk.
+        // 0.4.44: guest app folders keep the SELinux label the guest gave them (the Theme Store closed on Agree with
+        // the bare label every switch put back), the installed update's APK is deleted.
+        // 0.4.45: Samsung IMS on every Pixel set (r3: the secims carve-out, its framework members, the SMS centre
+        // as an international number, and the wipe-secrets guard the Pixel sets lacked; AT&T Z Fold8 report
+        // d4c481b6: no VoLTE, SMS refused); without root the update goes through Android's installer.
+        // 0.4.46: the app opens on pull request #3's system carousel again (0.4.43 opened the status Home after a
+        // session until Welcome back was its hero, which root off or an update offer could put off for good); One UI's
+        // boot-loop check no longer counts a switch and return as a boot loop (it rolled back a Play system update).
+        // 0.4.47: ColorOS's Theme Store without its brand check (Find N6 and X9U IN sets: "customised app, not
+        // compatible" on every Galaxy); Samsung Camera and the native camera client patch on every Pixel set (r4).
+        // 0.4.48: the Theme Store reports OPPO and the Find N6 model to OPPO's server (it sent no themes for samsung);
+        // a newer OneOS is a banner with an Update button on the launch screen, not a line of small text.
+        // 0.4.49: the Galaxy S25 Edge, S24 FE, A26, A17 and A16 5G (US) from their probe reports (all on One UI 9).
+        // A picked file of another system now starts its setup (the card asked for the file again and again).
+        // 0.4.50: apps uninstalled in a guest stay uninstalled (their code folders are removed before the next
+        // boot); the in-place return names what holds a stage mount when its failsafe reboots.
+        // 0.4.51: the debloated Find X9 Ultra ColorOS build retired (never on Drive); the full IN build is every
+        // such phone's ColorOS, tested where the debloated one was.
+        versionCode = 68
+        versionName = "0.4.51"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.

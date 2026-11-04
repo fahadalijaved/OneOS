@@ -61,6 +61,13 @@ data class HomeInput(
      * that start's first check ends. Null = none.
      */
     val cached: HomeSnapshot? = null,
+    /**
+     * A newer OneOS from its release (0.4.42), in the app's words: its title (the phone's system
+     * when the release changes its files), its line and its button. Null = none.
+     */
+    val appUpdate: PlainMessage? = null,
+    /** The update downloads or installs now: its button is off. */
+    val appUpdateBusy: Boolean = false,
 )
 
 /**
@@ -129,6 +136,9 @@ data class HomeState(
 
         /** Finish updating, repair or set up again (H). */
         UPDATE,
+
+        /** A newer OneOS is out (0.4.42): it may fix this phone's system or add this phone. */
+        APP_UPDATE,
 
         /** The screen lock, battery, space or another check (D). */
         FIX,
@@ -207,6 +217,12 @@ data class HomeState(
 
             // 3. Root.
             block(SwitchGates.ID_ROOT)?.let { return state(Kind.NO_ROOT, it) }
+            // 3b. A newer OneOS (0.4.42): it may fix this phone's system, or add support for it, so it
+            // comes before everything below; a session to restore, a job and root come first.
+            i.appUpdate?.let { u ->
+                return state(Kind.APP_UPDATE, plain = u, primary = FixAction.APP_UPDATE, label = u.actionLabel)
+                    .copy(primaryEnabled = !i.appUpdateBusy && !busy)
+            }
             // 4. Not a phone, Android, form or One UI this build switches on (or no system for it in this build).
             UNSUPPORTED_GATES.firstNotNullOfOrNull { id -> r.gates.firstOrNull { it.id == id && it.level == Level.BLOCK }?.finding }
                 ?.let { return state(Kind.UNSUPPORTED, it) }

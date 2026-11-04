@@ -30,6 +30,8 @@ enum class FixAction {
     SEND_REPORT,
     SWITCH,
     SHOW_PROGRESS,
+    /** A newer OneOS from its release (0.4.42, AppUpdater): download it and install it as root. */
+    APP_UPDATE,
 }
 
 /**
@@ -261,7 +263,7 @@ object Plain {
             Profiles.ID_NOTE_EXPECT_NO_START -> m(
                 "Most likely won't start on this phone",
                 "Its software is too old. If the screen stays black, One UI comes back by itself. Then share the " +
-                    "session logs from Advanced.",
+                    "session logs from Settings › Last session.",
                 FixAction.ACKNOWLEDGE,
             )
             SwitchGates.ID_LOGS -> m(
@@ -359,6 +361,7 @@ object Plain {
         FixAction.SEND_REPORT -> "Send report"
         FixAction.SWITCH -> "Switch"
         FixAction.SHOW_PROGRESS -> "Show progress"
+        FixAction.APP_UPDATE -> "Update"
     }
 
     /** Appended to a refusal at switch time: nothing was done. */

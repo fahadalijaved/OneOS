@@ -6,7 +6,25 @@
          picker (ACTION_OPEN_DOCUMENT, a read grant for that one file). Every
          change on the phone is a verb of assets/root/oneos_root.sh, run as
          root from a screen the user confirmed. -->
+    <!-- 0.4.41: setup (with its downloads) runs in a foreground service, so leaving or
+         swiping the app away does not kill it half way; its notification shows the step. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 0.4.45: the app's own update through Android's installer when root is off
+         (AppUpdater); the user confirms each install. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Once OneOS installed itself this way, Android lets its later updates skip the prompt. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+
     <application android:name=".ui.OneOsApplication">
+        <service
+            android:name=".session.PrepareService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <receiver
+            android:name=".session.AppUpdater$ResultReceiver"
+            android:exported="false" />
         <activity android:name=".ui.EnvironmentActivity" android:exported="false" />
         <activity android:name=".ui.BootProgressActivity" android:exported="false" />
         <activity android:name=".ui.DebugSettingsActivity" android:exported="false" />

@@ -66,6 +66,30 @@ class HomeStateTest {
         LastSession("0123456789abcdef", n6.id, dryRun = false, wallMs = 1_792_000_000_000, over = over, outcome = outcome, afterSeconds = 2520, seen = seen)
 
     @Test
+    fun aNewerOneOsIsTheHeroBelowRestoreJobsAndRoot() {
+        val offer = com.fahadali.oneos.core.model.PlainMessage("Update for ColorOS 17", "OneOS 0.4.43: Theme Store", FixAction.APP_UPDATE, "Update", Level.INFO)
+        fun withUpdate(r: GateReport?, job: HomeJob? = null, busy: Boolean = false) =
+            HomeState.decide(HomeInput(r, null, false, null, job, null, appVersionCode = 4, appUpdate = offer, appUpdateBusy = busy))
+        // Above ready, a fix, an update of the stage, nothing set up, an unsupported phone.
+        for (r in listOf(report(), report(lock), report(lock, oldVersion), report(lock, nothing), report(installd))) {
+            val s = withUpdate(r)
+            assertEquals(Kind.APP_UPDATE, s.kind)
+            assertEquals(FixAction.APP_UPDATE, s.primary)
+            assertEquals("Update", s.primaryLabel)
+            assertEquals("Update for ColorOS 17", s.problem?.title)
+            assertTrue(s.primaryEnabled)
+        }
+        // Never above a session to restore, a running job or root.
+        assertEquals(Kind.RESTORE, withUpdate(report(unfinished)).kind)
+        assertEquals(Kind.SETTING_UP, withUpdate(report(), job = HomeJob(HomeJob.Kind.SETUP, n6, 10)).kind)
+        assertEquals(Kind.NO_ROOT, withUpdate(report(root)).kind)
+        // Downloading or installing: the button is off.
+        assertFalse(withUpdate(report(), busy = true).primaryEnabled)
+        // No offer: Home as before.
+        assertEquals(Kind.READY, decide(report()).kind)
+    }
+
+    @Test
     fun theWorstComesFirst() {
         // Each row adds the next worse problem; Home shows that one.
         val ladder = listOf(

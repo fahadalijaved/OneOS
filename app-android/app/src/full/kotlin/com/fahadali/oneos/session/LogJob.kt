@@ -116,6 +116,11 @@ object LogJob : BackgroundJob<LogJob.State>(State(), "oneos-logs") {
         val sid = launch?.sessionId ?: "unknown"
         val root = logsDir(app).apply { mkdirs() }
         val name = LogBundle.name(sid)
+        // (0.4.42) Only the newest bundle is kept: every earlier one (its zip and its unpacked
+        // folder, 200-300 MB each on the owner's Fold) goes before collecting. The newest keeps its
+        // folder: Send and the log preview read report.json and the checklist from it.
+        root.listFiles { f -> f.name.startsWith("oneos-logs-") && f.name != name && f.name != "$name.zip" }
+            ?.forEach { it.deleteRecursively() }
         val folder = File(root, name).apply {
             deleteRecursively()
             mkdirs()

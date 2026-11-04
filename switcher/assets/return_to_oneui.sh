@@ -570,10 +570,22 @@ for p in /proc/[0-9]*; do
         say "stage mounts in another mount namespace ($n, pid ${p##*/} $(cat "$p/comm" 2>/dev/null)): only $pv of $t could be made private, none unmounted there"
         continue
     fi
+    err=""
     for mp in $mps; do
-        "$BB" nsenter -t "${p##*/}" -m -- "$BB" umount -l "$mp" 2>/dev/null && u=$((u + 1))
+        e=$("$BB" nsenter -t "${p##*/}" -m -- "$BB" umount -l "$mp" 2>&1) && u=$((u + 1)) || err="${err:-$mp: $e}"
     done
     say "stage mounts in another mount namespace ($n, pid ${p##*/} $(cat "$p/comm" 2>/dev/null)): $t made private, $u of $t unmounted there"
+    # 0.4.50: who holds what stays (owner's Fold, 2026-11-04 22:02: a long-lived sh kept rootfs, proc and
+    # sys, and the failsafe below rebooted): the namespace's processes by name, parent, uid, and the
+    # first unmount error. Read from /proc only (no binder, no ps).
+    if [ $u != $t ]; then
+        say "  first unmount error there: $err"
+        for q in /proc/[0-9]*; do
+            [ "$(readlink "$q/ns/mnt" 2>/dev/null)" = "$n" ] || continue
+            pp=$("$BB" awk '/^PPid:/ {print $2}' "$q/status" 2>/dev/null)
+            say "  holder pid ${q##*/} $(cat "$q/comm" 2>/dev/null) uid $("$BB" awk '/^Uid:/ {print $2}' "$q/status" 2>/dev/null) parent ${pp:-?} $(cat "/proc/$pp/comm" 2>/dev/null) user ns $(readlink "$q/ns/user" 2>/dev/null)"
+        done
+    fi
 done
 [ $SEFS_BEFORE = 0 ] || [ -e /sys/fs/selinux/enforce ] || failsafe "/sys/fs/selinux is gone after the stage unmounts"
 # Nothing of the stage may stay mounted in any process's table (a namespace
@@ -682,7 +694,22 @@ done
 # Props before any One UI daemon reads them: the guest's own (added and
 # overridden ones), what the switch set, then persist.* from the snapshot.
 STAGE=$S /system/bin/sh $S/guest_props.sh remove >> "$IPLOG" 2>&1
-for k in ro.control_privapp_permissions sys.rescue_boot_count crashrecovery.rescue_boot_count \
+# One UI's boot-loop check (0.4.47): crash recovery counts every system_server start in
+# crashrecovery.rescue_boot_count within a 10 minute window (from crashrecovery.rescue_boot_start), and
+# after a mitigation (crashrecovery.boot_mitigation_*) a second start within the window is enough. The
+# guest's crash recovery writes the same properties, and every switch and in-place return starts a
+# system_server without a kernel boot: on the owner's Z Fold8 Ultra (2026-11-04, ColorOS) One UI's
+# rollback observer found UNKNOWN_BOOT_LOOP 4 s after the return, rolled back its Google Play system
+# update (ART, permission modules; on 11-01 tzdata) and rebooted the phone ("Rollback staged
+# install"). persist.sys.disable_rescue stops RescueParty, not the rollback observer. So the window
+# and mitigation state go back to the switch's and One UI's start counts as its first.
+for k in crashrecovery.rescue_boot_start crashrecovery.boot_mitigation_count crashrecovery.boot_mitigation_start \
+         crashrecovery.attempting_reboot crashrecovery.attempting_factory_reset; do
+    put_back "$k"
+done
+"$RP" -n sys.rescue_boot_count 0 2>/dev/null
+"$RP" -n crashrecovery.rescue_boot_count 0 2>/dev/null
+for k in ro.control_privapp_permissions \
          audio.offload.disable audio.deep_buffer.media audio.offload.video vendor.audio.offload.track.enable \
          service.bootanim.exit oneos.guest.powerctl; do
     put_back "$k"

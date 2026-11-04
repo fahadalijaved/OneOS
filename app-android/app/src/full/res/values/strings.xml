@@ -21,7 +21,7 @@
     <string name="home_choose">Choose a system</string>
     <string name="home_system_ready">%1$s is ready</string>
     <string name="home_system_row">Android %1$s · your apps and data are kept</string>
-    <string name="home_advanced">Advanced</string>
+    <string name="home_advanced">Settings</string>
     <string name="home_setting_up">Setting up %1$s · %2$d%%</string>
     <string name="home_setting_up_start">Setting up %1$s</string>
     <string name="home_eta">About %1$d min left</string>
@@ -107,9 +107,9 @@
     <string name="confirm_back_stuck">Stuck on the logo? Hold Power + Volume Down</string>
     <string name="confirm_calls_2g">Calls in %1$s use 2G or 3G.</string>
     <string name="confirm_gms_hidden">Google apps are hidden this time.</string>
-    <string name="confirm_heat_cap_off">Cool down when hot is off: the phone can get very hot (Advanced).</string>
-    <string name="confirm_sec_ims">One UI\'s calling service (VoLTE) is tried in %1$s this time (experimental, Advanced).</string>
-    <string name="confirm_edm_stub">Camera without the Knox wait is off (Advanced): most camera apps in %1$s will time out opening the camera.</string>
+    <string name="confirm_heat_cap_off">Cool down when hot is off: the phone can get very hot (Settings).</string>
+    <string name="confirm_sec_ims">One UI\'s calling service (VoLTE) is tried in %1$s this time (experimental, Settings).</string>
+    <string name="confirm_edm_stub">Camera without the Knox wait is off (Settings): most camera apps in %1$s will time out opening the camera.</string>
     <string name="confirm_setup_wizard">On a new setup, %1$s starts with its own setup screens: skip signing in to Google, and skip the screen lock, fingerprint and face (the phone\'s lock stays One UI\'s).</string>
     <string name="confirm_switch_go">Switch</string>
     <string name="confirm_refused_tail">Nothing changed. One UI keeps running.</string>
@@ -118,11 +118,13 @@
     <string name="confirm_setup_go">Set up</string>
     <string name="confirm_new_setup_msg">Uses about %1$s and takes about 15 minutes. Keep OneOS open and your phone plugged in. One UI keeps working meanwhile.</string>
     <string name="confirm_setup_keep_data">Your %1$s apps and data are kept.</string>
-    <string name="confirm_setup_aside">Your %1$s apps and data are kept as an old copy. You can delete it later in Advanced › Free up space.</string>
-    <string name="confirm_setup_aside_unknown">What is set up now is kept as an old copy. You can delete it later in Advanced › Free up space.</string>
+    <string name="confirm_setup_aside">Your %1$s apps and data are kept as an old copy. You can delete it later in Settings › Free up space.</string>
+    <string name="confirm_setup_aside_unknown">What is set up now is kept as an old copy. You can delete it later in Settings › Free up space.</string>
     <string name="confirm_choose_download">Choose the %1$s download</string>
 
     <!-- What the fix buttons say when they cannot do it themselves. -->
     <string name="fix_open_root_app">Open your root app and allow OneOS.</string>
     <string name="fix_no_app">No app found to open this</string>
+    <!-- 0.4.43 (UX audit): the pre-boot button when a check stops the switch and has nothing to tap. -->
+    <string name="environment_what_stops">What stops the switch</string>
 </resources>

@@ -22,8 +22,8 @@ import org.junit.Test
 class StageStatusTest {
     private val s = RootScript.STAGE
     private val profile = Profiles.S_ULTRA_8850
-    private val image = Images.FIND_X9U
-    private val set = PackageSets.X9U_SULTRA
+    private val image = Images.FIND_X9U_IN
+    private val set = PackageSets.X9U_IN_SULTRA
 
     private fun status(out: Map<String, String>, missing: Set<String> = emptySet(), failed: Set<String> = emptySet()): StageStatus {
         val statuses = StageStatus.OUTPUTS.keys.associateWith { id ->
@@ -39,7 +39,7 @@ class StageStatusTest {
     private val names = RootScript.SCRIPTS + set.names
     private val shas = names.associateWith { Hashes.sha256(it) }
 
-    /** [profile]'s stage prepared with [image] and [set] (by default the S Ultra's, with the X9U CN build). */
+    /** [profile]'s stage prepared with [image] and [set] (by default the S Ultra's, with the Find X9 Ultra IN build). */
     private fun prepared(
         extra: Map<String, String> = emptyMap(),
         image: ImageRef = this.image,
@@ -104,12 +104,13 @@ class StageStatusTest {
         fun problems(extra: Map<String, String>) = status(prepared(extra)).verify(profile, image, set)
         val changed = prepared()["stage.hashes"]!!.replaceFirst(shas.getValue("art_payload.img"), "e".repeat(64))
         assertTrue(problems(mapOf("stage.hashes" to changed)).contains("art_payload.img changed since it was prepared"))
-        val leftover = prepared()["stage.list"] + "f 0 644 10 framework_patched.jar\n"
-        assertTrue(problems(mapOf("stage.list" to leftover)).any { it.startsWith("framework_patched.jar") })
+        // Another system's jar (the IN set has its own framework_patched.jar).
+        val leftover = prepared()["stage.list"] + "f 0 644 10 oneos-telephony.jar\n"
+        assertTrue(problems(mapOf("stage.list" to leftover)).any { it.startsWith("oneos-telephony.jar") })
         val moved = "now ${image.rawBytes} 64773:9999:${image.rawBytes}:1792000001\nid ${image.rawBytes} ${image.rawSha256} 64773:1234:${image.rawBytes}:1792000000\n"
         assertTrue(problems(mapOf("stage.raw" to moved)).contains("system.raw changed since it was verified"))
         val n6 = "now 1 x\nid ${Images.FIND_N6.rawBytes} ${Images.FIND_N6.rawSha256} x\n"
-        assertTrue(problems(mapOf("stage.raw" to n6)).contains("system.raw is not the Find X9 Ultra image"))
+        assertTrue(problems(mapOf("stage.raw" to n6)).contains("system.raw is not the Find X9 Ultra IN image"))
         val env = SessionEnv.generate(profile) + "ONEOS_RETURN_MAX=0\n"
         assertTrue(problems(mapOf("stage.env" to env)).any { it.contains("forbidden key ONEOS_RETURN_MAX") })
     }
@@ -341,8 +342,11 @@ class StageStatusTest {
      */
     @Test
     fun hiddenGoogleServicesOnlyWhereASessionCanHideThem() {
+        // A CN build without Google services: HyperOS since 0.4.51 (the CN Find X9 Ultra build retired).
         val hidden = SessionEnv.generate(profile).replace("ONEOS_GUEST_HIDE_GMS=0", "ONEOS_GUEST_HIDE_GMS=1")
-        assertTrue(status(prepared(mapOf("stage.env" to hidden))).verify(profile, image, set).any { it.contains("has no Google services") })
+        val hyper = Images.HYPEROS_LHASA
+        val hyperSet = PackageSets.HYPER_F8U
+        assertTrue(status(prepared(mapOf("stage.env" to hidden), image = hyper, set = hyperSet)).verify(profile, hyper, hyperSet).any { it.contains("has no Google services") })
         val fold = Profiles.F8U
         val pixel = Images.PIXEL_YOGI
         val pixelSet = PackageSets.PIXEL_F8U

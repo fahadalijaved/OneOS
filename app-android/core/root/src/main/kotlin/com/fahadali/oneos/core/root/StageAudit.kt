@@ -407,12 +407,13 @@ object ShellScan {
  * phone's user data, reboots, settings, package wipes or mounts.
  */
 object StageAudit {
-    val VERBS = listOf("begin", "receive", "keep-raw", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove")
+    val VERBS = listOf("begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "selfupdate")
 
     val ALLOWED: Set<String> = setOf(
         "umask", "[", "echo", "printf", "id", "stat", "awk", "sed", "grep", "sort", "head", "tail", "cut", "tr", "wc",
         "cat", "ls", "mkdir", "mv", "cp", "rm", "chown", "chmod", "sha256sum", "date", "getprop", "pm", "getevent", "du",
         "env", "unset", "export", "set", "read", "exit", "return", "shift", "true", "false", "break", "continue", "exec",
+        "trap", "am",
     )
 
     private val WRITES = setOf("mkdir", "mv", "cp", "rm", "chown", "chmod")
@@ -425,7 +426,7 @@ object StageAudit {
     )
 
     /** Path expressions that are the stage or under it (variables the audit checks the assignments of). */
-    private val STAGE_VARS = setOf("STAGE", "ATTIC", "PLAN", "RECEIVED", "part", "dst", "S", "F")
+    private val STAGE_VARS = setOf("STAGE", "ATTIC", "PLAN", "RECEIVED", "part", "dst", "S", "F", "upd", "upapk")
 
     /** Helpers that write their first argument; their call sites must pass a stage path. */
     private val WRITE_HELPERS = setOf("own", "mkdir_mine")
@@ -444,6 +445,18 @@ object StageAudit {
      * `$TRASH` its `oneos.trash-<epoch>` sibling, `$OLD_PARENT` is
      * `$DATA/local/tmp`; the only `rm -r` in the script is `rm -rf "$TRASH"`.
      */
+    /**
+     * The app's own update (do_selfupdate only, 0.4.41): its one read outside the
+     * stage is `$upsrc`, exactly the APK the app downloaded into its files, copied
+     * into the stage before anything else uses it; `pm install` takes only the
+     * stage copy with the app's package name, `am start` opens only the app, and
+     * `trap` only ignores SIGPIPE. Nowhere else does the script name `$DATA/user`.
+     */
+    private const val SELFUPDATE_FUNCTION = "do_selfupdate"
+    private const val UPSRC_VALUE = "\"\$DATA/user/0/\$APP_PACKAGE/files/oneos-update/OneOS.apk\""
+    private val SELFUPDATE_PM = listOf("install", "-r", "--pkg", "\"\$APP_PACKAGE\"", "\"\$upapk\"")
+    private val SELFUPDATE_AM = listOf("start", "-n", "\"\$APP_PACKAGE/.ui.MainActivity\"")
+
     private const val PURGE_FUNCTION = "purge_one"
     private val PURGE_VARS = setOf("OLDDIR", "TRASH")
     private const val PURGE_RM = "rm -rf \"\$TRASH\""
@@ -506,6 +519,8 @@ object StageAudit {
         for (bad in FORBIDDEN_TEXT) {
             if (Regex("(?<![A-Za-z0-9_])" + Regex.escape(bad)).containsMatchIn(textCode)) p += "mentions '$bad'"
         }
+        val userMentions = Regex("\\$\\{?DATA\\}?/user").findAll(textCode).count()
+        if (userMentions > 1) p += "names \$DATA/user $userMentions times (only upsrc may)"
         val scan = ShellScan.scan(code)
         p += scan.problems
         val functions = scan.functions
@@ -531,6 +546,7 @@ object StageAudit {
                 "S" -> if (a.value != RootScript.STAGE && a.value != "\$L" && !a.value.matches(Regex("^/[A-Za-z0-9._/-]+$"))) p += "line ${a.line}: S=${a.value}"
                 "L" -> if (a.value != RootScript.LEGACY_STAGE && !a.value.matches(Regex("^/[A-Za-z0-9._/-]+$"))) p += "line ${a.line}: L=${a.value}"
                 "OLD" -> if (!v.startsWith("\$STAGE.old-") && !self) p += "line ${a.line}: OLD=${a.value}"
+                "upsrc" -> if (a.value != UPSRC_VALUE || a.function != SELFUPDATE_FUNCTION) p += "line ${a.line}: upsrc=${a.value}"
                 "OLD_PARENT" -> if (a.value != "\"\$DATA/local/tmp\"") p += "line ${a.line}: OLD_PARENT=${a.value}"
                 "OLDDIR" -> if (a.value != "\"\$OLD_PARENT/\$1\"" || a.function != PURGE_FUNCTION) p += "line ${a.line}: OLDDIR=${a.value}"
                 "RFROM" -> if (a.value != "\"\$OLD_PARENT/\$1\"" || a.function != RESTORE_FUNCTION) p += "line ${a.line}: RFROM=${a.value}"
@@ -560,7 +576,11 @@ object StageAudit {
                     val purge = c.function == PURGE_FUNCTION && args == listOf("-rf", "\"\$TRASH\"")
                     if (!purge) args.filter { it.startsWith("-") }.forEach { if (it != "-f") p += "line ${c.line}: rm $it" }
                 }
-                "pm" -> if (args.firstOrNull() != "path" || args.size != 2) p += "line ${c.line}: pm ${args.joinToString(" ")}"
+                "pm" -> if (!(args.firstOrNull() == "path" && args.size == 2) && !(args == SELFUPDATE_PM && c.function == SELFUPDATE_FUNCTION)) {
+                    p += "line ${c.line}: pm ${args.joinToString(" ")}"
+                }
+                "am" -> if (args != SELFUPDATE_AM || c.function != SELFUPDATE_FUNCTION) p += "line ${c.line}: am ${args.joinToString(" ")}"
+                "trap" -> if (args != listOf("''", "PIPE")) p += "line ${c.line}: trap ${args.joinToString(" ")}"
                 "getevent" -> if (args != listOf("-pl")) p += "line ${c.line}: getevent ${args.joinToString(" ")}"
                 "exec" -> if (args.firstOrNull()?.endsWith("/system/bin/sh") != true && args.firstOrNull() != "@SH@") p += "line ${c.line}: exec ${args.firstOrNull()}"
                 "sed" -> if (args.any { it == "-i" || it.startsWith("-i") }) p += "line ${c.line}: sed -i"

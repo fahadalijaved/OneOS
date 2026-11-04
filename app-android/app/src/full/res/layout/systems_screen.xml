@@ -2,6 +2,15 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">
 <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
     <TextView android:id="@+id/systems_hero_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp" android:textAppearance="?android:attr/textAppearanceSmall" android:visibility="gone" />
+    <!-- 0.4.47 (owner: "the update bar is so small"): a newer OneOS as a banner, not a text line. -->
+    <LinearLayout android:id="@+id/systems_update_banner" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="16dp" android:layout_marginTop="8dp" android:background="@drawable/systems_update_banner_bg" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:minHeight="72dp" android:orientation="horizontal" android:paddingHorizontal="16dp" android:paddingVertical="14dp" android:visibility="gone">
+        <ImageView android:id="@+id/systems_update_icon" android:layout_width="40dp" android:layout_height="40dp" android:importantForAccessibility="no" android:src="@drawable/ic_oneos_update" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginHorizontal="14dp" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:id="@+id/systems_update_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="?android:attr/textColorPrimary" android:textSize="17sp" android:textStyle="bold" />
+            <TextView android:id="@+id/systems_update_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:maxLines="3" android:ellipsize="end" android:textColor="?android:attr/textColorSecondary" android:textSize="14sp" />
+        </LinearLayout>
+        <TextView android:id="@+id/systems_update_action" android:layout_width="wrap_content" android:layout_height="40dp" android:background="@drawable/oneos_button_primary_bg" android:gravity="center" android:minWidth="88dp" android:paddingHorizontal="18dp" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:importantForAccessibility="no" />
+    </LinearLayout>
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/systems_carousel" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:clipToPadding="false" android:paddingHorizontal="0dp" android:paddingTop="12dp" android:paddingBottom="20dp" />
 </LinearLayout>
 

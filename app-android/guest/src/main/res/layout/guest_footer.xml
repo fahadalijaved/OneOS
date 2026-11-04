@@ -1,3 +1,5 @@
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/guest_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom" android:paddingVertical="12dp">
-    <androidx.appcompat.widget.AppCompatButton android:id="@+id/back" style="@style/OneUI.ContainedButton" android:theme="@style/OneUI.ContainedPrimaryColorButtonTheme" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center_horizontal" android:text="@string/return_shortcut" />
-</FrameLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/guest_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom" android:orientation="vertical" android:gravity="center_horizontal" android:paddingVertical="12dp">
+    <!-- 0.4.43 (UX audit): what the button does, before it is tapped. -->
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/back_caption" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxWidth="480dp" android:paddingHorizontal="24dp" android:paddingBottom="10dp" android:gravity="center" android:textSize="14sp" android:textColor="?android:attr/textColorSecondary" android:text="@string/back_caption" />
+    <androidx.appcompat.widget.AppCompatButton android:id="@+id/back" style="@style/OneUI.ContainedButton" android:theme="@style/OneUI.ContainedPrimaryColorButtonTheme" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/back" />
+</LinearLayout>

@@ -1,7 +1,7 @@
 # OneOS package set hyper-f8u: sha256sum of out/overlays_hyperos_r13 (scripts/make-overlays.sh, 2026-10-31; 0.4.39 r12: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03; 0.4.40 r13: libsurfaceflinger_patched.so with patches/hyperos_dolby_mapper.py), minus tethering_payload.img.
 # app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_r13 differs.
 0baff1b12c489eaa379df95c700bb42ed3025177c64d6da6357163e754e05401  MiWallpaper_patched.apk
-0b82108e50906dc6f4820b2a47cf471be81020ec6ea8b2fad14d99c16272eaa8  OneOSGuest.apk
+bd03c424877de86c2864313ba3371d3725b3d5531559373aadc84d592f9cae0c  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
 086ed0fd44f1169f29a0f6dc1378b9c5530f7c9edf54e7f093b24c326b2239dc  adservices_payload.img
 5e70dbe022ca34bca76c5da686d20263f527edea54e433ba0758d46462b8679b  apprecovery.proinstaller_patched.jar

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.4.47: the launch screen's update banner (a OneOS card in a tint of OneOS blue). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?android:attr/colorControlHighlight">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/oneos_update_banner" />
+            <corners android:radius="@dimen/oneos_card_radius" />
+        </shape>
+    </item>
+</ripple>

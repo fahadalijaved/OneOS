@@ -6,6 +6,10 @@
     <!-- Card blurbs and a pending step's title (10.9:1 on the card). -->
     <color name="oneos_text_body">#3D3D3D</color>
 
+    <!-- 0.4.47: the update banner on the launch screen (OneOS blue, a tint of it for the card). -->
+    <color name="oneos_update_banner">#E4ECFB</color>
+    <color name="oneos_update_banner_icon">#1C5FD6</color>
+
     <!-- Setting up: the ring's track (decorative; the arc in
          oneos_primary_text is the indicator) and a pending step's circle
          (3.1:1 on the card). -->

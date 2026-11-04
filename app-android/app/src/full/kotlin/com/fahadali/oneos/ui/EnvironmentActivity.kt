@@ -247,9 +247,13 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             else FixActions.run(this, FixAction.SEND_REPORT, image)
         }.also { Cards.setRowEnd(it, Icons.drawable.ic_oui_keyboard_arrow_right) }
         val blocked = report?.gates?.firstOrNull { it.level == Level.BLOCK }
+        // What stops the switch, in plain words: the button below offers its fix instead of a Boot that only
+        // re-ran the check (0.4.43, UX audit).
+        var blockPlain: com.fahadali.oneos.core.model.PlainMessage? = null
         if (!preview && blocked != null && currentFacts != null &&
             (maintenance == null || blocked.finding.reason != report.find(com.fahadali.oneos.core.model.SwitchGates.ID_IMAGE)?.finding?.reason)) {
             val plain = Plain.of(blocked.finding, report, currentFacts)
+            if (maintenance == null) blockPlain = plain
             Cards.row(Cards.section(column, null, rows = true), Cards.badge(Level.BLOCK), plain.title, plain.line) {
                 FixActions.run(this, plain.action, image)
             }
@@ -272,7 +276,9 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         if (!preview && !checking && result != null && StageCheck.state.phase == StageCheck.Phase.DONE)
             window.decorView.postDelayed(recheck, (Readiness.CHECK_AGE_MS - result.ageMs).coerceAtLeast(0L) + 500L)
         findViewById<Button>(R.id.environment_boot).apply {
+            val fix = blockPlain?.takeIf { !checking }
             text = if (result?.status?.pendingUpdate != null && maintenance != null) getString(R.string.retry_update)
+                else if (fix != null) fix.actionLabel ?: getString(R.string.environment_what_stops)
                 else getString(if (maintenance != null) R.string.environment_update else R.string.environment_boot, image.name)
             // Tappable whenever no check runs: a tap on a check that ran out starts a fresh one (below).
             // Disabled, an expired check left the button dead until the screen was left (0.4.38, F8U).
@@ -282,6 +288,17 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             setTextColor(if (checking) ColorStateList.valueOf(Color.TRANSPARENT) else actionTextColors)
             contentDescription = if (checking) getString(R.string.environment_checking) else text
             setOnClickListener {
+                if (fix != null) {
+                    if (fix.actionLabel == null || fix.action == com.fahadali.oneos.core.model.FixAction.NONE ||
+                        fix.action == com.fahadali.oneos.core.model.FixAction.ACKNOWLEDGE
+                    ) {
+                        androidx.appcompat.app.AlertDialog.Builder(this@EnvironmentActivity).setTitle(fix.title).setMessage(fix.line)
+                            .setPositiveButton(android.R.string.ok, null).show()
+                    } else {
+                        FixActions.run(this@EnvironmentActivity, fix.action, image)
+                    }
+                    return@setOnClickListener
+                }
                 if (!readyToBoot()) {
                     Readiness.tick(this@EnvironmentActivity)
                     render()

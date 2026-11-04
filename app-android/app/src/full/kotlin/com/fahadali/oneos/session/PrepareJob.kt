@@ -58,6 +58,7 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
     enum class Step(val label: String, val userStep: UserStep) {
         CHECK("Check this phone and the stage", UserStep.CHECK_DOWNLOAD),
         HASH("Check the download", UserStep.CHECK_DOWNLOAD),
+        DOWNLOAD("Download this system's OneOS files", UserStep.CHECK_DOWNLOAD),
         BEGIN("Stage folder", UserStep.INSTALL),
         IMAGE("System image", UserStep.INSTALL),
         FILES("OneOS files and session scripts", UserStep.FINISH),
@@ -96,6 +97,9 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         val bytesTotal: Long = 0,
         /** Seconds left (moving average of the byte rate); null = still estimating (the first 30 s). */
         val etaSeconds: Int? = null,
+        /** The current step's own progress (0.4.41): bytes of this step done, of [stepTotal] (0 = not measured). */
+        val stepDone: Long = 0,
+        val stepTotal: Long = 0,
         /** The gate that refused before anything was written, for Details. */
         val finding: Finding? = null,
         /** Why it failed or stopped, in plain words. */
@@ -104,6 +108,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         val busy: Boolean get() = phase == Phase.RUNNING
         val userStep: UserStep? get() = step?.userStep
         val percent: Int? get() = if (bytesTotal > 0) (bytesDone * 100 / bytesTotal).toInt().coerceIn(0, 100) else null
+        /** The current step's own share done, 0..1, or null when the step does not measure bytes. */
+        val stepFraction: Float? get() = if (stepTotal > 0) (stepDone.toDouble() / stepTotal).toFloat().coerceIn(0f, 1f) else null
     }
 
     @Volatile private var cancelled = false
@@ -114,6 +120,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         cancelled = false
         Rate.reset()
         update(State(Phase.RUNNING, Step.CHECK, detail = "Checking root…"))
+        lastBytesUpdateMs = 0L
+        PrepareService.start(app)
         executor.execute {
             try {
                 run(app, plan)
@@ -157,7 +165,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
 
     private fun step(s: Step, detail: String? = null) {
         if (cancelled) throw Stop(STOPPED)
-        update(state.copy(step = s, done = state.done + (state.step?.takeIf { it != s }?.let { setOf(it) } ?: emptySet()), detail = detail))
+        update(state.copy(step = s, done = state.done + (state.step?.takeIf { it != s }?.let { setOf(it) } ?: emptySet()), detail = detail,
+            stepDone = 0, stepTotal = 0))
     }
 
     private fun detail(d: String) = update(state.copy(detail = d))
@@ -197,10 +206,22 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         }
     }
 
-    /** [base] bytes of the steps before this one plus [n] of this one. */
-    private fun bytes(base: Long, n: Long) {
+    /** When the screen last got a byte count: at most [UPDATE_MS] apart (0.4.41). */
+    @Volatile private var lastBytesUpdateMs = 0L
+    private const val UPDATE_MS = 250L
+
+    /**
+     * [base] bytes of the steps before this one plus [n] of this one. The screen hears of it at
+     * most every [UPDATE_MS], or when [force]: one update per network chunk kept a CPU core busy
+     * redrawing the setup screen and slowed the 0.4.41 download to a sixth of the phone's speed.
+     */
+    private fun bytes(base: Long, n: Long, stepDone: Long = state.stepDone, force: Boolean = false, detail: (() -> String)? = null) {
         val done = base + n
-        update(state.copy(bytesDone = done, etaSeconds = Rate.eta(done, state.bytesTotal)))
+        val eta = Rate.eta(done, state.bytesTotal)
+        val now = SystemClock.elapsedRealtime()
+        if (!force && now - lastBytesUpdateMs < UPDATE_MS) return
+        lastBytesUpdateMs = now
+        update(state.copy(bytesDone = done, etaSeconds = eta, stepDone = stepDone, detail = detail?.invoke() ?: state.detail))
     }
 
     private fun verb(
@@ -272,8 +293,9 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         if (hashNeeded) {
             val p = picked
             step(Step.HASH, "Checking the download…")
+            update(state.copy(stepTotal = gzBytes))
             val (sha, n) = try {
-                ImageHash.of(app, p.uri, { cancelled }) { read -> bytes(0, read) }
+                ImageHash.of(app, p.uri, { cancelled }) { read -> bytes(0, read, stepDone = read) }
             } catch (e: InterruptedException) {
                 throw Stop(STOPPED)
             } catch (e: java.io.IOException) {
@@ -312,6 +334,78 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         val filesBytes = files.sumOf { it.bytes }
         update(state.copy(bytesTotal = base + (if (onPhone) 0L else image.gzBytes) + filesBytes))
 
+        // 2b. (0.4.41) The set's files this app does not carry, downloaded by hash before the
+        // stage is touched: a failed or stopped download leaves the phone as it was.
+        val downloads = AppAssets.toDownload(app, files)
+        if (downloads.isNotEmpty()) {
+            step(Step.DOWNLOAD)
+            val need = downloads.sumOf { it.first.bytes }
+            update(state.copy(bytesTotal = state.bytesTotal + need, stepTotal = need))
+            val free = SetDownloader.dir(app).usableSpace
+            if (free < need + 256L * 1024 * 1024) {
+                throw Stop("Not enough free space for this system's OneOS files: ${Units.bytes(need)} to download, ${Units.bytes(free)} free.")
+            }
+            // (0.4.42) Three at a time: Drive took 16-80 s to start some files (one at a time, the
+            // screen sat still that long); the others keep coming meanwhile.
+            val partial = java.util.concurrent.atomic.AtomicLongArray(downloads.size)
+            val finished = java.util.concurrent.atomic.AtomicInteger(0)
+            val lastByteAt = java.util.concurrent.atomic.AtomicLong(SystemClock.elapsedRealtime())
+            val abort = java.util.concurrent.atomic.AtomicBoolean(false)
+            // The first failure that was not caused by the abort itself (0.4.42 review: a sibling's
+            // "stopped" was reported instead of Drive's quota page or a damaged file).
+            val firstFailure = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+            val connections: MutableSet<java.net.HttpURLConnection> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+            val started = SystemClock.elapsedRealtime()
+            val pool = java.util.concurrent.Executors.newFixedThreadPool(minOf(3, downloads.size)) { r -> Thread(r, "oneos-download") }
+            val stepBase = base
+            try {
+                val futures = downloads.mapIndexed { i, (f, id) ->
+                    pool.submit {
+                        try {
+                            SetDownloader.fetch(app, f, id, { cancelled || abort.get() }, connections) { n ->
+                                partial.set(i, n)
+                                lastByteAt.set(SystemClock.elapsedRealtime())
+                            }
+                        } catch (e: Throwable) {
+                            if (!abort.get() && !cancelled) firstFailure.compareAndSet(null, e)
+                            abort.set(true)
+                            throw e
+                        }
+                        partial.set(i, f.bytes)
+                        finished.incrementAndGet()
+                    }
+                }
+                while (futures.any { !it.isDone }) {
+                    try { Thread.sleep(250) } catch (e: InterruptedException) { abort.set(true); throw Stop(STOPPED) }
+                    if (cancelled) { abort.set(true); throw Stop(STOPPED) }
+                    // A failed file ends the step at once (the others stop at their next read).
+                    if (abort.get()) break
+                    var got = 0L
+                    for (i in 0 until partial.length()) got += partial.get(i)
+                    val now = SystemClock.elapsedRealtime()
+                    val idle = (now - lastByteAt.get()) / 1000
+                    val secs = (now - started) / 1000.0
+                    val rate = if (secs >= 2 && idle < 3) " · ${Units.bytes((got / secs).toLong())}/s" else ""
+                    val waiting = if (idle >= 3) " · waiting for Google Drive ${idle} s" else ""
+                    bytes(stepBase, got, stepDone = got, force = true) {
+                        "${finished.get()} of ${downloads.size} files · ${Units.bytes(got)} of ${Units.bytes(need)}$rate$waiting"
+                    }
+                }
+                firstFailure.get()?.let { throw Stop("Downloading this system's OneOS files: ${it.message ?: it}") }
+                if (abort.get() || cancelled) throw Stop(STOPPED)
+            } finally {
+                // Stopped or failed: close the live connections so blocked reads end now, and wait for
+                // the threads, so a setup started again never shares a .part with one of them.
+                abort.set(true)
+                pool.shutdownNow()
+                connections.forEach { runCatching { it.disconnect() } }
+                if (!pool.awaitTermination(15, java.util.concurrent.TimeUnit.SECONDS)) {
+                    android.util.Log.w("OneOS", "download threads still running after a stop")
+                }
+            }
+            base += need
+        }
+
         // 3. begin.
         step(Step.BEGIN, "Making the stage OneOS's…")
         verb(app, Step.BEGIN, RootScript.Verb.BEGIN, listOf(mode.word, profile.id, image.id, set.id, code))
@@ -323,12 +417,14 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         } else {
             val uri = picked?.uri ?: throw Stop("Pick the image first.")
             step(Step.IMAGE, "Unpacking the download…")
+            update(state.copy(stepTotal = image.gzBytes))
             val imageBase = base
             val feed = ImageFeed(app, uri, image) { gz ->
-                bytes(imageBase, gz)
                 // In Double: gz * rawBytes passes Long's range after about 1.2 GB of
                 // a large image's .gz, and the label showed wrong sizes and "?" (2026-10-25).
-                detail("${Units.bytes((gz.toDouble() / image.gzBytes * image.rawBytes).toLong())} of ${Units.bytes(image.rawBytes)}")
+                bytes(imageBase, gz, stepDone = gz) {
+                    "${Units.bytes((gz.toDouble() / image.gzBytes * image.rawBytes).toLong())} of ${Units.bytes(image.rawBytes)}"
+                }
             }
             verb(
                 app, Step.IMAGE, RootScript.Verb.RECEIVE, listOf(RootScript.RAW_NAME, image.rawBytes.toString(), image.rawSha256), feed,
@@ -338,18 +434,41 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
             base += image.gzBytes
         }
 
-        // 5. Scripts and files, each hashed while it streams.
-        step(Step.FILES)
-        for ((i, f) in files.withIndex()) {
-            detail("${i + 1} of ${files.size}: ${f.name} (${Units.bytes(f.bytes)})")
+        // 5. Scripts and files, each hashed while it streams. (0.4.42) Root first keeps the ones the
+        // stage already holds byte for byte (keep-files: one call with the whole list instead of a
+        // root call and a full copy per file; finish hashes all of them again).
+        step(Step.FILES, "Checking what the stage already has…")
+        update(state.copy(stepTotal = filesBytes))
+        val keptNames: Set<String> = if (mode == RootScript.BeginMode.KEEP) {
+            val list = files.joinToString("") { "${it.sha256}  ${it.name}\n" }.toByteArray()
+            val r = verb(app, Step.FILES, RootScript.Verb.KEEP_FILES, listOf(list.size.toString()), RootShell.Feed { it.write(list) })
+            r.reply.results.filter { it.startsWith("kept ") }.map { it.removePrefix("kept ") }.toSet()
+        } else {
+            emptySet()
+        }
+        val toSend = files.filter { it.name !in keptNames }
+        var sentFiles = files.filter { it.name in keptNames }.sumOf { it.bytes }
+        base += sentFiles
+        bytes(base, 0, stepDone = sentFiles, force = true) {
+            if (toSend.isEmpty()) "All ${files.size} files already in place" else "${keptNames.size} of ${files.size} already in place"
+        }
+        for ((i, f) in toSend.withIndex()) {
+            val fileBase = base
+            val stepBase = sentFiles
+            // "File 3 of 9 · 120 MB of 600 MB": files sent of those that changed, bytes of the whole set.
+            fun line(n: Long) = "File ${i + 1} of ${toSend.size} · ${Units.bytes(stepBase + n)} of ${Units.bytes(filesBytes)}"
+            bytes(fileBase, 0, stepDone = stepBase, force = true) { line(0) }
             val md = MessageDigest.getInstance("SHA-256")
             var sent = 0L
             verb(app, Step.FILES, RootScript.Verb.RECEIVE, listOf(f.name, f.bytes.toString(), f.sha256), RootShell.Feed { out ->
-                AppAssets.open(app, f).use { input -> sent = copy(input, out, md) }
+                AppAssets.open(app, f).use { input ->
+                    sent = copy(input, out, md) { n -> bytes(fileBase, n, stepDone = stepBase + n) { line(n) } }
+                }
             })
             if (sent != f.bytes || Hashes.hex(md.digest()) != f.sha256) throw Stop("${f.name} in the app is damaged")
             base += f.bytes
-            bytes(base, 0)
+            sentFiles += f.bytes
+            bytes(base, 0, stepDone = sentFiles, force = true) { line(f.bytes) }
         }
 
         // 6. installd table, 7. session.env.
@@ -373,6 +492,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         StageCheck.publish(check.copy(status = after, oldSwitcher = RootProbe(app).oldSwitcherInstalled(), at = SystemClock.elapsedRealtime()))
         val problems = after.verify(profile, image, set)
         if (problems.isNotEmpty()) throw Stop("The prepared stage does not check out: ${problems.first()}")
+        // Downloads no list of this app names any more (a set before an update) go.
+        runCatching { SetDownloader.prune(app, AppAssets.allSetHashes(app)) }
         update(
             state.copy(
                 phase = Phase.DONE, step = null, done = Step.entries.toSet(), detail = null, bytesDone = state.bytesTotal, etaSeconds = 0,
@@ -381,7 +502,7 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         )
     }
 
-    private fun copy(input: InputStream, out: OutputStream, md: MessageDigest): Long {
+    private fun copy(input: InputStream, out: OutputStream, md: MessageDigest, progress: (Long) -> Unit = {}): Long {
         val buf = ByteArray(1 shl 16)
         var n = 0L
         while (true) {
@@ -390,6 +511,7 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
             md.update(buf, 0, r)
             out.write(buf, 0, r)
             n += r
+            progress(n)
         }
         out.flush()
         return n

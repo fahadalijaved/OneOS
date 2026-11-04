@@ -98,14 +98,20 @@ data class ImageRef(
  * Ultra IN build (`coloros17-findx9u-in`); 0.4.11 takes it again.
  */
 object Images {
-    /** Where the images come from: the README (this repository does not host them). */
-    const val SHARED_FOLDER_URL = "https://github.com/fahadalijaved/OneOS#where-the-images-come-from"
+    /**
+     * The owner's shared folder the images are downloaded from (owner, 2026-10-24: no in-app download yet).
+     * 0.4.41: the owner's Google Drive ("safer and easier for users"); 0.4.42: every image is there
+     * (scripts/gofile-to-drive.py checked each against its pinned size and SHA-256).
+     */
+    const val SHARED_FOLDER_URL = "https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv"
+
+    /** The gofile folder every image up to 0.4.40 was uploaded to; a manual mirror now, not linked from the app. */
+    const val GOFILE_FOLDER_URL = "https://github.com/fahadalijaved/OneOS#where-the-images-come-from"
 
     /** What fixed texts say when no image is known: they never name a system. */
     const val OTHER_SYSTEM = "the other system"
 
     const val ID_FIND_N6 = "coloros17-findn6"
-    const val ID_FIND_X9U = "coloros17-findx9u"
     const val ID_FIND_X9U_IN = "coloros17-findx9u-in"
     const val ID_PIXEL_YOGI = "pixel11fold-yogi"
     const val ID_PIXEL_KODIAK = "pixel11pro-kodiak"
@@ -143,30 +149,6 @@ object Images {
         cpuRequired = emptyList(),
         cpuUsedByApps = listOf("sve2", "sme"),
         googleServices = true,
-        family = SystemFamily.COLOROS,
-    )
-
-    val FIND_X9U = ImageRef(
-        id = ID_FIND_X9U,
-        label = "ColorOS 17, Find X9 Ultra build",
-        shortName = "Find X9 Ultra",
-        name = "ColorOS 17",
-        variant = "Find X9 Ultra build",
-        blurb = "OPPO's system from the Find X9 Ultra. No Google apps.",
-        downloadUrl = SHARED_FOLDER_URL,
-        sdk = 37,
-        buildId = "CP2A.260605.016",
-        gzName = "OneOS_ColorOS17_FindX9Ultra_S26U.img.gz",
-        gzBytes = 5_290_346_735L,
-        gzSha256 = "9796d27676dfd709ab4b26caf30fa19bc78ab2a24f5cf19e974a3e8708e919fe",
-        rawBytes = 10_385_141_760L,
-        rawSha256 = "302467fc4e77998e84c10e037326508a39ab9e4be34058b751f0a768c7ff23e7",
-        testedOn = "Galaxy S25, S25 Ultra and S26 Ultra",
-        // The scan of this image: SVE/SME only in bionic's guarded routines
-        // (runtime-selected) and some OPPO app and media libraries.
-        cpuRequired = emptyList(),
-        cpuUsedByApps = listOf("sve2", "sme"),
-        googleServices = false,
         family = SystemFamily.COLOROS,
     )
 
@@ -414,7 +396,7 @@ object Images {
         family = SystemFamily.NOTHING,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 
@@ -424,7 +406,10 @@ object Images {
      * remembered download). None since 0.4.11: the Find X9 Ultra IN build,
      * dropped in 0.3.7, is back in [ALL].
      */
-    val RETIRED: List<RetiredImage> = emptyList()
+    val RETIRED: List<RetiredImage> = listOf(
+        // 0.4.51: the debloated Find X9 Ultra build (0.4.11 to 0.4.50); the full IN build takes its phones.
+        RetiredImage("coloros17-findx9u", "Find X9 Ultra", "OneOS_ColorOS17_FindX9Ultra_S26U.img.gz", 5_290_346_735L, 10_385_141_760L),
+    )
 
     /** "Find N6", a retired image's name, or the id itself when no build knew it. */
     fun shortName(id: String, images: List<ImageRef> = ALL, retired: List<RetiredImage> = RETIRED): String =

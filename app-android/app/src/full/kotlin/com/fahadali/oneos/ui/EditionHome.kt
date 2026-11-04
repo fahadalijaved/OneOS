@@ -47,6 +47,7 @@ import com.fahadali.oneos.core.root.HomeState
 import com.fahadali.oneos.core.root.LastSession
 import com.fahadali.oneos.core.root.OldStage
 import com.fahadali.oneos.core.root.OutcomeKind
+import com.fahadali.oneos.session.AppUpdater
 import com.fahadali.oneos.session.LaunchJob
 import com.fahadali.oneos.session.LogJob
 import com.fahadali.oneos.session.OldStagesJob
@@ -72,6 +73,12 @@ internal object EditionHome {
 
     fun redirect(a: MainActivity): android.content.Intent? {
         if (a.intent.getBooleanExtra("system_detail", false)) return null
+        // The app opens on the system carousel (pull request #3's redesign). Only One UI's settings to
+        // restore open the status Home, whose hero has the Restore button. 0.4.43 also opened it after a
+        // session until Welcome back was seen, but Welcome back is marked seen only when it is the hero:
+        // with root off or an update on offer above it, every launch stayed on the status Home and the
+        // carousel looked gone (owner, 0.4.45). Welcome back stays on the status Home (Last session).
+        if (SessionPrefs.homeSnapshot(a)?.kind == HomeState.Kind.RESTORE) return null
         return Intent(a, LauncherActivity::class.java)
     }
 
@@ -190,12 +197,30 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         super.onDestroyView()
     }
 
+    /** One redraw for a burst of job updates (0.4.41): setup's byte counts arrive several times a second. */
+    private var redrawPending = false
+    private val coalescedRedraw = Runnable {
+        redrawPending = false
+        if (isAdded) {
+            redraw()
+            Readiness.tick(requireContext())
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         val onChange: (Any) -> Unit = {
-            if (isAdded) {
-                redraw()
-                Readiness.tick(requireContext())
+            val v = view
+            if (isAdded && v != null) {
+                // While a job runs, at most every 500 ms (the 0.4.41 download froze Home and its
+                // buttons redrawing for every chunk); a job's start and end redraw at once.
+                if (PrepareJob.state.busy || LogJob.state.busy) {
+                    // A throttle, not a debounce: updates every 250 ms must not keep pushing it back.
+                    if (!redrawPending) { redrawPending = true; v.postDelayed(coalescedRedraw, 500) }
+                } else {
+                    v.removeCallbacks(coalescedRedraw)
+                    coalescedRedraw.run()
+                }
             }
         }
         subs += StageCheck.observe(onChange)
@@ -203,16 +228,20 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         subs += LaunchJob.observe(onChange)
         subs += LogJob.observe(onChange)
         subs += OldStagesJob.observe(onChange)
+        subs += AppUpdater.observe(onChange)
     }
 
     override fun onResume() {
         super.onResume()
         // Back from Settings (screen lock removed?), from the root app, or a new open: read again.
         Readiness.onResume(requireContext())
+        AppUpdater.check(requireContext())
         redraw()
     }
 
     override fun onStop() {
+        view?.removeCallbacks(coalescedRedraw)
+        redrawPending = false
         subs.forEach { it() }
         subs.clear()
         welcomeShownFor?.let { SessionPrefs.setWelcomeSeen(requireContext(), it) }
@@ -265,6 +294,8 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
                 picked = FixActions.pickedImage(ctx, report?.profile),
                 // A cold start: the last known Home, read-only, until this start's first check ends.
                 cached = Readiness.coldStartHome(ctx),
+                appUpdate = appUpdateOffer(report?.image ?: check.result?.status?.marker?.imageId?.let(Images::byId), report?.profile),
+                appUpdateBusy = AppUpdater.state.phase == AppUpdater.Phase.DOWNLOADING || AppUpdater.state.phase == AppUpdater.Phase.INSTALLING,
             ),
         )
         return Now(state, report, facts)
@@ -299,10 +330,19 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
 
     private fun hero(root: View, s: HomeState, showChecks: Boolean) {
         val outcome = s.last?.outcome?.takeIf { s.kind == HomeState.Kind.WELCOME_BACK }
-        root.findViewById<OsArtworkView>(R.id.home_hero_art).apply { bind(s.image); visibility = if (outcome == null) View.VISIBLE else View.GONE }
+        // No system in play (checking, nothing set up, no root, an unsupported phone): the OneOS mark, not
+        // another system's artwork (the fallback was ColorOS's, with its name painted on; 0.4.43, UX audit).
+        val noSystem = s.image == null && outcome == null
+        root.findViewById<OsArtworkView>(R.id.home_hero_art).apply {
+            if (!noSystem) bind(s.image)
+            visibility = if (outcome == null && !noSystem) View.VISIBLE else View.GONE
+        }
         root.findViewById<ImageView>(R.id.home_hero_badge).apply {
-            visibility = if (outcome != null) View.VISIBLE else View.GONE
-            if (outcome != null) setImageResource(if (outcome.good) R.drawable.home_welcome_ok else R.drawable.home_welcome_warn)
+            visibility = if (outcome != null || noSystem) View.VISIBLE else View.GONE
+            when {
+                outcome != null -> setImageResource(if (outcome.good) R.drawable.home_welcome_ok else R.drawable.home_welcome_warn)
+                noSystem -> setImageResource(R.drawable.ic_oneos_mark)
+            }
         }
         val (title, line) = heroText(s)
         root.findViewById<TextView>(R.id.home_hero_title).text = title
@@ -581,6 +621,35 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         }
     }
 
+    /**
+     * A newer OneOS (0.4.42, [AppUpdater]) as Home's hero: "Update for ColorOS 17" when the release
+     * changes the files of the system set up here, else "OneOS 0.4.43 is available"; its progress
+     * and a failure in the same place. Null when there is none.
+     */
+    private fun appUpdateOffer(image: ImageRef?, profile: com.fahadali.oneos.core.model.PhoneProfile?): PlainMessage? {
+        val u = AppUpdater.state
+        val next = u.update ?: return null
+        if (!next.newerThan(BuildConfig.VERSION_CODE)) return null
+        val forSystem = image != null && next.changes(image.id)
+        val phone = profile?.label?.let { getString(R.string.home_app_update_your_phone, it) }.orEmpty()
+        val title = if (forSystem) getString(R.string.home_app_update_for_system, image!!.name)
+            else getString(R.string.home_app_update_title, next.versionName)
+        val line = when (u.phase) {
+            AppUpdater.Phase.FAILED, AppUpdater.Phase.CONFIRM -> u.message
+            else -> next.notes?.let { getString(R.string.home_app_update_line_notes, next.versionName, it) }
+                ?: if (forSystem) getString(R.string.home_app_update_line_system, next.versionName, image!!.name, phone)
+                else getString(R.string.home_app_update_line)
+        }.orEmpty().take(PlainMessage.MAX_LINE)
+        val label = when (u.phase) {
+            AppUpdater.Phase.DOWNLOADING -> getString(R.string.home_update_downloading, u.percent)
+            AppUpdater.Phase.INSTALLING -> getString(R.string.home_app_update_installing)
+            AppUpdater.Phase.FAILED -> Plain.defaultLabel(FixAction.TRY_AGAIN)
+            AppUpdater.Phase.CONFIRM -> getString(R.string.home_app_update_confirm)
+            else -> Plain.defaultLabel(FixAction.APP_UPDATE)
+        }
+        return PlainMessage(title.take(PlainMessage.MAX_TITLE), line, FixAction.APP_UPDATE, label, Level.INFO)
+    }
+
     // Quick switch (0.4.30) =====================================================
 
     /**
@@ -826,7 +895,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         val WORKING = setOf(HomeState.Kind.CHECKING, HomeState.Kind.SWITCHING, HomeState.Kind.RESTORING)
 
         /** The states with the check tiles (owner, 2026-10-24: before a setup too, so a problem shows before the 15 minutes). */
-        val SHOWS_CHECKS = setOf(HomeState.Kind.READY, HomeState.Kind.FIX, HomeState.Kind.UPDATE, HomeState.Kind.NOTHING_SET_UP)
+        val SHOWS_CHECKS = setOf(HomeState.Kind.READY, HomeState.Kind.FIX, HomeState.Kind.UPDATE, HomeState.Kind.NOTHING_SET_UP, HomeState.Kind.APP_UPDATE)
 
         /** Root, space, battery, screen lock: the tiles, in the mockup's order. */
         val TILE_GATES = listOf(SwitchGates.ID_ROOT, SwitchGates.ID_SPACE, SwitchGates.ID_BATTERY, SwitchGates.ID_SCREEN_LOCK)

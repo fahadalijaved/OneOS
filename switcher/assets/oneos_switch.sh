@@ -754,6 +754,9 @@ set_prop ro.control_privapp_permissions log
 echo "=== [1/6] Protecting OneUI Home Screen and Disabling RescueParty ==="
 set_prop persist.sys.disable_rescue true
 set_prop sys.rescue_boot_count 0
+# Android 16+ counts boots for its boot-loop check in crashrecovery.* (0.4.47): the guest's
+# system_server starts from 0 too. The property area is One UI's, so the return puts these back.
+set_prop crashrecovery.rescue_boot_count 0
 [ "$(getprop persist.sys.disable_rescue)" = true ] ||
     echo "!!! persist.sys.disable_rescue did not take (property space: $(pa_free "$PA_FILE") bytes left); guest_start.sh will not start the guest"
 # OneOS: no snapshot of One UI Home's databases any more. OneLineage copied
@@ -1600,13 +1603,18 @@ while true; do
             if [ ! -f $STAGE/data/oneos_ksu/manager ]; then
                 # None staged (off by default since 0.4.39): a manager an earlier
                 # session installed here keeps One UI's app id (below 15000) and the
-                # kernel's trust; removed, with its data.
+                # kernel's trust; removed, with its data. One the user installed in
+                # the guest too (0.4.41, A36 0ee8cdb1 on 0.4.40): its late load
+                # (Magica) ran One UI's KernelSU boot as root in the guest, mounted
+                # One UI's modules over it (every guest app died in the same idmap
+                # lookup within a second) and rewrote One UI's KernelSU features
+                # (adb root on, module umount off) in the shared kernel and config.
                 for KP in me.weishu.kernelsu com.rifsxd.ksunext com.sukisu.ultra app.kitsusu.manager; do
                     KC=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm list packages -U \$KP 2>/dev/null | sed -n \"s/^package:\$KP uid://p\" | head -n 1)
                     case \"\$KC\" in
-                        1[0-4][0-9][0-9][0-9])
+                        [0-9]*)
                             timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm uninstall --user 0 \$KP >/dev/null 2>&1
-                            echo \"[UI Activator] KernelSU manager: \$KP (app id \$KC) from an earlier session removed; off for this session\" ;;
+                            echo \"[UI Activator] KernelSU manager: \$KP (app id \$KC) removed from the guest; its late load would run One UI's KernelSU boot and modules here (off for this session)\" ;;
                     esac
                 done
             fi

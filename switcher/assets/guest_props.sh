@@ -753,11 +753,20 @@ add)
     # stops One UI's zygote_secondary, yet with One UI's ABI lists its
     # system_server asked for a 32-bit zygote: ZygoteProcess.bootCompleted
     # threw "Failed to inform zygote of boot_completed" and took it down
-    # (1f4f0c7f, 0.4.18). The image's own lists for the session.
-    if [ ! -e "$ROOTFS/system/bin/app_process32" ] && [ -n "$(getprop ro.product.cpu.abilist32)" ]; then
+    # (1f4f0c7f, 0.4.18). The image's own lists for the session. 0.4.40: also when
+    # the image has app_process32 (HyperOS, with Xiaomi's lazily started 32-bit
+    # zygote): no guest gets a 32-bit zygote from OneOS, whatever its image ships.
+    if [ -n "$(getprop ro.product.cpu.abilist32)" ]; then
+        # A key the image's build.prop does not name (HyperOS: 0.4.40 S23 2d486da1 and
+        # S23 Ultra c70e1b54 reached the lock screen, then the same boot_completed
+        # crash; the loop skipped every key) gets the 64-bit-only value.
+        g64=$(sed -n "s/^ro.system.product.cpu.abilist64=//p" "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
         for key in ro.product.cpu.abilist ro.product.cpu.abilist32 ro.system.product.cpu.abilist ro.system.product.cpu.abilist32; do
-            grep -q "^$key=" "$ROOTFS/system/build.prop" 2>/dev/null || continue
-            g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" | tail -n 1)
+            if grep -q "^$key=" "$ROOTFS/system/build.prop" 2>/dev/null; then
+                g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" | tail -n 1)
+            else
+                case "$key" in *32) g="" ;; *) g=${g64:-arm64-v8a} ;; esac
+            fi
             h=$(getprop "$key")
             [ "$g" != "$h" ] || continue
             echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&

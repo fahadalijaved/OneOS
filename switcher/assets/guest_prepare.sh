@@ -505,6 +505,28 @@ sec_ims_bind() {
     echo "Samsung IMS in the guest: staged set bind-mounted onto $gse (OneOSSecIms priv-app + $n files; this kernel rejects a second overlay lower layer)"
     return 0
 }
+# Samsung IMS's mount points in an overlay's own layer (0.4.43): the read-only (signal
+# poll) overlay of HyperOS, Infinity-X and Nothing OS takes no mkdir or new file later,
+# so sec_ims_bind had nowhere to bind and IMS was off on all three (calls and SMS on
+# VoLTE-only networks: reports 4e9c9333, 71a26ead, c70e1b54 on 0.4.40). Empty files,
+# so the overlay's 1 MB tmpfs is enough; only names the image does not have itself.
+secims_mountpoints() {
+    local up="$1" d f
+    mkdir -p "$up/priv-app/OneOSSecIms" || return 1
+    for d in framework lib64 etc etc/permissions; do
+        [ -d "$SECIMS/$d" ] || continue
+        for f in "$SECIMS/$d"/*; do
+            [ -f "$f" ] || continue
+            [ -e "$GUEST_SYSTEM_EXT/$d/$(basename "$f")" ] && continue
+            mkdir -p "$up/$d" && : > "$up/$d/$(basename "$f")" || return 1
+        done
+    done
+    find "$up" -type d -exec chmod 755 {} + 2>/dev/null
+    $BB chcon -R u:object_r:system_file:s0 "$up/priv-app" 2>/dev/null || true
+    for d in framework etc; do [ -d "$up/$d" ] && $BB chcon -R u:object_r:system_file:s0 "$up/$d" 2>/dev/null; done
+    [ -d "$up/lib64" ] && $BB chcon -R u:object_r:system_lib_file:s0 "$up/lib64" 2>/dev/null
+    return 0
+}
 if [ "${ONEOS_GUEST_SEC_IMS:-0}" = 1 ]; then
     secims_missing=""
     for f in /system/priv-app/imsservice/imsservice.apk /system/framework/framework.jar /system/framework/imsmanager.jar \
@@ -874,6 +896,30 @@ fi
 # guest's system_ext after the overlay is up (sec_ims_bind), not added as a second
 # overlay lower layer, which some kernels reject (EINVAL). An overlay left by an
 # earlier prepare cannot take it.
+# The vendor NDK version One UI's vendor asks for (0.4.43). A guest framework manifest
+# that does not list it fails VintfObject.verifyBuildAtBoot ("Vndk version 33 is not
+# supported. Supported versions in framework manifest are: [ 34]"), and the guest shows
+# "There's an internal problem with your device" at every boot (HyperOS on the S23s,
+# reports 4cd02405, c70e1b54, 2d486da1; a Pixel GSI too). Empty when nothing is missing.
+VNDK_NEED=$(sed -n '/<vendor-ndk>/,/<\/vendor-ndk>/s:.*<version>\([^<]*\)</version>.*:\1:p' /vendor/etc/vintf/compatibility_matrix.xml 2>/dev/null | head -n 1)
+case "$VNDK_NEED" in *[!0-9]*) VNDK_NEED="" ;; esac
+if [ -n "$VNDK_NEED" ] && cat "$ROOTFS/system/etc/vintf/manifest.xml" "$ROOTFS"/system/etc/vintf/manifest/*.xml \
+        "$GUEST_SYSTEM_EXT"/etc/vintf/manifest.xml "$GUEST_SYSTEM_EXT"/etc/vintf/manifest/*.xml \
+        "$GUEST_PRODUCT"/etc/vintf/manifest.xml "$GUEST_PRODUCT"/etc/vintf/manifest/*.xml 2>/dev/null |
+        tr -d ' \t\n\r' | grep -q "<vendor-ndk><version>$VNDK_NEED</version>"; then
+    VNDK_NEED=""
+fi
+# The fragment in an overlay layer ($1), merged with the framework manifest by libvintf.
+vndk_fragment() {
+    [ -n "$VNDK_NEED" ] || return 0
+    mkdir -p "$1/etc/vintf/manifest" &&
+        printf '<manifest version="1.0" type="framework">\n    <vendor-ndk>\n        <version>%s</version>\n    </vendor-ndk>\n</manifest>\n' "$VNDK_NEED" \
+            > "$1/etc/vintf/manifest/oneos-vendor-ndk.xml" || return 1
+    chmod 755 "$1/etc" "$1/etc/vintf" "$1/etc/vintf/manifest"; chmod 644 "$1/etc/vintf/manifest/oneos-vendor-ndk.xml"
+    $BB chcon -R u:object_r:system_file:s0 "$1/etc/vintf" 2>/dev/null || true
+    echo "VINTF: vendor-ndk $VNDK_NEED added to the guest's framework manifest (One UI's vendor matrix asks for it)"
+    VNDK_NEED=""
+}
 SECIMS_BOUND=0
 if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
@@ -908,6 +954,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 $BB chcon -R u:object_r:system_file:s0 "$OV/up/etc" 2>/dev/null
             echo "Features from my_product:$MPF"
         fi
+        vndk_fragment "$OV/up" || echo "VINTF: could not write the vendor-ndk fragment on the overlay"
         if [ $SAMCAM = 1 ] && ! samcam_mountpoints "$OV/up" sysext; then
             SAMCAM=0; echo "Samsung Camera in the guest: off (no room for its mount points on the overlay's tmpfs)"
         fi
@@ -922,8 +969,18 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 chmod 755 "$OV/up" "$OV/up/framework" && chmod 644 "$OV/up/framework/oneos-telephony.jar"
             # A stage copy, labelled like the image's own framework files.
             $BB chcon u:object_r:system_file:s0 "$OV/up/framework" "$OV/up/framework/oneos-telephony.jar" 2>/dev/null || true
+            if [ $SEC_IMS = 1 ] && ! secims_mountpoints "$OV/up"; then
+                SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
+                echo "Samsung IMS in the guest: off (no room for its mount points on the overlay's tmpfs)"
+            fi
             if $BB mount -t overlay overlay -o "ro,lowerdir=$OV/up:$GUEST_SYSTEM_EXT" "$GUEST_SYSTEM_EXT"; then
                 echo "Read-only overlay on $GUEST_SYSTEM_EXT (apex mount point, framework/oneos-telephony.jar)"
+                if [ $SEC_IMS = 1 ]; then
+                    if sec_ims_bind; then SECIMS_BOUND=1; else
+                        SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
+                        echo "Samsung IMS in the guest: off (bind-mount onto the read-only $GUEST_SYSTEM_EXT failed)"
+                    fi
+                fi
             else
                 # The apex mount point matters more: today's rw form then.
                 INJ=0
@@ -948,8 +1005,8 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "Samsung IMS in the guest: off (overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
-        # The Samsung IMS set needs the writable overlay above to bind onto; a
-        # read-only (signal poll) or an earlier prepare's overlay has none.
+        # The Samsung IMS set binds onto either overlay (the read-only one through the
+        # mount points made in its layer); an earlier prepare's overlay has none.
         [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no writable overlay to bind onto)"; }
         # Samsung Camera's mount points are in the overlay's own layer, so the
         # read-only form takes it as well.
@@ -965,6 +1022,17 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "!!! HIDL: no system_ext/bin/hwservicemanager in the guest; it will not find this phone's HIDL-only $HWSM_WHY"
             fi
         fi
+    fi
+    # No overlay of ours on system_ext (or an earlier prepare's): the vendor-ndk version goes into
+    # a bound copy of the system framework manifest instead.
+    VM="$ROOTFS/system/etc/vintf/manifest.xml"
+    if [ -n "$VNDK_NEED" ] && [ -f "$VM" ] && [ ! -L "$VM" ] && grep -q '</manifest>' "$VM"; then
+        awk -v v="$VNDK_NEED" '/<\/manifest>/ && !d { print "    <vendor-ndk>"; print "        <version>" v "</version>"; print "    </vendor-ndk>"; d = 1 } { print }' \
+            "$VM" > "$STAGE/oneos_vintf_manifest.xml" &&
+            chmod 644 "$STAGE/oneos_vintf_manifest.xml" && $BB chcon u:object_r:system_file:s0 "$STAGE/oneos_vintf_manifest.xml" 2>/dev/null
+        $BB mount --bind "$STAGE/oneos_vintf_manifest.xml" "$VM" &&
+            echo "VINTF: vendor-ndk $VNDK_NEED added to a bound copy of the guest's system manifest (One UI's vendor matrix asks for it)"
+        VNDK_NEED=""
     fi
     if [ -d /system_ext/apex ]; then
         if [ -d "$GUEST_SYSTEM_EXT/apex" ]; then
@@ -1591,6 +1659,69 @@ if [ -f "$FEAT" ]; then
       echo '</oplus-config>'; } > "$STAGE/oplus_features_config.xml"
     $BB mount --bind "$STAGE/oplus_features_config.xml" "$FEAT" &&
         echo "Bound ColorOS feature switches (form $FORM): $ADDED"
+    # The Theme Store (0.4.42, owner: "no theme store in ColorOS for fold8u build"). The
+    # Find N6 global build ships it (com.oplus.themestore, my_stock/priv-app/KeKeThemeSpace),
+    # but its product config my_product/etc/config/app_v2.xml disables it
+    # (<disable pkg="com.oplus.themestore" priority="7"/>, no layer enables it), so
+    # OplusAppConfigManager ignored the package at every boot and it was never installed.
+    # A copy without that one line is bound over the file; the rest of OPPO's app
+    # config (Pictorial, the browser, Game Center...) stays as the image has it.
+    # ONEOS_GUEST_THEME_STORE=0 leaves the file alone.
+    if [ "${ONEOS_GUEST_THEME_STORE:-1}" = 1 ]; then
+        for f in "$ROOTFS"/my_*/etc/config/app_v2.xml; do
+            [ -f "$f" ] && [ ! -L "$f" ] && grep -q '<disable pkg="com.oplus.themestore"' "$f" || continue
+            part=${f#"$ROOTFS"/}; part=${part%%/*}
+            out="$STAGE/oneos_${part}_app_v2.xml"
+            grep -v '<disable pkg="com.oplus.themestore"' "$f" > "$out" && chmod 644 "$out" &&
+                $BB mount --bind "$out" "$f" &&
+                echo "ColorOS Theme Store: the disable line in /$part/etc/config/app_v2.xml left out"
+        done
+        # 0.4.47: the store's DeviceChecker reads ro.product.brand, which is the Galaxy's here,
+        # and closed with "is a customised app, not compatible with this device" on every
+        # phone (owner's Z Fold8 Ultra on the Find N6 build, testers on the Find X9 Ultra
+        # builds). The set's KeKeThemeSpace_patched.apk is the image's APK with that check
+        # answering yes, and (0.4.48) reporting brand OPPO and model CPH2765 to OPPO's theme server,
+        # which sent no themes for samsung (only a search icon; scripts/apk-replace-dex.py on
+        # classes4.dex and classes5.dex, OPPO's signing block kept). The
+        # Find N6 global and Find X9 Ultra IN builds ship the same APK (SHA-256 below); on any
+        # other build the image's own stays.
+        TS_APK="$ROOTFS/my_stock/priv-app/KeKeThemeSpace/KeKeThemeSpace.apk"
+        TS_ORIG=496ca751d42793811dfd4bf18bf6f6884e5dfe8909ecf451dff94cecca2cff6a
+        [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && $BB umount -l "$TS_APK" 2>/dev/null
+        if [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && [ -f "$TS_APK" ] && [ ! -L "$TS_APK" ] &&
+           [ "$(sha256sum "$TS_APK" 2>/dev/null | cut -d' ' -f1)" != $TS_ORIG ]; then
+            echo "ColorOS Theme Store: this image's KeKeThemeSpace.apk is another build; its own stays (brand check on)"
+        elif [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && [ -f "$TS_APK" ] && [ ! -L "$TS_APK" ]; then
+            chmod 644 "$STAGE/KeKeThemeSpace_patched.apk"
+            $BB chcon u:object_r:system_file:s0 "$STAGE/KeKeThemeSpace_patched.apk" 2>/dev/null || true
+            $BB mount --bind "$STAGE/KeKeThemeSpace_patched.apk" "$TS_APK" &&
+                $BB mount -o remount,bind,ro "$STAGE/KeKeThemeSpace_patched.apk" "$TS_APK" 2>/dev/null
+            if [ "$(stat -c %d:%i "$TS_APK" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/KeKeThemeSpace_patched.apk")" ]; then
+                echo "ColorOS Theme Store: KeKeThemeSpace_patched.apk bound (no brand check, OPPO to its server)"
+            else
+                echo "!!! WARNING: KeKeThemeSpace_patched.apk is not in place; the Theme Store refuses this phone's brand"
+            fi
+        fi
+    fi
+    # UniRender off on non-Qualcomm phones (0.4.43): ColorOS draws the launcher through
+    # SurfaceFlinger's UniRenderSurface with a buffer usage Samsung's Exynos gralloc refuses
+    # ("[S.LSI_GRALLOC] request input size is invalid", "dequeue buffer failed -22", about
+    # 120 a second), so the home screen showed no icons (S24 Exynos 2a1eab9c, A56 3efc1847).
+    # A copy of the image's switch list with func_switch 0 is bound over it; a cloud copy in
+    # the guest's data (a higher version would win) is removed. Qualcomm phones keep it.
+    # ONEOS_GUEST_UNIRENDER=1 keeps it everywhere.
+    if [ "${ONEOS_GUEST_UNIRENDER:-0}" != 1 ] && [ "$(getprop ro.soc.manufacturer)" != QTI ]; then
+        UR=""
+        for f in "$ROOTFS"/my_*/etc/sys_global_uni_render_list.xml "$ROOTFS"/my_*/etc/*/sys_global_uni_render_list.xml; do
+            [ -f "$f" ] && [ ! -L "$f" ] && grep -q '<func_switch value="1"' "$f" || continue
+            part=${f#"$ROOTFS"/}; part=${part%%/*}
+            out="$STAGE/oneos_${part}_uni_render_list.xml"
+            sed 's/<func_switch value="1"/<func_switch value="0"/' "$f" > "$out" && chmod 644 "$out" &&
+                $BB mount --bind "$out" "$f" && UR="$UR /${f#"$ROOTFS"/}"
+        done
+        rm -f "$STAGE/data/oplus/os/config/sys_global_uni_render_list.xml" 2>/dev/null
+        echo "ColorOS UniRender: off on this $(getprop ro.soc.manufacturer) phone (${UR:+bound over$UR}${UR:-no switch list in the image})"
+    fi
 fi
 # The guest's /oem, built in $STAGE/oem and bound over the image's. /oem is
 # empty in the images (ColorOS and Pixel) and scanned by the guest's
@@ -2409,6 +2540,27 @@ mkdir -p "$STAGE/data/misc/bluedroid" "$STAGE/data/misc/bluetooth" 2>/dev/null
 chown 1002:1002 "$STAGE/data/misc/bluedroid" "$STAGE/data/misc/bluetooth" 2>/dev/null || true
 chmod 0770 "$STAGE/data/misc/bluedroid" "$STAGE/data/misc/bluetooth" 2>/dev/null || true
 
+# Apps uninstalled in the guest (0.4.50; owner and testers: "apps I uninstalled come back in the
+# next session", ColorOS Mod on the owner's Fold). The storage guard drops installd's rmPackageDir
+# (patches/guest_storage_guards.py: One UI's installd would act on One UI's own /data/app), so an
+# uninstall removed the package's record but left its code folder in the guest's data/app, and the
+# next boot's scan installed it again. Here, with the guest down, a code folder of a package the
+# guest's packages.list no longer has goes. Only the stage's own data/app; no list, nothing done.
+PL="$STAGE/data/system/packages.list"
+if [ -s "$PL" ] && [ ! -L "$PL" ] && [ -d "$STAGE/data/app" ] && [ ! -L "$STAGE/data/app" ]; then
+    gone=""
+    for d in "$STAGE"/data/app/~~*/*-* "$STAGE"/data/app/*-*; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        n=${d##*/}; pkg=${n%-*}
+        case "$pkg" in ''|~~*|vmdl*|*[!A-Za-z0-9_.]*) continue ;; esac
+        grep -q "^$pkg " "$PL" && continue
+        rm -rf "${d:?}" && gone="$gone $pkg"
+        p=${d%/*}
+        [ "$p" != "$STAGE/data/app" ] && rmdir "${p:?}" 2>/dev/null
+    done
+    [ -z "$gone" ] || echo "Uninstalled apps' code folders removed:$gone"
+fi
+
 # ColorOS's removable preinstalled apps (/my_stock/del-app) load their native
 # libraries from /data/preapps-lib/<app>/lib/arm64, which the guest's
 # PackageManager fills. The guest's init.rc makes the top directory 0771 system
@@ -2667,10 +2819,60 @@ for d in data/system data/system_de data/system_ce data/user data/user_de \
          data/local data/resource-cache data/app data/rollback data/incremental; do
     [ -e "$STAGE/$d" ] && $BB chcon -h -R u:object_r:system_data_file:s0 "$STAGE/$d" 2>/dev/null || true
 done
+# OneOS (0.4.44): an app folder keeps the label the guest gave it. Until 0.4.43 every app
+# folder went back to a bare "app_data_file:s0" here on each switch, and the guest's installd
+# gave the categories back at boot only to the apps it prepared: the Theme Store on the Find N6
+# global ColorOS kept the bare label, was refused its own databases (SQLITE_CANTOPEN, EACCES)
+# and closed on Agree. A folder with a label the guest set (an *_data_file type, other than
+# shell_data_file, system_data_file or a bare app/privapp_data_file) keeps it, files included,
+# so files written here (the launcher grid, folders made above) get the app's label too. A
+# bare or staged folder of an installed app gets the level seapp_contexts gives it: its own
+# categories and the user's for an app targeting SDK 28+, the user's (c512,c768) for a
+# privileged, platform or older app. Anything else is labelled as before.
+app_data_labels() {
+    ls -dZ "$1"/* 2>/dev/null | awk -v pl="$STAGE/data/system/packages.list" '
+        BEGIN {
+            while ((getline line < pl) > 0) {
+                n = split(line, f, " ")
+                if (n < 5 || f[2] !~ /^[0-9]+$/ || f[2] + 0 < 10000 || f[2] + 0 >= 20000) continue
+                if (f[5] !~ /^(default|platform)(:privapp)?:targetSdkVersion=[0-9]+/) continue
+                sdk = f[5]; sub(/.*targetSdkVersion=/, "", sdk); sub(/[^0-9].*/, "", sdk)
+                a = f[2] - 10000
+                if (f[5] ~ /^default:targetSdkVersion=/ && sdk + 0 >= 28)
+                    lvl[f[1]] = "s0:c" (a % 256) ",c" (256 + int(a / 256) % 256) ",c512,c768"
+                else
+                    lvl[f[1]] = "s0:c512,c768"
+            }
+        }
+        NF >= 2 {
+            l = $1; p = $0; sub(/^[^ ]+ +/, "", p); pkg = p; sub(/.*\//, "", pkg)
+            t = l; sub(/^u:object_r:/, "", t); sub(/:.*/, "", t)
+            if (l ~ /^u:object_r:[a-z0-9_]+_data_file:s0(:c[0-9]+(,c[0-9]+)*)?$/ && t != "shell_data_file" &&
+                t != "system_data_file" && l !~ /^u:object_r:(priv)?app_data_file:s0$/) { w = l; kept++ }
+            else if (pkg in lvl) { w = "u:object_r:app_data_file:" lvl[pkg]; given++ }
+            else w = "u:object_r:app_data_file:s0"
+            if (p ~ /^[A-Za-z0-9_.\/-]+$/) group[w] = group[w] " " p
+            else print "1 " w " " p
+        }
+        END {
+            for (w in group) print "n " w group[w]
+            print "# " kept + 0 " " given + 0
+        }'
+}
 for d in "$STAGE/data/user/0" "$STAGE/data/user_de/0"; do
     if [ -d "$d" ]; then
         $BB chcon u:object_r:system_data_file:s0 "$d" 2>/dev/null || true
-        $BB chcon -h -R u:object_r:app_data_file:s0 "$d"/* 2>/dev/null || true
+        if ls -dZ "$d" >/dev/null 2>&1; then
+            app_data_labels "$d" | while read -r kind w rest; do
+                case "$kind" in
+                    1) $BB chcon -h -R "$w" "$rest" 2>/dev/null ;;
+                    n) $BB chcon -h -R "$w" $rest 2>/dev/null ;;
+                    '#') echo "App data labels in ${d#$STAGE/data/}: $w kept as the guest set them, $rest given their categories" ;;
+                esac
+            done
+        else
+            $BB chcon -h -R u:object_r:app_data_file:s0 "$d"/* 2>/dev/null || true
+        fi
     fi
 done
 $BB chown -h -R 1023:1023 "$STAGE/data/media" 2>/dev/null || true

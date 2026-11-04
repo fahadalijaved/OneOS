@@ -42,7 +42,8 @@ class ChecklistActivity : AppCompatActivity() {
         }
         column.addView(text(getString(R.string.checklist_title), 24f, top = 0))
         column.addView(text(getString(R.string.checklist_intro), 15f, top = dp(8), secondary = true))
-        for ((id, label) in Checklist.ITEMS) {
+        // Folding and unfolding only on a Fold or Flip (the guest sees One UI's model, SM-F...).
+        for ((id, label) in Checklist.ITEMS.filter { it.first != "fold" || android.os.Build.MODEL.startsWith("SM-F") }) {
             column.addView(text(getString(label), 17f, top = dp(20)))
             val group = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
             val options = listOf(Checklist.WORKS to R.string.answer_works, Checklist.PROBLEM to R.string.answer_problem, Checklist.NOT_TRIED to R.string.answer_not_tried)

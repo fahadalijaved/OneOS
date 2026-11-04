@@ -10,7 +10,7 @@
     <string name="systems_subtitle_unknown">One UI stays as it is.</string>
     <string name="systems_reading">Reading this phone…</string>
     <string name="systems_none_title">No system for this phone yet</string>
-    <string name="systems_none_line">This version of OneOS has none for this phone. Phone details, in Advanced › For the OneOS team, shows why.</string>
+    <string name="systems_none_line">This version of OneOS has none for this phone. Phone details, in Settings › For the OneOS team, shows why.</string>
     <string name="systems_chip_android">Android %1$s</string>
     <string name="systems_chip_tested">Tested on this phone</string>
     <string name="systems_chip_untested">Not tested on this phone yet</string>

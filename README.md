@@ -103,6 +103,11 @@ Snapdragon 8 Gen 3) with the Find N6 build and Infinity-X, and the Galaxy A07
 only. The Galaxy A16 and A17 on One UI 8.5 (Android 16) are not supported yet:
 every system here is Android 17.
 
+New in 0.4.49: **the Galaxy S25 Edge, S24 FE, A26, A17 and A16 5G (Exynos, SM-A166U)**, untested,
+from their testers' probe reports: every one of them on One UI 9. The S22s, S23 FE, A06, A16 (MediaTek),
+A34, M53, E55 and the Tab S10 FE and Tab S11 sent reports too, but are still on One UI 8 or 8.5
+(Android 16): every OneOS system is Android 17, so they wait for One UI 9.
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as
