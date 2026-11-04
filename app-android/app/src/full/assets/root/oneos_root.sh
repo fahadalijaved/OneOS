@@ -180,6 +180,7 @@ profile_info() {
         a26) echo "SM-A266 a26x s5e8835 bar" ;;
         a17) echo "SM-A175 a17 MT6789 bar" ;;
         a16) echo "SM-A166 a16x s5e8535 bar" ;;
+        s-9965) echo "SM-S942 m1s s5e9965 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -199,6 +200,7 @@ profile_set() {
         "s-8850-jp nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-8850 nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9965 nothingos5-metroid") echo nothing-f8u ;;
+        "s-9965 nothingos5-metroid") echo nothing-f8u ;;
         "flip8 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8750 nothingos5-metroid") echo nothing-f8u ;;
         "s-8750 nothingos5-metroid") echo nothing-f8u ;;
@@ -239,6 +241,8 @@ profile_set() {
         "s-plus-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-plus-9965 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-9965 pixel11pro-kodiak") echo pixel-sultra ;;
+        "s-9965 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-9965 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip7 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip7 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a56 coloros17-findx9u-in") echo x9u-in-sultra ;;
@@ -268,6 +272,8 @@ profile_set() {
         "s-8850-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9965 infinityx41-findx9u") echo infinityx ;;
         "s-plus-9965 hyperos-lhasa") echo hyper-f8u ;;
+        "s-9965 infinityx41-findx9u") echo infinityx ;;
+        "s-9965 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8750 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-8750 infinityx41-findx9u") echo infinityx ;;

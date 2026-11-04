@@ -374,8 +374,11 @@ android {
         // boot); the in-place return names what holds a stage mount when its failsafe reboots.
         // 0.4.51: the debloated Find X9 Ultra ColorOS build retired (never on Drive); the full IN build is every
         // such phone's ColorOS, tested where the debloated one was.
-        versionCode = 68
-        versionName = "0.4.51"
+        // 0.4.52: the in-place return no longer reboots for LSPosed's dex2oat wrapper (a bind into ART's APEX it took
+        // for One UI's APEX changing; every APEX failsafe in the reports) or for a system_server child not exec'd yet.
+        // The Galaxy S26 with Exynos (SM-S942B, m1s) from its probe reports, with the S26+ (Exynos)'s images.
+        versionCode = 69
+        versionName = "0.4.52"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.

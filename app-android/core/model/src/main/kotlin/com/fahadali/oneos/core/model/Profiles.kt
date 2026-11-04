@@ -92,6 +92,7 @@ object Profiles {
     const val ID_S_8550 = "s-8550"
     const val ID_S_PLUS_8550 = "s-plus-8550"
     const val ID_S_PLUS_9965 = "s-plus-9965"
+    const val ID_S_9965 = "s-9965"
     const val ID_FLIP7 = "flip7"
     const val ID_A56 = "a56"
     const val ID_A57 = "a57"
@@ -393,7 +394,7 @@ object Profiles {
      * vendor API 202504 and kernel 6.12 like the Z Fold8 Ultra, one panel on
      * port 147, density 480, SVE and SME, installd 85 methods). One profile
      * per model number: SM-S942 everywhere else, [S_8850_JP] for SC-51G. The
-     * Exynos S26 has another chip and matches neither.
+     * Exynos S26 has another chip and codename: [S_9965].
      */
     val S_8850 = PhoneProfile(
         id = ID_S_8850,
@@ -493,6 +494,18 @@ object Profiles {
         choices = S_8850_CHOICES,
         notes = listOf(EXYNOS),
     )
+
+    /**
+     * Galaxy S26 with Exynos, from 0.4.52: probe reports of 2026-11-02 to 11-04
+     * (SM-S942B, m1s, s5e9965 Exynos 2600 like the S26+ (Exynos), One UI 9.0,
+     * Android 17 build CP2A.260605.016, vendor and board API 202504, first API 36,
+     * SVE, SVE2, SME and SME2, installd 85 methods). Its model number is the
+     * Snapdragon S26's ([S_8850], m1q), so the codename tells them apart, as for
+     * the two S26+. The S26+ (Exynos)'s images and sets, untested, with [EXYNOS].
+     * A report naming SM-S942B with an Exynos 2100 (universal2100_r, Cortex-X1)
+     * is another phone with a changed model name and is left out.
+     */
+    val S_9965 = S_PLUS_9965.copy(id = ID_S_9965, label = "Galaxy S26 (Exynos)", modelPrefix = "SM-S942", codename = "m1s")
 
     /**
      * Galaxy Z Flip7, from 0.4.17: a probe report of 2026-10-25 (SM-F766U, b7s,
@@ -832,7 +845,7 @@ object Profiles {
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
-        S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16,
+        S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

@@ -159,6 +159,14 @@ class ProfilesTest {
         assertEquals(listOf("SM-S947", "m2s", "s5e9965"), listOf(s26PlusExynos.modelPrefix, s26PlusExynos.codename, s26PlusExynos.socModel))
         assertEquals(FormFactor.BAR, s26PlusExynos.form)
         assertEquals(s26Base.choices, s26PlusExynos.choices)
+        // The Exynos Galaxy S26 (0.4.52): the S26's model number, its own codename and the S26+ (Exynos)'s chip and images.
+        val s26Exynos = Profiles.S_9965
+        assertEquals(listOf("s-9965", "Galaxy S26 (Exynos)"), listOf(s26Exynos.id, s26Exynos.label))
+        assertEquals(listOf("SM-S942", "m1s", "s5e9965"), listOf(s26Exynos.modelPrefix, s26Exynos.codename, s26Exynos.socModel))
+        assertEquals(FormFactor.BAR, s26Exynos.form)
+        assertEquals(s26PlusExynos.choices, s26Exynos.choices)
+        assertEquals(s26PlusExynos.notes, s26Exynos.notes)
+        assertTrue(!s26Exynos.testedWithAnyImage)
         val flip7 = Profiles.FLIP7
         assertEquals(listOf("flip7", "Galaxy Z Flip7"), listOf(flip7.id, flip7.label))
         assertEquals(listOf("SM-F766", "b7s", "s5e9955"), listOf(flip7.modelPrefix, flip7.codename, flip7.socModel))
@@ -217,7 +225,7 @@ class ProfilesTest {
         assertEquals(
             listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750,
                 Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_PLUS_8850,
-                Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8, Profiles.S_EDGE_8750),
+                Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8, Profiles.S_EDGE_8750, Profiles.S_9965),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_NOTHING_METROID) != null },
         )
         // Galaxy S23 and S23+ (0.4.11): the X9U image, untested, with the will-most-likely-not-start note.
@@ -240,7 +248,7 @@ class ProfilesTest {
                 Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945,
-                Profiles.A26, Profiles.A17, Profiles.A16,
+                Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965,
             ),
             Profiles.BUILT_IN,
         )
@@ -338,6 +346,11 @@ class ProfilesTest {
         assertEquals(Profiles.S_8850, profile("SM-S942B", "m1q", "SM8850"))
         assertEquals(Profiles.S_8850_JP, profile("SC-51G", "m1q", "SM8850"))
         assertNull(profile("SM-S942B", "m1q", "s5e9965"))
+        // The Exynos S26 (0.4.52): SM-S942, m1s, s5e9965; never with the Snapdragon chip or the S21 a renamed report gave.
+        assertEquals(Profiles.S_9965, profile("SM-S942B", "m1s", "s5e9965"))
+        assertNull(profile("SM-S942B", "m1s", "SM8850"))
+        assertNull(profile("SM-S942B", "m1s", "exynos2100"))
+        assertEquals(Profiles.S_8850, profile("SM-S942B", "m1q", "SM8850"))
         assertNull(profile("SM-S948B", "m1q", "SM8850")) // S26 Ultra model number, S26 codename
         // Galaxy S26+ (0.4.12): SM-S947, m2q, SM8850.
         assertEquals(Profiles.S_PLUS_8850, profile("SM-S947U", "m2q", "SM8850"))

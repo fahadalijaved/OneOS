@@ -43,6 +43,7 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S24 FE (SM-S721, s5e9945), not tested yet
   - Galaxy A26 (SM-A266, s5e8835), not tested yet
+  - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
 
 ## Pixel 11 Fold, yogi build
 
@@ -63,6 +64,7 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy S26+ (SM-S947, SM8850), not tested yet
   - Galaxy S26+ (Exynos) (SM-S947, s5e9965), not tested yet
   - Galaxy Z Flip8 (SM-F776, s5e9965), not tested yet
+  - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
 
 ## Pixel 9 Pro XL, komodo build
 
@@ -123,6 +125,7 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy A26 (SM-A266, s5e8835), not tested yet
   - Galaxy A17 (SM-A175, MT6789), not tested yet
   - Galaxy A16 5G (SM-A166, s5e8535), not tested yet
+  - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
 
 ## HyperOS, Xiaomi 18 Fold build
 
@@ -153,6 +156,7 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy S24 (Exynos) (SM-S921, s5e9945), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S24 FE (SM-S721, s5e9945), not tested yet
+  - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
 
 ## Nothing OS 5.0, Metroid build
 
@@ -174,3 +178,4 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy Z Fold6 (SM-F956, SM8650), not tested yet
   - Galaxy Z Flip8 (SM-F776, s5e9965), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
+  - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet

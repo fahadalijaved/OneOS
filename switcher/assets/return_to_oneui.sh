@@ -27,9 +27,19 @@ S=/data/local/tmp/oneos
 # the persist snapshot).
 BASE=$S/inplace_base
 
-# One UI's block-backed /apex mounts ("maj:min mount point"), from init's table.
+# One UI's block-backed /apex mounts ("maj:min mount point"), from init's table:
+# the modules' own mount points, /apex/<module> and /apex/<module>@<version>. A
+# file a root tool binds deeper inside a module is not One UI's APEX: LSPosed
+# binds its dex2oat wrapper from /data over /apex/com.android.art/bin/dex2oat64
+# and dex2oat32, the session drops those binds, and counting them made every
+# return on an LSPosed phone a failsafe reboot (28 reports, 0.4.36 to 0.4.51).
 apex_mounts() {
-    "$BB" awk '$5 ~ /^\/apex\// && $3 !~ /^0:/ {print $3, $5}' /proc/1/mountinfo | "$BB" sort
+    "$BB" awk '$5 ~ /^\/apex\/[^\/]+$/ && $3 !~ /^0:/ {print $3, $5}' /proc/1/mountinfo | "$BB" sort
+}
+# Those deeper binds ("mount point, its path on the source filesystem"), only
+# logged: the ones gone at the return come back when their tool starts again.
+apex_overlays() {
+    "$BB" awk '$5 ~ /^\/apex\/[^\/]+\/./ {print $5, $4}' /proc/1/mountinfo | "$BB" sort
 }
 loop_line() {
     b=/sys/block/$1
@@ -74,6 +84,7 @@ if [ "$1" = baseline ]; then
     getprop > "$BASE/props"
     getenforce > "$BASE/selinux" 2>&1
     apex_state > "$BASE/apex"
+    apex_overlays > "$BASE/apex_overlays"
     ip rule show > "$BASE/iprule" 2>&1
     for f in /sys/fs/f2fs/*/gc_urgent; do [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"; done > "$BASE/gc_urgent"
     for n in $HOST_NAMES; do p=$(svc_pid "$n"); echo "$n ${p:-none}"; done > "$BASE/svcpid"
@@ -634,6 +645,9 @@ if ! "$BB" cmp -s "$BASE/apex" "$S/inplace_apex.after"; then
     "$BB" diff "$BASE/apex" "$S/inplace_apex.after" >> "$IPLOG" 2>&1
     failsafe "One UI's APEX devices changed during the session (diff in return_inplace.log)"
 fi
+apex_overlays > "$S/inplace_apex_overlays.after"
+gone=$("$BB" awk 'FILENAME == ARGV[1] { now[$0] = 1; next } !($0 in now) { printf "%s ", $1 }' "$S/inplace_apex_overlays.after" "$BASE/apex_overlays" 2>/dev/null)
+[ -z "$gone" ] || say "files a root tool bound into One UI's APEX modules (LSPosed's dex2oat wrapper, for one) are gone since the switch: ${gone}until that tool starts again"
 DIRECT=0; "$BB" dd --help 2>&1 | "$BB" grep -q direct && DIRECT=1
 read_mb=0
 for d in $("$BB" awk '$1 == "dev" {print $3} $1 == "loop" {print $2}' "$BASE/apex" | "$BB" sort -u); do
@@ -885,7 +899,9 @@ fi
 # reboots after a few anyway, and RescueParty would reset One UI's settings.
 t=0; ss=""
 while [ $t -lt 60 ]; do
-    ss=$(pidof system_server); [ -n "$ss" ] && break
+    # Two pids: a child system_server forked and has not exec'd yet; ask again.
+    ss=$(pidof system_server); case "$ss" in *" "*) ss="" ;; esac
+    [ -n "$ss" ] && break
     sleep 1; t=$((t + 1))
 done
 [ -n "$ss" ] || failsafe "One UI's system_server did not start in 60 s"
@@ -893,8 +909,13 @@ say "One UI's system_server $ss"
 t=0; up=0
 while :; do
     sleep 2; t=$((t + 2))
-    now=$(pidof system_server)
-    [ "$now" = "$ss" ] || failsafe "One UI's system_server $ss died after ${t}s (now ${now:-none})"
+    # The pid's own name, not pidof's list: a child system_server forks is named
+    # system_server too until it execs, and "now 9787 25148" with 9787 alive was
+    # a failsafe reboot for nothing (0.4.51 report e6a54d95, and 0.4.31).
+    if [ "$("$BB" cat /proc/$ss/comm 2>/dev/null)" != system_server ]; then
+        now=$(pidof system_server)
+        failsafe "One UI's system_server $ss died after ${t}s (now ${now:-none})"
+    fi
     [ "$(getprop init.svc.zygote)" = running ] || failsafe "zygote is $(getprop init.svc.zygote)"
     if [ $up = 0 ]; then
         st=$(timeout 5 am get-started-user-state 0 2>&1)

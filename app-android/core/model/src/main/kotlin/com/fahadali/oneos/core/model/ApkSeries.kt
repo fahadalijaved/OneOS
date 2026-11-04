@@ -17,7 +17,7 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
         "Galaxy S26 series and Z Flip8",
         listOf(
             Profiles.ID_S_ULTRA_8850, Profiles.ID_S_PLUS_8850, Profiles.ID_S_8850, Profiles.ID_S_8850_JP, Profiles.ID_S_PLUS_9965,
-            Profiles.ID_FLIP8,
+            Profiles.ID_FLIP8, Profiles.ID_S_9965,
         ),
     ),
     S25(

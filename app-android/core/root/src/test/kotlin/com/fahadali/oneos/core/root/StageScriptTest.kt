@@ -963,6 +963,8 @@ class StageScriptTest {
             Profiles.S_PLUS_8850 to "SM-S947U",
             // 0.4.17: the Exynos S26+ and Z Flip7 (root compares ro.soc.model as Android reports it).
             Profiles.S_PLUS_9965 to "SM-S947B",
+            // 0.4.52: the Exynos Galaxy S26.
+            Profiles.S_9965 to "SM-S942B",
             Profiles.FLIP7 to "SM-F766U",
             // 0.4.29: the Galaxy A57.
             Profiles.A57 to "SM-A576B",

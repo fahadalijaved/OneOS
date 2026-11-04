@@ -251,6 +251,7 @@ class ImagesTest {
             Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
             Profiles.S_PLUS_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
             Profiles.S_PLUS_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.S_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
             Profiles.FLIP7 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
             Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
             Profiles.FLIP5 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),

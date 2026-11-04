@@ -108,6 +108,9 @@ from their testers' probe reports: every one of them on One UI 9. The S22s, S23 
 A34, M53, E55 and the Tab S10 FE and Tab S11 sent reports too, but are still on One UI 8 or 8.5
 (Android 16): every OneOS system is Android 17, so they wait for One UI 9.
 
+New in 0.4.52: **the Galaxy S26 with Exynos (SM-S942B, m1s)**, untested, with the S26+ (Exynos)'s
+systems; and Back to One UI no longer restarts the phone when LSPosed is installed.
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as
