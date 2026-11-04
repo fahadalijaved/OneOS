@@ -552,3 +552,24 @@ and breaks the manifest merger).
 Target SDK 36 always draws edge to edge; the 2022 `ToolbarLayout` does not
 handle insets, so `ToolbarActivity` pads the content view by the system bars.
 
+
+Every full-edition `assembleFullDebug` / `assembleFullRelease` now runs
+`checkFullDebugStagingApk` / `checkFullReleaseStagingApk`. This checks **all
+packed sets in every device series**, not a particular phone: the root script's
+size and hash, each manifest against the actual compiled BuildConfig static
+fields in DEX, and every referenced payload against its hash, size index and
+root's receive limit. A stale compiled scripts pin previously produced the
+misleading “This copy of OneOS is damaged” error even with valid script assets.
+The build now refuses that inconsistent APK rather than distributing it.
+Python 3 is required for this final check (no third-party modules).
+
+To check an already packaged download, including a manually repacked APK:
+
+```sh
+python3 scripts/check-staging-apk.py path/to/OneOS.apk
+python3 scripts/test-staging-apk.py path/to/OneOS.apk
+```
+
+Rebuild an inconsistent APK from matching sources and assets; do not bypass
+runtime integrity checks or erase a user's stage/data. Distribution scripts
+that publish existing APKs without invoking Gradle must run the checker too.
