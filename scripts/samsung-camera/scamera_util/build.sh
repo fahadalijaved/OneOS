@@ -5,11 +5,17 @@
 # which makes the same binder call. The jar goes onto the guest's
 # /system/framework (guest_prepare.sh, from the staged camera set).
 #
-# Usage: scripts/samsung-camera/scamera_util/build.sh <work dir> <out dir>
+# Usage: scripts/samsung-camera/scamera_util/build.sh <work dir> <out dir> [<scamera_sdk_util.jar>]
+# The third argument: One UI's jar from a firmware pull (build-cached.sh's cache, a
+# built samcam.tar) instead of the one on the phone over adb. It must not be in <work dir>.
 set -e
-W="$1"; OUT="$2"
+W="$1"; OUT="$2"; ORIG="$3"
 case "$OUT" in /*) ;; *) OUT="$PWD/$OUT" ;; esac
-[ -n "$W" ] && [ -n "$OUT" ] || { echo "usage: $0 <work dir> <out dir>" >&2; exit 2; }
+[ -n "$W" ] && [ -n "$OUT" ] || { echo "usage: $0 <work dir> <out dir> [<scamera_sdk_util.jar>]" >&2; exit 2; }
+if [ -n "$ORIG" ]; then
+    ORIG=$(realpath "$ORIG")
+    case "$ORIG" in "$(realpath -m "$W")"/*) echo "$ORIG is inside the work dir $W" >&2; exit 2 ;; esac
+fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
 APKTOOL=$(ls "$ROOT"/mysticgsi/tools/apktool/*.jar | head -1)
@@ -17,7 +23,9 @@ SDK=${ANDROID_HOME:-/opt/android-sdk}
 AJ=$(ls -d "$SDK"/platforms/* | sort -V | tail -1)/android.jar
 D8=$(ls "$SDK"/build-tools/*/d8 | sort -V | tail -1)
 rm -rf "$W" && mkdir -p "$W/cls" "$OUT"
-adb pull /system/framework/scamera_sdk_util.jar "$W/orig.jar" >/dev/null
+if [ -n "$ORIG" ]; then cp "$ORIG" "$W/orig.jar"
+else adb pull /system/framework/scamera_sdk_util.jar "$W/orig.jar" >/dev/null
+fi
 java -jar "$APKTOOL" d -r -f -q -o "$W/d" "$W/orig.jar"
 H="$W/d/smali/com/samsung/android/sdk/camera/impl/internal/CustomInterfaceHelper.smali"
 OLD='invoke-virtual {p0, p1}, Landroid/hardware/camera2/CameraDevice;->setParameters(Ljava/lang/String;)V'

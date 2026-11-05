@@ -70,7 +70,13 @@ python3 -I "$R/scripts/check-dex.py" SamsungCamera-rw.apk semextendedformat-rw.j
 rm -f aligned.apk "$OUT/SamsungCamera.apk.idsig"
 cp semextendedformat-rw.jar "$OUT/semextendedformat.jar"; cp secimaging-rw.jar "$OUT/secimaging.jar"; cp oneos-camera-compat.jar "$OUT/"
 for f in libsimba.heifdec.media.samsung.so libimagecodec.media.quram.so OneOSSamFilterStub.apk scamera_sdk_util.jar; do cp $R/out/samcam_build/$f "$OUT/"; done
-# The cache's own camera SDK jar when it has one (the S26 Ultra's goes with its camera).
-[ -f "$C/scamera_sdk_util.jar" ] && cp "$C/scamera_sdk_util.jar" "$OUT/"
+# The cache's own camera SDK jar when it has one (the S26 Ultra's goes with its camera), patched as
+# every set's is (scamera_util/build.sh: CustomInterfaceHelper's CameraDevice.setParameters, a method
+# no guest framework has, made by SamsungParams.set). 0.4.55 to 0.4.57 shipped it unpatched: "Fail to
+# set samsung parameter", the HAL never got samsungcamera=true and ran the camera as a third-party app
+# ("Unihal is bypass mode", isSamsungCamera(0): one lens, no Samsung processing; S25 Ultra 3715fe57,
+# S23 Ultra 4a519895).
+if [ -f "$C/scamera_sdk_util.jar" ]; then sh "$HERE/scamera_util/build.sh" "$PWD/scamera_util_work" "$OUT" "$C/scamera_sdk_util.jar"; fi
+grep -q 'Lcom/oneos/camera/SamsungParams;' "$OUT/scamera_sdk_util.jar" || { echo "$OUT/scamera_sdk_util.jar has no SamsungParams (One UI's own jar)" >&2; exit 1; }
 { grep -vxFf guest_libs.txt $C/all_needed.txt | grep -v -E '^(libsimba.heifdec.media.samsung.so|libimagecodec.media.quram.so)$' | sed 's/$/ system/'; echo "libsimba.heifdec.media.samsung.so apex"; echo "libimagecodec.media.quram.so apex"; } > "$OUT/libs.txt"
 echo "built $OUT ($(wc -l < "$OUT/libs.txt") libraries; Nothing's had $(wc -l < $R/out/samcam_build/libs.txt))"

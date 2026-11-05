@@ -5,9 +5,10 @@
 # r3 (0.4.45): the r2 jars plus patches/guest_sec_ims_signature.py and guest_no_wipe_secrets.py (services), guest_secims_members.py (framework), guest_smsc_international.py (telephony-common), by scripts/patch-built-jar.sh
 # r4 (0.4.47): libcamera_client_patched.so: the image's native camera client with One UI's transaction codes (patches/pixel_camera_native.py, scripts/patch-camera-native.sh); samcam.tar: Samsung Camera (scripts/samsung-camera/build-cached.sh)
 # 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
+# 0.4.58: telephony-common_patched.jar + guest_sms_invalid_response.py (SEND_SMS error 66 counted as sent)
 6b5ebd8fb7a46346463743ccf2bc1634c9e24b750251c51eb1581faebddef6cf  services_patched.jar
 57de954a137cc3087a374a35eab704f24ec2b69ac0181b6f8f7ef6ec0c1c6478  vold_patched
 f4addc726653b0c1b39ff84c874d61ff96f98eecdae12d76ea6391bb7b20fad0  service.incremental_patched.so
 4c4e40e75b71c15e72674193542aea8860438e7097d2eeaf6daf7261b96d4b1c  framework_patched.jar
-afff9fefe87f1b0b73cd50f65eeecbc09bdc643234609859ebc9ffcff54edd15  telephony-common_patched.jar
+7b3d3be02077319a6adfe402d6c08e1ce8418ec4cb41a96b21d46021cf1d870e  telephony-common_patched.jar
 a8572e8cbeca52394f66765a44d6e295a99e1313550048809bb01ccbe08526f3  libcamera_client_patched.so

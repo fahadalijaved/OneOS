@@ -169,18 +169,26 @@ if [ -n "$BB" ] && [ -n "$gp" ] && [ ! -L "$DR" ] && rm -rf "$DR" 2>/dev/null &&
     p2=$!
     gd audio > "$DR/dumpsys_audio.txt" 2>&1 &
     p3=$!
+    # Location at the end too (S23 Ultra report 3c47928a: the user tried
+    # location after diag_90, in the part of the logcat the report no longer
+    # had): the providers' allowed state, every app's GPS and network requests
+    # and fixes over the session, and its event log. Only on a return with the
+    # guest's system_server still up (not after a hard reset, 4da6af47, or a
+    # dead guest, 16e735f2).
+    gd location > "$DR/location.txt" 2>&1 &
+    p4=$!
     { for k in bluetooth.sco.managed_by_audio persist.bluetooth.a2dp_offload.disabled ro.bluetooth.a2dp_offload.supported \
                persist.bluetooth.leaudio_offload.disabled ro.bluetooth.leaudio_offload.supported; do
           echo "$k=$(getprop "$k")"
       done
       echo "audio HAL pid: $(timeout 3 dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1)"
     } > "$DR/bt_props.txt" 2>&1
-    wait $p1 $p2 $p3 2>/dev/null
-    echo "Guest Bluetooth and audio at the return (pid $gp's namespace): $(ls "$DR" 2>/dev/null | tr '\n' ' ')in $DR"
+    wait $p1 $p2 $p3 $p4 2>/dev/null
+    echo "Guest Bluetooth, audio and location at the return (pid $gp's namespace): $(ls "$DR" 2>/dev/null | tr '\n' ' ')in $DR"
 else
     why="no guest surfaceflinger or system_server"
     [ -n "$gp" ] && why="no busybox, or $DR not usable"
-    echo "Guest Bluetooth and audio at the return: not read ($why)"
+    echo "Guest Bluetooth, audio and location at the return: not read ($why)"
 fi
 
 echo "=== [1/4] Terminating Container Supervision & Zygote ==="
@@ -344,7 +352,7 @@ fi
 # staged app trees (installd/artd write there), and nothing may start One UI
 # on top of the guest's copies.
 # (Fallback if bridges.sh is gone; keep in step with it.)
-BRIDGES="app:app app-staging:app-staging user:user user_de:user_de dalvik-cache:dalvik-cache misc/profiles:misc/profiles data:user/0 media:media misc/user:misc/user misc_ce/0/sdksandbox:misc_ce/0/sdksandbox misc_de/0/sdksandbox:misc_de/0/sdksandbox misc_ce/0/rollback:misc_ce/0/rollback misc_de/0/rollback:misc_de/0/rollback resource-cache:resource-cache"
+BRIDGES="app:app app-staging:app-staging user:user user_de:user_de dalvik-cache:dalvik-cache misc/profiles:misc/profiles data:user/0 media:media misc/user:misc/user misc_ce/0/sdksandbox:misc_ce/0/sdksandbox misc_de/0/sdksandbox:misc_de/0/sdksandbox misc_ce/0/rollback:misc_ce/0/rollback misc_de/0/rollback:misc_de/0/rollback resource-cache:oneos_host_resource_cache"
 [ -f /data/local/tmp/oneos/bridges.sh ] && . /data/local/tmp/oneos/bridges.sh
 for pair in $BRIDGES; do
     d=${pair%%:*}

@@ -233,7 +233,7 @@ object PackageSets {
         // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
         // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
         // other global build's (x9u-in-sultra).
-        sourceDir = "out/overlays_n6g_r8",
+        sourceDir = "out/overlays_n6g_r9",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
         files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
@@ -249,7 +249,7 @@ object PackageSets {
             // 0.4.47: the image's Theme Store without its brand check (DeviceChecker refused the Galaxy's brand).
             PackageFile(THEME_STORE_APK, FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        approxBytes = 748_061_476L,
+        approxBytes = 748_061_816L,
         hasReturnApp = true,
     )
 
@@ -261,7 +261,7 @@ object PackageSets {
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
-        sourceDir = "out/overlays_x9u_in_r61",
+        sourceDir = "out/overlays_x9u_in_r62",
         files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +
@@ -273,7 +273,7 @@ object PackageSets {
             // 0.4.47: the Theme Store without its brand check (the Find N6 global build's APK).
             PackageFile(THEME_STORE_APK, FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
-        approxBytes = 618_643_614L,
+        approxBytes = 618_644_076L,
         hasReturnApp = true,
     )
 
@@ -329,10 +329,10 @@ object PackageSets {
     val PIXEL_F8U = PackageSet(
         id = ID_PIXEL_F8U,
         imageId = Images.ID_PIXEL_YOGI,
-        sourceDir = "out/overlays_pixel_f8u_r5",
+        sourceDir = "out/overlays_pixel_f8u_r6",
         files = PIXEL_FILES + pixelHinge("OneOSPixelUnfold.apk"),
         omitted = listOf(TETHERING),
-        approxBytes = 690_168_465L,
+        approxBytes = 690_168_700L,
         hasReturnApp = true,
     )
 
@@ -344,10 +344,10 @@ object PackageSets {
     val PIXEL_SULTRA = PackageSet(
         id = ID_PIXEL_SULTRA,
         imageId = Images.ID_PIXEL_KODIAK,
-        sourceDir = "out/overlays_pixel_kodiak_r6",
+        sourceDir = "out/overlays_pixel_kodiak_r7",
         files = PIXEL_FILES,
         omitted = listOf(TETHERING),
-        approxBytes = 626_514_866L,
+        approxBytes = 626_515_223L,
         hasReturnApp = true,
     )
 
@@ -355,10 +355,10 @@ object PackageSets {
     val PIXEL_F8 = PackageSet(
         id = ID_PIXEL_F8,
         imageId = Images.ID_PIXEL_YOGI,
-        sourceDir = "out/overlays_pixel_fold8_r5",
+        sourceDir = "out/overlays_pixel_fold8_r6",
         files = PIXEL_FILES + pixelHinge("Fold8PixelUnfold.apk"),
         omitted = listOf(TETHERING),
-        approxBytes = 690_168_465L,
+        approxBytes = 690_168_700L,
         hasReturnApp = true,
     )
 
@@ -372,11 +372,11 @@ object PackageSets {
     val PIXEL9_SULTRA = PackageSet(
         id = ID_PIXEL9_SULTRA,
         imageId = Images.ID_PIXEL_KOMODO,
-        sourceDir = "out/overlays_pixel_komodo_r6",
+        sourceDir = "out/overlays_pixel_komodo_r7",
         // 0.4.47: this image's libcameracompatbilityinfo.so needs One UI's codes too (the Pixel 11 images' agree).
         files = PIXEL_FILES + PackageFile("libcameracompatbilityinfo_patched.so", FileRole.GUARD_LIBRARY),
         omitted = listOf(TETHERING),
-        approxBytes = 632_848_190L,
+        approxBytes = 632_848_543L,
         hasReturnApp = true,
     )
 
@@ -402,7 +402,7 @@ object PackageSets {
     val INFINITYX = PackageSet(
         id = ID_INFINITYX,
         imageId = Images.ID_INFINITYX,
-        sourceDir = "out/overlays_infinityx_r5",
+        sourceDir = "out/overlays_infinityx_r6",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -426,7 +426,7 @@ object PackageSets {
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling", "gmssystem"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
         omitted = listOf(TETHERING, CELLBROADCAST),
-        approxBytes = 616_215_552L,
+        approxBytes = 616_216_010L,
         hasReturnApp = true,
     )
 
@@ -503,7 +503,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r23",
+        sourceDir = "out/overlays_nothing_r24",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             // 0.4.57 (r23): also Samsung IMS's framework members (guest_secims_members.py).
@@ -569,7 +569,7 @@ object PackageSets {
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
             + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
         omitted = listOf(TETHERING),
-        approxBytes = 908_777_666L,
+        approxBytes = 908_777_789L,
         hasReturnApp = true,
     )
 

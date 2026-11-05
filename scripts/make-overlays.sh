@@ -350,6 +350,10 @@ if in_image /system/framework/oplus-services.jar; then
     # (patches/oplus_resolution_tables.py).
     NEW=$(python3 -I "$ROOT/switcher/patches/oplus_resolution_tables.py" "$WORK/oplus")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    # No system_server crash when Do Not Disturb turns on without a notification
+    # light (Samsung has none; patches/oplus_zen_light.py).
+    NEW=$(python3 -I "$ROOT/switcher/patches/oplus_zen_light.py" "$WORK/oplus")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     java -jar "$APKTOOL" b -q -o "$WORK/oplus-rebuilt.jar" "$WORK/oplus"
     cp "$WORK/oplus-services.jar" "$OUT/oplus-services_patched.jar"
     for d in $DIRS; do
@@ -784,13 +788,18 @@ fi
 # (patches/guest_smsc_international.py, 0.4.39). Samsung's radio answers
 # getSmscAddress as "972...",145; AOSP kept the digits and dropped the type, so
 # the guest's SMS named an unknown-type service centre (over IMS: SIP 404).
+# And (patches/guest_sms_invalid_response.py, 0.4.58): Samsung's radio HAL
+# answers every SEND_SMS without a result payload, so a text the modem sent
+# came back as error 66 (INVALID_RESPONSE) and showed as not sent; 66 now
+# counts as sent (a failed send keeps its own error).
 # telephony-common.jar is on the boot class path: built only next to a
 # framework_patched.jar (that set's boot image is not used already).
 rm -f "$OUT/telephony-common_patched.jar"
 if [ -f "$OUT/framework_patched.jar" ] && in_image /system/framework/telephony-common.jar; then
     "$DEBUGFS" -R "dump /system/framework/telephony-common.jar $WORK/telephony-common.jar" "$IMG" 2>/dev/null
-    "$ROOT/scripts/patch-built-jar.sh" "$WORK/telephony-common.jar" "$ROOT/switcher/patches/guest_smsc_international.py" "$OUT/telephony-common_patched.jar"
-    rm -f "$WORK/telephony-common.jar"
+    "$ROOT/scripts/patch-built-jar.sh" "$WORK/telephony-common.jar" "$ROOT/switcher/patches/guest_smsc_international.py" "$WORK/telephony-common_smsc.jar"
+    "$ROOT/scripts/patch-built-jar.sh" "$WORK/telephony-common_smsc.jar" "$ROOT/switcher/patches/guest_sms_invalid_response.py" "$OUT/telephony-common_patched.jar"
+    rm -f "$WORK/telephony-common.jar" "$WORK/telephony-common_smsc.jar"
 fi
 
 # ART rejects a whole class for an empty try range, which a patcher leaves when
@@ -820,7 +829,7 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
         [ -f "$OUT/framework_patched.jar" ] && echo "# HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)"
         [ -f "$OUT/miui-wifi-service_patched.jar" ] && echo "# HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)"
         [ -f "$OUT/miui-telephony-common_patched.jar" ] && echo "# HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)"
-        [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py)"
+        [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)"
         [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
         (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
             miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar \
@@ -831,7 +840,7 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
             $([ -f libcameracompatbilityinfo_patched.so ] && echo libcameracompatbilityinfo_patched.so))
     else
         [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
-        [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py)"
+        [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)"
         [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
         (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
             $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \

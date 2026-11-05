@@ -30,10 +30,10 @@ class PackageSetsTest {
         assertEquals(38, pixel.files.size) // 0.4.24: framework_patched.jar (One UI's camera transaction codes); 0.4.45: telephony-common_patched.jar; 0.4.47: libcamera_client_patched.so, samcam.tar
         assertEquals(Images.ID_FIND_N6, n6.imageId)
         assertEquals(Images.ID_PIXEL_YOGI, pixel.imageId)
-        assertEquals("out/overlays_n6g_r8", n6.sourceDir)
-        assertEquals("out/overlays_x9u_in_r61", xin.sourceDir)
+        assertEquals("out/overlays_n6g_r9", n6.sourceDir)
+        assertEquals("out/overlays_x9u_in_r62", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
-        assertEquals("out/overlays_pixel_f8u_r5", pixel.sourceDir)
+        assertEquals("out/overlays_pixel_f8u_r6", pixel.sourceDir)
         assertEquals(
             listOf(n6, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
                 PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U),
@@ -44,7 +44,7 @@ class PackageSetsTest {
         // Not its cellbroadcast module (0.4.28): One UI's stays, as tethering does.
         val ifx = PackageSets.INFINITYX
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
-        assertEquals("out/overlays_infinityx_r5", ifx.sourceDir)
+        assertEquals("out/overlays_infinityx_r6", ifx.sourceDir)
         // 0.4.55 (r4): telephony-common_patched.jar (the SMS centre) and samcam.tar (the S26 Ultra's camera).
         assertEquals(36, ifx.files.size)
         // 0.4.33: the status bar's corner padding, as on the Pixel images.
@@ -78,7 +78,7 @@ class PackageSetsTest {
         // TelephonyResCommon_Sys.apk in this guest's overlay order (run 10).
         val nothing = PackageSets.NOTHING_F8U
         assertEquals(Images.ID_NOTHING_METROID, nothing.imageId)
-        assertEquals("out/overlays_nothing_r23", nothing.sourceDir)
+        assertEquals("out/overlays_nothing_r24", nothing.sourceDir)
         assertEquals(48, nothing.files.size) // 0.4.55: samcam_bar.tar, the S26 Ultra's camera for the phones
         // r12: Nothing's SystemUI with its quick settings at the screen's own density on the inner panel;
         // r13: its launcher with the drawer's category boxes per row from the width; r17: the ringtone kits
@@ -229,7 +229,7 @@ class PackageSetsTest {
         }
         assertTrue(pixel.hasReturnApp)
         // The free-space gate's number is the files' total (out/overlays_pixel_f8u_r4, 2026-11-04).
-        assertEquals(690_168_465L, pixel.approxBytes)
+        assertEquals(690_168_700L, pixel.approxBytes)
         // Each image presents its Google services exactly when its sets stage GmsCore.
         for (p in Profiles.BUILT_IN) {
             for (choice in p.choices) {
@@ -355,7 +355,7 @@ class PackageSetsTest {
         assertEquals("27.1 GB", Units.bytes(need))
         // The Pixel image is smaller: its own raw size and files.
         val pixelNeed = SpaceRule.toStage(Images.PIXEL_YOGI, pixel)
-        assertEquals(6_559_223_808L + 690_168_465L + 11L * SpaceRule.GIB, pixelNeed)
+        assertEquals(6_559_223_808L + 690_168_700L + 11L * SpaceRule.GIB, pixelNeed)
         assertEquals("19.1 GB", Units.bytes(pixelNeed))
         assertEquals(11L * SpaceRule.GIB, SpaceRule.LAUNCH_BYTES)
         assertEquals(Images.FIND_X9U_IN.rawBytes + SpaceRule.LAUNCH_BYTES, SpaceRule.toStage(Images.FIND_X9U_IN, null))

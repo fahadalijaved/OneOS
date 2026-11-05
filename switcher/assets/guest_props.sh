@@ -186,6 +186,27 @@ add)
             echo "$BLUR=1" >> "$NEW"
         fi
     fi
+    # ColorOS's animation level. OPPO's launcher turns its material blur on
+    # only when persist.sys.oplus.anim_level is a valid level
+    # (PlatformLevelUtils ii.l.h(): 1-4): the app drawer needs level 1
+    # (BlurUtils.isSupportDrawerBlur, ii.l.g(1)), folder and card blur 1 or 2
+    # (isMaterialBlurJumpSupported, via OplusBlurProperties.isSupportNewBlur).
+    # Nothing in the guest sets it (no build.prop the add above loads, One UI
+    # neither): the launcher logged "animationLevelOS14 = -1" (0.4.40
+    # b9110fc3, 0.4.55 4933a41d), CardBackgroundBlurManager supportBlur=false
+    # even after the material blur switch was turned on, and BlurService only
+    # ever blurred the shade. 1 = the top level (A+). ColorOS only: Infinity-X
+    # also ships oplus-services.jar but has no oplus-telephony-common.jar.
+    # Memory only and in the added list, so remove blanks it again.
+    # ONEOS_GUEST_ANIM_LEVEL=0 leaves it unset; 2, 3 or 4 sets that level.
+    AL=persist.sys.oplus.anim_level; ALV=${ONEOS_GUEST_ANIM_LEVEL:-1}
+    case "$ALV" in 1|2|3|4) ;; *) ALV="" ;; esac
+    if [ -n "$ALV" ] && [ -f "$GSE/framework/oplus-telephony-common.jar" ] &&
+            [ -e "$ROOTFS/system/framework/oplus-services.jar" ] &&
+            ! grep -qxF "$AL" "$HOST" && ! grep -q '^persist\.sys\.oplus\.anim_level=' "$NEW"; then
+        echo "$AL=$ALV" >> "$NEW"
+        echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
+    fi
     # USB functions AOSP does not define. Samsung's persist.sys.usb.config is
     # "sec_charging,adb"; UsbManager.usbFunctionsFromString knows no
     # sec_charging and throws IllegalArgumentException, which killed the guest
@@ -375,10 +396,14 @@ add)
     # Bar phones: the image's hole is its own phone's, compared raw with this
     # panel's width (isHoleType: left < width/2 < right is HOLE_CENTER_TYPE).
     # The S25 got the Find X9 Ultra's 679,40:762,123 on 1080 px: HOLE_RIGHT,
-    # icons ended next to the camera. This phone's hole as One UI reported it
-    # (oneos_switch.sh, host_screenhole); unread = no hole, icons at the
-    # right edge. Top and bottom only pad the icons vertically
-    # (StatusBarPaddingProvider.updatePaddingTopBottom).
+    # icons ended next to the camera. This phone's lens as the switch worked it
+    # out from One UI's cutout (oneos_switch.sh, host_holes/host_screenhole);
+    # unread = no hole, icons at the right edge. ColorOS takes it for the lens
+    # itself: StatusBarPaddingProvider.updatePaddingTopBottom centres the icons
+    # between its top and bottom, and the capsule (SystemUIPlugin) is its
+    # height + 4 dp, centred on it. One UI's own rect from the top edge (S25
+    # Ultra 685,0:755,128) made a 139 px capsule on a 128 px bar (report
+    # 4933a41d), and below QHD+ an Ultra's rect was 3/4 size (695,0:747,96).
     # ONEOS_GUEST_INNER_HOLE=image keeps the image's value here too.
     if [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ "${ONEOS_GUEST_INNER_HOLE:-none}" = none ] &&
         grep -q '^ro\.oplus\.display\.screenhole\.positon=' "$NEW"; then
@@ -583,18 +608,39 @@ add)
             echo "guest_props: $key=0 for the session (no first-boot clock reset to 1 January)"
         fi
     fi
-    # Galaxy Z Fold8, Find N6 (pull request #1): the image's cover camera bounds are the
-    # Find N6's; this cover is 1248 px wide. Session-only, removed on return.
-    if [ "${ONEOS_PROFILE:-}" = f8 ] &&
-       grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage"; then
-        key=ro.oplus.display.secondary.screenhole.position
-        sed -i "/^$key=/d" "$NEW"
-        # The accepted bar is 48dp =126px at density420. Centre the
-        # captured camera rectangle vertically in it, preserving its size/X.
-        h=$(cat "$STAGE/host_screenhole" 2>/dev/null || true)
-        aligned=$(echo "$h" | awk -F '[:,]' 'NF==4 && $1~/^[0-9]+$/ && $2~/^[0-9]+$/ && $3~/^[0-9]+$/ && $4~/^[0-9]+$/ && $3>$1 && $4>$2 && $4-$2<=126 {top=int((126-($4-$2))/2);printf "%d,%d:%d,%d",$1,top,$3,top+$4-$2}')
-        [ -n "$aligned" ] || aligned=589,11:659,115
-        echo "$key=$aligned" >> "$NEW"
+    # Fold cover screens: the image's cover hole is its own phone's (Find N6:
+    # 534..606), and ColorOS reads it while oplus_system_folding_mode is not 1
+    # (OplusStatusBarUtils.getScreenHoleParam). On the Z Fold5's 904 px cover
+    # that is right of the middle: HOLE_RIGHT_TYPE, the icons ended at the real
+    # camera, 423..482 (report 4efbf1e8: "isHoleType stableDisplayWidth: 904,
+    # holeLeftPosition 534,holeRightPosition 606 ,holeType HOLE_RIGHT_TYPE",
+    # paddingResult (51, 402)). Only the Z Fold8 had its own (pull request #1).
+    # This cover's lens, from One UI's cover cutout (oneos_switch.sh,
+    # host_cover_screenhole). The Z Fold8 keeps pull request #1's rule, which
+    # was accepted on that phone: One UI's cover rect (host_holes) centred in
+    # ColorOS's 48 dp = 126 px cover bar, its size and x kept; 589,11:659,115
+    # when it was not read. Session-only, removed on return.
+    # ONEOS_GUEST_COVER_HOLE=image keeps the image's value.
+    key=ro.oplus.display.secondary.screenhole.position
+    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && [ "${ONEOS_GUEST_COVER_HOLE:-host}" != image ] &&
+       grep -q '^ro\.oplus\.display\.' "$NEW"; then
+        h=$(cat "$STAGE/host_cover_screenhole" 2>/dev/null) what="this cover's lens"
+        if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage"; then
+            r=$(sed -n 's/^cover [^ ]* [0-9]* \([0-9]*,[0-9]*:[0-9]*,[0-9]*\) .*/\1/p' "$STAGE/host_holes" 2>/dev/null | head -n 1)
+            h=$(echo "$r" | awk -F '[:,]' 'NF==4 && $1~/^[0-9]+$/ && $2~/^[0-9]+$/ && $3~/^[0-9]+$/ && $4~/^[0-9]+$/ && $3>$1 && $4>$2 && $4-$2<=126 {top=int((126-($4-$2))/2);printf "%d,%d:%d,%d",$1,top,$3,top+$4-$2}')
+            what="the Z Fold8's rule from pull request #1, One UI's cover rect ${r:-not read}"
+            [ -n "$h" ] || h=589,11:659,115
+        elif ! echo "$h" | grep -qx '[0-9]\{1,5\},[0-9]\{1,5\}:[0-9]\{1,5\},[0-9]\{1,5\}'; then
+            h='' what=''
+        fi
+        if [ -n "$h" ]; then
+            was=$(sed -n "s/^$key=//p" "$NEW" | tail -n 1)
+            sed -i "/^$key=/d" "$NEW"
+            echo "$key=$h" >> "$NEW"
+            echo "guest_props: $key=$h for the session ($what; the image's: ${was:-none})"
+        else
+            echo "guest_props: $key kept (the image's; this cover's lens was not read)"
+        fi
     fi
     # Nothing OS: haptics through the phone's own vibrator. Nothing's feature
     # bit 139 (bits from ro.build.nothing.feature.base, flipped by the diff

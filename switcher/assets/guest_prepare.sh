@@ -209,6 +209,13 @@ while true; do
     if [ -c /dev/softdog ]; then
         if e=$(printf V 2>&1 > /dev/softdog); then now="$now; /dev/softdog kicked"; else now="$now; /dev/softdog refused ($e)"; fi
     fi
+    # The node(s) One UI's system_server had open at the switch (host_softdog_nodes,
+    # oneos_switch.sh): the S24 Exynos's /dev/watchdog1, beside a busy /dev/watchdog.
+    for n in $(cat /data/local/tmp/oneos/host_softdog_nodes 2>/dev/null); do
+        case "$n" in /dev/watchdog|/dev/softdog) continue ;; esac
+        [ -c "$n" ] || continue
+        if e=$(printf V 2>&1 > "$n"); then now="$now; $n kicked"; else now="$now; $n refused ($e)"; fi
+    done
     # An active software watchdog other than /dev/watchdog: kicked ("V", the
     # magic close where the driver allows it), never started.
     for w in /sys/class/watchdog/watchdog*; do
@@ -607,6 +614,17 @@ if [ $SAMCAM_IMAGE = 1 ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_C
             echo "Samsung Camera: ${SAMCAM_TAR##*/} did not unpack"
     fi
 fi
+# scamera_sdk_util.jar must be OneOS's (scripts/samsung-camera/scamera_util:
+# CustomInterfaceHelper's CameraDevice.setParameters sent by SamsungParams).
+# One UI's own calls a method no guest framework has ("Fail to set samsung
+# parameter"): the HAL never gets samsungcamera=true and runs the camera as a
+# third-party app ("Unihal is bypass mode", isSamsungCamera(0); 0.4.55 to
+# 0.4.57 bar sets). A log line only.
+if [ $SAMCAM_IMAGE = 1 ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ] &&
+    [ -f "$SAMCAM_SRC/scamera_sdk_util.jar" ] &&
+    ! grep -q 'Lcom/oneos/camera/SamsungParams;' "$SAMCAM_SRC/scamera_sdk_util.jar"; then
+    echo "!!! Samsung Camera: scamera_sdk_util.jar is One UI's unpatched one: the camera HAL will treat the camera as a third-party app"
+fi
 # The camera's JNI libraries, which it loads by name from Java (uses-native-library
 # and System.loadLibrary). libs.txt is the closure build-cached.sh derives from
 # its native dependencies, which misses them; the Nothing set's (scripts/
@@ -617,7 +635,11 @@ fi
 # ("surfaceNativeUtil is null", "Unknown error -2147483648": a black preview, F8U
 # test5). Bound from One UI's /system/lib64 only where the guest image has no
 # library of that name, so none of the image's own is replaced.
-SAMCAM_JNI="libAEBHDR_wrapper.camera.samsung.so libAIQSolution_MPISingleRGB40.camera.samsung.so \
+# libAIQSolution_MPI: the night shot's MPI node (NodeFeatureLoader registers
+# super_night.mpi.v2 from this phone's cameradata); the S26 Ultra has no such
+# library, so libs.txt cannot name it: S25 Ultra 3715fe57, "dlopen failed:
+# library libAIQSolution_MPI.camera.samsung.so not found", camera closed.
+SAMCAM_JNI="libAEBHDR_wrapper.camera.samsung.so libAIQSolution_MPI.camera.samsung.so libAIQSolution_MPISingleRGB40.camera.samsung.so \
     libDeflickerHDR.camera.samsung.so libDocMagnetEngine.camera.samsung.so \
     libDocRectifyWrapper.camera.samsung.so libDualCamBokehCapture.camera.samsung.so \
     libEventDetector.camera.samsung.so libFaceRestoration.camera.samsung.so libFoodDetector.camera.samsung.so \
@@ -2371,6 +2393,44 @@ if [ "${ONEOS_GUEST_RINGTONES:-1}" = 1 ]; then
     fi
 fi
 
+# ColorOS's theme and icon folders. Its init.oplus.rootdir.rc (system_ext)
+# makes /data/theme, /data/oplus/uxicons, /data/oplus/uxres and
+# /data/oplus/language 0777 system system "on post-fs-data"; One UI's init
+# never reads it, and the apps that write there are not system and cannot make
+# them under /data/oplus themselves. Applying the Custom icon style with icon
+# colours that follow the wallpaper crashed Wallpapers & style (0.4.40
+# b9110fc3, com.oplus.uxdesign: createNewFile ENOENT in common.u.i, which
+# writes /data/oplus/uxres/uxcolor), chosen icons were not saved (UxFileUtils:
+# /data/oplus/uxicons/choose/... ENOENT) and the launcher's morph icon list
+# neither (0.4.55 4933a41d, RusUtils: /data/oplus/uxicons/
+# morph_icons_whitelist.xml ENOENT). Made in the guest's own /data only, with
+# the rc's mode and owners, never through a link the guest made.
+# ONEOS_GUEST_THEME_DIRS=0 leaves them alone.
+if [ "${ONEOS_GUEST_THEME_DIRS:-1}" = 1 ] && [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; then
+    made=0
+    for f in "$ROOTFS"/system/etc/init/*.rc "$GUEST_SYSTEM_EXT"/etc/init/*.rc; do
+        [ -f "$f" ] && [ ! -L "$f" ] && cat "$f"
+    done | awk '$1 == "mkdir" && $2 ~ /^\/data\/(theme|oplus\/(uxicons|uxres|language))\/?$/ { sub(/\/$/, "", $2); print $2, ($3 ~ /^[0-7]+$/ ? $3 : "0771"), ($4 == "root" ? 0 : 1000), ($5 == "root" ? 0 : 1000) }' |
+        sort -u -k1,1 > "$STAGE/coloros_data_dirs.txt"
+    while read -r p mode u g; do
+        q="$STAGE/data"; ok=1
+        for part in $(echo "${p#/data/}" | tr '/' ' '); do
+            q="$q/$part"; [ -L "$q" ] && { ok=0; break; }
+        done
+        [ $ok = 1 ] || { echo "ColorOS /data folder $p: a link on the way, skipped"; continue; }
+        d="$STAGE$p"
+        if [ ! -d "$d" ]; then
+            [ -d "$STAGE/data/oplus" ] || { mkdir -p "$STAGE/data/oplus" && $BB chown 1000:1000 "$STAGE/data/oplus" && $BB chmod 0775 "$STAGE/data/oplus" &&
+                $BB chcon u:object_r:system_data_file:s0 "$STAGE/data/oplus" 2>/dev/null; }
+            mkdir -p "$d" && made=$((made + 1))
+        fi
+        $BB chown "$u:$g" "$d" 2>/dev/null; $BB chmod "$mode" "$d" 2>/dev/null
+        $BB chcon u:object_r:system_data_file:s0 "$d" 2>/dev/null || true
+    done < "$STAGE/coloros_data_dirs.txt"
+    echo "ColorOS theme/icon /data folders from its init rc files: $made made ($(wc -l < "$STAGE/coloros_data_dirs.txt") listed)"
+    rm -f "$STAGE/coloros_data_dirs.txt"
+fi
+
 # Screen recording of the session (guest_start.sh) only when asked for.
 if [ "${ONEOS_RECORD:-0}" = 1 ]; then touch "$STAGE/data/oneos_record"; else rm -f "$STAGE/data/oneos_record"; fi
 echo "Screen recording: $([ -f "$STAGE/data/oneos_record" ] && echo on || echo off)"
@@ -2508,6 +2568,16 @@ done
 mkdir -p "$STAGE/data/resource-cache"
 chmod 771 "$STAGE/data/resource-cache"
 chown 1000:1000 "$STAGE/data/resource-cache"
+# One UI's side of the resource-cache bridge (bridges.sh): One UI's idmap2
+# writes One UI's idmaps here during the session, never over the guest's
+# data/resource-cache, whose idmaps the guest's zygote has mapped. Made new
+# each session: nothing a guest left in it (a link) is there for One UI's
+# idmap2, which runs as root, to write through.
+rm -rf "$STAGE/data/oneos_host_resource_cache" 2>/dev/null
+mkdir -p "$STAGE/data/oneos_host_resource_cache"
+chmod 771 "$STAGE/data/oneos_host_resource_cache"
+chown 1000:1000 "$STAGE/data/oneos_host_resource_cache"
+$BB chcon u:object_r:resourcecache_data_file:s0 "$STAGE/data/oneos_host_resource_cache" 2>/dev/null || true
 
 rm -rf "$STAGE/data/data" 2>/dev/null || true
 mkdir -p "$STAGE/data/data"
@@ -3636,6 +3706,9 @@ cat > "$STAGE/data/local/tmp/net_fix.sh" <<'NETFIX'
 # "check your internet connection" and even ping to the gateway fails.
 # Keep a private table (4242) in sync with the live interface - wifi first,
 # else mobile/CLAT - and point a catch-all rule at it. Idempotent.
+# (Since guest_start.sh restarts netd, the guest's routes do reach netd's own
+# tables; 0.4.58 limits the rule to what the phone itself sends, iif lo, so the
+# hotspot's forwarded traffic keeps netd's tethering rules.)
 # Usable = an IPv4 address AND a carrier. After One UI stops, wlan0 keeps One
 # UI's DHCP address with the link down (run 28: 192.168.x.y on a "linkdown"
 # wlan0 all session); picking it sent all traffic to a dead link.
@@ -3671,17 +3744,44 @@ if [ "$cur_if" != "$iface" ]; then
 fi
 ip route replace "$subnet" dev "$iface" table 4242 2>/dev/null
 ip route replace default $via table 4242 2>/dev/null
+# The phone's other IPv4 subnets (the hotspot's swlan0, USB and Bluetooth
+# tethering, Wi-Fi Direct) are not reached through the upstream: throw them out
+# of 4242, so the lookup falls through to netd's own tables as on One UI.
+# Without this, every reply the phone itself sends to a hotspot client (DNS
+# from dnsmasq, ICMP) took 4242's default back out of the upstream (S25 Ultra
+# ColorOS sessions 30124d7e and 516ef4ce: clients connected, no internet).
+# Prefixes shorter than /8 are left alone (a VPN's 0.0.0.0/1 split routes).
+want=$(ip route show table all 2>/dev/null | awk -v d="$iface" \
+    '$2=="dev" && $3!=d && $0 ~ / scope link/ && $1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\/([89]|[12][0-9]|3[0-2])$/ {print $1}' | sort -u)
+have=$(ip route show table 4242 2>/dev/null | awk '$1=="throw"{print $2}')
+for p in $have; do
+    case " $(echo $want) " in *" $p "*) ;; *) ip route del throw "$p" table 4242 2>/dev/null ;; esac
+done
+for p in $want; do
+    case " $(echo $have) " in
+        *" $p "*) ;;
+        *) ip route replace throw "$p" table 4242 2>/dev/null && echo "net route: $p stays on netd's routes (not $iface)" ;;
+    esac
+done
 # Priority must beat the per-uid rules netd already installed for previous
 # networks (15040/29040/29998): app sockets carry an fwmark, so a catch-all
 # placed after those still sends them into a dead table even though root's
 # unmarked pings work.
-cur=$(ip rule show 2>/dev/null | awk '/^14999:/{print $NF; exit}')
-if [ "$cur" != "4242" ]; then
-    ip rule del priority 14999 2>/dev/null
-    ip rule add from all lookup 4242 priority 14999 2>/dev/null
-    ip rule del priority 31999 2>/dev/null
-    echo "net route repaired: $iface $subnet gw $gw"
-fi
+# Only what the phone itself sends (iif lo). Forwarded packets keep netd's
+# rules: the tethering module's "iif swlan0 lookup <upstream>" and the route
+# back to the client's subnet. "from all lookup 4242" sent every reply from
+# the internet to a hotspot client back out of the upstream, where the FORWARD
+# chain dropped it.
+cur=$(ip rule show 2>/dev/null | awk '/^14999:/{print; exit}')
+case "$cur" in
+    *"iif lo lookup 4242"*) ;;
+    *)
+        for n in 1 2 3; do ip rule del priority 14999 2>/dev/null || break; done
+        ip rule add iif lo lookup 4242 priority 14999 2>/dev/null
+        ip rule del priority 31999 2>/dev/null
+        echo "net route repaired: $iface $subnet gw $gw"
+        ;;
+esac
 exit 0
 NETFIX
 chmod 755 "$STAGE/data/local/tmp/net_fix.sh" 2>/dev/null || true

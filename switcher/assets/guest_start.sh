@@ -1189,6 +1189,12 @@ if [ "${ONEOS_GUEST_GNSS_RESTART:-1}" != 0 ] && [ -n "$(getprop init.svc.gnss_se
         [ "$(getprop init.svc.gnss_service)" = running ] && service check android.hardware.gnss.IGnss/default 2>/dev/null | grep -q ": found" && break
     done
     echo "[Pivoted Root] gnss_service: $(getprop init.svc.gnss_service), pid $(getprop init.svc_debug_pid.gnss_service) after $((n / 5))s"
+else
+    # Exynos phones (S.LSI: gpsd and an AIDL HAL, Galaxy Z Flip7 report 16e735f2)
+    # have no gnss_service, so nothing above ran and the takeover log said
+    # nothing: name the GNSS services that do run (property reads only).
+    gnss_svcs=$(getprop | grep -iE '^\[init\.svc\.[^]]*(gnss|gps)' | sed 's/^\[init\.svc\.\([^]]*\)\]: \[\([^]]*\)\]$/\1=\2/' | tr '\n' ' ')
+    echo "[Pivoted Root] GNSS HAL not restarted (no gnss_service, or ONEOS_GUEST_GNSS_RESTART=0); GNSS services: ${gnss_svcs:-none}"
 fi
 
 # OneOS: the guest's own idmap2d for the whole session (its overlay manager no
