@@ -581,15 +581,23 @@ SAMCAM_BOUND=0
 # camera is rewritten against its own image's framework, so only a stage whose
 # set brought a samcam.tar takes it (setup moves every other set's files to the
 # attic); a samcam_build left from another system stays out.
+# 0.4.55: a set that folds and bar phones share (Nothing OS) also carries a bar
+# phone's camera, samcam_bar.tar (the Galaxy S26 Ultra's own); a phone (every
+# form but fold) takes it. The Z Fold8 Ultra's camera, made for a foldable's two
+# screens, had its layout wrong on every bar phone.
+SAMCAM_TAR="$STAGE/samcam.tar"
+if [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ -f "$STAGE/samcam_bar.tar" ] && [ ! -L "$STAGE/samcam_bar.tar" ]; then
+    SAMCAM_TAR="$STAGE/samcam_bar.tar"
+fi
 SAMCAM_IMAGE=0
-[ -f "$STAGE/samcam.tar" ] && [ ! -L "$STAGE/samcam.tar" ] && SAMCAM_IMAGE=1
-if [ $SAMCAM_IMAGE = 1 ] && [ -f "$STAGE/samcam.tar" ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
-    st=$(stat -c %s:%Y "$STAGE/samcam.tar")
+[ -f "$SAMCAM_TAR" ] && [ ! -L "$SAMCAM_TAR" ] && SAMCAM_IMAGE=1
+if [ $SAMCAM_IMAGE = 1 ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
+    st="${SAMCAM_TAR##*/}:$(stat -c %s:%Y "$SAMCAM_TAR")"
     if [ "$(cat "$SAMCAM_SRC/.from_tar" 2>/dev/null)" != "$st" ]; then
         rm -rf "$SAMCAM_SRC" && mkdir -p "$SAMCAM_SRC" &&
-            $BB tar -xf "$STAGE/samcam.tar" -C "$SAMCAM_SRC" && echo "$st" > "$SAMCAM_SRC/.from_tar" &&
-            echo "Samsung Camera: the set's samcam.tar unpacked into $SAMCAM_SRC" ||
-            echo "Samsung Camera: samcam.tar did not unpack"
+            $BB tar -xf "$SAMCAM_TAR" -C "$SAMCAM_SRC" && echo "$st" > "$SAMCAM_SRC/.from_tar" &&
+            echo "Samsung Camera: the set's ${SAMCAM_TAR##*/} unpacked into $SAMCAM_SRC" ||
+            echo "Samsung Camera: ${SAMCAM_TAR##*/} did not unpack"
     fi
 fi
 # The camera's JNI libraries, which it loads by name from Java (uses-native-library

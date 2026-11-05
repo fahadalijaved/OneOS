@@ -109,6 +109,7 @@ object Profiles {
     const val ID_S_FE_9945 = "s-fe-9945"
     const val ID_A26 = "a26"
     const val ID_A17 = "a17"
+    const val ID_A16_4G = "a16-4g"
     const val ID_A16 = "a16"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
@@ -824,6 +825,14 @@ object Profiles {
     )
 
     /**
+     * Galaxy A16 4G, from 0.4.55: a probe report of 2026-11-05 (SM-A165F, a16, MediaTek MT6789
+     * like the A07 and A17, One UI 9.0 and Android 17 build A165FXXUBEZJ7, vendor and board API 31,
+     * first API 34, kernel 6.12, no SVE or SME). The A17's Infinity-X, untested, with [MEDIATEK].
+     * The A16 5G is another phone ([A16], SM-A166, Exynos 1330).
+     */
+    val A16_4G = A17.copy(id = ID_A16_4G, label = "Galaxy A16 4G", modelPrefix = "SM-A165", codename = "a16")
+
+    /**
      * Galaxy A16 5G (the US model, Exynos), from 0.4.48: a probe report of 2026-11-03 (SM-A166U,
      * a16x, s5e8535 Exynos 1330, One UI 9.0, Android 17, vendor API 33 and kernel 5.15, one
      * 1080 x 2340 panel, the HIDL composer, no SVE or SME, installd 85 methods). The A16s with
@@ -845,7 +854,7 @@ object Profiles {
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
-        S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965,
+        S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

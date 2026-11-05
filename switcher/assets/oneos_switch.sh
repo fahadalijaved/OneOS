@@ -2647,6 +2647,54 @@ else
     echo "Heat cap: off (ONEOS_HEAT_CAP=0, Cool down when hot off in Advanced)"
 fi
 
+# Panel keeper (0.4.55). The guests OneOS pins at their top refresh rate (no
+# oplus-services.jar: Pixel, HyperOS, Nothing OS) could run a whole session with
+# the panel at 24 Hz under a SurfaceFlinger at 120 Hz: 10-15 fps (reports since
+# 0.4.38; guest_start.sh, oneos_sf_kick.sh). ColorOS and Infinity-X switch modes
+# themselves and came back to 120 Hz on their own. Every 15 s the panel's rate
+# (/sys/class/lcd/panel/vrr, its first field) is read; under 48 Hz twice running
+# with a backlight on, the guest's /data/oneos_sf_kick.sh takes every display
+# through another mode back to its top one, which makes the composer program the
+# panel (at most 40 times a session). A 60 Hz setting is left alone. Sysfs reads
+# only between kicks; it ends itself with the return (data/oneos_rec_stop) or
+# when the guest's namespace record is gone, like the heat cap. Logged in
+# $STAGE/panel_keeper.log. ONEOS_GUEST_SF_PIN=0: not started.
+rm -f "$STAGE/panel_keeper.log"
+if [ "$GUEST_OPLUS" != 1 ] && [ "${ONEOS_GUEST_SF_PIN:-1}" != 0 ] && [ -r /sys/class/lcd/panel/vrr ]; then
+    $BB sh -c "
+    : oneos_panel_keeper
+    echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
+    F=$STAGE/panel_keeper.log
+    echo \"# \$(date) OneOS panel keeper: every 15 s; under 48 Hz twice with the screen on, oneos_sf_kick.sh\" > \$F
+    low=0; kicks=0
+    while true; do
+        if [ -f $STAGE/data/oneos_rec_stop ] || [ ! -s $STAGE/guest_mntns ]; then
+            echo \"# \$(date +%T) stopped (the return started, or no guest namespace record) after \$kicks kicks\" >> \$F
+            exit 0
+        fi
+        hz=\$(cut -d' ' -f1 /sys/class/lcd/panel/vrr 2>/dev/null)
+        case \"\$hz\" in ''|*[!0-9]*) hz=0 ;; esac
+        on=0
+        for b in /sys/class/backlight/*/brightness; do
+            v=\$(cat \$b 2>/dev/null); case \"\$v\" in ''|*[!0-9]*) ;; 0) ;; *) on=1 ;; esac
+        done
+        if [ \$on = 1 ] && [ \$hz -gt 0 ] && [ \$hz -lt 48 ]; then low=\$((low + 1)); else low=0; fi
+        if [ \$low -ge 2 ] && [ \$kicks -lt 40 ] && [ -f $STAGE/data/oneos_sf_kick.sh ]; then
+            P=\$(pidof system_server | awk '{print \$1}')
+            out=''
+            [ -n \"\$P\" ] && out=\$(timeout 30 $BB nsenter -t \$P -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_sf_kick.sh 2>&1 | tr '\\n' ';' | cut -c1-400)
+            kicks=\$((kicks + 1)); low=0
+            sleep 1
+            echo \"\$(date +%T) panel at \$hz Hz with the screen on: \${out:-no guest system_server}; now \$(cut -d' ' -f1 /sys/class/lcd/panel/vrr 2>/dev/null) Hz\" >> \$F
+        fi
+        sleep 15
+    done
+" </dev/null >/dev/null 2>&1 &
+    echo "Panel keeper: on (every 15 s to $STAGE/panel_keeper.log)"
+else
+    echo "Panel keeper: off ($([ "$GUEST_OPLUS" = 1 ] && echo "this system sets its own refresh rate" || echo "no /sys/class/lcd/panel/vrr, or ONEOS_GUEST_SF_PIN=0"))"
+fi
+
 # OneOS dead-man switch. If the guest is not booting, put One UI back by itself:
 # a stuck guest otherwise leaves a black screen and no network (so no remote
 # adb either) until a forced reboot, which also drops temp root.

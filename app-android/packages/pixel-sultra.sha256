@@ -1,5 +1,5 @@
-# OneOS package set pixel-sultra: sha256sum of out/overlays_pixel_kodiak_r4 (scripts/make-overlays.sh, 2026-10-27; services_patched.jar with patches/guest_no_native_services.py, 2026-10-28; 0.4.39 r2: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03); 0.4.45 r3: services_patched.jar with patches/guest_sec_ims_signature.py and guest_no_wipe_secrets.py, framework_patched.jar with guest_secims_members.py, telephony-common_patched.jar with guest_smsc_international.py, 2026-11-04; 0.4.47 r4: samcam.tar (scripts/samsung-camera/build-cached.sh) and the native camera client patch (scripts/patch-camera-native.sh), 2026-11-04), minus tethering_payload.img.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_pixel_kodiak_r4 differs.
+# OneOS package set pixel-sultra: sha256sum of out/overlays_pixel_kodiak_r5 (scripts/make-overlays.sh, 2026-10-27; services_patched.jar with patches/guest_no_native_services.py, 2026-10-28; 0.4.39 r2: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03); 0.4.45 r3: services_patched.jar with patches/guest_sec_ims_signature.py and guest_no_wipe_secrets.py, framework_patched.jar with guest_secims_members.py, telephony-common_patched.jar with guest_smsc_international.py, 2026-11-04; 0.4.47 r4: samcam.tar (scripts/samsung-camera/build-cached.sh) and the native camera client patch (scripts/patch-camera-native.sh), 2026-11-04; 0.4.55 r5: samcam.tar built from the Galaxy S26 Ultra's own Samsung Camera (S948BXXS4BZIG firmware; scripts/samsung-camera/build-cached.sh with SAMCAM_CACHE and SAMCAM_BAR=1), 2026-11-05), minus tethering_payload.img.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_pixel_kodiak_r5 differs.
 bd03c424877de86c2864313ba3371d3725b3d5531559373aadc84d592f9cae0c  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
 466e8b95c9805c6544f736c0a134f6b0de6035232b4473897dc64508bb91114a  OneOSPixelStatusBar.apk
@@ -27,7 +27,7 @@ d3f27a15fd50ac7d329b1dba814f793da7b66c69f8dadaa9a544d933d394eecc  permission_pay
 93f053e2f3d767d9af36730928fe060a277f531cbf084785a5290b3556eaf502  profiling_payload.img
 3deb292e9b6f537227c2d6009934c0359a7526ec0013988ac03b11071efd1d5c  rkpd_payload.img
 27ed59906b44b6db15a390761f3a7fd113d85224908e8639f0a831deffdfa404  runtime_payload.img
-fd157869e5de3fbc9ec958ebd43bebc7800ac47025e56f7b8fe0c32cb80757ab  samcam.tar
+addb0221f6f5c50bcabd585c85e65311a8e9029719811895b4ddb4ac186035b3  samcam.tar
 8ed7589969f1ca29fbdcf0a0f05386420001b94fdd8a76730cfd88933707a2ee  sdkext_payload.img
 f4addc726653b0c1b39ff84c874d61ff96f98eecdae12d76ea6391bb7b20fad0  service.incremental_patched.so
 860d9c8d4c952517398847b731bd2372c84b0972988e038a070981e9a57fcdad  services_patched.jar

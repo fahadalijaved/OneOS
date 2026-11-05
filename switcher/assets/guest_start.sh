@@ -506,29 +506,49 @@ fi
 # panels (240 Hz vsync), and never more than a panel can show. The parcel result
 # and the policy SurfaceFlinger then reports are logged. Pixel only (no
 # oplus-services.jar); ONEOS_GUEST_SF_PIN=0 leaves the ranges to DisplayManager.
+# 0.4.55: the pin goes through /data/oneos_sf_kick.sh, which oneos_switch.sh's
+# panel keeper runs again later. Reports since 0.4.38 (S25 Ultra e6a54d95, S25+
+# 5e94e07b, Z Flip5 51bad347; 10-15 fps "since the last update"): the guest's
+# SurfaceFlinger at 120 Hz and pinned there, the panel at 24 Hz the whole session
+# (/sys/class/lcd/panel/vrr "24", its low-frequency range 10-24 Hz where a good
+# session has 10-120), every frame paced at 24 Hz. One UI's SurfaceFlinger,
+# frozen on the switch screen, had left the panel in its idle 24 Hz mode, and
+# the restarted composer took the guest's request for its default mode as
+# already done. So each display is switched to another mode of its resolution
+# and back to the top one (<= 120 Hz), which makes the composer program the
+# panel, and pinned at that top rate (a 60 Hz cover at 60: "60-120" was
+# refused there, Z Flip5). Displays not listed yet are left to the keeper.
+cat > /data/oneos_sf_kick.sh <<'SFKICK'
+# OneOS (guest_start.sh): every physical display through another mode back to its top mode, pinned there.
+D=$(dumpsys SurfaceFlinger 2>/dev/null)
+n=0
+for id in $(dumpsys SurfaceFlinger --display-id 2>/dev/null | sed -n 's/^Display \([0-9][0-9]*\) (HWC display .*/\1/p'); do
+    sel=$(echo "$D" | awk -v d="$id" '$0 == "Display " d { f = 1; next } f && /^Display / { f = 0 }
+        f && /^ *activeMode=\{id=[0-9]+,/ { r = $0; sub(/.*resolution=/, "", r); sub(/,.*/, "", r); res = r }
+        f && /^ *\{id=[0-9]+, hwcId=/ { m = $0; sub(/^ *\{id=/, "", m); sub(/,.*/, "", m)
+            rr = $0; sub(/.*resolution=/, "", rr); sub(/,.*/, "", rr)
+            v = $0; if (!sub(/.*vsyncRate=/, "", v)) v = 0; k++; id_[k] = m; res_[k] = rr; hz[k] = int(v + 0.5) }
+        END { b = -1; bv = 0; o = -1; ov = 0
+            for (i = 1; i <= k; i++) if (res_[i] == res && hz[i] <= 120 && hz[i] > bv) { bv = hz[i]; b = id_[i] }
+            for (i = 1; i <= k; i++) if (res_[i] == res && hz[i] != bv && hz[i] >= 48 && hz[i] > ov) { ov = hz[i]; o = id_[i] }
+            if (b >= 0) print b, bv, o, ov }')
+    set -- $sel
+    [ $# = 4 ] || { echo "display $id: no modes in the dump, left alone"; continue; }
+    # Each call waits on SurfaceFlinger's main thread: never longer than 5 s.
+    [ "$3" = -1 ] || { timeout 5 service call SurfaceFlinger 1035 i32 "$3" i64 "$id" f "$4" f "$4" >/dev/null 2>&1; sleep 0.4; }
+    r=$(timeout 5 service call SurfaceFlinger 1035 i32 "$1" i64 "$id" f "$2" f "$2" 2>&1 | tr -s ' \n' ' ' | cut -c1-120)
+    echo "display $id: through mode $3 ($4 Hz) to mode $1, pinned at $2 Hz: $r"
+    n=$((n + 1))
+done
+[ "$n" -gt 0 ] || echo "no physical displays listed yet"
+SFKICK
+chmod 644 /data/oneos_sf_kick.sh
 if [ -e /system/framework/oplus-services.jar ]; then
     :
 elif [ "${ONEOS_GUEST_SF_PIN:-1}" = 0 ]; then
     echo "[Pivoted Root] SF render rate left to DisplayManager (ONEOS_GUEST_SF_PIN=0)"
 else
-    SFDUMP=$(dumpsys SurfaceFlinger 2>/dev/null)
-    PINNED=0
-    for id in $(dumpsys SurfaceFlinger --display-id 2>/dev/null | sed -n 's/^Display \([0-9][0-9]*\) (HWC display .*/\1/p'); do
-        ml=$(echo "$SFDUMP" | awk -v d="$id" '$0 == "Display " d { f = 1; next } f && /^Display / { f = 0 }
-            f && /^ *activeMode=\{id=[0-9]+,/ { m = $0; sub(/^ *activeMode=\{id=/, "", m); sub(/,.*/, "", m)
-                v = $0; if (!sub(/.*vsyncRate=/, "", v)) v = 0; v = int(v + 0.5); if (v > 120) v = 120
-                print m, v; exit }')
-        mode=${ml% *} lo=${ml#* }
-        case "$mode:$lo" in
-            :*|*[!0-9:]*|*:) echo "[Pivoted Root] SF render rate on $id: no active mode in the dump, left alone"; continue ;;
-        esac
-        [ "$lo" -ge 60 ] || lo=60
-        # The call waits on SurfaceFlinger's main thread: never longer than 5 s here.
-        r=$(timeout 5 service call SurfaceFlinger 1035 i32 "$mode" i64 "$id" f "$lo" f 120 2>&1 | tr -s ' \n' ' ' | cut -c1-160)
-        echo "[Pivoted Root] SF render rate pinned to $lo-120 Hz on $id (mode $mode): $r"
-        PINNED=$((PINNED + 1))
-    done
-    [ "$PINNED" = 0 ] && echo "[Pivoted Root] SF render rate: no physical displays listed yet, left to DisplayManager"
+    /system/bin/sh /data/oneos_sf_kick.sh 2>&1 | sed 's/^/[Pivoted Root] SF render rate: /'
     dumpsys SurfaceFlinger 2>/dev/null | awk '/^Display [0-9]+$/ { d = $2 } /debugDisplayModeSetByBackdoor/ { print "[Pivoted Root] SF " $0 }
         d != "" && /^ *displayManagerPolicy=/ { sub(/^ */, ""); print "[Pivoted Root] SF " d " " substr($0, 1, 440); d = "" }'
 fi

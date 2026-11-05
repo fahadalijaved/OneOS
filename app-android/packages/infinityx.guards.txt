@@ -2,9 +2,11 @@
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
-78f9329d41ee4ff256a5a394c81fb9e778c82016a6fca6c551224f9afac8f256  services_patched.jar
+# r4 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms, where Infinity-X keeps system_ext), framework_patched.jar with patches/guest_secims_members.py, telephony-common_patched.jar: the image's with patches/guest_smsc_international.py, samcam.tar: the Galaxy S26 Ultra's camera (scripts/samsung-camera/build-cached.sh, SAMCAM_BAR=1)
+8acd5e4a1a2f4230f9f5a836dbba4ecd3a4f8053a517a9e9d39be5610e3175d7  services_patched.jar
 d5ae84697f24c1576927b61c7aec7b906a3206a49d72e58df8db417b6448c438  oplus-services_patched.jar
 654dcfa788bcfde4fc539935ffbcb707a3b0c2001e31b6de27edec5afe5de404  vold_patched
 d853cfa2f60c477a5c5224cf9972665f09a733fa66e659d71f43d521589fceb7  service.incremental_patched.so
-c6cafb102e1ee81c08ab9d9b8a3420b4a67cfaa055394ac78c1a80624cb6c6c0  framework_patched.jar
+664e9705b3fc1d9370ad1d18ba403cd3df3bc36f76829f6f40fdb80108437aa7  framework_patched.jar
 1ba6a3b21d5321b225e93d93d024332936e339e5002a082f98e6e7a51c9449bd  libcamera_client_patched.so
+1f915ca051b709f81bd7efa9a97bc8d13cafb5d67011a0b43a778cf115c5b887  telephony-common_patched.jar

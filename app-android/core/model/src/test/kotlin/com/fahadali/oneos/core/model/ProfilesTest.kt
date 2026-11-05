@@ -248,7 +248,7 @@ class ProfilesTest {
                 Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945,
-                Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965,
+                Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965, Profiles.A16_4G,
             ),
             Profiles.BUILT_IN,
         )
@@ -263,6 +263,11 @@ class ProfilesTest {
         assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_PIXEL_KOMODO, Images.ID_INFINITYX), Profiles.A26.choices.map { it.imageId })
         for (p in listOf(Profiles.A17, Profiles.A16)) assertEquals(p.id, listOf(Images.ID_INFINITYX), p.choices.map { it.imageId })
         assertEquals(Profiles.A17, Profiles.resolve("SM-A175F", "a17", "MT6789").profile)
+        // The A16 4G (0.4.55): the A17's chip and image under its own model number and codename.
+        assertEquals(Profiles.A16_4G, Profiles.resolve("SM-A165F", "a16", "MT6789").profile)
+        assertEquals(listOf("a16-4g", "Galaxy A16 4G"), listOf(Profiles.A16_4G.id, Profiles.A16_4G.label))
+        assertEquals(Profiles.A17.choices, Profiles.A16_4G.choices)
+        assertEquals(Profiles.A17.notes, Profiles.A16_4G.notes)
         assertEquals(Profiles.A16, Profiles.resolve("SM-A166U", "a16x", "s5e8535").profile)
         // The A16 with MediaTek (a16xm) is not the Exynos one.
         assertNull(Profiles.resolve("SM-A166P", "a16xm", "MT6835").profile)

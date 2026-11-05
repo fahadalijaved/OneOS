@@ -46,23 +46,23 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Find X9 Ultra image, S Ultra: no fold grid either.
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r58") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r59") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r4") to listOf("tethering_payload.img")),
     // Pixel 11 Pro image (0.4.10), Galaxy S26 Ultra: the same files from that image.
-    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r4") to listOf("tethering_payload.img")),
+    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r5") to listOf("tethering_payload.img")),
     "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r4") to listOf("tethering_payload.img")),
     // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
-    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r4") to listOf("tethering_payload.img")),
+    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r5") to listOf("tethering_payload.img")),
     // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
     // is built from source (0.4.28): the guest keeps One UI's, like tethering.
-    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r3") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
+    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r4") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
-    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r13") to listOf("tethering_payload.img")),
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r14") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r21") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r22") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -385,8 +385,13 @@ android {
         // downloaded this file", 0.4.51 testers) hands over to the next, each phone starting at a copy of its own.
         // 0.4.54: set files from GitHub first (fahadalijaved/OneOS-files, release sets-1: no daily limit), the six
         // Drive copies after (owner: "Drive is still problematic").
-        versionCode = 71
-        versionName = "0.4.54"
+        // 0.4.55: Samsung Camera on the bar phones is the Galaxy S26 Ultra's own build, from its firmware, instead of the
+        // Z Fold8 Ultra's (whose foldable layouts no shim made right on a bar phone): ColorOS IN r59, Pixel 11 Pro and
+        // Pixel 9 Pro XL r5, Infinity-X r4, Nothing OS r22 (samcam_bar.tar for phones). The panel kept at its top rate in
+        // Pixel, HyperOS and Nothing OS (it stayed at 24 Hz: 10-15 fps). Infinity-X: Samsung IMS (the carve-out's
+        // /system/system_ext path; framework members; SMS centre). The Galaxy A16 4G (SM-A165F).
+        versionCode = 72
+        versionName = "0.4.55"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.

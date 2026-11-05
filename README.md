@@ -111,6 +111,11 @@ A34, M53, E55 and the Tab S10 FE and Tab S11 sent reports too, but are still on 
 New in 0.4.52: **the Galaxy S26 with Exynos (SM-S942B, m1s)**, untested, with the S26+ (Exynos)'s
 systems; and Back to One UI no longer restarts the phone when LSPosed is installed.
 
+New in 0.4.55: **Samsung Camera on the S, A and Flip phones is the Galaxy S26 Ultra's own** (it was the
+Z Fold8 Ultra's, laid out for a foldable) in ColorOS, the Pixel systems, Infinity-X and Nothing OS,
+untested; Pixel, HyperOS and Nothing OS no longer run at 10-15 fps (the panel stayed at 24 Hz);
+Infinity-X gets Samsung IMS and the SMS centre fix; and the **Galaxy A16 4G (SM-A165F)**, untested.
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as

@@ -2,7 +2,8 @@
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
-ea9f37a343f5337e8a737704078732a149ee9a6f206445438579bff6adc74079  services_patched.jar
+# r22 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms)
+576a026f7e01d3134609d0aa8a5605bd7589d69650b2115e1922966fa59b72df  services_patched.jar
 3d1e391a2a9042aba2d3238b91014c35a60c476ada648651b6306573a358d80e  vold_patched
 f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so
 763d5e818a393fcbc2c59bd88437dc16f54a9a46a83b522bbe5c1aa77aa76c87  framework_patched.jar

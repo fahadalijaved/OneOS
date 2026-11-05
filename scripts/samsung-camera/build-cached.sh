@@ -2,9 +2,12 @@
 # Samsung Camera for another guest image from a cached phone pull (build.sh steps 2, 4, 5): the F8U's camera,
 # One UI framework and library closure in /tmp/samcam (C=), the guest's framework read from its image.
 # Usage: build-cached.sh <guest system.img | pulled folder> <guest overlay set dir> <work dir> <out dir>
+# SAMCAM_CACHE: another phone's pull in the same layout (0.4.55: the S26 Ultra's, read from its firmware's
+# system image, for the bar phones). SAMCAM_BAR=1: a bar phone's own camera, so no fix_bar_width.py (that
+# bends the Z Fold8 Ultra's layouts to a bar phone's screen) and no fix_rear_selfie.py (a Fold feature).
 set -e
 IMG="$1"; SET="$2"; W="$3"; OUT="$4"
-C=/tmp/samcam; R=/srv/projects/OneOS; HERE=$R/scripts/samsung-camera
+C=${SAMCAM_CACHE:-/tmp/samcam}; R=/srv/projects/OneOS; HERE=$R/scripts/samsung-camera
 APKTOOL=$(ls $R/mysticgsi/tools/apktool/*.jar | head -1); BT=$(ls -d /opt/android-sdk/build-tools/* | sort | tail -1)
 mkdir -p "$W" "$OUT"; cd "$W"
 # 2. the guest's framework jars and library names
@@ -31,7 +34,8 @@ rm -rf dec_SamsungCamera; java -jar "$APKTOOL" d -r -f -q -o dec_SamsungCamera $
 rm -rf dec_semextendedformat dec_secimaging dec_hostfw dec_wwc
 cp -r $C/dec_semextendedformat $C/dec_secimaging .; cp -r $C/hostfw dec_hostfw; cp -r $C/dec_wwc .
 rm -rf out && python3 -I "$HERE/build_samcam.py" nt,nt/apex dec_SamsungCamera,dec_semextendedformat,dec_secimaging dec_hostfw,dec_wwc out
-python3 -I "$HERE/fix_rear_selfie.py" out/camera/dec_SamsungCamera
+# Rear Selfie is the Fold's (a bar phone's camera has no guide to hide).
+[ "${SAMCAM_BAR:-0}" = 1 ] || python3 -I "$HERE/fix_rear_selfie.py" out/camera/dec_SamsungCamera
 mkdir -p out/compat/smali/oneos/semcompat
 python3 -I "$HERE/gen_sem.py" out/shims.txt out/compat/smali/oneos/semcompat/Sem.smali
 sed -i 's|"/system/etc/floating_feature.xml"|"/system_ext/etc/floating_feature.xml"|' out/compat/smali/com/samsung/android/feature/SemFloatingFeature.smali
@@ -53,7 +57,7 @@ for n in SamsungCamera semextendedformat secimaging; do
     [ -d "out/camera/dec_$n" ] && cp -r "out/camera/dec_$n/." "proj_$n/"
 done
 python3 -I "$HERE/fix_recorder_location.py" proj_SamsungCamera
-python3 -I "$HERE/fix_bar_width.py" proj_SamsungCamera
+[ "${SAMCAM_BAR:-0}" = 1 ] || python3 -I "$HERE/fix_bar_width.py" proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o SamsungCamera-rw.apk proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o semextendedformat-rw.jar proj_semextendedformat
 java -jar "$APKTOOL" b -q -o secimaging-rw.jar proj_secimaging
@@ -64,5 +68,7 @@ python3 -I "$R/scripts/check-dex.py" SamsungCamera-rw.apk semextendedformat-rw.j
 rm -f aligned.apk "$OUT/SamsungCamera.apk.idsig"
 cp semextendedformat-rw.jar "$OUT/semextendedformat.jar"; cp secimaging-rw.jar "$OUT/secimaging.jar"; cp oneos-camera-compat.jar "$OUT/"
 for f in libsimba.heifdec.media.samsung.so libimagecodec.media.quram.so OneOSSamFilterStub.apk scamera_sdk_util.jar; do cp $R/out/samcam_build/$f "$OUT/"; done
+# The cache's own camera SDK jar when it has one (the S26 Ultra's goes with its camera).
+[ -f "$C/scamera_sdk_util.jar" ] && cp "$C/scamera_sdk_util.jar" "$OUT/"
 { grep -vxFf guest_libs.txt $C/all_needed.txt | grep -v -E '^(libsimba.heifdec.media.samsung.so|libimagecodec.media.quram.so)$' | sed 's/$/ system/'; echo "libsimba.heifdec.media.samsung.so apex"; echo "libimagecodec.media.quram.so apex"; } > "$OUT/libs.txt"
 echo "built $OUT ($(wc -l < "$OUT/libs.txt") libraries; Nothing's had $(wc -l < $R/out/samcam_build/libs.txt))"
