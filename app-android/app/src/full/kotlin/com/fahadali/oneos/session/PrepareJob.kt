@@ -359,10 +359,10 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
             val pool = java.util.concurrent.Executors.newFixedThreadPool(minOf(3, downloads.size)) { r -> Thread(r, "oneos-download") }
             val stepBase = base
             try {
-                val futures = downloads.mapIndexed { i, (f, id) ->
+                val futures = downloads.mapIndexed { i, (f, ids) ->
                     pool.submit {
                         try {
-                            SetDownloader.fetch(app, f, id, { cancelled || abort.get() }, connections) { n ->
+                            SetDownloader.fetch(app, f, ids, { cancelled || abort.get() }, connections) { n ->
                                 partial.set(i, n)
                                 lastByteAt.set(SystemClock.elapsedRealtime())
                             }

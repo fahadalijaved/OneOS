@@ -21,10 +21,21 @@ import java.security.MessageDigest
  * hashing it again, and root checks it once more.
  */
 object SetDownloader {
-    class Failed(message: String) : IOException(message)
+    open class Failed(message: String) : IOException(message)
 
-    /** A public file of the shared Drive folder, without the virus-scan page large files get. */
-    fun url(driveId: String): String = "https://drive.usercontent.google.com/download?id=$driveId&export=download&confirm=t"
+    /** The server answered a page instead of the file: Drive's daily download limit for that copy (0.4.53). */
+    class Refused(message: String) : Failed(message)
+
+    /** The repository whose releases hold the set files as assets named by their SHA-256 (0.4.53). */
+    const val FILES_REPO = "fahadalijaved/OneOS-files"
+
+    /**
+     * Where [source] hands out the file [sha256]: "gh:<tag>" is that release's asset (GitHub's CDN, no daily
+     * limit), anything else a public file of the shared Drive folder, without the virus-scan page large files get.
+     */
+    fun url(source: String, sha256: String): String =
+        if (source.startsWith("gh:")) "https://github.com/$FILES_REPO/releases/download/${source.removePrefix("gh:")}/$sha256"
+        else "https://drive.usercontent.google.com/download?id=$source&export=download&confirm=t"
 
     fun dir(ctx: Context): File = File(ctx.applicationContext.filesDir, "oneos-files").apply { mkdirs() }
 
@@ -33,31 +44,54 @@ object SetDownloader {
         File(dir(ctx), f.sha256).takeIf { it.isFile && it.length() == f.bytes }
 
     /**
-     * Downloads [f] unless it is already here. [progress] gets the bytes of this file
-     * done so far. Runs on the caller's thread; [cancelled] is checked between reads.
+     * Downloads [f] unless it is already here, from the first of its [sources] that hands
+     * it out. [progress] gets the bytes of this file done so far. Runs on the caller's
+     * thread; [cancelled] is checked between reads.
+     *
+     * 0.4.53: Drive refuses a shared file for the rest of the day once "too many users"
+     * downloaded it (0.4.51, the first public release with downloads). GitHub's release
+     * assets come first; then the Drive copies, each with its own limit, starting at a
+     * random one so a release's downloads spread over all of them. A source that hands
+     * out a page instead of the file moves on to the next at once; one that fails
+     * otherwise is tried three times. A `.part` carries over between sources: they hand
+     * out the same file, and the hash decides.
      */
     fun fetch(
-        ctx: Context, f: AppAssets.Staged, driveId: String, cancelled: () -> Boolean,
+        ctx: Context, f: AppAssets.Staged, sources: List<String>, cancelled: () -> Boolean,
         connections: MutableSet<HttpURLConnection>? = null, progress: (Long) -> Unit,
     ) {
         if (cached(ctx, f) != null) { progress(f.bytes); return }
+        if (sources.isEmpty()) throw Failed("${f.name} has no download source")
         val part = File(dir(ctx), "${f.sha256}.part")
         if (part.length() > f.bytes) part.delete()
+        val (github, drive) = sources.partition { it.startsWith("gh:") }
+        val start = if (drive.isEmpty()) 0 else drive.indices.random()
+        val order = github + drive.indices.map { drive[(start + it) % drive.size] }
         var last: Exception? = null
-        repeat(4) { attempt ->
-            if (cancelled()) throw Failed("stopped")
-            try {
-                download(part, url(driveId), f.bytes, f.name, cancelled, connections, progress)
-                verify(part, f.bytes, f.sha256, f.name)
-                if (!part.renameTo(File(dir(ctx), f.sha256))) throw Failed("could not keep ${f.name}")
-                return
-            } catch (e: Failed) {
-                throw e
-            } catch (e: IOException) {
+        var refused = 0
+        for (source in order) {
+            for (attempt in 1..3) {
                 if (cancelled()) throw Failed("stopped")
-                last = e
-                try { Thread.sleep(2_000L * (attempt + 1)) } catch (ie: InterruptedException) { throw Failed("stopped") }
+                try {
+                    download(part, url(source, f.sha256), f.bytes, f.name, cancelled, connections, progress)
+                    verify(part, f.bytes, f.sha256, f.name)
+                    if (!part.renameTo(File(dir(ctx), f.sha256))) throw Failed("could not keep ${f.name}")
+                    return
+                } catch (e: Refused) {
+                    refused++
+                    last = e
+                    break
+                } catch (e: Failed) {
+                    throw e
+                } catch (e: IOException) {
+                    if (cancelled()) throw Failed("stopped")
+                    last = e
+                    try { Thread.sleep(2_000L * attempt) } catch (ie: InterruptedException) { throw Failed("stopped") }
+                }
             }
+        }
+        if (refused == order.size) {
+            throw Failed("no download server is handing out ${f.name} right now (Google Drive's daily limit, or GitHub): try again in a few hours")
         }
         throw Failed("${f.name}: ${last?.message ?: "download failed"}")
     }
@@ -85,7 +119,11 @@ object SetDownloader {
             val code = c.responseCode
             val type = c.contentType.orEmpty()
             // Drive answers an HTML page instead of the file when it refuses (quota, a removed file).
-            if (type.startsWith("text/html")) throw Failed("the server did not hand out $name (HTTP $code): try again later")
+            if (type.startsWith("text/html")) throw Refused("the server did not hand out $name (HTTP $code): try again later")
+            // Not there, or refused for now (GitHub's 404 for a missing asset, a rate limit): the next source.
+            if (code == HttpURLConnection.HTTP_NOT_FOUND || code == HttpURLConnection.HTTP_FORBIDDEN || code == 429) {
+                throw Refused("the server did not hand out $name (HTTP $code)")
+            }
             val append = have > 0 && code == HttpURLConnection.HTTP_PARTIAL
             if (code != HttpURLConnection.HTTP_OK && !append) throw IOException("HTTP $code")
             // A stop while Drive was still answering: never touch the file after it (0.4.42 review:

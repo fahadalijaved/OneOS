@@ -84,20 +84,26 @@ object AppAssets {
             files(ctx, set).associate { it.name to it.sha256 } + ("bin/oneos_root.sh" to BuildConfig.ROOT_SCRIPT_SHA256)
         }
 
-    /** sha256 -> Drive file id of every set file the APK does not carry (0.4.41; empty in a packed test build). */
-    fun remoteIds(ctx: Context): Map<String, String> =
+    /**
+     * sha256 -> the sources of every set file the APK does not carry (0.4.41: one Drive id; empty in a packed
+     * test build). 0.4.53: several per file: "gh:<tag>", a GitHub release asset, and Drive copies in other
+     * folders, each with its own download limit ([SetDownloader.url]).
+     */
+    fun remoteIds(ctx: Context): Map<String, List<String>> =
         runCatching { read(ctx, "oneos/files/remote.txt") }.getOrNull()?.toString(Charsets.UTF_8)?.lines()
-            ?.filter { it.isNotBlank() }?.associate { it.substringBefore(' ') to it.substringAfter(' ') } ?: emptyMap()
+            ?.filter { it.isNotBlank() }
+            ?.associate { l -> l.substringBefore(' ') to l.substringAfter(' ').split(',').map { it.trim() }.filter { it.isNotEmpty() } }
+            ?: emptyMap()
 
     private fun packed(ctx: Context): Set<String> =
         ctx.applicationContext.assets.list("oneos/files")?.toSet() ?: emptySet()
 
-    /** The files of [files] that are neither in the APK nor downloaded yet, with their Drive ids. */
-    fun toDownload(ctx: Context, files: List<Staged>): List<Pair<Staged, String>> {
+    /** The files of [files] that are neither in the APK nor downloaded yet, with their sources. */
+    fun toDownload(ctx: Context, files: List<Staged>): List<Pair<Staged, List<String>>> {
         val inApk = packed(ctx)
         val ids = remoteIds(ctx)
         return files.filter { it.sha256 !in inApk && SetDownloader.cached(ctx, it) == null }.map { f ->
-            f to (ids[f.sha256] ?: throw Broken("${f.name} is neither in the app nor on its download list"))
+            f to (ids[f.sha256]?.takeIf { it.isNotEmpty() } ?: throw Broken("${f.name} is neither in the app nor on its download list"))
         }
     }
 

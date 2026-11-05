@@ -77,11 +77,15 @@ val seriesSets: Map<String, Set<String>> = File(packagesDir, "series.txt").readL
 // downloads the files its phone's set needs, by hash. -Poneos.packSets=true packs them as
 // before (a local test build, no download).
 val packSetsInApk: Boolean = (findProperty("oneos.packSets") as String?)?.trim() == "true"
+// 0.4.53: each file's sources, comma-separated: "gh:<tag>" (an asset of that release of fahadalijaved/OneOS-files,
+// named by its sha256) and Drive ids, copies in OneOS/files and OneOS/files2.. (Drive refuses a file once "too
+// many users" downloaded it that day; each copy has its own limit).
 val setRemoteIds: Map<String, String> = File(packagesDir, "remote.txt").takeIf { it.isFile }?.readLines()
     ?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
     ?.associate { l ->
-        val m = Regex("^([0-9a-f]{64}) ([A-Za-z0-9_-]{20,80})$").matchEntire(l)
-            ?: throw GradleException("packages/remote.txt: not a '<sha256> <drive id>' line: $l")
+        val src = "(gh:[a-z0-9][a-z0-9.-]{0,39}|[A-Za-z0-9_-]{20,80})"
+        val m = Regex("^([0-9a-f]{64}) ($src(,$src){0,15})$").matchEntire(l)
+            ?: throw GradleException("packages/remote.txt: not a '<sha256> <source>[,<source>...]' line: $l")
         m.groupValues[1] to m.groupValues[2]
     } ?: emptyMap()
 val packedSets: Set<String> = if (seriesId == null) {
@@ -170,7 +174,7 @@ abstract class OneOsFilesTask : DefaultTask() {
     @get:Input
     abstract val packSets: Property<Boolean>
 
-    /** sha256 -> Drive file id (packages/remote.txt). */
+    /** sha256 -> its sources, comma-separated: gh:<tag> and Drive file ids (packages/remote.txt). */
     @get:Input
     abstract val remoteIds: MapProperty<String, String>
 
@@ -377,8 +381,10 @@ android {
         // 0.4.52: the in-place return no longer reboots for LSPosed's dex2oat wrapper (a bind into ART's APEX it took
         // for One UI's APEX changing; every APEX failsafe in the reports) or for a system_server child not exec'd yet.
         // The Galaxy S26 with Exynos (SM-S942B, m1s) from its probe reports, with the S26+ (Exynos)'s images.
-        versionCode = 69
-        versionName = "0.4.52"
+        // 0.4.53: every set file from six Drive copies (OneOS/files, files2..6); a copy Drive refuses ("too many users
+        // downloaded this file", 0.4.51 testers) hands over to the next, each phone starting at a copy of its own.
+        versionCode = 70
+        versionName = "0.4.53"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.
