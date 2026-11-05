@@ -38,9 +38,9 @@ MIRROR_DIRS = [f"gdrive:OneOS/files{n}" for n in range(2, 7)]
 # of these OEM binaries could never reach fahadalijaved/OneOS. A release holds at most 1000 assets:
 # a new tag (sets-2) before this one fills up.
 GH_REPO = "fahadalijaved/OneOS-files"
-# Off until that repository exists (owner, 0.4.53: "Drive copies now, GitHub later"); the app takes
-# gh: sources already, so turning it on only changes remote.txt.
-GH_ENABLED = False
+# On from 0.4.54 (owner: "Drive is still problematic, lets make github repo"); 0.4.53 shipped the
+# app side, so turning it on only changes remote.txt.
+GH_ENABLED = True
 GH_TAG = "sets-1"
 GH_MAX_ASSETS = 950
 RCLONE = os.environ.get("RCLONE", os.path.expanduser("~/bin/rclone"))

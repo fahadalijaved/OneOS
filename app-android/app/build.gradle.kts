@@ -383,8 +383,10 @@ android {
         // The Galaxy S26 with Exynos (SM-S942B, m1s) from its probe reports, with the S26+ (Exynos)'s images.
         // 0.4.53: every set file from six Drive copies (OneOS/files, files2..6); a copy Drive refuses ("too many users
         // downloaded this file", 0.4.51 testers) hands over to the next, each phone starting at a copy of its own.
-        versionCode = 70
-        versionName = "0.4.53"
+        // 0.4.54: set files from GitHub first (fahadalijaved/OneOS-files, release sets-1: no daily limit), the six
+        // Drive copies after (owner: "Drive is still problematic").
+        versionCode = 71
+        versionName = "0.4.54"
         // Send to the OneOS team (0.4.29, both editions): the report service's
         // address and its upload-only key, from the team's server (reports/deploy.sh
         // writes them). A build without them shows no Send; Share and Save stay.
