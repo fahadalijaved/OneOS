@@ -56,14 +56,25 @@ object AppUpdater : BackgroundJob<AppUpdater.State>(State(), "oneos-update") {
     /** Android installer's confirmation for the update handed to it without root ([Phase.CONFIRM]). */
     @Volatile private var confirmIntent: Intent? = null
 
-    /** The team's test channel (Debug settings): update.json from the owner's Drive instead of GitHub. */
-    fun testChannel(ctx: Context): Boolean =
-        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("test_channel", false)
+    /**
+     * The team's test channel (Debug settings): update.json from the owner's Drive instead of GitHub, on
+     * while a test channel code is stored (0.4.56: [AppUpdate.testUrl]; the 0.4.41-0.4.55 switch is gone).
+     */
+    fun testCode(ctx: Context): String? =
+        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("test_code", null)
+            ?.takeIf { AppUpdate.testUrl(it) != null }
 
-    fun setTestChannel(ctx: Context, on: Boolean) {
-        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("test_channel", on).apply()
+    fun testChannel(ctx: Context): Boolean = testCode(ctx) != null
+
+    /** Stores [code] (empty: test channel off); false when it is no test channel code. */
+    fun setTestCode(ctx: Context, code: String): Boolean {
+        val c = code.trim()
+        if (c.isNotEmpty() && AppUpdate.testUrl(c) == null) return false
+        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("test_code", c.ifEmpty { null }).remove("test_channel").apply()
         if (!state.busy) update(State())
         check(ctx, force = true)
+        return true
     }
 
     fun dir(ctx: Context): File = File(ctx.applicationContext.filesDir, "oneos-update").apply { mkdirs() }
@@ -81,8 +92,9 @@ object AppUpdater : BackgroundJob<AppUpdater.State>(State(), "oneos-update") {
         if (!force && state.phase != Phase.IDLE && now - prefs.getLong("checked", 0) < CHECK_EVERY_MS) return
         update(state.copy(phase = Phase.CHECKING, message = null))
         executor.execute {
-            val test = testChannel(app)
-            val r = runCatching { AppUpdate.parse(fetchText(if (test) AppUpdate.TEST_URL else AppUpdate.URL), test).getOrThrow() }
+            val testUrl = AppUpdate.testUrl(testCode(app))
+            val test = testUrl != null
+            val r = runCatching { AppUpdate.parse(fetchText(testUrl ?: AppUpdate.URL), test).getOrThrow() }
             prefs.edit().putLong("checked", now).apply()
             val u = r.getOrNull()
             update(

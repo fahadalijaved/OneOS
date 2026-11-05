@@ -3,6 +3,7 @@
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # r4 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms, where Infinity-X keeps system_ext), framework_patched.jar with patches/guest_secims_members.py, telephony-common_patched.jar: the image's with patches/guest_smsc_international.py, samcam.tar: the Galaxy S26 Ultra's camera (scripts/samsung-camera/build-cached.sh, SAMCAM_BAR=1)
+# 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
 8acd5e4a1a2f4230f9f5a836dbba4ecd3a4f8053a517a9e9d39be5610e3175d7  services_patched.jar
 d5ae84697f24c1576927b61c7aec7b906a3206a49d72e58df8db417b6448c438  oplus-services_patched.jar
 654dcfa788bcfde4fc539935ffbcb707a3b0c2001e31b6de27edec5afe5de404  vold_patched

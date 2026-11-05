@@ -288,5 +288,8 @@
     <string name="about_credit_oneos_summary">The app and the changes OneOS makes to each system. Its session scripts started from the project credited below.</string>
     <!-- The team's test channel for the app's own update (0.4.41, AppUpdater). -->
     <string name="team_update_test">Test updates</string>
-    <string name="team_update_test_summary">Get OneOS updates from the team\'s test channel before they are released</string>
+    <string name="team_update_test_summary">Off. Enter the team\'s test channel code to get OneOS updates before they are released</string>
+    <string name="team_update_test_on">On: OneOS updates come from the team\'s test channel</string>
+    <string name="team_update_test_dialog">The test channel code from the OneOS team. Leave it empty to go back to the released updates.</string>
+    <string name="team_update_test_invalid">That is not a test channel code</string>
 </resources>

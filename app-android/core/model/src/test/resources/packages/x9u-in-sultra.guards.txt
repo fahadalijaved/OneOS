@@ -3,8 +3,9 @@
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+# 0.4.57: oplus-services_patched.jar + oplus_resolution_tables.py (no resolution switch without ColorOS's density tables); 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
 efb45f5f061838431387f9c34e4d5c72504a963d0d5bd37f3c4d0ae043854671  services_patched.jar
-46e6cee0fe2b5448517aa180d5fc0b7cf35e025b37de9aee6c274b552ae5dc86  oplus-services_patched.jar
+a854468fec404a8950f8f3c651f869f19ded098bb244fbef26880c2ece141fa8  oplus-services_patched.jar
 2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so
 5cb16a378d41301c2d41d4653f7dc63c54b732516353f331f0316e2c237f6246  framework_patched.jar

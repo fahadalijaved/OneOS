@@ -81,13 +81,11 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy A56 (SM-A566, s5e8855), not tested yet
   - Galaxy A57 (SM-A576, s5e8865), not tested yet
   - Galaxy Z Flip5 (SM-F731, SM8550), not tested yet
-  - Galaxy A36 (SM-A366, SM6475), not tested yet
   - Galaxy S23 Ultra (SM-S918, SM8550), not tested yet
   - Galaxy Z Flip6 (SM-F741, SM8650), not tested yet
   - Galaxy S24 (Exynos) (SM-S921, s5e9945), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S24 FE (SM-S721, s5e9945), not tested yet
-  - Galaxy A26 (SM-A266, s5e8835), not tested yet
 
 ## Infinity-X 4.1, Find X9 Ultra build
 

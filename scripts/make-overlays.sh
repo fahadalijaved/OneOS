@@ -346,6 +346,10 @@ if in_image /system/framework/oplus-services.jar; then
     # No charge error warnings from the missing OPPO charger HAL's -1 (patches/oplus_battery_notify.py).
     NEW=$(python3 -I "$ROOT/switcher/patches/oplus_battery_notify.py" "$WORK/oplus")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    # No FHD+/QHD+ resolution switch without ColorOS's density tables: it made every density 640
+    # (patches/oplus_resolution_tables.py).
+    NEW=$(python3 -I "$ROOT/switcher/patches/oplus_resolution_tables.py" "$WORK/oplus")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     java -jar "$APKTOOL" b -q -o "$WORK/oplus-rebuilt.jar" "$WORK/oplus"
     cp "$WORK/oplus-services.jar" "$OUT/oplus-services_patched.jar"
     for d in $DIRS; do

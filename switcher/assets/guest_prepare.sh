@@ -179,6 +179,10 @@ echo "=== 1. Ensuring Watchdog Feeder is Active ==="
 # (/sys/class/watchdog: identity "Software Watchdog"; never a hardware one it
 # might start), and logs every watchdog node, its state and time left (every
 # change, at most every 10 s), so the next Exynos session shows which one runs.
+# The Galaxy A16 4G (MediaTek, 0.4.55 64e7f7da) panicked about 100 s into every
+# session with this feeder writing /dev/watchdog: there Samsung's softdog is
+# /dev/softdog (a link to /dev/watchdog1), and its sysfs has no identity or
+# state to find it by. A /dev/softdog that exists is kicked too.
 pkill -f 'echo -n 1 > /dev/watchdog' 2>/dev/null
 if ! ps -ef | grep -v grep | grep -q "oneos_wdog_feeder.sh"; then
     echo "Starting watchdog feeder..."
@@ -202,6 +206,9 @@ wdogs() {
 was=''; n=0; seen=''
 while true; do
     if e=$(printf V 2>&1 > /dev/watchdog); then now=written; else now="refused ($e)"; fi
+    if [ -c /dev/softdog ]; then
+        if e=$(printf V 2>&1 > /dev/softdog); then now="$now; /dev/softdog kicked"; else now="$now; /dev/softdog refused ($e)"; fi
+    fi
     # An active software watchdog other than /dev/watchdog: kicked ("V", the
     # magic close where the driver allows it), never started.
     for w in /sys/class/watchdog/watchdog*; do

@@ -1016,6 +1016,17 @@ sleep 1
 SOFTDOG_V=0
 if e=$(printf V 2>&1 > /dev/watchdog); then echo "Softdog: /dev/watchdog closed with V (One UI's system_server stopped)"; SOFTDOG_V=1
 else echo "Softdog: /dev/watchdog not written ($e)"; fi
+# The Galaxy A16 4G (MediaTek, 0.4.55 64e7f7da) panicked about 100 s into every
+# session (softdog_fire, KP): there Samsung's softdog is /dev/softdog, a link to
+# /dev/watchdog1, and /dev/watchdog is another device, which took the "V" above,
+# so the off switch below was skipped. A /dev/softdog gets the magic close too,
+# and the off switch.
+SOFTDOG_DEV=0
+if [ -c /dev/softdog ]; then
+    SOFTDOG_DEV=1
+    if e=$(printf V 2>&1 > /dev/softdog); then echo "Softdog: /dev/softdog ($(readlink /dev/softdog 2>/dev/null || echo node)) closed with V"
+    else echo "Softdog: /dev/softdog not written ($e)"; fi
+fi
 # The Exynos phones (S26+ 756047eb, Z Flip7 aaeea148, both 0.4.20) still
 # panicked, "Software Watchdog Timer expired 100s" about 100 s after One UI's
 # system_server stopped: /dev/watchdog is busy there (init's watchdogd) and
@@ -1028,8 +1039,8 @@ else echo "Softdog: /dev/watchdog not written ($e)"; fi
 # leaves the softdog alone), now that system_server is gone. Only where the "V"
 # above could not reach it; the snapshot taken before the switch puts the
 # property back on the return (restore-persist), and after a hard reset too
-# (recover).
-if [ "$SOFTDOG_V" = 0 ] && grep -q '^on property:persist\.vendor\.softdog=off' /system/etc/init/init.sysfw.rc 2>/dev/null; then
+# (recover). With a /dev/softdog too (the A16 4G above).
+if { [ "$SOFTDOG_V" = 0 ] || [ "$SOFTDOG_DEV" = 1 ]; } && grep -q '^on property:persist\.vendor\.softdog=off' /system/etc/init/init.sysfw.rc 2>/dev/null; then
     sd=$(getprop persist.vendor.softdog)
     if [ "$sd" = off ]; then echo "Softdog: persist.vendor.softdog already off"
     else
@@ -1926,6 +1937,54 @@ while true; do
                         AUTO=\$(cat $STAGE/data/oneos_auto_density 2>/dev/null)
                         if [ \$GW != \$HP ]; then
                             echo \"[UI Activator] density: guest display 0 is \$GW px wide, One UI's panel \$HP px; left at base\"
+                        elif [ $GUEST_OPLUS = 1 ]; then
+                            # ColorOS's Settings puts its Display size back at every boot
+                            # (SettingsReceiver -> restoreScreenZoomSettings): the entry at
+                            # Settings.System display_density_index_manual in settingslib's list
+                            # around the base density (Small at 0.85x, Default, up to three steps
+                            # to 1.5x or 320 dp, each rounded down to an even dpi), unless the
+                            # density already is that entry. One UI's exact scale is off that list,
+                            # so it was undone at the next boot and set again by this (0.4.55
+                            # reports: the size changed at every boot, whatever was chosen). OneOS
+                            # takes the entry nearest One UI's scale and saves its index (and in
+                            # data/oneos_auto_density_index); an index saved since is the user's
+                            # (the Display size slider) and stays. Before 0.4.57 there was no
+                            # index file: an unset index or Default's counts as not chosen.
+                            GH=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | sed -n 's/^Physical size: [0-9]*x\([0-9]*\)$/\1/p' | head -n 1)
+                            BD=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density -d 0 2>/dev/null | sed -n 's/^Physical density: \([0-9]*\)$/\1/p' | head -n 1)
+                            MAN=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system display_density_index_manual 2>/dev/null)
+                            case \"\$MAN\" in ''|*[!0-9]*) MAN= ;; esac
+                            MARK=\$(cat $STAGE/data/oneos_auto_density_index 2>/dev/null)
+                            # \"<Default's index> <nearest index> <its dpi> <list>\"
+                            ZL=\$(awk -v b=\"\$BD\" -v w=\"\$GW\" -v h=\"\$GH\" -v d=\"\$D\" 'BEGIN {
+                                if (b !~ /^[0-9]+\$/ || w !~ /^[0-9]+\$/ || h !~ /^[0-9]+\$/ || b + 0 == 0) exit
+                                m = (w + 0 < h + 0) ? w : h
+                                mx = int(160 * m / 320) / b; if (mx > 1.5) mx = 1.5; if (mx < 1) mx = 1
+                                nl = int((mx - 1) / 0.09); if (nl > 3) nl = 3
+                                n = 0; v[n++] = int(b * 0.85 + 0.001); v[0] -= v[0] % 2
+                                v[n++] = b + 0
+                                for (i = 1; i <= nl; i++) { x = int(b * (1 + i * (mx - 1) / nl) + 0.001); v[n++] = x - x % 2 }
+                                k = 0; for (i = 1; i < n; i++) if ((v[i] - d) ^ 2 < (v[k] - d) ^ 2) k = i
+                                s = v[0]; for (i = 1; i < n; i++) s = s \",\" v[i]
+                                print 1, k, v[k], s
+                            }')
+                            DI=\$(echo \"\$ZL\" | cut -d' ' -f1); K=\$(echo \"\$ZL\" | cut -d' ' -f2); VK=\$(echo \"\$ZL\" | cut -d' ' -f3); ZS=\$(echo \"\$ZL\" | cut -d' ' -f4)
+                            EFF=\$CUR; case \"\$EFF\" in ''|null|*[!0-9]*) EFF=\$BD ;; esac
+                            if [ -z \"\$ZL\" ]; then
+                                echo \"[UI Activator] density: ColorOS Display size list not worked out (base \${BD:-?}, \${GW}x\${GH:-?}), left as it is\"
+                            elif [ -n \"\$MAN\" ] && { { [ -n \"\$MARK\" ] && [ \"\$MAN\" != \"\$MARK\" ]; } || { [ -z \"\$MARK\" ] && [ \"\$MAN\" != \"\$DI\" ]; }; }; then
+                                echo \"[UI Activator] density: \$EFF kept (Display size \$MAN of \$ZS chosen in ColorOS; One UI's scale gives \$D)\"
+                            elif [ \$D -lt 120 ] || [ \$D -gt 640 ]; then
+                                echo \"[UI Activator] density: \$D from One UI's scale is outside 120-640, left as it is\"
+                            elif [ -L $STAGE/data/oneos_auto_density ] || [ -L $STAGE/data/oneos_auto_density_index ]; then
+                                echo \"[UI Activator] density: data/oneos_auto_density(_index) is a link, not made by OneOS; left as it is\"
+                            else
+                                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system display_density_index_manual \$K 2>/dev/null
+                                echo \$K > $STAGE/data/oneos_auto_density_index
+                                echo \$VK > $STAGE/data/oneos_auto_density
+                                [ \"\$EFF\" = \"\$VK\" ] || $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density \$VK -d 0 >/dev/null 2>&1
+                                echo \"[UI Activator] density: \$VK, Display size \$K of \$ZS (One UI \$HUD at \$HW of \$HP px gives \$D; was \$EFF, index \${MAN:-unset}) -> \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density -d 0 2>&1 | tr '\n' ' ')\"
+                            fi
                         elif [ -n \"\$CUR\" ] && [ \"\$CUR\" != null ] && [ \"\$CUR\" != \"\$AUTO\" ]; then
                             echo \"[UI Activator] density: \$CUR kept (chosen in the guest; One UI's scale gives \$D)\"
                         elif [ \$D -lt 120 ] || [ \$D -gt 640 ]; then

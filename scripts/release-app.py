@@ -39,8 +39,15 @@ APP = os.path.join(ROOT, "app-android")
 GRADLE = os.path.join(APP, "app/build.gradle.kts")
 REPO = "fahadalijaved/OneOS"
 RCLONE = os.environ.get("RCLONE", os.path.expanduser("~/bin/rclone"))
-TEST_DIR = "gdrive:OneOS/test"
-TEST_UPDATE_ID = "1v43DlDjts0KhmKZVdMJtZVIIag8SUgk-"
+# The test channel (0.4.56): the owner's own Drive folder OneOS-test, outside the shared OneOS folder,
+# each file shared by link only (rclone link). The app reads update.json by its id, a code the owner
+# enters in Debug settings; the id is kept in ~/.oneos-test-channel, never in the repository.
+TEST_DIR = "gdrive:OneOS-test"
+TEST_CODE_FILE = os.path.expanduser("~/.oneos-test-channel")
+# Up to 0.4.55 the channel was the public OneOS/test folder, its update.json id hard-coded in the app.
+# ONEOS_TEST_LEGACY=1 also publishes there, so a phone on an older build can reach the one with the code.
+LEGACY_TEST_DIR = "gdrive:OneOS/test"
+LEGACY_TEST_UPDATE_ID = "1v43DlDjts0KhmKZVdMJtZVIIag8SUgk-"
 CERT_PREFIX = "37560f7b"
 MAX_BYTES = 256 * 1024 * 1024
 
@@ -110,23 +117,42 @@ def drive_url(file_id):
     return f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t"
 
 
-def publish_test(apk, update):
-    """The APK and update.json to the Drive test channel; returns the APK's download URL."""
+def publish_test_to(folder, apk, update, want_id=None, share=True):
+    """The APK and update.json to one test folder; returns (APK URL, update.json id)."""
     name = os.path.basename(apk)
-    rclone("copyto", apk, f"{TEST_DIR}/{name}")
-    ids = {e["Name"]: e["ID"] for e in json.loads(rclone("lsjson", TEST_DIR, "--files-only") or "[]")}
+    rclone("copyto", apk, f"{folder}/{name}")
+    ids = {e["Name"]: e["ID"] for e in json.loads(rclone("lsjson", folder, "--files-only") or "[]")}
     if name not in ids:
-        sys.exit(f"{name} is not in {TEST_DIR} after the upload")
-    update["apk"] = drive_url(ids[name])
+        sys.exit(f"{name} is not in {folder} after the upload")
+    if share:
+        rclone("link", f"{folder}/{name}")
+    update = dict(update, apk=drive_url(ids[name]))
     path = apk + ".update.json"
     with open(path, "w") as f:
         json.dump(update, f, indent=2)
         f.write("\n")
-    rclone("copyto", path, f"{TEST_DIR}/update.json")
-    ids = {e["Name"]: e["ID"] for e in json.loads(rclone("lsjson", TEST_DIR, "--files-only") or "[]")}
-    if ids.get("update.json") != TEST_UPDATE_ID:
-        sys.exit(f"{TEST_DIR}/update.json has id {ids.get('update.json')}, the app reads {TEST_UPDATE_ID}")
-    return update["apk"]
+    rclone("copyto", path, f"{folder}/update.json")
+    ids = {e["Name"]: e["ID"] for e in json.loads(rclone("lsjson", folder, "--files-only") or "[]")}
+    if want_id and ids.get("update.json") != want_id:
+        sys.exit(f"{folder}/update.json has id {ids.get('update.json')}, the app reads {want_id}")
+    if share:
+        rclone("link", f"{folder}/update.json")
+    return update["apk"], ids.get("update.json")
+
+
+def publish_test(apk, update):
+    """The APK and update.json to the Drive test channel; returns the APK's download URL."""
+    code = open(TEST_CODE_FILE).read().strip() if os.path.isfile(TEST_CODE_FILE) else None
+    url, uid = publish_test_to(TEST_DIR, apk, update, want_id=code)
+    if not code:
+        with open(TEST_CODE_FILE, "w") as f:
+            f.write(uid + "\n")
+        os.chmod(TEST_CODE_FILE, 0o600)
+        print(f"Test channel code (for Debug settings; not printed again): {TEST_CODE_FILE}")
+    if os.environ.get("ONEOS_TEST_LEGACY") == "1":
+        publish_test_to(LEGACY_TEST_DIR, apk, update, want_id=LEGACY_TEST_UPDATE_ID, share=False)
+        print(f"also published to the old {LEGACY_TEST_DIR} (ONEOS_TEST_LEGACY=1)")
+    return url
 
 
 ROOT_SCRIPT = os.path.join(APP, "app/src/full/assets/root/oneos_root.sh")

@@ -219,7 +219,8 @@ class ProfilesTest {
         assertEquals(listOf("a36", "Galaxy A36"), listOf(a36.id, a36.label))
         assertEquals(listOf("SM-A366", "a36xq", "SM6475"), listOf(a36.modelPrefix, a36.codename, a36.socModel))
         assertEquals(FormFactor.BAR, a36.form)
-        assertEquals(s25Plus.choices - nothing, a36.choices)
+        // 0.4.57: without the Pixel 9 Pro XL (ARMv8.2, as the A26).
+        assertEquals(s25Plus.choices - nothing - s25Plus.choices.filter { it.imageId == Images.ID_PIXEL_KOMODO }, a36.choices)
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), a36.notes.map { it.id })
         // Nothing OS (0.4.35) on the SVE + SME phones; 0.4.36 also the S25s, S24 Ultra, Fold7 and Fold6 (brightness scale ~5).
         assertEquals(
@@ -260,7 +261,7 @@ class ProfilesTest {
         assertTrue(Profiles.S_EDGE_8750.choices.none { it.tested })
         assertEquals(Profiles.S_9945.choices, Profiles.S_FE_9945.choices)
         assertEquals(listOf("SM-S721", "r12s", "s5e9945"), listOf(Profiles.S_FE_9945.modelPrefix, Profiles.S_FE_9945.codename, Profiles.S_FE_9945.socModel))
-        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_PIXEL_KOMODO, Images.ID_INFINITYX), Profiles.A26.choices.map { it.imageId })
+        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX), Profiles.A26.choices.map { it.imageId }) // 0.4.57: no Pixel 9 Pro XL
         for (p in listOf(Profiles.A17, Profiles.A16)) assertEquals(p.id, listOf(Images.ID_INFINITYX), p.choices.map { it.imageId })
         assertEquals(Profiles.A17, Profiles.resolve("SM-A175F", "a17", "MT6789").profile)
         // The A16 4G (0.4.55): the A17's chip and image under its own model number and codename.
@@ -309,11 +310,12 @@ class ProfilesTest {
         // 0.4.22: the Pixel 9 Pro XL image, which needs none, on the SM8750 bar phones and the S24 Ultra; not the
         // Z Fold7 (a bar phone's system on a fold). 0.4.30: also the S23s and the Z Flip5 (Infinity-X started on
         // the S23 with the HIDL marker), the Z Flip7 and the A57; 0.4.31 the A56: every s25 phone, whose APK has its set.
+        // 0.4.57: not the A26 and A36 (ARMv8.2: the image's programs stopped on "Illegal instruction" on the A26).
         assertEquals(
             listOf(
                 Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.S_PLUS_8750, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
-                Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5, Profiles.A36,
-                Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945, Profiles.A26,
+                Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
+                Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945,
             ),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_KOMODO) != null },
         )

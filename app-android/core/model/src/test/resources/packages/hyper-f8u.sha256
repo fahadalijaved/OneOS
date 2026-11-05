@@ -1,5 +1,5 @@
-# OneOS package set hyper-f8u: sha256sum of out/overlays_hyperos_r14 (scripts/make-overlays.sh, 2026-10-31; 0.4.39 r12: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03; 0.4.40 r13: libsurfaceflinger_patched.so with patches/hyperos_dolby_mapper.py; r14 0.4.55: services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms), 2026-11-05), minus tethering_payload.img.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_r14 differs.
+# OneOS package set hyper-f8u: sha256sum of out/overlays_hyperos_r15 (scripts/make-overlays.sh, 2026-10-31; 0.4.39 r12: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03; 0.4.40 r13: libsurfaceflinger_patched.so with patches/hyperos_dolby_mapper.py; r14 0.4.55: services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms), 2026-11-05; 0.4.57 r15: framework_patched.jar with patches/guest_secims_members.py), minus tethering_payload.img.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_r15 differs.
 0baff1b12c489eaa379df95c700bb42ed3025177c64d6da6357163e754e05401  MiWallpaper_patched.apk
 bd03c424877de86c2864313ba3371d3725b3d5531559373aadc84d592f9cae0c  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
@@ -11,8 +11,8 @@ e1d111d250b1cc3f068d91bcdad01d4ee74dbd86ceaa1a9840bd750ac102dc94  bt_payload.img
 85771949072401124744f3b8181f91283c55f3baf719bd389099624cd6fcd6d2  configinfrastructure_payload.img
 7516643e27215109299c7d4988fbce83bde754a01cb784372b8ccf5af5ae335c  crashrecovery_payload.img
 c1a0b9315d1466185ea0df7c2cc6234cce2ac4df620351ca35a3609d2212a122  extservices_payload.img
-c4df2d16706af6996424da294361213fe77535e9f3f42d7235b5abc7a49172c2  framework_patched.jar
-6c4142a1de15b569d2e58e86884a5d25827845ae38fac93d3f014a467dcdd2b4  guards.txt
+35e1b05262dc0ebc18c59f88e7fcf8ca8cae40b43852ad079a32b66b4292d725  framework_patched.jar
+5d3137e3e05ef11b5287b56c784d61bedaddde50a8ea97c1a0cefe294df5bd70  guards.txt
 607785100e49bba0ee9fb4b7c114ec312c70722b08930c7725db7eedeb00285a  healthfitness_payload.img
 a1eb86c79666b62cc0f302c3c3431d858929a569b311ef9b59471d69f3d96705  i18n_payload.img
 a790fb812d630e5c4e2b0b49806a54b3e26a4be2fc1d91d8c311ef7853309889  ims-ext-common_patched.jar

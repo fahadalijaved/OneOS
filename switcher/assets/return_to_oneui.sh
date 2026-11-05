@@ -89,6 +89,8 @@ if [ "$1" = baseline ]; then
     for f in /sys/fs/f2fs/*/gc_urgent; do [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"; done > "$BASE/gc_urgent"
     for n in $HOST_NAMES; do p=$(svc_pid "$n"); echo "$n ${p:-none}"; done > "$BASE/svcpid"
     ls -lZ /dev/watchdog* > "$BASE/watchdog" 2>&1
+    # One UI's linker namespaces (a tmpfs the guest's tree binds), compared at the return.
+    "$BB" find /linkerconfig -type f -exec "$BB" sha256sum {} + > "$BASE/linkerconfig" 2>/dev/null
     # The kernel log from here on is scanned for I/O errors on these devices.
     m="oneos-baseline $(date +%s)"
     echo "$m" > /dev/kmsg 2>/dev/null && echo "$m" > "$BASE/kmsg"
@@ -784,6 +786,17 @@ for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
 done
 [ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
 [ -n "$COMPOSER_SVC" ] || failsafe "no display composer service found"
+# The Galaxy A36's Qualcomm composer could not start again at the return (0.4.55
+# 121e9be4, de8edca2, Infinity-X): "CANNOT LINK EXECUTABLE ... libui.so not found:
+# needed by /system/lib64/libnativewindow.so in namespace system", though it had
+# linked at boot. The guest's tree binds One UI's /linkerconfig itself; say
+# whether its files are still the ones of the switch (logged only, for now).
+if [ -s "$BASE/linkerconfig" ]; then
+    "$BB" find /linkerconfig -type f -exec "$BB" sha256sum {} + > "$BASE/linkerconfig.now" 2>/dev/null
+    LCD=$("$BB" awk 'NR == FNR { a[$2] = $1; next } a[$2] != $1 { print $2 } { delete a[$2] } END { for (f in a) print f " (gone)" }' \
+        "$BASE/linkerconfig" "$BASE/linkerconfig.now" | "$BB" tr '\n' ' ')
+    if [ -n "$LCD" ]; then say "!!! /linkerconfig changed since the switch: $LCD"; else say "/linkerconfig as at the switch"; fi
+fi
 oneos_boot_release_display
 setprop ctl.restart "$COMPOSER_SVC"
 # The SM8550 phones (Galaxy S23) have only the HIDL composer

@@ -4,6 +4,7 @@
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py)
 # r3 (0.4.45): the r2 jars plus patches/guest_sec_ims_signature.py and guest_no_wipe_secrets.py (services), guest_secims_members.py (framework), guest_smsc_international.py (telephony-common), by scripts/patch-built-jar.sh
 # r4 (0.4.47): libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the image's native camera client with One UI's transaction codes (patches/pixel_camera_native.py, scripts/patch-camera-native.sh); samcam.tar: Samsung Camera (scripts/samsung-camera/build-cached.sh)
+# 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
 e085aaa857e407e895e25de5df8f89742c9827c309005b1fb48650d4c86a5ae5  services_patched.jar
 607ae15ccbe753fb25ef8e3d40f72a3ec8a2243dc3828adea78089731eca64aa  vold_patched
 8f76de6d0c7c74e6526efc7678ae81b1cf344121f39b3d27e618116ed5d41f51  service.incremental_patched.so

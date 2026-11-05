@@ -256,7 +256,7 @@ class ImagesTest {
             Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
             Profiles.FLIP5 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
             Profiles.FLIP8 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
-            Profiles.A36 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.A36 to listOf(xin, ifx, hyper), // 0.4.57: no Pixel 9 Pro XL on ARMv8.2
         )
         for ((p, good) in takes) {
             assertEquals(p.id, good, p.images())

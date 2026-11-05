@@ -7,10 +7,11 @@
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # libsurfaceflinger_patched.so: Xiaomi's SurfaceFlinger with the display mode group read 32-bit (patches/hyperos_sf_group.py; 0.4.37: S23, S24 Ultra, Z Flip5 black screen); 0.4.40: no Xring metadata query without its mapper (patches/hyperos_dolby_mapper.py; S24 Ultra, S23, A57 crash in DolbyRenderer)
 # r14 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms)
+# 0.4.57: framework_patched.jar + guest_secims_members.py (Samsung IMS crashed on SEM_INT, getGroupIdLevel2, isPsOnlyReg)
 66d0d1d64a97c73e80c4fb74eb413f26e5390092c6cd05692710e590fd392326  services_patched.jar
 bc275abc635c71d88df70be48e6fbe89d413b2685a88d6967f2ce26cd224086e  miui-services_patched.jar
 5e70dbe022ca34bca76c5da686d20263f527edea54e433ba0758d46462b8679b  apprecovery.proinstaller_patched.jar
-c4df2d16706af6996424da294361213fe77535e9f3f42d7235b5abc7a49172c2  framework_patched.jar
+35e1b05262dc0ebc18c59f88e7fcf8ca8cae40b43852ad079a32b66b4292d725  framework_patched.jar
 bac456c6633daf8405146588aa2d283bdf964e011ee123282f20edbc5386fc19  miui-wifi-service_patched.jar
 d75caf178a99009cc8a206adf533297cc6400fce3948617d457056d03c05b81e  miui-telephony-common_patched.jar
 dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched

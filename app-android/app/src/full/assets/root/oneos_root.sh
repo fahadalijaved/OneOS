@@ -214,7 +214,6 @@ profile_set() {
         "flip8 infinityx41-findx9u") echo infinityx ;;
         "flip8 hyperos-lhasa") echo hyper-f8u ;;
         "a36 coloros17-findx9u-in") echo x9u-in-sultra ;;
-        "a36 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a36 infinityx41-findx9u") echo infinityx ;;
         "a36 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
@@ -315,7 +314,6 @@ profile_set() {
         "s-fe-9945 infinityx41-findx9u") echo infinityx ;;
         "s-fe-9945 hyperos-lhasa") echo hyper-f8u ;;
         "a26 coloros17-findx9u-in") echo x9u-in-sultra ;;
-        "a26 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a26 infinityx41-findx9u") echo infinityx ;;
         "a16-4g infinityx41-findx9u") echo infinityx ;;
         "a17 infinityx41-findx9u") echo infinityx ;;

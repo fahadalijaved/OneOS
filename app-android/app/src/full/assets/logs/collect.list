@@ -102,6 +102,8 @@ true'
 
 #: The session's log capture (oneos_logs, all buffers, 32 MB each): the files of the boot that only head/ still has,
 #: then the newest two (0.4.38: a crash loop wrote 480 MB and collecting all of it held Boot and Update for 20 minutes).
+#: 0.4.57: and up to two of the files between, newest first, that log a crash or an ANR (0.4.55's camera and IMS
+#: crashes of a ten-minute session were all in the middle, which no report had).
 files logs.capture 300 capture '
 L=/data/local/tmp/oneos_logs
 T=" "
@@ -115,6 +117,16 @@ for f in "$L"/head/boot.log*; do
   i=$(stat -c %i "$f")
   [ -n "$i" ] && printf "%s\n" "$T" | grep -q " $i " && continue
   printf "%s\n" "$f"
+  [ -n "$i" ] && T="$T$i "
+done
+c=""
+for f in "$L"/boot.log.[0-9][0-9]; do
+  [ -f "$f" ] && [ "$f" != "$L/boot.log.01" ] && [ "$c" != xx ] || continue
+  i=$(stat -c %i "$f")
+  [ -n "$i" ] && printf "%s\n" "$T" | grep -q " $i " && continue
+  grep -q -E "FATAL EXCEPTION|am_crash|am_anr|Fatal signal" "$f" || continue
+  printf "%s\n" "$f"
+  c="${c}x"
 done
 for f in "$L"/boot.log "$L"/boot.log.01; do [ -f "$f" ] && printf "%s\n" "$f"; done
 true'

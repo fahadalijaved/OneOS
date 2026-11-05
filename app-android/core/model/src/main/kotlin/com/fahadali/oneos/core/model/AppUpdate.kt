@@ -37,11 +37,21 @@ data class AppUpdate(
         const val APK_PREFIX = "https://github.com/fahadalijaved/OneOS/releases/download/"
 
         /**
-         * The team's test channel (Debug settings): the same file in the owner's Drive
-         * (OneOS/test/update.json, overwritten in place, so its id stays), naming an APK
-         * in that folder. A build is proven there before it goes to GitHub.
+         * The team's test channel (Debug settings): an update.json in the owner's own Drive, outside
+         * the shared OneOS folder, naming an APK beside it. A build is proven there before it goes to
+         * GitHub. 0.4.56: its Drive id is a code the owner enters in Debug settings and appears nowhere
+         * in the source (owner: the test folder was public, "anyone can use it"). [testUrl] takes the
+         * id itself or a Drive link holding it; null for anything else.
          */
-        const val TEST_URL = "https://drive.usercontent.google.com/download?id=1v43DlDjts0KhmKZVdMJtZVIIag8SUgk-&export=download&confirm=t"
+        fun testUrl(code: String?): String? {
+            val c = code?.trim().orEmpty()
+            val id = when {
+                DRIVE_ID.matches(c) -> c
+                else -> Regex("(?:[?&]id=|/d/)([A-Za-z0-9_-]{20,80})").find(c)?.groupValues?.get(1)
+            } ?: return null
+            return "https://drive.usercontent.google.com/download?id=$id&export=download&confirm=t"
+        }
+        private val DRIVE_ID = Regex("^[A-Za-z0-9_-]{20,80}$")
         private val DRIVE_APK = Regex("^https://drive\\.usercontent\\.google\\.com/download\\?id=[A-Za-z0-9_-]{20,80}&export=download&confirm=t$")
 
         /** Larger than any OneOS APK without its package set files (0.4.41 is about 60 MB). */

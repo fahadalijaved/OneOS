@@ -676,7 +676,8 @@ object Profiles {
         codename = "a36xq",
         socModel = "SM6475",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        // 0.4.57: not the Pixel 9 Pro XL, as on the A26: the same ARMv8.2 CPU features (no ilrcpc, frint, flagm...).
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -803,7 +804,10 @@ object Profiles {
         codename = "a26x",
         socModel = "s5e8835",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE),
+        // 0.4.57: not the Pixel 9 Pro XL any more: its own programs stopped on "Illegal instruction" before
+        // it started, in every session (0.4.54/0.4.55 reports 9f2307a3, 560a1dcb, c926c955). This ARMv8.2
+        // CPU lacks what every phone it runs on has (ilrcpc, frint, flagm, jscvt, fcma, i8mm, bf16...).
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
