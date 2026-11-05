@@ -363,8 +363,8 @@ echo "Host state recorded: $(wc -l < "$STAGE/host_state.before") entries"
 # ColorOS, on the whole 1440 px panel, took that for a hole left of the
 # middle (HOLE_LEFT_TYPE, session e98f44ff): the clock started right of it,
 # next to the real camera. Scaled to the panel's physical width
-# (cutoutPathParserInfo physicalDisplayWidth / displayWidth).
-rm -f "$STAGE/host_screenhole"
+# (cutoutPathParserInfo physicalDisplayWidth / displayWidth); see host_holes below.
+rm -f "$STAGE/host_screenhole" "$STAGE/host_cover_screenhole" "$STAGE/host_holes"
 # The display modes as One UI's SurfaceFlinger has them, while it is alive (a
 # .log in the stage goes into the session's logs): HyperOS's SurfaceFlinger
 # aborts at the first display connect on the S24 Ultra, S23 and Z Flip5 ("No
@@ -383,22 +383,79 @@ for p in /sys/class/lcd/panel /sys/class/lcd/panel1; do
     for n in vrr vrr_lfd; do echo "$p/$n (One UI): $(cat "$p/$n" 2>&1 | tr '\n' ' ' | cut -c1-600)"; done
 done >> "$STAGE/display_modes_host.log"
 HLINE=$(dumpsys display 2>/dev/null | grep 'DisplayDeviceInfo{' | grep 'type INTERNAL' | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY')
-HOLE=$(printf '%s\n' "$HLINE" |
-    sed -n 's/.*boundingRect={Bounds=\[Rect(-\{0,1\}[0-9]*, -\{0,1\}[0-9]* - -\{0,1\}[0-9]*, -\{0,1\}[0-9]*), Rect(\([0-9]*\), \([0-9]*\) - \([0-9]*\), \([0-9]*\)).*/\1,\2:\3,\4/p')
 HDW=$(printf '%s\n' "$HLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\1/p')
 HPW=$(printf '%s\n' "$HLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\2/p')
-if [ -n "$HOLE" ] && [ "$HOLE" = "${HOLE%%[!0-9,:]*}" ]; then
-    case "$HDW:$HPW" in
-        *[!0-9:]*|:*|*:) ;;
-        *) if [ "$HDW" -gt 0 ] && [ "$HPW" != "$HDW" ]; then
-               UIHOLE=$HOLE
-               HOLE=$(echo "$HOLE" | awk -F'[,:]' -v p="$HPW" -v d="$HDW" '{ printf "%d,%d:%d,%d", $1 * p / d + 0.5, $2 * p / d + 0.5, $3 * p / d + 0.5, $4 * p / d + 0.5 }')
-               echo "Host camera hole: One UI's $UIHOLE at $HDW px, $HOLE on the $HPW px panel"
-           fi ;;
-    esac
-    echo "$HOLE" > "$STAGE/host_screenhole" && echo "Host camera hole: $HOLE"
+# Each panel's camera on the whole panel (the guest runs every panel at its
+# full size), one line per internal panel with a top cutout, in host_holes:
+#   <main|cover> <uniqueId> <panel px> <rect> <lens>|<rect spec px>|<lens spec px>|<One UI's rect> at <px>
+# main is the largest panel (a bar phone's only one, a fold's or flip's inner
+# one); host_screenhole gets its lens, host_cover_screenhole the cover's.
+# - Size. One UI's rect is in the size One UI runs the panel at, and an Ultra's
+#   One UI scales a @dp spec twice below full size: the S25 Ultra gave
+#   521,0:560,72 at FHD+ (1080 of 1440 px; 695,0:747,96 scaled once, report
+#   1b63fc7a) and 685,0:755,128 at QHD+ (4933a41d), the S24 Ultra the same
+#   521,0:560,72 and 686,0:754,128. Scaled once it is 3/4 of the camera: 52 px,
+#   2.7 mm at 498 ppi, where the S25 shows the same front camera as 58 px =
+#   3.5 mm at 416 ppi (QHD+: 70 px = 3.6 mm). Distances from a centred @dp
+#   spec's top centre scale by (physical / display width)^2, others by the ratio.
+# - The lens. One UI's rect runs from the top edge to about the status bar's
+#   bottom (S25 103/103 px, S23 98/98, S24 Ultra 128/129), the lens inside it.
+#   ColorOS reads ro.oplus.display.screenhole.positon as the lens's own box (the
+#   Find X9 Ultra's 679,40:762,123: 83 x 83, centred in its 0..160 framework
+#   rect): StatusBarPaddingProvider.updatePaddingTopBottom centres the icons on
+#   it, and SystemUIPlugin's capsule (seedling.base.k.b()) is the box's height
+#   + 4 dp: One UI's 0..128 rect gave the S25 Ultra a 139 px capsule on a 128 px
+#   bar (4933a41d: "calculatePosition: 128 Rect(685, 0 - 755, 128) Rect(685,
+#   3 - 755, 142)", "config is error! 128 128 139"). A rect from the top edge
+#   more than 15% taller than wide holds a round lens of its width, centred in
+#   it; ONEOS_GUEST_HOLE_Y=bottom puts the lens at the rect's bottom, =rect keeps
+#   One UI's rect. A spec that is the lens already (A56: a circle, 24..92) stays:
+#   a circle spec (an arc, " a ") is the lens, the circle of the rect's width at
+#   its bottom. Some builds start its bounds at the spec's M 0,0 above the circle
+#   (A53 findings: 512,0:568,88 for "M 0,0 M 0,11.43 a 9.9,9.9 ...", the lens at
+#   32..88; one A36 build 505,0:575,92 for the A56's circle at 24..92).
+HOLES=$(printf '%s\n' "$HLINE" | awk -v ym="${ONEOS_GUEST_HOLE_Y:-center}" '
+    match($0, /uniqueId="local:[0-9]+", [0-9]+ x [0-9]+/) {
+        t = substr($0, RSTART + 10, RLENGTH - 10); id = t; sub(/".*/, "", id)
+        sub(/^[^"]*", /, "", t); split(t, wh, / x /)
+        if (id in area) next
+        area[id] = wh[1] * wh[2]; if (area[id] > maxa) maxa = area[id]
+        if (!match($0, /boundingRect=\{Bounds=\[Rect\(-?[0-9]+, -?[0-9]+ - -?[0-9]+, -?[0-9]+\), Rect\([0-9]+, [0-9]+ - [0-9]+, [0-9]+\)/)) next
+        r = substr($0, RSTART, RLENGTH); sub(/.*Rect\(/, "", r); gsub(/[^0-9]+/, " ", r); split(r, b, " ")
+        if (b[3] <= b[1] || b[4] <= b[2]) next
+        dw = wh[1]; pw = wh[1]
+        if (match($0, /CutoutPathParserInfo\{displayWidth=[0-9]+ displayHeight=[0-9]+ physicalDisplayWidth=[0-9]+/)) {
+            c = substr($0, RSTART, RLENGTH); gsub(/[^0-9]+/, " ", c); split(c, cc, " "); dw = cc[1]; pw = cc[3]
+        }
+        if (dw <= 0 || pw <= 0) next
+        sp = ""; if (match($0, /cutoutSpec=\{[^}]*\}/)) sp = substr($0, RSTART, RLENGTH)
+        k = pw / dw; if (sp ~ /@dp/ && sp !~ /@left|@right|@bottom|@center_vertical/) k = k * k
+        cx = pw / 2 + ((b[1] + b[3]) / 2 - dw / 2) * k; hw = (b[3] - b[1]) / 2 * k
+        L = int(cx - hw + 0.5); R = int(cx + hw + 0.5); T = int(b[2] * k + 0.5); B = int(b[4] * k + 0.5)
+        hl = L; hr = R; ht = T; hb = B
+        if (sp ~ / a /) {
+            if (B - T > R - L) { ht = B - (R - L); hb = B }
+        } else if (ym != "rect" && T == 0 && B * 20 > (R - L) * 23) {
+            ht = (ym == "bottom") ? B - (R - L) : int((B - (R - L)) / 2 + 0.5); hb = ht + R - L
+        }
+        d = hr - hl; if (hb - ht < d) d = hb - ht
+        line[id] = sprintf("%s %d %d,%d:%d,%d %d,%d:%d,%d|M %g,%d L %g,%d L %g,%d L %g,%d Z|M %g,%g a %g,%g 0 1,0 0,%g a %g,%g 0 1,0 0,-%g Z|%d,%d:%d,%d at %d",
+            id, pw, L, T, R, B, hl, ht, hr, hb, L - pw / 2, T, L - pw / 2, B, R - pw / 2, B, R - pw / 2, T,
+            (hl + hr) / 2 - pw / 2, ht + (hb - ht - d) / 2, d / 2, d / 2, d, d / 2, d / 2, d, b[1], b[2], b[3], b[4], dw)
+    }
+    END { for (id in line) print ((area[id] == maxa) ? "main " : "cover ") line[id] }')
+if [ -n "$HOLES" ]; then
+    printf '%s\n' "$HOLES" > "$STAGE/host_holes"
+    printf '%s\n' "$HOLES" | while IFS='|' read -r f rs ls raw; do
+        set -- $f
+        echo "Host camera hole: $1 panel $2 ($3 px): One UI's $raw px; rect $4, lens $5 (spec '$ls')"
+    done
+    HM=$(printf '%s\n' "$HOLES" | sed -n 's/^main [^ ]* [0-9]* [0-9,:]* \([0-9]*,[0-9]*:[0-9]*,[0-9]*\)|.*/\1/p' | head -n 1)
+    HC=$(printf '%s\n' "$HOLES" | sed -n 's/^cover [^ ]* [0-9]* [0-9,:]* \([0-9]*,[0-9]*:[0-9]*,[0-9]*\)|.*/\1/p' | head -n 1)
+    [ -n "$HM" ] && echo "$HM" > "$STAGE/host_screenhole"
+    [ -n "$HC" ] && echo "$HC" > "$STAGE/host_cover_screenhole"
 else
-    echo "Host camera hole: not read ($(printf '%s\n' "$HOLE" | grep -c .) internal displays with a top cutout)"
+    echo "Host camera hole: not read (no internal panel with a top cutout)"
 fi
 # This phone's cutout and status bar height, for the UI activator's overlays in a
 # Pixel guest (a Galaxy S26 Ultra user, 0.4.17: Pixel's bar far taller than the
@@ -425,9 +482,17 @@ if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
         *) [ "$HDW" -gt 0 ] && [ "$HRC" -gt 0 ] && HRC=$(( (HRC * HPW + HDW / 2) / HDW )) || HRC='' ;;
     esac
     case "$HCS" in *[!-0-9A-Za-z._,@\ ]*) HCS='' ;; esac
+    # The main panel's lens and One UI's rect as pixel specs of the whole panel
+    # (host_holes above), for the UI activator: One UI's @dp spec, worked out in
+    # a guest at the shared ro.sf.lcd_density (an Ultra's FHD+ 450) on the full
+    # 1440 px panel, is 3/4 of the camera there (S24 Ultra, Nothing OS 3066a57c:
+    # the guest's 695,0:746,96 for One UI's 686,0:754,128).
+    HMP=$(printf '%s\n' "$HOLES" | sed -n 's/^main //p' | head -n 1)
     if [ -n "$HCS$HSB$HRC" ]; then
-        { echo "spec=$HCS"; echo "height=$HSB"; echo "radius=$HRC"; } > "$STAGE/host_statusbar"
-        echo "Host status bar: cutout '${HCS:-none}', height ${HSB:-not read} px, corner radius ${HRC:-not read} px on the $HPW px panel"
+        { echo "spec=$HCS"; echo "height=$HSB"; echo "radius=$HRC"
+          [ -n "$HMP" ] && printf '%s\n' "$HMP" | awk -F'|' '{ split($1, f, " "); print "hole=" f[4]; print "rect_px=" $2; print "hole_px=" $3 }'
+        } > "$STAGE/host_statusbar"
+        echo "Host status bar: cutout '${HCS:-none}', height ${HSB:-not read} px, corner radius ${HRC:-not read} px on the $HPW px panel; $(grep -E '^(hole|rect_px|hole_px)=' "$STAGE/host_statusbar" | tr '\n' ' ')"
     fi
 fi
 # One UI's scale, for the guest's density (UI activator; standing rule: right on
@@ -581,6 +646,30 @@ if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
         LOGCAT_HEAD=1
         echo "Logcat capture: $LOGS/boot.log"
     fi
+fi
+# Sound and vibration watch (0.4.58): rings, vibrations, audio effects and
+# crashes of the session in a small log of its own ($STAGE/sound_watch.log,
+# collected with the other stage logs). The capture above keeps the start and
+# the end of a session; the rings in the middle of report 4933a41d ("the
+# vibration style for call is not strong": rings at 12:51 and 13:07 of a
+# 12:29-13:24 session) and the notification tone crash of report
+# findingssms918b20261104 were in no report. Tags only, 2 MiB at most; it ends
+# itself after two hours (no process walk at the return), and the next
+# session ends an earlier one by its pid. ONEOS_LOGCAT=0 skips it.
+if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
+    swp=$(cat "$STAGE/sound_watch.pid" 2>/dev/null)
+    case "$swp" in
+        ""|*[!0-9]*) ;;
+        *) tr '\0' ' ' < "/proc/$swp/cmdline" 2>/dev/null | grep -q "sound_watch.log" && kill "$swp" 2>/dev/null ;;
+    esac
+    [ -f "$STAGE/sound_watch.log" ] && mv -f "$STAGE/sound_watch.log" "$STAGE/sound_watch.prev"
+    $BB setsid $BB timeout 7200 logcat -b main,system,crash -v threadtime -f "$STAGE/sound_watch.log" -r 2048 -n 1 -s \
+        AndroidRuntime:E DEBUG:F Telecom:I Telecom_INCOMING_RINGING:V Ringtone:V RingtoneManager:V \
+        VibratorManagerService:V VibratorManagerServiceExtImpl:V VibrationThread:V VibrationScaler:V \
+        SecVibrator-HAL-AIDL-CORE:V AHAL_StreamOut_QTI:D EffectOffloadImpl:V AHAL_EffectFactoryQti:V \
+        AHAL_DlbSpatializerEffectImpl:V DlbDap2Process:V </dev/null >/dev/null 2>&1 &
+    echo $! > "$STAGE/sound_watch.pid"
+    echo "Sound watch: $STAGE/sound_watch.log"
 fi
 
 # --- GAP SPLASH ---
@@ -990,6 +1079,21 @@ setprop ctl.stop zygote
 # (~2 min watchdog stall, boot stuck on the animation). Freezing them with
 # kill -STOP is the worst of both worlds - the binder registration survives
 # while the process can never answer.
+# The watchdog device One UI's system_server keeps open: Samsung's software
+# watchdog, fed by its WatchdogSoftdog. Its node differs per phone (/dev/watchdog,
+# /dev/softdog -> watchdog1 on the MediaTek A16 4G and A17, /dev/watchdog1 on the
+# S24 Exynos, where /dev/watchdog is the kernel's and busy: 0.4.54 3bb18528
+# panicked "Software Watchdog Timer expired 100s" with persist.vendor.softdog=off
+# set). Recorded from its open files before it stops; closed with "V" below and
+# kicked by the feeder (guest_prepare.sh) for the session.
+rm -f "$STAGE/host_softdog_nodes"
+for p in $(pidof system_server); do
+    for fd in /proc/$p/fd/*; do
+        t=$(readlink "$fd" 2>/dev/null)
+        case "$t" in /dev/watchdog*|/dev/softdog*) echo "$t" ;; esac
+    done
+done 2>/dev/null | sort -u > "$STAGE/host_softdog_nodes"
+[ -s "$STAGE/host_softdog_nodes" ] || rm -f "$STAGE/host_softdog_nodes"
 [ -n "$SF_FROZEN" ] || kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 kill -9 $(pidof bootanimation) 2>/dev/null || true
 kill -9 $(pidof app_process64) 2>/dev/null || true
@@ -1022,6 +1126,17 @@ else echo "Softdog: /dev/watchdog not written ($e)"; fi
 # so the off switch below was skipped. A /dev/softdog gets the magic close too,
 # and the off switch.
 SOFTDOG_DEV=0
+# The node(s) One UI's system_server held (recorded above): the magic close, and
+# the off switch below too.
+if [ -f "$STAGE/host_softdog_nodes" ]; then
+    while read -r n; do
+        case "$n" in /dev/watchdog|/dev/softdog) continue ;; esac
+        [ -c "$n" ] || continue
+        SOFTDOG_DEV=1
+        if e=$(printf V 2>&1 > "$n"); then echo "Softdog: $n (One UI's system_server had it open) closed with V"
+        else echo "Softdog: $n (One UI's system_server had it open) not written ($e)"; fi
+    done < "$STAGE/host_softdog_nodes"
+fi
 if [ -c /dev/softdog ]; then
     SOFTDOG_DEV=1
     if e=$(printf V 2>&1 > /dev/softdog); then echo "Softdog: /dev/softdog ($(readlink /dev/softdog 2>/dev/null || echo node)) closed with V"
@@ -1128,8 +1243,9 @@ $BB sh -c "
         {
             echo \"--- \$(date +%T)\"
             ip -4 -o addr show wlan0 2>&1 | awk '{print \$4}'
-            ip rule show 2>&1 | head -6
+            ip rule show 2>&1 | awk 'NR <= 6 || /^14999:/ || / iif [^l][^ ]* lookup /'
             ip route show table 4242 2>&1
+            [ -d /sys/class/net/swlan0 ] && echo \"swlan0: \$(ip -4 -o addr show swlan0 2>/dev/null | awk '{print \$4}'), ip_forward \$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)\"
             ping -c 1 -W 2 \$(ip route show table 4242 2>/dev/null | awk '/default/{print \$3; exit}') >/dev/null 2>&1 && echo gateway: ok || echo gateway: unreachable
         } 2>&1
         # Watch One UI's APEX backing files: after earlier sessions One UI's
@@ -1839,6 +1955,20 @@ while true; do
                 fi
                 echo \"[UI Activator] camera worker: \$(head -n 1 $STAGE/camera_worker.log 2>/dev/null | tr -d '\n' || true); \$(timeout 10 service check media.camera.worker 2>&1 | tr -d '\n')\"
             fi
+            # Samsung's speaker tuning (experiment, 0.4.58). One UI's audioserver
+            # runs Dolby (DAX3 with Samsung's speaker endpoint tuning), SoundBooster
+            # Plus and SoundAlive on what it plays; the guest's audioserver runs
+            # none of them, and ColorOS's own engine (AudioEffectCenter, effect
+            # 41f6c0f4) is not in Samsung's effect HAL (reports 4933a41d, 3715fe57,
+            # 30124d7e: the speaker sounds bad). patches/OneOSSoundFx.java, in the
+            # same dex, puts the vendor effect HAL's Dolby on the guest's output mix
+            # and holds it until the guest's system_server is gone. Only while
+            # $STAGE/guest_dolby.on exists, until a phone run shows it working.
+            if [ -f $STAGE/guest_dolby.on ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
+                ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
+                sleep 3
+                echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"
+            fi
             # Density and fold line of the inner panel (run 43), before HOME so the
             # setup wizard starts with them. With no init of its own the guest
             # takes ro.sf.lcd_density from the property area it shares with One
@@ -2229,19 +2359,36 @@ while true; do
                 fi
                 echo \"[UI Activator] Nothing About phone: RAM \${NRAM:-?}, storage \${NROM:-?}, screen \${NSCR:-?}, battery \${NMAH:-?} mAh; overlays on:\${NON:- none}\"
             fi
-            # This phone's cutout, status bar height and corner radius in a guest
-            # with AOSP's SystemUI: Pixel, and Infinity-X (the switch saved One UI's
-            # in host_statusbar). Infinity-X got none of them before (GUEST_OPLUS):
-            # on the S25 Ultra its cutout and corners were empty, the icons off.
+            # This phone's cutout, status bar height and corner radius (the switch
+            # saved them in host_statusbar, phones with one panel). Infinity-X got
+            # none of them before (GUEST_OPLUS): on the S25 Ultra its cutout and
+            # corners were empty, the icons off.
+            # Every system takes the cutout since 0.4.58. ColorOS and HyperOS kept
+            # their image's phone's: the Find X9 Ultra's 0..160 px rect (a 160 px
+            # bar where One UI's is 128 on the S25 Ultra and 101 on the A56) and the
+            # Xiaomi's top-left 164 x 140 px one (A56, HyperOS f73b6e6f: \"M 0,0 H 164
+            # V 140 H 0 V 0 Z @left\", the clock right of x 164). ColorOS's own
+            # SystemUI still places its icons and capsule from
+            # ro.oplus.display.screenhole.positon (guest_props.sh).
             # Fabricated overlays are mutable: enabled, they come above every
             # static overlay, the image's device ones in product included. The
             # guest's DisplayManager takes the cutout and corners again on the
             # overlay change and SystemUI the height; later sessions start with
             # them. Re-made every session (a resolution change moves the height).
-            # ONEOS_GUEST_HOST_CUTOUT=0 leaves them out.
-            if [ $GUEST_AOSP_SYSUI = 1 ] && [ \"${ONEOS_GUEST_HOST_CUTOUT:-1}\" = 1 ] && [ -f $STAGE/host_statusbar ] && [ ! -L $STAGE/host_statusbar ]; then
-                gxo() { timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay \"\$@\" >/dev/null 2>&1; }
+            # ONEOS_GUEST_HOST_CUTOUT=0 leaves them out, and disables those an
+            # earlier session made.
+            gxo() { timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay \"\$@\" >/dev/null 2>&1; }
+            if [ \"${ONEOS_GUEST_HOST_CUTOUT:-1}\" = 1 ] && [ -f $STAGE/host_statusbar ] && [ ! -L $STAGE/host_statusbar ]; then
                 HCS=\$(sed -n 's/^spec=//p' $STAGE/host_statusbar | head -n 1)
+                # The cutout in pixels of the whole panel when the switch made it
+                # (rect_px: One UI's rect, hole_px: the lens in it; host_holes): One
+                # UI's @dp spec is worked out in a guest at the shared
+                # ro.sf.lcd_density, on an Ultra the FHD+ 450 on the 1440 px panel,
+                # 3/4 of the camera (S24 Ultra, Nothing OS 3066a57c: 695,0:746,96
+                # for One UI's 686,0:754,128). ONEOS_GUEST_CUTOUT_PX=0 keeps the
+                # @dp spec as below.
+                HRP=\$(sed -n 's/^rect_px=//p' $STAGE/host_statusbar | head -n 1)
+                HHP=\$(sed -n 's/^hole_px=//p' $STAGE/host_statusbar | head -n 1)
                 # One UI gives the punch hole as a rectangle from the top edge
                 # to the camera's bottom (M 0,0 H -a V b H a V 0 H 0 Z @dp): its own
                 # SystemUI only spaces by it. Nothing OS's draws the cutout, and a
@@ -2255,12 +2402,18 @@ while true; do
                     HCSC=\$(printf '%s\\n' \"\$HCS\" | awk '{ n = split(\$0, t, \" \") } n == 14 && t[1] == \"M\" && t[2] == \"0,0\" && t[3] == \"H\" && t[5] == \"V\" && t[7] == \"H\" && t[14] == \"@dp\" { a = t[8] + 0; b = t[6] + 0; if (a > 0 && b >= 2 * a) { printf \"M 0,%.4f a %.4f,%.4f 0 1,0 0,%.4f a %.4f,%.4f 0 1,0 0,-%.4f Z @dp\", b - 2 * a, a, a, 2 * a, a, a, 2 * a; next } } { print }')
                     [ -n \"\$HCSC\" ] || HCSC=\$HCS
                 fi
+                CUT=\$HCSC CUTR=\$HCS CUTU=dp
+                if [ \"${ONEOS_GUEST_CUTOUT_PX:-1}\" = 1 ] && [ -n \"\$HRP\" ] && [ -n \"\$HHP\" ]; then
+                    CUT=\$HHP CUTR=\$HRP CUTU=px
+                    [ \"${ONEOS_GUEST_CUTOUT_ROUND:-1}\" = 1 ] || CUT=\$HRP
+                fi
+                case \"\$CUT\$CUTR\" in *[!-0-9A-Za-z._,@\\ ]*) CUT='' CUTR='' ;; esac
                 HSB=\$(sed -n 's/^height=//p' $STAGE/host_statusbar | head -n 1)
                 HRC=\$(sed -n 's/^radius=//p' $STAGE/host_statusbar | head -n 1)
                 OVS=''
-                if [ -n \"\$HCS\" ] &&
-                   gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string \"\$HCSC\" &&
-                   gxo fabricate --target android --name OneOSCutoutRect android:string/config_mainBuiltInDisplayCutoutRectApproximation string \"\$HCS\"; then
+                if [ -n \"\$CUT\" ] && [ -n \"\$CUTR\" ] &&
+                   gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string \"\$CUT\" &&
+                   gxo fabricate --target android --name OneOSCutoutRect android:string/config_mainBuiltInDisplayCutoutRectApproximation string \"\$CUTR\"; then
                     OVS='OneOSCutout OneOSCutoutRect'
                 fi
                 # Height, corner radius and the corner padding are dimensions,
@@ -2271,10 +2424,12 @@ while true; do
                 # 118 px corner). OneOSOverlayDimen (patches/, in the guest's
                 # /data) registers them; enabled like the rest. Bar phones only:
                 # on a Fold the switch measured whichever panel was on, and one
-                # value would be wrong on the other.
+                # value would be wrong on the other. AOSP SystemUI and HyperOS's
+                # (its bar 140 px and corners 142 px on the A56, f73b6e6f); ColorOS
+                # sizes its bar from the hole property.
                 gdim() { timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_overlay_dimen.dex /system/bin/app_process /system/bin OneOSOverlayDimen \"\$@\" 2>&1 | grep -E '^(registered|failed)' | tail -n 1; }
                 DIMS=''
-                if [ $GUEST_FOLD_FORM = 0 ] && [ -f $STAGE/data/oneos_overlay_dimen.dex ]; then
+                if [ \"$GUEST_AOSP_SYSUI$GUEST_MIUI\" != 00 ] && [ $GUEST_FOLD_FORM = 0 ] && [ -f $STAGE/data/oneos_overlay_dimen.dex ]; then
                     case \"\$HSB\" in
                         ''|*[!0-9]*) ;;
                         *) r=\$(gdim OneOSStatusBarHeight android android:dimen/status_bar_height_default=\$HSB android:dimen/status_bar_height_portrait=\$HSB)
@@ -2287,9 +2442,9 @@ while true; do
                            # Where the corner's curve leaves the status bar's icons
                            # room: at a third of the bar's height (the top of the
                            # clock's digits). Only over the 8dp the static RRO
-                           # gives (24 px), both sides alike.
+                           # gives (24 px), both sides alike. AOSP SystemUI only.
                            PAD=\$(awk -v r=\"\$HRC\" -v h=\"\${HSB:-0}\" 'BEGIN { y = h / 3; p = 0; if (y < r) p = r - sqrt(r * r - (r - y) * (r - y)); printf \"%d\", p + 0.5 }')
-                           if [ \"\${PAD:-0}\" -gt 24 ]; then
+                           if [ $GUEST_AOSP_SYSUI = 1 ] && [ \"\${PAD:-0}\" -gt 24 ]; then
                                r=\$(gdim OneOSCornerPadding com.android.systemui com.android.systemui:dimen/rounded_corner_content_padding=\$PAD com.android.systemui:dimen/ongoing_appops_dot_min_padding=\$PAD)
                                case \"\$r\" in registered*) OVS=\"\$OVS OneOSCornerPadding\" ;; *) DIMS=\"\$DIMS padding \$PAD px: \$r;\" ;; esac
                            fi ;;
@@ -2297,7 +2452,18 @@ while true; do
                 fi
                 ON=''
                 for o in \$OVS; do gxo enable --user 0 com.android.shell:\$o && ON=\"\$ON \$o\"; done
-                echo \"[UI Activator] status bar: One UI's cutout '\${HCS:-none}', height \${HSB:-?} px, corner radius \${HRC:-?} px; overlays on:\${ON:- none}\${DIMS:+ (not made:\$DIMS)}\"
+                echo \"[UI Activator] status bar: One UI's cutout '\${HCS:-none}', as \$CUTU: '\${CUT:-none}', rect '\${CUTR:-none}'; height \${HSB:-?} px, corner radius \${HRC:-?} px; overlays on:\${ON:- none}\${DIMS:+ (not made:\$DIMS)}\"
+            else
+                # No host cutout this session (ONEOS_GUEST_HOST_CUTOUT=0, or a
+                # phone with two panels): an earlier session's overlays go off.
+                OFF=''
+                for o in \$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list --user 0 2>/dev/null | sed -n 's/^.*\\[x\\] com\\.android\\.shell:\\(OneOS[A-Za-z]*\\)\$/\\1/p' | sort -u); do
+                    case \$o in
+                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerRadius|OneOSCornerPadding)
+                            gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
+                    esac
+                done
+                [ -z \"\$OFF\" ] || echo \"[UI Activator] status bar: no host cutout this session; overlays off:\$OFF\"
             fi
             # Fold test (fold layout only). On every lid switch event record what
             # the guest did: device state, layout, both touch mappers and

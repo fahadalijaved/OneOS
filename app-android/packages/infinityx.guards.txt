@@ -4,10 +4,11 @@
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # r4 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms, where Infinity-X keeps system_ext), framework_patched.jar with patches/guest_secims_members.py, telephony-common_patched.jar: the image's with patches/guest_smsc_international.py, samcam.tar: the Galaxy S26 Ultra's camera (scripts/samsung-camera/build-cached.sh, SAMCAM_BAR=1)
 # 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
+# 0.4.58: samcam with the patched scamera_sdk_util.jar again (repatch-scamera-util.sh; 0.4.55-0.4.57 shipped One UI's own); 0.4.58: telephony-common_patched.jar + guest_sms_invalid_response.py (SEND_SMS error 66 counted as sent); 0.4.58: oplus-services_patched.jar + oplus_zen_light.py (no DND crash without a notification light)
 8acd5e4a1a2f4230f9f5a836dbba4ecd3a4f8053a517a9e9d39be5610e3175d7  services_patched.jar
-d5ae84697f24c1576927b61c7aec7b906a3206a49d72e58df8db417b6448c438  oplus-services_patched.jar
+efeff31c080f7d92c2713fe7d7df79b95c149c9db47426a702f212e86fb28389  oplus-services_patched.jar
 654dcfa788bcfde4fc539935ffbcb707a3b0c2001e31b6de27edec5afe5de404  vold_patched
 d853cfa2f60c477a5c5224cf9972665f09a733fa66e659d71f43d521589fceb7  service.incremental_patched.so
 664e9705b3fc1d9370ad1d18ba403cd3df3bc36f76829f6f40fdb80108437aa7  framework_patched.jar
 1ba6a3b21d5321b225e93d93d024332936e339e5002a082f98e6e7a51c9449bd  libcamera_client_patched.so
-1f915ca051b709f81bd7efa9a97bc8d13cafb5d67011a0b43a778cf115c5b887  telephony-common_patched.jar
+f91a0e15d5d21c7476258b058264b24cf5dc1788b555a43c64629f50bcfd0038  telephony-common_patched.jar

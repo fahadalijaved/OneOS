@@ -4,12 +4,12 @@
 From 0.4.41 there is one small APK for every phone: the package set files are on the owner's
 Drive (scripts/release-files.py) and the app downloads the ones its phone needs; the app updates
 itself from the latest GitHub release's update.json (AppUpdate, AppUpdater). This script:
-  1. runs scripts/release-files.py: new set files to Drive, packages/remote.txt;
-  2. runs the full test suite (owner rule: green before anything is uploaded), unless --no-tests;
-  3. builds :app:assembleFullRelease without a series and without the set files;
-  4. checks the APK: signed with the OneOS release key, no set file inside, under
+  1. runs scripts/release-files.py (new set files to GitHub and Drive, packages/remote.txt) and, side by
+     side, the full test suite (owner rule: green before the release), unless --no-tests;
+  2. builds :app:assembleFullRelease without a series and without the set files;
+  3. checks the APK: signed with the OneOS release key, no set file inside, under
      AppUpdate.MAX_BYTES;
-  5. writes out/release/v<version>/OneOS-<version>.apk and update.json, and prints the
+  4. writes out/release/v<version>/OneOS-<version>.apk and update.json, and prints the
      gh release command (the APK and update.json are the release's assets; the release must be
      the repository's latest, since the app reads releases/latest/download/update.json).
 
@@ -208,9 +208,21 @@ def main():
     test_channel = "--test" in sys.argv[1:]
     code, name = version()
     print(f"OneOS {name} (versionCode {code})")
-    run([sys.executable, os.path.join(ROOT, "scripts/release-files.py")])
+    # The set-file uploads (GitHub, then six Drive copies: about half an hour for a set rebuild) and the
+    # test suite (20-25 minutes) run side by side: the tests do not read packages/remote.txt, which
+    # release-files.py writes at its end and only the release packaging task checks. Both must pass
+    # before the APK is built.
+    files_cmd = [sys.executable, os.path.join(ROOT, "scripts/release-files.py")]
+    print("+", " ".join(files_cmd), "(in the background)", flush=True)
+    files = subprocess.Popen(files_cmd, cwd=ROOT)
+    test_rc = 0
     if tests:
-        run(["./gradlew", "test", "--continue"], cwd=APP)
+        print("+ ./gradlew test --continue", flush=True)
+        test_rc = subprocess.run(["./gradlew", "test", "--continue"], cwd=APP).returncode
+    if files.wait() != 0:
+        sys.exit("failed: " + " ".join(files_cmd))
+    if test_rc != 0:
+        sys.exit("failed: ./gradlew test --continue")
     run(["./gradlew", ":app:assembleFullRelease"], cwd=APP)
     built = sorted(glob.glob(os.path.join(APP, "app/build/outputs/apk/full/release/*.apk")), key=os.path.getmtime)
     if not built:

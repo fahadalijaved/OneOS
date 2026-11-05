@@ -107,6 +107,24 @@ did (app-android/README.md, "The four set lists in `packages/` were regenerated"
   service, registration callbacks fire, a call shows as IMS in the guest's logs.
 - VoWiFi (`com.sec.epdg`) and RCS: later.
 
+## SMS: the IMS fallback works, the radio's answer did not (0.4.58)
+
+What a guest SMS does on a carrier that rejects SMS over IMS (0.4.40 report
+190a9dcd, S25U on Partner IL, ColorOS X9U IN): the guest's ImsSmsDispatcher
+sends over Samsung's ImsService, the network answers SIP 404 "Called User
+Unknown", Samsung's ImsSmsImpl answers `SEND_SMS ... status = 4 (Fallback)`
+(the 0.4.40 per-slot canFallback fix), the guest's ImsSmsDispatcher calls
+fallbackToPstn (AOSP's SEND_STATUS_ERROR_FALLBACK is 4, the same value), and
+GsmSMSDispatcher resends the PDU over CS (`RILJ: > SEND_SMS`). The modem sends
+it (`RILD: SMS message send SUCCESS`), but Samsung's radio HAL gives no result
+payload (`RILC: Invalid response: NULL`) and so answers RadioError 66
+INVALID_RESPONSE: the guest marks the text failed (125) although the recipient
+got it. Every guest SEND_SMS in the reports to 11-05 ends like this on success,
+on Snapdragon and Exynos, with or without Samsung IMS. A failed send keeps its
+own error (49, 39, 10). `patches/guest_sms_invalid_response.py`
+(telephony-common.jar, MessagingResponse.responseSms) counts 66 as sent and
+logs `OneOS-SMS: SEND_SMS error 66 ... counted as sent`.
+
 ## Prior art: jameskdev/android_samsung_imsservice
 
 https://github.com/jameskdev/android_samsung_imsservice (last push 2024-05): Samsung's

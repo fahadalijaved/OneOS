@@ -4,10 +4,11 @@
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # 0.4.57: oplus-services_patched.jar + oplus_resolution_tables.py (no resolution switch without ColorOS's density tables); 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
+# 0.4.58: telephony-common_patched.jar + guest_sms_invalid_response.py (SEND_SMS error 66 counted as sent); 0.4.58: oplus-services_patched.jar + oplus_zen_light.py (no DND crash without a notification light)
 7c9d905836357a187b77a98749d24f72dff42e2bf0e366de770e2235454e32ac  services_patched.jar
-130a27c04b2bdd1c2d01891d91e6d23e1ab5404a4d15a577f65447f3b1af8906  oplus-services_patched.jar
+61e7201e74ee8cae5ff1dad10d0c8190fa3c54dfb33efb37b8473f062bc9f415  oplus-services_patched.jar
 2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so
 fae755c0225bb9cdd3553fc26a11092fd035984c8432adbf22c3c8d70275fa30  libcamera_client_patched.so
 e61f9bebe691ea90e540eeed79b0e5e70ed537c252d12d45cb46119d0d155230  framework_patched.jar
-532d4b6e6a4193c096cd40c56935a7b69ba704354b9fa09406b76ba749ae707d  telephony-common_patched.jar
+617e60543efd34a724106991a3b9418e4a57dbdd97f5fc0b4bc68663e167517c  telephony-common_patched.jar
