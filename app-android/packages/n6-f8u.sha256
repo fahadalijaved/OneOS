@@ -1,5 +1,5 @@
-# OneOS package set n6-f8u: sha256sum of out/overlays_n6g_r9 (scripts/make-overlays.sh on the Find N6 global image CPH2765_17.0.0.101(EX01), 2026-11-02; samcam.tar from scripts/samsung-camera/build-cached.sh; Fold8SystemUI.apk and Fold8AngleRelay.dex from scripts/make-fold8-coloros.py --into; 0.4.39 r3: services_patched.jar with patches/guest_ksu_manager_appid.py, telephony-common_patched.jar (patches/guest_smsc_international.py), 2026-11-03; 0.4.40 r4: framework_patched.jar with patches/guest_secims_gba.py (GBA support, sem*State by SIM slot); 0.4.47 r5: KeKeThemeSpace_patched.apk, the image's Theme Store without its brand check (scripts/apk-replace-dex.py, classes5.dex), 2026-11-04; 0.4.48 r6: KeKeThemeSpace_patched.apk also reports OPPO and the Find N6 model CPH2765 to OPPO's theme server (an empty store for brand samsung), 2026-11-04; r7 (0.4.56, TEST CHANNEL ONLY): KeKeThemeSpace_patched.apk with patches/theme_store_netlog.py (every OkHttp request and reply in logcat, tag OneOSTheme), 2026-11-05; 0.4.57 r8 from r6 (the 0.4.48 Theme Store again): oplus-services_patched.jar with patches/oplus_resolution_tables.py, samcam.tar with fix_notification_icon.py; 0.4.58 r9: telephony-common_patched.jar + guest_sms_invalid_response.py, oplus-services_patched.jar + oplus_zen_light.py).
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_n6g_r9 differs.
+# OneOS package set n6-f8u: sha256sum of out/overlays_n6g_r14 (scripts/make-overlays.sh on the Find N6 global image CPH2765_17.0.0.101(EX01), 2026-11-02; samcam.tar from scripts/samsung-camera/build-cached.sh; Fold8SystemUI.apk and Fold8AngleRelay.dex from scripts/make-fold8-coloros.py --into; 0.4.39 r3: services_patched.jar with patches/guest_ksu_manager_appid.py, telephony-common_patched.jar (patches/guest_smsc_international.py), 2026-11-03; 0.4.40 r4: framework_patched.jar with patches/guest_secims_gba.py (GBA support, sem*State by SIM slot); 0.4.47 r5: KeKeThemeSpace_patched.apk, the image's Theme Store without its brand check (scripts/apk-replace-dex.py, classes5.dex), 2026-11-04; 0.4.48 r6: KeKeThemeSpace_patched.apk also reports OPPO and the Find N6 model CPH2765 to OPPO's theme server (an empty store for brand samsung), 2026-11-04; r7 (0.4.56, TEST CHANNEL ONLY): KeKeThemeSpace_patched.apk with patches/theme_store_netlog.py (every OkHttp request and reply in logcat, tag OneOSTheme), 2026-11-05; 0.4.57 r8 from r6 (the 0.4.48 Theme Store again): oplus-services_patched.jar with patches/oplus_resolution_tables.py, samcam.tar with fix_notification_icon.py; 0.4.58 r9: telephony-common_patched.jar + guest_sms_invalid_response.py, oplus-services_patched.jar + oplus_zen_light.py; 0.4.59 r10: samcam.tar keeps videos on Stop (fix_recorder_track_started.py); 0.4.59 r10: samcam.tar with the gallery fallback (fix_gallery_fallback.py); 0.4.59 r10: samcam.tar with the recording timer and secmedia fallback; 0.4.59 r11: samcam.tar with the camera timer, secmedia queries and gallery fallback; 0.4.59 r12: samcam.tar with the video rotation written after the stop).
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_n6g_r14 differs.
 ccf2fbddc462eca6d7cb7f112ca1b36620fe0ccd044ff6ba28bebe13cfe6b89e  Fold8AngleRelay.dex
 eca1dc6208f9ece70cc2fe663fdd7c91f50a5d2ee17523ec9a4ee1c4cb4af3cf  Fold8SystemUI.apk
 2eddd38f878e61fa41d18151f5f90be5f18b5b3e161ac559ce191b9022e18c7b  KeKeThemeSpace_patched.apk
@@ -13,7 +13,7 @@ f8fc69250f59bd83b0d11399c17a4bfa4e63030d7297b2108eb84d9bc7dc94fd  configinfrastr
 2cda6104fa8266d2ee26ca9512532dfed6fef9c8c2a319663f890fd19986c0a0  crashrecovery_payload.img
 dddccf843beb0fb4552d3f0afe1c4f8bb8d7a1c4269f5a787f16ad1b08f8beaf  extservices_payload.img
 e61f9bebe691ea90e540eeed79b0e5e70ed537c252d12d45cb46119d0d155230  framework_patched.jar
-b867ec6a1bca8dea037ee8ad6aef5597d4e169f3ca949e9c38baab3ad33560d2  guards.txt
+916ca4712537bdc7e0e9fcba1a03f9ff437925b0e05a6e11d63bcab5056bb319  guards.txt
 8f2a37629ed009b011d33f017714ac3d33caa5ffba838c2ced3a2c4f6a612efc  healthfitness_payload.img
 1750220fbfa2af1611a8ed7b1b3526074953b3a863f0e066a3fede2a4ea7d756  i18n_payload.img
 44ac958698b0dcd72b5ea77f84e5c16caba6716b153589388d09354abaadd6aa  ims-ext-common_patched.jar
@@ -25,7 +25,7 @@ d3a960a714fb2a07572b85cdcd97d2585e22a9d348da60a9da6befe20284d021  ondeviceperson
 a74644f7a3817f52fdf59e248b88fdac19fca7a87a74a2e2ed91063ad213404f  permission_payload.img
 df141e3656cbbe576a98975cdd17327f7e4a7dc671a1725c504886ebf5009a05  rkpd_payload.img
 f45b10cbc8deb9d2cf32a33df4e778904334cc8cdb0cb628043153029ddf9379  runtime_payload.img
-ade37ae639e8fa79707571e080953b27880cefa08f9bb703304d2e0355f97510  samcam.tar
+286150b45c782b1a87f11d734d850942bceaddd66d2e338662246f70e253f98e  samcam.tar
 448f4909cc27a33be33ea85d3d950d38d285c2964c930c043eb3827c89ff267f  sdkext_payload.img
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so
 7c9d905836357a187b77a98749d24f72dff42e2bf0e366de770e2235454e32ac  services_patched.jar

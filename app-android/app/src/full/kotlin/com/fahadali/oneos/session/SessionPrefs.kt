@@ -3,6 +3,7 @@ package com.fahadali.oneos.session
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import android.os.Process
 import android.os.SystemClock
 import com.fahadali.oneos.core.model.ImageFileCheck
 import com.fahadali.oneos.core.root.HomeSnapshot
@@ -91,6 +92,15 @@ object SessionPrefs {
         /** Wall clock minus uptime is the boot time; a boot after the launch means the phone restarted since. */
         fun rebootedSince(nowWall: Long = System.currentTimeMillis(), nowElapsed: Long = SystemClock.elapsedRealtime()): Boolean =
             nowWall - nowElapsed > wallMs + BOOT_SLACK_MS || nowElapsed < elapsedMs
+
+        /**
+         * The session is over: the phone restarted, or One UI came back in place. A switch stops One UI's framework
+         * and every app with it, so this app's process starting after the launch means a return happened. With
+         * in-place returns (no reboot) [rebootedSince] alone stayed false, the logs were never collected after a
+         * return, and Last session kept the previous session's zip (owner, 0.4.58 Pixel session 9455098f).
+         */
+        fun endedSince(processStartElapsed: Long = Process.getStartElapsedRealtime()): Boolean =
+            rebootedSince() || (!dryRun && processStartElapsed > elapsedMs)
 
         companion object {
             const val BOOT_SLACK_MS = 30_000L

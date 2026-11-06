@@ -249,7 +249,7 @@ class ProfilesTest {
                 Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945,
-                Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965, Profiles.A16_4G,
+                Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965, Profiles.A16_4G, Profiles.A16_S166, Profiles.A35, Profiles.A54, Profiles.A27,
             ),
             Profiles.BUILT_IN,
         )
@@ -269,6 +269,19 @@ class ProfilesTest {
         assertEquals(listOf("a16-4g", "Galaxy A16 4G"), listOf(Profiles.A16_4G.id, Profiles.A16_4G.label))
         assertEquals(Profiles.A17.choices, Profiles.A16_4G.choices)
         assertEquals(Profiles.A17.notes, Profiles.A16_4G.notes)
+        // 0.4.59: the TracFone/Verizon prepaid A16 5G (SM-S166V), the same phone and choices as SM-A166U.
+        assertEquals(Profiles.A16_S166, Profiles.resolve("SM-S166V", "a16x", "s5e8535").profile)
+        assertEquals(listOf(Profiles.A16.choices, Profiles.A16.notes), listOf(Profiles.A16_S166.choices, Profiles.A16_S166.notes))
+        // 0.4.59: the Galaxy A35 5G and A54 5G, the A26's Exynos 1380 and vendor (findings), so its choices and notes.
+        assertEquals(Profiles.A35, Profiles.resolve("SM-A356E", "a35x", "s5e8835").profile)
+        assertEquals(Profiles.A35, Profiles.resolve("SM-A356U1", "a35x", "s5e8835").profile)
+        assertEquals(Profiles.A54, Profiles.resolve("SM-A546E", "a54x", "s5e8835").profile)
+        // 0.4.59: the Galaxy A27 (SM-A276B), the A36's SM6475 and generation, so its choices and notes.
+        assertEquals(Profiles.A27, Profiles.resolve("SM-A276B", "a27xq", "SM6475").profile)
+        assertEquals(listOf(Profiles.A36.choices, Profiles.A36.notes), listOf(Profiles.A27.choices, Profiles.A27.notes))
+        for (p in listOf(Profiles.A35, Profiles.A54)) {
+            assertEquals(listOf(Profiles.A26.choices, Profiles.A26.notes, Profiles.A26.form), listOf(p.choices, p.notes, p.form))
+        }
         assertEquals(Profiles.A16, Profiles.resolve("SM-A166U", "a16x", "s5e8535").profile)
         // The A16 with MediaTek (a16xm) is not the Exynos one.
         assertNull(Profiles.resolve("SM-A166P", "a16xm", "MT6835").profile)

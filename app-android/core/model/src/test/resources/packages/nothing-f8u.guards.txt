@@ -5,6 +5,11 @@
 # r22 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms)
 # 0.4.57: framework_patched.jar + guest_secims_members.py (Samsung IMS crashed on SEM_INT, getGroupIdLevel2, isPsOnlyReg); 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
 # 0.4.58: samcam with the patched scamera_sdk_util.jar again (repatch-scamera-util.sh; 0.4.55-0.4.57 shipped One UI's own)
+# 0.4.59: samcam with fix_recorder_track_started.py (videos kept on Stop; AOSP's recorder sends no 905)
+# 0.4.59: samcam with fix_gallery_fallback.py (the thumbnail opens the guest's gallery)
+# 0.4.59: samcam with fix_recorder_progress.py and fix_secmedia_insert.py (recording timer; videos saved without secmedia)
+# 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
+# 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 576a026f7e01d3134609d0aa8a5605bd7589d69650b2115e1922966fa59b72df  services_patched.jar
 3d1e391a2a9042aba2d3238b91014c35a60c476ada648651b6306573a358d80e  vold_patched
 f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so

@@ -216,7 +216,7 @@ object StageCheck : BackgroundJob<StageCheck.State>(State(), "oneos-check") {
             expectedInstalld = runCatching { AppAssets.hostInstalldTxt(app) }.getOrNull(),
             reclaimBytes = reclaimBytes,
             appVersionCode = BuildConfig.VERSION_CODE,
-            uncollectedLogs = launch != null && !launch.logsCollected && launch.rebootedSince(),
+            uncollectedLogs = launch != null && !launch.logsCollected && launch.endedSince(),
             series = ApkSeries.byId(BuildConfig.SERIES),
         )
         return SwitchGates.evaluate(phase, input)

@@ -5,6 +5,11 @@
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # 0.4.57: oplus-services_patched.jar + oplus_resolution_tables.py (no resolution switch without ColorOS's density tables); 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
 # 0.4.58: samcam with the patched scamera_sdk_util.jar again (repatch-scamera-util.sh; 0.4.55-0.4.57 shipped One UI's own); 0.4.58: telephony-common_patched.jar + guest_sms_invalid_response.py (SEND_SMS error 66 counted as sent); 0.4.58: oplus-services_patched.jar + oplus_zen_light.py (no DND crash without a notification light)
+# 0.4.59: samcam with fix_recorder_track_started.py (videos kept on Stop; AOSP's recorder sends no 905)
+# 0.4.59: samcam with fix_gallery_fallback.py (the thumbnail opens the guest's gallery)
+# 0.4.59: samcam with fix_recorder_progress.py and fix_secmedia_insert.py (recording timer; videos saved without secmedia)
+# 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
+# 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 efb45f5f061838431387f9c34e4d5c72504a963d0d5bd37f3c4d0ae043854671  services_patched.jar
 d02092bc404c27b6243afa1cb95836544b05cc8c46623890de41df251283665e  oplus-services_patched.jar
 2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched

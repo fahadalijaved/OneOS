@@ -5,6 +5,10 @@ A rebuilt APK needs its SHA-256 pin updated in enable/undo scripts before use.
 """
 import argparse, copy, hashlib, pathlib, shutil, struct, subprocess, tempfile, zipfile
 ROOT=pathlib.Path(__file__).resolve().parent
+# apktool on PATH, else the repository's own (mysticgsi/tools/apktool, as the camera builds use).
+APKTOOL=['apktool'] if shutil.which('apktool') else ['java','-jar',str(sorted((ROOT.parents[2]/'mysticgsi/tools/apktool').glob('*.jar'))[0])]
+# Double tap to sleep (dt2s/, 0.4.59): helper classes added to classes2.
+ADDED={'com.android.systemui.unfold.updates.hinge.PixelFold8Hinge','oneos.sysui.OneOSDt2s','oneos.sysui.OneOSDt2s$1'}
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('donor',type=pathlib.Path)
 p.add_argument('--zipalign',type=pathlib.Path,required=True)
@@ -13,11 +17,14 @@ a=p.parse_args(); a.donor=a.donor.resolve();a.output=a.output.resolve()
 assert hashlib.sha256(a.donor.read_bytes()).hexdigest()=='9934d2dac326f56290f459b9e649185cd5531e1b6ae1f5a72b11e88f865f8b03','Different donor'
 with tempfile.TemporaryDirectory(prefix='oneos-pixel-hinge-') as tmp:
  w=pathlib.Path(tmp);decoded=w/'decoded'
- subprocess.run(['apktool','d','-f','-r','-o',str(decoded),str(a.donor)],check=True)
+ subprocess.run(APKTOOL+['d','-f','-r','-o',str(decoded),str(a.donor)],check=True)
  for patch in (ROOT/'smali').glob('*.smali'):
   matches=list(decoded.glob('smali*/**/'+patch.name));assert len(matches)==1,patch.name
   shutil.copyfile(patch,matches[0])
- subprocess.run(['apktool','b','-o',str(w/'rebuilt.apk'),str(decoded)],check=True)
+ for helper in (ROOT/'dt2s/smali').rglob('*.smali'):
+  dest=decoded/'smali_classes2'/helper.relative_to(ROOT/'dt2s/smali');assert not dest.exists(),dest
+  dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(helper,dest)
+ subprocess.run(APKTOOL+['b','-o',str(w/'rebuilt.apk'),str(decoded)],check=True)
  replacement=(decoded/'build/apk/classes2.dex').read_bytes()
  with a.donor.open('rb') as raw,zipfile.ZipFile(a.donor) as src,zipfile.ZipFile(w/'raw.apk','w') as dst:
   assert 'classes4.dex' not in src.namelist()
@@ -47,5 +54,5 @@ with tempfile.TemporaryDirectory(prefix='oneos-pixel-hinge-') as tmp:
  def classes(path):return subprocess.check_output(['python3',str(ROOT/'list_dex_classes.py'),str(path),'.']).decode().splitlines()
  before,after=classes(a.donor),classes(a.output)
  assert len(after)==len(set(after)) and set(before).issubset(after)
- assert set(after)-set(before)=={'com.android.systemui.unfold.updates.hinge.PixelFold8Hinge'}
+ assert set(after)-set(before)==ADDED,set(after)-set(before)
 print(hashlib.sha256(a.output.read_bytes()).hexdigest(),a.output)

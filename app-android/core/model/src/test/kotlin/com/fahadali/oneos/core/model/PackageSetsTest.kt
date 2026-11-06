@@ -27,13 +27,13 @@ class PackageSetsTest {
     @Test
     fun setsAsData() {
         assertEquals(33, n6.files.size) // 0.4.47: + KeKeThemeSpace_patched.apk; 0.4.37: + framework_patched.jar, libcamera_client_patched.so, samcam.tar; 0.4.38 (global): + cellbroadcast, Fold8SystemUI.apk, Fold8AngleRelay.dex; 0.4.39: + telephony-common_patched.jar
-        assertEquals(38, pixel.files.size) // 0.4.24: framework_patched.jar (One UI's camera transaction codes); 0.4.45: telephony-common_patched.jar; 0.4.47: libcamera_client_patched.so, samcam.tar
+        assertEquals(43, pixel.files.size) // 0.4.59: OneOSFoldCutout.apk, yogi-services_patched.jar, libbootanimation_preapex_patched.so, OneOSPixelLauncher.apk, OneOSPixelDoze.apk; 0.4.24: framework_patched.jar (One UI's camera transaction codes); 0.4.45: telephony-common_patched.jar; 0.4.47: libcamera_client_patched.so, samcam.tar
         assertEquals(Images.ID_FIND_N6, n6.imageId)
         assertEquals(Images.ID_PIXEL_YOGI, pixel.imageId)
-        assertEquals("out/overlays_n6g_r9", n6.sourceDir)
-        assertEquals("out/overlays_x9u_in_r62", xin.sourceDir)
+        assertEquals("out/overlays_n6g_r14", n6.sourceDir)
+        assertEquals("out/overlays_x9u_in_r67", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
-        assertEquals("out/overlays_pixel_f8u_r6", pixel.sourceDir)
+        assertEquals("out/overlays_pixel_f8u_r15", pixel.sourceDir)
         assertEquals(
             listOf(n6, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
                 PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U),
@@ -44,7 +44,7 @@ class PackageSetsTest {
         // Not its cellbroadcast module (0.4.28): One UI's stays, as tethering does.
         val ifx = PackageSets.INFINITYX
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
-        assertEquals("out/overlays_infinityx_r6", ifx.sourceDir)
+        assertEquals("out/overlays_infinityx_r11", ifx.sourceDir)
         // 0.4.55 (r4): telephony-common_patched.jar (the SMS centre) and samcam.tar (the S26 Ultra's camera).
         assertEquals(36, ifx.files.size)
         // 0.4.33: the status bar's corner padding, as on the Pixel images.
@@ -62,14 +62,14 @@ class PackageSetsTest {
         // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
         val hyper = PackageSets.HYPER_F8U
         assertEquals(Images.ID_HYPEROS_LHASA, hyper.imageId)
-        assertEquals("out/overlays_hyperos_r15", hyper.sourceDir)
-        assertEquals(35, hyper.files.size) // 0.4.38: + libsurfaceflinger_patched.so
-        assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk"),
+        assertEquals("out/overlays_hyperos_r21", hyper.sourceDir)
+        assertEquals(38, hyper.files.size) // 0.4.38: + libsurfaceflinger_patched.so; 0.4.59: + telephony, two cameras
+        assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar"),
             hyper.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
         assertEquals(
             listOf("services_patched.jar", "miui-services_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
                 "miui-wifi-service_patched.jar", "miui-telephony-common_patched.jar", "vold_patched", "service.incremental_patched.so",
-                "libcamera_client_patched.so", "libsurfaceflinger_patched.so"),
+                "libcamera_client_patched.so", "libsurfaceflinger_patched.so", "telephony-common_patched.jar"),
             hyper.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(hyper.hasReturnApp && "vold_patched" in hyper.names)
@@ -78,7 +78,7 @@ class PackageSetsTest {
         // TelephonyResCommon_Sys.apk in this guest's overlay order (run 10).
         val nothing = PackageSets.NOTHING_F8U
         assertEquals(Images.ID_NOTHING_METROID, nothing.imageId)
-        assertEquals("out/overlays_nothing_r24", nothing.sourceDir)
+        assertEquals("out/overlays_nothing_r29", nothing.sourceDir)
         assertEquals(48, nothing.files.size) // 0.4.55: samcam_bar.tar, the S26 Ultra's camera for the phones
         // r12: Nothing's SystemUI with its quick settings at the screen's own density on the inner panel;
         // r13: its launcher with the drawer's category boxes per row from the width; r17: the ringtone kits
@@ -104,12 +104,23 @@ class PackageSetsTest {
         // SystemUI); the Z Fold8 takes the Folds' n6-f8u.
         assertTrue(PackageSets.ALL.none { it.id == "n6-f8" })
         // The Pixel Fold sets (pull request #1, the F8U's since 0.4.21): the Pixel files, the patched
-        // SystemUI, the angle relay and each one's unfold RRO; the S26 Ultra's set has none of them.
+        // SystemUI, the angle relay and each one's unfold RRO. The bar sets (0.4.59 r12) have only
+        // double tap to sleep, from each image's own SystemUI and Pixel Launcher.
+        for (bar in listOf(PackageSets.PIXEL_SULTRA, PackageSets.PIXEL9_SULTRA)) {
+            assertEquals(listOf("samcam.tar", "OneOSPixelSystemUI.apk", "OneOSPixelLauncher.apk"),
+                bar.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
+        }
         val hinge = listOf("Fold8PixelSystemUI.apk", "Fold8AngleRelay.dex")
-        assertEquals(listOf("samcam.tar") + hinge + "OneOSPixelUnfold.apk", pixel.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
-        assertEquals(listOf("samcam.tar") + hinge + "Fold8PixelUnfold.apk", PackageSets.PIXEL_F8.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
-        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX }, pixel.files.filter { it.role != FileRole.GUEST_FIX })
-        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX }, PackageSets.PIXEL_F8.files.filter { it.role != FileRole.GUEST_FIX })
+        // 0.4.59 (r11): and the boot animation on every panel; r12 the launcher with double tap to sleep.
+        val bootanim = listOf("libbootanimation_preapex_patched.so", "OneOSPixelLauncher.apk")
+        assertEquals(listOf("samcam.tar") + hinge + "OneOSPixelUnfold.apk" + bootanim, pixel.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
+        assertEquals(listOf("samcam.tar") + hinge + "Fold8PixelUnfold.apk" + bootanim, PackageSets.PIXEL_F8.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
+        // 0.4.59: the F8U's also has Nothing OS's per-panel cutout RRO (the cover's camera hole); both
+        // Fold sets (r11) the device state policy without tent mode.
+        val tent = PackageFile("yogi-services_patched.jar", FileRole.FRAMEWORK_JAR)
+        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX } + tent + PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            pixel.files.filter { it.role != FileRole.GUEST_FIX })
+        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX } + tent, PackageSets.PIXEL_F8.files.filter { it.role != FileRole.GUEST_FIX })
         // The Pixel 9 Pro XL's set (0.4.22): the same files, from its own image; 0.4.47 its
         // libcameracompatbilityinfo.so needs One UI's codes too.
         assertEquals(PackageSets.PIXEL_SULTRA.files + PackageFile("libcameracompatbilityinfo_patched.so", FileRole.GUARD_LIBRARY), PackageSets.PIXEL9_SULTRA.files)
@@ -229,7 +240,7 @@ class PackageSetsTest {
         }
         assertTrue(pixel.hasReturnApp)
         // The free-space gate's number is the files' total (out/overlays_pixel_f8u_r4, 2026-11-04).
-        assertEquals(690_168_700L, pixel.approxBytes)
+        assertEquals(708_239_363L, pixel.approxBytes)
         // Each image presents its Google services exactly when its sets stage GmsCore.
         for (p in Profiles.BUILT_IN) {
             for (choice in p.choices) {
@@ -355,7 +366,7 @@ class PackageSetsTest {
         assertEquals("27.1 GB", Units.bytes(need))
         // The Pixel image is smaller: its own raw size and files.
         val pixelNeed = SpaceRule.toStage(Images.PIXEL_YOGI, pixel)
-        assertEquals(6_559_223_808L + 690_168_700L + 11L * SpaceRule.GIB, pixelNeed)
+        assertEquals(6_559_223_808L + 708_239_363L + 11L * SpaceRule.GIB, pixelNeed)
         assertEquals("19.1 GB", Units.bytes(pixelNeed))
         assertEquals(11L * SpaceRule.GIB, SpaceRule.LAUNCH_BYTES)
         assertEquals(Images.FIND_X9U_IN.rawBytes + SpaceRule.LAUNCH_BYTES, SpaceRule.toStage(Images.FIND_X9U_IN, null))

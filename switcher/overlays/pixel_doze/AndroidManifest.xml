@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AOD for a Pixel guest. A Pixel names its doze service and "AOD available" in
+     its vendor framework overlay; a guest runs on One UI's vendor, so the guest's
+     dream manager had getDozeComponent()=null and never dozed (no AOD) though
+     doze_always_on was 1. Fabricated overlays at runtime did not help: the dream
+     manager reads these at boot, and the fabricated ones were not active at the
+     next boot either (test build 8). Static, in the guest's /oem/overlay
+     (guest_prepare.sh), mapped by name like the fold cutout overlay;
+     scripts/build-pixel-doze-rro.sh builds it. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.pixel.doze">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="android"
+        android:isStatic="true"
+        android:priority="2"/>
+</manifest>

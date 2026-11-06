@@ -85,7 +85,7 @@ internal object FixActions {
             FixAction.FREE_UP_SPACE -> a.startActivity(Intent(a, OldStagesActivity::class.java))
             FixAction.CHOOSE_SYSTEM, FixAction.CHOOSE_FILE, FixAction.SET_UP_AGAIN -> a.startActivity(Intent(a, SystemsActivity::class.java))
             FixAction.DOWNLOAD_AGAIN -> {
-                val url = image?.downloadUrl
+                val url = image?.mirrorUrl ?: image?.downloadUrl
                 if (url != null) open(a, Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)) else a.startActivity(Intent(a, SystemsActivity::class.java))
             }
             FixAction.APP_UPDATE -> confirmAppUpdate(a)

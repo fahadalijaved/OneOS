@@ -5,6 +5,11 @@
 # r4 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms, where Infinity-X keeps system_ext), framework_patched.jar with patches/guest_secims_members.py, telephony-common_patched.jar: the image's with patches/guest_smsc_international.py, samcam.tar: the Galaxy S26 Ultra's camera (scripts/samsung-camera/build-cached.sh, SAMCAM_BAR=1)
 # 0.4.57: samcam with fix_notification_icon.py (the camera's own SPR notification icons crashed photo saving and video)
 # 0.4.58: samcam with the patched scamera_sdk_util.jar again (repatch-scamera-util.sh; 0.4.55-0.4.57 shipped One UI's own); 0.4.58: telephony-common_patched.jar + guest_sms_invalid_response.py (SEND_SMS error 66 counted as sent); 0.4.58: oplus-services_patched.jar + oplus_zen_light.py (no DND crash without a notification light)
+# 0.4.59: samcam with fix_recorder_track_started.py (videos kept on Stop; AOSP's recorder sends no 905)
+# 0.4.59: samcam with fix_gallery_fallback.py (the thumbnail opens the guest's gallery)
+# 0.4.59: samcam with fix_recorder_progress.py and fix_secmedia_insert.py (recording timer; videos saved without secmedia)
+# 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
+# 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 8acd5e4a1a2f4230f9f5a836dbba4ecd3a4f8053a517a9e9d39be5610e3175d7  services_patched.jar
 efeff31c080f7d92c2713fe7d7df79b95c149c9db47426a702f212e86fb28389  oplus-services_patched.jar
 654dcfa788bcfde4fc539935ffbcb707a3b0c2001e31b6de27edec5afe5de404  vold_patched

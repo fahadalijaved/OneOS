@@ -69,6 +69,13 @@ data class ImageRef(
     val family: SystemFamily,
 ) {
     /**
+     * The image's own download on the SourceForge mirror (0.4.59, project oneos-mirror, folder
+     * images/): one file, resumable, from a mirror near the user. [downloadUrl] (the Drive
+     * folder) stays the fallback.
+     */
+    val mirrorUrl: String get() = "${Images.MIRROR_FILES_URL}$gzName/download"
+
+    /**
      * A launch may hide Google services (`ONEOS_GUEST_HIDE_GMS=1`, [SessionEnv],
      * root's `IMAGES_GMS`): the image has them and its sessions do not present them.
      */
@@ -104,6 +111,8 @@ object Images {
      * (scripts/gofile-to-drive.py checked each against its pinned size and SHA-256).
      */
     const val SHARED_FOLDER_URL = "https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv"
+    /** The SourceForge mirror's image folder (0.4.59); [ImageRef.mirrorUrl] adds `<gzName>/download`. */
+    const val MIRROR_FILES_URL = "https://sourceforge.net/projects/oneos-mirror/files/images/"
 
     /** The gofile folder every image up to 0.4.40 was uploaded to; a manual mirror now, not linked from the app. */
     const val GOFILE_FOLDER_URL = "https://github.com/fahadalijaved/OneOS#where-the-images-come-from"

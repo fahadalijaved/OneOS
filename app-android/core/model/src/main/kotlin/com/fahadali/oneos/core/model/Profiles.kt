@@ -110,6 +110,10 @@ object Profiles {
     const val ID_A26 = "a26"
     const val ID_A17 = "a17"
     const val ID_A16_4G = "a16-4g"
+    const val ID_A16_S166 = "a16-s166"
+    const val ID_A35 = "a35"
+    const val ID_A54 = "a54"
+    const val ID_A27 = "a27"
     const val ID_A16 = "a16"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
@@ -854,11 +858,43 @@ object Profiles {
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
+    /**
+     * Galaxy A16 5G sold by TracFone/Verizon prepaid as SM-S166V, from 0.4.59: a probe report of
+     * 2026-11-05 (fearless, SM-S166V, a16x, s5e8535 Exynos 1330, sales code TFV, vendor API 33,
+     * kernel 5.15, KernelSU): the same phone as [A16] under a carrier model number. It was still on
+     * One UI 8.5 (Android 16, S166VUDS8DZG1), so the version gate holds it until One UI 9.
+     */
+    val A16_S166 = A16.copy(id = ID_A16_S166, label = "Galaxy A16 5G (SM-S166V)", modelPrefix = "SM-S166")
+
+    /**
+     * Galaxy A35 5G, from 0.4.59: findings of 2026-11-05 and 06 (SM-A356E and SM-A356U1, a35x, s5e8835
+     * Exynos 1380, One UI 9.0, Android 17, vendor API 33 and kernel 5.15, one 1080 x 2340 panel at
+     * density 450, the HIDL composer 2.4 and audio HAL, Mali, no SVE or SME, installd 85 methods): the
+     * [A26]'s chip and vendor in every one of those, so its choices and notes. Untested, with [EXYNOS].
+     */
+    val A35 = A26.copy(id = ID_A35, label = "Galaxy A35 5G", modelPrefix = "SM-A356", codename = "a35x")
+
+    /**
+     * Galaxy A54 5G, from 0.4.59: findings of 2026-11-05 (SM-A546E, a54x, s5e8835 Exynos 1380, One UI
+     * 9.0, Android 17, vendor API 33 and kernel 5.15, 1080 x 2340 at density 450, the HIDL composer 2.4
+     * and audio HAL, Mali, no SVE or SME, installd 85 methods): the [A26]'s chip and vendor, so its
+     * choices and notes. Untested, with [EXYNOS].
+     */
+    val A54 = A26.copy(id = ID_A54, label = "Galaxy A54 5G", modelPrefix = "SM-A546", codename = "a54x")
+
+    /**
+     * Galaxy A27, from 0.4.59: findings of 2026-11-07 (SM-A276B, a27xq, Snapdragon SM6475 "parrot",
+     * One UI 9.0, Android 17 build CP2A.260605.016, Cortex-A55/A78 with no SVE or SME, KernelSU,
+     * installd 85 methods): the [A36]'s chip, CPU and generation, so its choices and notes.
+     * Untested.
+     */
+    val A27 = A36.copy(id = ID_A27, label = "Galaxy A27", modelPrefix = "SM-A276", codename = "a27xq")
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
-        S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G,
+        S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

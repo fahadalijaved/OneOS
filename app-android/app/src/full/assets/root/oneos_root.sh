@@ -123,13 +123,13 @@ SCRIPTS="oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png 
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
-SET_PIXEL="services_patched.jar framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar vold_patched service.incremental_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
+SET_PIXEL="services_patched.jar framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar vold_patched service.incremental_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSPixelDoze.apk OneOSGuest.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
 # Infinity-X (0.4.27): both guard jars, the camera codes, the guest vold, the AOSP
 # signal poll, the IMS backoff, the in-guest app and its own payloads.
 SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar samcam.tar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
-SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so"
+SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so telephony-common_patched.jar samcam.tar samcam_bar.tar"
 # Nothing OS 5.0 (0.4.33, the Z Fold8 Ultra): its system is close to AOSP, so only
 # services.jar and framework.jar need the guards; no vendor framework, no vold
 # patch (its build is unknown to the patcher) and no signal poll injection.
@@ -172,6 +172,7 @@ profile_info() {
         a07) echo "SM-A075 a07 MT6789 bar" ;;
         flip8) echo "SM-F776 b8s s5e9965 flip" ;;
         a36) echo "SM-A366 a36xq SM6475 bar" ;;
+        a27) echo "SM-A276 a27xq SM6475 bar" ;;
         s-ultra-8550) echo "SM-S918 dm3q SM8550 bar" ;;
         flip6) echo "SM-F741 b6q SM8650 flip" ;;
         s-9945) echo "SM-S921 e1s s5e9945 bar" ;;
@@ -180,6 +181,9 @@ profile_info() {
         a26) echo "SM-A266 a26x s5e8835 bar" ;;
         a17) echo "SM-A175 a17 MT6789 bar" ;;
         a16-4g) echo "SM-A165 a16 MT6789 bar" ;;
+        a16-s166) echo "SM-S166 a16x s5e8535 bar" ;;
+        a35) echo "SM-A356 a35x s5e8835 bar" ;;
+        a54) echo "SM-A546 a54x s5e8835 bar" ;;
         a16) echo "SM-A166 a16x s5e8535 bar" ;;
         s-9965) echo "SM-S942 m1s s5e9965 bar" ;;
         *) return 1 ;;
@@ -216,6 +220,9 @@ profile_set() {
         "a36 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a36 infinityx41-findx9u") echo infinityx ;;
         "a36 hyperos-lhasa") echo hyper-f8u ;;
+        "a27 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a27 infinityx41-findx9u") echo infinityx ;;
+        "a27 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
@@ -315,7 +322,12 @@ profile_set() {
         "s-fe-9945 hyperos-lhasa") echo hyper-f8u ;;
         "a26 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a26 infinityx41-findx9u") echo infinityx ;;
+        "a35 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a35 infinityx41-findx9u") echo infinityx ;;
+        "a54 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a54 infinityx41-findx9u") echo infinityx ;;
         "a16-4g infinityx41-findx9u") echo infinityx ;;
+        "a16-s166 infinityx41-findx9u") echo infinityx ;;
         "a17 infinityx41-findx9u") echo infinityx ;;
         "a16 infinityx41-findx9u") echo infinityx ;;
         *) return 1 ;;
@@ -346,12 +358,12 @@ set_files() {
     case "$1" in
         n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk" ;;
         x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk" ;;
-        pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk" ;;
-        pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk" ;;
-        pixel-sultra) echo "$SET_PIXEL" ;;
+        pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
+        pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
+        pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk" ;;
         hyper-f8u) echo "$SET_HYPEROS" ;;
         nothing-f8u) echo "$SET_NOTHING" ;;
-        pixel9-sultra) echo "$SET_PIXEL libcameracompatbilityinfo_patched.so" ;;
+        pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX" ;;
         *) return 1 ;;
     esac

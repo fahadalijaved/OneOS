@@ -157,6 +157,20 @@ BUILDS = [
         "service.incremental.so": "7509ea1a751e70400057bf1afd79876b2630ad0fd1ee2e993ff06a8f1528ca74",
         "crashrecovery-google-compressed.apex": "e2661820811896284537a044664dee933e5fd62a879efe02b5104d1388f43816",
     }, [("vold", 0xe1e7, NAME), ("vold", 0x64728, TRY_START), ("service.incremental.so", 0x64410, NAME)]),
+    # vivo OriginOS 17 (X500 Pro Max, MediaTek, CP2A.260605.016): start() takes
+    # "vold" at 0x10e24 (adrp 0x10000 + add 0xe24 at 0x83a1c, the binary's only
+    # "\0vold\0"); try_start's tbz w19, #0, +0xd4 on the isDeclared() result is at
+    # 0x83384 (+0x74 into try_start, 0x83310). service.incremental.so has the
+    # string at 0x6578e with its two lookups. Its compressed crashrecovery APEX
+    # holds Pixel yogi's service-crashrecovery.jar (AOSP RescueParty.isDisabled).
+    # Not optional here: vivo's IVold interleaves vendor methods (26 getDuInfo, 27
+    # rmFile...), so any guest IVold call reaching One UI's "vold" would run
+    # another method on the phone's storage daemon.
+    ("vivo OriginOS 17 CP2A.260605.016 (X500 Pro Max)", {
+        "vold": "da6af9f4b1152c9ca3b66df5d75ac7a94d4c386d6ce6c991a0151e50e02db4ed",
+        "service.incremental.so": "649cb1e9dd6db10f09a038600fe5818f5542f32f0d0350c43c9404b8ffbbc66d",
+        "crashrecovery-google-compressed.apex": "f6750712189d56e68dacdb092c418acb092176ed7e33bef4d37d72a15b4970c2",
+    }, [("vold", 0x10e23, NAME), ("vold", 0x83384, TRY_START), ("service.incremental.so", 0x6578d, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)
@@ -252,6 +266,12 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_wipe_secrets.p
 # constructs an UpdateEngine then dies at boot (Nothing OS 5.0, first run);
 # a build that has none is left alone (Pixel).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_update_engine.py" "$WORK/services")"
+# vivo OriginOS: the face HAL's extension only when it is vivo's, and AOSP's
+# AlarmManagerService instead of MediaTek's RTC power-off alarms
+# (patches/vivo_guards.py; vivo-services.jar below).
+if in_image /system/framework/vivo-services.jar; then
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/vivo_guards.py" services "$WORK/services")"
+fi
 # The guest's own vold as "gvld", with vold_patched above; no guest call left
 # that reaches One UI's "vold" (patches/guest_own_vold.py).
 if [ "$VOLD_GVLD" = 1 ]; then
@@ -376,6 +396,33 @@ fi
 # server class path) installs apps by itself: its InstallService does nothing
 # (miui_guards.py --proinstaller). Only in HyperOS images; guest_prepare.sh
 # refuses one without them.
+# vivo-services.jar (vivo OriginOS), on system_server's classpath: vivo's
+# IOemNetd never reaches One UI's netd, HAL extensions only when vivo's
+# (patches/vivo_guards.py), and the storage guards, which drop its two
+# AndroidKeyStoreMaintenance.onUserLskfRemoved calls on the shared keystore2.
+# Its IVold calls use StorageManagerService's own (the guest's gvld). An image
+# with vivo-services.jar starts only with this one bound (guest_prepare.sh).
+rm -f "$OUT/vivo-services_patched.jar"
+if in_image /system/framework/vivo-services.jar; then
+    "$DEBUGFS" -R "dump /system/framework/vivo-services.jar $WORK/vivo-services.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vivo" "$WORK/vivo-services.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" vivo-services "$WORK/vivo")
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/vivo")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" --callers "$WORK/vivo")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    java -jar "$APKTOOL" b -q -o "$WORK/vivo-rebuilt.jar" "$WORK/vivo"
+    cp "$WORK/vivo-services.jar" "$OUT/vivo-services_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/vdex" && mkdir -p "$WORK/vdex"
+        unzip -q -o "$WORK/vivo-rebuilt.jar" "$DEX" -d "$WORK/vdex"
+        (cd "$WORK/vdex" && zip -q -0 "$OUT/vivo-services_patched.jar" "$DEX")
+        echo "built $OUT/vivo-services_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/vivo" "$WORK/vivo-rebuilt.jar" "$WORK/vdex" "$WORK/vivo-services.jar"
+fi
+
 MIUI_JAR=/system/system_ext/framework/miui-services.jar
 PRO_JAR=/system/system_ext/framework/apprecovery.proinstaller.jar
 if in_image $MIUI_JAR; then
@@ -808,7 +855,7 @@ fi
 JARS=""
 for j in services_patched.jar oplus-services_patched.jar ims-ext-common_patched.jar oplus-telephony-common_patched.jar \
          oneos-telephony.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar \
-         miui-wifi-service_patched.jar miui-telephony-common_patched.jar telephony-common_patched.jar; do
+         miui-wifi-service_patched.jar miui-telephony-common_patched.jar telephony-common_patched.jar vivo-services_patched.jar; do
     [ -f "$OUT/$j" ] && JARS="$JARS $OUT/$j"
 done
 python3 -I "$ROOT/scripts/check-dex.py" $JARS
@@ -842,7 +889,9 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
         [ -f "$OUT/framework_patched.jar" ] && echo "# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)"
         [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)"
         [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
+        [ -f "$OUT/vivo-services_patched.jar" ] && echo "# vivo: vivo-services_patched.jar (patches/vivo_guards.py: no IOemNetd to One UI's netd, vivo-only HAL extensions; and the storage guards)"
         (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
+            $([ -f vivo-services_patched.jar ] && echo vivo-services_patched.jar) \
             $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
             $([ -f framework_patched.jar ] && echo framework_patched.jar) \
             $([ -f telephony-common_patched.jar ] && echo telephony-common_patched.jar) \
@@ -870,6 +919,26 @@ SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
          "e5a8726a6687": 0x452a50}
+# vivo OriginOS 17 (MediaTek, X500 Pro Max CP2A.260605.016): after init, main()
+# registers MediaTek's MtkSF_ext as vendor.mediatek.framework.mtksf_ext.IMtkSF_ext/
+# default, a VINTF-stable binder only the guest's own manifest declares. One UI's
+# servicemanager refuses it and the failed addService is a LOG(FATAL) (line 163):
+# surfaceflinger aborts, black panel. At 0x657250 "cbz x8, 0x6573c8" (no IMtkSF_ext
+# descriptor -> log "can't start MtkSF_ext", go on to the main loop at 0x65737c,
+# where the registered path also ends) becomes "b 0x6573c8": the extension is never
+# created; only MediaTek's vendor clients use it. This build has no QTI client.
+MTK_SITES = {"f693da9ab9b2": (0x657250, "c80b00b4", "5e000014")}
+mtk = MTK_SITES.get(hashlib.sha1(data).hexdigest()[:12])
+if mtk:
+    moff, mold, mnew = mtk
+    if data[moff:moff + 4] != bytes.fromhex(mold) or b"IQtiComposer3Client" in data:
+        sys.exit("surfaceflinger: unexpected bytes at %#x, not patching" % moff)
+    data[moff:moff + 4] = bytes.fromhex(mnew)
+    open(dst, "wb").write(data)
+    print("built %s (MediaTek MtkSF_ext not registered)" % dst)
+    sys.exit(0)
+if b"IMtkSF_ext" in data:
+    sys.exit("surfaceflinger: a MediaTek build with MtkSF_ext this was not written against, not patching")
 off = SITES.get(hashlib.sha1(data).hexdigest()[:12])
 if off is None and b"IQtiComposer3Client" not in data:
     # Google's own build (Pixel image): no QTI composer client to skip.
@@ -887,6 +956,38 @@ open(dst, "wb").write(data)
 print("built %s (QTI composer client skipped)" % dst)
 PYEOF
 [ ! -f "$OUT/surfaceflinger_patched" ] || chmod 755 "$OUT/surfaceflinger_patched"
+
+# libsensorservice.so (vivo OriginOS 17, X500 Pro Max): convertToSensorEvent reads
+# two sensor types with vivo's own payload, where AOSP and One UI's sensor HAL
+# send a scalar: HINGE_ANGLE (36) as 16 floats of "data" (vivo's foldables), and
+# LIGHT (5) the same whenever ro.product.brand is not "Android" (in a session it
+# is One UI's). The first hinge or light event from One UI's HAL then failed the
+# union's tag check ("bad access: a wrong tag", _Tag = data) and SensorService
+# aborted system_server (fourth OriginOS run). The switch's jump table (43
+# halfwords at 0x18290, target = 0x45dd0 + 4 * entry) sends both types to the
+# scalar branch every other scalar type takes (entry 0x1ef, 0x4658c), as AOSP
+# does. Only the exact build below; the image's library otherwise.
+rm -f "$OUT/libsensorservice_patched.so"
+"$DEBUGFS" -R "dump /system/lib64/libsensorservice.so $WORK/libsensorservice.so" "$IMG" 2>/dev/null
+python3 -I - "$WORK/libsensorservice.so" "$OUT/libsensorservice_patched.so" <<'PYEOF'
+import hashlib, os, struct, sys
+src, dst = sys.argv[1], sys.argv[2]
+data = bytearray(open(src, "rb").read()) if os.path.isfile(src) else bytearray()
+PINS = {"f43b606820527ceca41e989f8863a6fbc60f2b4b7b205f9415c514e0a7ccf826":
+        [(0x18290 + 2 * 5, 0x1dd, 0x1ef), (0x18290 + 2 * 36, 0x0fa, 0x1ef)]}
+patches = PINS.get(hashlib.sha256(data).hexdigest())
+if patches is None:
+    print("libsensorservice: not a build this was written against, the image's runs")
+    sys.exit(0)
+for off, old, new in patches:
+    if struct.unpack_from("<H", data, off)[0] != old:
+        sys.exit("libsensorservice: unexpected jump table entry at %#x, not patching" % off)
+    struct.pack_into("<H", data, off, new)
+open(dst, "wb").write(data)
+print("built %s (LIGHT and HINGE_ANGLE events read as scalars, as One UI's sensor HAL sends them)" % dst)
+PYEOF
+rm -f "$WORK/libsensorservice.so"
+[ ! -f "$OUT/libsensorservice_patched.so" ] || chmod 644 "$OUT/libsensorservice_patched.so"
 
 # bootanimation on every panel (patch-bootanim-multidisplay.py; guest_prepare.sh
 # binds it under the image's own name): without Android's multidisplay flag it
@@ -1343,11 +1444,14 @@ fi
 EXTRACT_EROFS=${EXTRACT_EROFS:-$ROOT/mysticgsi/tools/bin/Linux/x86_64/extract.erofs}
 GMSAPEX=$("$DEBUGFS" -R "ls -p /system/product/apex" "$IMG" 2>/dev/null |
     awk -F/ '$6 ~ /^com\.google\.android\.gmssystem.*\.apex$/ { print $6; exit }')
-# Pixel's layout only: its product PrebuiltGmsCore folder (app_chimera) waiting
-# for the APK. The ColorOS images carry the same APEX but their own GmsCore in
-# my_product/priv-app, and no product PrebuiltGmsCore at all.
-if [ -n "$GMSAPEX" ] && { ! in_image /system/product/priv-app/PrebuiltGmsCore/app_chimera || in_image /my_product/priv-app/GmsCore; }; then
-    echo "payload gmssystem: $GMSAPEX is there but not in Pixel's layout (no product PrebuiltGmsCore/app_chimera, or its own GmsCore in my_product): none staged"
+# Pixel's layout: its product PrebuiltGmsCore folder (app_chimera) waiting for
+# the APK; vivo OriginOS 17's: product priv-app/GmsCore with only GmsCore's m
+# folder (guest_prepare.sh presents the APK in whichever the image has). The
+# ColorOS images carry the same APEX but their own GmsCore in my_product/priv-app,
+# and neither folder.
+if [ -n "$GMSAPEX" ] && { in_image /my_product/priv-app/GmsCore ||
+        ! { in_image /system/product/priv-app/PrebuiltGmsCore/app_chimera || in_image /system/product/priv-app/GmsCore/m; }; }; then
+    echo "payload gmssystem: $GMSAPEX is there but in neither Pixel's nor vivo's layout (no product PrebuiltGmsCore/app_chimera or GmsCore/m, or its own GmsCore in my_product): none staged"
     GMSAPEX=""
 fi
 GP="$OUT/gmssystem_payload.img"

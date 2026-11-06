@@ -119,6 +119,17 @@ def collect(svc, name, dest, keep):
             return f"waiting {rid}: the parts do not match the record (size or SHA-256)"
         with open(os.path.join(folder, zname), "wb") as f:
             f.write(data)
+        # Findings: what the probe says about the phone, to Phone reports (reports/notify.py).
+        # Never in the way of collecting: any failure is only logged.
+        if logs.get("kind") == "probe":
+            try:
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                import notify
+                msg = notify.findings_message(os.path.join(folder, zname), record)
+                if msg and not notify.send(msg):
+                    print(f"note {rid}: the findings message was not accepted", flush=True)
+            except Exception as e:  # noqa: BLE001 (the message is optional)
+                print(f"note {rid}: no findings message ({type(e).__name__})", flush=True)
         # The version the SESSION ran on, which is not always the version that
         # sent it: a Z Fold7 report of 2026-10-30 was sent from 0.4.31 and held a
         # 0.4.19 ColorOS session the phone still had stored, so the compatibility

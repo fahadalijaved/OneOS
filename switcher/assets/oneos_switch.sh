@@ -243,15 +243,23 @@ pa_free() { # bytes left in the property area file $1
     case "$s:$u" in *[!0-9:]*|:*|*:) return 1 ;; esac
     echo $((s - 128 - u))
 }
+# Two areas: the one holding persist.sys.disable_rescue, and the one property
+# names One UI's policy does not know land in (default_prop: every
+# persist.vivo.*, ro.vivo.*... of a vivo guest). Properties are never removed,
+# only blanked, so each session's new names stay until the phone restarts; the
+# sixth OriginOS run found default_prop full (196476 of 196608 bytes) and its
+# system_server died setting a persist.vivo property.
 PA_CTX=$(getprop -Z persist.sys.disable_rescue 2>/dev/null)
-PA_FILE="/dev/__properties__/${PA_CTX:-u:object_r:system_prop:s0}"
-if PA_LEFT=$(pa_free "$PA_FILE"); then
-    [ "$PA_LEFT" -ge 16384 ] ||
-        refuse "One UI's property space is nearly full ($((PA_LEFT / 1024)) KB left in ${PA_FILE##*/}): the sessions since the phone last restarted used it up. Restart the phone, then switch again"
-    [ "$PA_LEFT" -ge 49152 ] || echo "WARNING: One UI's property space is getting full ($((PA_LEFT / 1024)) KB left in ${PA_FILE##*/}); some of the other system's settings may not load. Restart the phone before the next session"
-else
-    echo "WARNING: could not read the free property space in $PA_FILE"
-fi
+PA_DEF=$(getprop -Z oneos.unknown.name.probe 2>/dev/null)
+for PA_FILE in "/dev/__properties__/${PA_CTX:-u:object_r:system_prop:s0}" "/dev/__properties__/${PA_DEF:-u:object_r:default_prop:s0}"; do
+    if PA_LEFT=$(pa_free "$PA_FILE"); then
+        [ "$PA_LEFT" -ge 16384 ] ||
+            refuse "One UI's property space is nearly full ($((PA_LEFT / 1024)) KB left in ${PA_FILE##*/}): the sessions since the phone last restarted used it up. Restart the phone, then switch again"
+        [ "$PA_LEFT" -ge 49152 ] || echo "WARNING: One UI's property space is getting full ($((PA_LEFT / 1024)) KB left in ${PA_FILE##*/}); some of the other system's settings may not load. Restart the phone before the next session"
+    else
+        echo "WARNING: could not read the free property space in $PA_FILE"
+    fi
+done
 echo "Preflight passed (ONEOS_APP=$APP, profile ${ONEOS_PROFILE:-none}, busybox $BB, resetprop $RP, mount namespace $SELF_NS)"
 
 # Every ColorOS set (pull request #1 began it for the Z Fold8): copy One UI's
@@ -563,6 +571,18 @@ if [ -n "$HRI" ] && [ "$HRI" -ge 256 ] 2>/dev/null && [ "$HRI" -le 65535 ]; then
 else
     echo "Host render intent: ${HRI:-not read} (not a vendor intent; the guest keeps its own)"
 fi
+# One UI's color mode (F8U: SRGB, 7, on both panels, whatever is on screen). A
+# Pixel guest's SurfaceFlinger moved the panels between SRGB and DISPLAY_P3
+# every second or so while the camera or a photo was on screen (session
+# 9455098f: 22 switches in 20 s; a visible flash each time). guest_props.sh
+# and the UI activator keep the guest on One UI's mode (persist.sys.sf.color_mode,
+# the composition color mode of transaction 1023).
+rm -f "$STAGE/host_color_mode"
+HCM=$(timeout 5 dumpsys SurfaceFlinger 2>/dev/null | sed -n 's/^ *Current color mode: ColorMode::[A-Z0-9_]* (\([0-9][0-9]*\))$/\1/p' | head -n 1)
+case "$HCM" in
+    [1-9]|[1-9][0-9]) echo "$HCM" > "$STAGE/host_color_mode" && echo "Host color mode: $HCM (the guest keeps it)" ;;
+    *) echo "Host color mode: ${HCM:-not read} (the guest picks its own)" ;;
+esac
 # One UI's staged installs (Google Play system updates): 0.4.39 test2 returned in
 # place with a train pending, and One UI's own system_server rebooted 5 s after
 # it started ("Rollback staged install"). Logged for the next such return.
@@ -670,6 +690,44 @@ if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
         AHAL_DlbSpatializerEffectImpl:V DlbDap2Process:V </dev/null >/dev/null 2>&1 &
     echo $! > "$STAGE/sound_watch.pid"
     echo "Sound watch: $STAGE/sound_watch.log"
+fi
+# Play Store and Google sign-in watch: no longer live. Test builds 3 to 6 ran
+# a logcat -e watch here (store_watch.log); its regex runs on every line of the
+# main, system and crash buffers, and it took 65% of a core all session and two
+# hours after it (measured in One UI after a Pixel session, 11-06; owner: "the
+# device gets super hot" on Pixel, which logs the most). The return now takes
+# the same lines from the session's capture once, at the lowest priority
+# (return_to_oneui.sh). A watch an earlier session left running ends here.
+stp=$(cat "$STAGE/store_watch.pid" 2>/dev/null)
+case "$stp" in
+    ""|*[!0-9]*) ;;
+    *) tr '\0' ' ' < "/proc/$stp/cmdline" 2>/dev/null | grep -q "store_watch.log" && kill "$stp" 2>/dev/null ;;
+esac
+rm -f "$STAGE/store_watch.pid"
+# Charging (charge_watch.log, collected with the other stage logs): one line a
+# minute with the charger's own view, whichever system runs. Samsung's direct
+# charger (super fast charging, PPS) is chosen by the kernel and the charger IC,
+# not by the framework; direct_charging_status=1 and the current show it is on
+# (the owner asked whether Pixel charges at 45 W). Read-only sysfs reads; two
+# hours at most like the other watches, and the next session ends an earlier one.
+CHB=/sys/class/power_supply/battery
+if [ -r "$CHB/current_now" ]; then
+    chp=$(cat "$STAGE/charge_watch.pid" 2>/dev/null)
+    case "$chp" in
+        ""|*[!0-9]*) ;;
+        *) tr '\0' ' ' < "/proc/$chp/cmdline" 2>/dev/null | grep -q "charge_watch" && kill "$chp" 2>/dev/null ;;
+    esac
+    CHB="$CHB" $BB setsid $BB timeout 7200 $BB sh -c '
+        echo "=== $(date "+%F %T") session (charge_watch): status charging_type direct current(mA) voltage(mV) temp"
+        while :; do
+            st=$(cat "$CHB/status" 2>/dev/null); ty=$(cat "$CHB/charging_type" 2>/dev/null)
+            dc=$(cat "$CHB/direct_charging_status" 2>/dev/null); cu=$(cat "$CHB/current_now" 2>/dev/null)
+            vo=$(cat "$CHB/voltage_now" 2>/dev/null); te=$(cat "$CHB/temp" 2>/dev/null)
+            echo "$(date +%T) $st ${ty:-?} direct=${dc:-?} $(( ${cu:-0} / 1000 )) $(( ${vo:-0} / 1000 )) ${te:-?}"
+            sleep 60
+        done' charge_watch </dev/null >> "$STAGE/charge_watch.log" 2>&1 &
+    echo $! > "$STAGE/charge_watch.pid"
+    echo "Charge watch: $STAGE/charge_watch.log"
 fi
 
 # --- GAP SPLASH ---
@@ -1717,10 +1775,14 @@ while true; do
             case \"\$HRI\" in
                 [0-9]*)
                     B4=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys SurfaceFlinger 2>/dev/null | grep -o 'renderIntent=[A-Z0-9x_]*' | tr '\n' ' ')
-                    timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/service call SurfaceFlinger 1023 i32 \$HRI >/dev/null 2>&1
+                    # The second int (when One UI's color mode was read) is the
+                    # composition color mode SurfaceFlinger then keeps.
+                    HCM=\$(cat $STAGE/host_color_mode 2>/dev/null)
+                    case \"\$HCM\" in [1-9]|[1-9][0-9]) ;; *) HCM=\"\" ;; esac
+                    timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/service call SurfaceFlinger 1023 i32 \$HRI \${HCM:+i32 \$HCM} >/dev/null 2>&1
                     sleep 1
                     AF=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys SurfaceFlinger 2>/dev/null | grep -o 'renderIntent=[A-Z0-9x_]*' | tr '\n' ' ')
-                    echo \"[UI Activator] Screen mode: One UI's render intent \$HRI asked; panels before: \$B4, after: \$AF\" ;;
+                    echo \"[UI Activator] Screen mode: One UI's render intent \$HRI asked (color mode \${HCM:-the guest's}); panels before: \$B4, after: \$AF\" ;;
             esac
             # KernelSU's manager in the guest (0.4.39): One UI's own copy, staged by
             # the preflight, installed once; the guest's package manager gives it One
@@ -2465,6 +2527,26 @@ while true; do
                 done
                 [ -z \"\$OFF\" ] || echo \"[UI Activator] status bar: no host cutout this session; overlays off:\$OFF\"
             fi
+            # AOD (Pixel on the Z Fold8 Ultra, 0.4.59 test): a Pixel names its doze
+            # service and \"AOD available\" in its vendor overlay, and a guest runs on
+            # One UI's vendor, so the guest's dream manager had getDozeComponent()=null
+            # and never dozed (no AOD; the power key went straight to sleep) though
+            # doze_always_on was 1. An AOSP SystemUI guest whose framework names no doze
+            # component gets SystemUI's own DozeService and AOD available through
+            # fabricated overlays, like the cutout's. ONEOS_GUEST_DOZE=0 leaves it.
+            if [ \"${ONEOS_GUEST_DOZE:-1}\" = 1 ] && [ $GUEST_AOSP_SYSUI = 1 ]; then
+                DZC=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay lookup android android:string/config_dozeComponent 2>/dev/null | tr -d '\r' | head -n 1)
+                case \"\$DZC\" in
+                    */*) echo \"[UI Activator] AOD: the guest names its doze service (\$DZC)\" ;;
+                    *)
+                        DZON=''
+                        gxo fabricate --target android --name OneOSDozeComponent android:string/config_dozeComponent string com.android.systemui/com.android.systemui.doze.DozeService &&
+                            gxo enable --user 0 com.android.shell:OneOSDozeComponent && DZON=\"\$DZON OneOSDozeComponent\"
+                        gxo fabricate --target android --name OneOSDozeAod android:bool/config_dozeAlwaysOnDisplayAvailable 0x12 0xffffffff &&
+                            gxo enable --user 0 com.android.shell:OneOSDozeAod && DZON=\"\$DZON OneOSDozeAod\"
+                        echo \"[UI Activator] AOD: no doze service named (lookup '\$DZC'); overlays on:\${DZON:- none}; now \$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay lookup android android:string/config_dozeComponent 2>/dev/null | head -n 1)\" ;;
+                esac
+            fi
             # Fold test (fold layout only). On every lid switch event record what
             # the guest did: device state, layout, both touch mappers and
             # backlights, a screenshot of display 0, and after folding 10 s of
@@ -2804,17 +2886,36 @@ echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 # gone, giving the policies their full clock back if it had capped them;
 # return_to_oneui.sh stops it as well and does the same (heat_cap.active), for
 # One UI's SSRM to set its own. ONEOS_HEAT_CAP=0 (Advanced: Cool down when hot
-# off): not started. Out of the app cgroup, like the sampler.
+# off): no cap. Out of the app cgroup, like the sampler.
+# Guest thermal status (Pixel; owner's go, 2026-11-06). Samsung's thermal HAL
+# told Pixel CRITICAL at 49.6 C skin, and Pixel's JobScheduler holds every
+# ordinary job from SEVERE on (ThermalStatusRestriction, fixed in its code):
+# Play installs, the live wallpaper download, theme packs and icon styles never
+# started while the phone was warm (test build 6, 14:46-14:50). The same loop
+# gives the guest a status from the skin temperature instead: NONE under 47 C,
+# LIGHT from 47, MODERATE from 50, SEVERE from 53 (1 C hysteresis), and from
+# 56 C the HAL's own again, CRITICAL and SHUTDOWN included (cmd thermalservice
+# override-status / reset; again after a guest system_server restart). The
+# kernel's thermal limits and the cap above stay. It runs without the cap too
+# (only the status then); ONEOS_GUEST_THERMAL_MAP=0 leaves the HAL's.
 rm -f "$STAGE/heat_cap.active"
-if [ "${ONEOS_HEAT_CAP:-1}" = 1 ]; then
-    : > "$STAGE/heat_cap.active"
+HEAT_CAP=0; [ "${ONEOS_HEAT_CAP:-1}" = 1 ] && HEAT_CAP=1
+GUEST_THERMAL_MAP=0
+[ "${ONEOS_GUEST_THERMAL_MAP:-1}" = 1 ] && grep -q '^  "image": "pixel' "$STAGE/.oneos_stage" 2>/dev/null && GUEST_THERMAL_MAP=1
+if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
+    [ $HEAT_CAP = 1 ] && : > "$STAGE/heat_cap.active"
     rm -f "$STAGE/cpufreq_max_limit.released"
     $BB sh -c "
     : oneos_heat_cap
     echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
     F=$STAGE/heat_cap.log
     CFL=/sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit
-    echo \"# \$(date) OneOS heat cap: from 45, 47, 50 C skin every CPU policy at 80, 65, 50% of its top clock (2 C hysteresis)\" > \$F
+    if [ $HEAT_CAP = 1 ]; then
+        echo \"# \$(date) OneOS heat cap: from 45, 47, 50 C skin every CPU policy at 80, 65, 50% of its top clock (2 C hysteresis)\" > \$F
+    else
+        echo \"# \$(date) OneOS heat cap off (Cool down when hot): the guest thermal status only\" > \$F
+    fi
+    [ $GUEST_THERMAL_MAP = 1 ] && echo \"# guest thermal status from skin: NONE, LIGHT 47, MODERATE 50, SEVERE 53, the HAL status from 56 C (1 C hysteresis)\" >> \$F
     full() {
         c=''
         if [ \"$HOST_LOW_POWER\" = 0 ] && [ -w \$CFL ] && [ \"\$(cat \$CFL 2>/dev/null)\" != -1 ]; then
@@ -2830,7 +2931,7 @@ if [ "${ONEOS_HEAT_CAP:-1}" = 1 ]; then
         done
         echo \"\$(date +%T) \$1: full clock:\$c\" >> \$F
     }
-    lvl=0; first=1
+    lvl=0; first=1; tl=-1; lp=''
     while true; do
         if [ -f $STAGE/data/oneos_rec_stop ] || [ ! -s $STAGE/guest_mntns ]; then
             [ \$lvl = 0 ] || full stopped
@@ -2840,7 +2941,18 @@ if [ "${ONEOS_HEAT_CAP:-1}" = 1 ]; then
         P=\$(pidof system_server | awk '{print \$1}')
         sk=''
         [ -n \"\$P\" ] && sk=\$(timeout 10 $BB nsenter -t \$P -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys thermalservice 2>/dev/null | sed -n '/^Current temperatures from HAL/,/^[^[:space:]]/p' | sed -n 's/.*mValue=\([-0-9.]*\), mType=[0-9]*, mName=SKIN,.*/\1/p' | head -n 1)
-        if [ -n \"\$sk\" ]; then
+        if [ -n \"\$sk\" ] && [ $GUEST_THERMAL_MAP = 1 ]; then
+            [ \"\$P\" = \"\$lp\" ] || tl=-1
+            lp=\$P
+            nt=\$(awk -v s=\"\$sk\" -v l=\$tl 'BEGIN { t[1] = 47; t[2] = 50; t[3] = 53; t[4] = 56; if (l < 0) l = 0; while (l < 4 && s >= t[l + 1]) l++; while (l > 0 && s < t[l] - 1) l--; print l }')
+            if [ \"\$nt\" != \"\$tl\" ]; then
+                if [ \"\$nt\" = 4 ]; then a=reset; w=\"the HAL status again\"; else a=\"override-status \$nt\"; w=\$nt; fi
+                r=\$(timeout 10 $BB nsenter -t \$P -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd thermalservice \$a 2>&1 | head -n 2 | tr '\\n' ' ')
+                echo \"\$(date +%T) skin \$sk C: guest thermal status \$w (cmd thermalservice \$a: \${r:-ok})\" >> \$F
+                tl=\$nt
+            fi
+        fi
+        if [ -n \"\$sk\" ] && [ $HEAT_CAP = 1 ]; then
             new=\$(awk -v s=\"\$sk\" -v l=\$lvl 'BEGIN { t[1] = 45; t[2] = 47; t[3] = 50; while (l < 3 && s >= t[l + 1]) l++; while (l > 0 && s < t[l] - 2) l--; print l }')
             if [ \"\$new\" = 0 ] && [ \$first = 1 ]; then
                 capped=''
@@ -2867,9 +2979,11 @@ if [ "${ONEOS_HEAT_CAP:-1}" = 1 ]; then
         sleep 10
     done
 " </dev/null >/dev/null 2>&1 &
-    echo "Heat cap: on (from 45 C skin; every 10 s to $STAGE/heat_cap.log)"
+    [ $HEAT_CAP = 1 ] && echo "Heat cap: on (from 45 C skin; every 10 s to $STAGE/heat_cap.log)"
+    [ $HEAT_CAP = 1 ] || echo "Heat cap: off (ONEOS_HEAT_CAP=0, Cool down when hot off in Advanced)"
+    [ $GUEST_THERMAL_MAP = 1 ] && echo "Guest thermal status: from the skin temperature, the HAL status from 56 C ($STAGE/heat_cap.log)"
 else
-    echo "Heat cap: off (ONEOS_HEAT_CAP=0, Cool down when hot off in Advanced)"
+    echo "Heat cap: off (ONEOS_HEAT_CAP=0, Cool down when hot off in Advanced); guest thermal status: the HAL's"
 fi
 
 # Panel keeper (0.4.55). The guests OneOS pins at their top refresh rate (no
@@ -3062,6 +3176,16 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     # the first boot's dexopt): the guest's thermal service on the
                     # shared HAL, and the clocks the host kernel allows, read only.
                     timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys thermalservice > \$D/thermal.txt 2>&1
+                    # AOD and the double tap (Pixel on the Z Fold8 Ultra, 0.4.59: the dream
+                    # manager tried to doze at every power key and the group slept 0.5 s
+                    # later, no doze dream ever ran): the guest's dream manager, its doze
+                    # and gesture settings, and the sensors SystemUI's doze can find.
+                    { timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys dreams
+                      for k in doze_enabled doze_always_on doze_pulse_on_pick_up doze_tap_gesture doze_double_tap_gesture doze_wake_screen_gesture doze_wake_display_gesture screensaver_enabled screensaver_activate_on_sleep; do
+                          echo \"secure \$k=\$(timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure \$k 2>/dev/null)\"
+                      done
+                      timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys sensorservice 2>/dev/null | grep -iE 'tap|doze|pickup|pick_up|wake|gesture|hinge|lid|hall' | head -60
+                    } > \$D/doze.txt 2>&1
                     { for p in /sys/devices/system/cpu/cpufreq/policy*; do echo \"\$p cur/max/hw \$(cat \$p/scaling_cur_freq \$p/scaling_max_freq \$p/cpuinfo_max_freq 2>/dev/null | tr '\n' ' ')\"; done
                       echo \"gpu cur \$(cat /sys/class/kgsl/kgsl-3d0/devfreq/cur_freq 2>&1) max \$(cat /sys/class/kgsl/kgsl-3d0/max_gpuclk 2>&1)\"
                       timeout 10 logcat -d -s thermal_core 2>/dev/null | tail -n 3; } > \$D/throttle.txt 2>&1

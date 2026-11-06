@@ -172,7 +172,9 @@ class StageAuditTest {
             setOf("cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK),
             PackageSets.X9U_IN_SULTRA.names.toSet() - common.toSet(),
         )
-        assertEquals(PackageSets.PIXEL_SULTRA.names.toSet(), shVar("SET_PIXEL").split(' ').toSet())
+        // 0.4.59: the bar Pixel sets add double tap to sleep (their own SystemUI and launcher) to SET_PIXEL.
+        assertEquals(PackageSets.PIXEL_SULTRA.names.toSet() - setOf("OneOSPixelSystemUI.apk", "OneOSPixelLauncher.apk"),
+            shVar("SET_PIXEL").split(' ').toSet())
         val setFiles = Regex("""^\s+([a-z0-9-]+)\) echo "\${'$'}(SET_[A-Z]+)([^"]*)" ;;$""", RegexOption.MULTILINE)
             .findAll(script).associate { it.groupValues[1] to (shVar(it.groupValues[2]).split(' ') + it.groupValues[3].split(' ').filter { n -> n.isNotEmpty() }) }
         assertEquals(PackageSets.ALL.map { it.id }.toSet(), setFiles.keys)

@@ -125,7 +125,7 @@
     <string name="last_switched_to">Switched to %1$s</string>
     <string name="last_test_line">It was a test: %1$s was set up and checked but not started.</string>
     <string name="last_rebooted_summary">The session has ended. Collect the logs below to see how it went; your next switch replaces them.</string>
-    <string name="last_not_rebooted_summary">The phone hasn\'t restarted since. If the switch didn\'t start, the logs say why.</string>
+    <string name="last_not_rebooted_summary">This session hasn\'t ended yet, or the switch didn\'t start; the logs say why.</string>
     <string name="last_collect_title">Collect the logs</string>
     <string name="last_collect_again">Collect them again</string>
     <string name="last_collect_summary">Takes a minute or two. Nothing on the phone changes.</string>

@@ -151,7 +151,9 @@ add)
             # /data/apex/decompressed under the APEXes One UI had mounted
             # (dm-verity I/O errors, SIGBUS in the One UI package parser,
             # boot loop). No apostrophes in here: this is a quoted awk script.
-            if (key ~ /^(persist\.)?(apexd|ro\.apex|ro\.boot|ro\.bootimage|ro\.crypto|ro\.hardware|ro\.vndk|ro\.zygote|init|vold|ro\.vold|sys\.usb|persist\.sys\.usb|ro\.adb|ro\.debuggable|ro\.secure|selinux|ro\.build\.selinux|ro\.kernel|ro\.dalvik\.vm\.native\.bridge)\./) next
+            # rild: the phone radio daemon reads vendor.rild.libpath when it
+            # (re)starts; vivo OriginOS (MediaTek) sets mtk-ril.so.
+            if (key ~ /^(persist\.)?(apexd|ro\.apex|ro\.boot|ro\.bootimage|ro\.crypto|ro\.hardware|ro\.vndk|ro\.zygote|init|vold|ro\.vold|sys\.usb|persist\.sys\.usb|ro\.adb|ro\.debuggable|ro\.secure|selinux|ro\.build\.selinux|ro\.kernel|ro\.dalvik\.vm\.native\.bridge|vendor\.rild|rild|ro\.vendor\.rild)\./) next
             if (key ~ /^(apexd|ro\.apex|init|vold|selinux)$/) next
             # Key attestation reports these as the device identity (KeyMint
             # checks them against the phone): always the phone values, never
@@ -206,6 +208,36 @@ add)
             ! grep -qxF "$AL" "$HOST" && ! grep -q '^persist\.sys\.oplus\.anim_level=' "$NEW"; then
         echo "$AL=$ALV" >> "$NEW"
         echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
+    fi
+    # One UI's color mode (oneos_switch.sh, host_color_mode), read by the
+    # guest's SurfaceFlinger at start: it no longer moves the panels between
+    # SRGB and DISPLAY_P3 with what is on screen (Pixel, session 9455098f: a
+    # flash on each switch). Memory only and in the added list, like the
+    # others. ONEOS_GUEST_COLOR_MODE=0 leaves the guest's own choice; a number
+    # forces that mode.
+    CM=persist.sys.sf.color_mode; CMV=${ONEOS_GUEST_COLOR_MODE:-$(cat "$STAGE/host_color_mode" 2>/dev/null)}
+    case "$CMV" in [1-9]|[1-9][0-9]) ;; *) CMV="" ;; esac
+    if [ -n "$CMV" ] && ! grep -qxF "$CM" "$HOST" && ! grep -q '^persist\.sys\.sf\.color_mode=' "$NEW"; then
+        echo "$CM=$CMV" >> "$NEW"
+        echo "guest_props: $CM=$CMV for the session (One UI's color mode)"
+    fi
+    # The boot animation on the panel that is on. AOSP's bootanimation draws on
+    # the first display persist.service.bootanim.displays lists, at that
+    # display's size, else on SurfaceFlinger's primary: a Fold's inner panel.
+    # Switched while folded, Pixel played it on the dark inner panel and the
+    # cover stayed black until Home (Z Fold8 Ultra, 2026-11-06). Folded (the
+    # inner backlight at 0, the cover's lit): the cover's id from
+    # host_cover_display. Memory only and in the added list, like the others.
+    # ONEOS_GUEST_BOOTANIM_COVER=0 leaves it on the primary.
+    BAD=persist.service.bootanim.displays
+    CVID=$(sed -n 's/^local:\([0-9][0-9]*\) .*/\1/p' "$STAGE/host_cover_display" 2>/dev/null)
+    BL0=/sys/class/backlight/panel0-backlight; BL1=/sys/class/backlight/panel1-backlight
+    [ -d "$BL0" ] || { BL0=/sys/class/backlight/panel; BL1=/sys/class/backlight/panel1; }
+    if [ "${ONEOS_GUEST_BOOTANIM_COVER:-1}" = 1 ] && [ -n "$CVID" ] &&
+            [ "$(cat "$BL0/brightness" 2>/dev/null)" = 0 ] && [ "$(cat "$BL1/brightness" 2>/dev/null || echo 0)" != 0 ] &&
+            ! grep -qxF "$BAD" "$HOST" && ! grep -q '^persist\.service\.bootanim\.displays=' "$NEW"; then
+        echo "$BAD=$CVID" >> "$NEW"
+        echo "guest_props: $BAD=$CVID for the session (folded: the boot animation on the cover)"
     fi
     # USB functions AOSP does not define. Samsung's persist.sys.usb.config is
     # "sec_charging,adb"; UsbManager.usbFunctionsFromString knows no
@@ -683,6 +715,20 @@ add)
             echo "log.tag=I" >> "$NEW"
             echo "guest_props: log.tag=I for this debug session"
         fi
+    fi
+    # vivo OriginOS: each vivo feature lookup in zygote (android.util.FtFeature
+    # through VivoConfigStorePropertyHelper) first waits up to 11 x 50 ms for
+    # vendor.vivoconfigstore.ready, which vivo's vendor config store sets
+    # ("vivoconfigstore is not ready , wait 50ms again"). Samsung's vendor has
+    # none, so every lookup cost 550 ms. Set for the session when One UI has no
+    # such key: the features then read as unsupported at once, as they would
+    # after the wait (their ro.vendor.<feature>:vivo-support props are vivo's
+    # vendor's). ONEOS_GUEST_VIVO_CFG=0 leaves it out.
+    if [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && [ "${ONEOS_GUEST_VIVO_CFG:-1}" = 1 ] &&
+       [ -z "$(getprop vendor.vivoconfigstore.ready)" ]; then
+        sed -i '/^vendor\.vivoconfigstore\.ready=/d' "$NEW"
+        echo "vendor.vivoconfigstore.ready=1" >> "$NEW"
+        echo "guest_props: vendor.vivoconfigstore.ready=1 (no 550 ms wait per vivo feature lookup)"
     fi
     # Nothing OS's ringtones: NothingGenerateRingtoneService composes each with a
     # Glyph pattern from libgenerative_glyph, which sizes it by Nothing's vendor

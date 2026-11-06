@@ -91,7 +91,8 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
                                         $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
-                                        $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
+                                        $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" ||
+                                        $2 == "vivo-services_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
     sum=$(awk -v n="$need" '$2 == n {print $1}' "$STAGE/guards.txt")
     if [ -z "$sum" ] || [ "$(sha256sum "$STAGE/$need" 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         echo "ERROR: $STAGE/$need missing or not the guarded build in guards.txt; not starting the guest"
@@ -296,6 +297,39 @@ if ! mount | grep -q "$ROOTFS "; then
     $BB mount -t ext4 -o ro "$LOOP" "$ROOTFS"
 fi
 
+# /system_ext as its own mount (vivo OriginOS, 0.4.59). Its boot classpath has
+# MediaTek jars in /system_ext/framework, and its zygote allowlists the files
+# open at a fork by those paths (/system_ext/framework/*.jar, /system_ext/app/
+# mediatek-res/mediatek-res.apk). In MysticGSI's merged image /system_ext is a
+# link to /system/system_ext, so an open jar reads as /system/system_ext/...:
+# "Not allowlisted (29): /system/system_ext/framework/mediatek-common.jar" and
+# zygote aborted forking system_server (first run). For an image whose boot
+# classpath names /system_ext/ and whose /system_ext is that link, the root gets
+# a read-only overlay whose top layer (a small tmpfs) holds only a system_ext
+# folder, hiding the link; the real folder is bound there at the end of the
+# setup (below), after every mount made under it. Everything until then uses
+# /system/system_ext (GUEST_SYSTEM_EXT). Other images are not touched.
+SEXT_MOUNT=0
+if [ -L "$ROOTFS/system_ext" ] && [ "$(readlink "$ROOTFS/system_ext")" = /system/system_ext ] &&
+   [ -d "$ROOTFS/system/system_ext" ] && [ ! -L "$ROOTFS/system/system_ext" ] &&
+   grep -aq '/system_ext/framework/' "$ROOTFS/system/etc/classpaths/bootclasspath.pb" 2>/dev/null; then
+    ROV="$STAGE/root_ov"
+    [ ! -L "$ROV" ] || { echo "ERROR: $ROV is a symlink; not starting the guest"; exit 3; }
+    mkdir -p "$ROV"
+    mount | grep -q " $ROV " || $BB mount -t tmpfs -o size=64k,mode=755 tmpfs "$ROV"
+    $BB mount --make-private "$ROV" 2>/dev/null || true
+    rm -rf "$ROV/up" && mkdir -p "$ROV/up/system_ext" && chmod 755 "$ROV/up" "$ROV/up/system_ext"
+    $BB chcon u:object_r:system_file:s0 "$ROV/up/system_ext" 2>/dev/null || true
+    if $BB mount -t overlay overlay -o "ro,lowerdir=$ROV/up:$ROOTFS" "$ROOTFS" &&
+       [ -d "$ROOTFS/system_ext" ] && [ ! -L "$ROOTFS/system_ext" ] && [ -f "$ROOTFS/system/etc/classpaths/bootclasspath.pb" ]; then
+        SEXT_MOUNT=1
+        echo "/system_ext: the boot classpath has /system_ext jars and the image links /system_ext; root overlay made, the folder is bound at the end"
+    else
+        echo "ERROR: could not give /system_ext its own mount (overlay on $ROOTFS); not starting the guest"
+        exit 3
+    fi
+fi
+
 mkdir -p "$ROOTFS/postinstall" "$ROOTFS/dev" "$ROOTFS/proc" "$ROOTFS/sys" \
     "$ROOTFS/linkerconfig" "$ROOTFS/vendor" "$ROOTFS/odm" "$ROOTFS/vendor_dlkm" \
     "$ROOTFS/mnt" "$ROOTFS/storage" "$ROOTFS/apex" "$ROOTFS/data"
@@ -351,7 +385,7 @@ done
 # /system_ext/apex/com.android.compos.apex, which host apexd reports but the
 # guest's tree does not have.
 GUEST_SYSTEM_EXT="$ROOTFS/system_ext"
-[ -L "$GUEST_SYSTEM_EXT" ] && GUEST_SYSTEM_EXT="$ROOTFS/system/system_ext"
+{ [ -L "$GUEST_SYSTEM_EXT" ] || [ "$SEXT_MOUNT" = 1 ]; } && GUEST_SYSTEM_EXT="$ROOTFS/system/system_ext"
 # product the same way, the other way round: ColorOS and Pixel images have
 # system/product and an absolute link /product -> /system/product; others
 # have /product and system/product -> /product, which in this namespace is One
@@ -820,6 +854,12 @@ fi
 # (vendor_secdir, the camera's own uid): the camera cannot make it, "AccessDenied
 # /data/sec", and its post-processing lost every picture (run 19). In the
 # guest's own /data (the stage), for the guest camera's uid once it has one.
+# A stage where the camera never ran has no app data folder yet, so no uid here:
+# guest_start.sh makes the folder once the guest's package manager has made the
+# app's (data/oneos_samcam; 0.4.58 report f794c15d, Galaxy S25+: "can't create
+# secureDirectory", no photo in the gallery).
+rm -f "$STAGE/data/oneos_samcam"
+[ $SAMCAM = 1 ] && touch "$STAGE/data/oneos_samcam"
 if [ $SAMCAM = 1 ]; then
     CUID=""
     for CAMDATA in "$STAGE/data/user/0/com.sec.android.app.camera" "$STAGE/data/user_de/0/com.sec.android.app.camera" "$STAGE/data/data/com.sec.android.app.camera"; do
@@ -1118,7 +1158,11 @@ fi
 # invalid" and system_server died at once, fifth HyperOS run). Samsung's
 # composer maps the float linearly onto the panel's backlight, and the curve's
 # own slope (0.196 = 520 nits, a quarter of the backlight about 660) puts 1.0
-# at about 2600 nits, the panel's peak.
+# at about 2600 nits, the panel's peak. DisplayDeviceConfig wants the curve's
+# first float at or below the framework's config_screenBrightnessSettingMinimumFloat:
+# vivo OriginOS's is 7.0E-5 ("raw min=3.66255E-4 ... backlight min=7.0E-5", second
+# OriginOS run), so the wide curve starts at 1.0E-5 (0.05 nits), below every
+# framework seen, with HyperOS's 3.66255E-4 point kept as it was.
 # Every panel by its own scale (0.4.35): Samsung's composer float is One UI's
 # brightness over its brightnessMaximum (dumpsys display: the panel's peak
 # over about 500 nits; the backlight's max over it is 255 or 2550 on every
@@ -1138,7 +1182,7 @@ DDCEOF
         ref = 5.2980394; k = 1
         if (m + 0 >= 1.5 && m + 0 <= 8) k = ref / m
         n = split("0.0026:2.21 0.00333:3.0 0.005015:5.0 0.00694:7.5 0.008891:10.4 0.012079:15.0 0.015279:20.0 0.021151:30.0 0.026566:40.0 0.03701:60.0 0.045723:80.0 0.054391:100.0 0.068653:135.0 0.082069:170.0 0.093062:200.0 0.110574:250.0 0.127287:300.0 0.158918:400.0 0.188764:500.0 0.196299:520.0", pt, " ")
-        if (wide == "wide") printf "        <point><value>0.000366255</value><nits>0.3</nits></point>\n"
+        if (wide == "wide") printf "        <point><value>0.00001</value><nits>0.05</nits></point>\n        <point><value>0.000366255</value><nits>0.3</nits></point>\n"
         for (i = 1; i <= n; i++) {
             split(pt[i], v, ":"); f = v[1] * k
             if (f >= 1.0) break
@@ -1252,6 +1296,23 @@ if [ -f "$STAGE/surfaceflinger_patched" ] && [ "${ONEOS_STOCK_SF:-0}" != "1" ]; 
     $BB mount --bind "$STAGE/surfaceflinger_patched" "$ROOTFS/system/bin/surfaceflinger"
     echo "Bound surfaceflinger_patched -> $ROOTFS/system/bin/surfaceflinger"
 fi
+# Pixel Fold's device state policy without tent mode (scripts/patch-yogi-tent.py):
+# it keeps the cover on until the hinge passes 90 degrees whenever it guesses a
+# tent (screen kept on, rotated, or the second accelerometer a Galaxy has not).
+# Off by default since test build 8: Samsung's hinge_angle sensor, the one the
+# policy reads, reports every 4-6 s in coarse steps (180, 90/115, 0/5), and
+# without tent mode Pixel followed those late readings: the inner panel came on
+# about 5 s after opening, and a switch made folded started on the inner panel
+# (owner, 11-06). ONEOS_GUEST_TENT=0 binds it again.
+if [ "${ONEOS_GUEST_TENT:-1}" = 0 ] && [ -f "$STAGE/yogi-services_patched.jar" ]; then
+    for YS in "$ROOTFS/system/system_ext/framework/yogi-services.jar" "$ROOTFS/system_ext/framework/yogi-services.jar"; do
+        [ -f "$YS" ] && [ ! -L "$YS" ] || continue
+        $BB umount -l "$YS" 2>/dev/null || true
+        $BB mount --bind "$STAGE/yogi-services_patched.jar" "$YS" &&
+            echo "Bound yogi-services_patched.jar -> $YS (no tent mode: the inner panel as soon as the hinge opens)"
+        break
+    done
+fi
 # The guest's boot animation on every panel (scripts/patch-bootanim-multidisplay.py):
 # built without Android's multidisplay flag it drew on the first display only,
 # the Fold's inner panel, and the cover stayed black when the switch started
@@ -1300,6 +1361,24 @@ elif [ -f "$STAGE/vold_patched" ]; then
     echo "Guest vold: vold_patched is staged but guards.txt does not list it (another overlay set): not bound, the guest vold takes vold"
 else
     echo "Guest vold: no vold_patched for this image, the guest vold takes vold (no return without a reboot)"
+fi
+# vivo OriginOS: vivo-services.jar runs in system_server; its guarded build
+# (patches/vivo_guards.py: vivo's IOemNetd never reaches One UI's netd, HAL
+# extensions only when vivo's; the storage guards) must be in place, or the
+# guest does not start.
+VSJ="$ROOTFS/system/framework/vivo-services.jar"
+if [ -e "$VSJ" ] || [ -L "$VSJ" ]; then
+    if [ -f "$STAGE/vivo-services_patched.jar" ] && [ -f "$VSJ" ] && [ ! -L "$VSJ" ] && [ ! -L "$ROOTFS/system/framework" ]; then
+        $BB umount -l "$VSJ" 2>/dev/null || true
+        $BB mount --bind "$STAGE/vivo-services_patched.jar" "$VSJ"
+    fi
+    VJ=$(stat -c %d:%i "$VSJ" 2>/dev/null)
+    if [ -z "$VJ" ] || [ "$VJ" != "$(stat -c %d:%i "$STAGE/vivo-services_patched.jar" 2>/dev/null)" ] ||
+        ! awk '$2 == "vivo-services_patched.jar" { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
+        echo "ERROR: the guarded vivo-services.jar is not in place; not starting the guest"
+        exit 3
+    fi
+    echo "Bound vivo-services_patched.jar -> $VSJ"
 fi
 if [ -f "$STAGE/oplus-services_patched.jar" ] && [ -f "$ROOTFS/system/framework/oplus-services.jar" ]; then
     $BB umount -l "$ROOTFS/system/framework/oplus-services.jar" 2>/dev/null || true
@@ -1390,6 +1469,61 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
         $BB umount -l "$HAH" 2>/dev/null || true
         $BB mount --bind "$STAGE/libaudiohal_aidl_patched.so" "$HAH" &&
             echo "Bound libaudiohal_aidl_patched.so -> $HAH (no audio HAL adapter vendor extension)"
+    fi
+    # HyperOS's audio policy file. Xiaomi's AudioPolicyConfig
+    # (system/lib64/libaudiopolicycomponents.so, the same code in both policy
+    # engines) never asks for AOSP's audio_policy_configuration.xml: with
+    # ro.miui.ui.version.code set it looks for a Bluetooth-offload variant
+    # (audio_policy_configuration_le_offload_disabled.xml and the like) and then
+    # audio_policy_configuration_mi.xml, in /odm/etc, /odm/etc/audio/sku_<sku>,
+    # /vendor/etc/audio/sku_<sku>, /vendor/etc/audio, /vendor/etc and
+    # /system/etc. Where the audio HAL is AIDL (S25, S26, Z Fold7/8, A36/A56/A57)
+    # the policy comes from the HAL and no file is read. On the HIDL ones (S23,
+    # S24, Z Fold5/Flip5, Z Fold6/Flip6, A26) no Samsung file has those names, so
+    # HyperOS's audioserver fell back to AudioPolicyConfig::setDefault: speaker
+    # and bottom mic only, no earpiece, no Bluetooth module, no volume curves.
+    # Earbuds connected and the Bluetooth audio bridge started the A2DP session,
+    # but AudioService could not make them a sound device ("could not find HW
+    # module for device type 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP'", S24 Ultra
+    # session 4e9c9333; the same default on S23 and S23 Ultra up to 0.4.55).
+    # One UI's own policy file (the _sec or _base one its audioserver loads, with
+    # Samsung's bluetooth module) goes into the guest's vendor/etc/audio
+    # (vendor/etc where there is none) under Xiaomi's name, through a read-only
+    # overlay on a small tmpfs as for Nothing's ringtones: One UI's /vendor is
+    # not touched. Relative xi:include hrefs are made absolute, since the copy
+    # no longer sits next to the files they name. ONEOS_GUEST_APM_XML=<vendor
+    # file> picks the file, ONEOS_GUEST_APM_XML=0 leaves HyperOS's default.
+    APM_X="${ONEOS_GUEST_APM_XML:-}"
+    if [ "$APM_X" != 0 ] && ! "$BB" grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/; then
+        if [ -z "$APM_X" ]; then
+            SKU=$(getprop ro.boot.product.vendor.sku)
+            for f in /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml \
+                ${SKU:+/vendor/etc/audio/sku_${SKU}_qssi/audio_policy_configuration.xml /vendor/etc/audio/sku_$SKU/audio_policy_configuration.xml} \
+                /vendor/etc/audio_policy_configuration.xml; do
+                [ -f "$f" ] && { APM_X=$f; break; }
+            done
+        fi
+        APM_D=/vendor/etc/audio
+        [ -d "$ROOTFS$APM_D" ] || APM_D=/vendor/etc
+        APM_OV="$STAGE/hyperos_apm"
+        if [ -z "$APM_X" ] || [ ! -f "$APM_X" ]; then
+            echo "!!! WARNING: HyperOS audio policy: no vendor policy file; HyperOS keeps its default (speaker only, no Bluetooth audio)"
+        elif mount | grep -q " $ROOTFS$APM_D type overlay"; then
+            echo "HyperOS audio policy: overlay on $APM_D already there"
+        else
+            mkdir -p "$APM_OV" && { mount | grep -q " $APM_OV " || $BB mount -t tmpfs -o size=2m,mode=755 tmpfs "$APM_OV"; } &&
+                $BB mount --make-private "$APM_OV" 2>/dev/null
+            rm -rf "$APM_OV/up" && mkdir -p "$APM_OV/up" &&
+                $BB sed -e "s#href=\"\([^/\"][^\"]*\)\"#href=\"${APM_X%/*}/\1\"#g" "$APM_X" > "$APM_OV/up/audio_policy_configuration_mi.xml" &&
+                chown -R 0:0 "$APM_OV/up" && chmod 755 "$APM_OV/up" && chmod 644 "$APM_OV/up/audio_policy_configuration_mi.xml"
+            $BB chcon -R u:object_r:vendor_configs_file:s0 "$APM_OV/up" 2>/dev/null || true
+            if [ -s "$APM_OV/up/audio_policy_configuration_mi.xml" ] &&
+               $BB mount -t overlay overlay -o "ro,lowerdir=$APM_OV/up:$ROOTFS$APM_D" "$ROOTFS$APM_D"; then
+                echo "HyperOS audio policy: $APM_X as $APM_D/audio_policy_configuration_mi.xml (no AIDL audio HAL)"
+            else
+                echo "!!! WARNING: HyperOS audio policy: the overlay on $APM_D was refused; HyperOS keeps its default (speaker only, no Bluetooth audio)"
+            fi
+        fi
     fi
 fi
 
@@ -1811,6 +1945,20 @@ if [ -f "$STAGE/OneOSPixelStatusBar.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app
         echo "Pixel status bar overlay left out (ONEOS_GUEST_STATUSBAR_PADDING=0)"
     fi
 fi
+# AOD for a Pixel guest (switcher/overlays/pixel_doze): Pixel's doze service and
+# "AOD available", which a Pixel has in its vendor overlay and a guest on One
+# UI's vendor had not (getDozeComponent()=null). Static, so the dream manager
+# has them at boot. ONEOS_GUEST_DOZE=0 leaves it out.
+if [ -f "$STAGE/OneOSPixelDoze.apk" ] && [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ]; then
+    if [ "${ONEOS_GUEST_DOZE:-1}" = 1 ]; then
+        mkdir -p "$STAGE/oem/overlay" &&
+            cp "$STAGE/OneOSPixelDoze.apk" "$STAGE/oem/overlay/" &&
+            chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSPixelDoze.apk" &&
+            OEM_FILES="$OEM_FILES overlay/OneOSPixelDoze.apk"
+    else
+        echo "Pixel AOD overlay left out (ONEOS_GUEST_DOZE=0)"
+    fi
+fi
 # Quick settings on a tablet-width panel: the split (two column) shade in
 # portrait too, which Nothing OS's SystemUI only has a landscape value for
 # (scripts/make-overlays.sh). Under sw600dp, so the cover keeps the phone
@@ -2051,7 +2199,10 @@ fi
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the guest's
 # native camera client (legacy camera API, NDK camera2) with One UI's codes
 # (patches/pixel_camera_native.py); guards.txt lists them, checked above.
-for pair in libcamera_client_patched.so:libcamera_client.so libcameracompatbilityinfo_patched.so:libcameracompatbilityinfo.so; do
+# libsensorservice_patched.so (vivo OriginOS): One UI's light and hinge events as
+# scalars (make-overlays.sh; system_server aborted on the first one).
+for pair in libcamera_client_patched.so:libcamera_client.so libcameracompatbilityinfo_patched.so:libcameracompatbilityinfo.so \
+            libsensorservice_patched.so:libsensorservice.so; do
     if [ -f "$STAGE/${pair%%:*}" ]; then
         $BB umount -l "$ROOTFS/system/lib64/${pair#*:}" 2>/dev/null || true
         $BB mount --bind "$STAGE/${pair%%:*}" "$ROOTFS/system/lib64/${pair#*:}"
@@ -3960,6 +4111,57 @@ mount_payload "bt" "com.android.bt"
 for m in telephonycore conscrypt profiling; do
     [ -f "$STAGE/${m}_payload.img" ] && mount_payload "$m" "com.android.$m"
 done
+# The guest's apps compiled by the guest's own artd (guest_start.sh runs it for
+# the session, again each time the lazy service exits). Without it the guest's
+# ArtService (the image's ART module) got One UI's artd, which init starts when
+# no artd is registered: another ART version, and every package failed dexopt
+# with a NullPointerException from IArtd.maybeCreateSdc (Pixel, 268 times in
+# session 9455098f; every ColorOS, HyperOS and Infinity-X session of 0.4.58 too),
+# so every app ran uncompiled (more CPU, lag, heat). Only with the guest's own ART
+# payload mounted and another version than One UI's module (apex_manifest.pb
+# differs; the same module keeps One UI's artd, as before). One UI's artd itself
+# is not touched: a bind over it changed One UI's /apex, which the mount check
+# below refuses (0.4.59 test build: aborted, then the in-place return's
+# failsafe rebooted the phone). ONEOS_GUEST_ARTD=0 starts no guest artd.
+rm -f "$STAGE/data/oneos_guest_artd"
+if [ "${ONEOS_GUEST_ARTD:-1}" = 1 ] && [ -x "$ROOTFS/apex/com.android.art/bin/artd" ] &&
+        grep -q '^com.android.art /dev/block/loop' "$STAGE/payload_loops" 2>/dev/null &&
+        ! cmp -s /apex/com.android.art/apex_manifest.pb "$ROOTFS/apex/com.android.art/apex_manifest.pb"; then
+    touch "$STAGE/data/oneos_guest_artd"
+    echo "artd: the guest's own for the session (its ART module is another version than One UI's)"
+else
+    echo "artd: One UI's (ONEOS_GUEST_ARTD=${ONEOS_GUEST_ARTD:-1}; the guest's ART payload $(grep -q '^com.android.art ' "$STAGE/payload_loops" 2>/dev/null && echo mounted || echo 'not mounted'), $(cmp -s /apex/com.android.art/apex_manifest.pb "$ROOTFS/apex/com.android.art/apex_manifest.pb" && echo "One UI's version" || echo 'another version'))"
+fi
+# The image's boot image accepted. guest_start.sh's zygote uses the image's AOT
+# boot image (not ColorOS), which ART checks against the versions
+# /apex/apex-info-list.xml gives the ART and i18n modules: "/" for a factory
+# module. The list above is One UI's, where Play system updates made ART an
+# updated module (isFactory="false", lastUpdateMillis), so ART rejected the
+# image's boot image ("ValidateApexVersions found APEX versions mismatch") and
+# every guest process, the zygote and each app started from it, compiled the
+# boot class path in memory and ran the framework JIT-only (Pixel: lag and heat,
+# session 9455098f). Those two modules are the image's own factory payloads
+# here (payload_loops), so the guest's copy says so. The guest's copy only;
+# a set's clean_apex_info_list.xml is left as it is.
+if [ ! -f "$STAGE/clean_apex_info_list.xml" ] && [ -f "$ROOTFS/apex/apex-info-list.xml" ]; then
+    FACT=""
+    for m in com.android.art com.android.i18n; do
+        grep -q "^$m /dev/block/loop" "$STAGE/payload_loops" 2>/dev/null && FACT="$FACT $m"
+    done
+    if [ -n "$FACT" ] && awk -v mods="$FACT" 'BEGIN { RS = "<"; ORS = ""; n = split(mods, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
+            NR > 1 { printf "<" }
+            /^apex-info[[:space:]]/ && /isActive="true"/ { m = $0; sub(/.*moduleName="/, "", m); sub(/".*/, "", m)
+                if (m in want) { sub(/isFactory="false"/, "isFactory=\"true\""); gsub(/[[:space:]]lastUpdateMillis="[0-9]*"/, "") } }
+            { print }' "$ROOTFS/apex/apex-info-list.xml" > "$ROOTFS/apex/apex-info-list.xml.oneos" &&
+            [ -s "$ROOTFS/apex/apex-info-list.xml.oneos" ]; then
+        mv -f "$ROOTFS/apex/apex-info-list.xml.oneos" "$ROOTFS/apex/apex-info-list.xml"
+        chmod 644 "$ROOTFS/apex/apex-info-list.xml"
+        echo "Guest apex-info-list: the image's own$FACT as factory modules (the image's boot image matches them)"
+    else
+        rm -f "$ROOTFS/apex/apex-info-list.xml.oneos"
+        echo "Guest apex-info-list: One UI's as it is (no image ART/i18n payload mounted)"
+    fi
+fi
 # Google Play services (GMS_WANT, top): the image's own gmssystem payload, a
 # Google module name, so not com.android.<name>. mount_payload looks for the
 # APEX itself only in system/apex (Pixel's is in product/apex), so the staged
@@ -4132,11 +4334,20 @@ fi
 # opened it in the same sessions. Aperture uses the plain camera2 API, so with
 # OplusCamera hidden it is the camera app. ColorOS keeps OplusCamera (no
 # Aperture there). ONEOS_GUEST_OEM_CAMERA=1 keeps it.
-if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Aperture" ] || [ -d "$GUEST_SYSTEM_EXT/app/Aperture" ]; }; then
-    for d in "$GUEST_SYSTEM_EXT"/priv-app/OplusCamera "$ROOTFS"/system/priv-app/OplusCamera "$GUEST_PRODUCT"/priv-app/OplusCamera; do
+# ColorOS too once Samsung Camera is in the guest (SAMCAM, above): OPPO's camera
+# (my_product/app/OplusCamera) never showed a preview in any ColorOS report, Find
+# N6 or X9 Ultra, on any Galaxy; it dies at start on its camera SDK
+# (NoClassDefFoundError: com.oplus.ocs.camera.appinterface.adapter.
+# CameraAdapterUtils), often dozens of times a session, and its launcher icon is
+# the one users tap ("Camera crashed": 0.4.58 reports 45bc960f, d89cc8a5,
+# 74bcf2b6). Samsung Camera is then the camera.
+if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Aperture" ] || [ -d "$GUEST_SYSTEM_EXT/app/Aperture" ] || [ "$SAMCAM" = 1 ]; }; then
+    if [ "$SAMCAM" = 1 ]; then OCWHY="Samsung Camera is the camera"; else OCWHY="Aperture is the camera"; fi
+    for d in "$GUEST_SYSTEM_EXT"/priv-app/OplusCamera "$ROOTFS"/system/priv-app/OplusCamera "$GUEST_PRODUCT"/priv-app/OplusCamera \
+             "$ROOTFS"/my_*/app/OplusCamera "$ROOTFS"/my_*/priv-app/OplusCamera; do
         [ -d "$d" ] && [ ! -L "$d" ] || continue
         $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
-            echo "Hid guest ${d#"$ROOTFS"/} (OPPO's camera needs the Find X9 Ultra's camera config; Aperture is the camera; ONEOS_GUEST_OEM_CAMERA=1 keeps it)"
+            echo "Hid guest ${d#"$ROOTFS"/} (OPPO's camera needs the Find X9 Ultra's camera config and SDK; $OCWHY; ONEOS_GUEST_OEM_CAMERA=1 keeps it)"
     done
 fi
 # Google Play services (GMS_WANT, top; docs/pixel-guest.md). GmsCore is
@@ -4176,7 +4387,9 @@ if [ "$GMS_WANT" = 1 ]; then
         exit 3
     }
     GMS_APEX="$ROOTFS/apex/com.google.android.gmssystem"
+    # Pixel's PrebuiltGmsCore (app_chimera and m), or vivo OriginOS's GmsCore (m only).
     GMS_DIR="$GUEST_PRODUCT/priv-app/PrebuiltGmsCore"
+    [ -e "$GMS_DIR" ] || [ -L "$GMS_DIR" ] || [ ! -d "$GUEST_PRODUCT/priv-app/GmsCore" ] || GMS_DIR="$GUEST_PRODUCT/priv-app/GmsCore"
     GMS_PKG="$STAGE/gmscore"
     # 1. The payload is the guest's: its loop device (payload_loops, written by
     #    mount_payload), backed by the staged payload, on top at the APEX path.
@@ -4205,15 +4418,23 @@ if [ "$GMS_WANT" = 1 ]; then
     [ "$g_n" = 1 ] || gms_refuse "$g_n PrebuiltGmsCore APKs in the gmssystem payload (one expected)"
     GMS_APK_NAME=${GMS_APK_SRC##*/}
     echo "Google services: GmsCore ${GMS_APK_SRC#$GMS_APEX/} ($(stat -c %s "$GMS_APK_SRC") bytes)"
-    # 3. The image's PrebuiltGmsCore folder: a real folder of the image (no link
+    # 3. The image's GmsCore folder: a real folder of the image (no link
     #    anywhere on the path: it would lead to One UI's own /product), with
-    #    app_chimera and m, and no APK of its own.
+    #    GmsCore's module folders (Pixel: app_chimera and m; vivo: m), and no
+    #    APK of its own.
     [ -d "$GMS_DIR" ] && [ "$(readlink -f "$GMS_DIR")" = "$GMS_DIR" ] ||
         gms_refuse "${GMS_DIR#$ROOTFS} is missing or reached through a link"
+    GMS_SUB=""
     for g_s in app_chimera m; do
+        [ -e "$GMS_DIR/$g_s" ] || [ -L "$GMS_DIR/$g_s" ] || continue
         [ -d "$GMS_DIR/$g_s" ] && [ ! -L "$GMS_DIR/$g_s" ] ||
-            gms_refuse "the image has no ${GMS_DIR#$ROOTFS}/$g_s (GmsCore's Dynamite modules)"
+            gms_refuse "${GMS_DIR#$ROOTFS}/$g_s is not a folder of the image"
+        GMS_SUB="$GMS_SUB $g_s"
     done
+    case "${GMS_DIR##*/}:$GMS_SUB" in
+        "PrebuiltGmsCore: app_chimera m"|"GmsCore: m") ;;
+        *) gms_refuse "${GMS_DIR#$ROOTFS} has [${GMS_SUB# }] (Pixel's PrebuiltGmsCore has app_chimera and m, vivo's GmsCore m)" ;;
+    esac
     for g_a in "$GMS_DIR"/*.apk; do
         [ -e "$g_a" ] || [ -L "$g_a" ] || continue
         gms_refuse "the image already has ${g_a#$ROOTFS} (GmsCore would be there twice)"
@@ -4232,15 +4453,15 @@ if [ "$GMS_WANT" = 1 ]; then
     # Private at once: the stage sits on One UI's shared /data mount.
     $BB mount --make-private "$GMS_PKG" 2>/dev/null || gms_refuse "could not make $GMS_PKG private"
     echo "Google services: tmpfs package folder $GMS_PKG (label by $g_label)"
-    mkdir "$GMS_PKG/app_chimera" "$GMS_PKG/m" && : > "$GMS_PKG/$GMS_APK_NAME" &&
-        chmod 755 "$GMS_PKG/app_chimera" "$GMS_PKG/m" && chmod 644 "$GMS_PKG/$GMS_APK_NAME" ||
+    (cd "$GMS_PKG" && mkdir $GMS_SUB && chmod 755 $GMS_SUB) && : > "$GMS_PKG/$GMS_APK_NAME" &&
+        chmod 644 "$GMS_PKG/$GMS_APK_NAME" ||
         gms_refuse "could not fill $GMS_PKG"
     if [ "$g_label" = chcon ]; then
         $BB chcon -R u:object_r:system_file:s0 "$GMS_PKG" 2>/dev/null || gms_refuse "could not label $GMS_PKG system_file"
     fi
     $BB mount --bind "$GMS_APK_SRC" "$GMS_PKG/$GMS_APK_NAME" || gms_refuse "could not bind the GmsCore APK"
     echo "Google services: bound ${GMS_APK_SRC#$ROOTFS} -> $GMS_PKG/$GMS_APK_NAME"
-    for g_s in app_chimera m; do
+    for g_s in $GMS_SUB; do
         $BB mount --bind "$GMS_DIR/$g_s" "$GMS_PKG/$g_s" || gms_refuse "could not bind ${GMS_DIR#$ROOTFS}/$g_s"
         echo "Google services: bound ${GMS_DIR#$ROOTFS}/$g_s -> $GMS_PKG/$g_s"
     done
@@ -4249,9 +4470,11 @@ if [ "$GMS_WANT" = 1 ]; then
     # 5. Over the image's folder, recursively (the three binds come along).
     $BB mount --rbind "$GMS_PKG" "$GMS_DIR" || gms_refuse "could not bind $GMS_PKG over ${GMS_DIR#$ROOTFS}"
     $BB mount --make-rprivate "$GMS_DIR" 2>/dev/null || gms_refuse "could not make ${GMS_DIR#$ROOTFS} private"
-    [ "$(stat -c %s "$GMS_DIR/$GMS_APK_NAME" 2>/dev/null)" = "$(stat -c %s "$GMS_APK_SRC")" ] && [ -d "$GMS_DIR/app_chimera/m" ] ||
-        gms_refuse "${GMS_DIR#$ROOTFS} does not show the APK and app_chimera after the bind"
-    echo "Google services: bound $GMS_PKG -> ${GMS_DIR#$ROOTFS} ($GMS_APK_NAME, app_chimera, m)"
+    g_last=${GMS_SUB##* }
+    [ "$(stat -c %s "$GMS_DIR/$GMS_APK_NAME" 2>/dev/null)" = "$(stat -c %s "$GMS_APK_SRC")" ] &&
+        { [ "$g_last" != m ] || [ -d "$GMS_DIR/m" ]; } && { [ "${GMS_SUB# }" = m ] || [ -d "$GMS_DIR/app_chimera/m" ]; } ||
+        gms_refuse "${GMS_DIR#$ROOTFS} does not show the APK and its module folders after the bind"
+    echo "Google services: bound $GMS_PKG -> ${GMS_DIR#$ROOTFS} ($GMS_APK_NAME,$GMS_SUB)"
     # 6. The payload's own priv-app folder, hidden in each mount of the payload
     #    (each checked again to be the guest's loop device, as in 1).
     g_hid=0
@@ -4266,7 +4489,7 @@ if [ "$GMS_WANT" = 1 ]; then
     [ "$g_hid" -ge 1 ] || gms_refuse "no priv-app folder in ${GMS_APEX#$ROOTFS} to hide"
     rm -f "$STAGE/data/oneos_gms_present"
     echo "$GMS_APK_NAME $(stat -c %s "$GMS_DIR/$GMS_APK_NAME")" > "$STAGE/data/oneos_gms_present"
-    echo "Google services presented: /system/product/priv-app/PrebuiltGmsCore/$GMS_APK_NAME (Pixel's setup wizard runs until it is finished)"
+    echo "Google services presented: ${GMS_DIR#$GUEST_PRODUCT/}/$GMS_APK_NAME in /system/product (the image's setup wizard runs until it is finished)"
 fi
 # Google services in a global image (the Find X9 Ultra IN has Play services, the
 # Play Store and their setup/restore helpers in my_product/priv-app).
@@ -4671,4 +4894,16 @@ echo "One UI's partitions: no mount added by the setup"
 # Capture existing preferences before the first signed-launcher startup;
 # the bounded worker overlays only the pinned APKs after package scanning.
 STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" addons-prepare || exit 3
+# /system_ext's own mount (SEXT_MOUNT, top): the real folder with everything
+# mounted under it so far, so /system_ext/... is what the guest's zygote sees.
+if [ "$SEXT_MOUNT" = 1 ]; then
+    if $BB mount --rbind "$ROOTFS/system/system_ext" "$ROOTFS/system_ext" &&
+       $BB mount --make-rprivate "$ROOTFS/system_ext" 2>/dev/null &&
+       [ "$(stat -c %d:%i "$ROOTFS/system_ext/framework" 2>/dev/null)" = "$(stat -c %d:%i "$ROOTFS/system/system_ext/framework" 2>/dev/null)" ]; then
+        echo "/system_ext: bound to /system/system_ext (its own mount point for the guest)"
+    else
+        echo "ERROR: could not bind /system/system_ext onto /system_ext; not starting the guest"
+        exit 3
+    fi
+fi
 echo "=== ALL MOUNTS PREPARED SUCCESSFULLY ==="

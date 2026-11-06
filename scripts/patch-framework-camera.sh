@@ -38,6 +38,14 @@ SD=$(python3 -I "$ROOT/switcher/patches/guest_secims_members.py" "$WORK/fw")
 for d in $SD; do
     case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
 done
+# vivo OriginOS: its camera JSON cache without the 31 five-second waits for
+# vivo's own camera service (switcher/patches/vivo_guards.py framework; the
+# third OriginOS run's system_server was killed by its watchdog). Other
+# frameworks lack the class and nothing changes.
+VD=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" framework "$WORK/fw")
+for d in $VD; do
+    case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
+done
 if [ -z "$DIRS" ]; then
     rm -f "$OUT/framework_patched.jar"
     sed -i '/ framework_patched\.jar$/d' "$OUT/guards.txt" 2>/dev/null || true

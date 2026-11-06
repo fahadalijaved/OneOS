@@ -7,6 +7,10 @@
 # bends the Z Fold8 Ultra's layouts to a bar phone's screen) and no fix_rear_selfie.py (a Fold feature).
 set -e
 IMG="$1"; SET="$2"; W="$3"; OUT="$4"
+# Absolute: the steps below run in $W (a relative set dir found no *_payload.img there, so no APEX jars,
+# and the shims then tried to stand in for APEX classes' constructors: "extraneous input '<init>'").
+IMG=$(realpath "$IMG"); SET=$(realpath "$SET"); W=$(realpath -m "$W"); OUT=$(realpath -m "$OUT")
+ls "$SET"/*_payload.img >/dev/null 2>&1 || { echo "$SET has no *_payload.img (APEX jars)" >&2; exit 1; }
 C=${SAMCAM_CACHE:-/tmp/samcam}; R=/srv/projects/OneOS; HERE=$R/scripts/samsung-camera
 APKTOOL=$(ls $R/mysticgsi/tools/apktool/*.jar | head -1); BT=$(ls -d /opt/android-sdk/build-tools/* | sort | tail -1)
 mkdir -p "$W" "$OUT"; cd "$W"
@@ -22,6 +26,15 @@ for d in /system/framework /system_ext/framework /product/framework /system/syst
         debugfs -R "dump $d/$j $W/nt/$(echo $d | tr / _)_$j" "$IMG" 2>/dev/null; done
 done
 for d in /system/lib64 /system_ext/lib64 /system/system_ext/lib64; do debugfs -R "ls $d" "$IMG" 2>/dev/null | tr -s ' ' '\n' | grep '\.so$'; done | sort -u > guest_libs.txt
+# The jars on the guest's boot class path (its classpaths/bootclasspath.pb), as named in nt/: only these (and
+# the APEX jars) are classes the camera sees. A jar outside it can carry a stub or a private copy of a
+# platform class: HyperOS's miuix.jar has a member-less android.view.WindowInsetsAnimation$Callback and
+# xiaomi-telephony-common.jar its own org.tensorflow.lite, so scan.py thought their constructors missing and
+# the shims tried to replace them ("extraneous input '<init>'"). scan.py uses nt/.bcp.txt when it is there.
+for pb in /system/etc/classpaths/bootclasspath.pb /system_ext/etc/classpaths/bootclasspath.pb /system/system_ext/etc/classpaths/bootclasspath.pb; do
+    debugfs -R "dump $pb $W/bcp.pb" "$IMG" 2>/dev/null && strings -n 6 bcp.pb | grep -o '/[A-Za-z0-9_./-]*\.jar' | sed 's|^//*|/|' && rm -f bcp.pb
+done | sort -u | while read -r j; do echo "$(dirname "$j" | tr / _)_$(basename "$j")"; done > nt/.bcp.txt
+[ -s nt/.bcp.txt ] || rm -f nt/.bcp.txt
 fi
 for p in "$SET"/*_payload.img; do
     n=$(basename "$p" _payload.img)
@@ -59,6 +72,13 @@ done
 python3 -I "$HERE/fix_recorder_location.py" proj_SamsungCamera
 # 0.4.57: notification icons a guest's status bar can draw (the camera's are Samsung SPR vectors).
 python3 -I "$HERE/fix_notification_icon.py" proj_SamsungCamera >/dev/null
+# 0.4.59: videos kept on Stop (AOSP's recorder sends no track-started 905; the camera cancelled them).
+python3 -I "$HERE/fix_recorder_track_started.py" proj_SamsungCamera >/dev/null
+# 0.4.59: the thumbnail opens the guest's gallery when there is no Samsung Gallery.
+python3 -I "$HERE/fix_gallery_fallback.py" proj_SamsungCamera >/dev/null
+# 0.4.59: the recording timer (no 0x385 from AOSP's recorder), and media entries without Samsung's secmedia provider.
+python3 -I "$HERE/fix_recorder_progress.py" proj_SamsungCamera >/dev/null
+python3 -I "$HERE/fix_secmedia_insert.py" proj_SamsungCamera >/dev/null
 [ "${SAMCAM_BAR:-0}" = 1 ] || python3 -I "$HERE/fix_bar_width.py" proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o SamsungCamera-rw.apk proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o semextendedformat-rw.jar proj_semextendedformat

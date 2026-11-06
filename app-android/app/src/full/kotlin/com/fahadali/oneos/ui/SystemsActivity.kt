@@ -345,7 +345,7 @@ class SystemsFragment : Fragment() {
             if (label != null) {
                 when (plain.action) {
                     FixAction.CHOOSE_FILE -> b.setPositiveButton(label) { _, _ -> a.choose(cardId) }
-                    FixAction.DOWNLOAD_AGAIN -> (id.image ?: card)?.downloadUrl?.let { url ->
+                    FixAction.DOWNLOAD_AGAIN -> (id.image ?: card)?.mirrorUrl?.let { url ->
                         b.setPositiveButton(label) { _, _ -> SystemsNav.open(a, url) }
                     }
                     else -> Unit
@@ -583,7 +583,10 @@ class SystemsFragment : Fragment() {
         val primary = v.findViewById<Button>(R.id.systems_primary)
         v.findViewById<View>(R.id.systems_more).setOnClickListener { anchor ->
             androidx.appcompat.widget.PopupMenu(ctx, anchor).apply {
-                menu.add(R.string.systems_download).setOnMenuItemClickListener { image.downloadUrl?.let { url -> activity?.let { SystemsNav.open(it, url) } }; true }
+                menu.add(R.string.systems_download).setOnMenuItemClickListener { activity?.let { SystemsNav.open(it, image.mirrorUrl) }; true }
+                image.downloadUrl?.let { drive ->
+                    menu.add(R.string.systems_download_drive).setOnMenuItemClickListener { activity?.let { SystemsNav.open(it, drive) }; true }
+                }
                 menu.add(R.string.systems_have_file).setOnMenuItemClickListener { (activity as? SystemsActivity)?.choose(image.id); true }
                 menu.add(R.string.systems_phone_status).setOnMenuItemClickListener {
                     startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true)); true
@@ -670,7 +673,7 @@ class SystemsFragment : Fragment() {
                 else a.choose(image.id)
             }
             .setNegativeButton(R.string.setup_download_no) { _, _ ->
-                image.downloadUrl?.let { SystemsNav.open(a, it) }
+                SystemsNav.open(a, image.mirrorUrl)
             }
             .setNeutralButton(android.R.string.cancel, null).show()
     }

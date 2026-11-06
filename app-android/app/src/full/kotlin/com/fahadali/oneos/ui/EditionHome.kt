@@ -256,7 +256,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
             imageId = l.imageId,
             dryRun = l.dryRun,
             wallMs = l.wallMs,
-            over = l.rebootedSince(),
+            over = l.endedSince(),
             outcome = l.outcome?.let { o -> OutcomeKind.entries.firstOrNull { it.name == o } },
             afterSeconds = l.afterSeconds,
             seen = SessionPrefs.welcomeSeenFor(ctx, l.sessionId),

@@ -212,7 +212,27 @@ for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
 done
 [ -n "$COMPOSER_SVC" ] || COMPOSER_SVC=$(getprop | "$BB" sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | "$BB" grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer')
 echo "[Pivoted Root] Restarting the vendor display composer (${COMPOSER_SVC:-none found})..."
-[ -z "$COMPOSER_SVC" ] || setprop ctl.restart "$COMPOSER_SVC"
+# Stopped and started, not ctl.restart: init runs a service's onrestart
+# commands only when it restarts it, and the composer's "onrestart restart
+# surfaceflinger" brought One UI's surfaceflinger back. When that one
+# registered with the new composer before it was killed below, it took the
+# hotplug of every built-in panel but the primary: SDM creates and announces
+# a built-in display once, and the guest's SurfaceFlinger, registering later,
+# was only given the primary again (Z Fold7 report 1b88226a: "Builtin display
+# created ... client id 3" to the dead One UI surfaceflinger, BR_DEAD_REPLY;
+# no cover in the guest, so no fold layout, inner panel only, touch lost).
+# ONEOS_COMPOSER_RESTART=restart keeps ctl.restart.
+if [ -n "$COMPOSER_SVC" ]; then
+    if [ "${ONEOS_COMPOSER_RESTART:-stopstart}" = restart ]; then
+        setprop ctl.restart "$COMPOSER_SVC"
+    else
+        setprop ctl.stop "$COMPOSER_SVC"
+        n=0
+        while [ $n -lt 30 ] && [ "$(getprop init.svc.$COMPOSER_SVC)" != stopped ]; do n=$((n + 1)); sleep 0.1; done
+        echo "[Pivoted Root] Composer stopped after $((n * 100)) ms ($(getprop init.svc.$COMPOSER_SVC)); started again without its onrestart"
+        setprop ctl.start "$COMPOSER_SVC"
+    fi
+fi
 # With the gap splash, the black that is left is from here to the first boot
 # animation frame, and most of it was fixed sleeps. Run 33 (all.log): the
 # splash's surfaceflinger died 14:41:22.70, the new composer had registered
@@ -518,6 +538,12 @@ fi
 # and back to the top one (<= 120 Hz), which makes the composer program the
 # panel, and pinned at that top rate (a 60 Hz cover at 60: "60-120" was
 # refused there, Z Flip5). Displays not listed yet are left to the keeper.
+# A VRR panel lists modes whose vsync is above its peak (Z Fold8 Ultra: 240 Hz
+# vsync, 120 fps at most): such a mode counts as 120 and is pinned at
+# [120, 120], as up to 0.4.54. 0.4.55-0.4.58 skipped it ("no modes in the dump,
+# left alone"), so Pixel on the Fold dropped to 1 Hz whenever the screen was
+# still (session 9455098f: 27 times in 6 minutes, up to 4 s; freezes, flicker
+# on touch).
 cat > /data/oneos_sf_kick.sh <<'SFKICK'
 # OneOS (guest_start.sh): every physical display through another mode back to its top mode, pinned there.
 D=$(dumpsys SurfaceFlinger 2>/dev/null)
@@ -528,9 +554,10 @@ for id in $(dumpsys SurfaceFlinger --display-id 2>/dev/null | sed -n 's/^Display
         f && /^ *\{id=[0-9]+, hwcId=/ { m = $0; sub(/^ *\{id=/, "", m); sub(/,.*/, "", m)
             rr = $0; sub(/.*resolution=/, "", rr); sub(/,.*/, "", rr)
             v = $0; if (!sub(/.*vsyncRate=/, "", v)) v = 0; k++; id_[k] = m; res_[k] = rr; hz[k] = int(v + 0.5) }
-        END { b = -1; bv = 0; o = -1; ov = 0
-            for (i = 1; i <= k; i++) if (res_[i] == res && hz[i] <= 120 && hz[i] > bv) { bv = hz[i]; b = id_[i] }
-            for (i = 1; i <= k; i++) if (res_[i] == res && hz[i] != bv && hz[i] >= 48 && hz[i] > ov) { ov = hz[i]; o = id_[i] }
+        END { b = -1; bv = 0; bh = 0; o = -1; ov = 0
+            for (i = 1; i <= k; i++) if (res_[i] == res) { c = hz[i] > 120 ? 120 : hz[i]
+                if (c > bv || (c == bv && hz[i] < bh)) { bv = c; bh = hz[i]; b = id_[i] } }
+            for (i = 1; i <= k; i++) if (res_[i] == res && id_[i] != b && hz[i] != bv && hz[i] >= 48 && hz[i] > ov) { ov = hz[i]; o = id_[i] }
             if (b >= 0) print b, bv, o, ov }')
     set -- $sel
     [ $# = 4 ] || { echo "display $id: no modes in the dump, left alone"; continue; }
@@ -589,16 +616,23 @@ sleep 1
 BL=/sys/class/backlight/panel0-backlight; BL2=/sys/class/backlight/panel1-backlight
 [ -d "$BL" ] || { BL=/sys/class/backlight/panel; BL2=/sys/class/backlight/panel1; }
 echo "[Pivoted Root] Backlight: inner=$(cat $BL/brightness 2>/dev/null) cover=$(cat $BL2/brightness 2>/dev/null)"
-if [ -w "$BL/brightness" ]; then
+# A Fold switched while folded has the inner panel at 0 and the cover lit:
+# the cover is the one kept lit then (guest_props.sh puts the boot animation
+# there too), not the inner panel nobody can see.
+KBL=$BL; KNAME=inner
+if [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] && [ -w "$BL2/brightness" ] && [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ]; then
+    KBL=$BL2; KNAME=cover
+fi
+if [ -w "$KBL/brightness" ]; then
     $BB sh -c "
         i=0
         while [ \$i -lt 60 ]; do
             # ColorOS drives the panel itself once the UI activator ran.
             [ \"\$(getprop service.bootanim.exit)\" = 1 ] && break
-            if [ \"\$(cat $BL/brightness)\" = 0 ]; then
-                # 928: about 135 nits on this panel (max/4 was ~660 nits).
-                echo 928 > $BL/brightness
-                echo \"\$(date +%T) inner backlight was 0, set to \$(cat $BL/brightness)\"
+            if [ \"\$(cat $KBL/brightness)\" = 0 ]; then
+                # 928: about 135 nits on the inner panel (max/4 was ~660 nits).
+                echo 928 > $KBL/brightness
+                echo \"\$(date +%T) $KNAME backlight was 0, set to \$(cat $KBL/brightness)\"
             fi
             sleep 3; i=\$((i + 1))
         done
@@ -1207,6 +1241,26 @@ while [ $n -lt 25 ] && [ "$(dumpsys --pid idmap 2>/dev/null | tr -dc 0-9)" != "$
     n=$((n + 1)); sleep 0.2
 done
 echo "[Pivoted Root] idmap2d PID: $IDMAP_PID, servicemanager's idmap: $(dumpsys --pid idmap 2>/dev/null | tr -dc 0-9)"
+# The guest's own artd (guest_prepare.sh: its ART module is not One UI's).
+# artd is lazy: it exits when nothing holds it, so it runs again 0.2 s later,
+# before servicemanager would ask init for One UI's. The loop ends with the guest
+# (return_to_oneui.sh kills this namespace) or at /data/oneos_artd_stop.
+if [ -f /data/oneos_guest_artd ] && [ -x /apex/com.android.art/bin/artd ]; then
+    rm -f /data/oneos_artd_stop
+    $BB sh -c '
+        while [ ! -f /data/oneos_artd_stop ]; do
+            /apex/com.android.art/bin/artd
+            sleep 0.2
+        done' </dev/null >> /data/artd.log 2>&1 &
+    n=0
+    while [ $n -lt 25 ] && [ -z "$(dumpsys --pid artd 2>/dev/null | tr -dc 0-9)" ]; do
+        n=$((n + 1)); sleep 0.2
+    done
+    ARTD_PID=$(dumpsys --pid artd 2>/dev/null | tr -dc 0-9)
+    echo "[Pivoted Root] artd: the guest's (servicemanager's artd: ${ARTD_PID:-none yet}, $(readlink /proc/${ARTD_PID:-0}/exe 2>/dev/null || echo 'exe unknown'))"
+else
+    echo "[Pivoted Root] artd: One UI's (guest_prepare.sh chose it: the same ART module, or no guest ART payload)"
+fi
 if [ -f /data/guest_media.flag ]; then
     echo "[Pivoted Root] media.player: $(service check media.player 2>/dev/null | cut -d: -f2), media.resource_manager: $(service check media.resource_manager 2>/dev/null | cut -d: -f2)"
 fi
@@ -1286,5 +1340,249 @@ if [ -x /system_ext/bin/hyos_spawner ] && [ -x /data/socket_exec ]; then
     echo "[Pivoted Root] hyos_spawner PID: $! (socket /dev/socket/hyos_spawner)"
 fi
 
+# Samsung Camera's working folder /data/sec/camera for the camera's uid
+# (guest_prepare.sh makes it when the app's data folder is already there). On a
+# stage where the camera never ran, the guest's package manager makes that
+# folder during boot: the folder is made then, before anyone opens the camera.
+# Without it the camera's post-processing fails ("can't create secureDirectory")
+# and the picture is lost (0.4.58 report f794c15d). Five minutes at most.
+if [ -f /data/oneos_samcam ] && [ ! -L /data/sec ]; then
+    ONEOS_BB="$BB" $BB sh -c '
+        i=0
+        while [ $i -lt 300 ]; do
+            for d in /data/user/0/com.sec.android.app.camera /data/user_de/0/com.sec.android.app.camera; do
+                [ -d "$d" ] && [ ! -L "$d" ] || continue
+                u=$(stat -c %u "$d" 2>/dev/null)
+                [ -n "$u" ] && [ "$u" -ge 10000 ] || continue
+                if [ "$(stat -c %u /data/sec/camera 2>/dev/null)" = "$u" ]; then echo "$(date +%T) /data/sec/camera is already the camera uid $u"; exit 0; fi
+                [ -L /data/sec/camera ] && { echo "/data/sec/camera is a link: left alone"; exit 1; }
+                mkdir -p /data/sec/camera && chown 0:0 /data/sec && chmod 771 /data/sec &&
+                    chown "$u:$u" /data/sec/camera && chmod 2770 /data/sec/camera &&
+                    "$ONEOS_BB" chcon -R u:object_r:app_data_file:s0 /data/sec 2>/dev/null
+                echo "$(date +%T) /data/sec/camera made for the camera (uid $u, from $d)"
+                exit 0
+            done
+            i=$((i + 1)); sleep 1
+        done
+        echo "$(date +%T) no Samsung Camera data folder after 300 s: /data/sec/camera not made"
+    ' </dev/null >> /data/sec_camera.log 2>&1 &
+fi
+# What folding does, set as soon as the guest's settings provider answers. The
+# UI activator sets it too, but only once the UI is up: a Fold switched while
+# folded started Pixel in state 2 (open; the hinge sensor had not reported
+# yet), the first hinge event 4 s later folded it to state 0 with "sleep on
+# fold", and the screen went off at 02:19:55, eleven seconds before the
+# activator's setting (Z Fold8 Ultra, session 9455098f). Same values and rule
+# as the activator (a stage set to sleep is kept). Only the guest's own
+# provider is asked (its mount namespace is this one), each call bounded by
+# timeout: One UI's services are not to be called during the switch.
+if [ "$(cat /data/oneos_fold_mode 2>/dev/null)" = layout ] && [ "${ONEOS_GUEST_FOLD_CONTINUE:-1}" = 1 ]; then
+    if [ -e /system/framework/oplus-services.jar ]; then FOLDN=continue_using_apps_when_folded; FOLDV=1; else FOLDN=fold_lock_behavior_setting; FOLDV=stay_awake_on_fold_key; fi
+    $BB sh -c "
+        SELF=\$(readlink /proc/self/ns/mnt); i=0
+        while [ \$i -lt 200 ]; do
+            p=\$(timeout 2 dumpsys --pid settings 2>/dev/null | tr -dc 0-9)
+            if [ -n \"\$p\" ] && [ \"\$(readlink /proc/\$p/ns/mnt 2>/dev/null)\" = \"\$SELF\" ]; then
+                cur=\$(timeout 5 settings get system $FOLDN 2>/dev/null)
+                case \"$FOLDN:\$cur\" in
+                    continue_using_apps_when_folded:1|continue_using_apps_when_folded:2|fold_lock_behavior_setting:stay_awake_on_fold_key|fold_lock_behavior_setting:sleep_on_fold_key) ;;
+                    *) timeout 5 settings put system $FOLDN $FOLDV 2>/dev/null ;;
+                esac
+                echo \"\$(date +%T) $FOLDN: \$cur -> \$(timeout 5 settings get system $FOLDN 2>/dev/null) (the guest's settings provider, pid \$p)\"
+                exit 0
+            fi
+            i=\$((i + 1)); sleep 0.3
+        done
+        echo \"\$(date +%T) $FOLDN: the guest's settings provider did not answer in 60 s; the UI activator sets it\"
+    " </dev/null >> /data/fold_setting.log 2>&1 &
+    echo "[Pivoted Root] Fold behaviour: $FOLDN=$FOLDV as soon as the guest's settings provider answers (/data/fold_setting.log)"
+fi
+# Test build 8 had an event-driven keeper (inotifyd on the guest's opens and
+# closes, the touchscreens held all session): the guest never showed a close
+# there, so it armed late or not at all and double tap stopped working (owner,
+# 11-06 18:40). This is build 6's keeper, which worked, polling every 0.1 s
+# (was 0.25 s) to arm sooner after the screen goes dark.
+# Double tap to wake (Pixel on the Z Fold8 Ultra, 0.4.59 test: none). On a
+# Galaxy the touch IC sees the double tap itself, in its low-power mode, and
+# reports it as KEY_WAKEUP on the touchscreen's own input device. One UI puts it
+# there (its logcat and kernel log in One UI, 11-06): its input manager keeps
+# the touchscreen open and, through Samsung's sysinput HAL, writes the panel's
+# display state to /sys/class/sec/tspN/enabled, "1,0" then "1,1" as the panel
+# goes off (the IC enters low-power mode on the first) and "2,0" then "2,1" as
+# it comes on (it leaves it on the second), and set_fold_state,0|1 to
+# tspN/cmd on every fold. A guest does neither: its InputReader closes the
+# touchscreen while the panel is off, so the tap goes to nobody. This keeper
+# does One UI's part for the panel in use: when it goes off, it holds that
+# touchscreen open, writes "1,0" and "1,1", and on KEY_WAKEUP wakes the guest
+# (cmd input keyevent WAKEUP; not during a call, when the screen is off for the
+# proximity sensor); when the panel comes on, it writes "2,0" and "2,1" and
+# lets go. It writes "on" only to a touchscreen it put in low-power mode
+# (/data/oneos_dt2w_armed.<tsp>; the return does the same for one left so).
+# A panel is off when its DSI connector says dpms Off and its backlight is 0
+# (an AOD panel counts as on: no double tap on AOD yet); the fold state
+# follows the lit panel. From the end of the boot animation; ends with the
+# guest. ColorOS is left alone (double tap works there); ONEOS_GUEST_DT2W=0
+# turns it off, =1 on for every guest.
+DT2W=${ONEOS_GUEST_DT2W:-}
+if [ -z "$DT2W" ]; then
+    if [ -e /system/framework/oplus-services.jar ]; then DT2W=0; else DT2W=1; fi
+fi
+if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/sec/tsp/enabled ] || [ -w /sys/class/sec/tsp1/enabled ]; }; then
+    rm -f /data/oneos_dt2w_armed.* /data/oneos_dt2w_*.fifo /data/oneos_dt2w_aod*
+    ONEOS_BB="$BB" $BB sh -c '
+        BB=$ONEOS_BB
+        log() { echo "$(date +%T) $*"; }
+        i=0
+        while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
+        IDS=""
+        for t in tsp tsp1 tsp2; do
+            T=/sys/class/sec/$t
+            [ -w $T/enabled ] || continue
+            ev=""
+            for e in $T/input/event*; do [ -e "$e" ] && ev=${e##*/}; done
+            [ -n "$ev" ] && [ -c /dev/input/$ev ] || { log "$t: no input device under $T/input"; continue; }
+            # KEY_WAKEUP (143) among its keys: bit 15 of the third word from the end.
+            set -- $(cat $T/input/capabilities/key 2>/dev/null)
+            w=""; [ $# -ge 3 ] && eval w=\${$(($# - 2))}
+            w=0000$w; w=${w#${w%????}}
+            if [ $(( 0x$w & 0x8000 )) = 0 ]; then log "$t ($ev): no KEY_WAKEUP among its keys"; continue; fi
+            case $t in
+                tsp2) C=/sys/class/drm/card0-DSI-2/dpms; B=/sys/class/backlight/panel1-backlight; [ -e $B/brightness ] || B=/sys/class/backlight/panel1 ;;
+                *) C=/sys/class/drm/card0-DSI-1/dpms; B=/sys/class/backlight/panel0-backlight; [ -e $B/brightness ] || B=/sys/class/backlight/panel ;;
+            esac
+            [ -r $B/brightness ] || { log "$t ($ev): no backlight to follow ($B)"; continue; }
+            eval "EV_$t=$ev C_$t=$C B_$t=$B/brightness ON_$t=1 L_$t=1 GP_$t="
+            IDS="$IDS $t"
+            log "$t: $ev ($(cat $T/input/name 2>/dev/null)), panel $C=$(cat $C 2>/dev/null), $B=$(cat $B/brightness 2>/dev/null), enabled=$(cat $T/enabled 2>/dev/null)"
+        done
+        [ -n "$IDS" ] || { log "no touchscreen to keep: double tap left to the guest"; exit 0; }
+        FOLD=0; case "$IDS" in *tsp1*tsp2*) FOLD=1 ;; esac
+        lit() {
+            eval c=\$C_$1 b=\$B_$1
+            d=Off; [ -r "$c" ] && read -r d < "$c"
+            l=0; read -r l < "$b"
+            [ "$d" != Off ] || [ "$l" != 0 ]
+        }
+        F=""
+        for t in $IDS; do if lit $t; then eval ON_$t=1 L_$t=1; else eval ON_$t=0 L_$t=0; fi; done
+        [ $FOLD = 1 ] && { if [ $L_tsp1 = 1 ]; then F=0; elif [ $L_tsp2 = 1 ]; then F=1; fi; }
+        log "keeping:$IDS (fold $FOLD, folded ${F:-unknown}); panels lit:$(for t in $IDS; do eval echo -n \" $t=\$ON_$t\"; done)"
+        in_call() {
+            timeout 3 dumpsys telephony.registry 2>/dev/null | grep -q "mCallState=[12]"
+        }
+        # AOD (test build 9, 11-06 22:51-22:55: no double tap on AOD). Pixel
+        # SystemUI here has doze_display_state_supported=false (Pixel sets it in
+        # its vendor overlay), so DozeService asks for STATE_ON ("UpdateDoze
+        # mDozeScreenState=2"): the AOD panel stays dpms On at its lowest
+        # backlight, like a dim home screen, and only the guest knows it sleeps.
+        # Its Notifier logs power_screen_state [0,...] going to sleep and [1,...]
+        # waking; one blocked logcat keeps /data/oneos_dt2w_aod at 1 while the
+        # guest sleeps with AOD on (doze_always_on=1, read once per sleep), so a
+        # lit panel then gets low-power mode like a dark one. With AOD off a lit
+        # panel while asleep is a notification pulse and keeps its touch, as on a
+        # Pixel. Anything but 1 is no AOD: before the first event, after the
+        # reader ends, after a system_server start and after a double tap, so
+        # touch is never taken from an awake guest. ONEOS_GUEST_DT2W_AOD=0: off.
+        AF=/data/oneos_dt2w_aod
+        setaod() { echo $1 > $AF.n && $BB mv -f $AF.n $AF; }
+        setaod 0
+        if [ "${ONEOS_GUEST_DT2W_AOD:-1}" = 1 ]; then
+            ( n=0
+              while [ $n -lt 20 ]; do
+                  logcat -b events -v raw -s power_screen_state boot_progress_system_run -T "$(date +%s).000" 2>/dev/null |
+                      while read -r l; do
+                          case "$l" in
+                              "[0,"*) [ "$(timeout 3 settings get secure doze_always_on 2>/dev/null)" = 1 ] && setaod 1 ;;
+                              "[1,"*|[0-9]*) setaod 0 ;;
+                          esac
+                      done
+                  setaod 0
+                  n=$((n + 1))
+                  log "AOD: the reader of the guest sleep and wake events ended ($n): no AOD assumed"
+                  sleep 5
+              done
+              log "AOD: reader given up: no double tap on AOD this session" ) &
+        fi
+        arm() {
+            eval g=\$GP_$1
+            [ -z "$g" ] || return 0
+            T=/sys/class/sec/$1; eval ev=\$EV_$1
+            P=/data/oneos_dt2w_$1.fifo
+            rm -f $P; $BB mkfifo $P || { log "$1: no fifo"; return; }
+            getevent -l /dev/input/$ev > $P 2>/dev/null &
+            eval GP_$1=$!
+            ( while read -r a k v; do
+                  [ "$k" = KEY_WAKEUP ] && [ "$v" = DOWN ] || continue
+                  if in_call; then log "$1: double tap during a call: ignored"; continue; fi
+                  log "$1: double tap: waking the guest"
+                  timeout 5 cmd input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || log "$1: cmd input keyevent failed"
+                  setaod 0
+              done < $P ) &
+            sleep 0.05
+            if echo 1,0 > $T/enabled && echo 1,1 > $T/enabled; then
+                : > /data/oneos_dt2w_armed.$1
+                log "$1: $2: low-power mode (enabled=$(cat $T/enabled 2>/dev/null))"
+            else
+                log "$1: panel off, but $T/enabled refused 1,0: double tap left to the guest"
+                disarm $1
+            fi
+        }
+        disarm() {
+            eval g=\$GP_$1
+            [ -n "$g" ] && kill $g 2>/dev/null
+            eval GP_$1=
+            rm -f /data/oneos_dt2w_$1.fifo
+        }
+        wake_tsp() {
+            T=/sys/class/sec/$1
+            [ -f /data/oneos_dt2w_armed.$1 ] || { disarm $1; return; }
+            echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+            e=$(cat $T/enabled 2>/dev/null)
+            [ "$e" = 1 ] || { sleep 0.2; echo 2,0 > $T/enabled; echo 2,1 > $T/enabled; e=$(cat $T/enabled 2>/dev/null); }
+            rm -f /data/oneos_dt2w_armed.$1
+            disarm $1
+            log "$1: $2: enabled=$e"
+        }
+        while :; do
+            D=; read -r D < $AF 2>/dev/null; [ "$D" = 1 ] || D=0
+            CH=""; LC=""
+            for t in $IDS; do
+                if lit $t; then l=1; else l=0; fi
+                s=$l; [ $D = 1 ] && s=0
+                eval o=\$ON_$t ol=\$L_$t
+                [ $l = $ol ] || { eval L_$t=$l; LC=1; }
+                [ $s = $o ] && continue
+                eval ON_$t=$s
+                CH="$CH $t"
+            done
+            if [ -n "$LC" ] && [ $FOLD = 1 ]; then
+                n=$F
+                if [ $L_tsp1 = 1 ]; then n=0; elif [ $L_tsp2 = 1 ]; then n=1; fi
+                if [ "$n" != "$F" ]; then
+                    F=$n
+                    for t in tsp1 tsp2; do echo set_fold_state,$F > /sys/class/sec/$t/cmd 2>/dev/null; done
+                    log "folded=$F: set_fold_state,$F"
+                    # AOD moved to the other panel while asleep: arm the one now in use.
+                    for t in tsp1 tsp2; do eval s=\$ON_$t; [ $s = 0 ] && case " $CH " in *" $t "*) ;; *) CH="$CH $t" ;; esac; done
+                fi
+            fi
+            for t in $CH; do
+                eval s=\$ON_$t l=\$L_$t
+                if [ $s = 1 ]; then
+                    wake_tsp $t "panel on"
+                else
+                    if [ $l = 1 ]; then w="AOD (guest asleep, panel lit)"; else w="panel off"; fi
+                    a=1
+                    [ $FOLD = 1 ] && { [ $t = tsp1 ] && [ "$F" != 0 ] && a=0; [ $t = tsp2 ] && [ "$F" != 1 ] && a=0; }
+                    [ $a = 1 ] && arm $t "$w"
+                fi
+            done
+            sleep 0.1
+        done
+    ' </dev/null >> /data/dt2w.log 2>&1 &
+    echo "[Pivoted Root] Double tap to wake: kept from the end of the boot animation (/data/dt2w.log)"
+else
+    echo "[Pivoted Root] Double tap to wake: left to the guest (ONEOS_GUEST_DT2W=$DT2W, getevent $(command -v getevent >/dev/null 2>&1 && echo yes || echo no))"
+fi
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 exec /data/zygote_exec

@@ -224,7 +224,7 @@ class CompatEvaluatorTest {
         assertEquals(Level.BLOCK, eval(Fixtures.facts(storage = StorageInfo(need - 1, 512_000_000_000))).level("free-space-short"))
 
         assertEquals(10_276_003_840L + 11L * SpaceRule.GIB, SpaceRule.required())
-        assertEquals(14_669_168_640L + 618_644_076L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
+        assertEquals(14_669_168_640L + 618_665_111L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
     }
 
     @Test

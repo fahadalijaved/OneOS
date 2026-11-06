@@ -86,7 +86,7 @@ object Readiness {
             return
         }
         val launch = SessionPrefs.lastLaunch(app) ?: return
-        if (!launch.logsCollected && launch.rebootedSince() && logsTriedFor != launch.sessionId && check.phase == StageCheck.Phase.DONE) {
+        if (!launch.logsCollected && launch.endedSince() && logsTriedFor != launch.sessionId && check.phase == StageCheck.Phase.DONE) {
             logsTriedFor = launch.sessionId
             LogJob.start(app, auto = true)
         }

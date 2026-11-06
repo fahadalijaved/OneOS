@@ -116,6 +116,9 @@ Z Fold8 Ultra's, laid out for a foldable) in ColorOS, the Pixel systems, Infinit
 untested; Pixel, HyperOS and Nothing OS no longer run at 10-15 fps (the panel stayed at 24 Hz);
 Infinity-X gets Samsung IMS and the SMS centre fix; and the **Galaxy A16 4G (SM-A165F)**, untested.
 
+New in 0.4.59: **the Galaxy A35 5G and A54 5G** (Exynos 1380, One UI 9), untested, with the Galaxy
+A26's systems; and the A16 5G sold as SM-S166V.
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as

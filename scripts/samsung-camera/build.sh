@@ -94,6 +94,14 @@ for n in SamsungCamera semextendedformat secimaging; do
     [ -d "out/camera/dec_$n" ] && cp -r "out/camera/dec_$n/." "proj_$n/"
 done
 python3 -I "$HERE/fix_recorder_location.py" proj_SamsungCamera
+# 0.4.57: notification icons a guest's status bar can draw; 0.4.59: videos kept on Stop (no 905 from AOSP's recorder).
+python3 -I "$HERE/fix_notification_icon.py" proj_SamsungCamera >/dev/null
+python3 -I "$HERE/fix_recorder_track_started.py" proj_SamsungCamera >/dev/null
+# 0.4.59: the thumbnail opens the guest's gallery when there is no Samsung Gallery.
+python3 -I "$HERE/fix_gallery_fallback.py" proj_SamsungCamera >/dev/null
+# 0.4.59: the recording timer (no 0x385 from AOSP's recorder), and media entries without Samsung's secmedia provider.
+python3 -I "$HERE/fix_recorder_progress.py" proj_SamsungCamera >/dev/null
+python3 -I "$HERE/fix_secmedia_insert.py" proj_SamsungCamera >/dev/null
 python3 -I "$HERE/fix_bar_width.py" proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o SamsungCamera-rw.apk proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o semextendedformat-rw.jar proj_semextendedformat

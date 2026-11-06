@@ -21,6 +21,7 @@
     <string name="systems_badge_setting_up">Setting up</string>
     <string name="systems_use">Use this one</string>
     <string name="systems_download">Download</string>
+    <string name="systems_download_drive">Download from Google Drive</string>
     <string name="systems_have_file">I have the file</string>
     <string name="systems_set_up">Set up %1$s</string>
     <string name="systems_show_progress">Show progress</string>

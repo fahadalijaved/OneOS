@@ -8,6 +8,12 @@
 # libsurfaceflinger_patched.so: Xiaomi's SurfaceFlinger with the display mode group read 32-bit (patches/hyperos_sf_group.py; 0.4.37: S23, S24 Ultra, Z Flip5 black screen); 0.4.40: no Xring metadata query without its mapper (patches/hyperos_dolby_mapper.py; S24 Ultra, S23, A57 crash in DolbyRenderer)
 # r14 (0.4.55): services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms)
 # 0.4.57: framework_patched.jar + guest_secims_members.py (Samsung IMS crashed on SEM_INT, getGroupIdLevel2, isPsOnlyReg)
+# 0.4.59: telephony-common_patched.jar (guest_smsc_international.py + guest_sms_invalid_response.py on the image's jar); samcam.tar (Z Fold8 Ultra camera) and samcam_bar.tar (Galaxy S26 Ultra camera) built for this image
+# 0.4.59: samcam with fix_recorder_track_started.py (videos kept on Stop; AOSP's recorder sends no 905)
+# 0.4.59: samcam with fix_gallery_fallback.py (the thumbnail opens the guest's gallery)
+# 0.4.59: samcam with fix_recorder_progress.py and fix_secmedia_insert.py (recording timer; videos saved without secmedia)
+# 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
+# 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 66d0d1d64a97c73e80c4fb74eb413f26e5390092c6cd05692710e590fd392326  services_patched.jar
 bc275abc635c71d88df70be48e6fbe89d413b2685a88d6967f2ce26cd224086e  miui-services_patched.jar
 5e70dbe022ca34bca76c5da686d20263f527edea54e433ba0758d46462b8679b  apprecovery.proinstaller_patched.jar
@@ -18,3 +24,4 @@ dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
 282447b888645136c61cab74548e75fd5cec656636c8a16d57a47bcf21e04ff4  service.incremental_patched.so
 977059f2193c2d04987e4fd96be604a2a042aa207841ce3f31e63a3ac9b33e59  libcamera_client_patched.so
 469233dd74dd3083900d42c385c497f8db9e7c3756a191cb28ab8ca583583d29  libsurfaceflinger_patched.so
+5c6ab0096ec94cdbb20c40aec9b3fef91dd7c26e81537db7f8e540294656285c  telephony-common_patched.jar

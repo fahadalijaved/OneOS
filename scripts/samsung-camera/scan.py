@@ -93,6 +93,15 @@ def dexes_of(path):
 
 def load(paths):
     defs = {}
+    # A boot class path list next to the jars (build-cached.sh: nt/.bcp.txt): only its jars and the APEX jars
+    # define the guest's classes, boot class path first.
+    bcp = set()
+    for d in {os.path.dirname(p) for p in paths}:
+        f = os.path.join(d, ".bcp.txt")
+        if os.path.isfile(f):
+            bcp |= {l.strip() for l in open(f) if l.strip()}
+    if bcp:
+        paths = [p for p in paths if os.path.basename(p) in bcp] + [p for p in paths if os.path.basename(os.path.dirname(p)) == "apex"]
     for p in paths:
         try:
             for d in dexes_of(p):

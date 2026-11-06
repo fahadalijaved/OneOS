@@ -11,7 +11,9 @@ It carries the same differences, which an aarch64 build exposes as immediates:
     same file the Java patcher reads; Bp<Interface> = android.hardware.I<...>).
     A guest-only method (ColorOS's notifySmartWindowChange and
     notifyDisplayRotationChange, both void; 0.4.31: HyperOS's addFaceListener
-    and removeFaceListener, which return a result) goes to UNUSED_CODE, which
+    and removeFaceListener, which return a result; 0.4.59: vivo OriginOS's
+    oneway onFrozenPackage and setVersionName, whose Bp returns on a non-zero
+    transact status with `cbnz w0` before any reply read) goes to UNUSED_CODE, which
     One UI answers with "unknown transaction". The C++ Bp code checks that
     status and returns the error without reading a reply (unlike Java's
     Proxy, where pixel_camera_abi.py throws instead); any other one stops
@@ -43,9 +45,10 @@ import struct
 import sys
 
 UNUSED_CODE = 200
-GUEST_ONLY_VOID = {"notifySmartWindowChange", "notifyDisplayRotationChange"}
-# Guest-only methods with a result whose Bp returns transact's error status as it is (HyperOS).
-GUEST_ONLY_STATUS = {"addFaceListener", "removeFaceListener"}
+# Guest-only void or oneway methods (ColorOS; vivo's onFrozenPackage is oneway, flags 1).
+GUEST_ONLY_VOID = {"notifySmartWindowChange", "notifyDisplayRotationChange", "onFrozenPackage"}
+# Guest-only methods with a result whose Bp returns transact's error status as it is (HyperOS; vivo).
+GUEST_ONLY_STATUS = {"addFaceListener", "removeFaceListener", "setVersionName"}
 NOP = 0xD503201F
 # (interface, mangled namespace, Bp class, Bn class)
 AIDL = {

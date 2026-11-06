@@ -15,13 +15,15 @@ object ImageGuide {
         out.append("Generated from the app's phone list (`ImageGuide`); `ImageGuideTest` keeps it in step. ")
         out.append("Download only the `.gz` of a system your phone is listed under, then pick it in OneOS. ")
         out.append("OneOS checks the file's SHA-256 before it uses it.\n\n")
-        out.append("Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv\n")
+        out.append("Downloads: each system's own link below (the SourceForge mirror, resumable); all of them are also in ")
+            .append("the Google Drive folder ").append(Images.SHARED_FOLDER_URL).append("\n")
         for (image in images) {
             val phones = profiles.filter { it.enabled }.mapNotNull { p -> p.choice(image.id)?.let { p to it } }
             out.append("\n## ").append(image.label).append("\n\n")
             out.append("- File: `").append(image.gzName).append("` (")
                 .append(String.format(Locale.ROOT, "%.2f GB", image.gzBytes / 1e9)).append(")\n")
             out.append("- SHA-256: `").append(image.gzSha256).append("`\n")
+            out.append("- Download: ").append(image.mirrorUrl).append("\n")
             if (phones.isEmpty()) {
                 out.append("- Phones: none in this build\n")
                 continue

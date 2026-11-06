@@ -31,6 +31,20 @@ matched with any registers, so a build that allocates differently fails here
 instead of being half-patched; the inserted code uses only v0 and v1 before the
 method's first instruction, where neither holds anything yet.
 
+vivo's (OriginOS 17, X500 Pro Max CP2A.260605.016) adds three paths around the
+stock loop, each of which could hand out an id below 15000, so each is changed
+too (VIVO below, matched whole like LOOP):
+  - restoreAppIds(obj) first: an id remembered in mAppIdsMap, returned when it
+    is 1..19999. That map is never filled in this build (only cleared), but a
+    restored id is now taken only from 15000 up.
+  - on first boot, firstBoot(pkg) reserves index 0 and the MediaProvider package
+    gets app id 10000 outright (mFirstBoot, mMediaProviderName): One UI's range.
+    The branch is switched off (mFirstBoot read as false); MediaProvider gets an
+    id from the stock loop like any app (AOSP has no fixed MediaProvider uid,
+    and no other code in the image reads mIsAppIdGot or that name).
+  - when the list holds 10000 entries, it rescans from index 0 for a free slot
+    (ids from 10000): the rescan now starts at index 5000.
+
 Usage: guest_app_id_offset.py <smali root dir>
 Prints the smali_* directory (dex file) it changed.
 """
@@ -88,6 +102,76 @@ LOOP = re.compile("\n".join([
     rf"add-int/lit16 (?P<r2>{R}), (?P=size), 0x2710",
     r"return (?P=r2)",
 ]))
+# vivo's method (OriginOS 17): restoreAppIds, the first-boot MediaProvider id 10000,
+# the stock loop (with sub-int/2addr), then a rescan from index 0 when full.
+FB = re.escape(f"{CLS}->mFirstBoot:Z")
+GOT = re.escape(f"{CLS}->mIsAppIdGot:Z")
+VIVO = re.compile("\n".join([
+    re.escape("invoke-direct {p0, p1}, " + CLS + "->restoreAppIds(Lcom/android/server/pm/SettingBase;)I"),
+    rf"move-result (?P<ra>{R})",
+    r"(?P<restore_check>if-lez (?P=ra), (?P<nores>:\w+))",
+    rf"const/16 (?P<rb>{R}), 0x4e1f",
+    r"if-gt (?P=ra), (?P=rb), (?P=nores)",
+    r"return (?P=ra)",
+    r"(?P=nores)",
+    rf"(?P<first_boot>iget-boolean (?P<fb>{R}), p0, {FB})",
+    rf"const/16 (?P<ten>{R}), 0x2710",
+    r"if-eqz (?P=fb), (?P<stock>:\w+)",
+    rf"iget-boolean (?P<g>{R}), p0, {GOT}",
+    r"if-nez (?P=g), (?P=stock)",
+    rf"instance-of (?P<t>{R}), p1, Lcom/android/server/pm/PackageSetting;",
+    r"if-eqz (?P=t), (?P=stock)",
+    # MediaProvider's package name compared with mMediaProviderName, slot 0 taken.
+    r"(?:(?!return |:).*\n)*?"
+    rf"invoke-virtual \{{(?P<l9>{R}), (?P<zero>{R}), p1\}}, {W}->set\(ILjava/lang/Object;\)Ljava/lang/Object;",
+    r"return (?P=ten)",
+    r"(?P=stock)",
+    rf"iget-object (?P<l0>{R}), p0, {L}",
+    rf"invoke-virtual \{{(?P=l0)\}}, {W}->size\(\)I",
+    rf"move-result (?P<size>{R})",
+    rf"iget (?P<i>{R}), p0, {F}",
+    r"sub-int/2addr (?P=i), (?P=ten)",
+    r"(?P<loop>:\w+)",
+    r"if-ge (?P=i), (?P=size), (?P<full>:\w+)",
+    rf"iget-object (?P<l1>{R}), p0, {L}",
+    rf"invoke-virtual \{{(?P=l1), (?P=i)\}}, {W}->get\(I\)Ljava/lang/Object;",
+    rf"move-result-object (?P<o>{R})",
+    r"if-nez (?P=o), (?P<next>:\w+)",
+    rf"iget-object (?P<l2>{R}), p0, {L}",
+    rf"invoke-virtual \{{(?P=l2), (?P=i), p1\}}, {W}->set\(ILjava/lang/Object;\)Ljava/lang/Object;",
+    rf"add-int/lit16 (?P<r1>{R}), (?P=i), 0x2710",
+    r"return (?P=r1)",
+    r"(?P=next)",
+    r"add-int/lit8 (?P=i), (?P=i), 0x1",
+    r"goto(?:/16|/32)? (?P=loop)",
+    r"(?P=full)(?:\nnop)?",
+    rf"const/16 (?P<k>{R}), 0x270f",
+    r"if-le (?P=size), (?P=k), (?P<append>:\w+)",
+    rf"(?P<rescan_start>const/4 (?P<w>{R}), 0x0)",
+    r"(?P<wloop>:\w+)",
+    r"if-ge (?P=w), (?P=size), (?P<wfull>:\w+)",
+    rf"iget-object (?P<l4>{R}), p0, {L}",
+    rf"invoke-virtual \{{(?P=l4), (?P=w)\}}, {W}->get\(I\)Ljava/lang/Object;",
+    rf"move-result-object (?P<o2>{R})",
+    r"if-nez (?P=o2), (?P<wnext>:\w+)",
+    rf"iget-object (?P<l5>{R}), p0, {L}",
+    rf"invoke-virtual \{{(?P=l5), (?P=w), p1\}}, {W}->set\(ILjava/lang/Object;\)Ljava/lang/Object;",
+    # vivo's log line (VSlog.i), then the id.
+    r"(?:(?!return |:).*\n)*?"
+    rf"add-int/lit16 (?P<wr>{R}), (?P=w), 0x2710",
+    r"return (?P=wr)",
+    r"(?P=wnext)",
+    r"add-int/lit8 (?P=w), (?P=w), 0x1",
+    r"goto(?:/16|/32)? (?P=wloop)",
+    r"(?P=wfull)(?:\nnop)?",
+    rf"const/4 (?P<m>{R}), -0x1",
+    r"return (?P=m)",
+    r"(?P=append)",
+    rf"iget-object (?P<l3>{R}), p0, {L}",
+    rf"invoke-virtual \{{(?P=l3), p1\}}, {W}->add\(Ljava/lang/Object;\)Z",
+    rf"add-int/lit16 (?P<r2>{R}), (?P=size), 0x2710",
+    r"return (?P=r2)",
+]))
 DEBUG = (".line ", ".local ", ".end local ", ".restart local ", ".param ", ".end param", ".prologue")
 
 
@@ -122,6 +206,34 @@ def entry(lines, i):
         j += 1
 
 
+def vivo(lines, i, end, code, rel):
+    """vivo's three extra paths (module docstring), each changed at its one line."""
+    edits = {
+        code["restore_check"]: [
+            "# OneOS: a restored app id only from 15000 up (else the stock allocation).",
+            f"const/16 {code['rb']}, 0x3a97", "", f"if-le {code['ra']}, {code['rb']}, {code['nores']}"],
+        code["first_boot"]: [
+            "# OneOS: no first-boot MediaProvider app id 10000 (One UI's range); the stock loop gives it one.",
+            f"const/4 {code['fb']}, 0x0"],
+        code["rescan_start"]: [
+            "# OneOS: the rescan when full starts at index 5000 (app id 15000), not 0.",
+            f"const/16 {code['w']}, {hex(FIRST_INDEX)}"],
+    }
+    done = set()
+    for k in range(i + 2, end):
+        s = lines[k].strip()
+        if s in edits:
+            if s in done:
+                sys.exit(f"{rel}: vivo form: {s!r} twice; not patched")
+            ind = lines[k][:len(lines[k]) - len(lines[k].lstrip())]
+            lines[k:k + 1] = [ind + x if x else "" for x in edits[s]]
+            done.add(s)
+    if done != set(edits):
+        sys.exit(f"{rel}: vivo form: {sorted(set(edits) - done)} not found; not patched")
+    print(f"{rel}: vivo form: restored ids from 15000, no first-boot MediaProvider id 10000, "
+          "rescan from index 5000", file=sys.stderr)
+
+
 def main(root):
     hits = [os.path.join(d, f) for d, _, fs in os.walk(root) for f in fs
             if os.path.join(d, f).endswith(os.sep + SUFFIX)]
@@ -145,8 +257,11 @@ def main(root):
     end = lines.index(".end method", i)
     code = LOOP.fullmatch("\n".join(instructions(lines[i + 2:end])))
     if not code:
-        sys.exit(f"{rel}: acquireAndRegisterNewAppId is not the expected scan-then-append loop "
-                 "(index = mFirstAvailableAppId - 10000, bound 9999, -1 when full); not patched")
+        code = VIVO.fullmatch("\n".join(instructions(lines[i + 2:end])))
+        if not code:
+            sys.exit(f"{rel}: acquireAndRegisterNewAppId is not the expected scan-then-append loop "
+                     "(index = mFirstAvailableAppId - 10000, bound 9999, -1 when full), nor vivo's form; not patched")
+        vivo(lines, i, end, code, rel)
     print(f"{rel}: loop index {code['i']} from mFirstAvailableAppId, size {code['size']}, "
           f"returns {code['r1']} / {code['r2']} / -1 in {code['m']}", file=sys.stderr)
     j = entry(lines, i)

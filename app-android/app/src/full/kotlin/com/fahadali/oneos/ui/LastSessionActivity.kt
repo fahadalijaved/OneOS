@@ -37,10 +37,10 @@ class LastSessionActivity : ToolbarActivity() {
  * normally. The confirm is the same wherever it is asked.
  */
 internal object SessionRestore {
-    /** Not read yet, and the phone restarted since a session (not a test run). */
+    /** Not read yet, and a session (not a test run) has ended: the phone restarted or One UI came back in place. */
     fun maybe(ctx: Context): Boolean {
         val launch = SessionPrefs.lastLaunch(ctx)
-        return LogJob.state.status == null && launch != null && !launch.dryRun && launch.rebootedSince()
+        return LogJob.state.status == null && launch != null && !launch.dryRun && launch.endedSince()
     }
 
     fun offered(ctx: Context): Boolean = LogJob.state.status?.unfinishedSession == true || maybe(ctx)
@@ -88,7 +88,7 @@ class LastSessionFragment : CardsFragment() {
             launch == null -> getString(R.string.last_none)
             outcome != null -> outcome.title(system).let { if (it.endsWith('.')) it.dropLast(1) else it }
             test -> getString(R.string.last_dry)
-            launch.rebootedSince() -> getString(R.string.last_time_in, system)
+            launch.endedSince() -> getString(R.string.last_time_in, system)
             else -> getString(R.string.last_switched_to, system)
         }
         val summary = Cards.section(column, title, launch?.let { CardRows.dateTime(ctx, it.wallMs) }, Level.INFO)
@@ -104,7 +104,7 @@ class LastSessionFragment : CardsFragment() {
                 if (tiles.isNotEmpty()) CardRows.stats(summary, tiles)
             }
             outcome != null -> CardRows.text(summary, getString(R.string.last_test_line, system))
-            launch.rebootedSince() -> CardRows.text(summary, getString(R.string.last_rebooted_summary))
+            launch.endedSince() -> CardRows.text(summary, getString(R.string.last_rebooted_summary))
             else -> CardRows.text(summary, getString(R.string.last_not_rebooted_summary))
         }
 

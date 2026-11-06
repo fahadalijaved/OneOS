@@ -2,12 +2,13 @@
 
 Generated from the app's phone list (`ImageGuide`); `ImageGuideTest` keeps it in step. Download only the `.gz` of a system your phone is listed under, then pick it in OneOS. OneOS checks the file's SHA-256 before it uses it.
 
-Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv
+Downloads: each system's own link below (the SourceForge mirror, resumable); all of them are also in the Google Drive folder https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv
 
 ## ColorOS 17, Find N6 global build
 
 - File: `OneOS_ColorOS17_FindN6_Global.img.gz` (7.21 GB)
 - SHA-256: `b3061160ab3fdb37cd491e94c05e41238898320c1a5efb016debabc20991f3ee`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_ColorOS17_FindN6_Global.img.gz/download
 - Phones:
   - Z Fold (F8U) (SM-F976, SM8850)
   - Galaxy Z Fold7 (SM-F966, SM8750), not tested yet
@@ -19,6 +20,7 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
 
 - File: `OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz` (7.07 GB)
 - SHA-256: `c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz/download
 - Phones:
   - Galaxy S26 Ultra (SM-S948, SM8850)
   - Galaxy S25 Ultra (SM-S938, SM8750)
@@ -44,11 +46,15 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy S24 FE (SM-S721, s5e9945), not tested yet
   - Galaxy A26 (SM-A266, s5e8835), not tested yet
   - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
+  - Galaxy A35 5G (SM-A356, s5e8835), not tested yet
+  - Galaxy A54 5G (SM-A546, s5e8835), not tested yet
+  - Galaxy A27 (SM-A276, SM6475), not tested yet
 
 ## Pixel 11 Fold, yogi build
 
 - File: `OneOS_Pixel11Fold_Full_ZFold8.img.gz` (3.29 GB)
 - SHA-256: `8fbe950c47629c439af0807fc6bbb2afa29308c65c215849bcfa7a01f6b9290d`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_Pixel11Fold_Full_ZFold8.img.gz/download
 - Phones:
   - Z Fold (F8U) (SM-F976, SM8850)
   - Galaxy Z Fold8 (SM-F971, SM8850)
@@ -57,6 +63,7 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
 
 - File: `OneOS_Pixel11Pro_Full_S26U.img.gz` (3.27 GB)
 - SHA-256: `ee9b6005a086627220841618ea2edaa278c4e153460f7f947fc7fc9dea8d727c`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_Pixel11Pro_Full_S26U.img.gz/download
 - Phones:
   - Galaxy S26 Ultra (SM-S948, SM8850), not tested yet
   - Galaxy S26 (SM-S942, SM8850), not tested yet
@@ -70,6 +77,7 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
 
 - File: `OneOS_Pixel9ProXL_Full_S25U.img.gz` (2.93 GB)
 - SHA-256: `b49a3f8e8825241083d564c6e49118e59049f5bc887443e19411909e6d770266`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_Pixel9ProXL_Full_S25U.img.gz/download
 - Phones:
   - Galaxy S25 Ultra (SM-S938, SM8750), not tested yet
   - Galaxy S25 (SM-S931, SM8750), not tested yet
@@ -91,6 +99,7 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
 
 - File: `OneOS_InfinityX_FindX9Ultra.img.gz` (3.32 GB)
 - SHA-256: `608bb8602dcc0c85fc80127a2f9713a695508438b8c2d31eef3df25d23109bb5`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_InfinityX_FindX9Ultra.img.gz/download
 - Phones:
   - Z Fold (F8U) (SM-F976, SM8850), not tested yet
   - Galaxy S26 Ultra (SM-S948, SM8850)
@@ -125,11 +134,16 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy A16 5G (SM-A166, s5e8535), not tested yet
   - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
   - Galaxy A16 4G (SM-A165, MT6789), not tested yet
+  - Galaxy A16 5G (SM-S166V) (SM-S166, s5e8535), not tested yet
+  - Galaxy A35 5G (SM-A356, s5e8835), not tested yet
+  - Galaxy A54 5G (SM-A546, s5e8835), not tested yet
+  - Galaxy A27 (SM-A276, SM6475), not tested yet
 
 ## HyperOS, Xiaomi 18 Fold build
 
 - File: `OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz` (4.67 GB)
 - SHA-256: `745e43c2d116c4277af06b65c5d8fbaefec11731dcc23f0c067631fce04554a3`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz/download
 - Phones:
   - Z Fold (F8U) (SM-F976, SM8850), not tested yet
   - Galaxy S26 Ultra (SM-S948, SM8850), not tested yet
@@ -156,11 +170,13 @@ Downloads: https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNE
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S24 FE (SM-S721, s5e9945), not tested yet
   - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
+  - Galaxy A27 (SM-A276, SM6475), not tested yet
 
 ## Nothing OS 5.0, Metroid build
 
 - File: `OneOS_NothingOS5_Metroid.img.gz` (3.28 GB)
 - SHA-256: `3026923ea476e998fd1ae828f441937106ffbe8fbaf613a316bce444998997bd`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_NothingOS5_Metroid.img.gz/download
 - Phones:
   - Z Fold (F8U) (SM-F976, SM8850), not tested yet
   - Galaxy S26 Ultra (SM-S948, SM8850), not tested yet

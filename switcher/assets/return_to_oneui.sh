@@ -125,7 +125,7 @@ if [ -f "$S/boot_status.sh" ]; then
 fi
 
 # The call keepers' logs (guest_start.sh: call_audio.log, audio_keeper.log;
-# HyperOS: hyos_spawner.log)
+# HyperOS: hyos_spawner.log; the double-tap keeper: dt2w.log)
 # next to the session's logcat capture (oneos_switch.sh), first, before anything
 # is stopped and on both return paths. Run 44: both calls came after diag_90 and
 # the reboot return leaves no diag_final, so the per-call keeper lines were in
@@ -133,7 +133,7 @@ fi
 # can fail the return.
 LOGS=/data/local/tmp/oneos_logs
 if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
-    for f in call_audio.log audio_keeper.log oneos_a2dp.log hyos_spawner.log; do
+    for f in call_audio.log audio_keeper.log oneos_a2dp.log hyos_spawner.log dt2w.log; do
         [ -f "$S/data/$f" ] && [ ! -L "$S/data/$f" ] || continue
         rm -f "$LOGS/$f" 2>/dev/null
         cp "$S/data/$f" "$LOGS/$f" 2>/dev/null
@@ -177,13 +177,31 @@ if [ -n "$BB" ] && [ -n "$gp" ] && [ ! -L "$DR" ] && rm -rf "$DR" 2>/dev/null &&
     # dead guest, 16e735f2).
     gd location > "$DR/location.txt" 2>&1 &
     p4=$!
+    # Double tap to wake (Pixel on the Z Fold8 Ultra, 0.4.59 test: none). The
+    # guest's input devices (a touchscreen InputReader disables while its
+    # display is off) and what the touch ICs themselves logged in low-power
+    # mode over the session (their LP dump: the double taps they saw, if any).
+    gd input > "$DR/input.txt" 2>&1 &
+    p5=$!
+    # Hinge (same test: the inner screen came on only fully open, One UI's at
+    # half open): the guest's fold state and the hinge angles its sensor
+    # service last delivered (its recent-events list).
+    gd device_state > "$DR/device_state.txt" 2>&1 &
+    p6=$!
+    gd sensorservice | "$BB" grep -i -A 12 'hinge' > "$DR/sensor_hinge.txt" 2>&1 &
+    p7=$!
+    for t in /sys/class/sec/tsp*; do
+        [ -r "$t/get_lp_dump" ] || continue
+        echo "== $t (support_feature $(cat "$t/support_feature" 2>/dev/null))"
+        timeout 3 cat "$t/get_lp_dump" 2>&1
+    done > "$DR/tsp_lp_dump.txt" 2>&1
     { for k in bluetooth.sco.managed_by_audio persist.bluetooth.a2dp_offload.disabled ro.bluetooth.a2dp_offload.supported \
                persist.bluetooth.leaudio_offload.disabled ro.bluetooth.leaudio_offload.supported; do
           echo "$k=$(getprop "$k")"
       done
       echo "audio HAL pid: $(timeout 3 dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1)"
     } > "$DR/bt_props.txt" 2>&1
-    wait $p1 $p2 $p3 $p4 2>/dev/null
+    wait $p1 $p2 $p3 $p4 $p5 $p6 $p7 2>/dev/null
     echo "Guest Bluetooth, audio and location at the return (pid $gp's namespace): $(ls "$DR" 2>/dev/null | tr '\n' ' ')in $DR"
 else
     why="no guest surfaceflinger or system_server"
@@ -372,6 +390,21 @@ fi
 # OneOS: One UI Home's databases are no longer copied back here from
 # /data/local/tmp/lineage_backups (OneLineage's snapshot): that was the only
 # intended write into One UI's app data, and the switch no longer takes it.
+
+# A touchscreen the guest's double-tap keeper (guest_start.sh) left in
+# low-power mode (the guest ended with that panel off) comes back on, as the
+# keeper does when the panel lights: One UI writes its own display states once
+# it runs, but must not find its touchscreen asleep. Fixed names only.
+for t in tsp tsp1 tsp2; do
+    f=$S/data/oneos_dt2w_armed.$t
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    if [ -w /sys/class/sec/$t/enabled ]; then
+        echo 2,0 > /sys/class/sec/$t/enabled; echo 2,1 > /sys/class/sec/$t/enabled
+        echo "Touchscreen $t: back from the guest's double-tap low-power mode (enabled=$(cat /sys/class/sec/$t/enabled 2>/dev/null))"
+    fi
+    rm -f "$f"
+done
+rm -f /dev/oneos_dt2w_event* 2>/dev/null
 
 # One UI's protected state against the record the switch made (see
 # oneos_switch.sh): every guest process is gone by now. Logged only.
@@ -965,6 +998,15 @@ if [ -n "$v" ]; then "$RP" -n persist.sys.disable_rescue "$v" 2>/dev/null; else 
 # started 78 s after a return, and this stop ended its capture 40 s into it,
 # with no logcat of the session at all.
 if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
+    # The Play Store and Google sign-in lines of the session (store_watch.log,
+    # collected with the stage logs: installs, downloads, sign-in steps, Play
+    # Integrity requests; report 9455098f), taken once from this capture three
+    # minutes after the return, at the lowest priority, 2 MiB at most. Until
+    # test build 6 a logcat -e watch took them live at 65% of a core.
+    ONEOS_RE='IQ: Notifying installation update|IV2: (Rejecting|request install failure)|cannot process install request|Unauthenticated delivery|Cannot get valid account|Unauth not supported|No current account found|INSTALL_FAILED|installation completed for package|Commit of session|Download failed|DS: .*(error|fail)|setKeyAttestationCheckFailed|finishCalled for ControlledActivity, resultCode|AccountManager notifies account update|Device is now provisioned|requestExpressIntegrityToken|requestIntegrityToken|Integrity key attestation|no longer exists|account is null|Cached accounts updated|No account for auth token|IV2: Task Failed|Refreshing user settings' ONEOS_L="$LOGS" ONEOS_S="$S" "$BB" sh -c '
+        sleep 180
+        cd "$ONEOS_L" || exit 0
+        nice -n 19 grep -h -E -e "$ONEOS_RE" $(ls -tr boot.log* 2>/dev/null) 2>/dev/null | head -c 2097152 > "$ONEOS_S/store_watch.log"' </dev/null >/dev/null 2>&1 &
     STOP_TOKEN="$(date +%s).$$"
     echo "$STOP_TOKEN" > "$LOGS/logcat.stop" 2>/dev/null
     "$BB" sh -c "sleep 600; [ \"\$(cat $LOGS/logcat.stop 2>/dev/null)\" = $STOP_TOKEN ] || exit 0; rm -f $LOGS/logcat.stop; pkill -f '^logcat .*/data/local/tmp/oneos_logs/boot.log'" </dev/null >/dev/null 2>&1 &
