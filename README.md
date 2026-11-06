@@ -296,3 +296,9 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
 Not affiliated with Samsung, Google, OPPO, OnePlus or Project Infinity-X. Galaxy and One UI are
 trademarks of Samsung Electronics; Android and Pixel of Google LLC; ColorOS of
 OPPO.
+
+## Contributor patch channels
+
+Device-scoped experimental patch sources can be registered alongside the stable
+OneOS patches. See the [patch authoring and publishing guide](docs/fold8-patch-channels.md)
+for supported file schemas, source registration, build examples, testing and rollback.

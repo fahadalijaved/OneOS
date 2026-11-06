@@ -198,6 +198,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
         }
         val profile = report.profile ?: throw IllegalStateException("No profile.")
         val image = report.image ?: throw IllegalStateException("No image.")
+        PatchChannels.setFor(profile.id, image.id)?.let { PatchChannels.snapshot(app, it, profile.id) }
         val remembered = SessionPrefs.acks(app, profile.id, image.id)
         val all = ticked + remembered
         report.toTick.firstOrNull { it.tickKey !in all }?.let {

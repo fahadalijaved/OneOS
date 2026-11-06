@@ -10,8 +10,8 @@ fail() { echo "Fold8 ColorOS: $*" >&2; exit 3; }
 # n6-f8 is retired. Only where the patched SystemUI is staged.
 selected() {
     case "${ONEOS_PROFILE:-}" in f8|f8u) ;; *) return 1 ;; esac
-    grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" &&
-        grep -q -e '^  "set": "n6-f8",$' -e '^  "set": "n6-f8u",$' "$STAGE/.oneos_stage" &&
+    grep -Eq '^  "image": "coloros17-findn6(-global)?",$' "$STAGE/.oneos_stage" &&
+        grep -Eq '^  "set": "(n6-f8|n6-f8u|n6-global-f8)",$' "$STAGE/.oneos_stage" &&
         [ -f "$STAGE/Fold8SystemUI.apk" ] && [ ! -L "$STAGE/Fold8SystemUI.apk" ]
 }
 # Reject links anywhere below the new folder, including a guest-planted link
@@ -192,14 +192,26 @@ addons-prepare|addons-worker|addons-verify)
     selected || exit 0
     # Locally retained optional APKs: absent on stock stages. Never trust a
     # manifest supplied by guest data; this exact accepted bundle is pinned.
-    [ -d "$STAGE/verified_addons" ] || exit 0
+    ADDON_DIR="$STAGE/verified_addons"
     OVERLAY_MANIFEST_SHA256=dc070965265f33c3b8c6825b0bd3ffae2877f847a4de41b39d24594ae9d748fc
+    if grep -q '"set": "n6-global-f8"' "$STAGE/.oneos_stage"; then
+        ADDON_DIR="$STAGE/global_verified_addons"
+        expected_archive=$(awk '$2 == "GlobalVerifiedAddons.tar" { print $1 }' "$STAGE/files.sha256")
+        [ "${#expected_archive}" = 64 ] || fail 'global addon archive is not staged'
+        [ "$(sha256sum "$STAGE/GlobalVerifiedAddons.tar" | cut -d' ' -f1)" = "$expected_archive" ] || fail 'global addon archive differs'
+        plain_tree "$ADDON_DIR"
+        mkdir -p "$ADDON_DIR"
+        "$BB" tar -xf "$STAGE/GlobalVerifiedAddons.tar" -C "$ADDON_DIR"
+        [ -s "$ADDON_DIR/overlays.list" ] || exit 0
+        OVERLAY_MANIFEST_SHA256=$(sha256sum "$ADDON_DIR/overlays.list" | cut -d' ' -f1)
+    fi
+    [ -d "$ADDON_DIR" ] || exit 0
     export OVERLAY_MANIFEST_SHA256
     set -- "${1#addons-}"
 stopped=
 trap 'for stopped_pid in $stopped; do kill -CONT "$stopped_pid" 2>/dev/null || true; done' EXIT
 : "${STAGE:?}" "${BB:?}"
-DIR="$STAGE/verified_addons"
+DIR="$ADDON_DIR"
 [ ! -L "$DIR" ] && [ -d "$DIR" ] || exit 3
 [ -z "$(find "$DIR" -type l -print -quit)" ] || exit 3
 : "${OVERLAY_MANIFEST_SHA256:?Expected manifest digest is required}"
@@ -259,11 +271,21 @@ for attempt in $(seq 1 150); do
 done
 [ "$ready" = 1 ] || { echo 'verified overlays: no guest launcher within 300s; originals retained'; exit 1; }
 verify
+# Keep package operations in system_server's stable namespace while patched
+# apps restart; a launcher PID becomes stale after applying its own overlay.
+server=$(pidof system_server | cut -d' ' -f1)
+[ -n "$server" ] && [ "$(stat -Lc '%d:%i' /proc/$server/root/data)" = "$(stat -Lc '%d:%i' "$STAGE/data")" ] || exit 3
+launcher=$server
 cache="$STAGE/data/local/tmp/oneos_verified_overlays"
 safe_data_path "$cache" || exit 3
 mkdir -p "$cache"
 chmod 700 "$cache"
 while read -r package original patched file; do
+    if grep -q '"set": "n6-global-f8"' "$STAGE/.oneos_stage"; then
+        case "$package" in com.android.launcher|com.android.systemui|com.oplus.wallpapers) ;;
+            *) echo "verified overlays: global firmware keeps bundled $package"; continue ;;
+        esac
+    fi
     target=$(guest "$launcher" /system/bin/pm path "$package" | sed -n 's/^package://p' | head -1)
     case "$target" in /data/app/*/base.apk|/system/*/*.apk|/my_stock/*/*.apk) ;; *) echo "verified overlays: $package has no supported APK path; skipped"; continue ;; esac
     current=$(sha256sum "/proc/$launcher/root$target" | cut -d' ' -f1)
@@ -323,7 +345,7 @@ prepare)
     ROOTFS="$STAGE/rootfs"
     # Official global Photos must replace the donor directory before package
     # scanning, otherwise duplicate permissions keep the donor active.
-    if [ -f "$STAGE/verified_addons/PhotosGlobal.apk" ]; then
+    if ! grep -q '"set": "n6-global-f8"' "$STAGE/.oneos_stage" && [ -f "$STAGE/verified_addons/PhotosGlobal.apk" ]; then
         plain_tree "$STAGE/verified_addons"
 SOURCE="$STAGE/verified_addons/PhotosGlobal.apk"
 TARGET="$ROOTFS/my_stock/priv-app/OppoGallery2"

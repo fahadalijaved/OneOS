@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "stable": {
+    "versionCode": 75,
+    "versionName": "0.4.58"
+  },
+  "contributors": [
+    {
+      "id": "that-josh-guy",
+      "label": "That Josh Guy's patches (Experimental)",
+      "repository": "thatjoshguy67/OneOS-files",
+      "tag": "fold8-experimental",
+      "targets": [
+        {
+          "profile": "f8",
+          "image": "coloros17-findn6",
+          "set": "n6-global-f8",
+          "imageSha256": "eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c"
+        },
+        {
+          "profile": "f8",
+          "image": "pixel11fold-yogi",
+          "set": "pixel-f8",
+          "imageSha256": "8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830"
+        }
+      ]
+    }
+  ]
+}

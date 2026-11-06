@@ -232,7 +232,7 @@ profile_set() {
         "f7 coloros17-findn6") echo n6-f8u ;;
         "s-plus-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "f8 coloros17-findn6") echo n6-f8u ;;
+        "f8 coloros17-findn6") echo n6-global-f8 ;;
         "f8 pixel11fold-yogi") echo pixel-f8 ;;
         "s-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8850 pixel11pro-kodiak") echo pixel-sultra ;;
@@ -356,6 +356,7 @@ image_raw() {
 
 set_files() {
     case "$1" in
+        n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk GlobalVerifiedAddons.tar" ;;
         n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk" ;;
         x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
@@ -372,6 +373,7 @@ set_files() {
 # <set>: the image it was built from (scripts/make-overlays.sh, PackageSet.imageId).
 set_image() {
     case "$1" in
+        n6-global-f8) echo coloros17-findn6 ;;
         n6-f8u) echo coloros17-findn6 ;;
         x9u-in-sultra) echo coloros17-findx9u-in ;;
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;

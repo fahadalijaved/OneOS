@@ -1,0 +1,13 @@
+<resources>
+    <string name="patch_channel_title">%1$s patch channel</string>
+    <string name="patch_channel_stable">OneOS patches (Stable)</string>
+    <string name="patch_channel_experimental">That Josh Guy\'s patches (Experimental)</string>
+    <string name="patch_channel_summary">Choose patches for this system. Apply changes with Update before booting.</string>
+    <string name="patch_channel_checking">Checking patch updates…</string>
+    <string name="patch_channel_refresh">Check for patch updates</string>
+    <string name="patch_channel_failed">Couldn’t load patches</string>
+    <string name="patch_channel_stable_version">OneOS %1$s</string>
+    <string name="patch_channel_stable_current">Stable patches are current for OneOS %1$s.</string>
+    <string name="patch_channel_stable_newer">OneOS %1$s is available. Stable patches are distributed with the official OneOS release; updating the app is required to use its new patch list.</string>
+    <string name="patch_channel_checked">Experimental patches checked. Apply any changes with Update before booting.</string>
+</resources>

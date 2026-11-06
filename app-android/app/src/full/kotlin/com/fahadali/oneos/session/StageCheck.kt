@@ -201,9 +201,10 @@ object StageCheck : BackgroundJob<StageCheck.State>(State(), "oneos-check") {
         val profile = Profiles.resolve(facts).profile
         val st = r.status
         val launch = SessionPrefs.lastLaunch(app)
-        val expected = st.staged(profile)?.second?.let { set ->
-            runCatching { AppAssets.expectedStageHashes(app, set) }.getOrNull()
-        }.orEmpty()
+        val expectedResult = runCatching {
+            st.staged(profile)?.second?.let { AppAssets.expectedStageHashes(app, it, profile!!.id) }.orEmpty()
+        }
+        val expected = expectedResult.getOrDefault(emptyMap())
         val input = GateInput(
             facts = facts,
             screenLockSet = screenLock,
@@ -219,6 +220,9 @@ object StageCheck : BackgroundJob<StageCheck.State>(State(), "oneos-check") {
             uncollectedLogs = launch != null && !launch.logsCollected && launch.endedSince(),
             series = ApkSeries.byId(BuildConfig.SERIES),
         )
-        return SwitchGates.evaluate(phase, input)
+        val report = SwitchGates.evaluate(phase, input)
+        return if (phase == GatePhase.SWITCH && expectedResult.isFailure) report.copy(gates = report.gates +
+            com.fahadali.oneos.core.model.Gate(Finding("patch-channel", Level.BLOCK, "Patch channel needs checking",
+                "Open this system’s patch channel and check for updates, or select Stable."))) else report
     }
 }

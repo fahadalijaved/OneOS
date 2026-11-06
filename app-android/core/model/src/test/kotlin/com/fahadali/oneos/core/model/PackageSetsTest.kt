@@ -17,6 +17,18 @@ class PackageSetsTest {
 
     private fun guards(set: PackageSet) = Bundles.text("packages/${set.id}.guards.txt")
 
+    @Test fun fold8StableInheritsEverySharedPayloadAndGuard() {
+        val custom = PackageSets.N6_GLOBAL_F8
+        assertEquals(n6.files + PackageFile("GlobalVerifiedAddons.tar", FileRole.GUEST_FIX), custom.files)
+        assertEquals(guards(n6), guards(custom))
+        val sharedHashes = ShaList.parse(shas(n6)).entries
+        val customHashes = ShaList.parse(shas(custom)).entries
+        assertEquals(emptySet<String>(), sharedHashes.keys.filter {
+            sharedHashes[it] != customHashes[it]
+        }.toSet())
+        assertEquals(setOf("GlobalVerifiedAddons.tar"), customHashes.keys - sharedHashes.keys)
+    }
+
     /** The 15 APEX payloads every set carries. */
     private val commonPayloads = listOf(
         "art", "i18n", "runtime", "sdkext", "crashrecovery", "extservices", "permission", "wifi",
@@ -35,7 +47,7 @@ class PackageSetsTest {
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
         assertEquals("out/overlays_pixel_f8u_r15", pixel.sourceDir)
         assertEquals(
-            listOf(n6, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
+            listOf(PackageSets.N6_GLOBAL_F8, n6, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
                 PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U),
             PackageSets.ALL,
         )

@@ -253,6 +253,17 @@ object PackageSets {
         hasReturnApp = true,
     )
 
+    /** The upstream Find N6 set plus a no-op addon slot for opt-in contributor overlays. */
+    val N6_GLOBAL_F8 = PackageSet(
+        id = "n6-global-f8",
+        imageId = Images.ID_FIND_N6,
+        sourceDir = "out/fold8-global-current",
+        files = N6_F8U.files + PackageFile("GlobalVerifiedAddons.tar", FileRole.GUEST_FIX),
+        omitted = listOf(TETHERING, "OneOSFoldCutout.apk", "OneOSTabletQs.apk"),
+        approxBytes = 1_500_000_000L,
+        hasReturnApp = true,
+    )
+
     /**
      * Find X9 Ultra IN image, the bar phones (0.4.11): the CN set's files and its cell broadcast module;
      * 0.4.37 One UI's camera transaction codes (framework_patched.jar, libcamera_client_patched.so): ColorOS's
@@ -601,7 +612,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

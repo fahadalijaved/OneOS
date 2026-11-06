@@ -41,6 +41,7 @@ if (testPackagesDir != null) {
 // One UI" app; the ColorOS sets since their 2026-10-25 rebuild), and
 // guest_prepare.sh puts it in the guest's /oem/app.
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
+    "n6-global-f8" to (File(repoRoot, "out/fold8-global-current") to listOf("tethering_payload.img", "OneOSFoldCutout.apk", "OneOSTabletQs.apk")),
     // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
     "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r14") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
@@ -83,7 +84,7 @@ val packSetsInApk: Boolean = (findProperty("oneos.packSets") as String?)?.trim()
 val setRemoteIds: Map<String, String> = File(packagesDir, "remote.txt").takeIf { it.isFile }?.readLines()
     ?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
     ?.associate { l ->
-        val src = "(gh:[a-z0-9][a-z0-9.-]{0,39}|[A-Za-z0-9_-]{20,80})"
+        val src = "(gh:(?:[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+:)?[a-z0-9][a-z0-9.-]{0,39}|[A-Za-z0-9_-]{20,80})"
         val m = Regex("^([0-9a-f]{64}) ($src(,$src){0,15})$").matchEntire(l)
             ?: throw GradleException("packages/remote.txt: not a '<sha256> <source>[,<source>...]' line: $l")
         m.groupValues[1] to m.groupValues[2]
@@ -224,6 +225,14 @@ abstract class OneOsFilesTask : DefaultTask() {
         val remote = sortedMapOf<String, String>()
         val ids = remoteIds.get()
         val pack = packSets.get()
+        val publishedSizes = File(packages.get().asFile, "sizes.txt").takeIf { it.isFile }?.readLines()
+            ?.filter { it.isNotBlank() && !it.startsWith("#") }?.associate { line ->
+                val parts = line.split(' ')
+                require(parts.size == 2 && Regex("[0-9a-f]{64}").matches(parts[0])) { "invalid published size: $line" }
+                val bytes = parts[1].toLong()
+                require(bytes in 1..receiveMax) { "invalid published size: $line" }
+                parts[0] to bytes
+            } ?: emptyMap()
         fun put(src: File, sum: String) {
             val dst = File(files, sum)
             if (!dst.exists()) src.copyTo(dst)
@@ -242,13 +251,20 @@ abstract class OneOsFilesTask : DefaultTask() {
             val omitted = spec.substringAfter('|').split(',').filter { it.isNotBlank() }.toSet()
             val listFile = File(packages.get().asFile, "$id.sha256")
             if (!listFile.isFile) throw GradleException("$id: app-android/packages/$id.sha256 is missing")
-            if (!dir.isDirectory) throw GradleException("$id: $dir is missing (build the overlays on the server first)")
+            if (pack && !dir.isDirectory) throw GradleException("$id: $dir is missing (build the overlays on the server first)")
             val want = list(listFile)
-            val present = dir.listFiles()!!.filter { it.isFile }.map { it.name }.toSet()
+            val present = (dir.listFiles()?.toList() ?: emptyList()).filter { it.isFile }.map { it.name }.toSet()
             val problems = mutableListOf<String>()
             for (n in present - want.keys - omitted) problems += "$n is in $dir but not in packages/$id.sha256"
             for ((n, sum) in want) {
                 val f = File(dir, n)
+                val publishedBytes = publishedSizes[sum]
+                // Remote files are pinned by the set manifest; no OEM build folder is needed.
+                if (!pack && n !in omitted && ids[sum] != null && publishedBytes != null) {
+                    sizes[sum] = publishedBytes
+                    remote[sum] = ids.getValue(sum)
+                    continue
+                }
                 when {
                     n in omitted -> problems += "$n is listed but left out of $id"
                     !f.isFile -> problems += "$n is missing from $dir"
@@ -274,6 +290,34 @@ abstract class OneOsFilesTask : DefaultTask() {
         File(setsDir, "scripts.sha256").writeText(render(scriptSums))
         File(files, "index.txt").writeText(sizes.entries.joinToString("") { "${it.key} ${it.value}\n" })
         File(files, "remote.txt").writeText(remote.entries.joinToString("") { "${it.key} ${it.value}\n" })
+        val registryFile = File(packages.get().asFile, "patch-sources.json")
+        val registry = groovy.json.JsonSlurper().parse(registryFile) as Map<*, *>
+        require(registry["schema"] == 1) { "Unsupported patch source registry" }
+        val contributors = registry["contributors"] as List<*>
+        val sourceIds = mutableSetOf<String>()
+        val rootTable = File(packages.get().asFile, "../app/src/full/assets/root/oneos_root.sh").readText()
+        val pairs = Regex("\"([a-z0-9-]+) ([a-z0-9-]+)\"\\) echo ([a-z0-9-]+) ;;")
+            .findAll(rootTable).map { it.groupValues.drop(1) }.toSet()
+        val imageHashes = Regex("""^\s+([a-z0-9-]+)\) echo "[0-9]+ ([0-9a-f]{64})" ;;$""", RegexOption.MULTILINE)
+            .findAll(rootTable).associate { it.groupValues[1] to it.groupValues[2] }
+        for (item in contributors) {
+            val source = item as Map<*, *>
+            val id = source["id"] as String
+            require(id != "oneos" && Regex("[a-z0-9][a-z0-9-]{0,39}").matches(id) && sourceIds.add(id)) { "Invalid/duplicate contributor id: $id" }
+            require((source["label"] as String).let { it.isNotBlank() && it.length <= 100 })
+            require(Regex("[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*").matches(source["repository"] as String))
+            require(Regex("[a-z0-9][a-z0-9.-]{0,39}").matches(source["tag"] as String))
+            val targets = source["targets"] as List<*>
+            require(targets.isNotEmpty() && targets.distinct().size == targets.size)
+            for (value in targets) {
+                val target = value as Map<*, *>
+                require(listOf(target["profile"], target["image"], target["set"]) in pairs) { "Unsupported patch target: $target" }
+                val image = target["image"] as String
+                val hash = target["imageSha256"] as String
+                require(Regex("[0-9a-f]{64}").matches(hash) && imageHashes[image] == hash) { "Patch target image hash differs from this app" }
+            }
+        }
+        File(out, "oneos/patch-sources.json").writeBytes(registryFile.readBytes())
     }
 }
 
@@ -282,6 +326,7 @@ val oneosFiles = tasks.register<OneOsFilesTask>("oneosFiles") {
     description = "Packs the OneOS package sets and session scripts into the APK's assets, checked against app-android/packages."
     for ((dir, _) in packageSets.filterKeys { it in packedSets }.values) sources.from(fileTree(dir))
     for (f in sessionScripts.values) sources.from(f)
+    sources.from(rootScript)
     sources.from(fileTree(File(repoRoot, "switcher/assets")))
     sets.set(packageSets.filterKeys { it in packedSets }.mapValues { (_, v) -> "${v.first.path}|${v.second.joinToString(",")}" })
     scripts.set(sessionScripts.mapValues { it.value.path })
