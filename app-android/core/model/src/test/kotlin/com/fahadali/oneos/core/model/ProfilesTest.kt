@@ -107,7 +107,7 @@ class ProfilesTest {
         // 0.4.38: the Find N6 global image with the Folds' set (n6-f8 of pull request #1 was the CN build's).
         assertEquals(
             listOf(
-                ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false),
+                ImageChoice(Images.ID_FIND_N6, PackageSets.N6_GLOBAL_F8.id, tested = false),
                 ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
                 ifx,
                 hyper,

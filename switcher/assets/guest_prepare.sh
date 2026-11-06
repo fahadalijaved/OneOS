@@ -2723,7 +2723,7 @@ FOLD8_COLOR_HINGE=0
 # The Z Fold8 Ultra (n6-f8u) has the same lid states (0 CLOSE, 3 OPEN) and the
 # same sensor ("Folding Angle  Non-wakeup", 65686, read on SM-F976B 2026-10-26).
 if grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" &&
-        { { [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q -e '^  "set": "n6-f8",$' -e '^  "set": "n6-f8u",$' "$STAGE/.oneos_stage"; } ||
+        { { [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q -e '^  "set": "n6-f8",$' -e '^  "set": "n6-f8u",$' -e '^  "set": "n6-global-f8",$' "$STAGE/.oneos_stage"; } ||
           { [ "${ONEOS_PROFILE:-}" = f8u ] && grep -q '^  "set": "n6-f8u",$' "$STAGE/.oneos_stage"; }; }; then
     DS_DEFAULT=fold8-hinge
     FOLD8_COLOR_HINGE=1

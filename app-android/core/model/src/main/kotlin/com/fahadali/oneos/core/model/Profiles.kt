@@ -376,7 +376,7 @@ object Profiles {
         // 0.4.38: the Find N6 global image with the Z Folds' set (n6-f8 of 0.4.14,
         // pull request #1, patched the CN build's SystemUI); not run here yet.
         choices = listOf(
-            ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false),
+            ImageChoice(Images.ID_FIND_N6, PackageSets.N6_GLOBAL_F8.id, tested = false),
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
             INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
         ),

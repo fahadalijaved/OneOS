@@ -329,7 +329,11 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         val set = report.set?.takeIf { it.imageId == image.id && profile.choice(image.id)?.packageSetId == it.id }
             ?: throw Stop("No file set for the ${image.shortName} image on the ${profile.label}.")
         val derivation = check.installd ?: throw Stop("installd table not derived")
-        val files = AppAssets.files(app, set)
+        if (!PatchChannels.selected(app, profile.id, image.id).stable) {
+            detail("Checking experimental patch updates…")
+            PatchChannels.refresh(app, set, profile.id)
+        }
+        val files = AppAssets.files(app, set, profile.id)
         val code = BuildConfig.VERSION_CODE.toString()
         val filesBytes = files.sumOf { it.bytes }
         update(state.copy(bytesTotal = base + (if (onPhone) 0L else image.gzBytes) + filesBytes))

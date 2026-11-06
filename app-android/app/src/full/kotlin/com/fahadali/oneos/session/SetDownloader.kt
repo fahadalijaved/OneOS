@@ -34,7 +34,13 @@ object SetDownloader {
      * limit), anything else a public file of the shared Drive folder, without the virus-scan page large files get.
      */
     fun url(source: String, sha256: String): String =
-        if (source.startsWith("gh:")) "https://github.com/$FILES_REPO/releases/download/${source.removePrefix("gh:")}/$sha256"
+        if (source.startsWith("gh:")) {
+            val parts = source.removePrefix("gh:").split(':')
+            val repo = if (parts.size == 2) parts[0] else FILES_REPO
+            val tag = parts.last()
+            require(Regex("[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*").matches(repo) && Regex("[a-z0-9][a-z0-9.-]{0,39}").matches(tag))
+            "https://github.com/$repo/releases/download/$tag/$sha256"
+        }
         else "https://drive.usercontent.google.com/download?id=$source&export=download&confirm=t"
 
     fun dir(ctx: Context): File = File(ctx.applicationContext.filesDir, "oneos-files").apply { mkdirs() }

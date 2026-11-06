@@ -15,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.widget.NestedScrollView
+import com.fahadali.oneos.session.PatchChannels
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.device.FactProbe
 import com.fahadali.oneos.core.model.DeviceFacts
@@ -41,6 +42,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
     private lateinit var actionTextColors: ColorStateList
     private var facts: DeviceFacts? = null
     private val subscriptions = mutableListOf<() -> Unit>()
+    private var patchBusy = false
     private val io = java.util.concurrent.Executors.newSingleThreadExecutor()
     // A check is good for Readiness.CHECK_AGE_MS: when it runs out on this screen, check again by itself.
     private val recheck = Runnable { if (!isDestroyed && !preview) { Readiness.tick(this); render() } }
@@ -236,6 +238,27 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 }, LinearLayout.LayoutParams(-1, -2))
             }
         }
+        val patchProfile = currentFacts?.let { com.fahadali.oneos.core.model.Profiles.resolve(it).profile }
+        val patchSources = patchProfile?.let { PatchChannels.sources(this, it.id, image.id) }.orEmpty()
+        if (!preview && patchProfile != null && patchSources.size > 1) {
+            val heading = getString(R.string.patch_channel_title, patchProfile.label.removePrefix("Galaxy "))
+            val patches = Cards.section(column, heading, rows = true)
+            val source = PatchChannels.selected(this, patchProfile.id, image.id)
+            val idle = !patchBusy && !Readiness.anyBusy() && !StageCheck.state.busy
+            fun label(choice: com.fahadali.oneos.core.model.PatchSource) = if (choice.stable) getString(R.string.patch_channel_stable) else choice.label
+            CardRows.row(patches, Icons.drawable.ic_oui_settings, label(source),
+                getString(if (patchBusy) R.string.patch_channel_checking else R.string.patch_channel_summary), enabled = idle) {
+                AlertDialog.Builder(this).setTitle(heading)
+                    .setSingleChoiceItems(patchSources.map { label(it) }.toTypedArray(), patchSources.indexOfFirst { it.id == source.id }) { dialog, which ->
+                        dialog.dismiss(); choosePatches(patchSources[which].id)
+                    }.setNegativeButton(android.R.string.cancel, null).show()
+            }
+            CardRows.row(patches, Icons.drawable.ic_oui_refresh, getString(R.string.patch_channel_refresh),
+                PatchChannels.setFor(patchProfile.id, image.id)?.let { set ->
+                    if (!source.stable) runCatching { PatchChannels.snapshot(this, set, patchProfile.id)?.revision }.getOrNull()
+                    else getString(R.string.patch_channel_stable_version, PatchChannels.stableVersion(this))
+                }, enabled = idle) { checkPatches() }
+        }
         if (maintenance != null) {
             Cards.row(Cards.section(column, null, rows = true), Icons.drawable.ic_oui_refresh,
                 maintenance.title, maintenance.line).apply { isClickable = false; isFocusable = false }
@@ -263,11 +286,11 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         }
         // Any job (0.4.38: the log collection after a return can run for minutes) shows the spinner,
         // not a button whose tap readyToBoot() then ignores.
-        val checking = !preview && (StageCheck.state.busy || StageCheck.state.phase == StageCheck.Phase.IDLE ||
+        val checking = !preview && (patchBusy || StageCheck.state.busy || StageCheck.state.phase == StageCheck.Phase.IDLE ||
             (StageCheck.state.phase != StageCheck.Phase.FAILED && report == null) ||
             Readiness.anyBusy() || com.fahadali.oneos.session.RemoveJob.state.busy)
         findViewById<View>(R.id.environment_action_spinner).visibility = if (checking) View.VISIBLE else View.GONE
-        fun readyToBoot(): Boolean = preview || (StageCheck.state.phase == StageCheck.Phase.DONE &&
+        fun readyToBoot(): Boolean = preview || (!patchBusy && StageCheck.state.phase == StageCheck.Phase.DONE &&
             StageCheck.state.result === result && result != null && result.ageMs <= Readiness.CHECK_AGE_MS &&
             report != null && (report.image?.id == image.id || (maintenance != null && ImageMaintenance.identifiedImage(result)?.id == image.id)) &&
             (maintenance != null || !report.blocked) && !Readiness.anyBusy() &&
@@ -314,6 +337,61 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             }
         }
     }
+    private fun channelProfile() = (StageCheck.state.result?.facts ?: facts)?.let {
+        com.fahadali.oneos.core.model.Profiles.resolve(it).profile
+    }
+
+    private fun checkPatches() {
+        val profile = channelProfile() ?: return
+        val source = PatchChannels.selected(this, profile.id, image.id)
+        if (!source.stable) { choosePatches(source.id, showResult = true); return }
+        if (patchBusy || Readiness.anyBusy()) return
+        patchBusy = true; render()
+        io.execute {
+            val result = runCatching { PatchChannels.stableRelease() }
+            runOnUiThread {
+                patchBusy = false
+                if (!isDestroyed) {
+                    val release = result.getOrNull()
+                    val message = release?.let {
+                        getString(if (it.versionCode > PatchChannels.stableCode(this)) R.string.patch_channel_stable_newer
+                            else R.string.patch_channel_stable_current, it.versionName)
+                    } ?: result.exceptionOrNull()?.message
+                    AlertDialog.Builder(this).setTitle(if (result.isSuccess) R.string.patch_channel_refresh else R.string.patch_channel_failed)
+                        .setMessage(message).setPositiveButton(android.R.string.ok, null).show()
+                    render()
+                }
+            }
+        }
+    }
+
+    private fun choosePatches(sourceId: String, showResult: Boolean = false) {
+        if (patchBusy || Readiness.anyBusy()) return
+        patchBusy = true; render()
+        val selectedImage = image.id
+        val profile = channelProfile() ?: run { patchBusy = false; render(); return }
+        io.execute {
+            val result = runCatching {
+                val set = PatchChannels.setFor(profile.id, selectedImage)!!
+                val source = PatchChannels.sources(this, profile.id, selectedImage).first { it.id == sourceId }
+                if (!source.stable) PatchChannels.refresh(this, set, profile.id, source.id)
+                PatchChannels.select(this, profile.id, selectedImage, source.id)
+            }
+            runOnUiThread {
+                patchBusy = false
+                if (!isDestroyed) {
+                    result.exceptionOrNull()?.let { error ->
+                        AlertDialog.Builder(this).setTitle(R.string.patch_channel_failed).setMessage(error.message)
+                            .setPositiveButton(android.R.string.ok, null).show()
+                    }
+                    if (showResult && result.isSuccess) android.widget.Toast.makeText(this, R.string.patch_channel_checked, android.widget.Toast.LENGTH_LONG).show()
+                    StageCheck.start(this, StageCheck.Mode.FULL)
+                    render()
+                }
+            }
+        }
+    }
+
     private fun environmentToolbar(): Toolbar =
         findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout)?.toolbar
             ?: findViewById(R.id.environment_toolbar)
