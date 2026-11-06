@@ -580,7 +580,28 @@ androidComponents {
     onVariants { variant ->
         when (variant.flavorName) {
             // Only OneOS carries the package sets and the session scripts.
-            "full" -> variant.sources.assets?.addGeneratedSourceDirectory(oneosFiles, OneOsFilesTask::outputDir)
+            "full" -> {
+                variant.sources.assets?.addGeneratedSourceDirectory(oneosFiles, OneOsFilesTask::outputDir)
+                val name = variant.name.replaceFirstChar { it.uppercase() }
+                val apkDir = variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.APK)
+                val loader = variant.artifacts.getBuiltArtifactsLoader()
+                val verify = tasks.register("check${name}StagingApk") {
+                    group = "verification"
+                    description = "Checks compiled staging pins, manifests and payloads in the finished APK."
+                    inputs.dir(apkDir)
+                    inputs.file(File(repoRoot, "scripts/check-staging-apk.py"))
+                    doLast {
+                        val apks = loader.load(apkDir.get())?.elements.orEmpty()
+                        check(apks.isNotEmpty()) { "No full APK to verify" }
+                        for (apk in apks) {
+                            providers.exec {
+                                commandLine("python3", File(repoRoot, "scripts/check-staging-apk.py"), apk.outputFile)
+                            }.result.get().assertNormalExitValue()
+                        }
+                    }
+                }
+                tasks.matching { it.name == "assemble$name" }.configureEach { dependsOn(verify) }
+            }
             "probe" -> {
                 val name = variant.name.replaceFirstChar { it.uppercase() }
                 val check = tasks.register<ProbeApkCheckTask>("check${name}Apk") {
