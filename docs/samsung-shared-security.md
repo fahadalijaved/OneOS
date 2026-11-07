@@ -103,6 +103,42 @@ Binder references require Binder delivery; passing a file descriptor does not
 transfer a Binder object. Control-channel EOF is neither readiness nor proof
 that accepted work or descendants have drained.
 
+## Current validation and first device test
+
+Offline component testing is underway. The retained host PIN endpoint has
+compiled in a separate preparation build and stays closed. Its lifecycle tests
+cover retirement during construction. The guest caller frame has compiled
+and passed modeled checks for preserving the original call and observing its
+Binder identity before the identity clear. Connecting both to the live ColorOS
+keypad remains open.
+
+The tree preparation controller cross-compiles with the exact donor manifest
+embedded. Host fixtures exercise mount and descriptor checks, teardown, and the
+cleanup status reported over the control channel. The full executable link is
+still held at the stage admission boundary. Admission must establish the exact
+mounted contents and keep the backing generation stable throughout the lease.
+The donor image still needs a real filesystem build and metadata readback.
+
+The first on-device work has three separate gates.
+
+1. Verify preparation and Stop against the real stage. Confirm the retained
+   child, mounts and descriptors, exercise a refused preparation, and confirm
+   the controller preserves uncertainty when cleanup cannot be proven.
+2. Verify the enforcing guest startup and connect its actual SystemServer
+   occurrence to the retained Samsung service. This needs a positive guest
+   Binder context claim, authenticated delivery, and a lease that keeps the
+   physical Samsung user stable through verification and cleanup. A stock
+   user-switch observer alone cannot establish that lease because the current
+   user has already changed before the callback.
+3. Exercise an existing PIN from the genuine ColorOS keypad. Check a correct
+   PIN, wrong PIN, cancellation and applicable lockout behavior, then verify
+   One UI can still unlock and use its encrypted data after return.
+
+All 18 device acceptance cases remain pending. Reciprocal PIN changes,
+fingerprint enrollment and authentication, authentication-bound app keys, and
+cold-boot recovery still require their own evidence even after the first PIN
+test passes.
+
 ## Remaining implementation boundaries
 
 - Retain genuine initialized Samsung registry, LockSettings, policy and related
