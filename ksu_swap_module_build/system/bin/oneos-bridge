@@ -1,0 +1,2 @@
+#!/system/bin/sh
+exec /data/adb/modules/oneos_helper/scripts/oneos_core.sh "$@"

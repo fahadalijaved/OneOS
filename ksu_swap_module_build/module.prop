@@ -1,0 +1,7 @@
+id=oneos_helper
+name=OneOS Switcher & Superuser Bridge
+version=v1.2.0-Production
+versionCode=120
+author=Mualiy.net & Fahad Ali Team
+description=OneOS için ekran kilidi/FBE güvenlik anahtarlama (SwapOUT/SwapIN), KernelSU Superuser izinlerinin kesin override yedeklenmesi ve WebUI yönetim paneli.
+web=true

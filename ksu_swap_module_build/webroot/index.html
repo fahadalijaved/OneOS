@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OneOS Switcher & SU Bridge</title>
+  <style>
+    /* RESET & BASE */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      padding-bottom: 24px;
+    }
+
+    /* THEME 1: ONE UI (DEFAULT SAMSUNG FEEL) */
+    body.theme-oneui.dark {
+      --bg: #000000;
+      --card-bg: #1c1c1e;
+      --card-border: #2c2c2e;
+      --card-inner: #252528;
+      --text: #ffffff;
+      --text-sub: #8e8e93;
+      --primary: #0a84ff;
+      --primary-hover: #0066cc;
+      --danger: #ff453a;
+      --success: #30d158;
+      --warning: #ffd60a;
+      --console-bg: #0d0d0e;
+      --console-text: #30d158;
+      --radius-sm: 14px;
+      --radius-md: 22px;
+      --radius-lg: 28px;
+    }
+    body.theme-oneui.light {
+      --bg: #f2f2f7;
+      --card-bg: #ffffff;
+      --card-border: #e5e5ea;
+      --card-inner: #f7f7f9;
+      --text: #1c1c1e;
+      --text-sub: #6c6c70;
+      --primary: #007aff;
+      --primary-hover: #0056b3;
+      --danger: #ff3b30;
+      --success: #34c759;
+      --warning: #ff9500;
+      --console-bg: #1f1f23;
+      --console-text: #34c759;
+      --radius-sm: 14px;
+      --radius-md: 22px;
+      --radius-lg: 28px;
+    }
+
+    /* THEME 2: MATERIAL 3 EXPRESSIVE */
+    body.theme-material3.dark {
+      --bg: #141218;
+      --card-bg: #211f26;
+      --card-border: #49454f;
+      --card-inner: #2b2930;
+      --text: #e6e0e9;
+      --text-sub: #cac4d0;
+      --primary: #d0bcff;
+      --primary-hover: #b69df8;
+      --danger: #ffb4ab;
+      --success: #82db9e;
+      --warning: #f3ca52;
+      --console-bg: #0f0d13;
+      --console-text: #d0bcff;
+      --radius-sm: 16px;
+      --radius-md: 24px;
+      --radius-lg: 32px;
+    }
+    body.theme-material3.light {
+      --bg: #fef7ff;
+      --card-bg: #f3edf7;
+      --card-border: #e7e0ec;
+      --card-inner: #eadef8;
+      --text: #1d1b20;
+      --text-sub: #49454f;
+      --primary: #6750a4;
+      --primary-hover: #533e8a;
+      --danger: #ba1a1a;
+      --success: #1b8743;
+      --warning: #b37400;
+      --console-bg: #211f26;
+      --console-text: #82db9e;
+      --radius-sm: 16px;
+      --radius-md: 24px;
+      --radius-lg: 32px;
+    }
+
+    /* THEME 3: MIUIX (HYPEROS-LIKE) */
+    body.theme-miuix.dark {
+      --bg: #0c0d0e;
+      --card-bg: #18191c;
+      --card-border: #282a2e;
+      --card-inner: #222428;
+      --text: #ffffff;
+      --text-sub: #9ca3af;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --console-bg: #111215;
+      --console-text: #10b981;
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 22px;
+    }
+    body.theme-miuix.light {
+      --bg: #f5f6f8;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --card-inner: #f8fafc;
+      --text: #0f172a;
+      --text-sub: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --success: #059669;
+      --warning: #d97706;
+      --console-bg: #1e293b;
+      --console-text: #34d399;
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 22px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    /* TOP BAR (Theme Left, Settings Right) */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .icon-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+    }
+    .icon-btn:active {
+      transform: scale(0.92);
+    }
+    .icon-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .brand-badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      background: var(--primary);
+      color: #ffffff;
+      border-radius: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    /* CONTAINER */
+    .container {
+      padding: 0 16px;
+      max-width: 520px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* CARD STYLES */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      line-height: 1.45;
+      margin-bottom: 16px;
+    }
+
+    /* SETUP WIZARD */
+    .setup-card {
+      border-left: 4px solid var(--primary);
+    }
+    .input-group {
+      position: relative;
+      margin-top: 10px;
+      margin-bottom: 14px;
+    }
+    .input-field {
+      width: 100%;
+      padding: 14px 48px 14px 16px;
+      background: var(--card-inner);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 16px;
+      outline: none;
+    }
+    .input-field:focus {
+      border-color: var(--primary);
+    }
+    .toggle-eye-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--text-sub);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+    }
+    .toggle-eye-btn svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    .segmented-control {
+      display: flex;
+      background: var(--card-inner);
+      border-radius: var(--radius-sm);
+      padding: 4px;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .segment-btn {
+      flex: 1;
+      padding: 10px 4px;
+      background: transparent;
+      border: none;
+      color: var(--text-sub);
+      border-radius: calc(var(--radius-sm) - 4px);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+    .segment-btn.active {
+      background: var(--card-bg);
+      color: var(--primary);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    /* BUTTONS */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 15px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+    .btn-success {
+      background: var(--success);
+      color: #ffffff;
+    }
+    .btn-danger {
+      background: var(--danger);
+      color: #ffffff;
+    }
+    .btn-warning {
+      background: var(--warning);
+      color: #000000;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text);
+    }
+
+    /* ACTION GRID (SwapOUT / SwapIN / ManuelSUBak) */
+    .action-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .action-btn-card {
+      background: var(--card-inner);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .action-btn-card:hover {
+      border-color: var(--primary);
+    }
+    .action-btn-card.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .action-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .action-title {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .action-sub {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+    .action-badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 700;
+    }
+
+    /* LIVE STATUS CHIPS */
+    .status-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .status-chip {
+      background: var(--card-inner);
+      border: 1px solid var(--card-border);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .status-chip-label {
+      font-size: 11px;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .status-chip-val {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    /* CONSOLE & LOG VIEWER */
+    .console-box {
+      background: var(--console-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--console-text);
+      max-height: 260px;
+      min-height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .console-badge {
+      font-size: 10px;
+      background: rgba(255,255,255,0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-sub);
+    }
+
+    /* SETTINGS MODAL / DRAWER */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 200;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-card {
+      background: var(--card-bg);
+      width: 100%;
+      max-width: 520px;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      padding: 24px;
+      box-shadow: 0 -8px 30px rgba(0,0,0,0.25);
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .setting-label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .setting-sub {
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+    .select-dropdown {
+      background: var(--card-inner);
+      color: var(--text);
+      border: 1px solid var(--card-border);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      outline: none;
+    }
+
+    /* SPINNER */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="theme-oneui dark">
+
+  <!-- TOP BAR -->
+  <header class="top-bar">
+    <button class="icon-btn" id="themeToggleBtn" title="Tema Değiştir (Karanlık/Aydınlık)" onclick="toggleDarkMode()">
+      <svg id="themeIconSun" viewBox="0 0 24 24" style="display:none;"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
+      <svg id="themeIconMoon" viewBox="0 0 24 24"><path d="M12.3 2a10 10 0 0 0-1.9 19.8 8 8 0 0 1-7.9-7.9 9 9 0 0 1 5.6-8.4c.5-.2.7-.8.5-1.3-.2-.5-.7-.8-1.2-.6A11.9 11.9 0 0 0 2 12c0 6.6 5.4 12 12 12 5.5 0 10.2-3.8 11.6-9.1.1-.5-.2-1.1-.7-1.3-.5-.2-1.1 0-1.4.4-2.4 3.7-6.8 5-11.2 3.1z"/></svg>
+    </button>
+    <div class="brand-title">
+      <span>Mualiy.net | OneOS</span>
+      <span class="brand-badge">KSU</span>
+    </div>
+    <button class="icon-btn" id="settingsGearBtn" title="Gelişmiş Ayarlar" onclick="openSettingsModal()">
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+    </button>
+  </header>
+
+  <main class="container">
+
+    <!-- STATUS CHIPS -->
+    <div class="status-row">
+      <div class="status-chip">
+        <span class="status-chip-label">Aktif KSU Profili</span>
+        <span class="status-chip-val" id="activeProfileCount">0 Uygulama</span>
+      </div>
+      <div class="status-chip">
+        <span class="status-chip-label">Yedeklenmiş Profil</span>
+        <span class="status-chip-val" id="backupProfileCount">0 Uygulama</span>
+      </div>
+    </div>
+
+    <!-- INITIAL SETUP WIZARD (Visible if NOT configured) -->
+    <div class="card setup-card" id="setupCard">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🔐</span> İlk Kurulum &amp; Güvenlik Şifresi
+        </div>
+      </div>
+      <p class="card-desc">
+        OneOS sistemler arası geçişte veri kaybı yaşamamak ve One UI'a dönerken şifrelemeyi geri yükleyebilmek için lütfen mevcut ekran kilidi tipinizi ve değerinizi tanımlayın.
+      </p>
+
+      <div class="segmented-control">
+        <button class="segment-btn active" id="segPin" onclick="selectAuthType('pin')">Sayısal PIN</button>
+        <button class="segment-btn" id="segPass" onclick="selectAuthType('password')">Alfanümerik</button>
+        <button class="segment-btn" id="segNone" onclick="selectAuthType('none')">Şifresiz</button>
+      </div>
+
+      <div class="input-group" id="pinInputWrapper">
+        <input type="password" class="input-field" id="pinField" placeholder="PIN veya Şifrenizi girin..." autocomplete="off">
+        <button type="button" class="toggle-eye-btn" onclick="togglePasswordVisibility()" title="Şifreyi Göster/Gizle">
+          <svg id="eyeOpen" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+          <svg id="eyeClosed" viewBox="0 0 24 24" style="display:none;"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+        </button>
+      </div>
+
+      <button class="btn btn-primary" onclick="saveInitialSetup()">
+        <span>Kaydet ve Kilidi Aç</span>
+      </button>
+    </div>
+
+    <!-- MAIN ACTION DASHBOARD (Locked if not configured) -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>⚡</span> Geçiş &amp; İzin Yönetimi
+        </div>
+        <span class="brand-badge" id="setupStatusBadge" style="background:var(--warning); color:#000;">Kurulum Bekliyor</span>
+      </div>
+
+      <div class="action-grid">
+        <!-- SwapOUT Button -->
+        <div class="action-btn-card disabled" id="btnSwapOut" onclick="triggerAction('swapout')">
+          <div class="action-info">
+            <div class="action-title">
+              <span>🚀</span> SwapOUT
+            </div>
+            <div class="action-sub">SU yedekle + Ekran Kilidini/Şifrelemeyi kaldır (GSI hazır)</div>
+          </div>
+          <span class="action-badge" style="background: rgba(255, 69, 58, 0.15); color: var(--danger);">Çıkış</span>
+        </div>
+
+        <!-- SwapIN Button -->
+        <div class="action-btn-card disabled" id="btnSwapIn" onclick="triggerAction('swapin')">
+          <div class="action-info">
+            <div class="action-title">
+              <span>🏠</span> SwapIN
+            </div>
+            <div class="action-sub">SU override geri yükle + PIN/Şifrelemeyi tekrar kur</div>
+          </div>
+          <span class="action-badge" style="background: rgba(48, 209, 88, 0.15); color: var(--success);">Dönüş</span>
+        </div>
+
+        <!-- ManuelSUBak Button -->
+        <div class="action-btn-card disabled" id="btnManuelBak" onclick="triggerAction('manuelsubak')">
+          <div class="action-info">
+            <div class="action-title">
+              <span>🛡️</span> ManuelSUBak
+            </div>
+            <div class="action-sub">Sadece Superuser profil veritabanını snapshot al</div>
+          </div>
+          <span class="action-badge" style="background: rgba(10, 132, 255, 0.15); color: var(--primary);">Snapshot</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIVE OPERATION CONSOLE -->
+    <div class="card">
+      <div class="console-header">
+        <div class="card-title" style="font-size:14px;">
+          <span>📟</span> Canlı Konsol Çıktısı
+        </div>
+        <div style="display:flex; gap:6px;">
+          <span class="console-badge" id="consoleModeTag">GELİŞMİŞ</span>
+          <span class="console-badge" onclick="clearConsoleLog()" style="cursor:pointer;">Temizle</span>
+        </div>
+      </div>
+      <div class="console-box" id="consoleOutput">Sistem hazır. KernelSU köprüsü bekleniyor...</div>
+    </div>
+
+  </main>
+
+  <!-- SETTINGS MODAL -->
+  <div class="modal-overlay" id="settingsModal" onclick="closeSettingsModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Gelişmiş Ayarlar</div>
+        <button class="icon-btn" onclick="closeSettingsModal()">✕</button>
+      </div>
+
+      <!-- Theme Selection -->
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">Arayüz Teması</div>
+          <div class="setting-sub">Sistem tasarım dili seçimi</div>
+        </div>
+        <select class="select-dropdown" id="themeSelect" onchange="changeTheme(this.value)">
+          <option value="oneui" selected>OneUI (Samsung)</option>
+          <option value="material3">Material 3 Expressive</option>
+          <option value="miuix">MiuiX (HyperOS-like)</option>
+        </select>
+      </div>
+
+      <!-- SwapOUT Security Lock Mode -->
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">SwapOUT Ekran Kilidi Modu</div>
+          <div class="setting-sub">Şifre kalktıktan sonraki durum</div>
+        </div>
+        <select class="select-dropdown" id="swapoutModeSelect" onchange="updateSetting('swapout_mode', this.value)">
+          <option value="none" selected>Tamamen Devre Dışı (None)</option>
+          <option value="swipe">Kaydırarak Aç (Swipe)</option>
+        </select>
+      </div>
+
+      <!-- Console Log Verbosity -->
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">Konsol Detay Seviyesi</div>
+          <div class="setting-sub">İşlem kayıtlarının derinliği</div>
+        </div>
+        <select class="select-dropdown" id="logModeSelect" onchange="updateSetting('log_mode', this.value)">
+          <option value="advanced" selected>Gelişmiş (Ayrıntılı Kodlar)</option>
+          <option value="basic">Temel (Sadece Sonuçlar)</option>
+        </select>
+      </div>
+
+      <!-- Reset Config -->
+      <div class="setting-item" style="border-bottom:none; margin-top:10px;">
+        <div>
+          <div class="setting-label">PIN / Güvenlik Sıfırla</div>
+          <div class="setting-sub">Kurulum sihirbazını baştan açar</div>
+        </div>
+        <button class="btn btn-outline" style="width:auto; padding:8px 14px; font-size:12px;" onclick="resetSetup()">Sıfırla</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let config = {
+      configured: false,
+      auth_type: 'pin',
+      pin: '',
+      theme: 'oneui',
+      dark_mode: true,
+      swapout_mode: 'none',
+      log_mode: 'advanced'
+    };
+    let isExecuting = false;
+
+    // KernelSU / APatch / MMRL Bridge Execution Helper
+    function executeShell(cmd) {
+      return new Promise((resolve) => {
+        // 1. Native KernelSU window.ksu.exec
+        if (typeof window.ksu !== 'undefined' && typeof window.ksu.exec === 'function') {
+          const cbName = 'ksu_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+          window[cbName] = function(errno, stdout, stderr) {
+            delete window[cbName];
+            resolve({ errno: errno, stdout: stdout || '', stderr: stderr || '' });
+          };
+          try {
+            window.ksu.exec(cmd, '{}', cbName);
+          } catch(e) {
+            resolve({ errno: 1, stdout: '', stderr: e.toString() });
+          }
+          return;
+        }
+
+        // 2. HTTP Daemon Fallback (if running inside device browser / localhost:8282)
+        fetch('/api/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cmd: cmd })
+        })
+        .then(res => res.json())
+        .then(data => {
+          resolve({ errno: data.returncode || 0, stdout: data.output || '', stderr: '' });
+        })
+        .catch(err => {
+          // Dev / Preview fallback simulated output
+          resolve({
+            errno: 0,
+            stdout: '[SIMULATED-OK] ' + cmd + '\n-> Başarıyla simüle edildi (Cihaz dışında önizleme modu).',
+            stderr: ''
+          });
+        });
+      });
+    }
+
+    // Console Logger
+    function logToConsole(text, isError = false) {
+      const box = document.getElementById('consoleOutput');
+      const time = new Date().toLocaleTimeString();
+      let formatted = `[${time}] ${text}\n`;
+      if (config.log_mode === 'basic' && text.includes('CMD')) {
+        return; // filter detailed shell commands in basic mode
+      }
+      box.textContent += formatted;
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function clearConsoleLog() {
+      document.getElementById('consoleOutput').textContent = '';
+      logToConsole('Konsol temizlendi.');
+    }
+
+    // UI Updates
+    function updateUIState() {
+      // Setup Card visibility
+      const setupCard = document.getElementById('setupCard');
+      const setupStatusBadge = document.getElementById('setupStatusBadge');
+      const btnSwapOut = document.getElementById('btnSwapOut');
+      const btnSwapIn = document.getElementById('btnSwapIn');
+      const btnManuelBak = document.getElementById('btnManuelBak');
+
+      if (config.configured) {
+        setupCard.style.display = 'none';
+        setupStatusBadge.textContent = 'Aktif & Güvenli';
+        setupStatusBadge.style.background = 'var(--success)';
+        setupStatusBadge.style.color = '#ffffff';
+
+        btnSwapOut.classList.remove('disabled');
+        btnSwapIn.classList.remove('disabled');
+        btnManuelBak.classList.remove('disabled');
+      } else {
+        setupCard.style.display = 'block';
+        setupStatusBadge.textContent = 'Kurulum Bekliyor';
+        setupStatusBadge.style.background = 'var(--warning)';
+        setupStatusBadge.style.color = '#000000';
+
+        btnSwapOut.classList.add('disabled');
+        btnSwapIn.classList.add('disabled');
+        btnManuelBak.classList.add('disabled');
+      }
+
+      // Theme classes
+      document.body.className = `theme-${config.theme} ${config.dark_mode ? 'dark' : 'light'}`;
+      document.getElementById('themeSelect').value = config.theme;
+      document.getElementById('swapoutModeSelect').value = config.swapout_mode;
+      document.getElementById('logModeSelect').value = config.log_mode;
+      document.getElementById('consoleModeTag').textContent = (config.log_mode === 'advanced') ? 'GELİŞMİŞ' : 'TEMEL';
+
+      // Dark mode icons
+      document.getElementById('themeIconSun').style.display = config.dark_mode ? 'block' : 'none';
+      document.getElementById('themeIconMoon').style.display = config.dark_mode ? 'none' : 'block';
+    }
+
+    // Toggle Password Visibility
+    function togglePasswordVisibility() {
+      const field = document.getElementById('pinField');
+      const eyeOpen = document.getElementById('eyeOpen');
+      const eyeClosed = document.getElementById('eyeClosed');
+      if (field.type === 'password') {
+        field.type = 'text';
+        eyeOpen.style.display = 'none';
+        eyeClosed.style.display = 'block';
+      } else {
+        field.type = 'password';
+        eyeOpen.style.display = 'block';
+        eyeClosed.style.display = 'none';
+      }
+    }
+
+    // Select Auth Type
+    function selectAuthType(type) {
+      config.auth_type = type;
+      document.getElementById('segPin').classList.toggle('active', type === 'pin');
+      document.getElementById('segPass').classList.toggle('active', type === 'password');
+      document.getElementById('segNone').classList.toggle('active', type === 'none');
+
+      const wrapper = document.getElementById('pinInputWrapper');
+      const field = document.getElementById('pinField');
+      if (type === 'none') {
+        wrapper.style.display = 'none';
+        field.value = '';
+      } else {
+        wrapper.style.display = 'block';
+        field.placeholder = (type === 'pin') ? 'Sayısal PIN giriniz...' : 'Alfanümerik Şifre giriniz...';
+      }
+    }
+
+    // Toggle Dark Mode
+    function toggleDarkMode() {
+      config.dark_mode = !config.dark_mode;
+      saveLocalConfig();
+      updateUIState();
+    }
+
+    // Change Theme
+    function changeTheme(themeName) {
+      config.theme = themeName;
+      saveLocalConfig();
+      updateUIState();
+    }
+
+    // Settings Modal
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.add('active');
+    }
+    function closeSettingsModal(e) {
+      if (!e || e.target.id === 'settingsModal' || e.target.tagName === 'BUTTON') {
+        document.getElementById('settingsModal').classList.remove('active');
+      }
+    }
+    function updateSetting(key, val) {
+      config[key] = val;
+      saveLocalConfig();
+      updateUIState();
+      logToConsole(`Ayar güncellendi: ${key} = ${val}`);
+    }
+
+    // Save Setup
+    function saveInitialSetup() {
+      const pinVal = document.getElementById('pinField').value;
+      if (config.auth_type !== 'none' && !pinVal) {
+        alert('Lütfen geçerli bir PIN veya Şifre girin ya da "Şifresiz" seçeneğini işaretleyin!');
+        return;
+      }
+      config.pin = pinVal;
+      config.configured = true;
+      saveLocalConfig();
+      updateUIState();
+      logToConsole(`[BAŞARILI] Kurulum tamamlandı! Seçilen Kilit Tipi: ${config.auth_type.toUpperCase()}`);
+    }
+
+    function resetSetup() {
+      if (confirm('Güvenlik ayarlarını sıfırlamak istediğinize emin misiniz?')) {
+        config.configured = false;
+        config.pin = '';
+        saveLocalConfig();
+        updateUIState();
+        closeSettingsModal();
+        logToConsole('[BİLGİ] Kurulum sıfırlandı. Yeni PIN belirleyebilirsiniz.');
+      }
+    }
+
+    // Local Storage / Persistent Config Sync
+    function saveLocalConfig() {
+      localStorage.setItem('oneos_bridge_config', JSON.stringify(config));
+      // Also push to persistent /data/adb/oneos_helper/config.json via shell
+      const jsonStr = JSON.stringify(config).replace(/"/g, '\\"');
+      const cmd = `mkdir -p /data/adb/oneos_helper && echo "${jsonStr}" > /data/adb/oneos_helper/config.json && chmod 600 /data/adb/oneos_helper/config.json`;
+      executeShell(cmd);
+    }
+
+    function loadLocalConfig() {
+      const saved = localStorage.getItem('oneos_bridge_config');
+      if (saved) {
+        try {
+          config = Object.assign(config, JSON.parse(saved));
+        } catch(e) {}
+      }
+      updateUIState();
+    }
+
+    // Action Execution Trigger
+    async function triggerAction(actionName) {
+      if (isExecuting) return;
+      if (!config.configured) {
+        alert('Lütfen önce ilk kurulumu tamamlayarak PIN belirleyin!');
+        return;
+      }
+
+      isExecuting = true;
+      const coreScript = '/data/adb/modules/oneos_helper/scripts/oneos_core.sh';
+      logToConsole(`\n==============================`);
+      logToConsole(`>>> İŞLEM TETİKLENDİ: ${actionName.toUpperCase()}`);
+      logToConsole(`CMD: ${coreScript} ${actionName}`);
+
+      const res = await executeShell(`sh ${coreScript} ${actionName}`);
+      
+      if (res.stdout) {
+        logToConsole(res.stdout);
+      }
+      if (res.stderr) {
+        logToConsole(`[STDERR] ${res.stderr}`, true);
+      }
+
+      if (res.errno === 0) {
+        logToConsole(`✅ [İŞLEM TAMAMLANDI] (${actionName}) başarıyla sonuçlandı.`);
+      } else {
+        logToConsole(`❌ [HATA KODU ${res.errno}] İşlem sırasında bir hata oluştu!`, true);
+      }
+
+      refreshCounts();
+      isExecuting = false;
+    }
+
+    // Refresh Live Counts
+    async function refreshCounts() {
+      const res = await executeShell(`sh /data/adb/modules/oneos_helper/scripts/oneos_core.sh status`);
+      try {
+        const data = JSON.parse(res.stdout);
+        document.getElementById('activeProfileCount').textContent = `${data.active_count || 0} Uygulama`;
+        document.getElementById('backupProfileCount').textContent = `${data.backup_count || 0} Uygulama`;
+      } catch(e) {
+        // Fallback check
+        document.getElementById('activeProfileCount').textContent = `Aktif`;
+        document.getElementById('backupProfileCount').textContent = `Hazır`;
+      }
+    }
+
+    // Init
+    window.addEventListener('DOMContentLoaded', () => {
+      loadLocalConfig();
+      refreshCounts();
+      logToConsole('OneOS Switcher & Superuser Bridge WebUI v1.2 başlatıldı.');
+    });
+  </script>
+</body>
+</html>
