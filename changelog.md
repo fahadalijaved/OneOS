@@ -23,6 +23,26 @@ New in 0.4.59: **the Galaxy A27, A35 5G and A54 5G**, untested: the A27 (SM-A276
 with the Galaxy A36's systems, the A35 5G and A54 5G (Exynos 1380, One UI 9) with the Galaxy A26's;
 and the A16 5G sold as SM-S166V.
 
+New in 0.4.61: **SMS in ColorOS reaches the number the app stored, and the return to One UI is much faster.** Google
+Messages kept a send form with a stray character and the national trunk 0
+after the country code ("ז+9720501234567" for +972501234567), and the guest
+sent that number over IMS and CS: Partner IL did not deliver the text although
+the guest showed it as sent. telephony-common.jar now sends the destination in
+E.164 (patches/guest_sms_destination.py); short codes, emergency numbers and
+* / # strings are left as the app sent them.
+
+Inbound SMS now arrives too. Samsung's rild held a new SMS in its vendor
+queue until its own framework sent the `FW_READY` handshake, which an AOSP
+guest never sends: the modem logged the message and the RILJ never saw it.
+The session NOPs that queue branch in `/vendor/lib64/libsec-ril.so`
+(switcher/assets/libsec-ril-patch.sh) and `return_to_oneui.sh` removes the
+bind again before its stage-mount check.
+
+The return to One UI is faster: the guest's processes are killed in 17 s
+instead of 54 s, and the whole return takes 91 s instead of 178 s (110 s in
+0.4.59). The start now reports its phases; it still takes about 129 s, and
+the 45 s mount/takeover is the next target.
+
 New in 0.4.60: **touch works again in the Pixel system on the Galaxy S23, S23+ and S23 Ultra** (the new
 double tap to wake left their touch chip in its low-power mode), and the Pixel system no longer drops
 back to One UI after a minute on the S23+ and S25 Ultra (an audio restart loop handed the sound over

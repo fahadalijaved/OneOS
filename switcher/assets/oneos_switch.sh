@@ -93,7 +93,7 @@ fi
 [ -d "$STAGE" ] && [ ! -L "$STAGE" ] || refuse "$STAGE is missing or not a directory"
 root_only "$STAGE" || app_refuse "$STAGE is not root's or is writable by others ($(stat -c '%U:%G %A' "$STAGE" 2>/dev/null))"
 [ -f "$STAGE/system.raw" ] || refuse "the guest image ($STAGE/system.raw) is not staged"
-for f in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh \
+for f in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh \
          check_host_apex.sh bridges.sh fold8_coloros.sh guest_google.sh zygote_exec guards.txt services_patched.jar; do
     [ -f "$STAGE/$f" ] || refuse "$STAGE/$f is missing"
 done
@@ -120,7 +120,7 @@ if [ "$APP" = 1 ]; then
     bad=$(awk 'NF != 2 || length($1) != 64 || $1 ~ /[^0-9a-f]/ || $2 !~ /^[A-Za-z0-9_][A-Za-z0-9._-]*$/ ||
                $2 == "system.raw" || seen[$2]++ { print NR ": " $0 }' "$SUMS" | head -3)
     [ -z "$bad" ] || refuse "files.sha256 has malformed lines: $bad"
-    for need in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh \
+    for need in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh \
                 check_host_apex.sh bridges.sh zygote_exec guards.txt $GUARD_JARS; do
         awk -v n="$need" '$2 == n { f = 1 } END { exit !f }' "$SUMS" || refuse "files.sha256 does not list $need"
     done
@@ -1586,6 +1586,17 @@ fi
 rm -f "$STAGE/data/socket_exec"
 if [ -f "$STAGE/socket_exec" ] && [ ! -L "$STAGE/socket_exec" ]; then
     cp -f "$STAGE/socket_exec" "$STAGE/data/socket_exec" && chmod 755 "$STAGE/data/socket_exec"
+fi
+
+# Inbound SMS (0.4.60): Samsung's rild queues new-SMS unsolicited responses
+# until its own framework sends FW_READY=1 over HIDL. An AOSP guest's RILJ
+# cannot send that vendor configuration, so SecRilProxy keeps the SMS in its
+# pending list and the guest never sees UNSOL_RESPONSE_NEW_SMS. NOP the queue
+# branch in the vendor library and bind-mount the copy for the session;
+# return_to_oneui.sh removes it. A library without the exact sequence is left
+# alone, and inbound SMS stays as it was.
+if ! /system/bin/sh "$STAGE/libsec-ril-patch.sh" apply; then
+    echo "!!! inbound SMS: libsec-ril.so was not patched; the guest will not receive SMS"
 fi
 
 # Launch takeover inside isolated mount namespace

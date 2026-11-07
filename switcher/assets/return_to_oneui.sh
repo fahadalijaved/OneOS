@@ -591,6 +591,11 @@ while [ $n -lt 10 ] && "$BB" pgrep -f "ctl.stop zygote" >/dev/null 2>&1; do
     "$BB" pkill -9 -f "ctl.stop zygote" 2>/dev/null; sleep 0.2; n=$((n + 1))
 done
 "$BB" pgrep -f "ctl.stop zygote" >/dev/null 2>&1 && failsafe "the session's stop loop is still running"
+# Inbound SMS (0.4.60): the session NOPs Samsung rild's queue branch and
+# bind-mounts the vendor library. Remove it before the stage-mount check below,
+# which would otherwise see /local/tmp/oneos/ in field 4 and reboot.
+/system/bin/sh "$S/libsec-ril-patch.sh" restore >>"$IPLOG" 2>&1 || \
+    say "!!! inbound SMS: the vendor RIL patch was not removed; see return_inplace.log"
 sleep 0.5
 # Stage mounts another mount namespace still holds (run 45): Android's bootstrap
 # namespace (early vendor daemons, kernel threads) gets its own copy of what the

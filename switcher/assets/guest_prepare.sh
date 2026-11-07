@@ -2188,9 +2188,11 @@ if [ -f "$STAGE/framework_patched.jar" ]; then
 fi
 # telephony-common_patched.jar: the SMS service centre as an international
 # number (patches/guest_smsc_international.py; Samsung's radio answers it in
-# the modem's AT form). Only built for sets that already bind a patched
-# framework.jar, so the boot image is not given up for it alone. Listed in
-# guards.txt and checked above.
+# the modem's AT form), the destination as E.164 (patches/guest_sms_destination.py;
+# ColorOS stored "ז+9720501234567" for +972501234567) and SEND_SMS error 66
+# counted as sent (patches/guest_sms_invalid_response.py). Only built for sets
+# that already bind a patched framework.jar, so the boot image is not given up
+# for it alone. Listed in guards.txt and checked above.
 if [ -f "$STAGE/telephony-common_patched.jar" ] && [ -f "$ROOTFS/system/framework/telephony-common.jar" ]; then
     $BB umount -l "$ROOTFS/system/framework/telephony-common.jar" 2>/dev/null || true
     $BB mount --bind "$STAGE/telephony-common_patched.jar" "$ROOTFS/system/framework/telephony-common.jar"
