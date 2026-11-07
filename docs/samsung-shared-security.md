@@ -2,10 +2,9 @@
 
 This draft proposes retaining genuine Samsung security authority while ColorOS
 provides the guest experience. The full eighteen acceptance requirements remain
-the intended scope; this initial contribution completes none of them as an
-Android feature. It adds an isolated scheduling primitive and first-party JVM
-tests, without wiring them into the app, switch scripts or guest framework.
-There is no Android, Binder, native credential, biometric or device acceptance.
+the intended scope. The draft adds isolated scheduling and occurrence identity
+experiments with first-party JVM tests. They remain separate from the app,
+switch scripts and guest framework. Device acceptance is 0 of 18 cases.
 
 ## Intended behavior
 
@@ -73,6 +72,11 @@ authored models. They do not execute Android/OEM classes, establish runtime
 placement or test a real callback, credential, fingerprint or unlock operation.
 No model may be packaged as a framework replacement.
 
+The standalone [occurrence lab](../switcher/experimental/samsung-security/occurrence-lab/)
+checks passive reference identity in authored models. Its helper records an
+occurrence without making a credential decision or enabling a launch, endpoint
+or Binder handoff.
+
 ## Where integration belongs
 
 This spans the app, privileged launch control, framework and native owners.
@@ -112,14 +116,17 @@ and passed modeled checks for preserving the original call and observing its
 Binder identity before the identity clear. Connecting both to the live ColorOS
 keypad remains open.
 
-The tree preparation controller cross-compiles with the exact donor manifest
-embedded. Host fixtures exercise mount and descriptor checks, teardown, and the
-cleanup status reported over the control channel. The full executable link is
-still held at the stage admission boundary. Admission must establish the exact
-mounted contents and keep the backing generation stable throughout the lease.
-The donor image still needs a real filesystem build and metadata readback.
+The file-backed preparation controller has a statically linked ARM64 build.
+The EROFS image passed full offline file and metadata readback against the
+reviewed donor manifest. Host fixtures cover mount and descriptor checks,
+teardown and the reported local cleanup status. The matched preparation tester
+and host debug APKs passed offline package and signature checks. A newer host
+cleanup revision passed focused JVM checks and was packaged as an unsigned APK.
+That revision remains unselected. These are separate PC artifacts outside this
+PR. Live stage admission, backing custody and cleanup remain unverified.
 
-The first on-device work has three separate gates.
+The first live test remains pending. The proposed on-device work has three
+separate gates.
 
 1. Verify preparation and Stop against the real stage. Confirm the retained
    child, mounts and descriptors, exercise a refused preparation, and confirm
