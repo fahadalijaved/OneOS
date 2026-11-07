@@ -1,0 +1,24 @@
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/root_toolbar"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/preboot_page"
+    android:focusableInTouchMode="true" app:handleInsets="false" app:expandable="true" app:expanded="false"
+    app:mainRoundedCorners="top" app:showNavButtonAsBack="true">
+    <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent" app:layout_location="main_content"
+        android:paddingHorizontal="10dp" android:paddingTop="10dp">
+        <androidx.recyclerview.widget.RecyclerView android:id="@+id/root_apps" android:layout_width="match_parent"
+            android:layout_height="match_parent" android:clipToPadding="false" android:scrollbars="none" />
+        <LinearLayout android:id="@+id/root_empty" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:gravity="center" android:orientation="vertical" android:padding="24dp">
+            <TextView android:id="@+id/root_empty_text" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:gravity="center" android:textSize="16sp" android:textColor="@color/preboot_secondary" />
+            <Button android:id="@+id/root_retry" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/root_retry" android:visibility="gone" />
+        </LinearLayout>
+    </FrameLayout>
+    <androidx.appcompat.widget.SearchView android:id="@+id/root_search" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="8dp"
+        android:maxWidth="280dp" android:imeOptions="actionSearch" android:inputType="text"
+        app:layout_location="root" app:queryBackground="@drawable/sesl_textfield_search_light"
+        app:closeIcon="@drawable/sesl_ic_search_bottom_clear" app:queryHint="@string/root_search_hint"
+        app:seslIsBottomSearchView="true" />
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

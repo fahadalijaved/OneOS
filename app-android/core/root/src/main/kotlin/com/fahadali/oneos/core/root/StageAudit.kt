@@ -407,13 +407,13 @@ object ShellScan {
  * phone's user data, reboots, settings, package wipes or mounts.
  */
 object StageAudit {
-    val VERBS = listOf("begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "selfupdate")
+    val VERBS = listOf("guest-runtime", "guest-module", "guest-module-state", "begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "selfupdate")
 
     val ALLOWED: Set<String> = setOf(
         "umask", "[", "echo", "printf", "id", "stat", "awk", "sed", "grep", "sort", "head", "tail", "cut", "tr", "wc",
         "cat", "ls", "mkdir", "mv", "cp", "rm", "chown", "chmod", "sha256sum", "date", "getprop", "pm", "getevent", "du",
         "env", "unset", "export", "set", "read", "exit", "return", "shift", "true", "false", "break", "continue", "exec",
-        "trap", "am",
+        "trap", "am", "od",
     )
 
     private val WRITES = setOf("mkdir", "mv", "cp", "rm", "chown", "chmod")
@@ -560,7 +560,9 @@ object StageAudit {
         }
         for (c in scan.commands) {
             val n = c.name
-            val ok = n in ALLOWED || n in functions || n == "\"\$BB\""
+            val guestUnpack = c.function == "do_guest_module" && n == "\"\$STAGE/guest_root\"" &&
+                c.args == listOf("--unpack", "\"\$STAGE/data/oneos_root/adb/modules_update/\$2\"")
+            val ok = n in ALLOWED || n in functions || n == "\"\$BB\"" || guestUnpack
             if (!ok) {
                 p += "line ${c.line}: '$n' is not on the root script's allow-list"
                 continue

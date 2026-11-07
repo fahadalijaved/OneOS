@@ -211,6 +211,12 @@ delete).
 5. `return_to_oneui.sh` stops the guest and gives the phone back to One UI, in
    place when it can and by a reboot otherwise (`docs/inplace-return.md`).
 
+## Guest root and modules
+
+The pre-boot page and guest OneOS app can manage guest-specific root grants,
+modules and a selected Zygisk framework. See [setup and build instructions](docs/guest-runtime.md)
+and [root-provider compatibility limits](docs/guest-root-provider-compatibility.md).
+
 ## Repository
 
 | Path | What it is |

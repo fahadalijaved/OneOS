@@ -931,12 +931,12 @@ class StageScriptTest {
         fr.props["ro.soc.model"] = "SM8850"
         fr.writeProps()
         val n6 = Stager(fr, Profiles.FOLD8)
-        // 0.4.38: the Find N6 global image with the Folds' set (n6-f8 was the CN build's).
-        assertEquals(PackageSets.N6_F8U, n6.set)
+        // The Fold8 uses the content-addressed global channel; Ultra keeps its own set.
+        assertEquals(PackageSets.N6_GLOBAL_F8, n6.set)
         n6.prepare()
         val marker = StageMarker.parse(File(fr.stage, StageMarker.FILE_NAME).readText())!!
-        assertEquals(listOf("f8", PackageSets.ID_N6_F8U), listOf(marker.profileId, marker.setId))
-        for (name in PackageSets.N6_F8U.names) assertTrue(name, File(fr.stage, name).isFile)
+        assertEquals(listOf("f8", PackageSets.N6_GLOBAL_F8.id), listOf(marker.profileId, marker.setId))
+        for (name in PackageSets.N6_GLOBAL_F8.names) assertTrue(name, File(fr.stage, name).isFile)
         refused(n6.launch(), "test root: every launch check passed")
         val pixel = Stager(fr, Profiles.FOLD8, Images.ID_PIXEL_YOGI)
         assertEquals(PackageSets.PIXEL_F8, pixel.set)

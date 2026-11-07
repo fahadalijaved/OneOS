@@ -12,3 +12,6 @@ keystore.properties
 # Python bytecode (switcher/patches).
 __pycache__/
 *.pyc
+
+# Generated guest manager APK; build with scripts/build-guest-manager.sh.
+switcher/assets/guest_manager.apk

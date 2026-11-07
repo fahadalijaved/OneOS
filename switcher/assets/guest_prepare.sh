@@ -819,6 +819,11 @@ samcam_bind() {
     echo "Samsung Camera in the guest: $n files and folders bound onto $2"
     return 0
 }
+# Add the missing guest su mount point to an overlay before its read-only
+# system view is mounted. Modern guest images need not ship /system/xbin.
+guest_root_mountpoint() {
+    [ ! -f "$STAGE/data/oneos_root/enabled" ] || [ -d "$ROOTFS/system/xbin" ] || mkdir -p "$1/xbin"
+}
 if [ -d "$SAMCAM_SRC" ] && [ $SAMCAM_IMAGE = 0 ]; then
     echo "Samsung Camera in the guest: off (this system's set has no samcam.tar; samcam_build is another system's)"
 elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
@@ -835,7 +840,7 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         mkdir -p "$SOV"
         mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SOV"
         rm -rf "$SOV/up" && mkdir -p "$SOV/up"
-        if samcam_mountpoints "$SOV/up" sys &&
+        if samcam_mountpoints "$SOV/up" sys && guest_root_mountpoint "$SOV/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$SOV/up:$ROOTFS/system" "$ROOTFS/system"; then
             if samcam_bind sys "$ROOTFS/system"; then SAMCAM=1; else
                 echo "Samsung Camera in the guest: off (bind-mount onto $ROOTFS/system failed)"
@@ -849,6 +854,21 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
     fi
 elif [ -d "$SAMCAM_SRC" ]; then
     echo "Samsung Camera in the guest: left out (ONEOS_GUEST_SAMSUNG_CAMERA=0)"
+fi
+# Without the camera's system overlay, add only the missing directory in a
+# private read-only layer before later system submounts are installed.
+if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; then
+    GRO="$STAGE/guest_root_ov"
+    [ ! -L "$GRO" ] || { echo 'ERROR: guest root overlay is a symlink'; exit 3; }
+    mkdir -p "$GRO"
+    $BB mount -t tmpfs -o size=64k,mode=755 tmpfs "$GRO" || exit 3
+    $BB mount --make-private "$GRO" || exit 3
+    mkdir -p "$GRO/up"
+    guest_root_mountpoint "$GRO/up" || exit 3
+    $BB chcon -R u:object_r:system_file:s0 "$GRO/up" 2>/dev/null || true
+    $BB mount -t overlay overlay -o "ro,lowerdir=$GRO/up:$ROOTFS/system" "$ROOTFS/system" || exit 3
+    [ -d "$ROOTFS/system/xbin" ] || { echo 'ERROR: guest su mount point missing after overlay'; exit 3; }
+    echo 'Guest root: missing system/xbin supplied by a private read-only overlay'
 fi
 # The camera's working folder /data/sec/camera, which One UI's init makes
 # (vendor_secdir, the camera's own uid): the camera cannot make it, "AccessDenied
@@ -2035,41 +2055,7 @@ if [ -f "$STAGE/OneOSFoldCutout.apk" ] && [ "$FORM" = fold ] && [ "${ONEOS_PROFI
 elif [ -f "$STAGE/OneOSFoldCutout.apk" ]; then
     echo "Fold cutout overlay left out (profile ${ONEOS_PROFILE:-f8u}, form $FORM: its panel ids are the Z Fold Ultra's)"
 fi
-# Pixel 17's WallpaperDataParser calls next() once for <description>. Its
-# indented serializer writes whitespace there, so next() returns TEXT and the
-# saved component is skipped. Remove only whitespace between XML elements,
-# preserving every component, crop, colour, content value and wallpaper file.
-# Every Pixel guest (pull request #1 found it on the Fold8; same Pixel 17 code).
-if [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ]; then
-    WREL=system/users/0/wallpaper_info.xml
-    no_symlink "$WREL"
-    WFILE="$STAGE/data/$WREL"
-    if [ -f "$WFILE" ] && [ ! -L "$WFILE" ] && [ "$(head -c 5 "$WFILE")" = '<?xml' ]; then
-        no_symlink "$WREL.oneos-normalized"
-        no_symlink "$WREL.oneos-spacing-backup"
-        if cp -p "$WFILE" "$WFILE.oneos-normalized" &&
-                "$BB" sed ':a
-N
-$!ba
-s/>[[:space:]]*</></g' "$WFILE" > "$WFILE.oneos-normalized" &&
-                [ -s "$WFILE.oneos-normalized" ]; then
-            if ! cmp -s "$WFILE" "$WFILE.oneos-normalized"; then
-                if cp -p "$WFILE" "$WFILE.oneos-spacing-backup"; then
-                    mv -f "$WFILE.oneos-normalized" "$WFILE"
-                    echo "Pixel wallpaper: normalized description spacing; saved selection retained"
-                else
-                    rm -f "$WFILE.oneos-normalized"
-                    echo "WARNING: Pixel wallpaper backup failed; original retained"
-                fi
-            else
-                rm -f "$WFILE.oneos-normalized"
-            fi
-        else
-            rm -f "$WFILE.oneos-normalized"
-            echo "WARNING: Pixel wallpaper normalization failed; original retained"
-        fi
-    fi
-fi
+# Pixel wallpaper metadata is normalized in guest_start.sh on every start.
 # Pixel on the Fold8 / Fold8 Ultra: the unfold transition's boot flags, read by
 # SystemUI and the launcher at start (pixel-f8: Fold8PixelUnfold.apk, which also
 # has the Fold8's 48dp bar and AOD; pixel-f8u: OneOSPixelUnfold.apk, the gates only).
@@ -2101,14 +2087,18 @@ if [ "${ONEOS_GUEST_APP:-1}" = 1 ]; then
     mkdir -p "$STAGE/data/oneos_bootui"
     cp "$STAGE/boot_status.sh" "$STAGE/data/oneos_bootui/boot_status.sh"
     chmod 644 "$STAGE/data/oneos_bootui/boot_status.sh"
-    if [ -f "$STAGE/OneOSGuest.apk" ]; then
+    GUEST_APP_APK="$STAGE/OneOSGuest.apk"
+    [ ! -f "$STAGE/guest_manager.apk" ] || GUEST_APP_APK="$STAGE/guest_manager.apk"
+    # One integrated OneOS app in every guest, including when guest root is off.
+    rm -f "$STAGE/oem/app/OneOSGuestRoot/GuestRoot.apk"
+    if [ -f "$GUEST_APP_APK" ]; then
         mkdir -p "$STAGE/oem/app/OneOSGuest" &&
-            cp "$STAGE/OneOSGuest.apk" "$STAGE/oem/app/OneOSGuest/" &&
+            cp "$GUEST_APP_APK" "$STAGE/oem/app/OneOSGuest/OneOSGuest.apk" &&
             chmod 755 "$STAGE/oem" "$STAGE/oem/app" "$STAGE/oem/app/OneOSGuest" &&
             chmod 644 "$STAGE/oem/app/OneOSGuest/OneOSGuest.apk" &&
             OEM_FILES="$OEM_FILES app/OneOSGuest/OneOSGuest.apk"
     else
-        echo "No $STAGE/OneOSGuest.apk: no OneOS app in the guest (Volume Up + Volume Down still return)"
+        echo "No guest OneOS APK: Volume Up + Volume Down still return"
     fi
 fi
 if [ -n "$OEM_FILES" ]; then
@@ -3966,14 +3956,29 @@ chmod 755 "$STAGE/data/local/tmp/app_storage_loop.sh" 2>/dev/null || true
 
 echo "=== 6. Setting up /system/xbin/su (KernelSU Bridge) ==="
 if ! mount | grep -q "$ROOTFS/system/xbin "; then
-    $BB mount -t tmpfs tmpfs "$ROOTFS/system/xbin"
+    if [ -f "$STAGE/data/oneos_root/enabled" ]; then
+        $BB mount -t tmpfs tmpfs "$ROOTFS/system/xbin" || exit 3
+    else
+        $BB mount -t tmpfs tmpfs "$ROOTFS/system/xbin"
+    fi
     # The guest's ksud copy (section 5d) when there is one: as su, its -M
     # (mount master) enters pid 1's namespace too, One UI's with the plain copy.
-    SU_SRC="$STAGE/data/oneos_ksu/ksud.guest"
-    [ -f "$SU_SRC" ] || SU_SRC="/data/adb/ksud"
-    [ -f "$SU_SRC" ] || SU_SRC=$(which su 2>/dev/null)
-    [ -f "$SU_SRC" ] || SU_SRC=$(find /data/adb /system/bin -name su 2>/dev/null | head -n 1)
-    [ -f "$SU_SRC" ] && cp "$SU_SRC" "$ROOTFS/system/xbin/su" && chmod 755 "$ROOTFS/system/xbin/su"
+    if [ -f "$STAGE/data/oneos_root/enabled" ]; then
+        # The isolated broker is the guest's su. A host provider can expose su
+        # virtually through its kernel, leaving no regular host file to copy.
+        SU_SRC="$STAGE/guest_root"
+    else
+        SU_SRC="$STAGE/data/oneos_ksu/ksud.guest"
+        [ -f "$SU_SRC" ] || SU_SRC="/data/adb/ksud"
+        [ -f "$SU_SRC" ] || SU_SRC=$(which su 2>/dev/null)
+        [ -f "$SU_SRC" ] || SU_SRC=$(find /data/adb /system/bin -name su 2>/dev/null | head -n 1)
+    fi
+    if [ -f "$STAGE/data/oneos_root/enabled" ]; then
+        cp "$SU_SRC" "$ROOTFS/system/xbin/su" && chmod 755 "$ROOTFS/system/xbin/su" || exit 3
+        [ -x "$ROOTFS/system/xbin/su" ] || exit 3
+    else
+        [ -f "$SU_SRC" ] && cp "$SU_SRC" "$ROOTFS/system/xbin/su" && chmod 755 "$ROOTFS/system/xbin/su"
+    fi
 fi
 
 echo "=== 7. Setting up Fresh APEX tmpfs ==="
@@ -4648,6 +4653,7 @@ cat > "$STAGE/tmp/guest_modules.sh" <<'GUESTMODULES'
 S=${ONEOS_TEST_STAGE:-/data/local/tmp/oneos}
 R=$S/rootfs
 K=$S/data/oneos_ksu
+[ ! -f "$S/data/oneos_root/enabled" ] || K=$S/data/oneos_root/adb
 M=$K/modules
 U=$K/modules_update
 L=$S/tmp/module_mounts
@@ -4677,14 +4683,25 @@ if [ -d "$W" ]; then
 fi
 mkdir -p "$W" || { echo "Modules: no $W"; exit 0; }
 
-# Updates installed since the last start replace the module; removals go.
+# Cleanup scripts run in the guest root before deleting anything, never in host /data/adb.
+if [ -f "$S/data/oneos_root/enabled" ]; then
+    "$BB" chroot "$R" /system/bin/sh /data/oneos_runtime.sh uninstall || exit 1
+fi
+# Remove wins over a pending update. Never delete an active module at button press.
+for d in "$M"/* "$U"/*; do
+    [ -d "$d" ] && [ ! -L "$d" ] && [ -f "$d/remove" ] || continue
+    id=${d##*/}
+    case "$id" in ''|.*|*[!A-Za-z0-9._-]*) echo "Modules: invalid module id"; exit 1 ;; esac
+    [ ! -L "$M/$id" ] && [ ! -L "$U/$id" ] || exit 1
+    rm -rf "$M/$id" "$U/$id" || exit 1
+    echo "Modules: $id removed"
+done
 for d in "$U"/*; do
     [ -d "$d" ] && [ ! -L "$d" ] || continue
     id=${d##*/}
-    rm -rf "$M/$id" && mv "$d" "$M/$id" && rm -f "$M/$id/update" && echo "Modules: $id updated"
-done
-for d in "$M"/*; do
-    [ -d "$d" ] && [ ! -L "$d" ] && [ -e "$d/remove" ] && rm -rf "$d" && echo "Modules: ${d##*/} removed"
+    case "$id" in ''|.*|*[!A-Za-z0-9._-]*) echo "Modules: invalid module id"; exit 1 ;; esac
+    [ ! -L "$M/$id" ] || exit 1
+    rm -rf "$M/$id" && mv "$d" "$M/$id" && rm -f "$M/$id/update" && echo "Modules: $id updated" || exit 1
 done
 
 # The image's folder for a path under a module's system/ (inside the tree only).
@@ -4811,6 +4828,21 @@ HOST_DEV=$(stat -L -c %d /proc/1/root/ 2>/dev/null)
 [ "$GUEST_DEV" = "$HOST_DEV" ] && GUEST_DEV=""
 [ -n "$GUEST_NS" ] && [ "$GUEST_NS" != "$HOST_NS" ] || { echo "soft reboot: no guest namespace recorded"; exit 1; }
 [ -f $S/data/guest_start.sh ] && [ -f $S/data/zygote_exec ] || { echo "soft reboot: guest_start.sh or zygote_exec missing"; exit 1; }
+if [ -f "$S/boot_status.sh" ]; then
+    . "$S/boot_status.sh"
+    oneos_boot_begin restart
+    restart_generation=$(cat "$ONEOS_BOOT_DIR/generation")
+    restart_wake="oneos_restart_$$"
+    echo "$restart_wake" > /sys/power/wake_lock 2>/dev/null || true
+    ( end=$(( $(date +%s) + 120 ))
+      while [ "$(date +%s)" -lt "$end" ] && [ ! -f "$ONEOS_BOOT_DIR/stop" ] &&
+            [ "$(cat "$ONEOS_BOOT_DIR/generation" 2>/dev/null)" = "$restart_generation" ]; do sleep 1; done
+      echo "$restart_wake" > /sys/power/wake_unlock 2>/dev/null || true
+    ) </dev/null >/dev/null 2>&1 &
+    oneos_boot_event 'Stopping guest apps'
+    oneos_boot_wait_ready 5 || echo 'Restart splash: retaining the guest app fallback until the renderer reconnects'
+    oneos_boot_hold_display 'Restarting guest'
+fi
 echo "$(date +%T) soft reboot ($1): stopping the guest's processes"
 pass=1
 while [ $pass -le 5 ]; do
@@ -4842,9 +4874,24 @@ rm -f /dev/socket/hyos_spawner
 # The guest vold's name (gvld) leaves servicemanager with its process.
 n=0
 while [ $n -lt 30 ] && service check gvld 2>/dev/null | grep -q ': found'; do n=$((n + 1)); sleep 0.1; done
+command -v oneos_boot_event >/dev/null 2>&1 && oneos_boot_event 'Preparing guest modules'
+# Restore recorded system.prop values before loading the next set of modules.
+if [ -f "$S/data/oneos_root/enabled" ]; then
+    "$BB" chroot "$S/rootfs" /system/bin/sh /data/oneos_runtime.sh restore-props || exit 1
+fi
 # This system's modules, applied again (installs, updates and removals since).
-[ -f $S/tmp/guest_modules.sh ] && BB=$BB /system/bin/sh $S/tmp/guest_modules.sh
+[ -f $S/tmp/guest_modules.sh ] || exit 1
+BB=$BB /system/bin/sh $S/tmp/guest_modules.sh || exit 1
+if [ -f "$S/data/oneos_root/enabled" ]; then
+    # New ZIPs need customize.sh before their generated files are mounted.
+    "$BB" chroot "$S/rootfs" /system/bin/sh /data/oneos_runtime.sh install || exit 1
+    BB=$BB /system/bin/sh $S/tmp/guest_modules.sh || exit 1
+fi
 rm -f $S/data/oneos_rec_stop
+setprop sys.boot_completed 0
+setprop dev.bootcomplete 0
+setprop service.bootanim.exit 0
+command -v oneos_boot_event >/dev/null 2>&1 && oneos_boot_event 'Starting guest services'
 echo "$(date +%T) soft reboot: starting the guest again"
 echo "=== OneOS soft reboot $(date '+%F %T') ($1) ===" >> $S/data/takeover.log
 $BB unshare -m $BB sh $S/data/guest_start.sh </dev/null >>$S/data/takeover.log 2>&1 &
@@ -4857,7 +4904,12 @@ stat -c %d $S/rootfs > $S/guest_rootdev 2>/dev/null
 # The new zygote's sockets pinned again once zygote_exec is app_process64.
 ( n=0
   while :; do
-      case "$(readlink /proc/$TP/exe 2>/dev/null)" in
+      ZP=$TP
+      if [ -f "$S/data/oneos_root/enabled" ]; then
+          ZP=$(cat "$S/data/oneos_root/adb/oneos/run/injection.pid" 2>/dev/null)
+          case "$ZP" in ''|*[!0-9]*) ZP=$TP ;; esac
+      fi
+      case "$(readlink /proc/$ZP/exe 2>/dev/null)" in
           */app_process64) break ;;
           '') exit 0 ;;
       esac
@@ -4876,6 +4928,10 @@ exit 0
 GUESTSOFTREBOOT
 chmod 700 "$STAGE/tmp/guest_modules.sh" "$STAGE/tmp/guest_softreboot.sh"
 rm -f "$STAGE/tmp/softreboot.gen" "$STAGE/tmp/module_mounts"
+if [ -f "$STAGE/data/oneos_root/enabled" ]; then
+    STAGE="$STAGE" /system/bin/sh "$STAGE/guest_runtime.sh" prepare || exit 3
+    BB=$BB /system/bin/sh "$STAGE/tmp/guest_modules.sh" || exit 3
+fi
 if [ -d "$STAGE/data/oneos_ksu/modules" ]; then
     BB=$BB /system/bin/sh "$STAGE/tmp/guest_modules.sh" || echo "Modules: not applied (see above)"
 fi

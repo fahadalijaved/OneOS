@@ -1,0 +1,84 @@
+diff --git a/loader/src/ptracer/main.cpp b/loader/src/ptracer/main.cpp
+index b2a9b4b..defa08b 100644
+--- a/loader/src/ptracer/main.cpp
++++ b/loader/src/ptracer/main.cpp
+@@ -195,0 +196 @@ int main(int argc, char **argv) {
++    if (argc < 2 || (std::string_view(argv[1]) != "trace" && std::string_view(argv[1]) != "version")) { fprintf(stderr, "OneOS: global monitor and boot stages disabled\n"); return 1; }
+diff --git a/zygiskd/src/main.rs b/zygiskd/src/main.rs
+index 90a29f5..4c6a88b 100644
+--- a/zygiskd/src/main.rs
++++ b/zygiskd/src/main.rs
+@@ -144 +144 @@ fn main_daemon_entry(tmp_path: Option<&str>) -> anyhow::Result<()> {
+-    mount::switch_mount_namespace(1)?;
++    // OneOS: retain the private guest namespace, never enter host init.
+@@ -150 +150 @@ fn main_daemon_entry(tmp_path: Option<&str>) -> anyhow::Result<()> {
+-    root_impl::disable_self_umount();
++    // OneOS: never change host kernel module-unmount policy.
+diff --git a/zygiskd/src/root_impl/mod.rs b/zygiskd/src/root_impl/mod.rs
+index e7602ca..ebe9116 100644
+--- a/zygiskd/src/root_impl/mod.rs
++++ b/zygiskd/src/root_impl/mod.rs
+@@ -37,0 +38,2 @@ fn detect_root() -> RootImpl {
++    return RootImpl::None;
++    #[allow(unreachable_code)]
+@@ -93,6 +95,2 @@ pub fn uid_granted_root(uid: i32) -> bool {
+-    match get() {
+-        RootImpl::APatch => apatch::uid_granted_root(uid),
+-        RootImpl::KernelSU => kernelsu::uid_granted_root(uid),
+-        RootImpl::Magisk => magisk::uid_granted_root(uid),
+-        _ => false,
+-    }
++    let Ok(text) = std::fs::read_to_string("/data/adb/oneos/grants") else { return false; };
++    text.lines().any(|line| line.split_whitespace().nth(1).and_then(|s| s.parse::<i32>().ok()) == Some(uid))
+diff --git a/zygiskd/src/utils.rs b/zygiskd/src/utils.rs
+index 3d0e495..f97ec8f 100644
+--- a/zygiskd/src/utils.rs
++++ b/zygiskd/src/utils.rs
+@@ -179,9 +179 @@ pub fn unix_listener_from_path(path: &str) -> Result<UnixListener> {
+-pub fn unix_datagram_sendto(path: &str, buf: &[u8]) -> Result<()> {
+-    set_socket_create_context(&get_current_attr()?)?;
+-    let addr = SocketAddrUnix::new(path.as_bytes())?;
+-    let socket = socket(AddressFamily::UNIX, SocketType::DGRAM, None)?;
+-    connect(&socket, &addr)?;
+-    sendto(socket, buf, SendFlags::empty(), &addr)?;
+-    set_socket_create_context("u:r:zygote:s0")?;
+-    Ok(())
+-}
++pub fn unix_datagram_sendto(_path: &str, _buf: &[u8]) -> Result<()> { Ok(()) }
+diff --git a/zygiskd/src/zygiskd.rs b/zygiskd/src/zygiskd.rs
+index 09c2deb..8625993 100644
+--- a/zygiskd/src/zygiskd.rs
++++ b/zygiskd/src/zygiskd.rs
+@@ -324,30 +324,2 @@ fn send_startup_info(modules: &[Module]) -> Result<()> {
+-    let mut msg = Vec::<u8>::new();
+-    let info = match root_impl::get() {
+-        root_impl::RootImpl::APatch
+-        | root_impl::RootImpl::KernelSU
+-        | root_impl::RootImpl::Magisk => {
+-            msg.extend_from_slice(&constants::DAEMON_SET_INFO.to_le_bytes());
+-            let module_names: Vec<_> = modules.iter().map(|m| m.name.as_str()).collect();
+-            // Indented one level, to stand as its own block in the status readout, with
+-            // module names one level deeper again under their count.
+-            if !module_names.is_empty() {
+-                format!(
+-                    "\tRoot: {:?}\n\tModules ({}):\n\t\t{}",
+-                    root_impl::get(),
+-                    modules.len(),
+-                    module_names.join("\n\t\t")
+-                )
+-            } else {
+-                format!("\tRoot: {:?}", root_impl::get())
+-            }
+-        }
+-        _ => {
+-            msg.extend_from_slice(&constants::DAEMON_SET_ERROR_INFO.to_le_bytes());
+-            format!("\t\tInvalid root implementation: {:?}", root_impl::get())
+-        }
+-    };
+-    msg.extend_from_slice(&(info.len() as u32 + 1).to_le_bytes());
+-    msg.extend_from_slice(info.as_bytes());
+-    msg.push(0); // Null terminator
+-    utils::unix_datagram_sendto(CONTROLLER_SOCKET.get().unwrap(), &msg)
+-        .context("Failed to send startup info to controller")
++    info!("OneOS guest modules loaded: {}", modules.len());
++    Ok(())

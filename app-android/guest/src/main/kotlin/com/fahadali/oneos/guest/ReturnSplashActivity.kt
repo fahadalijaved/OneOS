@@ -16,6 +16,7 @@ import java.io.IOException
 class ReturnSplashActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var submitted = false
+    private val restarting get()=intent.getBooleanExtra(GuestRestart.EXTRA_RESTART,false)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyEdgeToEdge()
@@ -23,7 +24,8 @@ class ReturnSplashActivity : AppCompatActivity() {
         setTurnScreenOn(true)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_return_splash)
-        submitted = savedInstanceState?.getBoolean("submitted") == true || ReturnRequest.pending(this)
+        if(restarting)findViewById<TextView>(R.id.transition_title).text=getString(R.string.restart_splash_title,GuestName.read() ?: "guest")
+        submitted = savedInstanceState?.getBoolean("submitted") == true || if(restarting)GuestRestart.pending(this) else ReturnRequest.pending(this)
         if (submitted) scheduleNoAnswer()
         window.insetsController?.apply {
             hide(WindowInsets.Type.systemBars())
@@ -43,12 +45,12 @@ class ReturnSplashActivity : AppCompatActivity() {
         if (submitted || isFinishing || isDestroyed) return
         try {
             val reason = if (intent.getStringExtra(MainActivity.EXTRA_REASON) == ReturnRequest.REASON_TILE) ReturnRequest.REASON_TILE else ReturnRequest.REASON_APP
-            ReturnRequest.send(this, reason)
+            if(restarting)GuestRestart.send(this) else ReturnRequest.send(this, reason)
             submitted = true
             scheduleNoAnswer()
         } catch (e: IOException) {
             findViewById<TextView>(R.id.return_error).apply {
-                text = getString(R.string.status_failed, e.message ?: e.javaClass.simpleName)
+                text = getString(if(restarting)R.string.restart_request_failed else R.string.status_failed, e.message ?: e.javaClass.simpleName)
                 visibility = View.VISIBLE
             }
         }

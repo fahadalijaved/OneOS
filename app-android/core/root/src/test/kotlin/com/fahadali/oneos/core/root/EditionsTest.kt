@@ -30,7 +30,7 @@ class EditionsTest {
     @Test
     fun theRootScriptAndTheSessionListsAreTheFullEditions() {
         assertEquals(
-            setOf("root/oneos_root.sh", "root/status.list", "root/installd.list", "logs/collect.list"),
+            setOf("root/oneos_root.sh", "root/status.list", "root/installd.list", "logs/collect.list", "guest-runtime/NOTICE.txt", "guest-runtime/LICENSE-NeoZygisk.txt", "guest-runtime/LICENSE-Vector.txt"),
             files(Shipped.fullAssets),
         )
         assertTrue(Shipped.rootScript.isFile)
@@ -89,7 +89,7 @@ class EditionsTest {
     fun onlyTheFullEditionGetsTheOneOsFiles() {
         val build = File(src, "../build.gradle.kts").readText()
         assertEquals(1, Regex("""addGeneratedSourceDirectory\(oneosFiles""").findAll(build).count())
-        assertTrue(build.contains("\"full\" -> variant.sources.assets?.addGeneratedSourceDirectory(oneosFiles, OneOsFilesTask::outputDir)"))
+        assertTrue(Regex(""""full"\s*->\s*\{\s*variant.sources.assets\?\.addGeneratedSourceDirectory\(oneosFiles, OneOsFilesTask::outputDir\)""").containsMatchIn(build))
         assertTrue(build.contains("applicationIdSuffix = \".probe\""))
     }
 

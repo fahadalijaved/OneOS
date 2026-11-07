@@ -260,7 +260,7 @@
         {
           "image": "coloros17-findn6",
           "label": "ColorOS 17, Find N6 global build",
-          "set": "n6-f8u",
+          "set": "n6-global-f8",
           "tested": false
         },
         {

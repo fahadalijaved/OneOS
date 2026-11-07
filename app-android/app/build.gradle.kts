@@ -37,6 +37,25 @@ if (testPackagesDir != null) {
         }
     }
 }
+// Version overrides are for replacing local debug builds, never official releases.
+if (providers.gradleProperty("oneos.versionCode").isPresent || providers.gradleProperty("oneos.versionName").isPresent) {
+    gradle.taskGraph.whenReady {
+        check(allTasks.none { it.name.contains("Release", ignoreCase = true) }) {
+            "oneos.versionCode/name overrides are for debug builds only."
+        }
+    }
+}
+// Official builds must carry the normally signed guest release artifact, never
+// a debug APK or a local system-scan overlay left by device development.
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.project.path == ":app" && it.name.contains("FullRelease") }) {
+        val releaseGuest = rootProject.file("guest/build/outputs/apk/release/guest-release.apk")
+        val stagedGuest = File(repoRoot, "switcher/assets/guest_manager.apk")
+        check(releaseGuest.isFile && stagedGuest.isFile && sha256(releaseGuest) == sha256(stagedGuest)) {
+            "Build and stage the signed guest release first: scripts/build-guest-manager.sh release"
+        }
+    }
+}
 // Every set carries OneOSGuest.apk (app-android/guest, the in-guest "Back to
 // One UI" app; the ColorOS sets since their 2026-10-25 rebuild), and
 // guest_prepare.sh puts it in the guest's /oem/app.
@@ -99,6 +118,13 @@ val packedSets: Set<String> = if (seriesId == null) {
 // Session scripts copied from switcher/assets at build time (plus the expected
 // installd table). oneos_tunnel.sh (the server tunnel) and 7zz are never shipped.
 val sessionScripts: Map<String, File> = linkedMapOf(
+    "guest_runtime.sh" to File(repoRoot, "switcher/assets/guest_runtime.sh"),
+    "guest_root" to File(repoRoot, "switcher/assets/guest_root"),
+    "guest_zygiskd" to File(repoRoot, "switcher/assets/guest_zygiskd"),
+    "guest_zygisk_ptrace" to File(repoRoot, "switcher/assets/guest_zygisk_ptrace"),
+    "guest_zygisk.so" to File(repoRoot, "switcher/assets/guest_zygisk.so"),
+    "guest_vector.bundle" to File(repoRoot, "switcher/assets/guest_vector.bundle"),
+    "guest_manager.apk" to File(repoRoot, "switcher/assets/guest_manager.apk"),
     "oneos_switch.sh" to File(repoRoot, "switcher/assets/oneos_switch.sh"),
     "boot_status.sh" to File(repoRoot, "switcher/assets/boot_status.sh"),
     "OneOSBootStatus.dex" to File(repoRoot, "switcher/assets/OneOSBootStatus.dex"),
@@ -144,8 +170,18 @@ fun readShaList(f: File): Map<String, String> {
 fun renderShaList(entries: Map<String, String>): String =
     entries.entries.sortedBy { it.key }.joinToString("") { "${it.value}  ${it.key}\n" }
 
-val scriptsList: String = renderShaList(sessionScripts.mapValues { (n, f) ->
-    if (!f.isFile) throw GradleException("session script missing: $f")
+// Guest, Probe and unit-test tasks can run before the generated manager APK
+// exists. Every full staging build must have it before any task executes.
+val hasGuestManager = sessionScripts.getValue("guest_manager.apk").isFile
+if (!hasGuestManager) {
+    gradle.taskGraph.whenReady {
+        check(allTasks.none { it.path == ":app:oneosFiles" }) {
+            "Build the guest APK first with scripts/build-guest-manager.sh."
+        }
+    }
+}
+val scriptsList: String = renderShaList(sessionScripts.filterKeys { hasGuestManager || it != "guest_manager.apk" }.mapValues { (n, f) ->
+    if (!f.isFile) throw GradleException("session script missing: $f (build the guest APK with scripts/build-guest-manager.sh first)")
     sha256(f)
 })
 // The root script is the full edition's only (src/full); OneOS Probe has none.
@@ -346,6 +382,7 @@ val releaseKeys: Properties? =
     }
 
 android {
+    sourceSets.getByName("main").kotlin.srcDir(rootProject.file("shared-guest-ui"))
     namespace = "com.fahadali.oneos"
     compileSdk { version = release(37) }
 
@@ -436,8 +473,8 @@ android {
         // Pixel 9 Pro XL r5, Infinity-X r4, Nothing OS r22 (samcam_bar.tar for phones). The panel kept at its top rate in
         // Pixel, HyperOS and Nothing OS (it stayed at 24 Hz: 10-15 fps). Infinity-X: Samsung IMS (the carve-out's
         // /system/system_ext path; framework members; SMS centre). The Galaxy A16 4G (SM-A165F).
-        versionCode = 85
-        versionName = "0.4.59"
+        versionCode = providers.gradleProperty("oneos.versionCode").map(String::toInt).getOrElse(85)
+        versionName = providers.gradleProperty("oneos.versionName").getOrElse("0.4.59")
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's
