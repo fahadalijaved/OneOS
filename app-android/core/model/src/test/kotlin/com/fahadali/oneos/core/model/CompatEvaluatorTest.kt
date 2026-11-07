@@ -28,7 +28,7 @@ class CompatEvaluatorTest {
             "ColorOS 17 · global build on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
             "Pixel 11 Fold on the Galaxy Z Fold8; " +
             "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build on the Galaxy A57; " +
-            "ColorOS 17 · global build on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5.",
+            "ColorOS 17 · global build on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; Infinity-X 4.1 on the Galaxy A17; Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G.",
             CompatEvaluator.TESTED_SCOPE,
         )
         assertEquals(Level.OK, r.level("soc-snapdragon"))

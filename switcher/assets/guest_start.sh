@@ -619,8 +619,10 @@ echo "[Pivoted Root] Backlight: inner=$(cat $BL/brightness 2>/dev/null) cover=$(
 # A Fold switched while folded has the inner panel at 0 and the cover lit:
 # the cover is the one kept lit then (guest_props.sh puts the boot animation
 # there too), not the inner panel nobody can see.
+# Never on a flip or bar phone (ONEOS_GUEST_FORM=phone): a Z Flip5 on HyperOS
+# booted with its main panel dark and the cover lit (0.4.59 report 1e8846f4).
 KBL=$BL; KNAME=inner
-if [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] && [ -w "$BL2/brightness" ] && [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ]; then
+if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] && [ -w "$BL2/brightness" ] && [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ]; then
     KBL=$BL2; KNAME=cover
 fi
 if [ -w "$KBL/brightness" ]; then
@@ -948,7 +950,18 @@ if [ -f /data/guest_audio.flag ]; then
             miss=$((miss + 1)); [ $miss -lt 2 ] && continue
             kill -9 $as 2>/dev/null
             now=$(date +%s); [ $((now - last)) -gt 120 ] && r=0; last=$now
-            if [ $r -ge 4 ]; then handover "guest audioserver $why 5 times within 2 minutes"; break; fi
+            # 0.4.60: no hand-over after registration. Every guest framework is not
+            # Samsung, and Samsung audioserver killed it (Invalid usage 1005; 0.4.59
+            # Pixel reports 2c9c6419, 630e5625, 7fe453b5: a sound model Samsung sound
+            # trigger HAL refused made the guest reboot that HAL five times, the
+            # hand-over followed and system_server died, back to One UI after 60 s).
+            # From the fifth death within 2 minutes, a pause before each restart.
+            if [ $r -ge 4 ]; then
+                d=$(( (r - 3) * 10 )); [ $d -gt 60 ] && d=60
+                echo "$(date +%T) guest audioserver $why $((r + 1)) times within 2 minutes; restart in ${d}s (no hand-over)"
+                sleep $d
+                now=$(date +%s); last=$now
+            fi
             /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
         done' sh "$AS_PID" </dev/null >> /data/audio_keeper.log 2>&1 &
@@ -1438,11 +1451,24 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         for t in tsp tsp1 tsp2; do
             T=/sys/class/sec/$t
             [ -w $T/enabled ] || continue
-            ev=""
-            for e in $T/input/event*; do [ -e "$e" ] && ev=${e##*/}; done
+            ev=""; I=$T/input
+            for e in $I/event*; do [ -e "$e" ] && ev=${e##*/}; done
+            # Some drivers have no input link under sec/tsp (S24 FE, 0.4.59 report 8e514969):
+            # the touchscreen of the main panel by its name instead, as oneos_switch.sh finds it.
+            if [ -z "$ev" ] && [ $t = tsp ]; then
+                for e in /sys/class/input/event*; do
+                    [ "$(cat $e/device/name 2>/dev/null)" = sec_touchscreen ] && { ev=${e##*/}; I=$e/device; break; }
+                done
+            fi
             [ -n "$ev" ] && [ -c /dev/input/$ev ] || { log "$t: no input device under $T/input"; continue; }
+            # Only the protocol measured on the Z Fold8 Ultra (stm): enabled reads 1 (on) or
+            # 0. Others differ: the synaptics driver of the S23s reads 2 and refused one of the
+            # writes, and its chip stayed in low-power mode with no touch for the whole
+            # session (0.4.59 reports 9dbcda58, 7b972a82, 2c9c6419). Left to the guest there.
+            e0=$(cat $T/enabled 2>/dev/null)
+            case "$e0" in 0|1) ;; *) log "$t ($ev): enabled reads ${e0:-nothing}, not the measured protocol: double tap left to the guest"; continue ;; esac
             # KEY_WAKEUP (143) among its keys: bit 15 of the third word from the end.
-            set -- $(cat $T/input/capabilities/key 2>/dev/null)
+            set -- $(cat $I/capabilities/key 2>/dev/null)
             w=""; [ $# -ge 3 ] && eval w=\${$(($# - 2))}
             w=0000$w; w=${w#${w%????}}
             if [ $(( 0x$w & 0x8000 )) = 0 ]; then log "$t ($ev): no KEY_WAKEUP among its keys"; continue; fi
@@ -1453,7 +1479,7 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             [ -r $B/brightness ] || { log "$t ($ev): no backlight to follow ($B)"; continue; }
             eval "EV_$t=$ev C_$t=$C B_$t=$B/brightness ON_$t=1 L_$t=1 GP_$t="
             IDS="$IDS $t"
-            log "$t: $ev ($(cat $T/input/name 2>/dev/null)), panel $C=$(cat $C 2>/dev/null), $B=$(cat $B/brightness 2>/dev/null), enabled=$(cat $T/enabled 2>/dev/null)"
+            log "$t: $ev ($(cat $I/name 2>/dev/null)), panel $C=$(cat $C 2>/dev/null), $B=$(cat $B/brightness 2>/dev/null), enabled=$(cat $T/enabled 2>/dev/null)"
         done
         [ -n "$IDS" ] || { log "no touchscreen to keep: double tap left to the guest"; exit 0; }
         FOLD=0; case "$IDS" in *tsp1*tsp2*) FOLD=1 ;; esac
@@ -1504,8 +1530,8 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
               log "AOD: reader given up: no double tap on AOD this session" ) &
         fi
         arm() {
-            eval g=\$GP_$1
-            [ -z "$g" ] || return 0
+            eval g=\$GP_$1 no=\$NO_$1
+            [ -z "$g" ] && [ -z "$no" ] || return 0
             T=/sys/class/sec/$1; eval ev=\$EV_$1
             P=/data/oneos_dt2w_$1.fifo
             rm -f $P; $BB mkfifo $P || { log "$1: no fifo"; return; }
@@ -1519,12 +1545,18 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                   setaod 0
               done < $P ) &
             sleep 0.05
+            # The marker first: a chip that took the first write is in low-power mode,
+            # whatever the second answers, and only a marked one is ever put back on
+            # (here, by wake_tsp and by the return).
+            : > /data/oneos_dt2w_armed.$1
             if echo 1,0 > $T/enabled && echo 1,1 > $T/enabled; then
-                : > /data/oneos_dt2w_armed.$1
                 log "$1: $2: low-power mode (enabled=$(cat $T/enabled 2>/dev/null))"
             else
-                log "$1: panel off, but $T/enabled refused 1,0: double tap left to the guest"
+                log "$1: panel off, but $T/enabled refused 1,0/1,1: back on, double tap left to the guest"
+                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+                [ "$(cat $T/enabled 2>/dev/null)" = 1 ] && rm -f /data/oneos_dt2w_armed.$1
                 disarm $1
+                eval NO_$1=1
             fi
         }
         disarm() {

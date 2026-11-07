@@ -1910,8 +1910,15 @@ while true; do
                 G=\"timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh\"
                 ims_bound() { \$G /system/bin/cmd phone ims get-ims-service -s \$1 -d -f 1 2>&1 | tr -d '\\r' | tail -1; }
                 SB=0
+                # 0.4.60: the phone service first (HyperOS S25 b474c339, A56 9c6b6ac3:
+                # slot 0 answered \"Can't find service: phone\" and never got IMS).
+                i=0; while [ \$i -lt 30 ] && ! \$G /system/bin/service check phone 2>/dev/null | grep -q ': found'; do sleep 2; i=\$((i + 1)); done
                 for s in 0 1; do
-                    echo \"[UI Activator] Samsung IMS: slot \$s override: \$(\$G /system/bin/cmd phone ims set-ims-service -s \$s -d -f 0,1 com.sec.imsservice 2>&1 | tr '\\n' ' ' | cut -c1-120)\"
+                    for try in 1 2 3; do
+                        o=\$(\$G /system/bin/cmd phone ims set-ims-service -s \$s -d -f 0,1 com.sec.imsservice 2>&1 | tr '\\n' ' ' | cut -c1-120)
+                        case \"\$o\" in *\"find service\"*) sleep 5 ;; *) break ;; esac
+                    done
+                    echo \"[UI Activator] Samsung IMS: slot \$s override: \$o\"
                     b=\$(ims_bound \$s); echo \"[UI Activator] Samsung IMS: slot \$s bound: \$b\"
                     [ \"\$b\" = com.sec.imsservice ] && SB=1
                 done
@@ -2279,6 +2286,26 @@ while true; do
             fi
             echo \"[UI Activator] refresh: min \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system min_refresh_rate) peak \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system peak_refresh_rate); brightness \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness)\"
             echo '[UI Activator] Home activated!'
+            # ColorOS lock screen depth effect (0.4.60, owner; 0.4.59 A36 768c5a1d, S23
+            # 77b9dfc0): SystemUI saves the cut-out subject as /data/oplus/os/deep_scenery_image*,
+            # but that folder is system's and SystemUI runs as an app uid here (EACCES, \"can
+            # not show deep scenery\"). The Fold8 port's fix (fold8_coloros.sh) for every
+            # ColorOS: the folder searchable, the two files SystemUI's own. Links left alone.
+            if [ $GUEST_OPLUS = 1 ]; then
+                su_uid=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd package list packages -U com.android.systemui 2>/dev/null | sed -n 's/.*uid://p' | head -1 | tr -dc 0-9)
+                depth=$STAGE/data/oplus/os
+                if [ -n \"\$su_uid\" ] && [ -d \$depth ] && [ ! -L \$depth ] && [ ! -L $STAGE/data/oplus ]; then
+                    chmod 701 \$depth
+                    for n in deep_scenery_image0 deep_scenery_image_secondaryDisplay0; do
+                        [ ! -L \$depth/\$n ] || continue
+                        [ -f \$depth/\$n ] || : > \$depth/\$n
+                        $BB chown -h \$su_uid:\$su_uid \$depth/\$n && chmod 600 \$depth/\$n
+                    done
+                    echo \"[UI Activator] depth effect: \$depth/deep_scenery_image* for SystemUI (uid \$su_uid)\"
+                else
+                    echo \"[UI Activator] depth effect: left alone (SystemUI uid '\$su_uid', \$depth)\"
+                fi
+            fi
             # Google Dialer and Nearby devices (run 44): 50 SecurityExceptions
             # (DialerAudioModeProvider, getRemoteAlias: Need
             # android.permission.BLUETOOTH_CONNECT) in the first call, until the
@@ -3061,7 +3088,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
         echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0
+        t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0
         while [ \$t -lt $RETURN_MAX ]; do
             # The 10 s wait ends early on a request. Run 34: Volume Up + Volume
             # Down were held 3 s from 16:43:56, but the request was handled only
@@ -3097,8 +3124,9 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 setprop oneos.guest.powerctl ''
                 echo \"\$(date) guest requested a soft reboot (\$req) after \${t}s\"
                 if BB=$BB timeout 120 /system/bin/sh $STAGE/tmp/guest_softreboot.sh \"\$req\"; then
-                    t=0; dead=-60; sfgone=-30; prev_failed=0
+                    t=0; dead=-60; sfgone=-30; prev_failed=0; wmseen=0
                     homebase=\$(grep -c 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null)
+                    wmbase=\$(grep -c 'Dismissing bootanim' /data/local/tmp/ui_activator.log 2>/dev/null)
                     continue
                 fi
                 echo \"\$(date) soft reboot failed, returning to One UI\"
@@ -3115,6 +3143,13 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # limits; a dead guest still has to come back to One UI (the watcher
             # used to exit here and nothing returned after a later crash).
             home=0; [ \"\$(grep -c 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null)\" -gt \"\${homebase:-0}\" ] && home=1
+            # 0.4.60: the activator removes the boot animation itself once
+            # WindowManager is up, and says Home activated only after its slow
+            # steps (on MediaTek A phones 30 s and more on a first boot: A07
+            # 7262fad2 and A17 fb723e47 were sent back with their keyguard and
+            # setup wizard on screen). From its dismissal, 120 s for the home.
+            wm=0; [ \"\$(grep -c 'Dismissing bootanim' /data/local/tmp/ui_activator.log 2>/dev/null)\" -gt \"\${wmbase:-0}\" ] && wm=1
+            [ \$wm = 1 ] && [ \$home = 0 ] && wmseen=\$((wmseen + 10))
             # Display diagnostics from inside the guest (its own screencap and
             # dumpsys talk to its own surfaceflinger), kept in the stage dir.
             dname=''
@@ -3330,7 +3365,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # Only failures since the last check: a burst early in the boot must
             # not end a session that recovered.
             new_failed=\$((failed - prev_failed)); [ \$new_failed -lt 0 ] && new_failed=\$failed; prev_failed=\$failed
-            if [ \$t -ge $RETURN_BLACK ] && { ! pidof surfaceflinger >/dev/null || [ \$new_failed -gt 100 ] || { [ \$home = 0 ] && ! pidof bootanimation >/dev/null; }; }; then
+            if [ \$t -ge $RETURN_BLACK ] && { ! pidof surfaceflinger >/dev/null || [ \$new_failed -gt 100 ] || { [ \$home = 0 ] && ! pidof bootanimation >/dev/null && { [ \$wm = 0 ] || [ \$wmseen -ge 120 ]; }; }; }; then
                 echo \"\$(date) black screen after \${t}s (surfaceflinger: \$(pidof surfaceflinger), bootanimation: \$(pidof bootanimation), new failed frames: \$new_failed), returning to One UI\"
                 exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi

@@ -46,7 +46,7 @@ SM-A155, 4G
 
 | System | Status |
 |---|---|
-| Coming | 🔜 with OneOS 0.4.59 (on One UI 9), not in the current app yet |
+| Infinity-X 4.1 | 🔲 not tested yet |
 
 **SM-A166P, 5G, Dimensity 6300**
 
@@ -93,7 +93,9 @@ SM-A276, Snapdragon 6 Gen 3
 
 | System | Status |
 |---|---|
-| Coming | 🔜 with OneOS 0.4.59 (on One UI 9), not in the current app yet |
+| ColorOS 17 (Find X9 Ultra) | 🔲 not tested yet |
+| Infinity-X 4.1 | 🔲 not tested yet |
+| HyperOS | 🔲 not tested yet |
 
 ## Galaxy A34
 
@@ -109,7 +111,8 @@ SM-A356, 5G, Exynos 1380
 
 | System | Status |
 |---|---|
-| Coming | 🔜 with OneOS 0.4.59 (on One UI 9), not in the current app yet |
+| ColorOS 17 (Find X9 Ultra) | 🔲 not tested yet |
+| Infinity-X 4.1 | 🔲 not tested yet |
 
 ## Galaxy A36
 
@@ -135,7 +138,8 @@ SM-A546, 5G, Exynos 1380
 
 | System | Status |
 |---|---|
-| Coming | 🔜 with OneOS 0.4.59 (on One UI 9), not in the current app yet |
+| ColorOS 17 (Find X9 Ultra) | 🔲 not tested yet |
+| Infinity-X 4.1 | 🔲 not tested yet |
 
 ## Galaxy A56
 
@@ -143,7 +147,7 @@ SM-A566, Exynos 1580
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ✅ starts (11 reports, OneOS 0.4.38) |
+| ColorOS 17 (Find X9 Ultra) | ✅ starts (12 reports, OneOS 0.4.38) |
 | Pixel 9 Pro XL | ✅ starts (5 reports, OneOS 0.4.57) |
 | Infinity-X 4.1 | ⚠️ started in 4 of 5 (5 reports, OneOS 0.4.54); problems reported: Calls, SMS |
 | HyperOS | ⚠️ started in 2 of 4 (4 reports, OneOS 0.4.58); problems reported: Calls, SMS |
@@ -275,7 +279,7 @@ SM-S931, Snapdragon 8 Elite
 | ColorOS 17 (Find X9 Ultra) | ⚠️ started in 8 of 10 (10 reports, OneOS 0.4.58); problems reported: Calls, SMS |
 | Pixel 9 Pro XL | ✅ starts (2 reports, OneOS 0.4.37); problems reported: SMS, Bluetooth |
 | Infinity-X 4.1 | ✅ starts (3 reports, OneOS 0.4.37); problems reported: Calls, SMS |
-| HyperOS | ⚠️ started in 6 of 7 (7 reports, OneOS 0.4.58); problems reported: Mobile data, Calls, SMS |
+| HyperOS | ⚠️ started in 7 of 8 (8 reports, OneOS 0.4.59); problems reported: Mobile data, Calls, SMS |
 | Nothing OS 5 | ✅ starts (1 report, OneOS 0.4.37); problems reported: Calls, SMS |
 
 ## Galaxy S25 Edge

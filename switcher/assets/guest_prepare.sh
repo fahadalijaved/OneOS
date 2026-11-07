@@ -2690,6 +2690,20 @@ mkdir -p "$STAGE/data/misc/user/0" "$STAGE/data/misc_de/0" "$STAGE/data/misc_ce/
 # create user store files): the user store (network suggestions, per-user
 # networks) never loaded. Stage only; the chmod/chown pass below covers them.
 mkdir -p "$STAGE/data/misc_ce/0/apexdata/com.android.wifi" "$STAGE/data/misc_de/0/apexdata/com.android.wifi"
+# Nor apexd's /data/misc/apexdata/<module> (one per active APEX): a guest /data that
+# never had them (the first CN run on a fresh /data) lost system_server at
+# NetworkStatsService ("Cannot write into stats data directory:
+# /data/misc/apexdata/com.android.tethering/netstats"); guest_start.sh's odrefresh
+# step had made /data/misc/apexdata root's 755. Every module name, One UI's (the
+# guest takes some of One UI's modules) and the image's own, in all three places,
+# before the chmod/chown pass below.
+for n in $(ls /apex 2>/dev/null | grep -v '@'; ls "$ROOTFS/system/apex" 2>/dev/null |
+           sed -e 's/\.c\{0,1\}apex$//' -e 's/_tplus_compressed$//' -e 's/_compressed$//' -e 's/^com\.google\.android\./com.android./'); do
+    case "$n" in *[!A-Za-z0-9._]*|.*|"") continue ;; esac
+    mkdir -p "$STAGE/data/misc/apexdata/$n" "$STAGE/data/misc_ce/0/apexdata/$n" "$STAGE/data/misc_de/0/apexdata/$n"
+done
+# init.rc's too (a fresh /data had none of them): Wi-Fi, SMS usage, text classifier.
+mkdir -p "$STAGE/data/misc/wifi" "$STAGE/data/misc/sms" "$STAGE/data/misc/textclassifier"
 mkdir -p "$STAGE/data/anr" "$STAGE/data/app" "$STAGE/data/rollback" "$STAGE/data/incremental"
 # The guest's own shared storage. Never the phone's /data/media: in run 25 the
 # guest's cleanup of a user it could not prepare deleted the photos in it.

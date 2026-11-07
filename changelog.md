@@ -23,6 +23,16 @@ New in 0.4.59: **the Galaxy A27, A35 5G and A54 5G**, untested: the A27 (SM-A276
 with the Galaxy A36's systems, the A35 5G and A54 5G (Exynos 1380, One UI 9) with the Galaxy A26's;
 and the A16 5G sold as SM-S166V.
 
+New in 0.4.60: **touch works again in the Pixel system on the Galaxy S23, S23+ and S23 Ultra** (the new
+double tap to wake left their touch chip in its low-power mode), and the Pixel system no longer drops
+back to One UI after a minute on the S23+ and S25 Ultra (an audio restart loop handed the sound over
+to One UI's audio service). **VoLTE is on by default** (One UI's calling service, for calls and SMS on
+4G-only networks; it can still be turned off in Settings). ColorOS's **lock screen depth effect**
+works on every phone; slow first boots on the A07 and A17 are no longer taken for a black screen;
+Samsung IMS gets both SIMs when the phone service starts late; a Z Flip's main screen stays lit at
+boot. New, untested: **the Galaxy A17 5G (SM-A176) and Z Flip7 FE (SM-F761)**, and ColorOS (Find X9
+Ultra IN build) on the Galaxy A07, A17, A16 4G and A16 5G next to Infinity-X.
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as

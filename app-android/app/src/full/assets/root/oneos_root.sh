@@ -185,6 +185,8 @@ profile_info() {
         a35) echo "SM-A356 a35x s5e8835 bar" ;;
         a54) echo "SM-A546 a54x s5e8835 bar" ;;
         a16) echo "SM-A166 a16x s5e8535 bar" ;;
+        a17-5g) echo "SM-A176 a17x s5e8535 bar" ;;
+        flip7-fe) echo "SM-F761 b7r s5e9945 flip" ;;
         s-9965) echo "SM-S942 m1s s5e9965 bar" ;;
         *) return 1 ;;
     esac
@@ -330,6 +332,17 @@ profile_set() {
         "a16-s166 infinityx41-findx9u") echo infinityx ;;
         "a17 infinityx41-findx9u") echo infinityx ;;
         "a16 infinityx41-findx9u") echo infinityx ;;
+        "a17-5g infinityx41-findx9u") echo infinityx ;;
+        "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a17 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16-4g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16-s166 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a17-5g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip7-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
+        "flip7-fe infinityx41-findx9u") echo infinityx ;;
+        "flip7-fe hyperos-lhasa") echo hyper-f8u ;;
         *) return 1 ;;
     esac
 }

@@ -923,7 +923,7 @@ class StageScriptTest {
         refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-plus-8750", Images.ID_FIND_N6, PackageSets.ID_N6_F8U, "4"), "does not run coloros17-findn6")
     }
 
-    /** 0.4.10: the Galaxy Z Fold8 (SM-F971, h8q, SM8850) takes the Fold's two images, the Find N6 one (the Folds' set since 0.4.38), and only on itself. */
+    /** 0.4.10: the Galaxy Z Fold8 (SM-F971, h8q, SM8850) takes the Fold's two images, the Find N6 one (n6-global-f8 since pull request #37), and only on itself. */
     @Test
     fun galaxyZFold8TakesTheFoldSets() = eachShell { fr ->
         fr.props["ro.product.model"] = "SM-F971B"
@@ -931,12 +931,13 @@ class StageScriptTest {
         fr.props["ro.soc.model"] = "SM8850"
         fr.writeProps()
         val n6 = Stager(fr, Profiles.FOLD8)
-        // 0.4.38: the Find N6 global image with the Folds' set (n6-f8 was the CN build's).
-        assertEquals(PackageSets.N6_F8U, n6.set)
+        // 0.4.38: the Find N6 global image with the Folds' set (n6-f8 was the CN build's);
+        // pull request #37: its own set, n6-f8u's files and the patch channels' addon archive.
+        assertEquals(PackageSets.N6_GLOBAL_F8, n6.set)
         n6.prepare()
         val marker = StageMarker.parse(File(fr.stage, StageMarker.FILE_NAME).readText())!!
-        assertEquals(listOf("f8", PackageSets.ID_N6_F8U), listOf(marker.profileId, marker.setId))
-        for (name in PackageSets.N6_F8U.names) assertTrue(name, File(fr.stage, name).isFile)
+        assertEquals(listOf("f8", PackageSets.N6_GLOBAL_F8.id), listOf(marker.profileId, marker.setId))
+        for (name in PackageSets.N6_GLOBAL_F8.names) assertTrue(name, File(fr.stage, name).isFile)
         refused(n6.launch(), "test root: every launch check passed")
         val pixel = Stager(fr, Profiles.FOLD8, Images.ID_PIXEL_YOGI)
         assertEquals(PackageSets.PIXEL_F8, pixel.set)

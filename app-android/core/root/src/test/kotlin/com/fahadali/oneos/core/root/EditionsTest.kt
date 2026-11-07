@@ -89,7 +89,9 @@ class EditionsTest {
     fun onlyTheFullEditionGetsTheOneOsFiles() {
         val build = File(src, "../build.gradle.kts").readText()
         assertEquals(1, Regex("""addGeneratedSourceDirectory\(oneosFiles""").findAll(build).count())
-        assertTrue(build.contains("\"full\" -> variant.sources.assets?.addGeneratedSourceDirectory(oneosFiles, OneOsFilesTask::outputDir)"))
+        // Pull request #9: the full variants also check the finished APK (checkFull*StagingApk).
+        assertTrue(Regex("""\"full\" -> \{\s*variant\.sources\.assets\?\.addGeneratedSourceDirectory\(oneosFiles, OneOsFilesTask::outputDir\)""")
+            .containsMatchIn(build))
         assertTrue(build.contains("applicationIdSuffix = \".probe\""))
     }
 
