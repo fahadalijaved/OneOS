@@ -24,6 +24,8 @@ data class PatchSource(
             val profile = Profiles.BUILT_IN.firstOrNull { it.id == target.profile }
             if (profile?.choice(target.image)?.packageSetId != target.set || PackageSets.byId(target.set)?.imageId != target.image)
                 add("Patch target is not supported by this app: $target")
+            else if (PackageSets.byId(target.set)!!.names.none { it in PatchManifest.REPLACEABLE })
+                add("Patch target has no file a channel may replace: $target")
         }
     }
 

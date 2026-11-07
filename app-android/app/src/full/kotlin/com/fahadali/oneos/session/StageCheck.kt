@@ -221,7 +221,11 @@ object StageCheck : BackgroundJob<StageCheck.State>(State(), "oneos-check") {
             series = ApkSeries.byId(BuildConfig.SERIES),
         )
         val report = SwitchGates.evaluate(phase, input)
-        return if (phase == GatePhase.SWITCH && expectedResult.isFailure) report.copy(gates = report.gates +
+        // Only a contributor channel's snapshot can stop being valid (another app version); Stable keeps the old check.
+        val onChannel = runCatching {
+            st.staged(profile)?.second?.let { !PatchChannels.selected(app, profile!!.id, it.imageId).stable }
+        }.getOrNull() == true
+        return if (phase == GatePhase.SWITCH && expectedResult.isFailure && onChannel) report.copy(gates = report.gates +
             com.fahadali.oneos.core.model.Gate(Finding("patch-channel", Level.BLOCK, "Patch channel needs checking",
                 "Open this system’s patch channel and check for updates, or select Stable."))) else report
     }

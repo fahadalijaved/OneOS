@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Check the shipped APK's staging pins and payloads, without Android or third-party modules."""
+"""Check the shipped APK's staging pins and payloads, without Android or third-party modules.
+
+Since 0.4.41 the set files are downloaded, not packed: a manifest's file is either in
+assets/oneos/files/<sha256> (checked by hash and size) or listed in assets/oneos/files/remote.txt
+with an index size within root's receive limit (AppAssets: packed, otherwise on the download list;
+the downloads are hashed by SetDownloader and root when staged). The session scripts are always packed.
+"""
 import hashlib
 import re
 import struct
@@ -75,7 +81,20 @@ def verify(path):
         for name in names:
             if re.fullmatch(r'classes\d*\.dex', name):
                 pins.update(build_config(apk.read(name)))
+        if not pins:
+            raise ValueError('no BuildConfig in the APK dex files')
+        packed = set(names)
         root = apk.read('assets/root/oneos_root.sh')
+        # Root's receive limit, from the packaged root script (as PackagesTest reads it).
+        cap = re.search(rb'ge (\d+) "\$bytes" \|\| refuse "\$name is too large"', root)
+        if not cap:
+            raise ValueError("no receive limit in the root script")
+        limit = int(cap[1])
+        remote = set()
+        if 'assets/oneos/files/remote.txt' in packed:
+            for line in apk.read('assets/oneos/files/remote.txt').decode().splitlines():
+                if line and not line.startswith('#'):
+                    remote.add(line.split()[0])
         if pins.get('ROOT_SCRIPT_SHA256') != sha(root) or pins.get('ROOT_SCRIPT_BYTES') != len(root):
             raise ValueError('root script differs from compiled BuildConfig pin/size')
         index = {}
@@ -88,6 +107,12 @@ def verify(path):
         manifests = [n for n in names if n.startswith('assets/oneos/sets/') and n.endswith('.sha256')]
         if 'assets/oneos/sets/scripts.sha256' not in manifests or len(manifests) < 2:
             raise ValueError('missing scripts or package manifests')
+        if pins.get('SERIES') == '':
+            # The every-phone APK (release-app.py) carries every set it pins (AppAssets refuses one it lacks).
+            pinned = {f[4:-7].lower().replace('_', '-') for f in pins if f.startswith('SET_') and f.endswith('_SHA256')}
+            missing = pinned - {n.rsplit('/', 1)[1][:-7] for n in manifests}
+            if missing:
+                raise ValueError(f'BuildConfig pins sets the APK does not carry: {sorted(missing)}')
         for name in manifests:
             set_id = name.rsplit('/', 1)[1][:-7]
             field = 'SCRIPTS_SHA256' if set_id == 'scripts' else 'SET_' + set_id.upper().replace('-', '_') + '_SHA256'
@@ -105,8 +130,17 @@ def verify(path):
                 files.add(filename)
                 if digest in checked:
                     continue
+                if 'assets/oneos/files/' + digest not in packed:
+                    if set_id == 'scripts':
+                        raise ValueError(f'scripts/{filename}: not packed in the APK')
+                    if digest not in remote:
+                        raise ValueError(f'{set_id}/{filename}: neither packed nor on the download list')
+                    if not 0 < index.get(digest, 0) <= limit:
+                        raise ValueError(f'{set_id}/{filename}: no size or over root receive limit in the index')
+                    checked.add(digest)
+                    continue
                 info = apk.getinfo('assets/oneos/files/' + digest)
-                if index.get(digest) != info.file_size or info.file_size > 268435456:
+                if index.get(digest) != info.file_size or info.file_size > limit:
                     raise ValueError(f'{set_id}/{filename}: missing/wrong size or exceeds root receive limit')
                 h = hashlib.sha256()
                 with apk.open(info) as payload:

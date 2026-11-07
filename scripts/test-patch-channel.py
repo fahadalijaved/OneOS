@@ -26,15 +26,14 @@ class ChannelPublisherTests(unittest.TestCase):
             self.assertEqual('gh:thatjoshguy67/OneOS-files:fold8-experimental', entry['source'])
             self.assertEqual(b'fixture', (manifest.parent / entry['sha256']).read_bytes())
 
-    def test_guarded_payload_regenerates_matching_guard_pins(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); inputs = root / 'inputs'; inputs.mkdir()
-            (inputs / 'services_patched.jar').write_bytes(b'new guarded fixture')
-            manifest = publisher.prepare('n6-global-f8', 'fixture-2', inputs, root / 'release')
-            data = json.loads(manifest.read_text())
-            guard = next(f for f in data['files'] if f['name'] == 'guards.txt')
-            expected = hashlib.sha256(b'new guarded fixture').hexdigest()
-            self.assertIn(f'{expected}  services_patched.jar', (manifest.parent / guard['sha256']).read_text())
+    def test_guarded_payloads_and_their_guards_stay_the_apps(self):
+        for name in ('services_patched.jar', 'vold_patched', 'guards.txt', 'samcam.tar', 'Fold8AngleRelay.dex'):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); inputs = root / 'inputs'; inputs.mkdir()
+                (inputs / name).write_bytes(b'new guarded fixture')
+                with self.assertRaises(ValueError):
+                    publisher.prepare('n6-global-f8', 'fixture-2', inputs, root / 'release')
+                self.assertFalse((root / 'release').exists())
 
     def test_rejects_new_scripts_and_bad_guard_lists(self):
         for name, content in [('guest_prepare.sh', b'new script'), ('guards.txt', b'bad guards')]:
@@ -58,7 +57,7 @@ class ChannelPublisherTests(unittest.TestCase):
                     for profile in ('f7', 'f8u')]))
             registry.write_text(json.dumps(catalog))
             inputs = root / 'inputs'; inputs.mkdir()
-            (inputs / 'services_patched.jar').write_bytes(b'another device fixture')
+            (inputs / 'Fold8SystemUI.apk').write_bytes(b'another device fixture')
             with patch.object(publisher, 'ROOT', root):
                 with self.assertRaises(ValueError):
                     publisher.prepare('n6-f8u', 'other-1', inputs, root / 'ambiguous', 'another-contributor')
@@ -66,7 +65,7 @@ class ChannelPublisherTests(unittest.TestCase):
             data = json.loads(manifest.read_text())
             self.assertEqual('f7-n6-f8u.json', manifest.name)
             self.assertEqual('f7', data['profile'])
-            entry = next(f for f in data['files'] if f['name'] == 'services_patched.jar')
+            entry = next(f for f in data['files'] if f['name'] == 'Fold8SystemUI.apk')
             self.assertEqual('gh:another-contributor/patches:testing', entry['source'])
 
 

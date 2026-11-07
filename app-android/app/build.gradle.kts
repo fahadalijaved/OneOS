@@ -259,8 +259,9 @@ abstract class OneOsFilesTask : DefaultTask() {
             for ((n, sum) in want) {
                 val f = File(dir, n)
                 val publishedBytes = publishedSizes[sum]
-                // Remote files are pinned by the set manifest; no OEM build folder is needed.
-                if (!pack && n !in omitted && ids[sum] != null && publishedBytes != null) {
+                // Remote files are pinned by the set manifest; no OEM build folder is needed
+                // (a contributor's checkout). Where the folder exists, it is checked as before.
+                if (!pack && !dir.isDirectory && n !in omitted && ids[sum] != null && publishedBytes != null) {
                     sizes[sum] = publishedBytes
                     remote[sum] = ids.getValue(sum)
                     continue
@@ -639,13 +640,19 @@ androidComponents {
                         val apks = loader.load(apkDir.get())?.elements.orEmpty()
                         check(apks.isNotEmpty()) { "No full APK to verify" }
                         for (apk in apks) {
-                            providers.exec {
-                                commandLine("python3", File(repoRoot, "scripts/check-staging-apk.py"), apk.outputFile)
-                            }.result.get().assertNormalExitValue()
+                            // The checker's own words, on failure too (exec otherwise keeps only the exit value).
+                            val run = providers.exec {
+                                commandLine("python3", "-I", File(repoRoot, "scripts/check-staging-apk.py"), apk.outputFile)
+                                isIgnoreExitValue = true
+                            }
+                            val said = (run.standardOutput.asText.get() + run.standardError.asText.get()).trim()
+                            if (run.result.get().exitValue != 0) throw GradleException(said.ifEmpty { "Staging integrity FAILED: ${apk.outputFile}" })
+                            logger.lifecycle(said)
                         }
                     }
                 }
-                tasks.matching { it.name == "assemble$name" }.configureEach { dependsOn(verify) }
+                // installDebug too: the team installs on the test phone that way, without assemble.
+                tasks.matching { it.name == "assemble$name" || it.name == "install$name" }.configureEach { dependsOn(verify) }
             }
             "probe" -> {
                 val name = variant.name.replaceFirstChar { it.uppercase() }

@@ -198,10 +198,31 @@ addons-prepare|addons-worker|addons-verify)
         ADDON_DIR="$STAGE/global_verified_addons"
         expected_archive=$(awk '$2 == "GlobalVerifiedAddons.tar" { print $1 }' "$STAGE/files.sha256")
         [ "${#expected_archive}" = 64 ] || fail 'global addon archive is not staged'
+        [ -f "$STAGE/GlobalVerifiedAddons.tar" ] && [ ! -L "$STAGE/GlobalVerifiedAddons.tar" ] || fail 'global addon archive is not staged'
         [ "$(sha256sum "$STAGE/GlobalVerifiedAddons.tar" | cut -d' ' -f1)" = "$expected_archive" ] || fail 'global addon archive differs'
         plain_tree "$ADDON_DIR"
-        mkdir -p "$ADDON_DIR"
-        "$BB" tar -xf "$STAGE/GlobalVerifiedAddons.tar" -C "$ADDON_DIR"
+        if [ "$1" = addons-prepare ]; then
+            # Root unpacks it in One UI's mount namespace, and a patch channel chooses it: regular
+            # files and folders only, plain relative names, into a fresh folder. busybox tar follows
+            # hard links ("name -> target" in its listing) and would write through them (pull
+            # request #37 review). The worker and the check read this folder, never unpack again.
+            # A channel's archive may be gzip (busybox reads it only with z).
+            ZF=; [ "$("$BB" od -An -tx1 -N2 "$STAGE/GlobalVerifiedAddons.tar" | tr -d ' ')" = 1f8b ] && ZF=z
+            "$BB" tar -${ZF}tvf "$STAGE/GlobalVerifiedAddons.tar" > "$STAGE/addons_members.txt" 2>/dev/null ||
+                fail 'global addon archive is unreadable'
+            "$BB" awk 'substr($1, 1, 1) != "-" && substr($1, 1, 1) != "d" { bad = 1 } / -> / { bad = 1 } END { exit bad }' \
+                "$STAGE/addons_members.txt" || fail 'global addon archive holds a link or a special file'
+            "$BB" tar -${ZF}tf "$STAGE/GlobalVerifiedAddons.tar" > "$STAGE/addons_members.txt" 2>/dev/null ||
+                fail 'global addon archive is unreadable'
+            "$BB" awk '{ n = $0; sub(/^\.\//, "", n) } n == "" { next }
+                       n !~ /^[A-Za-z0-9_][A-Za-z0-9._-]*(\/[A-Za-z0-9_][A-Za-z0-9._-]*)*\/?$/ || n ~ /(^|\/)\.\.?(\/|$)/ { bad = 1 } END { exit bad }' \
+                "$STAGE/addons_members.txt" || fail 'global addon archive holds a name outside its folder'
+            rm -f "$STAGE/addons_members.txt"
+            rm -rf "$ADDON_DIR"
+            mkdir -p "$ADDON_DIR" && chmod 700 "$ADDON_DIR"
+            "$BB" tar -${ZF}xf "$STAGE/GlobalVerifiedAddons.tar" -C "$ADDON_DIR" || fail 'global addon archive did not unpack'
+            [ -z "$(find "$ADDON_DIR" ! -type f ! -type d -print -quit)" ] || fail 'global addon archive unpacked a link or a special file'
+        fi
         [ -s "$ADDON_DIR/overlays.list" ] || exit 0
         OVERLAY_MANIFEST_SHA256=$(sha256sum "$ADDON_DIR/overlays.list" | cut -d' ' -f1)
     fi

@@ -3,7 +3,7 @@
 
 Example: release-patch-channel.py --set n6-global-f8 --revision coloros-2
          --overrides out/my-coloros-patches --publish
-Use pixel-f8 for Pixel. Without --publish, creates a reviewable release folder.
+Without --publish, creates a reviewable release folder. Only Fold8SystemUI.apk and GlobalVerifiedAddons.tar may be replaced.
 Only existing payload names can change; scripts and new payload roles need an APK.
 """
 import argparse
@@ -15,6 +15,9 @@ import subprocess
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+# The only files a channel may replace (PatchManifest.REPLACEABLE in the app, which refuses every other
+# difference): never guards.txt, a guarded jar or binary, a payload image or a script.
+REPLACEABLE = {'Fold8SystemUI.apk', 'GlobalVerifiedAddons.tar'}
 def source_config(source_id):
     catalog = json.loads((ROOT / 'app-android/packages/patch-sources.json').read_text())
     if catalog['schema'] != 1:
@@ -65,14 +68,9 @@ def prepare(sid, revision, overrides, output, source_id='that-josh-guy', profile
         raise ValueError(f'unknown payload names: {sorted(set(provided) - base.keys())}')
     if any(p.is_symlink() for p in overrides.iterdir()):
         raise ValueError('override symlinks are not accepted')
+    if set(provided) - REPLACEABLE:
+        raise ValueError(f'a channel may only replace {sorted(REPLACEABLE)}, not {sorted(set(provided) - REPLACEABLE)}')
     output.mkdir(parents=True, exist_ok=False)
-    guards = sums(packages / f'{sid}.guards.txt')
-    guard_names = set(guards)
-    if guard_names.intersection(provided) and 'guards.txt' not in provided:
-        target = output / 'guards.txt'
-        target.write_text(''.join(f'{digest(provided[name]) if name in provided else sha}  {name}\n'
-                                  for name, sha in guards.items()))
-        provided['guards.txt'] = target
     files = []
     for name, sha in base.items():
         if name in provided:
@@ -90,9 +88,9 @@ def prepare(sid, revision, overrides, output, source_id='that-josh-guy', profile
                 source = source.replace('gh:', 'gh:fahadalijaved/OneOS-files:')
         files.append(dict(name=name, sha256=sha, bytes=size, source=source))
     expected = {f['name']: f['sha256'] for f in files}
-    guard_entries = sums(provided.get('guards.txt', packages / f'{sid}.guards.txt'))
-    if set(guard_entries) != guard_names or any(expected[name] != sha for name, sha in guard_entries.items()):
-        raise ValueError('guards.txt does not pin every guarded payload')
+    guards = sums(packages / f'{sid}.guards.txt')
+    if any(expected[name] != sha for name, sha in guards.items()):
+        raise ValueError('a guarded payload differs from the app\'s guards.txt')
     manifest = output / f'{profile}-{sid}.json'
     manifest.write_text(json.dumps(dict(schema=1, profile=profile, set=sid, imageSha256=next(iter(images)), revision=revision, files=files), indent=2) + '\n')
     return manifest

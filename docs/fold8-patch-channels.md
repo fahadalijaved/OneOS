@@ -1,14 +1,26 @@
 # Device patch channels and contributor guide
 
-The ColorOS and Pixel pre-boot pages on Galaxy Z Fold8 have independent patch
-channel choices. Stable uses the APK-pinned upstream payload list. Experimental
-loads a small manifest from `thatjoshguy67/OneOS-files`, release
-`fold8-experimental`, named `f8-n6-global-f8.json` or `f8-pixel-f8.json`.
+The ColorOS pre-boot page on Galaxy Z Fold8 has a patch channel choice. Stable
+uses the APK-pinned upstream payload list. Experimental loads a small manifest
+from `thatjoshguy67/OneOS-files`, release `fold8-experimental`, named
+`f8-n6-global-f8.json`. (Pixel has no channel until a Pixel channel file is
+allowed: its set has no file a channel may replace yet.)
+
+**What a channel may replace** (merge of pull request #37, 2026-11-07): only
+`Fold8SystemUI.apk` and `GlobalVerifiedAddons.tar` (`PatchManifest.REPLACEABLE`
+in the app, `REPLACEABLE` in the publisher). Every other file of the set, above
+all `guards.txt` and the guarded jars and binaries it pins, payload images, dex
+files and archives root unpacks, must have exactly this app's hash, or the app
+refuses the manifest. So a channel can never vouch for its own guards, and a
+manifest made for an older OneOS is refused after an app update until its
+contributor publishes it again for the new version. The addon archive may hold
+only regular files and folders with plain relative names (no links of any kind):
+`fold8_coloros.sh` checks its listing before root unpacks it.
 
 Choose That Josh Guy's patches (Experimental) or tap **Check for patch updates**
 to fetch the current experimental manifest. Stable also has an update-check
 button: upstream has no separate stable channel manifest, so it checks the
-official OneOS release and reports whether its APK-pinned patch list is current. Apply changed payloads through the existing Update/Repair flow before
+official OneOS release and reports whether this app's own patch list is current. Apply changed payloads through the existing Update/Repair flow before
 booting. Selecting a channel never modifies the running guest. Staging refreshes
 an experimental manifest before touching the stage, downloads missing files,
 and checks their size and SHA-256. A failed refresh keeps the previous selection
@@ -16,8 +28,7 @@ and cached manifest. An already prepared experimental stage can boot offline.
 
 Stable ColorOS uses upstream's complete Find N6 payloads and a pinned empty addon
 archive, which applies no custom overlays. Experimental currently replaces its
-SystemUI and addon archive with Josh's Fold8 builds. Pixel Experimental starts
-with the upstream Pixel Fold8 payloads until Pixel-specific changes are published.
+SystemUI and addon archive with Josh's Fold8 builds.
 
 ## Building a patch
 
@@ -80,7 +91,7 @@ python3 scripts/release-patch-channel.py \
 ```
 
 Review the generated JSON, then repeat with a fresh output folder and `--publish`
-to upload to the fork. Use `--set pixel-f8` for Pixel. The script uploads immutable
+to upload to the fork. The script uploads immutable
 hash-named payloads, verifies their public downloads, then replaces the small
 channel manifest. Other testers get it through Check for patch updates without
 installing another APK. Unchanged payloads continue to use upstream's sources.
@@ -170,9 +181,9 @@ The manifest is trusted from the selected fork over HTTPS, then each payload is
 verified against its manifest hash. The app enforces the exact system image,
 supported file names, download repositories and receive-size limits. Root and
 session scripts remain pinned in the APK. New file names, roles, system images,
-or script changes still need an APK update. When guarded payloads change, the
-publisher generates matching `guards.txt` pins, or verifies an explicitly supplied
-guard list against every guarded file.
+script changes, and any change to a file outside the replaceable two (a guarded
+jar, `guards.txt`) still need an APK update reviewed upstream; the publisher
+refuses them.
 
 ## Adding a new payload name or system
 
@@ -185,8 +196,7 @@ also need a model profile choice and matching root profile/image/set tables.
 Ship that schema once before publishing manifests that use it. Scripts and the
 root helper remain APK-pinned, so a script change always needs an app release.
 
-The current Stable ColorOS demo adds one empty, immutable addon archive hosted
-in the contributor fork. It applies no overlays; all upstream payloads keep
-their upstream hashes. A maintainer can mirror that same hash in OneOS-files
-and change its source mapping without changing any payload bytes. Experimental
+Stable ColorOS adds one empty, immutable addon archive (one empty
+`overlays.list`), mirrored in OneOS-files with the other set files. It applies
+no overlays; all upstream payloads keep their upstream hashes. Experimental
 payloads remain hosted by their registered contributor.

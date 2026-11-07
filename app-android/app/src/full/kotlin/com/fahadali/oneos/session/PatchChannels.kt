@@ -2,6 +2,7 @@ package com.fahadali.oneos.session
 
 import android.content.Context
 import android.util.AtomicFile
+import com.fahadali.oneos.BuildConfig
 import com.fahadali.oneos.core.model.*
 import org.json.JSONObject
 import java.io.File
@@ -10,7 +11,7 @@ import java.net.URL
 
 /** The APK registry grants source/device trust; releases may only replace known payloads. */
 object PatchChannels {
-    private data class Catalog(val stableCode: Int, val stableName: String, val contributors: List<PatchSource>)
+    private data class Catalog(val contributors: List<PatchSource>)
     @Volatile private var loaded: Catalog? = null
 
     @Synchronized private fun catalog(ctx: Context): Catalog {
@@ -29,11 +30,11 @@ object PatchChannels {
         }
         require(contributors.none { it.stable } && contributors.map { it.id }.distinct().size == contributors.size)
         require(contributors.all { it.check().isEmpty() }) { "The app's patch source registry is invalid" }
-        val stable = json.getJSONObject("stable")
-        return Catalog(stable.getInt("versionCode"), stable.getString("versionName"), contributors).also { loaded = it }
+        return Catalog(contributors).also { loaded = it }
     }
-    fun stableCode(ctx: Context) = catalog(ctx).stableCode
-    fun stableVersion(ctx: Context) = catalog(ctx).stableName
+    /** Stable is this app's own sets: its version, not a hand-kept copy in patch-sources.json. */
+    @Suppress("UNUSED_PARAMETER") fun stableCode(ctx: Context) = BuildConfig.VERSION_CODE
+    @Suppress("UNUSED_PARAMETER") fun stableVersion(ctx: Context): String = BuildConfig.VERSION_NAME
     fun setFor(profile: String, image: String): PackageSet? = Profiles.BUILT_IN.firstOrNull { it.id == profile }
         ?.choice(image)?.packageSetId?.let(PackageSets::byId)
     fun sources(ctx: Context, profile: String, image: String): List<PatchSource> {
@@ -65,9 +66,9 @@ object PatchChannels {
             path = File(ctx.filesDir, "patch-manifests/${source.id}/${set.id}.json")
             if (!path.exists()) path = File(ctx.filesDir, "patch-manifests/${set.id}.json")
         }
-        return parse(AtomicFile(path).openRead().use { it.readBytes() }, set, source, profile, legacy = path != target)
+        return parse(ctx, AtomicFile(path).openRead().use { it.readBytes() }, set, source, profile, legacy = path != target)
     }
-    private fun parse(bytes: ByteArray, set: PackageSet, source: PatchSource, profile: String, legacy: Boolean = false): PatchManifest {
+    private fun parse(ctx: Context, bytes: ByteArray, set: PackageSet, source: PatchSource, profile: String, legacy: Boolean = false): PatchManifest {
         require(bytes.size <= 131072) { "Patch manifest is too large" }
         val json = JSONObject(bytes.toString(Charsets.UTF_8))
         val entries = json.getJSONArray("files")
@@ -75,7 +76,8 @@ object PatchChannels {
             (0 until entries.length()).map { i -> entries.getJSONObject(i).let {
                 PatchManifest.File(it.getString("name"), it.getString("sha256"), it.getLong("bytes"), it.getString("source"))
             } }, json.optString("profile", if (legacy) profile else ""))
-        val problems = manifest.check(set, Images.byId(set.imageId)!!, setOf(PatchSource.STABLE.repository, source.repository), profile)
+        val problems = manifest.check(set, Images.byId(set.imageId)!!, setOf(PatchSource.STABLE.repository, source.repository), profile,
+            base = AppAssets.list(ctx, set.id))
         require(problems.isEmpty()) { problems.joinToString("; ") }
         return manifest
     }
@@ -84,7 +86,7 @@ object PatchChannels {
         val source = sources(ctx, profile, set.imageId).first { it.id == sourceId }
         require(!source.stable && source.supports(profile, set.imageId, set.id))
         val bytes = fetch("https://github.com/${source.repository}/releases/download/${source.tag}/$profile-${set.id}.json?check=${System.currentTimeMillis()}")
-        val manifest = parse(bytes, set, source, profile)
+        val manifest = parse(ctx, bytes, set, source, profile)
         val target = cache(ctx, set, source, profile); target.parentFile!!.mkdirs()
         synchronized(this) {
             val atomic = AtomicFile(target)

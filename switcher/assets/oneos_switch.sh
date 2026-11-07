@@ -1678,16 +1678,17 @@ esac
 # Live by default with the hinge sets of pull request #1 (Fold8) and the Fold8 Ultra's.
 POSTURE_DEFAULT=flat
 case "${ONEOS_PROFILE:-}:$GUEST_OPLUS" in
-    # 0.4.38: n6-f8u on the Z Fold8 too (the Find N6 global image).
-    f8:1) HINGE_SET=n6-f8u ;;
+    # 0.4.38: n6-f8u on the Z Fold8 too (the Find N6 global image); pull request #37: the
+    # Z Fold8's own n6-global-f8 (n6-f8u on stages made before it).
+    f8:1) HINGE_SET="n6-global-f8 n6-f8u" ;;
     f8:0) HINGE_SET=pixel-f8 ;;
     f8u:1) HINGE_SET=n6-f8u ;;
     f8u:0) HINGE_SET=pixel-f8u ;;
     *) HINGE_SET="" ;;
 esac
-if [ -n "$HINGE_SET" ] && grep -q "^  \"set\": \"$HINGE_SET\",\$" "$STAGE/.oneos_stage"; then
-    POSTURE_DEFAULT=live
-fi
+for h in $HINGE_SET; do
+    grep -q "^  \"set\": \"$h\",\$" "$STAGE/.oneos_stage" && POSTURE_DEFAULT=live
+done
 GUEST_POSTURE_LIVE=0; [ "${ONEOS_GUEST_POSTURE:-$POSTURE_DEFAULT}" = live ] && GUEST_POSTURE_LIVE=1
 GUEST_FOLD_FORM=0; [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && GUEST_FOLD_FORM=1
 # Start UI Activator daemon. One pass per boot of the guest: after a soft

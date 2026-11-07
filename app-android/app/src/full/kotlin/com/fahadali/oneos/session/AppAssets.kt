@@ -49,7 +49,7 @@ object AppAssets {
             ?: throw Broken("no pin for $set")
     }
 
-    private fun list(ctx: Context, id: String): Map<String, String> {
+    internal fun list(ctx: Context, id: String): Map<String, String> {
         val text = runCatching { read(ctx, "oneos/sets/$id.sha256") }
             .getOrElse { throw Broken("this OneOS download does not carry the $id set (another series' download has it)") }
         if (Hashes.sha256(text) != pinned(id)) throw Broken("the app's $id list is not the pinned one")
@@ -66,13 +66,15 @@ object AppAssets {
     fun files(ctx: Context, set: PackageSet, profile: String): List<Staged> {
         val scripts = list(ctx, "scripts")
         val channel = PatchChannels.snapshot(ctx, set, profile)
-        val files = channel?.files?.associate { it.name to it.sha256 } ?: list(ctx, set.id)
+        val base = list(ctx, set.id)
+        val files = channel?.files?.associate { it.name to it.sha256 } ?: base
         val problems = set.check(ShaList.render(files))
         if (problems.isNotEmpty()) throw Broken(problems.first())
         if (scripts.keys != RootScript.SCRIPTS.toSet()) throw Broken("the app's script list is not ${RootScript.SCRIPTS}")
         val size = sizes(ctx)
         return (RootScript.SCRIPTS.map { it to scripts.getValue(it) } + set.names.map { it to files.getValue(it) }).map { (n, sha) ->
-            val override = channel?.files?.firstOrNull { it.name == n }
+            // Only a file the channel really replaced (PatchManifest.REPLACEABLE) comes from its source.
+            val override = channel?.files?.firstOrNull { it.name == n && it.sha256 != base[n] }
             val b = override?.bytes ?: size[sha] ?: throw Broken("$n has no size in the app's index")
             Staged(n, sha, b, override?.source)
         }

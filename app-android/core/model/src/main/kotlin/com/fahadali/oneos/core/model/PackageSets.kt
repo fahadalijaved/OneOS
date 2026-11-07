@@ -260,7 +260,8 @@ object PackageSets {
         sourceDir = "out/fold8-global-current",
         files = N6_F8U.files + PackageFile("GlobalVerifiedAddons.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, "OneOSFoldCutout.apk", "OneOSTabletQs.apk"),
-        approxBytes = 1_500_000_000L,
+        // n6-f8u's files and the 10 KB empty addon archive (a channel's archive is larger, but optional).
+        approxBytes = N6_F8U.approxBytes + 10_240L,
         hasReturnApp = true,
     )
 

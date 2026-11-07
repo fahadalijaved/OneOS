@@ -13,7 +13,7 @@ where each file is named by its SHA-256. This script:
   4. uploads the files the GitHub release GH_TAG of GH_REPO lacks, as assets named by their
      SHA-256 (0.4.53: GitHub's CDN has no daily limit; the app tries it first);
   5. writes packages/remote.txt: "<sha256> gh:<tag>,<drive id>,<drive id>,..." for every set file,
-     sorted, the OneOS/files id first among the Drive ones.
+     sorted, the OneOS/files id first among the Drive ones, and packages/sizes.txt ("<sha256> <bytes>").
 The folder OneOS is shared by link, so its files are readable without a Google account.
 Not on GitHub: the sets hold OEM binaries (Samsung Camera, ColorOS and Xiaomi jars).
 
@@ -147,6 +147,12 @@ def main():
         f.write(f"# sha256 -> sources: {head} (OneOS/files, its copies in OneOS/files2..6), written by scripts/release-files.py\n")
         f.write("\n".join(lines) + "\n")
     print(f"wrote {path}: {len(lines)} files, {'GitHub and ' if GH_ENABLED else ''}{1 + len(MIRROR_DIRS)} Drive copies each")
+    # packages/sizes.txt (pull request #37): the size of every set file, so the app builds
+    # from remote.txt and these without the built set folders (contributors' checkouts).
+    path = os.path.join(PACKAGES, "sizes.txt")
+    with open(path, "w") as f:
+        f.write("".join(f"{s} {os.path.getsize(want[s])}\n" for s in sorted(want)))
+    print(f"wrote {path}: {len(want)} sizes")
 
 
 def gh(*args, check=True):
