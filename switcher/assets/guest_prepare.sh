@@ -1590,8 +1590,15 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
     if [ "$APM_X" != 0 ] && ! "$BB" grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/; then
         if [ -z "$APM_X" ]; then
             SKU=$(getprop ro.boot.product.vendor.sku)
-            for f in /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml \
-                ${SKU:+/vendor/etc/audio/sku_${SKU}_qssi/audio_policy_configuration.xml /vendor/etc/audio/sku_$SKU/audio_policy_configuration.xml} \
+            # 0.4.63: Qualcomm's SKU file first. HyperOS's parser rejected Samsung's
+            # _sec and _base files ("APM::Serializer: deserialize: bad type 00000000",
+            # "Could not load audio policy ... -22") and fell back to setDefault, whose
+            # streams have a maximum index of 0: every app's volume maths was 0/0 and
+            # SystemUI's volume slider crashed on NaN (S23 a8d01e17 and 36e46e14, Flip5
+            # fbd248fc). The QCOM file is the format Xiaomi's own derives from, and
+            # ColorOS's AOSP parser loads it on the same phones (S23 Ultra 7d694dd5).
+            for f in ${SKU:+/vendor/etc/audio/sku_${SKU}_qssi/audio_policy_configuration.xml /vendor/etc/audio/sku_$SKU/audio_policy_configuration.xml} \
+                /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml \
                 /vendor/etc/audio_policy_configuration.xml; do
                 [ -f "$f" ] && { APM_X=$f; break; }
             done

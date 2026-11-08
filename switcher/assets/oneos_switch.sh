@@ -3379,7 +3379,14 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # Only failures since the last check: a burst early in the boot must
             # not end a session that recovered.
             new_failed=\$((failed - prev_failed)); [ \$new_failed -lt 0 ] && new_failed=\$failed; prev_failed=\$failed
-            if [ \$t -ge $RETURN_BLACK ] && { ! pidof surfaceflinger >/dev/null || [ \$new_failed -gt 100 ] || { [ \$home = 0 ] && ! pidof bootanimation >/dev/null && { [ \$wm = 0 ] || [ \$wmseen -ge 120 ]; }; }; }; then
+            # 0.4.63: the boot animation first, then the activator's log again. The
+            # dismissal could land between the read of wm above and this check (the
+            # failed-frames count takes up to 10 s): A17 4G ColorOS 95faf6cb was sent
+            # back 1 s after its first boot's bootanim was dismissed, home on its way.
+            # The activator logs the dismissal before it kills bootanim.
+            ba=\$(pidof bootanimation)
+            [ \$wm = 0 ] && [ \"\$(grep -c 'Dismissing bootanim' /data/local/tmp/ui_activator.log 2>/dev/null)\" -gt \"\${wmbase:-0}\" ] && wm=1
+            if [ \$t -ge $RETURN_BLACK ] && { ! pidof surfaceflinger >/dev/null || [ \$new_failed -gt 100 ] || { [ \$home = 0 ] && [ -z \"\$ba\" ] && { [ \$wm = 0 ] || [ \$wmseen -ge 120 ]; }; }; }; then
                 echo \"\$(date) black screen after \${t}s (surfaceflinger: \$(pidof surfaceflinger), bootanimation: \$(pidof bootanimation), new failed frames: \$new_failed), returning to One UI\"
                 exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi

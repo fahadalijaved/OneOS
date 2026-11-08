@@ -284,6 +284,10 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oplus_wait_for_service.
 # main thread (A16 5G, A17 5G: Watchdog kill after 60 s); it gives up as AOSP does
 # (patches/oplus_soundtrigger_no_hal.py; nothing to change on other images).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oplus_soundtrigger_no_hal.py" "$WORK/services")"
+# A sound-trigger HAL that refuses a model (Pixel's Now Playing on Samsung's HAL) is not
+# rebooted: the reboot took One UI's audio HAL process and the guest's audio down, again
+# and again (patches/guest_soundtrigger_no_reboot.py, 0.4.64).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_soundtrigger_no_reboot.py" "$WORK/services")"
 # Pixel's Comfort View as a color matrix, like Night Light (run 43: the switch
 # did nothing; patches/comfort_view_bridge.py). Left out, with a warning, on an
 # image without ColorDisplayService.setUp, and not run for ColorOS: its

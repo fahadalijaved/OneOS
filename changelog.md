@@ -50,6 +50,11 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.64: **video recording and steady sound in the Pixel system** (Pixel's Now Playing made it restart
+Samsung's audio service over and over), **volume in HyperOS** on Snapdragon Galaxies (every volume had a
+maximum of 0, and apps and the volume slider crashed), and **no false "black screen" on slow first boots**
+(the session went back to One UI a second before the home screen appeared).
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as
