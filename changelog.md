@@ -50,6 +50,11 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.66: **HyperOS on the Galaxy A07, A16 4G and 5G, A17 4G and 5G, A26, A35 and A54** (untested), **no restart
+on the Galaxy A17 5G** (Samsung's software watchdog on its second watchdog device was never fed, and the phone
+restarted about 100 s into every session), and **Samsung Camera on the Galaxy A16 4G** (it closed at launch on a
+resolution the camera does not know).
+
 New in 0.4.65: **downloads from SourceForge** (GitHub's downloads were down for hours and Google Drive's
 copies ran out: the app now tries SourceForge right after GitHub), **internal storage in every system again**
 (since 0.4.63 the systems showed full or no storage: their storage never mounted), **Samsung's Dolby on music

@@ -211,7 +211,8 @@ while true; do
         if e=$(printf V 2>&1 > /dev/softdog); then now="$now; /dev/softdog kicked"; else now="$now; /dev/softdog refused ($e)"; fi
     fi
     # The node(s) One UI's system_server had open at the switch (host_softdog_nodes,
-    # oneos_switch.sh): the S24 Exynos's /dev/watchdog1, beside a busy /dev/watchdog.
+    # oneos_switch.sh): the S24 Exynos's /dev/watchdog1, beside a busy /dev/watchdog;
+    # since 0.4.66 also every watchdog node of group system (the A17 5G's watchdog1).
     for n in $(cat /data/local/tmp/oneos/host_softdog_nodes 2>/dev/null); do
         case "$n" in /dev/watchdog|/dev/softdog) continue ;; esac
         [ -c "$n" ] || continue

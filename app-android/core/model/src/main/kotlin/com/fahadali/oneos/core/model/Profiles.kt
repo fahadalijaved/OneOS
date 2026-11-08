@@ -644,7 +644,7 @@ object Profiles {
         codename = "a07",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -833,7 +833,7 @@ object Profiles {
         // 0.4.57: not the Pixel 9 Pro XL any more: its own programs stopped on "Illegal instruction" before
         // it started, in every session (0.4.54/0.4.55 reports 9f2307a3, 560a1dcb, c926c955). This ARMv8.2
         // CPU lacks what every phone it runs on has (ilrcpc, frint, flagm, jscvt, fcma, i8mm, bf16...).
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -852,7 +852,7 @@ object Profiles {
         codename = "a17",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -880,7 +880,7 @@ object Profiles {
         codename = "a16x",
         socModel = "s5e8535",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 

@@ -808,6 +808,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": true
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1108,6 +1114,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1132,6 +1144,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": true
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1156,6 +1174,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": true
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1222,6 +1246,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": true
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1245,6 +1275,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
           "tested": false
         }
       ]
@@ -1270,6 +1306,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1293,6 +1335,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
           "tested": false
         }
       ]
@@ -1347,6 +1395,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
           "tested": false
         }
       ]

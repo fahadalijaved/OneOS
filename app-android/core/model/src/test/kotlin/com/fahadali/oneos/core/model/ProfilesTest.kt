@@ -261,12 +261,12 @@ class ProfilesTest {
         assertTrue(Profiles.S_EDGE_8750.choices.none { it.tested })
         assertEquals(Profiles.S_9945.choices, Profiles.S_FE_9945.choices)
         assertEquals(listOf("SM-S721", "r12s", "s5e9945"), listOf(Profiles.S_FE_9945.modelPrefix, Profiles.S_FE_9945.codename, Profiles.S_FE_9945.socModel))
-        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX), Profiles.A26.choices.map { it.imageId }) // 0.4.57: no Pixel 9 Pro XL
+        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA), Profiles.A26.choices.map { it.imageId }) // 0.4.57: no Pixel 9 Pro XL; 0.4.66: HyperOS (owner)
         for (p in listOf(Profiles.A17, Profiles.A16, Profiles.A16_4G, Profiles.A07, Profiles.A16_S166, Profiles.A17_5G)) {
-            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX), p.choices.map { it.imageId })
+            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA), p.choices.map { it.imageId })
             // Tested only where a tester's session reached the home screen; that one is preselected.
             val ran = p !in listOf(Profiles.A16_S166, Profiles.A17_5G)
-            assertEquals(p.id, listOf(false, ran), p.choices.map { it.tested })
+            assertEquals(p.id, listOf(false, ran, false), p.choices.map { it.tested })
             if (ran) assertEquals(p.id, Images.ID_INFINITYX, p.recommended?.imageId)
         }
         // 0.4.60: the Galaxy A17 5G (SM-A176B, the A16 5G's Exynos 1330) and the Z Flip7 FE (SM-F761B, Exynos 2400).
@@ -410,7 +410,7 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), Profiles.FOLD5.notes.map { it.id })
         assertEquals(Profiles.A07, profile("SM-A075F", "a07", "MT6789"))
         assertNull(profile("SM-A075F", "a07", "s5e8855"))
-        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX), Profiles.A07.choices.map { it.imageId })
+        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA), Profiles.A07.choices.map { it.imageId })
         assertEquals(listOf(Profiles.ID_NOTE_MEDIATEK, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.A07.notes.map { it.id })
         assertNull(profile("SM-F766U", "b7s", "s5e9965"))
         assertNull(profile("SM-S947U", "m3q", "SM8850")) // S26+ model number, S26 Ultra codename

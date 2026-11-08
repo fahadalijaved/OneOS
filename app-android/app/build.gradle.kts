@@ -47,7 +47,7 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Find X9 Ultra image, S Ultra: no fold grid either.
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r69") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r70") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r17") to listOf("tethering_payload.img")),
@@ -58,12 +58,12 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r16") to listOf("tethering_payload.img")),
     // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
     // is built from source (0.4.28): the guest keeps One UI's, like tethering.
-    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r13") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
+    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r14") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
-    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r23") to listOf("tethering_payload.img")),
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r24") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r31") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r32") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -439,8 +439,8 @@ android {
         // Pixel 9 Pro XL r5, Infinity-X r4, Nothing OS r22 (samcam_bar.tar for phones). The panel kept at its top rate in
         // Pixel, HyperOS and Nothing OS (it stayed at 24 Hz: 10-15 fps). Infinity-X: Samsung IMS (the carve-out's
         // /system/system_ext path; framework members; SMS centre). The Galaxy A16 4G (SM-A165F).
-        versionCode = 91
-        versionName = "0.4.65"
+        versionCode = 92
+        versionName = "0.4.66"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

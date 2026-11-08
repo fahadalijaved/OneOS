@@ -1151,6 +1151,18 @@ for p in $(pidof system_server); do
         case "$t" in /dev/watchdog*|/dev/softdog*) echo "$t" ;; esac
     done
 done 2>/dev/null | sort -u > "$STAGE/host_softdog_nodes"
+# Not every phone's system_server holds it open at this moment: the Galaxy A17 5G
+# (Exynos 1330, 0.4.64 78f6e716) recorded nothing and panicked "Software Watchdog
+# Timer expired 100s" about 100 s into the session, with persist.vendor.softdog=off
+# set; its nodes were /dev/watchdog 0:0 (busy, init's watchdogd), /dev/watchdog0
+# 0:0 and /dev/watchdog1 0:1000. Samsung's ueventd gives its software watchdog to
+# the system group for system_server; the kernel's hardware watchdog stays root's.
+# So a watchdog node of group system (1000) is taken as the softdog too (0.4.66).
+for n in /dev/watchdog* /dev/softdog*; do
+    [ -c "$n" ] || continue
+    [ "$(stat -c %g "$n" 2>/dev/null)" = 1000 ] && echo "$n"
+done 2>/dev/null >> "$STAGE/host_softdog_nodes"
+sort -u -o "$STAGE/host_softdog_nodes" "$STAGE/host_softdog_nodes" 2>/dev/null
 [ -s "$STAGE/host_softdog_nodes" ] || rm -f "$STAGE/host_softdog_nodes"
 [ -n "$SF_FROZEN" ] || kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 kill -9 $(pidof bootanimation) 2>/dev/null || true
@@ -1191,8 +1203,8 @@ if [ -f "$STAGE/host_softdog_nodes" ]; then
         case "$n" in /dev/watchdog|/dev/softdog) continue ;; esac
         [ -c "$n" ] || continue
         SOFTDOG_DEV=1
-        if e=$(printf V 2>&1 > "$n"); then echo "Softdog: $n (One UI's system_server had it open) closed with V"
-        else echo "Softdog: $n (One UI's system_server had it open) not written ($e)"; fi
+        if e=$(printf V 2>&1 > "$n"); then echo "Softdog: $n (One UI's system_server had it open, or of group system) closed with V"
+        else echo "Softdog: $n (One UI's system_server had it open, or of group system) not written ($e)"; fi
     done < "$STAGE/host_softdog_nodes"
 fi
 if [ -c /dev/softdog ]; then

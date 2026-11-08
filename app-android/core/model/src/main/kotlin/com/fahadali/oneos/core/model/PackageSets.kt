@@ -277,7 +277,7 @@ object PackageSets {
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
-        sourceDir = "out/overlays_x9u_in_r69",
+        sourceDir = "out/overlays_x9u_in_r70",
         files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +
@@ -442,7 +442,7 @@ object PackageSets {
     val INFINITYX = PackageSet(
         id = ID_INFINITYX,
         imageId = Images.ID_INFINITYX,
-        sourceDir = "out/overlays_infinityx_r13",
+        sourceDir = "out/overlays_infinityx_r14",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -491,7 +491,7 @@ object PackageSets {
     val HYPER_F8U = PackageSet(
         id = ID_HYPER_F8U,
         imageId = Images.ID_HYPEROS_LHASA,
-        sourceDir = "out/overlays_hyperos_r23",
+        sourceDir = "out/overlays_hyperos_r24",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -549,7 +549,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r31",
+        sourceDir = "out/overlays_nothing_r32",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             // 0.4.57 (r23): also Samsung IMS's framework members (guest_secims_members.py).

@@ -349,6 +349,15 @@ profile_set() {
         "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip7-fe infinityx41-findx9u") echo infinityx ;;
         "flip7-fe hyperos-lhasa") echo hyper-f8u ;;
+        "a26 hyperos-lhasa") echo hyper-f8u ;;
+        "a35 hyperos-lhasa") echo hyper-f8u ;;
+        "a54 hyperos-lhasa") echo hyper-f8u ;;
+        "a07 hyperos-lhasa") echo hyper-f8u ;;
+        "a17 hyperos-lhasa") echo hyper-f8u ;;
+        "a16-4g hyperos-lhasa") echo hyper-f8u ;;
+        "a16 hyperos-lhasa") echo hyper-f8u ;;
+        "a16-s166 hyperos-lhasa") echo hyper-f8u ;;
+        "a17-5g hyperos-lhasa") echo hyper-f8u ;;
         *) return 1 ;;
     esac
 }
