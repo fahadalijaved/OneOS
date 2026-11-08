@@ -99,6 +99,20 @@ object Profiles {
     const val ID_FLIP5 = "flip5"
     const val ID_FOLD6 = "f6"
     const val ID_A07 = "a07"
+    const val ID_A06 = "a06"
+    const val ID_A07_5G = "a07-5g"
+    const val ID_A15 = "a15"
+    const val ID_A24 = "a24"
+    const val ID_A25 = "a25"
+    const val ID_A33 = "a33"
+    const val ID_A34 = "a34"
+    const val ID_A53 = "a53"
+    const val ID_E55 = "e55"
+    const val ID_S_FE_9925 = "s-fe-9925"
+    const val ID_S_FE_8450 = "s-fe-8450"
+    const val ID_S_PLUS_9925 = "s-plus-9925"
+    const val ID_S_ULTRA_9925 = "s-ultra-9925"
+    const val ID_S_ULTRA_8450 = "s-ultra-8450"
     const val ID_FLIP8 = "flip8"
     const val ID_A36 = "a36"
     const val ID_FOLD5 = "f5"
@@ -177,6 +191,8 @@ object Profiles {
      * bar phone its cover-screen layout runs as the phone's screen.
      */
     private val HYPEROS_CHOICE = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
+    /** OxygenOS 16 (SDK 36) for phones on One UI 8 (0.4.67, experimental; the app offers it only on SDK 36). */
+    private val OXYGEN16_CHOICE = ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)
 
     /**
      * Nothing OS 5.0 (0.4.33), untested, last: the Z Fold8 Ultra first, where it
@@ -644,7 +660,7 @@ object Profiles {
         codename = "a07",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -833,7 +849,7 @@ object Profiles {
         // 0.4.57: not the Pixel 9 Pro XL any more: its own programs stopped on "Illegal instruction" before
         // it started, in every session (0.4.54/0.4.55 reports 9f2307a3, 560a1dcb, c926c955). This ARMv8.2
         // CPU lacks what every phone it runs on has (ilrcpc, frint, flagm, jscvt, fcma, i8mm, bf16...).
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -852,7 +868,7 @@ object Profiles {
         codename = "a17",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -880,7 +896,7 @@ object Profiles {
         codename = "a16x",
         socModel = "s5e8535",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -948,11 +964,169 @@ object Profiles {
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
     )
 
+    /**
+     * OxygenOS 16 (0.4.67, experimental): the phones still on One UI 8.0/8.5 (Android 16, SDK 36), from
+     * their probe reports (model, codename, chip). Only the Android 16 image; untested everywhere. Left
+     * out: reports of custom systems (an "S24" with an Exynos 990, a "Note20 Ultra" with an S22 Ultra
+     * build, an S10 on Android 16) and the tablets (their layout comes later).
+     */
+    val A07_5G = PhoneProfile(
+        id = ID_A07_5G,
+        label = "Galaxy A07 5G",
+        modelPrefix = "SM-A076",
+        codename = "a07x",
+        socModel = "MT6835",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK),
+    )
+
+    val A06 = PhoneProfile(
+        id = ID_A06,
+        label = "Galaxy A06",
+        modelPrefix = "SM-A066",
+        codename = "a06x",
+        socModel = "MT6835",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK),
+    )
+
+    val A15 = PhoneProfile(
+        id = ID_A15,
+        label = "Galaxy A15",
+        modelPrefix = "SM-A155",
+        codename = "a15",
+        socModel = "MT6789",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK),
+    )
+
+    val A24 = PhoneProfile(
+        id = ID_A24,
+        label = "Galaxy A24",
+        modelPrefix = "SM-A245",
+        codename = "a24",
+        socModel = "MT6789",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK),
+    )
+
+    val A25 = PhoneProfile(
+        id = ID_A25,
+        label = "Galaxy A25",
+        modelPrefix = "SM-A256",
+        codename = "a25x",
+        socModel = "s5e8825",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val A33 = PhoneProfile(
+        id = ID_A33,
+        label = "Galaxy A33 5G",
+        modelPrefix = "SM-A336",
+        codename = "a33x",
+        socModel = "s5e8825",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val A34 = PhoneProfile(
+        id = ID_A34,
+        label = "Galaxy A34 5G",
+        modelPrefix = "SM-A346",
+        codename = "a34x",
+        socModel = "MT6877",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK),
+    )
+
+    val A53 = PhoneProfile(
+        id = ID_A53,
+        label = "Galaxy A53 5G",
+        modelPrefix = "SM-A536",
+        codename = "a53x",
+        socModel = "s5e8825",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val E55 = PhoneProfile(
+        id = ID_E55,
+        label = "Galaxy F55/E55",
+        modelPrefix = "SM-E556",
+        codename = "m55xq",
+        socModel = "SM7450",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+    )
+
+    val S_FE_9925 = PhoneProfile(
+        id = ID_S_FE_9925,
+        label = "Galaxy S23 FE",
+        modelPrefix = "SM-S711",
+        codename = "r11s",
+        socModel = "s5e9925",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val S_FE_8450 = PhoneProfile(
+        id = ID_S_FE_8450,
+        label = "Galaxy S23 FE (Snapdragon)",
+        modelPrefix = "SM-S711",
+        codename = "r11q",
+        socModel = "SM8450",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+    )
+
+    val S_PLUS_9925 = PhoneProfile(
+        id = ID_S_PLUS_9925,
+        label = "Galaxy S22+",
+        modelPrefix = "SM-S906",
+        codename = "g0s",
+        socModel = "s5e9925",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val S_ULTRA_9925 = PhoneProfile(
+        id = ID_S_ULTRA_9925,
+        label = "Galaxy S22 Ultra",
+        modelPrefix = "SM-S908",
+        codename = "b0s",
+        socModel = "s5e9925",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val S_ULTRA_8450 = PhoneProfile(
+        id = ID_S_ULTRA_8450,
+        label = "Galaxy S22 Ultra (Snapdragon)",
+        modelPrefix = "SM-S908",
+        codename = "b0q",
+        socModel = "SM8450",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+    )
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
+        A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

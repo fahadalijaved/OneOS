@@ -28,6 +28,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
         SystemFamily.HYPEROS -> R.drawable.os_hyperos
         SystemFamily.NOTHING -> R.drawable.os_nothing
         SystemFamily.INFINITYX -> R.drawable.os_infinity
+        SystemFamily.OXYGENOS -> R.drawable.os_oxygenos
         else -> R.drawable.os_coloros
     })
     fun bindArtwork(resource: Int) {
@@ -38,6 +39,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
             R.drawable.os_nothing -> SystemFamily.NOTHING
             R.drawable.os_infinity -> SystemFamily.INFINITYX
             R.drawable.os_pixel -> SystemFamily.PIXEL
+            R.drawable.os_oxygenos -> SystemFamily.OXYGENOS
             else -> SystemFamily.COLOROS
         }
         frame()
@@ -58,6 +60,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
             SystemFamily.NOTHING -> R.drawable.os_nothing_header
             SystemFamily.INFINITYX -> R.drawable.os_infinity_header
             SystemFamily.PIXEL -> R.drawable.os_pixel_header
+            SystemFamily.OXYGENOS -> R.drawable.os_oxygenos_header
             else -> R.drawable.os_coloros_header
         }
         if (rendered != resource) { rendered = resource; setImageResource(resource) }

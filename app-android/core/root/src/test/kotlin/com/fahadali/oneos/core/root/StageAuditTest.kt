@@ -128,7 +128,13 @@ class StageAuditTest {
         assertEquals("com.wewaffles.onelineage", shVar("OLD_SWITCHER"))
         assertEquals(RootScript.SCRIPTS, shVar("SCRIPTS").split(' '))
         assertEquals(SessionEnv.ALLOWED.keys.toList(), shVar("ENV_KEYS").split(' '))
-        assertEquals(Images.ALL.map { it.sdk }.distinct().single().toString(), shVar("IMAGE_SDK"))
+        // 0.4.66: SDK per image: IMAGE_SDK (37) for all but IMAGES_SDK36, and each SDK's installd tables.
+        assertEquals("37", shVar("IMAGE_SDK"))
+        assertTrue(Images.ALL.all { it.sdk == 36 || it.sdk == 37 })
+        assertEquals(Images.ALL.filter { it.sdk == 36 }.map { it.id }, shVar("IMAGES_SDK36").split(' ').filter { it.isNotEmpty() })
+        assertEquals(InstalldExpected.carried(36), shVar("INSTALLD_SHA_36"))
+        assertEquals(InstalldExpected.accepted(36), shVar("INSTALLD_OK_36").split(' ').toSet())
+        assertEquals(InstalldExpected.accepted(37), setOf(shVar("INSTALLD_SHA")))
         // Enabled profiles only, each with its ids and form (SM- model numbers, and docomo's SC- ones;
         // 0.4.17: the Z Flip7's flip, which root runs with the phone settings).
         val rows = Regex("""^\s+([a-z0-9-]+)\) echo "(S[MC]-\S+) (\S+) (\S+) (fold|bar|flip)" ;;$""", RegexOption.MULTILINE)
@@ -160,7 +166,10 @@ class StageAuditTest {
         assertTrue(data.indexOf(StageStatus.PIXEL_WORD) < data.indexOf("\"${StageStatus.HYPEROS_WORD}\""))
         assertTrue(data.contains("com.coloros."))
         val status = File(Shipped.fullAssets, "root/status.list").readText()
-        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD} ${StageStatus.INFINITYX_WORD} ${StageStatus.HYPEROS_WORD}; do"))
+        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD} ${StageStatus.INFINITYX_WORD} ${StageStatus.HYPEROS_WORD} ${StageStatus.OXYGENOS_WORD}; do"))
+        // 0.4.67: OxygenOS's word right after Infinity-X's and before ColorOS's (its data has com.oplus. too).
+        assertTrue(data.indexOf(StageStatus.INFINITYX_WORD) < data.indexOf(StageStatus.OXYGENOS_WORD))
+        assertTrue(data.indexOf(StageStatus.OXYGENOS_WORD) in 0 until data.indexOf("com.oplus."))
         // Google services: the images whose services a session may hide (0.3.7: none; the Pixel image's sessions present them).
         assertEquals(Images.ALL.filter { it.gmsHideable }.map { it.id }, shVar("IMAGES_GMS").split(' ').filter { it.isNotEmpty() })
         // The sets' files (SET_COMMON for the ColorOS sets, SET_PIXEL for the Pixel set) and the image each was built from.

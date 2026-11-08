@@ -50,6 +50,11 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.67: **OxygenOS 16 for the phones still on One UI 8.0/8.5** (Android 16; experimental, never run on a
+phone yet): the S22+, S22 Ultra, S23 FE, A06, A07 5G, A15, A24, A25, A33, A34, A53 and F55/E55, and the A07, A16,
+A17, A26, A35 and A54 while on One UI 8.5. Not on One UI 9. No camera yet. The app now carries an Android version per
+image and One UI 8's installd tables.
+
 New in 0.4.66: **HyperOS on the Galaxy A07, A16 4G and 5G, A17 4G and 5G, A26, A35 and A54** (untested), **no restart
 on the Galaxy A17 5G** (Samsung's software watchdog on its second watchdog device was never fed, and the phone
 restarted about 100 s into every session), and **Samsung Camera on the Galaxy A16 4G** (it closed at launch on a

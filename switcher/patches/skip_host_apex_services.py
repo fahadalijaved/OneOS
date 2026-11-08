@@ -11,6 +11,8 @@ Pixel's SystemServer (R8) has the same loop with other registers and a public
 final method, so the registers are read from the code: the jar path is the
 call's third register, and the scratch register is the isEmpty(jarPath) result
 that branched to the call (dead after the branch; v5 on ColorOS, v3 on Pixel).
+Android 16's (OxygenOS 16) loads mSystemServiceManager between the label and the
+call; the check goes before that load.
 
 Usage: skip_host_apex_services.py <smali root dir>
 Prints the smali_* directory (dex file) it changed.
@@ -52,6 +54,12 @@ def main(root):
         idx = calls[0]
         jar = CALL.match(lines[idx]).group(3)
         label = code(lines, idx - 1, -1)
+        # Android 16 (OnePlus's OxygenOS 16, not R8-optimized) loads mSystemServiceManager into the
+        # call's own register between the branch label and the call; the check goes before it.
+        mgr = CALL.match(lines[idx]).group(1)
+        if re.match(rf"^\s*iget-object {mgr}, p0, Lcom/android/server/SystemServer;->mSystemServiceManager:"
+                    r"Lcom/android/server/SystemServiceManager;$", lines[label]):
+            label = code(lines, label - 1, -1)
         after = code(lines, idx + 1, 1)
         if not re.match(r"^\s*:cond_\d+$", lines[label]) or not re.match(r"^\s*:goto_\d+$", lines[after]):
             sys.exit("startApexServices: startServiceFromJar call not between a branch label and a goto label")

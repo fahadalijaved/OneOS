@@ -250,9 +250,17 @@ class ProfilesTest {
                 Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945,
                 Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965, Profiles.A16_4G, Profiles.A16_S166, Profiles.A35, Profiles.A54, Profiles.A27, Profiles.A17_5G, Profiles.FLIP7_FE,
+                Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
+                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450,
             ),
             Profiles.BUILT_IN,
         )
+        // 0.4.67: the phones still on One UI 8 take OxygenOS 16 only, untested, as bar phones.
+        for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
+                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450)) {
+            assertEquals(p.id, listOf(ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)), p.choices)
+            assertEquals(p.id, FormFactor.BAR, p.form)
+        }
         // 0.4.48, from probe reports of phones on One UI 9: the S25 Edge takes the S25's images (untested
         // here), the S24 FE the S24 (Exynos)'s, the A26 the S23s' without HyperOS, the A17 and the A16 5G
         // (Exynos 1330) Infinity-X, like the A07; 0.4.60: Infinity-X tested there, ColorOS (X9U IN) offered too.
@@ -261,12 +269,12 @@ class ProfilesTest {
         assertTrue(Profiles.S_EDGE_8750.choices.none { it.tested })
         assertEquals(Profiles.S_9945.choices, Profiles.S_FE_9945.choices)
         assertEquals(listOf("SM-S721", "r12s", "s5e9945"), listOf(Profiles.S_FE_9945.modelPrefix, Profiles.S_FE_9945.codename, Profiles.S_FE_9945.socModel))
-        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA), Profiles.A26.choices.map { it.imageId }) // 0.4.57: no Pixel 9 Pro XL; 0.4.66: HyperOS (owner)
+        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16), Profiles.A26.choices.map { it.imageId }) // 0.4.57: no Pixel 9 Pro XL; 0.4.66: HyperOS (owner)
         for (p in listOf(Profiles.A17, Profiles.A16, Profiles.A16_4G, Profiles.A07, Profiles.A16_S166, Profiles.A17_5G)) {
-            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA), p.choices.map { it.imageId })
+            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16), p.choices.map { it.imageId })
             // Tested only where a tester's session reached the home screen; that one is preselected.
             val ran = p !in listOf(Profiles.A16_S166, Profiles.A17_5G)
-            assertEquals(p.id, listOf(false, ran, false), p.choices.map { it.tested })
+            assertEquals(p.id, listOf(false, ran, false, false), p.choices.map { it.tested })
             if (ran) assertEquals(p.id, Images.ID_INFINITYX, p.recommended?.imageId)
         }
         // 0.4.60: the Galaxy A17 5G (SM-A176B, the A16 5G's Exynos 1330) and the Z Flip7 FE (SM-F761B, Exynos 2400).
@@ -410,7 +418,7 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), Profiles.FOLD5.notes.map { it.id })
         assertEquals(Profiles.A07, profile("SM-A075F", "a07", "MT6789"))
         assertNull(profile("SM-A075F", "a07", "s5e8855"))
-        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA), Profiles.A07.choices.map { it.imageId })
+        assertEquals(listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16), Profiles.A07.choices.map { it.imageId })
         assertEquals(listOf(Profiles.ID_NOTE_MEDIATEK, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.A07.notes.map { it.id })
         assertNull(profile("SM-F766U", "b7s", "s5e9965"))
         assertNull(profile("SM-S947U", "m3q", "SM8850")) // S26+ model number, S26 Ultra codename

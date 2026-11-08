@@ -115,9 +115,15 @@ APP_PACKAGE=com.fahadali.oneos
 SPLASH_COMPONENT=com.fahadali.oneos/.ui.GapSplashActivity
 OLD_SWITCHER=com.wewaffles.onelineage
 IMAGE_SDK=37
+# 0.4.66: the images of SDK 36 (Android 16, for One UI 8 phones); every other image is IMAGE_SDK.
+IMAGES_SDK36="oxygenos16-cph2745"
 # SHA-256 of the method lines of switcher/patches/host_installd.txt: the
 # installd codes the guard jars carry (InstalldExpected.SHA256).
 INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
+# SDK 36 images' sets carry One UI 8.5's codes (host_installd_a16.txt, staged as host_installd.txt;
+# InstalldExpected.SHA256_A16); One UI 8.0's table works with them too (SHA256_A16_ONEUI80).
+INSTALLD_SHA_36=a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
+INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977 9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
 # Session scripts from switcher/assets plus the expected installd table.
 SCRIPTS="oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
@@ -134,6 +140,8 @@ SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinsta
 # services.jar and framework.jar need the guards; no vendor framework, no vold
 # patch (its build is unknown to the patcher) and no signal poll injection.
 SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_customringtone.tar nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar samcam_bar.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched vold_patched wifi_payload.img"
+# OxygenOS 16 (0.4.67): ColorOS's common files without the vold rename, and its own payloads.
+SET_OXYGENOS="services_patched.jar oplus-services_patched.jar OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img conscrypt_payload.img profiling_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
 ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_RETURN_MODE"
@@ -141,7 +149,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
 # sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in nothingos5-metroid"
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in nothingos5-metroid oxygenos16-cph2745"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -150,6 +158,20 @@ IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in nothingos5-metroid"
 profile_info() {
     case "$1" in
         f8u) echo "SM-F976 q8q SM8850 fold" ;;
+        a06) echo "SM-A066 a06x MT6835 bar" ;;
+        a07-5g) echo "SM-A076 a07x MT6835 bar" ;;
+        a15) echo "SM-A155 a15 MT6789 bar" ;;
+        a24) echo "SM-A245 a24 MT6789 bar" ;;
+        a25) echo "SM-A256 a25x s5e8825 bar" ;;
+        a33) echo "SM-A336 a33x s5e8825 bar" ;;
+        a34) echo "SM-A346 a34x MT6877 bar" ;;
+        a53) echo "SM-A536 a53x s5e8825 bar" ;;
+        e55) echo "SM-E556 m55xq SM7450 bar" ;;
+        s-fe-9925) echo "SM-S711 r11s s5e9925 bar" ;;
+        s-fe-8450) echo "SM-S711 r11q SM8450 bar" ;;
+        s-plus-9925) echo "SM-S906 g0s s5e9925 bar" ;;
+        s-ultra-9925) echo "SM-S908 b0s s5e9925 bar" ;;
+        s-ultra-8450) echo "SM-S908 b0q SM8450 bar" ;;
         s-ultra-8850) echo "SM-S948 m3q SM8850 bar" ;;
         s-ultra-8750) echo "SM-S938 pa3q SM8750 bar" ;;
         s-8750) echo "SM-S931 pa1q SM8750 bar" ;;
@@ -340,6 +362,29 @@ profile_set() {
         "a16 infinityx41-findx9u") echo infinityx ;;
         "a17-5g infinityx41-findx9u") echo infinityx ;;
         "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a06 oxygenos16-cph2745") echo oxygen16 ;;
+        "a07-5g oxygenos16-cph2745") echo oxygen16 ;;
+        "a15 oxygenos16-cph2745") echo oxygen16 ;;
+        "a24 oxygenos16-cph2745") echo oxygen16 ;;
+        "a25 oxygenos16-cph2745") echo oxygen16 ;;
+        "a33 oxygenos16-cph2745") echo oxygen16 ;;
+        "a34 oxygenos16-cph2745") echo oxygen16 ;;
+        "a53 oxygenos16-cph2745") echo oxygen16 ;;
+        "e55 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-fe-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-fe-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "a07 oxygenos16-cph2745") echo oxygen16 ;;
+        "a26 oxygenos16-cph2745") echo oxygen16 ;;
+        "a35 oxygenos16-cph2745") echo oxygen16 ;;
+        "a54 oxygenos16-cph2745") echo oxygen16 ;;
+        "a17 oxygenos16-cph2745") echo oxygen16 ;;
+        "a16-4g oxygenos16-cph2745") echo oxygen16 ;;
+        "a16 oxygenos16-cph2745") echo oxygen16 ;;
+        "a16-s166 oxygenos16-cph2745") echo oxygen16 ;;
+        "a17-5g oxygenos16-cph2745") echo oxygen16 ;;
         "a17 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a16-4g coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a16 coloros17-findx9u-in") echo x9u-in-sultra ;;
@@ -378,6 +423,7 @@ image_raw() {
         nothingos5-metroid) echo "6067867648 484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b" ;;
         pixel9proxl-komodo) echo "5837496320 2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c" ;;
         infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
+        oxygenos16-cph2745) echo "12273344512 dafbb026f97692b7d59b8f4ae2f46773e88e0d5bf0e1fee46b3636ff56b06e90" ;;
         *) return 1 ;;
     esac
 }
@@ -394,6 +440,7 @@ set_files() {
         nothing-f8u) echo "$SET_NOTHING" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX" ;;
+        oxygen16) echo "$SET_OXYGENOS" ;;
         *) return 1 ;;
     esac
 }
@@ -410,6 +457,7 @@ set_image() {
         nothing-f8u) echo nothingos5-metroid ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
+        oxygen16) echo oxygenos16-cph2745 ;;
         *) return 1 ;;
     esac
 }
@@ -427,6 +475,7 @@ image_family() {
         infinityx41-findx9u) echo infinityx ;;
         hyperos-lhasa) echo hyperos ;;
         nothingos5-metroid) echo nothing ;;
+        oxygenos16-cph2745) echo oxygenos ;;
         *) return 1 ;;
     esac
 }
@@ -437,6 +486,8 @@ data_family() {
     pk="$STAGE/data/system/packages.xml"
     if grep -q -s -F "com.infinity.updater" "$pk"; then
         echo infinityx
+    elif grep -q -s -F "com.oneplus.membership" "$pk"; then
+        echo oxygenos
     elif grep -q -s -F "com.oplus." "$pk" || grep -q -s -F "com.coloros." "$pk"; then
         echo coloros
     elif grep -q -s -F "com.google.android.apps.nexuslauncher" "$pk"; then
@@ -668,11 +719,16 @@ check_env() { # <file> <form> <profile> <image>
 # host_installd.table (InstalldTableFormat 1): this phone's fingerprint, the
 # source jar's SHA-256, a valid trailer, and methods equal to the staged
 # host_installd.txt, whose method lines hash to INSTALLD_SHA.
-check_table() { # <file>
+image_sdk() { # <image id>
+    if in_list "$1" "$IMAGES_SDK36"; then echo 36; else echo "$IMAGE_SDK"; fi
+}
+check_table() { # <file> <image id>
     f=$1
+    if [ "$(image_sdk "$2")" = 36 ]; then carried=$INSTALLD_SHA_36 ok=$INSTALLD_OK_36
+    else carried=$INSTALLD_SHA ok=$INSTALLD_SHA; fi
     [ -f "$f" ] || refuse "host_installd.table missing"
     ge 65536 "$(stat -c %s "$f")" || refuse "host_installd.table is over 64 kB"
-    [ "$(grep -v '^#' "$STAGE/host_installd.txt" 2>/dev/null | sha256sum | cut -d' ' -f1)" = "$INSTALLD_SHA" ] ||
+    [ "$(grep -v '^#' "$STAGE/host_installd.txt" 2>/dev/null | sha256sum | cut -d' ' -f1)" = "$carried" ] ||
         refuse "host_installd.txt in the stage is not the table the OneOS jars carry"
     [ "$(sed -n 1p "$f")" = "oneos.installd-table 1" ] || refuse "host_installd.table: bad first line"
     fp=$(getprop ro.build.fingerprint)
@@ -692,7 +748,7 @@ check_table() { # <file>
     [ "$((lines + 0))" -eq $((n + 5)) ] || refuse "host_installd.table: expected $n methods and a trailer"
     [ "$(sed -n "$((n + 5))p" "$f")" = "sha256 $(sed '$d' "$f" | sha256sum | cut -d' ' -f1)" ] ||
         refuse "host_installd.table: the sha256 trailer does not match"
-    [ "$(sed -n "5,$((n + 4))p" "$f" | sha256sum | cut -d' ' -f1)" = "$INSTALLD_SHA" ] ||
+    in_list "$(sed -n "5,$((n + 4))p" "$f" | sha256sum | cut -d' ' -f1)" "$ok" ||
         refuse "this phone's installd table differs from the one the OneOS jars carry"
 }
 # Every staged file of the profile, root's and matching files.sha256; no file
@@ -934,7 +990,7 @@ do_table() {
     [ $# -eq 1 ] || usage "table <bytes>"
     receive_text host_installd.table "$1" 65536
     [ -n "$(received_sum host_installd.txt)" ] || { rm -f "$part"; refuse "host_installd.txt was not received"; }
-    ( check_table "$part" ) || { rm -f "$part"; exit 2; }
+    ( check_table "$part" "$P_IMAGE" ) || { rm -f "$part"; exit 2; }
     mv -f "$part" "$STAGE/host_installd.table" || die "could not put host_installd.table in place"
     say "@@OK table"
 }
@@ -964,7 +1020,7 @@ do_finish() {
     [ "$(received_sum system.raw)" = "$P_RAW_SHA" ] || refuse "the image was not received or checked"
     check_raw "$P_RAW_BYTES" "$P_RAW_SHA"
     check_env "$STAGE/session.env" "$P_FORM" "$P_PROFILE" "$P_IMAGE"
-    check_table "$STAGE/host_installd.table"
+    check_table "$STAGE/host_installd.table" "$P_IMAGE"
     printf '%s' "$list" | LC_ALL=C sort -k2 > "$STAGE/files.sha256.tmp" && own "$STAGE/files.sha256.tmp" 0644 &&
         mv -f "$STAGE/files.sha256.tmp" "$STAGE/files.sha256" || die "could not write files.sha256"
     # Every other flat file that is not the sessions' own state goes to the
@@ -1033,7 +1089,8 @@ do_launch() {
     case "$model" in "$1"*) ;; *) refuse "this phone ($model) is not a $1" ;; esac
     [ "$(getprop ro.product.device)" = "$2" ] || refuse "codename $(getprop ro.product.device), profile $M_PROFILE is $2"
     [ "$(getprop ro.soc.model)" = "$3" ] || refuse "chip $(getprop ro.soc.model), profile $M_PROFILE is $3"
-    [ "$(getprop ro.build.version.sdk)" = "$IMAGE_SDK" ] || refuse "Android SDK $(getprop ro.build.version.sdk), the image is $IMAGE_SDK"
+    isdk=$(image_sdk "$M_IMAGE")
+    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || refuse "Android SDK $(getprop ro.build.version.sdk), the image is $isdk"
     idle_or_refuse
     if [ -f "$STAGE/persist_session.active" ]; then
         refuse "the last session never returned: restore One UI's settings first (Last session)"
@@ -1042,7 +1099,7 @@ do_launch() {
     check_files "$names"
     set -- $(image_raw "$M_IMAGE")
     check_raw "$1" "$2"
-    check_table "$STAGE/host_installd.table"
+    check_table "$STAGE/host_installd.table" "$M_IMAGE"
     check_env "$STAGE/session.env" "$form" "$M_PROFILE" "$M_IMAGE"
     find_tools
     [ -n "$BB" ] || refuse "no busybox at the root manager's paths"

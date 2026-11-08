@@ -219,3 +219,33 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy Z Flip8 (SM-F776, s5e9965), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
+
+## OxygenOS 16, OnePlus CPH2745 build
+
+- File: `OneOS_OxygenOS16_CPH2745.img.gz` (6.17 GB)
+- SHA-256: `21e9b1fe37adb0ce4820610f017cdcce6373457c435aa242262b2e4ed214c5f0`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_OxygenOS16_CPH2745.img.gz/download
+- Phones:
+  - Galaxy A07 (SM-A075, MT6789), not tested yet
+  - Galaxy A26 (SM-A266, s5e8835), not tested yet
+  - Galaxy A17 (SM-A175, MT6789), not tested yet
+  - Galaxy A16 5G (SM-A166, s5e8535), not tested yet
+  - Galaxy A16 4G (SM-A165, MT6789), not tested yet
+  - Galaxy A16 5G (SM-S166V) (SM-S166, s5e8535), not tested yet
+  - Galaxy A35 5G (SM-A356, s5e8835), not tested yet
+  - Galaxy A54 5G (SM-A546, s5e8835), not tested yet
+  - Galaxy A17 5G (SM-A176, s5e8535), not tested yet
+  - Galaxy A06 (SM-A066, MT6835), not tested yet
+  - Galaxy A07 5G (SM-A076, MT6835), not tested yet
+  - Galaxy A15 (SM-A155, MT6789), not tested yet
+  - Galaxy A24 (SM-A245, MT6789), not tested yet
+  - Galaxy A25 (SM-A256, s5e8825), not tested yet
+  - Galaxy A33 5G (SM-A336, s5e8825), not tested yet
+  - Galaxy A34 5G (SM-A346, MT6877), not tested yet
+  - Galaxy A53 5G (SM-A536, s5e8825), not tested yet
+  - Galaxy F55/E55 (SM-E556, SM7450), not tested yet
+  - Galaxy S23 FE (SM-S711, s5e9925), not tested yet
+  - Galaxy S23 FE (Snapdragon) (SM-S711, SM8450), not tested yet
+  - Galaxy S22+ (SM-S906, s5e9925), not tested yet
+  - Galaxy S22 Ultra (SM-S908, s5e9925), not tested yet
+  - Galaxy S22 Ultra (Snapdragon) (SM-S908, SM8450), not tested yet

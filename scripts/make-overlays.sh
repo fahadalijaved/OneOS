@@ -220,7 +220,18 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_power_guards.py" 
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/services")"
 # Send installd calls with One UI's transaction codes, block the rest
 # (patches/guest_installd_abi.py, table from scripts/host-installd-table.sh).
-KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" "$WORK/services" "$ROOT/switcher/patches/host_installd.txt")"
+# The host is the One UI of the image's Android version (0.4.66): One UI 9 (Android 17)
+# for SDK 37 images, One UI 8.5 (Android 16, host_installd_a16.txt from the A07/A17/A15
+# probes; One UI 8.0's differs only in slot 33, createOatDir, which the proxy blocks
+# under 8.5's table, and lacks Samsung's 74-78) for SDK 36 ones.
+IMAGE_SDK=$("$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | sed -n 's/^ro.build.version.sdk=//p' | head -n 1)
+case "$IMAGE_SDK" in
+    37) HOST_INSTALLD="$ROOT/switcher/patches/host_installd.txt" ;;
+    36) HOST_INSTALLD="$ROOT/switcher/patches/host_installd_a16.txt" ;;
+    *) echo "image SDK ${IMAGE_SDK:-unknown}: no host installd table for it" >&2; exit 1 ;;
+esac
+echo "installd: the image is SDK $IMAGE_SDK, host table $(basename "$HOST_INSTALLD")"
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" "$WORK/services" "$HOST_INSTALLD")"
 # No kernel crash from the guest's watchdog (patches/guest_no_sysrq_crash.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_sysrq_crash.py" "$WORK/services")"
 # The guest never touches the phone's weaver slots, where One UI's lock
@@ -828,12 +839,18 @@ if [ "${HYPEROS_FW:-0}" = 1 ] && [ -f "$OUT/framework_patched.jar" ]; then
     cp "$OUT/framework_patched.jar" "$WORK/framework-cam.jar"
 fi
 rm -f "$OUT/framework_patched.jar" "$OUT/libcamera_client_patched.so" "$OUT/libcameracompatbilityinfo_patched.so"
-if in_image /system/framework/framework.jar; then
+# ONEOS_NO_CAMERA_ABI=1: no camera bridge in this set (0.4.66, the Android 16 OxygenOS set for One UI 8
+# phones: the host tables here are One UI 9's; One UI 8's camera numbering is not on the server yet).
+# The guest's camera then does not work; everything else is built as usual.
+if [ "${ONEOS_NO_CAMERA_ABI:-0}" = 1 ]; then
+    echo "camera bridge: left out (ONEOS_NO_CAMERA_ABI=1)"
+    rm -f "$WORK/framework-cam.jar"
+elif in_image /system/framework/framework.jar; then
     [ -f "$WORK/framework-cam.jar" ] || "$DEBUGFS" -R "dump /system/framework/framework.jar $WORK/framework-cam.jar" "$IMG" 2>/dev/null
     "$ROOT/scripts/patch-framework-camera.sh" "$WORK/framework-cam.jar" "$OUT"
     rm -f "$WORK/framework-cam.jar"
 fi
-if in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
+if [ "${ONEOS_NO_CAMERA_ABI:-0}" != 1 ] && in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
     "$DEBUGFS" -R "dump /system/lib64/libcamera_client.so $WORK/libcamera_client.so" "$IMG" 2>/dev/null
     "$DEBUGFS" -R "dump /system/lib64/libcameracompatbilityinfo.so $WORK/libcameracompatbilityinfo.so" "$IMG" 2>/dev/null
     "$ROOT/scripts/patch-camera-native.sh" "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so" "$OUT"
@@ -927,7 +944,11 @@ data = bytearray(open(src, "rb").read())
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
-         "e5a8726a6687": 0x452a50}
+         "e5a8726a6687": 0x452a50,
+         # OnePlus OxygenOS 16 (CPH2745, Android 16): a status check (tbnz) comes between the
+         # load and the cbz; cbz x8 -> +0x4c at 0x5d9bb8, the same bytes (code segment 0x2a0000,
+         # file offset == vaddr).
+         "b8dc0a4def28": 0x5d9bb8}
 # vivo OriginOS 17 (MediaTek, X500 Pro Max CP2A.260605.016): after init, main()
 # registers MediaTek's MtkSF_ext as vendor.mediatek.framework.mtksf_ext.IMtkSF_ext/
 # default, a VINTF-stable binder only the guest's own manifest declares. One UI's

@@ -163,6 +163,7 @@ object PackageSets {
     const val ID_PIXEL9_SULTRA = "pixel9-sultra"
     const val ID_INFINITYX = "infinityx"
     const val ID_NOTHING_F8U = "nothing-f8u"
+    const val ID_OXYGEN16 = "oxygen16"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
     const val TETHERING = "tethering_payload.img"
@@ -619,7 +620,31 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U)
+    /**
+     * OxygenOS 16 for One UI 8 phones (0.4.67, experimental): ColorOS's common files (the image has
+     * oplus-services.jar; make-overlays.sh with ONEOS_NO_CAMERA_ABI=1 and One UI 8.5's installd table),
+     * the conscrypt and profiling payloads it carries, no camera bridge yet (no One UI 8 camera tables
+     * on the server), no vold rename (an unknown vold build: the guest's vold keeps its name).
+     */
+    val OXYGEN16 = PackageSet(
+        id = ID_OXYGEN16,
+        imageId = Images.ID_OXYGEN16,
+        sourceDir = "out/overlays_oxygen16_r1",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("oplus-telephony-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
+            PackageFile("guards.txt", FileRole.GUARDS),
+        ) + (COMMON_PAYLOADS + listOf("cellbroadcast", "conscrypt", "profiling")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING, WALLPAPER_GRID_RRO, "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt"),
+        approxBytes = 332_685_387L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

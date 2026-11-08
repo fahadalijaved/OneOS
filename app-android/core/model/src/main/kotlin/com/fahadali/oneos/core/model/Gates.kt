@@ -150,6 +150,8 @@ data class GateInput(
     val onPhone: StagedRaw? = null,
     /** switcher/patches/host_installd.txt as the app ships it; null = compare with the pinned hash only. */
     val expectedInstalld: String? = null,
+    /** switcher/patches/host_installd_a16.txt as the app ships it, for SDK 36 images (0.4.66); null = pinned hash only. */
+    val expectedInstalldA16: String? = null,
     /** PREPARE: bytes root frees before receiving (the old system.raw of an adopted stage). */
     val reclaimBytes: Long = 0,
     /** This app's versionCode; when set, a stage marked by another build must be prepared again. */
@@ -317,7 +319,7 @@ object SwitchGates {
                 },
             )
         }
-        out += Gate(installd(input))
+        out += Gate(installd(input, image))
         out += Gate(oldSwitcher(input.oldSwitcherInstalled))
         out += Gate(stageIdle(input.stage))
         space(phase, input, image, set)?.let { out += Gate(it) }
@@ -501,8 +503,10 @@ object SwitchGates {
         }
     }
 
-    private fun installd(input: GateInput): Finding {
-        val p = InstalldExpected.problems(input.installd, input.expectedInstalld)
+    private fun installd(input: GateInput, image: ImageRef? = null): Finding {
+        // The chosen image's Android version decides the table (0.4.66: One UI 8.5/8.0 for SDK 36 images).
+        val sdk = image?.sdk ?: 37
+        val p = InstalldExpected.problems(input.installd, if (sdk == 36) input.expectedInstalldA16 else input.expectedInstalld, sdk)
         return if (p.isEmpty()) {
             Finding(
                 ID_INSTALLD, Level.OK, "installd interface matches the OneOS files",

@@ -18,6 +18,30 @@ class InstalldExpectedTest {
         assertEquals(lines, InstalldExpected.methodLines(InstalldTableFormat.parseLegacy(fixture.readText())))
     }
 
+    /** 0.4.66: One UI 8.5's table (host_installd_a16.txt) for SDK 36 images, and One UI 8.0's accepted with it. */
+    @Test
+    fun android16Tables() {
+        val a16 = File(fixture.parentFile, "host_installd_a16.txt")
+        val lines = InstalldExpected.nonCommentLines(a16.readText())
+        assertEquals(InstalldExpected.SHA256_A16, Hashes.sha256(lines))
+        assertEquals(InstalldExpected.SHA256_A16, InstalldExpected.carried(36))
+        assertEquals("host_installd_a16.txt", InstalldExpected.assetName(36))
+        assertEquals("host_installd.txt", InstalldExpected.assetName(37))
+        val oneUi80 = javaClass.getResource("/host_installd_oneui80.txt")!!.readText()
+        assertEquals(InstalldExpected.SHA256_A16_ONEUI80, Hashes.sha256(InstalldExpected.nonCommentLines(oneUi80)))
+        // A One UI 8.5 phone and a One UI 8.0 phone both pass for an SDK 36 image; neither for an SDK 37 one.
+        for (text in listOf(a16.readText(), oneUi80)) {
+            val d = InstalldDerivation(InstalldTableFormat.parseLegacy(text), "/system/framework/services.jar", "classes.dex", null, emptyList(), null)
+            assertEquals(emptyList<String>(), InstalldExpected.problems(d, a16.readText(), 36))
+            assertTrue(InstalldExpected.problems(d, fixture.readText(), 37).isNotEmpty())
+        }
+        // 8.0 differs from 8.5 only in slot 33 (createOatDir vs createOatDirs) and lacks 74-78.
+        val m85 = InstalldTableFormat.parseLegacy(a16.readText()).associateBy { it.code }
+        val m80 = InstalldTableFormat.parseLegacy(oneUi80).associateBy { it.code }
+        assertEquals((1..73).toSet() - 33, (1..73).filter { m85[it] == m80[it] }.toSet())
+        assertEquals(setOf(74, 75, 76, 77, 78), m85.keys - m80.keys)
+    }
+
     @Test
     fun everyBundledPhoneHasTheShippedTable() {
         val expected = fixture.readText()

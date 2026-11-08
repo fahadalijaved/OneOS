@@ -36,6 +36,13 @@ enum class GuestData {
     INFINITYX,
     /** Xiaomi's com.miui. packages (HyperOS), and no ColorOS or Pixel package. */
     HYPEROS,
+
+    /**
+     * OnePlus's membership app, com.oneplus.membership (OxygenOS 16, 0.4.67): its data also has
+     * OPPO's packages (com.oplus.), so this word goes before ColorOS's. Android 16 data: never kept
+     * for an Android 17 ColorOS image, and ColorOS 17's never for it.
+     */
+    OXYGENOS,
     OTHER,
     ;
 
@@ -46,6 +53,7 @@ enum class GuestData {
             PIXEL -> SystemFamily.PIXEL
             INFINITYX -> SystemFamily.INFINITYX
             HYPEROS -> SystemFamily.HYPEROS
+            OXYGENOS -> SystemFamily.OXYGENOS
             else -> null
         }
 
@@ -141,7 +149,8 @@ data class StageStatus(
             image != null && guest.otherSystemThan(image) -> listOf(RootScript.BeginMode.ASIDE)
             ours -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             partial && guest != GuestData.LINEAGEOS -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
-            guest == GuestData.COLOROS || guest == GuestData.PIXEL || guest == GuestData.INFINITYX || guest == GuestData.HYPEROS ->
+            guest == GuestData.COLOROS || guest == GuestData.PIXEL || guest == GuestData.INFINITYX || guest == GuestData.HYPEROS ||
+                guest == GuestData.OXYGENOS ->
                 listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             else -> listOf(RootScript.BeginMode.ASIDE)
         }
@@ -359,6 +368,7 @@ data class StageStatus(
             val guest = when {
                 statuses["stage.guest"] != ProbeStatus.OK -> GuestData.NONE
                 guestLines.any { it == "packages $INFINITYX_WORD" } -> GuestData.INFINITYX
+                guestLines.any { it == "packages $OXYGENOS_WORD" } -> GuestData.OXYGENOS
                 guestLines.any { it == "packages org.lineageos." } -> GuestData.LINEAGEOS
                 guestLines.any { it == "packages com.oplus." || it == "packages com.coloros." } -> GuestData.COLOROS
                 guestLines.any { it == "packages $PIXEL_WORD" } -> GuestData.PIXEL
@@ -410,6 +420,9 @@ data class StageStatus(
 
         /** Infinity-X's updater (its system_ext/priv-app/Updater). */
         const val INFINITYX_WORD = "com.infinity.updater"
+
+        /** OnePlus's membership app (OxygenOS 16's my_stock/app/OPMemberShip). */
+        const val OXYGENOS_WORD = "com.oneplus.membership"
 
         /** `sha256sum` lines of the stage (status.list reads the old path while the stage is still there). */
         private val HASH_LINE = Regex("""^([0-9a-f]{64}) [ *](?:${Regex.escape(RootScript.STAGE)}|${Regex.escape(RootScript.LEGACY_STAGE)})/(\S+)$""")

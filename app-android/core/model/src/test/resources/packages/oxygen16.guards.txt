@@ -1,0 +1,3 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+91ac41405859750a0825e926ad93c700f5367dcb23c5212ec1e9de00aa111ad9  services_patched.jar
+ae5b4c321ee642f2b0fa5c79d57de965db6a2204e0b736d4724a92d3c22c2666  oplus-services_patched.jar

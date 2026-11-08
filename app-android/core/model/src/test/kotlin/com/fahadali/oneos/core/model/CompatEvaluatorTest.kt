@@ -229,7 +229,8 @@ class CompatEvaluatorTest {
 
     @Test
     fun oneUiAndSdkOutsideProfilesWarn() {
-        val r = eval(Fixtures.facts(oneUi = "80500", sdk = 36))
+        // 0.4.67: SDK 36 has an image now (OxygenOS 16); One UI 7 on Android 15 has none.
+        val r = eval(Fixtures.facts(oneUi = "70000", sdk = 35))
         assertEquals(Level.WARN, r.level("oneui-unseen"))
         assertEquals(Level.WARN, r.level(CompatEvaluator.ID_ANDROID_DIFFERS))
         assertEquals(Verdict.WARNING, r.verdict)

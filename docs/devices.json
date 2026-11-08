@@ -814,6 +814,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
         }
       ]
     },
@@ -1120,6 +1126,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
         }
       ]
     },
@@ -1150,6 +1162,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
         }
       ]
     },
@@ -1179,6 +1197,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
           "tested": false
         }
       ]
@@ -1252,6 +1276,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
         }
       ]
     },
@@ -1281,6 +1311,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
           "tested": false
         }
       ]
@@ -1312,6 +1348,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
         }
       ]
     },
@@ -1341,6 +1383,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
           "tested": false
         }
       ]
@@ -1402,6 +1450,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
         }
       ]
     },
@@ -1437,6 +1491,258 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a06",
+      "label": "Galaxy A06",
+      "model": "SM-A066",
+      "codename": "a06x",
+      "chip": "MT6835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a07-5g",
+      "label": "Galaxy A07 5G",
+      "model": "SM-A076",
+      "codename": "a07x",
+      "chip": "MT6835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a15",
+      "label": "Galaxy A15",
+      "model": "SM-A155",
+      "codename": "a15",
+      "chip": "MT6789",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a24",
+      "label": "Galaxy A24",
+      "model": "SM-A245",
+      "codename": "a24",
+      "chip": "MT6789",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a25",
+      "label": "Galaxy A25",
+      "model": "SM-A256",
+      "codename": "a25x",
+      "chip": "s5e8825",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a33",
+      "label": "Galaxy A33 5G",
+      "model": "SM-A336",
+      "codename": "a33x",
+      "chip": "s5e8825",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a34",
+      "label": "Galaxy A34 5G",
+      "model": "SM-A346",
+      "codename": "a34x",
+      "chip": "MT6877",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a53",
+      "label": "Galaxy A53 5G",
+      "model": "SM-A536",
+      "codename": "a53x",
+      "chip": "s5e8825",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "e55",
+      "label": "Galaxy F55/E55",
+      "model": "SM-E556",
+      "codename": "m55xq",
+      "chip": "SM7450",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-fe-9925",
+      "label": "Galaxy S23 FE",
+      "model": "SM-S711",
+      "codename": "r11s",
+      "chip": "s5e9925",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-fe-8450",
+      "label": "Galaxy S23 FE (Snapdragon)",
+      "model": "SM-S711",
+      "codename": "r11q",
+      "chip": "SM8450",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-plus-9925",
+      "label": "Galaxy S22+",
+      "model": "SM-S906",
+      "codename": "g0s",
+      "chip": "s5e9925",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-ultra-9925",
+      "label": "Galaxy S22 Ultra",
+      "model": "SM-S908",
+      "codename": "b0s",
+      "chip": "s5e9925",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-ultra-8450",
+      "label": "Galaxy S22 Ultra (Snapdragon)",
+      "model": "SM-S908",
+      "codename": "b0q",
+      "chip": "SM8450",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
           "tested": false
         }
       ]
