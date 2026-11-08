@@ -7,7 +7,14 @@ implicit management access. Other grants are private to that guest.
 
 The arm64 injector starts only the guest zygote child. Its modified NeoZygisk
 daemon retains the guest namespace, uses guest grants and does not start a global
-monitor or change the host root provider's module-unmount policy. Vector 2.2 is
+monitor or change the host root provider's module-unmount policy. Namespace requests use the authenticated socket peer PID and a pinned namespace
+FD after checking the peer's guest filesystem root. A PID supplied in the message
+cannot select the cached namespace. The ptrace helper accepts only a target that
+is a child of its invoking launcher in the same guest root, and checks again
+before injection. Zygisk root flags validate grants against the current guest
+package-to-UID mapping, so a reused UID cannot inherit a removed app's grant.
+
+Vector 2.2 is
 bundled. Recognizable Zygisk LSPosed distributions can be imported and selected;
 Riru layouts require another backend and are rejected. Vector and LSPosed have
 not been shown to provide identical APIs, ART support or module compatibility.

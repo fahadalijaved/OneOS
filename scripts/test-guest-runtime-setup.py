@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the actual guest-su and file-bind setup snippets in isolated fixtures."""
 from pathlib import Path
-import os, subprocess, tempfile, unittest
+import os, subprocess, tempfile, unittest, sys
 ROOT=Path(__file__).resolve().parents[1]
 class SetupTest(unittest.TestCase):
  def test_native_broker_is_copied_without_a_host_su_file(self):
@@ -34,4 +34,24 @@ class SetupTest(unittest.TestCase):
    busy=base/'busybox';busy.write_text('#!/bin/sh\n[ "$#" = 5 ] && [ "$1" = mount ] && [ "$2" = -o ] && [ "$3" = remount,bind,ro ]\n');busy.chmod(0o755)
    subprocess.run(['sh','-ec',snippet.replace('/data/adb/ksu/.allowlist',str(base/'target'))],env={**os.environ,'B':d,'busy':str(busy)},check=True)
    self.assertTrue((base/'allowlist.protected').exists())
+class PrivateBindTest(unittest.TestCase):
+ def check_bind(self,kind):
+  script=(ROOT/'switcher/assets/guest_runtime.sh').read_text()
+  start=script.index('verify_private_adb_bind() {')
+  function=script[start:script.index('\n}',start)+2]
+  with tempfile.TemporaryDirectory() as d:
+   base=Path(d);private=base/'private';(private/'modules').mkdir(parents=True)
+   root=base/'rootfs';(root/'data').mkdir(parents=True)
+   if kind=='wrong-root':(root/'data/adb').mkdir()
+   else:(root/'data/adb').symlink_to(private)
+   foreign=base/'foreign';foreign.mkdir()
+   busy=base/'busybox'
+   busy.write_text('#!'+sys.executable+'\nimport os,sys\nassert sys.argv[1:5]==["stat","-L","-c","%d:%i"]\np=sys.argv[-1]\nif os.getenv("BAD_MODULE_BIND") and p.endswith("/rootfs/data/adb/modules"):p=os.environ["FOREIGN"]\ns=os.stat(p)\nprint(str(s.st_dev)+":"+str(s.st_ino))\n');busy.chmod(0o755)
+   env={**os.environ,'B':str(busy),'A':str(private),'R':str(root),'FOREIGN':str(foreign)}
+   if kind=='wrong-modules':env['BAD_MODULE_BIND']='1'
+   result=subprocess.run(['sh','-ec',function+'\nverify_private_adb_bind'],env=env,capture_output=True,text=True)
+   self.assertEqual(kind=='valid',result.returncode==0,result.stderr)
+ def test_private_root_and_modules_match(self):self.check_bind('valid')
+ def test_host_adb_view_is_rejected(self):self.check_bind('wrong-root')
+ def test_nested_modules_overmount_is_rejected(self):self.check_bind('wrong-modules')
 if __name__=='__main__': unittest.main()

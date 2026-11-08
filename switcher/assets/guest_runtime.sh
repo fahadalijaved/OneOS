@@ -5,6 +5,14 @@ set -eu
 S=${STAGE:-/data/local/tmp/oneos}
 R=$S/rootfs
 STATE=$S/data/oneos_root
+verify_private_adb_bind() {
+    for suffix in '' /modules; do
+        expected=$("$B" stat -L -c %d:%i "$A$suffix") || return 1
+        actual=$("$B" stat -L -c %d:%i "$R/data/adb$suffix") || return 1
+        [ "$expected" = "$actual" ] || return 1
+    done
+}
+
 case "${1:-}" in
 control)
     A=/data/adb
@@ -247,6 +255,9 @@ prepare)
         "$B" mount --bind "$S/guest_root" "$R/system/bin/su"
         "$B" mount --make-private "$R/system/bin/su"
     fi
+    # Literal /data/adb paths used by zygiskd and module scripts must resolve
+    # to this guest's private tree, including any nested modules mount.
+    verify_private_adb_bind || { echo 'Guest runtime: private adb bind identity mismatch' >&2; exit 1; }
     echo 'Guest runtime: separate permissions, module state and explicit guest injection enabled'
     ;;
 restore-props)

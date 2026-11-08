@@ -7,6 +7,13 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class GuestRuntimeScriptTest {
+    // Fixtures must model the loader's explicit safe modes under any caller umask.
+    private fun java.io.File.writePrivate(text: String) {
+        writeText(text)
+        java.nio.file.Files.setPosixFilePermissions(toPath(),
+            java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"))
+    }
+
     private fun fixture(test: (FakeRoot, String) -> Unit) {
         val shells = TestShell.available()
         assumeTrue(shells.isNotEmpty())
@@ -15,7 +22,7 @@ class GuestRuntimeScriptTest {
             val choice = profile.choices.first()
             val begun = fr.run(RootScript.Verb.BEGIN, "new", profile.id, choice.imageId, choice.packageSetId, "4")
             assertEquals(begun.toString(), 0, begun.exit)
-            fr.stage.resolve(".oneos_stage").writeText(StageMarker(4, profile.id, choice.imageId, choice.packageSetId, 1792000000L).toJson())
+            fr.stage.resolve(".oneos_stage").writePrivate(StageMarker(4, profile.id, choice.imageId, choice.packageSetId, 1792000000L).toJson())
             test(fr, choice.imageId)
         } }
     }
@@ -45,25 +52,25 @@ class GuestRuntimeScriptTest {
     @Test fun moduleStateAndMetadataStayInTheSelectedGuest() = fixture { fr, image ->
         val module = fr.stage.resolve("data/oneos_root/adb/modules_update/test_module")
         module.mkdirs()
-        module.resolve("module.prop").writeText("id=test_module\nname=Test module\ndescription=Example with spaces\nversion=1\n")
+        module.resolve("module.prop").writePrivate("id=test_module\nname=Test module\ndescription=Example with spaces\nversion=1\n")
         assertEquals(0, fr.run(RootScript.Verb.GUEST_MODULE_STATE, image, "test_module", "off").exit)
         assertTrue(module.resolve("disable").isFile)
         val status = fr.run(RootScript.Verb.GUEST_RUNTIME, image, "status")
         assertTrue(status.reply.results.any { it.startsWith("module-info test_module 0 modules_update module ") && it.contains("54657374206d6f64756c65") })
         assertEquals(0, fr.run(RootScript.Verb.GUEST_MODULE_STATE, image, "test_module", "on").exit)
         assertFalse(module.resolve("disable").exists())
-        module.resolve(".oneos-framework").writeText("lsposed\n")
+        module.resolve(".oneos-framework").writePrivate("lsposed\n")
         assertEquals(0, fr.run(RootScript.Verb.GUEST_MODULE_STATE, image, "test_module", "off").exit)
         assertTrue(module.resolve("module.prop").isFile)
         assertFalse(module.resolve("remove").exists())
         assertEquals(2, fr.run(RootScript.Verb.GUEST_MODULE_STATE, image, "test_module", "on").exit)
-        fr.stage.resolve("data/oneos_root/framework").writeText("test_module\n")
+        fr.stage.resolve("data/oneos_root/framework").writePrivate("test_module\n")
         assertEquals(0, fr.run(RootScript.Verb.GUEST_MODULE_STATE, image, "test_module", "on").exit)
         assertFalse(module.resolve("disable").exists())
     }
     @Test fun removalIsDeferredAndCanBeCancelled() = fixture { fr, image ->
         val module = fr.stage.resolve("data/oneos_root/adb/modules/test_module")
-        module.mkdirs(); module.resolve("module.prop").writeText("id=test_module\nname=Test\nauthor=An author\nversion=2\nversionCode=2\n")
+        module.mkdirs(); module.resolve("module.prop").writePrivate("id=test_module\nname=Test\nauthor=An author\nversion=2\nversionCode=2\n")
         assertEquals(0, fr.run(RootScript.Verb.GUEST_MODULE_STATE, image, "test_module", "remove").exit)
         assertTrue(module.resolve("remove").isFile); assertTrue(module.resolve("module.prop").isFile)
         assertEquals(0, fr.run(RootScript.Verb.GUEST_MODULE_STATE, image, "test_module", "restore").exit)
@@ -73,7 +80,7 @@ class GuestRuntimeScriptTest {
     }
     @Test fun expandedMetadataSurvivesTheReplyParser() = fixture { fr, image ->
         val module=fr.stage.resolve("data/oneos_root/adb/modules/example")
-        module.mkdirs();module.resolve("module.prop").writeText("id=example\nname=Example\ndescription=${"description ".repeat(70)}\nversion=2\nversionCode=2\nauthor=Author\nupdateJson=https://example.org/update.json\n")
+        module.mkdirs();module.resolve("module.prop").writePrivate("id=example\nname=Example\ndescription=${"description ".repeat(70)}\nversion=2\nversionCode=2\nauthor=Author\nupdateJson=https://example.org/update.json\n")
         val row=fr.run(RootScript.Verb.GUEST_RUNTIME,image,"status").reply.results.first { it.startsWith("module-info ") }
         assertTrue(row.length > 500);assertEquals(13,row.split(' ').size)
         assertTrue(row.contains("417574686f72"));assertTrue(row.endsWith("- 0"))
@@ -85,7 +92,7 @@ class GuestRuntimeScriptTest {
     }
     @Test fun selectedFrameworkCannotBeRemoved() = fixture { fr, image ->
         val module = fr.stage.resolve("data/oneos_root/adb/modules/zygisk_vector")
-        module.mkdirs(); module.resolve("module.prop").writeText("id=zygisk_vector\n")
+        module.mkdirs(); module.resolve("module.prop").writePrivate("id=zygisk_vector\n")
         assertEquals(2, fr.run(RootScript.Verb.GUEST_MODULE_STATE, image, "zygisk_vector", "remove").exit)
         assertFalse(module.resolve("remove").exists())
     }

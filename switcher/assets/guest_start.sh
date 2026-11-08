@@ -1698,8 +1698,10 @@ fi
 # guest framework or module boot-service waiter starts, on cold and soft boots.
 # Otherwise a package-manager service can appear before AMS accepts broadcasts,
 # and an early module APK verification crashes system_server.
-setprop sys.boot_completed 0
-setprop dev.bootcomplete 0
+if [ -f /data/oneos_root/enabled ]; then
+    setprop sys.boot_completed 0
+    setprop dev.bootcomplete 0
+fi
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3

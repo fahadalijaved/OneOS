@@ -9,7 +9,9 @@ from this directory to `zygiskd/Cargo.lock` before the locked Cargo build. Licen
 
 The patch disables global monitor/boot-stage entry points, keeps the guest mount
 namespace, replaces host root-policy lookups with guest grants, removes monitor
-IPC, and avoids changing host kernel module-unmount policy. The native OneOS
+IPC, and avoids changing host kernel module-unmount policy. Namespace caching authenticates peer credentials and pins guest namespace FDs;
+grant lookups revalidate package/UID associations. The tracer requires a target
+owned by its invoking launcher in the same guest filesystem root. The native OneOS
 broker/launcher lives in `switcher/native/guest_root.c` (GPL-3.0-or-later).
 
 Build the broker as a static arm64 Android executable using the Android NDK
@@ -37,3 +39,9 @@ guest manager APK is intentionally absent: build it from the repository's
 `:guest` sources with `scripts/build-guest-manager.sh` before the host app.
 Production APKs must use the real OneOS release key; local signature-metadata
 transplants used for device experiments are outside the contribution.
+
+Security regression checks run with `python3 scripts/test-guest-security.py`.
+They compile the actual broker descriptor parser and the Rust/C++ policies from
+this patch. They require C/C++ compilers and Cargo; the pinned anyhow/libc crates
+must be cached for the offline Rust tests. These host checks do not replace an
+Android guest boot test of the rebuilt injector.
