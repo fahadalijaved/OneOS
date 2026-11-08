@@ -299,6 +299,17 @@ def filters(entries, today):
     return cmds
 
 
+def exact(cmd):
+    """A phone filter that answers only a message that is exactly one of its triggers (Rose's
+    "exact:" type), so a sentence that merely names a phone gets no reply (owner, 2026-11-08: the
+    filters filled the chat). The "which phones" overview keeps matching anywhere."""
+    m = re.match(r"/filter \(([^)]*)\) ", cmd)
+    trig = [t.strip().strip('"') for t in m.group(1).split(",")]
+    if any(t in OVERVIEW for t in trig):
+        return cmd
+    return "/filter (" + ", ".join(f'"exact:{t}"' for t in trig) + ") " + cmd[m.end():]
+
+
 def scan(devices, waiting, inbox):
     """Findings zips from phones with no profile and no waiting.json entry: what each showed."""
     known = [(m.strip(), p["codename"]) for p in devices["phones"] for m in p["model"].split(",")]
@@ -378,6 +389,9 @@ def main():
     ap.add_argument("--days", type=int, default=10)
     ap.add_argument("--per-phone", action="store_true", help="one Rose reply per phone instead of one per series")
     ap.add_argument("--link", default="", help="the public docs/devices.md URL, once published")
+    ap.add_argument("--match", choices=("exact", "anywhere"), default="exact",
+                    help="exact (default): a phone's reply only for a message that is just its name "
+                         "(Rose's exact: filters); anywhere: also inside any sentence (Rose's default)")
     ap.add_argument("--upcoming", default="", help="profile ids only in the next, unreleased app")
     ap.add_argument("--next", default="", help="that app's version")
     ap.add_argument("--waiting", default="reports/waiting.json")
@@ -400,16 +414,24 @@ def main():
     global LINK
     LINK = a.link
     cmds = filters(entries, today) if a.per_phone else filters_grouped(entries)
-    trig = [t.strip().strip('"') for c in cmds for t in re.match(r"/filter \(([^)]*)\)", c).group(1).split(",")]
+    if a.match == "exact":
+        cmds = [exact(c) for c in cmds]
+    raw = [t.strip().strip('"') for c in cmds for t in re.match(r"/filter \(([^)]*)\)", c).group(1).split(",")]
+    trig = [t.removeprefix("exact:") for t in raw]
     assert len(trig) == len(set(trig)), "a trigger in two filters"
-    old = [l.strip() for l in open(a.in_group)] if os.path.exists(a.in_group) else []
+    old_raw = [l.strip() for l in open(a.in_group)] if os.path.exists(a.in_group) else []
+    old = [l.removeprefix("exact:") for l in old_raw]
     dropped = sorted(set(old) - set(trig) - {""})
+    # A trigger that changes type (plain <-> exact:) is removed first, so its old filter cannot
+    # stay beside the new one.
+    retyped = sorted(set(old_raw) - set(raw) - {""} - set(dropped))
+    dropped = sorted(set(dropped) | set(retyped))
     if dropped:  # a trigger no longer generated would keep its old reply in the group
         cmds.insert(0, "/stop (" + ", ".join(f'"{t}"' if " " in t else t for t in dropped) + ")")
     with open(a.filters, "w") as f:
         f.write("\n\n".join(cmds) + "\n")
     with open(os.path.join(os.path.dirname(a.filters), "rose_triggers.txt"), "w") as f:
-        f.write("\n".join(trig) + "\n")
+        f.write("\n".join(raw) + "\n")
     # Free Rose: 200 filters per chat, and every trigger is one.
     print(f"{len(entries)} phones: {a.md}; {len(cmds)} commands, {len(trig)} triggers of Rose's 200"
           f"{f', /stop for {len(dropped)} dropped' if dropped else ''} in {a.filters}")
