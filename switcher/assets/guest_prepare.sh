@@ -1438,6 +1438,30 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
         exit 3
     fi
     echo "Bound framework_patched.jar -> $HFW"
+    # Calls and SMS over Samsung IMS (0.4.62). HyperOS's ImsFactory loads
+    # Xiaomi's XmImsFactory from xiaomi-opt-ims.jar, and its XmImsManager wants
+    # Xiaomi's own IMS service, which a Galaxy does not have: at the first
+    # connectionReady it threw "XmImsService is unavailable(106)" (createImsService
+    # binder is null), and ImsSmsDispatcher and ImsPhoneCallTracker dropped
+    # Samsung's IMS service for the whole session (S23 HyperOS 36e46e14, Jio:
+    # IMS REGISTERED with mmtel and smsip, every text went to the radio as
+    # IMS_SEND_SMS and came back error 44, calls failed). Without the jar
+    # ImsFactory falls back to AOSP's ImsManager by itself ("failed to load ims
+    # factory"), which talks to the bound ImsService as on the other systems.
+    # Nothing else loads the jar (no app declares the library). An empty file
+    # over it for the session; ONEOS_GUEST_XIAOMI_IMS=1 keeps it.
+    XIMS="$MIUI_FW/xiaomi-opt-ims.jar"
+    if [ "${ONEOS_GUEST_XIAOMI_IMS:-0}" != 1 ] && [ -f "$XIMS" ] && [ ! -L "$XIMS" ]; then
+        rm -f "$STAGE/xiaomi-opt-ims.empty"
+        : > "$STAGE/xiaomi-opt-ims.empty" && chmod 644 "$STAGE/xiaomi-opt-ims.empty"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/xiaomi-opt-ims.empty" 2>/dev/null || true
+        $BB umount -l "$XIMS" 2>/dev/null || true
+        if $BB mount --bind "$STAGE/xiaomi-opt-ims.empty" "$XIMS" && [ ! -s "$XIMS" ]; then
+            echo "Hid xiaomi-opt-ims.jar: HyperOS uses AOSP's ImsManager with Samsung IMS (calls and SMS)"
+        else
+            echo "!!! could not hide xiaomi-opt-ims.jar; HyperOS's calls and SMS over IMS may fail"
+        fi
+    fi
     # Xiaomi's SurfaceFlinger with the display mode group read whole
     # (patches/hyperos_sf_group.py): it compared a mode's group with the default
     # mode's low byte, and One UI numbers the groups by panel width on the S23,

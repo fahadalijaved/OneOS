@@ -41,6 +41,9 @@ does not know). **ColorOS starts on the Galaxy A16 5G and A17 5G** (it waited fo
 service these phones do not have). Infinity-X's status bar, quick settings and navigation work on the
 Galaxy A36 again; the return to One UI is faster. New, untested: **the Galaxy S24 (Snapdragon, SM-S921)**.
 
+New in 0.4.62: **calls and SMS in HyperOS** with VoLTE on (Xiaomi's own IMS add-on, which needs Xiaomi's
+IMS service, is left out of the session, so HyperOS uses Samsung's IMS like the other systems).
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as
