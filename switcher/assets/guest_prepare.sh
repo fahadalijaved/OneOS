@@ -155,7 +155,7 @@ rm -rf "$STAGE/data/system/package_cache" "$STAGE/data/system/watchdog_timestamp
 # a new session starts without the last one's answers.
 rm -f "$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_checklist.json" 2>/dev/null
 
-echo "=== 1. Ensuring Watchdog Feeder is Active ==="
+echo "=== 1. $(date +%T) Ensuring Watchdog Feeder is Active ==="
 # One UI's system_server opens /dev/watchdog (Samsung's softdog) unless
 # persist.vendor.softdog is off, sets 100 s and kicks it (services.jar
 # WatchdogSoftdog); stopped at [4b/6], it leaves the softdog running. The
@@ -248,7 +248,7 @@ WDOG
     nohup $BB sh "$STAGE/oneos_wdog_feeder.sh" </dev/null >/dev/null 2>&1 &
 fi
 
-echo "=== 2. Creating Loop Device Nodes ==="
+echo "=== 2. $(date +%T) Creating Loop Device Nodes ==="
 for i in $(seq 50 150); do
     minor=$((i * 8))
     rm -f /dev/block/loop$i /dev/loop$i 2>/dev/null || true
@@ -256,7 +256,7 @@ for i in $(seq 50 150); do
     mknod /dev/loop$i b 7 $minor
 done
 
-echo "=== 3. Mounting system.raw if needed ==="
+echo "=== 3. $(date +%T) Mounting system.raw if needed ==="
 # Read-only flag of a loop device, by its device number (the node names made
 # above need not match the kernel's loopN).
 loop_ro() {
@@ -338,7 +338,7 @@ mkdir -p "$ROOTFS/postinstall" "$ROOTFS/dev" "$ROOTFS/proc" "$ROOTFS/sys" \
     "$ROOTFS/linkerconfig" "$ROOTFS/vendor" "$ROOTFS/odm" "$ROOTFS/vendor_dlkm" \
     "$ROOTFS/mnt" "$ROOTFS/storage" "$ROOTFS/apex" "$ROOTFS/data"
 
-echo "=== 4. Setting up Core System Bind Mounts ==="
+echo "=== 4. $(date +%T) Setting up Core System Bind Mounts ==="
 mount | grep -q "$ROOTFS/proc " || $BB mount -t proc proc "$ROOTFS/proc"
 # The host's /sys with everything mounted under it (not a fresh sysfs): the
 # guest needs the cgroup2 hierarchy at /sys/fs/cgroup, or zygote cannot put
@@ -2566,7 +2566,7 @@ fi
 
 
 
-echo "=== 5. Setting up Isolated Data & Bridges ==="
+echo "=== 5. $(date +%T) Setting up Isolated Data & Bridges ==="
 mkdir -p "$STAGE/data/adb" "$STAGE/data/apex" "$STAGE/data/dalvik-cache/arm64"
 
 # Give the guest the host's authorised ADB keys. The container has no
@@ -3549,7 +3549,7 @@ fi
 # a Termux alternatives link into /data/data/com.termux) would otherwise get its
 # HOST target relabelled, and One UI's copy would lose access on return. The
 # chown of /data/media is -h for the same reason.
-echo "=== 5b. Relabeling staged /data for guest SELinux ==="
+echo "=== 5b. $(date +%T) Relabeling staged /data for guest SELinux ==="
 $BB chcon u:object_r:system_data_file:s0 "$STAGE/data" 2>/dev/null || true
 for d in data/system data/system_de data/system_ce data/user data/user_de \
          data/misc data/misc_de data/misc_ce data/anr data/dalvik-cache \
@@ -3619,7 +3619,7 @@ $BB chcon -h -R u:object_r:media_rw_data_file:s0 "$STAGE/data/media" 2>/dev/null
 # are the host's own directories bind-mounted in, already labeled correctly, and
 # chcon-ing a bind mount would relabel the host's copy.
 
-echo "=== 5c. Fixing staged /data ownership and modes ==="
+echo "=== 5c. $(date +%T) Fixing staged /data ownership and modes ==="
 # The stage tree is created by root under /data/local/tmp, so its top-level
 # directories come out root:root 0755. A real /data is system:system 0771, and
 # system_server (uid 1000) has to be able to create /data/app/vmdl*.tmp:
@@ -3943,7 +3943,7 @@ if [ $bt_own = 1 ] && [ ! -L /data/misc/bluedroid ] && [ ! -L "$BTC" ] && [ -f "
     echo "Guest Bluetooth pairings: ${both:-not compared}: also paired in One UI (if One UI paired one again after the guest did, the guest's key is out of date: a pairing request at its first connection in the guest, and accepting it unpairs it in One UI)"
 fi
 
-echo "=== 5d. Bridging host /data app and storage trees into the staged /data ==="
+echo "=== 5d. $(date +%T) Bridging host /data app and storage trees into the staged /data ==="
 # installd and artd are HOST daemons (started by Samsung init, they cannot be
 # moved into the container namespace). Left alone they create every app data
 # dir, dalvik-cache entry and dexopt profile in the real /data, which the guest
@@ -4149,7 +4149,7 @@ KSUDWRAP
     fi
 fi
 
-echo "=== 5e. Writing per-package data-dir helper ==="
+echo "=== 5e. $(date +%T) Writing per-package data-dir helper ==="
 # Apps installed before the /data bridge existed have no CE/DE data dirs in the
 # guest tree, and the guest zygote refuses to fork them:
 #   Failed to mount /data_mirror/data_de/null/0/<pkg> to /data/user_de/0/<pkg>
@@ -4490,7 +4490,7 @@ done
 APPLOOP
 chmod 755 "$STAGE/data/local/tmp/app_storage_loop.sh" 2>/dev/null || true
 
-echo "=== 6. Setting up /system/xbin/su (KernelSU Bridge) ==="
+echo "=== 6. $(date +%T) Setting up /system/xbin/su (KernelSU Bridge) ==="
 if ! mount | grep -q "$ROOTFS/system/xbin "; then
     if [ -f "$STAGE/data/oneos_root/enabled" ]; then
         $BB mount -t tmpfs tmpfs "$ROOTFS/system/xbin" || exit 3
@@ -4517,7 +4517,7 @@ if ! mount | grep -q "$ROOTFS/system/xbin "; then
     fi
 fi
 
-echo "=== 7. Setting up Fresh APEX tmpfs ==="
+echo "=== 7. $(date +%T) Setting up Fresh APEX tmpfs ==="
 # Clean any stale submounts and ensure a clean, writable tmpfs
 for m in $(cat /proc/mounts 2>/dev/null | grep "$ROOTFS/apex" | awk '{print $2}' | sort -r); do
     $BB umount -l "$m" 2>/dev/null || true
@@ -4536,7 +4536,7 @@ else
 fi
 chmod 644 "$ROOTFS/apex/apex-info-list.xml" 2>/dev/null || true
 
-echo "=== 8. Direct Mounting Extracted APEX Payloads ==="
+echo "=== 8. $(date +%T) Direct Mounting Extracted APEX Payloads ==="
 rm -f "$STAGE/payload_loops"
 mount_payload() {
     NAME="$1"
@@ -4727,7 +4727,7 @@ if [ -d /system/apex ]; then
     mount | grep -q "$ROOTFS/system/apex " || $BB mount --bind /system/apex "$ROOTFS/system/apex"
 fi
 
-echo "=== 9. Bind-mounting Remaining Non-Payload APEXes ==="
+echo "=== 9. $(date +%T) Bind-mounting Remaining Non-Payload APEXes ==="
 for a in /apex/*; do
     [ -d "$a" ] || continue
     base=$(basename "$a")
@@ -5720,4 +5720,4 @@ if [ "$SEXT_MOUNT" = 1 ]; then
         exit 3
     fi
 fi
-echo "=== ALL MOUNTS PREPARED SUCCESSFULLY ==="
+echo "=== ALL MOUNTS PREPARED SUCCESSFULLY $(date +%T) ==="
