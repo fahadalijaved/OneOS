@@ -1,0 +1,744 @@
+--- a/compat/app-integration/retained-controller-install.sh
++++ b/compat/app-integration/retained-controller-install.sh
+@@ -21,25 +21,41 @@
+         return 1
+     }
+     ci_fd_profile() {
+-        [ "$(stat -Lc %u "$1" 2>/dev/null)" = "$ROOT_UID" ] || return 1
+-        case "$(stat -Lc %a "$1" 2>/dev/null)" in [57][0145][0145]) return 0 ;; esac
++        # mksh opens these held slots CLOEXEC. Export the exact known anchor
++        # at each external stat, never an arbitrary caller-selected descriptor.
++        case "$1" in
++            "$ci_fdroot/8")
++                ci_profile_uid=$(stat -Lc %u "$1" 8<&8 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 8<&8 2>/dev/null) || return 1 ;;
++            "$ci_fdroot/9"|"$ci_target")
++                ci_profile_uid=$(stat -Lc %u "$1" 9<&9 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 9<&9 2>/dev/null) || return 1 ;;
++            "$ci_fdroot/7")
++                ci_profile_uid=$(stat -Lc %u "$1" 7<&7 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 7<&7 2>/dev/null) || return 1 ;;
++            *) return 1 ;;
++        esac
++        [ "$ci_profile_uid" = "$ROOT_UID" ] || return 1
++        case "$ci_profile_mode" in [57][0145][0145]) return 0 ;; esac
+         return 1
+     }
++    ci_hash_payload() { sha256sum "$ci_fdroot/6" 6>&6 2>/dev/null | cut -d' ' -f1; }
++    ci_hash_target() { sha256sum "$ci_fdroot/7" 7<&7 2>/dev/null | cut -d' ' -f1; }
+     ci_same_directories() {
+         ci_directory_profile "$STAGE" && ci_directory_profile "$STAGE/bin" &&
+         [ -d "$ci_fdroot/8" ] && [ -d "$ci_fdroot/9" ] &&
+         ci_fd_profile "$ci_fdroot/8" && ci_fd_profile "$ci_fdroot/9" &&
+         [ "$(stat -c '%d:%i' "$STAGE" 2>/dev/null)" = "$ci_stage_id" ] &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/8" 2>/dev/null)" = "$ci_stage_id" ] &&
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/8" 8<&8 2>/dev/null)" = "$ci_stage_id" ] &&
+         [ "$(stat -c '%d:%i' "$STAGE/bin" 2>/dev/null)" = "$ci_bin_id" ] &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/9" 2>/dev/null)" = "$ci_bin_id" ]
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/9" 9<&9 2>/dev/null)" = "$ci_bin_id" ]
+     }
+     ci_same_target() {
+         [ -f "$ci_target" ] && [ ! -L "$ci_target" ] &&
+         ci_fd_profile "$ci_target" && [ -f "$ci_fdroot/7" ] && ci_fd_profile "$ci_fdroot/7" &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 2>/dev/null)" = "$ci_target_id" ] &&
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 7<&7 2>/dev/null)" = "$ci_target_id" ] &&
+         [ ! -L "$ci_target" ] &&
+-        [ "$(stat -c '%d:%i' "$ci_target" 2>/dev/null)" = "$ci_target_id" ]
++        [ "$(stat -c '%d:%i' "$ci_target" 9<&9 2>/dev/null)" = "$ci_target_id" ]
+     }
+     ci_cleanup() {
+         if [ "$ci_cleaned" = 1 ]; then [ "$ci_cleanup_ok" = 1 ]; return; fi
+@@ -49,16 +65,16 @@
+             ci_payload_owned=0
+             if [ ! -e "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ]; then :
+             elif [ -n "$ci_payload_id" ] && [ -f "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ] &&
+-                 [ "$(stat -c '%d:%i' "$ci_work/payload" 2>/dev/null)" = "$ci_payload_id" ]; then
+-                rm "$ci_work/payload" || ci_bad=1
++                 [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5 2>/dev/null)" = "$ci_payload_id" ]; then
++                rm "$ci_work/payload" 5<&5 || ci_bad=1
+             else ci_bad=1
+             fi
+         fi
+         if [ "$ci_work_owned" = 1 ]; then
+             ci_work_owned=0
+             if [ -n "$ci_work_id" ] && [ -d "$ci_work_name" ] && [ ! -L "$ci_work_name" ] &&
+-               [ "$(stat -c '%d:%i' "$ci_work_name" 2>/dev/null)" = "$ci_work_id" ]; then
+-                rmdir "$ci_work_name" || ci_bad=1
++               [ "$(stat -c '%d:%i' "$ci_work_name" 9<&9 2>/dev/null)" = "$ci_work_id" ]; then
++                rmdir "$ci_work_name" 9<&9 || ci_bad=1
+             else ci_bad=1
+             fi
+         fi
+@@ -104,29 +120,29 @@
+     ci_same_directories || refuse "closed controller directory identity changed"
+     idle_or_refuse # existing read-only mount/bridge/loop refusal; not orphan proof
+     # An existing work directory is another/uncertain owner; never delete it.
+-    mkdir "$ci_work_name" || refuse "closed controller installer already owned"
++    mkdir "$ci_work_name" 9<&9 || refuse "closed controller installer already owned"
+     ci_work_owned=1 # before open, metadata changes, payload acquisition or checks
+-    ci_work_id=$(stat -c '%d:%i' "$ci_work_name") || die "could not retain installer identity"
++    ci_work_id=$(stat -c '%d:%i' "$ci_work_name" 9<&9) || die "could not retain installer identity"
+     ci_work_open=1; exec 5<"$ci_work_name"
+     ci_work=$ci_fdroot/5
+-    [ -d "$ci_work" ] && [ "$(stat -Lc '%d:%i' "$ci_work")" = "$ci_work_id" ] ||
++    [ -d "$ci_work" ] && [ "$(stat -Lc '%d:%i' "$ci_work" 5<&5)" = "$ci_work_id" ] ||
+         die "installer directory identity changed"
+     # These are newly created installer objects only, never existing OneOS data.
+-    chown "$ROOT_OWNER" "$ci_work" && chmod 0700 "$ci_work" || die "could not protect installer"
++    chown "$ROOT_OWNER" "$ci_work" 5<&5 && chmod 0700 "$ci_work" 5<&5 || die "could not protect installer"
+     ci_payload_owned=1 ci_payload_open=1
+     set -C
+     exec 6>"$ci_work/payload" # noclobber creation in the exclusively owned directory
+     set +C
+-    ci_payload_id=$(stat -Lc '%d:%i' "$ci_fdroot/6") || die "could not retain payload identity"
++    ci_payload_id=$(stat -Lc '%d:%i' "$ci_fdroot/6" 6>&6) || die "could not retain payload identity"
+     [ -f "$ci_fdroot/6" ] && [ ! -L "$ci_work/payload" ] &&
+-        [ "$(stat -c '%d:%i' "$ci_work/payload")" = "$ci_payload_id" ] || die "payload identity changed"
++        [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5)" = "$ci_payload_id" ] || die "payload identity changed"
+     ci_limit=$((ci_bytes + 1)) # canonical decimal and <=2MiB, safe with mksh arithmetic
+     # Reads at most expected+1, and waits for EOF when exactly expected arrive.
+     # Root's DATA producer closes stdin; no invented read-timeout acknowledgement.
+-    head -c "$ci_limit" >&6 || die "could not receive closed controller"
+-    [ "$(stat -Lc %s "$ci_fdroot/6")" = "$ci_bytes" ] || refuse "closed controller length mismatch"
+-    [ "$(sha "$ci_fdroot/6")" = "$ci_sum" ] || refuse "closed controller SHA256 mismatch"
+-    chown "$ROOT_OWNER" "$ci_fdroot/6" && chmod 0755 "$ci_fdroot/6" || die "could not protect controller payload"
++    head -c "$ci_limit" 6>&6 >&6 || die "could not receive closed controller"
++    [ "$(stat -Lc %s "$ci_fdroot/6" 6>&6)" = "$ci_bytes" ] || refuse "closed controller length mismatch"
++    [ "$(ci_hash_payload)" = "$ci_sum" ] || refuse "closed controller SHA256 mismatch"
++    chown "$ROOT_OWNER" "$ci_fdroot/6" 6>&6 && chmod 0755 "$ci_fdroot/6" 6>&6 || die "could not protect controller payload"
+     ci_same_directories || refuse "closed controller directories changed"
+     if [ ! -e "$ci_target" ] && [ ! -L "$ci_target" ]; then
+         # The final source component is an actual regular name under the held
+@@ -134,25 +150,25 @@
+         # no -L support for a final proc magic link is needed. Recheck the name
+         # against owned FD6 immediately before the atomic link.
+         [ -f "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ] &&
+-            [ "$(stat -c '%d:%i' "$ci_work/payload")" = "$ci_payload_id" ] &&
+-            [ "$(stat -Lc '%d:%i' "$ci_fdroot/6")" = "$ci_payload_id" ] ||
++            [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5)" = "$ci_payload_id" ] &&
++            [ "$(stat -Lc '%d:%i' "$ci_fdroot/6" 6>&6)" = "$ci_payload_id" ] ||
+             die "payload name changed before publication"
+         # -T forbids a directory-target fallback. No -f, cp or overwriting mv;
+         # unsupported publication fails closed with no alternative path.
+-        if ln -T "$ci_work/payload" "$ci_target"; then
++        if ln -T "$ci_work/payload" "$ci_target" 5<&5 9<&9; then
+             ci_published=1
+         else
+             [ -e "$ci_target" ] || [ -L "$ci_target" ] || die "exclusive controller publication failed"
+         fi
+     fi
+     [ -f "$ci_target" ] && [ ! -L "$ci_target" ] || refuse "existing controller is not a regular nonlink image"
+-    ci_target_id=$(stat -c '%d:%i' "$ci_target") || refuse "could not inspect installed controller"
++    ci_target_id=$(stat -c '%d:%i' "$ci_target" 9<&9) || refuse "could not inspect installed controller"
+     ci_target_open=1; exec 7<"$ci_target"
+     [ -f "$ci_fdroot/7" ] && ci_fd_profile "$ci_fdroot/7" &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7")" = "$ci_target_id" ] &&
+-        [ ! -L "$ci_target" ] && [ "$(stat -c '%d:%i' "$ci_target")" = "$ci_target_id" ] &&
+-        [ "$(stat -Lc %s "$ci_fdroot/7")" = "$ci_bytes" ] &&
+-        [ "$(sha "$ci_fdroot/7")" = "$ci_sum" ] ||
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 7<&7)" = "$ci_target_id" ] &&
++        [ ! -L "$ci_target" ] && [ "$(stat -c '%d:%i' "$ci_target" 9<&9)" = "$ci_target_id" ] &&
++        [ "$(stat -Lc %s "$ci_fdroot/7" 7<&7)" = "$ci_bytes" ] &&
++        [ "$(ci_hash_target)" = "$ci_sum" ] ||
+         refuse "different or unsafe controller already installed; replacement refused"
+     [ "$ci_published" = 0 ] || [ "$ci_target_id" = "$ci_payload_id" ] ||
+         die "published controller is not the retained payload inode"
+--- a/firmware/oneos-pr/OneOS/app-android/app/src/full/assets/root/oneos_root.sh
++++ b/firmware/oneos-pr/OneOS/app-android/app/src/full/assets/root/oneos_root.sh
+@@ -1476,25 +1476,41 @@
+         return 1
+     }
+     ci_fd_profile() {
+-        [ "$(stat -Lc %u "$1" 2>/dev/null)" = "$ROOT_UID" ] || return 1
+-        case "$(stat -Lc %a "$1" 2>/dev/null)" in [57][0145][0145]) return 0 ;; esac
++        # mksh opens these held slots CLOEXEC. Export the exact known anchor
++        # at each external stat, never an arbitrary caller-selected descriptor.
++        case "$1" in
++            "$ci_fdroot/8")
++                ci_profile_uid=$(stat -Lc %u "$1" 8<&8 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 8<&8 2>/dev/null) || return 1 ;;
++            "$ci_fdroot/9"|"$ci_target")
++                ci_profile_uid=$(stat -Lc %u "$1" 9<&9 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 9<&9 2>/dev/null) || return 1 ;;
++            "$ci_fdroot/7")
++                ci_profile_uid=$(stat -Lc %u "$1" 7<&7 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 7<&7 2>/dev/null) || return 1 ;;
++            *) return 1 ;;
++        esac
++        [ "$ci_profile_uid" = "$ROOT_UID" ] || return 1
++        case "$ci_profile_mode" in [57][0145][0145]) return 0 ;; esac
+         return 1
+     }
++    ci_hash_payload() { sha256sum "$ci_fdroot/6" 6>&6 2>/dev/null | cut -d' ' -f1; }
++    ci_hash_target() { sha256sum "$ci_fdroot/7" 7<&7 2>/dev/null | cut -d' ' -f1; }
+     ci_same_directories() {
+         ci_directory_profile "$STAGE" && ci_directory_profile "$STAGE/bin" &&
+         [ -d "$ci_fdroot/8" ] && [ -d "$ci_fdroot/9" ] &&
+         ci_fd_profile "$ci_fdroot/8" && ci_fd_profile "$ci_fdroot/9" &&
+         [ "$(stat -c '%d:%i' "$STAGE" 2>/dev/null)" = "$ci_stage_id" ] &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/8" 2>/dev/null)" = "$ci_stage_id" ] &&
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/8" 8<&8 2>/dev/null)" = "$ci_stage_id" ] &&
+         [ "$(stat -c '%d:%i' "$STAGE/bin" 2>/dev/null)" = "$ci_bin_id" ] &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/9" 2>/dev/null)" = "$ci_bin_id" ]
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/9" 9<&9 2>/dev/null)" = "$ci_bin_id" ]
+     }
+     ci_same_target() {
+         [ -f "$ci_target" ] && [ ! -L "$ci_target" ] &&
+         ci_fd_profile "$ci_target" && [ -f "$ci_fdroot/7" ] && ci_fd_profile "$ci_fdroot/7" &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 2>/dev/null)" = "$ci_target_id" ] &&
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 7<&7 2>/dev/null)" = "$ci_target_id" ] &&
+         [ ! -L "$ci_target" ] &&
+-        [ "$(stat -c '%d:%i' "$ci_target" 2>/dev/null)" = "$ci_target_id" ]
++        [ "$(stat -c '%d:%i' "$ci_target" 9<&9 2>/dev/null)" = "$ci_target_id" ]
+     }
+     ci_cleanup() {
+         if [ "$ci_cleaned" = 1 ]; then [ "$ci_cleanup_ok" = 1 ]; return; fi
+@@ -1504,16 +1520,16 @@
+             ci_payload_owned=0
+             if [ ! -e "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ]; then :
+             elif [ -n "$ci_payload_id" ] && [ -f "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ] &&
+-                 [ "$(stat -c '%d:%i' "$ci_work/payload" 2>/dev/null)" = "$ci_payload_id" ]; then
+-                rm "$ci_work/payload" || ci_bad=1
++                 [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5 2>/dev/null)" = "$ci_payload_id" ]; then
++                rm "$ci_work/payload" 5<&5 || ci_bad=1
+             else ci_bad=1
+             fi
+         fi
+         if [ "$ci_work_owned" = 1 ]; then
+             ci_work_owned=0
+             if [ -n "$ci_work_id" ] && [ -d "$ci_work_name" ] && [ ! -L "$ci_work_name" ] &&
+-               [ "$(stat -c '%d:%i' "$ci_work_name" 2>/dev/null)" = "$ci_work_id" ]; then
+-                rmdir "$ci_work_name" || ci_bad=1
++               [ "$(stat -c '%d:%i' "$ci_work_name" 9<&9 2>/dev/null)" = "$ci_work_id" ]; then
++                rmdir "$ci_work_name" 9<&9 || ci_bad=1
+             else ci_bad=1
+             fi
+         fi
+@@ -1559,29 +1575,29 @@
+     ci_same_directories || refuse "closed controller directory identity changed"
+     idle_or_refuse # existing read-only mount/bridge/loop refusal; not orphan proof
+     # An existing work directory is another/uncertain owner; never delete it.
+-    mkdir "$ci_work_name" || refuse "closed controller installer already owned"
++    mkdir "$ci_work_name" 9<&9 || refuse "closed controller installer already owned"
+     ci_work_owned=1 # before open, metadata changes, payload acquisition or checks
+-    ci_work_id=$(stat -c '%d:%i' "$ci_work_name") || die "could not retain installer identity"
++    ci_work_id=$(stat -c '%d:%i' "$ci_work_name" 9<&9) || die "could not retain installer identity"
+     ci_work_open=1; exec 5<"$ci_work_name"
+     ci_work=$ci_fdroot/5
+-    [ -d "$ci_work" ] && [ "$(stat -Lc '%d:%i' "$ci_work")" = "$ci_work_id" ] ||
++    [ -d "$ci_work" ] && [ "$(stat -Lc '%d:%i' "$ci_work" 5<&5)" = "$ci_work_id" ] ||
+         die "installer directory identity changed"
+     # These are newly created installer objects only, never existing OneOS data.
+-    chown "$ROOT_OWNER" "$ci_work" && chmod 0700 "$ci_work" || die "could not protect installer"
++    chown "$ROOT_OWNER" "$ci_work" 5<&5 && chmod 0700 "$ci_work" 5<&5 || die "could not protect installer"
+     ci_payload_owned=1 ci_payload_open=1
+     set -C
+     exec 6>"$ci_work/payload" # noclobber creation in the exclusively owned directory
+     set +C
+-    ci_payload_id=$(stat -Lc '%d:%i' "$ci_fdroot/6") || die "could not retain payload identity"
++    ci_payload_id=$(stat -Lc '%d:%i' "$ci_fdroot/6" 6>&6) || die "could not retain payload identity"
+     [ -f "$ci_fdroot/6" ] && [ ! -L "$ci_work/payload" ] &&
+-        [ "$(stat -c '%d:%i' "$ci_work/payload")" = "$ci_payload_id" ] || die "payload identity changed"
++        [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5)" = "$ci_payload_id" ] || die "payload identity changed"
+     ci_limit=$((ci_bytes + 1)) # canonical decimal and <=2MiB, safe with mksh arithmetic
+     # Reads at most expected+1, and waits for EOF when exactly expected arrive.
+     # Root's DATA producer closes stdin; no invented read-timeout acknowledgement.
+-    head -c "$ci_limit" >&6 || die "could not receive closed controller"
+-    [ "$(stat -Lc %s "$ci_fdroot/6")" = "$ci_bytes" ] || refuse "closed controller length mismatch"
+-    [ "$(sha "$ci_fdroot/6")" = "$ci_sum" ] || refuse "closed controller SHA256 mismatch"
+-    chown "$ROOT_OWNER" "$ci_fdroot/6" && chmod 0755 "$ci_fdroot/6" || die "could not protect controller payload"
++    head -c "$ci_limit" 6>&6 >&6 || die "could not receive closed controller"
++    [ "$(stat -Lc %s "$ci_fdroot/6" 6>&6)" = "$ci_bytes" ] || refuse "closed controller length mismatch"
++    [ "$(ci_hash_payload)" = "$ci_sum" ] || refuse "closed controller SHA256 mismatch"
++    chown "$ROOT_OWNER" "$ci_fdroot/6" 6>&6 && chmod 0755 "$ci_fdroot/6" 6>&6 || die "could not protect controller payload"
+     ci_same_directories || refuse "closed controller directories changed"
+     if [ ! -e "$ci_target" ] && [ ! -L "$ci_target" ]; then
+         # The final source component is an actual regular name under the held
+@@ -1589,25 +1605,25 @@
+         # no -L support for a final proc magic link is needed. Recheck the name
+         # against owned FD6 immediately before the atomic link.
+         [ -f "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ] &&
+-            [ "$(stat -c '%d:%i' "$ci_work/payload")" = "$ci_payload_id" ] &&
+-            [ "$(stat -Lc '%d:%i' "$ci_fdroot/6")" = "$ci_payload_id" ] ||
++            [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5)" = "$ci_payload_id" ] &&
++            [ "$(stat -Lc '%d:%i' "$ci_fdroot/6" 6>&6)" = "$ci_payload_id" ] ||
+             die "payload name changed before publication"
+         # -T forbids a directory-target fallback. No -f, cp or overwriting mv;
+         # unsupported publication fails closed with no alternative path.
+-        if ln -T "$ci_work/payload" "$ci_target"; then
++        if ln -T "$ci_work/payload" "$ci_target" 5<&5 9<&9; then
+             ci_published=1
+         else
+             [ -e "$ci_target" ] || [ -L "$ci_target" ] || die "exclusive controller publication failed"
+         fi
+     fi
+     [ -f "$ci_target" ] && [ ! -L "$ci_target" ] || refuse "existing controller is not a regular nonlink image"
+-    ci_target_id=$(stat -c '%d:%i' "$ci_target") || refuse "could not inspect installed controller"
++    ci_target_id=$(stat -c '%d:%i' "$ci_target" 9<&9) || refuse "could not inspect installed controller"
+     ci_target_open=1; exec 7<"$ci_target"
+     [ -f "$ci_fdroot/7" ] && ci_fd_profile "$ci_fdroot/7" &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7")" = "$ci_target_id" ] &&
+-        [ ! -L "$ci_target" ] && [ "$(stat -c '%d:%i' "$ci_target")" = "$ci_target_id" ] &&
+-        [ "$(stat -Lc %s "$ci_fdroot/7")" = "$ci_bytes" ] &&
+-        [ "$(sha "$ci_fdroot/7")" = "$ci_sum" ] ||
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 7<&7)" = "$ci_target_id" ] &&
++        [ ! -L "$ci_target" ] && [ "$(stat -c '%d:%i' "$ci_target" 9<&9)" = "$ci_target_id" ] &&
++        [ "$(stat -Lc %s "$ci_fdroot/7" 7<&7)" = "$ci_bytes" ] &&
++        [ "$(ci_hash_target)" = "$ci_sum" ] ||
+         refuse "different or unsafe controller already installed; replacement refused"
+     [ "$ci_published" = 0 ] || [ "$ci_target_id" = "$ci_payload_id" ] ||
+         die "published controller is not the retained payload inode"
+--- a/firmware/handoff-app-integration/overlay/app-android/app/src/full/assets/root/oneos_root.sh
++++ b/firmware/handoff-app-integration/overlay/app-android/app/src/full/assets/root/oneos_root.sh
+@@ -1476,25 +1476,41 @@
+         return 1
+     }
+     ci_fd_profile() {
+-        [ "$(stat -Lc %u "$1" 2>/dev/null)" = "$ROOT_UID" ] || return 1
+-        case "$(stat -Lc %a "$1" 2>/dev/null)" in [57][0145][0145]) return 0 ;; esac
++        # mksh opens these held slots CLOEXEC. Export the exact known anchor
++        # at each external stat, never an arbitrary caller-selected descriptor.
++        case "$1" in
++            "$ci_fdroot/8")
++                ci_profile_uid=$(stat -Lc %u "$1" 8<&8 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 8<&8 2>/dev/null) || return 1 ;;
++            "$ci_fdroot/9"|"$ci_target")
++                ci_profile_uid=$(stat -Lc %u "$1" 9<&9 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 9<&9 2>/dev/null) || return 1 ;;
++            "$ci_fdroot/7")
++                ci_profile_uid=$(stat -Lc %u "$1" 7<&7 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 7<&7 2>/dev/null) || return 1 ;;
++            *) return 1 ;;
++        esac
++        [ "$ci_profile_uid" = "$ROOT_UID" ] || return 1
++        case "$ci_profile_mode" in [57][0145][0145]) return 0 ;; esac
+         return 1
+     }
++    ci_hash_payload() { sha256sum "$ci_fdroot/6" 6>&6 2>/dev/null | cut -d' ' -f1; }
++    ci_hash_target() { sha256sum "$ci_fdroot/7" 7<&7 2>/dev/null | cut -d' ' -f1; }
+     ci_same_directories() {
+         ci_directory_profile "$STAGE" && ci_directory_profile "$STAGE/bin" &&
+         [ -d "$ci_fdroot/8" ] && [ -d "$ci_fdroot/9" ] &&
+         ci_fd_profile "$ci_fdroot/8" && ci_fd_profile "$ci_fdroot/9" &&
+         [ "$(stat -c '%d:%i' "$STAGE" 2>/dev/null)" = "$ci_stage_id" ] &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/8" 2>/dev/null)" = "$ci_stage_id" ] &&
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/8" 8<&8 2>/dev/null)" = "$ci_stage_id" ] &&
+         [ "$(stat -c '%d:%i' "$STAGE/bin" 2>/dev/null)" = "$ci_bin_id" ] &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/9" 2>/dev/null)" = "$ci_bin_id" ]
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/9" 9<&9 2>/dev/null)" = "$ci_bin_id" ]
+     }
+     ci_same_target() {
+         [ -f "$ci_target" ] && [ ! -L "$ci_target" ] &&
+         ci_fd_profile "$ci_target" && [ -f "$ci_fdroot/7" ] && ci_fd_profile "$ci_fdroot/7" &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 2>/dev/null)" = "$ci_target_id" ] &&
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 7<&7 2>/dev/null)" = "$ci_target_id" ] &&
+         [ ! -L "$ci_target" ] &&
+-        [ "$(stat -c '%d:%i' "$ci_target" 2>/dev/null)" = "$ci_target_id" ]
++        [ "$(stat -c '%d:%i' "$ci_target" 9<&9 2>/dev/null)" = "$ci_target_id" ]
+     }
+     ci_cleanup() {
+         if [ "$ci_cleaned" = 1 ]; then [ "$ci_cleanup_ok" = 1 ]; return; fi
+@@ -1504,16 +1520,16 @@
+             ci_payload_owned=0
+             if [ ! -e "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ]; then :
+             elif [ -n "$ci_payload_id" ] && [ -f "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ] &&
+-                 [ "$(stat -c '%d:%i' "$ci_work/payload" 2>/dev/null)" = "$ci_payload_id" ]; then
+-                rm "$ci_work/payload" || ci_bad=1
++                 [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5 2>/dev/null)" = "$ci_payload_id" ]; then
++                rm "$ci_work/payload" 5<&5 || ci_bad=1
+             else ci_bad=1
+             fi
+         fi
+         if [ "$ci_work_owned" = 1 ]; then
+             ci_work_owned=0
+             if [ -n "$ci_work_id" ] && [ -d "$ci_work_name" ] && [ ! -L "$ci_work_name" ] &&
+-               [ "$(stat -c '%d:%i' "$ci_work_name" 2>/dev/null)" = "$ci_work_id" ]; then
+-                rmdir "$ci_work_name" || ci_bad=1
++               [ "$(stat -c '%d:%i' "$ci_work_name" 9<&9 2>/dev/null)" = "$ci_work_id" ]; then
++                rmdir "$ci_work_name" 9<&9 || ci_bad=1
+             else ci_bad=1
+             fi
+         fi
+@@ -1559,29 +1575,29 @@
+     ci_same_directories || refuse "closed controller directory identity changed"
+     idle_or_refuse # existing read-only mount/bridge/loop refusal; not orphan proof
+     # An existing work directory is another/uncertain owner; never delete it.
+-    mkdir "$ci_work_name" || refuse "closed controller installer already owned"
++    mkdir "$ci_work_name" 9<&9 || refuse "closed controller installer already owned"
+     ci_work_owned=1 # before open, metadata changes, payload acquisition or checks
+-    ci_work_id=$(stat -c '%d:%i' "$ci_work_name") || die "could not retain installer identity"
++    ci_work_id=$(stat -c '%d:%i' "$ci_work_name" 9<&9) || die "could not retain installer identity"
+     ci_work_open=1; exec 5<"$ci_work_name"
+     ci_work=$ci_fdroot/5
+-    [ -d "$ci_work" ] && [ "$(stat -Lc '%d:%i' "$ci_work")" = "$ci_work_id" ] ||
++    [ -d "$ci_work" ] && [ "$(stat -Lc '%d:%i' "$ci_work" 5<&5)" = "$ci_work_id" ] ||
+         die "installer directory identity changed"
+     # These are newly created installer objects only, never existing OneOS data.
+-    chown "$ROOT_OWNER" "$ci_work" && chmod 0700 "$ci_work" || die "could not protect installer"
++    chown "$ROOT_OWNER" "$ci_work" 5<&5 && chmod 0700 "$ci_work" 5<&5 || die "could not protect installer"
+     ci_payload_owned=1 ci_payload_open=1
+     set -C
+     exec 6>"$ci_work/payload" # noclobber creation in the exclusively owned directory
+     set +C
+-    ci_payload_id=$(stat -Lc '%d:%i' "$ci_fdroot/6") || die "could not retain payload identity"
++    ci_payload_id=$(stat -Lc '%d:%i' "$ci_fdroot/6" 6>&6) || die "could not retain payload identity"
+     [ -f "$ci_fdroot/6" ] && [ ! -L "$ci_work/payload" ] &&
+-        [ "$(stat -c '%d:%i' "$ci_work/payload")" = "$ci_payload_id" ] || die "payload identity changed"
++        [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5)" = "$ci_payload_id" ] || die "payload identity changed"
+     ci_limit=$((ci_bytes + 1)) # canonical decimal and <=2MiB, safe with mksh arithmetic
+     # Reads at most expected+1, and waits for EOF when exactly expected arrive.
+     # Root's DATA producer closes stdin; no invented read-timeout acknowledgement.
+-    head -c "$ci_limit" >&6 || die "could not receive closed controller"
+-    [ "$(stat -Lc %s "$ci_fdroot/6")" = "$ci_bytes" ] || refuse "closed controller length mismatch"
+-    [ "$(sha "$ci_fdroot/6")" = "$ci_sum" ] || refuse "closed controller SHA256 mismatch"
+-    chown "$ROOT_OWNER" "$ci_fdroot/6" && chmod 0755 "$ci_fdroot/6" || die "could not protect controller payload"
++    head -c "$ci_limit" 6>&6 >&6 || die "could not receive closed controller"
++    [ "$(stat -Lc %s "$ci_fdroot/6" 6>&6)" = "$ci_bytes" ] || refuse "closed controller length mismatch"
++    [ "$(ci_hash_payload)" = "$ci_sum" ] || refuse "closed controller SHA256 mismatch"
++    chown "$ROOT_OWNER" "$ci_fdroot/6" 6>&6 && chmod 0755 "$ci_fdroot/6" 6>&6 || die "could not protect controller payload"
+     ci_same_directories || refuse "closed controller directories changed"
+     if [ ! -e "$ci_target" ] && [ ! -L "$ci_target" ]; then
+         # The final source component is an actual regular name under the held
+@@ -1589,25 +1605,25 @@
+         # no -L support for a final proc magic link is needed. Recheck the name
+         # against owned FD6 immediately before the atomic link.
+         [ -f "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ] &&
+-            [ "$(stat -c '%d:%i' "$ci_work/payload")" = "$ci_payload_id" ] &&
+-            [ "$(stat -Lc '%d:%i' "$ci_fdroot/6")" = "$ci_payload_id" ] ||
++            [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5)" = "$ci_payload_id" ] &&
++            [ "$(stat -Lc '%d:%i' "$ci_fdroot/6" 6>&6)" = "$ci_payload_id" ] ||
+             die "payload name changed before publication"
+         # -T forbids a directory-target fallback. No -f, cp or overwriting mv;
+         # unsupported publication fails closed with no alternative path.
+-        if ln -T "$ci_work/payload" "$ci_target"; then
++        if ln -T "$ci_work/payload" "$ci_target" 5<&5 9<&9; then
+             ci_published=1
+         else
+             [ -e "$ci_target" ] || [ -L "$ci_target" ] || die "exclusive controller publication failed"
+         fi
+     fi
+     [ -f "$ci_target" ] && [ ! -L "$ci_target" ] || refuse "existing controller is not a regular nonlink image"
+-    ci_target_id=$(stat -c '%d:%i' "$ci_target") || refuse "could not inspect installed controller"
++    ci_target_id=$(stat -c '%d:%i' "$ci_target" 9<&9) || refuse "could not inspect installed controller"
+     ci_target_open=1; exec 7<"$ci_target"
+     [ -f "$ci_fdroot/7" ] && ci_fd_profile "$ci_fdroot/7" &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7")" = "$ci_target_id" ] &&
+-        [ ! -L "$ci_target" ] && [ "$(stat -c '%d:%i' "$ci_target")" = "$ci_target_id" ] &&
+-        [ "$(stat -Lc %s "$ci_fdroot/7")" = "$ci_bytes" ] &&
+-        [ "$(sha "$ci_fdroot/7")" = "$ci_sum" ] ||
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 7<&7)" = "$ci_target_id" ] &&
++        [ ! -L "$ci_target" ] && [ "$(stat -c '%d:%i' "$ci_target" 9<&9)" = "$ci_target_id" ] &&
++        [ "$(stat -Lc %s "$ci_fdroot/7" 7<&7)" = "$ci_bytes" ] &&
++        [ "$(ci_hash_target)" = "$ci_sum" ] ||
+         refuse "different or unsafe controller already installed; replacement refused"
+     [ "$ci_published" = 0 ] || [ "$ci_target_id" = "$ci_payload_id" ] ||
+         die "published controller is not the retained payload inode"
+@@ -1639,25 +1655,41 @@
+         return 1
+     }
+     ci_fd_profile() {
+-        [ "$(stat -Lc %u "$1" 2>/dev/null)" = "$ROOT_UID" ] || return 1
+-        case "$(stat -Lc %a "$1" 2>/dev/null)" in [57][0145][0145]) return 0 ;; esac
++        # mksh opens these held slots CLOEXEC. Export the exact known anchor
++        # at each external stat, never an arbitrary caller-selected descriptor.
++        case "$1" in
++            "$ci_fdroot/8")
++                ci_profile_uid=$(stat -Lc %u "$1" 8<&8 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 8<&8 2>/dev/null) || return 1 ;;
++            "$ci_fdroot/9"|"$ci_target")
++                ci_profile_uid=$(stat -Lc %u "$1" 9<&9 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 9<&9 2>/dev/null) || return 1 ;;
++            "$ci_fdroot/7")
++                ci_profile_uid=$(stat -Lc %u "$1" 7<&7 2>/dev/null) || return 1
++                ci_profile_mode=$(stat -Lc %a "$1" 7<&7 2>/dev/null) || return 1 ;;
++            *) return 1 ;;
++        esac
++        [ "$ci_profile_uid" = "$ROOT_UID" ] || return 1
++        case "$ci_profile_mode" in [57][0145][0145]) return 0 ;; esac
+         return 1
+     }
++    ci_hash_payload() { sha256sum "$ci_fdroot/6" 6>&6 2>/dev/null | cut -d' ' -f1; }
++    ci_hash_target() { sha256sum "$ci_fdroot/7" 7<&7 2>/dev/null | cut -d' ' -f1; }
+     ci_same_directories() {
+         ci_directory_profile "$STAGE" && ci_directory_profile "$STAGE/bin" &&
+         [ -d "$ci_fdroot/8" ] && [ -d "$ci_fdroot/9" ] &&
+         ci_fd_profile "$ci_fdroot/8" && ci_fd_profile "$ci_fdroot/9" &&
+         [ "$(stat -c '%d:%i' "$STAGE" 2>/dev/null)" = "$ci_stage_id" ] &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/8" 2>/dev/null)" = "$ci_stage_id" ] &&
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/8" 8<&8 2>/dev/null)" = "$ci_stage_id" ] &&
+         [ "$(stat -c '%d:%i' "$STAGE/bin" 2>/dev/null)" = "$ci_bin_id" ] &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/9" 2>/dev/null)" = "$ci_bin_id" ]
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/9" 9<&9 2>/dev/null)" = "$ci_bin_id" ]
+     }
+     ci_same_target() {
+         [ -f "$ci_target" ] && [ ! -L "$ci_target" ] &&
+         ci_fd_profile "$ci_target" && [ -f "$ci_fdroot/7" ] && ci_fd_profile "$ci_fdroot/7" &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 2>/dev/null)" = "$ci_target_id" ] &&
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 7<&7 2>/dev/null)" = "$ci_target_id" ] &&
+         [ ! -L "$ci_target" ] &&
+-        [ "$(stat -c '%d:%i' "$ci_target" 2>/dev/null)" = "$ci_target_id" ]
++        [ "$(stat -c '%d:%i' "$ci_target" 9<&9 2>/dev/null)" = "$ci_target_id" ]
+     }
+     ci_cleanup() {
+         if [ "$ci_cleaned" = 1 ]; then [ "$ci_cleanup_ok" = 1 ]; return; fi
+@@ -1667,16 +1699,16 @@
+             ci_payload_owned=0
+             if [ ! -e "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ]; then :
+             elif [ -n "$ci_payload_id" ] && [ -f "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ] &&
+-                 [ "$(stat -c '%d:%i' "$ci_work/payload" 2>/dev/null)" = "$ci_payload_id" ]; then
+-                rm "$ci_work/payload" || ci_bad=1
++                 [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5 2>/dev/null)" = "$ci_payload_id" ]; then
++                rm "$ci_work/payload" 5<&5 || ci_bad=1
+             else ci_bad=1
+             fi
+         fi
+         if [ "$ci_work_owned" = 1 ]; then
+             ci_work_owned=0
+             if [ -n "$ci_work_id" ] && [ -d "$ci_work_name" ] && [ ! -L "$ci_work_name" ] &&
+-               [ "$(stat -c '%d:%i' "$ci_work_name" 2>/dev/null)" = "$ci_work_id" ]; then
+-                rmdir "$ci_work_name" || ci_bad=1
++               [ "$(stat -c '%d:%i' "$ci_work_name" 9<&9 2>/dev/null)" = "$ci_work_id" ]; then
++                rmdir "$ci_work_name" 9<&9 || ci_bad=1
+             else ci_bad=1
+             fi
+         fi
+@@ -1722,29 +1754,29 @@
+     ci_same_directories || refuse "closed controller directory identity changed"
+     idle_or_refuse # existing read-only mount/bridge/loop refusal; not orphan proof
+     # An existing work directory is another/uncertain owner; never delete it.
+-    mkdir "$ci_work_name" || refuse "closed controller installer already owned"
++    mkdir "$ci_work_name" 9<&9 || refuse "closed controller installer already owned"
+     ci_work_owned=1 # before open, metadata changes, payload acquisition or checks
+-    ci_work_id=$(stat -c '%d:%i' "$ci_work_name") || die "could not retain installer identity"
++    ci_work_id=$(stat -c '%d:%i' "$ci_work_name" 9<&9) || die "could not retain installer identity"
+     ci_work_open=1; exec 5<"$ci_work_name"
+     ci_work=$ci_fdroot/5
+-    [ -d "$ci_work" ] && [ "$(stat -Lc '%d:%i' "$ci_work")" = "$ci_work_id" ] ||
++    [ -d "$ci_work" ] && [ "$(stat -Lc '%d:%i' "$ci_work" 5<&5)" = "$ci_work_id" ] ||
+         die "installer directory identity changed"
+     # These are newly created installer objects only, never existing OneOS data.
+-    chown "$ROOT_OWNER" "$ci_work" && chmod 0700 "$ci_work" || die "could not protect installer"
++    chown "$ROOT_OWNER" "$ci_work" 5<&5 && chmod 0700 "$ci_work" 5<&5 || die "could not protect installer"
+     ci_payload_owned=1 ci_payload_open=1
+     set -C
+     exec 6>"$ci_work/payload" # noclobber creation in the exclusively owned directory
+     set +C
+-    ci_payload_id=$(stat -Lc '%d:%i' "$ci_fdroot/6") || die "could not retain payload identity"
++    ci_payload_id=$(stat -Lc '%d:%i' "$ci_fdroot/6" 6>&6) || die "could not retain payload identity"
+     [ -f "$ci_fdroot/6" ] && [ ! -L "$ci_work/payload" ] &&
+-        [ "$(stat -c '%d:%i' "$ci_work/payload")" = "$ci_payload_id" ] || die "payload identity changed"
++        [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5)" = "$ci_payload_id" ] || die "payload identity changed"
+     ci_limit=$((ci_bytes + 1)) # canonical decimal and <=2MiB, safe with mksh arithmetic
+     # Reads at most expected+1, and waits for EOF when exactly expected arrive.
+     # Root's DATA producer closes stdin; no invented read-timeout acknowledgement.
+-    head -c "$ci_limit" >&6 || die "could not receive closed controller"
+-    [ "$(stat -Lc %s "$ci_fdroot/6")" = "$ci_bytes" ] || refuse "closed controller length mismatch"
+-    [ "$(sha "$ci_fdroot/6")" = "$ci_sum" ] || refuse "closed controller SHA256 mismatch"
+-    chown "$ROOT_OWNER" "$ci_fdroot/6" && chmod 0755 "$ci_fdroot/6" || die "could not protect controller payload"
++    head -c "$ci_limit" 6>&6 >&6 || die "could not receive closed controller"
++    [ "$(stat -Lc %s "$ci_fdroot/6" 6>&6)" = "$ci_bytes" ] || refuse "closed controller length mismatch"
++    [ "$(ci_hash_payload)" = "$ci_sum" ] || refuse "closed controller SHA256 mismatch"
++    chown "$ROOT_OWNER" "$ci_fdroot/6" 6>&6 && chmod 0755 "$ci_fdroot/6" 6>&6 || die "could not protect controller payload"
+     ci_same_directories || refuse "closed controller directories changed"
+     if [ ! -e "$ci_target" ] && [ ! -L "$ci_target" ]; then
+         # The final source component is an actual regular name under the held
+@@ -1752,25 +1784,25 @@
+         # no -L support for a final proc magic link is needed. Recheck the name
+         # against owned FD6 immediately before the atomic link.
+         [ -f "$ci_work/payload" ] && [ ! -L "$ci_work/payload" ] &&
+-            [ "$(stat -c '%d:%i' "$ci_work/payload")" = "$ci_payload_id" ] &&
+-            [ "$(stat -Lc '%d:%i' "$ci_fdroot/6")" = "$ci_payload_id" ] ||
++            [ "$(stat -c '%d:%i' "$ci_work/payload" 5<&5)" = "$ci_payload_id" ] &&
++            [ "$(stat -Lc '%d:%i' "$ci_fdroot/6" 6>&6)" = "$ci_payload_id" ] ||
+             die "payload name changed before publication"
+         # -T forbids a directory-target fallback. No -f, cp or overwriting mv;
+         # unsupported publication fails closed with no alternative path.
+-        if ln -T "$ci_work/payload" "$ci_target"; then
++        if ln -T "$ci_work/payload" "$ci_target" 5<&5 9<&9; then
+             ci_published=1
+         else
+             [ -e "$ci_target" ] || [ -L "$ci_target" ] || die "exclusive controller publication failed"
+         fi
+     fi
+     [ -f "$ci_target" ] && [ ! -L "$ci_target" ] || refuse "existing controller is not a regular nonlink image"
+-    ci_target_id=$(stat -c '%d:%i' "$ci_target") || refuse "could not inspect installed controller"
++    ci_target_id=$(stat -c '%d:%i' "$ci_target" 9<&9) || refuse "could not inspect installed controller"
+     ci_target_open=1; exec 7<"$ci_target"
+     [ -f "$ci_fdroot/7" ] && ci_fd_profile "$ci_fdroot/7" &&
+-        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7")" = "$ci_target_id" ] &&
+-        [ ! -L "$ci_target" ] && [ "$(stat -c '%d:%i' "$ci_target")" = "$ci_target_id" ] &&
+-        [ "$(stat -Lc %s "$ci_fdroot/7")" = "$ci_bytes" ] &&
+-        [ "$(sha "$ci_fdroot/7")" = "$ci_sum" ] ||
++        [ "$(stat -Lc '%d:%i' "$ci_fdroot/7" 7<&7)" = "$ci_target_id" ] &&
++        [ ! -L "$ci_target" ] && [ "$(stat -c '%d:%i' "$ci_target" 9<&9)" = "$ci_target_id" ] &&
++        [ "$(stat -Lc %s "$ci_fdroot/7" 7<&7)" = "$ci_bytes" ] &&
++        [ "$(ci_hash_target)" = "$ci_sum" ] ||
+         refuse "different or unsafe controller already installed; replacement refused"
+     [ "$ci_published" = 0 ] || [ "$ci_target_id" = "$ci_payload_id" ] ||
+         die "published controller is not the retained payload inode"
+--- a/firmware/oneos-pr/OneOS/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
++++ b/firmware/oneos-pr/OneOS/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
+@@ -264,21 +264,36 @@
+     [ "$(stat -Lc %u "$1" 2>/dev/null)" = @UID@ ] || return 1
+     case "$(stat -Lc %a "$1" 2>/dev/null)" in [57][0145][0145]) return 0;; *) return 1;; esac
+ }
++owned_stage_fd() {
++    [ -d /proc/self/fd/3 ] || return 1
++    [ "$(stat -Lc %u /proc/self/fd/3 3<&3 2>/dev/null)" = @UID@ ] || return 1
++    case "$(stat -Lc %a /proc/self/fd/3 3<&3 2>/dev/null)" in [57][0145][0145]) return 0;; *) return 1;; esac
++}
++owned_bin_fd() {
++    [ -d /proc/self/fd/4 ] || return 1
++    [ "$(stat -Lc %u /proc/self/fd/4 4<&4 2>/dev/null)" = @UID@ ] || return 1
++    case "$(stat -Lc %a /proc/self/fd/4 4<&4 2>/dev/null)" in [57][0145][0145]) return 0;; *) return 1;; esac
++}
++owned_work_fd() {
++    [ -d /proc/self/fd/5 ] || return 1
++    [ "$(stat -Lc %u /proc/self/fd/5 5<&5 2>/dev/null)" = @UID@ ] || return 1
++    case "$(stat -Lc %a /proc/self/fd/5 5<&5 2>/dev/null)" in [57][0145][0145]) return 0;; *) return 1;; esac
++}
+ cleanup() {
+     rc=$?
+     trap - EXIT HUP INT TERM
+     bad=0
+     if [ "$made" = 1 ]; then
+         if [ "$fd5" = 1 ] && [ -n "$DID" ] && [ ! -L "$D" ] &&
+-           [ "$(stat -Lc '%d:%i' "$D" 2>/dev/null)" = "$DID" ]; then
++           [ "$(stat -Lc '%d:%i' "$D" 4<&4 2>/dev/null)" = "$DID" ]; then
+             F=/proc/self/fd/5/root.sh
+             if [ -n "$FID" ]; then
+-                if [ ! -L "$F" ] && [ "$(stat -Lc '%d:%i' "$F" 2>/dev/null)" = "$FID" ]; then
+-                    rm "$F" || bad=1
++                if [ ! -L "$F" ] && [ "$(stat -Lc '%d:%i' "$F" 5<&5 2>/dev/null)" = "$FID" ]; then
++                    rm "$F" 5<&5 || bad=1
+                 else bad=1
+                 fi
+             fi
+-            rmdir "$D" || bad=1
++            rmdir "$D" 4<&4 || bad=1
+         else bad=1
+         fi
+     fi
+@@ -301,26 +316,26 @@
+ [ ! -L "$B" ] && owned_dir "$B" || refuse
+ exec 3<"$S"; fd3=1
+ exec 4<"$B"; fd4=1
+-owned_dir /proc/self/fd/3 && owned_dir /proc/self/fd/4 || refuse
+-[ "$(stat -Lc '%d:%i' /proc/self/fd/3)" = "$(stat -Lc '%d:%i' "$S")" ] || refuse
+-[ "$(stat -Lc '%d:%i' /proc/self/fd/4)" = "$(stat -Lc '%d:%i' "$B")" ] || refuse
++owned_stage_fd && owned_bin_fd || refuse
++[ "$(stat -Lc '%d:%i' /proc/self/fd/3 3<&3)" = "$(stat -Lc '%d:%i' "$S")" ] || refuse
++[ "$(stat -Lc '%d:%i' /proc/self/fd/4 4<&4)" = "$(stat -Lc '%d:%i' "$B")" ] || refuse
+ D=/proc/self/fd/4/.oneos-closed-controller-bootstrap-$$
+-mkdir -m 0700 "$D" || refuse
++mkdir -m 0700 "$D" 4<&4 || refuse
+ made=1
+ exec 5<"$D"; fd5=1
+-owned_dir /proc/self/fd/5 || refuse
+-DID=$(stat -Lc '%d:%i' /proc/self/fd/5)
+-[ "$DID" = "$(stat -Lc '%d:%i' "$D")" ] || refuse
++owned_work_fd || refuse
++DID=$(stat -Lc '%d:%i' /proc/self/fd/5 5<&5)
++[ "$DID" = "$(stat -Lc '%d:%i' "$D" 4<&4)" ] || refuse
+ set -C
+ exec 6>"/proc/self/fd/5/root.sh"; fd6=1
+ set +C
+-FID=$(stat -Lc '%d:%i' /proc/self/fd/6)
+-head -c @LEN@ >&6 || refuse
+-[ "$(stat -Lc %s /proc/self/fd/6)" = @LEN@ ] || refuse
+-[ "$(sha256sum /proc/self/fd/6 | cut -d' ' -f1)" = "$W" ] || refuse
++FID=$(stat -Lc '%d:%i' /proc/self/fd/6 6>&6)
++head -c @LEN@ 6>&6 >&6 || refuse
++[ "$(stat -Lc %s /proc/self/fd/6 6>&6)" = @LEN@ ] || refuse
++[ "$(sha256sum /proc/self/fd/6 6>&6 | cut -d' ' -f1)" = "$W" ] || refuse
+ [ ! -L "$S" ] && [ ! -L "$B" ] && owned_dir "$S" && owned_dir "$B" || refuse
+-[ "$(stat -Lc '%d:%i' /proc/self/fd/3)" = "$(stat -Lc '%d:%i' "$S")" ] || refuse
+-[ "$(stat -Lc '%d:%i' /proc/self/fd/4)" = "$(stat -Lc '%d:%i' "$B")" ] || refuse
++[ "$(stat -Lc '%d:%i' /proc/self/fd/3 3<&3)" = "$(stat -Lc '%d:%i' "$S")" ] || refuse
++[ "$(stat -Lc '%d:%i' /proc/self/fd/4 4<&4)" = "$(stat -Lc '%d:%i' "$B")" ] || refuse
+ # Child borrows only the held bin anchor for its source-owned private script.
+ # Close only our child copies; the handler refuses any other occupied slot 5..9.
+ RUN=$D/root.sh
+--- a/firmware/handoff-app-integration/overlay/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
++++ b/firmware/handoff-app-integration/overlay/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
+@@ -265,21 +265,36 @@
+     [ "$(stat -Lc %u "$1" 2>/dev/null)" = @UID@ ] || return 1
+     case "$(stat -Lc %a "$1" 2>/dev/null)" in [57][0145][0145]) return 0;; *) return 1;; esac
+ }
++owned_stage_fd() {
++    [ -d /proc/self/fd/3 ] || return 1
++    [ "$(stat -Lc %u /proc/self/fd/3 3<&3 2>/dev/null)" = @UID@ ] || return 1
++    case "$(stat -Lc %a /proc/self/fd/3 3<&3 2>/dev/null)" in [57][0145][0145]) return 0;; *) return 1;; esac
++}
++owned_bin_fd() {
++    [ -d /proc/self/fd/4 ] || return 1
++    [ "$(stat -Lc %u /proc/self/fd/4 4<&4 2>/dev/null)" = @UID@ ] || return 1
++    case "$(stat -Lc %a /proc/self/fd/4 4<&4 2>/dev/null)" in [57][0145][0145]) return 0;; *) return 1;; esac
++}
++owned_work_fd() {
++    [ -d /proc/self/fd/5 ] || return 1
++    [ "$(stat -Lc %u /proc/self/fd/5 5<&5 2>/dev/null)" = @UID@ ] || return 1
++    case "$(stat -Lc %a /proc/self/fd/5 5<&5 2>/dev/null)" in [57][0145][0145]) return 0;; *) return 1;; esac
++}
+ cleanup() {
+     rc=$?
+     trap - EXIT HUP INT TERM
+     bad=0
+     if [ "$made" = 1 ]; then
+         if [ "$fd5" = 1 ] && [ -n "$DID" ] && [ ! -L "$D" ] &&
+-           [ "$(stat -Lc '%d:%i' "$D" 2>/dev/null)" = "$DID" ]; then
++           [ "$(stat -Lc '%d:%i' "$D" 4<&4 2>/dev/null)" = "$DID" ]; then
+             F=/proc/self/fd/5/root.sh
+             if [ -n "$FID" ]; then
+-                if [ ! -L "$F" ] && [ "$(stat -Lc '%d:%i' "$F" 2>/dev/null)" = "$FID" ]; then
+-                    rm "$F" || bad=1
++                if [ ! -L "$F" ] && [ "$(stat -Lc '%d:%i' "$F" 5<&5 2>/dev/null)" = "$FID" ]; then
++                    rm "$F" 5<&5 || bad=1
+                 else bad=1
+                 fi
+             fi
+-            rmdir "$D" || bad=1
++            rmdir "$D" 4<&4 || bad=1
+         else bad=1
+         fi
+     fi
+@@ -302,26 +317,26 @@
+ [ ! -L "$B" ] && owned_dir "$B" || refuse
+ exec 3<"$S"; fd3=1
+ exec 4<"$B"; fd4=1
+-owned_dir /proc/self/fd/3 && owned_dir /proc/self/fd/4 || refuse
+-[ "$(stat -Lc '%d:%i' /proc/self/fd/3)" = "$(stat -Lc '%d:%i' "$S")" ] || refuse
+-[ "$(stat -Lc '%d:%i' /proc/self/fd/4)" = "$(stat -Lc '%d:%i' "$B")" ] || refuse
++owned_stage_fd && owned_bin_fd || refuse
++[ "$(stat -Lc '%d:%i' /proc/self/fd/3 3<&3)" = "$(stat -Lc '%d:%i' "$S")" ] || refuse
++[ "$(stat -Lc '%d:%i' /proc/self/fd/4 4<&4)" = "$(stat -Lc '%d:%i' "$B")" ] || refuse
+ D=/proc/self/fd/4/.oneos-closed-controller-bootstrap-$$
+-mkdir -m 0700 "$D" || refuse
++mkdir -m 0700 "$D" 4<&4 || refuse
+ made=1
+ exec 5<"$D"; fd5=1
+-owned_dir /proc/self/fd/5 || refuse
+-DID=$(stat -Lc '%d:%i' /proc/self/fd/5)
+-[ "$DID" = "$(stat -Lc '%d:%i' "$D")" ] || refuse
++owned_work_fd || refuse
++DID=$(stat -Lc '%d:%i' /proc/self/fd/5 5<&5)
++[ "$DID" = "$(stat -Lc '%d:%i' "$D" 4<&4)" ] || refuse
+ set -C
+ exec 6>"/proc/self/fd/5/root.sh"; fd6=1
+ set +C
+-FID=$(stat -Lc '%d:%i' /proc/self/fd/6)
+-head -c @LEN@ >&6 || refuse
+-[ "$(stat -Lc %s /proc/self/fd/6)" = @LEN@ ] || refuse
+-[ "$(sha256sum /proc/self/fd/6 | cut -d' ' -f1)" = "$W" ] || refuse
++FID=$(stat -Lc '%d:%i' /proc/self/fd/6 6>&6)
++head -c @LEN@ 6>&6 >&6 || refuse
++[ "$(stat -Lc %s /proc/self/fd/6 6>&6)" = @LEN@ ] || refuse
++[ "$(sha256sum /proc/self/fd/6 6>&6 | cut -d' ' -f1)" = "$W" ] || refuse
+ [ ! -L "$S" ] && [ ! -L "$B" ] && owned_dir "$S" && owned_dir "$B" || refuse
+-[ "$(stat -Lc '%d:%i' /proc/self/fd/3)" = "$(stat -Lc '%d:%i' "$S")" ] || refuse
+-[ "$(stat -Lc '%d:%i' /proc/self/fd/4)" = "$(stat -Lc '%d:%i' "$B")" ] || refuse
++[ "$(stat -Lc '%d:%i' /proc/self/fd/3 3<&3)" = "$(stat -Lc '%d:%i' "$S")" ] || refuse
++[ "$(stat -Lc '%d:%i' /proc/self/fd/4 4<&4)" = "$(stat -Lc '%d:%i' "$B")" ] || refuse
+ # Child borrows only the held bin anchor for its source-owned private script.
+ # Close only our child copies; the handler refuses any other occupied slot 5..9.
+ RUN=$D/root.sh

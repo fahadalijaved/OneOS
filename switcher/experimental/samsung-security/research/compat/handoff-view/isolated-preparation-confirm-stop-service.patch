@@ -1,0 +1,47 @@
+--- a/RetainedRootHostServiceV2.java
++++ b/RetainedRootHostServiceV2.java
+@@ -77,6 +77,9 @@
+         public int prepare() { return owner.callView(RetainedViewAppProtocol.APP_VIEW_PREPARE); }
+         public int stop() { return owner.callView(RetainedViewAppProtocol.APP_VIEW_STOP); }
+         public int status() { return owner.callView(RetainedViewAppProtocol.APP_VIEW_STATUS); }
++
++        /** Historical queue receipt for this exact attempt, with no Binder call. */
++        public boolean stopAcknowledged() { return owner.stopAcknowledged(this); }
+     }
+ 
+     /** Created only in the actual validated Binder BEGIN entry, never from wire fields. */
+@@ -151,6 +154,7 @@
+         private Thread viewWorker;
+         private ViewCall viewCall;
+         private ViewCall viewStop;
++        private boolean viewStopAcknowledged;
+         private boolean viewWorkerClaimed, viewWorkerFailed, viewPrepareIssued, viewStopIssued;
+         Startup(RetainedRootHostServiceV2 service, Caller caller, IBinder callback, String sha, long bytes) {
+             this.service = service; this.caller = caller; this.callback = callback; this.sha = sha; this.bytes = bytes;
+@@ -243,6 +247,12 @@
+             }
+         }
+ 
++        boolean stopAcknowledged(ViewAttempt attempt) {
++            synchronized (lock) {
++                return viewAttempt == attempt && viewStopAcknowledged;
++            }
++        }
++
+         int callView(int code) {
+             boolean status = code == RetainedViewAppProtocol.APP_VIEW_STATUS;
+             boolean stop = code == RetainedViewAppProtocol.APP_VIEW_STOP;
+@@ -324,8 +334,11 @@
+                     synchronized (lock) {
+                         call.result = result;
+                         call.completed = true;
+-                        if (call == viewStop) viewStop = null;
+-                        else viewCall = null;
++                        if (call == viewStop) {
++                            viewStopAcknowledged = result == RetainedViewAppProtocol.QUEUED
++                                    && viewCurrentLocked();
++                            viewStop = null;
++                        } else viewCall = null;
+                         lock.notifyAll();
+                     }
+                 }

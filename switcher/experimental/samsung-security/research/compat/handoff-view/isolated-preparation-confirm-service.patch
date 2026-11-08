@@ -1,0 +1,144 @@
+--- a/RetainedRootHostServiceV2.java
++++ b/RetainedRootHostServiceV2.java
+@@ -10,20 +10,52 @@
+ import android.os.RemoteException;
+ import android.os.SystemClock;
+ 
++import java.util.concurrent.atomic.AtomicBoolean;
++
+ /** Separate v2 offer relay. The app never acquires native control authority. */
+ public final class RetainedRootHostServiceV2 extends Service {
+     private static final Object STARTUP_LOCK = new Object();
+     private static Startup startup;
+     private final Broker broker = new Broker(this);
+     private volatile boolean destroyed;
++    private volatile PreparationPermit confirmation;
+ 
+     @Override public IBinder onBind(Intent intent) { return broker; }
+     @Override public void onDestroy() {
+-        destroyed = true;
+         Startup retained;
+-        synchronized (STARTUP_LOCK) { retained = startup; }
++        synchronized (STARTUP_LOCK) {
++            if (confirmation != null) confirmation.cancel();
++            destroyed = true;
++            retained = startup;
++        }
+         try { if (retained != null && retained.service == this) retained.retireDelivery(); }
+         finally { super.onDestroy(); }
++    }
++
++    /** One confirmation. Cancellation and launch admission consume the same bit. */
++    public static final class PreparationPermit {
++        private final AtomicBoolean available = new AtomicBoolean(true);
++        public PreparationPermit() { }
++        public void cancel() { available.set(false); }
++        private boolean active() { return available.get(); }
++        private boolean claim() { return available.compareAndSet(true, false); }
++    }
++
++    /** Retains the one local confirmation from this service's exact in-process broker. */
++    public static boolean authorizePreparation(IBinder localBroker, PreparationPermit permit) {
++        if (!com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION || Build.VERSION.SDK_INT != 37
++                || !(localBroker instanceof Broker) || permit == null) return false;
++        RetainedRootHostServiceV2 service = ((Broker) localBroker).service;
++        if (service.broker != localBroker) return false;
++        Startup retained;
++        synchronized (STARTUP_LOCK) {
++            retained = startup;
++            if (service.destroyed || service.confirmation != null || !permit.active()
++                    || (retained != null && (retained.service != service || !retained.mayDeliver()))) return false;
++            service.confirmation = permit;
++        }
++        if (retained != null) retained.startIfConfirmed();
++        return true;
+     }
+ 
+     /** Claims the current acknowledged startup through its exact in-process broker. */
+@@ -66,7 +98,7 @@
+             if (destroyed || startup != null) throw new IllegalStateException("V2 startup already owned");
+             startup = created;
+         }
+-        created.start();
++        created.linkCallback();
+     }
+ 
+     private static final class Broker extends Binder {
+@@ -112,7 +144,7 @@
+         private Thread worker;
+         private RetainedRootOfferLaunch launch;
+         private RetainedRootOfferLaunch.Offer offer;
+-        private boolean retired, deathAttempted, workerStartAttempted, launchAdmitted;
++        private boolean retired, deathAttempted, deathLinked, workerStartAttempted, launchAdmitted;
+         private boolean callbackAttempted, callbackReturned, callbackUncertain, workerFinished;
+         private boolean offerAcknowledged;
+         private ViewAttempt viewAttempt;
+@@ -126,29 +158,62 @@
+                 @Override public void binderDied() { retireDelivery(); }
+             };
+         }
+-        void start() {
++        void linkCallback() {
+             try {
+                 synchronized (lock) { deathAttempted = true; }
+                 callback.linkToDeath(death, 0);
++                synchronized (lock) { deathLinked = true; }
+                 if (!mayDeliver()) { notifyHost(null); return; }
++                startIfConfirmed();
++            } catch (Throwable problem) { retireDelivery(); notifyHost(null); }
++        }
++
++        void startIfConfirmed() {
++            synchronized (lock) {
++                PreparationPermit permit = service.confirmation;
++                if (!deathLinked || permit == null || !permit.active() || retired || service.destroyed
++                        || workerStartAttempted) return;
++                workerStartAttempted = true;
++            }
++            try {
++                if (!mayLaunch()) { retireDelivery(); notifyHost(null); return; }
+                 Thread created = new Thread(this, "oneos-host-v2-relay");
+-                synchronized (lock) { worker = created; workerStartAttempted = true; }
+-                created.start();
++                synchronized (lock) {
++                    if (!retired && !service.destroyed && service.confirmation.active()) {
++                        worker = created;
++                        created.start();
++                        return;
++                    }
++                }
++                notifyHost(null);
+             } catch (Throwable problem) { retireDelivery(); notifyHost(null); }
+         }
++
+         private boolean mayDeliver() { synchronized (lock) { return !retired && !service.destroyed; } }
++
++        private boolean mayLaunch() {
++            PreparationPermit permit = service.confirmation;
++            return permit != null && permit.active() && liveCallback();
++        }
++
++        private boolean liveCallback() {
++            return mayDeliver() && callback.isBinderAlive() && mayDeliver();
++        }
++
+         @Override public void run() {
+             try {
++                if (!mayLaunch()) { retireDelivery(); notifyHost(null); return; }
+                 boolean admitted;
+                 synchronized (lock) {
+-                    admitted = !retired && !service.destroyed;
++                    // A concurrent app cancellation wins precisely if it consumes this permit first.
++                    admitted = deathLinked && !retired && !service.destroyed && service.confirmation.claim();
+                     if (admitted) launchAdmitted = true;
+                 }
+-                if (!admitted) { notifyHost(null); return; }
++                if (!admitted) { retireDelivery(); notifyHost(null); return; }
+                 // The isolated command verifies its preprovisioned controller before exec.
+-                if (!mayDeliver()) { notifyHost(null); return; }
+                 RetainedRootOfferLaunch actual = RetainedRootOfferLaunch.prepare(caller, sha, bytes);
+                 synchronized (lock) { launch = actual; }
++                if (!liveCallback()) { retireDelivery(); notifyHost(null); return; }
+                 actual.start();
+                 RetainedRootOfferLaunch.Offer returned = actual.awaitOffer();
+                 synchronized (lock) { offer = returned; }

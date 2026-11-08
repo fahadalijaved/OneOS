@@ -1,0 +1,22 @@
+package android.os;
+
+/** Authored PC fixture: no Android native calls, Binder transactions or SDK code. */
+public class Binder {
+    private static final ThreadLocal<State> STATES = new ThreadLocal<State>() {
+        protected State initialValue() { return new State(); }
+    };
+    private static final class State { int uid = 1000, pid = 77, reads, driftAt; }
+    public static void reset(int uid, int pid) {
+        State s = new State(); s.uid = uid; s.pid = pid; STATES.set(s);
+    }
+    public static void setIdentity(int uid, int pid) {
+        State s = STATES.get(); s.uid = uid; s.pid = pid;
+    }
+    public static void driftUidAtRead(int read) { STATES.get().driftAt = read; }
+    public static int reads() { return STATES.get().reads; }
+    public static int getCallingUid() {
+        State s = STATES.get(); s.reads++;
+        return s.uid + (s.driftAt != 0 && s.reads >= s.driftAt ? 1 : 0);
+    }
+    public static int getCallingPid() { State s = STATES.get(); s.reads++; return s.pid; }
+}

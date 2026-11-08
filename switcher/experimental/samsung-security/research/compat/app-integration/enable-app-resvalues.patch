@@ -1,0 +1,10 @@
+--- a/app-android/app/build.gradle.kts
++++ b/app-android/app/build.gradle.kts
+@@ -802,6 +802,7 @@
+ 
+     buildFeatures {
+         buildConfig = true
++        resValues = true
+     }
+ 
+     lint {

@@ -1,0 +1,53 @@
+# Retained Samsung single-compositor source proof
+
+Keeping Samsung SurfaceFlinger/composer running avoids the current OneOS stop/restart ownership transfer, but **the captured unchanged ColorOS native client is not wire-compatible with the captured Samsung layer transaction reader**. This is a finite protocol disqualifier for direct unchanged guest rendering, not a proof that an adapted single-compositor design is impossible. The real host input/surface APIs below are useful components; none supplies a complete reversible display/input handoff or native-drain acknowledgment.
+
+This is PC static source evidence. No Binder, display, input, native/OEM code, service constructor or phone operation ran. Captured-original Samsung and captured donor ColorOS inputs are separate profiles; neither is attested as loaded memory. The prior [display handoff plan](retained-display-handoff-plan.md) remains unchanged (`095f08d5…`). This proof does not select an architecture or alter the pending capture diagnostic.
+
+## Concrete native incompatibility
+
+The same `BpSurfaceComposer::setTransactionState(TransactionState&&,sp<IBinder> const&)` symbol exists on both sides. Actual ARM64 sets Binder transaction code **8**, flag **1**, after writing the interface token, typed transaction and strong Binder. Samsung PCs `0x12477c/0x12478c`; ColorOS `0x153d94/0x153da4`. This outer oneway transport provides neither schema parity nor a presentation acknowledgment. The actual Samsung `BnSurfaceComposer::onTransact` compares code8 at `0x11c4b4/0x11c4b8`, calls `TransactionState::readFromParcel` at `0x11c534`, whose layer-list loop calls this exact `layer_state_t::read` at `0xe160c`. Thus the server-side receiver route is pinned, rather than inferred from a same-named client symbol.
+
+The bounded counterexample is inside the reached `layer_state_t` codec, on the nullable SurfaceControl zero-marker branch:
+
+| Actual source | Typed operations immediately after the zero marker |
+|---|---|
+| Samsung writer | `writeFloatVector` at `0x1253b4`; six floats; Boolean; ten floats; then Region length/data starting `0x1254d0/0x1254e8`. |
+| Samsung reader | marker `readInt32` at `0x176098`, nonzero branch `0x17609c`; zero path `readFloatVector` at `0x1760a8`; six floats `0x1760b8..0x176108`; Boolean `0x176118`; ten floats `0x176128..0x1761b8`; Region byte length `readInt32` at `0x1761cc`. Each typed reader's actual status/error branch is preserved in the saved proof. |
+| ColorOS writer | marker `writeInt32(0)` at `0x154a50`; **immediate** `Region::getFlattenedSize` at `0x154a58`, byte length `writeInt32` at `0x154a70`, optional blob write/flatten at `0x154a84/0x154a98`; no intervening vector/six-float/Boolean/ten-float sequence. |
+
+This different codec sequence already defeats an assertion of raw compatibility; no runtime crash or exact visual outcome is asserted. Region content is not a substitute for the genuine Samsung fields. The counterexample is independent of later OPPO extras: the donor also reaches Oplus blur/layer-state serialization and its transaction extension machinery under their source branches. Removing optional OPPO tail features alone does not repair the earlier mismatch. A blind Samsung `libgui.so` replacement is also unproved: native structure layouts differ, and guest imports/callers and the complete Java/JNI/native client cohort have not been admitted.
+
+## Real host control candidates and their limits
+
+PCs below are decimal DEX code units; native PCs above are hexadecimal virtual addresses. Exact bodies/flags/container partitions are recorded in the inventory and private receipts.
+
+| Actual Samsung member | Source behavior | What it does not establish |
+|---|---|---|
+| public-final `WindowManagerService.setEventDispatching(boolean)` | Checks `MANAGE_APP_TOKENS` (0/7); under original global lock writes `mEventDispatchingEnabled` (25). Only if `mDisplayEnabled` (27/29) and callback value differs (33/35), writes `mInputDispatchEnabled` (37), calls actual IMS **`setInputDispatchMode(enabled,false)`** (43/44). | No exclusive physical-reader claim, previous frozen-state preservation or completion callback. Calling `false` can also unfreeze the dispatcher; this is not a general save/restore token. |
+| public IMS `setInputDispatchMode(boolean,boolean)` | Actual `mNative` reference and native interface call (0/2). JNI/NativeInputManager reach real InputDispatcher. | Internal method visibility does not grant caller identity/permission or a second input owner. |
+| native `InputDispatcher::setInputDispatchMode` | Under its mutex compares modes; enabled-to-disabled calls `resetAndDropEverythingLocked` at `0x422460`, stores flags, unlocks, wakes Looper. Reset synthesizes cancellation for connections (`0x4225cc`), releases pending event, drains inbound queue (`0x42261c`) and clears relevant timeout/touch tracking. | Not an InputReader stop or proof every recipient finished cancellation. Void return is a local mutation contour, not cross-system input-drain acknowledgment. |
+| `DisplayContent.getWindowingLayer()` | Reads real display-area policy/root/features. Requires an appropriate first feature and exactly one mapped DisplayArea; returns that area's SurfaceControl at 53/55, otherwise error path. | Not automatically the whole display root, every overlay, or an isolated non-biometric subtree. |
+| `WindowContainer.getSurfaceControl()` | Returns existing field at 0. | No lifetime/ownership grant. `getPendingTransaction()` can realize and cache a new transaction, so it is not a pure existing-object getter. |
+| public `SurfaceControl.Transaction.hide/show/setLayerStack` | Real native transaction edits: hide flags1/mask1 (57..59), show flags0/mask1 (58..60), genuine native layer-stack call. Private `apply(ZZ)` performs resize/reparent notifications before `nativeApplyTransaction(JZZ)` (114), then returns void. | No global writer fence, arbitrary unused stack-ID admission, renderer/native drain or confirmed physical presentation. |
+| `DisplayContent.configureSurfaces(Transaction)` | Replaces/migrates root (33/35), reparents overlay/input overlay (63/120), sets real root layer stack from `mDisplayId` (336/338), shows root/overlays (344/356 and further selected branches). `WindowContainer.updateSurfaceVisibility` shows the surface when `mVisibleRequested`. | A one-shot hide/layer-stack change can be overwritten or lose the root identity. It does not withdraw WMS from continuing display lifecycle work. |
+| `WMS.syncInputTransactions(int,boolean)` | May wait animations; performs placement/display work under global lock; installs actual WindowInfosReported listener (113), applies (117), awaits latch outside lock. Ordinary5s await at180 has **no MOVE_RESULT** before restoreIdentity183. Desktop2s result only selects reported/timeout logging. Method returns void and handles interruption. | Its return does not distinguish timeout from reported acknowledgment. Window-info reporting is not a presented-frame fence, reader stop or complete callback drain. |
+| `Transaction.addTransactionCommittedListener(Executor,listener)` | Allocates callback wrapper and registers native listener (7). | Selected Java signature contains no presentation fence. This proof does not close the underlying native callback timing/ownership contract, and must not substitute a synthetic invocation. |
+
+Reversibility therefore requires actual writer/lifecycle ownership and original state retention, not simply `hide; false; show; true`. No such completed owner is supplied here. Input controls cannot be used to kill Samsung's real biometric pointer/cancellation path while claiming that path remains alive.
+
+## Security and biometric continuity
+
+Keeping the compositor alone does not keep policy truthful. The frozen display plan proves Samsung Trust still reads **host WMS keyguard state**, not a guest Boolean. Genuine guest keyguard observations/events and current user/display/session ownership must reach those exact policy consumers, with duplicate native keystore notifications suppressed through an admitted source adaptation. Surface hiding cannot replace that work.
+
+Existing source cards also establish real Samsung `BiometricContext` WindowManager/statusbar session subscriptions, display-local callbacks, actual PowerManager interactivity/early wake, feature-guarded UDFPS TSP/illumination/HBM and real pointer/overlay cancellation ownership. See [biometric UI authority](biometric-ui-authority.md), [bootstrap biometrics](authority-bootstrap-biometrics.md), and [fingerprint construction](construction-fingerprint.md). A selected windowing subtree might spare some overlays; that requires the **actual** captured policy topology and callback routing. Hiding the whole root cannot be assumed overlay-safe. No feature Boolean, GUI-shown callback or fabricated input event supplies native authentication.
+
+Optional OPPO compositor visuals can be removed only after their reached callers/registrations/native effects and UI consequences are closed. Secure-layer flags, real buffer/fence/transaction identity, physical display IDs, current-user policy and required Samsung sensor behavior remain mandatory. No removal or fake success is implemented here.
+
+## Smallest next construction decision
+
+1. Retain original Samsung SF/composer and its existing display/native session owner; exclude the actual OneOS host-stop/guest-SF/composer-restart steps identified in the frozen plan only in a separately reviewed candidate. This proof edits no scripts.
+2. Choose an actual native client-cohort adaptation or transaction translation boundary **before** admitting guest SurfaceControl traffic. First close this exact codec mismatch with genuine field meanings and preserve handle/fence/security semantics; do not extrapolate code8 parity into compatibility. The remaining SF interfaces/callbacks and native client ABI stay open.
+3. Only then implement one retained-host WMS/input handoff owner: exact source policy-selected surfaces, source writers/recreation fencing, actual saved modes, cancellation/report/presentation acknowledgment and recovery. Prove that required Samsung biometric/display/power policy remains live and sees actual guest keyguard state. Acknowledgment timeout or uncertain cleanup must retain ownership and refuse transition.
+
+The current finite outcome is **DIRECT_UNCHANGED_GUEST_CLIENT_REFUSED; ADAPTED_SINGLE_COMPOSITOR_UNSELECTED**. No smallest fully functional handoff API has been proved. There is no phone/runtime acceptance, authentication, display takeover, source activation or new prepared phone action.

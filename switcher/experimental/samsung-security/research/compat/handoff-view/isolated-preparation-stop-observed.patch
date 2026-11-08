@@ -1,0 +1,53 @@
+--- a/compat/handoff-view/isolated-preparation-app/PrepareActivity.java
++++ b/compat/handoff-view/isolated-preparation-app/PrepareActivity.java
+@@ -157,7 +157,9 @@
+         private Integer prepareReply, stopReply;
+         private int observed = RetainedViewAppProtocol.STATUS_PENDING;
+         private int preparationResult = RetainedViewAppProtocol.STATUS_PENDING;
+-        private ViewAttempt attempt; // Serial worker only.
++        // These fields belong to the serial worker, including before it posts a result.
++        private ViewAttempt attempt;
++        private boolean workerTerminal;
+ 
+         Operation(Context app) {
+             this.app = app;
+@@ -250,6 +252,7 @@
+                 try {
+                     worker.execute(new Runnable() {
+                         @Override public void run() {
++                            if (workerTerminal) return;
+                             final int reply = mutation(attempt, true);
+                             main.post(new Runnable() {
+                                 @Override public void run() { stopReply = reply; refresh(); changed(); }
+@@ -272,6 +275,7 @@
+                 worker.execute(new Runnable() {
+                     @Override public void run() {
+                         final int sample = readStatus(attempt);
++                        workerTerminal = workerTerminal || terminalStatus(sample);
+                         main.post(new Runnable() {
+                             @Override public void run() { refreshing = false; observe(sample); }
+                         });
+@@ -313,8 +317,12 @@
+         }
+ 
+         private boolean terminal() {
+-            return finishedBeforeDispatch || observed == RetainedViewAppProtocol.STATUS_LOCAL_CLEANUP_OBSERVED
+-                    || observed == RetainedViewAppProtocol.STATUS_STOPPED_BEFORE_DISPATCH;
++            return finishedBeforeDispatch || terminalStatus(observed);
++        }
++
++        private static boolean terminalStatus(int status) {
++            return status == RetainedViewAppProtocol.STATUS_LOCAL_CLEANUP_OBSERVED
++                    || status == RetainedViewAppProtocol.STATUS_STOPPED_BEFORE_DISPATCH;
+         }
+ 
+         private void finishBeforeDispatch() {
+@@ -345,7 +353,7 @@
+             }
+             if (prepareReply != null) text.append('\n').append(replyText(prepareReply, false));
+             if (stopReply != null) text.append('\n').append(replyText(stopReply, true));
+-            else if (stopRequested) text.append("\nStop requested. Waiting for the same attempt.");
++            else if (stopRequested && !terminal()) text.append("\nStop requested. Waiting for the same attempt.");
+             if (unavailableSample) text.append("\nLatest status sample unavailable.");
+             if (connectionLost) text.append("\nService connection lost.");
+             if (unbindUnconfirmed) text.append("\nService registration cleanup is unconfirmed.");

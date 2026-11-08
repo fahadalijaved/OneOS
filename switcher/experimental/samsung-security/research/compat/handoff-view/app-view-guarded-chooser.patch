@@ -1,0 +1,42 @@
+--- a/app-android/app/src/full/kotlin/com/fahadali/oneos/ui/SwitchConfirm.kt
++++ b/app-android/app/src/full/kotlin/com/fahadali/oneos/ui/SwitchConfirm.kt
+@@ -51,7 +51,7 @@
+ internal object SwitchConfirm {
+     fun show(a: FragmentActivity) {
+         if (BuildConfig.RETAINED_WRITER_GUARD && BuildConfig.RETAINED_VIEW_PREPARATION) {
+-            PrepareColorOsUi.confirm(a) { showStock(a) }
++            PrepareColorOsUi.confirm(a)
+         } else {
+             showStock(a)
+         }
+@@ -166,7 +166,7 @@
+     private val worker = Executors.newSingleThreadExecutor { Thread(it, "oneos-view-request") }
+     private var current: Operation? = null
+ 
+-    fun confirm(a: FragmentActivity, stockSwitch: () -> Unit) {
++    fun confirm(a: FragmentActivity) {
+         val hasAttempt = current != null
+         val choices = AlertDialog.Builder(a)
+             .setTitle(R.string.view_prepare_title)
+@@ -181,11 +181,6 @@
+                 }
+             }
+             .setNegativeButton(android.R.string.cancel, null)
+-        if (current?.terminal() != false) {
+-            choices.setNeutralButton(R.string.view_prepare_stock_switch) { _, _ ->
+-                if (current?.terminal() != false) stockSwitch()
+-            }
+-        }
+         choices.show()
+     }
+ 
+--- a/app-android/app/src/full/res/values/strings.xml
++++ b/app-android/app/src/full/res/values/strings.xml
+@@ -133,7 +133,6 @@
+     <string name="view_prepare_existing">A preparation attempt is already recorded. Open its status to see the last observed result.</string>
+     <string name="view_prepare_action">Prepare ColorOS</string>
+     <string name="view_prepare_status">View status</string>
+-    <string name="view_prepare_stock_switch">Switch</string>
+     <string name="view_prepare_refresh">Refresh</string>
+     <string name="view_prepare_stop">Stop</string>
+     <string name="view_prepare_close">Close</string>

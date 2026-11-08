@@ -1,0 +1,5 @@
+package android.os;
+/** AUTHORED checked fault type; not Android transport/serialization. */
+public class RemoteException extends Exception {
+    public RemoteException(String message) { super(message); }
+}

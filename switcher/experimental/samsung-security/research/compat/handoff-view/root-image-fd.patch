@@ -1,0 +1,62 @@
+--- a/compat/android/com/fahadali/oneos/core/root/RetainedRootCommand.java
++++ b/compat/android/com/fahadali/oneos/core/root/RetainedRootCommand.java
+@@ -30,12 +30,12 @@
+                 // Keep the same opened image for metadata, hashing and exec.
+                 + "exec 3<\"$P\"\n"
+                 + "F=/proc/self/fd/3\n"
+-                + "[ -f \"$F\" ] && [ \"$(stat -Lc %u \"$F\")\" = 0 ] || exit 76\n"
++                + "[ -f \"$F\" ] && [ \"$(stat -Lc %u \"$F\" 3<&3)\" = 0 ] || exit 76\n"
+-                + "M=$(stat -Lc %a \"$F\")\n"
++                + "M=$(stat -Lc %a \"$F\" 3<&3)\n"
+                 + "case \"$M\" in [57][0145][0145]) ;; *) exit 76 ;; esac\n"
+-                + "[ \"$(stat -Lc %s \"$F\")\" = " + expectedBytes + " ] || exit 76\n"
++                + "[ \"$(stat -Lc %s \"$F\" 3<&3)\" = " + expectedBytes + " ] || exit 76\n"
+-                + "H=$(sha256sum \"$F\")\nH=${H%% *}\n"
++                + "H=$(sha256sum \"$F\" 3<&3)\nH=${H%% *}\n"
+                 + "[ \"$H\" = " + expectedSha256 + " ] || exit 76\n"
+-                + "exec \"$F\" --closed-session-v1\n";
++                + "exec \"$F\" --closed-session-v1 3<&3\n";
+     }
+ }
+--- a/compat/handoff-app/com/fahadali/oneos/core/root/RetainedRootOfferCommand.java
++++ b/compat/handoff-app/com/fahadali/oneos/core/root/RetainedRootOfferCommand.java
+@@ -19,12 +19,12 @@
+                 + "done\n"
+                 + "[ -f \"$P\" ] && [ ! -L \"$P\" ] || exit 76\n"
+                 + "exec 3<\"$P\"\nF=/proc/self/fd/3\n"
+-                + "[ -f \"$F\" ] && [ \"$(stat -Lc %u \"$F\")\" = 0 ] || exit 76\n"
++                + "[ -f \"$F\" ] && [ \"$(stat -Lc %u \"$F\" 3<&3)\" = 0 ] || exit 76\n"
+-                + "M=$(stat -Lc %a \"$F\")\n"
++                + "M=$(stat -Lc %a \"$F\" 3<&3)\n"
+                 + "case \"$M\" in [57][0145][0145]) ;; *) exit 76 ;; esac\n"
+-                + "[ \"$(stat -Lc %s \"$F\")\" = " + bytes + " ] || exit 76\n"
++                + "[ \"$(stat -Lc %s \"$F\" 3<&3)\" = " + bytes + " ] || exit 76\n"
+-                + "H=$(sha256sum \"$F\")\nH=${H%% *}\n"
++                + "H=$(sha256sum \"$F\" 3<&3)\nH=${H%% *}\n"
+                 + "[ \"$H\" = " + sha256 + " ] || exit 76\n"
+-                + "exec \"$F\" --host-control-v2\n";
++                + "exec \"$F\" --host-control-v2 3<&3\n";
+     }
+ }
+--- a/firmware/oneos-pr/OneOS/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
++++ b/firmware/oneos-pr/OneOS/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
+@@ -324,7 +324,7 @@
+ # Child borrows only the held bin anchor for its source-owned private script.
+ # Close only our child copies; the handler refuses any other occupied slot 5..9.
+ RUN=$D/root.sh
+-if @SH@ "$RUN" "$@" 3<&- 5<&- 6>&-; then rc=0; else rc=$?; fi
++if @SH@ "$RUN" "$@" 3<&- 4<&4 5<&- 6>&-; then rc=0; else rc=$?; fi
+ exit "$rc"
+ """
+ 
+--- a/firmware/handoff-app-integration/overlay/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
++++ b/firmware/handoff-app-integration/overlay/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
+@@ -325,7 +325,7 @@
+ # Child borrows only the held bin anchor for its source-owned private script.
+ # Close only our child copies; the handler refuses any other occupied slot 5..9.
+ RUN=$D/root.sh
+-if @SH@ "$RUN" "$@" 3<&- 5<&- 6>&-; then rc=0; else rc=$?; fi
++if @SH@ "$RUN" "$@" 3<&- 4<&4 5<&- 6>&-; then rc=0; else rc=$?; fi
+ exit "$rc"
+ """
+ 

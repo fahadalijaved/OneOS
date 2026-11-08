@@ -1,0 +1,17 @@
+# Retained direct-host closed-control source review
+
+The actual v2 sources pass this bounded static review after the app failure-delivery and host reconnect fixes. The app launches the fixed helper and relays one offer; the genuine captured Samsung host opens the first native control socket. No app-owned control socket is transferred.
+
+The real Binder BEGIN caller supplies kernel PID/UID association through an immutable private app record. The host derives its authority to participate from the existing private boot issuer and exact Registry/Family/Context objects, then checks the selected package, signer and installed APK. It adopts the actual socket and received pidfd before validation. Only the source-owned main continuation issues the single COMMIT credit; the worker records possible delivery before writing. Lost replies remain uncertain and owned, without retry, replacement spawn or app fallback.
+
+Native v2 establishes its selected session, clears parent-death state, binds its visible cgroup profile and disposes both original and duplicated app stdio before COMMITTED. The fixed cgroup operation writes only self (`0`) once, checks actual cgroup2 mount identity and visible PID1 namespace, reads exact membership, and refuses all uncertainty before OFFER. This proves a visible namespace/mount predicate. Visible PID1 may itself be nested; the genuine initial host PID/proc/cgroup launch view and root-manager or switch kill policy remain external prerequisites before guest admission.
+
+After an authenticated offer, app disconnect, death and automatic reconnection cannot start another helper or close the existing direct native controller merely because the launcher disappeared. Reconnect retains the original broker and launch claim, records a launcher notice and rechecks actual host source/package on main. Real source or package changes still retire the direct host link. The app only closes its local pipe views after actual wrapper reaping and both successfully started, joined readers finish normal EOF; it never turns that observation into native exit.
+
+The native protocol remains closed PING/CLOSE. Header/payload tails, sequence, root peer credentials, exact self-pidfd identity and unexpected ancillary cleanup are checked separately. CLOSED is local cutoff, not exit or drain. Host pidfd exit observation differs from app-owned su-wrapper reaping. Owned resource and thread references remain retained on partial start, blocked I/O, commit or cleanup uncertainty.
+
+Review raised and closed the empty early-failure callback and the BIND_AUTO_CREATE reconnect path that previously revoked native control after app death. Source/profile identity and exact module inverse checks passed. The profile variant also changes LF source to CRLF explicitly; the byte comparison records that formatting conversion.
+
+No compiler, model, original/SDK/OEM runtime, native program, shell, cgroup operation, phone action or Git action ran in this review. It does not establish installed-image admission, Android behavior, independent lifetime against every privileged kill policy, guest topology, PIN/fingerprint/app-key/CE authority, endpoint opening or security readiness. Existing v1 sources and artifacts remain separate. App packaging and the later integration generator are outside this core gate.
+
+Exact private source gates and source hashes are in `inventory/retained-root-handoff-trust.json`. No moving author or peer normal report is an input to those gates.

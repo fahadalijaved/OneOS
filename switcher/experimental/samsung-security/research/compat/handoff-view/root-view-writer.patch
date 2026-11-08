@@ -1,0 +1,489 @@
+--- a/compat/native/guest_private_view_inputs.h
++++ b/compat/native/guest_private_view_inputs.h
+@@ -10,7 +10,8 @@
+ };
+ enum { GVI_OK=0, GVI_NEED_PREPARED_STAGE=1, GVI_HOLD=2, GVI_LOCAL_RELEASED_KERNEL_UNCONFIRMED=3 };
+ /* A non-NULL result must be closed even on refusal; cleanup may be uncertain. */
+-/* Input adoption only: read-only opens/metadata/ioctls, no mount operation. */
++/* Acquires a kernel writer lease and durable negative reservation before
++ * read-only stage adoption. No stage repair or mount operation here. */
+ int gvi_open_existing(struct gvi_inputs **out);
+ /* EFFECTFUL: calls the actual gvo fork/unshare/mount preparation path.
+  * Stores the actual gvo owner internally even on an after-fork failure.
+--- a/compat/native/guest_private_view_inputs.c
++++ b/compat/native/guest_private_view_inputs.c
+@@ -1,4 +1,4 @@
+-/* Authored existing-stage custody. open_existing only adopts inputs read-only.
++/* Authored existing-stage custody. open_existing reserves the writer lease;
+  * begin_view invokes the actual child namespace/mount owner. No staging/exec. */
+ #define _GNU_SOURCE 1
+ #include "guest_private_view_inputs.h"
+@@ -12,6 +12,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <sys/ioctl.h>
++#include <sys/file.h>
+ #include <sys/stat.h>
+ #include <sys/sysmacros.h>
+ #include <sys/types.h>
+@@ -24,6 +25,9 @@
+ enum { I_OPENING=1,I_AVAILABLE,I_VIEW,I_REFUSED,I_CLOSED };
+ struct gvi_inputs {
+     int state,fd[F_COUNT],close_error,begin_attempted,terminal;
++    int guard_parent,guard_lease,guard_marker;
++    int guard_marker_attempted,guard_marker_owned,guard_marker_verified,guard_remove_attempted,guard_zero_effect;
++    struct stat guard_parent_stat,guard_lease_stat,guard_marker_stat;
+     pid_t parent;
+     struct stat initial[F_COUNT];
+     struct gvo_owner *view;
+@@ -90,6 +94,92 @@
+ static int root_object(int fd,int directory,struct stat *s) {
+     if (fstat(fd,s)<0) return -1;
+     if ((directory?!S_ISDIR(s->st_mode):!S_ISREG(s->st_mode)) || s->st_uid!=0 || (s->st_mode&0022)) { errno=EPERM;return -1; }
++    return 0;
++}
++/* Cooperative lease only. Fixed protected objects, no contents/PID authority. */
++#define GVI_GUARD "/dev/oneos-retained-view"
++static int guard_profile(int fd,int directory,struct stat *s) {
++    if (fstat(fd,s)<0) return -1;
++    if ((directory?!S_ISDIR(s->st_mode):!S_ISREG(s->st_mode)) ||
++        s->st_uid || s->st_gid || (s->st_mode&07777)!=(directory?0700:0600) ||
++        (!directory && (s->st_nlink!=1 || s->st_size))) { errno=EPERM;return -1; }
++    return 0;
++}
++static int guard_absent(int parent,const char *name) {
++    struct stat s;
++    if (fstatat(parent,name,&s,AT_SYMLINK_NOFOLLOW)==0) { errno=EBUSY;return -1; }
++    return errno==ENOENT?0:-1;
++}
++static int guard_current(struct gvi_inputs *p) {
++    struct stat s;int root=-1,current=-1,result=-1,saved;
++    if (p->guard_lease<0 || !p->guard_marker_verified ||
++        guard_profile(p->guard_parent,1,&s)<0 || !same_identity(&s,&p->guard_parent_stat) ||
++        guard_profile(p->guard_lease,0,&s)<0 || !same_identity(&s,&p->guard_lease_stat) ||
++        fstatat(p->guard_parent,"lease",&s,AT_SYMLINK_NOFOLLOW)<0 || !same_identity(&s,&p->guard_lease_stat) ||
++        fstatat(p->guard_parent,"view-blocked",&s,AT_SYMLINK_NOFOLLOW)<0 || !same_identity(&s,&p->guard_marker_stat) ||
++        flock(p->guard_lease,LOCK_EX|LOCK_NB)<0) { if (!errno) errno=ESTALE;return -1; }
++    root=open("/",O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if (root<0) goto done;
++    current=walk(p,root,"dev/oneos-retained-view");if (current<0) goto done;
++    if (fstat(current,&s)<0 || !same_identity(&s,&p->guard_parent_stat)) { errno=ESTALE;goto done; }
++    result=0;
++done:
++    saved=errno;close_owned(p,&root);close_owned(p,&current);
++    if (p->close_error) { result=-1;saved=p->close_error; }
++    errno=saved;return result;
++}
++static int guard_acquire(struct gvi_inputs *p) {
++    int root=-1,dev=-1,result=-1,saved;
++    struct stat s;
++    root=open("/",O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if (root<0) goto done;
++    dev=walk(p,root,"dev");if (dev<0 || root_object(dev,1,&s)<0) goto done;
++    p->guard_parent=walk(p,root,"dev/oneos-retained-view");if (p->guard_parent<0) goto done;
++    if (guard_profile(p->guard_parent,1,&s)<0) goto done;
++    p->guard_lease=openat(p->guard_parent,"lease",O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
++    if (p->guard_lease<0 || guard_profile(p->guard_lease,0,&p->guard_lease_stat)<0 ||
++        flock(p->guard_lease,LOCK_EX|LOCK_NB)<0 ||
++        fstatat(p->guard_parent,"lease",&s,AT_SYMLINK_NOFOLLOW)<0 || !same_identity(&s,&p->guard_lease_stat)) goto done;
++    if (guard_absent(p->guard_parent,"writer-blocked")<0 ||
++        guard_absent(p->guard_parent,"legacy-blocked")<0 || guard_absent(p->guard_parent,"view-blocked")<0) goto done;
++    /* Durable negative before any image/data adoption. Process death never
++     * removes this directory. It is not an admission/ready record. */
++    p->guard_marker_attempted=1;
++    if (mkdirat(p->guard_parent,"view-blocked",0700)<0) goto done;
++    p->guard_marker_owned=1;
++    p->guard_marker=openat(p->guard_parent,"view-blocked",O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
++    if (p->guard_marker<0 || guard_profile(p->guard_marker,1,&p->guard_marker_stat)<0 ||
++        fstat(p->guard_parent,&p->guard_parent_stat)<0) goto done;
++    p->guard_marker_verified=1;
++    if (guard_current(p)<0) goto done;
++    result=0;
++done:
++    saved=errno;close_owned(p,&root);close_owned(p,&dev);
++    if (p->close_error) { result=-1;saved=p->close_error; }
++    /* A missing/unsupported guard is not a request to prepare/repair stage. */
++    if (result<0 && (saved==ENOENT || saved==ENOTDIR || saved==ENXIO)) saved=EPERM;
++    errno=saved;return result;
++}
++static int guard_finish(struct gvi_inputs *p) {
++    struct stat s;
++    int remove=p->guard_marker_owned && !p->terminal &&
++        (!p->begin_attempted || p->guard_zero_effect);
++    if (p->guard_marker_owned && !p->guard_marker_verified) { errno=EINPROGRESS;return -1; }
++    if (p->guard_marker_verified && guard_current(p)<0) return -1;
++    /* All image/provider objects were closed before this call. Keep the
++     * negative through every local close, including last lease close. */
++    close_owned(p,&p->guard_marker);close_owned(p,&p->guard_parent);close_owned(p,&p->guard_lease);
++    if (p->close_error) { errno=p->close_error;return -1; }
++    if (!remove) return 0; /* terminal3 or unproved begin stays negative */
++    /* Only no-begin or actual retained GVO zero-effect terminal0 reaches here.
++     * Default terminal0 without a real drain never proves a begun path safe.
++     * Others may now take
++     * flock, but must refuse this still-existing negative until its removal.
++     * No new FD is acquired after all local closes; no lock-drop-as-drain. */
++    if (p->guard_remove_attempted) { errno=EINPROGRESS;return -1; }
++    p->guard_remove_attempted=1;
++    if (lstat(GVI_GUARD,&s)<0 || !same_identity(&s,&p->guard_parent_stat) ||
++        lstat(GVI_GUARD "/lease",&s)<0 || !same_identity(&s,&p->guard_lease_stat) ||
++        lstat(GVI_GUARD "/view-blocked",&s)<0 || !same_identity(&s,&p->guard_marker_stat) ||
++        rmdir(GVI_GUARD "/view-blocked")<0) return -1;
+     return 0;
+ }
+ static int read_id(int fd,char bytes[ID_CAP+1],size_t *length) {
+@@ -181,6 +271,7 @@
+ static int recheck(struct gvi_inputs *p) {
+     struct stat now;char current_id[ID_CAP+1];size_t length,i;
+     int slash=-1,stage=-1,data=-1,image=-1,id=-1,result=-1,saved;
++    if (guard_current(p)<0) return -1;
+     for (i=0;i<F_COUNT;i++) if (fstat(p->fd[i],&now)<0 || !same_identity(&now,&p->initial[i])) { errno=ESTALE;return -1; }
+     if (read_id(p->fd[F_ID],current_id,&length)<0 || length!=p->id_length || memcmp(current_id,p->id_bytes,length) ||
+         id_matches(current_id,length,&p->initial[F_IMAGE])<0) { errno=ESTALE;return -1; }
+@@ -207,6 +298,8 @@
+     used=1;memset(p,0,sizeof(*p));p->parent=getpid();p->state=I_OPENING;
+     for (i=0;i<F_COUNT;i++) p->fd[i]=-1;
+     *out=p; /* retained even on any later refusal/uncertain local close */
++    p->guard_parent=p->guard_lease=p->guard_marker=-1;
++    if (guard_acquire(p)<0) goto fail;
+     slash=open("/",O_PATH|O_DIRECTORY|O_CLOEXEC);if (slash<0) goto fail;
+     p->fd[F_STAGE]=walk(p,slash,"data/local/tmp/oneos");if (p->fd[F_STAGE]<0) goto fail;
+     p->fd[F_IMAGE]=openat(p->fd[F_STAGE],"system.raw",O_RDONLY|O_NONBLOCK|O_NOFOLLOW|O_CLOEXEC);
+@@ -259,11 +352,18 @@
+         result=gvo_close(p->view);
+         if (result!=0 && result!=GVO_LOCAL_RELEASED_KERNEL_UNCONFIRMED) return GVI_HOLD;
+         p->terminal=result==GVO_LOCAL_RELEASED_KERNEL_UNCONFIRMED?GVI_LOCAL_RELEASED_KERNEL_UNCONFIRMED:0;
++        /* Source-issued progress: only the actual retained GVO drain result,
++         * never the provider's default terminal value or a caller ready flag. */
++        if (result==0) p->guard_zero_effect=1;
+         p->view=NULL; /* source owner keeps its process-lifetime metadata tombstone */
+     }
+     /* Only known terminal local closure/reap (0 refusal or explicit3) permits
+      * release of provider-owned sources. Unknown commit never reaches here. */
+     for (i=0;i<F_COUNT;i++) close_owned(p,&p->fd[i]);
+     if (p->close_error) { errno=p->close_error;return GVI_HOLD; }
++    if (guard_finish(p)<0) {
++        if (!p->close_error) p->close_error=errno?errno:EIO;
++        errno=p->close_error;return GVI_HOLD;
++    }
+     p->state=I_CLOSED;return p->terminal;
+ }
+--- a/firmware/oneos-pr/OneOS/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
++++ b/firmware/oneos-pr/OneOS/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
+@@ -232,7 +232,7 @@
+         require(scriptBytes in 1..1_048_576) { "bad script size" }
+         for (v in listOf(layout.stage, layout.legacy, layout.sh, layout.proc)) require(PATH.matches(v)) { "bad path $v" }
+         require(Regex("^[0-9]{1,10}$").matches(layout.uid) && Regex("^[0-9]{1,10}:[0-9]{1,10}$").matches(layout.owner)) { "bad owner" }
+-        return (if (verb == Verb.INSTALL_CLOSED_CONTROLLER) INSTALL_TEMPLATE else TEMPLATE)
++        return (WRITER_TEMPLATE + (if (verb == Verb.INSTALL_CLOSED_CONTROLLER) INSTALL_TEMPLATE else TEMPLATE))
+             .replace("@ARGS@", (listOf(verb.word) + args).joinToString(" "))
+             .replace("@STAGE@", layout.stage)
+             .replace("@LEGACY@", layout.legacy)
+@@ -242,7 +242,73 @@
+             .replace("@OWNER@", layout.owner)
+             .replace("@SHA@", scriptSha256)
+             .replace("@LEN@", scriptBytes.toString())
+-    }
++            // Export actual inherited lease FD3 while keeping the image-FD4
++            // repair independent; this does not alter held child source lines.
++            .replace("\"${'$'}@\" 3<&-", "\"${'$'}@\" 3<&8")
++            .replace("6>&-; then rc=0", "6>&- 8<&-; then rc=0")
++    }
++
++    /** Actual fixed lease before any original bootstrap/stage write. */
++    const val WRITER_TEMPLATE = $$"""set -- @ARGS@
++# Fixed cooperative lease. Neither a file's contents nor an inherited FD's
++# name grants readiness: actual exclusive flock and object checks are required.
++RWW=/dev/oneos-retained-view
++rww_profile() {
++    [ ! -L /dev ] && [ -d /dev ] && [ "$(stat -c %u /dev)" = 0 ] || return 1
++    case "$(stat -c %a /dev)" in [57][0145][0145]) ;; *) return 1;; esac
++    [ ! -L "$RWW" ] && [ -d "$RWW" ] && [ "$(stat -c '%u:%g:%a' "$RWW")" = 0:0:700 ] || return 1
++    [ ! -L "$RWW/lease" ] && [ -f "$RWW/lease" ] &&
++        [ "$(stat -c '%u:%g:%a:%h:%s' "$RWW/lease")" = 0:0:600:1:0 ]
++}
++rww_no_view() {
++    [ ! -e "$RWW/view-blocked" ] && [ ! -L "$RWW/view-blocked" ]
++}
++rww_legacy() {
++    case "$1" in
++        launch|recover)
++            if [ ! -e "$RWW/legacy-blocked" ] && [ ! -L "$RWW/legacy-blocked" ]; then
++                mkdir -m 0700 "$RWW/legacy-blocked" || return 1
++            fi
++            [ ! -L "$RWW/legacy-blocked" ] && [ -d "$RWW/legacy-blocked" ] &&
++                [ "$(stat -c '%u:%g:%a' "$RWW/legacy-blocked")" = 0:0:700 ] || return 1
++            ;;
++    esac
++}
++# FD8 is parent-owned and shell-private. Export a duplicate as child FD3;
++# inherited FD3 remains available to its external writer children under mksh.
++rww_open=0; rww_done=0; rww_marker=
++rww_refuse() { echo "@@REFUSED cooperative view/writer lease unavailable"; exit 2; }
++rww_finish() {
++    rww_rc=$1
++    [ "$rww_done" = 0 ] || return "$rww_rc"
++    rww_done=1
++    trap - EXIT
++    # A source-owned negative was installed before the first original effect.
++    # Unknown child/bootstrap cleanup or close never clears it.
++    if [ "$rww_open" = 1 ]; then
++        rww_open=0
++        exec 8<&- || { echo "@@FAILED writer lease close uncertain"; return 4; }
++    fi
++    [ "$rww_rc" = 0 ] || return "$rww_rc"
++    rww_profile && rww_no_view || return 4
++    [ ! -L "$RWW/writer-blocked" ] &&
++        [ "$(stat -c '%d:%i:%f:%u:%g' "$RWW/writer-blocked")" = "$rww_marker" ] || return 4
++    rmdir "$RWW/writer-blocked" || return 4
++    return 0
++}
++[ "$(id -u)" = 0 ] && rww_profile && [ -x /system/bin/flock ] || rww_refuse
++[ ! -e /proc/self/fd/8 ] && [ ! -L /proc/self/fd/8 ] || rww_refuse
++exec 8<"$RWW/lease"; rww_open=1
++[ "$(stat -Lc '%d:%i:%f:%u:%g:%s:%h' /proc/self/fd/8 8<&8)" = "$(stat -c '%d:%i:%f:%u:%g:%s:%h' "$RWW/lease")" ] || rww_refuse
++/system/bin/flock -xn 8 8<&8 || rww_refuse
++rww_profile && rww_no_view || rww_refuse
++[ ! -e "$RWW/writer-blocked" ] && [ ! -L "$RWW/writer-blocked" ] || rww_refuse
++mkdir -m 0700 "$RWW/writer-blocked" || rww_refuse
++rww_marker=$(stat -c '%d:%i:%f:%u:%g' "$RWW/writer-blocked") || rww_refuse
++trap 'rww_rc=$?; rww_finish "$rww_rc"; exit $?' EXIT
++trap 'exit 4' HUP INT TERM
++rww_legacy "$1" || rww_refuse
++"""
+ 
+     private val PATH = Regex("^/[A-Za-z0-9._/-]+$")
+ 
+@@ -290,6 +356,7 @@
+         echo "@@FAILED closed controller bootstrap cleanup uncertain"
+         [ "$rc" != 0 ] || rc=4
+     fi
++    if rww_finish "$rc"; then rc=0; else rc=$?; fi
+     exit "$rc"
+ }
+ trap cleanup EXIT
+@@ -361,7 +428,8 @@
+     return 1
+ }
+ if mine "$S" && mine "$S/bin" && mine "$F" && [ "$(sha256sum "$F" 2>/dev/null | cut -d' ' -f1)" = "$W" ]; then
+-    exec @SH@ "$F" "$@"
++    if @SH@ "$F" "$@" 3<&8 8<&-; then rww_rc=0; else rww_rc=$?; fi
++rww_finish "$rww_rc"; exit $?
+ fi
+ case "$1" in
+     begin|remove|selfupdate) ;;
+@@ -410,7 +478,8 @@
+     exit 2
+ fi
+ chown @OWNER@ "$F.new" && chmod 0755 "$F.new" && mv -f "$F.new" "$F" || { echo "@@FAILED could not install the root script"; exit 4; }
+-exec @SH@ "$F" "$@"
++if @SH@ "$F" "$@" 3<&8 8<&-; then rww_rc=0; else rww_rc=$?; fi
++rww_finish "$rww_rc"; exit $?
+ """
+ 
+     /** Exit codes of the script and the launcher. */
+--- a/firmware/handoff-app-integration/overlay/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
++++ b/firmware/handoff-app-integration/overlay/app-android/core/root/src/main/kotlin/com/fahadali/oneos/core/root/RootScript.kt
+@@ -233,7 +233,7 @@
+         require(scriptBytes in 1..1_048_576) { "bad script size" }
+         for (v in listOf(layout.stage, layout.legacy, layout.sh, layout.proc)) require(PATH.matches(v)) { "bad path $v" }
+         require(Regex("^[0-9]{1,10}$").matches(layout.uid) && Regex("^[0-9]{1,10}:[0-9]{1,10}$").matches(layout.owner)) { "bad owner" }
+-        return (if (verb == Verb.INSTALL_CLOSED_CONTROLLER || verb == Verb.INSTALL_HANDOFF_CONTROLLER) INSTALL_TEMPLATE else TEMPLATE)
++        return (WRITER_TEMPLATE + (if (verb == Verb.INSTALL_CLOSED_CONTROLLER || verb == Verb.INSTALL_HANDOFF_CONTROLLER) INSTALL_TEMPLATE else TEMPLATE))
+             .replace("@ARGS@", (listOf(verb.word) + args).joinToString(" "))
+             .replace("@STAGE@", layout.stage)
+             .replace("@LEGACY@", layout.legacy)
+@@ -243,7 +243,73 @@
+             .replace("@OWNER@", layout.owner)
+             .replace("@SHA@", scriptSha256)
+             .replace("@LEN@", scriptBytes.toString())
+-    }
++            // Export actual inherited lease FD3 while keeping the image-FD4
++            // repair independent; this does not alter held child source lines.
++            .replace("\"${'$'}@\" 3<&-", "\"${'$'}@\" 3<&8")
++            .replace("6>&-; then rc=0", "6>&- 8<&-; then rc=0")
++    }
++
++    /** Actual fixed lease before any original bootstrap/stage write. */
++    const val WRITER_TEMPLATE = $$"""set -- @ARGS@
++# Fixed cooperative lease. Neither a file's contents nor an inherited FD's
++# name grants readiness: actual exclusive flock and object checks are required.
++RWW=/dev/oneos-retained-view
++rww_profile() {
++    [ ! -L /dev ] && [ -d /dev ] && [ "$(stat -c %u /dev)" = 0 ] || return 1
++    case "$(stat -c %a /dev)" in [57][0145][0145]) ;; *) return 1;; esac
++    [ ! -L "$RWW" ] && [ -d "$RWW" ] && [ "$(stat -c '%u:%g:%a' "$RWW")" = 0:0:700 ] || return 1
++    [ ! -L "$RWW/lease" ] && [ -f "$RWW/lease" ] &&
++        [ "$(stat -c '%u:%g:%a:%h:%s' "$RWW/lease")" = 0:0:600:1:0 ]
++}
++rww_no_view() {
++    [ ! -e "$RWW/view-blocked" ] && [ ! -L "$RWW/view-blocked" ]
++}
++rww_legacy() {
++    case "$1" in
++        launch|recover)
++            if [ ! -e "$RWW/legacy-blocked" ] && [ ! -L "$RWW/legacy-blocked" ]; then
++                mkdir -m 0700 "$RWW/legacy-blocked" || return 1
++            fi
++            [ ! -L "$RWW/legacy-blocked" ] && [ -d "$RWW/legacy-blocked" ] &&
++                [ "$(stat -c '%u:%g:%a' "$RWW/legacy-blocked")" = 0:0:700 ] || return 1
++            ;;
++    esac
++}
++# FD8 is parent-owned and shell-private. Export a duplicate as child FD3;
++# inherited FD3 remains available to its external writer children under mksh.
++rww_open=0; rww_done=0; rww_marker=
++rww_refuse() { echo "@@REFUSED cooperative view/writer lease unavailable"; exit 2; }
++rww_finish() {
++    rww_rc=$1
++    [ "$rww_done" = 0 ] || return "$rww_rc"
++    rww_done=1
++    trap - EXIT
++    # A source-owned negative was installed before the first original effect.
++    # Unknown child/bootstrap cleanup or close never clears it.
++    if [ "$rww_open" = 1 ]; then
++        rww_open=0
++        exec 8<&- || { echo "@@FAILED writer lease close uncertain"; return 4; }
++    fi
++    [ "$rww_rc" = 0 ] || return "$rww_rc"
++    rww_profile && rww_no_view || return 4
++    [ ! -L "$RWW/writer-blocked" ] &&
++        [ "$(stat -c '%d:%i:%f:%u:%g' "$RWW/writer-blocked")" = "$rww_marker" ] || return 4
++    rmdir "$RWW/writer-blocked" || return 4
++    return 0
++}
++[ "$(id -u)" = 0 ] && rww_profile && [ -x /system/bin/flock ] || rww_refuse
++[ ! -e /proc/self/fd/8 ] && [ ! -L /proc/self/fd/8 ] || rww_refuse
++exec 8<"$RWW/lease"; rww_open=1
++[ "$(stat -Lc '%d:%i:%f:%u:%g:%s:%h' /proc/self/fd/8 8<&8)" = "$(stat -c '%d:%i:%f:%u:%g:%s:%h' "$RWW/lease")" ] || rww_refuse
++/system/bin/flock -xn 8 8<&8 || rww_refuse
++rww_profile && rww_no_view || rww_refuse
++[ ! -e "$RWW/writer-blocked" ] && [ ! -L "$RWW/writer-blocked" ] || rww_refuse
++mkdir -m 0700 "$RWW/writer-blocked" || rww_refuse
++rww_marker=$(stat -c '%d:%i:%f:%u:%g' "$RWW/writer-blocked") || rww_refuse
++trap 'rww_rc=$?; rww_finish "$rww_rc"; exit $?' EXIT
++trap 'exit 4' HUP INT TERM
++rww_legacy "$1" || rww_refuse
++"""
+ 
+     private val PATH = Regex("^/[A-Za-z0-9._/-]+$")
+ 
+@@ -291,6 +357,7 @@
+         echo "@@FAILED closed controller bootstrap cleanup uncertain"
+         [ "$rc" != 0 ] || rc=4
+     fi
++    if rww_finish "$rc"; then rc=0; else rc=$?; fi
+     exit "$rc"
+ }
+ trap cleanup EXIT
+@@ -362,7 +429,8 @@
+     return 1
+ }
+ if mine "$S" && mine "$S/bin" && mine "$F" && [ "$(sha256sum "$F" 2>/dev/null | cut -d' ' -f1)" = "$W" ]; then
+-    exec @SH@ "$F" "$@"
++    if @SH@ "$F" "$@" 3<&8 8<&-; then rww_rc=0; else rww_rc=$?; fi
++rww_finish "$rww_rc"; exit $?
+ fi
+ case "$1" in
+     begin|remove|selfupdate) ;;
+@@ -411,7 +479,8 @@
+     exit 2
+ fi
+ chown @OWNER@ "$F.new" && chmod 0755 "$F.new" && mv -f "$F.new" "$F" || { echo "@@FAILED could not install the root script"; exit 4; }
+-exec @SH@ "$F" "$@"
++if @SH@ "$F" "$@" 3<&8 8<&-; then rww_rc=0; else rww_rc=$?; fi
++rww_finish "$rww_rc"; exit $?
+ """
+ 
+     /** Exit codes of the script and the launcher. */
+--- a/firmware/oneos-pr/OneOS/app-android/app/src/full/assets/root/oneos_root.sh
++++ b/firmware/oneos-pr/OneOS/app-android/app/src/full/assets/root/oneos_root.sh
+@@ -1619,6 +1619,44 @@
+     say "@@OK closed-controller-installed"
+ )
+ 
++# Fixed cooperative lease. Neither a file's contents nor an inherited FD's
++# name grants readiness: actual exclusive flock and object checks are required.
++RWW=/dev/oneos-retained-view
++rww_profile() {
++    [ ! -L /dev ] && [ -d /dev ] && [ "$(stat -c %u /dev)" = 0 ] || return 1
++    case "$(stat -c %a /dev)" in [57][0145][0145]) ;; *) return 1;; esac
++    [ ! -L "$RWW" ] && [ -d "$RWW" ] && [ "$(stat -c '%u:%g:%a' "$RWW")" = 0:0:700 ] || return 1
++    [ ! -L "$RWW/lease" ] && [ -f "$RWW/lease" ] &&
++        [ "$(stat -c '%u:%g:%a:%h:%s' "$RWW/lease")" = 0:0:600:1:0 ]
++}
++rww_no_view() {
++    [ ! -e "$RWW/view-blocked" ] && [ ! -L "$RWW/view-blocked" ]
++}
++rww_legacy() {
++    case "$1" in
++        launch|recover)
++            if [ ! -e "$RWW/legacy-blocked" ] && [ ! -L "$RWW/legacy-blocked" ]; then
++                mkdir -m 0700 "$RWW/legacy-blocked" || return 1
++            fi
++            [ ! -L "$RWW/legacy-blocked" ] && [ -d "$RWW/legacy-blocked" ] &&
++                [ "$(stat -c '%u:%g:%a' "$RWW/legacy-blocked")" = 0:0:700 ] || return 1
++            ;;
++    esac
++}
++rww_refuse() { echo "@@REFUSED cooperative view/writer lease unavailable"; exit 2; }
++[ "$(id -u)" = 0 ] && rww_profile && [ -x /system/bin/flock ] || rww_refuse
++# Only the selected outer RootScript supplies its already-owned description.
++# Direct old launchers have no admitted lease issuer and refuse here.
++[ -e /proc/self/fd/3 ] || rww_refuse
++[ "$(stat -Lc '%d:%i:%f:%u:%g:%s:%h' /proc/self/fd/3 3<&3)" = "$(stat -c '%d:%i:%f:%u:%g:%s:%h' "$RWW/lease")" ] || rww_refuse
++/system/bin/flock -xn 3 3<&3 || rww_refuse
++rww_profile && rww_no_view || rww_refuse
++# Only the real outer creator may retire its exact marker after child return
++# and local cleanup. No argv/environment flag or direct rootsh reset exists.
++[ ! -L "$RWW/writer-blocked" ] && [ -d "$RWW/writer-blocked" ] &&
++    [ "$(stat -c '%u:%g:%a' "$RWW/writer-blocked")" = 0:0:700 ] || rww_refuse
++rww_legacy "$1" || rww_refuse
++
+ # --- Main ---------------------------------------------------------------------
+ [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
+ verb=$1
+--- a/firmware/handoff-app-integration/overlay/app-android/app/src/full/assets/root/oneos_root.sh
++++ b/firmware/handoff-app-integration/overlay/app-android/app/src/full/assets/root/oneos_root.sh
+@@ -1782,6 +1782,44 @@
+     say "@@OK closed-handoff-controller-installed"
+ )
+ 
++# Fixed cooperative lease. Neither a file's contents nor an inherited FD's
++# name grants readiness: actual exclusive flock and object checks are required.
++RWW=/dev/oneos-retained-view
++rww_profile() {
++    [ ! -L /dev ] && [ -d /dev ] && [ "$(stat -c %u /dev)" = 0 ] || return 1
++    case "$(stat -c %a /dev)" in [57][0145][0145]) ;; *) return 1;; esac
++    [ ! -L "$RWW" ] && [ -d "$RWW" ] && [ "$(stat -c '%u:%g:%a' "$RWW")" = 0:0:700 ] || return 1
++    [ ! -L "$RWW/lease" ] && [ -f "$RWW/lease" ] &&
++        [ "$(stat -c '%u:%g:%a:%h:%s' "$RWW/lease")" = 0:0:600:1:0 ]
++}
++rww_no_view() {
++    [ ! -e "$RWW/view-blocked" ] && [ ! -L "$RWW/view-blocked" ]
++}
++rww_legacy() {
++    case "$1" in
++        launch|recover)
++            if [ ! -e "$RWW/legacy-blocked" ] && [ ! -L "$RWW/legacy-blocked" ]; then
++                mkdir -m 0700 "$RWW/legacy-blocked" || return 1
++            fi
++            [ ! -L "$RWW/legacy-blocked" ] && [ -d "$RWW/legacy-blocked" ] &&
++                [ "$(stat -c '%u:%g:%a' "$RWW/legacy-blocked")" = 0:0:700 ] || return 1
++            ;;
++    esac
++}
++rww_refuse() { echo "@@REFUSED cooperative view/writer lease unavailable"; exit 2; }
++[ "$(id -u)" = 0 ] && rww_profile && [ -x /system/bin/flock ] || rww_refuse
++# Only the selected outer RootScript supplies its already-owned description.
++# Direct old launchers have no admitted lease issuer and refuse here.
++[ -e /proc/self/fd/3 ] || rww_refuse
++[ "$(stat -Lc '%d:%i:%f:%u:%g:%s:%h' /proc/self/fd/3 3<&3)" = "$(stat -c '%d:%i:%f:%u:%g:%s:%h' "$RWW/lease")" ] || rww_refuse
++/system/bin/flock -xn 3 3<&3 || rww_refuse
++rww_profile && rww_no_view || rww_refuse
++# Only the real outer creator may retire its exact marker after child return
++# and local cleanup. No argv/environment flag or direct rootsh reset exists.
++[ ! -L "$RWW/writer-blocked" ] && [ -d "$RWW/writer-blocked" ] &&
++    [ "$(stat -c '%u:%g:%a' "$RWW/writer-blocked")" = 0:0:700 ] || rww_refuse
++rww_legacy "$1" || rww_refuse
++
+ # --- Main ---------------------------------------------------------------------
+ [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
+ verb=$1

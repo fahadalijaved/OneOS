@@ -1,0 +1,13 @@
+--- a/app-android/app/src/full/AndroidManifest.xml
++++ b/app-android/app/src/full/AndroidManifest.xml
+@@ -18,6 +18,10 @@
+     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+ 
+     <application android:name=".ui.OneOsApplication">
++        <!-- Closed retained-root broker: no spawn on bind, no guest/security activation. -->
++        <service
++            android:name="com.fahadali.oneos.core.root.RetainedRootHostService"
++            android:exported="false" />
+         <service
+             android:name=".session.PrepareService"
+             android:exported="false"

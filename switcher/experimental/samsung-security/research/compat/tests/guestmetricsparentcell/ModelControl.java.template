@@ -1,0 +1,41 @@
+package cellmodels;
+import java.util.concurrent.atomic.AtomicInteger;
+import com.appleexploit.oneos.security.authority.PreparedGuestMetricsEndpoint;
+/** Scheduling/fault hooks belong ONLY to authored dependency models. */
+public final class ModelControl {
+    public static final AtomicInteger producerCalls = new AtomicInteger();
+    public static final AtomicInteger endpointPrepareCalls = new AtomicInteger();
+    public static final AtomicInteger activationCalls = new AtomicInteger();
+    public static final AtomicInteger activationApplied = new AtomicInteger();
+    public static final AtomicInteger protocolCalls = new AtomicInteger();
+    public static final AtomicInteger dispatchCalls = new AtomicInteger();
+    public static final AtomicInteger retirementCalls = new AtomicInteger();
+    public static final AtomicInteger retirementApplied = new AtomicInteger();
+    public static volatile Runnable producerBefore;
+    public static volatile Runnable endpointPrepareBefore;
+    public static volatile Runnable activationBefore;
+    public static volatile Runnable activationAfter;
+    public static volatile Runnable protocolBefore;
+    public static volatile Runnable dispatchBefore;
+    public static volatile Runnable retirementBefore;
+    public static volatile Runnable retirementAfter;
+    public static volatile Throwable producerFault;
+    public static volatile Throwable activationFault;
+    public static volatile Throwable protocolFault;
+    public static volatile Throwable dispatchFault;
+    public static volatile Throwable retirementFault;
+    public static volatile Throwable probeFailure;
+    public static volatile PreparedGuestMetricsEndpoint lastEndpoint;
+    public static volatile Object lastBorn;
+    public static volatile Object lastData;
+    public static volatile Object lastReply;
+    public static volatile int lastCode;
+    public static volatile int lastFlags;
+    public static volatile boolean dispatchResult = true;
+    public static void run(Runnable hook) { if (hook != null) hook.run(); }
+    public static RuntimeException raise(Throwable failure) {
+        return ModelControl.<RuntimeException>rethrow(failure);
+    }
+    @SuppressWarnings("unchecked") private static <T extends Throwable> RuntimeException
+            rethrow(Throwable failure) throws T { throw (T) failure; }
+}

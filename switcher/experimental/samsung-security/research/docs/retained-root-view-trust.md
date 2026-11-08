@@ -1,0 +1,15 @@
+# Private view cross-owner source review
+
+The native and Java view patches pass this bounded source review. Independent data-only patch application and inverse checks reproduce all five composed source files and their held originals. The current core was not changed or executed by the reviewer.
+
+The native controller uses the genuine GVI producer internally. It retains the actual nonnull provider even if opening or beginning reports an error, consumes one preparation attempt before its first GVI call and never rearms it. The same dedicated main thread owns the actual GVO child and reaping path. GVI can fork and mount before a host timeout, signal or lost reply is observed; none of those observations proves that no work happened.
+
+Every controller exit path drains that same provider first. HOLD or cleanup uncertainty keeps the supervisor, provider, GVO and loop custody alive without a timeout exit. Known terminal 0 is local refusal closure. Terminal 3 maps to explicit kernel-unconfirmed metadata and process exit 3, never CLOSED, complete kernel release or successful return. After a delivered HOLD and actual local settlement, one bounded next QUERY can receive the real terminal state. Failed or lost replies remain uncertain; no unsolicited frame or retry is introduced.
+
+The Java request is package-private, main-only and argumentless. It derives its credit from the same real captured Binding, package and committed native client. The one preparation command remains retained before possible delivery, including its actual response; retirement and transport failure cannot permit another preparation. The same worker and socket serialize all frames. Stage-missing/refused responses now enter the native QUERY-only drain instead of sending a second CLOSE or PING. A completed native process cannot manufacture a missing terminal response.
+
+The wire carries only bounded local state and cached original observations. The three unsigned 64-bit values preserve their raw bits; they are not namespace handles or live child/mount measurements. The observation flag never creates image authenticity, exclusive writer ownership, guest admission or security authority. Unknown or kernel-unconfirmed view progress cannot become complete cleanup.
+
+The initial native patch review remains historical. The final-query successor improves ordinary terminal observation while preserving uncertain-loss behavior. Actual patch hashes, source hashes, exact forward/inverse joins and the closed refusal-drain finding are recorded in `inventory/retained-root-view-trust.json` and the immutable private source proof.
+
+No producer, compiler, model, native/GVI, kernel, OEM, Android, phone or Git workflow ran in this review. Actual integration/build/runtime evidence remains separate. Genuine image/writer custody, initial launch namespaces, native services, property/display/data ownership, guest execution and reciprocal PIN/fingerprint/app-key/CE behavior are still required before guest admission. This source result supplies no READY state or complete return claim.

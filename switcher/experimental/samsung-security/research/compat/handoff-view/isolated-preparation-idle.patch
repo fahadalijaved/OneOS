@@ -1,0 +1,73 @@
+--- a/retained_root_handoff.c
++++ b/retained_root_handoff.c
+@@ -30,6 +30,7 @@
+ #endif
+ 
+ #define ORH_TIMEOUT_MS UINT64_C(30000)
++#define ORH_PREPARE_IDLE_MS UINT64_C(120000)
+ #define ORH_RIGHTS_MAX 16U
+ #define ORH_NAME_BYTES 42U
+ #define ORH_CGROUP_FDS 7U
+@@ -389,10 +390,13 @@
+     *value=(uint64_t)t.tv_sec*1000U+(uint64_t)t.tv_nsec/1000000U;
+     return 0;
+ }
++static int new_deadline_after(uint64_t *deadline,uint64_t budget) {
++    uint64_t now;
++    if (stopping || now_ms(&now)<0 || now>UINT64_MAX-budget) return -1;
++    *deadline=now+budget; return 0;
++}
+ static int new_deadline(uint64_t *deadline) {
+-    uint64_t now;
+-    if (stopping || now_ms(&now)<0 || now>UINT64_MAX-ORH_TIMEOUT_MS) return -1;
+-    *deadline=now+ORH_TIMEOUT_MS; return 0;
++    return new_deadline_after(deadline,ORH_TIMEOUT_MS);
+ }
+ /* One absolute deadline per whole handshake/frame, not per byte or retry. */
+ static int app_alive(struct controller *c) {
+@@ -422,13 +426,12 @@
+         if (p[0].revents&(POLLERR|POLLHUP)) return -1;
+     }
+ }
+-/* A captured CLOSED-ADMISSION session may remain idle without a heartbeat.
+- * A retained partial filesystem is not guest/security readiness. Once input becomes readable
+- * does the caller start its bounded complete-frame/reply deadline. Actual peer
+- * EOF/HUP or a termination signal cuts off this local controller. */
+-static int wait_request(int fd) {
++/* Before PREPARE the companion has a fixed boot-link lifetime. Once a
++ * view has been attempted, only the existing ownership and drain rules
++ * can retire it. A time limit never substitutes for resource closure. */
++static int wait_request(int fd,uint64_t prepare_deadline) {
+     struct pollfd p;
+-    while (!stopping) {
++    while (!stopping && (!prepare_deadline || before_deadline(prepare_deadline)==0)) {
+         int result;
+         p.fd=fd; p.events=POLLIN; p.revents=0;
+         result=poll(&p,1,250);
+@@ -785,17 +788,23 @@
+ }
+ static int serve(struct controller *c) {
+     unsigned char frame[ORH_FRAME_BYTES];
++    uint64_t prepare_deadline;
+     uint32_t next=2;
+     c->next_sequence=next;
++    if (new_deadline_after(&prepare_deadline,ORH_PREPARE_IDLE_MS)<0) return -1;
+     for (;;) {
+-        uint64_t deadline;
++        uint64_t deadline,receive_deadline;
++        uint64_t ceiling=c->view_attempted?0:prepare_deadline;
+         uint16_t kind;
+-        if (wait_request(c->peer.fd)<0 || new_deadline(&deadline)<0 ||
+-            socket_read_frame(c,frame,deadline)<0) return -1;
++        if (wait_request(c->peer.fd,ceiling)<0 || new_deadline(&deadline)<0) return -1;
++        receive_deadline=ceiling && ceiling<deadline?ceiling:deadline;
++        if (socket_read_frame(c,frame,receive_deadline)<0 ||
++            (ceiling && before_deadline(ceiling)<0)) return -1;
+         kind=read16(frame+6);
+         if ((kind!=ORH_PING && kind!=ORH_CLOSE && kind!=ORH_VIEW_PREPARE && kind!=ORH_VIEW_QUERY) ||
+             !header_is(frame,kind,next,ORH_REQUEST) ||
+             !zero_bytes(frame+ORH_PAYLOAD_OFFSET,ORH_FRAME_BYTES-ORH_PAYLOAD_OFFSET)) return -1;
++        if (ceiling && kind!=ORH_VIEW_PREPARE) deadline=receive_deadline;
+         if (kind==ORH_CLOSE) {
+             c->local_cutoff=1;
+             if (c->view) {

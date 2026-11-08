@@ -1,0 +1,22 @@
+--- a/app-android/app/src/full/java/com/fahadali/oneos/core/root/RetainedRootHostServiceV2.java
++++ b/app-android/app/src/full/java/com/fahadali/oneos/core/root/RetainedRootHostServiceV2.java
+@@ -143,7 +143,7 @@
+                     if (admitted) launchAdmitted = true;
+                 }
+                 if (!admitted) { notifyHost(null); return; }
+-                com.fahadali.oneos.session.RetainedHandoffControllerSetup.ensureInstalled(service, sha, bytes);
++                // The isolated command verifies its preprovisioned controller before exec.
+                 if (!mayDeliver()) { notifyHost(null); return; }
+                 RetainedRootOfferLaunch actual = RetainedRootOfferLaunch.prepare(caller, sha, bytes);
+                 synchronized (lock) { launch = actual; }
+--- a/app-android/app/src/full/java/com/fahadali/oneos/core/root/RetainedRootOfferCommand.java
++++ b/app-android/app/src/full/java/com/fahadali/oneos/core/root/RetainedRootOfferCommand.java
+@@ -10,7 +10,7 @@
+         return "set -efu\nPATH=/system/bin; export PATH\n"
+                 + "unset LD_PRELOAD LD_LIBRARY_PATH ENV BASH_ENV\n"
+                 + "[ \"$(id -u)\" = 0 ] || exit 77\n"
+-                + "S=/data/local/tmp/oneos\nB=$S/bin\nP=$B/oneos_retained_root_handoff\n"
++                + "S=/data/local/tmp/oneos-viewprep\nB=$S/bin\nP=$B/oneos_retained_root_handoff\n"
+                 + "for D in \"$S\" \"$B\"; do\n"
+                 + "  [ -d \"$D\" ] && [ ! -L \"$D\" ] || exit 76\n"
+                 + "  [ \"$(stat -c %u \"$D\")\" = 0 ] || exit 76\n"

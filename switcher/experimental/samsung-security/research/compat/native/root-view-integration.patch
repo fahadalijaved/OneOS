@@ -1,0 +1,345 @@
+--- a/compat/native/retained_root_handoff.c
++++ b/compat/native/retained_root_handoff.c
+@@ -2,6 +2,7 @@
+  * Default is a no-op. Source preparation only; no Android/native execution. */
+ #define _GNU_SOURCE 1
+ #include "retained_root_handoff.h"
++#include "guest_private_view_inputs.h"
+ #include <dirent.h>
+ #include <errno.h>
+ #include <fcntl.h>
+@@ -33,6 +34,8 @@
+ #define ORH_NAME_BYTES 42U
+ #define ORH_CGROUP_FDS 7U
+ #define ORH_MOUNTINFO_BYTES (512U*1024U)
++#define ORH_MEMBERSHIP_BYTES 4096U
++#define ORH_MEMBERSHIP_ROWS 64U
+ 
+ struct owned_fd {
+     int fd;
+@@ -45,6 +48,12 @@
+     struct owned_fd cgroup[ORH_CGROUP_FDS];
+     unsigned char cgroup_write_attempted, cgroup_write_returned, cgroup_write_uncertain;
+     struct owned_fd unexpected[ORH_RIGHTS_MAX];
++    struct gvi_inputs *view; /* actual returned owner, including error paths */
++    struct gvi_observation view_observation;
++    uint32_t view_state, next_sequence;
++    unsigned char view_attempted, view_observed, view_terminal, drain_queries;
++    unsigned char view_hold_replied;
++    int view_close_result;
+     DIR *tasks;
+     unsigned char tasks_close_uncertain;
+     unsigned char local_cutoff;
+@@ -174,6 +183,77 @@
+         n=n*10U+digit;
+     }
+     *value=n;return 0;
++}
++/* Membership can contain legacy v1 rows as well as one unified v2 row.
++ * Validate their grammar; do not migrate any v1 controller or claim isolation
++ * from its policy. This fixed ASCII/bounded profile may refuse other systems. */
++static int membership_name(const char *start,const char *end) {
++    const char *p;
++    if (start==end) return -1;
++    if ((size_t)(end-start)>5U && !memcmp(start,"name=",5U)) start+=5;
++    for (p=start;p<end;++p) {
++        unsigned char ch=(unsigned char)*p;
++        if (!((ch>='a' && ch<='z') || (ch>='A' && ch<='Z') ||
++              (ch>='0' && ch<='9') || ch=='_' || ch=='-' || ch=='.')) return -1;
++    }
++    return 0;
++}
++static int membership_controllers(const char *start,const char *end) {
++    const char *names[ORH_MEMBERSHIP_ROWS],*p=start,*token=start;
++    size_t lengths[ORH_MEMBERSHIP_ROWS],count=0,i;
++    for (;;) {
++        if (p==end || *p==',') {
++            size_t length=(size_t)(p-token);
++            if (count==ORH_MEMBERSHIP_ROWS || membership_name(token,p)<0) return -1;
++            for (i=0;i<count;++i)
++                if (lengths[i]==length && !memcmp(names[i],token,length)) return -1;
++            names[count]=token;lengths[count++]=length;
++            if (p==end) return 0;
++            token=p+1;
++        }
++        ++p;
++    }
++}
++static int membership_path(const char *start,const char *end) {
++    const char *p,*segment;
++    if (start==end || *start!='/') return -1;
++    if (end==start+1) return 0;
++    segment=start+1;
++    for (p=segment;;++p) {
++        if (p==end || *p=='/') {
++            size_t n=(size_t)(p-segment);
++            if (!n || (n==1U && *segment=='.') ||
++                (n==2U && segment[0]=='.' && segment[1]=='.')) return -1;
++            if (p==end) return 0;
++            segment=p+1;
++        } else if ((unsigned char)*p<32U || (unsigned char)*p>126U) return -1;
++    }
++}
++static int membership_root(const char *bytes,size_t count) {
++    const char *line=bytes,*limit=bytes+count;
++    uint64_t ids[ORH_MEMBERSHIP_ROWS];
++    size_t rows=0,i;
++    unsigned unified=0;
++    if (!count || count>=ORH_MEMBERSHIP_BYTES || memchr(bytes,'\0',count)) return -1;
++    while (line<limit) {
++        const char *end=memchr(line,'\n',(size_t)(limit-line));
++        const char *first,*second;
++        uint64_t id;
++        if (!end || end==line || rows==ORH_MEMBERSHIP_ROWS) return -1;
++        first=memchr(line,':',(size_t)(end-line));
++        if (!first || first==line || (first-line>1 && *line=='0') ||
++            decimal_span(line,first,&id)<0 || id>(uint64_t)INT_MAX) return -1;
++        second=memchr(first+1,':',(size_t)(end-first-1));
++        if (!second) return -1;
++        for (i=0;i<rows;++i) if (ids[i]==id) return -1;
++        ids[rows++]=id;
++        if (!id) {
++            if (++unified!=1U || second!=first+1 || end-second!=2 || second[1]!='/') return -1;
++        } else if (membership_controllers(first+1,second)<0 ||
++                   membership_path(second+1,end)<0) return -1;
++        line=end+1;
++    }
++    return unified==1U?0:-1;
+ }
+ static int cgroup_mount_id(struct controller *c,uint64_t *id,uint64_t deadline) {
+     char path[64],buffer[2049];
+@@ -228,7 +308,7 @@
+ static int place_self_root_cgroup(struct controller *c,uint64_t deadline) {
+     struct stat self_ns,init_ns,live,root,procs;
+     struct statfs filesystem;
+-    char membership[65];
++    char membership[ORH_MEMBERSHIP_BYTES+1U];
+     uint64_t mount_id;
+     size_t count,i;
+     ssize_t wrote;
+@@ -254,7 +334,7 @@
+     if (wrote!=2) { c->cgroup_write_uncertain=1;return -1; }
+     c->cgroup_write_returned=1;
+     if (cgroup_read(c,6U,"/proc/self/cgroup",membership,sizeof(membership)-1U,
+-            &count,deadline)<0 || count!=5U || memcmp(membership,"0::/\n",5U) ||
++            &count,deadline)<0 || membership_root(membership,count)<0 ||
+         stat("/proc/self/ns/cgroup",&live)<0 || !same_node(&self_ns,&live) ||
+         stat("/proc/1/ns/cgroup",&live)<0 || !same_node(&init_ns,&live) ||
+         fstat(c->cgroup[2].fd,&live)<0 || !same_node(&root,&live) ||
+@@ -269,6 +349,9 @@
+     sigset_t empty;
+     memset(&action,0,sizeof(action));
+     if (sigemptyset(&action.sa_mask)<0) return -1;
++    /* This dedicated main is the only GVO waiter; no auto-reaper exists. */
++    action.sa_handler=SIG_DFL;
++    if (sigaction(SIGCHLD,&action,NULL)<0) return -1;
+     action.sa_handler=SIG_IGN;
+     if (sigaction(SIGPIPE,&action,NULL)<0) return -1;
+     action.sa_handler=stop_requested;
+@@ -340,7 +423,7 @@
+     }
+ }
+ /* A captured CLOSED-ADMISSION session may remain idle without a heartbeat.
+- * No GVI/guest/host operation exists here. Only once input becomes readable
++ * A retained partial filesystem is not guest/security readiness. Once input becomes readable
+  * does the caller start its bounded complete-frame/reply deadline. Actual peer
+  * EOF/HUP or a termination signal cuts off this local controller. */
+ static int wait_request(int fd) {
+@@ -604,20 +687,125 @@
+     make_frame(frame,ORH_COMMITTED,1,ORH_ADMISSION_CLOSED);
+     return write_frame(c,c->peer.fd,frame,deadline,1);
+ }
++static void write64(unsigned char *p,uint64_t value) {
++    write32(p,(uint32_t)(value>>32)); write32(p+4,(uint32_t)value);
++}
++static int reply_view(struct controller *c,uint32_t sequence,uint64_t deadline) {
++    unsigned char frame[ORH_FRAME_BYTES];
++    make_frame(frame,ORH_VIEW_STATE,sequence,ORH_ADMISSION_CLOSED);
++    write32(frame+16,c->view_state);write32(frame+20,c->view_observed);
++    if (c->view_observed) {
++        write64(frame+24,c->view_observation.namespace_inode);
++        write64(frame+32,c->view_observation.data_group);
++        write64(frame+40,c->view_observation.mirror_group);
++    }
++    return write_frame(c,c->peer.fd,frame,deadline,1);
++}
++/* The canonical worker waits for each reply. Any queued command, actual EOF,
++ * socket error or signal during synchronous provider work cuts this request
++ * off before another effect/observation; no receive or ancillary is discarded. */
++static int view_control_current(struct controller *c,uint64_t deadline) {
++    struct pollfd p={c->peer.fd,POLLIN,0};
++    return before_deadline(deadline)==0 && poll(&p,1,0)==0?0:-1;
++}
++static int prepare_view(struct controller *c,uint64_t deadline) {
++    int result;
++    if (c->view_attempted || c->local_cutoff) return -1;
++    c->view_attempted=1; /* never rearmed, even an early provider refusal */
++    c->view_state=ORH_VIEW_REFUSED;
++    result=gvi_open_existing(&c->view); /* adopt actual nonnull owner before result */
++    if (result!=GVI_OK) {
++        if (result==GVI_NEED_PREPARED_STAGE) c->view_state=ORH_VIEW_NEED_STAGE;
++        return -1;
++    }
++    if (!c->view || view_control_current(c,deadline)<0) return -1;
++    result=gvi_begin_view(c->view,&c->view_observation);
++    /* begin can fork/mount before cutoff is observed. Only this main may close
++     * that exact owner; the signal handler never reenters GVI/GVO. */
++    if (result!=GVI_OK || view_control_current(c,deadline)<0) return -1;
++    c->view_observed=1;c->view_state=ORH_VIEW_PARTIAL_OBSERVED;
++    return 0;
++}
++static int close_view_step(struct controller *c) {
++    int result;
++    if (!c->view) return GVI_OK;
++    if (c->view_terminal) return c->view_close_result;
++    result=gvi_close(c->view);
++    if (result==GVI_OK || result==GVI_LOCAL_RELEASED_KERNEL_UNCONFIRMED) {
++        c->view_terminal=1;c->view_close_result=result;
++        c->view_state=result==GVI_OK?ORH_VIEW_REFUSED_LOCAL_CLOSED:ORH_VIEW_LOCAL_KERNEL_UNCONFIRMED;
++    } else c->view_state=ORH_VIEW_CLOSING_HOLD;
++    return result;
++}
++/* Once a HOLD reply has been delivered, retain the settled terminal metadata
++ * for one normal next QUERY. This is only a bounded observation opportunity:
++ * EOF/signal/invalid frame/lost reply still conveys no final-state proof. */
++static void final_view_query(struct controller *c) {
++    unsigned char frame[ORH_FRAME_BYTES];
++    uint64_t deadline;
++    if (c->next_sequence==UINT32_MAX || new_deadline(&deadline)<0 ||
++        socket_read_frame(c,frame,deadline)<0 ||
++        !header_is(frame,ORH_VIEW_QUERY,c->next_sequence,ORH_REQUEST) ||
++        !zero_bytes(frame+ORH_PAYLOAD_OFFSET,ORH_FRAME_BYTES-ORH_PAYLOAD_OFFSET)) return;
++    (void)reply_view(c,c->next_sequence,deadline); /* never retry a failed reply */
++}
++/* No timeout exit from HOLD, including permanent local cleanup uncertainty.
++ * Only gvi_close can establish terminal0/3. The same main remains sole waiter.
++ * After a reply-bearing cutoff, QUERY alone can observe retained drain state;
++ * an incomplete query can delay the next close poll by its existing bounded
++ * whole-frame budget. This is not a hard child termination deadline. */
++static int drain_view(struct controller *c) {
++    unsigned char frame[ORH_FRAME_BYTES];
++    int live=c->drain_queries && !stopping;
++    c->local_cutoff=1;
++    for (;;) {
++        int result=close_view_step(c);
++        if (result==GVI_OK || result==GVI_LOCAL_RELEASED_KERNEL_UNCONFIRMED) {
++            if (live && c->view_hold_replied && !stopping) final_view_query(c);
++            return result; /* actual terminal, independent of reply delivery */
++        }
++        if (stopping) live=0;
++        if (live) {
++            struct pollfd p={c->peer.fd,POLLIN,0};
++            uint64_t deadline;
++            int polled=poll(&p,1,200);
++            if (polled<0) { if (errno==EINTR) continue;live=0; }
++            else if (polled>0) {
++                if (!(p.revents&POLLIN) || (p.revents&(POLLERR|POLLHUP|POLLNVAL)) ||
++                    c->next_sequence==UINT32_MAX || new_deadline(&deadline)<0 ||
++                    socket_read_frame(c,frame,deadline)<0 ||
++                    !header_is(frame,ORH_VIEW_QUERY,c->next_sequence,ORH_REQUEST) ||
++                    !zero_bytes(frame+ORH_PAYLOAD_OFFSET,ORH_FRAME_BYTES-ORH_PAYLOAD_OFFSET) ||
++                    reply_view(c,c->next_sequence,deadline)<0) live=0;
++                else { c->view_hold_replied=1;++c->next_sequence; }
++            }
++            if (!live) (void)close_owned(c,&c->peer);
++        } else (void)poll(NULL,0,200);
++    }
++}
+ static int serve(struct controller *c) {
+     unsigned char frame[ORH_FRAME_BYTES];
+     uint32_t next=2;
++    c->next_sequence=next;
+     for (;;) {
+         uint64_t deadline;
+         uint16_t kind;
+         if (wait_request(c->peer.fd)<0 || new_deadline(&deadline)<0 ||
+             socket_read_frame(c,frame,deadline)<0) return -1;
+         kind=read16(frame+6);
+-        if ((kind!=ORH_PING && kind!=ORH_CLOSE) ||
++        if ((kind!=ORH_PING && kind!=ORH_CLOSE && kind!=ORH_VIEW_PREPARE && kind!=ORH_VIEW_QUERY) ||
+             !header_is(frame,kind,next,ORH_REQUEST) ||
+             !zero_bytes(frame+ORH_PAYLOAD_OFFSET,ORH_FRAME_BYTES-ORH_PAYLOAD_OFFSET)) return -1;
+         if (kind==ORH_CLOSE) {
+             c->local_cutoff=1;
++            if (c->view) {
++                int closed=close_view_step(c);
++                c->next_sequence=next==UINT32_MAX?UINT32_MAX:next+1U;
++                c->drain_queries=closed!=GVI_OK && closed!=GVI_LOCAL_RELEASED_KERNEL_UNCONFIRMED;
++                if (reply_view(c,next,deadline)<0) { c->drain_queries=0;return -1; }
++                if (c->drain_queries) c->view_hold_replied=1;
++                return closed==GVI_LOCAL_RELEASED_KERNEL_UNCONFIRMED?3:closed==GVI_OK?2:-1;
++            }
+             /* No guest/host operation ever existed. Retire the local listener
+              * and self copy first. The actual control peer still exists while
+              * writing ACK; ACK does NOT promise FD cleanup or native exit. */
+@@ -626,9 +814,20 @@
+             return write_frame(c,c->peer.fd,frame,deadline,1);
+         }
+         if (next==UINT32_MAX || c->local_cutoff) return -1;
++        if (kind==ORH_VIEW_PREPARE || kind==ORH_VIEW_QUERY) {
++            int prepared=0;
++            if (kind==ORH_VIEW_PREPARE) {
++                if (c->view_attempted) return -1;
++                prepared=prepare_view(c,deadline);
++            }
++            if (reply_view(c,next,deadline)<0) return -1;
++            c->next_sequence=++next;
++            if (prepared<0) { c->local_cutoff=1;c->drain_queries=1;return -1; }
++            continue;
++        }
+         make_frame(frame,ORH_PONG,next,ORH_ADMISSION_CLOSED);
+         if (write_frame(c,c->peer.fd,frame,deadline,1)<0) return -1;
+-        ++next;
++        c->next_sequence=++next;
+     }
+ }
+ int main(int argc,char **argv) {
+@@ -637,7 +836,7 @@
+     char name[ORH_NAME_BYTES+1U];
+     uint64_t deadline;
+     uint32_t caller_pid,caller_uid,self;
+-    int result=2;
++    int result=2,served;
+     if (argc==1) return 0; /* no signals, descriptors, output or root effects */
+     if (argc!=2 || strcmp(argv[1],"--host-control-v2")) return 2;
+     controller_init(&owner);
+@@ -662,9 +861,18 @@
+     write32(frame+ORH_PAYLOAD_OFFSET,self);
+     memcpy(frame+ORH_PAYLOAD_OFFSET+4U,name,ORH_NAME_BYTES);
+     if (write_frame(&owner,owner.output.fd,frame,deadline,0)<0 ||
+-        associate_host(&owner,caller_pid,caller_uid,self,deadline)<0 || serve(&owner)<0) goto done;
+-    result=0;
++        associate_host(&owner,caller_pid,caller_uid,self,deadline)<0) goto done;
++    served=serve(&owner);
++    if (served<0) goto done;
++    result=served;
+ done:
++    /* A nonnull provider is never lost merely because open/begin/reply failed.
++     * No control-FD cleanup or process exit may precede its actual local drain. */
++    if (owner.view) {
++        int terminal=drain_view(&owner);
++        if (terminal==GVI_LOCAL_RELEASED_KERNEL_UNCONFIRMED) result=3;
++        else if (result==0) result=2;
++    }
+     cleanup(&owner);
+     if (owner.cleanup_failed) result=3;
+     return result;
+--- a/compat/native/retained_root_handoff.h
++++ b/compat/native/retained_root_handoff.h
+@@ -11,7 +11,15 @@
+ /* Big-endian magic/version:u16/kind:u16/sequence:u32/status:u32/payload[48]. */
+ enum orh_kind {
+     ORH_INIT=1, ORH_OFFER=2, ORH_IDENTITY=3, ORH_PING=4,
+-    ORH_PONG=5, ORH_CLOSE=6, ORH_CLOSED=7, ORH_COMMIT=8, ORH_COMMITTED=9
++    ORH_PONG=5, ORH_CLOSE=6, ORH_CLOSED=7, ORH_COMMIT=8, ORH_COMMITTED=9,
++    ORH_VIEW_PREPARE=10, ORH_VIEW_STATE=11, ORH_VIEW_QUERY=12
++};
++/* VIEW_STATE: state:u32@16, observed:u32@20, three u64@24/32/40,
++ * zero48..63. Observed is cached original metadata, never current liveness. */
++enum orh_view_state {
++    ORH_VIEW_NOT_ATTEMPTED=0, ORH_VIEW_PARTIAL_OBSERVED=1,
++    ORH_VIEW_NEED_STAGE=2, ORH_VIEW_REFUSED=3, ORH_VIEW_CLOSING_HOLD=4,
++    ORH_VIEW_LOCAL_KERNEL_UNCONFIRMED=5, ORH_VIEW_REFUSED_LOCAL_CLOSED=6
+ };
+ enum orh_status {
+     ORH_REQUEST=0, ORH_ADMISSION_CLOSED=1, ORH_LOCAL_CLOSED=2, ORH_REFUSED=3

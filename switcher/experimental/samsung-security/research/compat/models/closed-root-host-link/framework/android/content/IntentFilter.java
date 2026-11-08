@@ -1,0 +1,1 @@
+package android.content; public final class IntentFilter {public final java.util.List<String> actions=new java.util.ArrayList<String>();public String scheme;public IntentFilter(){}public IntentFilter(String a){addAction(a);}public void addAction(String a){actions.add(a);}public void addDataScheme(String s){scheme=s;}}

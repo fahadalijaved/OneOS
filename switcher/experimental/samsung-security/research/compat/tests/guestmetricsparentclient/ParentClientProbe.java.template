@@ -1,0 +1,56 @@
+import android.os.*;
+import com.appleexploit.oneos.security.boot.PreparedGuestMetricsParentClient;
+import java.nio.*;
+import java.lang.reflect.*;
+import java.util.*;
+/** Authored outer-framing/effect boundary cases, not Android serialization or Binder. */
+public final class ParentClientProbe {
+ static int checks;static final int ID=19;static final int[] RAW={Integer.MIN_VALUE,-9,0,0x7fc12345,0x80000000};
+ interface Edit{void run(Parcel r,Parcel.Plan p)throws Throwable;}
+ static final class Endpoint implements IBinder{final byte[] packet;final Edit edit;int calls;boolean handled=true;Throwable failure;Endpoint(byte[] b,Edit e){packet=b;edit=e;}public boolean transact(int code,Parcel q,Parcel r,int flags)throws RemoteException{calls++;if(code!=0xfe0001||flags!=0||q.plan.owner!=this)throw new AssertionError("route/owner");q.setDataPosition(0);if(!q.readString().equals("com.appleexploit.oneos.security.IGuestDisplayMetrics.v1")||q.readInt()!=1||q.readInt()!=ID||q.dataAvail()!=0)throw new AssertionError("request");r.load(packet);try{if(edit!=null)edit.run(r,q.plan);}catch(Throwable t){throw Parcel.unchecked(t);}if(failure!=null)throw Parcel.unchecked(failure);return handled;}}
+ static final class Packet{ByteBuffer b=ByteBuffer.allocate(65536).order(ByteOrder.nativeOrder());int end;Packet i(int n){b.putInt(n);return this;}Packet s(String v){if(v==null)return i(-1);i(v.length());for(int n=0;n<v.length();n++)b.putChar(v.charAt(n));b.putChar((char)0);while((b.position()&3)!=0)b.put((byte)0);return this;}void app(String...v){i(-127);int p=b.position();i(0).i(v.length);for(String s:v){s(s);i(1).i(2).i(3).i(4).i(5).i(6);}b.putInt(p,b.position()-p);}void strict(int n,boolean rich){i(-128);int p=b.position();i(0).i(n);for(int k=0;k<n;k++){s(rich?"ModelViolation":null);if(rich)i(3).i(0x123456);i(rich?1:0);if(rich){i(1);s("C").s(null).s("f.java").i(-1);}for(int j=0;j<8;j++)i(j);s(rich?"\u03a9":null);i(rich?2:-1);if(rich)s("").s("odd");}b.putInt(p,b.position()-p);}Packet payload(boolean present){end=b.position();i(1).i(ID).i(present?1:0);if(present)for(int x:RAW)i(x);return this;}byte[] bytes(){return Arrays.copyOf(b.array(),b.position());}}
+ static Packet plain(boolean p){return new Packet().i(0).payload(p);}
+ static void ok(boolean v,String m){if(!v)throw new AssertionError(m);}
+ static PreparedGuestMetricsParentClient.Snapshot read(Endpoint e,Parcel.Plan p)throws Throwable{Parcel.PLAN.set(p);return PreparedGuestMetricsParentClient.prepareParent(e).read(ID);}
+ static Throwable fail(Endpoint e,Parcel.Plan p){try{read(e,p);throw new AssertionError("returned");}catch(Throwable t){return t;}}
+ static void success(Packet b){Parcel.Plan p=new Parcel.Plan();p.end=b.end;Endpoint e=new Endpoint(b.bytes(),null);try{PreparedGuestMetricsParentClient.Snapshot s=read(e,p);ok(s.displayId()==ID,"echo");if(s.isPresent())ok(s.appWidth()==RAW[0]&&s.appHeight()==RAW[1]&&s.logicalDensityDpi()==RAW[2]&&s.physicalXDpiBits()==RAW[3]&&s.physicalYDpiBits()==RAW[4],"raw");else{int errors=0;try{s.appWidth();}catch(IllegalStateException x){errors++;}try{s.appHeight();}catch(IllegalStateException x){errors++;}try{s.logicalDensityDpi();}catch(IllegalStateException x){errors++;}try{s.physicalXDpiBits();}catch(IllegalStateException x){errors++;}try{s.physicalYDpiBits();}catch(IllegalStateException x){errors++;}ok(errors==5,"absent usable");}ok(e.calls==1&&p.decodes==1&&p.recycles==2,"ownership");}catch(Throwable t){throw Parcel.unchecked(t);}checks++;}
+ static void reject(Packet b,Edit edit){Parcel.Plan p=new Parcel.Plan();p.end=b.end;Endpoint e=new Endpoint(b.bytes(),edit);Throwable f=fail(e,p);ok(f instanceof BadParcelableException&&p.decodes==0&&p.recycles==2,"preflight failed boundary: "+f);checks++;}
+ static void mainTests()throws Throwable{
+  success(plain(false));success(plain(true));
+  Packet app=new Packet();app.app();app.i(0).payload(true);success(app);
+  app=new Packet();app.app(null,"","a","ab","\u03a9\ud83d\ude03");app.i(0).payload(false);success(app);
+  Packet strict=new Packet();strict.strict(0,false);strict.payload(true);success(strict);
+  strict=new Packet();strict.strict(1,false);strict.payload(false);success(strict);
+  strict=new Packet();strict.strict(3,true);strict.payload(true);success(strict);
+  Packet both=new Packet();both.app(null,"odd");both.strict(2,true);both.payload(true);success(both);
+  char[] wide=new char[32729];Arrays.fill(wide,'x');Packet cap=new Packet();cap.app(new String(wide));cap.i(0).payload(true);ok(cap.bytes().length==65536,"exact cap packet");success(cap);
+  reject(plain(true),(r,p)->p.reported=65537);reject(plain(true),(r,p)->p.reported=3);
+  reject(plain(true),(r,p)->r.patch(4,2));reject(plain(true),(r,p)->r.patch(8,ID+1));reject(plain(true),(r,p)->r.patch(12,2));reject(plain(false),(r,p)->r.patch(12,1));
+  reject(plain(true),(r,p)->r.binderObjects.add(0));reject(plain(true),(r,p)->r.fdObjects.add(20));
+  final Packet a=new Packet();a.app("ab");a.i(0).payload(true);
+  reject(a,(r,p)->r.patch(4,0));reject(a,(r,p)->r.patch(4,9));reject(a,(r,p)->r.patch(4,65536));reject(a,(r,p)->r.patch(8,-1));reject(a,(r,p)->r.patch(8,Integer.MAX_VALUE));reject(a,(r,p)->r.patch(12,-2));reject(a,(r,p)->r.patch(12,Integer.MAX_VALUE));reject(a,(r,p)->r.patch(20,1));reject(a,(r,p)->p.stringWrong=true);reject(a,(r,p)->r.binderObjects.add(16));reject(a,(r,p)->r.fdObjects.add(16));
+  Packet dup=new Packet();dup.app();dup.app();dup.i(0).payload(true);reject(dup,null);
+  Packet malformedStrict=new Packet();malformedStrict.strict(0,false);malformedStrict.payload(true);
+  reject(malformedStrict,(r,p)->r.patch(8,4));reject(malformedStrict,(r,p)->r.patch(8,-1));
+  Packet v=new Packet();v.strict(1,true);v.payload(true);
+  // className occupies 4+32 bytes; opaque byte-array length is at 48.
+  reject(v,(r,p)->r.patch(48,-1));reject(v,(r,p)->r.patch(48,Integer.MAX_VALUE));
+  reject(plain(true),(r,p)->p.driftAt=4);
+  Parcel.Plan p=new Parcel.Plan();p.end=8;Endpoint e=new Endpoint(plain(true).bytes(),null);ok(fail(e,p)instanceof BadParcelableException&&p.decodes==1,"decoder cursor");checks++;
+  p=new Parcel.Plan();final Parcel.Plan size=p;p.end=4;p.effect=()->size.reported=100;ok(fail(new Endpoint(plain(true).bytes(),null),p)instanceof BadParcelableException&&p.decodes==1,"decoder size");checks++;
+  p=new Parcel.Plan();final Parcel.Plan mutation=p;p.end=4;p.effect=()->mutation.reply.patch(8,123);ok(fail(new Endpoint(plain(true).bytes(),null),p)instanceof BadParcelableException&&p.decodes==1,"payload recheck");checks++;
+  Throwable original=new RemoteException("original");p=new Parcel.Plan();p.decoder=original;p.forbidTail=true;Packet error=new Packet().i(-1).i(88);e=new Endpoint(error.bytes(),(r,z)->{r.binderObjects.add(4);r.fdObjects.add(4);});ok(fail(e,p)==original&&p.decodes==1&&p.recycles==2,"error tail/identity");checks++;
+  p=new Parcel.Plan();p.forbidTail=true;ok(fail(new Endpoint(error.bytes(),null),p)instanceof BadParcelableException&&p.decodes==1,"ordinary decoder returned");checks++;
+  p=new Parcel.Plan();p.end=4;e=new Endpoint(plain(true).bytes(),null);e.handled=false;ok(fail(e,p)instanceof RemoteException&&p.decodes==0,"false");checks++;
+  p=new Parcel.Plan();e=new Endpoint(plain(true).bytes(),null);e.failure=original;ok(fail(e,p)==original&&p.recycles==2,"transport primary");checks++;
+  p=new Parcel.Plan();p.obtain1=original;ok(fail(new Endpoint(plain(true).bytes(),null),p)==original&&p.recycles==0,"first acquire");checks++;
+  p=new Parcel.Plan();p.obtain2=original;ok(fail(new Endpoint(plain(true).bytes(),null),p)==original&&p.recycles==1,"second acquire");checks++;
+  Throwable one=new Error("close1"),two=new Error("close2");p=new Parcel.Plan();p.replyClose=one;p.requestClose=two;ok(fail(new Endpoint(plain(true).bytes(),null),p)==one&&one.getSuppressed().length==1&&one.getSuppressed()[0]==two&&p.recycles==2,"cleanup blocks return");checks++;
+  Throwable primary=new RuntimeException("decoder");p=new Parcel.Plan();p.decoder=primary;p.replyClose=primary;p.requestClose=two;ok(fail(new Endpoint(plain(true).bytes(),null),p)==primary&&primary.getSuppressed().length==1&&p.recycles==2,"self suppression");checks++;
+  p=new Parcel.Plan();p.requestSize=513;ok(fail(new Endpoint(plain(true).bytes(),null),p)instanceof BadParcelableException&&p.recycles==2,"request size");checks++;
+  final Parcel.Plan outer=new Parcel.Plan();outer.end=4;outer.effect=()->{Parcel.Plan inner=new Parcel.Plan();inner.end=4;try{ok(read(new Endpoint(plain(false).bytes(),null),inner).isPresent()==false&&inner.decodes==1&&inner.recycles==2,"nested");}catch(Throwable t){throw Parcel.unchecked(t);}finally{Parcel.PLAN.set(outer);}};ok(read(new Endpoint(plain(true).bytes(),null),outer).appWidth()==RAW[0]&&outer.decodes==1&&outer.recycles==2,"reentry local");checks++;
+  final java.util.concurrent.CyclicBarrier barrier=new java.util.concurrent.CyclicBarrier(2);final Throwable[] failures=new Throwable[2];final Endpoint shared=new Endpoint(plain(true).bytes(),(r,z)->barrier.await(5,java.util.concurrent.TimeUnit.SECONDS));final PreparedGuestMetricsParentClient client=PreparedGuestMetricsParentClient.prepareParent(shared);Thread[] threads=new Thread[2];for(int k=0;k<2;k++){final int slot=k;threads[k]=new Thread(()->{Parcel.Plan local=new Parcel.Plan();Parcel.PLAN.set(local);try{ok(client.read(ID).physicalXDpiBits()==RAW[3]&&local.obtains==2&&local.decodes==1&&local.recycles==2,"concurrent owned state");}catch(Throwable t){failures[slot]=t;}});threads[k].start();}for(Thread t:threads)t.join(7000);ok(!threads[0].isAlive()&&!threads[1].isAlive()&&failures[0]==null&&failures[1]==null,"concurrent read");checks++;
+  for(Field f:PreparedGuestMetricsParentClient.Snapshot.class.getDeclaredFields())ok(Modifier.isPrivate(f.getModifiers())&&Modifier.isFinal(f.getModifiers())&&(f.getType()==int.class||f.getType()==boolean.class),"snapshot field");checks++;
+ }
+ public static void main(String[]args)throws Throwable{mainTests();System.out.println("{\"pass\":true,\"checks\":"+checks+",\"authoredModelsOnly\":true}");}
+}

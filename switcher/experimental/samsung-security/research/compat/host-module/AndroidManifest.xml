@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.appleexploit.oneos.security.pinhostbootstrap" android:versionCode="1" android:versionName="0.0.1-capture-only">
+    <uses-sdk android:minSdkVersion="37" android:targetSdkVersion="37" />
+    <application android:label="OneOS PIN host bootstrap capture"
+        android:allowBackup="false" android:hasCode="true" android:extractNativeLibs="false" />
+</manifest>

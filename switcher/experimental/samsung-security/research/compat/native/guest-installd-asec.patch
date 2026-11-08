@@ -1,0 +1,89 @@
+--- a/compat/native/guest_private_view_owner.c
++++ b/compat/native/guest_private_view_owner.c
+@@ -546,7 +546,23 @@
+         if (result && (p.revents&(POLLHUP|POLLERR|POLLNVAL))) { errno=ECANCELED;return -1; }
+     }
+ }
+-static int child_image_mount(struct gvo_owner *o) {
++/* The native sibling keeps the inherited root in this private namespace. */
++static int child_asec_check(int held) {
++    int actual=open_absolute("/mnt/asec"),result=-1,saved;
++    struct stat st;
++    if (actual<0) return -1;
++    if (same_object(actual,held)<0 || same_mount(actual,held)<0 ||
++        fd_directory(actual,&st)<0) goto done;
++    if (st.st_uid!=0 || st.st_gid!=1000 || (st.st_mode&07777)!=0755) {
++        errno=EPERM;goto done;
++    }
++    result=0;
++done:
++    saved=errno;
++    if (close_cell(&actual)<0 && !result) { saved=errno;result=-1; }
++    errno=saved;return result;
++}
++static int child_image_mount(struct gvo_owner *o,int *asec) {
+     int old=-1,tmp=-1,write_dir=-1,result=-1,saved;
+     struct statfs fs;uint64_t old_id,new_id;const struct gpv_mount_row *r;
+     char target[64],source[64];
+@@ -559,8 +575,13 @@
+         (unsigned long)fs.f_type!=(unsigned long)TMPFS_MAGIC || r->shared || r->master || r->propagate) { errno=EXDEV;goto done; }
+     mounts_clear();
+     write_dir=open("/mnt",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+-    if (write_dir<0 || same_object(write_dir,tmp)<0 || same_mount(write_dir,tmp)<0 ||
+-        mkdirat(write_dir,"gvi",0700)<0) goto done;
++    if (write_dir<0 || same_object(write_dir,tmp)<0 || same_mount(write_dir,tmp)<0) goto done;
++    /* Write only to the verified child-owned tmpfs, never to inherited /mnt. */
++    if (mkdirat(write_dir,"asec",0700)<0) goto done;
++    *asec=openat(write_dir,"asec",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
++    if (*asec<0 || same_mount(*asec,tmp)<0 ||
++        fchown(*asec,0,1000)<0 || fchmod(*asec,0755)<0) goto done;
++    if (mkdirat(write_dir,"gvi",0700)<0) goto done;
+     { int gvi=walk_at(write_dir,"gvi");
+       if (gvi<0) goto done;
+       result=mkdirat(gvi,"root",0700);saved=errno;
+@@ -581,7 +602,7 @@
+      * new owning cells are packed explicitly; rights[] never owns aliases. */
+     int f[16],stage=S_PRIVATE,saved=0,image=-1,attempted=0,noticed=0;
+     int dev_target=-1,dev_root=-1,dev_write=-1,socket_root=-1,socket_write=-1;
+-    int inherited_dev=-1,inherited_dev_after=-1,rights[GVO_RIGHTS];
++    int inherited_dev=-1,inherited_dev_after=-1,rights[GVO_RIGHTS],asec=-1;
+     size_t i;
+     struct stat ns,source_data,host_data,source_root,host_root;
+     struct wire packet;
+@@ -623,7 +644,7 @@
+     if (source_data.st_dev==host_data.st_dev && source_data.st_ino==host_data.st_ino) { errno=EXDEV;goto fail; }
+     mounts_clear();stage=S_CONFIG;
+     if (child_configure(o,ctl,image,&attempted,&noticed)<0) goto fail;
+-    stage=S_IMAGE;if (child_image_mount(o)<0) goto fail;
++    stage=S_IMAGE;if (child_image_mount(o,&asec)<0) goto fail;
+     f[2]=open_absolute(o->root_path);
+     if (f[2]<0 || mounts_read("/proc/self/mountinfo")<0 || private_root_mount(f[2],o->root_path)<0 ||
+         fd_directory(f[2],&source_root)<0 || fd_directory(f[1],&host_root)<0) goto fail;
+@@ -726,7 +747,8 @@
+     if (fd_member(f[2],&root_id)<0 || !(row=mount_find(root_id)) || row->shared || row->master || row->propagate) { errno=EXDEV;goto fail; }
+     if (same_object(f[11],f[12])<0 || same_object(f[11],f[13])<0 || fd_member(f[12],&packet.alias_native)<0 || fd_member(f[13],&packet.alias_guest)<0) goto fail;
+     if (fd_member(f[10],&packet.guest_data_mount)<0 || fd_member(f[14],&packet.guest_mirror_mount)<0) goto fail;
+-    if (dev_socket_check(o,f[2],f[3],f[4],dev_root,socket_root)<0) goto fail;
++    if (dev_socket_check(o,f[2],f[3],f[4],dev_root,socket_root)<0 ||
++        child_asec_check(asec)<0) goto fail;
+     for (i=0;i<R_DEV;i++) rights[i]=f[i];
+     rights[R_DEV]=dev_root;rights[R_SOCKET]=socket_root;
+     for (i=1;i<GVO_RIGHTS;i++) if (fd_member(rights[i],&packet.mounts[i])<0) goto fail;
+@@ -753,7 +775,7 @@
+     for (i=0;i<16;i++) close_cell(&f[i]);
+     close_cell(&dev_target);close_cell(&dev_root);close_cell(&dev_write);
+     close_cell(&socket_root);close_cell(&socket_write);
+-    close_cell(&inherited_dev);close_cell(&inherited_dev_after);
++    close_cell(&inherited_dev);close_cell(&inherited_dev_after);close_cell(&asec);
+     close_cell(&image);close_cell(&o->loop_fd);close_cell(&ctl);_exit(0);
+ fail:
+     saved=errno?errno:EIO;mounts_clear();
+@@ -766,7 +788,7 @@
+     for (i=0;i<16;i++) close_cell(&f[i]);
+     close_cell(&dev_target);close_cell(&dev_root);close_cell(&dev_write);
+     close_cell(&socket_root);close_cell(&socket_write);
+-    close_cell(&inherited_dev);close_cell(&inherited_dev_after);
++    close_cell(&inherited_dev);close_cell(&inherited_dev_after);close_cell(&asec);
+     close_cell(&image);close_cell(&o->loop_fd);close_cell(&o->witness[0]);close_cell(&o->witness[1]);close_cell(&ctl);_exit(1);
+ }
+ 

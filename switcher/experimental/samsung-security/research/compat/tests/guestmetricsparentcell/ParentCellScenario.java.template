@@ -1,0 +1,395 @@
+package cellmodels;
+
+import android.os.Binder;
+import android.os.Parcel;
+import android.os.RemoteException;
+import com.appleexploit.oneos.security.authority.PreparedGuestMetricsParentCell;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/** AUTHORED model scenarios; unchanged SDK cell code is the only production code. */
+public final class ParentCellScenario {
+    private static int checks;
+    private static final Object OWNER = new Object();
+    private static final Binder BORN = new Binder();
+    private static final List<Work> WORKERS = new ArrayList<>();
+
+    public interface Task { Object run() throws Throwable; }
+    public static final class Work extends Thread {
+        private final Task task;
+        public volatile Object value;
+        public volatile Throwable failure;
+        public Work(Task task) {
+            this.task = task;
+            setDaemon(true);
+            synchronized (WORKERS) { WORKERS.add(this); }
+        }
+        @Override public void run() {
+            try { value = task.run(); } catch (Throwable fault) { failure = fault; }
+        }
+        public Object result() throws Throwable {
+            join(4000);
+            check(!isAlive(), "owned model worker did not return");
+            if (failure != null) throw failure;
+            return value;
+        }
+    }
+    public static final class Gate implements Runnable {
+        private final CountDownLatch entered = new CountDownLatch(1);
+        private final CountDownLatch released = new CountDownLatch(1);
+        @Override public void run() {
+            entered.countDown();
+            try {
+                if (!released.await(4, TimeUnit.SECONDS)) {
+                    throw new AssertionError("model gate timed out");
+                }
+            } catch (InterruptedException fault) { throw new AssertionError(fault); }
+        }
+        public void entered() throws Exception {
+            check(entered.await(2, TimeUnit.SECONDS), "model seam was not reached");
+        }
+        public void release() { released.countDown(); }
+    }
+    private static void check(boolean value, String description) {
+        checks++;
+        if (!value) throw new AssertionError(description);
+    }
+    private static Object invoke(String name, Object receiver, Object... args)
+            throws Throwable {
+        Method found = null;
+        for (Method method : PreparedGuestMetricsParentCell.class.getDeclaredMethods()) {
+            if (method.getName().equals(name)) found = method;
+        }
+        if (found == null) throw new AssertionError("exact private controller missing");
+        found.setAccessible(true);
+        try { return found.invoke(receiver, args); }
+        catch (InvocationTargetException failure) { throw failure.getCause(); }
+    }
+    private static Object field(String name, Object receiver) throws Exception {
+        Field field = PreparedGuestMetricsParentCell.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(receiver);
+    }
+    private static String status(Object value) { return ((Enum<?>) value).name(); }
+    private static PreparedGuestMetricsParentCell capture() throws Throwable {
+        return (PreparedGuestMetricsParentCell) invoke("captureEnabled", null, OWNER, BORN);
+    }
+    private static Object phase() throws Throwable {
+        return invoke("phaseEnabled", null, OWNER, 100);
+    }
+    private static Object retire() throws Throwable {
+        return invoke("retireEnabled", null, OWNER);
+    }
+    private static Object retirement() throws Throwable {
+        return invoke("retirementStatusEnabled", null, OWNER);
+    }
+    private static boolean dispatch(PreparedGuestMetricsParentCell cell, Parcel data,
+            Parcel reply, int flags) throws Throwable {
+        return (Boolean) invoke("dispatchEnabled", cell, OWNER, BORN, data, reply, flags);
+    }
+    private static void ready(PreparedGuestMetricsParentCell cell) throws Throwable {
+        check(cell != null, "private model capture absent");
+        check(status(phase()).equals("ACTIVATION_APPLIED"), "private activation failed");
+    }
+    private static Throwable expect(Class<? extends Throwable> type, Task task)
+            throws Throwable {
+        try { task.run(); } catch (Throwable failure) {
+            check(type.isInstance(failure), "unexpected model exception category");
+            return failure;
+        }
+        throw new AssertionError("expected refusal/failure missing");
+    }
+    private static Runnable unchecked(Task task) {
+        return () -> {
+            try { task.run(); } catch (Throwable failure) { throw ModelControl.raise(failure); }
+        };
+    }
+    private static Runnable foreignProbe(AtomicInteger probes) {
+        return () -> {
+            Work worker = new Work(() -> retirement());
+            worker.start();
+            try {
+                worker.join(1200);
+                if (worker.isAlive() || worker.failure != null) {
+                    AssertionError failure = new AssertionError("owner lock crossed model seam");
+                    ModelControl.probeFailure = failure;
+                    throw failure;
+                }
+                probes.incrementAndGet();
+            } catch (InterruptedException failure) {
+                ModelControl.probeFailure = failure;
+                throw new AssertionError(failure);
+            }
+        };
+    }
+    private static void retained(PreparedGuestMetricsParentCell cell) throws Exception {
+        check(field("claimedCell", null) == cell, "class slot lost actual cell");
+        check(field("claimedOwner", null) == OWNER, "class slot lost actual owner");
+        check(field("owner", cell) == OWNER && field("born", cell) == BORN,
+                "cell did not retain exact claimed pair");
+    }
+    private static void completed(PreparedGuestMetricsParentCell cell) throws Throwable {
+        check(status(retirement()).equals("COMPLETE"), "own retirement not complete");
+        check(((Integer) field("openUseFrames", cell)) == 0, "own use credit leaked");
+        check(!(Boolean) field("retirementInFlight", cell), "retire action still in flight");
+        retained(cell);
+    }
+    public static int run(String scenario) throws Throwable {
+        try {
+            switch (scenario) {
+                case "public_off": publicOff(); break;
+                case "preclaim_tombstone": preclaim(); break;
+                case "phase_before_capture": phaseBeforeCapture(); break;
+                case "ordinary_refusals": ordinary(); break;
+                case "preparation_failure": preparationFailure(); break;
+                case "retire_during_prepare": duringPrepare(); break;
+                case "late_endpoint": lateEndpoint(); break;
+                case "phase_during_prepare": earlyPhase(); break;
+                case "retire_during_activation": duringActivation(); break;
+                case "activation_failure": activationFailure(); break;
+                case "retire_during_dispatch": duringDispatch(); break;
+                case "retire_ack_blocked": blockedRetire(); break;
+                case "uncertain_primary_failure": uncertainPrimary(); break;
+                case "foreign_reentry": foreignReentry(); break;
+                default: throw new AssertionError("unknown bounded scenario");
+            }
+            check(ModelControl.probeFailure == null, "a foreign-probe fault was contained");
+            return checks;
+        } finally {
+            List<Work> workers;
+            synchronized (WORKERS) { workers = new ArrayList<>(WORKERS); }
+            for (Work worker : workers) {
+                worker.join(1500);
+                if (worker.isAlive()) throw new AssertionError("model thread remained active");
+            }
+        }
+    }
+    private static void publicOff() throws Throwable {
+        check(PreparedGuestMetricsParentCell.captureAfterOnStart(null, null) == null,
+                "public OFF capture did not short circuit");
+        check(status(PreparedGuestMetricsParentCell.onOriginalBootPhaseCompleted(null, 100))
+                .equals("OFF"), "public phase not OFF");
+        check(status(PreparedGuestMetricsParentCell.retireForOwner(null)).equals("OFF"),
+                "public retirement not OFF");
+        check(status(PreparedGuestMetricsParentCell.retirementStatusForOwner(null)).equals("OFF"),
+                "public status not OFF");
+        check(field("claimedOwner", null) == null && field("claimedCell", null) == null
+                && !(Boolean) field("slotClosed", null), "OFF statics claimed/retained owner");
+        // Separately labeled synthetic private-constructor fixture, NOT factory evidence.
+        Constructor<PreparedGuestMetricsParentCell> constructor =
+                PreparedGuestMetricsParentCell.class.getDeclaredConstructor(Object.class, Binder.class);
+        constructor.setAccessible(true);
+        PreparedGuestMetricsParentCell synthetic = constructor.newInstance(null, null);
+        check(!synthetic.dispatchFromParent(null, null, null, null, -1),
+                "public OFF dispatch touched packets");
+        check(ModelControl.producerCalls.get() == 0 && ModelControl.endpointPrepareCalls.get() == 0
+                && ModelControl.activationCalls.get() == 0 && ModelControl.protocolCalls.get() == 0
+                && ModelControl.dispatchCalls.get() == 0 && ModelControl.retirementCalls.get() == 0,
+                "public OFF called model dependencies");
+    }
+    private static void preclaim() throws Throwable {
+        check(status(retire()).equals("COMPLETE"), "preclaim tombstone absent");
+        expect(IllegalStateException.class, () -> capture());
+        check(status(retirement()).equals("COMPLETE"), "tombstone changed");
+        check(status(invoke("retireEnabled", null, new Object())).equals("REFUSED_OWNER"),
+                "foreign owner took tombstone");
+        check(ModelControl.producerCalls.get() == 0, "tombstone allowed preparation");
+    }
+    private static void phaseBeforeCapture() throws Throwable {
+        check(status(invoke("phaseEnabled", null, OWNER, 99)).equals("IGNORED_OTHER_PHASE"),
+                "non100 phase attempted work");
+        check(field("claimedOwner", null) == null, "ignored phase claimed owner");
+        check(status(phase()).equals("REFUSED_ORDER"), "early phase was accepted");
+        expect(IllegalStateException.class, () -> capture());
+        check(status(retire()).equals("COMPLETE"), "early phase did not close slot");
+    }
+    private static void ordinary() throws Throwable {
+        PreparedGuestMetricsParentCell cell = capture();
+        retained(cell);
+        expect(IllegalStateException.class, () -> capture());
+        check(!dispatch(cell, new Parcel(), new Parcel(), 0), "prephase dispatch handled");
+        check(ModelControl.dispatchCalls.get() == 0, "inactive dispatch reached dependency");
+        check(status(invoke("phaseEnabled", null, new Object(), 100)).equals("REFUSED_OWNER"),
+                "wrong phase owner admitted");
+        ready(cell);
+        check(status(phase()).equals("REFUSED_REPEAT") && ModelControl.activationCalls.get() == 1,
+                "repeat phase retried activation");
+        check(!(Boolean) invoke("dispatchEnabled", cell, new Object(), BORN,
+                new Parcel(), new Parcel(), 0), "wrong owner dispatched");
+        check(!(Boolean) invoke("dispatchEnabled", cell, OWNER, new Binder(),
+                new Parcel(), new Parcel(), 0), "wrong parent dispatched");
+        Parcel data = new Parcel(), reply = new Parcel();
+        check(dispatch(cell, data, reply, 17), "model Boolean not relayed");
+        check(ModelControl.lastCode == 1 && ModelControl.lastFlags == 17
+                && ModelControl.lastData == data && ModelControl.lastReply == reply,
+                "code/flags/borrowed identity changed");
+        ModelControl.dispatchResult = false;
+        check(!dispatch(cell, data, reply, 0), "unhandled model reply became success");
+        check(status(retire()).equals("COMPLETE"), "idle retirement failed");
+        completed(cell);
+        check(field("retirementAppliedTo", cell) == ModelControl.lastEndpoint,
+                "retirement ack refers to wrong endpoint");
+        check(!dispatch(cell, data, reply, 0), "retired dispatcher handled");
+        check(status(retire()).equals("COMPLETE") && ModelControl.retirementCalls.get() == 1,
+                "repeat retirement retried dependency");
+        expect(IllegalStateException.class, () -> capture());
+    }
+    private static void preparationFailure() throws Throwable {
+        ModelControl.producerFault = new ReflectiveOperationException("authored preparation fault");
+        PreparedGuestMetricsParentCell cell = capture();
+        retained(cell);
+        check(status(phase()).equals("DISABLED_FAILURE"), "failed preparation activated");
+        expect(IllegalStateException.class, () -> capture());
+        check(ModelControl.endpointPrepareCalls.get() == 0, "failed producer created endpoint");
+        check(status(retire()).equals("COMPLETE"), "failed owner retirement failed");
+        completed(cell);
+    }
+    private static void duringPrepare() throws Throwable {
+        Gate gate = new Gate(); ModelControl.producerBefore = gate;
+        Work work = new Work(() -> capture()); work.start();
+        try {
+            gate.entered();
+            check(status(retire()).equals("PENDING"), "preparing owner prematurely complete");
+            check(status(retirement()).equals("PENDING"), "preparation credit not retained");
+        } finally { gate.release(); }
+        PreparedGuestMetricsParentCell cell = (PreparedGuestMetricsParentCell) work.result();
+        completed(cell);
+        check(ModelControl.endpointPrepareCalls.get() == 0, "retire-before-check created endpoint");
+        check(status(phase()).equals("RETIRING"), "retired late capture activated");
+    }
+    private static void lateEndpoint() throws Throwable {
+        Gate gate = new Gate(); ModelControl.endpointPrepareBefore = gate;
+        Work work = new Work(() -> capture()); work.start();
+        try {
+            gate.entered();
+            check(status(retire()).equals("PENDING"), "late endpoint producer lost credit");
+            check(ModelControl.retirementCalls.get() == 0, "nonexistent endpoint falsely retired");
+        } finally { gate.release(); }
+        PreparedGuestMetricsParentCell cell = (PreparedGuestMetricsParentCell) work.result();
+        completed(cell);
+        check(ModelControl.retirementCalls.get() == 1 && ModelControl.lastEndpoint.modelRetired(),
+                "late endpoint not retired exactly once");
+        check(field("endpoint", cell) == ModelControl.lastEndpoint
+                && field("retirementAppliedTo", cell) == ModelControl.lastEndpoint,
+                "late endpoint was not adopted/acknowledged");
+        check(ModelControl.activationCalls.get() == 0, "late endpoint activated");
+    }
+    private static void earlyPhase() throws Throwable {
+        Gate gate = new Gate(); ModelControl.producerBefore = gate;
+        Work work = new Work(() -> capture()); work.start();
+        try {
+            gate.entered();
+            check(status(phase()).equals("REFUSED_ORDER"), "phase during preparation accepted");
+            check(status(retirement()).equals("PENDING"), "early phase lost preparation owner");
+        } finally { gate.release(); }
+        PreparedGuestMetricsParentCell cell = (PreparedGuestMetricsParentCell) work.result();
+        completed(cell);
+        check(status(phase()).equals("RETIRING") && ModelControl.activationCalls.get() == 0,
+                "early phase queued later activation");
+    }
+    private static void duringActivation() throws Throwable {
+        PreparedGuestMetricsParentCell cell = capture();
+        Gate gate = new Gate(); ModelControl.activationAfter = gate;
+        Work work = new Work(() -> phase()); work.start();
+        try {
+            gate.entered();
+            check(status(retire()).equals("PENDING"), "activation stack prematurely drained");
+            check(ModelControl.retirementApplied.get() == 1, "actual model retire not applied");
+            check(status(retirement()).equals("PENDING"), "ack discarded activation credit");
+        } finally { gate.release(); }
+        check(status(work.result()).equals("RETIRING"), "late activation committed ACTIVE");
+        completed(cell);
+        check(!dispatch(cell, new Parcel(), new Parcel(), 0), "late active endpoint escaped");
+    }
+    private static void activationFailure() throws Throwable {
+        PreparedGuestMetricsParentCell cell = capture();
+        ModelControl.activationFault = new IllegalStateException("authored activation fault");
+        check(status(phase()).equals("DISABLED_FAILURE"), "activation fault became ready");
+        check(status(phase()).equals("REFUSED_REPEAT") && ModelControl.activationCalls.get() == 1,
+                "failed activation retried");
+        check(!dispatch(cell, new Parcel(), new Parcel(), 0), "failed activation dispatched");
+        check(status(retire()).equals("COMPLETE"), "failed activation owner lost");
+        completed(cell);
+    }
+    private static void duringDispatch() throws Throwable {
+        PreparedGuestMetricsParentCell cell = capture(); ready(cell);
+        Gate gate = new Gate(); ModelControl.dispatchBefore = gate;
+        Work work = new Work(() -> dispatch(cell, new Parcel(), new Parcel(), 0)); work.start();
+        try {
+            gate.entered();
+            check(status(retire()).equals("PENDING"), "admitted dispatch prematurely drained");
+            check(ModelControl.retirementApplied.get() == 1, "model retire ack missing");
+            check(status(retirement()).equals("PENDING"), "dispatch frame lost after retire ack");
+        } finally { gate.release(); }
+        check((Boolean) work.result(), "already admitted model result changed");
+        completed(cell);
+    }
+    private static void blockedRetire() throws Throwable {
+        PreparedGuestMetricsParentCell cell = capture(); ready(cell);
+        Gate gate = new Gate(); ModelControl.retirementBefore = gate;
+        Work work = new Work(() -> retire()); work.start();
+        try {
+            gate.entered();
+            check(status(retirement()).equals("PENDING"), "unacknowledged retire became complete");
+            check(status(retire()).equals("PENDING") && ModelControl.retirementCalls.get() == 1,
+                    "inflight retire was repeated");
+        } finally { gate.release(); }
+        check(status(work.result()).equals("COMPLETE"), "retire normal return not acknowledged");
+        completed(cell);
+        check(field("retirementAppliedTo", cell) == ModelControl.lastEndpoint,
+                "retirement acknowledgement identity wrong");
+    }
+    private static void uncertainPrimary() throws Throwable {
+        PreparedGuestMetricsParentCell cell = capture(); ready(cell);
+        RemoteException primary = new RemoteException("authored primary dispatch fault");
+        ModelControl.dispatchFault = primary;
+        ModelControl.retirementAfter = () -> {
+            throw new AssertionError("authored fault after model retirement state");
+        };
+        ModelControl.dispatchBefore = unchecked(() -> {
+            check(status(retire()).equals("UNCERTAIN"), "retire failure not latched");
+            return null;
+        });
+        check(expect(RemoteException.class, () -> dispatch(cell, new Parcel(), new Parcel(), 0))
+                == primary, "cleanup replaced primary dispatch fault");
+        check(status(retirement()).equals("UNCERTAIN"), "uncertain owner became complete");
+        check(status(retire()).equals("UNCERTAIN") && ModelControl.retirementCalls.get() == 1,
+                "uncertain cleanup retried");
+        check(field("retirementAppliedTo", cell) == null, "failed cleanup falsely acknowledged");
+        check(ModelControl.lastEndpoint.modelRetired() && ModelControl.retirementApplied.get() == 1,
+                "model post-state fault did not exercise uncertain normal-return boundary");
+        check(((Integer) field("openUseFrames", cell)) == 0, "primary failure leaked use credit");
+        retained(cell);
+    }
+    private static void foreignReentry() throws Throwable {
+        AtomicInteger probes = new AtomicInteger();
+        Runnable probe = foreignProbe(probes);
+        ModelControl.producerBefore = unchecked(() -> {
+            probe.run();
+            expect(IllegalStateException.class, () -> capture());
+            check(status(invoke("retireEnabled", null, new Object())).equals("REFUSED_OWNER"),
+                    "foreign reentry took owner");
+            return null;
+        });
+        ModelControl.endpointPrepareBefore = probe;
+        ModelControl.activationBefore = probe;
+        ModelControl.protocolBefore = probe;
+        ModelControl.dispatchBefore = probe;
+        ModelControl.retirementBefore = probe;
+        PreparedGuestMetricsParentCell cell = capture(); ready(cell);
+        check(dispatch(cell, new Parcel(), new Parcel(), 0), "foreign probe changed result");
+        check(status(retire()).equals("COMPLETE"), "foreign probe retirement failed");
+        check(probes.get() == 6 && ModelControl.probeFailure == null,
+                "not all external seams admitted foreign status thread");
+        check(ModelControl.producerCalls.get() == 1 && ModelControl.endpointPrepareCalls.get() == 1,
+                "reentry created another backend");
+        completed(cell);
+    }
+}
