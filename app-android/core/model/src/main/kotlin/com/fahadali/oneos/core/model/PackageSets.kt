@@ -624,15 +624,19 @@ object PackageSets {
      * OxygenOS 16 for One UI 8 phones (0.4.67, experimental): ColorOS's common files (the image has
      * oplus-services.jar; make-overlays.sh with ONEOS_NO_CAMERA_ABI=1 and One UI 8.5's installd table),
      * the conscrypt and profiling payloads it carries, no camera bridge yet (no One UI 8 camera tables
-     * on the server), no vold rename (an unknown vold build: the guest's vold keeps its name).
+     * on the server). r2 (0.4.69): the guest vold as "gvld" (vold_patched, service.incremental_patched.so,
+     * the gvld lookups in both guard jars; make-overlays.sh pins the CPH2745 binaries), so the return no
+     * longer reboots on "vold is not registered" (0.4.67 S22 Ultra 96977dcc, A34 deb8690c).
      */
     val OXYGEN16 = PackageSet(
         id = ID_OXYGEN16,
         imageId = Images.ID_OXYGEN16,
-        sourceDir = "out/overlays_oxygen16_r1",
+        sourceDir = "out/overlays_oxygen16_r2",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
             PackageFile(GUEST_APP, FileRole.GUEST_APP),
             PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
             PackageFile("oplus-telephony-common_patched.jar", FileRole.FRAMEWORK_JAR),
@@ -640,7 +644,7 @@ object PackageSets {
             PackageFile("guards.txt", FileRole.GUARDS),
         ) + (COMMON_PAYLOADS + listOf("cellbroadcast", "conscrypt", "profiling")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO, "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt"),
-        approxBytes = 332_685_387L,
+        approxBytes = 335_237_611L,
         hasReturnApp = true,
     )
 

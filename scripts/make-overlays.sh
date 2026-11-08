@@ -171,6 +171,23 @@ BUILDS = [
         "service.incremental.so": "649cb1e9dd6db10f09a038600fe5818f5542f32f0d0350c43c9404b8ffbbc66d",
         "crashrecovery-google-compressed.apex": "f6750712189d56e68dacdb092c418acb092176ed7e33bef4d37d72a15b4970c2",
     }, [("vold", 0x10e23, NAME), ("vold", 0x83384, TRY_START), ("service.incremental.so", 0x6578d, NAME)]),
+    # OnePlus OxygenOS 16 (CPH2745 16.0.10.601, Android 16): start() takes "vold" at
+    # 0xfd4a (adrp 0xf000 + add 0xd4a at 0x75f78, then String16 and a new
+    # VoldNativeService; the binary's only "\0vold\0", its other 9 references are
+    # log tags around 0xb9734). try_start's tbz w19, #0, +0xd4 is at 0x758e4, right
+    # after isDeclared("android.system.vold.IVold/default", adr 0x17f83) through the
+    # service manager's vtable +0x48. service.incremental.so has the string at
+    # 0x4f883 with its two lookups (adr at 0x98fb8 in BinderIncrementalService::start,
+    # adrp + add at 0x9b6a4 with String16(s, 4)). Its crashrecovery APEX
+    # (com.android.crashrecovery.apex, erofs) has AOSP's RescueParty.isDisabled
+    # (persist.sys.enable_rescue, the DeviceConfig flag, eng/userdebug,
+    # persist.sys.disable_rescue). 0.4.67: without it every OxygenOS return rebooted
+    # ("vold is not registered", S22 Ultra 96977dcc, A34 deb8690c).
+    ("OnePlus OxygenOS 16 BP2A (CPH2745)", {
+        "vold": "cd18c5313787c3bd5f182c7bcfb6982d4b23f5629a1c95be41cef2c156d7ebc1",
+        "service.incremental.so": "e24c296c9148f71faa35267e535e65d9ed527206e25d929d371eb400cc8f2279",
+        "crashrecovery-aosp.apex": "626a82dda7c6cc0dfc7ee26397466b75a3d5d12bdaf0a1cd8d9c521c6142c548",
+    }, [("vold", 0xfd49, NAME), ("vold", 0x758e4, TRY_START), ("service.incremental.so", 0x4f882, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)

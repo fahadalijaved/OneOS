@@ -221,6 +221,36 @@ add)
         echo "$CM=$CMV" >> "$NEW"
         echo "guest_props: $CM=$CMV for the session (One UI's color mode)"
     fi
+    # OxygenOS 16 on a MediaTek Galaxy (A34): the guest's SurfaceFlinger hung in RenderEngine's
+    # GL driver load ("Threaded RenderEngine with SkiaGL Backend", then nothing; system_server's
+    # watchdog then killed the session: 0.4.67 deb8690c, 6d4eaf85, 91b699cf, 1dd827e1). ColorOS
+    # on the MediaTek A16 4G runs SkiaVk and gets past it: Vulkan RenderEngine for this pair.
+    # debug.* goes back to One UI's value at the return (return_to_oneui.sh). Test in 0.4.69;
+    # ONEOS_GUEST_RE_BACKEND overrides (empty: the image's own choice).
+    RE=debug.renderengine.backend
+    REV=""
+    if grep -q '"image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null; then
+        case "$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)" in
+            *mt[0-9]*|*[Mm]edia[Tt]ek*) REV=skiavkthreaded ;;
+        esac
+    fi
+    REV=${ONEOS_GUEST_RE_BACKEND-$REV}
+    if [ -n "$REV" ]; then
+        case "$REV" in *[!a-z]*) REV="" ;; esac
+    fi
+    if [ -n "$REV" ]; then
+        if grep -qxF "$RE" "$HOST"; then
+            hv=$(getprop "$RE")
+            if "$RP" -n "$RE" "$REV"; then
+                echo "$RE=$hv" >> "$OVR"
+                echo "guest_props: $RE $hv -> $REV for this session (Vulkan RenderEngine)"
+            fi
+        else
+            sed -i "/^debug\.renderengine\.backend=/d" "$NEW"
+            echo "$RE=$REV" >> "$NEW"
+            echo "guest_props: $RE=$REV for this session (Vulkan RenderEngine)"
+        fi
+    fi
     # The boot animation on the panel that is on. AOSP's bootanimation draws on
     # the first display persist.service.bootanim.displays lists, at that
     # display's size, else on SurfaceFlinger's primary: a Fold's inner panel.

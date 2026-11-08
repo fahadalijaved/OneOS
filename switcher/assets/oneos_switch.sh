@@ -3281,6 +3281,15 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                             timeout 20 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/debuggerd \$ap > \$D/native_\$app.txt 2>&1
                         done
                         cp -r $STAGE/data/anr \$D/anr 2>/dev/null
+                        # A guest SurfaceFlinger that never registered (A34 OxygenOS 16, 0.4.67
+                        # deb8690c: stuck once its RenderEngine started, the framework then waited in
+                        # SurfaceSession until its watchdog): its threads and native stacks.
+                        if grep -q 'find service: SurfaceFlinger' \$D/surfaceflinger.txt 2>/dev/null; then
+                            for tk in /proc/\$SFP/task/*; do
+                                echo \"\$(cat \$tk/comm) \$(sed 's/.*) //' \$tk/stat | cut -d' ' -f1) \$(cat \$tk/wchan)\"
+                            done > \$D/threads_surfaceflinger.txt 2>&1
+                            timeout 20 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/debuggerd \$SFP > \$D/native_surfaceflinger.txt 2>&1
+                        fi
                         # Touch: where events go (guest input dispatcher state, focus),
                         # who has the touchscreen open, and raw events for 15 s.
                         timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys input > \$D/input.txt 2>&1

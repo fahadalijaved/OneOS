@@ -50,6 +50,11 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.69: **OxygenOS 16 fixes** (from the first reports): the return to One UI no longer forces a phone restart
+(OxygenOS's storage service is now the guest's own, set oxygen16 r2); on the A34 and other MediaTek Galaxies the guest
+draws with Vulkan (the GL driver load hung its screen); the S22 Ultra / S23 FE mount fix from 0.4.68 now logs why the
+kernel refused. **Skip saving logs**: the log save after a return can be stopped, so switching does not wait for it.
+
 New in 0.4.68: **Fix for phones restarting during a session since 0.4.66** (all systems: the watchdog keeper stopped
 right after the switch, and Samsung's software watchdog restarted the phone a few minutes later). After a force
 restart the app now offers **Restore now** instead of a "Retry update" that could not go through. New phones: Galaxy

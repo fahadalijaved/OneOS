@@ -61,10 +61,25 @@ object LogJob : BackgroundJob<LogJob.State>(State(), "oneos-logs") {
     fun latestZip(ctx: Context): File? =
         logsDir(ctx).listFiles { f -> f.isFile && f.name.startsWith("oneos-logs-") && f.name.endsWith(".zip") }?.maxByOrNull { it.lastModified() }
 
+    @Volatile private var skipping = false
+
+    /**
+     * Stops a collection that runs (owner, 11-08: "these session logs take ages"). Nothing is
+     * saved for that session and it is not collected by itself again; Last session can still
+     * collect it until the next switch rotates the capture. Not for a restore.
+     */
+    fun skip() {
+        if (!state.busy || state.recovering) return
+        skipping = true
+        update(state.copy(detail = "Stopping…"))
+        collect.cancel()
+    }
+
     /** [auto]: Readiness started it after a return (no dialog: read-only, redacted, kept on the phone until shared). */
     fun start(ctx: Context, auto: Boolean = false) {
         if (state.busy || StageCheck.state.busy || PrepareJob.state.busy || LaunchJob.state.busy) return
         val app = ctx.applicationContext
+        skipping = false
         update(State(Phase.RUNNING, "Checking root…", auto = auto, sessionId = SessionPrefs.lastLaunch(app)?.sessionId))
         executor.execute {
             runCatching { run(app) }.exceptionOrNull()?.let { e ->
@@ -166,6 +181,12 @@ object LogJob : BackgroundJob<LogJob.State>(State(), "oneos-logs") {
             onStarted = { id -> update(state.copy(detail = "Collecting ${done + 1} of ${b.commands.size}: $id (personal data is removed as it arrives)")) },
             onFinished = { done++ },
         )
+        if (skipping) {
+            folder.deleteRecursively()
+            if (launch != null) SessionPrefs.setLogsCollected(app, launch.sessionId)
+            update(State(Phase.IDLE, message = "Session logs skipped.", sessionId = sid))
+            return
+        }
         fun text(prefix: String, suffix: String): String? = folder.walkTopDown()
             .firstOrNull { it.isFile && it.relativeTo(folder).invariantSeparatorsPath.let { p -> p.startsWith(prefix) && p.endsWith(suffix) } }
             ?.readText()

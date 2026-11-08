@@ -22,4 +22,7 @@
     <string name="environment_update">Update %1$s</string>
     <string name="environment_restage_title">%1$s needs to be set up again</string>
     <string name="environment_restage_summary">The previous setup did not finish. Update its setup before booting.</string>
+    <string name="logs_skip">Skip saving logs</string>
+    <string name="logs_skip_summary">Stops saving the last session\u2019s logs, so you can switch or update now. Nothing is sent. You can still save them from Last session until your next switch.</string>
+    <string name="logs_keep">Keep saving</string>
 </resources>

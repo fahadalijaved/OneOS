@@ -156,8 +156,14 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         column.removeAllViews()
         // 0.4.38: say what is running, so a waiting button is never a silent one (top: the fixed action covers the bottom).
         if (!preview && !StageCheck.state.busy && (Readiness.anyBusy() || com.fahadali.oneos.session.RemoveJob.state.busy)) {
-            val why = if (com.fahadali.oneos.session.LogJob.state.busy) R.string.environment_busy_logs else R.string.environment_busy_other
-            CardRows.text(Cards.section(column, null), getString(why), R.style.OneOS_Text_Caption)
+            val logs = com.fahadali.oneos.session.LogJob.state
+            val why = if (logs.busy) R.string.environment_busy_logs else R.string.environment_busy_other
+            val busyCard = Cards.section(column, null, rows = true)
+            CardRows.text(busyCard, getString(why), R.style.OneOS_Text_Caption)
+            // Skip the log save (owner, 11-08): Boot and Update no longer wait minutes for it.
+            if (logs.busy && !logs.recovering) Cards.row(busyCard, R.drawable.ic_oneos_row_last_time, getString(R.string.logs_skip), getString(R.string.logs_skip_summary)) {
+                com.fahadali.oneos.session.LogJob.skip()
+            }
         }
         val checks = Cards.section(column, null)
         checks.setPadding(dp(8), dp(8), dp(8), dp(8))

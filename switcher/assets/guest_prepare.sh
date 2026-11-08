@@ -1121,7 +1121,8 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             # supported on transport endpoint", then no apex mount point for PackageManagerService). The
             # read-only form above (the stage's tmpfs as the top lower layer, no upper) gives the same mount
             # points, as it does wherever the telephony jar is injected.
-            elif $BB mount -t overlay overlay -o "ro,lowerdir=$OV/up:$GUEST_SYSTEM_EXT" "$GUEST_SYSTEM_EXT"; then
+            elif { echo "Read-write overlay on $GUEST_SYSTEM_EXT refused; kernel: $(dmesg 2>/dev/null | grep -i overlayfs | tail -n 2 | tr '\n' ' ')"
+                   $BB mount -t overlay overlay -o "ro,lowerdir=$OV/up:$GUEST_SYSTEM_EXT" "$GUEST_SYSTEM_EXT"; }; then
                 echo "Read-only overlay on $GUEST_SYSTEM_EXT for the apex mount point (the read-write form was refused)"
                 if [ $SEC_IMS = 1 ]; then
                     if sec_ims_bind; then SECIMS_BOUND=1; else
