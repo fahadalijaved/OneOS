@@ -294,6 +294,8 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             minimumHeight = dp(52)
             (this as dev.oneuiproject.oneui.widget.SwitchItemView).separateSwitch = true
         }
+        PrebootCards.row(root, getString(R.string.guest_root_shared_kernel_title),
+            getString(R.string.guest_root_shared_kernel_summary))
         PrebootCards.row(root, "Xposed framework", guest.providerName(), enabled = rootIdle && guest.ready) {
             val providers = listOf("zygisk_vector") + guest.modules.filter { it.framework != null }.map { it.id }.filter { it != "zygisk_vector" }
             val names = providers.map { guest.providerName(it) } + "Import LSPosed or Vector ZIP…"

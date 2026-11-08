@@ -3,7 +3,8 @@
 The bundled injection files are modified NeoZygisk, GPL-3.0, based on
 [`c4caec94c950da36bedfbe20e84a849d269175ef`](https://github.com/JingMatrix/NeoZygisk/tree/c4caec94c950da36bedfbe20e84a849d269175ef).
 The complete local changes are in `neozygisk.patch`. Apply with `git apply --unidiff-zero` to
-that checkout after initializing its submodules. License texts are shipped in
+that checkout after initializing its submodules. Copy the committed `Cargo.lock`
+from this directory to `zygiskd/Cargo.lock` before the locked Cargo build. License texts are shipped in
 `app-android/app/src/full/assets/guest-runtime`.
 
 The patch disables global monitor/boot-stage entry points, keeps the guest mount
@@ -12,7 +13,8 @@ IPC, and avoids changing host kernel module-unmount policy. The native OneOS
 broker/launcher lives in `switcher/native/guest_root.c` (GPL-3.0-or-later).
 
 Build the broker as a static arm64 Android executable using the Android NDK
-Clang wrapper (`aarch64-linux-android29-clang -static -O2 -s`). For NeoZygisk,
+Clang wrapper (`aarch64-linux-android29-clang -static -O2 -s`), then run
+`llvm-strip --strip-all guest_root` (`-s` alone retains the `.comment` section). For NeoZygisk,
 use its CMake loader project with the Android toolchain, API 29, arm64-v8a,
 `WORK_DIRECTORY=\"/data/adb/oneos/run/zygisk\"`, and a guest-specific
 `ZKSU_VERSION`. Build `zygisk` and `libzygisk_ptrace.so`, then strip and copy to

@@ -114,24 +114,42 @@ static void list_apps(int out) {
         dprintf(out,"%s %u %d\n",p,u,granted(p,u));
     fclose(f);
 }
+/* Take exactly three stdio descriptors; close every delivered surplus fd,
+ * including padding-sized fourth descriptors and subsequent SCM_RIGHTS headers.
+ * The caller closes the retained descriptors even when this returns false. */
+static int take_stdio_fds(struct msghdr *msg, int fds[3]) {
+    size_t count=0;
+    int malformed=0;
+    for(struct cmsghdr *cm=CMSG_FIRSTHDR(msg);cm;cm=CMSG_NXTHDR(msg,cm)) {
+        size_t remaining=(size_t)((char*)msg->msg_control+msg->msg_controllen-(char*)cm);
+        if(cm->cmsg_len<CMSG_LEN(0)){malformed=1;break;}
+        size_t length=cm->cmsg_len;
+        if(length>remaining){length=remaining;malformed=1;}
+        if(cm->cmsg_level!=SOL_SOCKET||cm->cmsg_type!=SCM_RIGHTS)continue;
+        size_t bytes=length-CMSG_LEN(0);
+        if(bytes%sizeof(int))malformed=1;
+        for(size_t i=0;i<bytes/sizeof(int);i++) {
+            int fd;memcpy(&fd,(char*)CMSG_DATA(cm)+i*sizeof(int),sizeof(fd));
+            if(count<3)fds[count]=fd;else close(fd);
+            count++;
+        }
+    }
+    return count==3&&!malformed&&!(msg->msg_flags&(MSG_TRUNC|MSG_CTRUNC));
+}
 static void serve(int server) {
     /* Serialize management, fork only command jobs. Bound malformed clients. */
     for(;;){
         int c=accept4(server,NULL,NULL,SOCK_CLOEXEC);if(c<0){if(errno==EINTR)continue;exit(1);}
         struct timeval timeout={5,0};setsockopt(c,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
         struct ucred cred;socklen_t cl=sizeof(cred);
-        char payload[sizeof(struct request)+MAX_CMD],control[CMSG_SPACE(3*sizeof(int))];
+        char payload[sizeof(struct request)+MAX_CMD],control[CMSG_SPACE(3*sizeof(int))]={0};
         struct iovec iov={payload,sizeof(payload)};struct msghdr msg={0};
         msg.msg_iov=&iov;msg.msg_iovlen=1;msg.msg_control=control;msg.msg_controllen=sizeof(control);
         ssize_t n=recvmsg(c,&msg,MSG_CMSG_CLOEXEC);int fds[3]={-1,-1,-1};int status=126;
-        struct cmsghdr *cm=CMSG_FIRSTHDR(&msg);
-        if(cm&&cm->cmsg_level==SOL_SOCKET&&cm->cmsg_type==SCM_RIGHTS&&cm->cmsg_len>=CMSG_LEN(0)){
-            size_t received=(cm->cmsg_len-CMSG_LEN(0))/sizeof(int);if(received>3)received=3;
-            memcpy(fds,CMSG_DATA(cm),received*sizeof(int));
-        }
+        int stdio_valid=n>=0&&take_stdio_fds(&msg,fds);
         struct request r={0};if(n>=(ssize_t)sizeof(r))memcpy(&r,payload,sizeof(r));
         int valid=n>=(ssize_t)sizeof(r)&&r.magic==0x4f535255&&r.length<MAX_CMD&&n==(ssize_t)(sizeof(r)+r.length)&&
-            !(msg.msg_flags&(MSG_TRUNC|MSG_CTRUNC))&&fds[0]>=0&&fds[1]>=0&&fds[2]>=0&&
+            stdio_valid&&fds[0]>=0&&fds[1]>=0&&fds[2]>=0&&
             !getsockopt(c,SOL_SOCKET,SO_PEERCRED,&cred,&cl)&&same_root(cred.pid);
         if(valid){
             char *arg=payload+sizeof(r);arg[r.length]=0;unsigned manager=0;
