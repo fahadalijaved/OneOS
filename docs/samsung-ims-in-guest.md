@@ -125,7 +125,7 @@ own error (49, 39, 10). `patches/guest_sms_invalid_response.py`
 (telephony-common.jar, MessagingResponse.responseSms) counts 66 as sent and
 logs `OneOS-SMS: SEND_SMS error 66 ... counted as sent`.
 
-## SMS: the destination the app hands the radio (0.4.60)
+## SMS: the destination the app hands the radio (0.4.61)
 
 ColorOS's Google Messages keeps a display form and a send form for a
 recipient. On the 0.4.59 S25U guest on Partner IL the send form carried a
@@ -153,7 +153,7 @@ its boot image (`boot-telephony-common`), not from the bind-mounted
 Messages `participants.send_destination` rows; a rebuilt image uses the patched
 jar.
 
-## SMS: inbound, the vendor queue waited for One UI's handshake (0.4.60)
+## SMS: inbound, the vendor queue waited for One UI's handshake (0.4.61)
 
 An inbound SMS in the guest reached the modem but not the app: the radio log
 showed `RILD: Received New GW SMS Message` and then no

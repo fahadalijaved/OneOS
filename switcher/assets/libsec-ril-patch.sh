@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Inbound SMS in the guest (0.4.60).
+# Inbound SMS in the guest (0.4.61).
 #
 # Samsung's rild does not hand a new SMS to the RIL socket until its own
 # framework sends the FW_READY vendor configuration over Samsung's HIDL radio

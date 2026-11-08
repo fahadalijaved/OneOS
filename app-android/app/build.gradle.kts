@@ -107,7 +107,7 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "guest_start.sh" to File(repoRoot, "switcher/assets/guest_start.sh"),
     "guest_props.sh" to File(repoRoot, "switcher/assets/guest_props.sh"),
     "return_to_oneui.sh" to File(repoRoot, "switcher/assets/return_to_oneui.sh"),
-    // 0.4.60: Samsung rild's SMS queue bypass for the guest (inbound SMS).
+    // 0.4.61: Samsung rild's SMS queue bypass for the guest (inbound SMS).
     "libsec-ril-patch.sh" to File(repoRoot, "switcher/assets/libsec-ril-patch.sh"),
     "check_host_apex.sh" to File(repoRoot, "switcher/assets/check_host_apex.sh"),
     "bridges.sh" to File(repoRoot, "switcher/assets/bridges.sh"),
@@ -438,8 +438,8 @@ android {
         // Pixel 9 Pro XL r5, Infinity-X r4, Nothing OS r22 (samcam_bar.tar for phones). The panel kept at its top rate in
         // Pixel, HyperOS and Nothing OS (it stayed at 24 Hz: 10-15 fps). Infinity-X: Samsung IMS (the carve-out's
         // /system/system_ext path; framework members; SMS centre). The Galaxy A16 4G (SM-A165F).
-        versionCode = 86
-        versionName = "0.4.60"
+        versionCode = 87
+        versionName = "0.4.61"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

@@ -1588,7 +1588,7 @@ if [ -f "$STAGE/socket_exec" ] && [ ! -L "$STAGE/socket_exec" ]; then
     cp -f "$STAGE/socket_exec" "$STAGE/data/socket_exec" && chmod 755 "$STAGE/data/socket_exec"
 fi
 
-# Inbound SMS (0.4.60): Samsung's rild queues new-SMS unsolicited responses
+# Inbound SMS (0.4.61): Samsung's rild queues new-SMS unsolicited responses
 # until its own framework sends FW_READY=1 over HIDL. An AOSP guest's RILJ
 # cannot send that vendor configuration, so SecRilProxy keeps the SMS in its
 # pending list and the guest never sees UNSOL_RESPONSE_NEW_SMS. NOP the queue

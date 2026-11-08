@@ -836,7 +836,7 @@ fi
 # getSmscAddress as "972...",145; AOSP kept the digits and dropped the type, so
 # the guest's SMS named an unknown-type service centre (over IMS: SIP 404).
 # The destination the app hands the dispatcher too (patches/guest_sms_destination.py,
-# 0.4.60): ColorOS's Google Messages kept a stray character and the national
+# 0.4.61): ColorOS's Google Messages kept a stray character and the national
 # trunk 0 after the country code ("ז+9720501234567" for +972501234567), so the
 # network did not deliver the text even though the guest counted it as sent.
 # And (patches/guest_sms_invalid_response.py, 0.4.58): Samsung's radio HAL

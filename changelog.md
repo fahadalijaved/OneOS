@@ -39,9 +39,9 @@ The session NOPs that queue branch in `/vendor/lib64/libsec-ril.so`
 bind again before its stage-mount check.
 
 The return to One UI is faster: the guest's processes are killed in 17 s
-instead of 54 s, and the whole return takes 91 s instead of 178 s (110 s in
-0.4.59). The start now reports its phases; it still takes about 129 s, and
-the 45 s mount/takeover is the next target.
+instead of 54 s, and the whole return takes 91 s instead of 178 s. The start
+now reports its phases; it still takes about 129 s, and the 45 s
+mount/takeover is the next target.
 
 New in 0.4.60: **touch works again in the Pixel system on the Galaxy S23, S23+ and S23 Ultra** (the new
 double tap to wake left their touch chip in its low-power mode), and the Pixel system no longer drops
