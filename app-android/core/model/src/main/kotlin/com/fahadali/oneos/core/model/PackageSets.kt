@@ -492,7 +492,7 @@ object PackageSets {
     val HYPER_F8U = PackageSet(
         id = ID_HYPER_F8U,
         imageId = Images.ID_HYPEROS_LHASA,
-        sourceDir = "out/overlays_hyperos_r24",
+        sourceDir = "out/overlays_hyperos_r25",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -522,9 +522,12 @@ object PackageSets {
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
             PackageFile("samcam.tar", FileRole.GUEST_FIX),
             PackageFile("samcam_bar.tar", FileRole.GUEST_FIX),
+            // 0.4.70 (r25): Xiaomi's VendorRIL takes a HIDL radio (patches/hyperos_hidl_radio.py; the
+            // MediaTek A phones had no SIM, waiting for Xiaomi's AIDL rild).
+            PackageFile("xiaomi-opt-telephony_patched.jar", FileRole.FRAMEWORK_JAR),
         ) + (COMMON_PAYLOADS + "bt").map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
         omitted = listOf(TETHERING),
-        approxBytes = 627_656_763L,
+        approxBytes = 628_211_783L,
         hasReturnApp = true,
     )
 

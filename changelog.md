@@ -50,6 +50,12 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.70: **OxygenOS 16 on the S22 series, S23 FE and other phones with the older kernel** (5.10: both forms of
+the system_ext mount were refused, and the guest crashed at startup; it is now built without overlayfs). **Vulkan
+drawing on Exynos phones too** (A54, A26, S23 FE stopped where the A34 did). **HyperOS on the MediaTek A07, A16 4G and
+A17: SIM** (HyperOS waited for a radio service type these phones do not have; set hyperos r25). Reports now name the
+app build that ran the session.
+
 New in 0.4.69: **OxygenOS 16 fixes** (from the first reports): the return to One UI no longer forces a phone restart
 (OxygenOS's storage service is now the guest's own, set oxygen16 r2); on the A34 and other MediaTek Galaxies the guest
 draws with Vulkan (the GL driver load hung its screen); the S22 Ultra / S23 FE mount fix from 0.4.68 now logs why the

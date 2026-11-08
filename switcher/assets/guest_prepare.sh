@@ -1135,6 +1135,46 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "Samsung IMS in the guest: off (overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
+        # The android12-5.10 kernels (the S22 series, S23 FE, A25, A33, A53 on One UI 8) refuse
+        # both overlay forms here (0.4.68 S908B 0e1c3360, S711B be228999 9d30c86d, S908E 15cf8a3f:
+        # "Operation not supported on transport endpoint" twice), and PackageManagerService then
+        # died on One UI's system_ext APEXes ("Unable to parse: /system_ext/apex/com.android.vndk.
+        # v31.apex"). Without overlayfs: system_ext's top level copied on the stage's tmpfs
+        # (folders, empty files, links), each entry bound from the image, plus the apex mount
+        # point. The overlay's other additions (bin/hwservicemanager, etc/permissions features,
+        # Samsung IMS and camera mount points) are not in it; those are off as on a refusal.
+        if [ ! -d "$GUEST_SYSTEM_EXT/apex" ] && [ -d /system_ext/apex ] && ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
+            FARM="$OV/farm"; FORIG="$OV/orig"; fok=1; fn=0
+            rm -rf "$FARM" && mkdir -p "$FARM/apex" "$FORIG" || fok=0
+            for e in "$GUEST_SYSTEM_EXT"/* "$GUEST_SYSTEM_EXT"/.[!.]*; do
+                [ $fok = 1 ] || break
+                [ -e "$e" ] || [ -L "$e" ] || continue
+                n=${e##*/}
+                if [ -L "$e" ]; then cp -P "$e" "$FARM/$n" || fok=0
+                elif [ -d "$e" ]; then mkdir -p "$FARM/$n" || fok=0
+                else : > "$FARM/$n" || fok=0; fi
+            done
+            if [ $fok = 1 ]; then
+                chmod 755 "$FARM" "$FARM/apex"
+                $BB chcon -R u:object_r:system_file:s0 "$FARM" 2>/dev/null || true
+                if $BB mount --bind "$GUEST_SYSTEM_EXT" "$FORIG" && $BB mount --bind "$FARM" "$GUEST_SYSTEM_EXT"; then
+                    for e in "$FORIG"/* "$FORIG"/.[!.]*; do
+                        [ -e "$e" ] && [ ! -L "$e" ] || continue
+                        if $BB mount --bind "$e" "$GUEST_SYSTEM_EXT/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
+                    done
+                else
+                    fok=0
+                fi
+            fi
+            if [ $fok = 1 ] && [ -d "$GUEST_SYSTEM_EXT/apex" ]; then
+                echo "system_ext without overlayfs: $fn entries of the image bound into a copy of its top level, with the apex mount point"
+            else
+                awk -v r="$GUEST_SYSTEM_EXT/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
+                grep -q " $GUEST_SYSTEM_EXT tmpfs " /proc/mounts && $BB umount -l "$GUEST_SYSTEM_EXT"
+                $BB umount -l "$FORIG" 2>/dev/null
+                echo "!!! system_ext without overlayfs: the bound copy failed, left as the image has it"
+            fi
+        fi
         # The Samsung IMS set binds onto either overlay (the read-only one through the
         # mount points made in its layer); an earlier prepare's overlay has none.
         [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no writable overlay to bind onto)"; }
@@ -1549,6 +1589,19 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
         exit 3
     fi
     echo "Bound framework_patched.jar -> $HFW"
+    # The SIM on a HIDL radio (0.4.70; patches/hyperos_hidl_radio.py): Xiaomi's VendorRIL waited for
+    # its AIDL radio forever on the MediaTek A07, A16 4G and A17 ("getRadioServiceProxy wait for rild
+    # ready", no SIM: 0.4.67 5357ba6a, d946ff36, c3630d06). Sets from r25 carry the jar; older ones
+    # keep the image's.
+    XOT="$MIUI_FW/xiaomi-opt-telephony.jar"
+    if [ -f "$STAGE/xiaomi-opt-telephony_patched.jar" ] && [ -f "$XOT" ] && [ ! -L "$XOT" ]; then
+        $BB umount -l "$XOT" 2>/dev/null || true
+        if $BB mount --bind "$STAGE/xiaomi-opt-telephony_patched.jar" "$XOT"; then
+            echo "Bound xiaomi-opt-telephony_patched.jar -> $XOT (VendorRIL takes a HIDL radio)"
+        else
+            echo "!!! xiaomi-opt-telephony_patched.jar not bound; a HIDL radio keeps waiting for Xiaomi's AIDL rild"
+        fi
+    fi
     # Calls and SMS over Samsung IMS (0.4.62). HyperOS's ImsFactory loads
     # Xiaomi's XmImsFactory from xiaomi-opt-ims.jar, and its XmImsManager wants
     # Xiaomi's own IMS service, which a Galaxy does not have: at the first

@@ -205,6 +205,24 @@ class SessionLogsTest {
                 assertFalse(log.contains("someone@example.com"))
             }
             assertNull(LogRules.tag("not a logcat line"))
+            // The build that ran the session (stage/current.json), not the collecting app's.
+            File(folder, "stage").mkdirs()
+            File(folder, "stage/current.json").writeText("{\n  \"schema\": \"oneos.session/1\",\n  \"versionCode\": 3,\n  \"profile\": \"f8u\"\n}\n")
+            assertEquals(3, LogBundle.sessionVersionCode(folder))
+            val zip2 = LogBundle.build(
+                LogBundleInput(
+                    AppInfo("com.fahadali.oneos", "0.3.0", 4, "OneOS"), "0123456789abcdef", "2026-10-23T10:00:00+03:00",
+                    "f8u", "coloros17-findn6", "d".repeat(64), dryRun = false, outcome = outcome,
+                    listSha256 = "a".repeat(64), runnerSha256 = "b".repeat(64), incomplete = emptyList(), learnedNames = 2,
+                ),
+                folder, r, stats,
+            )
+            ZipFile(zip2).use { z ->
+                val summary = z.getInputStream(z.getEntry("oneos-logs-0123456789abcdef/summary.txt")).readBytes().toString(Charsets.UTF_8)
+                assertTrue(summary, summary.contains("Session ran on app build 3 (stage/current.json); build 4 collected these logs"))
+                val report = z.getInputStream(z.getEntry("oneos-logs-0123456789abcdef/report.json")).readBytes().toString(Charsets.UTF_8)
+                assertTrue(report, Regex(""""session":\s*\{\s*"versionCode":\s*3""").containsMatchIn(report))
+            }
         } finally {
             dir.deleteRecursively()
         }

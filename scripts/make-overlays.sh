@@ -537,6 +537,26 @@ if in_image $MIUI_JAR; then
         echo "built $OUT/miui-telephony-common_patched.jar (replaced $DEX)"
     done
     rm -rf "$WORK/mtel" "$WORK/mtel-rebuilt.jar"
+    # xiaomi-opt-telephony.jar (com.android.phone): VendorRIL takes a HIDL radio instead of waiting
+    # for Xiaomi's AIDL rild (patches/hyperos_hidl_radio.py; the MediaTek A phones had no SIM, 0.4.67).
+    XOT_JAR=/system/system_ext/framework/xiaomi-opt-telephony.jar
+    if in_image $XOT_JAR; then
+        "$DEBUGFS" -R "dump $XOT_JAR $WORK/xiaomi-opt-telephony.jar" "$IMG" 2>/dev/null
+        java -jar "$APKTOOL" d -q -f -r -o "$WORK/xot" "$WORK/xiaomi-opt-telephony.jar"
+        DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_hidl_radio.py" "$WORK/xot")
+        java -jar "$APKTOOL" b -q -o "$WORK/xot-rebuilt.jar" "$WORK/xot"
+        cp "$WORK/xiaomi-opt-telephony.jar" "$OUT/xiaomi-opt-telephony_patched.jar"
+        for d in $DIRS; do
+            DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+            rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+            unzip -q -o "$WORK/xot-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+            (cd "$WORK/mdex" && zip -q -0 "$OUT/xiaomi-opt-telephony_patched.jar" "$DEX")
+            echo "built $OUT/xiaomi-opt-telephony_patched.jar (replaced $DEX)"
+        done
+        rm -rf "$WORK/xot" "$WORK/xot-rebuilt.jar"
+    else
+        echo "xiaomi-opt-telephony.jar: not in this image, not built"
+    fi
     # libaudiohal@aidl.so: HyperOS's audioserver waited for an audio HAL
     # adapter vendor extension that only One UI's own audioserver serves, and
     # a session stops it (patches/hyperos_audio_ext.py, sixth run: no sound).
@@ -570,7 +590,7 @@ if in_image $MIUI_JAR; then
     rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/framework.jar"
 else
     rm -f "$OUT/miui-services_patched.jar" "$OUT/apprecovery.proinstaller_patched.jar" "$OUT/framework_patched.jar" "$OUT/miui-wifi-service_patched.jar" \
-          "$OUT/miui-telephony-common_patched.jar" "$OUT/socket_exec" \
+          "$OUT/miui-telephony-common_patched.jar" "$OUT/xiaomi-opt-telephony_patched.jar" "$OUT/socket_exec" \
           "$OUT/libaudiohal_aidl_patched.so"
     echo "miui-services.jar: not in the image, nothing to patch"
 fi

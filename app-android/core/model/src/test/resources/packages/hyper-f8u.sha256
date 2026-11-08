@@ -1,5 +1,5 @@
-# OneOS package set hyper-f8u: sha256sum of out/overlays_hyperos_r21 (scripts/make-overlays.sh, 2026-10-31; 0.4.39 r12: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03; 0.4.40 r13: libsurfaceflinger_patched.so with patches/hyperos_dolby_mapper.py; r14 0.4.55: services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms), 2026-11-05; 0.4.57 r15: framework_patched.jar with patches/guest_secims_members.py; 0.4.59 r16: telephony-common_patched.jar (SMSC + SEND_SMS error 66), samcam.tar and samcam_bar.tar built for the image; 0.4.59 r17: samcam.tar and samcam_bar.tar keep videos on Stop (fix_recorder_track_started.py); 0.4.59 r17: samcam.tar with the gallery fallback (fix_gallery_fallback.py); 0.4.59 r17: samcam.tar with the recording timer and secmedia fallback; 0.4.59 r18: samcam.tar with the camera timer, secmedia queries and gallery fallback; 0.4.59 r19: samcam.tar with the video rotation written after the stop), minus tethering_payload.img.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_r21 differs.
+# OneOS package set hyper-f8u: sha256sum of out/overlays_hyperos_r25 (scripts/make-overlays.sh, 2026-10-31; 0.4.39 r12: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03; 0.4.40 r13: libsurfaceflinger_patched.so with patches/hyperos_dolby_mapper.py; r14 0.4.55: services_patched.jar with patches/guest_secims_path_upgrade.py (the IMS carve-out also takes /system/system_ext/priv-app/OneOSSecIms), 2026-11-05; 0.4.57 r15: framework_patched.jar with patches/guest_secims_members.py; 0.4.59 r16: telephony-common_patched.jar (SMSC + SEND_SMS error 66), samcam.tar and samcam_bar.tar built for the image; 0.4.59 r17: samcam.tar and samcam_bar.tar keep videos on Stop (fix_recorder_track_started.py); 0.4.59 r17: samcam.tar with the gallery fallback (fix_gallery_fallback.py); 0.4.59 r17: samcam.tar with the recording timer and secmedia fallback; 0.4.59 r18: samcam.tar with the camera timer, secmedia queries and gallery fallback; 0.4.59 r19: samcam.tar with the video rotation written after the stop; 0.4.61 r22: samcam_bar.tar with the A phones' settings the S26 Ultra's camera does not know (fix_a_series_modes.py; 0.4.63: fix_a_series_crop.py, the A56's sensor crop); 0.4.63 r23: services_patched.jar with guest_pdb_init_survives.py; 0.4.66 r24: samcam_bar.tar with fix_a_series_resolution.py), minus tethering_payload.img. 0.4.70 r25: r24 plus xiaomi-opt-telephony_patched.jar (patches/hyperos_hidl_radio.py, VendorRIL takes a HIDL radio), 2026-11-08.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_r25 differs.
 0baff1b12c489eaa379df95c700bb42ed3025177c64d6da6357163e754e05401  MiWallpaper_patched.apk
 bd03c424877de86c2864313ba3371d3725b3d5531559373aadc84d592f9cae0c  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
@@ -12,7 +12,7 @@ e1d111d250b1cc3f068d91bcdad01d4ee74dbd86ceaa1a9840bd750ac102dc94  bt_payload.img
 7516643e27215109299c7d4988fbce83bde754a01cb784372b8ccf5af5ae335c  crashrecovery_payload.img
 c1a0b9315d1466185ea0df7c2cc6234cce2ac4df620351ca35a3609d2212a122  extservices_payload.img
 35e1b05262dc0ebc18c59f88e7fcf8ca8cae40b43852ad079a32b66b4292d725  framework_patched.jar
-d5eae5fe9b8fba2d9a02bc6bc0ce2bd69bdcb70db3a8be6fe95e6abf7d43b607  guards.txt
+b454cba89f7ac9c583190c966a2adcaaa51a0f17bd196173ceecbc3e4f20efe8  guards.txt
 607785100e49bba0ee9fb4b7c114ec312c70722b08930c7725db7eedeb00285a  healthfitness_payload.img
 a1eb86c79666b62cc0f302c3c3431d858929a569b311ef9b59471d69f3d96705  i18n_payload.img
 a790fb812d630e5c4e2b0b49806a54b3e26a4be2fc1d91d8c311ef7853309889  ims-ext-common_patched.jar
@@ -30,11 +30,12 @@ c0e9c8c72f7c34afc221bc5d27812669524b97a72e2d57dcdee639cda4982324  permission_pay
 13247691987edc9f2125a7a3087b6b6d2720dbc6aedb18121e219d987a25876f  rkpd_payload.img
 6c4208ab010abefb58175423d11d978083fb634e5d3db007cafeb686ea62e40f  runtime_payload.img
 6734fc843f36910018be2f65587e78d8ab02223e3870a2c7843c2e603a720103  samcam.tar
-f906f91aeb35b740a5f2bb2bde47cee749e185b72f46a075422b6b8a55513071  samcam_bar.tar
+e858ae5759ebb5ca259c3c895e5d4aa787b006ead6221c1f1fede22721c0b80f  samcam_bar.tar
 5355e5a855bbe7315c41764a232878126bb8265b48ae54a3187350ca9340fe68  sdkext_payload.img
 282447b888645136c61cab74548e75fd5cec656636c8a16d57a47bcf21e04ff4  service.incremental_patched.so
-66d0d1d64a97c73e80c4fb74eb413f26e5390092c6cd05692710e590fd392326  services_patched.jar
+0757469240a71b402aea1210da3311d19f282dc8a7f1bd286a4231ea8f45d7c5  services_patched.jar
 5970952d6399034217bcc56bad6c00a0cb203ea184215ebf46ccd8075bd98482  socket_exec
 5c6ab0096ec94cdbb20c40aec9b3fef91dd7c26e81537db7f8e540294656285c  telephony-common_patched.jar
 dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
 668ec2b7df0e96a13abe45de1f0e8e5165630223ae60015a1e19d40692882b34  wifi_payload.img
+3d18c1cfa555588ce0aed3b97809f415610ad6a3602c5698086d802a63b1648b  xiaomi-opt-telephony_patched.jar

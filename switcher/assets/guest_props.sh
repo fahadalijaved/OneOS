@@ -230,8 +230,11 @@ add)
     RE=debug.renderengine.backend
     REV=""
     if grep -q '"image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null; then
+        # 0.4.70: the Exynos phones too (Mali on the A54 d0f664a8 and A26 de5d8a87, Xclipse on the S23 FE
+        # be228999: the same stop after "Threaded RenderEngine with SkiaGL"); the Snapdragon S22 Ultra's
+        # Adreno got past it (15cf8a3f), so Qualcomm keeps the image's own choice.
         case "$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)" in
-            *mt[0-9]*|*[Mm]edia[Tt]ek*) REV=skiavkthreaded ;;
+            *mt[0-9]*|*[Mm]edia[Tt]ek*|*s5e[0-9]*|*erd[0-9]*|*exynos*|*[Ss]amsung*) REV=skiavkthreaded ;;
         esac
     fi
     REV=${ONEOS_GUEST_RE_BACKEND-$REV}
