@@ -1339,7 +1339,32 @@ elif [ "${ONEOS_GUEST_OWN_MNT:-1}" = 1 ] &&
                 $BB mount --make-rslave "$ROOTFS/mnt/$name" 2>/dev/null && MNT_BOUND="$MNT_BOUND $name"
         fi
     done
-    echo "Guest /mnt: its own tmpfs; One UI's$MNT_BOUND bound in (storage views rebuilt by the guest)"
+    # init.rc's folders for those views, made the way init makes them (0.4.65): the
+    # guest's vold makes its mount points inside them (/mnt/runtime/default/emulated
+    # and the rest) and does not make the parents. With the bind, One UI's init-made
+    # folders stayed after guest_start.sh dropped the mounts; in the new tmpfs
+    # /mnt/runtime was empty, vold failed "emulated;0 failed to create mount points"
+    # and the guest had no internal storage (0.4.63 S25+ HyperOS a4000feeb958acf5,
+    # "full storage", /storage/emulated/0 missing). Mode, owner and SELinux label are
+    # One UI's for the same folder (Fold8 Ultra: runtime 700 root storage_file, user,
+    # installer, androidwritable 750 root:media_rw mnt_user_file, pass_through 700
+    # root mnt_pass_through_file); init.rc's mode and root when One UI has none.
+    MNT_MADE=0
+    for spec in runtime:700 runtime/default:755 runtime/default/self:755 runtime/read:755 runtime/read/self:755 \
+                runtime/write:755 runtime/write/self:755 runtime/full:755 runtime/full/self:755 \
+                pass_through:700 user:750 installer:750 androidwritable:750; do
+        p=${spec%:*}
+        mode=${spec#*:} own=0:0
+        if [ -d "/mnt/$p" ]; then
+            m=$(stat -c %a "/mnt/$p" 2>/dev/null) && [ -n "$m" ] && mode=$m
+            o=$(stat -c %u:%g "/mnt/$p" 2>/dev/null) && [ -n "$o" ] && own=$o
+        fi
+        mkdir -p "$ROOTFS/mnt/$p" && chmod "$mode" "$ROOTFS/mnt/$p" && chown "$own" "$ROOTFS/mnt/$p" || continue
+        ctx=$(ls -dZ "/mnt/$p" 2>/dev/null | awk '{print $1}')
+        case "$ctx" in u:object_r:*) $BB chcon "$ctx" "$ROOTFS/mnt/$p" 2>/dev/null ;; esac
+        MNT_MADE=$((MNT_MADE + 1))
+    done
+    echo "Guest /mnt: its own tmpfs; One UI's$MNT_BOUND bound in (storage views rebuilt by the guest; $MNT_MADE of init's 13 storage folders made)"
 elif $BB mount --rbind /mnt "$ROOTFS/mnt"; then
     # rslave at once: /mnt is a recursive bind of the host's shared storage
     # (/mnt/vendor/efs, /mnt/user/0/emulated); an early-exit umount on the way

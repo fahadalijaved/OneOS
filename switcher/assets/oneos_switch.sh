@@ -2043,9 +2043,12 @@ while true; do
             # 41f6c0f4) is not in Samsung's effect HAL (reports 4933a41d, 3715fe57,
             # 30124d7e: the speaker sounds bad). patches/OneOSSoundFx.java, in the
             # same dex, puts the vendor effect HAL's Dolby on the guest's output mix
-            # and holds it until the guest's system_server is gone. Only while
-            # $STAGE/guest_dolby.on exists, until a phone run shows it working.
-            if [ -f $STAGE/guest_dolby.on ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
+            # and holds it until the guest's system_server is gone, created again 2 s
+            # after music starts so it is on the output music plays on (0.4.65).
+            # On by default since 0.4.65 (F8U InfinityX run: Dolby on the music
+            # output, sound much better); ONEOS_GUEST_DOLBY=0: off. Phones
+            # whose effect HAL has no Dolby: it gives up after a minute, logged.
+            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
                 echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"

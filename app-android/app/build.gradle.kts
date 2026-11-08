@@ -84,7 +84,8 @@ val packSetsInApk: Boolean = (findProperty("oneos.packSets") as String?)?.trim()
 val setRemoteIds: Map<String, String> = File(packagesDir, "remote.txt").takeIf { it.isFile }?.readLines()
     ?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
     ?.associate { l ->
-        val src = "(gh:(?:[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+:)?[a-z0-9][a-z0-9.-]{0,39}|[A-Za-z0-9_-]{20,80})"
+        // gh:<tag> (GitHub), sf (SourceForge, 0.4.65), or a Drive file id.
+        val src = "(gh:(?:[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+:)?[a-z0-9][a-z0-9.-]{0,39}|sf|[A-Za-z0-9_-]{20,80})"
         val m = Regex("^([0-9a-f]{64}) ($src(,$src){0,15})$").matchEntire(l)
             ?: throw GradleException("packages/remote.txt: not a '<sha256> <source>[,<source>...]' line: $l")
         m.groupValues[1] to m.groupValues[2]
@@ -438,8 +439,8 @@ android {
         // Pixel 9 Pro XL r5, Infinity-X r4, Nothing OS r22 (samcam_bar.tar for phones). The panel kept at its top rate in
         // Pixel, HyperOS and Nothing OS (it stayed at 24 Hz: 10-15 fps). Infinity-X: Samsung IMS (the carve-out's
         // /system/system_ext path; framework members; SMS centre). The Galaxy A16 4G (SM-A165F).
-        versionCode = 90
-        versionName = "0.4.64"
+        versionCode = 91
+        versionName = "0.4.65"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

@@ -613,9 +613,16 @@ sleep 1
 # play on a dark panel. Log both Fold panels and keep the inner one
 # (panel0-backlight) lit for the first 3 minutes if it sits at 0.
 # Snapdragon: panel0-backlight and panel1-backlight; Exynos: panel and panel1.
+# MediaTek phones without a backlight class device (Galaxy A07, 0.4.65): the
+# panel's LED, /sys/class/leds/lcd-backlight (0..max_brightness, 255 there).
 BL=/sys/class/backlight/panel0-backlight; BL2=/sys/class/backlight/panel1-backlight
 [ -d "$BL" ] || { BL=/sys/class/backlight/panel; BL2=/sys/class/backlight/panel1; }
-echo "[Pivoted Root] Backlight: inner=$(cat $BL/brightness 2>/dev/null) cover=$(cat $BL2/brightness 2>/dev/null)"
+LEDBL=0
+[ -d "$BL" ] || [ ! -w /sys/class/leds/lcd-backlight/brightness ] || { BL=/sys/class/leds/lcd-backlight; BL2=/nonexistent; LEDBL=1; }
+# 928: about 135 nits on a Fold's inner panel (max/4 was ~660 nits); 40% of a smaller range.
+BLMAX=$(cat $BL/max_brightness 2>/dev/null); BLON=928
+case "$BLMAX" in ''|*[!0-9]*) [ $LEDBL = 1 ] && { BLMAX=255; BLON=102; } ;; *) [ "$BLMAX" -lt 928 ] && BLON=$((BLMAX * 2 / 5)) ;; esac
+echo "[Pivoted Root] Backlight: inner=$(cat $BL/brightness 2>/dev/null) cover=$(cat $BL2/brightness 2>/dev/null)$([ $LEDBL = 1 ] && echo " (LED $BL, max ${BLMAX:-?})")"
 # A Fold switched while folded has the inner panel at 0 and the cover lit:
 # the cover is the one kept lit then (guest_props.sh puts the boot animation
 # there too), not the inner panel nobody can see.
@@ -632,13 +639,46 @@ if [ -w "$KBL/brightness" ]; then
             # ColorOS drives the panel itself once the UI activator ran.
             [ \"\$(getprop service.bootanim.exit)\" = 1 ] && break
             if [ \"\$(cat $KBL/brightness)\" = 0 ]; then
-                # 928: about 135 nits on the inner panel (max/4 was ~660 nits).
-                echo 928 > $KBL/brightness
+                echo $BLON > $KBL/brightness
                 echo \"\$(date +%T) $KNAME backlight was 0, set to \$(cat $KBL/brightness)\"
             fi
             sleep 3; i=\$((i + 1))
         done
     " </dev/null >> /data/backlight.log 2>&1 &
+fi
+# The LED bridge (0.4.65). On the Galaxy A07 the composer refuses every
+# brightness the guest sets ("HWCDisplay setBrightness() failed to set
+# brightness: 8"), One UI drives the LED through its lights HAL instead, and
+# ColorOS's screen stayed black after boot (0.4.62 1d1308c4: screen on, backlight
+# 0). Only where the panel is that LED: the guest's brightness (cmd display
+# get-brightness, 0..1; 40% when it gives none) and wakefulness (dumpsys power)
+# copied to it once a second; 0 asleep, 1/20 dozing. Ends with the guest.
+# ONEOS_GUEST_LED_BRIDGE=0: off.
+if [ $LEDBL = 1 ] && [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ]; then
+    $BB sh -c "
+        i=0
+        while [ \"\$(getprop service.bootanim.exit)\" != 1 ] && [ \$i -lt 600 ]; do sleep 1; i=\$((i + 1)); done
+        echo \"\$(date +%T) LED bridge: $BL (max $BLMAX)\"
+        last=''
+        while :; do
+            w=\$(timeout 3 dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)
+            case \"\$w\" in
+                Asleep) v=0 ;;
+                Dozing) v=\$(( $BLMAX / 20 + 1 )) ;;
+                Awake)
+                    f=\$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
+                    v=\$(echo \"\$f\" | awk -v m=$BLMAX '\$1 ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?\$/ && \$1 > 0 && \$1 <= 1 { x = int(\$1 * m + 0.5); if (x < 1) x = 1; print x }')
+                    [ -n \"\$v\" ] || v=$BLON ;;
+                *) v='' ;;
+            esac
+            if [ -n \"\$v\" ] && [ \"\$v\" != \"\$last\" ]; then
+                echo \$v > $BL/brightness && echo \"\$(date +%T) \$w: \$v\"
+                last=\$v
+            fi
+            sleep 1
+        done
+    " </dev/null >> /data/backlight.log 2>&1 &
+    echo "[Pivoted Root] Backlight: LED bridge started for $BL"
 fi
 
 # aconfig flag storage. init/aconfigd normally build /metadata/aconfig from

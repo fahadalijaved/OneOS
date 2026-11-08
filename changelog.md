@@ -50,6 +50,13 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.65: **downloads from SourceForge** (GitHub's downloads were down for hours and Google Drive's
+copies ran out: the app now tries SourceForge right after GitHub), **internal storage in every system again**
+(since 0.4.63 the systems showed full or no storage: their storage never mounted), **Samsung's Dolby on music
+through the speaker**, **the Galaxy A07's screen** in ColorOS (black after boot: its brightness goes through the
+panel's LED), and **incoming SMS on the Galaxy S23, S23+ and S23 Ultra** (their radio library is built
+differently: the SMS patch did not find its spot).
+
 New in 0.4.64: **video recording and steady sound in the Pixel system** (Pixel's Now Playing made it restart
 Samsung's audio service over and over), **volume in HyperOS** on Snapdragon Galaxies (every volume had a
 maximum of 0, and apps and the volume slider crashed), and **no false "black screen" on slow first boots**

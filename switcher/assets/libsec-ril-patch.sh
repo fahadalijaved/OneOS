@@ -26,6 +26,13 @@
 #   e8 01 a0 72
 #   9f 03 08 6b   cmp  w28, w8
 #
+# 0.4.65: the S23 family's library (SM8550, S918BXXUAGZIF) loads the object
+# from x20 (88 06 40 f9) instead of x21, so the sequence above is not there
+# and the guest got no SMS (0.4.62 S23+ 43ca7db8). When it is not found, the
+# same check from the ldrb on is looked for instead (the 20 bytes from
+# 08 05 44 39 to 9f 03 08 6b, the cbz the fourth word): its first 6 bytes by
+# grep (a shell pattern holds no zero byte), then all 20 read back at each hit.
+#
 # Usage: libsec-ril-patch.sh apply|restore
 # Both are idempotent. Run as root; the script moves itself into init's mount
 # namespace, where the vendor mount and rild live.
@@ -37,7 +44,10 @@ PATCHED="$SESSION/libsec-ril.session.so"
 MARKER="$SESSION/ril_patch.active"
 # The original sequence and the patched form, as grep -F patterns (no newline).
 ORIG_PAT="$(printf '\250\006\100\371\010\005\104\071\250\001')"
-PATCHED_PAT="$(printf '\250\006\100\371\010\005\104\071\037\040\003\325')"
+# Patched: the ldrb followed by the nop (either form of the load before it).
+PATCHED_PAT="$(printf '\010\005\104\071\037\040\003\325')"
+ALT_HEAD="$(printf '\010\005\104\071\250\001')"
+ALT_HEX=08054439a801003408488852e801a0729f03086b
 
 BB=""
 for c in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/busybox; do
@@ -60,9 +70,10 @@ mount_src() {
     "$BB" awk -v mp="$LIB" '$5 == mp { print $4; exit }' /proc/1/mountinfo 2>/dev/null
 }
 
-read4() { # <file> <offset> -> 8 lowercase hex digits
-    "$BB" dd if="$1" bs=1 skip="$2" count=4 2>/dev/null | "$BB" od -An -tx1 | "$BB" tr -d ' \n'
+readn() { # <file> <offset> <count> -> lowercase hex digits
+    "$BB" dd if="$1" bs=1 skip="$2" count="$3" 2>/dev/null | "$BB" od -An -tx1 | "$BB" tr -d ' \n'
 }
+read4() { readn "$1" "$2" 4; }
 
 restart_ril() {
     /system/bin/setprop ctl.restart ril-daemon 2>/dev/null
@@ -96,21 +107,37 @@ apply() {
     # Toybox grep knows -b; busybox grep does not. Require exactly one match:
     # a future library with the sequence in more than one place is not ours to
     # guess at.
+    # nop: the offset of the cbz to replace.
     n=$(LC_ALL=C /system/bin/grep -aobF "$ORIG_PAT" "$LIB" 2>/dev/null | "$BB" wc -l)
-    [ "$n" = 1 ] || {
+    if [ "$n" = 1 ]; then
+        off=$(LC_ALL=C /system/bin/grep -aobF "$ORIG_PAT" "$LIB" 2>/dev/null | "$BB" head -n 1 | "$BB" cut -d: -f1)
+        case "$off" in
+            ''|*[!0-9]*) echo "inbound SMS: could not read the match offset in $LIB; left alone"; return 1 ;;
+        esac
+        nop=$((off + 8))
+    elif [ "$n" = 0 ]; then
+        hits=""; m=0
+        for c in $(LC_ALL=C /system/bin/grep -aobF "$ALT_HEAD" "$LIB" 2>/dev/null | "$BB" cut -d: -f1); do
+            case "$c" in ''|*[!0-9]*) continue ;; esac
+            [ "$(readn "$LIB" "$c" 20)" = "$ALT_HEX" ] && { hits=$c; m=$((m + 1)); }
+        done
+        [ "$m" = 1 ] || {
+            echo "inbound SMS: found 0 matches for the rild SMS queue sequence and $m for its check from the ldrb on in $LIB; left alone"
+            return 1
+        }
+        off=$hits
+        nop=$((off + 4))
+        echo "inbound SMS: the SMS queue check found from the ldrb on at $off (another register before it)"
+    else
         echo "inbound SMS: found $n matches for the rild SMS queue sequence in $LIB; left alone"
         return 1
-    }
-    off=$(LC_ALL=C /system/bin/grep -aobF "$ORIG_PAT" "$LIB" 2>/dev/null | "$BB" head -n 1 | "$BB" cut -d: -f1)
-    case "$off" in
-        ''|*[!0-9]*) echo "inbound SMS: could not read the match offset in $LIB; left alone"; return 1 ;;
-    esac
+    fi
     "$BB" mkdir -p "$SESSION" || { echo "inbound SMS: no $SESSION"; return 1; }
     rm -f "$PATCHED"
     "$BB" cp -f "$LIB" "$PATCHED" || { echo "inbound SMS: could not copy $LIB"; return 1; }
-    printf '\037\040\003\325' | "$BB" dd of="$PATCHED" bs=1 seek=$((off + 8)) conv=notrunc 2>/dev/null ||
-        { echo "inbound SMS: could not write the nop at $off"; rm -f "$PATCHED"; return 1; }
-    got=$(read4 "$PATCHED" $((off + 8)))
+    printf '\037\040\003\325' | "$BB" dd of="$PATCHED" bs=1 seek=$nop conv=notrunc 2>/dev/null ||
+        { echo "inbound SMS: could not write the nop at $nop"; rm -f "$PATCHED"; return 1; }
+    got=$(read4 "$PATCHED" $nop)
     [ "$got" = "1f2003d5" ] || {
         echo "inbound SMS: the patched copy reads $got at $off, not 1f2003d5; left alone"
         rm -f "$PATCHED"
@@ -122,7 +149,7 @@ apply() {
         rm -f "$PATCHED"
         return 1
     }
-    if ! is_mounted || [ "$(read4 "$LIB" $((off + 8)))" != "1f2003d5" ]; then
+    if ! is_mounted || [ "$(read4 "$LIB" $nop)" != "1f2003d5" ]; then
         echo "inbound SMS: the bind mount on $LIB did not take; removing it"
         "$BB" umount "$LIB" 2>/dev/null
         rm -f "$PATCHED"
