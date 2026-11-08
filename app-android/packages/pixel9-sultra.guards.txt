@@ -13,7 +13,8 @@
 # 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 # 0.4.59: AOD overlay (OneOSPixelDoze.apk)
 # 0.4.59 r12: double tap to sleep (OneOSPixelSystemUI.apk lock screen + receiver, OneOSPixelLauncher.apk home screen), from this image's own SystemUIGoogle and Pixel Launcher
-e085aaa857e407e895e25de5df8f89742c9827c309005b1fb48650d4c86a5ae5  services_patched.jar
+# 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
+5db9c6a15cba1a3365deba67850cb46e70adbc6bd9aa915c10a2e347966d21d8  services_patched.jar
 607ae15ccbe753fb25ef8e3d40f72a3ec8a2243dc3828adea78089731eca64aa  vold_patched
 8f76de6d0c7c74e6526efc7678ae81b1cf344121f39b3d27e618116ed5d41f51  service.incremental_patched.so
 b65069737c3cfd45863f9f2e83a9a25399623c4527a520309297173f8b95203d  framework_patched.jar

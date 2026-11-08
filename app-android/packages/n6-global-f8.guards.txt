@@ -10,7 +10,8 @@
 # 0.4.59: samcam with fix_recorder_progress.py and fix_secmedia_insert.py (recording timer; videos saved without secmedia)
 # 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
 # 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
-7c9d905836357a187b77a98749d24f72dff42e2bf0e366de770e2235454e32ac  services_patched.jar
+# 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
+c2d165e8567a11684a681486b24fc2c30b326018689533d33c7e3a93666213ff  services_patched.jar
 61e7201e74ee8cae5ff1dad10d0c8190fa3c54dfb33efb37b8473f062bc9f415  oplus-services_patched.jar
 2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so

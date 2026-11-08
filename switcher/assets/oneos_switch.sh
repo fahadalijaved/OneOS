@@ -2302,8 +2302,11 @@ while true; do
             # but that folder is system's and SystemUI runs as an app uid here (EACCES, \"can
             # not show deep scenery\"). The Fold8 port's fix (fold8_coloros.sh) for every
             # ColorOS: the folder searchable, the two files SystemUI's own. Links left alone.
+            # The exact package (0.4.63): list packages matches by substring, and the first
+            # line was another com.android.systemui.* package (A56 fda1b80b: files given to
+            # uid 15004, SystemUI ran as 15142, its save still EACCES).
             if [ $GUEST_OPLUS = 1 ]; then
-                su_uid=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd package list packages -U com.android.systemui 2>/dev/null | sed -n 's/.*uid://p' | head -1 | tr -dc 0-9)
+                su_uid=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd package list packages -U com.android.systemui 2>/dev/null | sed -n 's/^package:com[.]android[.]systemui uid://p' | head -1 | tr -dc 0-9)
                 depth=$STAGE/data/oplus/os
                 if [ -n \"\$su_uid\" ] && [ -d \$depth ] && [ ! -L \$depth ] && [ ! -L $STAGE/data/oplus ]; then
                     chmod 701 \$depth

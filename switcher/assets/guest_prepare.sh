@@ -373,6 +373,42 @@ for vb in vendor odm vendor_dlkm; do
         $BB mount --make-rslave "$ROOTFS/$vb" 2>/dev/null || true
     fi
 done
+# OPPO's AI engine for ColorOS (0.4.63): the image is OPPO's system partitions
+# only, and the guest's /odm is One UI's. ColorOS's AI service loads
+# /odm/lib64/libaiboost.so; without it every request failed ("AIUnitInferEngine:
+# has not been initialized", AIBoostEnv: "/odm/lib64/libaiboost.so not found"),
+# the lock screen's depth cut-out among them (A57 41b55d01: deepSceneryState is
+# STATE_INVALID). oplus_odm_ai.tar (the ColorOS sets; libaiboost.so and its
+# LiteRT/QNN delegates from the Find X9 Ultra's odm partition, CPH2841
+# 17.0) is unpacked to the stage and laid over the guest's view of /odm,
+# read-only; One UI's processes keep their own /odm. Plain files only, or the
+# guest keeps the plain bind. ONEOS_GUEST_ODM_AI=0 leaves it out.
+ODM_AI_TAR="$STAGE/oplus_odm_ai.tar"
+if [ "${ONEOS_GUEST_ODM_AI:-1}" = 1 ] && [ -f "$ODM_AI_TAR" ] && [ ! -L "$ODM_AI_TAR" ]; then
+    ODM_AI="$STAGE/odm_ai"
+    ok=1
+    "$BB" tar -tvf "$ODM_AI_TAR" 2>/dev/null | "$BB" awk 'substr($1, 1, 1) != "-" && substr($1, 1, 1) != "d" { bad = 1 } / -> / { bad = 1 } END { exit bad }' || ok=0
+    "$BB" tar -tf "$ODM_AI_TAR" 2>/dev/null | "$BB" awk '{ n = $0; sub(/^\.\//, "", n) } n == "" { next }
+        n !~ /^lib64(\/[A-Za-z0-9_][A-Za-z0-9._-]*)*\/?$/ || n ~ /(^|\/)\.\.?(\/|$)/ { bad = 1 } END { exit bad }' || ok=0
+    if [ $ok = 1 ]; then
+        rm -rf "$ODM_AI" && mkdir -p "$ODM_AI" && "$BB" tar -xf "$ODM_AI_TAR" -C "$ODM_AI" &&
+            [ -z "$(find "$ODM_AI" ! -type f ! -type d -print -quit)" ] && [ -f "$ODM_AI/lib64/libaiboost.so" ] || ok=0
+    fi
+    if [ $ok = 1 ]; then
+        find "$ODM_AI" -type d -exec chmod 755 {} + ; find "$ODM_AI" -type f -exec chmod 644 {} +
+        $BB chcon -R u:object_r:vendor_file:s0 "$ODM_AI" 2>/dev/null || true
+        $BB umount -l "$ROOTFS/odm" 2>/dev/null || true
+        if $BB mount -t overlay overlay -o "ro,lowerdir=$ODM_AI:/odm" "$ROOTFS/odm"; then
+            $BB mount --make-rslave "$ROOTFS/odm" 2>/dev/null || true
+            echo "OPPO AI engine: odm/lib64/libaiboost.so and its delegates over the guest's /odm (read-only overlay)"
+        else
+            $BB mount --bind /odm "$ROOTFS/odm" && $BB mount --make-rslave "$ROOTFS/odm" 2>/dev/null
+            echo "!!! OPPO AI engine: overlay on the guest's /odm refused; One UI's /odm as before"
+        fi
+    else
+        echo "!!! OPPO AI engine: oplus_odm_ai.tar is not plain lib64 files; left out"
+    fi
+fi
 # apexd is a HOST daemon: it reports the Samsung apex set (/system/apex,
 # /system_ext/apex, /vendor/apex) to the container system_server, which then
 # tries to parse those exact paths inside this namespace. Keep the apex
@@ -1272,11 +1308,44 @@ else
         echo "Display config: read-only overlay on product/etc refused, left out"
     fi
 fi
-if mount | grep -q "$ROOTFS/mnt " || $BB mount --rbind /mnt "$ROOTFS/mnt"; then
+# The guest's /mnt is a tmpfs of its own (0.4.63), with One UI's folders bound in
+# one by one, except the storage views guest_start.sh drops and rebuilds anyway
+# (user, pass_through, installer, androidwritable, runtime). Until 0.4.62 it was
+# a recursive bind of One UI's /mnt, so the guest's vold and zygote made and
+# chmod'ed /mnt/user/0 in One UI's own /mnt (the guest's vold tears down the
+# mounts under /mnt/ at its start, our tmpfs on /mnt/user/0 included). On the
+# Galaxy A54 that file system was read-only for both systems: every session died
+# at the first fork (fs_prepare_dir failed on /mnt/user/0: Read-only file system;
+# 0.4.60/0.4.61 fe657556, 89641598, 7f813b0e, 84669c97, ColorOS and Infinity-X)
+# and One UI's vold could not remake /mnt/user/0/self after the return.
+# ONEOS_GUEST_OWN_MNT=0 keeps the recursive bind.
+if mount | grep -q "$ROOTFS/mnt "; then
+    :
+elif [ "${ONEOS_GUEST_OWN_MNT:-1}" = 1 ] &&
+     $BB mount -t tmpfs -o mode=0755,uid=0,gid=1000 tmpfs "$ROOTFS/mnt" && $BB mount --make-private "$ROOTFS/mnt"; then
+    $BB chcon u:object_r:tmpfs:s0 "$ROOTFS/mnt" 2>/dev/null || true
+    MNT_BOUND=""
+    for d in /mnt/* /mnt/.[!.]*; do
+        [ -e "$d" ] || [ -L "$d" ] || continue
+        name=${d#/mnt/}
+        case "$name" in
+            user|pass_through|installer|androidwritable|runtime) mkdir -p "$ROOTFS/mnt/$name"; continue ;;
+        esac
+        if [ -L "$d" ]; then
+            ln -s "$(readlink "$d")" "$ROOTFS/mnt/$name" 2>/dev/null
+        elif [ -d "$d" ]; then
+            # rslave at once: an umount on the way back must never reach One UI's mounts.
+            mkdir -p "$ROOTFS/mnt/$name" && $BB mount --rbind "$d" "$ROOTFS/mnt/$name" &&
+                $BB mount --make-rslave "$ROOTFS/mnt/$name" 2>/dev/null && MNT_BOUND="$MNT_BOUND $name"
+        fi
+    done
+    echo "Guest /mnt: its own tmpfs; One UI's$MNT_BOUND bound in (storage views rebuilt by the guest)"
+elif $BB mount --rbind /mnt "$ROOTFS/mnt"; then
     # rslave at once: /mnt is a recursive bind of the host's shared storage
     # (/mnt/vendor/efs, /mnt/user/0/emulated); an early-exit umount on the way
     # back must never propagate to those host mounts.
     $BB mount --make-rslave "$ROOTFS/mnt" 2>/dev/null || true
+    echo "Guest /mnt: One UI's, a recursive bind (ONEOS_GUEST_OWN_MNT=${ONEOS_GUEST_OWN_MNT:-1})"
 fi
 if [ -f "$STAGE/services_patched.jar" ]; then
     $BB umount -l "$ROOTFS/system/framework/services.jar" 2>/dev/null || true

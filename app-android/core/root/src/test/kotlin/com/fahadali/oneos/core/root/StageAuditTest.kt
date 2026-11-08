@@ -169,7 +169,7 @@ class StageAuditTest {
         // SET_COMMON and its own files.
         assertTrue(PackageSets.X9U_IN_SULTRA.names.containsAll(common))
         assertEquals(
-            setOf("cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK),
+            setOf("cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI),
             PackageSets.X9U_IN_SULTRA.names.toSet() - common.toSet(),
         )
         // 0.4.59: the bar Pixel sets add double tap to sleep (their own SystemUI and launcher) to SET_PIXEL.

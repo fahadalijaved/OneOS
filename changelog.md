@@ -44,6 +44,12 @@ Galaxy A36 again; the return to One UI is faster. New, untested: **the Galaxy S2
 New in 0.4.62: **calls and SMS in HyperOS** with VoLTE on (Xiaomi's own IMS add-on, which needs Xiaomi's
 IMS service, is left out of the session, so HyperOS uses Samsung's IMS like the other systems).
 
+New in 0.4.63: **the Galaxy A54 starts** (its sessions died at the first app process: One UI's /mnt was
+read-only there, and the guest now has its own), **no more boot failures from factory reset protection**
+(the guest's FRP service could stop its own system after a few tries on the A36, A54 and A56), the
+**ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
+Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as

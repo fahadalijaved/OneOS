@@ -235,7 +235,8 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_biometric_clea
 # aliases with One UI's). patches/guest_no_gatekeeper.py, guest_pdb_readonly.py,
 # guest_no_apex_installs.py, guest_app_id_offset.py, guest_no_new_users.py; the KernelSU
 # manager keeps One UI's app id (guest_ksu_manager_appid.py, 0.4.39).
-for g in guest_no_gatekeeper guest_pdb_readonly guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
+# 0.4.63: the PDB start task survives a failed FRP deactivation (guest_pdb_init_survives.py).
+for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
