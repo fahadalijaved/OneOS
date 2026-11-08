@@ -93,7 +93,7 @@ fi
 [ -d "$STAGE" ] && [ ! -L "$STAGE" ] || refuse "$STAGE is missing or not a directory"
 root_only "$STAGE" || app_refuse "$STAGE is not root's or is writable by others ($(stat -c '%U:%G %A' "$STAGE" 2>/dev/null))"
 [ -f "$STAGE/system.raw" ] || refuse "the guest image ($STAGE/system.raw) is not staged"
-for f in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh \
+for f in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh \
          check_host_apex.sh bridges.sh fold8_coloros.sh guest_google.sh zygote_exec guards.txt services_patched.jar; do
     [ -f "$STAGE/$f" ] || refuse "$STAGE/$f is missing"
 done
@@ -120,7 +120,7 @@ if [ "$APP" = 1 ]; then
     bad=$(awk 'NF != 2 || length($1) != 64 || $1 ~ /[^0-9a-f]/ || $2 !~ /^[A-Za-z0-9_][A-Za-z0-9._-]*$/ ||
                $2 == "system.raw" || seen[$2]++ { print NR ": " $0 }' "$SUMS" | head -3)
     [ -z "$bad" ] || refuse "files.sha256 has malformed lines: $bad"
-    for need in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh \
+    for need in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh \
                 check_host_apex.sh bridges.sh zygote_exec guards.txt $GUARD_JARS; do
         awk -v n="$need" '$2 == n { f = 1 } END { exit !f }' "$SUMS" || refuse "files.sha256 does not list $need"
     done
@@ -898,7 +898,7 @@ fi
 set_prop ro.control_privapp_permissions log
 
 # --- ONEUI PROTECTION & RESCUEPARTY DISABLE ---
-echo "=== [1/6] Protecting OneUI Home Screen and Disabling RescueParty ==="
+echo "=== [1/6] $(date +%T) Protecting OneUI Home Screen and Disabling RescueParty ==="
 set_prop persist.sys.disable_rescue true
 set_prop sys.rescue_boot_count 0
 # Android 16+ counts boots for its boot-loop check in crashrecovery.* (0.4.47): the guest's
@@ -916,19 +916,19 @@ set_prop crashrecovery.rescue_boot_count 0
 # forever (app_process hung in futex_wait). The 20 ms normal path is the one
 # that actually works; a streamed tone on it is clean (0 underruns, 0 late
 # writes). Offload stays off: no working vendor DSP session in the container.
-echo "=== [2/6] Configuring Low-Latency Audio ==="
+echo "=== [2/6] $(date +%T) Configuring Low-Latency Audio ==="
 set_prop audio.offload.disable 1
 set_prop audio.deep_buffer.media false
 set_prop audio.offload.video false
 set_prop vendor.audio.offload.track.enable false
 
 # --- NETWORK BPF FIREWALL & DNS BYPASS ---
-echo "=== [3/6] Configuring Network BPF Filters ==="
+echo "=== [3/6] $(date +%T) Configuring Network BPF Filters ==="
 bpftool map update pinned /sys/fs/bpf/netd_shared/map_netd_configuration_map key hex 00 00 00 00 value hex 00 00 00 00 2>/dev/null || true
 chmod 666 /dev/socket/dnsproxyd 2>/dev/null || true
 
 # --- VERIFY STAGING ENVIRONMENT ---
-echo "=== [4/6] Verifying Staging Environment ==="
+echo "=== [4/6] $(date +%T) Verifying Staging Environment ==="
 # system.raw and the staged files were checked in the preflight, before the
 # first change to the phone.
 mkdir -p "$STAGE/data"
@@ -1079,7 +1079,7 @@ STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" performance-sna
 # One UI's new SSRM to vote afresh. Read now: settings needs the framework.
 HOST_LOW_POWER=$(timeout 3 settings get global low_power 2>/dev/null)
 echo "Before the stop: power saving ${HOST_LOW_POWER:-unknown}, cpufreq_max_limit $(cat /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit 2>/dev/null || echo none)"
-echo "=== [4b/6] Stopping the One UI framework ==="
+echo "=== [4b/6] $(date +%T) Stopping the One UI framework ==="
 echo "Before the stop: CPU max/hw kHz: $(cpu_caps); skin: $(skin_temp)"
 pkill -f "while true; do [ \"\$(getprop init.svc.zygote)\"" 2>/dev/null || true
 pkill -f "while true; do for p in \\\$(pidof audioserver cameraserver)" 2>/dev/null || true
@@ -1256,7 +1256,7 @@ ls -l /vendor/etc/displayconfig /vendor/odm/etc/displayconfig /vendor/odm/etc/de
       echo "== $b"; strings -a "$b" 2>/dev/null | grep -E '^/sys/|enabled|fold_state' | head -40
   done
 } > "$STAGE/diag_host/touch_nodes.txt" 2>&1
-echo "=== [5/6] Executing Mount Hierarchy Preparation ==="
+echo "=== [5/6] $(date +%T) Executing Mount Hierarchy Preparation ==="
 /system/bin/sh "$STAGE/guest_prepare.sh"
 PREP_RET=$?
 if [ $PREP_RET -ne 0 ]; then
@@ -1323,7 +1323,7 @@ $BB sh -c "
 /system/bin/sh "$STAGE/guest_props.sh" add "$STAGE/rootfs"
 
 # --- STOP HOST DAEMONS & LAUNCH CONTAINER ---
-echo "=== [6/6] Launching the guest takeover daemon ==="
+echo "=== [6/6] $(date +%T) Launching the guest takeover daemon ==="
 
 # Stop the HOST media codec stack. The guest's libmedia binds `media.codec` from
 # the shared servicemanager, i.e. Samsung's mediaserver - whose IMediaCodecList
@@ -1586,6 +1586,17 @@ fi
 rm -f "$STAGE/data/socket_exec"
 if [ -f "$STAGE/socket_exec" ] && [ ! -L "$STAGE/socket_exec" ]; then
     cp -f "$STAGE/socket_exec" "$STAGE/data/socket_exec" && chmod 755 "$STAGE/data/socket_exec"
+fi
+
+# Inbound SMS (0.4.61): Samsung's rild queues new-SMS unsolicited responses
+# until its own framework sends FW_READY=1 over HIDL. An AOSP guest's RILJ
+# cannot send that vendor configuration, so SecRilProxy keeps the SMS in its
+# pending list and the guest never sees UNSOL_RESPONSE_NEW_SMS. NOP the queue
+# branch in the vendor library and bind-mount the copy for the session;
+# return_to_oneui.sh removes it. A library without the exact sequence is left
+# alone, and inbound SMS stays as it was.
+if ! /system/bin/sh "$STAGE/libsec-ril-patch.sh" apply; then
+    echo "!!! inbound SMS: libsec-ril.so was not patched; the guest will not receive SMS"
 fi
 
 # Launch takeover inside isolated mount namespace

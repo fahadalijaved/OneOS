@@ -222,10 +222,10 @@ class ProfilesTest {
         // 0.4.57: without the Pixel 9 Pro XL (ARMv8.2, as the A26).
         assertEquals(s25Plus.choices - nothing - s25Plus.choices.filter { it.imageId == Images.ID_PIXEL_KOMODO }, a36.choices)
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), a36.notes.map { it.id })
-        // Nothing OS (0.4.35) on the SVE + SME phones; 0.4.36 also the S25s, S24 Ultra, Fold7 and Fold6 (brightness scale ~5).
+        // Nothing OS (0.4.35) on the SVE + SME phones; 0.4.36 also the S25s, S24 Ultra, Fold7 and Fold6 (brightness scale ~5); 0.4.61 the S24 (Snapdragon, scale 5.0).
         assertEquals(
             listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750,
-                Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_PLUS_8850,
+                Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_PLUS_8850,
                 Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8, Profiles.S_EDGE_8750, Profiles.S_9965),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_NOTHING_METROID) != null },
         )
@@ -245,7 +245,7 @@ class ProfilesTest {
         assertEquals(
             listOf(
                 Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750, Profiles.FOLD8,
-                Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550, Profiles.S_PLUS_8850,
+                Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_8550, Profiles.S_PLUS_8550, Profiles.S_PLUS_8850,
                 Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945,
@@ -338,7 +338,7 @@ class ProfilesTest {
         // 0.4.57: not the A26 and A36 (ARMv8.2: the image's programs stopped on "Illegal instruction" on the A26).
         assertEquals(
             listOf(
-                Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.S_PLUS_8750, Profiles.S_ULTRA_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
+                Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.S_PLUS_8750, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
                 Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945, Profiles.FLIP7_FE,
             ),
@@ -427,7 +427,10 @@ class ProfilesTest {
         assertNull(Profiles.FLIP6.choice(Images.ID_HYPEROS_LHASA)) // as the Z Fold6: HyperOS died on SM8650
         assertEquals(Profiles.S_9945, profile("SM-S921N", "e1s", "s5e9945"))
         assertEquals(Profiles.S_9945, profile("SM-S921B", "e1s", "s5e9945"))
-        assertNull(profile("SM-S921B", "e1q", "SM8650")) // a Snapdragon S24: no report, no profile
+        // 0.4.61: the Snapdragon S24 (SM-S921E probe), apart from the Exynos one by codename and chip.
+        assertEquals(Profiles.S_8650, profile("SM-S921E", "e1q", "SM8650"))
+        assertNull(profile("SM-S921B", "e1q", "s5e9945"))
+        assertEquals(Profiles.S_ULTRA_8650.notes, Profiles.S_8650.notes)
         assertEquals(listOf(Profiles.ID_NOTE_EXYNOS, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.S_9945.notes.map { it.id })
         // Galaxy S25 (base): all three ids, like the others.
         assertEquals(Profiles.S_8750, profile("SM-S931B", "pa1q", "SM8750"))

@@ -279,6 +279,10 @@ if [ "$VOLD_GVLD" = 1 ]; then
 fi
 # StorageManagerService waits for OPPO's DefragService, which never registers.
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oplus_wait_for_service.py" "$WORK/services" --only DefragService)"
+# ColorOS's sound trigger retried a HAL the phone does not have forever on system_server's
+# main thread (A16 5G, A17 5G: Watchdog kill after 60 s); it gives up as AOSP does
+# (patches/oplus_soundtrigger_no_hal.py; nothing to change on other images).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oplus_soundtrigger_no_hal.py" "$WORK/services")"
 # Pixel's Comfort View as a color matrix, like Night Light (run 43: the switch
 # did nothing; patches/comfort_view_bridge.py). Left out, with a warning, on an
 # image without ColorDisplayService.setUp, and not run for ColorOS: its

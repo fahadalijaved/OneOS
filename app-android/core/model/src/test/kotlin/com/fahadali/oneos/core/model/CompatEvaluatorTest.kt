@@ -182,7 +182,7 @@ class CompatEvaluatorTest {
         // Another S-series model, and an S25 model number with another codename or chip.
         for (f in listOf(
             s25.copy(model = "SM-S901B", device = "r0q", soc = SocRules.resolve(SocProps("QTI", "SM8450", "taro"))),
-            s25.copy(model = "SM-S921B", device = "e1q", soc = SocRules.resolve(SocProps("QTI", "SM8650", "pineapple"))),
+            s25.copy(model = "SM-S926B", device = "e2q", soc = SocRules.resolve(SocProps("QTI", "SM8650", "pineapple"))),
             s25.copy(device = "pa3q"),
             s25.copy(soc = SocRules.resolve(SocProps("QTI", "SM8850", "canoe"))),
         )) {

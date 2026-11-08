@@ -29,6 +29,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S26 (SM-S942, SM8850), not tested yet
   - Galaxy S26 (docomo) (SC-51G, SM8850), not tested yet
   - Galaxy S24 Ultra (SM-S928, SM8650), not tested yet
+  - Galaxy S24 (SM-S921, SM8650), not tested yet
   - Galaxy S23 (SM-S911, SM8550), not tested yet
   - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy S26+ (SM-S947, SM8850), not tested yet
@@ -90,6 +91,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S25 (SM-S931, SM8750), not tested yet
   - Galaxy S25+ (SM-S936, SM8750), not tested yet
   - Galaxy S24 Ultra (SM-S928, SM8650), not tested yet
+  - Galaxy S24 (SM-S921, SM8650), not tested yet
   - Galaxy S23 (SM-S911, SM8550), not tested yet
   - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy Z Flip7 (SM-F766, s5e9955), not tested yet
@@ -119,6 +121,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S26 (SM-S942, SM8850), not tested yet
   - Galaxy S26 (docomo) (SC-51G, SM8850), not tested yet
   - Galaxy S24 Ultra (SM-S928, SM8650)
+  - Galaxy S24 (SM-S921, SM8650), not tested yet
   - Galaxy S23 (SM-S911, SM8550), not tested yet
   - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy S26+ (SM-S947, SM8850), not tested yet
@@ -165,6 +168,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S26 (SM-S942, SM8850), not tested yet
   - Galaxy S26 (docomo) (SC-51G, SM8850), not tested yet
   - Galaxy S24 Ultra (SM-S928, SM8650), not tested yet
+  - Galaxy S24 (SM-S921, SM8650), not tested yet
   - Galaxy S23 (SM-S911, SM8550), not tested yet
   - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy S26+ (SM-S947, SM8850), not tested yet
@@ -199,6 +203,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S26 (SM-S942, SM8850), not tested yet
   - Galaxy S26 (docomo) (SC-51G, SM8850), not tested yet
   - Galaxy S24 Ultra (SM-S928, SM8650), not tested yet
+  - Galaxy S24 (SM-S921, SM8650), not tested yet
   - Galaxy S26+ (SM-S947, SM8850), not tested yet
   - Galaxy S26+ (Exynos) (SM-S947, s5e9965), not tested yet
   - Galaxy Z Fold6 (SM-F956, SM8650), not tested yet

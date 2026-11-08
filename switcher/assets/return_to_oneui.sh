@@ -202,14 +202,14 @@ if [ -n "$BB" ] && [ -n "$gp" ] && [ ! -L "$DR" ] && rm -rf "$DR" 2>/dev/null &&
       echo "audio HAL pid: $(timeout 3 dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1)"
     } > "$DR/bt_props.txt" 2>&1
     wait $p1 $p2 $p3 $p4 $p5 $p6 $p7 2>/dev/null
-    echo "Guest Bluetooth, audio and location at the return (pid $gp's namespace): $(ls "$DR" 2>/dev/null | tr '\n' ' ')in $DR"
+    echo "$(date +%T) Guest Bluetooth, audio and location at the return (pid $gp's namespace): $(ls "$DR" 2>/dev/null | tr '\n' ' ')in $DR"
 else
     why="no guest surfaceflinger or system_server"
     [ -n "$gp" ] && why="no busybox, or $DR not usable"
-    echo "Guest Bluetooth, audio and location at the return: not read ($why)"
+    echo "$(date +%T) Guest Bluetooth, audio and location at the return: not read ($why)"
 fi
 
-echo "=== [1/4] Terminating Container Supervision & Zygote ==="
+echo "=== [1/4] $(date +%T) Terminating Container Supervision & Zygote ==="
 # A screen recording (guest_start.sh) is finalised on SIGINT; SIGKILL would
 # leave an unplayable segment. Nothing on the host is called screenrecord.
 # The flag stops guest_start.sh's segment loop first: in run 31 it started
@@ -288,27 +288,67 @@ HOST_NS=$(readlink /proc/1/ns/mnt)
 GUEST_DEV=$(cat /data/local/tmp/oneos/guest_rootdev 2>/dev/null)
 HOST_DEV=$(stat -L -c %d /proc/1/root/ 2>/dev/null)
 [ "$GUEST_DEV" = "$HOST_DEV" ] && GUEST_DEV=""
+# Speed: apps have private mount namespaces, so a namespace check alone misses
+# them. Their "/" mount is the guest root filesystem; its device from mountinfo
+# is cheap to read. The old loop ran `timeout 1 stat` on every process's root,
+# and a guest app on a hung FUSE mount blocked each check for a second (54 s in
+# the 2026-11-08 return).
+GUEST_MM=$(awk -v d="$GUEST_DEV" 'BEGIN {
+    if (d == "") exit;
+    major = int(d / 256) % 4096;
+    minor = (d % 256) + (int(d / 4096 / 256) % 4096) * 256;
+    printf "%d:%d", major, minor;
+}')
 if [ -n "$GUEST_NS" ] && [ "$GUEST_NS" != "$HOST_NS" ]; then
     # Repeated: a guest zygote or init-like parent can fork while the first
     # pass runs, and nothing of the guest may outlive the return.
+    echo "Kill loop start $(date +%T)"
+    seen=""
     pass=1
     while [ $pass -le 5 ]; do
         killed=""
         for p in /proc/[0-9]*; do
-            if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
-                [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || continue
-            fi
             pid=${p#/proc/}
+            # Speed: check the seen list before the namespace/mountinfo probe;
+            # this is what makes passes 2+ cheap.
+            case " $seen " in *" $pid "*) continue ;; esac
+            seen="$seen $pid"
+            ns=$(readlink "$p/ns/mnt" 2>/dev/null)
+            # A process in One UI's namespace is still checked by its root
+            # mount below (cheap): something chrooted into the guest's root
+            # from the host namespace is the guest's too.
+            if [ "$ns" != "$GUEST_NS" ]; then
+                # An app's private namespace still has the guest root as "/".
+                if [ -n "$GUEST_MM" ]; then
+                    # Speed: the first line is almost always the root mount, so
+                    # read it instead of parsing the whole mountinfo for every
+                    # app. Only a private namespace whose first line is not "/"
+                    # needs the full scan.
+                    [ -r "$p/mountinfo" ] || continue
+                    rootdev=""; rootpoint=""
+                    read -r _ _ rootdev _ rootpoint _ 2>/dev/null < "$p/mountinfo" || continue
+                    if [ "$rootpoint" = "/" ]; then
+                        [ "$rootdev" = "$GUEST_MM" ] || continue
+                    else
+                        [ "$(awk '$5 == "/" { print $3; exit }' "$p/mountinfo" 2>/dev/null)" = "$GUEST_MM" ] || continue
+                    fi
+                else
+                    # No root device recorded: the slow fallback is the only way.
+                    [ -n "$GUEST_DEV" ] && [ "$(timeout 1 stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || continue
+                fi
+            fi
             killed="$killed $pid:$(cat "$p/comm" 2>/dev/null)"
-            oneos_boot_event "Stopping $(cat "$p/comm" 2>/dev/null) (PID $pid)"
+            # Speed: do not set a boot-status property for every killed process;
+            # with ~100 guest processes that was most of the 34 s phase 1.
             kill -9 "$pid" 2>/dev/null
         done
-        if [ $pass = 1 ]; then echo "Killed guest processes:${killed:- none}"
-        elif [ -n "$killed" ]; then echo "Killed guest processes (pass $pass):$killed"; fi
+        if [ $pass = 1 ]; then echo "Killed guest processes $(date +%T):${killed:- none}"
+        elif [ -n "$killed" ]; then echo "Killed guest processes (pass $pass) $(date +%T):$killed"; fi
         [ -n "$killed" ] || break
         pass=$((pass + 1)); sleep 0.3
     done
 fi
+echo "Kill loop finished $(date +%T)"
 # net_watch (oneos_switch.sh) rewrote routes until the rootfs was gone, 8 s
 # into run 43's return; it has no business in the return.
 pkill -9 -f "$S/rootfs/system/build.prop" 2>/dev/null || true
@@ -426,7 +466,7 @@ if [ -f "$S/host_state.before" ]; then
     tail -n 1 "$S/host_state.log" | grep -q "unchanged" && echo "Host state unchanged" || echo "!!! Host state changed: see $S/host_state.log"
 fi
 
-echo "=== [2/4] Unmounting Container Overlays ==="
+echo "=== [2/4] $(date +%T) Unmounting Container Overlays ==="
 # OneOS: never unmount through a glob of the rootfs. The guest image's top
 # level has absolute symlinks (system_ext -> /system/system_ext, product,
 # sdcard, ...), and in the host namespace "umount -l rootfs/*" followed them to
@@ -578,7 +618,7 @@ wait_found() { # <name> <seconds>
 # it is released when One UI is up.
 say "In-place return (baseline: $(cat "$BASE/kmsg" 2>/dev/null); SELinux at the return: ${SE_AT_RETURN:-unreadable}, now $(getenforce 2>/dev/null))"
 
-echo "=== [3/4] Checking One UI's modules (in place) ==="
+echo "=== [3/4] $(date +%T) Checking One UI's modules (in place) ==="
 # Leftovers in the host namespace. The suppression loop must be gone before
 # anything is started (its last 'ctl.stop' can land after a start); the audio
 # flag makes it stop audioserver too.
@@ -591,6 +631,11 @@ while [ $n -lt 10 ] && "$BB" pgrep -f "ctl.stop zygote" >/dev/null 2>&1; do
     "$BB" pkill -9 -f "ctl.stop zygote" 2>/dev/null; sleep 0.2; n=$((n + 1))
 done
 "$BB" pgrep -f "ctl.stop zygote" >/dev/null 2>&1 && failsafe "the session's stop loop is still running"
+# Inbound SMS (0.4.61): the session NOPs Samsung rild's queue branch and
+# bind-mounts the vendor library. Remove it before the stage-mount check below,
+# which would otherwise see /local/tmp/oneos/ in field 4 and reboot.
+/system/bin/sh "$S/libsec-ril-patch.sh" restore >>"$IPLOG" 2>&1 || \
+    say "!!! inbound SMS: the vendor RIL patch was not removed; see return_inplace.log"
 sleep 0.5
 # Stage mounts another mount namespace still holds (run 45): Android's bootstrap
 # namespace (early vendor daemons, kernel threads) gets its own copy of what the
@@ -740,11 +785,15 @@ done < "$BASE/svcpid"
 [ "$(getprop init.svc_debug_pid.vold)" = "$(base_prop init.svc_debug_pid.vold)" ] || failsafe "One UI's vold restarted"
 say "Gate A: vold $(awk '$1 == "vold" {print $2}' "$BASE/svcpid") and the other names are still One UI's"
 
-echo "=== [4/4] Starting One UI in place ==="
+echo "=== [4/4] $(date +%T) Starting One UI in place ==="
 g=0
 for p in /proc/[0-9]*; do
-    if [ -n "$GUEST_NS" ] && [ "$(readlink "$p/ns/mnt" 2>/dev/null)" = "$GUEST_NS" ]; then g=$((g + 1))
-    elif [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ]; then g=$((g + 1)); fi
+    # Speed: this check used to stat /proc/<pid>/root for every process. A
+    # guest app's root can sit on a hung FUSE mount, and that stat blocked
+    # the return for 37 s (2026-11-08). The kill loop already removed the
+    # apps; the namespace readlink is cheap and catches every guest process
+    # still sharing the container's mount namespace. Gate B rechecks.
+    [ -n "$GUEST_NS" ] && [ "$(readlink "$p/ns/mnt" 2>/dev/null)" = "$GUEST_NS" ] && g=$((g + 1))
 done
 [ $g = 0 ] || failsafe "$g guest processes still running"
 [ "$(getprop init.svc.zygote)" != running ] && ! pidof system_server >/dev/null || failsafe "One UI's zygote or system_server started before the return was ready"
@@ -804,6 +853,11 @@ if ip rule show 2>/dev/null | "$BB" grep -q '^14999:.*lookup 4242'; then
     ip route flush table 4242 2>/dev/null
 fi
 "$BB" grep -q '^14999:' "$BASE/iprule" || ! ip rule show 2>/dev/null | "$BB" grep -q '^14999:' || say "!!! ip rule 14999 still there"
+# net_fix.sh's copies of netd's explicit-network rules (0.4.61), unless One UI had 14998 itself.
+if ! "$BB" grep -q '^14998:' "$BASE/iprule"; then
+    n=0
+    while [ $n -lt 32 ] && ip rule del priority 14998 2>/dev/null; do n=$((n + 1)); done
+fi
 # guest_prepare.sh re-made /dev/block/loop50-150 and /dev/loop50-150 with mknod:
 # their SELinux label is gone (One UI's apexd and vold need loop_device).
 restorecon /dev/block/loop* /dev/loop* 2>/dev/null
@@ -989,7 +1043,10 @@ ip rule show 2>/dev/null | "$BB" diff "$BASE/iprule" - >> "$IPLOG" 2>&1 || say "
 # capture and the wakelock end.
 v=$("$BB" sed -n 's/^persist\.sys\.disable_rescue=//p' $S/persist_props.snapshot 2>/dev/null | "$BB" head -n 1)
 if [ -n "$v" ]; then "$RP" -n persist.sys.disable_rescue "$v" 2>/dev/null; else "$RP" --delete persist.sys.disable_rescue 2>/dev/null; fi
-/system/bin/sh $S/check_host_apex.sh after-inplace >> "$IPLOG" 2>&1 || say "!!! a One UI APEX file read failed after the restart (see return_inplace.log)"
+# Speed: log-only; Gate A already read the APEXes before One UI started.
+(
+    /system/bin/sh $S/check_host_apex.sh after-inplace >> "$IPLOG" 2>&1 || say "!!! a One UI APEX file read failed after the restart (see return_inplace.log)"
+) &
 # Ten more minutes of the session's logcat capture for anything late (two
 # until 0.4.33: the apps hanging after a return came later), then
 # this return stops it, unless a session started meanwhile: that one keeps the

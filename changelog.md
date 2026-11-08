@@ -33,6 +33,14 @@ Samsung IMS gets both SIMs when the phone service starts late; a Z Flip's main s
 boot. New, untested: **the Galaxy A17 5G (SM-A176) and Z Flip7 FE (SM-F761)**, and ColorOS (Find X9
 Ultra IN build) on the Galaxy A07, A17, A16 4G and A16 5G next to Infinity-X.
 
+New in 0.4.61: **SMS arrive in every system** (Samsung's radio held incoming texts until One UI's own
+phone app said it was ready; from pull request #58 by vdcoolok), and **VoLTE registers on IPv4 IMS
+networks** (the session's network rule sent Samsung IMS's traffic out of the wrong connection). The
+**Samsung Camera opens on the Galaxy A phones** (it stopped at launch on settings the S26 Ultra's camera
+does not know). **ColorOS starts on the Galaxy A16 5G and A17 5G** (it waited forever for a voice-wake
+service these phones do not have). Infinity-X's status bar, quick settings and navigation work on the
+Galaxy A36 again; the return to One UI is faster. New, untested: **the Galaxy S24 (Snapdragon, SM-S921)**.
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as

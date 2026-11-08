@@ -3881,11 +3881,17 @@ usable() {
     [ "$(cat "/sys/class/net/$1/carrier" 2>/dev/null)" = 1 ] &&
         ip -4 addr show "$1" 2>/dev/null | grep -q "inet "
 }
+# Without Wi-Fi: the mobile interface netd made the default network (its rule
+# "fwmark 0x0/0xffff iif lo lookup <if>"), then the first usable rmnet_data.
+# The first one alone could be the IMS PDN (0.4.60 reports 5278f632, 4cc84045:
+# 4242 on the IMS rmnet_data for a while, the phone's internet into the IMS APN).
 iface=""
 if usable wlan0; then
     iface=wlan0
 else
-    for d in $(ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | sed 's/@.*//' | grep '^rmnet_data'); do
+    d=$(ip rule show 2>/dev/null | awk '/fwmark 0x0\/0xffff iif lo lookup rmnet_data/ {print $NF; exit}')
+    case "$d" in rmnet_data*) usable "$d" && iface=$d ;; esac
+    [ -n "$iface" ] || for d in $(ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | sed 's/@.*//' | grep '^rmnet_data'); do
         if usable "$d"; then iface=$d; break; fi
     done
 fi
@@ -3947,6 +3953,25 @@ case "$cur" in
         echo "net route repaired: $iface $subnet gw $gw"
         ;;
 esac
+# Sockets bound to a mobile network on purpose (Samsung IMS's SIP to the
+# P-CSCF, MMS) carry that network's netId in their fwmark; netd routes them
+# with its explicit-network rules (priority 16000, "fwmark 0x1<netId>/0x1ffff
+# iif lo lookup rmnet_dataN"), which come after 14999. 0.4.60 S918B Viettel
+# (65e30c5c): every REGISTER to 10.204.64.81 left through table 4242's
+# rmnet_data0 and ended in TimerF; the one REGISTER sent while 4242 happened to
+# use the IMS interface got its 401 at once. The same rules again at 14998, so
+# they win over 4242; a table without a matching route falls through to 14999
+# as before. Only mobile interfaces; kept in step with netd's.
+want=$(ip rule show 2>/dev/null | awk '$1 == "16000:" && / iif lo / && / fwmark / && $NF ~ /^rmnet_data/ { $1 = ""; sub(/^ +/, ""); print }')
+have=$(ip rule show 2>/dev/null | awk '$1 == "14998:" { $1 = ""; sub(/^ +/, ""); print }')
+echo "$have" | while read -r r; do
+    [ -n "$r" ] || continue
+    printf '%s\n' "$want" | grep -qxF "$r" || { ip rule del $r priority 14998 2>/dev/null && echo "net route: dropped 14998: $r"; }
+done
+echo "$want" | while read -r r; do
+    [ -n "$r" ] || continue
+    printf '%s\n' "$have" | grep -qxF "$r" || { ip rule add $r priority 14998 2>/dev/null && echo "net route: 14998: $r (bound sockets keep their network)"; }
+done
 exit 0
 NETFIX
 chmod 755 "$STAGE/data/local/tmp/net_fix.sh" 2>/dev/null || true
@@ -4286,10 +4311,34 @@ fi
 # CellBroadcastService.
 bind_host_app() {
     [ -d "$1" ] && [ -d "$2" ] || { echo "!!! cannot replace $2 with $1"; return 0; }
+    # 0.4.61: the APK must be a readable zip. A36 Infinity-X 607556f1 (0.4.60):
+    # "Failed to open APK '/system/priv-app/NetworkStack/NetworkStackGoogle.apk':
+    # Invalid file", no MAINLINE_NETWORK_STACK permission, Network Stack and
+    # Tethering failed to start, SystemUI's tethering call timed out at startup
+    # and SystemUI crash-looped (no status bar, quick settings or navigation).
+    # Then One UI's updated copy (/data/app, the same package and signer), bound
+    # over the system one in a private folder.
+    a=$(ls "$1"/*.apk 2>/dev/null | head -n 1)
+    if [ -n "$a" ] && [ "$($BB head -c 2 "$a" 2>/dev/null)" = PK ] && [ "$($BB stat -c %s "$a" 2>/dev/null || echo 0)" -gt 65536 ] &&
+       $BB unzip -l "$a" AndroidManifest.xml >/dev/null 2>&1; then
+        $BB mount --bind "$1" "$2" && echo "Host $(basename "$1") -> $2"
+        return 0
+    fi
+    echo "!!! host $(basename "$1"): ${a:-no APK} is not a readable APK ($($BB stat -c %s "$a" 2>/dev/null || echo none) bytes)"
+    u=""
+    [ -n "$3" ] && u=$(ls -d /data/app/*/"$3"-*/base.apk /data/app/"$3"-*/base.apk 2>/dev/null | head -n 1)
+    if [ -n "$u" ] && [ "$($BB head -c 2 "$u" 2>/dev/null)" = PK ] && $BB unzip -l "$u" AndroidManifest.xml >/dev/null 2>&1 &&
+       $BB mount -t tmpfs -o size=64k,mode=755 tmpfs "$2"; then
+        : > "$2/$(basename "$1").apk" && chmod 644 "$2/$(basename "$1").apk" &&
+            $BB mount --bind "$u" "$2/$(basename "$1").apk" && $BB mount -o remount,ro "$2" 2>/dev/null &&
+            { echo "Host $3 from One UI's update ($u) -> $2"; return 0; }
+        $BB umount -l "$2" 2>/dev/null
+    fi
+    echo "!!! no readable $3 from One UI either; binding $1 as it is"
     $BB mount --bind "$1" "$2" && echo "Host $(basename "$1") -> $2"
 }
-bind_host_app /system/priv-app/NetworkStackGoogle "$ROOTFS/system/priv-app/NetworkStack"
-bind_host_app /system/app/CaptivePortalLoginGoogle "$ROOTFS/system/app/CaptivePortalLogin"
+bind_host_app /system/priv-app/NetworkStackGoogle "$ROOTFS/system/priv-app/NetworkStack" com.google.android.networkstack
+bind_host_app /system/app/CaptivePortalLoginGoogle "$ROOTFS/system/app/CaptivePortalLogin" com.google.android.captiveportallogin
 if [ -d "$GUEST_SYSTEM_EXT/priv-app/CellBroadcastService" ]; then
     $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$GUEST_SYSTEM_EXT/priv-app/CellBroadcastService" && \
         echo "Hid guest system_ext/priv-app/CellBroadcastService"

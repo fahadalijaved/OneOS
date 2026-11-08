@@ -125,6 +125,57 @@ own error (49, 39, 10). `patches/guest_sms_invalid_response.py`
 (telephony-common.jar, MessagingResponse.responseSms) counts 66 as sent and
 logs `OneOS-SMS: SEND_SMS error 66 ... counted as sent`.
 
+## SMS: inbound, the vendor queue waited for One UI's handshake (0.4.61)
+
+An inbound SMS in the guest reached the modem but not the app: the radio log
+showed `RILD: Received New GW SMS Message` and then no
+`RILJ [UNSL]< UNSOL_RESPONSE_NEW_SMS`, no `SmsBroadcastReceiver`, and no row in
+the telephony provider. The guest's own `SET_UNSOLICITED_RESPONSE_FILTER 127`
+completed without error; it does not touch this path.
+
+Samsung's `libsec-ril.so` has two unsolicited-response paths.
+`SecRilProxy::OnUnsolicitedResponse` translates AOSP's new-SMS ID 1003 to
+Samsung's extended ID 2201003 (2,201,003), then checks the enable flag at
+`[SecRil+0x101]`. With the flag clear it puts the response on a pending list;
+with the flag set it sends it to the RIL environment immediately. The flag is
+set by `SecRil::SetEnableUnsolResponse(true)`, whose only caller is
+`EnableUnsolResponseHandler::DoEvent`. That handler is reached through the
+`FW_READY=1` vendor configuration: One UI's `VendorConfigurationTracker` sends
+it over Samsung's HIDL radio interface
+(`ISehRadioNetwork.setVendorSpecificConfiguration`), and
+`VendorConfigManager::DoSetVendorConfiguration` calls
+`EnableUnsolResponse()` for the `FW_READY` entry. An AOSP guest's RILJ has no
+Samsung HIDL client and never sends that configuration. The legacy RIL request
+10093 is not a substitute: its payload is a `hidl_vec<SehVendorConfiguration>`
+(count plus native string pointers), not a socket parcel.
+
+The session therefore bypasses the queue at the branch itself.
+`switcher/assets/libsec-ril-patch.sh` finds this ten-byte sequence in
+`/vendor/lib64/libsec-ril.so`—
+
+```
+a8 06 40 f9   ldr  x8, [x21, #8]
+08 05 44 39   ldrb w8, [x8, #0x101]
+a8 01 00 34   cbz  w8, <queue>
+```
+
+—and replaces the `cbz` with `1f 20 03 d5` (NOP), which forces the direct
+path for every unsolicited response with ID >= 1,000,000, including 2201003.
+It copies the library to `$STAGE/session/libsec-ril.session.so`, bind-mounts
+the copy over `/vendor/lib64/libsec-ril.so`, and restarts `ril-daemon` and
+`multiclient-daemon` so rild loads it. `return_to_oneui.sh` calls the same
+script's `restore` after the guest is dead and before its stage-mount check
+(which would otherwise find the bind's `/local/tmp/oneos/` source and
+reboot). The scan requires exactly one match; an unknown library is left
+alone, and inbound SMS then stays as it was.
+
+Tested on the 0.4.59 S25U (host One UI 9) with `libsec-ril.so` sha256
+`318e15d8f884c717463e46eb0b2a4b4dd4969799b69a50cebd7c69fd39e76dfc`: the
+sequence is at offset 4,123,036 (0x3ee99c), and the patched copy's sha256 is
+`ed57995023e8906693600374e66c6e88422940be8e2cdc36c8002dd18cd399a3`. This is
+a host runtime patch, not a guest image patch: the host rild serves every
+guest, so the session applies it for every image.
+
 ## Prior art: jameskdev/android_samsung_imsservice
 
 https://github.com/jameskdev/android_samsung_imsservice (last push 2024-05): Samsung's

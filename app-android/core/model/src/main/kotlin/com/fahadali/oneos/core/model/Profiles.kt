@@ -105,6 +105,7 @@ object Profiles {
     const val ID_S_ULTRA_8550 = "s-ultra-8550"
     const val ID_FLIP6 = "flip6"
     const val ID_S_9945 = "s-9945"
+    const val ID_S_8650 = "s-8650"
     const val ID_S_EDGE_8750 = "s-edge-8750"
     const val ID_S_FE_9945 = "s-fe-9945"
     const val ID_A26 = "a26"
@@ -780,6 +781,24 @@ object Profiles {
     )
 
     /**
+     * Galaxy S24 with Snapdragon, from 0.4.61: a probe report of 2026-11-07 (SM-S921E, e1q, SM8650
+     * like the Galaxy S24 Ultra, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and
+     * kernel 6.1, one 1080 x 2340 panel on port 131 at density 480, sec_touchscreen, composer3,
+     * no SVE or SME, installd 85 methods). The S24 Ultra's images, untested. Shares SM-S921 with
+     * [S_9945]: the codename and the chip tell them apart.
+     */
+    val S_8650 = PhoneProfile(
+        id = ID_S_8650,
+        label = "Galaxy S24",
+        modelPrefix = "SM-S921",
+        codename = "e1q",
+        socModel = "SM8650",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
+        notes = listOf(olderVendor("34 (Android 14)", "6.1")),
+    )
+
+    /**
      * Galaxy S24 FE, from 0.4.48: a probe report of 2026-11-04 (SM-S721B, r12s, s5e9945 Exynos
      * 2400 like the Galaxy S24 (Exynos), One UI 9.0, Android 17, vendor API 34 and kernel 6.1,
      * one 1080 x 2340 panel at density 450, sec_touchscreen, composer3, SVE and SVE2 but no SME,
@@ -931,7 +950,7 @@ object Profiles {
 
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
-        S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
+        S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
     )
