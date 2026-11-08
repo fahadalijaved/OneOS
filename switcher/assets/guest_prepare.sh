@@ -204,7 +204,7 @@ wdogs() {
 }
 { echo "$(date +%T) nodes: $(ls -ln /dev/watchdog* /dev/softdog* 2>/dev/null | awk '{printf "%s %s:%s %s; ", $NF, $3, $4, $1}')"
   echo "$(date +%T) persist.vendor.softdog=$(getprop persist.vendor.softdog) init.svc.watchdogd=$(getprop init.svc.watchdogd); kernel:$(wdogs)"; } >> "$L"
-was=''; n=0; seen=''
+was=''; ticks=0; seen=''
 while true; do
     if e=$(printf V 2>&1 > /dev/watchdog); then now=written; else now="refused ($e)"; fi
     if [ -c /dev/softdog ]; then
@@ -231,10 +231,10 @@ while true; do
         echo "$(date +%T) /dev/watchdog $now; held by:$(holders)" >> "$L"
         was=$now
     fi
-    n=$((n + 1))
-    if [ $((n % 5)) = 0 ]; then
+    ticks=$((ticks + 1))
+    if [ $((ticks % 5)) = 0 ]; then
         k=$(wdogs)
-        [ "$(echo "$k" | sed 's/ left [0-9]*\]/]/g')" != "$seen" ] || [ $((n % 30)) = 0 ] &&
+        [ "$(echo "$k" | sed 's/ left [0-9]*\]/]/g')" != "$seen" ] || [ $((ticks % 30)) = 0 ] &&
             echo "$(date +%T) persist.vendor.softdog=$(getprop persist.vendor.softdog); kernel:$k" >> "$L"
         seen=$(echo "$k" | sed 's/ left [0-9]*\]/]/g')
     fi
