@@ -213,10 +213,13 @@ while true; do
     # The node(s) One UI's system_server had open at the switch (host_softdog_nodes,
     # oneos_switch.sh): the S24 Exynos's /dev/watchdog1, beside a busy /dev/watchdog;
     # since 0.4.66 also every watchdog node of group system (the A17 5G's watchdog1).
-    for n in $(cat /data/local/tmp/oneos/host_softdog_nodes 2>/dev/null); do
-        case "$n" in /dev/watchdog|/dev/softdog) continue ;; esac
-        [ -c "$n" ] || continue
-        if e=$(printf V 2>&1 > "$n"); then now="$now; $n kicked"; else now="$now; $n refused ($e)"; fi
+    # Its own variable: with n (the loop counter below) the shell left n=<node>
+    # and the feeder exited on n=$((n + 1)) after its first kick (0.4.67 S25+
+    # e92bad4f: three log lines, then softdog_fire).
+    for wd in $(cat /data/local/tmp/oneos/host_softdog_nodes 2>/dev/null); do
+        case "$wd" in /dev/watchdog|/dev/softdog) continue ;; esac
+        [ -c "$wd" ] || continue
+        if e=$(printf V 2>&1 > "$wd"); then now="$now; $wd kicked"; else now="$now; $wd refused ($e)"; fi
     done
     # An active software watchdog other than /dev/watchdog: kicked ("V", the
     # magic close where the driver allows it), never started.
@@ -1112,6 +1115,18 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                     if sec_ims_bind; then SECIMS_BOUND=1; else
                         SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
                         echo "Samsung IMS in the guest: off (bind-mount onto $GUEST_SYSTEM_EXT failed)"
+                    fi
+                fi
+            # The S23 FE's kernel refused the read-write form (0.4.67 3513fb67, OxygenOS 16: "Operation not
+            # supported on transport endpoint", then no apex mount point for PackageManagerService). The
+            # read-only form above (the stage's tmpfs as the top lower layer, no upper) gives the same mount
+            # points, as it does wherever the telephony jar is injected.
+            elif $BB mount -t overlay overlay -o "ro,lowerdir=$OV/up:$GUEST_SYSTEM_EXT" "$GUEST_SYSTEM_EXT"; then
+                echo "Read-only overlay on $GUEST_SYSTEM_EXT for the apex mount point (the read-write form was refused)"
+                if [ $SEC_IMS = 1 ]; then
+                    if sec_ims_bind; then SECIMS_BOUND=1; else
+                        SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
+                        echo "Samsung IMS in the guest: off (bind-mount onto the read-only $GUEST_SYSTEM_EXT failed)"
                     fi
                 fi
             elif [ $SEC_IMS = 1 ]; then

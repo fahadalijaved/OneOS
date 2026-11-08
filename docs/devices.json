@@ -1746,6 +1746,96 @@
           "tested": false
         }
       ]
+    },
+    {
+      "id": "a55",
+      "label": "Galaxy A55 5G",
+      "model": "SM-A556",
+      "codename": "a55x",
+      "chip": "s5e8845",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s25-fe",
+      "label": "Galaxy S25 FE",
+      "model": "SM-S731",
+      "codename": "r13s",
+      "chip": "s5e9945",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "pixel9proxl-komodo",
+          "label": "Pixel 9 Pro XL, komodo build",
+          "set": "pixel9-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-8450",
+      "label": "Galaxy S22 (Snapdragon)",
+      "model": "SM-S901",
+      "codename": "r0q",
+      "chip": "SM8450",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
     }
   ]
 }

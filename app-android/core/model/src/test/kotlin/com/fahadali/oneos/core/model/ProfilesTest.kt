@@ -252,12 +252,13 @@ class ProfilesTest {
                 Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965, Profiles.A16_4G, Profiles.A16_S166, Profiles.A35, Profiles.A54, Profiles.A27, Profiles.A17_5G, Profiles.FLIP7_FE,
                 Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
                 Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450,
+                Profiles.A55, Profiles.S25_FE, Profiles.S_8450,
             ),
             Profiles.BUILT_IN,
         )
         // 0.4.67: the phones still on One UI 8 take OxygenOS 16 only, untested, as bar phones.
         for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
-                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450)) {
+                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450)) {
             assertEquals(p.id, listOf(ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)), p.choices)
             assertEquals(p.id, FormFactor.BAR, p.form)
         }
@@ -302,6 +303,23 @@ class ProfilesTest {
         for (p in listOf(Profiles.A35, Profiles.A54)) {
             assertEquals(listOf(Profiles.A26.choices, Profiles.A26.notes, Profiles.A26.form), listOf(p.choices, p.notes, p.form))
         }
+        // 0.4.68, findings of 2026-11-08: the Galaxy A55 5G (Exynos 1480, the A35's Cortex-A78/A55, so its choices; vendor
+        // API 34 and kernel 6.1, so that older-vendor note), the S25 FE (the S24 FE's Exynos 2400, vendor and screen), and
+        // the Galaxy S22 with Snapdragon (One UI 8, the S22 Ultra's SM8450: OxygenOS 16 only).
+        assertEquals(Profiles.A55, Profiles.resolve("SM-A556B", "a55x", "s5e8845").profile)
+        assertEquals(listOf(Profiles.A35.choices, FormFactor.BAR), listOf(Profiles.A55.choices, Profiles.A55.form))
+        assertEquals(listOf(Profiles.ID_NOTE_EXYNOS, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.A55.notes.map { it.id })
+        assertTrue(Profiles.A55.notes[1].detail.contains("vendor API 34 (Android 14) and kernel 6.1"))
+        assertNull(Profiles.A55.choice(Images.ID_PIXEL_KOMODO))
+        assertEquals(Profiles.S25_FE, Profiles.resolve("SM-S731B", "r13s", "s5e9945").profile)
+        assertNull(Profiles.resolve("SM-S731B", "a56x", "s5e8855").profile) // an A56 renamed
+        assertEquals(
+            listOf(Profiles.S_FE_9945.choices, Profiles.S_FE_9945.notes, Profiles.S_FE_9945.form),
+            listOf(Profiles.S25_FE.choices, Profiles.S25_FE.notes, Profiles.S25_FE.form),
+        )
+        assertEquals(Profiles.S_8450, Profiles.resolve("SM-S901U", "r0q", "SM8450").profile)
+        assertNull(Profiles.resolve("SM-S901B", "r0s", "s5e9925").profile) // the Exynos S22 waits for One UI 8
+        assertEquals(listOf(Profiles.S_ULTRA_8450.choices, Profiles.S_ULTRA_8450.notes), listOf(Profiles.S_8450.choices, Profiles.S_8450.notes))
         assertEquals(Profiles.A16, Profiles.resolve("SM-A166U", "a16x", "s5e8535").profile)
         // The A16 with MediaTek (a16xm) is not the Exynos one.
         assertNull(Profiles.resolve("SM-A166P", "a16xm", "MT6835").profile)
@@ -349,6 +367,7 @@ class ProfilesTest {
                 Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.S_PLUS_8750, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
                 Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945, Profiles.FLIP7_FE,
+                Profiles.S25_FE,
             ),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_KOMODO) != null },
         )

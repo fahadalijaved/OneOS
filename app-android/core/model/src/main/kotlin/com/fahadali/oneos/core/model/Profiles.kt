@@ -132,6 +132,9 @@ object Profiles {
     const val ID_A17_5G = "a17-5g"
     const val ID_FLIP7_FE = "flip7-fe"
     const val ID_A16 = "a16"
+    const val ID_A55 = "a55"
+    const val ID_S25_FE = "s25-fe"
+    const val ID_S_8450 = "s-8450"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -1121,12 +1124,46 @@ object Profiles {
         choices = listOf(OXYGEN16_CHOICE),
     )
 
+    /**
+     * Galaxy A55 5G, from 0.4.68: findings of 2026-11-08 (SM-A556B, a55x, s5e8845 Exynos 1480, One UI
+     * 9.0, Android 17 build CP2A.260605.016, vendor API 34 and kernel 6.1, one 1080 x 2340 panel on port
+     * 131 at density 450, backlight panel (max 761), sec_touchscreen, composer3, Cortex-A55/A78 with no
+     * SVE, SME, BF16 or I8MM, KernelSU, installd 85 methods). Its CPU is the [A35]'s (Cortex-A78/A55,
+     * ARMv8.2: no Pixel 9 Pro XL, which stopped on "Illegal instruction" on the A26), so the A35's
+     * choices; its vendor is a generation newer (vendor API 34, kernel 6.1, composer3 like the
+     * [S_FE_9945]), so that older-vendor note. Untested, with [EXYNOS].
+     */
+    val A55 = A35.copy(
+        id = ID_A55, label = "Galaxy A55 5G", modelPrefix = "SM-A556", codename = "a55x", socModel = "s5e8845",
+        notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
+    )
+
+    /**
+     * Galaxy S25 FE, from 0.4.68: findings of 2026-11-08 (SM-S731B, r13s, s5e9945 Exynos 2400 like the
+     * Galaxy S24 FE, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and kernel 6.1, one
+     * 1080 x 2340 panel at density 450, backlight panel (max 9180), sec_touchscreen, composer3,
+     * Cortex-X4/A720/A520 with SVE and SVE2 but no SME, KernelSU, installd 85 methods): the [S_FE_9945]'s
+     * chip, vendor and screen, so its choices and notes. Untested. Not the "SM-S731B" with codename a56x
+     * and an s5e8855 (an A56 renamed).
+     */
+    val S25_FE = S_FE_9945.copy(id = ID_S25_FE, label = "Galaxy S25 FE", modelPrefix = "SM-S731", codename = "r13s")
+
+    /**
+     * Galaxy S22 with Snapdragon, from 0.4.68: findings of 2026-11-08 (SM-S901U, r0q, SM8450, One UI 8.0,
+     * Android 16 build BP2A.250605.031.A3, vendor and board API 31, kernel 5.10, one 1080 x 2340 panel on
+     * port 130 at density 480, backlight panel0-backlight (max 510), the HIDL composer, Cortex-X2/A710/A510
+     * with no SVE or SME, KernelSU): the [S_ULTRA_8450]'s chip, vendor and One UI, so its choice, OxygenOS
+     * 16 only, untested. The Exynos S22 (SM-S901B, r0s, s5e9925) was still on One UI 7.0 (waiting list).
+     */
+    val S_8450 = S_ULTRA_8450.copy(id = ID_S_8450, label = "Galaxy S22 (Snapdragon)", modelPrefix = "SM-S901", codename = "r0q")
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
+        A55, S25_FE, S_8450,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

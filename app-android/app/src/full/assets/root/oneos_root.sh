@@ -211,6 +211,9 @@ profile_info() {
         a17-5g) echo "SM-A176 a17x s5e8535 bar" ;;
         flip7-fe) echo "SM-F761 b7r s5e9945 flip" ;;
         s-9965) echo "SM-S942 m1s s5e9965 bar" ;;
+        a55) echo "SM-A556 a55x s5e8845 bar" ;;
+        s25-fe) echo "SM-S731 r13s s5e9945 bar" ;;
+        s-8450) echo "SM-S901 r0q SM8450 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -403,6 +406,15 @@ profile_set() {
         "a16 hyperos-lhasa") echo hyper-f8u ;;
         "a16-s166 hyperos-lhasa") echo hyper-f8u ;;
         "a17-5g hyperos-lhasa") echo hyper-f8u ;;
+        "a55 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a55 infinityx41-findx9u") echo infinityx ;;
+        "a55 hyperos-lhasa") echo hyper-f8u ;;
+        "a55 oxygenos16-cph2745") echo oxygen16 ;;
+        "s25-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s25-fe pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s25-fe infinityx41-findx9u") echo infinityx ;;
+        "s25-fe hyperos-lhasa") echo hyper-f8u ;;
+        "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
         *) return 1 ;;
     esac
 }

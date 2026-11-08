@@ -57,6 +57,8 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A27 (SM-A276, SM6475), not tested yet
   - Galaxy A17 5G (SM-A176, s5e8535), not tested yet
   - Galaxy Z Flip7 FE (SM-F761, s5e9945), not tested yet
+  - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
+  - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
 
 ## Pixel 11 Fold, yogi build
 
@@ -104,6 +106,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S24 FE (SM-S721, s5e9945), not tested yet
   - Galaxy Z Flip7 FE (SM-F761, s5e9945), not tested yet
+  - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
 
 ## Infinity-X 4.1, Find X9 Ultra build
 
@@ -151,6 +154,8 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A27 (SM-A276, SM6475), not tested yet
   - Galaxy A17 5G (SM-A176, s5e8535), not tested yet
   - Galaxy Z Flip7 FE (SM-F761, s5e9945), not tested yet
+  - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
+  - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
 
 ## HyperOS, Xiaomi 18 Fold build
 
@@ -195,6 +200,8 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A27 (SM-A276, SM6475), not tested yet
   - Galaxy A17 5G (SM-A176, s5e8535), not tested yet
   - Galaxy Z Flip7 FE (SM-F761, s5e9945), not tested yet
+  - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
+  - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
 
 ## Nothing OS 5.0, Metroid build
 
@@ -249,3 +256,5 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S22+ (SM-S906, s5e9925), not tested yet
   - Galaxy S22 Ultra (SM-S908, s5e9925), not tested yet
   - Galaxy S22 Ultra (Snapdragon) (SM-S908, SM8450), not tested yet
+  - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
+  - Galaxy S22 (Snapdragon) (SM-S901, SM8450), not tested yet

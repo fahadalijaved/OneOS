@@ -182,8 +182,8 @@ class GatesTest {
         val exynos = profileGate(Fixtures.facts(model = "SM-S948B", device = "m3s", soc = SocProps(manufacturer = "Samsung", model = "s5e9955")))
         assertEquals(Level.BLOCK, exynos.level(SwitchGates.ID_PROFILE))
         assertNull(exynos.profile)
-        // Galaxy S22: no profile (the S23 Ultra has one since 0.4.40).
-        val s22 = profileGate(Fixtures.facts(model = "SM-S901E", device = "r0q", soc = SocProps(manufacturer = "QTI", model = "SM8450")))
+        // Galaxy S21: no profile (the S23 Ultra has one since 0.4.40, the S22 with Snapdragon since 0.4.68).
+        val s22 = profileGate(Fixtures.facts(model = "SM-G991U", device = "o1q", soc = SocProps(manufacturer = "QTI", model = "SM8350")))
         assertEquals(Level.BLOCK, s22.level(SwitchGates.ID_PROFILE))
         assertTrue(s22.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("Galaxy S26 Ultra (SM-S948* / m3q / SM8850)"))
         val wrongCodename = profileGate(Fixtures.s26Ultra().copy(device = "pa3q"))

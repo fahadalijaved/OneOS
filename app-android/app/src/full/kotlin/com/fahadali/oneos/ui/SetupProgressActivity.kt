@@ -452,7 +452,10 @@ class SetupProgressFragment : Fragment() {
             }
             PrepareJob.Phase.STOPPED, PrepareJob.Phase.FAILED -> {
                 val fix = s.plain?.takeIf { it.action != FixAction.NONE && it.action != FixAction.ACKNOWLEDGE && it.actionLabel != null }
-                if (s.plan?.keepsData == true) {
+                // A session that ended with a force restart blocks every update until One UI's
+                // settings are restored: "Restore now", never "Retry update", which only met
+                // the same block again (owner's F8U and user reports, 11-08).
+                if (s.plan?.keepsData == true && fix?.action != FixAction.RESTORE) {
                     show(primary, getString(R.string.retry_update)) { FixActions.run(a, FixAction.UPDATE, s.image) }
                 } else show(primary, fix?.actionLabel) { if (fix != null) FixActions.run(a, fix.action, s.image) }
                 show(secondary, getString(R.string.setup_close)) { SystemsNav.home(a) }

@@ -50,6 +50,11 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.68: **Fix for phones restarting during a session since 0.4.66** (all systems: the watchdog keeper stopped
+right after the switch, and Samsung's software watchdog restarted the phone a few minutes later). After a force
+restart the app now offers **Restore now** instead of a "Retry update" that could not go through. New phones: Galaxy
+A55 5G, S25 FE, S22 (Snapdragon). OxygenOS 16 shows its own name on the boot screen; S23 FE system_ext mount fix.
+
 New in 0.4.67: **OxygenOS 16 for the phones still on One UI 8.0/8.5** (Android 16; experimental, never run on a
 phone yet): the S22+, S22 Ultra, S23 FE, A06, A07 5G, A15, A24, A25, A33, A34, A53 and F55/E55, and the A07, A16,
 A17, A26, A35 and A54 while on One UI 8.5. Not on One UI 9. No camera yet. The app now carries an Android version per

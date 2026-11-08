@@ -276,7 +276,9 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         if (!preview && blocked != null && currentFacts != null &&
             (maintenance == null || blocked.finding.reason != report.find(com.fahadali.oneos.core.model.SwitchGates.ID_IMAGE)?.finding?.reason)) {
             val plain = Plain.of(blocked.finding, report, currentFacts)
-            if (maintenance == null) blockPlain = plain
+            // An update in progress keeps its own button, except for the restore after a force
+            // restart: that gate blocks the update too, so its button is "Restore now" (11-08).
+            if (maintenance == null || plain.action == FixAction.RESTORE) blockPlain = plain
             Cards.row(Cards.section(column, null, rows = true), Cards.badge(Level.BLOCK), plain.title, plain.line) {
                 FixActions.run(this, plain.action, image)
             }
@@ -300,7 +302,10 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             window.decorView.postDelayed(recheck, (Readiness.CHECK_AGE_MS - result.ageMs).coerceAtLeast(0L) + 500L)
         findViewById<Button>(R.id.environment_boot).apply {
             val fix = blockPlain?.takeIf { !checking }
-            text = if (result?.status?.pendingUpdate != null && maintenance != null) getString(R.string.retry_update)
+            // The restore after a force restart comes before an interrupted update's retry,
+            // which the same restore gate would only block again (11-08 reports).
+            val restoreFirst = fix?.action == FixAction.RESTORE
+            text = if (result?.status?.pendingUpdate != null && maintenance != null && !restoreFirst) getString(R.string.retry_update)
                 else if (fix != null) fix.actionLabel ?: getString(R.string.environment_what_stops)
                 else getString(if (maintenance != null) R.string.environment_update else R.string.environment_boot, image.name)
             // Tappable whenever no check runs: a tap on a check that ran out starts a fresh one (below).

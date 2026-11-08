@@ -1158,7 +1158,15 @@ done 2>/dev/null | sort -u > "$STAGE/host_softdog_nodes"
 # 0:0 and /dev/watchdog1 0:1000. Samsung's ueventd gives its software watchdog to
 # the system group for system_server; the kernel's hardware watchdog stays root's.
 # So a watchdog node of group system (1000) is taken as the softdog too (0.4.66).
+# Only a node beside /dev/watchdog and /dev/softdog: those two get their own "V"
+# below and the feeder's every 2 s. The S23 and S25 series (Snapdragon) have
+# /dev/watchdog 0:1000 itself; listing it made the 0.4.66/0.4.67 feeder exit
+# after its first kick (its node loop left the counter n=/dev/watchdog), and
+# ColorOS panicked "Software Watchdog Timer expired 100s" minutes later (0.4.67
+# S9360 e92bad4f, S931B 96af0d7b, S938B a0b8383f). There nothing is recorded
+# here again, as in 0.4.65.
 for n in /dev/watchdog* /dev/softdog*; do
+    case "$n" in /dev/watchdog|/dev/softdog) continue ;; esac
     [ -c "$n" ] || continue
     [ "$(stat -c %g "$n" 2>/dev/null)" = 1000 ] && echo "$n"
 done 2>/dev/null >> "$STAGE/host_softdog_nodes"
