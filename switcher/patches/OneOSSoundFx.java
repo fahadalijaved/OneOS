@@ -20,6 +20,14 @@ import java.util.UUID;
  * creates it on the output mix (session 0), enables it and holds it until the
  * guest's system_server (args[0]) is gone. args[1] may name another effect type.
  *
+ * 0.4.65 (on by default; F8U InfinityX test): an output-mix effect is put on
+ * the output music plays on when it is created, and stays there. Created at
+ * boot it sat on the primary output while music (YouTube in a browser) played
+ * on the deep-buffer one without it; created while music played it was on
+ * that output. So it is created again each time music starts (STREAM_MUSIC
+ * active after being idle, AudioSystem.isStreamActive, checked every 2 s), 2 s
+ * after the start.
+ *
  * Runs inside the guest through app_process, like OneOSCameraWorker. The
  * constructor taking a type and an implementation is hidden, hence reflection.
  */
@@ -37,23 +45,61 @@ public final class OneOSSoundFx {
   Object fx = null;
   // The guest's audioserver registers late (guest_start.sh): try for a minute.
   for (int i = 0; fx == null && i < 30 && alive(guest); i++) {
-   try {
-    fx = k.newInstance(type, UUID.fromString(TYPE_NULL), 0, 0);
-   } catch (Throwable t) {
-    Throwable e = t.getCause() != null ? t.getCause() : t;
-    if (i == 0 || i == 29) log("create " + type + " failed (try " + (i + 1) + "): " + e);
-    Thread.sleep(2000);
-   }
+   fx = create(c, k, type, i == 0 || i == 29 ? "try " + (i + 1) : null);
+   if (fx == null) Thread.sleep(2000);
   }
   if (fx == null) { log("no effect of type " + type + " on the output mix; exiting"); return; }
-  Object d = c.getMethod("getDescriptor").invoke(fx);
-  log("created " + field(d, "name") + " " + field(d, "uuid") + " (" + field(d, "implementor") + ") on the output mix");
-  Object r = c.getMethod("setEnabled", boolean.class).invoke(fx, true);
-  log("setEnabled(true) = " + r + ", enabled " + c.getMethod("getEnabled").invoke(fx)
-      + ", has control " + c.getMethod("hasControl").invoke(fx));
-  while (alive(guest)) Thread.sleep(5000);
-  c.getMethod("release").invoke(fx);
-  log("guest system_server " + guest + " gone; released");
+  boolean was = musicActive();
+  int moves = 0;
+  while (alive(guest)) {
+   Thread.sleep(2000);
+   boolean now = musicActive();
+   if (now && !was) {
+    // Music started: create it again, so it is on the output music plays on. Not at
+    // once: created right at the start it went to the primary output again (F8U test);
+    // created 2 s in, with the music's output running, it is on that output.
+    Thread.sleep(2000);
+    if (!alive(guest)) break;
+    try { c.getMethod("release").invoke(fx); } catch (Throwable t) { }
+    fx = null;
+    Object f = create(c, k, type, moves < 5 ? "music started" : null);
+    if (f != null) fx = f;
+    else { Thread.sleep(1000); fx = create(c, k, type, "music started (again)"); }
+    moves++;
+   }
+   was = now;
+  }
+  if (fx != null) c.getMethod("release").invoke(fx);
+  log("guest system_server " + guest + " gone; released (" + moves + " re-attachments)");
+ }
+
+ /** The effect on the output mix, enabled; null when it cannot be created. why: log it (null: quiet). */
+ private static Object create(Class<?> c, Constructor<?> k, UUID type, String why) {
+  try {
+   Object fx = k.newInstance(type, UUID.fromString(TYPE_NULL), 0, 0);
+   Object r = c.getMethod("setEnabled", boolean.class).invoke(fx, true);
+   if (why != null) {
+    Object d = c.getMethod("getDescriptor").invoke(fx);
+    log("created " + field(d, "name") + " " + field(d, "uuid") + " (" + field(d, "implementor") + ") on the output mix ("
+        + why + "); setEnabled(true) = " + r + ", enabled " + c.getMethod("getEnabled").invoke(fx)
+        + ", has control " + c.getMethod("hasControl").invoke(fx));
+   }
+   return fx;
+  } catch (Throwable t) {
+   Throwable e = t.getCause() != null ? t.getCause() : t;
+   if (why != null) log("create " + type + " failed (" + why + "): " + e);
+   return null;
+  }
+ }
+
+ /** STREAM_MUSIC (3) active now (AudioSystem.isStreamActive, hidden); false when it cannot be asked. */
+ private static boolean musicActive() {
+  try {
+   Class<?> s = Class.forName("android.media.AudioSystem");
+   return (Boolean) s.getMethod("isStreamActive", int.class, int.class).invoke(null, 3, 0);
+  } catch (Throwable t) {
+   return false;
+  }
  }
 
  private static boolean alive(int pid) { return new File("/proc/" + pid).exists(); }

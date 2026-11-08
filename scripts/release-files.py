@@ -12,7 +12,11 @@ where each file is named by its SHA-256. This script:
      limit; server-side copies, nothing is uploaded twice);
   4. uploads the files the GitHub release GH_TAG of GH_REPO lacks, as assets named by their
      SHA-256 (0.4.53: GitHub's CDN has no daily limit; the app tries it first);
-  5. writes packages/remote.txt: "<sha256> gh:<tag>,<drive id>,<drive id>,..." for every set file,
+  5. uploads the files SourceForge's oneos-mirror project lacks to its folder files/, named by their
+     SHA-256 (0.4.65: GitHub's downloads were down for hours on 11-08 and every phone fell on the
+     Drive copies, which ran out the same day; SourceForge has no daily limit; the app tries it
+     right after GitHub);
+  6. writes packages/remote.txt: "<sha256> gh:<tag>,sf,<drive id>,<drive id>,..." for every set file,
      sorted, the OneOS/files id first among the Drive ones, and packages/sizes.txt ("<sha256> <bytes>").
 The folder OneOS is shared by link, so its files are readable without a Google account.
 Not on GitHub: the sets hold OEM binaries (Samsung Camera, ColorOS and Xiaomi jars).
@@ -44,6 +48,14 @@ GH_ENABLED = True
 GH_TAG = "sets-1"
 GH_MAX_ASSETS = 950
 RCLONE = os.environ.get("RCLONE", os.path.expanduser("~/bin/rclone"))
+# SourceForge (0.4.65): the upload key the owner added for the image mirror (sourceforge-mirror notes).
+SF_ENABLED = True
+# The rclone remote of SourceForge's oneos-mirror files/ folder (an sftp remote with the upload login and
+# key), kept out of the repository in ~/.oneos-sourceforge-remote like the other credentials; without
+# it the SourceForge step is skipped and remote.txt keeps "sf" only if the files are already there.
+SF_REMOTE_FILE = os.path.expanduser("~/.oneos-sourceforge-remote")
+SF_REMOTE = open(SF_REMOTE_FILE).read().strip() if os.path.isfile(SF_REMOTE_FILE) else None
+SF_URL = "https://downloads.sourceforge.net/project/oneos-mirror/files/"
 SHA_LINE = re.compile(r"^([0-9a-f]{64})  ([A-Za-z0-9_][A-Za-z0-9._+-]*)$")
 
 
@@ -135,10 +147,17 @@ def main():
             sys.exit(f"{folder}: {len(short)} files missing or of another size after the copy, e.g. {short[0]}")
         for s in want:
             ids[s].append(there[s][0])
+    sf = ""
+    if SF_ENABLED:
+        if SF_REMOTE:
+            sf_upload(want)
+            sf = "sf,"
+        else:
+            print(f"no {SF_REMOTE_FILE}: SourceForge left out of remote.txt")
     if GH_ENABLED:
         github_upload(want)
-        lines = [f"{s} gh:{GH_TAG},{','.join(ids[s])}" for s in sorted(want)]
-        head = f"the {GH_REPO} release {GH_TAG}, then Drive ids"
+        lines = [f"{s} gh:{GH_TAG},{sf}{','.join(ids[s])}" for s in sorted(want)]
+        head = f"the {GH_REPO} release {GH_TAG}, {'SourceForge oneos-mirror files/, ' if sf else ''}then Drive ids"
     else:
         lines = [f"{s} {','.join(ids[s])}" for s in sorted(want)]
         head = "Drive ids"
@@ -197,6 +216,33 @@ def github_upload(want):
     short = [s for s in want if have.get(s) != os.path.getsize(want[s])]
     if short:
         sys.exit(f"{GH_REPO} {GH_TAG}: {len(short)} files missing after the upload, e.g. {short[0]}")
+
+
+def sf_files():
+    """name -> size of every file in SourceForge's oneos-mirror files/ (empty before the first upload)."""
+    r = subprocess.run([RCLONE, "lsjson", SF_REMOTE, "--files-only"], capture_output=True, text=True)
+    if r.returncode != 0:
+        if "not found" in r.stderr.lower() or "directory not found" in r.stderr.lower():
+            return {}
+        sys.exit(f"SourceForge listing failed: {r.stderr.strip()[:400]}")
+    return {e["Name"]: e["Size"] for e in json.loads(r.stdout or "[]")}
+
+
+def sf_upload(want):
+    have = sf_files()
+    need = sorted(s for s in want if have.get(s) != os.path.getsize(want[s]))
+    if need:
+        size = sum(os.path.getsize(want[s]) for s in need)
+        print(f"SourceForge oneos-mirror files/: uploading {len(need)} files ({size / 1e9:.2f} GB)", flush=True)
+        with tempfile.TemporaryDirectory(dir=os.path.join(ROOT, "out")) as tmp:
+            # Symbolic links, followed by rclone: a hard link to another account's file is refused.
+            for s in need:
+                os.symlink(os.path.realpath(want[s]), os.path.join(tmp, s))
+            rclone("copy", tmp, SF_REMOTE, "--copy-links", "--transfers", "4", "--retries", "5")
+        have = sf_files()
+    short = [s for s in want if have.get(s) != os.path.getsize(want[s])]
+    if short:
+        sys.exit(f"SourceForge: {len(short)} files missing or of another size after the upload, e.g. {short[0]}")
 
 
 def folder_exists(folder):

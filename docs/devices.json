@@ -416,6 +416,48 @@
       ]
     },
     {
+      "id": "s-8650",
+      "label": "Galaxy S24",
+      "model": "SM-S921",
+      "codename": "e1q",
+      "chip": "SM8650",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "pixel9proxl-komodo",
+          "label": "Pixel 9 Pro XL, komodo build",
+          "set": "pixel9-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "nothingos5-metroid",
+          "label": "Nothing OS 5.0, Metroid build",
+          "set": "nothing-f8u",
+          "tested": false
+        }
+      ]
+    },
+    {
       "id": "s-8550",
       "label": "Galaxy S23",
       "model": "SM-S911",
@@ -756,9 +798,21 @@
       "disabledReason": null,
       "systems": [
         {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": true
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
           "tested": false
         }
       ]
@@ -1060,6 +1114,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1074,9 +1134,21 @@
       "disabledReason": null,
       "systems": [
         {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": true
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
           "tested": false
         }
       ]
@@ -1092,9 +1164,21 @@
       "disabledReason": null,
       "systems": [
         {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": true
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
           "tested": false
         }
       ]
@@ -1152,9 +1236,21 @@
       "disabledReason": null,
       "systems": [
         {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": true
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
           "tested": false
         }
       ]
@@ -1170,9 +1266,21 @@
       "disabledReason": null,
       "systems": [
         {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
           "tested": false
         }
       ]
@@ -1198,6 +1306,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1222,6 +1336,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
         }
       ]
     },
@@ -1239,6 +1359,72 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "a17-5g",
+      "label": "Galaxy A17 5G",
+      "model": "SM-A176",
+      "codename": "a17x",
+      "chip": "s5e8535",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "flip7-fe",
+      "label": "Galaxy Z Flip7 FE",
+      "model": "SM-F761",
+      "codename": "b7r",
+      "chip": "s5e9945",
+      "form": "flip",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "pixel9proxl-komodo",
+          "label": "Pixel 9 Pro XL, komodo build",
+          "set": "pixel9-sultra",
           "tested": false
         },
         {

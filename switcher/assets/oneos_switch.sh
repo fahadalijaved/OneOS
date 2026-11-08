@@ -93,7 +93,7 @@ fi
 [ -d "$STAGE" ] && [ ! -L "$STAGE" ] || refuse "$STAGE is missing or not a directory"
 root_only "$STAGE" || app_refuse "$STAGE is not root's or is writable by others ($(stat -c '%U:%G %A' "$STAGE" 2>/dev/null))"
 [ -f "$STAGE/system.raw" ] || refuse "the guest image ($STAGE/system.raw) is not staged"
-for f in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh \
+for f in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh \
          check_host_apex.sh bridges.sh fold8_coloros.sh guest_google.sh zygote_exec guards.txt services_patched.jar; do
     [ -f "$STAGE/$f" ] || refuse "$STAGE/$f is missing"
 done
@@ -120,7 +120,7 @@ if [ "$APP" = 1 ]; then
     bad=$(awk 'NF != 2 || length($1) != 64 || $1 ~ /[^0-9a-f]/ || $2 !~ /^[A-Za-z0-9_][A-Za-z0-9._-]*$/ ||
                $2 == "system.raw" || seen[$2]++ { print NR ": " $0 }' "$SUMS" | head -3)
     [ -z "$bad" ] || refuse "files.sha256 has malformed lines: $bad"
-    for need in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh \
+    for need in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh \
                 check_host_apex.sh bridges.sh zygote_exec guards.txt $GUARD_JARS; do
         awk -v n="$need" '$2 == n { f = 1 } END { exit !f }' "$SUMS" || refuse "files.sha256 does not list $need"
     done
@@ -903,7 +903,7 @@ fi
 set_prop ro.control_privapp_permissions log
 
 # --- ONEUI PROTECTION & RESCUEPARTY DISABLE ---
-echo "=== [1/6] Protecting OneUI Home Screen and Disabling RescueParty ==="
+echo "=== [1/6] $(date +%T) Protecting OneUI Home Screen and Disabling RescueParty ==="
 set_prop persist.sys.disable_rescue true
 set_prop sys.rescue_boot_count 0
 # Android 16+ counts boots for its boot-loop check in crashrecovery.* (0.4.47): the guest's
@@ -921,19 +921,19 @@ set_prop crashrecovery.rescue_boot_count 0
 # forever (app_process hung in futex_wait). The 20 ms normal path is the one
 # that actually works; a streamed tone on it is clean (0 underruns, 0 late
 # writes). Offload stays off: no working vendor DSP session in the container.
-echo "=== [2/6] Configuring Low-Latency Audio ==="
+echo "=== [2/6] $(date +%T) Configuring Low-Latency Audio ==="
 set_prop audio.offload.disable 1
 set_prop audio.deep_buffer.media false
 set_prop audio.offload.video false
 set_prop vendor.audio.offload.track.enable false
 
 # --- NETWORK BPF FIREWALL & DNS BYPASS ---
-echo "=== [3/6] Configuring Network BPF Filters ==="
+echo "=== [3/6] $(date +%T) Configuring Network BPF Filters ==="
 bpftool map update pinned /sys/fs/bpf/netd_shared/map_netd_configuration_map key hex 00 00 00 00 value hex 00 00 00 00 2>/dev/null || true
 chmod 666 /dev/socket/dnsproxyd 2>/dev/null || true
 
 # --- VERIFY STAGING ENVIRONMENT ---
-echo "=== [4/6] Verifying Staging Environment ==="
+echo "=== [4/6] $(date +%T) Verifying Staging Environment ==="
 # system.raw and the staged files were checked in the preflight, before the
 # first change to the phone.
 mkdir -p "$STAGE/data"
@@ -1084,7 +1084,7 @@ STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_coloros.sh" performance-sna
 # One UI's new SSRM to vote afresh. Read now: settings needs the framework.
 HOST_LOW_POWER=$(timeout 3 settings get global low_power 2>/dev/null)
 echo "Before the stop: power saving ${HOST_LOW_POWER:-unknown}, cpufreq_max_limit $(cat /sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit 2>/dev/null || echo none)"
-echo "=== [4b/6] Stopping the One UI framework ==="
+echo "=== [4b/6] $(date +%T) Stopping the One UI framework ==="
 echo "Before the stop: CPU max/hw kHz: $(cpu_caps); skin: $(skin_temp)"
 pkill -f "while true; do [ \"\$(getprop init.svc.zygote)\"" 2>/dev/null || true
 pkill -f "while true; do for p in \\\$(pidof audioserver cameraserver)" 2>/dev/null || true
@@ -1156,6 +1156,18 @@ for p in $(pidof system_server); do
         case "$t" in /dev/watchdog*|/dev/softdog*) echo "$t" ;; esac
     done
 done 2>/dev/null | sort -u > "$STAGE/host_softdog_nodes"
+# Not every phone's system_server holds it open at this moment: the Galaxy A17 5G
+# (Exynos 1330, 0.4.64 78f6e716) recorded nothing and panicked "Software Watchdog
+# Timer expired 100s" about 100 s into the session, with persist.vendor.softdog=off
+# set; its nodes were /dev/watchdog 0:0 (busy, init's watchdogd), /dev/watchdog0
+# 0:0 and /dev/watchdog1 0:1000. Samsung's ueventd gives its software watchdog to
+# the system group for system_server; the kernel's hardware watchdog stays root's.
+# So a watchdog node of group system (1000) is taken as the softdog too (0.4.66).
+for n in /dev/watchdog* /dev/softdog*; do
+    [ -c "$n" ] || continue
+    [ "$(stat -c %g "$n" 2>/dev/null)" = 1000 ] && echo "$n"
+done 2>/dev/null >> "$STAGE/host_softdog_nodes"
+sort -u -o "$STAGE/host_softdog_nodes" "$STAGE/host_softdog_nodes" 2>/dev/null
 [ -s "$STAGE/host_softdog_nodes" ] || rm -f "$STAGE/host_softdog_nodes"
 [ -n "$SF_FROZEN" ] || kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 kill -9 $(pidof bootanimation) 2>/dev/null || true
@@ -1196,8 +1208,8 @@ if [ -f "$STAGE/host_softdog_nodes" ]; then
         case "$n" in /dev/watchdog|/dev/softdog) continue ;; esac
         [ -c "$n" ] || continue
         SOFTDOG_DEV=1
-        if e=$(printf V 2>&1 > "$n"); then echo "Softdog: $n (One UI's system_server had it open) closed with V"
-        else echo "Softdog: $n (One UI's system_server had it open) not written ($e)"; fi
+        if e=$(printf V 2>&1 > "$n"); then echo "Softdog: $n (One UI's system_server had it open, or of group system) closed with V"
+        else echo "Softdog: $n (One UI's system_server had it open, or of group system) not written ($e)"; fi
     done < "$STAGE/host_softdog_nodes"
 fi
 if [ -c /dev/softdog ]; then
@@ -1261,7 +1273,7 @@ ls -l /vendor/etc/displayconfig /vendor/odm/etc/displayconfig /vendor/odm/etc/de
       echo "== $b"; strings -a "$b" 2>/dev/null | grep -E '^/sys/|enabled|fold_state' | head -40
   done
 } > "$STAGE/diag_host/touch_nodes.txt" 2>&1
-echo "=== [5/6] Executing Mount Hierarchy Preparation ==="
+echo "=== [5/6] $(date +%T) Executing Mount Hierarchy Preparation ==="
 /system/bin/sh "$STAGE/guest_prepare.sh"
 PREP_RET=$?
 if [ $PREP_RET -ne 0 ]; then
@@ -1336,7 +1348,7 @@ if [ -f "$STAGE/data/oneos_root/enabled" ]; then
 fi
 
 # --- STOP HOST DAEMONS & LAUNCH CONTAINER ---
-echo "=== [6/6] Launching the guest takeover daemon ==="
+echo "=== [6/6] $(date +%T) Launching the guest takeover daemon ==="
 
 # Stop the HOST media codec stack. The guest's libmedia binds `media.codec` from
 # the shared servicemanager, i.e. Samsung's mediaserver - whose IMediaCodecList
@@ -1599,6 +1611,17 @@ fi
 rm -f "$STAGE/data/socket_exec"
 if [ -f "$STAGE/socket_exec" ] && [ ! -L "$STAGE/socket_exec" ]; then
     cp -f "$STAGE/socket_exec" "$STAGE/data/socket_exec" && chmod 755 "$STAGE/data/socket_exec"
+fi
+
+# Inbound SMS (0.4.61): Samsung's rild queues new-SMS unsolicited responses
+# until its own framework sends FW_READY=1 over HIDL. An AOSP guest's RILJ
+# cannot send that vendor configuration, so SecRilProxy keeps the SMS in its
+# pending list and the guest never sees UNSOL_RESPONSE_NEW_SMS. NOP the queue
+# branch in the vendor library and bind-mount the copy for the session;
+# return_to_oneui.sh removes it. A library without the exact sequence is left
+# alone, and inbound SMS stays as it was.
+if ! /system/bin/sh "$STAGE/libsec-ril-patch.sh" apply; then
+    echo "!!! inbound SMS: libsec-ril.so was not patched; the guest will not receive SMS"
 fi
 
 # Launch takeover inside isolated mount namespace
@@ -1923,8 +1946,15 @@ while true; do
                 G=\"timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh\"
                 ims_bound() { \$G /system/bin/cmd phone ims get-ims-service -s \$1 -d -f 1 2>&1 | tr -d '\\r' | tail -1; }
                 SB=0
+                # 0.4.60: the phone service first (HyperOS S25 b474c339, A56 9c6b6ac3:
+                # slot 0 answered \"Can't find service: phone\" and never got IMS).
+                i=0; while [ \$i -lt 30 ] && ! \$G /system/bin/service check phone 2>/dev/null | grep -q ': found'; do sleep 2; i=\$((i + 1)); done
                 for s in 0 1; do
-                    echo \"[UI Activator] Samsung IMS: slot \$s override: \$(\$G /system/bin/cmd phone ims set-ims-service -s \$s -d -f 0,1 com.sec.imsservice 2>&1 | tr '\\n' ' ' | cut -c1-120)\"
+                    for try in 1 2 3; do
+                        o=\$(\$G /system/bin/cmd phone ims set-ims-service -s \$s -d -f 0,1 com.sec.imsservice 2>&1 | tr '\\n' ' ' | cut -c1-120)
+                        case \"\$o\" in *\"find service\"*) sleep 5 ;; *) break ;; esac
+                    done
+                    echo \"[UI Activator] Samsung IMS: slot \$s override: \$o\"
                     b=\$(ims_bound \$s); echo \"[UI Activator] Samsung IMS: slot \$s bound: \$b\"
                     [ \"\$b\" = com.sec.imsservice ] && SB=1
                 done
@@ -2038,9 +2068,12 @@ while true; do
             # 41f6c0f4) is not in Samsung's effect HAL (reports 4933a41d, 3715fe57,
             # 30124d7e: the speaker sounds bad). patches/OneOSSoundFx.java, in the
             # same dex, puts the vendor effect HAL's Dolby on the guest's output mix
-            # and holds it until the guest's system_server is gone. Only while
-            # $STAGE/guest_dolby.on exists, until a phone run shows it working.
-            if [ -f $STAGE/guest_dolby.on ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
+            # and holds it until the guest's system_server is gone, created again 2 s
+            # after music starts so it is on the output music plays on (0.4.65).
+            # On by default since 0.4.65 (F8U InfinityX run: Dolby on the music
+            # output, sound much better); ONEOS_GUEST_DOLBY=0: off. Phones
+            # whose effect HAL has no Dolby: it gives up after a minute, logged.
+            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
                 echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"
@@ -2292,6 +2325,29 @@ while true; do
             fi
             echo \"[UI Activator] refresh: min \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system min_refresh_rate) peak \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system peak_refresh_rate); brightness \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness)\"
             echo '[UI Activator] Home activated!'
+            # ColorOS lock screen depth effect (0.4.60, owner; 0.4.59 A36 768c5a1d, S23
+            # 77b9dfc0): SystemUI saves the cut-out subject as /data/oplus/os/deep_scenery_image*,
+            # but that folder is system's and SystemUI runs as an app uid here (EACCES, \"can
+            # not show deep scenery\"). The Fold8 port's fix (fold8_coloros.sh) for every
+            # ColorOS: the folder searchable, the two files SystemUI's own. Links left alone.
+            # The exact package (0.4.63): list packages matches by substring, and the first
+            # line was another com.android.systemui.* package (A56 fda1b80b: files given to
+            # uid 15004, SystemUI ran as 15142, its save still EACCES).
+            if [ $GUEST_OPLUS = 1 ]; then
+                su_uid=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd package list packages -U com.android.systemui 2>/dev/null | sed -n 's/^package:com[.]android[.]systemui uid://p' | head -1 | tr -dc 0-9)
+                depth=$STAGE/data/oplus/os
+                if [ -n \"\$su_uid\" ] && [ -d \$depth ] && [ ! -L \$depth ] && [ ! -L $STAGE/data/oplus ]; then
+                    chmod 701 \$depth
+                    for n in deep_scenery_image0 deep_scenery_image_secondaryDisplay0; do
+                        [ ! -L \$depth/\$n ] || continue
+                        [ -f \$depth/\$n ] || : > \$depth/\$n
+                        $BB chown -h \$su_uid:\$su_uid \$depth/\$n && chmod 600 \$depth/\$n
+                    done
+                    echo \"[UI Activator] depth effect: \$depth/deep_scenery_image* for SystemUI (uid \$su_uid)\"
+                else
+                    echo \"[UI Activator] depth effect: left alone (SystemUI uid '\$su_uid', \$depth)\"
+                fi
+            fi
             # Google Dialer and Nearby devices (run 44): 50 SecurityExceptions
             # (DialerAudioModeProvider, getRemoteAlias: Need
             # android.permission.BLUETOOTH_CONNECT) in the first call, until the
@@ -3074,7 +3130,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
         echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0
+        t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0
         while [ \$t -lt $RETURN_MAX ]; do
             # The 10 s wait ends early on a request. Run 34: Volume Up + Volume
             # Down were held 3 s from 16:43:56, but the request was handled only
@@ -3115,8 +3171,9 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 setprop oneos.guest.powerctl ''
                 echo \"\$(date) guest requested a soft reboot (\$req) after \${t}s\"
                 if BB=$BB timeout 120 /system/bin/sh $STAGE/tmp/guest_softreboot.sh \"\$req\"; then
-                    t=0; dead=-60; sfgone=-30; prev_failed=0
+                    t=0; dead=-60; sfgone=-30; prev_failed=0; wmseen=0
                     homebase=\$(grep -c 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null)
+                    wmbase=\$(grep -c 'Dismissing bootanim' /data/local/tmp/ui_activator.log 2>/dev/null)
                     continue
                 fi
                 echo \"\$(date) soft reboot failed, returning to One UI\"
@@ -3133,6 +3190,13 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # limits; a dead guest still has to come back to One UI (the watcher
             # used to exit here and nothing returned after a later crash).
             home=0; [ \"\$(grep -c 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null)\" -gt \"\${homebase:-0}\" ] && home=1
+            # 0.4.60: the activator removes the boot animation itself once
+            # WindowManager is up, and says Home activated only after its slow
+            # steps (on MediaTek A phones 30 s and more on a first boot: A07
+            # 7262fad2 and A17 fb723e47 were sent back with their keyguard and
+            # setup wizard on screen). From its dismissal, 120 s for the home.
+            wm=0; [ \"\$(grep -c 'Dismissing bootanim' /data/local/tmp/ui_activator.log 2>/dev/null)\" -gt \"\${wmbase:-0}\" ] && wm=1
+            [ \$wm = 1 ] && [ \$home = 0 ] && wmseen=\$((wmseen + 10))
             # Display diagnostics from inside the guest (its own screencap and
             # dumpsys talk to its own surfaceflinger), kept in the stage dir.
             dname=''
@@ -3348,7 +3412,14 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # Only failures since the last check: a burst early in the boot must
             # not end a session that recovered.
             new_failed=\$((failed - prev_failed)); [ \$new_failed -lt 0 ] && new_failed=\$failed; prev_failed=\$failed
-            if [ \$t -ge $RETURN_BLACK ] && { ! pidof surfaceflinger >/dev/null || [ \$new_failed -gt 100 ] || { [ \$home = 0 ] && ! pidof bootanimation >/dev/null; }; }; then
+            # 0.4.63: the boot animation first, then the activator's log again. The
+            # dismissal could land between the read of wm above and this check (the
+            # failed-frames count takes up to 10 s): A17 4G ColorOS 95faf6cb was sent
+            # back 1 s after its first boot's bootanim was dismissed, home on its way.
+            # The activator logs the dismissal before it kills bootanim.
+            ba=\$(pidof bootanimation)
+            [ \$wm = 0 ] && [ \"\$(grep -c 'Dismissing bootanim' /data/local/tmp/ui_activator.log 2>/dev/null)\" -gt \"\${wmbase:-0}\" ] && wm=1
+            if [ \$t -ge $RETURN_BLACK ] && { ! pidof surfaceflinger >/dev/null || [ \$new_failed -gt 100 ] || { [ \$home = 0 ] && [ -z \"\$ba\" ] && { [ \$wm = 0 ] || [ \$wmseen -ge 120 ]; }; }; }; then
                 echo \"\$(date) black screen after \${t}s (surfaceflinger: \$(pidof surfaceflinger), bootanimation: \$(pidof bootanimation), new failed frames: \$new_failed), returning to One UI\"
                 exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi

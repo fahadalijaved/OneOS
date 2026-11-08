@@ -1,5 +1,5 @@
-# OneOS package set pixel-f8: sha256sum of out/overlays_pixel_fold8_r15 (scripts/make-overlays.sh, 2026-10-27; services_patched.jar with patches/guest_no_native_services.py, 2026-10-28; 0.4.39 r2: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03); 0.4.45 r3: services_patched.jar with patches/guest_sec_ims_signature.py and guest_no_wipe_secrets.py, framework_patched.jar with guest_secims_members.py, telephony-common_patched.jar with guest_smsc_international.py, 2026-11-04; 0.4.47 r4: samcam.tar (scripts/samsung-camera/build-cached.sh) and the native camera client patch (scripts/patch-camera-native.sh), 2026-11-04; 0.4.57 r5: samcam.tar with fix_notification_icon.py; 0.4.58 r6: telephony-common_patched.jar + guest_sms_invalid_response.py; 0.4.59 r7: samcam.tar keeps videos on Stop (fix_recorder_track_started.py); 0.4.59 r7: samcam.tar with the gallery fallback (fix_gallery_fallback.py); 0.4.59 r7: samcam.tar with the recording timer and secmedia fallback; 0.4.59 r8: samcam.tar with the camera timer, secmedia queries and gallery fallback; 0.4.59 r9: no tent mode, boot animation on every panel; 0.4.59 r10: double tap to sleep, QS header heights on a fold; 0.4.59 r11: samcam.tar with the video rotation written after the stop; 0.4.59 r12: AOD overlay, lock screen double tap to sleep; 0.4.59 r13: quick settings header on the cover, double tap on AOD wakes), minus tethering_payload.img.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_pixel_fold8_r15 differs.
+# OneOS package set pixel-f8: sha256sum of out/overlays_pixel_fold8_r17 (scripts/make-overlays.sh, 2026-10-27; services_patched.jar with patches/guest_no_native_services.py, 2026-10-28; 0.4.39 r2: services_patched.jar with patches/guest_ksu_manager_appid.py, 2026-11-03); 0.4.45 r3: services_patched.jar with patches/guest_sec_ims_signature.py and guest_no_wipe_secrets.py, framework_patched.jar with guest_secims_members.py, telephony-common_patched.jar with guest_smsc_international.py, 2026-11-04; 0.4.47 r4: samcam.tar (scripts/samsung-camera/build-cached.sh) and the native camera client patch (scripts/patch-camera-native.sh), 2026-11-04; 0.4.57 r5: samcam.tar with fix_notification_icon.py; 0.4.58 r6: telephony-common_patched.jar + guest_sms_invalid_response.py; 0.4.59 r7: samcam.tar keeps videos on Stop (fix_recorder_track_started.py); 0.4.59 r7: samcam.tar with the gallery fallback (fix_gallery_fallback.py); 0.4.59 r7: samcam.tar with the recording timer and secmedia fallback; 0.4.59 r8: samcam.tar with the camera timer, secmedia queries and gallery fallback; 0.4.59 r9: no tent mode, boot animation on every panel; 0.4.59 r10: double tap to sleep, QS header heights on a fold; 0.4.59 r11: samcam.tar with the video rotation written after the stop; 0.4.59 r12: AOD overlay, lock screen double tap to sleep; 0.4.59 r13: quick settings header on the cover, double tap on AOD wakes; 0.4.63 r16: services_patched.jar with guest_pdb_init_survives.py; 0.4.64 r17: services_patched.jar with guest_soundtrigger_no_reboot.py), minus tethering_payload.img.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_pixel_fold8_r17 differs.
 ccf2fbddc462eca6d7cb7f112ca1b36620fe0ccd044ff6ba28bebe13cfe6b89e  Fold8AngleRelay.dex
 2fcfa3d7592d18d5a6fe93ab44dc44594acff632be52a5e2e40723a2769e8ee8  Fold8PixelSystemUI.apk
 1bc2927de4d2f8b92b751ff5b641950ae8a1f7e960feed7d12c62982f4f9373d  Fold8PixelUnfold.apk
@@ -19,7 +19,7 @@ fb572a3afe6617b71136bd5d54449de4a2a6b9dd1655f7293f4c244e5697073b  crashrecovery_
 f5bcb9d02f9e7bc92c9bf1ba4c8e04ba54f4b73a532aa0e2bb1fe80a588e11c8  extservices_payload.img
 4c4e40e75b71c15e72674193542aea8860438e7097d2eeaf6daf7261b96d4b1c  framework_patched.jar
 b6ab7410792df6825e02f7461c79ca733e58aac005400baba2ca5204fbd08bcc  gmssystem_payload.img
-1b53cfc8a5c5f05f802d56778203b5e29e7d6006a312e5069a789c69efc9979b  guards.txt
+cce31e7ddbee56c3af4c69de526c92773ce67774c403eb35921552fbfe241a76  guards.txt
 970a92c32c3e47c6eaa5fff8f8eae3b147e6e03e3a33f5d8c7b5278066c658f9  healthfitness_payload.img
 391f665fc10e2025371e35209dd71ee41db163c1428e350f9d0019e483126a19  i18n_payload.img
 adefc189c5260d9305f95440721ecf6c233e70e369f89454937c8fa292c533e2  libbootanimation_preapex_patched.so
@@ -36,7 +36,7 @@ fe585631e175c5c460da8df823d9f57e6b853f40567aef86427a791bb7e1c377  rkpd_payload.i
 5ddfde36e2a0eb6b20e9ee4d0ab59bf69d2aadebe573dca6998a126cceb14437  samcam.tar
 8ed7589969f1ca29fbdcf0a0f05386420001b94fdd8a76730cfd88933707a2ee  sdkext_payload.img
 f4addc726653b0c1b39ff84c874d61ff96f98eecdae12d76ea6391bb7b20fad0  service.incremental_patched.so
-0dc3071632f3e526274ea4e402e7d7d0e377833ec60cb8185554655b7450e875  services_patched.jar
+5b7ba7db566b32407fb94c92f5d3a80e796a0937bd30b55c57b25ad913dfe38d  services_patched.jar
 1ec65792c8d21a5f8e6124df6bfcf85e6c107120ca306cb229a54ad7b1e7c730  telephony-common_patched.jar
 686aed9bd0c440de709c47dc44b7c30bd06de0018e78282937aeffe83b5e0cb7  telephonycore_payload.img
 57de954a137cc3087a374a35eab704f24ec2b69ac0181b6f8f7ef6ec0c1c6478  vold_patched

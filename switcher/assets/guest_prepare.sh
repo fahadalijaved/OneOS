@@ -211,7 +211,8 @@ while true; do
         if e=$(printf V 2>&1 > /dev/softdog); then now="$now; /dev/softdog kicked"; else now="$now; /dev/softdog refused ($e)"; fi
     fi
     # The node(s) One UI's system_server had open at the switch (host_softdog_nodes,
-    # oneos_switch.sh): the S24 Exynos's /dev/watchdog1, beside a busy /dev/watchdog.
+    # oneos_switch.sh): the S24 Exynos's /dev/watchdog1, beside a busy /dev/watchdog;
+    # since 0.4.66 also every watchdog node of group system (the A17 5G's watchdog1).
     for n in $(cat /data/local/tmp/oneos/host_softdog_nodes 2>/dev/null); do
         case "$n" in /dev/watchdog|/dev/softdog) continue ;; esac
         [ -c "$n" ] || continue
@@ -373,6 +374,42 @@ for vb in vendor odm vendor_dlkm; do
         $BB mount --make-rslave "$ROOTFS/$vb" 2>/dev/null || true
     fi
 done
+# OPPO's AI engine for ColorOS (0.4.63): the image is OPPO's system partitions
+# only, and the guest's /odm is One UI's. ColorOS's AI service loads
+# /odm/lib64/libaiboost.so; without it every request failed ("AIUnitInferEngine:
+# has not been initialized", AIBoostEnv: "/odm/lib64/libaiboost.so not found"),
+# the lock screen's depth cut-out among them (A57 41b55d01: deepSceneryState is
+# STATE_INVALID). oplus_odm_ai.tar (the ColorOS sets; libaiboost.so and its
+# LiteRT/QNN delegates from the Find X9 Ultra's odm partition, CPH2841
+# 17.0) is unpacked to the stage and laid over the guest's view of /odm,
+# read-only; One UI's processes keep their own /odm. Plain files only, or the
+# guest keeps the plain bind. ONEOS_GUEST_ODM_AI=0 leaves it out.
+ODM_AI_TAR="$STAGE/oplus_odm_ai.tar"
+if [ "${ONEOS_GUEST_ODM_AI:-1}" = 1 ] && [ -f "$ODM_AI_TAR" ] && [ ! -L "$ODM_AI_TAR" ]; then
+    ODM_AI="$STAGE/odm_ai"
+    ok=1
+    "$BB" tar -tvf "$ODM_AI_TAR" 2>/dev/null | "$BB" awk 'substr($1, 1, 1) != "-" && substr($1, 1, 1) != "d" { bad = 1 } / -> / { bad = 1 } END { exit bad }' || ok=0
+    "$BB" tar -tf "$ODM_AI_TAR" 2>/dev/null | "$BB" awk '{ n = $0; sub(/^\.\//, "", n) } n == "" { next }
+        n !~ /^lib64(\/[A-Za-z0-9_][A-Za-z0-9._-]*)*\/?$/ || n ~ /(^|\/)\.\.?(\/|$)/ { bad = 1 } END { exit bad }' || ok=0
+    if [ $ok = 1 ]; then
+        rm -rf "$ODM_AI" && mkdir -p "$ODM_AI" && "$BB" tar -xf "$ODM_AI_TAR" -C "$ODM_AI" &&
+            [ -z "$(find "$ODM_AI" ! -type f ! -type d -print -quit)" ] && [ -f "$ODM_AI/lib64/libaiboost.so" ] || ok=0
+    fi
+    if [ $ok = 1 ]; then
+        find "$ODM_AI" -type d -exec chmod 755 {} + ; find "$ODM_AI" -type f -exec chmod 644 {} +
+        $BB chcon -R u:object_r:vendor_file:s0 "$ODM_AI" 2>/dev/null || true
+        $BB umount -l "$ROOTFS/odm" 2>/dev/null || true
+        if $BB mount -t overlay overlay -o "ro,lowerdir=$ODM_AI:/odm" "$ROOTFS/odm"; then
+            $BB mount --make-rslave "$ROOTFS/odm" 2>/dev/null || true
+            echo "OPPO AI engine: odm/lib64/libaiboost.so and its delegates over the guest's /odm (read-only overlay)"
+        else
+            $BB mount --bind /odm "$ROOTFS/odm" && $BB mount --make-rslave "$ROOTFS/odm" 2>/dev/null
+            echo "!!! OPPO AI engine: overlay on the guest's /odm refused; One UI's /odm as before"
+        fi
+    else
+        echo "!!! OPPO AI engine: oplus_odm_ai.tar is not plain lib64 files; left out"
+    fi
+fi
 # apexd is a HOST daemon: it reports the Samsung apex set (/system/apex,
 # /system_ext/apex, /vendor/apex) to the container system_server, which then
 # tries to parse those exact paths inside this namespace. Keep the apex
@@ -1292,11 +1329,69 @@ else
         echo "Display config: read-only overlay on product/etc refused, left out"
     fi
 fi
-if mount | grep -q "$ROOTFS/mnt " || $BB mount --rbind /mnt "$ROOTFS/mnt"; then
+# The guest's /mnt is a tmpfs of its own (0.4.63), with One UI's folders bound in
+# one by one, except the storage views guest_start.sh drops and rebuilds anyway
+# (user, pass_through, installer, androidwritable, runtime). Until 0.4.62 it was
+# a recursive bind of One UI's /mnt, so the guest's vold and zygote made and
+# chmod'ed /mnt/user/0 in One UI's own /mnt (the guest's vold tears down the
+# mounts under /mnt/ at its start, our tmpfs on /mnt/user/0 included). On the
+# Galaxy A54 that file system was read-only for both systems: every session died
+# at the first fork (fs_prepare_dir failed on /mnt/user/0: Read-only file system;
+# 0.4.60/0.4.61 fe657556, 89641598, 7f813b0e, 84669c97, ColorOS and Infinity-X)
+# and One UI's vold could not remake /mnt/user/0/self after the return.
+# ONEOS_GUEST_OWN_MNT=0 keeps the recursive bind.
+if mount | grep -q "$ROOTFS/mnt "; then
+    :
+elif [ "${ONEOS_GUEST_OWN_MNT:-1}" = 1 ] &&
+     $BB mount -t tmpfs -o mode=0755,uid=0,gid=1000 tmpfs "$ROOTFS/mnt" && $BB mount --make-private "$ROOTFS/mnt"; then
+    $BB chcon u:object_r:tmpfs:s0 "$ROOTFS/mnt" 2>/dev/null || true
+    MNT_BOUND=""
+    for d in /mnt/* /mnt/.[!.]*; do
+        [ -e "$d" ] || [ -L "$d" ] || continue
+        name=${d#/mnt/}
+        case "$name" in
+            user|pass_through|installer|androidwritable|runtime) mkdir -p "$ROOTFS/mnt/$name"; continue ;;
+        esac
+        if [ -L "$d" ]; then
+            ln -s "$(readlink "$d")" "$ROOTFS/mnt/$name" 2>/dev/null
+        elif [ -d "$d" ]; then
+            # rslave at once: an umount on the way back must never reach One UI's mounts.
+            mkdir -p "$ROOTFS/mnt/$name" && $BB mount --rbind "$d" "$ROOTFS/mnt/$name" &&
+                $BB mount --make-rslave "$ROOTFS/mnt/$name" 2>/dev/null && MNT_BOUND="$MNT_BOUND $name"
+        fi
+    done
+    # init.rc's folders for those views, made the way init makes them (0.4.65): the
+    # guest's vold makes its mount points inside them (/mnt/runtime/default/emulated
+    # and the rest) and does not make the parents. With the bind, One UI's init-made
+    # folders stayed after guest_start.sh dropped the mounts; in the new tmpfs
+    # /mnt/runtime was empty, vold failed "emulated;0 failed to create mount points"
+    # and the guest had no internal storage (0.4.63 S25+ HyperOS a4000feeb958acf5,
+    # "full storage", /storage/emulated/0 missing). Mode, owner and SELinux label are
+    # One UI's for the same folder (Fold8 Ultra: runtime 700 root storage_file, user,
+    # installer, androidwritable 750 root:media_rw mnt_user_file, pass_through 700
+    # root mnt_pass_through_file); init.rc's mode and root when One UI has none.
+    MNT_MADE=0
+    for spec in runtime:700 runtime/default:755 runtime/default/self:755 runtime/read:755 runtime/read/self:755 \
+                runtime/write:755 runtime/write/self:755 runtime/full:755 runtime/full/self:755 \
+                pass_through:700 user:750 installer:750 androidwritable:750; do
+        p=${spec%:*}
+        mode=${spec#*:} own=0:0
+        if [ -d "/mnt/$p" ]; then
+            m=$(stat -c %a "/mnt/$p" 2>/dev/null) && [ -n "$m" ] && mode=$m
+            o=$(stat -c %u:%g "/mnt/$p" 2>/dev/null) && [ -n "$o" ] && own=$o
+        fi
+        mkdir -p "$ROOTFS/mnt/$p" && chmod "$mode" "$ROOTFS/mnt/$p" && chown "$own" "$ROOTFS/mnt/$p" || continue
+        ctx=$(ls -dZ "/mnt/$p" 2>/dev/null | awk '{print $1}')
+        case "$ctx" in u:object_r:*) $BB chcon "$ctx" "$ROOTFS/mnt/$p" 2>/dev/null ;; esac
+        MNT_MADE=$((MNT_MADE + 1))
+    done
+    echo "Guest /mnt: its own tmpfs; One UI's$MNT_BOUND bound in (storage views rebuilt by the guest; $MNT_MADE of init's 13 storage folders made)"
+elif $BB mount --rbind /mnt "$ROOTFS/mnt"; then
     # rslave at once: /mnt is a recursive bind of the host's shared storage
     # (/mnt/vendor/efs, /mnt/user/0/emulated); an early-exit umount on the way
     # back must never propagate to those host mounts.
     $BB mount --make-rslave "$ROOTFS/mnt" 2>/dev/null || true
+    echo "Guest /mnt: One UI's, a recursive bind (ONEOS_GUEST_OWN_MNT=${ONEOS_GUEST_OWN_MNT:-1})"
 fi
 if [ -f "$STAGE/services_patched.jar" ]; then
     $BB umount -l "$ROOTFS/system/framework/services.jar" 2>/dev/null || true
@@ -1458,6 +1553,30 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
         exit 3
     fi
     echo "Bound framework_patched.jar -> $HFW"
+    # Calls and SMS over Samsung IMS (0.4.62). HyperOS's ImsFactory loads
+    # Xiaomi's XmImsFactory from xiaomi-opt-ims.jar, and its XmImsManager wants
+    # Xiaomi's own IMS service, which a Galaxy does not have: at the first
+    # connectionReady it threw "XmImsService is unavailable(106)" (createImsService
+    # binder is null), and ImsSmsDispatcher and ImsPhoneCallTracker dropped
+    # Samsung's IMS service for the whole session (S23 HyperOS 36e46e14, Jio:
+    # IMS REGISTERED with mmtel and smsip, every text went to the radio as
+    # IMS_SEND_SMS and came back error 44, calls failed). Without the jar
+    # ImsFactory falls back to AOSP's ImsManager by itself ("failed to load ims
+    # factory"), which talks to the bound ImsService as on the other systems.
+    # Nothing else loads the jar (no app declares the library). An empty file
+    # over it for the session; ONEOS_GUEST_XIAOMI_IMS=1 keeps it.
+    XIMS="$MIUI_FW/xiaomi-opt-ims.jar"
+    if [ "${ONEOS_GUEST_XIAOMI_IMS:-0}" != 1 ] && [ -f "$XIMS" ] && [ ! -L "$XIMS" ]; then
+        rm -f "$STAGE/xiaomi-opt-ims.empty"
+        : > "$STAGE/xiaomi-opt-ims.empty" && chmod 644 "$STAGE/xiaomi-opt-ims.empty"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/xiaomi-opt-ims.empty" 2>/dev/null || true
+        $BB umount -l "$XIMS" 2>/dev/null || true
+        if $BB mount --bind "$STAGE/xiaomi-opt-ims.empty" "$XIMS" && [ ! -s "$XIMS" ]; then
+            echo "Hid xiaomi-opt-ims.jar: HyperOS uses AOSP's ImsManager with Samsung IMS (calls and SMS)"
+        else
+            echo "!!! could not hide xiaomi-opt-ims.jar; HyperOS's calls and SMS over IMS may fail"
+        fi
+    fi
     # Xiaomi's SurfaceFlinger with the display mode group read whole
     # (patches/hyperos_sf_group.py): it compared a mode's group with the default
     # mode's low byte, and One UI numbers the groups by panel width on the S23,
@@ -1517,8 +1636,15 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
     if [ "$APM_X" != 0 ] && ! "$BB" grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/; then
         if [ -z "$APM_X" ]; then
             SKU=$(getprop ro.boot.product.vendor.sku)
-            for f in /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml \
-                ${SKU:+/vendor/etc/audio/sku_${SKU}_qssi/audio_policy_configuration.xml /vendor/etc/audio/sku_$SKU/audio_policy_configuration.xml} \
+            # 0.4.63: Qualcomm's SKU file first. HyperOS's parser rejected Samsung's
+            # _sec and _base files ("APM::Serializer: deserialize: bad type 00000000",
+            # "Could not load audio policy ... -22") and fell back to setDefault, whose
+            # streams have a maximum index of 0: every app's volume maths was 0/0 and
+            # SystemUI's volume slider crashed on NaN (S23 a8d01e17 and 36e46e14, Flip5
+            # fbd248fc). The QCOM file is the format Xiaomi's own derives from, and
+            # ColorOS's AOSP parser loads it on the same phones (S23 Ultra 7d694dd5).
+            for f in ${SKU:+/vendor/etc/audio/sku_${SKU}_qssi/audio_policy_configuration.xml /vendor/etc/audio/sku_$SKU/audio_policy_configuration.xml} \
+                /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml \
                 /vendor/etc/audio_policy_configuration.xml; do
                 [ -f "$f" ] && { APM_X=$f; break; }
             done
@@ -2680,6 +2806,20 @@ mkdir -p "$STAGE/data/misc/user/0" "$STAGE/data/misc_de/0" "$STAGE/data/misc_ce/
 # create user store files): the user store (network suggestions, per-user
 # networks) never loaded. Stage only; the chmod/chown pass below covers them.
 mkdir -p "$STAGE/data/misc_ce/0/apexdata/com.android.wifi" "$STAGE/data/misc_de/0/apexdata/com.android.wifi"
+# Nor apexd's /data/misc/apexdata/<module> (one per active APEX): a guest /data that
+# never had them (the first CN run on a fresh /data) lost system_server at
+# NetworkStatsService ("Cannot write into stats data directory:
+# /data/misc/apexdata/com.android.tethering/netstats"); guest_start.sh's odrefresh
+# step had made /data/misc/apexdata root's 755. Every module name, One UI's (the
+# guest takes some of One UI's modules) and the image's own, in all three places,
+# before the chmod/chown pass below.
+for n in $(ls /apex 2>/dev/null | grep -v '@'; ls "$ROOTFS/system/apex" 2>/dev/null |
+           sed -e 's/\.c\{0,1\}apex$//' -e 's/_tplus_compressed$//' -e 's/_compressed$//' -e 's/^com\.google\.android\./com.android./'); do
+    case "$n" in *[!A-Za-z0-9._]*|.*|"") continue ;; esac
+    mkdir -p "$STAGE/data/misc/apexdata/$n" "$STAGE/data/misc_ce/0/apexdata/$n" "$STAGE/data/misc_de/0/apexdata/$n"
+done
+# init.rc's too (a fresh /data had none of them): Wi-Fi, SMS usage, text classifier.
+mkdir -p "$STAGE/data/misc/wifi" "$STAGE/data/misc/sms" "$STAGE/data/misc/textclassifier"
 mkdir -p "$STAGE/data/anr" "$STAGE/data/app" "$STAGE/data/rollback" "$STAGE/data/incremental"
 # The guest's own shared storage. Never the phone's /data/media: in run 25 the
 # guest's cleanup of a user it could not prepare deleted the photos in it.
@@ -3857,11 +3997,17 @@ usable() {
     [ "$(cat "/sys/class/net/$1/carrier" 2>/dev/null)" = 1 ] &&
         ip -4 addr show "$1" 2>/dev/null | grep -q "inet "
 }
+# Without Wi-Fi: the mobile interface netd made the default network (its rule
+# "fwmark 0x0/0xffff iif lo lookup <if>"), then the first usable rmnet_data.
+# The first one alone could be the IMS PDN (0.4.60 reports 5278f632, 4cc84045:
+# 4242 on the IMS rmnet_data for a while, the phone's internet into the IMS APN).
 iface=""
 if usable wlan0; then
     iface=wlan0
 else
-    for d in $(ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | sed 's/@.*//' | grep '^rmnet_data'); do
+    d=$(ip rule show 2>/dev/null | awk '/fwmark 0x0\/0xffff iif lo lookup rmnet_data/ {print $NF; exit}')
+    case "$d" in rmnet_data*) usable "$d" && iface=$d ;; esac
+    [ -n "$iface" ] || for d in $(ip -o link show 2>/dev/null | awk -F': ' '{print $2}' | sed 's/@.*//' | grep '^rmnet_data'); do
         if usable "$d"; then iface=$d; break; fi
     done
 fi
@@ -3923,6 +4069,25 @@ case "$cur" in
         echo "net route repaired: $iface $subnet gw $gw"
         ;;
 esac
+# Sockets bound to a mobile network on purpose (Samsung IMS's SIP to the
+# P-CSCF, MMS) carry that network's netId in their fwmark; netd routes them
+# with its explicit-network rules (priority 16000, "fwmark 0x1<netId>/0x1ffff
+# iif lo lookup rmnet_dataN"), which come after 14999. 0.4.60 S918B Viettel
+# (65e30c5c): every REGISTER to 10.204.64.81 left through table 4242's
+# rmnet_data0 and ended in TimerF; the one REGISTER sent while 4242 happened to
+# use the IMS interface got its 401 at once. The same rules again at 14998, so
+# they win over 4242; a table without a matching route falls through to 14999
+# as before. Only mobile interfaces; kept in step with netd's.
+want=$(ip rule show 2>/dev/null | awk '$1 == "16000:" && / iif lo / && / fwmark / && $NF ~ /^rmnet_data/ { $1 = ""; sub(/^ +/, ""); print }')
+have=$(ip rule show 2>/dev/null | awk '$1 == "14998:" { $1 = ""; sub(/^ +/, ""); print }')
+echo "$have" | while read -r r; do
+    [ -n "$r" ] || continue
+    printf '%s\n' "$want" | grep -qxF "$r" || { ip rule del $r priority 14998 2>/dev/null && echo "net route: dropped 14998: $r"; }
+done
+echo "$want" | while read -r r; do
+    [ -n "$r" ] || continue
+    printf '%s\n' "$have" | grep -qxF "$r" || { ip rule add $r priority 14998 2>/dev/null && echo "net route: 14998: $r (bound sockets keep their network)"; }
+done
 exit 0
 NETFIX
 chmod 755 "$STAGE/data/local/tmp/net_fix.sh" 2>/dev/null || true
@@ -4277,10 +4442,34 @@ fi
 # CellBroadcastService.
 bind_host_app() {
     [ -d "$1" ] && [ -d "$2" ] || { echo "!!! cannot replace $2 with $1"; return 0; }
+    # 0.4.61: the APK must be a readable zip. A36 Infinity-X 607556f1 (0.4.60):
+    # "Failed to open APK '/system/priv-app/NetworkStack/NetworkStackGoogle.apk':
+    # Invalid file", no MAINLINE_NETWORK_STACK permission, Network Stack and
+    # Tethering failed to start, SystemUI's tethering call timed out at startup
+    # and SystemUI crash-looped (no status bar, quick settings or navigation).
+    # Then One UI's updated copy (/data/app, the same package and signer), bound
+    # over the system one in a private folder.
+    a=$(ls "$1"/*.apk 2>/dev/null | head -n 1)
+    if [ -n "$a" ] && [ "$($BB head -c 2 "$a" 2>/dev/null)" = PK ] && [ "$($BB stat -c %s "$a" 2>/dev/null || echo 0)" -gt 65536 ] &&
+       $BB unzip -l "$a" AndroidManifest.xml >/dev/null 2>&1; then
+        $BB mount --bind "$1" "$2" && echo "Host $(basename "$1") -> $2"
+        return 0
+    fi
+    echo "!!! host $(basename "$1"): ${a:-no APK} is not a readable APK ($($BB stat -c %s "$a" 2>/dev/null || echo none) bytes)"
+    u=""
+    [ -n "$3" ] && u=$(ls -d /data/app/*/"$3"-*/base.apk /data/app/"$3"-*/base.apk 2>/dev/null | head -n 1)
+    if [ -n "$u" ] && [ "$($BB head -c 2 "$u" 2>/dev/null)" = PK ] && $BB unzip -l "$u" AndroidManifest.xml >/dev/null 2>&1 &&
+       $BB mount -t tmpfs -o size=64k,mode=755 tmpfs "$2"; then
+        : > "$2/$(basename "$1").apk" && chmod 644 "$2/$(basename "$1").apk" &&
+            $BB mount --bind "$u" "$2/$(basename "$1").apk" && $BB mount -o remount,ro "$2" 2>/dev/null &&
+            { echo "Host $3 from One UI's update ($u) -> $2"; return 0; }
+        $BB umount -l "$2" 2>/dev/null
+    fi
+    echo "!!! no readable $3 from One UI either; binding $1 as it is"
     $BB mount --bind "$1" "$2" && echo "Host $(basename "$1") -> $2"
 }
-bind_host_app /system/priv-app/NetworkStackGoogle "$ROOTFS/system/priv-app/NetworkStack"
-bind_host_app /system/app/CaptivePortalLoginGoogle "$ROOTFS/system/app/CaptivePortalLogin"
+bind_host_app /system/priv-app/NetworkStackGoogle "$ROOTFS/system/priv-app/NetworkStack" com.google.android.networkstack
+bind_host_app /system/app/CaptivePortalLoginGoogle "$ROOTFS/system/app/CaptivePortalLogin" com.google.android.captiveportallogin
 if [ -d "$GUEST_SYSTEM_EXT/priv-app/CellBroadcastService" ]; then
     $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$GUEST_SYSTEM_EXT/priv-app/CellBroadcastService" && \
         echo "Hid guest system_ext/priv-app/CellBroadcastService"

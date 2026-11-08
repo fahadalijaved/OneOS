@@ -119,7 +119,7 @@ IMAGE_SDK=37
 # installd codes the guard jars carry (InstalldExpected.SHA256).
 INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
 # Session scripts from switcher/assets plus the expected installd table.
-SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
+SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
@@ -176,6 +176,7 @@ profile_info() {
         s-ultra-8550) echo "SM-S918 dm3q SM8550 bar" ;;
         flip6) echo "SM-F741 b6q SM8650 flip" ;;
         s-9945) echo "SM-S921 e1s s5e9945 bar" ;;
+        s-8650) echo "SM-S921 e1q SM8650 bar" ;;
         s-edge-8750) echo "SM-S937 psq SM8750 bar" ;;
         s-fe-9945) echo "SM-S721 r12s s5e9945 bar" ;;
         a26) echo "SM-A266 a26x s5e8835 bar" ;;
@@ -185,6 +186,8 @@ profile_info() {
         a35) echo "SM-A356 a35x s5e8835 bar" ;;
         a54) echo "SM-A546 a54x s5e8835 bar" ;;
         a16) echo "SM-A166 a16x s5e8535 bar" ;;
+        a17-5g) echo "SM-A176 a17x s5e8535 bar" ;;
+        flip7-fe) echo "SM-F761 b7r s5e9945 flip" ;;
         s-9965) echo "SM-S942 m1s s5e9965 bar" ;;
         *) return 1 ;;
     esac
@@ -259,6 +262,11 @@ profile_set() {
         "s-ultra-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip6 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-8650 infinityx41-findx9u") echo infinityx ;;
+        "s-8650 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8650 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip6 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
@@ -330,6 +338,26 @@ profile_set() {
         "a16-s166 infinityx41-findx9u") echo infinityx ;;
         "a17 infinityx41-findx9u") echo infinityx ;;
         "a16 infinityx41-findx9u") echo infinityx ;;
+        "a17-5g infinityx41-findx9u") echo infinityx ;;
+        "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a17 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16-4g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16-s166 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a17-5g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip7-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
+        "flip7-fe infinityx41-findx9u") echo infinityx ;;
+        "flip7-fe hyperos-lhasa") echo hyper-f8u ;;
+        "a26 hyperos-lhasa") echo hyper-f8u ;;
+        "a35 hyperos-lhasa") echo hyper-f8u ;;
+        "a54 hyperos-lhasa") echo hyper-f8u ;;
+        "a07 hyperos-lhasa") echo hyper-f8u ;;
+        "a17 hyperos-lhasa") echo hyper-f8u ;;
+        "a16-4g hyperos-lhasa") echo hyper-f8u ;;
+        "a16 hyperos-lhasa") echo hyper-f8u ;;
+        "a16-s166 hyperos-lhasa") echo hyper-f8u ;;
+        "a17-5g hyperos-lhasa") echo hyper-f8u ;;
         *) return 1 ;;
     esac
 }
@@ -356,9 +384,9 @@ image_raw() {
 
 set_files() {
     case "$1" in
-        n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk GlobalVerifiedAddons.tar" ;;
-        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk" ;;
-        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk" ;;
+        n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar" ;;
+        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar" ;;
+        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
         pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk" ;;

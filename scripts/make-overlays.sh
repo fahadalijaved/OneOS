@@ -235,7 +235,8 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_biometric_clea
 # aliases with One UI's). patches/guest_no_gatekeeper.py, guest_pdb_readonly.py,
 # guest_no_apex_installs.py, guest_app_id_offset.py, guest_no_new_users.py; the KernelSU
 # manager keeps One UI's app id (guest_ksu_manager_appid.py, 0.4.39).
-for g in guest_no_gatekeeper guest_pdb_readonly guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
+# 0.4.63: the PDB start task survives a failed FRP deactivation (guest_pdb_init_survives.py).
+for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
@@ -279,6 +280,14 @@ if [ "$VOLD_GVLD" = 1 ]; then
 fi
 # StorageManagerService waits for OPPO's DefragService, which never registers.
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oplus_wait_for_service.py" "$WORK/services" --only DefragService)"
+# ColorOS's sound trigger retried a HAL the phone does not have forever on system_server's
+# main thread (A16 5G, A17 5G: Watchdog kill after 60 s); it gives up as AOSP does
+# (patches/oplus_soundtrigger_no_hal.py; nothing to change on other images).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oplus_soundtrigger_no_hal.py" "$WORK/services")"
+# A sound-trigger HAL that refuses a model (Pixel's Now Playing on Samsung's HAL) is not
+# rebooted: the reboot took One UI's audio HAL process and the guest's audio down, again
+# and again (patches/guest_soundtrigger_no_reboot.py, 0.4.64).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_soundtrigger_no_reboot.py" "$WORK/services")"
 # Pixel's Comfort View as a color matrix, like Night Light (run 43: the switch
 # did nothing; patches/comfort_view_bridge.py). Left out, with a warning, on an
 # image without ColorDisplayService.setUp, and not run for ColorOS: its

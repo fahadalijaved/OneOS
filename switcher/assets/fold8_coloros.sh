@@ -458,7 +458,7 @@ runtime)
         cmd package set-home-activity --user 0 com.android.launcher/.Launcher
     fi
     # SystemUI saves depth masks here but has a distinct app UID on this image.
-    uid=$(cmd package list packages -U com.android.systemui | sed -n 's/.*uid://p' | head -1)
+    uid=$(cmd package list packages -U com.android.systemui | sed -n 's/^package:com[.]android[.]systemui uid://p' | head -1)
     case "$uid" in ''|*[!0-9]*) echo 'Depth storage: SystemUI UID unavailable';;
     *)
         depth=/data/oplus/os

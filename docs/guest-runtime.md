@@ -48,11 +48,6 @@ existing guest app. For a fresh development guest, build with `--debug` followed
 by `:app:assembleFullDebug`. Existing production-signed installations cannot be
 updated with that debug certificate.
 
-Local host debug builds can set `-Poneos.versionCode=98` and
-`-Poneos.versionName=0.4.59-guest-runtime` to replace an earlier test build.
-These properties are rejected for release tasks; normal releases retain the
-repository's version until the maintainer chooses the release number.
-
 The native broker source, injection patch, framework normalizer, source pins and
 binary checksums are documented in [third_party/guest-runtime](../third_party/guest-runtime/README.md).
 
