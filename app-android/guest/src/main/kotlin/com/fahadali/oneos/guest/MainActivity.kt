@@ -106,7 +106,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() { super.onResume(); if (::back.isInitialized) showState() }
+    override fun onResume() {
+        super.onResume()
+        if (::back.isInitialized) {
+            showState()
+            renderRuntime(GuestRuntime.State(error = "Reading guest runtime…"))
+            GuestRuntime.refresh(this) { if (!isDestroyed) renderRuntime(it) }
+        }
+    }
+    private fun renderRuntime(state: GuestRuntime.State) {
+        val list = findViewById<android.widget.LinearLayout>(R.id.guest_runtime_cards)
+        list.removeAllViews()
+        val cards = com.fahadali.oneos.shared.NativeCards
+        val root = cards.section(list, "Root", getColor(R.color.preboot_card))
+        cards.row(root, "Root status", if (state.root) "Active · OneOS guest runtime" else state.error ?: "Inactive")
+        cards.row(root, "Root permissions", "Manage access for apps in this guest") {
+            startActivity(Intent(this, GuestRootActivity::class.java))
+        }.isEnabled = state.root
+        cards.row(root, "Manage guest modules", "Imports and switches apply on the next guest boot") {
+            startActivity(Intent(this, GuestModulesActivity::class.java))
+        }.isEnabled = state.root
+        cards.row(root, "Restart guest", "Restart this guest and apply pending module changes") { GuestRestart.confirm(this) }
+        val xposed = cards.section(list, "Xposed", getColor(R.color.preboot_card))
+        cards.row(xposed, "Framework status", if (state.active) "${state.providerName} · Active" else if (state.provider != "none") "${state.providerName} · Not active" else "Inactive")
+        cards.row(xposed, "Open ${if(state.provider == "none") "framework manager" else state.providerName}", "Reopen the manager without its notification") {
+            GuestRuntime.work({ GuestRuntime.openFramework(this, state); state }) { next ->
+                if (!isDestroyed && next.error != null) AlertDialog.Builder(this).setTitle("Framework manager")
+                    .setMessage(next.error).setPositiveButton(android.R.string.ok,null).show()
+            }
+        }.isEnabled = state.active
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

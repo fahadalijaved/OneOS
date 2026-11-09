@@ -203,11 +203,36 @@ add)
     # ONEOS_GUEST_ANIM_LEVEL=0 leaves it unset; 2, 3 or 4 sets that level.
     AL=persist.sys.oplus.anim_level; ALV=${ONEOS_GUEST_ANIM_LEVEL:-1}
     case "$ALV" in 1|2|3|4) ;; *) ALV="" ;; esac
-    if [ -n "$ALV" ] && [ -f "$GSE/framework/oplus-telephony-common.jar" ] &&
-            [ -e "$ROOTFS/system/framework/oplus-services.jar" ] &&
-            ! grep -qxF "$AL" "$HOST" && ! grep -q '^persist\.sys\.oplus\.anim_level=' "$NEW"; then
-        echo "$AL=$ALV" >> "$NEW"
-        echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
+    if [ -n "$ALV" ] && { grep -q '"image": "coloros17-findn6"' "$STAGE/.oneos_stage" ||
+            { [ -f "$GSE/framework/oplus-telephony-common.jar" ] && [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; }; }; then
+        # A previous return can leave an empty property name behind. Treat an
+        # empty host/guest value as missing, while recording any host override.
+        if grep -qxF "$AL" "$HOST"; then
+            hv=$(getprop "$AL")
+            if [ -z "$hv" ] && "$RP" -n "$AL" "$ALV"; then
+                echo "$AL=$hv" >> "$OVR"
+                echo "guest_props: empty $AL overridden to $ALV for this ColorOS session"
+            fi
+        elif ! grep -q '^persist\.sys\.oplus\.anim_level=.' "$NEW"; then
+            sed -i '/^persist\.sys\.oplus\.anim_level=/d' "$NEW"
+            echo "$AL=$ALV" >> "$NEW"
+            echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
+        fi
+    fi
+    if grep -q '"image": "coloros17-findn6"' "$STAGE/.oneos_stage"; then
+        # Framework animation/Gaussian tiers use 3 for high-end; COUI's
+        # separate anim_level above uses 1. Apply both before guest processes.
+        for kv in ro.launcher.blur.appLaunch=1 ro.oplus.animationlevel=3 ro.oplus.gaussianlevel=3; do
+            key=${kv%%=*}; value=${kv#*=}
+            if grep -qxF "$key" "$HOST"; then
+                hv=$(getprop "$key")
+                if [ "$hv" != "$value" ] && "$RP" -n "$key" "$value"; then echo "$key=$hv" >> "$OVR"; fi
+            else
+                sed -i "/^$key=/d" "$NEW"
+                echo "$key=$value" >> "$NEW"
+            fi
+            echo "guest_props: $key=$value for this ColorOS session"
+        done
     fi
     # One UI's color mode (oneos_switch.sh, host_color_mode), read by the
     # guest's SurfaceFlinger at start: it no longer moves the panels between

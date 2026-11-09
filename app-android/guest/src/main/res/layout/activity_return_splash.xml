@@ -3,7 +3,7 @@
     android:orientation="vertical" android:gravity="center" android:padding="24dp" android:background="#010102">
     <androidx.appcompat.widget.AppCompatImageView android:layout_width="180dp" android:layout_height="180dp"
         android:src="@drawable/oneos_return_icon" android:importantForAccessibility="no" />
-    <androidx.appcompat.widget.AppCompatTextView android:layout_width="match_parent" android:layout_height="wrap_content"
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/transition_title" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="51dp" android:text="@string/return_splash_title" android:textSize="36sp"
         android:textStyle="bold" android:textColor="#FFFFFF" android:gravity="center" android:accessibilityHeading="true" />
     <androidx.appcompat.widget.AppCompatTextView android:id="@+id/return_error" android:layout_width="match_parent"

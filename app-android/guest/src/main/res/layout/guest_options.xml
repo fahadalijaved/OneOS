@@ -1,4 +1,5 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/guest_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+    <LinearLayout android:id="@+id/guest_runtime_cards" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
     <!-- 0.4.43 (UX audit): the other ways back again, with the volume keys that work everywhere. -->
     <androidx.appcompat.widget.AppCompatTextView android:id="@+id/ways_header" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="24dp" android:paddingBottom="8dp" android:textSize="14sp" android:textStyle="bold" android:textColor="?android:attr/textColorSecondary" android:text="@string/ways_title" />
     <dev.oneuiproject.oneui.widget.RoundedLinearLayout android:id="@+id/tile_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?android:attr/colorBackground">

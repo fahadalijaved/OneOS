@@ -125,7 +125,7 @@ INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
 INSTALLD_SHA_36=a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
 INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977 9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
 # Session scripts from switcher/assets plus the expected installd table.
-SCRIPTS="oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
+SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
@@ -522,7 +522,7 @@ pair_set() { # <profile> <image>
 # Executables 0755 (as scripts/deploy-phone.sh pushes them; PackageFile.mode).
 file_mode() {
     case "$1" in
-        *.sh|zygote_exec|oneos_btaudio|surfaceflinger_patched|vold_patched) echo 0755 ;;
+        *.sh|guest_root|guest_zygiskd|guest_zygisk_ptrace|zygote_exec|oneos_btaudio|surfaceflinger_patched|vold_patched) echo 0755 ;;
         *) echo 0644 ;;
     esac
 }
@@ -1601,20 +1601,141 @@ take_lock() {
     trap 'rm -f "$LOCK"' EXIT
 }
 
+# --- Experimental guest root / modules -----------------------------------------
+guest_state() {
+    is_id "$1" || usage "guest image"
+    [ -f "$STAGE/.oneos_stage" ] || refuse "prepare this system first"
+    read_marker || refuse "the prepared system marker is invalid"
+    [ "$M_IMAGE" = "$1" ] || refuse "the prepared system is different"
+    mountinfo_ok
+    if [ "${2:-}" = status ]; then
+        [ ! -L "$STAGE/data/oneos_root" ] || refuse "guest root state contains a symlink"
+        return 0
+    fi
+    [ -z "$(mounted_under "$STAGE")" ] || refuse "the guest is running or mounted"
+    for p in "$STAGE/data" "$STAGE/data/oneos_root" "$STAGE/data/oneos_root/adb" "$STAGE/data/oneos_root/adb/modules_update"; do
+        [ ! -L "$p" ] || refuse "guest root state contains a symlink"
+        [ ! -e "$p" ] || [ -d "$p" ] || refuse "guest root state is not a folder"
+        [ -d "$p" ] || mkdir "$p" || die "cannot create guest root state"
+    done
+}
+do_guest_runtime() {
+    [ $# = 2 ] || usage "guest-runtime image action"
+    guest_state "$1" "$2"
+    case "$2" in
+        enable) printf '' > "$STAGE/data/oneos_root/enabled" ;;
+        disable) rm -f "$STAGE/data/oneos_root/enabled" ;;
+        status) ;;
+        select-*)
+            provider=${2#select-}
+            case "$provider" in ''|*[!A-Za-z0-9._-]*|.*) usage "framework id" ;; esac
+            if [ "$provider" != zygisk_vector ]; then
+                [ -f "$STAGE/data/oneos_root/adb/modules/$provider/.oneos-framework" ] || [ -f "$STAGE/data/oneos_root/adb/modules_update/$provider/.oneos-framework" ] || refuse "import this framework first"
+            fi
+            printf '%s\n' "$provider" > "$STAGE/data/oneos_root/framework"
+            for m in "$STAGE/data/oneos_root/adb/modules/$provider" "$STAGE/data/oneos_root/adb/modules_update/$provider"; do
+                [ -d "$m" ] && [ ! -L "$m" ] || continue
+                [ ! -L "$m/disable" ] || refuse "module flag is a symlink"
+                rm -f "$m/disable"
+            done
+            ;;
+        *) usage "guest runtime action" ;;
+    esac
+    if [ -f "$STAGE/data/oneos_root/enabled" ]; then say "@@RESULT enabled"; else say "@@RESULT disabled"; fi
+    selected=zygisk_vector; [ ! -f "$STAGE/data/oneos_root/framework" ] || selected=$(cat "$STAGE/data/oneos_root/framework")
+    say "@@RESULT selected $selected"
+    if [ -x "$STAGE/guest_root" ] && [ -f "$STAGE/guest_vector.bundle" ] && [ -f "$STAGE/guest_manager.apk" ]; then
+        say "@@RESULT runtime-ready"
+    fi
+    for base in modules modules_update; do
+        for m in "$STAGE/data/oneos_root/adb/$base/"*; do
+            [ -d "$m" ] && [ ! -L "$m" ] || continue
+            say "@@RESULT module ${m##*/} $base"
+            kind=module
+            if [ -f "$m/.oneos-framework" ]; then
+                kind=$(cat "$m/.oneos-framework")
+                say "@@RESULT framework ${m##*/} $kind"
+            fi
+            enabled=1; [ ! -f "$m/disable" ] || enabled=0
+            namehex=$(sed -n 's/^name=//p' "$m/module.prop" | head -n 1 | head -c 256 | tr -d '\r\n' | od -An -v -tx1 | tr -d ' \n')
+            deschex=$(sed -n 's/^description=//p' "$m/module.prop" | head -n 1 | head -c 1024 | tr -d '\r\n' | od -An -v -tx1 | tr -d ' \n')
+            verhex=$(sed -n 's/^version=//p' "$m/module.prop" | head -n 1 | head -c 128 | tr -d '\r\n' | od -An -v -tx1 | tr -d ' \n')
+            authorhex=$(sed -n 's/^author=//p' "$m/module.prop" | head -n 1 | head -c 256 | tr -d '\r\n' | od -An -v -tx1 | tr -d ' \n')
+            codehex=$(sed -n 's/^versionCode=//p' "$m/module.prop" | head -n 1 | head -c 32 | tr -d '\r\n' | od -An -v -tx1 | tr -d ' \n')
+            updatehex=$(sed -n 's/^updateJson=//p' "$m/module.prop" | head -n 1 | head -c 1024 | tr -d '\r\n' | od -An -v -tx1 | tr -d ' \n')
+            caps=-; [ ! -f "$m/action.sh" ] || caps=action; [ ! -f "$m/webroot/index.html" ] || caps="$caps,webui"
+            removed=0; [ ! -f "$m/remove" ] || removed=1
+            say "@@RESULT module-info ${m##*/} $enabled $base $kind ${verhex:--} ${namehex:--} ${deschex:--} ${authorhex:--} ${codehex:--} ${updatehex:--} $caps $removed"
+        done
+    done
+    say "@@OK guest-runtime"
+}
+do_guest_module_state() {
+    [ $# = 3 ] || usage "guest-module-state image module on-or-off"
+    guest_state "$1"
+    case "$2" in ''|*[!A-Za-z0-9._-]*|.*) usage "module id" ;; esac
+    case "$3" in on|off|remove|restore) ;; *) usage "module state" ;; esac
+    if [ "$3" = remove ] || [ "$3" = restore ]; then
+        selected=zygisk_vector; [ ! -f "$STAGE/data/oneos_root/framework" ] || selected=$(cat "$STAGE/data/oneos_root/framework")
+        [ "$2" != "$selected" ] || refuse "select another framework before removing this one"
+    fi
+    changed=0
+    for m in "$STAGE/data/oneos_root/adb/modules/$2" "$STAGE/data/oneos_root/adb/modules_update/$2"; do
+        [ -d "$m" ] && [ ! -L "$m" ] || continue
+        case "$3" in
+            on|off)
+                if [ -f "$m/.oneos-framework" ] && [ "$3" = on ]; then
+                    selected=zygisk_vector; [ ! -f "$STAGE/data/oneos_root/framework" ] || selected=$(cat "$STAGE/data/oneos_root/framework")
+                    [ "$2" = "$selected" ] || refuse "select this framework on the pre-boot page first"
+                fi
+                [ ! -L "$m/disable" ] || refuse "module flag is a symlink"
+                if [ "$3" = on ]; then rm -f "$m/disable"; else printf '' > "$m/disable"; fi ;;
+            remove|restore)
+                [ ! -L "$m/remove" ] || refuse "module flag is a symlink"
+                if [ "$3" = remove ]; then printf '' > "$m/remove"; else rm -f "$m/remove"; fi ;;
+        esac
+        changed=1
+    done
+    [ "$changed" = 1 ] || refuse "module is not staged in this guest"
+    say "@@OK guest-module-state $2 $3"
+}
+do_guest_module() {
+    [ $# = 4 ] || usage "guest-module image id bytes sha256"
+    guest_state "$1" "$2"
+    case "$2" in ''|*[!A-Za-z0-9._-]*|.*|vector|oneos|zygisksu) usage "module id" ;; esac
+    is_dec "$3" && ge 536870912 "$3" && is_hex64 "$4" || usage "module bundle size/hash"
+    [ -x "$STAGE/guest_root" ] && mine "$STAGE/guest_root" || refuse "update the prepared system to this build first"
+    [ ! -L "$STAGE/data/oneos_root/import.bundle" ] || refuse "module import is a symlink"
+    rm -f "$STAGE/data/oneos_root/import.bundle"
+    head -c "$3" > "$STAGE/data/oneos_root/import.bundle" || die "module transfer failed"
+    [ "$(stat -c %s "$STAGE/data/oneos_root/import.bundle")" = "$3" ] && [ "$(sha "$STAGE/data/oneos_root/import.bundle")" = "$4" ] || { rm -f "$STAGE/data/oneos_root/import.bundle"; refuse "module bundle did not arrive intact"; }
+    [ ! -e "$STAGE/data/oneos_root/adb/modules_update/$2" ] && [ ! -L "$STAGE/data/oneos_root/adb/modules_update/$2" ] || { rm -f "$STAGE/data/oneos_root/import.bundle"; refuse "an update for this module is already staged"; }
+    mkdir "$STAGE/data/oneos_root/adb/modules_update/$2" || die "could not create module update"
+    if ! "$STAGE/guest_root" --unpack "$STAGE/data/oneos_root/adb/modules_update/$2" < "$STAGE/data/oneos_root/import.bundle"; then
+        rm -f "$STAGE/data/oneos_root/import.bundle"; to_attic "data/oneos_root/adb/modules_update/$2"; refuse "invalid module bundle"
+    fi
+    rm -f "$STAGE/data/oneos_root/import.bundle"
+    [ "$(sed -n 's/^id=//p' "$STAGE/data/oneos_root/adb/modules_update/$2/module.prop" | tr -d '\r')" = "$2" ] || { to_attic "data/oneos_root/adb/modules_update/$2"; refuse "module id does not match its bundle"; }
+    say "@@OK guest-module $2"
+}
+
 # --- Main ---------------------------------------------------------------------
 [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
 verb=$1
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|selfupdate) migrate_legacy stage ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|selfupdate|guest-runtime|guest-module|guest-module-state) migrate_legacy stage ;;
     old-list|purge) migrate_legacy copies ;;
 esac
 [ -d "$STAGE" ] && mine "$STAGE" || refuse "$STAGE is not root's folder"
 [ -d "$STAGE/bin" ] && mine "$STAGE/bin" || refuse "$STAGE/bin is not root's folder"
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|purge|selfupdate) take_lock ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|purge|selfupdate|guest-module|guest-module-state) take_lock ;;
 esac
 [ $# -gt 0 ] && shift
 case "$verb" in
+    guest-runtime) do_guest_runtime "$@" ;;
+    guest-module) do_guest_module "$@" ;;
+    guest-module-state) do_guest_module_state "$@" ;;
     begin) do_begin "$@" ;;
     receive) do_receive "$@" ;;
     keep-raw) do_keep_raw "$@" ;;

@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- OneOS inside the guest: "Back to One UI". No permission at all: the
-         request is a file in the app's own data folder, which the session's
-         watcher on the host reads (switcher/assets/oneos_switch.sh). -->
+    <!-- Return/restart requests stay in private app data; the host session watcher
+         reads them. The integrated root manager also reads guest app metadata
+         and downloads module updates. -->
+    <!-- Root access management must enumerate installed guest apps, including apps with no launcher. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:enableOnBackInvokedCallback="true"
         android:allowBackup="false"
@@ -25,6 +28,12 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".ModuleWebActivity" android:exported="false" />
+        <activity android:name=".GuestModulesActivity" android:exported="false" />
+        <activity android:name=".GuestRootActivity" android:exported="false" android:windowSoftInputMode="adjustResize">
+            <intent-filter><action android:name="android.intent.action.SEARCH" /></intent-filter>
+            <meta-data android:name="android.app.searchable" android:resource="@xml/root_searchable" />
+        </activity>
         <activity android:name=".ReturnSplashActivity" android:exported="false" android:launchMode="singleTop" />
 
         <!-- How's it going? (0.4.30): the checklist, saved in this app's own folder. -->

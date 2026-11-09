@@ -336,7 +336,8 @@ setprop oneos.guest.powerctl "" 2>/dev/null
 # on it like on the keys; one left from an earlier session must not end this
 # one as soon as it starts.
 GUEST_RETURN_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_return"
-rm -f "$GUEST_RETURN_REQ"
+GUEST_RESTART_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_restart"
+rm -f "$GUEST_RETURN_REQ" "$GUEST_RESTART_REQ"
 # One UI's protected state, recorded now and compared by return_to_oneui.sh:
 # the FRP partition, gatekeeper's files and the APEX state. The guest is kept
 # off all three (patches/guest_no_gatekeeper.py, guest_pdb_readonly.py,
@@ -628,6 +629,10 @@ fi
 # UI's APEX devices, props, SELinux mode and the servicemanager names it keeps,
 # recorded while One UI is still whole. Read only; without it the return reboots.
 /system/bin/sh "$STAGE/return_to_oneui.sh" baseline
+STAGE="$STAGE" /system/bin/sh "$STAGE/guest_runtime.sh" baseline || {
+    echo 'Guest root baseline failed before stopping One UI; switch cancelled'
+    exit 3
+}
 
 # Full logcat of the session (host and guest share logd) for pull-run-logs.sh.
 # Started here so no session runs without it: run 31 was launched without the
@@ -1345,6 +1350,14 @@ $BB sh -c "
 
 # The guest's own build props (ro.oplus.* etc.), now that its rootfs is mounted.
 /system/bin/sh "$STAGE/guest_props.sh" add "$STAGE/rootfs"
+if [ -f "$STAGE/data/oneos_root/enabled" ]; then
+    if ! "$BB" chroot "$STAGE/rootfs" /system/bin/sh /data/oneos_runtime.sh install ||
+       ! BB="$BB" /system/bin/sh "$STAGE/tmp/guest_modules.sh"; then
+        echo "Guest module installation failed; returning to One UI"
+        /system/bin/sh "$STAGE/return_to_oneui.sh"
+        exit 1
+    fi
+fi
 
 # --- STOP HOST DAEMONS & LAUNCH CONTAINER ---
 echo "=== [6/6] $(date +%T) Launching the guest takeover daemon ==="
@@ -3149,6 +3162,11 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     echo \"\$(date) Back to One UI asked in the guest's OneOS app (\$r)\"
                     setprop oneos.guest.powerctl \"app:\$r\"
                     continue
+                fi
+                if [ -f $GUEST_RESTART_REQ ] && [ ! -L $GUEST_RESTART_REQ ]; then
+                    rm -f $GUEST_RESTART_REQ
+                    setprop oneos.guest.powerctl ksud:soft-reboot
+                    break
                 fi
                 sleep 1; i=\$((i + 1))
             done

@@ -520,6 +520,12 @@ if [ "$MODE" = inplace ]; then
     fi
 fi
 
+if [ -f /data/local/tmp/oneos/data/oneos_root/enabled ]; then
+    if ! STAGE=/data/local/tmp/oneos /system/bin/sh /data/local/tmp/oneos/guest_runtime.sh verify-return; then
+        echo "Guest full-stack runtime: return audit failed; reboot fallback"
+        MODE=reboot
+    fi
+fi
 # OneOS: return by rebooting unless asked otherwise. Restarting One UI in place
 # after a session left one of its decompressed APEXes unreadable every time
 # (NFC, uwb, wifi): SIGBUS crash loops, RescueParty, and once an ext4

@@ -80,7 +80,10 @@ class PackagesTest {
     fun switcherAssetsAreShippedOrExcludedOnPurpose() {
         val names = Shipped.switcherAssets.listFiles()!!.filter { it.isFile }.map { it.name }.toSet()
         val shipped = RootScript.SCRIPTS - "host_installd.txt"
-        assertEquals(names - setOf("oneos_tunnel.sh", "7zz"), shipped.toSet())
+        // The manager is built from :guest; it is deliberately absent in a clean
+        // source checkout. Full APK assembly separately requires its real bytes.
+        val generated = setOf("guest_manager.apk")
+        assertEquals((names - setOf("oneos_tunnel.sh", "7zz")) + generated, shipped.toSet())
         val build = File(Shipped.appAssets, "../../../build.gradle.kts").readText()
         for (n in shipped) assertTrue("app/build.gradle.kts does not ship $n", build.contains("\"$n\" to File(repoRoot, \"switcher/assets/$n\")"))
         assertTrue(build.contains("val switcherNotShipped = setOf(\"oneos_tunnel.sh\", \"7zz\")"))

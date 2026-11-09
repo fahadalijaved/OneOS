@@ -2,7 +2,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/environment_window"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="@color/oneos_page_background">
+    android:background="@color/preboot_page">
     <dev.oneuiproject.oneui.layout.ToolbarLayout
         android:id="@+id/environment_toolbar_layout"
         android:layout_width="match_parent" android:layout_height="match_parent"
@@ -10,10 +10,10 @@
         app:mainRoundedCorners="top" app:showNavButtonAsBack="true">
     <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent">
     <androidx.core.widget.NestedScrollView android:id="@+id/environment_scroll" android:layout_width="match_parent" android:layout_height="match_parent" android:clipToPadding="false" android:fillViewport="true">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="12dp" android:paddingTop="8dp" android:paddingBottom="20dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingHorizontal="10dp" android:paddingTop="10dp" android:paddingBottom="20dp">
             <include layout="@layout/environment_artwork" android:layout_width="match_parent" android:layout_height="356dp" />
             <androidx.appcompat.widget.AppCompatTextView android:id="@+id/environment_title" style="@style/OneOS.Setup.Title" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" />
-            <LinearLayout android:id="@+id/environment_cards" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="16dp" />
+            <LinearLayout android:id="@+id/environment_cards" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="14dp" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
     </FrameLayout>

@@ -50,6 +50,11 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.72: **Root and modules per system (experimental, by Josh)**: each system can have its own root
+permissions, Magisk/KernelSU-style modules and an Xposed framework (Vector bundled, or an imported Zygisk LSPosed),
+set up on the system's pre-boot page and managed from the OneOS app inside the system; Restart guest applies module
+changes without going back to One UI. Play Integrity does not pass inside the guest yet.
+
 New in 0.4.71: **Stuck at "Check the system already on this phone" / system not found after an update** fixed (setup
 steps run one at a time and never under a starting session; Update/Retry no longer re-checks a copy that is gone, it
 asks for the download instead). **Phones restarting with "vold-failed"** during a session: One UI's dumpstate and

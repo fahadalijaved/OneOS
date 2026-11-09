@@ -194,6 +194,10 @@ if [ -s /data/oneos_host_sf_frozen ]; then
     echo "[Pivoted Root] Gap splash: One UI's frozen surfaceflinger $FZ released at $(date +%T) ($([ -d "/proc/$FZ" ] && echo 'still there' || echo gone))"
 fi
 
+# A guest restart retained its splash in the composer while installers ran.
+# Thaw that exact compositor before restarting it for the new guest client.
+command -v oneos_boot_release_display >/dev/null 2>&1 && oneos_boot_release_display
+
 # The vendor composer still treats the killed host SurfaceFlinger as its client:
 # every frame from the guest's came back NO_RESOURCES on both displays and the
 # panel kept showing One UI's last frame. Restart it so the guest gets a fresh
@@ -1656,5 +1660,52 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
 else
     echo "[Pivoted Root] Double tap to wake: left to the guest (ONEOS_GUEST_DT2W=$DT2W, getevent $(command -v getevent >/dev/null 2>&1 && echo yes || echo no))"
 fi
+# Pixel 17's WallpaperDataParser calls next() once for <description>. Its
+# indented serializer writes whitespace there, so next() returns TEXT and the
+# saved component is skipped. Remove only whitespace between XML elements,
+# preserving every component, crop, colour, content value and wallpaper file.
+# Every Pixel guest (pull request #1 found it on the Fold8; same Pixel 17 code).
+if [ -f /system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk ]; then
+    WREL=system/users/0/wallpaper_info.xml
+    WFILE="/data/$WREL"
+    if [ ! -L /data/system ] && [ ! -L /data/system/users ] && [ ! -L /data/system/users/0 ] &&
+            [ ! -L "$WFILE.oneos-normalized" ] && [ ! -L "$WFILE.oneos-spacing-backup" ] && [ -f "$WFILE" ] && [ ! -L "$WFILE" ] && [ "$(head -c 5 "$WFILE")" = '<?xml' ]; then
+        if cp -p "$WFILE" "$WFILE.oneos-normalized" &&
+                "$BB" sed ':a
+N
+$!ba
+s/>[[:space:]]*</></g' "$WFILE" > "$WFILE.oneos-normalized" &&
+                [ -s "$WFILE.oneos-normalized" ]; then
+            if ! cmp -s "$WFILE" "$WFILE.oneos-normalized"; then
+                if cp -p "$WFILE" "$WFILE.oneos-spacing-backup"; then
+                    mv -f "$WFILE.oneos-normalized" "$WFILE"
+                    echo "Pixel wallpaper: normalized description spacing; saved selection retained"
+                else
+                    rm -f "$WFILE.oneos-normalized"
+                    echo "WARNING: Pixel wallpaper backup failed; original retained"
+                fi
+            else
+                rm -f "$WFILE.oneos-normalized"
+            fi
+        else
+            rm -f "$WFILE.oneos-normalized"
+            echo "WARNING: Pixel wallpaper normalization failed; original retained"
+        fi
+    fi
+fi
+
+# Properties are shared: One UI left boot_completed=1. Clear it before any
+# guest framework or module boot-service waiter starts, on cold and soft boots.
+# Otherwise a package-manager service can appear before AMS accepts broadcasts,
+# and an early module APK verification crashes system_server.
+if [ -f /data/oneos_root/enabled ]; then
+    setprop sys.boot_completed 0
+    setprop dev.bootcomplete 0
+fi
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
+if [ -f /data/oneos_root/enabled ]; then
+    /system/bin/sh /data/oneos_runtime.sh pre || exit 3
+    /system/bin/sh /data/oneos_runtime.sh late > /data/adb/oneos/run/late.log 2>&1 &
+    exec /data/adb/oneos/bin/su --launch
+fi
 exec /data/zygote_exec

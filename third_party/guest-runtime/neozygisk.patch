@@ -1,0 +1,319 @@
+diff --git a/loader/src/ptracer/guest_target.hpp b/loader/src/ptracer/guest_target.hpp
+new file mode 100644
+index 0000000..5ea5efe
+--- /dev/null
++++ b/loader/src/ptracer/guest_target.hpp
+@@ -0,0 +1,33 @@
++#pragma once
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#include <cstdio>
++#include <string>
++
++// OneOS launches the tracer and the stopped zygote as siblings. The target
++// must remain a child of the invoking launcher, in this guest filesystem root.
++// caller == 1 is refused: orphan adoption must never authorize init's services.
++inline bool guest_trace_target_is_child(pid_t target, pid_t caller,
++                                       const char *proc_root = "/proc",
++                                       const char *guest_root = "/") {
++    if (target <= 1 || caller <= 1 || target == getpid()) return false;
++    const std::string path = std::string(proc_root) + "/" + std::to_string(target);
++    const int process = open(path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++    if (process < 0) return false;
++    struct stat actual{}, expected{};
++    const bool same_root = fstatat(process, "root", &actual, 0) == 0 &&
++                           stat(guest_root, &expected) == 0 &&
++                           actual.st_dev == expected.st_dev && actual.st_ino == expected.st_ino;
++    const int status_fd = same_root ? openat(process, "status", O_RDONLY | O_CLOEXEC | O_NOFOLLOW) : -1;
++    close(process);
++    if (status_fd < 0) return false;
++    FILE *status = fdopen(status_fd, "r");
++    if (!status) { close(status_fd); return false; }
++    char line[512];long parent = -1;
++    while (fgets(line, sizeof(line), status)) {
++        if (sscanf(line, "PPid:%ld", &parent) == 1) break;
++    }
++    fclose(status);
++    return parent == caller;
++}
+diff --git a/loader/src/ptracer/main.cpp b/loader/src/ptracer/main.cpp
+index b2a9b4b..725e9ec 100644
+--- a/loader/src/ptracer/main.cpp
++++ b/loader/src/ptracer/main.cpp
+@@ -1,0 +2,2 @@
++#include "guest_target.hpp"
++#include <limits>
+@@ -195,0 +198 @@ int main(int argc, char **argv) {
++    if (argc < 2 || (std::string_view(argv[1]) != "trace" && std::string_view(argv[1]) != "version")) { fprintf(stderr, "OneOS: global monitor and boot stages disabled\n"); return 1; }
+@@ -273 +276 @@ static int handle_trace(int argc, char **argv) {
+-    if (*end_ptr != '\0' || errno != 0 || pid_val <= 0) {
++    if (*end_ptr != '\0' || errno != 0 || pid_val <= 0 || pid_val > std::numeric_limits<pid_t>::max()) {
+@@ -277,0 +281,4 @@ static int handle_trace(int argc, char **argv) {
++    if (!guest_trace_target_is_child(pid, getppid())) {
++        fprintf(stderr, "OneOS: target must be the invoking launcher's child in this guest root\n");
++        return EXIT_FAILURE;
++    }
+@@ -324,2 +331,4 @@ static int handle_trace(int argc, char **argv) {
+-        ptrace(PTRACE_DETACH, pid, 0, SIGCONT);
+-        kill(pid, SIGCONT);
++        if (guest_trace_target_is_child(pid, getppid())) {
++            ptrace(PTRACE_DETACH, pid, 0, SIGCONT);
++            kill(pid, SIGCONT);
++        }
+diff --git a/loader/src/ptracer/ptracer.cpp b/loader/src/ptracer/ptracer.cpp
+index 85482ae..2c9a5af 100644
+--- a/loader/src/ptracer/ptracer.cpp
++++ b/loader/src/ptracer/ptracer.cpp
+@@ -24,0 +25 @@
++#include "guest_target.hpp"
+@@ -584,0 +586 @@ static bool trace_with_seize(int pid, TraceMode mode, bool *hooked) {
++        if (!guest_trace_target_is_child(pid, getppid())) { BAIL_AND_DETACH }
+@@ -672,0 +675,4 @@ static bool trace_with_attach(int pid, TraceMode mode, bool *hooked) {
++        if (!guest_trace_target_is_child(pid, getppid())) {
++            ptrace(PTRACE_DETACH, pid, 0, 0);
++            return false;
++        }
+@@ -709,0 +716,2 @@ bool trace_target(int pid, TraceMode mode, bool *hooked) {
++    if (!guest_trace_target_is_child(pid, getppid())) { errno = EPERM; return false; }
++
+diff --git a/zygiskd/src/guest_policy.rs b/zygiskd/src/guest_policy.rs
+new file mode 100644
+index 0000000..f0b871a
+--- /dev/null
++++ b/zygiskd/src/guest_policy.rs
+@@ -0,0 +1,110 @@
++//! Guest identity checks shared by daemon entry points and regression tests.
++use anyhow::{Context, Result, bail};
++use std::fs::{self, File};
++use std::os::fd::{AsRawFd, FromRawFd};
++use std::os::unix::fs::MetadataExt;
++use std::path::Path;
++
++fn open_at(directory: &File, name: &std::ffi::CStr, flags: i32) -> Result<File> {
++    // The proc directory FD pins this process lookup; a reused numeric PID
++    // cannot redirect later root/namespace opens to a different process.
++    let fd = unsafe { libc::openat(directory.as_raw_fd(), name.as_ptr(), flags | libc::O_CLOEXEC) };
++    if fd < 0 { return Err(std::io::Error::last_os_error().into()); }
++    Ok(unsafe { File::from_raw_fd(fd) })
++}
++
++fn namespace_from_process(process: &File, guest_root: &Path) -> Result<File> {
++    let root = open_at(process, c"root", libc::O_RDONLY | libc::O_DIRECTORY)?;
++    let actual = root.metadata()?;
++    let expected = fs::metadata(guest_root)?;
++    if actual.dev() != expected.dev() || actual.ino() != expected.ino() {
++        bail!("daemon peer does not belong to this guest filesystem root");
++    }
++    open_at(process, c"ns/mnt", libc::O_RDONLY)
++}
++
++/// `peer_pid` must come from SO_PEERCRED, never the request payload.
++pub fn peer_mount_namespace(peer_pid: i32) -> Result<File> {
++    let process = File::open(format!("/proc/{peer_pid}"))
++        .context("cannot open daemon peer process")?;
++    namespace_from_process(&process, Path::new("/"))
++}
++
++pub fn grant_matches(uid: i32, grants: &str, packages: &str) -> bool {
++    if uid < 10_000 { return false; }
++    grants.lines().any(|line| {
++        let mut fields = line.split_whitespace();
++        let (Some(package), Some(granted_uid)) = (fields.next(), fields.next()) else { return false; };
++        if fields.next().is_some() || package.len() > 255 || package.is_empty()
++            || !package.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'.')
++            || granted_uid.parse::<i32>().ok() != Some(uid) { return false; }
++        // A grant expires when its package disappears or receives a new UID.
++        // An unrelated app reusing the old UID must not inherit it.
++        packages.lines().find_map(|entry| {
++            let mut values = entry.split_whitespace();
++            if values.next() != Some(package) { return None; }
++            Some(values.next().and_then(|v| v.parse::<i32>().ok()) == Some(uid))
++        }).unwrap_or(false)
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::os::unix::fs::symlink;
++    use std::sync::atomic::{AtomicU64, Ordering};
++    static NEXT: AtomicU64 = AtomicU64::new(0);
++    struct Fixture(std::path::PathBuf);
++    impl Fixture {
++        fn new() -> Self {
++            let path = std::env::temp_dir().join(format!("oneos-policy-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
++            fs::create_dir(&path).unwrap(); Self(path)
++        }
++        fn process(&self, name: &str, root: &Path, marker: &[u8]) -> File {
++            let path = self.0.join(name);fs::create_dir_all(path.join("ns")).unwrap();
++            symlink(root,path.join("root")).unwrap();fs::write(path.join("ns/mnt"),marker).unwrap();
++            File::open(path).unwrap()
++        }
++    }
++    impl Drop for Fixture { fn drop(&mut self) { let _ = fs::remove_dir_all(&self.0); } }
++    #[test] fn valid_current_package_is_granted() {
++        assert!(grant_matches(10042,"com.app 10042\n","com.app 10042 other columns\n"));
++    }
++    #[test] fn reused_uid_does_not_inherit_deleted_packages_grant() {
++        assert!(!grant_matches(10042,"com.old 10042\n","com.new 10042 x\n"));
++    }
++    #[test] fn changed_package_uid_invalidates_old_grant() {
++        assert!(!grant_matches(10042,"com.app 10042\n","com.app 10043 x\n"));
++    }
++    #[test] fn shared_uid_needs_one_current_matching_package() {
++        assert!(grant_matches(10042,"com.a 10042\n","com.a 10042 x\ncom.b 10042 x\n"));
++    }
++    #[test] fn malformed_grants_and_system_uids_are_denied() {
++        for grant in ["com.app nope", "com.app 10042 extra", "../app 10042", "com.app 4294977338"] {
++            assert!(!grant_matches(10042,grant,"com.app 10042 x\n"));
++        }
++        assert!(!grant_matches(1000,"com.app 1000","com.app 1000 x"));
++    }
++    #[test] fn same_guest_peer_namespace_is_pinned() {
++        let f=Fixture::new();let root=f.0.join("guest");fs::create_dir(&root).unwrap();
++        let peer=f.process("peer",&root,b"guest namespace");
++        let namespace=namespace_from_process(&peer,&root).unwrap();
++        use std::io::Read;let mut text=String::new();(&namespace).read_to_string(&mut text).unwrap();
++        assert_eq!(text,"guest namespace");
++    }
++    #[test] fn host_peer_root_is_rejected() {
++        let f=Fixture::new();let guest=f.0.join("guest");let host=f.0.join("host");
++        fs::create_dir(&guest).unwrap();fs::create_dir(&host).unwrap();
++        let peer=f.process("peer",&host,b"host namespace");
++        assert!(namespace_from_process(&peer,&guest).is_err());
++    }
++    #[test] fn process_directory_fd_prevents_pid_path_replacement() {
++        let f=Fixture::new();let guest=f.0.join("guest");let host=f.0.join("host");
++        fs::create_dir(&guest).unwrap();fs::create_dir(&host).unwrap();
++        let peer=f.process("123",&guest,b"original");
++        fs::rename(f.0.join("123"),f.0.join("old")).unwrap();
++        let _replacement=f.process("123",&host,b"replacement");
++        use std::io::Read;let mut text=String::new();namespace_from_process(&peer,&guest).unwrap().read_to_string(&mut text).unwrap();
++        assert_eq!(text,"original");
++    }
++}
+diff --git a/zygiskd/src/main.rs b/zygiskd/src/main.rs
+index 90a29f5..eea637f 100644
+--- a/zygiskd/src/main.rs
++++ b/zygiskd/src/main.rs
+@@ -80,0 +81 @@ mod root_impl;
++mod guest_policy;
+@@ -144 +145 @@ fn main_daemon_entry(tmp_path: Option<&str>) -> anyhow::Result<()> {
+-    mount::switch_mount_namespace(1)?;
++    // OneOS: retain the private guest namespace, never enter host init.
+@@ -150 +151 @@ fn main_daemon_entry(tmp_path: Option<&str>) -> anyhow::Result<()> {
+-    root_impl::disable_self_umount();
++    // OneOS: never change host kernel module-unmount policy.
+diff --git a/zygiskd/src/mount.rs b/zygiskd/src/mount.rs
+index e842c04..1bb7078 100644
+--- a/zygiskd/src/mount.rs
++++ b/zygiskd/src/mount.rs
+@@ -16 +16 @@ use std::io::Error;
+-use std::os::fd::{AsFd, AsRawFd, OwnedFd, RawFd};
++use std::os::fd::{AsFd, AsRawFd, BorrowedFd, OwnedFd, RawFd};
+@@ -42,2 +42,2 @@ impl TryFrom<u8> for MountNamespace {
+-/// Switches the current thread into the mount namespace of a given process.
+-pub fn switch_mount_namespace(pid: i32) -> Result<()> {
++/// Switches into an already authenticated and pinned peer namespace.
++pub fn switch_mount_namespace(namespace: BorrowedFd<'_>) -> Result<()> {
+@@ -48 +47,0 @@ pub fn switch_mount_namespace(pid: i32) -> Result<()> {
+-    let mnt_ns_file = fs::File::open(format!("/proc/{}/ns/mnt", pid))?;
+@@ -50 +49 @@ pub fn switch_mount_namespace(pid: i32) -> Result<()> {
+-        mnt_ns_file.as_fd(),
++        namespace,
+@@ -100 +99 @@ impl MountNamespaceManager {
+-    /// * `pid` - The PID of a process currently in the target mount namespace.
++    /// * `namespace` - The authenticated peer namespace FD, never a client-selected PID.
+@@ -102 +101 @@ impl MountNamespaceManager {
+-    pub fn save_mount_namespace(&self, pid: i32, namespace_type: MountNamespace) -> Result<RawFd> {
++    pub fn save_mount_namespace(&self, namespace: BorrowedFd<'_>, namespace_type: MountNamespace) -> Result<RawFd> {
+@@ -115 +114 @@ impl MountNamespaceManager {
+-                switch_mount_namespace(pid).unwrap();
++                switch_mount_namespace(namespace).unwrap();
+diff --git a/zygiskd/src/root_impl/mod.rs b/zygiskd/src/root_impl/mod.rs
+index e7602ca..979ad1e 100644
+--- a/zygiskd/src/root_impl/mod.rs
++++ b/zygiskd/src/root_impl/mod.rs
+@@ -37,0 +38,2 @@ fn detect_root() -> RootImpl {
++    return RootImpl::None;
++    #[allow(unreachable_code)]
+@@ -93,6 +95,3 @@ pub fn uid_granted_root(uid: i32) -> bool {
+-    match get() {
+-        RootImpl::APatch => apatch::uid_granted_root(uid),
+-        RootImpl::KernelSU => kernelsu::uid_granted_root(uid),
+-        RootImpl::Magisk => magisk::uid_granted_root(uid),
+-        _ => false,
+-    }
++    let Ok(grants) = std::fs::read_to_string("/data/adb/oneos/grants") else { return false; };
++    let Ok(packages) = std::fs::read_to_string("/data/system/packages.list") else { return false; };
++    crate::guest_policy::grant_matches(uid, &grants, &packages)
+diff --git a/zygiskd/src/utils.rs b/zygiskd/src/utils.rs
+index 3d0e495..f97ec8f 100644
+--- a/zygiskd/src/utils.rs
++++ b/zygiskd/src/utils.rs
+@@ -179,9 +179 @@ pub fn unix_listener_from_path(path: &str) -> Result<UnixListener> {
+-pub fn unix_datagram_sendto(path: &str, buf: &[u8]) -> Result<()> {
+-    set_socket_create_context(&get_current_attr()?)?;
+-    let addr = SocketAddrUnix::new(path.as_bytes())?;
+-    let socket = socket(AddressFamily::UNIX, SocketType::DGRAM, None)?;
+-    connect(&socket, &addr)?;
+-    sendto(socket, buf, SendFlags::empty(), &addr)?;
+-    set_socket_create_context("u:r:zygote:s0")?;
+-    Ok(())
+-}
++pub fn unix_datagram_sendto(_path: &str, _buf: &[u8]) -> Result<()> { Ok(()) }
+diff --git a/zygiskd/src/zygiskd.rs b/zygiskd/src/zygiskd.rs
+index 09c2deb..a453d2b 100644
+--- a/zygiskd/src/zygiskd.rs
++++ b/zygiskd/src/zygiskd.rs
+@@ -21 +21 @@ use std::io::Error;
+-use std::os::fd::AsRawFd;
++use std::os::fd::{AsFd, AsRawFd};
+@@ -196,0 +197,4 @@ fn handle_connection(mut stream: UnixStream, context: Arc<AppContext>) -> Result
++    // Authenticate the peer's guest root and pin its namespace before dispatch.
++    // The payload PID is only legacy wire data and cannot select a namespace.
++    let peer_namespace = crate::guest_policy::peer_mount_namespace(peer_pid)?;
++
+@@ -205 +209 @@ fn handle_connection(mut stream: UnixStream, context: Arc<AppContext>) -> Result
+-            let pid = stream.read_u32()? as i32;
++            let _legacy_claimed_pid = stream.read_u32()?;
+@@ -208 +212 @@ fn handle_connection(mut stream: UnixStream, context: Arc<AppContext>) -> Result
+-                .save_mount_namespace(pid, MountNamespace::Clean)?;
++                .save_mount_namespace(peer_namespace.as_fd(), MountNamespace::Clean)?;
+@@ -211 +215 @@ fn handle_connection(mut stream: UnixStream, context: Arc<AppContext>) -> Result
+-                .save_mount_namespace(pid, MountNamespace::Root)?;
++                .save_mount_namespace(peer_namespace.as_fd(), MountNamespace::Root)?;
+@@ -324,30 +328,2 @@ fn send_startup_info(modules: &[Module]) -> Result<()> {
+-    let mut msg = Vec::<u8>::new();
+-    let info = match root_impl::get() {
+-        root_impl::RootImpl::APatch
+-        | root_impl::RootImpl::KernelSU
+-        | root_impl::RootImpl::Magisk => {
+-            msg.extend_from_slice(&constants::DAEMON_SET_INFO.to_le_bytes());
+-            let module_names: Vec<_> = modules.iter().map(|m| m.name.as_str()).collect();
+-            // Indented one level, to stand as its own block in the status readout, with
+-            // module names one level deeper again under their count.
+-            if !module_names.is_empty() {
+-                format!(
+-                    "\tRoot: {:?}\n\tModules ({}):\n\t\t{}",
+-                    root_impl::get(),
+-                    modules.len(),
+-                    module_names.join("\n\t\t")
+-                )
+-            } else {
+-                format!("\tRoot: {:?}", root_impl::get())
+-            }
+-        }
+-        _ => {
+-            msg.extend_from_slice(&constants::DAEMON_SET_ERROR_INFO.to_le_bytes());
+-            format!("\t\tInvalid root implementation: {:?}", root_impl::get())
+-        }
+-    };
+-    msg.extend_from_slice(&(info.len() as u32 + 1).to_le_bytes());
+-    msg.extend_from_slice(info.as_bytes());
+-    msg.push(0); // Null terminator
+-    utils::unix_datagram_sendto(CONTROLLER_SOCKET.get().unwrap(), &msg)
+-        .context("Failed to send startup info to controller")
++    info!("OneOS guest modules loaded: {}", modules.len());
++    Ok(())

@@ -25,6 +25,7 @@
         <receiver
             android:name=".session.AppUpdater$ResultReceiver"
             android:exported="false" />
+        <activity android:name=".ui.GuestRuntimeActivity" android:exported="false" />
         <activity android:name=".ui.EnvironmentActivity" android:exported="false" />
         <activity android:name=".ui.BootProgressActivity" android:exported="false" />
         <activity android:name=".ui.DebugSettingsActivity" android:exported="false" />

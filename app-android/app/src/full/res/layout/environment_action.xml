@@ -12,7 +12,10 @@
         android:theme="@style/OneUI.ContainedPrimaryColorButtonTheme"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal" />
+        android:layout_gravity="center_horizontal"
+        android:minHeight="60dp" android:textSize="20sp" android:textStyle="bold"
+        android:paddingHorizontal="24dp" android:paddingVertical="18dp"
+        android:backgroundTint="@color/preboot_primary" />
     <com.fahadali.oneos.ui.LoadingSpinner
         android:id="@+id/environment_action_spinner"
         android:layout_width="28dp"

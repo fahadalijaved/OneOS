@@ -15,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.widget.NestedScrollView
+import com.fahadali.oneos.session.GuestRuntimeStore
 import com.fahadali.oneos.session.PatchChannels
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.device.FactProbe
@@ -43,6 +44,8 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
     private var facts: DeviceFacts? = null
     private val subscriptions = mutableListOf<() -> Unit>()
     private var patchBusy = false
+    private var rootBusy = false
+    private var rootState: GuestRuntimeStore.State? = null
     private val io = java.util.concurrent.Executors.newSingleThreadExecutor()
     // A check is good for Readiness.CHECK_AGE_MS: when it runs out on this screen, check again by itself.
     private val recheck = Runnable { if (!isDestroyed && !preview) { Readiness.tick(this); render() } }
@@ -67,11 +70,11 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             }
             nativeToolbar.setAdaptiveMarginProvider(dev.oneuiproject.oneui.widget.AdaptiveCoordinatorLayout.MARGIN_PROVIDER_ZERO)
             nativeToolbar.setEdgeInsetHorizontal(0f)
-            findViewById<dev.oneuiproject.oneui.widget.RoundedFrameLayout>(dev.oneuiproject.oneui.design.R.id.tbl_main_content).apply {
+            nativeToolbar.findViewById<dev.oneuiproject.oneui.widget.RoundedFrameLayout>(dev.oneuiproject.oneui.design.R.id.tbl_main_content).apply {
                 roundedCorners = 0
                 fillHorizontalPadding = false
             }
-            findViewById<View>(dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners).visibility = View.GONE
+            nativeToolbar.findViewById<View>(dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners).visibility = View.GONE
         } else findViewById<View>(R.id.environment_window).setOnApplyWindowInsetsListener { root, insets ->
             val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
             root.setPadding(bars.left, bars.top, bars.right, bars.bottom)
@@ -86,7 +89,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         findViewById<NestedScrollView>(R.id.environment_scroll).apply {
             isNestedScrollingEnabled = !resources.getBoolean(R.bool.home_two_pane)
             seslSetFadingEdgeEnabled(true)
-            seslSetFadingEdgeColor(getColor(R.color.oneos_page_background))
+            seslSetFadingEdgeColor(getColor(R.color.preboot_page))
             seslSetFadingEdgeWindowBottomAlignment(nativeToolbar != null)
             seslSetAllowTopFadingEdgeWithoutEdgeToEdge(true)
         }
@@ -125,7 +128,15 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
     }
     override fun onResume() {
         super.onResume()
-        if (::image.isInitialized && !preview) { Readiness.onResume(this); render() }
+        if (::image.isInitialized && !preview) {
+            Readiness.onResume(this); render()
+            if (!rootBusy) {
+                rootBusy = true
+                GuestRuntimeStore.refresh(this, image.id) { next ->
+                    if (!isDestroyed) { rootBusy = false; rootState = next; render() }
+                }
+            }
+        }
     }
     override fun onStop() {
         window.decorView.removeCallbacks(recheck)
@@ -165,8 +176,8 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 com.fahadali.oneos.session.LogJob.skip()
             }
         }
-        val checks = Cards.section(column, null)
-        checks.setPadding(dp(8), dp(8), dp(8), dp(8))
+        val checks = PrebootCards.section(column, gap = false)
+        checks.setPadding(dp(10), dp(10), dp(10), dp(10))
         val rootValue = if (preview) "KernelSU active" else currentFacts?.rootKind?.takeUnless { it == com.fahadali.oneos.core.model.RootKind.NONE }?.label?.let { getString(R.string.environment_active, it) }
             ?: getString(R.string.environment_no_root)
         val storageValue = if (preview) "51.2 GB free" else currentFacts?.storage?.let { getString(R.string.environment_free, Units.bytes(it.freeBytes)) } ?: getString(R.string.environment_unknown)
@@ -201,17 +212,17 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         )
         tiles.chunked(2).forEachIndexed { rowIndex, values ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
-            checks.addView(row, LinearLayout.LayoutParams(-1, -2).apply { if (rowIndex > 0) topMargin = dp(8) })
+            checks.addView(row, LinearLayout.LayoutParams(-1, -2).apply { if (rowIndex > 0) topMargin = dp(10) })
             values.forEachIndexed { index, tile ->
                 val surface = RoundedLinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     val level = tileLevel(tileGates[rowIndex * 2 + index])
                     val neutral = getColor(R.color.oneos_check_surface)
-                    setBackgroundColor(if (level == Level.INFO) neutral else
+                    setBackgroundColor(if (level != Level.WARN && level != Level.BLOCK) neutral else
                         androidx.core.graphics.ColorUtils.blendARGB(neutral, Cards.levelColor(this@EnvironmentActivity, level), .16f))
                     roundedCorners = androidx.appcompat.util.SeslRoundedCorner.ROUNDED_CORNER_NONE
                     fillHorizontalPadding = false
-                    val innerRadius = (resources.getDimension(androidx.appcompat.R.dimen.sesl_rounded_corner_radius) - dp(8)).coerceAtLeast(0f)
+                    val innerRadius = (resources.getDimension(androidx.appcompat.R.dimen.sesl_rounded_corner_radius) - dp(10)).coerceAtLeast(0f)
                     // Use SESL's own smooth-corner geometry at the inset radius, under the One UI theme.
                     outlineProvider = object : android.view.ViewOutlineProvider() {
                         override fun getOutline(view: View, outline: android.graphics.Outline) {
@@ -221,45 +232,51 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                     }
                     clipToOutline = true
                 }
-                row.addView(surface, LinearLayout.LayoutParams(0, -1, 1f).apply { if (index > 0) marginStart = dp(8) })
-                surface.addView(CardItemView(this).apply {
-                    title = tile.second; summary = tile.third
-                    icon = androidx.appcompat.content.res.AppCompatResources.getDrawable(context, tile.first)
-                    iconSize = dp(24)
-                    minimumHeight = dp(if (wide) 88 else 104)
+                row.addView(surface, LinearLayout.LayoutParams(0, -1, 1f).apply { if (index > 0) marginStart = dp(10) })
+                val content = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER_VERTICAL
-                    getIconImageView().imageTintList = ColorStateList.valueOf(getColor(R.color.oneos_icon))
-                    // Compact the stock card row for a two-column fact tile; it has no badge or end widget.
-                    (getTitleView().parent as View).setPadding(dp(12), 0, dp(12), 0)
-                    (getIconImageView().parent as View).setPadding(0, 0, dp(12), 0)
-                    getTitleView().apply {
-                        textSize = 16f
-                        (layoutParams as? ViewGroup.MarginLayoutParams)?.let { it.marginEnd = 0; layoutParams = it }
-                    }
-                    getSummaryView().apply {
-                        textSize = 13f
-                        (layoutParams as? ViewGroup.MarginLayoutParams)?.let { it.marginEnd = 0; layoutParams = it }
-                    }
-                    isClickable = false; isFocusable = false
-                }, LinearLayout.LayoutParams(-1, -2))
+                    minimumHeight = dp(85)
+                    setPadding(dp(8), dp(8), dp(8), dp(8))
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                    contentDescription = "${tile.second}: ${tile.third}"
+                }
+                content.addView(android.widget.ImageView(this).apply {
+                    setImageResource(tile.first)
+                    imageTintList = ColorStateList.valueOf(getColor(R.color.oneos_icon))
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(14) })
+                val labels = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                }
+                labels.addView(TextView(this).apply {
+                    text = tile.second; textSize = 18f; includeFontPadding = false
+                })
+                labels.addView(TextView(this).apply {
+                    text = tile.third; textSize = 14f; includeFontPadding = false
+                    setTextColor(getColor(R.color.preboot_secondary))
+                }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3) })
+                content.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
+                surface.addView(content, LinearLayout.LayoutParams(-1, -2))
             }
         }
         val patchProfile = currentFacts?.let { com.fahadali.oneos.core.model.Profiles.resolve(it).profile }
         val patchSources = patchProfile?.let { PatchChannels.sources(this, it.id, image.id) }.orEmpty()
-        if (!preview && patchProfile != null && patchSources.size > 1) {
+        if (!preview && patchProfile != null && patchSources.isNotEmpty()) {
             val heading = getString(R.string.patch_channel_title, patchProfile.label.removePrefix("Galaxy "))
-            val patches = Cards.section(column, heading, rows = true)
+            val patches = PrebootCards.section(column, "Patches")
             val source = PatchChannels.selected(this, patchProfile.id, image.id)
             val idle = !patchBusy && !Readiness.anyBusy() && !StageCheck.state.busy
             fun label(choice: com.fahadali.oneos.core.model.PatchSource) = if (choice.stable) getString(R.string.patch_channel_stable) else choice.label
-            CardRows.row(patches, Icons.drawable.ic_oui_settings, label(source),
+            PrebootCards.row(patches, "${label(source)} · ${patchProfile.label.removePrefix("Galaxy ")}",
                 getString(if (patchBusy) R.string.patch_channel_checking else R.string.patch_channel_summary), enabled = idle) {
                 AlertDialog.Builder(this).setTitle(heading)
                     .setSingleChoiceItems(patchSources.map { label(it) }.toTypedArray(), patchSources.indexOfFirst { it.id == source.id }) { dialog, which ->
                         dialog.dismiss(); choosePatches(patchSources[which].id)
                     }.setNegativeButton(android.R.string.cancel, null).show()
             }
-            CardRows.row(patches, Icons.drawable.ic_oui_refresh, getString(R.string.patch_channel_refresh),
+            PrebootCards.row(patches, getString(R.string.patch_channel_refresh),
                 PatchChannels.setFor(patchProfile.id, image.id)?.let { set ->
                     if (!source.stable) runCatching { PatchChannels.snapshot(this, set, patchProfile.id)?.revision }.getOrNull()
                     else getString(R.string.patch_channel_stable_version, PatchChannels.stableVersion(this))
@@ -269,12 +286,40 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             Cards.row(Cards.section(column, null, rows = true), Icons.drawable.ic_oui_refresh,
                 maintenance.title, maintenance.line).apply { isClickable = false; isFocusable = false }
         }
-        Cards.row(Cards.section(column, null, rows = true), 0, getString(R.string.environment_guest_root),
-            getString(R.string.environment_guest_root_status))
-        Cards.row(Cards.section(column, null, rows = true), 0, getString(R.string.environment_report)) {
+        val root = PrebootCards.section(column, "Root")
+        val guest = rootState ?: GuestRuntimeStore.State(image.id)
+        val rootIdle = !preview && !rootBusy && !Readiness.anyBusy() && !StageCheck.state.busy
+        CardRows.toggle(root, "Enable guest runtime", when {
+            rootBusy -> "Reading guest root…"
+            guest.error != null -> guest.error
+            !guest.ready -> "Update this system to add guest root support"
+            else -> null
+        }, guest.enabled, enabled = rootIdle && guest.ready) { enabled ->
+            changeRoot { done -> GuestRuntimeStore.setEnabled(this, image.id, enabled, done) }
+        }.apply {
+            minimumHeight = dp(52)
+            (this as dev.oneuiproject.oneui.widget.SwitchItemView).separateSwitch = true
+        }
+        PrebootCards.row(root, getString(R.string.guest_root_shared_kernel_title),
+            getString(R.string.guest_root_shared_kernel_summary))
+        PrebootCards.row(root, "Xposed framework", guest.providerName(), enabled = rootIdle && guest.ready) {
+            val providers = listOf("zygisk_vector") + guest.modules.filter { it.framework != null }.map { it.id }.filter { it != "zygisk_vector" }
+            val names = providers.map { guest.providerName(it) } + "Import LSPosed or Vector ZIP…"
+            AlertDialog.Builder(this).setTitle("Xposed framework")
+                .setSingleChoiceItems(names.toTypedArray(), providers.indexOf(guest.selected)) { dialog, which ->
+                    dialog.dismiss()
+                    if (which == providers.size) startActivity(Intent(this, GuestRuntimeActivity::class.java)
+                        .putExtra("image", image.id).putExtra("import_framework", true))
+                    else changeRoot { done -> GuestRuntimeStore.select(this, image.id, providers[which], done) }
+                }.setNegativeButton(android.R.string.cancel, null).show()
+        }
+        PrebootCards.row(root, "Manage guest modules", chevron = true, enabled = !rootBusy) {
+            startActivity(Intent(this, GuestRuntimeActivity::class.java).putExtra("image", image.id))
+        }
+        PrebootCards.row(PrebootCards.section(column), getString(R.string.environment_report), chevron = true) {
             if (preview) AlertDialog.Builder(this).setTitle(R.string.environment_report).setMessage(R.string.environment_preview).setPositiveButton(android.R.string.ok, null).show()
             else FixActions.run(this, FixAction.SEND_REPORT, image)
-        }.also { Cards.setRowEnd(it, Icons.drawable.ic_oui_keyboard_arrow_right) }
+        }
         val blocked = report?.gates?.firstOrNull { it.level == Level.BLOCK }
         // What stops the switch, in plain words: the button below offers its fix instead of a Boot that only
         // re-ran the check (0.4.43, UX audit).
@@ -345,6 +390,18 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 if (preview) ArtworkTransitions.start(this@EnvironmentActivity,
                     BootProgressActivity.intent(this@EnvironmentActivity, image, true), findViewById(R.id.environment_artwork))
                 else SwitchConfirm.show(this@EnvironmentActivity)
+            }
+        }
+    }
+    private fun changeRoot(action: ((GuestRuntimeStore.State) -> Unit) -> Unit) {
+        if (rootBusy) return
+        rootBusy = true; render()
+        action { next ->
+            if (!isDestroyed) {
+                rootBusy = false
+                if (next.error == null) rootState = next
+                else AlertDialog.Builder(this).setTitle("Guest root").setMessage(next.error).setPositiveButton(android.R.string.ok, null).show()
+                render()
             }
         }
     }
