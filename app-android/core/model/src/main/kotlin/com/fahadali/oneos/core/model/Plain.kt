@@ -271,6 +271,12 @@ object Plain {
                 "OneOS reads them by itself after you come back.",
                 FixAction.NONE,
             )
+            SwitchGates.ID_ZYGISK -> m(
+                "Update Zygisk Next first",
+                "This Zygisk Next stops the other system at its boot animation. Update it to 1.5.3 or newer, " +
+                    "or turn it off in your root app and restart.",
+                FixAction.NONE,
+            )
             else -> unknown(f)
         }
     }

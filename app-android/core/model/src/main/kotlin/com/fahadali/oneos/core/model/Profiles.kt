@@ -135,6 +135,7 @@ object Profiles {
     const val ID_A55 = "a55"
     const val ID_S25_FE = "s25-fe"
     const val ID_S_8450 = "s-8450"
+    const val ID_M55S = "m55s"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -1157,13 +1158,22 @@ object Profiles {
      */
     val S_8450 = S_ULTRA_8450.copy(id = ID_S_8450, label = "Galaxy S22 (Snapdragon)", modelPrefix = "SM-S901", codename = "r0q")
 
+    /**
+     * Galaxy M55s, from 0.4.70: findings of 2026-11-08 (SM-M558B, m55xq, Snapdragon 7 Gen 1 SM7450
+     * "taro", One UI 8.5, Android 16 build BP4A.251205.006, vendor and board API 31, kernel 5.10
+     * android12, one 1080 x 2400 panel on port 130 at density 450, backlight panel0-backlight (max
+     * 4095), the HIDL composer, KernelSU): the [E55]'s codename, chip and vendor, so its choice,
+     * OxygenOS 16 only, untested.
+     */
+    val M55S = E55.copy(id = ID_M55S, label = "Galaxy M55s", modelPrefix = "SM-M558")
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
-        A55, S25_FE, S_8450,
+        A55, S25_FE, S_8450, M55S,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

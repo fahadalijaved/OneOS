@@ -219,6 +219,7 @@ object StageCheck : BackgroundJob<StageCheck.State>(State(), "oneos-check") {
             reclaimBytes = reclaimBytes,
             appVersionCode = BuildConfig.VERSION_CODE,
             uncollectedLogs = launch != null && !launch.logsCollected && launch.endedSince(),
+            zygiskNextVersionCode = st.props["zygisksu.versionCode"]?.trim()?.toIntOrNull(),
             series = ApkSeries.byId(BuildConfig.SERIES),
         )
         val report = SwitchGates.evaluate(phase, input)

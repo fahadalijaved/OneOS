@@ -214,6 +214,7 @@ profile_info() {
         a55) echo "SM-A556 a55x s5e8845 bar" ;;
         s25-fe) echo "SM-S731 r13s s5e9945 bar" ;;
         s-8450) echo "SM-S901 r0q SM8450 bar" ;;
+        m55s) echo "SM-M558 m55xq SM7450 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -415,6 +416,7 @@ profile_set() {
         "s25-fe infinityx41-findx9u") echo infinityx ;;
         "s25-fe hyperos-lhasa") echo hyper-f8u ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "m55s oxygenos16-cph2745") echo oxygen16 ;;
         *) return 1 ;;
     esac
 }
@@ -609,7 +611,24 @@ raw_attached() {
         [ -r "$b" ] && cat "$b" 2>/dev/null
     done | grep -q -F "$STAGE/system.raw"
 }
+# A session of this boot (0.4.71): its snapshot (guest_props.sh, seconds after launch), or a
+# session/current.json launch wrote in this boot less than 3 minutes ago (before the snapshot).
+# Until the guest's loop device is attached the stage looks idle, and a setup's verbs could
+# move or replace system.raw under a starting session (0.4.69 A54 204aa0f8: launched with
+# system.raw at 02:44:39, guest_prepare.sh at 02:45:07 found none).
+session_starting() {
+    a="$STAGE/persist_session.active"
+    if [ -f "$a" ] && [ "$(sed -n 's/^boot_id=//p' "$a" | head -n 1)" = "$(boot_id)" ]; then return 0; fi
+    # launch itself: only a running session (a return removes the snapshot; a quick switch again is fine).
+    [ "${1:-}" != launch ] || return 1
+    cj="$STAGE/session/current.json"
+    [ -f "$cj" ] || return 1
+    grep -q -F '"mode": "session"' "$cj" && grep -q -F "\"boot\": \"$(boot_id)\"" "$cj" || return 1
+    age=$(( $(date +%s) - $(stat -c %Y "$cj" 2>/dev/null || echo 0) ))
+    [ "$age" -lt 180 ]
+}
 idle_or_refuse() {
+    if session_starting "${1:-}"; then refuse "a session is starting or running: return to One UI first"; fi
     mountinfo_ok
     m=$(mounted_under "$STAGE" | head -n 3 | tr '\n' ' ')
     [ -z "$m" ] || refuse "mounted in the stage: $m- restart the phone first"
@@ -1103,7 +1122,7 @@ do_launch() {
     [ "$(getprop ro.soc.model)" = "$3" ] || refuse "chip $(getprop ro.soc.model), profile $M_PROFILE is $3"
     isdk=$(image_sdk "$M_IMAGE")
     [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || refuse "Android SDK $(getprop ro.build.version.sdk), the image is $isdk"
-    idle_or_refuse
+    idle_or_refuse launch
     if [ -f "$STAGE/persist_session.active" ]; then
         refuse "the last session never returned: restore One UI's settings first (Last session)"
     fi
@@ -1563,6 +1582,25 @@ do_selfupdate() {
     say "@@OK selfupdate $code"
 }
 
+# One verb at a time on the stage (0.4.71). A root verb outlives the app that started it (an app
+# update kills the app; keep-raw then keeps hashing 12 GB for minutes): without a lock a setup or a
+# launch of the new app could run beside it, and the old keep-raw, receive or begin could move or
+# delete system.raw under them (0.4.69 A54 204aa0f8, two app updates at 02:40, then system.raw gone
+# 28 s after a launch that had checked it). The lock is a file in the stage's bin folder holding
+# the pid, made with noclobber; one whose pid is no longer this script is stale and taken over.
+take_lock() {
+    LOCK="$STAGE/bin/.lock"
+    if ! ( set -C; echo $$ > "$LOCK" ) 2>/dev/null; then
+        p=$(cat "$LOCK" 2>/dev/null)
+        if is_dec "$p" && [ "$p" != "$$" ] && tr '\000' ' ' < "$PROC/$p/cmdline" 2>/dev/null | grep -q -F oneos_root; then
+            refuse "another OneOS step is still running (pid $p): wait for it to end, or restart the phone"
+        fi
+        rm -f "$LOCK"
+        ( set -C; echo $$ > "$LOCK" ) 2>/dev/null || refuse "another OneOS step is starting: try again"
+    fi
+    trap 'rm -f "$LOCK"' EXIT
+}
+
 # --- Main ---------------------------------------------------------------------
 [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
 verb=$1
@@ -1572,6 +1610,9 @@ case "$verb" in
 esac
 [ -d "$STAGE" ] && mine "$STAGE" || refuse "$STAGE is not root's folder"
 [ -d "$STAGE/bin" ] && mine "$STAGE/bin" || refuse "$STAGE/bin is not root's folder"
+case "$verb" in
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|purge|selfupdate) take_lock ;;
+esac
 [ $# -gt 0 ] && shift
 case "$verb" in
     begin) do_begin "$@" ;;

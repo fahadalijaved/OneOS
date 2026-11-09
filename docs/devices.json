@@ -1836,6 +1836,24 @@
           "tested": false
         }
       ]
+    },
+    {
+      "id": "m55s",
+      "label": "Galaxy M55s",
+      "model": "SM-M558",
+      "codename": "m55xq",
+      "chip": "SM7450",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
     }
   ]
 }

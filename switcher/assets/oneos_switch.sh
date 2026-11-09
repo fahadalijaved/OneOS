@@ -1189,8 +1189,12 @@ kill -9 $(pidof system_server) 2>/dev/null || true
 # "ctl.stop zygote".
 # A guest_audio.flag from an earlier session must not make the loop below stop
 # Samsung's audioserver in a session that keeps it (ONEOS_GUEST_AUDIO=0).
+# One UI's dumpstate and bugreport services too (0.4.71): a guest's ctl.start reaches One UI's init,
+# whose dumpstate dumps every service, One UI's vold among them. vold's DUMP permission check waited
+# 47 s for the guest's permission service, and init rebooted the phone right after ("reboot,vold-failed",
+# 0.4.69 A15 c2da41ee: dumpstate pid 10916, "Check passed after 47063ms", shutdown 0.3 s later).
 rm -f "$STAGE/data/guest_audio.flag"
-nohup $BB sh -c "while true; do [ \"\$(getprop init.svc.zygote)\" = \"running\" ] && setprop ctl.stop zygote; [ \"\$(getprop init.svc.zygote_secondary)\" = \"running\" ] && setprop ctl.stop zygote_secondary; [ ! -f $STAGE/data/oneos_host_sf_frozen ] && [ \"\$(getprop init.svc.surfaceflinger)\" = \"running\" ] && setprop ctl.stop surfaceflinger; [ \"\$(getprop init.svc.bootanim)\" = \"running\" ] && setprop ctl.stop bootanim; [ -f $STAGE/data/guest_audio.flag ] && [ \"\$(getprop init.svc.audioserver)\" = \"running\" ] && setprop ctl.stop audioserver; sleep 0.2; done" </dev/null >/dev/null 2>&1 &
+nohup $BB sh -c "while true; do [ \"\$(getprop init.svc.zygote)\" = \"running\" ] && setprop ctl.stop zygote; [ \"\$(getprop init.svc.zygote_secondary)\" = \"running\" ] && setprop ctl.stop zygote_secondary; [ ! -f $STAGE/data/oneos_host_sf_frozen ] && [ \"\$(getprop init.svc.surfaceflinger)\" = \"running\" ] && setprop ctl.stop surfaceflinger; [ \"\$(getprop init.svc.bootanim)\" = \"running\" ] && setprop ctl.stop bootanim; [ -f $STAGE/data/guest_audio.flag ] && [ \"\$(getprop init.svc.audioserver)\" = \"running\" ] && setprop ctl.stop audioserver; for s in dumpstate dumpstatez bugreport bugreportd; do [ \"\$(getprop init.svc.\$s)\" = \"running\" ] && setprop ctl.stop \$s; done; sleep 0.2; done" </dev/null >/dev/null 2>&1 &
 sleep 1
 # One UI's system_server kept Samsung's softdog (/dev/watchdog, 100 s) and is
 # gone: its magic close now, before guest_prepare.sh's feeder takes over (see

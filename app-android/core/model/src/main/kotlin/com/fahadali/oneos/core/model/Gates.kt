@@ -158,6 +158,8 @@ data class GateInput(
     val appVersionCode: Int? = null,
     /** The last session's logs are not collected yet (WARN only). */
     val uncollectedLogs: Boolean = false,
+    /** Zygisk Next's module versionCode when the module is enabled on this phone (status.list); null = not there. */
+    val zygiskNextVersionCode: Int? = null,
     /**
      * The series this APK was built for (BuildConfig.SERIES); null = the
      * all-in-one build with every set. A phone of another series gets
@@ -204,6 +206,16 @@ object SwitchGates {
     const val ID_BATTERY = "gate-battery"
     const val ID_CARRIER = CarrierRules.ID
     const val ID_LOGS = "gate-logs"
+    const val ID_ZYGISK = "gate-zygisk-next"
+
+    /**
+     * Zygisk Next injects into the other system's zygote too. Its 1.5.2 (build 864) left a file
+     * descriptor there that the guest's zygote refuses when it starts the system server ("JNI
+     * FatalError called: (system_server) Unsupported st_mode for FD 5"): ColorOS, HyperOS, Infinity-X
+     * and Pixel all stopped at the boot animation on the S24 Ultra (0.4.66 677f47c6, 0.4.70 d66d9e6d,
+     * 7b99e4c0). 1.5.3 (build 880) injected on the S23 (0.4.70 306bf73a) and the session ran.
+     */
+    const val ZYGISK_NEXT_OK_FROM = 880
 
     /** The OneLineage switcher: it copies its own scripts into the stage every time it opens. */
     const val OLD_SWITCHER_PACKAGE = "com.wewaffles.onelineage"
@@ -243,6 +255,7 @@ object SwitchGates {
     const val R_BATTERY_LOW = "low"
     const val R_BATTERY_HOT = "hot"
     const val R_LOGS = "not-collected"
+    const val R_ZYGISK_OLD = "zygisk-next-old"
 
     const val BATTERY_MIN_PERCENT = 30
     const val BATTERY_MAX_C = 42f
@@ -346,6 +359,18 @@ object SwitchGates {
                     "Switching again moves them aside and the session after that replaces them. Collect them " +
                         "first in Last session if something went wrong.",
                     R_LOGS,
+                ),
+            )
+        }
+        val zn = input.zygiskNextVersionCode
+        if (switching && zn != null && zn < ZYGISK_NEXT_OK_FROM) {
+            out += Gate(
+                Finding(
+                    ID_ZYGISK, Level.WARN, "Zygisk Next $zn may stop the other system",
+                    "Zygisk Next injects into the other system's zygote; build $zn (1.5.2 or older) leaves a file " +
+                        "descriptor there that stops its system server at the boot animation. Update Zygisk Next to " +
+                        "1.5.3 or newer, or disable it in your root manager and restart, before switching.",
+                    R_ZYGISK_OLD,
                 ),
             )
         }

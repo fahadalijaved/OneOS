@@ -252,13 +252,13 @@ class ProfilesTest {
                 Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965, Profiles.A16_4G, Profiles.A16_S166, Profiles.A35, Profiles.A54, Profiles.A27, Profiles.A17_5G, Profiles.FLIP7_FE,
                 Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
                 Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450,
-                Profiles.A55, Profiles.S25_FE, Profiles.S_8450,
+                Profiles.A55, Profiles.S25_FE, Profiles.S_8450, Profiles.M55S,
             ),
             Profiles.BUILT_IN,
         )
         // 0.4.67: the phones still on One UI 8 take OxygenOS 16 only, untested, as bar phones.
         for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
-                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450)) {
+                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450, Profiles.M55S)) {
             assertEquals(p.id, listOf(ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)), p.choices)
             assertEquals(p.id, FormFactor.BAR, p.form)
         }
@@ -320,6 +320,10 @@ class ProfilesTest {
         assertEquals(Profiles.S_8450, Profiles.resolve("SM-S901U", "r0q", "SM8450").profile)
         assertNull(Profiles.resolve("SM-S901B", "r0s", "s5e9925").profile) // the Exynos S22 waits for One UI 8
         assertEquals(listOf(Profiles.S_ULTRA_8450.choices, Profiles.S_ULTRA_8450.notes), listOf(Profiles.S_8450.choices, Profiles.S_8450.notes))
+        // 0.4.70: the Galaxy M55s (SM-M558B), the F55/E55's m55xq and SM7450 on One UI 8.5.
+        assertEquals(Profiles.M55S, Profiles.resolve("SM-M558B", "m55xq", "SM7450").profile)
+        assertEquals(Profiles.E55, Profiles.resolve("SM-E556B", "m55xq", "SM7450").profile)
+        assertEquals(listOf(Profiles.E55.choices, Profiles.E55.notes), listOf(Profiles.M55S.choices, Profiles.M55S.notes))
         assertEquals(Profiles.A16, Profiles.resolve("SM-A166U", "a16x", "s5e8535").profile)
         // The A16 with MediaTek (a16xm) is not the Exynos one.
         assertNull(Profiles.resolve("SM-A166P", "a16xm", "MT6835").profile)

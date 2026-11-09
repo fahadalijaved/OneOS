@@ -50,7 +50,7 @@ CHIP = {
     "s5e9965": "Exynos 2600", "s5e9955": "Exynos 2500", "s5e9945": "Exynos 2400", "s5e8855": "Exynos 1580",
     "s5e8865": "Exynos 1680",
     "s5e8835": "Exynos 1380", "s5e8535": "Exynos 1330", "MT6789": "Helio G99",
-    "s5e8845": "Exynos 1480", "SM8450": "Snapdragon 8 Gen 1",
+    "s5e8845": "Exynos 1480", "SM8450": "Snapdragon 8 Gen 1", "SM7450": "Snapdragon 7 Gen 1",
 }
 # Per phone: a chip that shares another's board code, and the 4G/5G a label leaves out.
 CHIP_OF = {"s-fe-9945": "Exynos 2400e"}

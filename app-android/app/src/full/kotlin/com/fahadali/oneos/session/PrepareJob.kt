@@ -161,6 +161,11 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
 
     private class Stop(message: String, val finding: Finding? = null, val plain: PlainMessage? = null) : Exception(message)
 
+    /** The stop for an update that would use a system the phone no longer holds. */
+    internal fun onPhoneGone(system: String) =
+        "$system is no longer on this phone: the last check found a copy that did not match and set it aside. " +
+            "Pick its download, then update again; its apps and data stay."
+
     private const val STOPPED = "Stopped. The stage is not prepared: prepare again before switching."
 
     private fun step(s: Step, detail: String? = null) {
@@ -273,7 +278,16 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         val auto = candidate?.let { SetupPlan.decide(st, it, profile, BuildConfig.VERSION_CODE, hasDownload = picked != null) }
         update(state.copy(plan = auto))
         val mode = plan.mode ?: auto?.mode ?: st.beginModes(null).firstOrNull() ?: throw Stop("The stage path is not a folder. Remove it, then try again.")
-        val source = plan.source ?: when (auto?.source) {
+        // "Update now" and Retry ask for the system already on the phone, from a check taken before. If
+        // the stage holds no system.raw of the image's size now (keep-raw moved one that did not match
+        // to the attic), keep-raw would only refuse again on every retry (S22 Ultra findings, 0.4.69/0.4.70:
+        // "stops at Check the system already on this phone"): the picked download of that system, else a
+        // stop that says to pick it.
+        val planSource = if (plan.source == SessionPrefs.Source.ON_PHONE && candidate != null && st.rawSize != candidate.rawBytes) {
+            if (picked?.let { ImageIdentifier.identify(it.check, profile).image?.id == candidate.id } == true) SessionPrefs.Source.GZ
+            else throw Stop(onPhoneGone(candidate.name))
+        } else plan.source
+        val source = planSource ?: when (auto?.source) {
             SetupPlan.Source.ON_PHONE -> SessionPrefs.Source.ON_PHONE
             else -> SessionPrefs.Source.GZ
         }

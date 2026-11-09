@@ -50,6 +50,12 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.71: **Stuck at "Check the system already on this phone" / system not found after an update** fixed (setup
+steps run one at a time and never under a starting session; Update/Retry no longer re-checks a copy that is gone, it
+asks for the download instead). **Phones restarting with "vold-failed"** during a session: One UI's dumpstate and
+bugreport stay stopped while the guest runs. **S24 Ultra stuck at the boot screen on every system**: Switch now warns
+when Zygisk Next 1.5.2 or older is enabled (update it or turn it off). New phone: Galaxy M55s (OxygenOS 16).
+
 New in 0.4.70: **OxygenOS 16 on the S22 series, S23 FE and other phones with the older kernel** (5.10: both forms of
 the system_ext mount were refused, and the guest crashed at startup; it is now built without overlayfs). **Vulkan
 drawing on Exynos phones too** (A54, A26, S23 FE stopped where the A34 did). **HyperOS on the MediaTek A07, A16 4G and

@@ -309,6 +309,17 @@ class GatesTest {
     }
 
     @Test
+    fun oldZygiskNextWarns() {
+        val old = eval(GatePhase.SWITCH, input(Bundles.F8U).copy(zygiskNextVersionCode = 864))
+        assertEquals(Level.WARN, old.level(SwitchGates.ID_ZYGISK))
+        assertEquals(SwitchGates.R_ZYGISK_OLD, old.find(SwitchGates.ID_ZYGISK)!!.finding.reason)
+        assertTrue(old.allows(emptySet()))
+        assertNull(eval(GatePhase.SWITCH, input(Bundles.F8U).copy(zygiskNextVersionCode = 880)).find(SwitchGates.ID_ZYGISK))
+        assertNull(eval(GatePhase.SWITCH, input(Bundles.F8U)).find(SwitchGates.ID_ZYGISK))
+        assertNull(eval(GatePhase.PREPARE, input(Bundles.F8U).copy(zygiskNextVersionCode = 864)).find(SwitchGates.ID_ZYGISK))
+    }
+
+    @Test
     fun everyGateFailsClosedWithNothingKnown() {
         val f = Bundles.S26U.facts.copy(root = RootSignals(), storage = null, battery = null, carrier = null)
         val r = SwitchGates.evaluate(GatePhase.SWITCH, GateInput(f, null, null, null, null))
