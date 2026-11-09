@@ -390,13 +390,20 @@ done
 ODM_AI_TAR="$STAGE/oplus_odm_ai.tar"
 if [ "${ONEOS_GUEST_ODM_AI:-1}" = 1 ] && [ -f "$ODM_AI_TAR" ] && [ ! -L "$ODM_AI_TAR" ]; then
     ODM_AI="$STAGE/odm_ai"
-    ok=1
-    "$BB" tar -tvf "$ODM_AI_TAR" 2>/dev/null | "$BB" awk 'substr($1, 1, 1) != "-" && substr($1, 1, 1) != "d" { bad = 1 } / -> / { bad = 1 } END { exit bad }' || ok=0
-    "$BB" tar -tf "$ODM_AI_TAR" 2>/dev/null | "$BB" awk '{ n = $0; sub(/^\.\//, "", n) } n == "" { next }
-        n !~ /^lib64(\/[A-Za-z0-9_][A-Za-z0-9._-]*)*\/?$/ || n ~ /(^|\/)\.\.?(\/|$)/ { bad = 1 } END { exit bad }' || ok=0
-    if [ $ok = 1 ]; then
-        rm -rf "$ODM_AI" && mkdir -p "$ODM_AI" && "$BB" tar -xf "$ODM_AI_TAR" -C "$ODM_AI" &&
-            [ -z "$(find "$ODM_AI" ! -type f ! -type d -print -quit)" ] && [ -f "$ODM_AI/lib64/libaiboost.so" ] || ok=0
+    st="$(stat -c %s:%Y "$ODM_AI_TAR" 2>/dev/null)"
+    if [ -f "$ODM_AI/.from_tar" ] && [ "$(cat "$ODM_AI/.from_tar" 2>/dev/null)" = "$st" ] &&
+            [ -f "$ODM_AI/lib64/libaiboost.so" ]; then
+        ok=1
+    else
+        ok=1
+        "$BB" tar -tvf "$ODM_AI_TAR" 2>/dev/null | "$BB" awk 'substr($1, 1, 1) != "-" && substr($1, 1, 1) != "d" { bad = 1 } / -> / { bad = 1 } END { exit bad }' || ok=0
+        "$BB" tar -tf "$ODM_AI_TAR" 2>/dev/null | "$BB" awk '{ n = $0; sub(/^\.\//, "", n) } n == "" { next }
+            n !~ /^lib64(\/[A-Za-z0-9_][A-Za-z0-9._-]*)*\/?$/ || n ~ /(^|\/)\.\.?(\/|$)/ { bad = 1 } END { exit bad }' || ok=0
+        if [ $ok = 1 ]; then
+            rm -rf "$ODM_AI" && mkdir -p "$ODM_AI" && "$BB" tar -xf "$ODM_AI_TAR" -C "$ODM_AI" &&
+                [ -z "$(find "$ODM_AI" ! -type f ! -type d -print -quit)" ] && [ -f "$ODM_AI/lib64/libaiboost.so" ] || ok=0
+            [ $ok = 1 ] && printf '%s\n' "$st" > "$ODM_AI/.from_tar"
+        fi
     fi
     if [ $ok = 1 ]; then
         find "$ODM_AI" -type d -exec chmod 755 {} + ; find "$ODM_AI" -type f -exec chmod 644 {} +
@@ -519,6 +526,18 @@ SECIMS="$STAGE/secims"
 rm -f "$STAGE/data/oneos_sec_ims"
 sec_ims_off() { echo "Samsung IMS in the guest: off ($1)"; rm -rf "$SECIMS" 2>/dev/null; }
 sec_ims_stage() {
+    st=$(for f in /system/priv-app/imsservice/imsservice.apk /system/framework/imsmanager.jar \
+        /system/framework/rcsopenapi.jar /system/framework/framework.jar \
+        /system/lib64/libsec-ims.so /system/lib64/libresampler_ims.so /system/lib64/libaresdns.so \
+        /system/etc/permissions/privapp-permissions-com.sec.imsservice.phone.xml \
+        /system/lib64/lib.engmodejni.samsung.so /system/etc/public.libraries-engmodejni.samsung.txt \
+        /system/framework/vsimmanager.jar /system/framework/EpdgManager.jar; do
+        if [ -e "$f" ]; then stat -c '%n %s %Y' "$f"; else echo "$f absent"; fi
+    done | sha256sum | cut -d' ' -f1)
+    if [ -f "$SECIMS/.stamp" ] && [ "$(cat "$SECIMS/.stamp" 2>/dev/null)" = "$st" ]; then
+        echo "Samsung IMS in the guest: staged set unchanged ($(du -sk "$SECIMS" 2>/dev/null | cut -f1) KB cached)"
+        return 0
+    fi
     rm -rf "$SECIMS"
     mkdir -p "$SECIMS/priv-app/OneOSSecIms" "$SECIMS/framework" "$SECIMS/lib64" "$SECIMS/etc/permissions" || return 1
     cp /system/priv-app/imsservice/imsservice.apk "$SECIMS/priv-app/OneOSSecIms/" || return 1
@@ -565,6 +584,7 @@ sec_ims_stage() {
     find "$SECIMS" -type d -exec chmod 755 {} + && find "$SECIMS" -type f -exec chmod 644 {} + || return 1
     $BB chcon -h -R u:object_r:system_file:s0 "$SECIMS" 2>/dev/null || true
     $BB chcon -h u:object_r:system_lib_file:s0 "$SECIMS"/lib64/*.so 2>/dev/null || true
+    printf '%s\n' "$st" > "$SECIMS/.stamp" || return 1
     return 0
 }
 # Bind the staged Samsung IMS tree onto the guest's system_ext (made writable by
@@ -823,8 +843,20 @@ samcam_prepare() {
         [ -s "$SAMCAM_SRC/${f##*/}" ] || rm -f "$SAMCAM_SRC/${f##*/}"
     done
     chmod 755 "$SAMCAM_SRC"; chmod 644 "$SAMCAM_SRC"/*
-    $BB chcon -R u:object_r:system_file:s0 "$SAMCAM_SRC" 2>/dev/null || true
-    $BB chcon u:object_r:system_lib_file:s0 "$SAMCAM_SRC"/*.so 2>/dev/null || true
+    if [ ! -f "$SAMCAM_SRC/.selinux" ] ||
+       [ "$(cat "$SAMCAM_SRC/.selinux" 2>/dev/null)" != "$(cat "$SAMCAM_SRC/.from_tar" 2>/dev/null)" ]; then
+        if $BB chcon -R u:object_r:system_file:s0 "$SAMCAM_SRC" 2>/dev/null; then
+            $BB chcon u:object_r:system_lib_file:s0 "$SAMCAM_SRC"/*.so 2>/dev/null || true
+            if [ -s "$SAMCAM_SRC/.from_tar" ]; then
+                cat "$SAMCAM_SRC/.from_tar" > "$SAMCAM_SRC/.selinux"
+            else
+                rm -f "$SAMCAM_SRC/.selinux"
+            fi
+        else
+            rm -f "$SAMCAM_SRC/.selinux"
+            echo "Samsung Camera: SELinux labels not applied; retrying next start"
+        fi
+    fi
     samcam_files | while read -r k t s; do
         [ -e "$s" ] || { echo "Samsung Camera: $s missing"; exit 1; }
     done || return 1
@@ -847,16 +879,24 @@ samcam_mountpoints() {
 }
 # Bind every source of kind $1 onto its mount point under $2.
 samcam_bind() {
-    local n=0 k t s
+    local n p
     samcam_files > "$STAGE/samcam_files.txt" || return 1
-    while read -r k t s; do
-        [ "$k" = "$1" ] || continue
-        [ -e "$2/$t" ] || { echo "Samsung Camera: no mount point $2/$t"; return 1; }
-        $BB mount --bind "$s" "$2/$t" || return 1
-        $BB mount --make-rslave "$2/$t" 2>/dev/null || true
-        n=$((n + 1))
-    done < "$STAGE/samcam_files.txt"
-    echo "Samsung Camera in the guest: $n files and folders bound onto $2"
+    n=$(awk -v k="$1" '$1 == k' "$STAGE/samcam_files.txt" | wc -l | tr -d ' ')
+    if [ "$n" -gt 0 ]; then
+        p=$($BB nproc 2>/dev/null || nproc 2>/dev/null || echo 2)
+        case "$p" in ''|*[!0-9]*) p=2 ;; esac
+        [ "$p" -gt 8 ] && p=8
+        [ "$p" -lt 2 ] && p=2
+        echo "Samsung Camera: binding $n onto $2 with $p workers $(date +%T)"
+        awk -v k="$1" '$1 == k { print $2, $3 }' "$STAGE/samcam_files.txt" |
+            MP="$2" BB="$BB" "$BB" xargs -P "$p" -n 2 /system/bin/sh -c '
+                t="$1"; s="$2"
+                [ -e "$MP/$t" ] || { echo "Samsung Camera: no mount point $MP/$t" >&2; exit 1; }
+                "$BB" mount --bind "$s" "$MP/$t" || exit 1
+                "$BB" mount --make-rslave "$MP/$t" 2>/dev/null || true
+            ' sh || return 1
+    fi
+    echo "Samsung Camera in the guest: $n files and folders bound onto $2 $(date +%T)"
     return 0
 }
 # Add the missing guest su mount point to an overlay before its read-only
