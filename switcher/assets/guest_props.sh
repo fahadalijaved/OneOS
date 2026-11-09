@@ -110,6 +110,7 @@ drop_stale_memory_lists() {
 
 case "$1" in
 add)
+    echo "guest_props add: start $(date +%T)"
     ROOTFS="$2"
     HOST="$STAGE/host_props.txt"
     NEW="$STAGE/guest_props.new"
@@ -134,6 +135,7 @@ add)
             if (substr($0, i + 4) == "]" && (k !~ /^persist\./ || (k in b))) next
             print k
         }' > "$HOST"
+    echo "guest_props add: host set $(date +%T)"
     # The image's system_ext and product: inside system in MysticGSI's merged
     # images; at the image root in HyperOS's, where system/system_ext and
     # system/product are absolute links (-> /system_ext, /product) that root
@@ -875,6 +877,7 @@ add)
         { echo "screen=$inner"; echo "battery=$mah"; } > "$STAGE/nt_about.txt"
         echo "guest_props: Nothing About phone: ${gb:-?} GB, ${cpu:-?}, panels ${inner:-?}\" ${cover:+and $cover\" }, ${mah:-?} mAh"
     fi
+    echo "guest_props add: batch $(date +%T)"
     if "$RP" -n -f "$NEW" 2>/dev/null; then
         cut -d= -f1 "$NEW" > "$ADDED"
     else
@@ -884,6 +887,7 @@ add)
             "$RP" -n "${line%%=*}" "${line#*=}" 2>/dev/null && echo "${line%%=*}" >> "$ADDED"
         done < "$NEW"
     fi
+    echo "guest_props add: batch done $(date +%T)"
     echo "guest_props: added $(wc -l < "$ADDED") props from the guest's build.prop files"
     rm -f "$HOST" "$NEW"
     # ColorOS's default sounds. One UI defines ro.config.ringtone,
