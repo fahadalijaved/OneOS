@@ -5,8 +5,13 @@
 #
 # Prints a summary; exits 1 if any read failed. Usage: check_host_apex.sh [label]
 LABEL="${1:-check}"
-sync
-echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
+STAMP=/data/local/tmp/oneos/host_apex.checked
+BOOT=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+SIG=$(stat -c '%s:%Y' /apex/apex-info-list.xml 2>/dev/null)
+if [ "$(cat "$STAMP" 2>/dev/null)" != "$BOOT $SIG" ]; then
+    sync
+    echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
+fi
 modules=$(grep -o '<apex-info [^>]*>' /apex/apex-info-list.xml |
     grep 'isActive="true"' | grep 'modulePath="/data/apex/' |
     sed 's/.*moduleName="\([^"]*\)".*/\1/' | sort -u)
@@ -25,4 +30,9 @@ for m in $modules; do
     fi
 done
 echo "[$LABEL] host APEXes on /data: $(echo $modules | wc -w) modules, $files files, $bad unreadable${badlist:+:$badlist}"
+if [ "$bad" -eq 0 ] && [ -n "$BOOT" ] && [ -n "$SIG" ]; then
+    printf '%s %s\n' "$BOOT" "$SIG" > "$STAMP" 2>/dev/null
+else
+    rm -f "$STAMP" 2>/dev/null
+fi
 [ "$bad" -eq 0 ]
