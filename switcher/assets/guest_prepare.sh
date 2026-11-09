@@ -684,6 +684,7 @@ fi
 SAMCAM=0
 SAMCAM_SRC="$STAGE/samcam_build"
 SAMCAM_BOUND=0
+SAMCAM_LIST="$STAGE/samcam_files.txt"
 # The set's samcam.tar (0.4.35 Nothing OS, 0.4.37 ColorOS), unpacked into
 # samcam_build when it is not the one unpacked last (size and time). Each set's
 # camera is rewritten against its own image's framework, so only a stage whose
@@ -814,6 +815,7 @@ samcam_files() {
     done
 }
 samcam_prepare() {
+    echo "Samsung Camera: prepare $(date +%T)"
     [ -f "$SAMCAM_SRC/SamsungCamera.apk" ] && [ -f "$SAMCAM_SRC/libs.txt" ] || return 1
     [ -d /system/cameradata ] || { echo "Samsung Camera: this One UI has no /system/cameradata"; return 1; }
     # The library declarations name the guest's copies. semextendedformat (the
@@ -835,13 +837,15 @@ samcam_prepare() {
     # included ("requires unavailable native shared library
     # libMyFilterPlugin.camera.samsung.so", then NoClassDefFoundError
     # oneos/semcompat/Sem). One UI's lists, cut to the libraries bound here.
+    samcam_libs > "$STAGE/samcam_libs.txt"
     rm -f "$SAMCAM_SRC"/public.libraries-*.txt
     for f in /system/etc/public.libraries-*.txt; do
         [ -f "$f" ] || continue
-        samcam_libs | awk 'NR == FNR { if (NF) have[$1] = 1; next } { l = $1; sub(/#.*/, "", l) } l != "" && (l in have) { print l }' \
-            - "$f" > "$SAMCAM_SRC/${f##*/}" || return 1
+        awk 'NR == FNR { if (NF) have[$1] = 1; next } { l = $1; sub(/#.*/, "", l) } l != "" && (l in have) { print l }' \
+            "$STAGE/samcam_libs.txt" "$f" > "$SAMCAM_SRC/${f##*/}" || return 1
         [ -s "$SAMCAM_SRC/${f##*/}" ] || rm -f "$SAMCAM_SRC/${f##*/}"
     done
+    rm -f "$STAGE/samcam_libs.txt"
     chmod 755 "$SAMCAM_SRC"; chmod 644 "$SAMCAM_SRC"/*
     if [ ! -f "$SAMCAM_SRC/.selinux" ] ||
        [ "$(cat "$SAMCAM_SRC/.selinux" 2>/dev/null)" != "$(cat "$SAMCAM_SRC/.from_tar" 2>/dev/null)" ]; then
@@ -857,38 +861,46 @@ samcam_prepare() {
             echo "Samsung Camera: SELinux labels not applied; retrying next start"
         fi
     fi
-    samcam_files | while read -r k t s; do
-        [ -e "$s" ] || { echo "Samsung Camera: $s missing"; exit 1; }
-    done || return 1
+    samcam_files > "$SAMCAM_LIST"
+    [ -s "$SAMCAM_LIST" ] || return 1
+    while read -r k t s; do
+        [ -e "$s" ] || { echo "Samsung Camera: $s missing"; return 1; }
+    done < "$SAMCAM_LIST" || return 1
     SKIP=$( { awk '$2 == "system" { print $1 }' "$SAMCAM_SRC/libs.txt"; for lib in $SAMCAM_JNI; do echo "$lib"; done; } | sort -u | while read -r lib; do [ -e "/system/lib64/$lib" ] || printf ' %s' "$lib"; done)
     [ -z "$SKIP" ] || echo "Samsung Camera: One UI here has no$SKIP (left out; this phone's camera does not use them)"
+    echo "Samsung Camera: prepared $(date +%T)"
     return 0
 }
 # Empty mount points of kind $2 in the overlay layer $1, before it is mounted.
 samcam_mountpoints() {
-    samcam_files | while read -r k t s; do
+    echo "Samsung Camera: mount points $(date +%T)"
+    [ -s "$SAMCAM_LIST" ] || samcam_files > "$SAMCAM_LIST"
+    [ -s "$SAMCAM_LIST" ] || return 1
+    while read -r k t s; do
         [ "$k" = "$2" ] || continue
-        if [ -d "$s" ]; then mkdir -p "$1/$t" || exit 1
-        else mkdir -p "$1/$(dirname "$t")" && : > "$1/$t" || exit 1
+        if [ -d "$s" ]; then mkdir -p "$1/$t" || return 1
+        else mkdir -p "$1/$(dirname "$t")" && : > "$1/$t" || return 1
         fi
-    done || return 1
+    done < "$SAMCAM_LIST" || return 1
     find "$1" -type d -exec chmod 755 {} + 2>/dev/null
     $BB chcon -R u:object_r:system_file:s0 "$1" 2>/dev/null || true
     [ -d "$1/lib64" ] && $BB chcon -R u:object_r:system_lib_file:s0 "$1/lib64" 2>/dev/null
+    echo "Samsung Camera: mount points done $(date +%T)"
     return 0
 }
 # Bind every source of kind $1 onto its mount point under $2.
 samcam_bind() {
     local n p
-    samcam_files > "$STAGE/samcam_files.txt" || return 1
-    n=$(awk -v k="$1" '$1 == k' "$STAGE/samcam_files.txt" | wc -l | tr -d ' ')
+    [ -s "$SAMCAM_LIST" ] || samcam_files > "$SAMCAM_LIST"
+    [ -s "$SAMCAM_LIST" ] || return 1
+    n=$(awk -v k="$1" '$1 == k' "$SAMCAM_LIST" | wc -l | tr -d ' ')
     if [ "$n" -gt 0 ]; then
         p=$($BB nproc 2>/dev/null || nproc 2>/dev/null || echo 2)
         case "$p" in ''|*[!0-9]*) p=2 ;; esac
         [ "$p" -gt 8 ] && p=8
         [ "$p" -lt 2 ] && p=2
         echo "Samsung Camera: binding $n onto $2 with $p workers $(date +%T)"
-        awk -v k="$1" '$1 == k { print $2, $3 }' "$STAGE/samcam_files.txt" |
+        awk -v k="$1" '$1 == k { print $2, $3 }' "$SAMCAM_LIST" |
             MP="$2" BB="$BB" "$BB" xargs -P "$p" -n 2 /system/bin/sh -c '
                 t="$1"; s="$2"
                 [ -e "$MP/$t" ] || { echo "Samsung Camera: no mount point $MP/$t" >&2; exit 1; }
@@ -920,8 +932,10 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         mkdir -p "$SOV"
         mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SOV"
         rm -rf "$SOV/up" && mkdir -p "$SOV/up"
+        echo "Samsung Camera: overlay $(date +%T)"
         if samcam_mountpoints "$SOV/up" sys && guest_root_mountpoint "$SOV/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$SOV/up:$ROOTFS/system" "$ROOTFS/system"; then
+            echo "Samsung Camera: overlay up $(date +%T)"
             if samcam_bind sys "$ROOTFS/system"; then SAMCAM=1; else
                 echo "Samsung Camera in the guest: off (bind-mount onto $ROOTFS/system failed)"
                 awk -v r="$ROOTFS/system/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done

@@ -13,13 +13,16 @@ modules=$(grep -o '<apex-info [^>]*>' /apex/apex-info-list.xml |
 files=0; bad=0; badlist=""
 for m in $modules; do
     [ -d "/apex/$m" ] || continue
-    for f in $(find "/apex/$m" -type f 2>/dev/null); do
-        files=$((files + 1))
-        if ! cat "$f" > /dev/null 2>&1; then
-            bad=$((bad + 1))
-            badlist="$badlist $f"
-        fi
-    done
+    n=$(find "/apex/$m" -type f 2>/dev/null | wc -l)
+    files=$((files + n))
+    if ! find "/apex/$m" -type f -print0 2>/dev/null | xargs -0 cat > /dev/null 2>&1; then
+        for f in $(find "/apex/$m" -type f 2>/dev/null); do
+            cat "$f" > /dev/null 2>&1 || {
+                bad=$((bad + 1))
+                badlist="$badlist $f"
+            }
+        done
+    fi
 done
 echo "[$LABEL] host APEXes on /data: $(echo $modules | wc -w) modules, $files files, $bad unreadable${badlist:+:$badlist}"
 [ "$bad" -eq 0 ]
