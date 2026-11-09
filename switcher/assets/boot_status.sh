@@ -115,7 +115,7 @@ oneos_boot_begin() {
         case "$restart_verbose" in 1) ;; *) restart_verbose=0 ;; esac
         oneos_boot_write verbose "$restart_verbose"
         oneos_boot_image=$(sed -n 's/.*"image"[[:space:]]*:[[:space:]]*"\([a-z0-9-]*\)".*/\1/p' /data/local/tmp/oneos/.oneos_stage)
-        case "$oneos_boot_image" in pixel*) oneos_boot_name='Pixel';; hyper*) oneos_boot_name='HyperOS';; nothing*) oneos_boot_name='Nothing OS 5.0';; infinity*) oneos_boot_name='Infinity-X 4.1';; oxygen*) oneos_boot_name='OxygenOS 16';; *) oneos_boot_name='ColorOS 17';; esac
+        case "$oneos_boot_image" in pixel*) oneos_boot_name='Pixel';; hyper*) oneos_boot_name='HyperOS';; nothing*) oneos_boot_name='Nothing OS 5.0';; infinity*) oneos_boot_name='Infinity-X 4.1';; oxygen*) oneos_boot_name='OxygenOS 16';; originos*) oneos_boot_name='OriginOS 7';; *) oneos_boot_name='ColorOS 17';; esac
         oneos_boot_write system_name "$oneos_boot_name"
         if [ "$1" = restart ]; then oneos_boot_write title "Restarting $oneos_boot_name"
         else oneos_boot_write title "Launching into $oneos_boot_name"; fi

@@ -142,6 +142,9 @@ SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinsta
 SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_customringtone.tar nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar samcam_bar.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched vold_patched wifi_payload.img"
 # OxygenOS 16 (0.4.67): ColorOS's common files and its own payloads; the guest vold as gvld from r2 (0.4.69).
 SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img conscrypt_payload.img profiling_payload.img"
+# OriginOS 7 (0.4.73): vivo's own jars, libraries, launcher and feature list, the signal poll, the fold
+# cutout overlay and the image's payloads (set r17).
+SET_ORIGINOS="BBKLauncher2_patched.apk BBKLauncher2_patched.apk.src_sha256 OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img framework-adapter_patched.jar framework-wifi_patched.jar framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libandroid_servers_patched.so libbluetooth_jni_patched.so libcamera_client_patched.so libcomposer_ext_patched.so libinputflinger_patched.so libinputservice_patched.so libsensorservice_patched.so mediaprovider_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneos-vivo-features.txt permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar telephonycore_payload.img tethering_payload.img vivo-framework_patched.jar vivo-service-wifi-ex-impl_patched.jar vivo-service-wifi_patched.jar vivo-services_patched.jar vivo-telephony-common-platform-ex_patched.jar vold_patched wifi_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
 ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_RETURN_MODE"
@@ -366,6 +369,17 @@ profile_set() {
         "a16 infinityx41-findx9u") echo infinityx ;;
         "a17-5g infinityx41-findx9u") echo infinityx ;;
         "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "f8u originos7-pd2609ma") echo originos ;;
+        "f8 originos7-pd2609ma") echo originos ;;
+        "f7 originos7-pd2609ma") echo originos ;;
+        "s-8850 originos7-pd2609ma") echo originos ;;
+        "s-8850-jp originos7-pd2609ma") echo originos ;;
+        "s-plus-8850 originos7-pd2609ma") echo originos ;;
+        "s-ultra-8850 originos7-pd2609ma") echo originos ;;
+        "s-8750 originos7-pd2609ma") echo originos ;;
+        "s-plus-8750 originos7-pd2609ma") echo originos ;;
+        "s-ultra-8750 originos7-pd2609ma") echo originos ;;
+        "s-edge-8750 originos7-pd2609ma") echo originos ;;
         "a06 oxygenos16-cph2745") echo oxygen16 ;;
         "a07-5g oxygenos16-cph2745") echo oxygen16 ;;
         "a15 oxygenos16-cph2745") echo oxygen16 ;;
@@ -438,6 +452,7 @@ image_raw() {
         pixel9proxl-komodo) echo "5837496320 2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c" ;;
         infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
         oxygenos16-cph2745) echo "12273344512 dafbb026f97692b7d59b8f4ae2f46773e88e0d5bf0e1fee46b3636ff56b06e90" ;;
+        originos7-pd2609ma) echo "15998222336 9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee" ;;
         *) return 1 ;;
     esac
 }
@@ -455,6 +470,7 @@ set_files() {
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX" ;;
         oxygen16) echo "$SET_OXYGENOS" ;;
+        originos) echo "$SET_ORIGINOS" ;;
         *) return 1 ;;
     esac
 }
@@ -472,6 +488,7 @@ set_image() {
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
         oxygen16) echo oxygenos16-cph2745 ;;
+        originos) echo originos7-pd2609ma ;;
         *) return 1 ;;
     esac
 }
@@ -490,6 +507,7 @@ image_family() {
         hyperos-lhasa) echo hyperos ;;
         nothingos5-metroid) echo nothing ;;
         oxygenos16-cph2745) echo oxygenos ;;
+        originos7-pd2609ma) echo originos ;;
         *) return 1 ;;
     esac
 }
@@ -502,6 +520,8 @@ data_family() {
         echo infinityx
     elif grep -q -s -F "com.oneplus.membership" "$pk"; then
         echo oxygenos
+    elif grep -q -s -F "com.bbk.launcher2" "$pk"; then
+        echo originos
     elif grep -q -s -F "com.oplus." "$pk" || grep -q -s -F "com.coloros." "$pk"; then
         echo coloros
     elif grep -q -s -F "com.google.android.apps.nexuslauncher" "$pk"; then

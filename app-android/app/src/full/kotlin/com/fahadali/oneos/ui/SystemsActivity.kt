@@ -450,9 +450,12 @@ class SystemsFragment : Fragment() {
         val hyper = image(com.fahadali.oneos.core.model.SystemFamily.HYPEROS, Images.HYPEROS_LHASA)
         val nothing = image(com.fahadali.oneos.core.model.SystemFamily.NOTHING, Images.NOTHING_METROID)
         val oxygen = image(com.fahadali.oneos.core.model.SystemFamily.OXYGENOS, Images.OXYGEN16)
+        val origin = image(com.fahadali.oneos.core.model.SystemFamily.ORIGINOS, Images.ORIGINOS7)
         // OxygenOS 16 (Android 16, 0.4.67) only where the phone can take it (One UI 8), and first there.
         val entries = listOfNotNull(
             CatalogEntry(oxygen.name, oxygen, R.drawable.os_oxygenos, true).takeIf { available.any { it.id == oxygen.id } },
+            // OriginOS 7 (0.4.73, experimental) only on its phones (the Snapdragon S25/S26 series and Z Fold7/8).
+            CatalogEntry(origin.name, origin, R.drawable.os_originos, true).takeIf { available.any { it.id == origin.id } },
             CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, available.any { it.id == infinity.id }),
             CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, available.any { it.id == hyper.id }),
             CatalogEntry(color.name, color, R.drawable.os_coloros, available.any { it.id == color.id }),

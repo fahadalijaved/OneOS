@@ -92,7 +92,7 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
                                         $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" ||
-                                        $2 == "vivo-services_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
+                                        $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
     sum=$(awk -v n="$need" '$2 == n {print $1}' "$STAGE/guards.txt")
     if [ -z "$sum" ] || [ "$(sha256sum "$STAGE/$need" 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         echo "ERROR: $STAGE/$need missing or not the guarded build in guards.txt; not starting the guest"
@@ -1058,6 +1058,7 @@ vndk_fragment() {
     VNDK_NEED=""
 }
 SECIMS_BOUND=0
+VIVO_SE=""
 if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
         echo "Overlay on $GUEST_SYSTEM_EXT already there (an earlier prepare), left as it is"
@@ -1068,6 +1069,25 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
         mkdir -p "$OV/up/apex"
+        # vivo's package manager never scans /oem (F8U run 13, OriginOS CN: no package
+        # cache entry for anything there, so the fold cutout overlay and the OneOS app
+        # were missing and the status bar ignored the cover's camera hole). Their
+        # folders go in system_ext instead: empty mount points here, bound in the /oem
+        # step. With no partition-order config, system_ext overlays rank above vendor's
+        # and product's (run 13: vendor 5, product 11), as /oem's did elsewhere.
+        # ONEOS_GUEST_VIVO_SYSEXT=0 leaves them in /oem only.
+        if [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && [ "${ONEOS_GUEST_VIVO_SYSEXT:-1}" = 1 ]; then
+            for n in app/OneOSGuest:OneOSGuest.apk overlay/OneOSFoldCutout:OneOSFoldCutout.apk; do
+                d=${n%%:*}; f=${n#*:}
+                [ -f "$STAGE/$f" ] && [ ! -e "$GUEST_SYSTEM_EXT/$d" ] || continue
+                mkdir -p "$OV/up/$d" && VIVO_SE="$VIVO_SE $d"
+            done
+            for d in app overlay; do
+                [ -d "$OV/up/$d" ] || continue
+                find "$OV/up/$d" -type d -exec chmod 755 {} + 2>/dev/null
+                $BB chcon -R u:object_r:system_file:s0 "$OV/up/$d" 2>/dev/null || true
+            done
+        fi
         # Features my_product declares (0.4.38): the container does not load
         # /my_product/etc/permissions, so the Find N6 global build had no Circle to
         # Search (ContextualManagerServiceExtImpl: mIsSupportCircleToSearch false; no
@@ -1550,6 +1570,81 @@ if [ -e "$VSJ" ] || [ -L "$VSJ" ]; then
         exit 3
     fi
     echo "Bound vivo-services_patched.jar -> $VSJ"
+fi
+# vivo-telephony-common-platform-ex.jar (vivo OriginOS, MediaTek build): the phone
+# process's MtkRIL waited for MediaTek's mtkradioex services, which a Samsung
+# vendor lacks, and never connected to One UI's radio (seventh run: no SIM, no
+# signal). The guarded build (patches/vivo_telephony.py) needs only the AOSP
+# IRadio services; listed in guards.txt and checked above.
+VTX="$ROOTFS/system/framework/vivo-telephony-common-platform-ex.jar"
+if [ -f "$STAGE/vivo-telephony-common-platform-ex_patched.jar" ] && [ -f "$VTX" ] && [ ! -L "$VTX" ] && [ ! -L "$ROOTFS/system/framework" ]; then
+    $BB umount -l "$VTX" 2>/dev/null || true
+    $BB mount --bind "$STAGE/vivo-telephony-common-platform-ex_patched.jar" "$VTX" &&
+        echo "Bound vivo-telephony-common-platform-ex_patched.jar -> $VTX (MtkRIL without mtkradioex)"
+fi
+# vivo-framework_patched.jar (boot class path, phone builds): vivo's brightness and
+# sensor code keeps its normal tables (patches/vivo_brightness.py); with a device
+# state above 0 (fold mode's OPEN, or the vendor's 3 in slab mode) it took
+# "unfolded" tables a phone build lacks (ninth CN run: system_server died).
+VFJ="$ROOTFS/system/framework/vivo-framework.jar"
+if [ -f "$STAGE/vivo-framework_patched.jar" ] && [ -f "$VFJ" ] && [ ! -L "$VFJ" ] && [ ! -L "$ROOTFS/system/framework" ]; then
+    $BB umount -l "$VFJ" 2>/dev/null || true
+    $BB mount --bind "$STAGE/vivo-framework_patched.jar" "$VFJ" &&
+        echo "Bound vivo-framework_patched.jar -> $VFJ (brightness on the phone build's tables)"
+fi
+# vivo's display and input side read their device type from ro.oneos.vivo.dtype
+# (guest_props.sh; make-overlays.sh renamed the property in them): "foldable" for
+# both panels while the apps keep the phone build's "phone" (fold mode 2).
+for VL in libinputflinger libinputservice libandroid_servers; do
+    VLF="$ROOTFS/system/lib64/$VL.so"
+    [ -f "$STAGE/${VL}_patched.so" ] && [ -f "$VLF" ] && [ ! -L "$VLF" ] && [ ! -L "$ROOTFS/system/lib64" ] || continue
+    chmod 644 "$STAGE/${VL}_patched.so"
+    $BB umount -l "$VLF" 2>/dev/null || true
+    $BB mount --bind "$STAGE/${VL}_patched.so" "$VLF" && echo "Bound ${VL}_patched.so -> $VLF (vivo's device type from ro.oneos.vivo.dtype)"
+done
+# framework-adapter_patched.jar (vivo OriginOS, boot class path): About phone's
+# processor from the generic CPU nodes (patches/vivo_guards.py framework-adapter;
+# "Processor null GHz" with One UI's vendor version). Cosmetic: a missing one
+# leaves the image's.
+FAJ="$ROOTFS/system/framework/framework-adapter.jar"
+if [ -f "$STAGE/framework-adapter_patched.jar" ] && [ -f "$FAJ" ] && [ ! -L "$FAJ" ] && [ ! -L "$ROOTFS/system/framework" ]; then
+    $BB umount -l "$FAJ" 2>/dev/null || true
+    $BB mount --bind "$STAGE/framework-adapter_patched.jar" "$FAJ" &&
+        echo "Bound framework-adapter_patched.jar -> $FAJ (CPU info from the generic nodes)"
+fi
+# BBKLauncher2_patched.apk (vivo OriginOS on a Fold): the bar phone's launcher
+# stays one with ro.vivo.device.type=foldable (guest_props.sh): it reads a
+# property no build sets instead (patches/vivo_launcher.py), and framework.jar's
+# FtDeviceInfo answers "phone" in its process (vivo_guards.py). As a foldable it
+# exited at start (eighth run), then crashed in foldable paths its build lacks
+# (ninth run). Only over a build it was written for (the X500 Pro Max global,
+# the CN PD2609MA), and only over the very APK it was made from
+# (BBKLauncher2_patched.apk.src_sha256, written by make-overlays.sh): a global
+# set's launcher must never go over the CN image's, or the other way round.
+VLA="$ROOTFS/system/app/BBKLauncher2/BBKLauncher2.apk"
+if [ -f "$STAGE/BBKLauncher2_patched.apk" ] && [ -f "$VLA" ] && [ ! -L "$VLA" ] && [ ! -L "$ROOTFS/system/app" ]; then
+    $BB umount -l "$VLA" 2>/dev/null || true
+    VLA_SUM=$(sha256sum "$VLA" 2>/dev/null | cut -d' ' -f1)
+    VLA_SRC=$(cat "$STAGE/BBKLauncher2_patched.apk.src_sha256" 2>/dev/null)
+    case "$VLA_SUM" in
+        4927b1690e9b60884a495f71d9ba71086cf047f2c37f5f59e210c8fd6cb38a0a|cc6bb458eae1c0fc3f452df439089cf4fa95419516e3bac2c4d7c329ce38e03a) ;;
+        *) VLA_SUM="" ;;
+    esac
+    if [ -z "$VLA_SUM" ]; then
+        echo "vivo launcher: this image's BBKLauncher2.apk is another build; its own stays"
+    elif [ "$VLA_SRC" != "$VLA_SUM" ]; then
+        echo "vivo launcher: the staged BBKLauncher2_patched.apk was made from another BBKLauncher2.apk (${VLA_SRC:-no .src_sha256}); the image's own stays"
+    else
+        chmod 644 "$STAGE/BBKLauncher2_patched.apk"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/BBKLauncher2_patched.apk" 2>/dev/null || true
+        $BB mount --bind "$STAGE/BBKLauncher2_patched.apk" "$VLA" &&
+            $BB mount -o remount,bind,ro "$STAGE/BBKLauncher2_patched.apk" "$VLA" 2>/dev/null
+        if [ "$(stat -c %d:%i "$VLA" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/BBKLauncher2_patched.apk")" ]; then
+            echo "Bound BBKLauncher2_patched.apk -> $VLA (the bar phone's launcher keeps its device type)"
+        else
+            echo "!!! WARNING: BBKLauncher2_patched.apk is not in place; vivo's launcher may take foldable paths it lacks"
+        fi
+    fi
 fi
 if [ -f "$STAGE/oplus-services_patched.jar" ] && [ -f "$ROOTFS/system/framework/oplus-services.jar" ]; then
     $BB umount -l "$ROOTFS/system/framework/oplus-services.jar" 2>/dev/null || true
@@ -2302,6 +2397,26 @@ if [ -n "$OEM_FILES" ]; then
     $BB mount --bind "$STAGE/oem" "$ROOTFS/oem" &&
         echo "Bound guest /oem -> $ROOTFS/oem:$OEM_FILES"
 fi
+# vivo: the same files bound onto the system_ext mount points made with its
+# overlay (VIVO_SE, above); one folder per package, as the scan wants.
+for d in $VIVO_SE; do
+    n=${d##*/}
+    src="$STAGE/oem/$d"
+    case "$d" in overlay/*)
+        src="$STAGE/oem/vivo/$n"
+        if [ -f "$STAGE/oem/overlay/$n.apk" ]; then
+            mkdir -p "$src" && cp "$STAGE/oem/overlay/$n.apk" "$src/" &&
+                chmod 755 "$STAGE/oem/vivo" "$src" && chmod 644 "$src/$n.apk" &&
+                $BB chcon -R u:object_r:system_file:s0 "$STAGE/oem/vivo" 2>/dev/null
+        fi ;;
+    esac
+    if [ -f "$src/$n.apk" ] && [ -d "$GUEST_SYSTEM_EXT/$d" ] && $BB mount --bind "$src" "$GUEST_SYSTEM_EXT/$d"; then
+        $BB mount --make-rslave "$GUEST_SYSTEM_EXT/$d" 2>/dev/null || true
+        echo "vivo: $n.apk in /system_ext/$d (vivo does not scan /oem)"
+    else
+        echo "vivo: $n.apk not placed in /system_ext/$d (not in this session's /oem, or no mount point)"
+    fi
+done
 # ColorOS apps whose SELinux domain the host policy does not have (run 31: 35
 # zygote aborts in 6 minutes, crash/system/dropbox). The guest's system_ext and
 # product seapp_contexts give OPPO apps their own domains
@@ -2394,6 +2509,35 @@ for pair in libcamera_client_patched.so:libcamera_client.so libcameracompatbilit
         echo "Bound ${pair%%:*} -> $ROOTFS/system/lib64/${pair#*:}"
     fi
 done
+# libcomposer_ext_patched.so (vivo OriginOS, MediaTek): its ComposerExt client
+# asked 21 times, 100 ms apart, for MediaTek's IComposerExt (no such service on
+# a Samsung vendor) on every display power-mode change, stalling SurfaceFlinger
+# 2.2 s each time (seventh run: about 25 s from cover to inner). The patched one
+# gives up after the first try (make-overlays.sh, pinned to the image's build).
+HCE="$GUEST_SYSTEM_EXT/lib64/libcomposer_ext.so"
+if [ -f "$STAGE/libcomposer_ext_patched.so" ] && [ -f "$HCE" ] && [ ! -L "$HCE" ]; then
+    chmod 644 "$STAGE/libcomposer_ext_patched.so"
+    $BB chcon u:object_r:system_lib_file:s0 "$STAGE/libcomposer_ext_patched.so" 2>/dev/null || true
+    $BB umount -l "$HCE" 2>/dev/null || true
+    $BB mount --bind "$STAGE/libcomposer_ext_patched.so" "$HCE" &&
+        echo "Bound libcomposer_ext_patched.so -> $HCE (one IComposerExt try)"
+fi
+# MediaTek's frame hooks in every app's libgui (libged_kpi.so: the GPU's /proc/ged;
+# libdisp_dejitter.so: the display's frame timestamps) fail on a Qualcomm phone,
+# every frame, with three to six log lines (tenth CN run: 157 000 lines in 12 minutes,
+# logd dropping 1 219 times). libgui loads both with dlopen and runs without them;
+# nothing links them. Hidden from the guest (vivo images; ONEOS_GUEST_MTK_FRAME_HOOKS=1
+# keeps them).
+if [ -e "$ROOTFS/system/framework/vivo-services.jar" ] && [ "${ONEOS_GUEST_MTK_FRAME_HOOKS:-0}" != 1 ]; then
+    : > "$STAGE/oneos_empty_lib" && chmod 644 "$STAGE/oneos_empty_lib"
+    for l in libged_kpi.so libdisp_dejitter.so; do
+        for d in "$GUEST_SYSTEM_EXT/lib64" "$GUEST_SYSTEM_EXT/lib"; do
+            [ -f "$d/$l" ] && [ ! -L "$d/$l" ] || continue
+            $BB umount -l "$d/$l" 2>/dev/null || true
+            $BB mount --bind "$STAGE/oneos_empty_lib" "$d/$l" && echo "Hid guest ${d#"$ROOTFS"/}/$l (MediaTek frame hook without its driver)"
+        done
+    done
+fi
 if [ -f "$STAGE/libaudio_aidl_conversion_common_cpp_patched.so" ]; then
     $BB umount -l "$ROOTFS/system/lib64/libaudio_aidl_conversion_common_cpp.so" 2>/dev/null || true
     $BB mount --bind "$STAGE/libaudio_aidl_conversion_common_cpp_patched.so" "$ROOTFS/system/lib64/libaudio_aidl_conversion_common_cpp.so"
@@ -2522,13 +2666,24 @@ echo "Guest adb: $([ "$HOST_ADB" = 1 ] && echo 'on (One UI has USB debugging on)
 # With Google services presented (GMS_WANT, top) the two provisioned keys are
 # left to Pixel's setup wizard, which sets both when it finishes: a stage it
 # has set up already has them, one it has not keeps its wizard.
+# vivo OriginOS: the only wizard is vivo's (com.vivo.setupwizard), and it stops at
+# its vivo account step (fifth CN run: nothing there, no way on). Setup is marked
+# done before boot, Google services or not; a Google account can be added in
+# Settings. vivo's wizard also reads setup_wizard_has_run (Secure, then System).
+# ONEOS_GUEST_VIVO_SETUP=1 keeps the wizard.
 PROV_GLOBAL=device_provisioned=1
+PROV_SECURE=user_setup_complete=1
 if [ "$GMS_WANT" = 1 ]; then
-    PROV_GLOBAL=""
-    echo "Guest setup: device_provisioned / user_setup_complete left to Pixel's setup wizard (Google services presented)"
+    if [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && [ "${ONEOS_GUEST_VIVO_SETUP:-0}" != 1 ]; then
+        PROV_SECURE="user_setup_complete=1 setup_wizard_has_run=1"
+        echo "Guest setup: marked done (vivo's setup wizard stops at its vivo account; ONEOS_GUEST_VIVO_SETUP=1 keeps it)"
+    else
+        PROV_GLOBAL=""; PROV_SECURE=""
+        echo "Guest setup: device_provisioned / user_setup_complete left to Pixel's setup wizard (Google services presented)"
+    fi
 fi
 seed_settings "$GSET" settings_global $ADB_SEED auto_time=0 auto_time_zone=0 $PROV_GLOBAL launcher_support_card_no_padding=1
-[ "$GMS_WANT" = 1 ] || seed_settings "$STAGE/data/system/users/0/settings_secure.xml" settings_secure user_setup_complete=1
+[ -z "$PROV_SECURE" ] || seed_settings "$STAGE/data/system/users/0/settings_secure.xml" settings_secure $PROV_SECURE
 
 # The switcher's return combo (hold Volume Up + Volume Down 3 s, read on the
 # host) is also Android's accessibility shortcut, and ColorOS aims that at
@@ -2729,6 +2884,58 @@ if [ "${ONEOS_GUEST_RINGTONES:-1}" = 1 ]; then
     fi
 fi
 
+# vivo's theme and font folders. vivo's init.vivo.rc (image root, "on
+# post-fs-data") makes /data/bbkcore (0777 root, the theme tree under it) and
+# /data/vfonts (0777 system); One UI's init never reads it, so the seventh run
+# had neither: i Theme's local cache, the default theme and the wallpaper
+# thumbnails all failed ("/data/bbkcore/theme error!!", empty Themes and
+# Wallpapers). Made in the guest's staged /data only, as the rc says, never
+# through a link; quoted paths ("i Theme") kept whole. ONEOS_GUEST_THEME_DIRS=0
+# leaves them alone.
+if [ "${ONEOS_GUEST_THEME_DIRS:-1}" = 1 ] && [ -e "$ROOTFS/system/framework/vivo-services.jar" ] &&
+   [ -f "$ROOTFS/init.vivo.rc" ] && [ ! -L "$ROOTFS/init.vivo.rc" ]; then
+    made=0; listed=0
+    awk '{ sub(/^[ \t]+/, "") }
+     /^mkdir[ \t]+\/data\/(bbkcore|vfonts)([\/ \t"]|$)/ {
+       s = $0; sub(/^mkdir[ \t]+/, "", s); p = ""; q = 0
+       while (s != "") { c = substr(s, 1, 1); s = substr(s, 2)
+         if (c == "\"") { q = !q; continue }
+         if (!q && (c == " " || c == "\t")) break
+         p = p c }
+       sub(/^[ \t]+/, "", s); split(s, f, /[ \t]+/)
+       m = (f[1] ~ /^[0-7]+$/) ? f[1] : "0755"; u = (f[2] == "system") ? 1000 : 0; g = (f[3] == "system") ? 1000 : 0
+       sub(/\/+$/, "", p)
+       if (p ~ /(^|\/)\.\.?(\/|$)/ || p ~ /\/\// || p ~ /[$|]/ || seen[p]++) next
+       print m "|" u "|" g "|" p }' "$ROOTFS/init.vivo.rc" > "$STAGE/vivo_data_dirs.txt"
+    while IFS='|' read -r mode u g p; do
+        listed=$((listed + 1)); q="$STAGE/data"; ok=1; o=$IFS; IFS=/; set -f
+        for part in ${p#/data/}; do q="$q/$part"; [ -L "$q" ] && { ok=0; break; }; done
+        IFS=$o; set +f
+        [ $ok = 1 ] || { echo "vivo /data folder $p: a link on the way, skipped"; continue; }
+        d="$STAGE$p"; [ -d "$d" ] || { mkdir -p "$d" && made=$((made + 1)); }
+        $BB chown "$u:$g" "$d" 2>/dev/null; $BB chmod "$mode" "$d" 2>/dev/null
+        $BB chcon u:object_r:system_data_file:s0 "$d" 2>/dev/null || true
+    done < "$STAGE/vivo_data_dirs.txt"
+    echo "vivo theme and font /data folders from init.vivo.rc: $made made ($listed listed)"
+    rm -f "$STAGE/vivo_data_dirs.txt"
+    # The font list itself: vivo's /system/etc/fonts.xml is a link to
+    # /data/vfonts/fonts.xml, which a vivo font service writes on a vivo phone and
+    # nothing wrote in the guest. Android's own font code reads font_fallback.xml, but
+    # Chromium (WebView) reads fonts.xml, found nothing and drew no text: the Google
+    # sign-in fields white on white (F8U runs 18-19). The image's default list when
+    # there is none (a theme font vivo writes later replaces it).
+    if [ -L "$ROOTFS/system/etc/fonts.xml" ] && [ "$(readlink "$ROOTFS/system/etc/fonts.xml")" = /data/vfonts/fonts.xml ] &&
+       [ -d "$STAGE/data/vfonts" ] && [ ! -L "$STAGE/data/vfonts" ] && [ ! -s "$STAGE/data/vfonts/fonts.xml" ]; then
+        for src in fonts_default.xml fonts_org.xml; do
+            [ -f "$ROOTFS/system/etc/$src" ] && [ ! -L "$ROOTFS/system/etc/$src" ] || continue
+            rm -f "$STAGE/data/vfonts/fonts.xml"
+            cp "$ROOTFS/system/etc/$src" "$STAGE/data/vfonts/fonts.xml" &&
+                $BB chown 1000:1000 "$STAGE/data/vfonts/fonts.xml" && chmod 644 "$STAGE/data/vfonts/fonts.xml" &&
+                { $BB chcon u:object_r:system_data_file:s0 "$STAGE/data/vfonts/fonts.xml" 2>/dev/null || true; } &&
+                echo "vivo font list: /data/vfonts/fonts.xml from the image's $src (fonts.xml links there)" && break
+        done
+    fi
+fi
 # ColorOS's theme and icon folders. Its init.oplus.rootdir.rc (system_ext)
 # makes /data/theme, /data/oplus/uxicons, /data/oplus/uxres and
 # /data/oplus/language 0777 system system "on post-fs-data"; One UI's init
@@ -2887,6 +3094,50 @@ for n in $(ls /apex 2>/dev/null | grep -v '@'; ls "$ROOTFS/system/apex" 2>/dev/n
     case "$n" in *[!A-Za-z0-9._]*|.*|"") continue ;; esac
     mkdir -p "$STAGE/data/misc/apexdata/$n" "$STAGE/data/misc_ce/0/apexdata/$n" "$STAGE/data/misc_de/0/apexdata/$n"
 done
+# vivo's feature list for system_server (patches/vivo_guards.py framework reads
+# /data/system/oneos_vivo_features; make-overlays.sh builds it from the vendor's
+# vivo_config.ini without the hardware features): without vivo's config store HAL
+# every vivo feature read as off. ONEOS_GUEST_VIVO_FEATURES=0 leaves them off.
+if [ -f "$STAGE/oneos-vivo-features.txt" ] && [ "${ONEOS_GUEST_VIVO_FEATURES:-1}" = 1 ]; then
+    mkdir -p "$STAGE/data/system" && cp -f "$STAGE/oneos-vivo-features.txt" "$STAGE/data/system/oneos_vivo_features" &&
+        chmod 644 "$STAGE/data/system/oneos_vivo_features" &&
+        echo "Guest vivo features: $(tr '&' '\n' < "$STAGE/data/system/oneos_vivo_features" | grep -c 'vivo-support$') from the vendor's vivo_config.ini"
+    # vivo's SuperX (atomic) notifications: VivoSuperXNotificationManager turns its scene
+    # support on only with vivo.opt.notification.superx, which the CN vendor's
+    # vivo_config.ini does not list (only ...superx_state_changed_support_broadcast).
+    # Without it getSceneStatus() said no to every app, so the recorder, clock and music
+    # sent no island data and the dynamic island never showed (F8U runs 17-19, with
+    # superx_notification_selector on). ONEOS_GUEST_VIVO_SUPERX=0 leaves it out.
+    if [ -f "$STAGE/data/system/oneos_vivo_features" ] && [ "${ONEOS_GUEST_VIVO_SUPERX:-1}" = 1 ] &&
+       ! tr '&' '\n' < "$STAGE/data/system/oneos_vivo_features" | grep -qxF 'vivo.opt.notification.superx$vivo-support'; then
+        printf '&vivo.opt.notification.superx$vivo-support' >> "$STAGE/data/system/oneos_vivo_features" &&
+            echo "Guest vivo features: vivo.opt.notification.superx added (SuperX notifications, dynamic island)"
+    fi
+    # vivo's camera hole (vivo.hardware.holescreen: the lens box's top left and radius,
+    # vivo's own phone 590,45 r40 on its 1260 px panel): left out with the hardware
+    # features, so SystemUI had isHoleScreen=false and its dynamic island never showed
+    # (F8U run 17: music, timer, clock). This phone's lens from One UI (host_holes,
+    # oneos_switch.sh): the cover's on a Fold, else the main panel's.
+    # ONEOS_GUEST_VIVO_HOLE=0 leaves it out.
+    if [ -f "$STAGE/data/system/oneos_vivo_features" ] && [ -s "$STAGE/host_holes" ] && [ "${ONEOS_GUEST_VIVO_HOLE:-1}" = 1 ] &&
+       ! grep -q 'vivo\.hardware\.holescreen\$' "$STAGE/data/system/oneos_vivo_features"; then
+        HL=$(grep '^cover ' "$STAGE/host_holes" | head -n 1); [ -n "$HL" ] || HL=$(grep '^main ' "$STAGE/host_holes" | head -n 1)
+        LENS=$(printf '%s\n' "$HL" | awk '{ print $5 }' | cut -d'|' -f1)
+        case "$LENS" in
+            [0-9]*,[0-9]*:[0-9]*,[0-9]*)
+                hx=${LENS%%,*}; r=${LENS#*,}; hy=${r%%:*}; r=${LENS#*:}; x2=${r%%,*}
+                hr=$(( (x2 - hx) / 2 ))
+                if [ "$hr" -gt 0 ] && [ "$hr" -lt 200 ]; then
+                    printf '&vivo.hardware.holescreen$vivo-support&vivo.hardware.holescreen:hole_x$%s&vivo.hardware.holescreen:hole_y$%s&vivo.hardware.holescreen:hole_radius$%s&vivo.hardware.holescreen:hole_screen_stage$1' \
+                        "$hx" "$hy" "$hr" >> "$STAGE/data/system/oneos_vivo_features" &&
+                        echo "Guest vivo camera hole: x $hx, y $hy, radius $hr (${HL%% *} panel, from One UI)"
+                fi ;;
+            *) echo "Guest vivo camera hole: not set (One UI's lens '${LENS:-none}')" ;;
+        esac
+    fi
+else
+    rm -f "$STAGE/data/system/oneos_vivo_features"
+fi
 # init.rc's too (a fresh /data had none of them): Wi-Fi, SMS usage, text classifier.
 mkdir -p "$STAGE/data/misc/wifi" "$STAGE/data/misc/sms" "$STAGE/data/misc/textclassifier"
 mkdir -p "$STAGE/data/anr" "$STAGE/data/app" "$STAGE/data/rollback" "$STAGE/data/incremental"
@@ -2943,6 +3194,12 @@ for pkg in com.android.providers.settings com.android.providers.telephony com.an
            com.android.providers.calendar com.fahadali.oneos; do
     chown -h -R 1000:1000 "$STAGE/data/user_de/0/$pkg" "$STAGE/data/user/0/$pkg" 2>/dev/null
     chmod -R 777 "$STAGE/data/user_de/0/$pkg" "$STAGE/data/user/0/$pkg" 2>/dev/null
+    # Code an app saved there (vivo SystemUI's plugin APKs) read-only again: since Android 14
+    # ART refuses to load a writable dex file, and the sweep above made the one vivo's
+    # SystemUI kept from the session before writable (eighth OriginOS run: SystemUI died
+    # 17 times, "Writable dex file ... MagazinePlugin.apk is not allowed").
+    find "$STAGE/data/user_de/0/$pkg" "$STAGE/data/user/0/$pkg" -type f \( -name '*.apk' -o -name '*.dex' -o -name '*.jar' \) \
+        -exec chmod a-w {} + 2>/dev/null
 done
 # OneOS: not the app data trees. Resetting every app dir to 1000:1000 on each
 # switch made the host installd refuse to prepare 353 packages ("Expected path
@@ -3078,6 +3335,14 @@ if grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" &&
     DS_DEFAULT=fold8-hinge
     FOLD8_COLOR_HINGE=1
 fi
+# vivo OriginOS on a Fold (ro.vivo.device.type=foldable, guest_props.sh): vivo's
+# framework, SystemUI and launcher count 1 as OPEN and 0 as CLOSE (Samsung's 3
+# reads as folded in vivo's launcher), so its own file has those ids on the lid
+# switch. No TRIGGER_SLEEP: folding moves to the cover (patches/vivo_guards.py
+# drops vivo's sleep on leaving OPEN). ONEOS_GUEST_DEVICE_STATES=vendor keeps 0/3.
+if [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && [ "$FORM" = fold ] && [ "${ONEOS_GUEST_VIVO_FOLD:-1}" = 1 ]; then
+    DS_DEFAULT=vivo
+fi
 if [ "$FOLD8_COLOR_HINGE" = 1 ] && [ "${ONEOS_GUEST_DEVICE_STATES:-$DS_DEFAULT}" = fold8-hinge ]; then
     mkdir -p "$DSDIR"
     cat > "$DSDIR/device_state_configuration.xml" <<'F8DSX'
@@ -3166,6 +3431,43 @@ DSX
     chown 1000:1000 "$DSDIR" "$DSDIR/device_state_configuration.xml"
     chmod 644 "$DSDIR/device_state_configuration.xml"
     echo "Guest device states: OneOS file (0 CLOSE = lid closed, 3 OPEN = lid open)"
+elif [ "${ONEOS_GUEST_DEVICE_STATES:-$DS_DEFAULT}" = vivo ]; then
+    mkdir -p "$DSDIR"
+    cat > "$DSDIR/device_state_configuration.xml" <<'VDSX'
+<?xml version="1.0" encoding="utf-8"?>
+<!-- OneOS (guest_prepare.sh): Samsung's lid switch with vivo's ids (0 CLOSE, 1 OPEN). -->
+<device-state-config>
+    <device-state>
+        <identifier>0</identifier>
+        <name>CLOSE</name>
+        <properties>
+            <property>com.android.server.policy.PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_CLOSED</property>
+            <property>com.android.server.policy.PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_OUTER_PRIMARY</property>
+        </properties>
+        <conditions>
+            <lid-switch>
+                <open>false</open>
+            </lid-switch>
+        </conditions>
+    </device-state>
+    <device-state>
+        <identifier>1</identifier>
+        <name>OPEN</name>
+        <properties>
+            <property>com.android.server.policy.PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_FOLD_IN_OPEN</property>
+            <property>com.android.server.policy.PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_INNER_PRIMARY</property>
+        </properties>
+        <conditions>
+            <lid-switch>
+                <open>true</open>
+            </lid-switch>
+        </conditions>
+    </device-state>
+</device-state-config>
+VDSX
+    chown 1000:1000 "$DSDIR" "$DSDIR/device_state_configuration.xml"
+    chmod 644 "$DSDIR/device_state_configuration.xml"
+    echo "Guest device states: vivo (0 CLOSE = lid closed, 1 OPEN = lid open)"
 else
     # The staged /data persists between sessions: never leave an old file behind.
     rm -f "$DSDIR/device_state_configuration.xml"
@@ -4387,10 +4689,16 @@ if [ ! -f "$STAGE/clean_apex_info_list.xml" ] && [ -f "$ROOTFS/apex/apex-info-li
     for m in com.android.art com.android.i18n; do
         grep -q "^$m /dev/block/loop" "$STAGE/payload_loops" 2>/dev/null && FACT="$FACT $m"
     done
-    if [ -n "$FACT" ] && awk -v mods="$FACT" 'BEGIN { RS = "<"; ORS = ""; n = split(mods, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
+    # vivo (0.4.73): lastUpdateMillis kept for its odrefresh step; other systems as before.
+    AKEEP=0; [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && AKEEP=1
+    if [ -n "$FACT" ] && awk -v mods="$FACT" -v akeep="$AKEEP" 'BEGIN { RS = "<"; ORS = ""; n = split(mods, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
             NR > 1 { printf "<" }
             /^apex-info[[:space:]]/ && /isActive="true"/ { m = $0; sub(/.*moduleName="/, "", m); sub(/".*/, "", m)
-                if (m in want) { sub(/isFactory="false"/, "isFactory=\"true\""); gsub(/[[:space:]]lastUpdateMillis="[0-9]*"/, "") } }
+                if (m in want) { sub(/isFactory="false"/, "isFactory=\"true\""); if (!akeep) gsub(/[[:space:]]lastUpdateMillis="[0-9]*"/, "") }
+                # lastUpdateMillis stays (ART ignores it for a factory module) and every active
+                # entry has one: the guest odrefresh (guest_start.sh) aborts on an entry
+                # without it (twelfth OriginOS run: "assertion hasLastUpdateMillis() failed").
+                if (akeep && $0 !~ /lastUpdateMillis="/) sub(/isActive="true"/, "isActive=\"true\" lastUpdateMillis=\"0\"") }
             { print }' "$ROOTFS/apex/apex-info-list.xml" > "$ROOTFS/apex/apex-info-list.xml.oneos" &&
             [ -s "$ROOTFS/apex/apex-info-list.xml.oneos" ]; then
         mv -f "$ROOTFS/apex/apex-info-list.xml.oneos" "$ROOTFS/apex/apex-info-list.xml"
@@ -4451,6 +4759,156 @@ if [ -f "$STAGE/payload_loops" ]; then
             $BB mount -t "${FSTYPE:-ext4}" -o ro "$LOOP" "$vdir" && echo "Guest payload $TARGET on $LOOP -> $vdir"
         done
     done < "$STAGE/payload_loops"
+fi
+
+# vivo's Wi-Fi code on One UI's connectivity module (OriginOS 6 CN): vivo's wifi
+# APEX loads vivo-service-wifi.jar and vivo-service-wifi-ex.jar loads
+# vivo-service-wifi-ex-impl.jar into system_server; both used transport 11 (vivo's
+# second Wi-Fi), which One UI's tethering module refuses: system_server died making
+# WifiService (first CN run), and vivo-service-wifi.jar calls five methods only
+# vivo's CN connectivity module has. The patched ones (patches/vivo_wifi_connectivity.py)
+# take vivo's overseas value and One UI's methods. After the payload mounts above,
+# on every path of the guest's wifi module.
+# libbluetooth_jni_patched.so (vivo's bt APEX, MediaTek's stack): the MediaTek-
+# controller features off on Samsung's Qualcomm controller (make-overlays.sh; tenth
+# CN run: Bluetooth crashed in HciLayer at every start).
+if [ -f "$STAGE/libbluetooth_jni_patched.so" ]; then
+    chmod 644 "$STAGE/libbluetooth_jni_patched.so"
+    for vdir in "$ROOTFS/apex/com.android.bt" "$ROOTFS/apex/com.android.bt"@*; do
+        BJ="$vdir/lib64/libbluetooth_jni.so"
+        [ -f "$BJ" ] && [ ! -L "$BJ" ] || continue
+        $BB umount -l "$BJ" 2>/dev/null || true
+        $BB mount --bind "$STAGE/libbluetooth_jni_patched.so" "$BJ" &&
+            echo "Bound libbluetooth_jni_patched.so -> $BJ (no MediaTek controller features)"
+    done
+fi
+# framework-wifi_patched.jar (boot class path): VivoTrafficStats on vivo's overseas
+# path (patches/vivo_traffic_stats.py): its natives read One UI's BPF stats maps with
+# vivo's CN layout and aborted system_server (fourth CN run).
+for VWN in vivo-service-wifi framework-wifi; do
+    [ -f "$STAGE/${VWN}_patched.jar" ] || continue
+    for vdir in "$ROOTFS/apex/com.android.wifi" "$ROOTFS/apex/com.android.wifi"@*; do
+        VWJ="$vdir/javalib/$VWN.jar"
+        [ -f "$VWJ" ] && [ ! -L "$VWJ" ] || continue
+        $BB umount -l "$VWJ" 2>/dev/null || true
+        $BB mount --bind "$STAGE/${VWN}_patched.jar" "$VWJ" &&
+            echo "Bound ${VWN}_patched.jar -> $VWJ (vivo's Wi-Fi on One UI's connectivity module)"
+    done
+done
+VWI="$ROOTFS/system/framework/vivo-service-wifi-ex-impl.jar"
+if [ -f "$STAGE/vivo-service-wifi-ex-impl_patched.jar" ] && [ -f "$VWI" ] && [ ! -L "$VWI" ] && [ ! -L "$ROOTFS/system/framework" ]; then
+    $BB umount -l "$VWI" 2>/dev/null || true
+    $BB mount --bind "$STAGE/vivo-service-wifi-ex-impl_patched.jar" "$VWI" &&
+        echo "Bound vivo-service-wifi-ex-impl_patched.jar -> $VWI (no transport 11)"
+fi
+for vdir in "$ROOTFS/apex/com.android.wifi" "$ROOTFS/apex/com.android.wifi"@*; do
+    VWJ="$vdir/javalib/vivo-service-wifi.jar"
+    if [ -f "$VWJ" ] && { [ ! -f "$STAGE/vivo-service-wifi_patched.jar" ] || [ ! -f "$STAGE/framework-wifi_patched.jar" ]; }; then
+        echo "!!! WARNING: $VWJ is vivo's own and vivo-service-wifi_patched.jar or framework-wifi_patched.jar is not staged: system_server will die (transport 11, BPF map layout)"
+        break
+    fi
+done
+
+# The guest's own APEX payloads on One UI's /linkerconfig: its namespaces are linked
+# from One UI's APEX manifests, and an image's module can need more (OriginOS CN:
+# vivo's wifi APEX needs libnativehelper.so; third CN run: system_server died on an
+# UnsatisfiedLinkError). A guest-only copy of ld.config.txt adds each missing
+# requireNativeLibs entry (make-overlays.sh: oneos-apex-requires.txt) of the payloads
+# mounted above, through the namespace the other namespaces of that section already
+# take it from, as linkerconfig would. Bound on the guest's view only:
+# $ROOTFS/linkerconfig is a slave of One UI's /linkerconfig, which the return checks.
+GLD="$ROOTFS/linkerconfig/ld.config.txt"
+if [ -f "$STAGE/oneos-apex-requires.txt" ] && [ -f "$STAGE/payload_loops" ] && [ -f "$GLD" ]; then
+    $BB umount -l "$GLD" 2>/dev/null || true
+    $BB awk 'NR == FNR { m[$1] = 1; next } ($1 in m) { $1 = ""; sub(/^ /, ""); print }' \
+        "$STAGE/payload_loops" "$STAGE/oneos-apex-requires.txt" > "$STAGE/ld.config.guest.req"
+    if $BB awk '
+FNR == 1 { f++ }
+f == 1 { for (i = 2; i <= NF; i++) req[$1] = req[$1] " " $i; next }
+f == 2 && FNR == 1 { pass = 1 }
+f == 3 && FNR == 1 {
+    pass = 2
+    for (k in exists) {
+        split(k, a, SUBSEP); s = a[1]; ns = a[2]
+        if (!(ns in req)) continue
+        n = split(req[ns], libs, " ")
+        for (i = 1; i <= n; i++) {
+            lib = libs[i]
+            if ((s SUBSEP ns SUBSEP lib) in have) continue
+            hit = 0
+            for (q in allowall) { split(q, b, SUBSEP); if (b[1] == s && b[2] == ns) hit = 1 }
+            if (hit) continue
+            best = ""; bc = 0
+            m = split(provs[s SUBSEP lib], ps, " ")
+            for (j = 1; j <= m; j++) if (ps[j] != ns && cnt[s SUBSEP lib SUBSEP ps[j]] > bc) { best = ps[j]; bc = cnt[s SUBSEP lib SUBSEP ps[j]] }
+            if (best == "") { print "linker: [" s "] " ns ": no namespace provides " lib ", left out" > "/dev/stderr"; continue }
+            addk = s SUBSEP ns SUBSEP best
+            if (addk in add) v = add[addk] ":" lib; else v = lib
+            add[addk] = v
+            addp[s SUBSEP ns] = addp[s SUBSEP ns] " " best
+            print "linker: [" s "] " ns " + " lib " from " best > "/dev/stderr"
+        }
+    }
+}
+/^\[[^]]*\]$/ { sec = substr($0, 2, length($0) - 2) }
+pass == 1 {
+    if (match($0, /^namespace\.[^.]+\./)) {
+        ns = substr($0, 11, RLENGTH - 11); exists[sec SUBSEP ns] = 1
+        rest = substr($0, RLENGTH + 1)
+        if (rest ~ /^links *= */) { v = rest; sub(/^links *= */, "", v); links[sec SUBSEP ns] = "," v "," }
+        else if (rest ~ /^link\.[^.]+\.shared_libs *= */) {
+            p = rest; sub(/^link\./, "", p); sub(/\..*/, "", p)
+            v = rest; sub(/^link\.[^.]+\.shared_libs *= */, "", v)
+            n = split(v, ls, ":")
+            for (i = 1; i <= n; i++) {
+                have[sec SUBSEP ns SUBSEP ls[i]] = 1
+                if (!((sec SUBSEP ls[i] SUBSEP p) in cnt)) provs[sec SUBSEP ls[i]] = provs[sec SUBSEP ls[i]] " " p
+                cnt[sec SUBSEP ls[i] SUBSEP p]++
+            }
+        } else if (rest ~ /^link\.[^.]+\.allow_all_shared_libs *= *true/) {
+            p = rest; sub(/^link\./, "", p); sub(/\..*/, "", p); allowall[sec SUBSEP ns SUBSEP p] = 1
+        }
+    }
+    next
+}
+pass == 2 {
+    line = $0
+    if (match($0, /^namespace\.[^.]+\./)) {
+        ns = substr($0, 11, RLENGTH - 11); rest = substr($0, RLENGTH + 1)
+        if (rest ~ /^links *= */ && ((sec SUBSEP ns) in addp)) {
+            n = split(addp[sec SUBSEP ns], ps, " "); newp = ""
+            for (i = 1; i <= n; i++) {
+                if (index(links[sec SUBSEP ns], "," ps[i] ",") || index(newp, " " ps[i] " ")) continue
+                line = line "," ps[i]; newp = newp " " ps[i] " "
+            }
+            print line
+            for (i = 1; i <= n; i++) if (index(newp, " " ps[i] " ") && !((sec SUBSEP ns SUBSEP ps[i]) in done)) {
+                print "namespace." ns ".link." ps[i] ".shared_libs = " add[sec SUBSEP ns SUBSEP ps[i]]
+                done[sec SUBSEP ns SUBSEP ps[i]] = 1
+            }
+            next
+        }
+        if (rest ~ /^link\.[^.]+\.shared_libs *= */) {
+            p = rest; sub(/^link\./, "", p); sub(/\..*/, "", p)
+            k = sec SUBSEP ns SUBSEP p
+            if ((k in add) && !(k in done)) { line = line ":" add[k]; done[k] = 1 }
+        }
+    }
+    print line
+}
+' "$STAGE/ld.config.guest.req" "$GLD" "$GLD" > "$STAGE/ld.config.guest.txt" 2> "$STAGE/ld.config.guest.log" &&
+       [ "$($BB wc -l < "$STAGE/ld.config.guest.txt")" -ge "$($BB wc -l < "$GLD")" ]; then
+        if $BB cmp -s "$STAGE/ld.config.guest.txt" "$GLD"; then
+            echo "Guest linker config: One UI's covers the guest's APEX payloads"
+        else
+            chmod 644 "$STAGE/ld.config.guest.txt"
+            $BB chcon "$(ls -Z "$GLD" | $BB awk '{print $1}')" "$STAGE/ld.config.guest.txt" 2>/dev/null || true
+            $BB mount --bind "$STAGE/ld.config.guest.txt" "$GLD" &&
+                echo "Guest linker config: $($BB grep -c ' + ' "$STAGE/ld.config.guest.log") links added for the guest's APEX payloads ($STAGE/ld.config.guest.log)"
+        fi
+    else
+        echo "!!! WARNING: guest linker config not made ($(head -c 300 "$STAGE/ld.config.guest.log" 2>/dev/null)); One UI's stays"
+    fi
 fi
 
 # Wi-Fi (run 41): Pixel's wifi module uses the mainline supplicant when its RRO
@@ -4587,6 +5045,48 @@ if [ "${ONEOS_GUEST_ESIM_MANAGER:-0}" != 1 ]; then
         $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
             echo "Hid guest ${d#"$ROOTFS"/} (eSIM manager: the eSIM chip is One UI's; ONEOS_GUEST_ESIM_MANAGER=1 keeps it)"
     done
+fi
+# vivo OriginOS (MediaTek build): MediaTek's telephony helpers talk only to
+# MediaTek's vendor (mtkradioex, atcid, the IMS data channel and capability
+# control), which a Samsung phone does not have; each retries once a second for
+# the whole session. MediaTek's IMS too: it starts only with
+# persist.vendor.ims_support=1 (vivo's vendor) and, when bound, waits 3 x 5 s per
+# SIM for its service. With Samsung's IMS in the guest (ONEOS_GUEST_SEC_IMS=1, the
+# thirteenth CN run's plan for SMS) it stays hidden as well: com.mediatek.ims is a
+# persistent app in the phone process that declares the MMTEL, emergency MMTEL and
+# RCS features, so the guest's ImsResolver would bind it as the device's IMS
+# service at every start before the UI activator moves both slots to Samsung's;
+# every session that worked so far ran without it. ONEOS_GUEST_MTK_TELEPHONY=1 keeps them.
+if [ "${ONEOS_GUEST_MTK_TELEPHONY:-0}" != 1 ] && [ -e "$ROOTFS/system/framework/vivo-telephony-common-platform-ex.jar" ]; then
+    for n in MtkTelephonyAssist MtkCapCtrl DataChannelService AtciService ImsService; do
+        d="$GUEST_SYSTEM_EXT/priv-app/$n"
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
+            echo "Hid guest ${d#"$ROOTFS"/} (MediaTek's vendor only; ONEOS_GUEST_MTK_TELEPHONY=1 keeps it)"
+    done
+fi
+# vivo OriginOS: Vivo3rdAlgoService waits for vivo's IVASAlgoProvider HAL and never
+# finishes starting (seventh run: ANR, killed and started again, five times), and
+# vdfs keeps asking init for vivo's vdfs daemon, which One UI's init refuses.
+# ONEOS_GUEST_VIVO_EXTRAS=1 keeps them.
+if [ "${ONEOS_GUEST_VIVO_EXTRAS:-0}" != 1 ] && [ -e "$ROOTFS/system/framework/vivo-services.jar" ]; then
+    for d in "$ROOTFS/system/app/Vivo3rdAlgoService" "$ROOTFS/system/app/vdfs"; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
+            echo "Hid guest ${d#"$ROOTFS"/} (needs vivo's own HAL or daemon; ONEOS_GUEST_VIVO_EXTRAS=1 keeps it)"
+    done
+fi
+# vivo's setup wizard (com.vivo.setupwizard) is a HOME activity until it finishes
+# itself, so marking setup done (above) did not stop it: the sixth CN run opened it
+# again, at its terms page. Hidden while setup is marked done; vivo's launcher is
+# then the home. ONEOS_GUEST_VIVO_SETUP=1 keeps it (and the setup).
+if [ "${ONEOS_GUEST_VIVO_SETUP:-0}" != 1 ] && [ -e "$ROOTFS/system/framework/vivo-services.jar" ]; then
+    d="$ROOTFS/system/priv-app/SetupWizard"
+    if [ -d "$d" ] && [ ! -L "$d" ] && [ -f "$d/SetupWizard.apk" ] &&
+       $BB unzip -p "$d/SetupWizard.apk" AndroidManifest.xml 2>/dev/null | tr -d '\0' | grep -aq "com.vivo.setupwizard"; then
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" &&
+            echo "Hid guest ${d#"$ROOTFS"/} (vivo's setup wizard; setup is marked done; ONEOS_GUEST_VIVO_SETUP=1 keeps it)"
+    fi
 fi
 # OPPO's camera in an image that also has LineageOS's Aperture (Infinity-X 4.1
 # for the Find X9 Ultra): OplusCamera takes its camera list from the Find X9

@@ -207,6 +207,13 @@ object Profiles {
      * range overlay is the Fold's.
      */
     private val NOTHING_CHOICE = ImageChoice(Images.ID_NOTHING_METROID, PackageSets.ID_NOTHING_F8U, tested = false)
+    /**
+     * OriginOS 7 (0.4.73, experimental): the Snapdragon S25 and S26 series and the Z Fold7, Fold8 and Fold8 Ultra
+     * (each profile names it itself: the shared choice lists also serve Exynos phones and the S24). Tested on the
+     * Z Fold8 Ultra only (fold mode 1, runs 13-24); the bar phones take vivo's phone layout, untested.
+     */
+    private val ORIGINOS_CHOICE = ImageChoice(Images.ID_ORIGINOS7, PackageSets.ID_ORIGINOS, tested = false)
+    private val ORIGINOS_TESTED = ImageChoice(Images.ID_ORIGINOS7, PackageSets.ID_ORIGINOS, tested = true)
 
     private fun olderVendor(vendorApi: String, kernel: String) = Finding(
         ID_NOTE_OLDER_VENDOR, Level.WARN, "Older vendor software",
@@ -293,6 +300,7 @@ object Profiles {
             // scripts/deploy-phone.sh, not yet from the app).
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, tested = true),
             INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
+            ORIGINOS_TESTED,
         ),
     )
 
@@ -306,7 +314,7 @@ object Profiles {
         // 0.4.10: the Pixel 11 Pro image too, untested. SM8850 has the SVE that
         // Pixel's system code needs; the SM8750 phones do not.
         choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_TESTED + HYPEROS_CHOICE +
-            NOTHING_CHOICE,
+            NOTHING_CHOICE + ORIGINOS_CHOICE,
     )
 
     val S_ULTRA_8750 = PhoneProfile(
@@ -318,7 +326,7 @@ object Profiles {
         form = FormFactor.BAR,
         // Off in 0.3.0 (the S26 Ultra was to go first); on from 0.3.1 (owner: the
         // friend's S25 Ultra is on Android 17 and ready). Untested: ticks as the S26 Ultra.
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -337,7 +345,7 @@ object Profiles {
         codename = "pa1q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -360,7 +368,7 @@ object Profiles {
         codename = "q7q",
         socModel = "SM8750",
         form = FormFactor.FOLD,
-        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
+        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE) + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -378,7 +386,7 @@ object Profiles {
         codename = "pa2q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE) + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -406,6 +414,7 @@ object Profiles {
             ImageChoice(Images.ID_FIND_N6, PackageSets.N6_GLOBAL_F8.id, tested = false),
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
             INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
+            ORIGINOS_CHOICE,
         ),
     )
 
@@ -431,7 +440,7 @@ object Profiles {
         codename = "m1q",
         socModel = "SM8850",
         form = FormFactor.BAR,
-        choices = S_8850_CHOICES,
+        choices = S_8850_CHOICES + ORIGINOS_CHOICE,
     )
 
     val S_8850_JP = S_8850.copy(id = ID_S_8850_JP, label = "Galaxy S26 (docomo)", modelPrefix = "SC-51G")
@@ -450,7 +459,7 @@ object Profiles {
         codename = "m2q",
         socModel = "SM8850",
         form = FormFactor.BAR,
-        choices = S_8850_CHOICES,
+        choices = S_8850_CHOICES + ORIGINOS_CHOICE,
     )
 
     /**
@@ -796,7 +805,7 @@ object Profiles {
         codename = "psq",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES.map { it.copy(tested = false) } + PIXEL9_CHOICE + INFINITYX_CHOICE + HYPEROS_CHOICE + NOTHING_CHOICE,
+        choices = S_ULTRA_CHOICES.map { it.copy(tested = false) } + PIXEL9_CHOICE + INFINITYX_CHOICE + HYPEROS_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 

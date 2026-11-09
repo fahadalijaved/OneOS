@@ -139,7 +139,7 @@ S=/data/local/tmp/oneos
 p="$S/data/system/packages.xml"
 [ -d "$S/data" ] || exit 3
 [ -f "$p" ] || { echo "packages none"; exit 0; }
-for w in com.oplus. com.coloros. org.lineageos. com.google.android.apps.nexuslauncher com.infinity.updater com.miui. com.oneplus.membership; do
+for w in com.oplus. com.coloros. org.lineageos. com.google.android.apps.nexuslauncher com.infinity.updater com.miui. com.oneplus.membership com.bbk.launcher2; do
   if grep -q -s -F "$w" "$p"; then echo "packages $w"; fi
 done
 true'

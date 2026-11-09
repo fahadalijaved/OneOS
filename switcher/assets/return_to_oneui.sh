@@ -87,6 +87,11 @@ if [ "$1" = baseline ]; then
     apex_overlays > "$BASE/apex_overlays"
     ip rule show > "$BASE/iprule" 2>&1
     for f in /sys/fs/f2fs/*/gc_urgent; do [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"; done > "$BASE/gc_urgent"
+    # One UI's CPU sets and core control, which init writes only at boot; a guest's
+    # performance service can write them (vivo QoS: split screen, VCFA).
+    for f in /dev/cpuset/cpus /dev/cpuset/*/cpus /sys/devices/system/cpu/cpu*/core_ctl/enable; do
+        [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"
+    done > "$BASE/cpuset"
     for n in $HOST_NAMES; do p=$(svc_pid "$n"); echo "$n ${p:-none}"; done > "$BASE/svcpid"
     ls -lZ /dev/watchdog* > "$BASE/watchdog" 2>&1
     # One UI's linker namespaces (a tmpfs the guest's tree binds), compared at the return.
@@ -821,11 +826,18 @@ for k in crashrecovery.rescue_boot_start crashrecovery.boot_mitigation_count cra
 done
 "$RP" -n sys.rescue_boot_count 0 2>/dev/null
 "$RP" -n crashrecovery.rescue_boot_count 0 2>/dev/null
+# qemu.hw.mainkeys: AOSP's DisplayPolicy reads it at start ("1" = no navigation
+# bar); vivo's VivoDisplayPolicyImpl.setVivoNavBar(false) sets it to 1 when it
+# removes its own bar for gestures, and the seventh OriginOS run's return left
+# it at 1 for One UI's system_server. vold.has_adoptable: One UI's vold is not
+# restarted and set it once.
 for k in ro.control_privapp_permissions \
          audio.offload.disable audio.deep_buffer.media audio.offload.video vendor.audio.offload.track.enable \
-         service.bootanim.exit oneos.guest.powerctl; do
+         service.bootanim.exit oneos.guest.powerctl oneos.vivo.inner_display qemu.hw.mainkeys vold.has_adoptable; do
     put_back "$k"
 done
+[ "$(getprop qemu.hw.mainkeys)" = "$(base_prop qemu.hw.mainkeys)" ] ||
+    failsafe "qemu.hw.mainkeys is still the guest's ($(getprop qemu.hw.mainkeys)): One UI would start without its navigation bar"
 for k in $(getprop | "$BB" sed -n 's/^\[\(log\.tag\.[^]]*\)\]: .*/\1/p'); do put_back "$k"; done
 # debug.* (surfaceflinger, hwui, renderengine) the guest set through the shared
 # property service: One UI's surfaceflinger reads them at start.
@@ -873,6 +885,13 @@ restorecon /dev/block/loop* /dev/loop* 2>/dev/null
     say "f2fs $f is $(cat "$f" 2>/dev/null), was $v at the switch"
     case "$v" in 0|GC_NORMAL) echo 0 > "$f" 2>/dev/null ;; esac
 done < "$BASE/gc_urgent"
+# CPU sets and core control as One UI had them (same boot: the baseline is this session's).
+[ -f "$BASE/cpuset" ] && [ "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)" = "$(cat "$BASE/boot_id" 2>/dev/null)" ] && while read -r f v; do
+    [ -f "$f" ] || continue
+    [ "$(cat "$f" 2>/dev/null)" = "$v" ] && continue
+    case "$v" in ''|*[!0-9,-]*) continue ;; esac
+    echo "$v" > "$f" 2>/dev/null && say "$f put back to $v (the guest had changed it)"
+done < "$BASE/cpuset"
 
 # Display: the composer still holds the guest's dead surfaceflinger as its
 # client (guest_start.sh restarted it for the guest); its onrestart starts One

@@ -502,6 +502,14 @@ LAYOUT
         # The inner panel's id for the UI activator's density and fold line
         # (oneos_switch.sh, run 44).
         echo "$INNER" > /data/oneos_inner_display; chmod 644 /data/oneos_inner_display
+        # vivo in fold mode 1 (ro.vivo.device.type=foldable): the inner panel as vivo's
+        # main panel (patches/vivo_guards.py, OneOSVivoPrimaryDisplay). SurfaceFlinger
+        # named the cover primary at boot and the inner panel's brightness never
+        # followed the slider (F8U run 14). Before system_server, which reads it.
+        if [ -e /system/framework/vivo-services.jar ] && [ "$(getprop ro.vivo.device.type)" = foldable ]; then
+            setprop oneos.vivo.inner_display "$INNER" &&
+                echo "[Pivoted Root] vivo main panel: inner $INNER (oneos.vivo.inner_display)"
+        fi
         echo "[Pivoted Root] Fold layout: lid closed -> cover $COVER, lid open -> inner $INNER (states$(for s in $STATES; do printf ' %s' "${s%%:*}"; done))"
     else
         echo "[Pivoted Root] WARNING: no fold layout (SurfaceFlinger gave inner '$INNER', cover '$COVER'); inner display only"
@@ -1437,7 +1445,7 @@ if [ "$(cat /data/oneos_fold_mode 2>/dev/null)" = layout ] && [ "${ONEOS_GUEST_F
     if [ -e /system/framework/oplus-services.jar ]; then FOLDN=continue_using_apps_when_folded; FOLDV=1; else FOLDN=fold_lock_behavior_setting; FOLDV=stay_awake_on_fold_key; fi
     $BB sh -c "
         SELF=\$(readlink /proc/self/ns/mnt); i=0
-        while [ \$i -lt 200 ]; do
+        while [ \$i -lt 2000 ]; do
             p=\$(timeout 2 dumpsys --pid settings 2>/dev/null | tr -dc 0-9)
             if [ -n \"\$p\" ] && [ \"\$(readlink /proc/\$p/ns/mnt 2>/dev/null)\" = \"\$SELF\" ]; then
                 cur=\$(timeout 5 settings get system $FOLDN 2>/dev/null)
@@ -1450,9 +1458,83 @@ if [ "$(cat /data/oneos_fold_mode 2>/dev/null)" = layout ] && [ "${ONEOS_GUEST_F
             fi
             i=\$((i + 1)); sleep 0.3
         done
-        echo \"\$(date +%T) $FOLDN: the guest's settings provider did not answer in 60 s; the UI activator sets it\"
+        echo \"\$(date +%T) $FOLDN: the guest's settings provider did not answer in 10 minutes; the UI activator sets it\"
     " </dev/null >> /data/fold_setting.log 2>&1 &
     echo "[Pivoted Root] Fold behaviour: $FOLDN=$FOLDV as soon as the guest's settings provider answers (/data/fold_setting.log)"
+fi
+# vivo OriginOS's glass (real-time blur): SystemUI's material SDK
+# (com.spacesystem.materialsdk.Material.resolveGlassSetting) and its plugins
+# draw glass only when system setting realtime_blur_state is 1, reading 0 when
+# it is unset; vivo's first boot sets it, the guest's never did (tenth run:
+# "isGlassEffectEnabled realtimeBlurState=0", no blur anywhere). Set once, only
+# while unset (a 0 the user chose in Settings stays); the SDK watches the
+# setting. ONEOS_GUEST_VIVO_BLUR=0 leaves it alone.
+if [ -e /system/framework/vivo-services.jar ] && [ "${ONEOS_GUEST_VIVO_BLUR:-1}" = 1 ]; then
+    # Asked straight: during the session the only settings service is the guest's
+    # (One UI's system_server is stopped); a call before it is up fails and is
+    # retried. (Matching its pid through dumpsys --pid never succeeded on vivo's
+    # build, runs 12 and 13: the setting stayed unset.)
+    $BB sh -c "
+        i=0
+        while [ \$i -lt 600 ]; do
+            cur=\$(timeout 5 settings get system realtime_blur_state 2>/dev/null)
+            case \"\$cur\" in
+                null) timeout 5 settings put system realtime_blur_state 1 2>/dev/null
+                      echo \"\$(date +%T) realtime_blur_state: unset -> \$(timeout 5 settings get system realtime_blur_state 2>/dev/null)\"; exit 0 ;;
+                0|1) echo \"\$(date +%T) realtime_blur_state: \$cur (set already, left)\"; exit 0 ;;
+            esac
+            i=\$((i + 1)); sleep 1
+        done
+        echo \"\$(date +%T) realtime_blur_state: the guest's settings service did not answer in 10 minutes\"
+    " </dev/null >> /data/vivo_blur.log 2>&1 &
+    echo "[Pivoted Root] vivo glass: realtime_blur_state=1 if unset, once the guest's settings provider answers (/data/vivo_blur.log)"
+fi
+# vivo's transition animation server (vivonrtservice, "vivo_nrt_service"): vivo's
+# launcher runs its app open and close animations in it (com.bbk.launcher2's
+# AnimationServer). vivo's init starts it (class core, user system) once
+# persist.vivo.nrtservice is true; the guest has no init of its own, so it never ran:
+# "AnimationServer: Service.INSTANCE is null", and every launch from or return to
+# home waited about 2 s for an animation that never played (tenth CN run). Started
+# here as system, again if it exits, until the namespace ends (the return) or
+# /data/oneos_nrt_stop. It talks to SurfaceFlinger only (libgui), and its one vivo
+# node (/sys/rsc/rsc_svp) is missing on a Samsung kernel. ONEOS_GUEST_VIVO_NRT=0
+# leaves it off.
+if [ -x /system/bin/vivonrtservice ] && [ "${ONEOS_GUEST_VIVO_NRT:-1}" = 1 ]; then
+    rm -f /data/oneos_nrt_stop
+    ONEOS_BB="$BB" $BB sh -c '
+        n=0
+        while [ ! -f /data/oneos_nrt_stop ] && [ $n -lt 30 ]; do
+            $ONEOS_BB setuidgid system /system/bin/vivonrtservice
+            echo "$(date +%T) vivonrtservice exited ($?)"
+            n=$((n + 1)); sleep 1
+        done' </dev/null >> /data/vivo_nrt.log 2>&1 &
+    echo "[Pivoted Root] vivo transition animations: vivonrtservice started as system (/data/vivo_nrt.log)"
+fi
+# vivo's setup skipped (guest_prepare.sh hides vivo's setup wizard, ONEOS_GUEST_VIVO_SETUP
+# unset): guest_prepare.sh seeds the provisioned keys only into settings files that
+# exist, and a fresh /data has none before its first boot. Without them the guest
+# stays "not provisioned" (no notifications or quick settings) with no wizard to
+# finish it. Set once the guest's settings service answers, only where not 1.
+if [ -e /system/framework/vivo-services.jar ] && [ "${ONEOS_GUEST_VIVO_SETUP:-0}" != 1 ]; then
+    $BB sh -c "
+        i=0
+        while [ \$i -lt 600 ]; do
+            cur=\$(timeout 5 settings get global device_provisioned 2>/dev/null)
+            case \"\$cur\" in
+                1|0|null)
+                    for kv in 'global device_provisioned' 'secure user_setup_complete' 'secure setup_wizard_has_run'; do
+                        set -- \$kv
+                        [ \"\$(timeout 5 settings get \$1 \$2 2>/dev/null)\" = 1 ] && continue
+                        timeout 5 settings put \$1 \$2 1 2>/dev/null
+                        echo \"\$(date +%T) \$1 \$2 -> \$(timeout 5 settings get \$1 \$2 2>/dev/null)\"
+                    done
+                    exit 0 ;;
+            esac
+            i=\$((i + 1)); sleep 1
+        done
+        echo \"\$(date +%T) the guest's settings service did not answer in 10 minutes\"
+    " </dev/null >> /data/vivo_setup.log 2>&1 &
+    echo "[Pivoted Root] vivo setup: device_provisioned, user_setup_complete, setup_wizard_has_run = 1 where not, once the guest's settings provider answers (/data/vivo_setup.log)"
 fi
 # Test build 8 had an event-driven keeper (inotifyd on the guest's opens and
 # closes, the touchscreens held all session): the guest never showed a close
@@ -1527,9 +1609,18 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         done
         [ -n "$IDS" ] || { log "no touchscreen to keep: double tap left to the guest"; exit 0; }
         FOLD=0; case "$IDS" in *tsp1*tsp2*) FOLD=1 ;; esac
+        # The dpms-only reading is proven on vivo OriginOS (0.4.73); other systems keep both signals.
+        VIVO_IMG=0; [ -e /system/framework/vivo-services.jar ] && VIVO_IMG=1
+        # Two panels: the dpms of each panel only. The panel that is off keeps backlight 1,
+        # not 0 (F8U run 13, OriginOS: inner panel0-backlight 1 with DSI-1 Off once
+        # folded, cover panel1-backlight 1 with DSI-2 On in AOD), so "backlight not 0"
+        # kept the inner panel lit: the fold was never seen, the cover never got
+        # low-power mode, and a double tap on the cover AOD reached the guest as
+        # plain touches while it slept. One panel keeps both signals.
         lit() {
             eval c=\$C_$1 b=\$B_$1
             d=Off; [ -r "$c" ] && read -r d < "$c"
+            if [ $FOLD = 1 ] && [ $VIVO_IMG = 1 ] && [ -r "$c" ]; then [ "$d" != Off ]; return; fi
             l=0; read -r l < "$b"
             [ "$d" != Off ] || [ "$l" != 0 ]
         }
@@ -1553,6 +1644,13 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         # Pixel. Anything but 1 is no AOD: before the first event, after the
         # reader ends, after a system_server start and after a double tap, so
         # touch is never taken from an awake guest. ONEOS_GUEST_DT2W_AOD=0: off.
+        # vivo keeps the panel lit in its own AOD (keyguard_aod, not doze_always_on;
+        # tenth CN run: the panel never read as off, nothing was armed): on a vivo
+        # image every guest sleep counts as AOD here, panel lit or not.
+        VAOD=0
+        [ -e /system/framework/vivo-services.jar ] && VAOD=${ONEOS_GUEST_VIVO_AOD:-3}
+        case "$VAOD" in ""|*[!0-9]*) VAOD=0 ;; esac
+        [ "$VAOD" -le 20 ] || VAOD=20
         AF=/data/oneos_dt2w_aod
         setaod() { echo $1 > $AF.n && $BB mv -f $AF.n $AF; }
         setaod 0
@@ -1562,7 +1660,7 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                   logcat -b events -v raw -s power_screen_state boot_progress_system_run -T "$(date +%s).000" 2>/dev/null |
                       while read -r l; do
                           case "$l" in
-                              "[0,"*) [ "$(timeout 3 settings get secure doze_always_on 2>/dev/null)" = 1 ] && setaod 1 ;;
+                              "[0,"*) { [ -e /system/framework/vivo-services.jar ] || [ "$(timeout 3 settings get secure doze_always_on 2>/dev/null)" = 1 ]; } && setaod 1 ;;
                               "[1,"*|[0-9]*) setaod 0 ;;
                           esac
                       done
@@ -1653,6 +1751,25 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                     [ $a = 1 ] && arm $t "$w"
                 fi
             done
+            # vivo AOD brightness (F8U run 13, OriginOS: AOD "very weak, unseeable"). The
+            # vivo AOD asks for doze brightness 0.0 (DreamManager override) and maps it
+            # through vivo panel tables that a Galaxy panel does not have, so the lit AOD
+            # panel sat at backlight 1 of 13510. While the guest sleeps with AOD, a lit
+            # panel at 0 or 1 gets ONEOS_GUEST_VIVO_AOD percent of its range (default 3;
+            # 0 leaves it). The guest sets its own level again when it wakes.
+            if [ $VAOD -gt 0 ] && [ $D = 1 ]; then
+                for t in $IDS; do
+                    eval c=\$C_$t b=\$B_$t
+                    d=Off; [ -r "$c" ] && read -r d < "$c"
+                    [ "$d" != Off ] || continue
+                    l=0; read -r l < "$b"
+                    case "$l" in 0|1) ;; *) continue ;; esac
+                    m=0; read -r m < "${b%/brightness}/max_brightness"
+                    case "$m" in ""|*[!0-9]*) continue ;; esac
+                    v=$((m * VAOD / 100)); [ $v -gt 1 ] || continue
+                    echo $v > "$b" && log "$t: vivo AOD at backlight $l: set to $v ($VAOD% of $m)"
+                done
+            fi
             sleep 0.1
         done
     ' </dev/null >> /data/dt2w.log 2>&1 &
@@ -1701,6 +1818,88 @@ fi
 if [ -f /data/oneos_root/enabled ]; then
     setprop sys.boot_completed 0
     setprop dev.bootcomplete 0
+fi
+# The guest's own compiled framework for the jars OneOS binds over its own
+# (0.4.60). The image's boot image (/system/framework/arm64/boot*.oat) and
+# system_server odex files are built for the image's framework.jar,
+# services.jar...; framework_patched.jar, services_patched.jar and the others
+# have other dex checksums, so ART refused them and the zygote ran "JIT
+# Zygote", the framework JIT-compiled in every process (eleventh OriginOS run:
+# "boot-framework.oat ... dex file checksum", seconds to open or close an app).
+# The image's own odrefresh (its ART module) does what Android does after an
+# update: it checks those artifacts and compiles what no longer matches into
+# /data/misc/apexdata/com.android.art, the stage's own /data, kept between
+# sessions, so later sessions find them current in seconds. ART takes them as
+# odsign verified (One UI's odsign.verification.success, shared). A collector
+# change (ro.dalvik.vm.enable_uffd_gc, guest_props.sh) drops them first: they
+# are built for one. Not with -Xforcejitzygote. Bounded: the boot animation runs
+# meanwhile, and the zygote starts after 300 s whatever odrefresh did.
+# ONEOS_GUEST_ODREFRESH=1 on (the default for vivo OriginOS until it is proven
+# there), 0 off.
+ODR=/apex/com.android.art/bin/odrefresh
+case "${ONEOS_GUEST_ODREFRESH:-}" in
+    0|1) ;;
+    *) if [ -e /system/framework/vivo-services.jar ]; then ONEOS_GUEST_ODREFRESH=1; else ONEOS_GUEST_ODREFRESH=0; fi ;;
+esac
+if [ "$ONEOS_GUEST_ODREFRESH" = 1 ] && [ "$ONEOS_GUEST_JIT_ZYGOTE" != 1 ] && [ -x "$ODR" ]; then
+    ADC=/data/misc/apexdata/com.android.art
+    GCNOW="enable_uffd_gc=$(getprop ro.dalvik.vm.enable_uffd_gc)"
+    # The collector the zygote will run (ART's SysPropSaysUffdGc on a uffd kernel):
+    # CMC, without read barriers, only with ro.dalvik.vm.enable_uffd_gc true and the
+    # force_disable flag off; CC otherwise. A boot image is usable only when its oat
+    # header's "concurrent-copying" says the same. The twelfth CN run's zygote ran CC
+    # and refused the guest's boot image ("read barrier state mismatch (oat file:
+    # false, runtime: true)"): artifacts made under One UI's CMC had stayed, because
+    # odrefresh --compile checks the jars, not the collector, and oneos_gc was
+    # written whatever odrefresh did. The header is read now, before and after.
+    if [ "$(getprop ro.dalvik.vm.enable_uffd_gc)" = true ] &&
+       [ "$(getprop persist.device_config.runtime_native_boot.force_disable_uffd_gc)" != true ]; then
+        CCWANT=false
+    else
+        CCWANT=true
+    fi
+    boot_cc() { # the boot image's concurrent-copying value, or nothing
+        [ -f "$ADC/dalvik-cache/arm64/boot.oat" ] &&
+            head -c 4194304 "$ADC/dalvik-cache/arm64/boot.oat" 2>/dev/null | tr '\0' '\n' | grep -A 1 -x concurrent-copying | sed -n 2p
+    }
+    mkdir -p "$ADC" /data/misc/odrefresh
+    CCHAVE=$(boot_cc)
+    if [ -d "$ADC/dalvik-cache" ] && { [ "$(cat "$ADC/oneos_gc" 2>/dev/null)" != "$GCNOW" ] || { [ -n "$CCHAVE" ] && [ "$CCHAVE" != "$CCWANT" ]; }; }; then
+        rm -rf "$ADC/dalvik-cache" "$ADC/cache-info.xml" "$ADC/oneos_gc"
+        echo "[Pivoted Root] odrefresh: artifacts made for another collector removed ($GCNOW now; their concurrent-copying ${CCHAVE:-unknown}, the zygote's $CCWANT)"
+    fi
+    t0=$(date +%s)
+    timeout 300 "$ODR" --compile > /data/odrefresh.log 2>&1; rc=$?
+    # odrefresh takes the image's own primary boot image as usable and compiles only
+    # the mainline extension on top of it, which dex2oat cannot load (OneOS's
+    # framework.jar), and aborts in no time (thirteenth run: 0 files). Without a boot
+    # image of the guest's own yet: all of it, once.
+    if [ ! -f "$ADC/dalvik-cache/arm64/boot.art" ]; then
+        echo "--- no boot image of the guest's own after --compile (exit $rc): --force-compile" >> /data/odrefresh.log
+        timeout 300 "$ODR" --force-compile >> /data/odrefresh.log 2>&1; rc=$?
+    fi
+    CCHAVE=$(boot_cc)
+    # Once more only while the whole step stays near the 300 s the zygote waits for.
+    if [ -n "$CCHAVE" ] && [ "$CCHAVE" != "$CCWANT" ] && [ $(( $(date +%s) - t0 )) -lt 120 ]; then
+        echo "--- boot image concurrent-copying $CCHAVE, the zygote's $CCWANT: removed, --force-compile once more" >> /data/odrefresh.log
+        rm -rf "$ADC/dalvik-cache" "$ADC/cache-info.xml"
+        timeout 240 "$ODR" --force-compile >> /data/odrefresh.log 2>&1; rc=$?
+        CCHAVE=$(boot_cc)
+    fi
+    if [ -n "$CCHAVE" ] && [ "$CCHAVE" != "$CCWANT" ]; then
+        # Never leave the zygote a boot image it refuses (it then builds one in memory
+        # in every start): without one it takes the image's, as before odrefresh.
+        rm -rf "$ADC/dalvik-cache" "$ADC/cache-info.xml" "$ADC/oneos_gc"
+        echo "[Pivoted Root] odrefresh: !!! its boot image is for the other collector (concurrent-copying $CCHAVE, the zygote's $CCWANT) after a second compile; removed"
+    elif [ -n "$CCHAVE" ]; then
+        echo "$GCNOW" > "$ADC/oneos_gc"
+    fi
+    # ART's odrefresh exit codes (exit_code.h): 0 okay, 79 compilation required,
+    # 80 compiled, 81 compilation failed, 82 cleanup failed.
+    case "$rc" in 0) w="current" ;; 79) w="compilation needed" ;; 80) w="compiled" ;; 81) w="compilation failed" ;; 82) w="cleanup failed" ;; 124) w="timed out" ;; *) w="exit $rc" ;; esac
+    echo "[Pivoted Root] odrefresh: $w in $(( $(date +%s) - t0 )) s ($(ls "$ADC/dalvik-cache/arm64" 2>/dev/null | wc -l) files in $ADC/dalvik-cache/arm64, concurrent-copying ${CCHAVE:-none}, the zygote's $CCWANT; /data/odrefresh.log)"
+else
+    echo "[Pivoted Root] odrefresh: not run (ONEOS_GUEST_ODREFRESH=$ONEOS_GUEST_ODREFRESH, JIT zygote $ONEOS_GUEST_JIT_ZYGOTE)"
 fi
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then

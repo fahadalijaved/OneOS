@@ -43,6 +43,11 @@ enum class GuestData {
      * for an Android 17 ColorOS image, and ColorOS 17's never for it.
      */
     OXYGENOS,
+    /**
+     * vivo's launcher, com.bbk.launcher2 (OriginOS 7, 0.4.73): vivo's data, never kept for another family's
+     * image nor another family's for it.
+     */
+    ORIGINOS,
     OTHER,
     ;
 
@@ -54,6 +59,7 @@ enum class GuestData {
             INFINITYX -> SystemFamily.INFINITYX
             HYPEROS -> SystemFamily.HYPEROS
             OXYGENOS -> SystemFamily.OXYGENOS
+            ORIGINOS -> SystemFamily.ORIGINOS
             else -> null
         }
 
@@ -150,7 +156,7 @@ data class StageStatus(
             ours -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             partial && guest != GuestData.LINEAGEOS -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             guest == GuestData.COLOROS || guest == GuestData.PIXEL || guest == GuestData.INFINITYX || guest == GuestData.HYPEROS ||
-                guest == GuestData.OXYGENOS ->
+                guest == GuestData.OXYGENOS || guest == GuestData.ORIGINOS ->
                 listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             else -> listOf(RootScript.BeginMode.ASIDE)
         }
@@ -369,6 +375,7 @@ data class StageStatus(
                 statuses["stage.guest"] != ProbeStatus.OK -> GuestData.NONE
                 guestLines.any { it == "packages $INFINITYX_WORD" } -> GuestData.INFINITYX
                 guestLines.any { it == "packages $OXYGENOS_WORD" } -> GuestData.OXYGENOS
+                guestLines.any { it == "packages $ORIGINOS_WORD" } -> GuestData.ORIGINOS
                 guestLines.any { it == "packages org.lineageos." } -> GuestData.LINEAGEOS
                 guestLines.any { it == "packages com.oplus." || it == "packages com.coloros." } -> GuestData.COLOROS
                 guestLines.any { it == "packages $PIXEL_WORD" } -> GuestData.PIXEL
@@ -423,6 +430,9 @@ data class StageStatus(
 
         /** OnePlus's membership app (OxygenOS 16's my_stock/app/OPMemberShip). */
         const val OXYGENOS_WORD = "com.oneplus.membership"
+
+        /** vivo's launcher (OriginOS 7's system/app/BBKLauncher2). */
+        const val ORIGINOS_WORD = "com.bbk.launcher2"
 
         /** `sha256sum` lines of the stage (status.list reads the old path while the stage is still there). */
         private val HASH_LINE = Regex("""^([0-9a-f]{64}) [ *](?:${Regex.escape(RootScript.STAGE)}|${Regex.escape(RootScript.LEGACY_STAGE)})/(\S+)$""")

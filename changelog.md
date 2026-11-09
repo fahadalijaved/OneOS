@@ -50,6 +50,12 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.73: **OriginOS 7** (vivo, Android 17), experimental: a new system for the Snapdragon Galaxy S26, S26+, S26
+Ultra, S25, S25+, S25 Ultra, S25 Edge and the Z Fold7, Fold8 and Fold8 Ultra. Tested on the Z Fold8 Ultra (both
+screens with their own layouts, brightness, AOD and double tap to wake, calls and SMS, Bluetooth, themes, blur, the
+dynamic island once Jovi's atomic notifications are on, Google Play after registering the device at
+google.com/android/uncertified); first runs on the other phones.
+
 New in 0.4.72: **Root and modules per system (experimental, by Josh)**: each system can have its own root
 permissions, Magisk/KernelSU-style modules and an Xposed framework (Vector bundled, or an imported Zygisk LSPosed),
 set up on the system's pre-boot page and managed from the OneOS app inside the system; Restart guest applies module

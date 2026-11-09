@@ -1,0 +1,16 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
+# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
+# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+# vivo: vivo-services_patched.jar (patches/vivo_guards.py: no IOemNetd to One UI's netd, vivo-only HAL extensions; and the storage guards)
+# vivo: vivo-telephony-common-platform-ex_patched.jar (patches/vivo_telephony.py: MtkRIL ready without MediaTek's mtkradioex services)
+839dd1737c9f82899e8a852a821c82fd3e0f9217cec0fc1750bc346f5afb2c1e  services_patched.jar
+da6f0085daff3a9a146d31bee7c0b09db5004c3a0c31861b189b11b93d6cce0e  vivo-services_patched.jar
+d5a4946cb0d4cb0e0c812d778e3abf18cae0b469365a2d097b8128d9cf46e1ab  vivo-telephony-common-platform-ex_patched.jar
+4bb2db56480e1c9a167bdea6537c3acd20c14adcafeee68417f71a080f203a9a  framework-adapter_patched.jar
+67348a66e92606ca95e836bfc9e8377543b8226e967e1d07d30f9c63f963e742  vold_patched
+b4e5634d15f8c0ccd0dab35d89765f97348d7092c9af665cab63d1931636af29  service.incremental_patched.so
+edc865f835bb42c51335eb9083eaa0cc6ba0983c6837616f7872b69a5e0e67c8  framework_patched.jar
+654c60440e18114045ff07ff6b8d6a545c9e26993a42a9ae9545ea0470d8e835  telephony-common_patched.jar
+65ac8df891225bdf4f41b10afd7a384c7dc11ed354c70a2d2e5aff3a6f4ac800  libcamera_client_patched.so

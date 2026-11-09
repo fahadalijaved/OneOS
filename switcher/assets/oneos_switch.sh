@@ -249,11 +249,25 @@ pa_free() { # bytes left in the property area file $1
 # only blanked, so each session's new names stay until the phone restarts; the
 # sixth OriginOS run found default_prop full (196476 of 196608 bytes) and its
 # system_server died setting a persist.vivo property.
+# vivo OriginOS adds about 380 persist names of its own at runtime (audio policy:
+# persist.vivo.audio.*, persist.sys.audio.vapc.*), about 45 to 95 KB of
+# default_prop a session by the seventh run's count: it starts only with room for it.
 PA_CTX=$(getprop -Z persist.sys.disable_rescue 2>/dev/null)
 PA_DEF=$(getprop -Z oneos.unknown.name.probe 2>/dev/null)
+PA_NEED_CTX=16384; PA_NEED_DEF=16384
+if grep -q ' vivo-services_patched\.jar$' "$STAGE/guards.txt" 2>/dev/null; then
+    PA_NEED_CTX=32768; PA_NEED_DEF=98304
+    # A vivo session earlier in this boot left those names blanked in memory
+    # (guest_props.sh store-on): the next one writes into the same slots.
+    if [ "$(cat "$STAGE/guest_props.blanked.boot" 2>/dev/null)" = "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)" ] &&
+       [ "$(grep -c '^persist\.vivo\.' "$STAGE/guest_props.blanked" 2>/dev/null)" -ge 100 ]; then
+        PA_NEED_CTX=16384; PA_NEED_DEF=32768
+    fi
+fi
 for PA_FILE in "/dev/__properties__/${PA_CTX:-u:object_r:system_prop:s0}" "/dev/__properties__/${PA_DEF:-u:object_r:default_prop:s0}"; do
+    PA_NEED=$PA_NEED_CTX; [ "$PA_FILE" = "/dev/__properties__/${PA_DEF:-u:object_r:default_prop:s0}" ] && PA_NEED=$PA_NEED_DEF
     if PA_LEFT=$(pa_free "$PA_FILE"); then
-        [ "$PA_LEFT" -ge 16384 ] ||
+        [ "$PA_LEFT" -ge "$PA_NEED" ] ||
             refuse "One UI's property space is nearly full ($((PA_LEFT / 1024)) KB left in ${PA_FILE##*/}): the sessions since the phone last restarted used it up. Restart the phone, then switch again"
         [ "$PA_LEFT" -ge 49152 ] || echo "WARNING: One UI's property space is getting full ($((PA_LEFT / 1024)) KB left in ${PA_FILE##*/}); some of the other system's settings may not load. Restart the phone before the next session"
     else
@@ -1201,6 +1215,10 @@ kill -9 $(pidof system_server) 2>/dev/null || true
 rm -f "$STAGE/data/guest_audio.flag"
 nohup $BB sh -c "while true; do [ \"\$(getprop init.svc.zygote)\" = \"running\" ] && setprop ctl.stop zygote; [ \"\$(getprop init.svc.zygote_secondary)\" = \"running\" ] && setprop ctl.stop zygote_secondary; [ ! -f $STAGE/data/oneos_host_sf_frozen ] && [ \"\$(getprop init.svc.surfaceflinger)\" = \"running\" ] && setprop ctl.stop surfaceflinger; [ \"\$(getprop init.svc.bootanim)\" = \"running\" ] && setprop ctl.stop bootanim; [ -f $STAGE/data/guest_audio.flag ] && [ \"\$(getprop init.svc.audioserver)\" = \"running\" ] && setprop ctl.stop audioserver; for s in dumpstate dumpstatez bugreport bugreportd; do [ \"\$(getprop init.svc.\$s)\" = \"running\" ] && setprop ctl.stop \$s; done; sleep 0.2; done" </dev/null >/dev/null 2>&1 &
 sleep 1
+# The session's own copy of One UI's property store, now that One UI's
+# framework is down (guest_props.sh store-on): the guest's persist settings
+# never reach One UI's /data/property, and the return reuses their slots.
+/system/bin/sh "$STAGE/guest_props.sh" store-on
 # One UI's system_server kept Samsung's softdog (/dev/watchdog, 100 s) and is
 # gone: its magic close now, before guest_prepare.sh's feeder takes over (see
 # there; the Exynos phones panicked when nothing fed it).
@@ -1695,6 +1713,8 @@ fi
 # other systems (Pixel): the rootfs is mounted since guest_prepare.sh.
 GUEST_OPLUS=0
 [ -f "$STAGE/rootfs/system/framework/oplus-services.jar" ] && GUEST_OPLUS=1
+GUEST_VIVO=0
+[ -f "$STAGE/rootfs/system/framework/vivo-services.jar" ] && GUEST_VIVO=1
 # HyperOS keeps system_ext at the image root (system/system_ext links to One UI's).
 GUEST_MIUI=0
 [ -f "$STAGE/rootfs/system_ext/framework/miui-services.jar" ] && GUEST_MIUI=1
@@ -2150,8 +2170,31 @@ while true; do
                         echo \"[UI Activator] density: data/oneos_auto_density is a link, not made by OneOS; left at base \$BD\"
                     elif [ $GUEST_DENSITY = auto ] && { [ \$((D * 10)) -lt \$((XDPI * 9)) ] || [ \$D -ge \$BD ]; }; then
                         echo \"[UI Activator] density: left at base \$BD (inner \${W}x\${H} at \$XDPI dpi too small for 840 dp: \$D)\"
-                    elif ! $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | grep -q -x \"Physical size: \${W}x\${H}\"; then
+                    elif ! $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | grep -q -x \"Physical size: \${W}x\${H}\" && [ $GUEST_VIVO = 0 ]; then
                         echo \"[UI Activator] density: not set, display 0 is not the inner panel (started folded); the next session sets it\"
+                    elif ! $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | grep -q -x \"Physical size: \${W}x\${H}\"; then
+                        # vivo OriginOS started folded (the owner uses it on the cover): at
+                        # boot WindowManagerService gave the cover display_density_forced,
+                        # the inner panel's (twelfth CN run: cover 420 after every fold),
+                        # and a first session left the inner panel at its base 480. The
+                        # cover's density OneOS set goes back to its base, and the inner
+                        # panel gets its own at the first unfold (each panel keeps its own
+                        # in display_settings.xml). A density chosen in the guest stays.
+                        CD=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density -d 0 2>/dev/null | sed -n 's/^Override density: \\([0-9]*\\)$/\\1/p' | head -n 1)
+                        if [ -n \"\$CD\" ] && [ \"\$CD\" = \"\$AUTO\" ]; then
+                            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density reset -d 0 >/dev/null 2>&1
+                            echo \"[UI Activator] density: started folded, the cover's \$CD (the inner panel's) reset -> \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density -d 0 2>&1 | tr '\\n' ' ')\"
+                        fi
+                        ( i=0
+                          while [ \$i -lt 600 ]; do
+                              sleep 2; i=\$((i + 1))
+                              $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | grep -q -x \"Physical size: \${W}x\${H}\" || continue
+                              $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density \$D -d 0 >/dev/null 2>&1
+                              echo \$D > $STAGE/data/oneos_auto_density
+                              echo \"[UI Activator] density: \$D on the inner panel at the first unfold -> \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density -d 0 2>&1 | tr '\\n' ' ')\"
+                              exit 0
+                          done
+                          echo '[UI Activator] density: not unfolded in 20 minutes; the next session sets it' ) &
                     else
                         # The density first: with a leading -d, wm only prints it.
                         $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density \$D -d 0 >/dev/null 2>&1

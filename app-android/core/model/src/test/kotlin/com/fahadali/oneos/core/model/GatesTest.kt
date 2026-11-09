@@ -415,7 +415,7 @@ class GatesTest {
         assertFalse(prepare.blocked)
         assertEquals(Level.WARN, prepare.level(SwitchGates.ID_PROFILE))
         assertEquals("First sessions of the Pixel 11 Fold image", prepare.find(SwitchGates.ID_PROFILE)!!.finding.title)
-        assertTrue(prepare.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("with Find N6, not yet with this image"))
+        assertTrue(prepare.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("with Find N6 and OriginOS 7, not yet with this image"))
         assertTrue(prepare.toTick.isEmpty())
 
         val r = SwitchGates.evaluate(GatePhase.SWITCH, i, profiles)
@@ -441,7 +441,7 @@ class GatesTest {
             // 0.4.22: the SM8750 phones the Pixel 9 Pro XL image (no SVE needed).
             val usual = listOf(Images.FIND_X9U_IN)
             // 0.4.27: Infinity-X, on every phone; 0.4.31: HyperOS after it; then Nothing OS.
-            val last = listOf(Images.NOTHING_METROID) // 0.4.35 the S26 Ultra, 0.4.36 the S25s too
+            val last = listOf(Images.NOTHING_METROID, Images.ORIGINOS7) // 0.4.35 the S26 Ultra, 0.4.36 the S25s too; 0.4.73 OriginOS 7
             assertEquals(
                 usual + (if (p == Profiles.S_ULTRA_8850) Images.PIXEL_KODIAK else Images.PIXEL_KOMODO) + Images.INFINITYX + Images.HYPEROS_LHASA + last,
                 p.images(),

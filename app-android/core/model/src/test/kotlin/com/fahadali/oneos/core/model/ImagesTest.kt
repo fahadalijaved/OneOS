@@ -54,14 +54,16 @@ class ImagesTest {
         // (Nothing's are product/priv-app GmsCore, Phonesky, GooglePartnerSetup, GoogleRestore, ConfigUpdater
         // and system_ext/priv-app GoogleServicesFramework: six folders guest_prepare.sh's patterns cover).
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_METROID, Images.OXYGEN16),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_METROID, Images.OXYGEN16, Images.ORIGINOS7),
             Images.ALL.filter { it.googleServices },
         )
-        assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX), Images.ALL.filter { it.presentsGms })
+        // 0.4.73: OriginOS 7 presents the Play services of its own gmssystem payload, as the Pixel images.
+        assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.ORIGINOS7), Images.ALL.filter { it.presentsGms })
         assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID, Images.OXYGEN16),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID, Images.OXYGEN16,
+                Images.ORIGINOS7),
             Images.ALL,
         )
         // 0.4.67: OxygenOS 16 is the one SDK 36 image, of its own family; nothing past ARMv8.2 in its core binaries.
@@ -120,7 +122,7 @@ class ImagesTest {
             listOf(
                 SystemFamily.COLOROS, SystemFamily.COLOROS,
                 SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL,
-                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.OXYGENOS,
+                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS,
             ),
             Images.ALL.map { it.family },
         )
@@ -191,7 +193,7 @@ class ImagesTest {
             "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
                 "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
-                "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
+                "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz).",
             n6OnS26.finding.detail,
         )
         // The Pixel image is the Fold's only (0.3.7): refused on an S Ultra and the Galaxy S25, by size alone already.
@@ -210,7 +212,7 @@ class ImagesTest {
         assertEquals(
             "This is the Pixel 11 Fold image; Galaxy Z Fold7 takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
-                "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
+                "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz).",
             pixelOnFold7.finding.detail,
         )
         // The owner does not want the X9U (CN) image on his Fold; by size alone already.
@@ -223,7 +225,7 @@ class ImagesTest {
                 "This is the Find X9 Ultra IN image; Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) " +
                     "or the Pixel 11 Fold image (OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) " +
                     "or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
-                    "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz).",
+                    "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz).",
                 x9uOnFold.finding.detail,
             )
         }
@@ -242,19 +244,21 @@ class ImagesTest {
         val hyper = Images.HYPEROS_LHASA
         // 0.4.33: Nothing OS on the Z Fold (F8U); 0.4.35 on every SVE + SME phone.
         val nothing = Images.NOTHING_METROID
+        // 0.4.73: OriginOS 7 on the Snapdragon S25/S26 series and the Z Fold7/8 phones.
+        val origin = Images.ORIGINOS7
         val takes = mapOf(
-            Profiles.F8U to listOf(n6, pixel, ifx, hyper, nothing),
-            Profiles.S_ULTRA_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.F8U to listOf(n6, pixel, ifx, hyper, nothing, origin),
+            Profiles.S_ULTRA_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing, origin),
             // 0.4.22: the Pixel 9 Pro XL image on the phones without SVE.
-            Profiles.S_ULTRA_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
-            Profiles.S_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
-            Profiles.FOLD7 to listOf(n6, ifx, hyper, nothing),
-            Profiles.S_PLUS_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
-            Profiles.FOLD8 to listOf(n6, pixel, ifx, hyper, nothing),
-            Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.S_ULTRA_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin),
+            Profiles.S_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin),
+            Profiles.FOLD7 to listOf(n6, ifx, hyper, nothing, origin),
+            Profiles.S_PLUS_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin),
+            Profiles.FOLD8 to listOf(n6, pixel, ifx, hyper, nothing, origin),
+            Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing, origin),
             Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
             Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
-            Profiles.S_PLUS_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
+            Profiles.S_PLUS_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing, origin),
             Profiles.S_PLUS_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
             Profiles.S_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
             Profiles.FLIP7 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
@@ -291,14 +295,15 @@ class ImagesTest {
         assertEquals(
             "Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) or the Pixel 11 Fold image " +
                 "(OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image " +
-                "(OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz)",
+                "(OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) " +
+                "or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz)",
             ImageIdentifier.accepts(Profiles.F8U),
         )
         assertEquals(
             "Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
                 "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
-                "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz)",
+                "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz)",
             ImageIdentifier.accepts(Profiles.S_ULTRA_8850),
         )
     }

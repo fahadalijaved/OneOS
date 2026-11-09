@@ -259,3 +259,21 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
   - Galaxy S22 (Snapdragon) (SM-S901, SM8450), not tested yet
   - Galaxy M55s (SM-M558, SM7450), not tested yet
+
+## OriginOS 7, vivo PD2609MA build
+
+- File: `OneOS_OriginOS7_PD2609MA.img.gz` (8.55 GB)
+- SHA-256: `f55cf849b1c0510d633595bc7d74946c650da628d110a370684e390c8fdb61ad`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_OriginOS7_PD2609MA.img.gz/download
+- Phones:
+  - Z Fold (F8U) (SM-F976, SM8850)
+  - Galaxy S26 Ultra (SM-S948, SM8850), not tested yet
+  - Galaxy S25 Ultra (SM-S938, SM8750), not tested yet
+  - Galaxy S25 (SM-S931, SM8750), not tested yet
+  - Galaxy Z Fold7 (SM-F966, SM8750), not tested yet
+  - Galaxy S25+ (SM-S936, SM8750), not tested yet
+  - Galaxy Z Fold8 (SM-F971, SM8850), not tested yet
+  - Galaxy S26 (SM-S942, SM8850), not tested yet
+  - Galaxy S26 (docomo) (SC-51G, SM8850), not tested yet
+  - Galaxy S26+ (SM-S947, SM8850), not tested yet
+  - Galaxy S25 Edge (SM-S937, SM8750), not tested yet

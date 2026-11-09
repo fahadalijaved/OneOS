@@ -164,6 +164,7 @@ object PackageSets {
     const val ID_INFINITYX = "infinityx"
     const val ID_NOTHING_F8U = "nothing-f8u"
     const val ID_OXYGEN16 = "oxygen16"
+    const val ID_ORIGINOS = "originos"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
     const val TETHERING = "tethering_payload.img"
@@ -651,7 +652,59 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16)
+    /**
+     * OriginOS 7 (0.4.73, experimental): vivo's CN PD2609MA build on the Snapdragon S25/S26 series and the
+     * Z Fold7/8 phones. Set r17 (out/overlays_originos_cn_r17: make-overlays.sh with the CN vendor's
+     * vivo_config.ini; vivo_guards.py, vivo_brightness.py and the other vivo patches; the fold cutout overlay
+     * with the cover's lens): its own services, vivo-services, framework and telephony jars, the guest vold as
+     * gvld, vivo's display/input/Bluetooth/composer libraries, the patched launcher, vivo's feature list, the
+     * signal poll, the image's own APEX payloads (gmssystem: Play services) and the camera client.
+     */
+    val ORIGINOS = PackageSet(
+        id = ID_ORIGINOS,
+        imageId = Images.ID_ORIGINOS7,
+        sourceDir = "out/overlays_originos_cn_r17",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vivo-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vivo-telephony-common-platform-ex_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework-adapter_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("vivo-framework_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("vivo-service-wifi_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("vivo-service-wifi-ex-impl_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("framework-wifi_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("BBKLauncher2_patched.apk", FileRole.GUEST_FIX),
+            PackageFile("BBKLauncher2_patched.apk.src_sha256", FileRole.GUEST_FIX),
+            PackageFile("oneos-vivo-features.txt", FileRole.GUEST_FIX),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("libandroid_servers_patched.so", FileRole.GUEST_FIX),
+            PackageFile("libbluetooth_jni_patched.so", FileRole.GUEST_FIX),
+            PackageFile("libcomposer_ext_patched.so", FileRole.GUEST_FIX),
+            PackageFile("libinputflinger_patched.so", FileRole.GUEST_FIX),
+            PackageFile("libinputservice_patched.so", FileRole.GUEST_FIX),
+            PackageFile("libsensorservice_patched.so", FileRole.GUEST_FIX),
+            PackageFile(GMS_PAYLOAD, FileRole.APEX_PAYLOAD),
+            PackageFile(TETHERING, FileRole.APEX_PAYLOAD),
+        ) + (COMMON_PAYLOADS + listOf("bt", "conscrypt", "crashrecovery", "profiling", "telephonycore", "wifi")).distinct()
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(WALLPAPER_GRID_RRO, "OneOSTabletQs.apk"),
+        approxBytes = 875_233_991L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

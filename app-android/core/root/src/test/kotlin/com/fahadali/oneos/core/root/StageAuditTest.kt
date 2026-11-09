@@ -166,10 +166,12 @@ class StageAuditTest {
         assertTrue(data.indexOf(StageStatus.PIXEL_WORD) < data.indexOf("\"${StageStatus.HYPEROS_WORD}\""))
         assertTrue(data.contains("com.coloros."))
         val status = File(Shipped.fullAssets, "root/status.list").readText()
-        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD} ${StageStatus.INFINITYX_WORD} ${StageStatus.HYPEROS_WORD} ${StageStatus.OXYGENOS_WORD}; do"))
+        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD} ${StageStatus.INFINITYX_WORD} ${StageStatus.HYPEROS_WORD} ${StageStatus.OXYGENOS_WORD} ${StageStatus.ORIGINOS_WORD}; do"))
         // 0.4.67: OxygenOS's word right after Infinity-X's and before ColorOS's (its data has com.oplus. too).
         assertTrue(data.indexOf(StageStatus.INFINITYX_WORD) < data.indexOf(StageStatus.OXYGENOS_WORD))
         assertTrue(data.indexOf(StageStatus.OXYGENOS_WORD) in 0 until data.indexOf("com.oplus."))
+        // 0.4.73: vivo's launcher (OriginOS 7) before ColorOS's words too.
+        assertTrue(data.indexOf(StageStatus.ORIGINOS_WORD) in 0 until data.indexOf("com.oplus."))
         // Google services: the images whose services a session may hide (0.3.7: none; the Pixel image's sessions present them).
         assertEquals(Images.ALL.filter { it.gmsHideable }.map { it.id }, shVar("IMAGES_GMS").split(' ').filter { it.isNotEmpty() })
         // The sets' files (SET_COMMON for the ColorOS sets, SET_PIXEL for the Pixel set) and the image each was built from.

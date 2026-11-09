@@ -9,7 +9,7 @@ import java.util.Locale
  * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
  * packages too, and its updater, com.infinity.updater, tells it apart.
  */
-enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS }
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS }
 
 /**
  * One OneOS OS image as friends download it (a gzip of the ext4 system
@@ -129,6 +129,7 @@ object Images {
     const val ID_INFINITYX = "infinityx41-findx9u"
     const val ID_NOTHING_METROID = "nothingos5-metroid"
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
+    const val ID_ORIGINOS7 = "originos7-pd2609ma"
 
     /** Where root stages the unpacked image. */
     const val STAGE_NAME = "system.raw"
@@ -434,7 +435,39 @@ object Images {
         family = SystemFamily.OXYGENOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16)
+    /**
+     * OriginOS 7 (0.4.73, experimental): vivo's Android 17 system from the CN PD2609MA build
+     * (CP2A.260605.016, 260919185055, security patch 2026-09-01; ro.vivo.os.build.display.id
+     * "OriginOS 7"), for the Snapdragon S25/S26 series and the Z Fold8 and Fold8 Ultra. Play
+     * services from the image's own gmssystem payload, the Play Store from One UI's copy (a CN
+     * build has only the 2022 updater stub). Its own family: vivo's data is not ColorOS's. The
+     * core binaries hold no SVE; libjxl, MediaTek's TFLite and some app libraries may use it
+     * (docs/originos.md, the host check). Tested on the Z Fold8 Ultra (runs 13-24).
+     */
+    val ORIGINOS7 = ImageRef(
+        id = ID_ORIGINOS7,
+        label = "OriginOS 7, vivo PD2609MA build",
+        shortName = "OriginOS 7",
+        name = "OriginOS 7",
+        variant = null,
+        blurb = "vivo's Android 17 system, for the S25 and S26 series and the Z Fold8 phones. Experimental. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_OriginOS7_PD2609MA.img.gz",
+        gzBytes = 8_548_707_904L,
+        gzSha256 = "f55cf849b1c0510d633595bc7d74946c650da628d110a370684e390c8fdb61ad",
+        rawBytes = 15_998_222_336L,
+        rawSha256 = "9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee",
+        testedOn = "Galaxy Z Fold8 Ultra",
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve", "sve2"),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.ORIGINOS,
+    )
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 
