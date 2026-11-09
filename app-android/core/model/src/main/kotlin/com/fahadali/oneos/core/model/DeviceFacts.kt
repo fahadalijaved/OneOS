@@ -52,7 +52,13 @@ data class DeviceFacts(
     val cpu: CpuInfo? = null,
     /** Carrier props for the VoLTE-only warning ([CarrierRules.from]); null when not read. */
     val carrier: CarrierInfo? = null,
+    /** `ro.bootloader` ([android.os.Build.BOOTLOADER]): starts with the real model code ([CustomRomRule]). */
+    val bootloader: String = "",
+    /** `ro.product.vendor.model`; empty when it could not be read. */
+    val vendorModel: String = "",
 ) {
+    /** A custom ROM ([CustomRomRule]): no switching, no reports. Null on stock One UI. */
+    val customRom: Finding? get() = CustomRomRule.check(CustomRomRule.Signals(model, bootloader, vendorModel, oneUiRaw))
     val oneUi: OneUiVersion? get() = OneUiVersion.parse(oneUiRaw)
     val family: ModelFamily get() = ModelFamily.of(model)
     val rootKind: RootKind get() = RootRules.kind(root)

@@ -279,6 +279,25 @@ add)
     # on the MediaTek A16 4G runs SkiaVk and gets past it: Vulkan RenderEngine for this pair.
     # debug.* goes back to One UI's value at the return (return_to_oneui.sh). Test in 0.4.69;
     # ONEOS_GUEST_RE_BACKEND overrides (empty: the image's own choice).
+    # Why SkiaGL stopped there: OPPO's SkiaGLRenderEngine::create (the image's surfaceflinger, BuildId
+    # 8b4eaee1, create at 0x70d160) first reads persist.sys.renderengine.retry and, when set (the
+    # image's build.prop: =1), waits 200 ms at a time until /sys/class/kgsl/kgsl-3d0/gpu_model opens:
+    # Adreno's node, which no Mali, Xclipse or MediaTek GPU has (A33 0.4.69 d741af95
+    # diag_40_native_surfaceflinger: the RenderEngine thread in usleep at create+924, the main
+    # thread in waitUntilInitialized). Without that node: 0 for the session, so the GL path starts.
+    # ONEOS_GUEST_RE_RETRY=1 leaves the image's value.
+    RR=persist.sys.renderengine.retry
+    if [ ! -e /sys/class/kgsl/kgsl-3d0/gpu_model ] && [ "${ONEOS_GUEST_RE_RETRY:-0}" != 1 ]; then
+        if grep -qxF "$RR" "$HOST"; then
+            hv=$(getprop "$RR")
+            case "$hv" in 1|true) "$RP" -n "$RR" 0 && echo "$RR=$hv" >> "$OVR" &&
+                echo "guest_props: $RR=$hv overridden to 0 for the session (no Adreno: SkiaGL would wait for kgsl forever)" ;; esac
+        elif grep -q "^persist\.sys\.renderengine\.retry=\(1\|true\)$" "$NEW"; then
+            sed -i "/^persist\.sys\.renderengine\.retry=/d" "$NEW"
+            echo "$RR=0" >> "$NEW"
+            echo "guest_props: $RR=0 for the session (no Adreno: SkiaGL would wait for kgsl forever)"
+        fi
+    fi
     RE=debug.renderengine.backend
     REV=""
     if grep -q '"image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null; then
@@ -287,6 +306,22 @@ add)
         # Adreno got past it (15cf8a3f), so Qualcomm keeps the image's own choice.
         case "$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)" in
             *mt[0-9]*|*[Mm]edia[Tt]ek*|*s5e[0-9]*|*erd[0-9]*|*exynos*|*[Ss]amsung*) REV=skiavkthreaded ;;
+        esac
+        # But Vulkan never starts on Samsung's Mali driver (Exynos 1280, Mali-G68 r32p1): SkiaVk aborts
+        # "GrDirectContext creation failed" on its first, unprotected context (createContexts+152), 3 s
+        # after the start, every time (A33 0.4.72 560d4195 boot.log.01:84362, A53 0.4.71 5cf23f6b,
+        # A25 0.4.72 08a96294). One UI's own surfaceflinger runs SkiaGL on that driver, and with the
+        # retry wait off (above) so can the guest's: the image's choice there. The Xclipse Exynos
+        # (S22, S23 FE) and the MediaTek Mali (A34) start with Vulkan and keep it.
+        if grep -qxF "$RR" "$HOST"; then rrv=$(getprop "$RR"); else rrv=$(sed -n 's/^persist\.sys\.renderengine\.retry=//p' "$NEW" | tail -n 1); fi
+        case "$(getprop ro.board.platform)" in
+            s5e*|erd*|exynos*)
+                if [ -e /vendor/lib64/egl/libGLES_mali.so ] && [ ! -e /sys/class/kgsl/kgsl-3d0/gpu_model ]; then
+                    case "$rrv" in
+                        1|true) echo "guest_props: Mali Exynos with $RR=$rrv: Vulkan RenderEngine kept (SkiaGL would wait for kgsl)" ;;
+                        *) REV=""; echo "guest_props: Mali Exynos: the image's RenderEngine (SkiaGL; SkiaVk fails on this driver)" ;;
+                    esac
+                fi ;;
         esac
     fi
     REV=${ONEOS_GUEST_RE_BACKEND-$REV}
@@ -1047,6 +1082,29 @@ add)
                    echo "guest_props: ro.boot.hardware=qcom for the session (One UI: $h; the guest's zygote then preloads its Qualcomm perf library)" ;;
         esac
     fi
+    # The platform's minor SDK version (Build.VERSION.SDK_INT_FULL, read from
+    # ro.build.version.sdk_full). One UI 8.5 says 36.1 (A07/A15/A17 probes,
+    # S23 FE BP4A), OxygenOS 16 is built for 36.0, and the guest framework took
+    # One UI's value: apps then call the 36.1 APIs its framework does not have.
+    # S23 FE 6d13b740 (0.4.72): Play services died 24 times on
+    # SupervisionManager.isSupervisionEnabled (KidsSettingsModuleInit; the
+    # user's Google account did not work), Chrome 4 times on
+    # DisplayManager.getDisplayTopology;
+    # M55s 0e73a8d6: Gboard on AccessibilityAction ACTION_SET_EXTENDED_SELECTION
+    # (no keyboard). The S22 Ultra on One UI 8.0 (BP2A, 36.0) had none of them.
+    # The image's own value for the session when its major version is the
+    # phone's (a value it does not set, or another Android, is left alone).
+    key=ro.build.version.sdk_full
+    g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
+    h=$(getprop "$key")
+    case "$g" in
+        ""|*[!0-9.]*|.*|*.|*.*.*) ;;
+        *)
+            if [ -n "$h" ] && [ "$g" != "$h" ] && [ "${g%%.*}" = "$(getprop ro.build.version.sdk)" ]; then
+                echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
+                    echo "guest_props: $key=$g for the session (One UI: $h; the guest framework has no $h APIs)"
+            fi ;;
+    esac
     # No isolated compilation from the guest. SystemServer starts
     # IsolatedCompilationService when ro.config.isolated_compilation_enabled is
     # true (One UI: true); it schedules compiles in the HOST's composd (One UI's

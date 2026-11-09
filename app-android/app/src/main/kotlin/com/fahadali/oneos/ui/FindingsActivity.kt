@@ -85,7 +85,7 @@ class FindingsActivity : ToolbarActivity() {
         setExpandedSubtitle(zip.name)
         findViewById<Button>(R.id.findings_share).setOnClickListener { share(zip) }
         // 0.4.29: straight to the team when this build has the report service; Share and Save stay.
-        if (ReportSender.available) {
+        if (ReportSender.offered) {
             findViewById<Button>(R.id.findings_send).apply {
                 visibility = View.VISIBLE
                 setOnClickListener { startActivity(SendReportActivity.intent(this@FindingsActivity, zip)) }

@@ -136,8 +136,8 @@ class StageAuditTest {
         assertEquals(InstalldExpected.accepted(36), shVar("INSTALLD_OK_36").split(' ').toSet())
         assertEquals(InstalldExpected.accepted(37), setOf(shVar("INSTALLD_SHA")))
         // Enabled profiles only, each with its ids and form (SM- model numbers, and docomo's SC- ones;
-        // 0.4.17: the Z Flip7's flip, which root runs with the phone settings).
-        val rows = Regex("""^\s+([a-z0-9-]+)\) echo "(S[MC]-\S+) (\S+) (\S+) (fold|bar|flip)" ;;$""", RegexOption.MULTILINE)
+        // 0.4.17: the Z Flip7's flip, which root runs with the phone settings; 0.4.74: au's SCG ones).
+        val rows = Regex("""^\s+([a-z0-9-]+)\) echo "(S[MC]-\S+|SCG\S+) (\S+) (\S+) (fold|bar|flip)" ;;$""", RegexOption.MULTILINE)
             .findAll(script).associate { it.groupValues[1] to it.groupValues.drop(2) }
         val enabled = Profiles.BUILT_IN.filter { it.enabled }
         assertEquals(enabled.map { it.id }.toSet(), rows.keys)

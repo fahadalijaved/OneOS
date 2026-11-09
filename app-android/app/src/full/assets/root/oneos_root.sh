@@ -175,6 +175,7 @@ profile_info() {
         s-plus-9925) echo "SM-S906 g0s s5e9925 bar" ;;
         s-ultra-9925) echo "SM-S908 b0s s5e9925 bar" ;;
         s-ultra-8450) echo "SM-S908 b0q SM8450 bar" ;;
+        s-ultra-8450-jp) echo "SCG14 SCG14 SM8450 bar" ;;
         s-ultra-8850) echo "SM-S948 m3q SM8850 bar" ;;
         s-ultra-8750) echo "SM-S938 pa3q SM8750 bar" ;;
         s-8750) echo "SM-S931 pa1q SM8750 bar" ;;
@@ -368,6 +369,8 @@ profile_set() {
         "a17 infinityx41-findx9u") echo infinityx ;;
         "a16 infinityx41-findx9u") echo infinityx ;;
         "a17-5g infinityx41-findx9u") echo infinityx ;;
+        "a34 infinityx41-findx9u") echo infinityx ;;
+        "a15 infinityx41-findx9u") echo infinityx ;;
         "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "f8u originos7-pd2609ma") echo originos ;;
         "f8 originos7-pd2609ma") echo originos ;;
@@ -394,6 +397,7 @@ profile_set() {
         "s-plus-9925 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-9925 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8450-jp oxygenos16-cph2745") echo oxygen16 ;;
         "a07 oxygenos16-cph2745") echo oxygen16 ;;
         "a26 oxygenos16-cph2745") echo oxygen16 ;;
         "a35 oxygenos16-cph2745") echo oxygen16 ;;
@@ -408,6 +412,8 @@ profile_set() {
         "a16 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a16-s166 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a17-5g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a34 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a15 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip7-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip7-fe infinityx41-findx9u") echo infinityx ;;
@@ -421,6 +427,8 @@ profile_set() {
         "a16 hyperos-lhasa") echo hyper-f8u ;;
         "a16-s166 hyperos-lhasa") echo hyper-f8u ;;
         "a17-5g hyperos-lhasa") echo hyper-f8u ;;
+        "a34 hyperos-lhasa") echo hyper-f8u ;;
+        "a15 hyperos-lhasa") echo hyper-f8u ;;
         "a55 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a55 infinityx41-findx9u") echo infinityx ;;
         "a55 hyperos-lhasa") echo hyper-f8u ;;

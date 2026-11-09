@@ -271,6 +271,15 @@ object Plain {
                 "OneOS reads them by itself after you come back.",
                 FixAction.NONE,
             )
+            CustomRomRule.ID -> when (r) {
+                CustomRomRule.R_PORT -> m(
+                    "OneOS needs stock One UI",
+                    "This phone runs One UI made for another phone. If it's stock, turn off any module that changes the model name and restart.",
+                    FixAction.NONE,
+                )
+                CustomRomRule.R_NOT_ONE_UI -> m("OneOS needs stock One UI", "This phone runs a custom ROM without One UI.", FixAction.NONE)
+                else -> m("OneOS needs a Samsung phone", "It runs next to stock One UI only.", FixAction.NONE)
+            }
             SwitchGates.ID_ZYGISK -> m(
                 "Update Zygisk Next first",
                 "This Zygisk Next stops the other system at its boot animation. Update it to 1.5.3 or newer, " +

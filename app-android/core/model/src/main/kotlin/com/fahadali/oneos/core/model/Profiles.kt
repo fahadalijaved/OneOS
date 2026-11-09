@@ -113,6 +113,7 @@ object Profiles {
     const val ID_S_PLUS_9925 = "s-plus-9925"
     const val ID_S_ULTRA_9925 = "s-ultra-9925"
     const val ID_S_ULTRA_8450 = "s-ultra-8450"
+    const val ID_S_ULTRA_8450_JP = "s-ultra-8450-jp"
     const val ID_FLIP8 = "flip8"
     const val ID_A36 = "a36"
     const val ID_FOLD5 = "f5"
@@ -1005,6 +1006,11 @@ object Profiles {
         notes = listOf(MEDIATEK),
     )
 
+    /**
+     * 0.4.74: One UI 9 (Android 17) reached the A15 (findings of 2026-11-09, SM-A155F,
+     * CP2A.260605.016, MT6789, vendor API 31, kernel 6.12), the A07's chip: the A07's systems,
+     * untested here. OxygenOS 16 stays for the A15s on One UI 8 and 8.5.
+     */
     val A15 = PhoneProfile(
         id = ID_A15,
         label = "Galaxy A15",
@@ -1012,8 +1018,8 @@ object Profiles {
         codename = "a15",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(OXYGEN16_CHOICE),
-        notes = listOf(MEDIATEK),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
     val A24 = PhoneProfile(
@@ -1049,6 +1055,11 @@ object Profiles {
         notes = listOf(EXYNOS),
     )
 
+    /**
+     * 0.4.74: One UI 9 (Android 17) reached the A34 (findings report of 2026-11-09, SM-A346E,
+     * CP2A.260605.016, vendor API 30, kernel 6.6), so it takes the A07's systems too, all untested
+     * here (owner: "can try coloros and hyper etc"). OxygenOS 16 stays for the A34s on One UI 8.
+     */
     val A34 = PhoneProfile(
         id = ID_A34,
         label = "Galaxy A34 5G",
@@ -1056,8 +1067,8 @@ object Profiles {
         codename = "a34x",
         socModel = "MT6877",
         form = FormFactor.BAR,
-        choices = listOf(OXYGEN16_CHOICE),
-        notes = listOf(MEDIATEK),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK, olderVendor("30 (Android 11)", "6.6")),
     )
 
     val A53 = PhoneProfile(
@@ -1176,13 +1187,19 @@ object Profiles {
      */
     val M55S = E55.copy(id = ID_M55S, label = "Galaxy M55s", modelPrefix = "SM-M558")
 
+    /**
+     * The au Galaxy S22 Ultra, from 0.4.74: findings of 2026-11-09 (SCG14, ro.product.device SCG14,
+     * vendor device b0q, SM8450, One UI 8). The S22 Ultra (Snapdragon)'s OxygenOS 16, untested.
+     */
+    val S_ULTRA_8450_JP = S_ULTRA_8450.copy(id = ID_S_ULTRA_8450_JP, label = "Galaxy S22 Ultra (au)", modelPrefix = "SCG14", codename = "SCG14")
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
-        A55, S25_FE, S_8450, M55S,
+        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

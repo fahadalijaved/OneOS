@@ -72,10 +72,13 @@ true'
 
 #: The guest's logs in its /data (takeover.log, call_audio.log, audio_keeper.log, backlight.log, ...),
 #: and (0.4.30) the guest OneOS app's checklist, How's it going?, for Send to the OneOS team.
+#: 0.4.74: the guest root's own logs (module installers, Zygisk, service.sh: session.log, late.log);
+#: Galaxy S24 Ultra 0756b014 hung in its module step and the report had none of them.
 files logs.guest 120 guest '
 S=/data/local/tmp/oneos
 [ -e "$S" ] || [ -L "$S" ] || [ ! -d /data/local/tmp/lineage_stage ] || [ -L /data/local/tmp/lineage_stage ] || S=/data/local/tmp/lineage_stage
 for f in "$S"/data/*.log; do [ -f "$f" ] && printf "%s\n" "$f"; done
+for f in "$S"/data/oneos_root/adb/oneos/run/session.log "$S"/data/oneos_root/adb/oneos/run/late.log; do [ -f "$f" ] && [ ! -L "$f" ] && printf "%s\n" "$f"; done
 c="$S/data/user/0/com.fahadali.oneos.guest/files/oneos_checklist.json"
 [ -f "$c" ] && [ ! -L "$c" ] && printf "%s\n" "$c"
 true'

@@ -482,10 +482,20 @@ fi
 # has none, One UI runs hwservicemanager, and this phone's vendor manifest
 # declares no AIDL display composer or no AIDL audio HAL (as return_to_oneui.sh
 # reads it): elsewhere the guests without one (Pixel) keep running as they do.
+# The radio too (0.4.74): the MediaTek A07/A16 4G/A17 have AIDL display and audio
+# but only HIDL android.hardware.radio@1.6 (IRadio/slot1), so Infinity-X asked for
+# it "without hwservicemanager" and showed no SIM, greyed SIM settings and no calls
+# or SMS (A07 9de07236, 4e47fe7c), while ColorOS and HyperOS, which ship
+# hwservicemanager, found it. Counted only when the vendor declares the HIDL radio
+# and no AIDL radio (android.hardware.radio.sim).
 HWSM=0
 HWSM_WHY=""
 "$BB" grep -rqs 'android.hardware.graphics.composer3' /vendor/etc/vintf/ || HWSM_WHY="display composer"
 "$BB" grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/ || HWSM_WHY="${HWSM_WHY:+$HWSM_WHY and }audio HAL"
+if ! "$BB" grep -rqs 'android.hardware.radio.sim' /vendor/etc/vintf/ &&
+    "$BB" grep -rqsE '<name>android\.hardware\.radio</name>' /vendor/etc/vintf/; then
+    HWSM_WHY="${HWSM_WHY:+$HWSM_WHY and }radio HAL"
+fi
 if [ -n "$HWSM_WHY" ] && [ -d "$GUEST_SYSTEM_EXT/bin" ] &&
     [ ! -e "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ] && [ ! -L "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ] &&
     { [ -L "$ROOTFS/system/bin/hwservicemanager" ] || [ ! -e "$ROOTFS/system/bin/hwservicemanager" ]; } && pidof hwservicemanager >/dev/null; then
@@ -901,14 +911,52 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
     GRO="$STAGE/guest_root_ov"
     [ ! -L "$GRO" ] || { echo 'ERROR: guest root overlay is a symlink'; exit 3; }
     mkdir -p "$GRO"
-    $BB mount -t tmpfs -o size=64k,mode=755 tmpfs "$GRO" || exit 3
+    $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$GRO" || exit 3
     $BB mount --make-private "$GRO" || exit 3
     mkdir -p "$GRO/up"
     guest_root_mountpoint "$GRO/up" || exit 3
     $BB chcon -R u:object_r:system_file:s0 "$GRO/up" 2>/dev/null || true
-    $BB mount -t overlay overlay -o "ro,lowerdir=$GRO/up:$ROOTFS/system" "$ROOTFS/system" || exit 3
+    if $BB mount -t overlay overlay -o "ro,lowerdir=$GRO/up:$ROOTFS/system" "$ROOTFS/system"; then
+        echo 'Guest root: missing system/xbin supplied by a private read-only overlay'
+    else
+        # The android12-5.10 kernels (S22 series, S23 FE, A25, A33, A53) refuse overlayfs here
+        # as on system_ext ("Operation not supported on transport endpoint"): with guest root on,
+        # every switch of the A33 0.4.72 f8cc2067 ended at prepare. As for system_ext (0.4.70):
+        # the top level of the image /system copied on this tmpfs (folders, empty files, links)
+        # plus xbin, and each entry bound from the image. Nothing is mounted under it yet.
+        GF="$GRO/farm"; GOR="$GRO/orig"; fok=1; fn=0
+        rm -rf "$GF" && mkdir -p "$GF/xbin" "$GOR" || fok=0
+        for e in "$ROOTFS/system"/* "$ROOTFS/system"/.[!.]*; do
+            [ $fok = 1 ] || break
+            [ -e "$e" ] || [ -L "$e" ] || continue
+            n=${e##*/}
+            if [ -L "$e" ]; then cp -P "$e" "$GF/$n" || fok=0
+            elif [ -d "$e" ]; then mkdir -p "$GF/$n" || fok=0
+            else : > "$GF/$n" || fok=0; fi
+        done
+        if [ $fok = 1 ]; then
+            chmod 755 "$GF" "$GF/xbin"
+            $BB chcon -R u:object_r:system_file:s0 "$GF" 2>/dev/null || true
+            if $BB mount --bind "$ROOTFS/system" "$GOR" && $BB mount --bind "$GF" "$ROOTFS/system"; then
+                for e in "$GOR"/* "$GOR"/.[!.]*; do
+                    [ -e "$e" ] && [ ! -L "$e" ] || continue
+                    if $BB mount --bind "$e" "$ROOTFS/system/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
+                done
+            else
+                fok=0
+            fi
+        fi
+        if [ $fok = 1 ] && [ -d "$ROOTFS/system/xbin" ]; then
+            echo "Guest root: no overlayfs on this kernel; missing system/xbin supplied by a copy of the system top level ($fn entries of the image bound into it)"
+        else
+            awk -v r="$ROOTFS/system/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
+            grep -q " $ROOTFS/system tmpfs " /proc/mounts && $BB umount -l "$ROOTFS/system"
+            $BB umount -l "$GOR" 2>/dev/null
+            echo 'ERROR: guest root needs system/xbin, and neither an overlay nor a bound copy of the system top level worked'
+            exit 3
+        fi
+    fi
     [ -d "$ROOTFS/system/xbin" ] || { echo 'ERROR: guest su mount point missing after overlay'; exit 3; }
-    echo 'Guest root: missing system/xbin supplied by a private read-only overlay'
 fi
 # The camera's working folder /data/sec/camera, which One UI's init makes
 # (vendor_secdir, the camera's own uid): the camera cannot make it, "AccessDenied
@@ -5022,6 +5070,25 @@ if [ -d "$GUEST_SYSTEM_EXT/priv-app/ConnectivityThermalPowerManager" ] && \
     $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$GUEST_SYSTEM_EXT/priv-app/ConnectivityThermalPowerManager" && \
         echo "Hid guest system_ext/priv-app/ConnectivityThermalPowerManager (Pixel modem throttling; crash loop on a Samsung modem)"
 fi
+# OxygenOS 16's NFC app (system/priv-app/NfcNci) asks for OPPO's NFC HAL
+# (vendor.oplus.hardware.nfc@1.0::IOplusNfc) in a static initializer
+# (NfcChipManager.<clinit> from VendorNfcService), and HwBinder.getService throws
+# NoSuchElementException on a Samsung vendor: the persistent app dies in
+# NfcApplication.onCreate and is started again, about five times a second for
+# the whole session (M55s 0e73a8d6: 628 crashes in 3 minutes; S23 FE 6d13b740,
+# S22 Ultra acd15d4c: the same, users report a slow, warm phone). ColorOS 17's
+# NfcChipManager logs "Failed to get IOplusNfc service (binder null)" and goes on
+# (S26 2f97ffa9), so only OxygenOS, and only when the vendor does not declare
+# OPPO's HAL. NFC never started in those sessions either way.
+# ONEOS_GUEST_OEM_NFC=1 keeps it.
+if [ "${ONEOS_GUEST_OEM_NFC:-0}" != 1 ] && grep -q '^  "image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null &&
+   ! "$BB" grep -rqs 'vendor.oplus.hardware.nfc' /vendor/etc/vintf/ /odm/etc/vintf/; then
+    d="$ROOTFS/system/priv-app/NfcNci"
+    if [ -d "$d" ] && [ ! -L "$d" ]; then
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
+            echo "Hid guest system/priv-app/NfcNci (OxygenOS's NFC app dies without OPPO's NFC HAL; ONEOS_GUEST_OEM_NFC=1 keeps it)"
+    fi
+fi
 # The phone's eSIM chip is shared hardware, and an eSIM manager (LPA) in the
 # guest drives it directly: Pixel's EuiccGoogle opens the chip's ISD-R channel
 # itself (run 43). A guest factory reset with "Erase eSIMs", Reset mobile
@@ -5443,7 +5510,7 @@ mkdir -p "$W" || { echo "Modules: no $W"; exit 0; }
 
 # Cleanup scripts run in the guest root before deleting anything, never in host /data/adb.
 if [ -f "$S/data/oneos_root/enabled" ]; then
-    "$BB" chroot "$R" /system/bin/sh /data/oneos_runtime.sh uninstall || exit 1
+    "$BB" chroot "$R" /system/bin/sh /data/oneos_runtime.sh uninstall || { echo "Modules: the guest's module cleanup failed (exit $?; its log: data/oneos_root/adb/oneos/run/session.log)"; exit 1; }
 fi
 # Remove wins over a pending update. Never delete an active module at button press.
 for d in "$M"/* "$U"/*; do
