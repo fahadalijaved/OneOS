@@ -282,8 +282,25 @@ uninstall)
     export ASH_STANDALONE=1 PATH=/system/bin:/system/xbin:/data/adb/ksu/bin
     for m in "$A/modules/"*; do
         [ -d "$m" ] && [ ! -L "$m" ] && [ -f "$m/remove" ] || continue
+        id=${m##*/}
+        # A framework's uninstall.sh (Vector's and LSPosed's: "rm -rf /data/adb/lspd") is not
+        # run: /data/adb/lspd is the selected framework's state bound there by prepare, so it
+        # emptied that one and then failed on the mount point, and with "|| exit 1" every
+        # switch ended at prepare while the remove mark stayed (A36 0.4.73 d2de5297, HyperOS:
+        # code 3 right after "explicit guest injection enabled" at 15:53, 16:11 and 16:57,
+        # booted only with guest root off; "I can't remove any module (lsposed/hma oss/vector)").
+        # Its own state is framework-state/<id>, never bound while another one is selected.
+        if [ -f "$m/.oneos-framework" ]; then
+            if [ "$id" != "$(cat "$A/oneos/framework" 2>/dev/null)" ] && [ ! -L "$A/oneos/framework-state/$id" ]; then
+                rm -rf "$A/oneos/framework-state/$id"
+                echo "Guest runtime: $id's framework state removed with it (its uninstall.sh not run)"
+            fi
+            continue
+        fi
+        # As KernelSU and Magisk: a failing uninstall.sh is logged and the module still goes.
         if [ -f "$m/uninstall.sh" ] && [ ! -L "$m/uninstall.sh" ]; then
-            ( cd "$m"; export MODPATH="$m"; timeout 30 /data/oneos_bin/busybox sh "$m/uninstall.sh" ) >> "$A/oneos/run/session.log" 2>&1 || exit 1
+            ( cd "$m"; export MODPATH="$m"; timeout 30 /data/oneos_bin/busybox sh "$m/uninstall.sh" ) >> "$A/oneos/run/session.log" 2>&1 ||
+                echo "Guest runtime: $id's uninstall.sh failed (exit $?); removed anyway"
         fi
     done
     ;;
@@ -416,18 +433,25 @@ late)
         }
         sleep 1
     done
+    # Each script's start in the shared log as well (session.log stays in the guest's /data and is
+    # not in a report): S24 FE 0.4.73 b94e54fe, Pixel, after a module install and a soft reboot,
+    # SystemUI got signal 15 2 s after boot_completed (boot.log 17:50:24.829), a display transition
+    # snapshot then covered the screen and every touch was dropped as untrusted (17:50:29); only
+    # pixel_5g_toggle_fix's service.sh ran then, and nothing named it.
+    started() { /system/bin/log -t OneOSGuestRoot "$1 started" 2>/dev/null || true; }
     for m in "$A/modules"/*; do
         [ -d "$m" ] && [ ! -f "$m/disable" ] && [ ! -f "$m/remove" ] || continue
         if [ -f "$m/.oneos-framework" ]; then
             # Prevent its dex2oat helper's /proc/1/ns/mnt setns from reaching One UI.
             : # framework started before guest zygote
         elif [ -f "$m/service.sh" ]; then
+            started "${m##*/}/service.sh"
             /data/oneos_bin/busybox sh "$m/service.sh" >> "$A/oneos/run/session.log" 2>&1 &
         fi
-        [ ! -f "$m/boot-completed.sh" ] || /data/oneos_bin/busybox sh "$m/boot-completed.sh" >> "$A/oneos/run/session.log" 2>&1 &
+        [ ! -f "$m/boot-completed.sh" ] || { started "${m##*/}/boot-completed.sh"; /data/oneos_bin/busybox sh "$m/boot-completed.sh" >> "$A/oneos/run/session.log" 2>&1 & }
     done
     for script in "$A/service.d/"*.sh; do
-        [ ! -f "$script" ] || /data/oneos_bin/busybox sh "$script" >> "$A/oneos/run/session.log" 2>&1 &
+        [ ! -f "$script" ] || { started "service.d/${script##*/}"; /data/oneos_bin/busybox sh "$script" >> "$A/oneos/run/session.log" 2>&1 & }
     done
     ;;
 *) echo 'guest_runtime.sh: prepare | pre | customize | late' >&2; exit 2 ;;

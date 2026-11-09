@@ -216,6 +216,17 @@ else
     echo "$(date +%T) Guest Bluetooth, audio and location at the return: not read ($why)"
 fi
 
+# servicemanager logs to the kernel log, not logcat: the guest's system_server
+# died on "SELinux denied for service" while adding Oplus services (S22 Ultra
+# Exynos OxygenOS 0.4.70 e01601e0, S24 Exynos ColorOS 0.4.68 fbe805b2; the same
+# model ran on another phone) and no bundle said why. Its last lines, and the
+# catch-all line of One UI's service_contexts that every guest-only service name
+# needs even in a permissive session (docs/inplace-return.md). Read only.
+if [ -n "$BB" ]; then sm=$("$BB" dmesg 2>/dev/null | "$BB" grep -E 'servicemanager|SELinux: No match' | "$BB" tail -n 6)
+else sm=$(dmesg 2>/dev/null | grep -E 'servicemanager|SELinux: No match' | tail -n 6); fi
+[ -n "$sm" ] && echo "$sm" | sed 's/^/servicemanager (kernel log): /'
+echo "service_contexts catch-all lines in One UI's plat_service_contexts: $(grep -c '^\*' /system/etc/selinux/plat_service_contexts 2>/dev/null)"
+
 echo "=== [1/4] $(date +%T) Terminating Container Supervision & Zygote ==="
 # A screen recording (guest_start.sh) is finalised on SIGINT; SIGKILL would
 # leave an unplayable segment. Nothing on the host is called screenrecord.
@@ -1087,10 +1098,18 @@ if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
     # Integrity requests; report 9455098f), taken once from this capture three
     # minutes after the return, at the lowest priority, 2 MiB at most. Until
     # test build 6 a logcat -e watch took them live at 65% of a core.
+    # Two minutes at most (0.4.74): the regex over up to 24 x 32 MiB, one of
+    # them still being written, kept a whole core busy for the next session:
+    # S26 2f97ffa9 (0.4.72, return 02:24, grep at 100% CPU in every sampler
+    # line of the 02:34-02:55 session, 100%nice; "CPU 85-90 C") and S22 Ultra
+    # acd15d4c (0.4.73, return 14:37, grep at 90-103% from 16:57 to the end
+    # of the next session). Its waiter's PID in store_watch.pid: a session
+    # starting within the three minutes ends it (oneos_switch.sh).
     ONEOS_RE='IQ: Notifying installation update|IV2: (Rejecting|request install failure)|cannot process install request|Unauthenticated delivery|Cannot get valid account|Unauth not supported|No current account found|INSTALL_FAILED|installation completed for package|Commit of session|Download failed|DS: .*(error|fail)|setKeyAttestationCheckFailed|finishCalled for ControlledActivity, resultCode|AccountManager notifies account update|Device is now provisioned|requestExpressIntegrityToken|requestIntegrityToken|Integrity key attestation|no longer exists|account is null|Cached accounts updated|No account for auth token|IV2: Task Failed|Refreshing user settings' ONEOS_L="$LOGS" ONEOS_S="$S" "$BB" sh -c '
         sleep 180
         cd "$ONEOS_L" || exit 0
-        nice -n 19 grep -h -E -e "$ONEOS_RE" $(ls -tr boot.log* 2>/dev/null) 2>/dev/null | head -c 2097152 > "$ONEOS_S/store_watch.log"' </dev/null >/dev/null 2>&1 &
+        nice -n 19 timeout 120 grep -h -E -e "$ONEOS_RE" $(ls -tr boot.log* 2>/dev/null) 2>/dev/null | head -c 2097152 > "$ONEOS_S/store_watch.log"' </dev/null >/dev/null 2>&1 &
+    echo $! > "$S/store_watch.pid"
     STOP_TOKEN="$(date +%s).$$"
     echo "$STOP_TOKEN" > "$LOGS/logcat.stop" 2>/dev/null
     "$BB" sh -c "sleep 600; [ \"\$(cat $LOGS/logcat.stop 2>/dev/null)\" = $STOP_TOKEN ] || exit 0; rm -f $LOGS/logcat.stop; pkill -f '^logcat .*/data/local/tmp/oneos_logs/boot.log'" </dev/null >/dev/null 2>&1 &

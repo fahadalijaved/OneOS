@@ -126,6 +126,10 @@ class SendReportFragment : PreferenceFragmentCompat() {
             category("").row(getString(R.string.send_unavailable), null)
             return
         }
+        ReportSender.refusal?.let { why ->
+            category("").row(why, null)
+            return
+        }
         facts = readFacts(zip)
         sentCode = SendReportActivity.sentCode(requireContext(), zip)
         // The plain cases from how it ended; the rest the user says.

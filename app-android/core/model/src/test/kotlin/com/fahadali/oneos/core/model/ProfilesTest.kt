@@ -258,16 +258,26 @@ class ProfilesTest {
                 Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965, Profiles.A16_4G, Profiles.A16_S166, Profiles.A35, Profiles.A54, Profiles.A27, Profiles.A17_5G, Profiles.FLIP7_FE,
                 Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
                 Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450,
-                Profiles.A55, Profiles.S25_FE, Profiles.S_8450, Profiles.M55S,
+                Profiles.A55, Profiles.S25_FE, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP,
             ),
             Profiles.BUILT_IN,
         )
         // 0.4.67: the phones still on One UI 8 take OxygenOS 16 only, untested, as bar phones.
-        for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
-                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450, Profiles.M55S)) {
+        for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A53, Profiles.E55,
+                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP)) {
             assertEquals(p.id, listOf(ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)), p.choices)
             assertEquals(p.id, FormFactor.BAR, p.form)
         }
+        // 0.4.74: the A34 got One UI 9 (Android 17): the A07's systems, untested, and OxygenOS 16 for One UI 8.
+        // 0.4.74: so did the A15 (MT6789, the A07's chip).
+        for (p in listOf(Profiles.A34, Profiles.A15)) {
+            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN, Images.ID_INFINITYX, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16), p.choices.map { it.imageId })
+            assertTrue(p.id, p.choices.none { it.tested })
+            assertEquals(FormFactor.BAR, p.form)
+        }
+        // 0.4.74: the au S22 Ultra (SCG14) by its own model number and codename.
+        assertEquals(Profiles.S_ULTRA_8450_JP, Profiles.resolve("SCG14", "SCG14", "SM8450").profile)
+        assertEquals(Profiles.S_ULTRA_8450.choices, Profiles.S_ULTRA_8450_JP.choices)
         // 0.4.48, from probe reports of phones on One UI 9: the S25 Edge takes the S25's images (untested
         // here), the S24 FE the S24 (Exynos)'s, the A26 the S23s' without HyperOS, the A17 and the A16 5G
         // (Exynos 1330) Infinity-X, like the A07; 0.4.60: Infinity-X tested there, ColorOS (X9U IN) offered too.

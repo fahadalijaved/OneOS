@@ -1608,6 +1608,24 @@
       "disabledReason": null,
       "systems": [
         {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        },
+        {
           "image": "oxygenos16-cph2745",
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
@@ -1679,6 +1697,24 @@
       "enabled": true,
       "disabledReason": null,
       "systems": [
+        {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        },
         {
           "image": "oxygenos16-cph2745",
           "label": "OxygenOS 16, OnePlus CPH2745 build",
@@ -1909,6 +1945,24 @@
       "model": "SM-M558",
       "codename": "m55xq",
       "chip": "SM7450",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-ultra-8450-jp",
+      "label": "Galaxy S22 Ultra (au)",
+      "model": "SCG14",
+      "codename": "SCG14",
+      "chip": "SM8450",
       "form": "bar",
       "enabled": true,
       "disabledReason": null,

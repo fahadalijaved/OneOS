@@ -308,6 +308,8 @@ object SwitchGates {
         val image = choice?.let { Images.byId(it.imageId, images) }
         val set = choice?.let { PackageSets.byId(it.packageSetId, sets) }
 
+        // 0.4.74: no switching on a custom ROM ([CustomRomRule]).
+        f.customRom?.let { out += Gate(it) }
         out += Gate(root(f))
         out += profileGate(f, resolution, profiles, switching, choice, image, images)
         out += Gate(android(f, image, images))

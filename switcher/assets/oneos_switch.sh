@@ -274,6 +274,34 @@ for PA_FILE in "/dev/__properties__/${PA_CTX:-u:object_r:system_prop:s0}" "/dev/
         echo "WARNING: could not read the free property space in $PA_FILE"
     fi
 done
+# One UI's thermal HAL taken down by a root module. Galaxy S23 Ultra ColorOS
+# report 6a474324 (0.4.73, GUEST_DEAD after 110 s): ZyC_ThermalKiller and
+# kreapic-disable-thermal-universal were on; One UI's thermal service had no
+# temperatures before the stop ("thermal service none"; the earlier sessions of
+# that phone read 40 C), and init could not start the HIDL thermal HAL again
+# (hwservicemanager: "Unable to set property ctl.interface_start to
+# android.hardware.thermal@1.0::IThermal/default", 1140 times). Every
+# system_server started after that waits for that HAL on its main thread
+# (HardwarePropertiesManagerService.nativeInit: "Thermal AIDL service is not
+# declared, trying HIDL", then "Waited one second for
+# android.hardware.thermal@1.0::IThermal/default") until its watchdog kills it:
+# ColorOS's after 72 s, then One UI's own after the in-place return after 69 s,
+# and the return's failsafe restarted the phone. Asked while One UI's thermal
+# service still answers, only when such a module is on.
+TH_MODS=""
+for m in /data/adb/modules/*; do
+    [ -d "$m" ] && [ ! -f "$m/disable" ] && [ ! -f "$m/remove" ] || continue
+    if printf '%s\n' "${m##*/}" | grep -q -i therm ||
+       sed -n 's/^name=//p' "$m/module.prop" 2>/dev/null | head -n 1 | grep -q -i therm; then
+        TH_MODS="$TH_MODS ${m##*/}"
+    fi
+done
+if [ -n "$TH_MODS" ]; then
+    if timeout 10 dumpsys thermalservice 2>/dev/null | grep -q '^HAL Ready: false'; then
+        refuse "One UI's thermal HAL is not running (thermal service: HAL Ready: false) and a root module that turns thermal control off is on:$TH_MODS. The other system's framework would wait for that HAL and stop after a minute, and One UI's own after the return too. Turn the module off in your root manager, restart the phone, then switch again"
+    fi
+    echo "Thermal modules on:$TH_MODS (One UI's thermal service did not report HAL Ready: false)"
+fi
 echo "Preflight passed (ONEOS_APP=$APP, profile ${ONEOS_PROFILE:-none}, busybox $BB, resetprop $RP, mount namespace $SELF_NS)"
 
 # Every ColorOS set (pull request #1 began it for the Z Fold8): copy One UI's
@@ -320,6 +348,14 @@ set_prop() {
 }
 
 echo "=== OneOS guest takeover starting ==="
+# Samsung's record of the phone's last reset as it stands at the switch (read
+# only). Samsung keeps one record, the newest: Galaxy S25 FE reports 7bcdf946
+# (ColorOS) and a7bbbb41 (Pixel), both HARD_RESET, sent a kernel panic
+# (rt_mutex_adjust_prio_chain, RCNT 10 and 6) at uptime 204 s and 456 s of a
+# later boot, 4 and 19 minutes after the session's own reset, with no session
+# running: the session's own reset record was gone. RCNT (resets so far) and
+# the uptime here tell the next report how many resets came after the switch.
+echo "Last reset before this session: $(cat /proc/reset_reason 2>/dev/null | tr -d '\000\n' | head -c 40); $(head -c 600 /proc/extra 2>/dev/null | tr -d '\000' | tr '\n' ' ' | head -c 300); boot reasons $(getprop persist.sys.boot.reason.history | head -n 3 | tr '\n' ' '); uptime $(cut -d' ' -f1 /proc/uptime 2>/dev/null) s"
 # One header per session in auto_return.log, which every session appends to:
 # the app's last-session screen reads the outcome of the newest session only.
 echo "=== OneOS session $(date '+%F %T') epoch $(date +%s) boot $(cat /proc/sys/kernel/random/boot_id 2>/dev/null) app $APP profile ${ONEOS_PROFILE:-none} return max ${ONEOS_RETURN_MAX:-600}s black ${ONEOS_RETURN_BLACK:-150}s keys ${ONEOS_RETURN_KEYS:-1} ===" >> "$STAGE/auto_return.log"
@@ -739,6 +775,11 @@ fi
 # findingssms918b20261104 were in no report. Tags only, 2 MiB at most; it ends
 # itself after two hours (no process walk at the return), and the next
 # session ends an earlier one by its pid. ONEOS_LOGCAT=0 skips it.
+# 0.4.74: also the audio HAL's, AudioFlinger's, the policy manager's and the
+# Bluetooth A2DP stack's warnings and errors. Media "bad", Bluetooth connected
+# without sound and a game's endless static (A56 da7379d6, M55s 0e73a8d6) all
+# fell in the gap between the capture's head and its end (A56: 13:48-15:35);
+# this log had the whole A56 session but none of those tags.
 if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
     swp=$(cat "$STAGE/sound_watch.pid" 2>/dev/null)
     case "$swp" in
@@ -750,7 +791,10 @@ if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
         AndroidRuntime:E DEBUG:F Telecom:I Telecom_INCOMING_RINGING:V Ringtone:V RingtoneManager:V \
         VibratorManagerService:V VibratorManagerServiceExtImpl:V VibrationThread:V VibrationScaler:V \
         SecVibrator-HAL-AIDL-CORE:V AHAL_StreamOut_QTI:D EffectOffloadImpl:V AHAL_EffectFactoryQti:V \
-        AHAL_DlbSpatializerEffectImpl:V DlbDap2Process:V </dev/null >/dev/null 2>&1 &
+        AHAL_DlbSpatializerEffectImpl:V DlbDap2Process:V \
+        AudioFlinger:W APM_AudioPolicyManager:W AHAL:W AHAL_ModulePrimary:W AHAL_StreamPrimary_exynos:W \
+        audio_hw_primary:W audio_hw_proxy2:E bluetooth-a2dp:W A2dpStateMachine:I A2dpService:I \
+        BTAudioProviderStub_2_1:I BTAudioProviderA2dpSoftware:W </dev/null >/dev/null 2>&1 &
     echo $! > "$STAGE/sound_watch.pid"
     echo "Sound watch: $STAGE/sound_watch.log"
 fi
@@ -760,7 +804,9 @@ fi
 # hours after it (measured in One UI after a Pixel session, 11-06; owner: "the
 # device gets super hot" on Pixel, which logs the most). The return now takes
 # the same lines from the session's capture once, at the lowest priority
-# (return_to_oneui.sh). A watch an earlier session left running ends here.
+# (return_to_oneui.sh). A watch an earlier session left running ends here,
+# and so does that extraction while it still waits (0.4.74: its grep took a
+# core for the whole next session, S26 2f97ffa9, S22 Ultra acd15d4c).
 stp=$(cat "$STAGE/store_watch.pid" 2>/dev/null)
 case "$stp" in
     ""|*[!0-9]*) ;;
@@ -1422,12 +1468,29 @@ $BB sh -c "
 # The guest's own build props (ro.oplus.* etc.), now that its rootfs is mounted.
 /system/bin/sh "$STAGE/guest_props.sh" add "$STAGE/rootfs"
 if [ -f "$STAGE/data/oneos_root/enabled" ]; then
-    if ! "$BB" chroot "$STAGE/rootfs" /system/bin/sh /data/oneos_runtime.sh install ||
-       ! BB="$BB" /system/bin/sh "$STAGE/tmp/guest_modules.sh"; then
-        echo "Guest module installation failed; returning to One UI"
+    # Bounded, each part timed. Galaxy S24 Ultra ColorOS report 0756b014
+    # (0.4.72, HARD_RESET, "stuck on Starting Zygote"): the last line of the
+    # switch was guest_props.sh's, then nothing from either part below and
+    # no [6/6] for seven minutes, until the phone was force-restarted with
+    # the keys (reset reason MPON, "User press reset keys for 7 sec"); the
+    # auto-return is armed only at [6/6]. A part that does not finish now
+    # ends the session like a failed one. Their own output:
+    # data/oneos_root/adb/oneos/run/session.log (in the session logs).
+    echo "Guest runtime: $(date +%T) module installers (oneos_runtime.sh install)"
+    timeout 240 "$BB" chroot "$STAGE/rootfs" /system/bin/sh /data/oneos_runtime.sh install
+    GR_RC=$?
+    if [ "$GR_RC" = 0 ]; then
+        echo "Guest runtime: $(date +%T) modules onto the tree (guest_modules.sh)"
+        BB="$BB" timeout 120 /system/bin/sh "$STAGE/tmp/guest_modules.sh"
+        GR_RC=$?
+    fi
+    if [ "$GR_RC" != 0 ]; then
+        [ "$GR_RC" = 124 ] && echo "Guest runtime: $(date +%T) that part did not finish in time and was stopped"
+        echo "Guest module installation failed (exit $GR_RC); returning to One UI"
         /system/bin/sh "$STAGE/return_to_oneui.sh"
         exit 1
     fi
+    echo "Guest runtime: $(date +%T) modules ready"
 fi
 
 # --- STOP HOST DAEMONS & LAUNCH CONTAINER ---
@@ -3501,7 +3564,20 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # rejects its frames the panel keeps the last host frame.
             # The guest framework is gone for good once its zygote died: the
             # launcher exec'd app_process64, so nothing restarts it.
+            # Before that the takeover process is still guest_start.sh (or
+            # zygote_exec), in the guest's mount namespace: the guest is still
+            # starting, not dead. Z Fold7 OriginOS 7 report de5f30bd (0.4.73):
+            # guest_start.sh's odrefresh (the guest's boot image, vivo) began
+            # 36 s after the takeover and compiled for 14 s; this check counted
+            # 30 s without a zygote and returned at 09:24:50, four seconds
+            # before odrefresh ended and the zygote would have started (the
+            # next try, 32809875, compiled in 7 s and booted). A start that
+            # hangs is still bounded by ONEOS_RETURN_MAX.
             if pidof system_server >/dev/null || pidof zygote64 >/dev/null; then
+                dead=0
+            elif [ -n \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ] &&
+                 [ \"\$(readlink /proc/$TAKEOVER_PID/ns/mnt 2>/dev/null)\" = \"\$(cat $STAGE/guest_mntns 2>/dev/null)\" ] &&
+                 case \"\$(readlink /proc/$TAKEOVER_PID/exe 2>/dev/null)\" in */app_process64|*/app_process32|'') false ;; *) true ;; esac; then
                 dead=0
             else
                 dead=\$((dead + 10))

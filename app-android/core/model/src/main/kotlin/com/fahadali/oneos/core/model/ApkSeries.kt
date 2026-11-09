@@ -36,6 +36,8 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
             Profiles.ID_A55, Profiles.ID_S25_FE, Profiles.ID_S_8450,
             // 0.4.70: the Galaxy M55s (One UI 8.5).
             Profiles.ID_M55S,
+            // 0.4.74: the au Galaxy S22 Ultra (SCG14, One UI 8).
+            Profiles.ID_S_ULTRA_8450_JP,
         ),
     ),
     ;
