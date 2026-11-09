@@ -249,7 +249,19 @@ WDOG
 fi
 
 echo "=== 2. $(date +%T) Creating Loop Device Nodes ==="
-for i in $(seq 50 150); do
+# Only make the nodes that are missing or not the loop block device: stat the
+# tree once, let awk list the exceptions, mknod those. Recreating all 202 nodes
+# cost 7 s on the S25 Ultra.
+LOOP_NEED=$(stat -c '%n %t %T' /dev/block/loop* /dev/loop* 2>/dev/null | awk '
+    $1 ~ /^\/dev\/block\/loop[0-9]+$/ { b[$1] = $2 " " $3 }
+    $1 ~ /^\/dev\/loop[0-9]+$/       { d[$1] = $2 " " $3 }
+    END {
+        for (i = 50; i <= 150; i++) {
+            m = sprintf("%x", i * 8)
+            if (b["/dev/block/loop" i] != "7 " m || d["/dev/loop" i] != "7 " m) print i
+        }
+    }')
+for i in $LOOP_NEED; do
     minor=$((i * 8))
     rm -f /dev/block/loop$i /dev/loop$i 2>/dev/null || true
     mknod /dev/block/loop$i b 7 $minor
@@ -886,15 +898,30 @@ samcam_mountpoints() {
     echo "Samsung Camera: mount points $(date +%T)"
     [ -s "$SAMCAM_LIST" ] || samcam_files > "$SAMCAM_LIST"
     [ -s "$SAMCAM_LIST" ] || return 1
+    mp_base=$1 mp_kind=$2
+    # Collect every parent directory and make them in one mkdir: 124 separate
+    # mkdir processes cost 5 s on the S25 Ultra. Files are created below, after
+    # their parents exist.
+    set --
     while read -r k t s; do
-        [ "$k" = "$2" ] || continue
-        if [ -d "$s" ]; then mkdir -p "$1/$t" || return 1
-        else mkdir -p "$1/$(dirname "$t")" && : > "$1/$t" || return 1
+        [ "$k" = "$mp_kind" ] || continue
+        if [ -d "$s" ]; then
+            set -- "$@" "$mp_base/$t"
+        else
+            case $t in
+                */*) set -- "$@" "$mp_base/${t%/*}" ;;
+                *)   set -- "$@" "$mp_base" ;;
+            esac
         fi
     done < "$SAMCAM_LIST" || return 1
-    find "$1" -type d -exec chmod 755 {} + 2>/dev/null
-    $BB chcon -R u:object_r:system_file:s0 "$1" 2>/dev/null || true
-    [ -d "$1/lib64" ] && $BB chcon -R u:object_r:system_lib_file:s0 "$1/lib64" 2>/dev/null
+    [ $# -eq 0 ] || $BB mkdir -p "$@" || return 1
+    while read -r k t s; do
+        [ "$k" = "$mp_kind" ] || continue
+        [ -d "$s" ] || : > "$mp_base/$t" || return 1
+    done < "$SAMCAM_LIST" || return 1
+    find "$mp_base" -type d -exec chmod 755 {} + 2>/dev/null
+    $BB chcon -R u:object_r:system_file:s0 "$mp_base" 2>/dev/null || true
+    [ -d "$mp_base/lib64" ] && $BB chcon -R u:object_r:system_lib_file:s0 "$mp_base/lib64" 2>/dev/null
     echo "Samsung Camera: mount points done $(date +%T)"
     return 0
 }
@@ -4843,20 +4870,29 @@ if [ -d /system/apex ]; then
 fi
 
 echo "=== 9. $(date +%T) Bind-mounting Remaining Non-Payload APEXes ==="
+# One /proc/mounts read, not one mount process per APEX: 104 iterations of
+# mount | grep cost 9 s on the S25 Ultra.
+APEX_MOUNTED=" $(awk -v root="$ROOTFS/apex/" 'index($2, root) == 1 { print substr($2, length(root) + 1) }' /proc/mounts | tr '\n' ' ') "
+APEX_TODO=""
+APEX_DIRS=""
 for a in /apex/*; do
     [ -d "$a" ] || continue
-    base=$(basename "$a")
+    base=${a##*/}
     case "$base" in
         *samsung*)
        continue
        ;;
     esac
-    # Skip if already mounted
-    if ! mount | grep -q "$ROOTFS/apex/$base "; then
-        mkdir -p "$ROOTFS/apex/$base"
-        $BB mount --bind "$a" "$ROOTFS/apex/$base" 2>/dev/null || true
-        echo "Bound $base -> $ROOTFS/apex/$base"
-    fi
+    case "$APEX_MOUNTED" in
+        *" $base "*) continue ;;
+    esac
+    APEX_TODO="$APEX_TODO $base"
+    APEX_DIRS="$APEX_DIRS $ROOTFS/apex/$base"
+done
+[ -z "$APEX_DIRS" ] || $BB mkdir -p $APEX_DIRS || true
+for base in $APEX_TODO; do
+    $BB mount --bind "/apex/$base" "$ROOTFS/apex/$base" 2>/dev/null || true
+    echo "Bound $base -> $ROOTFS/apex/$base"
 done
 
 # OneOS: the versioned dirs (com.android.tethering@<version>, the paths host
