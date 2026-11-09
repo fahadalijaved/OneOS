@@ -230,36 +230,11 @@ add)
     # ONEOS_GUEST_ANIM_LEVEL=0 leaves it unset; 2, 3 or 4 sets that level.
     AL=persist.sys.oplus.anim_level; ALV=${ONEOS_GUEST_ANIM_LEVEL:-1}
     case "$ALV" in 1|2|3|4) ;; *) ALV="" ;; esac
-    if [ -n "$ALV" ] && { grep -q '"image": "coloros17-findn6"' "$STAGE/.oneos_stage" ||
-            { [ -f "$GSE/framework/oplus-telephony-common.jar" ] && [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; }; }; then
-        # A previous return can leave an empty property name behind. Treat an
-        # empty host/guest value as missing, while recording any host override.
-        if grep -qxF "$AL" "$HOST"; then
-            hv=$(getprop "$AL")
-            if [ -z "$hv" ] && "$RP" -n "$AL" "$ALV"; then
-                echo "$AL=$hv" >> "$OVR"
-                echo "guest_props: empty $AL overridden to $ALV for this ColorOS session"
-            fi
-        elif ! grep -q '^persist\.sys\.oplus\.anim_level=.' "$NEW"; then
-            sed -i '/^persist\.sys\.oplus\.anim_level=/d' "$NEW"
-            echo "$AL=$ALV" >> "$NEW"
-            echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
-        fi
-    fi
-    if grep -q '"image": "coloros17-findn6"' "$STAGE/.oneos_stage"; then
-        # Framework animation/Gaussian tiers use 3 for high-end; COUI's
-        # separate anim_level above uses 1. Apply both before guest processes.
-        for kv in ro.launcher.blur.appLaunch=1 ro.oplus.animationlevel=3 ro.oplus.gaussianlevel=3; do
-            key=${kv%%=*}; value=${kv#*=}
-            if grep -qxF "$key" "$HOST"; then
-                hv=$(getprop "$key")
-                if [ "$hv" != "$value" ] && "$RP" -n "$key" "$value"; then echo "$key=$hv" >> "$OVR"; fi
-            else
-                sed -i "/^$key=/d" "$NEW"
-                echo "$key=$value" >> "$NEW"
-            fi
-            echo "guest_props: $key=$value for this ColorOS session"
-        done
+    if [ -n "$ALV" ] && [ -f "$GSE/framework/oplus-telephony-common.jar" ] &&
+            [ -e "$ROOTFS/system/framework/oplus-services.jar" ] &&
+            ! grep -qxF "$AL" "$HOST" && ! grep -q '^persist\.sys\.oplus\.anim_level=' "$NEW"; then
+        echo "$AL=$ALV" >> "$NEW"
+        echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
     fi
     # One UI's color mode (oneos_switch.sh, host_color_mode), read by the
     # guest's SurfaceFlinger at start: it no longer moves the panels between
@@ -272,39 +247,6 @@ add)
     if [ -n "$CMV" ] && ! grep -qxF "$CM" "$HOST" && ! grep -q '^persist\.sys\.sf\.color_mode=' "$NEW"; then
         echo "$CM=$CMV" >> "$NEW"
         echo "guest_props: $CM=$CMV for the session (One UI's color mode)"
-    fi
-    # OxygenOS 16 on a MediaTek Galaxy (A34): the guest's SurfaceFlinger hung in RenderEngine's
-    # GL driver load ("Threaded RenderEngine with SkiaGL Backend", then nothing; system_server's
-    # watchdog then killed the session: 0.4.67 deb8690c, 6d4eaf85, 91b699cf, 1dd827e1). ColorOS
-    # on the MediaTek A16 4G runs SkiaVk and gets past it: Vulkan RenderEngine for this pair.
-    # debug.* goes back to One UI's value at the return (return_to_oneui.sh). Test in 0.4.69;
-    # ONEOS_GUEST_RE_BACKEND overrides (empty: the image's own choice).
-    RE=debug.renderengine.backend
-    REV=""
-    if grep -q '"image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null; then
-        # 0.4.70: the Exynos phones too (Mali on the A54 d0f664a8 and A26 de5d8a87, Xclipse on the S23 FE
-        # be228999: the same stop after "Threaded RenderEngine with SkiaGL"); the Snapdragon S22 Ultra's
-        # Adreno got past it (15cf8a3f), so Qualcomm keeps the image's own choice.
-        case "$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)" in
-            *mt[0-9]*|*[Mm]edia[Tt]ek*|*s5e[0-9]*|*erd[0-9]*|*exynos*|*[Ss]amsung*) REV=skiavkthreaded ;;
-        esac
-    fi
-    REV=${ONEOS_GUEST_RE_BACKEND-$REV}
-    if [ -n "$REV" ]; then
-        case "$REV" in *[!a-z]*) REV="" ;; esac
-    fi
-    if [ -n "$REV" ]; then
-        if grep -qxF "$RE" "$HOST"; then
-            hv=$(getprop "$RE")
-            if "$RP" -n "$RE" "$REV"; then
-                echo "$RE=$hv" >> "$OVR"
-                echo "guest_props: $RE $hv -> $REV for this session (Vulkan RenderEngine)"
-            fi
-        else
-            sed -i "/^debug\.renderengine\.backend=/d" "$NEW"
-            echo "$RE=$REV" >> "$NEW"
-            echo "guest_props: $RE=$REV for this session (Vulkan RenderEngine)"
-        fi
     fi
     # The boot animation on the panel that is on. AOSP's bootanimation draws on
     # the first display persist.service.bootanim.displays lists, at that
@@ -1259,47 +1201,55 @@ restore-persist)
     # timezone or locale change the user made). The snapshot cannot tell those
     # from the guest's, so on --recover touch only props that are clearly the
     # guest's; the normal return (no flag, same boot) still restores everything.
-    guest_prop() { # 0 when $1 is clearly a guest-owned persist prop
-        case "$1" in
-            persist.sys.locale) return 0 ;;
-            persist.oplus.*|persist.sys.oplus.*) return 0 ;;
-            # vivo OriginOS: its audio policy alone sets about 370 of these (seventh run).
-            persist.vivo.*|persist.sys.vivo.*|persist.vendor.vivo.*|persist.sys.audio.vapc.*) return 0 ;;
-            # oneos_switch.sh's softdog off switch on the Exynos phones (0.4.22).
-            persist.vendor.softdog) return 0 ;;
-        esac
-        return 1
-    }
-    # Added by the guest: delete from memory and from persistent storage.
-    # Not the ones remove blanked (still empty and not in the store).
-    # With the session's own store (store-on) they were never in One UI's: blanked
-    # in memory instead, so the next session writes into the same slots (listed
-    # in guest_props.blanked, which the next snapshot leaves out).
+    blankf="$BLANKED"; [ -f "$blankf" ] || blankf=/dev/null
+    plan="$STAGE/persist_props.plan"
     : > "$BLANKED.persist"
-    for key in $(cut -d= -f1 "$NOW"); do
-        grep -q "^$key=" "$SNAP" && continue
-        grep -qxF "$key=" "$NOW" && [ -f "$BLANKED" ] && grep -qxF "$key" "$BLANKED" && continue
-        echo "$key" | grep -q "$keep" && continue
-        [ "$2" = "--recover" ] && ! guest_prop "$key" && continue
-        if [ "$STORE_SESSION" = 1 ]; then
-            if "$RP" -n "$key" "" 2>/dev/null; then echo "$key" >> "$BLANKED.persist"; blanked_p=$((${blanked_p:-0} + 1)); else failed=$((failed + 1)); fi
-        elif "$RP" -p --delete "$key" 2>/dev/null; then deleted=$((deleted + 1)); else failed=$((failed + 1)); fi
-    done
+    blanked_p=0
+    awk -v nowf="$NOW" -v snapf="$SNAP" -v blankf="$blankf" -v keep="$keep" -v mode="$2" -v store="$STORE_SESSION" '
+        function guest(k) {
+            return k == "persist.sys.locale" || index(k, "persist.oplus.") == 1 ||
+                   index(k, "persist.sys.oplus.") == 1 ||
+                   index(k, "persist.vivo.") == 1 || index(k, "persist.sys.vivo.") == 1 ||
+                   index(k, "persist.vendor.vivo.") == 1 ||
+                   index(k, "persist.sys.audio.vapc.") == 1 ||
+                   k == "persist.vendor.softdog"
+        }
+        BEGIN {
+            while ((getline l < nowf) > 0) {
+                eq = index(l, "="); k = substr(l, 1, eq - 1)
+                now[k] = substr(l, eq + 1); nowline[l] = 1
+            }
+            while ((getline k < blankf) > 0) blank[k] = 1
+            while ((getline l < snapf) > 0) {
+                eq = index(l, "="); k = substr(l, 1, eq - 1)
+                snap[k] = 1; snapline[l] = 1
+            }
+            for (k in now) {
+                if ((k in snap) || (now[k] == "" && (k in blank)) || k ~ keep) continue
+                if (mode == "--recover" && !guest(k)) continue
+                print (store == 1 ? "B " : "D ") k
+            }
+            if (mode == "--added-only") exit
+            for (l in snapline) {
+                if (l in nowline) continue
+                k = substr(l, 1, index(l, "=") - 1)
+                if (k ~ keep) continue
+                if (mode == "--recover" && !guest(k)) continue
+                print "R " l
+            }
+        }' > "$plan"
+    while read -r op val; do
+        case "$op" in
+            B) if "$RP" -n "$val" "" 2>/dev/null; then echo "$val" >> "$BLANKED.persist"; blanked_p=$((blanked_p + 1)); else failed=$((failed + 1)); fi ;;
+            D) if "$RP" -p --delete "$val" 2>/dev/null; then deleted=$((deleted + 1)); else failed=$((failed + 1)); fi ;;
+            R) if "$RP" -p "${val%%=*}" "${val#*=}" 2>/dev/null; then restored=$((restored + 1)); else failed=$((failed + 1)); fi ;;
+        esac
+    done < "$plan"
     if [ -s "$BLANKED.persist" ]; then
         { [ -f "$BLANKED" ] && cat "$BLANKED"; cat "$BLANKED.persist"; } | sort -u > "$BLANKED.tmp" &&
             mv -f "$BLANKED.tmp" "$BLANKED" && echo "$BOOT_ID" > "$BLANKED.boot"
     fi
-    rm -f "$BLANKED.persist"
-    # Changed by the guest: put the host's value back, in storage too.
-    [ "$2" = "--added-only" ] && : > "$NOW.skip"
-    while [ ! -f "$NOW.skip" ] && IFS= read -r line; do
-        key=${line%%=*}
-        grep -qxF "$line" "$NOW" && continue
-        echo "$key" | grep -q "$keep" && continue
-        [ "$2" = "--recover" ] && ! guest_prop "$key" && continue
-        if "$RP" -p "$key" "${line#*=}" 2>/dev/null; then restored=$((restored + 1)); else failed=$((failed + 1)); fi
-    done < "$SNAP"
-    rm -f "$NOW" "$NOW.skip"
+    rm -f "$BLANKED.persist" "$NOW" "$plan"
     # Fail closed: if any resetprop write failed, keep persist_session.active so
     # the app can show the failure and recover can retry, and exit non-zero.
     # Deleting the marker on a silent failure (the old behaviour) left One UI on

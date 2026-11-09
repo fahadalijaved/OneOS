@@ -2685,6 +2685,7 @@ fi
 seed_settings "$GSET" settings_global $ADB_SEED auto_time=0 auto_time_zone=0 $PROV_GLOBAL launcher_support_card_no_padding=1
 [ -z "$PROV_SECURE" ] || seed_settings "$STAGE/data/system/users/0/settings_secure.xml" settings_secure $PROV_SECURE
 
+echo "=== 5.1 $(date +%T) settings seeded ==="
 # The switcher's return combo (hold Volume Up + Volume Down 3 s, read on the
 # host) is also Android's accessibility shortcut, and ColorOS aims that at
 # TalkBack: settings_secure id 26, accessibility_shortcut_target_service from
@@ -2739,6 +2740,7 @@ if [ "$(head -c 3 "$SSET" 2>/dev/null)" = ABX ]; then
 else
     echo "Guest display size: $(grep -o 'name="display_density_forced" value="[^"]*"' "$SSET" 2>/dev/null || echo 'not forced')"
 fi
+echo "=== 5.2 $(date +%T) accessibility, mobile data, density ==="
 # ColorOS's cover screen on a fold (owner, 0.4.10 on the Z Fold8 Ultra: "outer
 # display looks 720p", "set to high, still looks blurry"). The guest drew it at
 # the panel's full 1080 x 2520 (SurfaceFlinger: 1:1 projection, full-size
@@ -2813,6 +2815,7 @@ else
     fi
 fi
 
+echo "=== 5.3 $(date +%T) cover density ==="
 # ColorOS's touch-idle refresh rate (OTI, oplus_vrr_config.json "touch_idle")
 # takes this panel's mode (240 Hz vsync, 120 fps at most) as 240 Hz: it
 # rendered at 240 on touch and 60 Hz 2.5 s later, over the 120 Hz policy (run
@@ -2835,6 +2838,7 @@ if [ "${ONEOS_GUEST_OTI:-0}" = 0 ] && [ -f "$VRRCFG" ]; then
     fi
 fi
 
+echo "=== 5.4 $(date +%T) VRR config ==="
 # ColorOS's ringtones, notification and UI sounds (run 31: "system ringtones
 # are not there"; run 30: Settings_RingtoneUtils "getInternalRingtoneUri
 # ringtone_001.ogg null", ModernMediaScanner "Failed to visit
@@ -2884,6 +2888,7 @@ if [ "${ONEOS_GUEST_RINGTONES:-1}" = 1 ]; then
     fi
 fi
 
+echo "=== 5.5 $(date +%T) ringtones ==="
 # vivo's theme and font folders. vivo's init.vivo.rc (image root, "on
 # post-fs-data") makes /data/bbkcore (0777 root, the theme tree under it) and
 # /data/vfonts (0777 system); One UI's init never reads it, so the seventh run
@@ -2974,6 +2979,7 @@ if [ "${ONEOS_GUEST_THEME_DIRS:-1}" = 1 ] && [ -e "$ROOTFS/system/framework/oplu
     rm -f "$STAGE/coloros_data_dirs.txt"
 fi
 
+echo "=== 5.6 $(date +%T) theme folders ==="
 # Screen recording of the session (guest_start.sh) only when asked for.
 if [ "${ONEOS_RECORD:-0}" = 1 ]; then touch "$STAGE/data/oneos_record"; else rm -f "$STAGE/data/oneos_record"; fi
 echo "Screen recording: $([ -f "$STAGE/data/oneos_record" ] && echo on || echo off)"
@@ -2993,6 +2999,7 @@ echo "Guest HW overlays: $([ -f "$STAGE/data/oneos_hwc" ] && echo 'on (GPU compo
 if [ "${ONEOS_GAP_FAST:-1}" = 0 ]; then touch "$STAGE/data/oneos_gap_slow"; else rm -f "$STAGE/data/oneos_gap_slow"; fi
 
 
+echo "=== 5.7 $(date +%T) flags ==="
 # OPPO's own default runtime permission grants (patches/oplus_default_grants.py
 # in oplus-services_patched.jar reads the my_product and my_stock grant lists
 # while this flag exists). Its OplusRuntimePermGrantPolicyManager finds them
@@ -3076,6 +3083,7 @@ if ls "$STAGE/data/system_de/0/spblob"/*.weaver >/dev/null 2>&1; then
     echo "Guest lock state from before the weaver guard removed (stage only); ColorOS makes a new one"
 fi
 mkdir -p "$STAGE/data/misc/user/0" "$STAGE/data/misc_de/0" "$STAGE/data/misc_ce/0"
+echo "=== 5.8 $(date +%T) adb, relro, busybox, locks ==="
 # The guest has no vold_prepare_subdirs, so nothing creates the per-user APEX
 # data dirs. WifiConfigStore only mkdir()s the last level (run 32: Could not
 # create store directory /data/misc_ce/0/apexdata/com.android.wifi, Failed to
@@ -3185,6 +3193,7 @@ mkdir -p "$STAGE/data/data"
 
 chmod -R 777 "$STAGE/data/misc" "$STAGE/data/misc_de" "$STAGE/data/misc_ce" "$STAGE/data/system" "$STAGE/data/system_de" "$STAGE/data/system_ce" "$STAGE/data/anr" "$STAGE/data/data" 2>/dev/null || true
 chown -h -R 1000:1000 "$STAGE/data/system" "$STAGE/data/system_de" "$STAGE/data/system_ce" "$STAGE/data/misc" "$STAGE/data/misc_de" "$STAGE/data/misc_ce" 2>/dev/null || true
+echo "=== 5.9 $(date +%T) perms ==="
 # The package dirs pre-created above are root-owned until something sets an
 # owner: give them system's, as before; the realign below corrects the ones the
 # guest gave another uid.
@@ -3210,19 +3219,20 @@ chmod 0711 "$STAGE/data/user" "$STAGE/data/user_de" 2>/dev/null
 chmod 0771 "$STAGE/data/user/0" "$STAGE/data/user_de/0" 2>/dev/null
 realigned=0
 if [ -f "$STAGE/data/system/packages.list" ]; then
-    while read -r pkg auid rest; do
-        case "$auid" in ''|*[!0-9]*) continue ;; esac
-        for b in user/0 user_de/0; do
-            d="$STAGE/data/$b/$pkg"
-            [ -d "$d" ] || continue
-            [ "$(stat -c %u "$d")" = "$auid" ] && continue
-            chown -h -R "$auid:$auid" "$d" && chmod 0700 "$d" && realigned=$((realigned + 1))
-        done
-    done < "$STAGE/data/system/packages.list"
+    find "$STAGE/data/user/0" "$STAGE/data/user_de/0" -mindepth 1 -maxdepth 1 -type d \
+        -exec stat -c '%u %n' {} + 2>/dev/null > "$STAGE/realign.now"
+    awk 'NR == FNR { auid[$1] = $2; next }
+         { n = $2; sub(/.*\//, "", n); if ((n in auid) && $1 != auid[n]) print auid[n], $2 }' \
+        "$STAGE/data/system/packages.list" "$STAGE/realign.now" > "$STAGE/realign.fix"
+    while read -r auid d; do
+        chown -h -R "$auid:$auid" "$d" && chmod 0700 "$d" && realigned=$((realigned + 1))
+    done < "$STAGE/realign.fix"
+    rm -f "$STAGE/realign.now" "$STAGE/realign.fix"
 fi
 echo "App data dirs realigned to their package uids: $realigned"
 # Profiles: installd recreates them with the owners it expects.
 rm -rf "$STAGE/data/misc/profiles/cur/0/"* "$STAGE/data/misc/profiles/ref/"* 2>/dev/null
+echo "=== 5.10 $(date +%T) realign ==="
 
 # Create the bluetooth stack's storage before the guest ever starts. The GSI's
 # GD stack asserts out of storage_module.cc if it cannot persist bt_config.conf,
@@ -3253,6 +3263,7 @@ if [ -s "$PL" ] && [ ! -L "$PL" ] && [ -d "$STAGE/data/app" ] && [ ! -L "$STAGE/
     [ -z "$gone" ] || echo "Uninstalled apps' code folders removed:$gone"
 fi
 
+echo "=== 5.11 $(date +%T) bluetooth, apps, preapps ==="
 # ColorOS's removable preinstalled apps (/my_stock/del-app) load their native
 # libraries from /data/preapps-lib/<app>/lib/arm64, which the guest's
 # PackageManager fills. The guest's init.rc makes the top directory 0771 system
@@ -3267,6 +3278,7 @@ mkdir -p "$STAGE/data/preapps-lib" 2>/dev/null
 chown 1000:1000 "$STAGE/data/preapps-lib" 2>/dev/null || true
 chmod 0771 "$STAGE/data/preapps-lib" 2>/dev/null || true
 
+echo "=== 5.12 $(date +%T) HyperOS folders ==="
 # HyperOS's own /data folders. Its init rc files (system, system_ext, product)
 # make /data/system/theme, theme_magic and fonts (owner system_theme, 6101 in
 # the image's passwd), mcd, whetstone, miuilog and more at boot; One UI's init
@@ -3473,6 +3485,7 @@ else
     rm -f "$DSDIR/device_state_configuration.xml"
 fi
 
+echo "=== 5.13 $(date +%T) device states ==="
 # HyperOS's device states. Its DeviceStateProviderImpl (Xiaomi's change) reads
 # product/etc/devicestate/device_state_configuration.xml, whose states all wait
 # on Xiaomi's hinge sensor (xiaomi.sensor.fold_status). This phone has none:
