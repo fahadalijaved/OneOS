@@ -3693,10 +3693,24 @@ fi
 # chown of /data/media is -h for the same reason.
 echo "=== 5b. $(date +%T) Relabeling staged /data for guest SELinux ==="
 $BB chcon u:object_r:system_data_file:s0 "$STAGE/data" 2>/dev/null || true
-for d in data/system data/system_de data/system_ce data/user data/user_de \
+for d in data/system data/system_de data/system_ce \
          data/misc data/misc_de data/misc_ce data/anr data/dalvik-cache \
          data/local data/resource-cache data/app data/rollback data/incremental; do
     [ -e "$STAGE/$d" ] && $BB chcon -h -R u:object_r:system_data_file:s0 "$STAGE/$d" 2>/dev/null || true
+done
+# data/user and data/user_de are handled by app_data_labels below: resetting them
+# recursively here would wipe the guest labels that pass is about to keep. Only
+# the user dirs other than 0 need the blanket system_data_file label.
+for d in data/user data/user_de; do
+    [ -e "$STAGE/$d" ] || continue
+    $BB chcon u:object_r:system_data_file:s0 "$STAGE/$d" 2>/dev/null || true
+    for u in "$STAGE/$d"/*; do
+        [ -e "$u" ] || continue
+        case "${u##*/}" in
+            0) ;;
+            *) $BB chcon -h -R u:object_r:system_data_file:s0 "$u" 2>/dev/null || true ;;
+        esac
+    done
 done
 # OneOS (0.4.44): an app folder keeps the label the guest gave it. Until 0.4.43 every app
 # folder went back to a bare "app_data_file:s0" here on each switch, and the guest's installd
@@ -3738,17 +3752,34 @@ app_data_labels() {
             print "# " kept + 0 " " given + 0
         }'
 }
+p=$($BB nproc 2>/dev/null || nproc 2>/dev/null || echo 2)
+case "$p" in ''|*[!0-9]*) p=2 ;; esac
+[ "$p" -gt 8 ] && p=8
+[ "$p" -lt 2 ] && p=2
 for d in "$STAGE/data/user/0" "$STAGE/data/user_de/0"; do
     if [ -d "$d" ]; then
         $BB chcon u:object_r:system_data_file:s0 "$d" 2>/dev/null || true
         if ls -dZ "$d" >/dev/null 2>&1; then
-            app_data_labels "$d" | while read -r kind w rest; do
-                case "$kind" in
-                    1) $BB chcon -h -R "$w" "$rest" 2>/dev/null ;;
-                    n) $BB chcon -h -R "$w" $rest 2>/dev/null ;;
-                    '#') echo "App data labels in ${d#$STAGE/data/}: $w kept as the guest set them, $rest given their categories" ;;
-                esac
-            done
+            app_data_labels "$d" | {
+                jobs=0
+                kept=
+                given=
+                while read -r kind w rest; do
+                    case "$kind" in
+                        1) $BB chcon -h -R "$w" "$rest" 2>/dev/null &
+                           jobs=$((jobs + 1)) ;;
+                        n) $BB chcon -h -R "$w" $rest 2>/dev/null &
+                           jobs=$((jobs + 1)) ;;
+                        '#') kept=$w; given=$rest ;;
+                    esac
+                    if [ "$jobs" -ge "$p" ]; then
+                        wait
+                        jobs=0
+                    fi
+                done
+                wait
+                [ -z "$kept" ] || echo "App data labels in ${d#$STAGE/data/}: $kept kept as the guest set them, $given given their categories"
+            }
         else
             $BB chcon -h -R u:object_r:app_data_file:s0 "$d"/* 2>/dev/null || true
         fi
