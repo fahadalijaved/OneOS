@@ -10,7 +10,9 @@
 # 0.4.59: samcam with fix_recorder_progress.py and fix_secmedia_insert.py (recording timer; videos saved without secmedia)
 # 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
 # 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
-efb45f5f061838431387f9c34e4d5c72504a963d0d5bd37f3c4d0ae043854671  services_patched.jar
+# 0.4.61: services_patched.jar + oplus_soundtrigger_no_hal.py (no endless sound-trigger HAL retry without a HAL: A16 5G, A17 5G); samcam with fix_a_series_modes.py (the A phones' camera settings)
+# 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
+dec47e57d14adae73a6ff0beb3d3e688fa414833e843fa018fa58e5cdb1dd81a  services_patched.jar
 d02092bc404c27b6243afa1cb95836544b05cc8c46623890de41df251283665e  oplus-services_patched.jar
 2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so

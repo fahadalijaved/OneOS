@@ -182,8 +182,8 @@ class GatesTest {
         val exynos = profileGate(Fixtures.facts(model = "SM-S948B", device = "m3s", soc = SocProps(manufacturer = "Samsung", model = "s5e9955")))
         assertEquals(Level.BLOCK, exynos.level(SwitchGates.ID_PROFILE))
         assertNull(exynos.profile)
-        // Galaxy S22: no profile (the S23 Ultra has one since 0.4.40).
-        val s22 = profileGate(Fixtures.facts(model = "SM-S901E", device = "r0q", soc = SocProps(manufacturer = "QTI", model = "SM8450")))
+        // Galaxy S21: no profile (the S23 Ultra has one since 0.4.40, the S22 with Snapdragon since 0.4.68).
+        val s22 = profileGate(Fixtures.facts(model = "SM-G991U", device = "o1q", soc = SocProps(manufacturer = "QTI", model = "SM8350")))
         assertEquals(Level.BLOCK, s22.level(SwitchGates.ID_PROFILE))
         assertTrue(s22.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("Galaxy S26 Ultra (SM-S948* / m3q / SM8850)"))
         val wrongCodename = profileGate(Fixtures.s26Ultra().copy(device = "pa3q"))
@@ -309,6 +309,17 @@ class GatesTest {
     }
 
     @Test
+    fun oldZygiskNextWarns() {
+        val old = eval(GatePhase.SWITCH, input(Bundles.F8U).copy(zygiskNextVersionCode = 864))
+        assertEquals(Level.WARN, old.level(SwitchGates.ID_ZYGISK))
+        assertEquals(SwitchGates.R_ZYGISK_OLD, old.find(SwitchGates.ID_ZYGISK)!!.finding.reason)
+        assertTrue(old.allows(emptySet()))
+        assertNull(eval(GatePhase.SWITCH, input(Bundles.F8U).copy(zygiskNextVersionCode = 880)).find(SwitchGates.ID_ZYGISK))
+        assertNull(eval(GatePhase.SWITCH, input(Bundles.F8U)).find(SwitchGates.ID_ZYGISK))
+        assertNull(eval(GatePhase.PREPARE, input(Bundles.F8U).copy(zygiskNextVersionCode = 864)).find(SwitchGates.ID_ZYGISK))
+    }
+
+    @Test
     fun everyGateFailsClosedWithNothingKnown() {
         val f = Bundles.S26U.facts.copy(root = RootSignals(), storage = null, battery = null, carrier = null)
         val r = SwitchGates.evaluate(GatePhase.SWITCH, GateInput(f, null, null, null, null))
@@ -404,7 +415,7 @@ class GatesTest {
         assertFalse(prepare.blocked)
         assertEquals(Level.WARN, prepare.level(SwitchGates.ID_PROFILE))
         assertEquals("First sessions of the Pixel 11 Fold image", prepare.find(SwitchGates.ID_PROFILE)!!.finding.title)
-        assertTrue(prepare.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("with Find N6, not yet with this image"))
+        assertTrue(prepare.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("with Find N6 and OriginOS 7, not yet with this image"))
         assertTrue(prepare.toTick.isEmpty())
 
         val r = SwitchGates.evaluate(GatePhase.SWITCH, i, profiles)
@@ -430,7 +441,7 @@ class GatesTest {
             // 0.4.22: the SM8750 phones the Pixel 9 Pro XL image (no SVE needed).
             val usual = listOf(Images.FIND_X9U_IN)
             // 0.4.27: Infinity-X, on every phone; 0.4.31: HyperOS after it; then Nothing OS.
-            val last = listOf(Images.NOTHING_METROID) // 0.4.35 the S26 Ultra, 0.4.36 the S25s too
+            val last = listOf(Images.NOTHING_METROID, Images.ORIGINOS7) // 0.4.35 the S26 Ultra, 0.4.36 the S25s too; 0.4.73 OriginOS 7
             assertEquals(
                 usual + (if (p == Profiles.S_ULTRA_8850) Images.PIXEL_KODIAK else Images.PIXEL_KOMODO) + Images.INFINITYX + Images.HYPEROS_LHASA + last,
                 p.images(),

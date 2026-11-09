@@ -29,12 +29,20 @@ object SetDownloader {
     /** The repository whose releases hold the set files as assets named by their SHA-256 (0.4.53). */
     const val FILES_REPO = "fahadalijaved/OneOS-files"
 
+    /** SourceForge's folder of the set files, each named by its SHA-256 (0.4.65; the source "sf"). */
+    const val SF_FILES = "https://downloads.sourceforge.net/project/oneos-mirror/files/"
+
     /**
      * Where [source] hands out the file [sha256]: "gh:<tag>" is that release's asset (GitHub's CDN, no daily
-     * limit), anything else a public file of the shared Drive folder, without the virus-scan page large files get.
+     * limit), "sf" SourceForge's mirror of them (no daily limit either; it redirects to a download server), anything
+     * else a public file of the shared Drive folder, without the virus-scan page large files get.
      */
     fun url(source: String, sha256: String): String =
-        if (source.startsWith("gh:")) {
+        if (source == "sf") {
+            require(Regex("[0-9a-f]{64}").matches(sha256))
+            SF_FILES + sha256
+        }
+        else if (source.startsWith("gh:")) {
             val parts = source.removePrefix("gh:").split(':')
             val repo = if (parts.size == 2) parts[0] else FILES_REPO
             val tag = parts.last()
@@ -70,9 +78,12 @@ object SetDownloader {
         if (sources.isEmpty()) throw Failed("${f.name} has no download source")
         val part = File(dir(ctx), "${f.sha256}.part")
         if (part.length() > f.bytes) part.delete()
-        val (github, drive) = sources.partition { it.startsWith("gh:") }
+        // 0.4.65: SourceForge right after GitHub (11-08: github.com answered 504 for hours, every phone fell on
+        // the Drive copies and they ran out the same day).
+        val (github, others) = sources.partition { it.startsWith("gh:") }
+        val (sf, drive) = others.partition { it == "sf" }
         val start = if (drive.isEmpty()) 0 else drive.indices.random()
-        val order = github + drive.indices.map { drive[(start + it) % drive.size] }
+        val order = github + sf + drive.indices.map { drive[(start + it) % drive.size] }
         var last: Exception? = null
         var refused = 0
         for (source in order) {

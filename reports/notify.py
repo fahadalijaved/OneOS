@@ -50,10 +50,10 @@ def _status(model, code, oneui_code):
             return f"✅ Supported: {p['label']} ({systems})"
     for w in waiting:
         if any(model.startswith(m) for m in w["models"]):
-            return f"🕓 On the waiting list ({w['name']}): needs One UI 9"
-    if oneui_code >= 90000:
-        return "🆕 New phone on One UI 9: a profile can be added"
-    return "🕓 Not yet: on One UI 8.x or older, OneOS needs One UI 9 (Android 17)"
+            return f"🕓 On the waiting list ({w['name']}): needs One UI 8 or newer, or is a tablet"
+    if oneui_code >= 80000:
+        return f"🆕 New phone on One UI {oneui_code // 10000}: a profile can be added"
+    return "🕓 Not yet: on One UI 7 or older, OneOS needs One UI 8 or newer (Android 16 or 17)"
 
 
 def findings_message(zip_path, record=None):

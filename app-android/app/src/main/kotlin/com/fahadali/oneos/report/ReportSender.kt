@@ -1,6 +1,8 @@
 package com.fahadali.oneos.report
 
 import com.fahadali.oneos.BuildConfig
+import android.os.Build
+import com.fahadali.oneos.core.model.CustomRomRule
 import com.fahadali.oneos.core.model.ReportRecord
 import com.fahadali.oneos.core.model.Reports
 import java.io.File
@@ -24,9 +26,33 @@ object ReportSender {
 
     class Failed(message: String) : IOException(message)
 
+    /**
+     * 0.4.74 (owner): a custom ROM sends nothing, findings included ([CustomRomRule]); this is
+     * why, for the screens that would show Send. Null on stock One UI and in the other systems.
+     * Read from this phone's own properties (no getprop process, so safe on the main thread).
+     */
+    val refusal: String? by lazy {
+        runCatching {
+            val get = Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+            fun prop(k: String) = (get.invoke(null, k) as? String).orEmpty()
+            CustomRomRule.check(
+                CustomRomRule.Signals(
+                    model = prop("ro.product.model").ifEmpty { Build.MODEL.orEmpty() },
+                    bootloader = Build.BOOTLOADER.orEmpty().takeIf { it.isNotEmpty() && it != Build.UNKNOWN } ?: prop("ro.bootloader"),
+                    vendorModel = prop("ro.product.vendor.model"),
+                    oneUiRaw = prop("ro.build.version.oneui"),
+                ),
+            )?.detail
+        }.getOrNull()
+    }
+
+    /** Send is offered: this build has the service and the phone is not a custom ROM. */
+    val offered: Boolean get() = available && refusal == null
+
     /** [progress]: bytes sent so far of the zip's size. */
     fun send(record: ReportRecord, zip: File?, progress: (sent: Long, total: Long) -> Unit = { _, _ -> }) {
         check(available) { "this build has no report service" }
+        refusal?.let { throw Failed(it) }
         val total = zip?.length() ?: 0L
         val parts = Reports.parts(total)
         check(record.logs == null || record.logs!!.parts == parts) { "the record names ${record.logs?.parts} parts, the zip has $parts" }

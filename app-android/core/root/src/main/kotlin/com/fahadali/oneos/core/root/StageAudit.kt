@@ -407,13 +407,13 @@ object ShellScan {
  * phone's user data, reboots, settings, package wipes or mounts.
  */
 object StageAudit {
-    val VERBS = listOf("begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "selfupdate")
+    val VERBS = listOf("guest-runtime", "guest-module", "guest-module-state", "begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "selfupdate")
 
     val ALLOWED: Set<String> = setOf(
         "umask", "[", "echo", "printf", "id", "stat", "awk", "sed", "grep", "sort", "head", "tail", "cut", "tr", "wc",
         "cat", "ls", "mkdir", "mv", "cp", "rm", "chown", "chmod", "sha256sum", "date", "getprop", "pm", "getevent", "du",
         "env", "unset", "export", "set", "read", "exit", "return", "shift", "true", "false", "break", "continue", "exec",
-        "trap", "am",
+        "trap", "am", "od",
     )
 
     private val WRITES = setOf("mkdir", "mv", "cp", "rm", "chown", "chmod")
@@ -426,7 +426,7 @@ object StageAudit {
     )
 
     /** Path expressions that are the stage or under it (variables the audit checks the assignments of). */
-    private val STAGE_VARS = setOf("STAGE", "ATTIC", "PLAN", "RECEIVED", "part", "dst", "S", "F", "upd", "upapk")
+    private val STAGE_VARS = setOf("STAGE", "ATTIC", "PLAN", "RECEIVED", "part", "dst", "S", "F", "upd", "upapk", "LOCK")
 
     /** Helpers that write their first argument; their call sites must pass a stage path. */
     private val WRITE_HELPERS = setOf("own", "mkdir_mine")
@@ -450,7 +450,8 @@ object StageAudit {
      * stage is `$upsrc`, exactly the APK the app downloaded into its files, copied
      * into the stage before anything else uses it; `pm install` takes only the
      * stage copy with the app's package name, `am start` opens only the app, and
-     * `trap` only ignores SIGPIPE. Nowhere else does the script name `$DATA/user`.
+     * `trap` only ignores SIGPIPE. Nowhere else does the script name `$DATA/user`. The one other
+     * trap is take_lock's (0.4.71): `trap 'rm -f "$LOCK"' EXIT`, the stage's own bin/.lock.
      */
     private const val SELFUPDATE_FUNCTION = "do_selfupdate"
     private const val UPSRC_VALUE = "\"\$DATA/user/0/\$APP_PACKAGE/files/oneos-update/OneOS.apk\""
@@ -560,7 +561,9 @@ object StageAudit {
         }
         for (c in scan.commands) {
             val n = c.name
-            val ok = n in ALLOWED || n in functions || n == "\"\$BB\""
+            val guestUnpack = c.function == "do_guest_module" && n == "\"\$STAGE/guest_root\"" &&
+                c.args == listOf("--unpack", "\"\$STAGE/data/oneos_root/adb/modules_update/\$2\"")
+            val ok = n in ALLOWED || n in functions || n == "\"\$BB\"" || guestUnpack
             if (!ok) {
                 p += "line ${c.line}: '$n' is not on the root script's allow-list"
                 continue
@@ -580,7 +583,9 @@ object StageAudit {
                     p += "line ${c.line}: pm ${args.joinToString(" ")}"
                 }
                 "am" -> if (args != SELFUPDATE_AM || c.function != SELFUPDATE_FUNCTION) p += "line ${c.line}: am ${args.joinToString(" ")}"
-                "trap" -> if (args != listOf("''", "PIPE")) p += "line ${c.line}: trap ${args.joinToString(" ")}"
+                "trap" -> if (args != listOf("''", "PIPE") && !(c.function == "take_lock" && args == listOf("'rm -f \"\$LOCK\"'", "EXIT"))) {
+                    p += "line ${c.line}: trap ${args.joinToString(" ")}"
+                }
                 "getevent" -> if (args != listOf("-pl")) p += "line ${c.line}: getevent ${args.joinToString(" ")}"
                 "exec" -> if (args.firstOrNull()?.endsWith("/system/bin/sh") != true && args.firstOrNull() != "@SH@") p += "line ${c.line}: exec ${args.firstOrNull()}"
                 "sed" -> if (args.any { it == "-i" || it.startsWith("-i") }) p += "line ${c.line}: sed -i"

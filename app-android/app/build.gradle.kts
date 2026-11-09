@@ -37,33 +37,50 @@ if (testPackagesDir != null) {
         }
     }
 }
+// Official builds must carry the normally signed guest release artifact, never
+// a debug APK or a local system-scan overlay left by device development.
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.project.path == ":app" && it.name.contains("FullRelease") }) {
+        val releaseGuest = rootProject.file("guest/build/outputs/apk/release/guest-release.apk")
+        val stagedGuest = File(repoRoot, "switcher/assets/guest_manager.apk")
+        check(releaseGuest.isFile && stagedGuest.isFile && sha256(releaseGuest) == sha256(stagedGuest)) {
+            "Build and stage the signed guest release first: scripts/build-guest-manager.sh release"
+        }
+    }
+}
 // Every set carries OneOSGuest.apk (app-android/guest, the in-guest "Back to
 // One UI" app; the ColorOS sets since their 2026-10-25 rebuild), and
 // guest_prepare.sh puts it in the guest's /oem/app.
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "n6-global-f8" to (File(repoRoot, "out/fold8-global-current") to listOf("tethering_payload.img", "OneOSFoldCutout.apk", "OneOSTabletQs.apk")),
     // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
-    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r14") to listOf("tethering_payload.img")),
+    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r15") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r67") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r70") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
-    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r15") to listOf("tethering_payload.img")),
+    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r17") to listOf("tethering_payload.img")),
     // Pixel 11 Pro image (0.4.10), Galaxy S26 Ultra: the same files from that image.
-    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r14") to listOf("tethering_payload.img")),
-    "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r15") to listOf("tethering_payload.img")),
+    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r16") to listOf("tethering_payload.img")),
+    "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r17") to listOf("tethering_payload.img")),
     // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
-    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r14") to listOf("tethering_payload.img")),
+    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r16") to listOf("tethering_payload.img")),
     // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
     // is built from source (0.4.28): the guest keeps One UI's, like tethering.
-    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r11") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
+    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r14") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
-    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r21") to listOf("tethering_payload.img")),
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r25") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r29") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r32") to listOf("tethering_payload.img")),
+    // OxygenOS 16 (0.4.67, experimental), for the phones on One UI 8 (Android 16): no fold overlays, no
+    // tethering (One UI's stays), no apex requirement list (no ColorOS set ships one).
+    "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r2") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
+        "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
+    // OriginOS 7 (0.4.73, experimental): set r17 = r14 plus the vivo fold cutout overlay (the cover's lens).
+    "originos" to (File(repoRoot, "out/overlays_originos_cn_r17") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -84,7 +101,8 @@ val packSetsInApk: Boolean = (findProperty("oneos.packSets") as String?)?.trim()
 val setRemoteIds: Map<String, String> = File(packagesDir, "remote.txt").takeIf { it.isFile }?.readLines()
     ?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("#") }
     ?.associate { l ->
-        val src = "(gh:(?:[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+:)?[a-z0-9][a-z0-9.-]{0,39}|[A-Za-z0-9_-]{20,80})"
+        // gh:<tag> (GitHub), sf (SourceForge, 0.4.65), or a Drive file id.
+        val src = "(gh:(?:[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+:)?[a-z0-9][a-z0-9.-]{0,39}|sf|[A-Za-z0-9_-]{20,80})"
         val m = Regex("^([0-9a-f]{64}) ($src(,$src){0,15})$").matchEntire(l)
             ?: throw GradleException("packages/remote.txt: not a '<sha256> <source>[,<source>...]' line: $l")
         m.groupValues[1] to m.groupValues[2]
@@ -99,6 +117,13 @@ val packedSets: Set<String> = if (seriesId == null) {
 // Session scripts copied from switcher/assets at build time (plus the expected
 // installd table). oneos_tunnel.sh (the server tunnel) and 7zz are never shipped.
 val sessionScripts: Map<String, File> = linkedMapOf(
+    "guest_runtime.sh" to File(repoRoot, "switcher/assets/guest_runtime.sh"),
+    "guest_root" to File(repoRoot, "switcher/assets/guest_root"),
+    "guest_zygiskd" to File(repoRoot, "switcher/assets/guest_zygiskd"),
+    "guest_zygisk_ptrace" to File(repoRoot, "switcher/assets/guest_zygisk_ptrace"),
+    "guest_zygisk.so" to File(repoRoot, "switcher/assets/guest_zygisk.so"),
+    "guest_vector.bundle" to File(repoRoot, "switcher/assets/guest_vector.bundle"),
+    "guest_manager.apk" to File(repoRoot, "switcher/assets/guest_manager.apk"),
     "oneos_switch.sh" to File(repoRoot, "switcher/assets/oneos_switch.sh"),
     "boot_status.sh" to File(repoRoot, "switcher/assets/boot_status.sh"),
     "OneOSBootStatus.dex" to File(repoRoot, "switcher/assets/OneOSBootStatus.dex"),
@@ -107,6 +132,8 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "guest_start.sh" to File(repoRoot, "switcher/assets/guest_start.sh"),
     "guest_props.sh" to File(repoRoot, "switcher/assets/guest_props.sh"),
     "return_to_oneui.sh" to File(repoRoot, "switcher/assets/return_to_oneui.sh"),
+    // 0.4.61 (pull request #58): Samsung rild's new-SMS queue bypass for the guest (inbound SMS).
+    "libsec-ril-patch.sh" to File(repoRoot, "switcher/assets/libsec-ril-patch.sh"),
     "check_host_apex.sh" to File(repoRoot, "switcher/assets/check_host_apex.sh"),
     "bridges.sh" to File(repoRoot, "switcher/assets/bridges.sh"),
     "fold8_coloros.sh" to File(repoRoot, "switcher/assets/fold8_coloros.sh"),
@@ -127,6 +154,8 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     // (switcher/patches/OneOSOverlayDimen.java, build_overlay_dimen.sh).
     "OneOSOverlayDimen.dex" to File(repoRoot, "switcher/assets/OneOSOverlayDimen.dex"),
     "host_installd.txt" to File(repoRoot, "switcher/patches/host_installd.txt"),
+    // 0.4.66: One UI 8.5's table, staged as host_installd.txt for SDK 36 (Android 16) images.
+    "host_installd_a16.txt" to File(repoRoot, "switcher/patches/host_installd_a16.txt"),
 )
 val switcherNotShipped = setOf("oneos_tunnel.sh", "7zz")
 
@@ -144,8 +173,18 @@ fun readShaList(f: File): Map<String, String> {
 fun renderShaList(entries: Map<String, String>): String =
     entries.entries.sortedBy { it.key }.joinToString("") { "${it.value}  ${it.key}\n" }
 
-val scriptsList: String = renderShaList(sessionScripts.mapValues { (n, f) ->
-    if (!f.isFile) throw GradleException("session script missing: $f")
+// Guest, Probe and unit-test tasks can run before the generated manager APK
+// exists. Every full staging build must have it before any task executes.
+val hasGuestManager = sessionScripts.getValue("guest_manager.apk").isFile
+if (!hasGuestManager) {
+    gradle.taskGraph.whenReady {
+        check(allTasks.none { it.path == ":app:oneosFiles" }) {
+            "Build the guest APK first with scripts/build-guest-manager.sh."
+        }
+    }
+}
+val scriptsList: String = renderShaList(sessionScripts.filterKeys { hasGuestManager || it != "guest_manager.apk" }.mapValues { (n, f) ->
+    if (!f.isFile) throw GradleException("session script missing: $f (build the guest APK with scripts/build-guest-manager.sh first)")
     sha256(f)
 })
 // The root script is the full edition's only (src/full); OneOS Probe has none.
@@ -346,6 +385,7 @@ val releaseKeys: Properties? =
     }
 
 android {
+    sourceSets.getByName("main").kotlin.srcDir(rootProject.file("shared-guest-ui"))
     namespace = "com.fahadali.oneos"
     compileSdk { version = release(37) }
 
@@ -436,8 +476,8 @@ android {
         // Pixel 9 Pro XL r5, Infinity-X r4, Nothing OS r22 (samcam_bar.tar for phones). The panel kept at its top rate in
         // Pixel, HyperOS and Nothing OS (it stayed at 24 Hz: 10-15 fps). Infinity-X: Samsung IMS (the carve-out's
         // /system/system_ext path; framework members; SMS centre). The Galaxy A16 4G (SM-A165F).
-        versionCode = 85
-        versionName = "0.4.59"
+        versionCode = 100
+        versionName = "0.4.74"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

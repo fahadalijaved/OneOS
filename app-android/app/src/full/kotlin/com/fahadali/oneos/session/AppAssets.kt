@@ -3,6 +3,8 @@ package com.fahadali.oneos.session
 import android.content.Context
 import com.fahadali.oneos.BuildConfig
 import com.fahadali.oneos.core.model.Hashes
+import com.fahadali.oneos.core.model.Images
+import com.fahadali.oneos.core.model.InstalldExpected
 import com.fahadali.oneos.core.model.PackageSet
 import com.fahadali.oneos.core.model.PackageSets
 import com.fahadali.oneos.core.model.ShaList
@@ -70,9 +72,13 @@ object AppAssets {
         val files = channel?.files?.associate { it.name to it.sha256 } ?: base
         val problems = set.check(ShaList.render(files))
         if (problems.isNotEmpty()) throw Broken(problems.first())
-        if (scripts.keys != RootScript.SCRIPTS.toSet()) throw Broken("the app's script list is not ${RootScript.SCRIPTS}")
+        if (scripts.keys != RootScript.SCRIPTS.toSet() + INSTALLD_A16) throw Broken("the app's script list is not ${RootScript.SCRIPTS}")
         val size = sizes(ctx)
-        return (RootScript.SCRIPTS.map { it to scripts.getValue(it) } + set.names.map { it to files.getValue(it) }).map { (n, sha) ->
+        // The installd table of the set's host One UI, staged as host_installd.txt (0.4.66: Android 16 images'
+        // sets carry One UI 8.5's codes).
+        val installd = scripts.getValue(InstalldExpected.assetName(sdkOf(set)))
+        return (RootScript.SCRIPTS.map { it to if (it == "host_installd.txt") installd else scripts.getValue(it) } +
+            set.names.map { it to files.getValue(it) }).map { (n, sha) ->
             // Only a file the channel really replaced (PatchManifest.REPLACEABLE) comes from its source.
             val override = channel?.files?.firstOrNull { it.name == n && it.sha256 != base[n] }
             val b = override?.bytes ?: size[sha] ?: throw Broken("$n has no size in the app's index")
@@ -117,11 +123,18 @@ object AppAssets {
         return file.inputStream()
     }
 
-    /** switcher/patches/host_installd.txt as the app ships it (the installd gate's expected table). */
-    fun hostInstalldTxt(ctx: Context): String {
-        val sha = list(ctx, "scripts")["host_installd.txt"] ?: throw Broken("no host_installd.txt in the app")
+    /** One UI 8.5's installd table: an app asset beside the scripts, staged as host_installd.txt for SDK 36 images. */
+    private const val INSTALLD_A16 = "host_installd_a16.txt"
+
+    /** The Android version of [set]'s image (37 when the image is unknown). */
+    private fun sdkOf(set: PackageSet): Int = Images.byId(set.imageId)?.sdk ?: 37
+
+    /** The installd table the app ships for SDK [sdk] images (the installd gate's expected table). */
+    fun hostInstalldTxt(ctx: Context, sdk: Int = 37): String {
+        val name = InstalldExpected.assetName(sdk)
+        val sha = list(ctx, "scripts")[name] ?: throw Broken("no $name in the app")
         val b = read(ctx, "oneos/files/$sha")
-        if (Hashes.sha256(b) != sha) throw Broken("host_installd.txt in the app is damaged")
+        if (Hashes.sha256(b) != sha) throw Broken("$name in the app is damaged")
         return b.toString(Charsets.UTF_8)
     }
 }

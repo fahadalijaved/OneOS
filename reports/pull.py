@@ -84,12 +84,19 @@ def session_app(data):
             info = z.getinfo(names[0])
             if info.file_size > 256 * 1024:
                 return None
-            app = json.loads(z.read(names[0]).decode("utf-8", "replace")).get("app")
+            rep = json.loads(z.read(names[0]).decode("utf-8", "replace"))
+            app = rep.get("app")
+            ses = rep.get("session")
     except Exception:
         return None
     if not isinstance(app, dict):
         return None
     v, c = app.get("version"), app.get("versionCode")
+    # 0.4.70 bundles: the build that launched the session (stage/current.json), when another
+    # build collected the logs (0.4.68 sent 0.4.67 sessions as its own).
+    s = ses.get("versionCode") if isinstance(ses, dict) else None
+    if isinstance(s, int) and not isinstance(s, bool) and 0 < s < 10**9 and s != c:
+        return {"version": f"build{s}", "versionCode": s}
     if not isinstance(v, str) or not re.fullmatch(r"[0-9A-Za-z.+_-]{1,32}", v):
         return None
     return {"version": v, "versionCode": c if isinstance(c, int) else None}

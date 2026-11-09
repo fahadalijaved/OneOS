@@ -139,7 +139,7 @@ S=/data/local/tmp/oneos
 p="$S/data/system/packages.xml"
 [ -d "$S/data" ] || exit 3
 [ -f "$p" ] || { echo "packages none"; exit 0; }
-for w in com.oplus. com.coloros. org.lineageos. com.google.android.apps.nexuslauncher com.infinity.updater com.miui.; do
+for w in com.oplus. com.coloros. org.lineageos. com.google.android.apps.nexuslauncher com.infinity.updater com.miui. com.oneplus.membership com.bbk.launcher2; do
   if grep -q -s -F "$w" "$p"; then echo "packages $w"; fi
 done
 true'
@@ -170,4 +170,8 @@ true'
 run stage.props 10 stage/props.txt '
 for p in ro.csc.sales_code ro.boot.sales_code ro.csc.countryiso_code gsm.sim.operator.iso-country ro.build.fingerprint ro.product.model ro.product.device ro.soc.model ro.build.version.sdk sys.boot.reason; do
   printf "%s=%s\n" "$p" "$(getprop "$p")"
-done'
+done
+z=/data/adb/modules/zygisksu
+if [ -f "$z/module.prop" ] && [ ! -e "$z/disable" ] && [ ! -e "$z/remove" ]; then
+  printf "zygisksu.versionCode=%s\n" "$(sed -n "s/^versionCode=//p" "$z/module.prop" | head -n 1)"
+fi'

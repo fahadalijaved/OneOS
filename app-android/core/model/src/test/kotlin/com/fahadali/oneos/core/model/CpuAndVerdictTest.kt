@@ -91,16 +91,20 @@ class CpuAndVerdictTest {
 
     @Test
     fun androidVersionOtherThan17Warns() {
-        val r = CompatEvaluator.evaluate(Fixtures.facts(sdk = 36))
+        // 0.4.67: Android 16 has an image (OxygenOS 16); Android 15 (SDK 35) has none.
+        val r = CompatEvaluator.evaluate(Fixtures.facts(sdk = 35))
         val f = r.find(CompatEvaluator.ID_ANDROID_DIFFERS)!!
         assertEquals(Level.WARN, f.level)
-        assertEquals("Android version differs from the OneOS images (17); switching may not work", f.title)
+        assertEquals("Android version differs from the OneOS images (16, 17); switching may not work", f.title)
         assertEquals(Verdict.WARNING, r.verdict)
         assertNull(r.find(CompatEvaluator.ID_ANDROID_MATCHES))
 
         val same = CompatEvaluator.evaluate(Fixtures.facts(sdk = 37))
         assertNull(same.find(CompatEvaluator.ID_ANDROID_DIFFERS))
         assertEquals(Level.OK, same.level(CompatEvaluator.ID_ANDROID_MATCHES))
+        val a16 = CompatEvaluator.evaluate(Fixtures.facts(sdk = 36))
+        assertNull(a16.find(CompatEvaluator.ID_ANDROID_DIFFERS))
+        assertEquals(Level.OK, a16.level(CompatEvaluator.ID_ANDROID_MATCHES))
 
         assertEquals("17", AndroidRelease.name(37))
         assertEquals("16", AndroidRelease.name(36))

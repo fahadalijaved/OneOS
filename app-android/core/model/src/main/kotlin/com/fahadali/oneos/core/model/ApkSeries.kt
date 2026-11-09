@@ -22,12 +22,22 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
     ),
     S25(
         "s25",
-        "Galaxy S25, S25 Edge, S24, S24 FE, S23, Z Flip7, Z Flip6, Z Flip5, A57, A56, A36, A26, A17, A16 5G, A16 4G and A07",
+        "Galaxy S25, S25 Edge, S25 FE, S24, S24 FE, S23, Z Flip7, Z Flip6, Z Flip5, the A series, and the phones on One UI 8 (S23 FE, S22, A, E)",
         listOf(
             Profiles.ID_S_ULTRA_8750, Profiles.ID_S_PLUS_8750, Profiles.ID_S_8750, Profiles.ID_S_ULTRA_8650,
             Profiles.ID_S_8550, Profiles.ID_S_PLUS_8550, Profiles.ID_FLIP7, Profiles.ID_A56, Profiles.ID_A57, Profiles.ID_FLIP5,
             Profiles.ID_A07, Profiles.ID_A36, Profiles.ID_S_ULTRA_8550, Profiles.ID_FLIP6, Profiles.ID_S_9945,
-            Profiles.ID_S_EDGE_8750, Profiles.ID_S_FE_9945, Profiles.ID_A26, Profiles.ID_A17, Profiles.ID_A16, Profiles.ID_A16_4G, Profiles.ID_A16_S166, Profiles.ID_A35, Profiles.ID_A54, Profiles.ID_A27,
+            Profiles.ID_S_EDGE_8750, Profiles.ID_S_FE_9945, Profiles.ID_A26, Profiles.ID_A17, Profiles.ID_A16, Profiles.ID_A16_4G, Profiles.ID_A16_S166, Profiles.ID_A35, Profiles.ID_A54, Profiles.ID_A27, Profiles.ID_A17_5G, Profiles.ID_FLIP7_FE, Profiles.ID_S_8650,
+            // 0.4.67: the phones still on One UI 8 (OxygenOS 16 only).
+            Profiles.ID_A06, Profiles.ID_A07_5G, Profiles.ID_A15, Profiles.ID_A24, Profiles.ID_A25, Profiles.ID_A33, Profiles.ID_A34,
+            Profiles.ID_A53, Profiles.ID_E55, Profiles.ID_S_FE_9925, Profiles.ID_S_FE_8450, Profiles.ID_S_PLUS_9925,
+            Profiles.ID_S_ULTRA_9925, Profiles.ID_S_ULTRA_8450,
+            // 0.4.68: the Galaxy A55 5G and S25 FE (One UI 9), the Galaxy S22 with Snapdragon (One UI 8).
+            Profiles.ID_A55, Profiles.ID_S25_FE, Profiles.ID_S_8450,
+            // 0.4.70: the Galaxy M55s (One UI 8.5).
+            Profiles.ID_M55S,
+            // 0.4.74: the au Galaxy S22 Ultra (SCG14, One UI 8).
+            Profiles.ID_S_ULTRA_8450_JP,
         ),
     ),
     ;

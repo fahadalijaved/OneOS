@@ -1,0 +1,6 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
+90cee7f34eb11265d06db45a09e93e5e8a7a1aec717ea050ede66f4f74cc285b  services_patched.jar
+5d9f4c969cc853b083c15725719e5b357b5a9639692059ea324493cfe8b2c245  oplus-services_patched.jar
+cfc3fe52b958e0f327e4f9e2c8f577802ce8dcb23f98e6caf12f8ad89193d0d9  vold_patched
+2d34f05164d9c7cd6294f945bfaf6e6d6224479f8c91190d30e71382226f7293  service.incremental_patched.so

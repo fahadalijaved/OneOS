@@ -66,6 +66,8 @@ def main(root):
     r = m.group(1)
     i, _ = expect(lines, i + 1, rf'invoke-static \{{{r}, v\d+\}}, {re.escape(GETBOOL)}$', "its getBoolean")
     i, _ = expect(lines, i + 1, rf'move-result {r}$', "its result")
+    if re.match(rf'if-eqz {r}, :\w+$', lines[code(lines, i + 1)].strip()):
+        return android16(path, lines, i + 1, r)
     i, m = expect(lines, i + 1, r'iget-object (v\d+), [vp]\d+, Lcom/android/server/display/LocalDisplayAdapter\$LocalDisplayDevice;->mInfo:Lcom/android/server/display/DisplayDeviceInfo;$', "mInfo")
     info = m.group(1)
     i, m = expect(lines, i + 1, rf'if-eqz {r}, (:\w+)$', "the presentation branch")
@@ -101,6 +103,37 @@ def main(root):
     print("LocalDisplayDevice: a second built-in panel is neither private nor own-content-only "
           "(Qualcomm's builtin_presentation/builtin_mirroring branch)", file=sys.stderr)
     print(os.path.relpath(path, root).split(os.sep)[0])
+
+
+def android16(path, lines, i, r):
+    """Android 16 (OnePlus's OxygenOS 16): no FLAG_PRIVATE in this branch; FLAG_PRESENTATION behind its
+    property, then the flags register ORed in unless builtin_mirroring. builtin_mirroring reads as true."""
+    i, m = expect(lines, i, rf'if-eqz {r}, (:\w+)$', "the presentation branch")
+    skip = m.group(1)
+    i, m = expect(lines, i + 1, r'iget-object (v\d+), [vp]\d+, Lcom/android/server/display/LocalDisplayAdapter\$LocalDisplayDevice;->mInfo:Lcom/android/server/display/DisplayDeviceInfo;$', "mInfo")
+    info = m.group(1)
+    i, m = expect(lines, i + 1, rf'iget (v\d+), {info}, {re.escape(FLAGS)}$', "flags")
+    f = m.group(1)
+    i, _ = expect(lines, i + 1, rf'or-int/lit8 {f}, {f}, 0x40$', "FLAG_PRESENTATION")
+    i, _ = expect(lines, i + 1, rf'iput {f}, {info}, {re.escape(FLAGS)}$', "flags")
+    i, _ = expect(lines, i + 1, rf'{re.escape(skip)}$', "the label after FLAG_PRESENTATION")
+    i, m = expect(lines, i + 1, rf'const-string(?:/jumbo)? (v\d+), {re.escape(MIRRORING)}$', "builtin_mirroring")
+    r2 = m.group(1)
+    i, _ = expect(lines, i + 1, rf'invoke-static \{{{r2}, v\d+\}}, {re.escape(GETBOOL)}$', "its getBoolean")
+    i, m = expect(lines, i + 1, r'move-result (v\d+)$', "its result")
+    res, result = m.group(1), i
+    i, _ = expect(lines, i + 1, rf'if-nez {res}, :\w+$', "the mirroring branch")
+    indent = lines[result][:len(lines[result]) - len(lines[result].lstrip())]
+    lines[result + 1:result + 1] = [
+        "",
+        f"{indent}# OneOS: builtin_mirroring as true: no FLAG_OWN_CONTENT_ONLY on the cover (AOSP's default);",
+        f"{indent}# no FLAG_PRIVATE for a second built-in panel (Android 16 sets none here)",
+        f"{indent}const/4 {res}, 0x1",
+    ]
+    with open(path, "w") as fh:
+        fh.write("\n".join(lines))
+    print("LocalDisplayDevice: a second built-in panel is not own-content-only (Android 16 form)", file=sys.stderr)
+    print(os.path.relpath(path, sys.argv[1]).split(os.sep)[0])
 
 
 if __name__ == "__main__":

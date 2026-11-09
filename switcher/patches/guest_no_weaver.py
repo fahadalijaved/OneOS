@@ -28,6 +28,33 @@ import re
 import sys
 
 HEADER = re.compile(r"^\.method (?:private |public |final )*getWeaverServiceLocked\(\)Landroid/hardware/weaver/IWeaver;$")
+# Android 16 (OnePlus's OxygenOS 16) has no getWeaverServiceLocked(): the lookup is the synchronized
+# getWeaverService() itself (it caches mWeaver and calls getWeaverServiceInternal(), AIDL then HIDL).
+# Taken only when nothing else calls getWeaverServiceInternal() and mWeaver is written nowhere else
+# (its death recipient clears it through the -$$Nest$fputmWeaver accessor).
+HEADER16 = re.compile(r"^\.method (?:private |public |final |declared-synchronized )*getWeaverService\(\)Landroid/hardware/weaver/IWeaver;$")
+
+
+def span_of(lines, k):
+    """The method containing line k: (its .method line, its .end method line)."""
+    s = max(i for i in range(k + 1) if lines[i].startswith(".method "))
+    e = next(i for i in range(k, len(lines)) if lines[i].startswith(".end method"))
+    return s, e
+
+
+def android16_lookup(path, lines):
+    heads = [k for k, l in enumerate(lines) if HEADER16.match(l)]
+    if len(heads) != 1:
+        sys.exit(f"{path}: neither getWeaverServiceLocked() nor one getWeaverService() ({len(heads)})")
+    own = span_of(lines, heads[0])
+    for k, l in enumerate(lines):
+        if "SyntheticPasswordManager;->getWeaverServiceInternal()" in l and span_of(lines, k) != own:
+            sys.exit(f"{path}: getWeaverServiceInternal() called outside getWeaverService() (line {k + 1})")
+        if re.match(r"^\s*iput-object \S+, \S+, Lcom/android/server/locksettings/SyntheticPasswordManager;->mWeaver:", l):
+            s, _ = span_of(lines, k)
+            if s != own[0] and "-$$Nest$fputmWeaver(" not in lines[s]:
+                sys.exit(f"{path}: mWeaver written outside getWeaverService() (line {k + 1})")
+    return heads
 
 
 def main(root):
@@ -40,6 +67,8 @@ def main(root):
         if not any(l.startswith(".class ") and l.endswith("Lcom/android/server/locksettings/SyntheticPasswordManager;") for l in lines):
             continue
         heads = [k for k, l in enumerate(lines) if HEADER.match(l)]
+        if not heads:
+            heads = android16_lookup(path, lines)
         if len(heads) != 1:
             sys.exit(f"{path}: getWeaverServiceLocked() found {len(heads)} times, expected once")
         i = heads[0]

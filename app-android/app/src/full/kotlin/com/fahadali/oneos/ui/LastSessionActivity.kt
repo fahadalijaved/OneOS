@@ -128,7 +128,7 @@ class LastSessionFragment : CardsFragment() {
         }
         if (zip != null && !job.busy) {
             // 0.4.29: the checklist and the logs straight to the team; Share and Save stay under View.
-            if (ReportSender.available) {
+            if (ReportSender.offered) {
                 val code = SendReportActivity.sentCode(ctx, zip)
                 Cards.row(
                     logs, OuiIcons.drawable.ic_oui_send, getString(R.string.send_title),

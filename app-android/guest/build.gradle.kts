@@ -7,7 +7,7 @@ import java.util.Properties
 // installs it in every guest as a system app (/oem/app/OneOSGuest), from
 // $STAGE/OneOSGuest.apk (scripts/make-overlays.sh copies the release build).
 // SESL9 supplies the same native components on Pixel and ColorOS.
-// No permission and no network access.
+// Package metadata and module update checks need package visibility and network access.
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -19,6 +19,7 @@ val releaseKeys: Properties? =
     }
 
 android {
+    sourceSets.getByName("main").kotlin.srcDir(rootProject.file("shared-guest-ui"))
     namespace = "com.fahadali.oneos.guest"
     compileSdk { version = release(37) }
 
@@ -27,8 +28,8 @@ android {
         minSdk = 31
         targetSdk = 36
         // 0.2 (OneOS 0.4.30): How's it going?, the checklist for Send to the OneOS team.
-        versionCode = 6
-        versionName = "0.6"
+        versionCode = 12
+        versionName = "0.12"
     }
 
     signingConfigs {
@@ -47,7 +48,7 @@ android {
             // R8 drops the unused Kotlin stdlib: the APK sits in the guest's /oem.
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
         }
     }

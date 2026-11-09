@@ -781,7 +781,15 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
             else -> null
         } ?: return
         Cards.row(card, R.drawable.ic_oneos_row_last_time, getString(R.string.home_row_last), summary) {
-            startActivity(Intent(ctx, LastSessionActivity::class.java))
+            // While its logs are being saved: offer to skip that (owner, 11-08), Boot and Update wait for it.
+            if (logs.busy && !logs.recovering) {
+                androidx.appcompat.app.AlertDialog.Builder(ctx)
+                    .setTitle(R.string.logs_skip)
+                    .setMessage(R.string.logs_skip_summary)
+                    .setPositiveButton(R.string.logs_skip) { _, _ -> LogJob.skip() }
+                    .setNegativeButton(R.string.logs_keep, null)
+                    .show()
+            } else startActivity(Intent(ctx, LastSessionActivity::class.java))
         }
     }
 

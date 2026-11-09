@@ -87,6 +87,11 @@ if [ "$1" = baseline ]; then
     apex_overlays > "$BASE/apex_overlays"
     ip rule show > "$BASE/iprule" 2>&1
     for f in /sys/fs/f2fs/*/gc_urgent; do [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"; done > "$BASE/gc_urgent"
+    # One UI's CPU sets and core control, which init writes only at boot; a guest's
+    # performance service can write them (vivo QoS: split screen, VCFA).
+    for f in /dev/cpuset/cpus /dev/cpuset/*/cpus /sys/devices/system/cpu/cpu*/core_ctl/enable; do
+        [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"
+    done > "$BASE/cpuset"
     for n in $HOST_NAMES; do p=$(svc_pid "$n"); echo "$n ${p:-none}"; done > "$BASE/svcpid"
     ls -lZ /dev/watchdog* > "$BASE/watchdog" 2>&1
     # One UI's linker namespaces (a tmpfs the guest's tree binds), compared at the return.
@@ -202,14 +207,25 @@ if [ -n "$BB" ] && [ -n "$gp" ] && [ ! -L "$DR" ] && rm -rf "$DR" 2>/dev/null &&
       echo "audio HAL pid: $(timeout 3 dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1)"
     } > "$DR/bt_props.txt" 2>&1
     wait $p1 $p2 $p3 $p4 $p5 $p6 $p7 2>/dev/null
-    echo "Guest Bluetooth, audio and location at the return (pid $gp's namespace): $(ls "$DR" 2>/dev/null | tr '\n' ' ')in $DR"
+    echo "$(date +%T) Guest Bluetooth, audio and location at the return (pid $gp's namespace): $(ls "$DR" 2>/dev/null | tr '\n' ' ')in $DR"
 else
     why="no guest surfaceflinger or system_server"
     [ -n "$gp" ] && why="no busybox, or $DR not usable"
-    echo "Guest Bluetooth, audio and location at the return: not read ($why)"
+    echo "$(date +%T) Guest Bluetooth, audio and location at the return: not read ($why)"
 fi
 
-echo "=== [1/4] Terminating Container Supervision & Zygote ==="
+# servicemanager logs to the kernel log, not logcat: the guest's system_server
+# died on "SELinux denied for service" while adding Oplus services (S22 Ultra
+# Exynos OxygenOS 0.4.70 e01601e0, S24 Exynos ColorOS 0.4.68 fbe805b2; the same
+# model ran on another phone) and no bundle said why. Its last lines, and the
+# catch-all line of One UI's service_contexts that every guest-only service name
+# needs even in a permissive session (docs/inplace-return.md). Read only.
+if [ -n "$BB" ]; then sm=$("$BB" dmesg 2>/dev/null | "$BB" grep -E 'servicemanager|SELinux: No match' | "$BB" tail -n 6)
+else sm=$(dmesg 2>/dev/null | grep -E 'servicemanager|SELinux: No match' | tail -n 6); fi
+[ -n "$sm" ] && echo "$sm" | sed 's/^/servicemanager (kernel log): /'
+echo "service_contexts catch-all lines in One UI's plat_service_contexts: $(grep -c '^\*' /system/etc/selinux/plat_service_contexts 2>/dev/null)"
+
+echo "=== [1/4] $(date +%T) Terminating Container Supervision & Zygote ==="
 # A screen recording (guest_start.sh) is finalised on SIGINT; SIGKILL would
 # leave an unplayable segment. Nothing on the host is called screenrecord.
 # The flag stops guest_start.sh's segment loop first: in run 31 it started
@@ -288,27 +304,67 @@ HOST_NS=$(readlink /proc/1/ns/mnt)
 GUEST_DEV=$(cat /data/local/tmp/oneos/guest_rootdev 2>/dev/null)
 HOST_DEV=$(stat -L -c %d /proc/1/root/ 2>/dev/null)
 [ "$GUEST_DEV" = "$HOST_DEV" ] && GUEST_DEV=""
+# Speed: apps have private mount namespaces, so a namespace check alone misses
+# them. Their "/" mount is the guest root filesystem; its device from mountinfo
+# is cheap to read. The old loop ran `timeout 1 stat` on every process's root,
+# and a guest app on a hung FUSE mount blocked each check for a second (54 s in
+# the 2026-11-08 return).
+GUEST_MM=$(awk -v d="$GUEST_DEV" 'BEGIN {
+    if (d == "") exit;
+    major = int(d / 256) % 4096;
+    minor = (d % 256) + (int(d / 4096 / 256) % 4096) * 256;
+    printf "%d:%d", major, minor;
+}')
 if [ -n "$GUEST_NS" ] && [ "$GUEST_NS" != "$HOST_NS" ]; then
     # Repeated: a guest zygote or init-like parent can fork while the first
     # pass runs, and nothing of the guest may outlive the return.
+    echo "Kill loop start $(date +%T)"
+    seen=""
     pass=1
     while [ $pass -le 5 ]; do
         killed=""
         for p in /proc/[0-9]*; do
-            if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
-                [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || continue
-            fi
             pid=${p#/proc/}
+            # Speed: check the seen list before the namespace/mountinfo probe;
+            # this is what makes passes 2+ cheap.
+            case " $seen " in *" $pid "*) continue ;; esac
+            seen="$seen $pid"
+            ns=$(readlink "$p/ns/mnt" 2>/dev/null)
+            # A process in One UI's namespace is still checked by its root
+            # mount below (cheap): something chrooted into the guest's root
+            # from the host namespace is the guest's too.
+            if [ "$ns" != "$GUEST_NS" ]; then
+                # An app's private namespace still has the guest root as "/".
+                if [ -n "$GUEST_MM" ]; then
+                    # Speed: the first line is almost always the root mount, so
+                    # read it instead of parsing the whole mountinfo for every
+                    # app. Only a private namespace whose first line is not "/"
+                    # needs the full scan.
+                    [ -r "$p/mountinfo" ] || continue
+                    rootdev=""; rootpoint=""
+                    read -r _ _ rootdev _ rootpoint _ 2>/dev/null < "$p/mountinfo" || continue
+                    if [ "$rootpoint" = "/" ]; then
+                        [ "$rootdev" = "$GUEST_MM" ] || continue
+                    else
+                        [ "$(awk '$5 == "/" { print $3; exit }' "$p/mountinfo" 2>/dev/null)" = "$GUEST_MM" ] || continue
+                    fi
+                else
+                    # No root device recorded: the slow fallback is the only way.
+                    [ -n "$GUEST_DEV" ] && [ "$(timeout 1 stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || continue
+                fi
+            fi
             killed="$killed $pid:$(cat "$p/comm" 2>/dev/null)"
-            oneos_boot_event "Stopping $(cat "$p/comm" 2>/dev/null) (PID $pid)"
+            # Speed: do not set a boot-status property for every killed process;
+            # with ~100 guest processes that was most of the 34 s phase 1.
             kill -9 "$pid" 2>/dev/null
         done
-        if [ $pass = 1 ]; then echo "Killed guest processes:${killed:- none}"
-        elif [ -n "$killed" ]; then echo "Killed guest processes (pass $pass):$killed"; fi
+        if [ $pass = 1 ]; then echo "Killed guest processes $(date +%T):${killed:- none}"
+        elif [ -n "$killed" ]; then echo "Killed guest processes (pass $pass) $(date +%T):$killed"; fi
         [ -n "$killed" ] || break
         pass=$((pass + 1)); sleep 0.3
     done
 fi
+echo "Kill loop finished $(date +%T)"
 # net_watch (oneos_switch.sh) rewrote routes until the rootfs was gone, 8 s
 # into run 43's return; it has no business in the return.
 pkill -9 -f "$S/rootfs/system/build.prop" 2>/dev/null || true
@@ -426,7 +482,7 @@ if [ -f "$S/host_state.before" ]; then
     tail -n 1 "$S/host_state.log" | grep -q "unchanged" && echo "Host state unchanged" || echo "!!! Host state changed: see $S/host_state.log"
 fi
 
-echo "=== [2/4] Unmounting Container Overlays ==="
+echo "=== [2/4] $(date +%T) Unmounting Container Overlays ==="
 # OneOS: never unmount through a glob of the rootfs. The guest image's top
 # level has absolute symlinks (system_ext -> /system/system_ext, product,
 # sdcard, ...), and in the host namespace "umount -l rootfs/*" followed them to
@@ -480,6 +536,12 @@ if [ "$MODE" = inplace ]; then
     fi
 fi
 
+if [ -f /data/local/tmp/oneos/data/oneos_root/enabled ]; then
+    if ! STAGE=/data/local/tmp/oneos /system/bin/sh /data/local/tmp/oneos/guest_runtime.sh verify-return; then
+        echo "Guest full-stack runtime: return audit failed; reboot fallback"
+        MODE=reboot
+    fi
+fi
 # OneOS: return by rebooting unless asked otherwise. Restarting One UI in place
 # after a session left one of its decompressed APEXes unreadable every time
 # (NFC, uwb, wifi): SIGBUS crash loops, RescueParty, and once an ext4
@@ -578,7 +640,7 @@ wait_found() { # <name> <seconds>
 # it is released when One UI is up.
 say "In-place return (baseline: $(cat "$BASE/kmsg" 2>/dev/null); SELinux at the return: ${SE_AT_RETURN:-unreadable}, now $(getenforce 2>/dev/null))"
 
-echo "=== [3/4] Checking One UI's modules (in place) ==="
+echo "=== [3/4] $(date +%T) Checking One UI's modules (in place) ==="
 # Leftovers in the host namespace. The suppression loop must be gone before
 # anything is started (its last 'ctl.stop' can land after a start); the audio
 # flag makes it stop audioserver too.
@@ -591,6 +653,11 @@ while [ $n -lt 10 ] && "$BB" pgrep -f "ctl.stop zygote" >/dev/null 2>&1; do
     "$BB" pkill -9 -f "ctl.stop zygote" 2>/dev/null; sleep 0.2; n=$((n + 1))
 done
 "$BB" pgrep -f "ctl.stop zygote" >/dev/null 2>&1 && failsafe "the session's stop loop is still running"
+# Inbound SMS (0.4.61): the session NOPs Samsung rild's queue branch and
+# bind-mounts the vendor library. Remove it before the stage-mount check below,
+# which would otherwise see /local/tmp/oneos/ in field 4 and reboot.
+/system/bin/sh "$S/libsec-ril-patch.sh" restore >>"$IPLOG" 2>&1 || \
+    say "!!! inbound SMS: the vendor RIL patch was not removed; see return_inplace.log"
 sleep 0.5
 # Stage mounts another mount namespace still holds (run 45): Android's bootstrap
 # namespace (early vendor daemons, kernel threads) gets its own copy of what the
@@ -740,11 +807,15 @@ done < "$BASE/svcpid"
 [ "$(getprop init.svc_debug_pid.vold)" = "$(base_prop init.svc_debug_pid.vold)" ] || failsafe "One UI's vold restarted"
 say "Gate A: vold $(awk '$1 == "vold" {print $2}' "$BASE/svcpid") and the other names are still One UI's"
 
-echo "=== [4/4] Starting One UI in place ==="
+echo "=== [4/4] $(date +%T) Starting One UI in place ==="
 g=0
 for p in /proc/[0-9]*; do
-    if [ -n "$GUEST_NS" ] && [ "$(readlink "$p/ns/mnt" 2>/dev/null)" = "$GUEST_NS" ]; then g=$((g + 1))
-    elif [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ]; then g=$((g + 1)); fi
+    # Speed: this check used to stat /proc/<pid>/root for every process. A
+    # guest app's root can sit on a hung FUSE mount, and that stat blocked
+    # the return for 37 s (2026-11-08). The kill loop already removed the
+    # apps; the namespace readlink is cheap and catches every guest process
+    # still sharing the container's mount namespace. Gate B rechecks.
+    [ -n "$GUEST_NS" ] && [ "$(readlink "$p/ns/mnt" 2>/dev/null)" = "$GUEST_NS" ] && g=$((g + 1))
 done
 [ $g = 0 ] || failsafe "$g guest processes still running"
 [ "$(getprop init.svc.zygote)" != running ] && ! pidof system_server >/dev/null || failsafe "One UI's zygote or system_server started before the return was ready"
@@ -766,11 +837,18 @@ for k in crashrecovery.rescue_boot_start crashrecovery.boot_mitigation_count cra
 done
 "$RP" -n sys.rescue_boot_count 0 2>/dev/null
 "$RP" -n crashrecovery.rescue_boot_count 0 2>/dev/null
+# qemu.hw.mainkeys: AOSP's DisplayPolicy reads it at start ("1" = no navigation
+# bar); vivo's VivoDisplayPolicyImpl.setVivoNavBar(false) sets it to 1 when it
+# removes its own bar for gestures, and the seventh OriginOS run's return left
+# it at 1 for One UI's system_server. vold.has_adoptable: One UI's vold is not
+# restarted and set it once.
 for k in ro.control_privapp_permissions \
          audio.offload.disable audio.deep_buffer.media audio.offload.video vendor.audio.offload.track.enable \
-         service.bootanim.exit oneos.guest.powerctl; do
+         service.bootanim.exit oneos.guest.powerctl oneos.vivo.inner_display qemu.hw.mainkeys vold.has_adoptable; do
     put_back "$k"
 done
+[ "$(getprop qemu.hw.mainkeys)" = "$(base_prop qemu.hw.mainkeys)" ] ||
+    failsafe "qemu.hw.mainkeys is still the guest's ($(getprop qemu.hw.mainkeys)): One UI would start without its navigation bar"
 for k in $(getprop | "$BB" sed -n 's/^\[\(log\.tag\.[^]]*\)\]: .*/\1/p'); do put_back "$k"; done
 # debug.* (surfaceflinger, hwui, renderengine) the guest set through the shared
 # property service: One UI's surfaceflinger reads them at start.
@@ -804,6 +882,11 @@ if ip rule show 2>/dev/null | "$BB" grep -q '^14999:.*lookup 4242'; then
     ip route flush table 4242 2>/dev/null
 fi
 "$BB" grep -q '^14999:' "$BASE/iprule" || ! ip rule show 2>/dev/null | "$BB" grep -q '^14999:' || say "!!! ip rule 14999 still there"
+# net_fix.sh's copies of netd's explicit-network rules (0.4.61), unless One UI had 14998 itself.
+if ! "$BB" grep -q '^14998:' "$BASE/iprule"; then
+    n=0
+    while [ $n -lt 32 ] && ip rule del priority 14998 2>/dev/null; do n=$((n + 1)); done
+fi
 # guest_prepare.sh re-made /dev/block/loop50-150 and /dev/loop50-150 with mknod:
 # their SELinux label is gone (One UI's apexd and vold need loop_device).
 restorecon /dev/block/loop* /dev/loop* 2>/dev/null
@@ -813,6 +896,13 @@ restorecon /dev/block/loop* /dev/loop* 2>/dev/null
     say "f2fs $f is $(cat "$f" 2>/dev/null), was $v at the switch"
     case "$v" in 0|GC_NORMAL) echo 0 > "$f" 2>/dev/null ;; esac
 done < "$BASE/gc_urgent"
+# CPU sets and core control as One UI had them (same boot: the baseline is this session's).
+[ -f "$BASE/cpuset" ] && [ "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)" = "$(cat "$BASE/boot_id" 2>/dev/null)" ] && while read -r f v; do
+    [ -f "$f" ] || continue
+    [ "$(cat "$f" 2>/dev/null)" = "$v" ] && continue
+    case "$v" in ''|*[!0-9,-]*) continue ;; esac
+    echo "$v" > "$f" 2>/dev/null && say "$f put back to $v (the guest had changed it)"
+done < "$BASE/cpuset"
 
 # Display: the composer still holds the guest's dead surfaceflinger as its
 # client (guest_start.sh restarted it for the guest); its onrestart starts One
@@ -989,7 +1079,10 @@ ip rule show 2>/dev/null | "$BB" diff "$BASE/iprule" - >> "$IPLOG" 2>&1 || say "
 # capture and the wakelock end.
 v=$("$BB" sed -n 's/^persist\.sys\.disable_rescue=//p' $S/persist_props.snapshot 2>/dev/null | "$BB" head -n 1)
 if [ -n "$v" ]; then "$RP" -n persist.sys.disable_rescue "$v" 2>/dev/null; else "$RP" --delete persist.sys.disable_rescue 2>/dev/null; fi
-/system/bin/sh $S/check_host_apex.sh after-inplace >> "$IPLOG" 2>&1 || say "!!! a One UI APEX file read failed after the restart (see return_inplace.log)"
+# Speed: log-only; Gate A already read the APEXes before One UI started.
+(
+    /system/bin/sh $S/check_host_apex.sh after-inplace >> "$IPLOG" 2>&1 || say "!!! a One UI APEX file read failed after the restart (see return_inplace.log)"
+) &
 # Ten more minutes of the session's logcat capture for anything late (two
 # until 0.4.33: the apps hanging after a return came later), then
 # this return stops it, unless a session started meanwhile: that one keeps the
@@ -1003,10 +1096,18 @@ if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
     # Integrity requests; report 9455098f), taken once from this capture three
     # minutes after the return, at the lowest priority, 2 MiB at most. Until
     # test build 6 a logcat -e watch took them live at 65% of a core.
+    # Two minutes at most (0.4.74): the regex over up to 24 x 32 MiB, one of
+    # them still being written, kept a whole core busy for the next session:
+    # S26 2f97ffa9 (0.4.72, return 02:24, grep at 100% CPU in every sampler
+    # line of the 02:34-02:55 session, 100%nice; "CPU 85-90 C") and S22 Ultra
+    # acd15d4c (0.4.73, return 14:37, grep at 90-103% from 16:57 to the end
+    # of the next session). Its waiter's PID in store_watch.pid: a session
+    # starting within the three minutes ends it (oneos_switch.sh).
     ONEOS_RE='IQ: Notifying installation update|IV2: (Rejecting|request install failure)|cannot process install request|Unauthenticated delivery|Cannot get valid account|Unauth not supported|No current account found|INSTALL_FAILED|installation completed for package|Commit of session|Download failed|DS: .*(error|fail)|setKeyAttestationCheckFailed|finishCalled for ControlledActivity, resultCode|AccountManager notifies account update|Device is now provisioned|requestExpressIntegrityToken|requestIntegrityToken|Integrity key attestation|no longer exists|account is null|Cached accounts updated|No account for auth token|IV2: Task Failed|Refreshing user settings' ONEOS_L="$LOGS" ONEOS_S="$S" "$BB" sh -c '
         sleep 180
         cd "$ONEOS_L" || exit 0
-        nice -n 19 grep -h -E -e "$ONEOS_RE" $(ls -tr boot.log* 2>/dev/null) 2>/dev/null | head -c 2097152 > "$ONEOS_S/store_watch.log"' </dev/null >/dev/null 2>&1 &
+        nice -n 19 timeout 120 grep -h -E -e "$ONEOS_RE" $(ls -tr boot.log* 2>/dev/null) 2>/dev/null | head -c 2097152 > "$ONEOS_S/store_watch.log"' </dev/null >/dev/null 2>&1 &
+    echo $! > "$S/store_watch.pid"
     STOP_TOKEN="$(date +%s).$$"
     echo "$STOP_TOKEN" > "$LOGS/logcat.stop" 2>/dev/null
     "$BB" sh -c "sleep 600; [ \"\$(cat $LOGS/logcat.stop 2>/dev/null)\" = $STOP_TOKEN ] || exit 0; rm -f $LOGS/logcat.stop; pkill -f '^logcat .*/data/local/tmp/oneos_logs/boot.log'" </dev/null >/dev/null 2>&1 &

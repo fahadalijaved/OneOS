@@ -27,7 +27,8 @@ import os
 import re
 import sys
 
-AMS_CALL = "    invoke-interface {v1}, Landroid/os/storage/IStorageManager;->commitChanges()V\n"
+# The register differs per build: v1 on the Android 17 images, v3 on OnePlus's Android 16 (OxygenOS 16).
+AMS_CALL = re.compile(r"^    invoke-interface \{[vp]\d+\}, Landroid/os/storage/IStorageManager;->commitChanges\(\)V\n", re.M)
 ENTRY_POINTS = [
     "reboot(Landroid/content/Context;Ljava/lang/String;Z)V",
     "rebootOrShutdown(Landroid/content/Context;ZLjava/lang/String;)V",
@@ -56,9 +57,9 @@ def top_dir(root, path):
 def guard_ams(root):
     path = find(root, os.path.join("com", "android", "server", "am", "ActivityManagerService.smali"))
     smali = open(path).read()
-    if smali.count(AMS_CALL) != 1:
+    if len(AMS_CALL.findall(smali)) != 1:
         sys.exit("ActivityManagerService: expected one commitChanges() call")
-    smali = smali.replace(AMS_CALL, "    # OneOS: IStorageManager.commitChanges() dropped (its failure reboots the shared phone)\n")
+    smali = AMS_CALL.sub("    # OneOS: IStorageManager.commitChanges() dropped (its failure reboots the shared phone)\n", smali)
     open(path, "w").write(smali)
     print("ActivityManagerService: commitChanges dropped", file=sys.stderr)
     return top_dir(root, path)

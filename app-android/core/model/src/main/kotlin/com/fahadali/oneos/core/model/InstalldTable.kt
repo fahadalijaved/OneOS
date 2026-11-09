@@ -145,6 +145,29 @@ object InstalldExpected {
     const val SHA256 = "791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2"
     const val METHODS = 85
 
+    /**
+     * Android 16 images (One UI 8 hosts, 0.4.66): the non-comment lines of switcher/patches/host_installd_a16.txt,
+     * One UI 8.5's table (BP4A.251205.006; the same on every 8.5 probe: A07, A15, A17, A25, A34, S23 FE, S24, E55).
+     */
+    const val SHA256_A16 = "a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977"
+
+    /**
+     * One UI 8.0's table (BP2A.250605.031: S22 Ultra, Tab X110): 8.5's minus Samsung's 74-78, and slot 33 is
+     * createOatDir(String,String,String) where 8.5 has createOatDirs(...List). An Android 16 set's proxy,
+     * built against 8.5's table, blocks createOatDir (no such name there) and never sends 74-78, so every
+     * code it sends means the same on 8.0: accepted for SDK 36 images too.
+     */
+    const val SHA256_A16_ONEUI80 = "9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
+
+    /** The table the sets of an SDK [sdk] image carry (host_installd.txt's or host_installd_a16.txt's lines). */
+    fun carried(sdk: Int): String? = when (sdk) { 37 -> SHA256; 36 -> SHA256_A16; else -> null }
+
+    /** The phone tables an SDK [sdk] image's sets work with: the carried one, and compatible ones. */
+    fun accepted(sdk: Int): Set<String> = when (sdk) { 37 -> setOf(SHA256); 36 -> setOf(SHA256_A16, SHA256_A16_ONEUI80); else -> emptySet() }
+
+    /** The app asset holding the table for SDK [sdk] (staged as host_installd.txt). */
+    fun assetName(sdk: Int): String = if (sdk == 36) "host_installd_a16.txt" else "host_installd.txt"
+
     /** Method lines of a derived table, in the host_installd.txt layout. */
     fun methodLines(methods: List<InstalldMethod>): String =
         methods.sortedBy { it.code }.joinToString("") { "${it.name} ${it.code} ${it.signature}\n" }
@@ -168,15 +191,16 @@ object InstalldExpected {
      * hash to [SHA256] (a wrong asset fails closed). Null compares with the
      * pinned hash only.
      */
-    fun problems(derived: InstalldDerivation?, expectedText: String? = null): List<String> {
+    fun problems(derived: InstalldDerivation?, expectedText: String? = null, sdk: Int = 37): List<String> {
         if (derived == null) return listOf("installd table not derived on this phone")
         if (!derived.ok) return listOf("installd table not derived: ${derived.error ?: "no methods"}")
         val p = mutableListOf<String>()
         val expected = expectedText?.let(::nonCommentLines)
-        if (expected != null && Hashes.sha256(expected) != SHA256) p += "the app's host_installd.txt is not the pinned table"
+        if (expected != null && Hashes.sha256(expected) != carried(sdk)) p += "the app's host_installd.txt is not the pinned table"
         val got = methodLines(derived.methods)
-        if (Hashes.sha256(got) != SHA256) p += "this phone's installd table differs from the one the OneOS files carry"
-        if (expected != null && got != expected) {
+        val compatible = Hashes.sha256(got) in accepted(sdk)
+        if (!compatible) p += "this phone's installd table differs from the one the OneOS files carry"
+        if (expected != null && got != expected && !compatible) {
             val want = expected.removeSuffix("\n").split('\n').toSet()
             val have = got.removeSuffix("\n").split('\n').toSet()
             (have - want).take(5).forEach { p += "phone has: $it" }

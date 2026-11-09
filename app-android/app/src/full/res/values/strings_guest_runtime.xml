@@ -1,0 +1,4 @@
+<resources>
+    <string name="guest_root_shared_kernel_title">Guest root has access to the whole phone</string>
+    <string name="guest_root_shared_kernel_summary">Root granted in the guest is root on this phone’s shared kernel. Separate app permissions, modules and Xposed state do not fully isolate privileged code from One UI.</string>
+</resources>

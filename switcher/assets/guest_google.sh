@@ -35,9 +35,18 @@ say() { echo "Google apps: $*"; }
 # sets present the image's own Play services (guest_prepare.sh GMS_WANT), and
 # so does a set with a gmssystem payload (Infinity-X, 0.4.27, which has OPPO's
 # jars too). Not when a launch hides Google services (ONEOS_GUEST_HIDE_GMS=1).
+# vivo OriginOS (vivo-services_patched.jar) presents Play services from its own
+# gmssystem payload (guest_prepare.sh GMS_WANT), but its Play Store is the same
+# 2022 CN stub without a launcher entry (F8U run 13: "Play Store missing"):
+# STORE_ONLY, One UI's Play Store over the stub and Play services left alone.
+STORE_ONLY=0
 selected() {
-    grep -q -E ' (oplus|miui)-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null && [ ! -f "$STAGE/gmssystem_payload.img" ] &&
-        [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ "${ONEOS_GUEST_HIDE_GMS:-0}" != 1 ]
+    [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ "${ONEOS_GUEST_HIDE_GMS:-0}" != 1 ] || return 1
+    if grep -q -E ' vivo-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null && [ -f "$STAGE/gmssystem_payload.img" ]; then
+        STORE_ONLY=1
+        return 0
+    fi
+    grep -q -E ' (oplus|miui)-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null && [ ! -f "$STAGE/gmssystem_payload.img" ]
 }
 # No links anywhere below the cache, a guest-planted link to host data included.
 plain_tree() {
@@ -152,7 +161,7 @@ snapshot)
     mkdir -p "$CACHE" || skip "cannot create $CACHE"
     rm -rf "$CACHE"/.[!.]*
     WHY=
-    copy_app com.google.android.gms GmsCore || skip "$WHY"
+    [ $STORE_ONLY = 1 ] || copy_app com.google.android.gms GmsCore || skip "$WHY"
     copy_app com.android.vending Phonesky || skip "$WHY"
     rm -f "$CACHE"/.*.paths "$CACHE"/.*.stat
     ;;
@@ -161,7 +170,8 @@ prepare)
     selected || exit 0
     ROOTFS="$STAGE/rootfs"
     [ -d "$CACHE" ] || { say "no copy from One UI (see the snapshot line before One UI stopped)"; exit 0; }
-    for name in GmsCore Phonesky; do
+    names="GmsCore Phonesky"; [ $STORE_ONLY = 1 ] && names=Phonesky
+    for name in $names; do
         verify "$CACHE/$name" || { say "the copy of $name does not match its checksums: not used"; exit 0; }
     done
     # The image's Play services folder: in my_product (ColorOS) or in the
@@ -171,7 +181,7 @@ prepare)
     [ -L "$PRODUCT" ] && PRODUCT="$ROOTFS/product"
     gms=""
     for d in "$ROOTFS/my_product/priv-app" "$PRODUCT/priv-app"; do
-        "$BB" umount -l "$d/GmsCore" 2>/dev/null
+        [ $STORE_ONLY = 1 ] || "$BB" umount -l "$d/GmsCore" 2>/dev/null
         [ -d "$d/GmsCore" ] && [ ! -L "$d/GmsCore" ] && [ ! -L "$d" ] && { gms="$d/GmsCore"; break; }
     done
     [ -n "$gms" ] || { say "the image has no priv-app/GmsCore folder: not used"; exit 0; }
@@ -180,6 +190,20 @@ prepare)
     store="${gms%/GmsCore}/GooglePlayServicesUpdater"
     "$BB" umount -l "$store" 2>/dev/null
     [ -d "$store" ] && [ ! -L "$store" ] || store=
+    if [ $STORE_ONLY = 1 ]; then
+        [ -n "$store" ] || { say "the image has no Play Store stub next to GmsCore: its own Play Store stays"; exit 0; }
+        chcon -R u:object_r:system_file:s0 "$CACHE/Phonesky" &&
+            "$BB" mount --bind "$CACHE/Phonesky" "$store" &&
+            "$BB" mount --make-private "$store" &&
+            "$BB" mount -o remount,bind,ro "$CACHE/Phonesky" "$store" || {
+            "$BB" umount -l "$store" 2>/dev/null
+            say "could not bind Phonesky over ${store#$ROOTFS/}: not used"
+            exit 0
+        }
+        say "Phonesky from One UI -> ${store#$ROOTFS/} (read-only; Play services from the image's payload)"
+        remove_installed com.android.vending
+        exit 0
+    fi
     # The image's own signed Dynamite modules stay with Play services.
     rm -rf "$CACHE/GmsCore/m"
     if [ -d "$gms/m" ]; then

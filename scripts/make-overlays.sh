@@ -171,6 +171,37 @@ BUILDS = [
         "service.incremental.so": "649cb1e9dd6db10f09a038600fe5818f5542f32f0d0350c43c9404b8ffbbc66d",
         "crashrecovery-google-compressed.apex": "f6750712189d56e68dacdb092c418acb092176ed7e33bef4d37d72a15b4970c2",
     }, [("vold", 0x10e23, NAME), ("vold", 0x83384, TRY_START), ("service.incremental.so", 0x6578d, NAME)]),
+    # vivo OriginOS 6 CN (PD2609MA, k6993v1_64, MediaTek, 2026-09-01): start()
+    # takes "vold" at 0x10e40 (adrp 0x10000 + add 0xe40 at 0x83a1c, the binary's
+    # only "\0vold\0"; its 25 other references are log tags: async_safe_format_log
+    # in umountStorageDirs, the exFat/Ntfs check and mount logs). try_start
+    # (0x83310) has its tbz w19, #0, +0xd4 on the isDeclared() result at 0x83384,
+    # as in the global build. service.incremental.so is the global build's, byte
+    # for byte. Its uncompressed com.android.crashrecovery.apex has AOSP's
+    # RescueParty.isDisabled (the same four tests in the same order), checked by
+    # all four observer entry points before executeFactoryReset.
+    ("vivo OriginOS 6 CN (PD2609MA, k6993v1_64)", {
+        "vold": "db7106d6ff3f45d7b4b2cbb411d6b35233d268b18c9dc971c9bd4166f0836d0b",
+        "service.incremental.so": "649cb1e9dd6db10f09a038600fe5818f5542f32f0d0350c43c9404b8ffbbc66d",
+        "crashrecovery-aosp.apex": "5bad89011c1d327d211cbe450d28887515c94c16ed1db574f13b050bd7e79333",
+    }, [("vold", 0x10e3f, NAME), ("vold", 0x83384, TRY_START), ("service.incremental.so", 0x6578d, NAME)]),
+    # OnePlus OxygenOS 16 (CPH2745 16.0.10.601, Android 16): start() takes "vold" at
+    # 0xfd4a (adrp 0xf000 + add 0xd4a at 0x75f78, then String16 and a new
+    # VoldNativeService; the binary's only "\0vold\0", its other 9 references are
+    # log tags around 0xb9734). try_start's tbz w19, #0, +0xd4 is at 0x758e4, right
+    # after isDeclared("android.system.vold.IVold/default", adr 0x17f83) through the
+    # service manager's vtable +0x48. service.incremental.so has the string at
+    # 0x4f883 with its two lookups (adr at 0x98fb8 in BinderIncrementalService::start,
+    # adrp + add at 0x9b6a4 with String16(s, 4)). Its crashrecovery APEX
+    # (com.android.crashrecovery.apex, erofs) has AOSP's RescueParty.isDisabled
+    # (persist.sys.enable_rescue, the DeviceConfig flag, eng/userdebug,
+    # persist.sys.disable_rescue). 0.4.67: without it every OxygenOS return rebooted
+    # ("vold is not registered", S22 Ultra 96977dcc, A34 deb8690c).
+    ("OnePlus OxygenOS 16 BP2A (CPH2745)", {
+        "vold": "cd18c5313787c3bd5f182c7bcfb6982d4b23f5629a1c95be41cef2c156d7ebc1",
+        "service.incremental.so": "e24c296c9148f71faa35267e535e65d9ed527206e25d929d371eb400cc8f2279",
+        "crashrecovery-aosp.apex": "626a82dda7c6cc0dfc7ee26397466b75a3d5d12bdaf0a1cd8d9c521c6142c548",
+    }, [("vold", 0xfd49, NAME), ("vold", 0x758e4, TRY_START), ("service.incremental.so", 0x4f882, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)
@@ -220,7 +251,18 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_power_guards.py" 
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/services")"
 # Send installd calls with One UI's transaction codes, block the rest
 # (patches/guest_installd_abi.py, table from scripts/host-installd-table.sh).
-KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" "$WORK/services" "$ROOT/switcher/patches/host_installd.txt")"
+# The host is the One UI of the image's Android version (0.4.66): One UI 9 (Android 17)
+# for SDK 37 images, One UI 8.5 (Android 16, host_installd_a16.txt from the A07/A17/A15
+# probes; One UI 8.0's differs only in slot 33, createOatDir, which the proxy blocks
+# under 8.5's table, and lacks Samsung's 74-78) for SDK 36 ones.
+IMAGE_SDK=$("$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | sed -n 's/^ro.build.version.sdk=//p' | head -n 1)
+case "$IMAGE_SDK" in
+    37) HOST_INSTALLD="$ROOT/switcher/patches/host_installd.txt" ;;
+    36) HOST_INSTALLD="$ROOT/switcher/patches/host_installd_a16.txt" ;;
+    *) echo "image SDK ${IMAGE_SDK:-unknown}: no host installd table for it" >&2; exit 1 ;;
+esac
+echo "installd: the image is SDK $IMAGE_SDK, host table $(basename "$HOST_INSTALLD")"
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" "$WORK/services" "$HOST_INSTALLD")"
 # No kernel crash from the guest's watchdog (patches/guest_no_sysrq_crash.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_sysrq_crash.py" "$WORK/services")"
 # The guest never touches the phone's weaver slots, where One UI's lock
@@ -235,7 +277,8 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_biometric_clea
 # aliases with One UI's). patches/guest_no_gatekeeper.py, guest_pdb_readonly.py,
 # guest_no_apex_installs.py, guest_app_id_offset.py, guest_no_new_users.py; the KernelSU
 # manager keeps One UI's app id (guest_ksu_manager_appid.py, 0.4.39).
-for g in guest_no_gatekeeper guest_pdb_readonly guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
+# 0.4.63: the PDB start task survives a failed FRP deactivation (guest_pdb_init_survives.py).
+for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
@@ -279,6 +322,14 @@ if [ "$VOLD_GVLD" = 1 ]; then
 fi
 # StorageManagerService waits for OPPO's DefragService, which never registers.
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oplus_wait_for_service.py" "$WORK/services" --only DefragService)"
+# ColorOS's sound trigger retried a HAL the phone does not have forever on system_server's
+# main thread (A16 5G, A17 5G: Watchdog kill after 60 s); it gives up as AOSP does
+# (patches/oplus_soundtrigger_no_hal.py; nothing to change on other images).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oplus_soundtrigger_no_hal.py" "$WORK/services")"
+# A sound-trigger HAL that refuses a model (Pixel's Now Playing on Samsung's HAL) is not
+# rebooted: the reboot took One UI's audio HAL process and the guest's audio down, again
+# and again (patches/guest_soundtrigger_no_reboot.py, 0.4.64).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_soundtrigger_no_reboot.py" "$WORK/services")"
 # Pixel's Comfort View as a color matrix, like Night Light (run 43: the switch
 # did nothing; patches/comfort_view_bridge.py). Left out, with a warning, on an
 # image without ColorDisplayService.setUp, and not run for ColorOS: its
@@ -411,6 +462,14 @@ if in_image /system/framework/vivo-services.jar; then
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" --callers "$WORK/vivo")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    # vivo's app freezer asks for transport 11, which One UI's connectivity module
+    # refuses (second CN run: system_server died); see vivo-service-wifi.jar below.
+    NEW=$(python3 -I "$ROOT/switcher/patches/vivo_wifi_connectivity.py" "$WORK/vivo" services)
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    # vivo's vendor HALs without a wait that never ends (vcode: tenth CN run, 542
+    # one-second waits in system_server, a lock held meanwhile).
+    NEW=$(python3 -I "$ROOT/switcher/patches/vivo_no_wait.py" "$WORK/vivo")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     java -jar "$APKTOOL" b -q -o "$WORK/vivo-rebuilt.jar" "$WORK/vivo"
     cp "$WORK/vivo-services.jar" "$OUT/vivo-services_patched.jar"
     for d in $DIRS; do
@@ -421,6 +480,48 @@ if in_image /system/framework/vivo-services.jar; then
         echo "built $OUT/vivo-services_patched.jar (replaced $DEX)"
     done
     rm -rf "$WORK/vivo" "$WORK/vivo-rebuilt.jar" "$WORK/vdex" "$WORK/vivo-services.jar"
+fi
+# vivo-telephony-common-platform-ex.jar (vivo OriginOS, MediaTek build), loaded
+# by telephony-common for the phone process's RIL: MtkRIL waits for MediaTek's
+# mtkradioex services before it connects to One UI's radio, and a Samsung vendor
+# has none (patches/vivo_telephony.py; seventh run: no SIM, no signal).
+rm -f "$OUT/vivo-telephony-common-platform-ex_patched.jar"
+VTX_JAR=/system/framework/vivo-telephony-common-platform-ex.jar
+if in_image $VTX_JAR; then
+    "$DEBUGFS" -R "dump $VTX_JAR $WORK/vtx.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vtx" "$WORK/vtx.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_telephony.py" "$WORK/vtx")
+    java -jar "$APKTOOL" b -q -o "$WORK/vtx-rebuilt.jar" "$WORK/vtx"
+    cp "$WORK/vtx.jar" "$OUT/vivo-telephony-common-platform-ex_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/vdex" && mkdir -p "$WORK/vdex"
+        unzip -q -o "$WORK/vtx-rebuilt.jar" "$DEX" -d "$WORK/vdex"
+        (cd "$WORK/vdex" && zip -q -0 "$OUT/vivo-telephony-common-platform-ex_patched.jar" "$DEX")
+        echo "built $OUT/vivo-telephony-common-platform-ex_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/vtx" "$WORK/vtx-rebuilt.jar" "$WORK/vdex" "$WORK/vtx.jar"
+fi
+# framework-adapter.jar (vivo OriginOS, boot class path): About phone's processor
+# from the generic CPU nodes, not vivo's /sys/cpu_info (patches/vivo_guards.py
+# framework-adapter; seventh run: "Processor null GHz"). Its boot image part is
+# already given up with framework_patched.jar.
+rm -f "$OUT/framework-adapter_patched.jar"
+FA_JAR=/system/framework/framework-adapter.jar
+if in_image /system/framework/vivo-services.jar && in_image $FA_JAR; then
+    "$DEBUGFS" -R "dump $FA_JAR $WORK/fa.jar" "$IMG" 2>/dev/null
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fa" "$WORK/fa.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" framework-adapter "$WORK/fa")
+    java -jar "$APKTOOL" b -q -o "$WORK/fa-rebuilt.jar" "$WORK/fa"
+    cp "$WORK/fa.jar" "$OUT/framework-adapter_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/vdex" && mkdir -p "$WORK/vdex"
+        unzip -q -o "$WORK/fa-rebuilt.jar" "$DEX" -d "$WORK/vdex"
+        (cd "$WORK/vdex" && zip -q -0 "$OUT/framework-adapter_patched.jar" "$DEX")
+        echo "built $OUT/framework-adapter_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/fa" "$WORK/fa-rebuilt.jar" "$WORK/vdex" "$WORK/fa.jar"
 fi
 
 MIUI_JAR=/system/system_ext/framework/miui-services.jar
@@ -500,6 +601,26 @@ if in_image $MIUI_JAR; then
         echo "built $OUT/miui-telephony-common_patched.jar (replaced $DEX)"
     done
     rm -rf "$WORK/mtel" "$WORK/mtel-rebuilt.jar"
+    # xiaomi-opt-telephony.jar (com.android.phone): VendorRIL takes a HIDL radio instead of waiting
+    # for Xiaomi's AIDL rild (patches/hyperos_hidl_radio.py; the MediaTek A phones had no SIM, 0.4.67).
+    XOT_JAR=/system/system_ext/framework/xiaomi-opt-telephony.jar
+    if in_image $XOT_JAR; then
+        "$DEBUGFS" -R "dump $XOT_JAR $WORK/xiaomi-opt-telephony.jar" "$IMG" 2>/dev/null
+        java -jar "$APKTOOL" d -q -f -r -o "$WORK/xot" "$WORK/xiaomi-opt-telephony.jar"
+        DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_hidl_radio.py" "$WORK/xot")
+        java -jar "$APKTOOL" b -q -o "$WORK/xot-rebuilt.jar" "$WORK/xot"
+        cp "$WORK/xiaomi-opt-telephony.jar" "$OUT/xiaomi-opt-telephony_patched.jar"
+        for d in $DIRS; do
+            DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+            rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+            unzip -q -o "$WORK/xot-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+            (cd "$WORK/mdex" && zip -q -0 "$OUT/xiaomi-opt-telephony_patched.jar" "$DEX")
+            echo "built $OUT/xiaomi-opt-telephony_patched.jar (replaced $DEX)"
+        done
+        rm -rf "$WORK/xot" "$WORK/xot-rebuilt.jar"
+    else
+        echo "xiaomi-opt-telephony.jar: not in this image, not built"
+    fi
     # libaudiohal@aidl.so: HyperOS's audioserver waited for an audio HAL
     # adapter vendor extension that only One UI's own audioserver serves, and
     # a session stops it (patches/hyperos_audio_ext.py, sixth run: no sound).
@@ -533,7 +654,7 @@ if in_image $MIUI_JAR; then
     rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/framework.jar"
 else
     rm -f "$OUT/miui-services_patched.jar" "$OUT/apprecovery.proinstaller_patched.jar" "$OUT/framework_patched.jar" "$OUT/miui-wifi-service_patched.jar" \
-          "$OUT/miui-telephony-common_patched.jar" "$OUT/socket_exec" \
+          "$OUT/miui-telephony-common_patched.jar" "$OUT/xiaomi-opt-telephony_patched.jar" "$OUT/socket_exec" \
           "$OUT/libaudiohal_aidl_patched.so"
     echo "miui-services.jar: not in the image, nothing to patch"
 fi
@@ -819,12 +940,18 @@ if [ "${HYPEROS_FW:-0}" = 1 ] && [ -f "$OUT/framework_patched.jar" ]; then
     cp "$OUT/framework_patched.jar" "$WORK/framework-cam.jar"
 fi
 rm -f "$OUT/framework_patched.jar" "$OUT/libcamera_client_patched.so" "$OUT/libcameracompatbilityinfo_patched.so"
-if in_image /system/framework/framework.jar; then
+# ONEOS_NO_CAMERA_ABI=1: no camera bridge in this set (0.4.66, the Android 16 OxygenOS set for One UI 8
+# phones: the host tables here are One UI 9's; One UI 8's camera numbering is not on the server yet).
+# The guest's camera then does not work; everything else is built as usual.
+if [ "${ONEOS_NO_CAMERA_ABI:-0}" = 1 ]; then
+    echo "camera bridge: left out (ONEOS_NO_CAMERA_ABI=1)"
+    rm -f "$WORK/framework-cam.jar"
+elif in_image /system/framework/framework.jar; then
     [ -f "$WORK/framework-cam.jar" ] || "$DEBUGFS" -R "dump /system/framework/framework.jar $WORK/framework-cam.jar" "$IMG" 2>/dev/null
     "$ROOT/scripts/patch-framework-camera.sh" "$WORK/framework-cam.jar" "$OUT"
     rm -f "$WORK/framework-cam.jar"
 fi
-if in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
+if [ "${ONEOS_NO_CAMERA_ABI:-0}" != 1 ] && in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
     "$DEBUGFS" -R "dump /system/lib64/libcamera_client.so $WORK/libcamera_client.so" "$IMG" 2>/dev/null
     "$DEBUGFS" -R "dump /system/lib64/libcameracompatbilityinfo.so $WORK/libcameracompatbilityinfo.so" "$IMG" 2>/dev/null
     "$ROOT/scripts/patch-camera-native.sh" "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so" "$OUT"
@@ -855,7 +982,8 @@ fi
 JARS=""
 for j in services_patched.jar oplus-services_patched.jar ims-ext-common_patched.jar oplus-telephony-common_patched.jar \
          oneos-telephony.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar \
-         miui-wifi-service_patched.jar miui-telephony-common_patched.jar telephony-common_patched.jar vivo-services_patched.jar; do
+         miui-wifi-service_patched.jar miui-telephony-common_patched.jar telephony-common_patched.jar vivo-services_patched.jar \
+         vivo-telephony-common-platform-ex_patched.jar framework-adapter_patched.jar; do
     [ -f "$OUT/$j" ] && JARS="$JARS $OUT/$j"
 done
 python3 -I "$ROOT/scripts/check-dex.py" $JARS
@@ -890,8 +1018,11 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
         [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)"
         [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
         [ -f "$OUT/vivo-services_patched.jar" ] && echo "# vivo: vivo-services_patched.jar (patches/vivo_guards.py: no IOemNetd to One UI's netd, vivo-only HAL extensions; and the storage guards)"
+        [ -f "$OUT/vivo-telephony-common-platform-ex_patched.jar" ] && echo "# vivo: vivo-telephony-common-platform-ex_patched.jar (patches/vivo_telephony.py: MtkRIL ready without MediaTek's mtkradioex services)"
         (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
             $([ -f vivo-services_patched.jar ] && echo vivo-services_patched.jar) \
+            $([ -f vivo-telephony-common-platform-ex_patched.jar ] && echo vivo-telephony-common-platform-ex_patched.jar) \
+            $([ -f framework-adapter_patched.jar ] && echo framework-adapter_patched.jar) \
             $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
             $([ -f framework_patched.jar ] && echo framework_patched.jar) \
             $([ -f telephony-common_patched.jar ] && echo telephony-common_patched.jar) \
@@ -918,7 +1049,11 @@ data = bytearray(open(src, "rb").read())
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
-         "e5a8726a6687": 0x452a50}
+         "e5a8726a6687": 0x452a50,
+         # OnePlus OxygenOS 16 (CPH2745, Android 16): a status check (tbnz) comes between the
+         # load and the cbz; cbz x8 -> +0x4c at 0x5d9bb8, the same bytes (code segment 0x2a0000,
+         # file offset == vaddr).
+         "b8dc0a4def28": 0x5d9bb8}
 # vivo OriginOS 17 (MediaTek, X500 Pro Max CP2A.260605.016): after init, main()
 # registers MediaTek's MtkSF_ext as vendor.mediatek.framework.mtksf_ext.IMtkSF_ext/
 # default, a VINTF-stable binder only the guest's own manifest declares. One UI's
@@ -927,13 +1062,28 @@ SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
 # descriptor -> log "can't start MtkSF_ext", go on to the main loop at 0x65737c,
 # where the registered path also ends) becomes "b 0x6573c8": the extension is never
 # created; only MediaTek's vendor clients use it. This build has no QTI client.
-MTK_SITES = {"f693da9ab9b2": (0x657250, "c80b00b4", "5e000014")}
+# vivo OriginOS 6 CN (PD2609MA, k6993v1_64): the same code 0x6060 later, cbz x8 at
+# 0x65d2b0 -> "can't start MtkSF_ext" at 0x65d428, which rejoins the main loop at
+# 0x65d3dc where the registered path ends.
+MTK_SITES = {"f693da9ab9b2": (0x657250, "c80b00b4", "5e000014"),
+             "2b227833b558": (0x65d2b0, "c80b00b4", "5e000014")}
 mtk = MTK_SITES.get(hashlib.sha1(data).hexdigest()[:12])
 if mtk:
     moff, mold, mnew = mtk
     if data[moff:moff + 4] != bytes.fromhex(mold) or b"IQtiComposer3Client" in data:
         sys.exit("surfaceflinger: unexpected bytes at %#x, not patching" % moff)
     data[moff:moff + 4] = bytes.fromhex(mnew)
+    # vivo: SurfaceFlinger reads ro.vivo.device.type itself and drives the second
+    # panel only as "foldable"; it reads ro.oneos.vivo.dtype instead (same length),
+    # which guest_props.sh sets per ONEOS_GUEST_VIVO_FOLD, so the apps can keep the
+    # phone build's "phone" (fold mode 2; tenth CN run: vivo's apps took foldable
+    # paths their phone build lacks) while both panels work.
+    VT, VN = b"ro.vivo.device.type\0", b"ro.oneos.vivo.dtype\0"
+    if data.count(VT) == 1 and VN not in data:
+        data = data.replace(VT, VN)
+        print("surfaceflinger: reads ro.oneos.vivo.dtype for vivo's device type")
+    elif VT in data:
+        sys.exit("surfaceflinger: ro.vivo.device.type %d times, not patching" % data.count(VT))
     open(dst, "wb").write(data)
     print("built %s (MediaTek MtkSF_ext not registered)" % dst)
     sys.exit(0)
@@ -974,7 +1124,13 @@ import hashlib, os, struct, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read()) if os.path.isfile(src) else bytearray()
 PINS = {"f43b606820527ceca41e989f8863a6fbc60f2b4b7b205f9415c514e0a7ccf826":
-        [(0x18290 + 2 * 5, 0x1dd, 0x1ef), (0x18290 + 2 * 36, 0x0fa, 0x1ef)]}
+        [(0x18290 + 2 * 5, 0x1dd, 0x1ef), (0x18290 + 2 * 36, 0x0fa, 0x1ef)],
+        # vivo OriginOS 6 CN (PD2609MA): the same switch with the same 43 entries,
+        # table at 0x18250, target = 0x45de0 + 4 * entry: 0x1ef (0x4659c) is the
+        # scalar branch (tag 4, one float), 0x1dd LIGHT's brand check + data read,
+        # 0x0fa HINGE_ANGLE's data read.
+        "a06232e1f7e32b630ecd812c87566ec2629540c245aea7d263b55a4b134ef609":
+        [(0x18250 + 2 * 5, 0x1dd, 0x1ef), (0x18250 + 2 * 36, 0x0fa, 0x1ef)]}
 patches = PINS.get(hashlib.sha256(data).hexdigest())
 if patches is None:
     print("libsensorservice: not a build this was written against, the image's runs")
@@ -988,6 +1144,37 @@ print("built %s (LIGHT and HINGE_ANGLE events read as scalars, as One UI's senso
 PYEOF
 rm -f "$WORK/libsensorservice.so"
 [ ! -f "$OUT/libsensorservice_patched.so" ] || chmod 644 "$OUT/libsensorservice_patched.so"
+
+# libcomposer_ext.so (vivo OriginOS 17, MediaTek): ComposerExt::ClientImpl::Init asks for
+# vendor.mediatek.hardware.composer_ext@1.0::IComposerExt 21 times 100 ms apart. Samsung's
+# vendor has none, and SurfaceFlinger runs it on its main thread at every display power-mode
+# change (and system_server's sensorservice once): 2.1 s of a frozen screen per change, two
+# per fold, the bulk of the 20-25 s cover/inner switch of the seventh OriginOS run. After the
+# first failed lookup and its log line, "mov w0, #0x86a0" (the 100 ms usleep's argument) at
+# 0x1ca28 becomes "b 0x1cec0", the loop's own "retries used up" exit (mov w0, #-0x70): the
+# same -112 result and state as after 21 tries, at once. guest_prepare.sh binds it.
+rm -f "$OUT/libcomposer_ext_patched.so"
+"$DEBUGFS" -R "dump /system/system_ext/lib64/libcomposer_ext.so $WORK/libcomposer_ext.so" "$IMG" 2>/dev/null
+python3 -I - "$WORK/libcomposer_ext.so" "$OUT/libcomposer_ext_patched.so" <<'PYEOF'
+import hashlib, os, sys
+src, dst = sys.argv[1], sys.argv[2]
+data = bytearray(open(src, "rb").read()) if os.path.isfile(src) else bytearray()
+PINS = {"ad21236f78393660e11c2b5b28ec6de249d14409b4eda4ed242ff150a37b6bf6":
+        ((0x1ca28, "00d49052", "26010014"), [(0x1cec0, "e00d8012"), (0x1ca30, "86990094")])}
+pin = PINS.get(hashlib.sha256(data).hexdigest())
+if pin is None:
+    print("libcomposer_ext: not a build this was written against, the image's runs" if data else "libcomposer_ext: not in the image")
+    sys.exit(0)
+(off, old, new), checks = pin
+for o, want in checks + [(off, old)]:
+    if data[o:o + 4].hex() != want:
+        sys.exit("libcomposer_ext: unexpected bytes at %#x, not patching" % o)
+data[off:off + 4] = bytes.fromhex(new)
+open(dst, "wb").write(data)
+print("built %s (one IComposerExt lookup, not 21 x 100 ms)" % dst)
+PYEOF
+rm -f "$WORK/libcomposer_ext.so"
+[ ! -f "$OUT/libcomposer_ext_patched.so" ] || chmod 644 "$OUT/libcomposer_ext_patched.so"
 
 # bootanimation on every panel (patch-bootanim-multidisplay.py; guest_prepare.sh
 # binds it under the image's own name): without Android's multidisplay flag it
@@ -1037,24 +1224,49 @@ patch_apk_dex() {
     fi
     rm -rf "$WORK/pad"
     java -jar "$APKTOOL" d -q -f -r -o "$WORK/pad" "$1"
-    if PAD_DIR=$(python3 -I "$ROOT/switcher/patches/$3" "$WORK/pad"); then
-        # Rebuild that one dex only; the others are left out of the build.
+    if PAD_DIRS=$(python3 -I "$ROOT/switcher/patches/$3" "$WORK/pad") && [ -n "$PAD_DIRS" ]; then
+        # Rebuild the dex files the patcher changed only (one per line it printed);
+        # the others are left out of the build, and each goes back in turn.
         for d in "$WORK"/pad/smali*; do
-            [ "$(basename "$d")" = "$PAD_DIR" ] || rm -rf "$d"
+            echo "$PAD_DIRS" | grep -qx "$(basename "$d")" || rm -rf "$d"
         done
-        PAD_DEX="$(echo "$PAD_DIR" | sed 's/^smali_//; s/^smali$/classes/').dex"
         java -jar "$APKTOOL" b -q -o "$WORK/pad-rebuilt.apk" "$WORK/pad"
         rm -rf "$WORK/pad-dex" "$WORK/pad-dex.jar" && mkdir -p "$WORK/pad-dex"
-        unzip -q -o "$WORK/pad-rebuilt.apk" "$PAD_DEX" -d "$WORK/pad-dex"
-        (cd "$WORK/pad-dex" && zip -q -0 "$WORK/pad-dex.jar" "$PAD_DEX")
+        PAD_IN="$1"; PAD_N=0; PAD_ALL=""
+        for PAD_DIR in $PAD_DIRS; do
+            PAD_DEX="$(echo "$PAD_DIR" | sed 's/^smali_//; s/^smali$/classes/').dex"
+            unzip -q -o "$WORK/pad-rebuilt.apk" "$PAD_DEX" -d "$WORK/pad-dex"
+            (cd "$WORK/pad-dex" && zip -q -0 "$WORK/pad-dex.jar" "$PAD_DEX")
+            PAD_N=$((PAD_N + 1))
+            python3 -I "$ROOT/scripts/apk-replace-dex.py" "$PAD_IN" "$PAD_DEX" "$WORK/pad-dex/$PAD_DEX" "$WORK/pad-step$PAD_N.apk"
+            PAD_IN="$WORK/pad-step$PAD_N.apk"; PAD_ALL="$PAD_ALL $PAD_DEX"
+        done
         python3 -I "$ROOT/scripts/check-dex.py" "$WORK/pad-dex.jar"
-        python3 -I "$ROOT/scripts/apk-replace-dex.py" "$1" "$PAD_DEX" "$WORK/pad-dex/$PAD_DEX" "$2"
-        echo "built $2 ($5, $PAD_DEX)"
+        mv -f "$PAD_IN" "$2"
+        rm -f "$WORK"/pad-step*.apk
+        echo "built $2 ($5,$PAD_ALL)"
     else
         echo "$(basename "$1"): $5: not built (see above)"
     fi
     rm -rf "$WORK/pad" "$WORK/pad-rebuilt.apk" "$WORK/pad-dex" "$WORK/pad-dex.jar"
 }
+
+# vivo's launcher stays a bar phone's (switcher/patches/vivo_launcher.py, with
+# vivo_guards.py framework's FtDeviceInfo): with ro.vivo.device.type=foldable
+# (vivo fold mode on a Galaxy Z Fold) the X500 Pro Max's BBKLauncher2 exited at
+# start (eighth run), and let through, crashed in its foldable paths, whose
+# classes its build lacks (ninth run). guest_prepare.sh binds
+# BBKLauncher2_patched.apk over the image's, only when the image's APK is the one
+# it was made from (BBKLauncher2_patched.apk.src_sha256) and a build it pins.
+rm -f "$OUT/BBKLauncher2_patched.apk" "$OUT/BBKLauncher2_patched.apk.src_sha256"
+if in_image /system/framework/vivo-services.jar && in_image /system/app/BBKLauncher2/BBKLauncher2.apk; then
+    "$DEBUGFS" -R "dump /system/app/BBKLauncher2/BBKLauncher2.apk $WORK/BBKLauncher2.apk" "$IMG" 2>/dev/null
+    patch_apk_dex "$WORK/BBKLauncher2.apk" "$OUT/BBKLauncher2_patched.apk" vivo_launcher.py \
+        "ro.vivo.device.type" "its own device type kept"
+    [ ! -f "$OUT/BBKLauncher2_patched.apk" ] ||
+        sha256sum "$WORK/BBKLauncher2.apk" | cut -d' ' -f1 > "$OUT/BBKLauncher2_patched.apk.src_sha256"
+    rm -f "$WORK/BBKLauncher2.apk"
+fi
 
 # HyperOS's wallpaper app on a one-panel phone (switcher/patches/
 # hyperos_miwallpaper_null.py): it died in Application.onCreate on every start
@@ -1346,7 +1558,28 @@ if in_image /system/framework/framework-res.apk; then
     elif [ -n "$CO_OVERLAYABLE" ]; then
         echo "framework-res.apk declares overlayable resources, fold cutout overlay not built"
     else
-        "$BT/aapt2" compile --dir "$CO_RRO/res" -o "$WORK/co.zip"
+        # vivo centres its dynamic island on the cutout's bounding box, taking
+        # bottom - width/2 as the lens centre (DynamicCapsuleContainer.updateCutoutValue).
+        # One UI's 0..108 box put it at 73 px, under the lens (19..89, centre 54; F8U run
+        # 21). A vivo image gets the lens itself, the same circle One UI's spec draws
+        # (host_holes: M 0,19 a 35,35 ...); the status bar height stays 54dp. Cutout specs
+        # are relative to the panel's top centre (CutoutSpecification): the shared
+        # 505..575 box lies right of the cover, so no cutout reached the guest at all
+        # (run 23: empty bounds); the lens is written centre-relative, as One UI's spec.
+        CO_RES="$CO_RRO/res"
+        CO_NOTE="cover 505,0-575,108"
+        if in_image /system/framework/vivo-services.jar; then
+            # In fold mode vivo's SurfaceFlinger names the cover "local:secondary" (run 22:
+            # the numeric id never matched, no cover cutout at all), so both names.
+            rm -rf "$WORK/co_res" && cp -r "$CO_RRO/res" "$WORK/co_res" &&
+                sed -i -e 's#<item>M 505,0 L 575,0 L 575,108 L 505,108 Z</item>#<item>M 0,19 a 35,35 0 1,0 0,70 a 35,35 0 1,0 0,-70 Z</item>\n        <item>M 0,19 a 35,35 0 1,0 0,70 a 35,35 0 1,0 0,-70 Z</item>#' \
+                       -e 's#<item>local:4630946379103915412</item>#<item>local:4630946379103915412</item>\n        <item>local:secondary</item>#' "$WORK/co_res/values/arrays.xml"
+            [ "$(grep -c '<item>M 0,19 a 35,35 0 1,0 0,70 a 35,35 0 1,0 0,-70 Z</item>' "$WORK/co_res/values/arrays.xml")" = 2 ] &&
+                grep -q '<item>local:secondary</item>' "$WORK/co_res/values/arrays.xml" ||
+                { echo "fold cutout overlay: the cover path is not the expected one, vivo lens not applied" >&2; exit 1; }
+            CO_RES="$WORK/co_res"; CO_NOTE="cover lens 505,19-575,89 (vivo island)"
+        fi
+        "$BT/aapt2" compile --dir "$CO_RES" -o "$WORK/co.zip"
         "$BT/aapt2" link -o "$WORK/co.apk" -I "$AJ" --manifest "$CO_RRO/AndroidManifest.xml" \
             --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/co.zip"
         "$BT/zipalign" -p -f 4 "$WORK/co.apk" "$WORK/co-aligned.apk"
@@ -1354,7 +1587,7 @@ if in_image /system/framework/framework-res.apk; then
             --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
             --out "$OUT/OneOSFoldCutout.apk" "$WORK/co-aligned.apk"
         rm -f "$OUT/OneOSFoldCutout.apk.idsig"
-        echo "built $OUT/OneOSFoldCutout.apk (inner panel no cutout and 24dp status bar, cover 505,0-575,108 and 54dp)"
+        echo "built $OUT/OneOSFoldCutout.apk (inner panel no cutout and 24dp status bar, $CO_NOTE and 54dp)"; rm -rf "$WORK/co_res"
     fi
 else
     echo "framework-res.apk: not in the image, no fold cutout overlay"
@@ -1515,3 +1748,271 @@ else
         echo "payload gmssystem: $GMS_IN, $GMS_APK_SIZE bytes, $(echo "$GMS_BADGING" | cut -d' ' -f1-2)"
     fi
 fi
+
+# vivo's Wi-Fi code on One UI's connectivity module (patches/vivo_wifi_connectivity.py):
+# a wifi APEX of vivo's own (OriginOS 6 CN) loads vivo-service-wifi.jar into
+# system_server, and vivo-service-wifi-ex.jar loads vivo-service-wifi-ex-impl.jar.
+# Both use transport 11 (vivo's second Wi-Fi), which only vivo's CN tethering
+# module knows; the guest keeps One UI's, which refuses it: system_server died
+# making WifiService (first CN run). vivo-service-wifi.jar also calls five methods
+# only vivo's CN connectivity module has (the only such calls in the boot and
+# system_server class paths). guest_prepare.sh binds both over the image's.
+# A jar the patcher does not recognise fails the build: the guest would not boot.
+rm -f "$OUT/vivo-service-wifi_patched.jar" "$OUT/vivo-service-wifi-ex-impl_patched.jar"
+[ ! -f "$OUT/wifi_payload.img" ] || "$DEBUGFS" -R "dump /javalib/vivo-service-wifi.jar $WORK/vivo-service-wifi.jar" "$OUT/wifi_payload.img" 2>/dev/null
+VWI=/system/framework/vivo-service-wifi-ex-impl.jar
+if in_image $VWI; then
+    "$DEBUGFS" -R "dump $VWI $WORK/vivo-service-wifi-ex-impl.jar" "$IMG" 2>/dev/null
+fi
+for VW in vivo-service-wifi:wifi vivo-service-wifi-ex-impl:impl; do
+    VWN=${VW%%:*}; VWM=${VW#*:}
+    [ -s "$WORK/$VWN.jar" ] || continue
+    unzip -p "$WORK/$VWN.jar" 'classes*.dex' | grep -aq "addTransportType" || { echo "$VWN.jar: no transport requests, not patched"; continue; }
+    rm -rf "$WORK/vw" "$WORK/vw-rebuilt.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vw" "$WORK/$VWN.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_wifi_connectivity.py" "$WORK/vw" "$VWM")
+    java -jar "$APKTOOL" b -q -o "$WORK/vw-rebuilt.jar" "$WORK/vw"
+    cp "$WORK/$VWN.jar" "$WORK/${VWN}_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/vdex" && mkdir -p "$WORK/vdex"
+        unzip -q -o "$WORK/vw-rebuilt.jar" "$DEX" -d "$WORK/vdex"
+        (cd "$WORK/vdex" && zip -q -0 "$WORK/${VWN}_patched.jar" "$DEX")
+        echo "built $OUT/${VWN}_patched.jar (replaced $DEX)"
+    done
+    python3 -I "$ROOT/scripts/check-dex.py" "$WORK/${VWN}_patched.jar"
+    mv -f "$WORK/${VWN}_patched.jar" "$OUT/${VWN}_patched.jar"
+    chmod 644 "$OUT/${VWN}_patched.jar"
+    rm -rf "$WORK/vw" "$WORK/vw-rebuilt.jar" "$WORK/vdex" "$WORK/$VWN.jar"
+done
+
+# vivo's Wi-Fi traffic counters (framework-wifi.jar of vivo's wifi APEX, on the boot
+# class path): VivoTrafficStats' natives read the network stats BPF maps with the
+# layout of vivo's CN connectivity module; the maps are One UI's, and the library
+# aborted system_server (fourth CN run). patches/vivo_traffic_stats.py takes vivo's
+# overseas path (no native reads). guest_prepare.sh binds it with the jars above.
+rm -f "$OUT/framework-wifi_patched.jar"
+rm -f "$WORK/framework-wifi.jar"
+[ ! -f "$OUT/wifi_payload.img" ] || "$DEBUGFS" -R "dump /javalib/framework-wifi.jar $WORK/framework-wifi.jar" "$OUT/wifi_payload.img" 2>/dev/null
+if [ -s "$WORK/framework-wifi.jar" ] && unzip -p "$WORK/framework-wifi.jar" 'classes*.dex' | grep -aq "Landroid/net/wifi/VivoTrafficStats;"; then
+    rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$WORK/framework-wifi.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_traffic_stats.py" "$WORK/fw")
+    java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"
+    cp "$WORK/framework-wifi.jar" "$WORK/framework-wifi_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/vdex" && mkdir -p "$WORK/vdex"
+        unzip -q -o "$WORK/fw-rebuilt.jar" "$DEX" -d "$WORK/vdex"
+        (cd "$WORK/vdex" && zip -q -0 "$WORK/framework-wifi_patched.jar" "$DEX")
+        echo "built $OUT/framework-wifi_patched.jar (replaced $DEX)"
+    done
+    python3 -I "$ROOT/scripts/check-dex.py" "$WORK/framework-wifi_patched.jar"
+    mv -f "$WORK/framework-wifi_patched.jar" "$OUT/framework-wifi_patched.jar"
+    chmod 644 "$OUT/framework-wifi_patched.jar"
+    rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/vdex"
+fi
+rm -f "$WORK/framework-wifi.jar"
+
+# vivo's device type for the display and input side only (fold mode 2): system_server's
+# input (libinputflinger, libinputservice) and libandroid_servers read
+# ro.vivo.device.type natively, as SurfaceFlinger does (above); they read
+# ro.oneos.vivo.dtype instead (same length; guest_props.sh), so apps keep "phone".
+for VL in libinputflinger libinputservice libandroid_servers; do
+    rm -f "$OUT/${VL}_patched.so" "$WORK/$VL.so"
+    in_image /system/framework/vivo-services.jar || continue
+    "$DEBUGFS" -R "dump /system/lib64/$VL.so $WORK/$VL.so" "$IMG" 2>/dev/null
+    [ -s "$WORK/$VL.so" ] || continue
+    python3 -I - "$WORK/$VL.so" "$OUT/${VL}_patched.so" <<'PYEOF'
+import os, sys
+src, dst = sys.argv[1], sys.argv[2]
+d = open(src, "rb").read()
+VT, VN = b"ro.vivo.device.type\0", b"ro.oneos.vivo.dtype\0"
+n = d.count(VT)
+if n == 0:
+    print("%s: does not read ro.vivo.device.type, the image's runs" % os.path.basename(src))
+    sys.exit(0)
+if n != 1 or VN in d:
+    sys.exit("%s: ro.vivo.device.type %d times, not patching" % (os.path.basename(src), n))
+open(dst, "wb").write(d.replace(VT, VN))
+print("built %s (reads ro.oneos.vivo.dtype for vivo's device type)" % dst)
+PYEOF
+    [ ! -f "$OUT/${VL}_patched.so" ] || chmod 644 "$OUT/${VL}_patched.so"
+    rm -f "$WORK/$VL.so"
+done
+
+# vivo's Bluetooth stack (MediaTek's, in vivo's bt APEX) on Samsung's Qualcomm
+# controller: libbluetooth_jni.so reads ro.vivo.product.platform (MTK6993) for four
+# MediaTek-controller features, among them vivo's BLR vendor command in gatt_init
+# (0xfc51) and MediaTek's quality report: the controller answered "unknown command",
+# and the stack crashed in HciLayer at every Bluetooth start (tenth CN run: five times
+# in 13 s). It reads ro.oneos.btchip.platform instead (same length, never set), the
+# not-MediaTek path. guest_prepare.sh binds it on the guest's bt APEX.
+rm -f "$OUT/libbluetooth_jni_patched.so" "$WORK/libbluetooth_jni.so"
+if in_image /system/framework/vivo-services.jar && [ -f "$OUT/bt_payload.img" ]; then
+    "$DEBUGFS" -R "dump /lib64/libbluetooth_jni.so $WORK/libbluetooth_jni.so" "$OUT/bt_payload.img" 2>/dev/null
+    if [ -s "$WORK/libbluetooth_jni.so" ]; then
+        python3 -I - "$WORK/libbluetooth_jni.so" "$OUT/libbluetooth_jni_patched.so" <<'PYEOF'
+import sys
+src, dst = sys.argv[1], sys.argv[2]
+d = open(src, "rb").read()
+VT, VN = b"ro.vivo.product.platform\0", b"ro.oneos.btchip.platform\0"
+n = d.count(VT)
+if n == 0:
+    print("libbluetooth_jni: no ro.vivo.product.platform, the image's runs")
+    sys.exit(0)
+if n != 1 or VN in d:
+    sys.exit("libbluetooth_jni: ro.vivo.product.platform %d times, not patching" % n)
+open(dst, "wb").write(d.replace(VT, VN))
+print("built %s (Bluetooth without MediaTek's controller features)" % dst)
+PYEOF
+        [ ! -f "$OUT/libbluetooth_jni_patched.so" ] || chmod 644 "$OUT/libbluetooth_jni_patched.so"
+    fi
+    rm -f "$WORK/libbluetooth_jni.so"
+fi
+
+# vivo's brightness on a bar phone's tables (patches/vivo_brightness.py): vivo-
+# framework.jar (boot class path) takes "unfolded" brightness tables whenever the
+# device state is above 0, which a phone build does not have (ninth CN run:
+# system_server died in BaseNitCurve.calcNitBrightnessUnFold with automatic
+# brightness on). Phone builds only (ro.vivo.device.type=phone in the image).
+rm -f "$OUT/vivo-framework_patched.jar"
+if in_image /system/framework/vivo-framework.jar &&
+   "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -qx 'ro.vivo.device.type=phone'; then
+    "$DEBUGFS" -R "dump /system/framework/vivo-framework.jar $WORK/vivo-framework.jar" "$IMG" 2>/dev/null
+    rm -rf "$WORK/vf" "$WORK/vf-rebuilt.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vf" "$WORK/vivo-framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_brightness.py" "$WORK/vf")
+    # vivo's secure TEE (sectee) and other vivo vendor HALs: no endless wait (vivo_no_wait.py).
+    NEW=$(python3 -I "$ROOT/switcher/patches/vivo_no_wait.py" "$WORK/vf")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    java -jar "$APKTOOL" b -q -o "$WORK/vf-rebuilt.jar" "$WORK/vf"
+    cp "$WORK/vivo-framework.jar" "$WORK/vivo-framework_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/vdex" && mkdir -p "$WORK/vdex"
+        unzip -q -o "$WORK/vf-rebuilt.jar" "$DEX" -d "$WORK/vdex"
+        (cd "$WORK/vdex" && zip -q -0 "$WORK/vivo-framework_patched.jar" "$DEX")
+        echo "built $OUT/vivo-framework_patched.jar (replaced $DEX)"
+    done
+    python3 -I "$ROOT/scripts/check-dex.py" "$WORK/vivo-framework_patched.jar"
+    mv -f "$WORK/vivo-framework_patched.jar" "$OUT/vivo-framework_patched.jar"
+    chmod 644 "$OUT/vivo-framework_patched.jar"
+    rm -rf "$WORK/vf" "$WORK/vf-rebuilt.jar" "$WORK/vdex" "$WORK/vivo-framework.jar"
+fi
+
+# vivo's feature list (patches/vivo_guards.py framework: VivoConfigStoreHelper reads
+# /data/system/oneos_vivo_features, guest_prepare.sh copies this file there): vivo's
+# config store HAL is vivo's vendor's, so without it every vivo feature read as off
+# (tenth CN run: 54 617 failed lookups in 12 minutes; launcher, Themes, wallpaper
+# features missing). From the vendor's vivo_config.ini (VIVO_CONFIG_INI, default
+# the CN OTA's out/originos-cn/vendor_cfg/vendor/etc/vivo_config.ini). Features that
+# drive vivo hardware or vendor code a Samsung phone lacks stay off (listed in the
+# file's first line).
+rm -f "$OUT/oneos-vivo-features.txt"
+VCI=${VIVO_CONFIG_INI:-$ROOT/out/originos-cn/vendor_cfg/vendor/etc/vivo_config.ini}
+if in_image /system/framework/vivo-services.jar && [ -r "$VCI" ]; then
+    # vivo's native code (SurfaceFlinger and others) asks vivo's config store HAL
+    # itself, which is missing: those features read as off there. Kept off in this
+    # list too, or Java and native disagree (eleventh CN run: brightness stuck,
+    # vivo.software.brightness.unified_mapping on for system_server's LCM controller,
+    # which then waited for SurfaceFlinger to load the panel's tables; SurfaceFlinger
+    # read it off and never did). Names from the system binaries that use the store.
+    : > "$WORK/vivo-native-features.txt"
+    for d in /system/bin /system/bin/hw /system/lib64 /system/system_ext/bin /system/system_ext/lib64; do
+        for f in $("$DEBUGFS" -R "ls -p $d" "$IMG" 2>/dev/null | awk -F/ '$3 ~ /^1/ {print $6}'); do
+            "$DEBUGFS" -R "dump $d/$f $WORK/vnf" "$IMG" 2>/dev/null
+            # A binary may use the store without naming a feature (no match is no
+            # error: set -e ended the 11th CN set's build here).
+            if grep -aq "vendor.vivo.hardware.configstore" "$WORK/vnf" 2>/dev/null; then
+                strings -n 8 "$WORK/vnf" | { grep -E '^vivo\.[a-z0-9_.]+$' || :; } >> "$WORK/vivo-native-features.txt"
+            fi
+        done
+    done
+    rm -f "$WORK/vnf"
+    python3 -I - "$VCI" "$OUT/oneos-vivo-features.txt" "$WORK/vivo-native-features.txt" <<'PYEOF'
+import re, sys
+src, dst, nat = sys.argv[1], sys.argv[2], sys.argv[3]
+NATIVE = set(l.strip() for l in open(nat) if l.strip())
+OFF = re.compile(r"^vivo\.hardware\.|vblurnpu|\bnpu\b|\bapu\b|sdr2hdr|\bhdr|lcm|dimming|polarizer|\.ir\.|motor|audio|wifi|charg|camera|"
+                 r"fingerprint|face|modem|radio|sensor|hall|\.tp|tpincoming|nfc|gnss|gps|vibrat|thermal|gpu|hwc|composer|dsp|bluetooth|\.bt\b")
+pairs, off, sec = [], [], None
+for line in open(src, encoding="utf-8", errors="replace"):
+    line = line.strip()
+    if not line or line.startswith(("#", ";")):
+        continue
+    m = re.fullmatch(r"\[([^\]]+)\]", line)
+    if m:
+        sec = m.group(1).strip()
+        if OFF.search(sec) or sec in NATIVE:
+            off.append(sec + ("(native)" if sec in NATIVE and not OFF.search(sec) else "")); sec = None
+        else:
+            pairs.append(sec + "$vivo-support")
+        continue
+    if sec is None or "=" not in line:
+        continue
+    k, v = line.split("=", 1)
+    pairs.append(sec + ":" + k.strip() + "$" + v.strip())
+bad = [p for p in pairs if p.count("$") != 1 or "&" in p]
+if bad:
+    sys.exit("oneos-vivo-features: '$' or '&' in %s" % bad[:3])
+with open(dst, "w") as f:
+    f.write("&".join(pairs) + "\n")
+print("built %s (%d features on, %d off: %s)" % (dst, sum(p.endswith("$vivo-support") for p in pairs), len(off), " ".join(off)))
+PYEOF
+    chmod 644 "$OUT/oneos-vivo-features.txt"
+elif in_image /system/framework/vivo-services.jar; then
+    echo "oneos-vivo-features: no readable vivo_config.ini ($VCI): vivo's features stay off"
+fi
+
+# The guest's own APEX payloads run on One UI's /linkerconfig (guest_prepare.sh
+# binds it), whose namespaces are linked from One UI's APEX manifests. Where the
+# image's module needs more (OriginOS CN: vivo's wifi APEX needs libnativehelper.so
+# for libvivowifi-service.so; third CN run: UnsatisfiedLinkError, system_server
+# died), guest_prepare.sh adds those links in a guest-only copy of ld.config.txt.
+# This table is each staged payload's requireNativeLibs: "<apex> <namespace> <lib>...".
+rm -f "$OUT/oneos-apex-requires.txt"
+for p in "$OUT"/*_payload.img; do
+    [ -f "$p" ] || continue
+    rm -f "$WORK/m.pb"
+    "$DEBUGFS" -R "dump /apex_manifest.pb $WORK/m.pb" "$p" 2>/dev/null || true
+    [ -s "$WORK/m.pb" ] || continue
+    python3 -I - "$WORK/m.pb" >> "$OUT/oneos-apex-requires.txt" <<'PYEOF'
+import sys
+b = open(sys.argv[1], "rb").read()
+def varint(i):
+    r = s = 0
+    while True:
+        x = b[i]; i += 1; r |= (x & 0x7f) << s; s += 7
+        if x < 0x80:
+            return r, i
+i, f = 0, {}
+while i < len(b):
+    k, i = varint(i)
+    n, w = k >> 3, k & 7
+    if w == 0:
+        v, i = varint(i)
+    elif w == 2:
+        l, i = varint(i); v = b[i:i + l]; i += l
+    elif w == 1:
+        v = b[i:i + 8]; i += 8
+    elif w == 5:
+        v = b[i:i + 4]; i += 4
+    else:
+        sys.exit("apex_manifest.pb: wire type %d" % w)
+    f.setdefault(n, []).append(v)
+# ApexManifest: 1 name, 8 requireNativeLibs
+name = f[1][0].decode()
+req = [x.decode() for x in f.get(8, [])]
+if req:
+    print(name, name.replace(".", "_"), " ".join(req))
+PYEOF
+done
+[ -s "$OUT/oneos-apex-requires.txt" ] && echo "built $OUT/oneos-apex-requires.txt ($(wc -l < "$OUT/oneos-apex-requires.txt") payloads with native requirements)" || rm -f "$OUT/oneos-apex-requires.txt"
+
+# Calls into OneOS's helper classes must reach methods the jar defines: a patcher
+# that overwrote another's helper (eleventh CN run: OneOSVivoFeatures.listed gone,
+# the zygote died at boot) fails the build here instead of on the phone.
+RJ=""
+for j in "$OUT"/*_patched.jar "$OUT"/oneos-telephony.jar; do [ -f "$j" ] && RJ="$RJ $j"; done
+[ -z "$RJ" ] || python3 -I "$ROOT/scripts/check-oneos-refs.py" "$BT/dexdump" $RJ

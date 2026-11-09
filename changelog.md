@@ -23,6 +23,88 @@ New in 0.4.59: **the Galaxy A27, A35 5G and A54 5G**, untested: the A27 (SM-A276
 with the Galaxy A36's systems, the A35 5G and A54 5G (Exynos 1380, One UI 9) with the Galaxy A26's;
 and the A16 5G sold as SM-S166V.
 
+New in 0.4.60: **touch works again in the Pixel system on the Galaxy S23, S23+ and S23 Ultra** (the new
+double tap to wake left their touch chip in its low-power mode), and the Pixel system no longer drops
+back to One UI after a minute on the S23+ and S25 Ultra (an audio restart loop handed the sound over
+to One UI's audio service). **VoLTE is on by default** (One UI's calling service, for calls and SMS on
+4G-only networks; it can still be turned off in Settings). ColorOS's **lock screen depth effect**
+works on every phone; slow first boots on the A07 and A17 are no longer taken for a black screen;
+Samsung IMS gets both SIMs when the phone service starts late; a Z Flip's main screen stays lit at
+boot. New, untested: **the Galaxy A17 5G (SM-A176) and Z Flip7 FE (SM-F761)**, and ColorOS (Find X9
+Ultra IN build) on the Galaxy A07, A17, A16 4G and A16 5G next to Infinity-X.
+
+New in 0.4.61: **SMS arrive in every system** (Samsung's radio held incoming texts until One UI's own
+phone app said it was ready; from pull request #58 by vdcoolok), and **VoLTE registers on IPv4 IMS
+networks** (the session's network rule sent Samsung IMS's traffic out of the wrong connection). The
+**Samsung Camera opens on the Galaxy A phones** (it stopped at launch on settings the S26 Ultra's camera
+does not know). **ColorOS starts on the Galaxy A16 5G and A17 5G** (it waited forever for a voice-wake
+service these phones do not have). Infinity-X's status bar, quick settings and navigation work on the
+Galaxy A36 again; the return to One UI is faster. New, untested: **the Galaxy S24 (Snapdragon, SM-S921)**.
+
+New in 0.4.62: **calls and SMS in HyperOS** with VoLTE on (Xiaomi's own IMS add-on, which needs Xiaomi's
+IMS service, is left out of the session, so HyperOS uses Samsung's IMS like the other systems).
+
+New in 0.4.63: **the Galaxy A54 starts** (its sessions died at the first app process: One UI's /mnt was
+read-only there, and the guest now has its own), **no more boot failures from factory reset protection**
+(the guest's FRP service could stop its own system after a few tries on the A36, A54 and A56), the
+**ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
+Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
+
+New in 0.4.73: **OriginOS 7** (vivo, Android 17), experimental: a new system for the Snapdragon Galaxy S26, S26+, S26
+Ultra, S25, S25+, S25 Ultra, S25 Edge and the Z Fold7, Fold8 and Fold8 Ultra. Tested on the Z Fold8 Ultra (both
+screens with their own layouts, brightness, AOD and double tap to wake, calls and SMS, Bluetooth, themes, blur, the
+dynamic island once Jovi's atomic notifications are on, Google Play after registering the device at
+google.com/android/uncertified); first runs on the other phones.
+
+New in 0.4.72: **Root and modules per system (experimental, by Josh)**: each system can have its own root
+permissions, Magisk/KernelSU-style modules and an Xposed framework (Vector bundled, or an imported Zygisk LSPosed),
+set up on the system's pre-boot page and managed from the OneOS app inside the system; Restart guest applies module
+changes without going back to One UI. Play Integrity does not pass inside the guest yet.
+
+New in 0.4.71: **Stuck at "Check the system already on this phone" / system not found after an update** fixed (setup
+steps run one at a time and never under a starting session; Update/Retry no longer re-checks a copy that is gone, it
+asks for the download instead). **Phones restarting with "vold-failed"** during a session: One UI's dumpstate and
+bugreport stay stopped while the guest runs. **S24 Ultra stuck at the boot screen on every system**: Switch now warns
+when Zygisk Next 1.5.2 or older is enabled (update it or turn it off). New phone: Galaxy M55s (OxygenOS 16).
+
+New in 0.4.70: **OxygenOS 16 on the S22 series, S23 FE and other phones with the older kernel** (5.10: both forms of
+the system_ext mount were refused, and the guest crashed at startup; it is now built without overlayfs). **Vulkan
+drawing on Exynos phones too** (A54, A26, S23 FE stopped where the A34 did). **HyperOS on the MediaTek A07, A16 4G and
+A17: SIM** (HyperOS waited for a radio service type these phones do not have; set hyperos r25). Reports now name the
+app build that ran the session.
+
+New in 0.4.69: **OxygenOS 16 fixes** (from the first reports): the return to One UI no longer forces a phone restart
+(OxygenOS's storage service is now the guest's own, set oxygen16 r2); on the A34 and other MediaTek Galaxies the guest
+draws with Vulkan (the GL driver load hung its screen); the S22 Ultra / S23 FE mount fix from 0.4.68 now logs why the
+kernel refused. **Skip saving logs**: the log save after a return can be stopped, so switching does not wait for it.
+
+New in 0.4.68: **Fix for phones restarting during a session since 0.4.66** (all systems: the watchdog keeper stopped
+right after the switch, and Samsung's software watchdog restarted the phone a few minutes later). After a force
+restart the app now offers **Restore now** instead of a "Retry update" that could not go through. New phones: Galaxy
+A55 5G, S25 FE, S22 (Snapdragon). OxygenOS 16 shows its own name on the boot screen; S23 FE system_ext mount fix.
+
+New in 0.4.67: **OxygenOS 16 for the phones still on One UI 8.0/8.5** (Android 16; experimental, never run on a
+phone yet): the S22+, S22 Ultra, S23 FE, A06, A07 5G, A15, A24, A25, A33, A34, A53 and F55/E55, and the A07, A16,
+A17, A26, A35 and A54 while on One UI 8.5. Not on One UI 9. No camera yet. The app now carries an Android version per
+image and One UI 8's installd tables.
+
+New in 0.4.66: **HyperOS on the Galaxy A07, A16 4G and 5G, A17 4G and 5G, A26, A35 and A54** (untested), **no restart
+on the Galaxy A17 5G** (Samsung's software watchdog on its second watchdog device was never fed, and the phone
+restarted about 100 s into every session), and **Samsung Camera on the Galaxy A16 4G** (it closed at launch on a
+resolution the camera does not know).
+
+New in 0.4.65: **downloads from SourceForge** (GitHub's downloads were down for hours and Google Drive's
+copies ran out: the app now tries SourceForge right after GitHub), **internal storage in every system again**
+(since 0.4.63 the systems showed full or no storage: their storage never mounted), **Samsung's Dolby on music
+through the speaker**, **the Galaxy A07's screen** in ColorOS (black after boot: its brightness goes through the
+panel's LED), and **incoming SMS on the Galaxy S23, S23+ and S23 Ultra** (their radio library is built
+differently: the SMS patch did not find its spot).
+
+New in 0.4.64: **video recording and steady sound in the Pixel system** (Pixel's Now Playing made it restart
+Samsung's audio service over and over), **volume in HyperOS** on Snapdragon Galaxies (every volume had a
+maximum of 0, and apps and the volume slider crashed), and **no false "black screen" on slow first boots**
+(the session went back to One UI a second before the home screen appeared).
+
 New in 0.4.40: **the Galaxy S23 Ultra, Z Flip6 and S24 (Exynos)**, untested.
 Calls on T-Mobile in ColorOS (Samsung's IMS never registered: it found no GBA
 support on the SIM), SMS that the IMS network refuses go out the classic way as

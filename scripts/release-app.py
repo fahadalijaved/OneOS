@@ -223,6 +223,8 @@ def main():
         sys.exit("failed: " + " ".join(files_cmd))
     if test_rc != 0:
         sys.exit("failed: ./gradlew test --continue")
+    # The full APK pins this generated, normally signed guest manager.
+    run([os.path.join(ROOT, "scripts", "build-guest-manager.sh"), "release"], cwd=ROOT)
     run(["./gradlew", ":app:assembleFullRelease"], cwd=APP)
     built = sorted(glob.glob(os.path.join(APP, "app/build/outputs/apk/full/release/*.apk")), key=os.path.getmtime)
     if not built:

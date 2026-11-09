@@ -1,0 +1,6 @@
+<resources>
+    <color name="preboot_page">#F6F6F6</color>
+    <color name="preboot_card">#FFFFFF</color>
+    <color name="preboot_secondary">#707073</color>
+    <color name="preboot_primary">#387AFF</color>
+</resources>

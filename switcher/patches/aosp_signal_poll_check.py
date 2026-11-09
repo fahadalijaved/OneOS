@@ -131,6 +131,56 @@ def check_injection(root):
             sys.exit(f"TelephonyComponentFactory$InjectedComponents: does not have {what}")
 
 
+SSC = T + "SignalStrengthController;"
+# The only calls vivo's what=7 tail may make (OriginOS 6 CN): reads, its log and
+# its own re-poll. Anything else after the poll is refused.
+VIVO_TAIL_CALLS = {
+    SSC + "->getUiccCardApplication()" + T + "uicc/UiccCardApplication;",
+    T + "Phone;->getServiceStateTracker()" + T + "ServiceStateTracker;",
+    "Landroid/telephony/ServiceState;->getState()I",
+    T + "Phone;->getPhoneId()I",
+    "Ljava/lang/StringBuilder;-><init>()V",
+    "Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;",
+    "Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;",
+    "Ljava/lang/StringBuilder;->toString()Ljava/lang/String;",
+    SSC + "->log(Ljava/lang/String;)V",
+    SSC + "->queueNextSignalStrengthPoll(Z)V",
+}
+
+
+def check_vivo_poll_tail(smali, tail, label):
+    """vivo OriginOS 6 CN: after the AOSP poll, what=7 re-queues its own poll
+    (queueNextSignalStrengthPoll) while the screen is on. OneOSSignalPoll's
+    sendEmptyMessage(7) every 20 s must not start a second, third... chain:
+    accept it only when the tail calls nothing but VIVO_TAIL_CALLS and ends in
+    that re-poll, and the re-poll removes every pending what=7 before it queues
+    one message with what=7, and never removes or posts callbacks
+    (OneOSSignalPoll is a Runnable posted on this handler)."""
+    calls = re.findall(r"^invoke-\S+ \{[^}]*\}, (\S+)$", tail, re.M)
+    bad = [c for c in calls if c not in VIVO_TAIL_CALLS]
+    if bad or not calls or calls[-1] != SSC + "->queueNextSignalStrengthPoll(Z)V":
+        sys.exit(f"SignalStrengthController.handleMessage: what=7 ({label}) does more after the poll than "
+                 f"vivo's re-poll ({', '.join(bad) or 'it does not end in queueNextSignalStrengthPoll'}):\n{tail}")
+    q = method_body(smali, "queueNextSignalStrengthPoll(Z)V", "SignalStrengthController")
+    q = "\n".join(l.strip() for l in q.split("\n") if l.strip() and not l.strip().startswith(".line")) + "\n"
+    m = re.search(r"\nconst/4 (?P<w>" + REG + r"), 0x7\n"
+                  r"invoke-virtual \{p0, (?P=w)\}, Landroid/os/Handler;->hasMessages\(I\)Z\n"
+                  r"(?:.*\n){0,4}?"
+                  r"invoke-virtual \{p0, (?P=w)\}, Landroid/os/Handler;->removeMessages\(I\)V\n"
+                  r"(?::\S+\n)?"
+                  r"invoke-virtual \{p0\}, Landroid/os/Handler;->obtainMessage\(\)Landroid/os/Message;\n"
+                  r"move-result-object (?P<m>" + REG + r")\n"
+                  r"iput (?P=w), (?P=m), Landroid/os/Message;->what:I\n", q)
+    if not m:
+        sys.exit("SignalStrengthController.queueNextSignalStrengthPoll: does not remove pending what=7 before queueing one")
+    rest = q[m.end():]
+    sends = re.findall(r"^invoke-virtual \{p0, (" + REG + r")[^}]*\}, Landroid/os/Handler;->(\w+)\(", rest, re.M)
+    if (not sends or any(not n.startswith("sendMessage") or r != m.group("m") for r, n in sends)
+            or re.search(r"removeCallbacks|->post", rest)
+            or re.search(r"^(?:const\S* |move\S* |iput\S* \S+, )" + re.escape(m.group("m")) + r"\b", rest, re.M)):
+        sys.exit("SignalStrengthController.queueNextSignalStrengthPoll: queues something other than the one what=7 message")
+
+
 def check_controller(root):
     smali = find(root, "SignalStrengthController.smali")
     if "\n.super Landroid/os/Handler;\n" not in smali:
@@ -163,16 +213,20 @@ def check_controller(root):
             out.append(line)
         return "\n".join(out) + "\n"
 
-    # what=7 is the whole case: getSignalStrength(obtainMessage(9)), nothing else
-    # before it that could return or branch away.
+    # what=7 starts with getSignalStrength(obtainMessage(9)), nothing before it
+    # that could return or branch away. AOSP's case is only that; vivo's CN build
+    # re-queues its own poll after it (check_vivo_poll_tail).
     poll = block(labels[6], r"(return-void|goto|:)")
-    if not re.fullmatch(r"(?:iget-object " + REG + ", p0, " + re.escape(T) + r"\S+;->mCi:" + re.escape(T + "CommandsInterface;") + r"\n)?"
-                        r"const/16 (?P<w>" + REG + r"), 0x9\n"
-                        r"invoke-virtual \{p0, (?P=w)\}, L\S+;->obtainMessage\(I\)Landroid/os/Message;\n"
-                        r"move-result-object " + REG + r"\n"
-                        r"invoke-interface \{" + REG + ", " + REG + r"\}, "
-                        + re.escape(T + "CommandsInterface;->getSignalStrength(Landroid/os/Message;)V") + r"\n", poll):
+    m7 = re.match(r"(?:iget-object " + REG + ", p0, " + re.escape(T) + r"\S+;->mCi:" + re.escape(T + "CommandsInterface;") + r"\n)?"
+                  r"const/16 (?P<w>" + REG + r"), 0x9\n"
+                  r"invoke-virtual \{p0, (?P=w)\}, L\S+;->obtainMessage\(I\)Landroid/os/Message;\n"
+                  r"move-result-object " + REG + r"\n"
+                  r"invoke-interface \{" + REG + ", " + REG + r"\}, "
+                  + re.escape(T + "CommandsInterface;->getSignalStrength(Landroid/os/Message;)V") + r"\n", poll)
+    if not m7:
         sys.exit(f"SignalStrengthController.handleMessage: what=7 ({labels[6]}) is not getSignalStrength(obtainMessage(9)):\n{poll}")
+    if m7.end() != len(poll):
+        check_vivo_poll_tail(smali, block(labels[6], r"return-void")[m7.end():], labels[6])
     if labels[8] != labels[5]:
         sys.exit(f"SignalStrengthController.handleMessage: what=9 ({labels[8]}) is not handled like what=6 ({labels[5]})")
     result = block(labels[8], r"return-void")

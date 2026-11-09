@@ -18,17 +18,17 @@ class CompatEvaluatorTest {
         assertEquals(Verdict.COMPATIBLE, r.verdict)
         assertEquals(Level.OK, r.level("tested-model"))
         // Where it has run comes from the image table, not a fixed text.
-        assertEquals("Has run on the Z Fold (F8U): ColorOS 17 · Find N6 global build; Pixel 11 Fold.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Z Fold (F8U): ColorOS 17 · Find N6 global build; Pixel 11 Fold; OriginOS 7.", r.find("tested-model")!!.detail)
         // 0.4.31: the testers' reports of 2026-10-29/30 (docs/compatibility.md) add
         // Infinity-X on the S26 Ultra, S25 Ultra, S25, S24 Ultra and Z Flip5, the CN
         // ColorOS build on the Galaxy A57, and the global build on the Z Flip5.
-        assertEquals("Has run on: ColorOS 17 · Find N6 global build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U); " +
+        assertEquals("Has run on: ColorOS 17 · Find N6 global build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U); OriginOS 7 on the Z Fold (F8U); " +
             "ColorOS 17 · global build on the Galaxy S26 Ultra; Infinity-X 4.1 on the Galaxy S26 Ultra; " +
             "ColorOS 17 · global build on the Galaxy S25 Ultra; Infinity-X 4.1 on the Galaxy S25 Ultra; " +
             "ColorOS 17 · global build on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
             "Pixel 11 Fold on the Galaxy Z Fold8; " +
             "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build on the Galaxy A57; " +
-            "ColorOS 17 · global build on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5.",
+            "ColorOS 17 · global build on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; Infinity-X 4.1 on the Galaxy A17; Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G.",
             CompatEvaluator.TESTED_SCOPE,
         )
         assertEquals(Level.OK, r.level("soc-snapdragon"))
@@ -181,8 +181,8 @@ class CompatEvaluatorTest {
         val s25 = Bundles.S25.facts
         // Another S-series model, and an S25 model number with another codename or chip.
         for (f in listOf(
-            s25.copy(model = "SM-S901B", device = "r0q", soc = SocRules.resolve(SocProps("QTI", "SM8450", "taro"))),
-            s25.copy(model = "SM-S921B", device = "e1q", soc = SocRules.resolve(SocProps("QTI", "SM8650", "pineapple"))),
+            s25.copy(model = "SM-G991U", device = "o1q", soc = SocRules.resolve(SocProps("QTI", "SM8350", "lahaina"))), // Galaxy S21 (the S22 has a profile since 0.4.68)
+            s25.copy(model = "SM-S926B", device = "e2q", soc = SocRules.resolve(SocProps("QTI", "SM8650", "pineapple"))),
             s25.copy(device = "pa3q"),
             s25.copy(soc = SocRules.resolve(SocProps("QTI", "SM8850", "canoe"))),
         )) {
@@ -224,12 +224,13 @@ class CompatEvaluatorTest {
         assertEquals(Level.BLOCK, eval(Fixtures.facts(storage = StorageInfo(need - 1, 512_000_000_000))).level("free-space-short"))
 
         assertEquals(10_276_003_840L + 11L * SpaceRule.GIB, SpaceRule.required())
-        assertEquals(14_669_168_640L + 618_665_111L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
+        assertEquals(14_669_168_640L + 634_332_311L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
     }
 
     @Test
     fun oneUiAndSdkOutsideProfilesWarn() {
-        val r = eval(Fixtures.facts(oneUi = "80500", sdk = 36))
+        // 0.4.67: SDK 36 has an image now (OxygenOS 16); One UI 7 on Android 15 has none.
+        val r = eval(Fixtures.facts(oneUi = "70000", sdk = 35))
         assertEquals(Level.WARN, r.level("oneui-unseen"))
         assertEquals(Level.WARN, r.level(CompatEvaluator.ID_ANDROID_DIFFERS))
         assertEquals(Verdict.WARNING, r.verdict)

@@ -686,6 +686,49 @@ class StageScriptTest {
     }
 
     @Test
+    fun setupVerbsWaitForAStartingSession() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val bootId = "11111111-2222-3333-4444-555555555555"
+        val cj = File(fr.stage, "session/current.json").apply { parentFile.mkdirs() }
+        fun write(mode: String, boot: String) = cj.writeText("{\n  \"schema\": \"oneos.session/1\",\n  \"mode\": \"$mode\",\n  \"boot\": \"$boot\",\n  \"versionCode\": 1\n}\n")
+        // Launched in this boot a moment ago, before guest_props.sh wrote its snapshot: no setup verb,
+        // not even one of a setup that began before (an earlier app's keep-raw).
+        s.ok(s.begin("keep"))
+        write("session", bootId)
+        refused(fr.run(RootScript.Verb.KEEP_RAW, s.raw.size.toString(), Hashes.sha256(s.raw)), "a session is starting or running")
+        refused(s.begin("keep"), "a session is starting or running")
+        assertTrue(File(fr.stage, "system.raw").exists())
+        // An older launch, a dry run, or another boot's session: as before.
+        cj.setLastModified(System.currentTimeMillis() - 10 * 60_000L)
+        s.ok(s.begin("keep"))
+        write("dry", bootId)
+        s.ok(s.begin("keep"))
+        write("session", "99999999-0000-0000-0000-000000000000")
+        s.ok(s.begin("keep"))
+        cj.delete()
+    }
+
+    @Test
+    fun oneVerbAtATime() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val lock = File(fr.stage, "bin/.lock")
+        // Another oneos_root.sh still running (an earlier app's keep-raw): no second verb.
+        val pid = "424242"
+        File(fr.root, "proc/$pid").mkdirs()
+        File(fr.root, "proc/$pid/cmdline").writeText("sh\u0000/data/local/tmp/oneos/bin/oneos_root.sh\u0000keep-raw\u0000")
+        lock.writeText("$pid\n")
+        refused(s.begin("keep"), "another OneOS step is still running")
+        refused(fr.run(RootScript.Verb.KEEP_RAW, s.raw.size.toString(), Hashes.sha256(s.raw)), "another OneOS step is still running")
+        assertTrue(File(fr.stage, "system.raw").exists())
+        // Its process gone: the lock is stale and taken over; each verb leaves no lock behind.
+        File(fr.root, "proc/$pid").deleteRecursively()
+        s.ok(s.begin("keep"))
+        assertFalse(lock.exists())
+    }
+
+    @Test
     fun keepRawMovesAWrongImageToTheAttic() = eachShell { fr ->
         val s = Stager(fr)
         val st = fr.stage.apply { mkdirs() }
@@ -923,7 +966,7 @@ class StageScriptTest {
         refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-plus-8750", Images.ID_FIND_N6, PackageSets.ID_N6_F8U, "4"), "does not run coloros17-findn6")
     }
 
-    /** 0.4.10: the Galaxy Z Fold8 (SM-F971, h8q, SM8850) takes the Fold's two images, the Find N6 one (the Folds' set since 0.4.38), and only on itself. */
+    /** 0.4.10: the Galaxy Z Fold8 (SM-F971, h8q, SM8850) takes the Fold's two images, the Find N6 one (n6-global-f8 since pull request #37), and only on itself. */
     @Test
     fun galaxyZFold8TakesTheFoldSets() = eachShell { fr ->
         fr.props["ro.product.model"] = "SM-F971B"
@@ -931,12 +974,13 @@ class StageScriptTest {
         fr.props["ro.soc.model"] = "SM8850"
         fr.writeProps()
         val n6 = Stager(fr, Profiles.FOLD8)
-        // 0.4.38: the Find N6 global image with the Folds' set (n6-f8 was the CN build's).
-        assertEquals(PackageSets.N6_F8U, n6.set)
+        // 0.4.38: the Find N6 global image with the Folds' set (n6-f8 was the CN build's);
+        // pull request #37: its own set, n6-f8u's files and the patch channels' addon archive.
+        assertEquals(PackageSets.N6_GLOBAL_F8, n6.set)
         n6.prepare()
         val marker = StageMarker.parse(File(fr.stage, StageMarker.FILE_NAME).readText())!!
-        assertEquals(listOf("f8", PackageSets.ID_N6_F8U), listOf(marker.profileId, marker.setId))
-        for (name in PackageSets.N6_F8U.names) assertTrue(name, File(fr.stage, name).isFile)
+        assertEquals(listOf("f8", PackageSets.N6_GLOBAL_F8.id), listOf(marker.profileId, marker.setId))
+        for (name in PackageSets.N6_GLOBAL_F8.names) assertTrue(name, File(fr.stage, name).isFile)
         refused(n6.launch(), "test root: every launch check passed")
         val pixel = Stager(fr, Profiles.FOLD8, Images.ID_PIXEL_YOGI)
         assertEquals(PackageSets.PIXEL_F8, pixel.set)

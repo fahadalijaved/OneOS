@@ -62,6 +62,10 @@ OPTIONAL = {
     ("com/android/server/locksettings/LockSettingsShellCommand", "handleCheckNonCeStorageKeys"),
     ("com/android/server/recoverysystem/ExtendedWipeWithoutReboot", "run"),
 }
+# Android 16 (OxygenOS 16, CPH2745) has no StatsPullAtomService.getIVoldService:
+# its storage stats pull does not talk to vold at all. That lookup is required
+# wherever the method exists, and only there (not_defined below).
+STATS_PULL = ("com/android/server/stats/pull/StatsPullAtomService", "getIVoldService")
 WANT_OPLUS = {
     ("com/android/server/storage/OplusStorageManagerFeature", "connectVold"),
 }
@@ -72,9 +76,22 @@ WANT_MIUI = {
 WIPE = "Landroid/os/RecoverySystem;->rebootPromptAndWipeUserData("
 
 
+def not_defined(root, cls, method):
+    """True when no smali dir defines cls, or cls has no method of that name."""
+    for d in os.listdir(root):
+        path = os.path.join(root, d, cls + ".smali")
+        if os.path.isfile(path):
+            with open(path) as f:
+                return not any(l.startswith(".method ") and (" " + method + "(") in l for l in f)
+    return True
+
+
 def main(root, want, jar, optional=frozenset()):
     # Written only once every file has passed (a failed run leaves the tree as it was).
     pending, sites = {}, set()
+    if STATS_PULL in want and not_defined(root, *STATS_PULL):
+        want = want - {STATS_PULL}
+        print(f"{jar}: no {STATS_PULL[0]}.{STATS_PULL[1]} in this build (Android 16), not expected", file=sys.stderr)
     for dirpath, _, files in os.walk(root):
         for name in files:
             if not name.endswith(".smali"):

@@ -215,9 +215,11 @@ object StageCheck : BackgroundJob<StageCheck.State>(State(), "oneos-check") {
             imageFile = imageFile.takeIf { !onPhone },
             onPhone = if (onPhone) st.stagedRaw else null,
             expectedInstalld = runCatching { AppAssets.hostInstalldTxt(app) }.getOrNull(),
+            expectedInstalldA16 = runCatching { AppAssets.hostInstalldTxt(app, 36) }.getOrNull(),
             reclaimBytes = reclaimBytes,
             appVersionCode = BuildConfig.VERSION_CODE,
             uncollectedLogs = launch != null && !launch.logsCollected && launch.endedSince(),
+            zygiskNextVersionCode = st.props["zygisksu.versionCode"]?.trim()?.toIntOrNull(),
             series = ApkSeries.byId(BuildConfig.SERIES),
         )
         val report = SwitchGates.evaluate(phase, input)

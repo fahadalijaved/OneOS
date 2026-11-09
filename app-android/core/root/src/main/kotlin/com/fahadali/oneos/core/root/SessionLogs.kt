@@ -362,15 +362,31 @@ object LogBundle {
 
     fun name(sessionId: String): String = "oneos-logs-${sessionId.filter { it.isLetterOrDigit() || it == '-' }.take(40)}"
 
+    /**
+     * The app build that launched the session: stage/current.json's versionCode (the root script's
+     * launch writes the launching app's build there). The bundle's own app is the one that collected
+     * the logs, often a newer one after an update: 0.4.68 sent 0.4.67 sessions as its own (S22 Ultra
+     * 15cf8a3f and 50d5310c, stage current.json versionCode 93), which read as 0.4.68's fixes failing.
+     */
+    fun sessionVersionCode(folder: File): Int? {
+        val f = File(folder, "stage/current.json")
+        if (!f.isFile || f.length() > 64 * 1024) return null
+        return Regex(""""versionCode"\s*:\s*(\d{1,9})""").find(f.readText())?.groupValues?.get(1)?.toIntOrNull()
+    }
+
     fun build(input: LogBundleInput, folder: File, redactor: Redactor, stats: LogStats): File {
         val files = folder.walkTopDown().filter { it.isFile }
             .map { it.relativeTo(folder).invariantSeparatorsPath }
             .filter { it != REPORT && it != SUMMARY && it != REDACTION }
             .sorted().toList()
+        val ran = sessionVersionCode(folder)
         val summary = buildString {
             append("OneOS session logs ${input.sessionId}\n")
             append("App ${input.app.versionName} (${input.app.versionCode}), profile ${input.profileId ?: "unknown"}, image ${input.imageId ?: "unknown"}")
             append(if (input.dryRun) ", dry run\n" else "\n")
+            if (ran != null && ran != input.app.versionCode) {
+                append("Session ran on app build $ran (stage/current.json); build ${input.app.versionCode} collected these logs\n")
+            }
             append("Outcome: ${input.outcome.title}\n${input.outcome.detail(Images.systemName(input.imageId?.let { Images.byId(it) }))}\n")
             append("Boot reason: ${input.outcome.bootReason ?: "unknown"}\n")
             if (input.incomplete.isNotEmpty()) append("Not collected: ${input.incomplete.joinToString(", ")}\n")
@@ -388,6 +404,7 @@ object LogBundle {
             "sessionId" to input.sessionId,
             "generatedAt" to input.generatedAt,
             "app" to linkedMapOf("id" to input.app.id, "version" to input.app.versionName, "versionCode" to input.app.versionCode),
+            "session" to linkedMapOf("versionCode" to ran),
             "profile" to input.profileId,
             "image" to input.imageId,
             "installdTableSha256" to input.tableSha256,

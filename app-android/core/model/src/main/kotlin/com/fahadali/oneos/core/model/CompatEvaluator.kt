@@ -72,6 +72,8 @@ object CompatEvaluator {
                     "(brand '${f.brand}', maker '${f.manufacturer}').",
             )
         }
+        // 0.4.74: custom ROMs (ports of One UI, ROMs without One UI) are refused outright.
+        f.customRom?.let { out += it }
         if ("arm64-v8a" !in f.abis64) {
             out += Finding(
                 "not-arm64", Level.BLOCK, "No 64-bit ARM support",

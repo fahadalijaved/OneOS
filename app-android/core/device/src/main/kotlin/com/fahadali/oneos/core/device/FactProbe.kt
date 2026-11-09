@@ -85,6 +85,8 @@ class FactProbe(
             screenLockSet = screenLockSet(app),
             kernel = System.getProperty("os.version").orEmpty(),
             cpu = cpu(),
+            bootloader = Build.BOOTLOADER.orEmpty().takeIf { it.isNotEmpty() && it != Build.UNKNOWN } ?: props.get("ro.bootloader"),
+            vendorModel = props.get("ro.product.vendor.model"),
         )
     }
 

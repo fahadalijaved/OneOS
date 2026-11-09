@@ -8,7 +8,7 @@
 # are added, so One UI keeps its own values, and every added name is recorded
 # so `guest_props.sh remove` can delete them again on the way back.
 #
-# Usage: guest_props.sh add <rootfs> | remove | snapshot-persist |
+# Usage: guest_props.sh add <rootfs> | remove | snapshot-persist | store-on |
 #        restore-persist | recover
 STAGE="${STAGE:-/data/local/tmp/oneos}"
 ADDED="$STAGE/guest_props.added"
@@ -60,7 +60,34 @@ set_aside() {
 # a session that never returned name nothing, and replaying an old
 # guest_props.overridden would set whatever an older stage wrote there (the
 # remove of a hard reset). `add` records the boot in guest_props.boot.
+# The session's own copy of One UI's property store (store-on, 0.4.60). A guest
+# saves its persist.* settings through the shared property service, and init
+# writes them to /data/property, One UI's store; the return then had to delete
+# them, from the store and from memory. A deleted property keeps its slot in
+# /dev/__properties__ until the phone restarts, and the next session adds the
+# same names in new slots: vivo OriginOS adds about 380 at runtime (its audio
+# policy), about 95 KB of default_prop a session, so the eighth run left too
+# little for a second session without a restart. With a tmpfs copy over
+# /data/property from the moment One UI's framework is down, the guest's
+# settings never reach One UI's store: the return unmounts the copy (One UI's
+# store is as it was), blanks the guest's names in memory instead of deleting
+# them, and the next session writes into the same slots. A restart during the
+# session drops the copy with it. ONEOS_PROPS_SESSION_STORE=0 keeps the old way.
+STORE_MARK="$STAGE/property_session.active"
+PD=/data/property
+pd_mounted() { awk -v d="$PD" '$5 == d' /proc/self/mountinfo | grep -q .; }
+store_off() {
+    pd_mounted || return 0
+    # toybox umount -D: never detach a loop device (deploy-phone.sh; a tmpfs has none).
+    umount -D "$PD" 2>/dev/null || umount -D -l "$PD" 2>/dev/null
+    ! pd_mounted
+}
+
 drop_stale_memory_lists() {
+    if [ -f "$STORE_MARK" ] && [ "$(cat "$STORE_MARK" 2>/dev/null)" != "$BOOT_ID" ]; then
+        rm -f "$STORE_MARK"
+        echo "guest_props: the session property store is from before this boot, dropped (the copy died with the reboot)"
+    fi
     if [ -f "$BLANKED" ] && [ "$(cat "$BLANKED.boot" 2>/dev/null)" != "$BOOT_ID" ]; then
         rm -f "$BLANKED" "$BLANKED.boot"
         echo "guest_props: guest_props.blanked is from before this boot, dropped (its props died with the reboot)"
@@ -203,11 +230,36 @@ add)
     # ONEOS_GUEST_ANIM_LEVEL=0 leaves it unset; 2, 3 or 4 sets that level.
     AL=persist.sys.oplus.anim_level; ALV=${ONEOS_GUEST_ANIM_LEVEL:-1}
     case "$ALV" in 1|2|3|4) ;; *) ALV="" ;; esac
-    if [ -n "$ALV" ] && [ -f "$GSE/framework/oplus-telephony-common.jar" ] &&
-            [ -e "$ROOTFS/system/framework/oplus-services.jar" ] &&
-            ! grep -qxF "$AL" "$HOST" && ! grep -q '^persist\.sys\.oplus\.anim_level=' "$NEW"; then
-        echo "$AL=$ALV" >> "$NEW"
-        echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
+    if [ -n "$ALV" ] && { grep -q '"image": "coloros17-findn6"' "$STAGE/.oneos_stage" ||
+            { [ -f "$GSE/framework/oplus-telephony-common.jar" ] && [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; }; }; then
+        # A previous return can leave an empty property name behind. Treat an
+        # empty host/guest value as missing, while recording any host override.
+        if grep -qxF "$AL" "$HOST"; then
+            hv=$(getprop "$AL")
+            if [ -z "$hv" ] && "$RP" -n "$AL" "$ALV"; then
+                echo "$AL=$hv" >> "$OVR"
+                echo "guest_props: empty $AL overridden to $ALV for this ColorOS session"
+            fi
+        elif ! grep -q '^persist\.sys\.oplus\.anim_level=.' "$NEW"; then
+            sed -i '/^persist\.sys\.oplus\.anim_level=/d' "$NEW"
+            echo "$AL=$ALV" >> "$NEW"
+            echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
+        fi
+    fi
+    if grep -q '"image": "coloros17-findn6"' "$STAGE/.oneos_stage"; then
+        # Framework animation/Gaussian tiers use 3 for high-end; COUI's
+        # separate anim_level above uses 1. Apply both before guest processes.
+        for kv in ro.launcher.blur.appLaunch=1 ro.oplus.animationlevel=3 ro.oplus.gaussianlevel=3; do
+            key=${kv%%=*}; value=${kv#*=}
+            if grep -qxF "$key" "$HOST"; then
+                hv=$(getprop "$key")
+                if [ "$hv" != "$value" ] && "$RP" -n "$key" "$value"; then echo "$key=$hv" >> "$OVR"; fi
+            else
+                sed -i "/^$key=/d" "$NEW"
+                echo "$key=$value" >> "$NEW"
+            fi
+            echo "guest_props: $key=$value for this ColorOS session"
+        done
     fi
     # One UI's color mode (oneos_switch.sh, host_color_mode), read by the
     # guest's SurfaceFlinger at start: it no longer moves the panels between
@@ -220,6 +272,74 @@ add)
     if [ -n "$CMV" ] && ! grep -qxF "$CM" "$HOST" && ! grep -q '^persist\.sys\.sf\.color_mode=' "$NEW"; then
         echo "$CM=$CMV" >> "$NEW"
         echo "guest_props: $CM=$CMV for the session (One UI's color mode)"
+    fi
+    # OxygenOS 16 on a MediaTek Galaxy (A34): the guest's SurfaceFlinger hung in RenderEngine's
+    # GL driver load ("Threaded RenderEngine with SkiaGL Backend", then nothing; system_server's
+    # watchdog then killed the session: 0.4.67 deb8690c, 6d4eaf85, 91b699cf, 1dd827e1). ColorOS
+    # on the MediaTek A16 4G runs SkiaVk and gets past it: Vulkan RenderEngine for this pair.
+    # debug.* goes back to One UI's value at the return (return_to_oneui.sh). Test in 0.4.69;
+    # ONEOS_GUEST_RE_BACKEND overrides (empty: the image's own choice).
+    # Why SkiaGL stopped there: OPPO's SkiaGLRenderEngine::create (the image's surfaceflinger, BuildId
+    # 8b4eaee1, create at 0x70d160) first reads persist.sys.renderengine.retry and, when set (the
+    # image's build.prop: =1), waits 200 ms at a time until /sys/class/kgsl/kgsl-3d0/gpu_model opens:
+    # Adreno's node, which no Mali, Xclipse or MediaTek GPU has (A33 0.4.69 d741af95
+    # diag_40_native_surfaceflinger: the RenderEngine thread in usleep at create+924, the main
+    # thread in waitUntilInitialized). Without that node: 0 for the session, so the GL path starts.
+    # ONEOS_GUEST_RE_RETRY=1 leaves the image's value.
+    RR=persist.sys.renderengine.retry
+    if [ ! -e /sys/class/kgsl/kgsl-3d0/gpu_model ] && [ "${ONEOS_GUEST_RE_RETRY:-0}" != 1 ]; then
+        if grep -qxF "$RR" "$HOST"; then
+            hv=$(getprop "$RR")
+            case "$hv" in 1|true) "$RP" -n "$RR" 0 && echo "$RR=$hv" >> "$OVR" &&
+                echo "guest_props: $RR=$hv overridden to 0 for the session (no Adreno: SkiaGL would wait for kgsl forever)" ;; esac
+        elif grep -q "^persist\.sys\.renderengine\.retry=\(1\|true\)$" "$NEW"; then
+            sed -i "/^persist\.sys\.renderengine\.retry=/d" "$NEW"
+            echo "$RR=0" >> "$NEW"
+            echo "guest_props: $RR=0 for the session (no Adreno: SkiaGL would wait for kgsl forever)"
+        fi
+    fi
+    RE=debug.renderengine.backend
+    REV=""
+    if grep -q '"image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null; then
+        # 0.4.70: the Exynos phones too (Mali on the A54 d0f664a8 and A26 de5d8a87, Xclipse on the S23 FE
+        # be228999: the same stop after "Threaded RenderEngine with SkiaGL"); the Snapdragon S22 Ultra's
+        # Adreno got past it (15cf8a3f), so Qualcomm keeps the image's own choice.
+        case "$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)" in
+            *mt[0-9]*|*[Mm]edia[Tt]ek*|*s5e[0-9]*|*erd[0-9]*|*exynos*|*[Ss]amsung*) REV=skiavkthreaded ;;
+        esac
+        # But Vulkan never starts on Samsung's Mali driver (Exynos 1280, Mali-G68 r32p1): SkiaVk aborts
+        # "GrDirectContext creation failed" on its first, unprotected context (createContexts+152), 3 s
+        # after the start, every time (A33 0.4.72 560d4195 boot.log.01:84362, A53 0.4.71 5cf23f6b,
+        # A25 0.4.72 08a96294). One UI's own surfaceflinger runs SkiaGL on that driver, and with the
+        # retry wait off (above) so can the guest's: the image's choice there. The Xclipse Exynos
+        # (S22, S23 FE) and the MediaTek Mali (A34) start with Vulkan and keep it.
+        if grep -qxF "$RR" "$HOST"; then rrv=$(getprop "$RR"); else rrv=$(sed -n 's/^persist\.sys\.renderengine\.retry=//p' "$NEW" | tail -n 1); fi
+        case "$(getprop ro.board.platform)" in
+            s5e*|erd*|exynos*)
+                if [ -e /vendor/lib64/egl/libGLES_mali.so ] && [ ! -e /sys/class/kgsl/kgsl-3d0/gpu_model ]; then
+                    case "$rrv" in
+                        1|true) echo "guest_props: Mali Exynos with $RR=$rrv: Vulkan RenderEngine kept (SkiaGL would wait for kgsl)" ;;
+                        *) REV=""; echo "guest_props: Mali Exynos: the image's RenderEngine (SkiaGL; SkiaVk fails on this driver)" ;;
+                    esac
+                fi ;;
+        esac
+    fi
+    REV=${ONEOS_GUEST_RE_BACKEND-$REV}
+    if [ -n "$REV" ]; then
+        case "$REV" in *[!a-z]*) REV="" ;; esac
+    fi
+    if [ -n "$REV" ]; then
+        if grep -qxF "$RE" "$HOST"; then
+            hv=$(getprop "$RE")
+            if "$RP" -n "$RE" "$REV"; then
+                echo "$RE=$hv" >> "$OVR"
+                echo "guest_props: $RE $hv -> $REV for this session (Vulkan RenderEngine)"
+            fi
+        else
+            sed -i "/^debug\.renderengine\.backend=/d" "$NEW"
+            echo "$RE=$REV" >> "$NEW"
+            echo "guest_props: $RE=$REV for this session (Vulkan RenderEngine)"
+        fi
     fi
     # The boot animation on the panel that is on. AOSP's bootanimation draws on
     # the first display persist.service.bootanim.displays lists, at that
@@ -730,6 +850,63 @@ add)
         echo "vendor.vivoconfigstore.ready=1" >> "$NEW"
         echo "guest_props: vendor.vivoconfigstore.ready=1 (no 550 ms wait per vivo feature lookup)"
     fi
+    # The garbage collector the image's ART code was compiled for (0.4.60). An
+    # image's boot image (system/framework/boot.art) and its apps' odex files
+    # are built for one collector: CC, with read barriers, or CMC (userfaultfd),
+    # without. vivo's OriginOS says ro.dalvik.vm.enable_uffd_gc=false (product
+    # build.prop) and One UI says true, so the guest's zygote ran CMC and
+    # refused the boot image ("ValidateOatFile found read barrier state
+    # mismatch", tenth OriginOS run): the whole framework went through the JIT
+    # in every process, slow and hot. The image's own value for the session
+    # when it has one and it differs; One UI's goes back with remove.
+    # ONEOS_GUEST_IMAGE_GC=0 keeps One UI's.
+    UK=ro.dalvik.vm.enable_uffd_gc
+    UFILES="$ROOTFS/system/build.prop"
+    for d in system_ext product; do
+        if [ -L "$ROOTFS/system/$d" ]; then UFILES="$UFILES $ROOTFS/$d/etc/build.prop"; else UFILES="$UFILES $ROOTFS/system/$d/etc/build.prop"; fi
+    done
+    UIV=$(for f in $UFILES; do [ -f "$f" ] && [ ! -L "$f" ] && cat "$f"; done 2>/dev/null |
+          sed -n 's/^[ \t]*ro\.dalvik\.vm\.enable_uffd_gc=//p' | tail -n 1)
+    # Proven on vivo OriginOS only (0.4.73; its odrefresh step builds the boot image for
+    # this collector): other systems keep One UI's value unless ONEOS_GUEST_IMAGE_GC=1.
+    IGC_DEF=0; [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && IGC_DEF=1
+    if [ "${ONEOS_GUEST_IMAGE_GC:-$IGC_DEF}" = 1 ] && [ -n "$UIV" ] && grep -qxF "$UK" "$HOST"; then
+        UHV=$(getprop "$UK")
+        if [ "$UHV" != "$UIV" ] && "$RP" -n "$UK" "$UIV" 2>/dev/null; then
+            echo "$UK=$UHV" >> "$OVR"
+            echo "guest_props: $UK=$UHV overridden to $UIV for the session (the collector the image's boot image is built for)"
+        fi
+    fi
+    # vivo OriginOS on a Fold: vivo's fold mode is a build property, not a
+    # feature. The X500 Pro Max image says ro.vivo.device.type=phone, so the
+    # seventh run laid the phone UI out on the inner panel and the launcher
+    # restarted at each fold. foldable for the session (the key is already the
+    # image's, blanked on return; no new name). Goes with the vivo device states
+    # (guest_prepare.sh, 0 CLOSE and 1 OPEN) and the LogicalDisplayMapper guards
+    # (patches/vivo_guards.py). Mode 1 (ONEOS_GUEST_VIVO_FOLD=1), the default on a
+    # Fold since 0.4.73 (F8U runs 14-24: the inner panel's own layout, Themes fine
+    # once the manufacturer check was fixed, brightness with vivo_guards' phone
+    # brightness path); 2 keeps the apps a bar phone's (below), 0 "phone" everywhere.
+    if [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && [ "${ONEOS_GUEST_FORM:-fold}" = fold ] &&
+       [ "${ONEOS_GUEST_VIVO_FOLD:-1}" = 1 ] && grep -qx 'ro.vivo.device.type=phone' "$NEW"; then
+        sed -i 's/^ro\.vivo\.device\.type=.*/ro.vivo.device.type=foldable/' "$NEW" &&
+            echo "guest_props: ro.vivo.device.type=foldable for the session (vivo fold mode; the image's: phone)"
+    fi
+    # vivo's display and input side (SurfaceFlinger, libinputflinger, libinputservice,
+    # libandroid_servers; make-overlays.sh) read ro.oneos.vivo.dtype for vivo's device
+    # type: "foldable" in fold modes 1 and 2, so both panels work. Mode 2
+    # (ONEOS_GUEST_VIVO_FOLD=2) leaves ro.vivo.device.type the image's "phone" for
+    # everything else: vivo's apps took foldable paths their phone build lacks in
+    # mode 1 in the tenth CN run (Themes crashed: the manufacturer check, fixed since).
+    # Mode 2 lays the inner panel out as a stretched phone; mode 1 is the default
+    # (above); a bar phone (ONEOS_GUEST_FORM=phone) is "phone".
+    if [ -f "$ROOTFS/system/framework/vivo-services.jar" ]; then
+        VDT=phone
+        [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && case "${ONEOS_GUEST_VIVO_FOLD:-1}" in 1|2) VDT=foldable ;; esac
+        sed -i '/^ro\.oneos\.vivo\.dtype=/d' "$NEW"
+        echo "ro.oneos.vivo.dtype=$VDT" >> "$NEW"
+        echo "guest_props: ro.oneos.vivo.dtype=$VDT (vivo's display and input side; apps: $(grep '^ro\.vivo\.device\.type=' "$NEW" | tail -n 1 | cut -d= -f2))"
+    fi
     # Nothing OS's ringtones: NothingGenerateRingtoneService composes each with a
     # Glyph pattern from libgenerative_glyph, which sizes it by Nothing's vendor
     # props (ro.vendor.glyph.*, the Phone (3)'s 25 x 25 matrix). Samsung's
@@ -840,6 +1017,27 @@ add)
         echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
             echo "guest_props: $key=$g for the session (One UI: $h)"
     done
+    # vivo OriginOS: vivo's apps tell a vivo phone from another maker's by
+    # ro.product.system.manufacturer (Android R and later: isNoVivoPhone is true
+    # unless it is vivo, JOVI or iqoo) and then run as an overseas build. One UI
+    # says samsung, so on the CN image Themes took its overseas paths, whose
+    # layouts the CN build lacks (twelfth CN run: Themes, wallpapers and home
+    # style crashed: VTitleBarView inflated Resource ID #0x0, the overseas
+    # Settings entrance layout had no such view; Themes logged
+    # "judgePhoneManufacturer: manufacturer = samsung" and used vivo's global
+    # servers). The image's system manufacturer and brand for the session,
+    # restored on return. ro.product.manufacturer and ro.product.brand
+    # (Build.MANUFACTURER and Build.BRAND, the identity GMS sees) stay the
+    # phone's. ONEOS_GUEST_VIVO_MAKER=0 keeps One UI's.
+    if [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && [ "${ONEOS_GUEST_VIVO_MAKER:-1}" = 1 ]; then
+        for key in ro.product.system.manufacturer ro.product.system.brand; do
+            g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
+            h=$(getprop "$key")
+            [ -n "$g" ] && [ -n "$h" ] && [ "$g" != "$h" ] || continue
+            echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
+                echo "guest_props: $key=$g for the session (One UI: $h; vivo's apps run as a vivo phone's)"
+        done
+    fi
     # A 64-bit guest on a phone with 32-bit ABIs (Galaxy S23: zygote64_32,
     # armeabi-v7a and armeabi). The guest has no app_process32 and the switch
     # stops One UI's zygote_secondary, yet with One UI's ABI lists its
@@ -884,6 +1082,29 @@ add)
                    echo "guest_props: ro.boot.hardware=qcom for the session (One UI: $h; the guest's zygote then preloads its Qualcomm perf library)" ;;
         esac
     fi
+    # The platform's minor SDK version (Build.VERSION.SDK_INT_FULL, read from
+    # ro.build.version.sdk_full). One UI 8.5 says 36.1 (A07/A15/A17 probes,
+    # S23 FE BP4A), OxygenOS 16 is built for 36.0, and the guest framework took
+    # One UI's value: apps then call the 36.1 APIs its framework does not have.
+    # S23 FE 6d13b740 (0.4.72): Play services died 24 times on
+    # SupervisionManager.isSupervisionEnabled (KidsSettingsModuleInit; the
+    # user's Google account did not work), Chrome 4 times on
+    # DisplayManager.getDisplayTopology;
+    # M55s 0e73a8d6: Gboard on AccessibilityAction ACTION_SET_EXTENDED_SELECTION
+    # (no keyboard). The S22 Ultra on One UI 8.0 (BP2A, 36.0) had none of them.
+    # The image's own value for the session when its major version is the
+    # phone's (a value it does not set, or another Android, is left alone).
+    key=ro.build.version.sdk_full
+    g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
+    h=$(getprop "$key")
+    case "$g" in
+        ""|*[!0-9.]*|.*|*.|*.*.*) ;;
+        *)
+            if [ -n "$h" ] && [ "$g" != "$h" ] && [ "${g%%.*}" = "$(getprop ro.build.version.sdk)" ]; then
+                echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
+                    echo "guest_props: $key=$g for the session (One UI: $h; the guest framework has no $h APIs)"
+            fi ;;
+    esac
     # No isolated compilation from the guest. SystemServer starts
     # IsolatedCompilationService when ro.config.isolated_compilation_enabled is
     # true (One UI: true); it schedules compiles in the HOST's composd (One UI's
@@ -1026,8 +1247,56 @@ recover)
     echo "guest_props: session of $(mark_field epoch) (profile $(mark_field profile)) never returned, restoring One UI's persist props"
     sh "$0" restore-persist --recover || exit 1
     ;;
+store-on)
+    # oneos_switch.sh, once One UI's system_server is gone (see STORE_MARK above).
+    # Any failure leaves One UI's own store in place (the old way), never a half copy.
+    # Proven on vivo OriginOS only (0.4.73): other systems keep One UI's store unless
+    # ONEOS_PROPS_SESSION_STORE=1 asks for it.
+    PSS_DEF=0; grep -q ' vivo-services_patched\.jar$' "$STAGE/guards.txt" 2>/dev/null && PSS_DEF=1
+    [ "${ONEOS_PROPS_SESSION_STORE:-$PSS_DEF}" = 1 ] || { echo "guest_props: session property store off (ONEOS_PROPS_SESSION_STORE=${ONEOS_PROPS_SESSION_STORE:-$PSS_DEF})"; exit 0; }
+    snapshot_trusted || { echo "guest_props: no persist snapshot of this session, session property store not used"; exit 0; }
+    [ -d "$PD" ] && [ ! -L "$PD" ] || { echo "guest_props: $PD is not a plain folder, session property store not used"; exit 0; }
+    pd_mounted && { echo "guest_props: $PD is already a mount point, session property store not used"; exit 0; }
+    rm -f "$STORE_MARK"
+    T="$STAGE/property_session.copy"
+    rm -rf "$T" && mkdir -m 700 "$T" || { echo "guest_props: could not make $T, session property store not used"; exit 0; }
+    for f in "$PD"/* "$PD"/.[!.]*; do
+        [ -e "$f" ] || continue
+        cp -pR "$f" "$T"/ || { rm -rf "$T"; echo "guest_props: could not copy $PD, session property store not used"; exit 0; }
+    done
+    if ! mount -t tmpfs -o mode=0700,uid=0,gid=0,size=8m,context=u:object_r:property_data_file:s0 oneos_props "$PD" 2>/dev/null &&
+       ! { mount -t tmpfs -o mode=0700,uid=0,gid=0,size=8m oneos_props "$PD" 2>/dev/null && chcon u:object_r:property_data_file:s0 "$PD"; }; then
+        store_off; rm -rf "$T"; echo "guest_props: could not mount a copy over $PD, session property store not used"; exit 0
+    fi
+    ok=1
+    for f in "$T"/* "$T"/.[!.]*; do
+        [ -e "$f" ] || continue
+        cp -pR "$f" "$PD"/ && cmp -s "$f" "$PD/${f##*/}" || ok=0
+    done
+    [ "$(stat -c %d "$PD")" != "$(stat -c %d /data)" ] || ok=0
+    case "$(ls -Zd "$PD" 2>/dev/null)" in *property_data_file*) ;; *) chcon -R u:object_r:property_data_file:s0 "$PD" 2>/dev/null || ok=0 ;; esac
+    if [ "$ok" = 1 ] && echo "$BOOT_ID" > "$STORE_MARK"; then
+        echo "guest_props: $PD is the session's own copy ($(ls "$PD" | wc -l) files); One UI's store stays as it is"
+    else
+        rm -f "$STORE_MARK"
+        store_off || echo "guest_props: ERROR: could not unmount the half-made copy over $PD"
+        echo "guest_props: the copy over $PD did not check out, session property store not used"
+    fi
+    rm -rf "$T"
+    ;;
 restore-persist)
     SNAP="$SNAP_FILE"
+    # One UI's own store back first (store-on): the guest's persist settings were
+    # never written to it. Fail closed: the callers fail safe (reboot), which
+    # drops the copy too.
+    STORE_SESSION=0
+    if [ -f "$STORE_MARK" ] && [ "$(cat "$STORE_MARK" 2>/dev/null)" = "$BOOT_ID" ]; then
+        store_off || { echo "guest_props: ERROR: could not unmount the session copy over $PD"; exit 1; }
+        # Only this run blanks instead of deleting; a retry after a failure deletes the old way.
+        rm -f "$STORE_MARK"
+        STORE_SESSION=1
+        echo "guest_props: One UI's own $PD is back (the session's copy dropped)"
+    fi
     [ -f "$SNAP" ] || { echo "guest_props: no persist snapshot, skipping"; exit 0; }
     snapshot_trusted || { echo "guest_props: persist snapshot not taken by this stage's session (no format 2 marker or hash mismatch), not used"; exit 0; }
     # Keep the guest's language for its next session (oneos_switch.sh
@@ -1052,6 +1321,8 @@ restore-persist)
         case "$1" in
             persist.sys.locale) return 0 ;;
             persist.oplus.*|persist.sys.oplus.*) return 0 ;;
+            # vivo OriginOS: its audio policy alone sets about 370 of these (seventh run).
+            persist.vivo.*|persist.sys.vivo.*|persist.vendor.vivo.*|persist.sys.audio.vapc.*) return 0 ;;
             # oneos_switch.sh's softdog off switch on the Exynos phones (0.4.22).
             persist.vendor.softdog) return 0 ;;
         esac
@@ -1059,13 +1330,24 @@ restore-persist)
     }
     # Added by the guest: delete from memory and from persistent storage.
     # Not the ones remove blanked (still empty and not in the store).
+    # With the session's own store (store-on) they were never in One UI's: blanked
+    # in memory instead, so the next session writes into the same slots (listed
+    # in guest_props.blanked, which the next snapshot leaves out).
+    : > "$BLANKED.persist"
     for key in $(cut -d= -f1 "$NOW"); do
         grep -q "^$key=" "$SNAP" && continue
         grep -qxF "$key=" "$NOW" && [ -f "$BLANKED" ] && grep -qxF "$key" "$BLANKED" && continue
         echo "$key" | grep -q "$keep" && continue
         [ "$2" = "--recover" ] && ! guest_prop "$key" && continue
-        if "$RP" -p --delete "$key" 2>/dev/null; then deleted=$((deleted + 1)); else failed=$((failed + 1)); fi
+        if [ "$STORE_SESSION" = 1 ]; then
+            if "$RP" -n "$key" "" 2>/dev/null; then echo "$key" >> "$BLANKED.persist"; blanked_p=$((${blanked_p:-0} + 1)); else failed=$((failed + 1)); fi
+        elif "$RP" -p --delete "$key" 2>/dev/null; then deleted=$((deleted + 1)); else failed=$((failed + 1)); fi
     done
+    if [ -s "$BLANKED.persist" ]; then
+        { [ -f "$BLANKED" ] && cat "$BLANKED"; cat "$BLANKED.persist"; } | sort -u > "$BLANKED.tmp" &&
+            mv -f "$BLANKED.tmp" "$BLANKED" && echo "$BOOT_ID" > "$BLANKED.boot"
+    fi
+    rm -f "$BLANKED.persist"
     # Changed by the guest: put the host's value back, in storage too.
     [ "$2" = "--added-only" ] && : > "$NOW.skip"
     while [ ! -f "$NOW.skip" ] && IFS= read -r line; do
@@ -1085,10 +1367,10 @@ restore-persist)
         exit 1
     fi
     rm -f "$STAGE/persist_session.active"
-    echo "guest_props: persist props: deleted $deleted added by the guest, restored $restored changed ones"
+    echo "guest_props: persist props: deleted $deleted and blanked ${blanked_p:-0} added by the guest, restored $restored changed ones"
     ;;
 *)
-    echo "usage: $0 add <rootfs> | remove | snapshot-persist | restore-persist | recover" >&2
+    echo "usage: $0 add <rootfs> | remove | snapshot-persist | store-on | restore-persist | recover" >&2
     exit 2
     ;;
 esac

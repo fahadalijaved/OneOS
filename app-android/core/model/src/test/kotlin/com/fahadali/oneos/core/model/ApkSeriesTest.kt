@@ -37,11 +37,12 @@ class ApkSeriesTest {
         // The Fold's sets are not an S phone's but Infinity-X's and HyperOS's (0.4.27, 0.4.31: one set each on
         // every phone; 0.4.36 Nothing OS's on all three), and the two S series share the ColorOS ones too.
         assertEquals(
-            setOf(PackageSets.ID_INFINITYX, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U),
+            setOf(PackageSets.ID_INFINITYX, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U, PackageSets.ID_ORIGINOS),
             ApkSeries.FOLD.setIds().intersect(ApkSeries.S25.setIds()),
         )
         assertEquals(
-            setOf(PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_INFINITYX, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U),
+            setOf(PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_INFINITYX, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U,
+                PackageSets.ID_ORIGINOS),
             ApkSeries.S26.setIds().intersect(ApkSeries.S25.setIds()),
         )
         for (s in ApkSeries.entries) assertNotEquals(s.id, PackageSets.ALL.size, s.setIds().size)
@@ -68,7 +69,7 @@ class ApkSeriesTest {
         val wrong = gate(ApkSeries.S25)
         assertEquals(Level.BLOCK, wrong.level)
         assertEquals(SwitchGates.R_IMAGE_OTHER_SERIES, wrong.reason)
-        assertEquals("This OneOS is for the Galaxy S25, S25 Edge, S24, S24 FE, S23, Z Flip7, Z Flip6, Z Flip5, A57, A56, A36, A26, A17, A16 5G, A16 4G and A07", wrong.title)
+        assertEquals("This OneOS is for the Galaxy S25, S25 Edge, S25 FE, S24, S24 FE, S23, Z Flip7, Z Flip6, Z Flip5, the A series, and the phones on One UI 8 (S23 FE, S22, A, E)", wrong.title)
         assertTrue(wrong.detail, wrong.detail.contains("needs OneOS for the Galaxy Z Fold (the file ending in -fold.apk)"))
         // Its own series and the all-in-one build do not stop it.
         assertFalse(gate(ApkSeries.FOLD).reason == SwitchGates.R_IMAGE_OTHER_SERIES)

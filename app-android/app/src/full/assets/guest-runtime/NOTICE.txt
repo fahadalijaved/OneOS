@@ -1,0 +1,9 @@
+OneOS guest root runtime
+OneOS: https://github.com/fahadalijaved/OneOS/tree/ef3e56a385e5e789110797eabba033c19e21e8ed
+NeoZygisk: https://github.com/JingMatrix/NeoZygisk/tree/c4caec94c950da36bedfbe20e84a849d269175ef (GPL-3.0)
+OneOS modifications: explicit child-PID injection only; no global monitor; retain guest mount namespace; per-guest permission flags; no host root-provider mutations or monitor IPC.
+Vector: https://github.com/JingMatrix/Vector/releases/tag/v2.2 (GPL-3.0)
+Official release ZIP SHA-256: 9ee8323575d615f7b3f1076ff60b2a63a49390ef11881b52632311a37f6f79cc
+The release files are normalized into a private module. Its daemon shell script omits the /data/local/tmp/daemon.apk debug override. APK and DEX contents are unchanged.
+The matching NeoZygisk patch and build instructions are in third_party/guest-runtime.
+The guest broker source is switcher/native/guest_root.c.

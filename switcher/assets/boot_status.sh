@@ -72,7 +72,7 @@ oneos_boot_hold_display() {
     esac
     composer_identity=$(oneos_boot_composer_identity "$composer_pid")
     [ -n "$composer_identity" ] || return 0
-    oneos_boot_event 'Restoring One UI'
+    oneos_boot_event "${1:-Restoring One UI}"
     sleep 0.3  # let the live renderer post the return status before holding it
     composer_lease=$(cat "$ONEOS_BOOT_DIR/generation")
     composer_hold="$composer_pid $composer_identity $composer_lease"
@@ -106,14 +106,19 @@ oneos_boot_begin() {
     sleep 0.2
     oneos_boot_release_display
     rm -f "$ONEOS_BOOT_DIR/stop" "$ONEOS_BOOT_DIR/ready" "$ONEOS_BOOT_DIR/framework"
-    if [ "$1" = enter ]; then
-        : > "$ONEOS_BOOT_DIR/events.log"
-        : > "$ONEOS_BOOT_DIR/renderer.log"
-        oneos_boot_write verbose "${ONEOS_VERBOSE_BOOT:-0}"
+    if [ "$1" = enter ] || [ "$1" = restart ]; then
+        if [ "$1" = enter ]; then
+            : > "$ONEOS_BOOT_DIR/events.log"
+            : > "$ONEOS_BOOT_DIR/renderer.log"
+        fi
+        restart_verbose=${ONEOS_VERBOSE_BOOT:-$(cat "$ONEOS_BOOT_DIR/verbose" 2>/dev/null)}
+        case "$restart_verbose" in 1) ;; *) restart_verbose=0 ;; esac
+        oneos_boot_write verbose "$restart_verbose"
         oneos_boot_image=$(sed -n 's/.*"image"[[:space:]]*:[[:space:]]*"\([a-z0-9-]*\)".*/\1/p' /data/local/tmp/oneos/.oneos_stage)
-        case "$oneos_boot_image" in pixel*) oneos_boot_name='Pixel';; hyper*) oneos_boot_name='HyperOS';; nothing*) oneos_boot_name='Nothing OS 5.0';; infinity*) oneos_boot_name='Infinity-X 4.1';; *) oneos_boot_name='ColorOS 17';; esac
+        case "$oneos_boot_image" in pixel*) oneos_boot_name='Pixel';; hyper*) oneos_boot_name='HyperOS';; nothing*) oneos_boot_name='Nothing OS 5.0';; infinity*) oneos_boot_name='Infinity-X 4.1';; oxygen*) oneos_boot_name='OxygenOS 16';; originos*) oneos_boot_name='OriginOS 7';; *) oneos_boot_name='ColorOS 17';; esac
         oneos_boot_write system_name "$oneos_boot_name"
-        oneos_boot_write title "Launching into $oneos_boot_name"
+        if [ "$1" = restart ]; then oneos_boot_write title "Restarting $oneos_boot_name"
+        else oneos_boot_write title "Launching into $oneos_boot_name"; fi
     else
         oneos_boot_write title 'Returning to One UI'
     fi

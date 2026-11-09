@@ -99,12 +99,28 @@ object Profiles {
     const val ID_FLIP5 = "flip5"
     const val ID_FOLD6 = "f6"
     const val ID_A07 = "a07"
+    const val ID_A06 = "a06"
+    const val ID_A07_5G = "a07-5g"
+    const val ID_A15 = "a15"
+    const val ID_A24 = "a24"
+    const val ID_A25 = "a25"
+    const val ID_A33 = "a33"
+    const val ID_A34 = "a34"
+    const val ID_A53 = "a53"
+    const val ID_E55 = "e55"
+    const val ID_S_FE_9925 = "s-fe-9925"
+    const val ID_S_FE_8450 = "s-fe-8450"
+    const val ID_S_PLUS_9925 = "s-plus-9925"
+    const val ID_S_ULTRA_9925 = "s-ultra-9925"
+    const val ID_S_ULTRA_8450 = "s-ultra-8450"
+    const val ID_S_ULTRA_8450_JP = "s-ultra-8450-jp"
     const val ID_FLIP8 = "flip8"
     const val ID_A36 = "a36"
     const val ID_FOLD5 = "f5"
     const val ID_S_ULTRA_8550 = "s-ultra-8550"
     const val ID_FLIP6 = "flip6"
     const val ID_S_9945 = "s-9945"
+    const val ID_S_8650 = "s-8650"
     const val ID_S_EDGE_8750 = "s-edge-8750"
     const val ID_S_FE_9945 = "s-fe-9945"
     const val ID_A26 = "a26"
@@ -114,7 +130,13 @@ object Profiles {
     const val ID_A35 = "a35"
     const val ID_A54 = "a54"
     const val ID_A27 = "a27"
+    const val ID_A17_5G = "a17-5g"
+    const val ID_FLIP7_FE = "flip7-fe"
     const val ID_A16 = "a16"
+    const val ID_A55 = "a55"
+    const val ID_S25_FE = "s25-fe"
+    const val ID_S_8450 = "s-8450"
+    const val ID_M55S = "m55s"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -174,6 +196,8 @@ object Profiles {
      * bar phone its cover-screen layout runs as the phone's screen.
      */
     private val HYPEROS_CHOICE = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
+    /** OxygenOS 16 (SDK 36) for phones on One UI 8 (0.4.67, experimental; the app offers it only on SDK 36). */
+    private val OXYGEN16_CHOICE = ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)
 
     /**
      * Nothing OS 5.0 (0.4.33), untested, last: the Z Fold8 Ultra first, where it
@@ -184,6 +208,13 @@ object Profiles {
      * range overlay is the Fold's.
      */
     private val NOTHING_CHOICE = ImageChoice(Images.ID_NOTHING_METROID, PackageSets.ID_NOTHING_F8U, tested = false)
+    /**
+     * OriginOS 7 (0.4.73, experimental): the Snapdragon S25 and S26 series and the Z Fold7, Fold8 and Fold8 Ultra
+     * (each profile names it itself: the shared choice lists also serve Exynos phones and the S24). Tested on the
+     * Z Fold8 Ultra only (fold mode 1, runs 13-24); the bar phones take vivo's phone layout, untested.
+     */
+    private val ORIGINOS_CHOICE = ImageChoice(Images.ID_ORIGINOS7, PackageSets.ID_ORIGINOS, tested = false)
+    private val ORIGINOS_TESTED = ImageChoice(Images.ID_ORIGINOS7, PackageSets.ID_ORIGINOS, tested = true)
 
     private fun olderVendor(vendorApi: String, kernel: String) = Finding(
         ID_NOTE_OLDER_VENDOR, Level.WARN, "Older vendor software",
@@ -270,6 +301,7 @@ object Profiles {
             // scripts/deploy-phone.sh, not yet from the app).
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, tested = true),
             INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
+            ORIGINOS_TESTED,
         ),
     )
 
@@ -283,7 +315,7 @@ object Profiles {
         // 0.4.10: the Pixel 11 Pro image too, untested. SM8850 has the SVE that
         // Pixel's system code needs; the SM8750 phones do not.
         choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_TESTED + HYPEROS_CHOICE +
-            NOTHING_CHOICE,
+            NOTHING_CHOICE + ORIGINOS_CHOICE,
     )
 
     val S_ULTRA_8750 = PhoneProfile(
@@ -295,7 +327,7 @@ object Profiles {
         form = FormFactor.BAR,
         // Off in 0.3.0 (the S26 Ultra was to go first); on from 0.3.1 (owner: the
         // friend's S25 Ultra is on Android 17 and ready). Untested: ticks as the S26 Ultra.
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -314,7 +346,7 @@ object Profiles {
         codename = "pa1q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + HYPEROS_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -337,7 +369,7 @@ object Profiles {
         codename = "q7q",
         socModel = "SM8750",
         form = FormFactor.FOLD,
-        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
+        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE) + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -355,7 +387,7 @@ object Profiles {
         codename = "pa2q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE) + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -383,6 +415,7 @@ object Profiles {
             ImageChoice(Images.ID_FIND_N6, PackageSets.N6_GLOBAL_F8.id, tested = false),
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
             INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
+            ORIGINOS_CHOICE,
         ),
     )
 
@@ -408,7 +441,7 @@ object Profiles {
         codename = "m1q",
         socModel = "SM8850",
         form = FormFactor.BAR,
-        choices = S_8850_CHOICES,
+        choices = S_8850_CHOICES + ORIGINOS_CHOICE,
     )
 
     val S_8850_JP = S_8850.copy(id = ID_S_8850_JP, label = "Galaxy S26 (docomo)", modelPrefix = "SC-51G")
@@ -427,7 +460,7 @@ object Profiles {
         codename = "m2q",
         socModel = "SM8850",
         form = FormFactor.BAR,
-        choices = S_8850_CHOICES,
+        choices = S_8850_CHOICES + ORIGINOS_CHOICE,
     )
 
     /**
@@ -631,7 +664,8 @@ object Profiles {
      * already, so the version gate allows it. Infinity-X only (its system code
      * needs neither SVE nor SME: the S25 Ultra runs it), untested, with
      * [MEDIATEK]. The A16 and A17 on One UI 8.5 (Android 16) are still refused
-     * by the version gate.
+     * by the version gate. 0.4.60: Infinity-X reached the home screen here (0.4.58 reports of
+     * 2026-11-06), and ColorOS (the Find X9 Ultra IN build) is offered too, untested (owner).
      */
     val A07 = PhoneProfile(
         id = ID_A07,
@@ -640,7 +674,7 @@ object Profiles {
         codename = "a07",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -772,8 +806,26 @@ object Profiles {
         codename = "psq",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES.map { it.copy(tested = false) } + PIXEL9_CHOICE + INFINITYX_CHOICE + HYPEROS_CHOICE + NOTHING_CHOICE,
+        choices = S_ULTRA_CHOICES.map { it.copy(tested = false) } + PIXEL9_CHOICE + INFINITYX_CHOICE + HYPEROS_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
+    )
+
+    /**
+     * Galaxy S24 with Snapdragon, from 0.4.61: a probe report of 2026-11-07 (SM-S921E, e1q, SM8650
+     * like the Galaxy S24 Ultra, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and
+     * kernel 6.1, one 1080 x 2340 panel on port 131 at density 480, sec_touchscreen, composer3,
+     * no SVE or SME, installd 85 methods). The S24 Ultra's images, untested. Shares SM-S921 with
+     * [S_9945]: the codename and the chip tell them apart.
+     */
+    val S_8650 = PhoneProfile(
+        id = ID_S_8650,
+        label = "Galaxy S24",
+        modelPrefix = "SM-S921",
+        codename = "e1q",
+        socModel = "SM8650",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
+        notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
     /**
@@ -811,7 +863,7 @@ object Profiles {
         // 0.4.57: not the Pixel 9 Pro XL any more: its own programs stopped on "Illegal instruction" before
         // it started, in every session (0.4.54/0.4.55 reports 9f2307a3, 560a1dcb, c926c955). This ARMv8.2
         // CPU lacks what every phone it runs on has (ilrcpc, frint, flagm, jscvt, fcma, i8mm, bf16...).
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -819,7 +871,9 @@ object Profiles {
      * Galaxy A17, from 0.4.48: probe reports from 2026-11-03 on (SM-A175F, a17, MediaTek MT6789
      * like the Galaxy A07, now on One UI 9.0 and Android 17, vendor API 31 and kernel 6.12, one
      * 1080 x 2340 panel, composer3 and the AIDL audio HAL, no SVE or SME, installd 85 methods).
-     * Parked while it was on One UI 8.5; the A07's Infinity-X, untested, with [MEDIATEK].
+     * Parked while it was on One UI 8.5; the A07's Infinity-X, with [MEDIATEK]. 0.4.60: Infinity-X
+     * reached the home screen on the A17 and the A16 4G (reports of 2026-11-05 to 07), and the
+     * Find X9 Ultra IN ColorOS is offered too, untested (owner: "allow them to try ColorOS too").
      */
     val A17 = PhoneProfile(
         id = ID_A17,
@@ -828,7 +882,7 @@ object Profiles {
         codename = "a17",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -845,7 +899,9 @@ object Profiles {
      * a16x, s5e8535 Exynos 1330, One UI 9.0, Android 17, vendor API 33 and kernel 5.15, one
      * 1080 x 2340 panel, the HIDL composer, no SVE or SME, installd 85 methods). The A16s with
      * MediaTek (SM-A166P, SM-A165) are still on One UI 8.5 and refused by the version gate. The
-     * weakest chip so far: Infinity-X only, untested, with [EXYNOS].
+     * weakest chip so far: Infinity-X, with [EXYNOS]. 0.4.60: Infinity-X reached the home screen
+     * (a 0.4.58 report of 2026-11-05), and the Find X9 Ultra IN ColorOS is offered too, untested:
+     * the A26's ColorOS also runs on a Cortex-A78/A55 Exynos with the HIDL composer.
      */
     val A16 = PhoneProfile(
         id = ID_A16,
@@ -854,7 +910,7 @@ object Profiles {
         codename = "a16x",
         socModel = "s5e8535",
         form = FormFactor.BAR,
-        choices = listOf(INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -864,7 +920,10 @@ object Profiles {
      * kernel 5.15, KernelSU): the same phone as [A16] under a carrier model number. It was still on
      * One UI 8.5 (Android 16, S166VUDS8DZG1), so the version gate holds it until One UI 9.
      */
-    val A16_S166 = A16.copy(id = ID_A16_S166, label = "Galaxy A16 5G (SM-S166V)", modelPrefix = "SM-S166")
+    val A16_S166 = A16.copy(
+        id = ID_A16_S166, label = "Galaxy A16 5G (SM-S166V)", modelPrefix = "SM-S166",
+        choices = A16.choices.map { it.copy(tested = false) }, // no session on this model number yet
+    )
 
     /**
      * Galaxy A35 5G, from 0.4.59: findings of 2026-11-05 and 06 (SM-A356E and SM-A356U1, a35x, s5e8835
@@ -890,11 +949,257 @@ object Profiles {
      */
     val A27 = A36.copy(id = ID_A27, label = "Galaxy A27", modelPrefix = "SM-A276", codename = "a27xq")
 
+    /**
+     * Galaxy A17 5G, from 0.4.60: findings of 2026-11-07 (SM-A176B, a17x, s5e8535 Exynos 1330 like
+     * the Galaxy A16 5G, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 33 and kernel 5.15,
+     * density 450, Mali, Cortex-A55/A78 with no SVE or SME, KernelSU, installd 85 methods): the
+     * [A16]'s chip and vendor, so its choices and notes. Untested. The Galaxy A17 4G is [A17].
+     */
+    val A17_5G = A16.copy(
+        id = ID_A17_5G, label = "Galaxy A17 5G", modelPrefix = "SM-A176", codename = "a17x",
+        choices = A16.choices.map { it.copy(tested = false) },
+    )
+
+    /**
+     * Galaxy Z Flip7 FE, from 0.4.60: findings of 2026-11-07 (SM-F761B, b7r, s5e9945 Exynos 2400 like
+     * the Galaxy S24 (Exynos) and S24 FE, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34
+     * and kernel 6.1, density 480, SVE and SVE2 but no SME, KernelSU, installd 85 methods). A flip run
+     * as a phone on its main screen like the [FLIP7], with the S24 (Exynos)'s images, untested, with
+     * [EXYNOS].
+     */
+    val FLIP7_FE = PhoneProfile(
+        id = ID_FLIP7_FE,
+        label = "Galaxy Z Flip7 FE",
+        modelPrefix = "SM-F761",
+        codename = "b7r",
+        socModel = "s5e9945",
+        form = FormFactor.FLIP,
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
+    )
+
+    /**
+     * OxygenOS 16 (0.4.67, experimental): the phones still on One UI 8.0/8.5 (Android 16, SDK 36), from
+     * their probe reports (model, codename, chip). Only the Android 16 image; untested everywhere. Left
+     * out: reports of custom systems (an "S24" with an Exynos 990, a "Note20 Ultra" with an S22 Ultra
+     * build, an S10 on Android 16) and the tablets (their layout comes later).
+     */
+    val A07_5G = PhoneProfile(
+        id = ID_A07_5G,
+        label = "Galaxy A07 5G",
+        modelPrefix = "SM-A076",
+        codename = "a07x",
+        socModel = "MT6835",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK),
+    )
+
+    val A06 = PhoneProfile(
+        id = ID_A06,
+        label = "Galaxy A06",
+        modelPrefix = "SM-A066",
+        codename = "a06x",
+        socModel = "MT6835",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK),
+    )
+
+    /**
+     * 0.4.74: One UI 9 (Android 17) reached the A15 (findings of 2026-11-09, SM-A155F,
+     * CP2A.260605.016, MT6789, vendor API 31, kernel 6.12), the A07's chip: the A07's systems,
+     * untested here. OxygenOS 16 stays for the A15s on One UI 8 and 8.5.
+     */
+    val A15 = PhoneProfile(
+        id = ID_A15,
+        label = "Galaxy A15",
+        modelPrefix = "SM-A155",
+        codename = "a15",
+        socModel = "MT6789",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
+    )
+
+    val A24 = PhoneProfile(
+        id = ID_A24,
+        label = "Galaxy A24",
+        modelPrefix = "SM-A245",
+        codename = "a24",
+        socModel = "MT6789",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK),
+    )
+
+    val A25 = PhoneProfile(
+        id = ID_A25,
+        label = "Galaxy A25",
+        modelPrefix = "SM-A256",
+        codename = "a25x",
+        socModel = "s5e8825",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val A33 = PhoneProfile(
+        id = ID_A33,
+        label = "Galaxy A33 5G",
+        modelPrefix = "SM-A336",
+        codename = "a33x",
+        socModel = "s5e8825",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    /**
+     * 0.4.74: One UI 9 (Android 17) reached the A34 (findings report of 2026-11-09, SM-A346E,
+     * CP2A.260605.016, vendor API 30, kernel 6.6), so it takes the A07's systems too, all untested
+     * here (owner: "can try coloros and hyper etc"). OxygenOS 16 stays for the A34s on One UI 8.
+     */
+    val A34 = PhoneProfile(
+        id = ID_A34,
+        label = "Galaxy A34 5G",
+        modelPrefix = "SM-A346",
+        codename = "a34x",
+        socModel = "MT6877",
+        form = FormFactor.BAR,
+        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        notes = listOf(MEDIATEK, olderVendor("30 (Android 11)", "6.6")),
+    )
+
+    val A53 = PhoneProfile(
+        id = ID_A53,
+        label = "Galaxy A53 5G",
+        modelPrefix = "SM-A536",
+        codename = "a53x",
+        socModel = "s5e8825",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val E55 = PhoneProfile(
+        id = ID_E55,
+        label = "Galaxy F55/E55",
+        modelPrefix = "SM-E556",
+        codename = "m55xq",
+        socModel = "SM7450",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+    )
+
+    val S_FE_9925 = PhoneProfile(
+        id = ID_S_FE_9925,
+        label = "Galaxy S23 FE",
+        modelPrefix = "SM-S711",
+        codename = "r11s",
+        socModel = "s5e9925",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val S_FE_8450 = PhoneProfile(
+        id = ID_S_FE_8450,
+        label = "Galaxy S23 FE (Snapdragon)",
+        modelPrefix = "SM-S711",
+        codename = "r11q",
+        socModel = "SM8450",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+    )
+
+    val S_PLUS_9925 = PhoneProfile(
+        id = ID_S_PLUS_9925,
+        label = "Galaxy S22+",
+        modelPrefix = "SM-S906",
+        codename = "g0s",
+        socModel = "s5e9925",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val S_ULTRA_9925 = PhoneProfile(
+        id = ID_S_ULTRA_9925,
+        label = "Galaxy S22 Ultra",
+        modelPrefix = "SM-S908",
+        codename = "b0s",
+        socModel = "s5e9925",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(EXYNOS),
+    )
+
+    val S_ULTRA_8450 = PhoneProfile(
+        id = ID_S_ULTRA_8450,
+        label = "Galaxy S22 Ultra (Snapdragon)",
+        modelPrefix = "SM-S908",
+        codename = "b0q",
+        socModel = "SM8450",
+        form = FormFactor.BAR,
+        choices = listOf(OXYGEN16_CHOICE),
+    )
+
+    /**
+     * Galaxy A55 5G, from 0.4.68: findings of 2026-11-08 (SM-A556B, a55x, s5e8845 Exynos 1480, One UI
+     * 9.0, Android 17 build CP2A.260605.016, vendor API 34 and kernel 6.1, one 1080 x 2340 panel on port
+     * 131 at density 450, backlight panel (max 761), sec_touchscreen, composer3, Cortex-A55/A78 with no
+     * SVE, SME, BF16 or I8MM, KernelSU, installd 85 methods). Its CPU is the [A35]'s (Cortex-A78/A55,
+     * ARMv8.2: no Pixel 9 Pro XL, which stopped on "Illegal instruction" on the A26), so the A35's
+     * choices; its vendor is a generation newer (vendor API 34, kernel 6.1, composer3 like the
+     * [S_FE_9945]), so that older-vendor note. Untested, with [EXYNOS].
+     */
+    val A55 = A35.copy(
+        id = ID_A55, label = "Galaxy A55 5G", modelPrefix = "SM-A556", codename = "a55x", socModel = "s5e8845",
+        notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
+    )
+
+    /**
+     * Galaxy S25 FE, from 0.4.68: findings of 2026-11-08 (SM-S731B, r13s, s5e9945 Exynos 2400 like the
+     * Galaxy S24 FE, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and kernel 6.1, one
+     * 1080 x 2340 panel at density 450, backlight panel (max 9180), sec_touchscreen, composer3,
+     * Cortex-X4/A720/A520 with SVE and SVE2 but no SME, KernelSU, installd 85 methods): the [S_FE_9945]'s
+     * chip, vendor and screen, so its choices and notes. Untested. Not the "SM-S731B" with codename a56x
+     * and an s5e8855 (an A56 renamed).
+     */
+    val S25_FE = S_FE_9945.copy(id = ID_S25_FE, label = "Galaxy S25 FE", modelPrefix = "SM-S731", codename = "r13s")
+
+    /**
+     * Galaxy S22 with Snapdragon, from 0.4.68: findings of 2026-11-08 (SM-S901U, r0q, SM8450, One UI 8.0,
+     * Android 16 build BP2A.250605.031.A3, vendor and board API 31, kernel 5.10, one 1080 x 2340 panel on
+     * port 130 at density 480, backlight panel0-backlight (max 510), the HIDL composer, Cortex-X2/A710/A510
+     * with no SVE or SME, KernelSU): the [S_ULTRA_8450]'s chip, vendor and One UI, so its choice, OxygenOS
+     * 16 only, untested. The Exynos S22 (SM-S901B, r0s, s5e9925) was still on One UI 7.0 (waiting list).
+     */
+    val S_8450 = S_ULTRA_8450.copy(id = ID_S_8450, label = "Galaxy S22 (Snapdragon)", modelPrefix = "SM-S901", codename = "r0q")
+
+    /**
+     * Galaxy M55s, from 0.4.70: findings of 2026-11-08 (SM-M558B, m55xq, Snapdragon 7 Gen 1 SM7450
+     * "taro", One UI 8.5, Android 16 build BP4A.251205.006, vendor and board API 31, kernel 5.10
+     * android12, one 1080 x 2400 panel on port 130 at density 450, backlight panel0-backlight (max
+     * 4095), the HIDL composer, KernelSU): the [E55]'s codename, chip and vendor, so its choice,
+     * OxygenOS 16 only, untested.
+     */
+    val M55S = E55.copy(id = ID_M55S, label = "Galaxy M55s", modelPrefix = "SM-M558")
+
+    /**
+     * The au Galaxy S22 Ultra, from 0.4.74: findings of 2026-11-09 (SCG14, ro.product.device SCG14,
+     * vendor device b0q, SM8450, One UI 8). The S22 Ultra (Snapdragon)'s OxygenOS 16, untested.
+     */
+    val S_ULTRA_8450_JP = S_ULTRA_8450.copy(id = ID_S_ULTRA_8450_JP, label = "Galaxy S22 Ultra (au)", modelPrefix = "SCG14", codename = "SCG14")
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
-        S_8850, S_8850_JP, S_ULTRA_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
+        S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
-        S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27,
+        S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
+        A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
+        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

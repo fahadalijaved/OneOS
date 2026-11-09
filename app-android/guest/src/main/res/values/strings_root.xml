@@ -1,0 +1,22 @@
+<resources>
+    <string name="root_filters">Filter apps</string>
+    <string name="root_permissions_title">Root permissions</string>
+    <string name="root_search_hint">Search</string>
+    <string name="root_access_filter">Root access filter</string>
+    <string name="root_kind_filter">App type filter</string>
+    <string name="root_retry">Try again</string>
+    <string name="root_loading">Reading guest apps…</string>
+    <string name="root_no_matches">No apps match your search or filters.</string>
+    <string name="root_none">No apps available for root access.</string>
+    <string name="root_allowed">Root allowed</string>
+    <string name="root_denied">Root denied</string>
+    <string name="root_saving">Saving…</string>
+    <string name="root_toggle">Root access for %1$s</string>
+    <string name="root_counts">%1$d shown · %2$d allowed in this guest</string>
+    <string name="root_shared">Shared UID · %1$d apps</string>
+    <string name="root_shared_details">These apps share UID %1$d. Root access applies to all of them.</string>
+    <string-array name="root_access_options"><item>All access</item><item>Allowed</item><item>Denied</item></string-array>
+    <string-array name="root_kind_options"><item>User apps</item><item>All apps</item><item>System apps</item></string-array>
+    <string name="restart_splash_title">Restarting %1$s</string>
+    <string name="restart_request_failed">Could not request guest restart (%1$s).</string>
+</resources>

@@ -177,8 +177,14 @@ object SessionPrefs {
         p(ctx).edit().putBoolean("hide_gms", on).apply()
     }
 
-    /** This phone's Samsung IMS app in the other system, for VoLTE (Advanced; ONEOS_GUEST_SEC_IMS). Off by default. */
-    fun secIms(ctx: Context): Boolean = p(ctx).getBoolean("sec_ims", false)
+    /**
+     * This phone's Samsung IMS app in the other system, for VoLTE and SMS over IMS (Advanced;
+     * ONEOS_GUEST_SEC_IMS). On by default since 0.4.60: in the 0.4.59 reports calls and SMS failed
+     * wherever it was off (an S25 Ultra's call went out on the circuit-switched network and ended
+     * OUT_OF_SERVICE; "IMS is not supported on this device, skipping ImsResolver"), while sessions
+     * with it on registered VoLTE (Telstra, Vodafone DE). A choice made in Advanced is kept.
+     */
+    fun secIms(ctx: Context): Boolean = p(ctx).getBoolean("sec_ims", true)
 
     fun setSecIms(ctx: Context, on: Boolean) {
         p(ctx).edit().putBoolean("sec_ims", on).apply()
