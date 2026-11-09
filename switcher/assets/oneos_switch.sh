@@ -422,8 +422,11 @@ for p in /sys/class/lcd/panel /sys/class/lcd/panel1; do
 done >> "$STAGE/display_modes_host.log"
 HLINE=$(grep 'DisplayDeviceInfo{' "$STAGE/display_host.txt" | grep 'type INTERNAL' | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY')
 echo "preflight: display hline done $(date +%T)"
-HDW=$(printf '%s\n' "$HLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\1/p')
-HPW=$(printf '%s\n' "$HLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\2/p')
+# Shell globs, not sed: a greedy .* regex over the 6,849-byte DisplayDeviceInfo
+# line took 3-5 s per parse on the phones (S25 Ultra, 0.4.73), which is what the
+# display preflight's 10 s was.
+HDW=${HLINE#*CutoutPathParserInfo\{displayWidth=}; HDW=${HDW%% *}
+HPW=${HLINE#*physicalDisplayWidth=}; HPW=${HPW%% *}
 # Each panel's camera on the whole panel (the guest runs every panel at its
 # full size), one line per internal panel with a top cutout, in host_holes:
 #   <main|cover> <uniqueId> <panel px> <rect> <lens>|<rect spec px>|<lens spec px>|<One UI's rect> at <px>
@@ -506,13 +509,13 @@ fi
 # two panels are left alone).
 rm -f "$STAGE/host_statusbar"
 if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
-    HCS=$(printf '%s\n' "$HLINE" | sed -n 's/.*cutoutSpec={\([^}]*\)}.*/\1/p' | head -n 1)
+    HCS=${HLINE#*cutoutSpec=\{}; HCS=${HCS%%\}*}
     HSB=$(timeout 10 dumpsys window 2>/dev/null | sed -n "s/.*type=statusBars frame=\[0,0\]\[$HDW,\([0-9]*\)\].*/\1/p" | head -n 1)
     echo "preflight: display statusbar done $(date +%T)"
     # The panel's corner radius (RoundedCorner{position=TopLeft, radius=<px>, ...}
     # at One UI's resolution): an image's own corners are its phone's (Infinity-X
     # on the S25 Ultra: radius 0, so SystemUI kept no clear of the curved corners).
-    HRC=$(printf '%s\n' "$HLINE" | sed -n 's/.*RoundedCorner{position=TopLeft, radius=\([0-9]*\),.*/\1/p' | head -n 1)
+    HRC=${HLINE#*RoundedCorner\{position=TopLeft, radius=}; HRC=${HRC%%,*}
     echo "preflight: display radius done $(date +%T)"
     case "$HDW:$HPW:$HSB" in
         *[!0-9:]*|:*|*::*|*:) HSB='' ;;
@@ -556,16 +559,16 @@ MLINE=$(printf '%s\n' "$HLINE" | while IFS= read -r l; do
             [ -n "$s" ] && echo "$(echo "$s" | awk '{ print $1 * $2 }') $l"
         done | sort -n | tail -n 1 | cut -d' ' -f2-)
 echo "preflight: display mline done $(date +%T)"
-MW=$(printf '%s\n' "$MLINE" | sed -n 's/.*uniqueId="local:[0-9]*", \([0-9]*\) x [0-9]*, .*/\1/p')
-MDW=$(printf '%s\n' "$MLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\1/p')
-MPW=$(printf '%s\n' "$MLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\2/p')
+T=${MLINE#*uniqueId=\"local:}; T=${T#*\", }; MW=${T%% x *}
+T=${MLINE#*CutoutPathParserInfo\{displayWidth=}; MDW=${T%% *}
+T=${MLINE#*physicalDisplayWidth=}; MPW=${T%% *}
 # A panel without a cutout: One UI runs it at the size it reports.
 [ -n "$MDW" ] || MDW=$MW
 [ -n "$MPW" ] || MPW=$MW
 echo "preflight: display widths done $(date +%T)"
 B0=$(grep -m1 'mBaseDisplayInfo=DisplayInfo{' "$STAGE/display_host.txt")
-MODE0=$(printf '%s\n' "$B0" | sed -n 's/.* mode \([0-9][0-9]*\),.*/\1/p')
-H0W=$(printf '%s\n' "$B0" | sed -n "s/.*{id=$MODE0, [^}]*width=\([0-9][0-9]*\),.*/\1/p")
+MODE0=${B0#* mode }; MODE0=${MODE0%%,*}
+H0W=${B0#*\{id=$MODE0, }; H0W=${H0W#*width=}; H0W=${H0W%%,*}
 echo "preflight: display base done $(date +%T)"
 echo "preflight: display size done $(date +%T)"
 BOV=$(grep -m1 'mOverrideDisplayInfo=DisplayInfo{' "$STAGE/display_host.txt")
