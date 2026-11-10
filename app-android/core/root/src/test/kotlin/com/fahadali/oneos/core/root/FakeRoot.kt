@@ -104,6 +104,7 @@ class FakeRoot(
             case "${'$'}2" in
               android) echo "package:/system/framework/framework-res.apk" ;;
               com.wewaffles.onelineage) [ -f "${'$'}ONEOS_TEST_ROOT/old_switcher" ] && echo "package:/data/app/x/base.apk" ;;
+              *) [ -f "${'$'}ONEOS_TEST_ROOT/pm_paths" ] && sed -n "s|^${'$'}2 |package:|p" "${'$'}ONEOS_TEST_ROOT/pm_paths" ;;
             esac
             exit 0
         """)
@@ -202,6 +203,24 @@ class FakeRoot(
         errThread.join()
         return Run(p.exitValue(), out, err.toString())
     }
+
+    /** One UI's data folders of [pkg] as init sees them (what bring-collect reads): real folders, never a link to /. */
+    fun hostCe(pkg: String) = File(root, "proc/1/root${root.path}/data/data/$pkg")
+
+    fun hostDe(pkg: String) = File(root, "proc/1/root${root.path}/data/user_de/0/$pkg")
+
+    /** A user app installed on One UI: its APKs under data/app (pm path answers with the first) and its two data folders. */
+    fun hostApp(pkg: String, apks: List<String> = listOf("base.apk")): File {
+        val dir = File(root, "data/app/~~fake/$pkg-1").apply { mkdirs() }
+        for (a in apks) File(dir, a).writeText("$pkg $a\n")
+        File(root, "pm_paths").appendText("$pkg ${File(dir, apks.first()).path}\n")
+        hostCe(pkg).mkdirs()
+        hostDe(pkg).mkdirs()
+        return dir
+    }
+
+    /** Every file and folder under [dir], with size and mode. */
+    fun listing(dir: File): String = exec(listOf("find", dir.path, "-printf", "%P %y %m %s\\n")).lines().sorted().joinToString("\n")
 
     /** Every file and folder under the stage's parent, with size and mode: compared before and after a refusal. */
     fun snapshot(): String = exec(listOf("find", File(root, "data/local/tmp").path, "-printf", "%P %y %m %s\\n")).lines().sorted().joinToString("\n")

@@ -578,6 +578,27 @@ if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
     fi
 fi
 echo "preflight: display statusbar block done $(date +%T)"
+# The panels' corner radius, for the guests the block above leaves out (0.4.76):
+# ColorOS on any phone and every guest on a Fold. An image has its own phone's
+# corners: the Find N6's 77 px in ColorOS 17 on the owner's Fold, whose panels
+# are 15 px in One UI (11-10: "each time i open any app it shows rounded cutout
+# before showing full page", Circle to Search's frame the same). The radius of
+# every default-capable internal panel, each at its panel's resolution like the
+# one above; the smallest, since one value serves both panels of a Fold and a
+# corner cut too small only hides under the panel's own.
+rm -f "$STAGE/host_corner_radius"
+HCR=$(printf '%s\n' "$HLINE" | awk '
+    function num(re,   t) { if (!match($0, re)) return ""; t = substr($0, RSTART, RLENGTH); sub(/.*=/, "", t); return t }
+    { r = num("RoundedCorner[{]position=TopLeft, radius=[0-9]+"); if (r == "") { bad = 1; next }
+      dw = num("CutoutPathParserInfo[{]displayWidth=[0-9]+"); pw = num("physicalDisplayWidth=[0-9]+")
+      r += 0; if (dw + 0 > 0 && pw + 0 > 0) r = int((r * pw + dw / 2) / dw)
+      n++; if (n == 1 || r < min) min = r }
+    END { if (n > 0 && !bad && min > 0 && min <= 400) print min }')
+case "$HCR" in
+    ''|*[!0-9]*) echo "Host corner radius: not read ($(printf '%s\n' "$HLINE" | grep -c .) internal panels)" ;;
+    *) echo "$HCR" > "$STAGE/host_corner_radius"
+       echo "Host corner radius: $HCR px (the smallest of $(printf '%s\n' "$HLINE" | grep -c .) internal panels)" ;;
+esac
 # One UI's scale, for the guest's density (UI activator; standing rule: right on
 # every phone and image): the density One UI runs its main panel at (Screen zoom
 # included) and the width it runs it at. An Ultra's One UI runs its 1440 px panel
@@ -601,7 +622,12 @@ T=${MLINE#*physicalDisplayWidth=}; MPW=${T%% *}
 # A panel without a cutout: One UI runs it at the size it reports.
 [ -n "$MDW" ] || MDW=$MW
 [ -n "$MPW" ] || MPW=$MW
-echo "preflight: display widths done $(date +%T)"
+# The main panel's full size in pixels, for guest_prepare.sh (the stable display
+# size of an image made for another panel, 0.4.81).
+MPH=$(printf '%s\n' "$MLINE" | sed -n 's/.*physicalDisplayWidth=[0-9]* physicalDisplayHeight=\([0-9]*\) .*/\1/p')
+[ -n "$MPH" ] || MPH=$(printf '%s\n' "$MLINE" | sed -n 's/.*uniqueId="local:[0-9]*", [0-9]* x \([0-9]*\), .*/\1/p')
+rm -f "$STAGE/host_panel_size"
+case "$MPW:$MPH" in *[!0-9:]*|:*|*:) ;; *) [ "$MPW" -ge 320 ] && [ "$MPH" -ge 320 ] && echo "$MPW $MPH" > "$STAGE/host_panel_size" ;; esac
 B0=$(grep -m1 'mBaseDisplayInfo=DisplayInfo{' "$STAGE/display_host.txt")
 MODE0=${B0#* mode }; MODE0=${MODE0%%,*}
 H0W=${B0#*\{id=$MODE0, }; H0W=${H0W#*width=}; H0W=${H0W%%,*}
@@ -1796,6 +1822,11 @@ echo "Takeover daemon PID: $TAKEOVER_PID"
 # restarted One UI zygote starts without its sockets and the loop stops it,
 # and the guest keeps its own. return_to_oneui.sh takes the binds off before
 # One UI's zygote starts again; a reboot drops them.
+# With guest root on, guest_start.sh ends in "su --launch" (guest_root.c): the
+# takeover pid stays that launcher and the zygote is its child. Up to 0.4.80
+# only the takeover pid itself was looked at, so in every such session of the
+# 0.4.72-0.4.74 reports (54 launches, none bound; 337 of 337 bound without
+# guest root) this waited its 300 s and protected nothing.
 protect_zygote_sockets() {
     n=0
     while :; do
@@ -1803,6 +1834,11 @@ protect_zygote_sockets() {
             */app_process64) break ;;
             '') echo "Zygote sockets: the takeover process is gone, nothing to protect"; return 0 ;;
         esac
+        zc=""
+        for c in $($BB pgrep -P "$TAKEOVER_PID" 2>/dev/null); do
+            case "$(readlink "/proc/$c/exe" 2>/dev/null)" in */app_process64) zc=$c; break ;; esac
+        done
+        [ -z "$zc" ] || { echo "Zygote sockets: the guest zygote is $zc, started by the guest root launcher $TAKEOVER_PID"; break; }
         n=$((n + 1))
         [ $n -lt 3000 ] || { echo "Zygote sockets: the guest zygote did not start within 300 s, not protected"; return 0; }
         sleep 0.1
@@ -1881,12 +1917,24 @@ GUEST_FOLD_FORM=0; [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && GUEST_FOLD_FORM=1
 $BB sh -c "
 BB=\"$BB\"
 [ -n \"\$BB\" ] || BB=\$(which busybox 2>/dev/null || echo /data/adb/ksu/bin/busybox)
-GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=1
+GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=1; BRPID=''
 while true; do
 while true; do
     sleep 2
     PID=\$(pidof system_server | awk '{print \$1}')
     if [ -n \"\$PID\" ]; then
+        # Bring apps, early (owner, 11-10: the apps came 10-15 s after the
+        # launcher; the restore below only starts at the end of this pass, about
+        # 35 s after Home). Once per guest system_server and only when a copy
+        # waits: the script itself waits for the guest's user 0 to be unlocked
+        # and its package service to answer, then installs while the launcher
+        # comes up. The boot animation is not held for it; the later start
+        # below stays (it only tells a running early one to go).
+        if [ \"\$PID\" != \"\$BRPID\" ] && [ -f $STAGE/data/oneos_bring_restore.sh ] && ls -d $STAGE/data/oneos_bring/*/apk >/dev/null 2>&1; then
+            BRPID=\$PID
+            ( $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_bring_restore.sh early ) </dev/null >/dev/null 2>&1 &
+            echo '[UI Activator] Bring apps: early restore started (waits for the guest user to be unlocked; oneos_bring.log in the guest data)'
+        fi
         if $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys window 2>/dev/null | grep -q 'mStatusBar'; then
             echo '[UI Activator] WindowManager is ready! Dismissing bootanim and unlocking...'
             setprop service.bootanim.exit 1
@@ -2681,6 +2729,16 @@ while true; do
             # ONEOS_GUEST_HOST_CUTOUT=0 leaves them out, and disables those an
             # earlier session made.
             gxo() { timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay \"\$@\" >/dev/null 2>&1; }
+            gdim() { timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_overlay_dimen.dex /system/bin/app_process /system/bin OneOSOverlayDimen \"\$@\" 2>&1 | grep -E '^(registered|failed)' | tail -n 1; }
+            # The corner radius for the guests the block below leaves out (0.4.76,
+            # host_corner_radius; see where the switch saves it): ColorOS on any
+            # phone, every guest on a Fold. Made after the block.
+            CRAD=''
+            if [ \"${ONEOS_GUEST_HOST_CUTOUT:-1}\" = 1 ] && [ -f $STAGE/host_corner_radius ] && [ ! -L $STAGE/host_corner_radius ] &&
+               [ -f $STAGE/data/oneos_overlay_dimen.dex ] && { [ \"$GUEST_AOSP_SYSUI$GUEST_MIUI\" = 00 ] || [ $GUEST_FOLD_FORM = 1 ]; }; then
+                CRAD=\$(head -n 1 $STAGE/host_corner_radius)
+                case \"\$CRAD\" in ''|*[!0-9]*) CRAD='' ;; esac
+            fi
             if [ \"${ONEOS_GUEST_HOST_CUTOUT:-1}\" = 1 ] && [ -f $STAGE/host_statusbar ] && [ ! -L $STAGE/host_statusbar ]; then
                 HCS=\$(sed -n 's/^spec=//p' $STAGE/host_statusbar | head -n 1)
                 # The cutout in pixels of the whole panel when the switch made it
@@ -2730,7 +2788,6 @@ while true; do
                 # value would be wrong on the other. AOSP SystemUI and HyperOS's
                 # (its bar 140 px and corners 142 px on the A56, f73b6e6f); ColorOS
                 # sizes its bar from the hole property.
-                gdim() { timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_overlay_dimen.dex /system/bin/app_process /system/bin OneOSOverlayDimen \"\$@\" 2>&1 | grep -E '^(registered|failed)' | tail -n 1; }
                 DIMS=''
                 if [ \"$GUEST_AOSP_SYSUI$GUEST_MIUI\" != 00 ] && [ $GUEST_FOLD_FORM = 0 ] && [ -f $STAGE/data/oneos_overlay_dimen.dex ]; then
                     case \"\$HSB\" in
@@ -2762,11 +2819,24 @@ while true; do
                 OFF=''
                 for o in \$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list --user 0 2>/dev/null | sed -n 's/^.*\\[x\\] com\\.android\\.shell:\\(OneOS[A-Za-z]*\\)\$/\\1/p' | sort -u); do
                     case \$o in
-                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerRadius|OneOSCornerPadding)
+                        OneOSCornerRadius) [ -n \"\$CRAD\" ] && continue
+                            gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
+                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerPadding)
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
                     esac
                 done
                 [ -z \"\$OFF\" ] || echo \"[UI Activator] status bar: no host cutout this session; overlays off:\$OFF\"
+            fi
+            if [ -n \"\$CRAD\" ]; then
+                r=\$(gdim OneOSCornerRadius android android:dimen/rounded_corner_radius=\$CRAD android:dimen/rounded_corner_radius_top=\$CRAD android:dimen/rounded_corner_radius_bottom=\$CRAD)
+                case \"\$r\" in
+                    registered*) if gxo enable --user 0 com.android.shell:OneOSCornerRadius; then
+                                     echo \"[UI Activator] corner radius: this phone's \$CRAD px for the guest's windows (overlay OneOSCornerRadius on)\"
+                                 else
+                                     echo \"[UI Activator] corner radius: !!! OneOSCornerRadius (\$CRAD px) registered but not enabled\"
+                                 fi ;;
+                    *) echo \"[UI Activator] corner radius: !!! not made (\$CRAD px): \${r:-no answer}\" ;;
+                esac
             fi
             # AOD (Pixel on the Z Fold8 Ultra, 0.4.59 test): a Pixel names its doze
             # service and \"AOD available\" in its vendor overlay, and a guest runs on
@@ -2832,11 +2902,30 @@ while true; do
                 # down while folded; seen on the phone before run 32: tsp1
                 # enabled 0, tsp2 1) would otherwise keep inner touch dead after
                 # unfolding. Same sequence One UI uses when the inner panel comes on.
+                # The double tap keeper (guest_start.sh) puts the IC of a panel that
+                # is off into low-power mode and marks it (oneos_dt2w_armed.<tsp>
+                # in the guest data). Folding or unfolding with the screen off
+                # leaves the panel dark, and the 2,1 below, up to 3 s later, took
+                # the IC out of that mode again: no double tap after a fold in the
+                # pocket (ColorOS, 11-10). A marked IC of a panel whose connector
+                # says Off is left to the keeper, which switches it on when the
+                # panel lights; so is a marked IC while the keeper's record says
+                # the guest sleeps with its clock on (oneos_dt2w_aod = 1, build
+                # 107: the IC is armed under a lit panel then). No keeper, no
+                # marker: as before.
+                dt2w_holds() {
+                    [ -e $STAGE/data/oneos_dt2w_armed.\$1 ] || return 1
+                    [ \"\$(cat /sys/class/drm/card0-\$2/dpms 2>/dev/null)\" = Off ] || [ \"\$(cat $STAGE/data/oneos_dt2w_aod 2>/dev/null)\" = 1 ]
+                }
                 inner_tsp_on() {
                     [ -n \"\$TSP1\" ] && [ \"\$(cat \$TSP1/enabled 2>/dev/null)\" = 0 ] || return 0
                     grep -q -w set_fold_state \$TSP1/cmd_list 2>/dev/null && echo set_fold_state,0 > \$TSP1/cmd
                     echo 2,0 > \$TSP1/enabled
                     i=0; while [ \$i -lt 15 ] && [ \"\$(cat /sys/class/backlight/panel0-backlight/brightness 2>/dev/null)\" = 0 ]; do sleep 0.2; i=\$((i + 1)); done
+                    if dt2w_holds \${TSP1##*/} DSI-1; then
+                        echo \"inner touch IC \$TSP1: the guest sleeps and the double tap keeper holds it in low-power mode, left there\"
+                        return 0
+                    fi
                     echo 2,1 > \$TSP1/enabled
                     echo \"inner touch IC \$TSP1 switched on: enabled \$(cat \$TSP1/enabled 2>&1)\"
                 }
@@ -2849,6 +2938,10 @@ while true; do
                         grep -q -w set_fold_state \$TSP2/cmd_list 2>/dev/null && echo set_fold_state,1 > \$TSP2/cmd
                         echo 2,0 > \$TSP2/enabled
                         i=0; while [ \$i -lt 15 ] && [ \"\$(cat /sys/class/backlight/panel1-backlight/brightness 2>/dev/null)\" = 0 ]; do sleep 0.2; i=\$((i + 1)); done
+                        if dt2w_holds \${TSP2##*/} DSI-2; then
+                            echo \"cover touch IC \$TSP2: folded while the guest sleeps, the double tap keeper holds it in low-power mode, left there\"
+                            return 0
+                        fi
                         echo 2,1 > \$TSP2/enabled
                     else
                         grep -q -w set_fold_state \$TSP2/cmd_list 2>/dev/null && echo set_fold_state,0 > \$TSP2/cmd
@@ -2864,6 +2957,13 @@ while true; do
                 else
                     echo \"[UI Activator] \$(inner_tsp_on 2>&1)\"
                 fi
+                # The sampling below (eight dumpsys calls, a screenshot, 10 s of raw
+                # cover touches) ran 3 s after every lid event of a session, on a
+                # phone that is used all day (owner, 11-10: daily driving, heat):
+                # now for the first six lid events of a session only; after that one
+                # line per event, and the touch IC handling as before.
+                # ONEOS_FOLD_DIAG=all samples every event, =0 none, a number that many.
+                FDN='${ONEOS_FOLD_DIAG:-6}'; case \"\$FDN\" in all) FDN=1000000 ;; ''|*[!0-9]*) FDN=6 ;; esac
                 [ -n \"\$FLIP\" ] && [ \$PASS = 1 ] && ( n=0; getevent -lq \$FLIP 2>/dev/null | while read typ code val rest; do
                     [ \"\$code\" = SW_LID ] || continue
                     n=\$((n + 1)); ts=\$(date +%T)
@@ -2871,6 +2971,10 @@ while true; do
                         00000001) TSPLOG=\$(cover_tsp 1 2>&1) ;;
                         00000000) TSPLOG=\$(cover_tsp 0 2>&1) ;;
                     esac
+                    if [ \$n -gt \$FDN ]; then
+                        echo \"== \$ts event \$n: SW_LID \$val (00000001 = folded), not sampled; \$TSPLOG\" >> \$FD/fold_test.log
+                        continue
+                    fi
                     # Sampled in the background. Inline (run 31) the 3 s wait and the
                     # 10 s cover touch capture held the next lid event in the pipe: a
                     # fold undone within a second (event 7, the cover shows for about
@@ -2974,6 +3078,14 @@ while true; do
             fi
             echo '[UI Activator] Creating missing app data dirs...'
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/local/tmp/fix_app_dirs.sh 2>/dev/null || true
+
+            # Bring apps: install what bring-collect left for this guest and lay its One UI data over it.
+            # The script is the one guest_start.sh wrote; it runs beside this pass, is safe to cut short,
+            # and logs to oneos_bring.log in the guest data (also after a guest soft reboot: one run at a time).
+            if [ -f $STAGE/data/oneos_bring_restore.sh ] && [ -d $STAGE/data/oneos_bring ]; then
+                ( $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_bring_restore.sh ) </dev/null >/dev/null 2>&1 &
+                echo '[UI Activator] Bring apps: restore started (oneos_bring.log in the guest data)'
+            fi
 
             # Galaxy Z Fold8, Find N6 set: AOD, widgets, taskbar and the hinge relay in the guest.
             if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q coloros17-findn6 \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_fold8/runtime.sh\" ]; then
@@ -3342,7 +3454,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 setprop oneos.guest.powerctl ''
                 echo \"\$(date) guest requested a soft reboot (\$req) after \${t}s\"
                 if BB=$BB timeout 120 /system/bin/sh $STAGE/tmp/guest_softreboot.sh \"\$req\"; then
-                    t=0; dead=-60; sfgone=-30; prev_failed=0; wmseen=0
+                    t=0; dead=-60; sfgone=-30; prev_failed=0; wmseen=0; hwcarm=0; rm -f $STAGE/data/oneos_hwc_forced
                     homebase=\$(grep -c 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null)
                     wmbase=\$(grep -c 'Dismissing bootanim' /data/local/tmp/ui_activator.log 2>/dev/null)
                     continue
@@ -3605,6 +3717,22 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # Only failures since the last check: a burst early in the boot must
             # not end a session that recovered.
             new_failed=\$((failed - prev_failed)); [ \$new_failed -lt 0 ] && new_failed=\$failed; prev_failed=\$failed
+            # HW overlays are on for every guest since 0.4.76 (guest_prepare.sh).
+            # guest_start.sh forces GPU composition when the composer rejects
+            # frames in the first 30 s; the same here for the rest of the session
+            # (the other panel of a Fold, a layer the composer first meets
+            # later), once, before the black-screen return below gets to count
+            # those frames: the session goes on as it ran up to 0.4.75.
+            # Not on the first count (the log can still hold an earlier session's).
+            if [ \"\${hwcarm:-0}\" = 1 ] && [ \$new_failed -gt 30 ] && [ -f $STAGE/data/oneos_hwc ] && [ ! -e $STAGE/data/oneos_hwc_forced ]; then
+                GP=\$(pidof system_server | awk '{print \$1}'); [ -n \"\$GP\" ] || GP=\$(pidof surfaceflinger | awk '{print \$1}')
+                if [ -n \"\$GP\" ]; then
+                    : > $STAGE/data/oneos_hwc_forced
+                    echo \"\$(date) composer rejected \$new_failed frames with HW overlays on: GPU composition forced: \$(timeout 10 $BB nsenter -t \$GP -m /system/bin/sh /data/oneos_genv.sh /system/bin/service call SurfaceFlinger 1008 i32 1 2>&1 | tr '\n' ' ')\"
+                    new_failed=0
+                fi
+            fi
+            hwcarm=1
             # 0.4.63: the boot animation first, then the activator's log again. The
             # dismissal could land between the read of wm above and this check (the
             # failed-frames count takes up to 10 s): A17 4G ColorOS 95faf6cb was sent

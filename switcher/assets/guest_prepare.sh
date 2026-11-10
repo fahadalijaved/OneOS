@@ -756,6 +756,14 @@ fi
 # super_night.mpi.v2 from this phone's cameradata); the S26 Ultra has no such
 # library, so libs.txt cannot name it: S25 Ultra 3715fe57, "dlopen failed:
 # library libAIQSolution_MPI.camera.samsung.so not found", camera closed.
+# libsuperresolutionraw_wrapper_v2 (0.4.81): the same on an S23 Ultra when a
+# picture is taken (6c95a630, 0.4.74: preview fine, then "dlopen failed: library
+# libsuperresolutionraw_wrapper_v2.camera.samsung.so not found", PostProcessThread
+# "load nativeNode(id: 4000200) fail"). With it the other super resolution wrapper
+# and the two ArcSoft engines Samsung ships beside them, which the wrappers link;
+# their names are not confirmed from an S23 Ultra (the Fold8 has none of the
+# four), and a name One UI lacks is left out as always. If the picture still
+# fails there, the dlopen line names the next library.
 SAMCAM_JNI="libAEBHDR_wrapper.camera.samsung.so libAIQSolution_MPI.camera.samsung.so libAIQSolution_MPISingleRGB40.camera.samsung.so \
     libDeflickerHDR.camera.samsung.so libDocMagnetEngine.camera.samsung.so \
     libDocRectifyWrapper.camera.samsung.so libDualCamBokehCapture.camera.samsung.so \
@@ -769,7 +777,9 @@ SAMCAM_JNI="libAEBHDR_wrapper.camera.samsung.so libAIQSolution_MPI.camera.samsun
     libexifa.camera.samsung.so libhybridHDR_wrapper.camera.samsung.so libimage_enhancement.arcsoft.so \
     libjpega.camera.samsung.so libsdk-v2-jni.vexfwk.samsung.so libsecimaging.camera.samsung.so \
     libsecimaging_pdk.camera.samsung.so libsimba.cfa.media.samsung.so libsum_jni.media.samsung.so \
-    libsume_jni.media.samsung.so libsume_mediabuffer_jni.media.samsung.so"
+    libsume_jni.media.samsung.so libsume_mediabuffer_jni.media.samsung.so \
+    libsuperresolutionraw_wrapper_v2.camera.samsung.so libsuperresolution_wrapper_v2.camera.samsung.so \
+    libsuperresolution_raw.arcsoft.so libsuperresolution.arcsoft.so"
 # libs.txt's names and the JNI libraries bound here, one per line.
 samcam_jni_here() { # <lib>: One UI has it, libs.txt does not name it, the image has none of its own
     # A library of the image is never empty; the empty file there is this
@@ -2945,6 +2955,70 @@ else
 fi
 
 echo "=== 5.3 $(date +%T) cover density ==="
+# OxygenOS's status bar on another phone's panel (0.4.81). The image carries its
+# own phone's stable display size (1272 x 2772, config_stableDeviceDisplayWidth
+# and Height), DisplayManager keeps it ("mStableDisplaySize=Point(1272, 2772)" in
+# all OxygenOS reports of 0.4.72 to 0.4.74, on 1080 and 1440 px panels alike) and
+# OPPO's SystemUI sorts the camera hole by halves of that width: a centred hole
+# came out HOLE_LEFT_TYPE on the M55s (5514dd7b, 4cb0e1ad: 509..571 of 1080) and
+# the A24 (80412f38), HOLE_RIGHT_TYPE on the S22 Ultra (1cb56737: 683..758 of
+# 1440), and the status bar laid its clock and icons out for a corner hole.
+# ColorOS has no such resource, takes the panel's size (A34 7e5896b0: 1080,
+# HOLE_CENTER_TYPE) and is right. The size DisplayManager has saved in
+# display-manager-state.xml wins over the resource, so the panel's own size
+# (oneos_switch.sh: host_panel_size) is written there before every boot. Not on
+# a fold (two panels, one stable size). ONEOS_GUEST_STABLE_SIZE=0: left alone.
+# Look for "mStableDisplaySize" in diag_90_display.txt of the next report.
+DMS="$STAGE/data/system/display-manager-state.xml"
+HPS=$(cat "$STAGE/host_panel_size" 2>/dev/null)
+if [ "${ONEOS_GUEST_STABLE_SIZE:-1}" != 1 ] || [ "$FORM" = fold ] ||
+        ! grep -q '^  "image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null; then
+    :
+elif [ "$(echo "$HPS" | wc -w)" != 2 ]; then
+    echo "Stable display size: not set (the panel's size was not read)"
+else
+    SW=${HPS% *}; SH=${HPS#* }
+    # A first start: the folder as init makes it (it sets owner, mode and label again).
+    if [ ! -d "$STAGE/data/system" ]; then
+        mkdir -p "$STAGE/data/system" && chown 1000:1000 "$STAGE/data/system" && chmod 775 "$STAGE/data/system"
+        $BB chcon u:object_r:system_data_file:s0 "$STAGE/data/system" 2>/dev/null
+    fi
+    DMT="$STAGE/display_manager_state.txt"
+    rm -f "$DMT"
+    if [ ! -s "$DMS" ]; then
+        printf '%s\n' "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>" '<display-manager-state>' '</display-manager-state>' > "$DMT"
+    elif [ "$(head -c 3 "$DMS")" = ABX ]; then
+        abx2xml "$DMS" "$DMT" 2>/dev/null || rm -f "$DMT"
+    else
+        cp "$DMS" "$DMT"
+    fi
+    WAS=$(sed -n 's|.*<stable-display-width>\([0-9]*\)</stable-display-width>.*|\1|p' "$DMT" 2>/dev/null | head -n 1)x$(sed -n 's|.*<stable-display-height>\([0-9]*\)</stable-display-height>.*|\1|p' "$DMT" 2>/dev/null | head -n 1)
+    if [ ! -s "$DMT" ] || ! grep -q '</display-manager-state>' "$DMT"; then
+        echo "Stable display size: not set (display-manager-state.xml not readable)"
+    elif [ "$WAS" = "${SW}x${SH}" ]; then
+        echo "Stable display size: $WAS already (the panel's)"
+    else
+        if grep -q '<stable-display-width>[0-9]*</stable-display-width>' "$DMT" && grep -q '<stable-display-height>[0-9]*</stable-display-height>' "$DMT"; then
+            sed -i -e "s|<stable-display-width>[0-9]*</stable-display-width>|<stable-display-width>$SW</stable-display-width>|" \
+                -e "s|<stable-display-height>[0-9]*</stable-display-height>|<stable-display-height>$SH</stable-display-height>|" "$DMT"
+        else
+            # No saved size yet (a first boot), or a half-written one: one whole element.
+            sed -i -e 's|<stable-device-values>.*</stable-device-values>||' -e 's|<stable-device-values */>||' \
+                -e "s|</display-manager-state>|<stable-device-values><stable-display-height>$SH</stable-display-height><stable-display-width>$SW</stable-display-width></stable-device-values></display-manager-state>|" "$DMT"
+        fi
+        CTX=$(ls -Z "$DMS" 2>/dev/null | awk '{ print $1 }')
+        case "$CTX" in u:object_r:*) ;; *) CTX=u:object_r:system_data_file:s0 ;; esac
+        if grep -q "<stable-display-width>$SW</stable-display-width>" "$DMT" && grep -q "<stable-display-height>$SH</stable-display-height>" "$DMT" &&
+                mv -f "$DMT" "$DMS"; then
+            chown 1000:1000 "$DMS"; chmod 600 "$DMS"; $BB chcon "$CTX" "$DMS" 2>/dev/null
+            echo "Stable display size: $SW x $SH, this panel's (was ${WAS}; OxygenOS's status bar sorts the camera hole by it)"
+        else
+            echo "Stable display size: not set (display-manager-state.xml not written)"
+        fi
+    fi
+    rm -f "$DMT"
+fi
+
 # ColorOS's touch-idle refresh rate (OTI, oplus_vrr_config.json "touch_idle")
 # takes this panel's mode (240 Hz vsync, 120 fps at most) as 240 Hz: it
 # rendered at 240 on touch and 60 Hz 2.5 s later, over the 120 Hz policy (run
@@ -3112,15 +3186,22 @@ echo "=== 5.6 $(date +%T) theme folders ==="
 # Screen recording of the session (guest_start.sh) only when asked for.
 if [ "${ONEOS_RECORD:-0}" = 1 ]; then touch "$STAGE/data/oneos_record"; else rm -f "$STAGE/data/oneos_record"; fi
 echo "Screen recording: $([ -f "$STAGE/data/oneos_record" ] && echo on || echo off)"
-# Hardware overlays for the guest's SurfaceFlinger (see guest_start.sh). Off
-# for ColorOS, whose composer extension client got its frames rejected. On by
-# default since run 44 for other guests: run 43's Pixel surfaceflinger has no
-# Qualcomm composer client, and forcing GPU composition there cost about 2
-# missed frames a second; guest_start.sh still forces it if the composer
-# rejects frames. ONEOS_GUEST_HWC=0|1 overrides either default.
+# Hardware overlays for the guest's SurfaceFlinger (see guest_start.sh). On by
+# default since run 44 for guests without oplus-services.jar: run 43's Pixel
+# surfaceflinger has no Qualcomm composer client, and forcing GPU composition
+# there cost about 2 missed frames a second. ColorOS, whose composer extension
+# client got its frames rejected, stayed on GPU composition up to 0.4.75 though
+# surfaceflinger_patched had ended the rejections. 0.4.76: on for ColorOS too.
+# The owner's Fold in ColorOS 17 (11-10): every layer DEVOPTFORCECLIENT and
+# 21006 GPU missed frames 40 minutes in; with the overlays switched on in that
+# running session (transaction 1008 i32 0) every layer was composed by the
+# panel's composer for the 5.5 minutes until the return, in use, without one
+# rejected frame. guest_start.sh forces GPU composition again if the composer
+# rejects frames in the first 30 s, and the switch's watcher later in the
+# session. ONEOS_GUEST_HWC=0|1 overrides the default.
 HWC_DEF=1
-{ [ -e "$ROOTFS/system/framework/oplus-services.jar" ] || [ -L "$ROOTFS/system/framework/oplus-services.jar" ]; } && HWC_DEF=0
 if [ "${ONEOS_GUEST_HWC:-$HWC_DEF}" = 1 ]; then touch "$STAGE/data/oneos_hwc"; else rm -f "$STAGE/data/oneos_hwc"; fi
+rm -f "$STAGE/data/oneos_hwc_forced"
 echo "Guest HW overlays: $([ -f "$STAGE/data/oneos_hwc" ] && echo 'on (GPU composition forced only if the composer rejects frames)' || echo 'off (GPU composition)')"
 
 # ONEOS_GAP_FAST=0: guest_start.sh keeps its fixed 2 s sleeps after the
@@ -3375,21 +3456,80 @@ chmod 0770 "$STAGE/data/misc/bluedroid" "$STAGE/data/misc/bluetooth" 2>/dev/null
 # next session", ColorOS Mod on the owner's Fold). The storage guard drops installd's rmPackageDir
 # (patches/guest_storage_guards.py: One UI's installd would act on One UI's own /data/app), so an
 # uninstall removed the package's record but left its code folder in the guest's data/app, and the
-# next boot's scan installed it again. Here, with the guest down, a code folder of a package the
-# guest's packages.list no longer has goes. Only the stage's own data/app; no list, nothing done.
+# next boot's scan installed it again: ColorOS installs whatever code folder it finds there
+# (PackageManagerServiceExtImpl.allowUnknownWhenScanRequireKnownInAssertPackageIsValid is always
+# true, logged as "assertPackageIsValid ignoring<package>"; stock Android only leaves the folder).
+# Here, with the guest down, the code folders nothing uses go. Only the stage's own data/app; no
+# list, nothing done.
+# 0.4.83 (owner, 11-10: "whatever you uninstall in there like 3rd party app or debloat some system
+# app, after updating or booting that OS next time those apps come back"; reports of 0.4.72 to
+# 0.4.74: 25 apps installed again on 9 later boots). The 0.4.50 pass took the package from the
+# folder's name up to its last "-", and the random part after the name has a "-" of its own in
+# about one folder of three: those were skipped. It also never looked at
+# - a preinstalled app's copy (data/app/<Name>, no package in the name: ColorOS copies its
+#   /my_stock/del-app apps there), which brought a debloated app back the same way;
+# - the folder an update or a reinstall left behind (the package is installed from another one);
+# - install staging folders (vmdl*.tmp; the system drops an install session after three days).
+# The first two of these only with the guest's package records at hand as whole text (ColorOS
+# writes packages.xml so; Android's binary form, or a write that was cut off: uninstalled apps'
+# folders and staging folders only), and never a folder a record names.
 PL="$STAGE/data/system/packages.list"
+PX="$STAGE/data/system/packages.xml"
 if [ -s "$PL" ] && [ ! -L "$PL" ] && [ -d "$STAGE/data/app" ] && [ ! -L "$STAGE/data/app" ]; then
-    gone=""
-    for d in "$STAGE"/data/app/~~*/*-* "$STAGE"/data/app/*-*; do
+    # Each package record's code path. Not while a packages-backup.xml says the last write did
+    # not finish, and only when every listed package has its record (the two files of one moment).
+    CPS="$STAGE/guest_code_paths.txt"; rm -f "$CPS"; recs=0
+    if [ -s "$PX" ] && [ ! -L "$PX" ] && [ ! -e "$STAGE/data/system/packages-backup.xml" ] &&
+       [ "$(head -c 5 "$PX" 2>/dev/null)" = "<?xml" ] && tail -c 64 "$PX" 2>/dev/null | grep -q "</packages>"; then
+        awk '/^[ \t]*<package / { n = ""; c = ""
+                 if (match($0, / name="[^"]*"/)) n = substr($0, RSTART + 7, RLENGTH - 8)
+                 if (match($0, / codePath="[^"]*"/)) c = substr($0, RSTART + 11, RLENGTH - 12)
+                 if (n == "" || c == "") bad++; else print n " " c }
+             END { exit bad > 0 }' "$PX" > "$CPS" 2>/dev/null && recs=$(wc -l < "$CPS")
+        [ "$recs" -ge "$(wc -l < "$PL")" ] || recs=0
+    fi
+    in_use() { [ "$recs" -gt 0 ] && awk -v c="$1" '$2 == c { f = 1 } END { exit !f }' "$CPS"; }
+    gone=""; old=0; pre=0; stg=0
+    for d in "$STAGE"/data/app/~~*/* "$STAGE"/data/app/*; do
         [ -d "$d" ] && [ ! -L "$d" ] || continue
-        n=${d##*/}; pkg=${n%-*}
-        case "$pkg" in ''|~~*|vmdl*|*[!A-Za-z0-9_.]*) continue ;; esac
-        grep -q "^$pkg " "$PL" && continue
-        rm -rf "${d:?}" && gone="$gone $pkg"
-        p=${d%/*}
+        n=${d##*/}; p=${d%/*}; g=${d#"$STAGE"}
+        case "$n" in
+            ~~*)
+                # A parent folder: its code folder is looked at on its own; an empty one goes.
+                [ "$p" = "$STAGE/data/app" ] && { rmdir "${d:?}" 2>/dev/null; continue; } ;;
+            vmdl*.tmp)
+                [ "$p" = "$STAGE/data/app" ] && [ -n "$(find "$d" -maxdepth 0 -mtime +3 2>/dev/null)" ] &&
+                    rm -rf "${d:?}" && stg=$((stg + 1))
+                continue ;;
+        esac
+        ls "$d"/*.apk >/dev/null 2>&1 || continue
+        in_use "$g" && continue
+        # <package>-<random>: a package name has a dot and no "-".
+        pkg=""
+        case "$n" in *-*) pkg=${n%%-*} ;; esac
+        case "$pkg" in *[!A-Za-z0-9_.]*) pkg="" ;; *.*) ;; *) pkg="" ;; esac
+        if [ -n "$pkg" ] && ! awk -v k="$pkg" '$1 == k { f = 1 } END { exit !f }' "$PL"; then
+            rm -rf "${d:?}" && gone="$gone $pkg"
+        elif [ "$recs" -gt 0 ] && [ -n "$pkg" ]; then
+            # Installed, from another folder (or from the image): an older version's folder.
+            cur=$(awk -v k="$pkg" '$1 == k { print $2; exit }' "$CPS")
+            case "$cur" in
+                "") continue ;;
+                /data/app/*) [ -d "$STAGE$cur" ] && [ ! -L "$STAGE$cur" ] || continue ;;
+            esac
+            rm -rf "${d:?}" && old=$((old + 1))
+        elif [ "$recs" -gt 0 ]; then
+            rm -rf "${d:?}" && pre=$((pre + 1))
+        else
+            continue
+        fi
         [ "$p" != "$STAGE/data/app" ] && rmdir "${p:?}" 2>/dev/null
     done
+    rm -f "$CPS"
     [ -z "$gone" ] || echo "Uninstalled apps' code folders removed:$gone"
+    [ "$old" = 0 ] || echo "Code folders of older versions of installed apps removed: $old"
+    [ "$pre" = 0 ] || echo "Copies of preinstalled apps that no package uses removed: $pre"
+    [ "$stg" = 0 ] || echo "Install staging folders older than three days removed: $stg"
 fi
 
 echo "=== 5.11 $(date +%T) bluetooth, apps, preapps ==="
@@ -4837,17 +4977,30 @@ done
 # is not touched: a bind over it changed One UI's /apex, which the mount check
 # below refuses (0.4.59 test build: aborted, then the in-place return's
 # failsafe rebooted the phone). ONEOS_GUEST_ARTD=0 starts no guest artd.
+# 0.4.81: also when the ART module is the same version as One UI's. One UI's artd
+# lives in init's mount namespace and sees One UI's /system, /product and /apex,
+# not the guest's: 242 to 248 "Unable to open ... No such file" lines per boot in
+# all 13 reports of 0.4.72 to 0.4.74 that kept it (ColorOS 17 on Android 16
+# phones: A15 336e9373, A34 7e5896b0, A36 78cc52a6, S24 Ultra 425a0ee1, ...),
+# none with the guest's own (1afdbfac, 65ca637a). The guest's system apps stayed
+# uncompiled (lag and heat on the slow phones), and the first boot's dexopt sat
+# for minutes behind One UI's dex2oat (A36 78cc52a6: a root module's dex2oat
+# wrapper, "child process timed out after 570000ms", then the boot timeout).
+# The guest's artd is the same binary there, run inside the guest.
 rm -f "$STAGE/data/oneos_guest_artd"
 if [ "${ONEOS_GUEST_ARTD:-1}" = 1 ] && [ -x "$ROOTFS/apex/com.android.art/bin/artd" ] &&
-        grep -q '^com.android.art /dev/block/loop' "$STAGE/payload_loops" 2>/dev/null &&
-        ! cmp -s /apex/com.android.art/apex_manifest.pb "$ROOTFS/apex/com.android.art/apex_manifest.pb"; then
+        grep -q '^com.android.art /dev/block/loop' "$STAGE/payload_loops" 2>/dev/null; then
     touch "$STAGE/data/oneos_guest_artd"
-    echo "artd: the guest's own for the session (its ART module is another version than One UI's)"
+    if cmp -s /apex/com.android.art/apex_manifest.pb "$ROOTFS/apex/com.android.art/apex_manifest.pb"; then
+        echo "artd: the guest's own for the session (the same ART module version as One UI's; One UI's artd cannot see the guest's files)"
+    else
+        echo "artd: the guest's own for the session (its ART module is another version than One UI's)"
+    fi
 else
-    echo "artd: One UI's (ONEOS_GUEST_ARTD=${ONEOS_GUEST_ARTD:-1}; the guest's ART payload $(grep -q '^com.android.art ' "$STAGE/payload_loops" 2>/dev/null && echo mounted || echo 'not mounted'), $(cmp -s /apex/com.android.art/apex_manifest.pb "$ROOTFS/apex/com.android.art/apex_manifest.pb" && echo "One UI's version" || echo 'another version'))"
+    echo "artd: One UI's (ONEOS_GUEST_ARTD=${ONEOS_GUEST_ARTD:-1}; the guest's ART payload $(grep -q '^com.android.art ' "$STAGE/payload_loops" 2>/dev/null && echo mounted || echo 'not mounted'), $([ -x "$ROOTFS/apex/com.android.art/bin/artd" ] && echo 'its artd is there' || echo 'no artd in it'))"
 fi
 # The image's boot image accepted. guest_start.sh's zygote uses the image's AOT
-# boot image (not ColorOS), which ART checks against the versions
+# boot image (or the one its odrefresh step builds), which ART checks against the versions
 # /apex/apex-info-list.xml gives the ART and i18n modules: "/" for a factory
 # module. The list above is One UI's, where Play system updates made ART an
 # updated module (isFactory="false", lastUpdateMillis), so ART rejected the
@@ -4862,8 +5015,11 @@ if [ ! -f "$STAGE/clean_apex_info_list.xml" ] && [ -f "$ROOTFS/apex/apex-info-li
     for m in com.android.art com.android.i18n; do
         grep -q "^$m /dev/block/loop" "$STAGE/payload_loops" 2>/dev/null && FACT="$FACT $m"
     done
-    # vivo (0.4.73): lastUpdateMillis kept for its odrefresh step; other systems as before.
-    AKEEP=0; [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && AKEEP=1
+    # lastUpdateMillis kept for the guest's odrefresh step: vivo since 0.4.73, every
+    # system since 0.4.76 (the step runs for all now; ColorOS 17 trial on the owner's
+    # Fold, 11-10: without it "odrefresh --compile" died on the same assertion).
+    # ONEOS_GUEST_APEX_MILLIS=0 removes it from the image's two modules, as before.
+    AKEEP=1; [ "${ONEOS_GUEST_APEX_MILLIS:-1}" = 0 ] && AKEEP=0
     if [ -n "$FACT" ] && awk -v mods="$FACT" -v akeep="$AKEEP" 'BEGIN { RS = "<"; ORS = ""; n = split(mods, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
             NR > 1 { printf "<" }
             /^apex-info[[:space:]]/ && /isActive="true"/ { m = $0; sub(/.*moduleName="/, "", m); sub(/".*/, "", m)

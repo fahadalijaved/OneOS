@@ -12,6 +12,13 @@ package com.fahadali.oneos.core.model
  * A21s (A217F) and an S21 (G991B), "SM-A576B" and "SM-A546S" on an A51 (A515F), "SM-S926B" on an
  * S20+ (G986B).
  *
+ * 0.4.84, the US carrier (U) and unlocked (U1) models (owner, 2026-11-10: "This isnt custom its U/U1
+ * variant change for US devices. Allow this"): they are one phone and take each other's stock
+ * firmware, and the model name stays the phone's own while the bootloader and the vendor partition
+ * are the firmware's. A Galaxy S26+ that says SM-S947U1 on the U firmware (bootloader S947USQU5BZJA,
+ * vendor SM-S947U) was refused as a port. The two count as the same model ([family]); every other
+ * letter still has to match.
+ *
  * The other systems never trip it: they have no `ro.build.version.oneui` (so never [R_PORT]),
  * their model is another maker's (so never [R_NOT_ONE_UI]), and they run on the Samsung
  * vendor and bootloader (so never [R_NOT_SAMSUNG]).
@@ -53,6 +60,11 @@ object CustomRomRule {
         return if (SAMSUNG_CODE.matches(c)) c else ""
     }
 
+    private val US_UNLOCKED = Regex("[A-Z]{1,2}[0-9]{3,4}U1")
+
+    /** The US unlocked model's code without its "1": "S947U1" -> "S947U" (the carrier model's); others as they are. */
+    fun family(code: String): String = if (US_UNLOCKED.matches(code)) code.dropLast(1) else code
+
     /** A Samsung bootloader version (not "unknown", not another maker's). */
     fun samsungBootloader(bootloader: String): Boolean = SAMSUNG_BOOTLOADER.matches(bootloader.trim().uppercase())
 
@@ -62,14 +74,17 @@ object CustomRomRule {
         val blSamsung = samsungBootloader(bl)
         val modelCode = code(s.model)
         val vendorCode = code(s.vendorModel)
+        // U and U1 are one phone: compared without the "1" (a U1 bootloader starts with the U code too).
+        val modelFamily = family(modelCode)
+        val vendorFamily = family(vendorCode)
         val samsungHardware = blSamsung || vendorCode.isNotEmpty()
         // The phone itself, as far as the bootloader and the vendor partition tell.
         val real = vendorCode.ifEmpty { if (blSamsung) bl.take(modelCode.length.coerceAtLeast(5)) else "" }
 
         val port = oneUi && samsungHardware && (
             modelCode.isEmpty() ||
-                (blSamsung && !bl.startsWith(modelCode)) ||
-                (vendorCode.isNotEmpty() && vendorCode != modelCode)
+                (blSamsung && !bl.startsWith(modelFamily)) ||
+                (vendorCode.isNotEmpty() && vendorFamily != modelFamily)
             )
         if (port) {
             return finding(
@@ -81,7 +96,7 @@ object CustomRomRule {
                     "that changes the model name and restart.",
             )
         }
-        val sameModel = modelCode.isNotEmpty() && ((blSamsung && bl.startsWith(modelCode)) || vendorCode == modelCode)
+        val sameModel = modelCode.isNotEmpty() && ((blSamsung && bl.startsWith(modelFamily)) || vendorFamily == modelFamily)
         if (!oneUi && sameModel) {
             return finding(
                 R_NOT_ONE_UI, "Custom ROM: not One UI",

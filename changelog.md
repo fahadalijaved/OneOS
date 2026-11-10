@@ -50,6 +50,47 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.84: US phones on the other US firmware are no longer refused. A carrier model (SM-...U) and the
+unlocked model (SM-...U1) are the same phone and take each other's stock firmware, but 0.4.83 and 0.4.74 called
+that "Custom ROM: One UI from another phone" and would not prepare or switch (seen on a Galaxy S26+, SM-S947U1 on
+the U firmware). Nothing else changed: coming from 0.4.83 there is nothing to update on a system's page; from an
+older version, tap Update there as 0.4.83 asks.
+
+New in 0.4.83: **Bring apps** (experimental): take apps you installed on One UI along into a system, with their data
+and logins, so you do not sign in again there. Tick them under Bring apps on the system's page; they are copied when
+you start the system, or right away with Bring now, and the system installs them shortly after its home screen shows.
+One way: One UI's copy is only read, and nothing comes back to it. An app the system already has is brought again
+only when you ask (Only new / All), the boot screen says how many apps come along, and there is Select all and a
+reminder when an app is newer on One UI. Tested on the Z Fold8 Ultra with ColorOS 17.
+**Cooler systems:** every system now runs its own system code compiled instead of interpreted, the main cause of warm
+and slow sessions, and ColorOS uses the display's hardware overlays instead of drawing every frame on the GPU
+(confirmed on the Z Fold8 Ultra with ColorOS 17; first runs on the other systems and phones).
+**ColorOS:** apps and overlays follow this phone's own corner radius (they were cut for the Find N6's rounder
+screen); double tap to wake works from sleep and with the always-on clock; on the Z Fold phones the screen switch at
+fold and unfold is quick again on a warm phone. **Uninstalled apps stay gone in ColorOS:** apps you uninstalled or
+removed as bloat came back at the next start or after an update, because ColorOS installs every app folder it finds
+when it starts. Those folders are now cleared before each start, with the folders of older versions and old install
+leftovers, which also gives their space back.
+**From the reports of 0.4.72 to 0.4.74** (not yet confirmed on the phones they are for): the OxygenOS 16 black screen
+on the Galaxy A25 and A33 (the 0.4.74 fix did not recognise these phones); ColorOS 17 ending with "The other system
+stopped" on slower Galaxy A phones; the brightness slider on Galaxy A phones in ColorOS and OxygenOS; the OxygenOS
+status bar laid out for a corner camera; "One UI's property space is nearly full" on any system; apps compiled by the
+system's own compiler (first starts that stalled on the A36 and Z Fold8); guest root: a module whose installer fails
+is turned off instead of ending the switch; the S23 Ultra's Samsung Camera closing at the shutter; two sessions that
+Last session wrongly called a restart. **Skip saving logs** now answers at the first tap.
+**New phone:** Galaxy S24+ with Exynos (SM-S926B). **OriginOS 7** is now offered on the Snapdragon Galaxy S24 Ultra,
+S24, S23, S23+ and S23 Ultra, and, next to ColorOS 17, Pixel 9 Pro XL, Infinity-X, HyperOS and Nothing OS, on the
+Exynos Galaxy S24 and S24+ (untested on all of these; OriginOS has not run on an Exynos phone yet). After updating,
+tap Update on your system's page. The phone list is in [docs/devices.md](docs/devices.md).
+
+New in 0.4.74: Galaxy A34 5G and A15 on One UI 9 (ColorOS 17, Infinity-X, HyperOS, untested) and the au Galaxy S22
+Ultra (SCG14, OxygenOS 16, untested). OxygenOS 16: its NFC app's crash loop (slow, warm phones) is left out; Google
+account, Chrome and Gboard on One UI 8.5 phones. Heat after a session (a log search kept a CPU core busy); guest root:
+Xposed frameworks can be removed again and a module step that hangs returns to One UI; switching is refused while a
+root module has stopped One UI's thermal service; OriginOS on the Z Fold7: a slow first boot is no longer taken for a
+failed one. OneOS runs next to stock One UI only: on a ported One UI, a ROM without One UI or a phone that is not a
+Samsung it says so and does not switch.
+
 New in 0.4.73: **OriginOS 7** (vivo, Android 17), experimental: a new system for the Snapdragon Galaxy S26, S26+, S26
 Ultra, S25, S25+, S25 Ultra, S25 Edge and the Z Fold7, Fold8 and Fold8 Ultra. Tested on the Z Fold8 Ultra (both
 screens with their own layouts, brightness, AOD and double tap to wake, calls and SMS, Bluetooth, themes, blur, the

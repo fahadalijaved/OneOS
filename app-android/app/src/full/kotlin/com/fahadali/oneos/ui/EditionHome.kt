@@ -214,7 +214,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
             if (isAdded && v != null) {
                 // While a job runs, at most every 500 ms (the 0.4.41 download froze Home and its
                 // buttons redrawing for every chunk); a job's start and end redraw at once.
-                if (PrepareJob.state.busy || LogJob.state.busy) {
+                if (PrepareJob.state.busy) {
                     // A throttle, not a debounce: updates every 250 ms must not keep pushing it back.
                     if (!redrawPending) { redrawPending = true; v.postDelayed(coalescedRedraw, 500) }
                 } else {
@@ -226,7 +226,9 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         subs += StageCheck.observe(onChange)
         subs += PrepareJob.observe(onChange)
         subs += LaunchJob.observe(onChange)
-        subs += LogJob.observe(onChange)
+        // The log save reports each of its 135 steps; Home shows only that it runs (0.4.76: a row
+        // rebuilt under the finger lost its tap, and "Skip saving logs" showed nothing for half a second).
+        subs += LogJob.observeBy({ Triple(it.phase, it.recovering, it.stopping) }, onChange)
         subs += OldStagesJob.observe(onChange)
         subs += AppUpdater.observe(onChange)
     }
@@ -770,6 +772,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         val logs = LogJob.state
         val outcome = last.outcome
         val summary = when {
+            logs.busy && logs.stopping -> getString(R.string.logs_stopping)
             logs.busy && !logs.recovering -> getString(R.string.home_row_last_reading)
             outcome != null -> listOfNotNull(
                 last.afterSeconds?.takeIf { it > 0 && !last.dryRun }?.let {
@@ -782,7 +785,8 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         } ?: return
         Cards.row(card, R.drawable.ic_oneos_row_last_time, getString(R.string.home_row_last), summary) {
             // While its logs are being saved: offer to skip that (owner, 11-08), Boot and Update wait for it.
-            if (logs.busy && !logs.recovering) {
+            if (logs.busy && logs.stopping) Unit
+            else if (logs.busy && !logs.recovering) {
                 androidx.appcompat.app.AlertDialog.Builder(ctx)
                     .setTitle(R.string.logs_skip)
                     .setMessage(R.string.logs_skip_summary)

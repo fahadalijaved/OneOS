@@ -125,6 +125,14 @@ class SessionLogsTest {
         // A session of 0.3.6, whose script was still called master_prepare.sh.
         assertEquals(OutcomeKind.PREPARE_FAILED, o(null, launch + "ERROR: master_prepare.sh failed (code 3)! Returning to One UI.\n").kind)
         assertEquals(OutcomeKind.DRY_RUN, o(null, launch + "ONEOS_PREPARE_ONLY=1: container prepared and checked, returning to One UI without starting the guest.\n").kind)
+        // Both return to One UI in place: the boot reason is the phone's last real boot, not a hard reset.
+        assertEquals(OutcomeKind.PREPARE_FAILED, o(null, launch + "Guest module installation failed (exit 124); returning to One UI\n", reason = "reboot,userrequested").kind)
+        assertEquals(
+            OutcomeKind.GUEST_REBOOT,
+            o("$header\nMon Nov  9 20:55:49 CET 2026 guest requested a soft reboot (ksud:soft-reboot) after 220s\n" +
+                "Mon Nov  9 20:57:49 CET 2026 soft reboot failed, returning to One UI\n=== [1/4] 20:57:54 Terminating Container Supervision & Zygote ===\n",
+                reason = "reboot,userrequested").kind,
+        )
         // A refusal of an older launch does not count.
         assertEquals(OutcomeKind.USER_RETURN, o(keys, "=== OneOS app launch a session ===\nPREFLIGHT REFUSED: x\n$launch").kind)
     }

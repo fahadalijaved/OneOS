@@ -654,7 +654,7 @@ object PackageSets {
 
     /**
      * OriginOS 7 (0.4.73, experimental): vivo's CN PD2609MA build on the Snapdragon S25/S26 series and the
-     * Z Fold7/8 phones. Set r17 (out/overlays_originos_cn_r17: make-overlays.sh with the CN vendor's
+     * Z Fold7/8 phones (0.4.82: also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+, the same set). Set r17 (out/overlays_originos_cn_r17: make-overlays.sh with the CN vendor's
      * vivo_config.ini; vivo_guards.py, vivo_brightness.py and the other vivo patches; the fold cutout overlay
      * with the cover's lens): its own services, vivo-services, framework and telephony jars, the guest vold as
      * gvld, vivo's display/input/Bluetooth/composer libraries, the patched launcher, vivo's feature list, the

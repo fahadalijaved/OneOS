@@ -278,6 +278,11 @@ object ReturnOutcomes {
     private val LIMIT = Regex("""session limit (\d+)s reached""")
     private val NOT_BOOTED = Regex("""guest still not booted after (\d+)s""")
     private const val KEYS = "Volume Up + Volume Down held 3 s"
+    // Two ends that return to One UI in place, so the boot reason is still the phone's last
+    // real boot: read as "The phone restarted without the return" up to 0.4.80 (S26 Ultra
+    // 00655d58, a guest module's installer; S25 Ultra 18d6ead4, a KernelSU soft reboot).
+    private const val MODULES_FAILED = "Guest module installation failed"
+    private const val SOFT_REBOOT_FAILED = "soft reboot failed, returning to One UI"
     private const val SESSION_HEADER = "=== OneOS session "
     private const val LAUNCH_HEADER = "=== OneOS app launch "
 
@@ -300,7 +305,7 @@ object ReturnOutcomes {
         launch.firstOrNull { it.contains("PREFLIGHT REFUSED:") }?.let { return ReturnOutcome(OutcomeKind.REFUSED, null, it.trim(), reason) }
         launch.firstOrNull { it.startsWith("ONEOS_PREPARE_ONLY=1:") }?.let { return ReturnOutcome(OutcomeKind.DRY_RUN, null, it.trim(), reason) }
         // guest_prepare.sh was master_prepare.sh up to 0.3.6: a log of such a session still reads the same.
-        launch.firstOrNull { it.contains(PREPARE_FAILED) || it.contains(PREPARE_FAILED_0_3_6) || it.contains("Aborting and returning to One UI") || it.startsWith("ERROR: One UI's persist") }
+        launch.firstOrNull { it.contains(PREPARE_FAILED) || it.contains(PREPARE_FAILED_0_3_6) || it.contains("Aborting and returning to One UI") || it.startsWith("ERROR: One UI's persist") || it.contains(MODULES_FAILED) }
             ?.let { return ReturnOutcome(OutcomeKind.PREPARE_FAILED, null, it.trim(), reason) }
 
         val ret = autoReturn?.let { lastBlock(it, SESSION_HEADER) }.orEmpty()
@@ -322,6 +327,7 @@ object ReturnOutcomes {
             LIMIT.find(l)?.let { return ReturnOutcome(OutcomeKind.SESSION_LIMIT, it.groupValues[1].toIntOrNull(), l.trim(), reason) }
             NOT_BOOTED.find(l)?.let { return ReturnOutcome(OutcomeKind.BOOT_TIMEOUT, it.groupValues[1].toIntOrNull(), l.trim(), reason) }
             if (l.contains(KEYS)) return ReturnOutcome(OutcomeKind.USER_RETURN, null, l.trim(), reason)
+            if (l.contains(SOFT_REBOOT_FAILED)) return ReturnOutcome(OutcomeKind.GUEST_REBOOT, null, l.trim(), reason)
         }
         return when {
             reason?.startsWith("shutdown,oneos-guest-shutdown") == true -> ReturnOutcome(OutcomeKind.GUEST_SHUTDOWN, null, null, reason)

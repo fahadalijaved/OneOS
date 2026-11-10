@@ -92,7 +92,13 @@ def render(records, today=None):
         out += ["No reports yet.", ""]
         return "\n".join(out)
     head = ["Phone", "System", "Reports", "Started"] + [label for _, label in ITEMS] + ["Last report"]
-    for v in sorted(codes, key=lambda x: codes[x], reverse=True):
+    # Newest release first, by the version's own numbers: codes holds the sending app's versionCode,
+    # and an old session sent from a newer app (ran_on) put its release above newer ones
+    # (2026-11-10: 0.4.71 came before 0.4.74).
+    def newest(v):
+        return [int(n) for n in re.findall(r"\d+", v)], codes[v]
+
+    for v in sorted(codes, key=newest, reverse=True):
         out += [f"## OneOS {v}", "", "| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
         for (rv, phone, system), row in sorted(rows.items()):
             if rv != v:

@@ -38,9 +38,15 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.40. Samsung flagships with Snapdragon, plus the first five
-Exynos phones and (0.4.33) the first MediaTek phone; root is required (tested with KernelSU; Magisk and APatch are
+App version 0.4.84. Galaxy Z Fold, S, Z Flip, A, F and M phones with Snapdragon,
+Exynos or MediaTek chips, on One UI 9 (and, for OxygenOS 16 only, on One UI 8);
+root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
+
+**Is your phone on the list?** [docs/devices.md](docs/devices.md) names every
+phone the app accepts, and for each system on it what testers reported in the
+last days. It is written from the app's own phone table and the reports, so it
+is the list to trust; the paragraphs below tell how the list grew.
 
 The app now uses an adaptive SESL9 card picker, a new OneOS icon, dedicated
 setup/update and pre-boot checks, and optional verbose entry/return screens.
@@ -48,18 +54,23 @@ See the [UI gallery](docs/app/redesign-gallery.md) for Fold8 cover and inner
 screen screenshots, and [boot handoff notes](docs/boot-status.md) for the
 display lifecycle and release packaging requirements.
 
-Where each system has actually started, on our phones and on testers' (One UI
-9 throughout). What they reported working, item by item, is in
+Where each system has reached the home screen, on our phones and in testers'
+reports (One UI 9; OxygenOS 16 on One UI 8). What they reported working, item
+by item and per app version, is in
 [docs/compatibility.md](docs/compatibility.md).
 
-| Guest system | Has run on |
+| Guest system | Home screen reached on |
 | --- | --- |
-| Pixel 11 Fold (Android 17) | Galaxy Z Fold8 Ultra (SM-F976B), Z Fold8 (SM-F971B) |
-| ColorOS 17, Find N6 build | Galaxy Z Fold8 Ultra (SM-F976B), Z Fold8 (SM-F971B) |
-| ColorOS 17, Find X9 Ultra CN build | Galaxy S26 Ultra (SM-S948), S25 Ultra (SM-S938), S25 (SM-S931), A57 (SM-A576B) |
-| ColorOS 17, Find X9 Ultra IN (global) build | Galaxy Z Flip5 (SM-F731B) |
-| Infinity-X 4.1 | Galaxy S26 Ultra (SM-S948), S25 Ultra (SM-S938), S25 (SM-S931), S24 Ultra (SM-S928), Z Flip5 (SM-F731B) |
-| Nothing OS 5.0 | Galaxy Z Fold8 Ultra (SM-F976B) |
+| ColorOS 17, Find N6 build | Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6, Z Fold5 |
+| ColorOS 17, Find X9 Ultra IN (global) build | Galaxy S26 Ultra, S26+, S26 (both chips each), S25 Ultra, S25+, S25, S25 Edge, S24 Ultra, S24 (both chips), S23 Ultra, S23+, S23, Z Flip7, Z Flip6, Z Flip5, A57, A56, A55 5G, A54 5G, A36, A35 5G, A34 5G, A27, A26, A17, A17 5G, A16 4G, A16 5G, A15, A07 |
+| Pixel 11 Fold | Galaxy Z Fold8 Ultra, Z Fold8 |
+| Pixel 11 Pro | Galaxy S26 Ultra, S26+ (both chips) |
+| Pixel 9 Pro XL | Galaxy S25 Ultra, S25, S24 Ultra, S24, S24 FE, S23 Ultra, S23+, S23, Z Flip5, A57, A56 |
+| Infinity-X 4.1 | Galaxy S26 Ultra, S25 Ultra, S25, S24 Ultra, S23 Ultra, S23, Z Fold6, Z Flip5, A57, A56, A54 5G, A36, A27, A26, A17, A17 5G, A16 4G, A16 5G, A07 |
+| HyperOS (Xiaomi 18 Fold) | Galaxy Z Fold8, Z Fold7, S26 Ultra, S26, S25 Ultra, S25+, S25, S25 Edge, S24 Ultra, S23 Ultra, S23, Z Flip5, A57, A56, A36, A27, A17, A17 5G, A16 4G, A16 5G, A07 |
+| Nothing OS 5.0 | Galaxy Z Fold8 Ultra, Z Fold7, Z Fold6, S26 Ultra, S26, S25 Ultra, S25+, S25, S25 Edge, S24 Ultra |
+| OriginOS 7 | Galaxy Z Fold8 Ultra, Z Fold7, S26 Ultra, S25+, S25 |
+| OxygenOS 16 (Android 16, for phones on One UI 8) | Galaxy S22 Ultra (both chips), S22+, S22 (Snapdragon), S23 FE, A34 5G, A24, A15, M55s, A16 5G (SM-S166V) |
 
 Started is not the same as finished: on Infinity-X the reports so far say calls
 do not work and SMS only sometimes, which is what the IMS switch in Advanced is
@@ -96,6 +107,16 @@ the S24 Ultra's images but HyperOS from 0.4.40, untested, used as a phone on the
 S26+ and Z Flip7 test sessions fixed the first Exynos problems (the phone
 restarting after the switch); every system on Exynos is still untested. Each
 of them also offers Infinity-X.
+
+Newer additions, each untested until a report says otherwise
+([docs/devices.md](docs/devices.md) has today's state): from 0.4.67, OxygenOS 16
+(Android 16) for phones still on One UI 8.0 or 8.5: the Galaxy S22 series, the
+S23 FE and A, F and M phones; from 0.4.73, OriginOS 7 (vivo, Android 17) on the
+Snapdragon Galaxy S26 and S25 phones and the Z Fold8 Ultra, Z Fold8 and Z Fold7,
+and from 0.4.82 on the Snapdragon S24 and S23 phones; and in 0.4.83 the Galaxy
+S24+ with Exynos 2400 (SM-S926B, e2s), which, like the Exynos S24, takes the
+S24 Ultra's six systems: these two are the first Exynos phones to offer
+OriginOS 7, which has not run on an Exynos phone yet.
 
 Release notes are in [changelog.md](changelog.md).
 
@@ -143,8 +164,8 @@ release).
    size of the old single app:
    `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6, Z Fold5),
    `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26, Z Flip8) and
-   `OneOS-<version>-s25.apk` (Galaxy S25 Ultra, S25+, S25, S24 Ultra, S24, S23 Ultra, S23,
-   S23+, Z Flip7, Z Flip6, Z Flip5, A57, A56, A36, A07). Installed the wrong one? OneOS tells you which file your
+   `OneOS-<version>-s25.apk` (every other phone: Galaxy S25 Ultra, S25+, S25, S25 Edge, S25 FE,
+   the S24, S23 and S22 series, Z Flip7, Z Flip6, Z Flip5, and the A, F and M phones). Installed the wrong one? OneOS tells you which file your
    phone needs.
 6. In OneOS open **Systems**, tap **Download** on the system made for your
    phone and download it, on Wi-Fi (3.3 to 5.9 GB).

@@ -61,6 +61,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A34 5G (SM-A346, MT6877), not tested yet
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
+  - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
 
 ## Pixel 11 Fold, yogi build
 
@@ -109,6 +110,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S24 FE (SM-S721, s5e9945), not tested yet
   - Galaxy Z Flip7 FE (SM-F761, s5e9945), not tested yet
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
+  - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
 
 ## Infinity-X 4.1, Find X9 Ultra build
 
@@ -160,6 +162,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A34 5G (SM-A346, MT6877), not tested yet
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
+  - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
 
 ## HyperOS, Xiaomi 18 Fold build
 
@@ -208,6 +211,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A34 5G (SM-A346, MT6877), not tested yet
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
+  - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
 
 ## Nothing OS 5.0, Metroid build
 
@@ -230,8 +234,10 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S26+ (Exynos) (SM-S947, s5e9965), not tested yet
   - Galaxy Z Fold6 (SM-F956, SM8650), not tested yet
   - Galaxy Z Flip8 (SM-F776, s5e9965), not tested yet
+  - Galaxy S24 (Exynos) (SM-S921, s5e9945), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
+  - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
 
 ## OxygenOS 16, OnePlus CPH2745 build
 
@@ -282,5 +288,12 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy Z Fold8 (SM-F971, SM8850), not tested yet
   - Galaxy S26 (SM-S942, SM8850), not tested yet
   - Galaxy S26 (docomo) (SC-51G, SM8850), not tested yet
+  - Galaxy S24 Ultra (SM-S928, SM8650), not tested yet
+  - Galaxy S24 (SM-S921, SM8650), not tested yet
+  - Galaxy S23 (SM-S911, SM8550), not tested yet
+  - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy S26+ (SM-S947, SM8850), not tested yet
+  - Galaxy S23 Ultra (SM-S918, SM8550), not tested yet
+  - Galaxy S24 (Exynos) (SM-S921, s5e9945), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
+  - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet

@@ -12,6 +12,8 @@
     <string name="environment_unknown">Not checked</string>
     <string name="environment_free">%1$s free</string>
     <string name="environment_active">%1$s active</string>
+    <string name="environment_apps">Apps</string>
+    <string name="environment_bring_summary">Take apps from One UI along, with their data and logins</string>
     <string name="environment_report">Report issue to OneOS team</string>
     <string name="environment_checking">Checking the phone and prepared system…</string>
     <string name="environment_busy_logs">Saving the last session’s logs (personal data removed). Boot and Update start when this finishes, usually within a few minutes.</string>
@@ -25,4 +27,6 @@
     <string name="logs_skip">Skip saving logs</string>
     <string name="logs_skip_summary">Stops saving the last session\u2019s logs, so you can switch or update now. Nothing is sent. You can still save them from Last session until your next switch.</string>
     <string name="logs_keep">Keep saving</string>
+    <string name="logs_stopping">Stopping the log save…</string>
+    <string name="environment_busy_logs_stopping">Stopping the log save. Boot and Update are ready in a moment.</string>
 </resources>

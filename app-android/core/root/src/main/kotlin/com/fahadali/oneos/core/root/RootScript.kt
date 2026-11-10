@@ -103,6 +103,25 @@ object RootScript {
          * works before the first prepare and after an earlier update.
          */
         SELFUPDATE("selfupdate", Stdin.SCRIPT),
+
+        /**
+         * Bring apps (0.4.75): copy the chosen user apps' APKs and their
+         * One UI `/data` into the guest's data tree (`$STAGE/data/oneos_bring`,
+         * read by the guest at `/data/oneos_bring`), so the guest can start
+         * them signed in. stdin is the package list (one per line); only runs
+         * against the prepared, hash-pinned stage.
+         */
+        BRING_COLLECT("bring-collect", Stdin.DATA),
+
+        /** Delete the brought-apps copies the stage holds (`$STAGE/data/oneos_bring`). */
+        BRING_CLEAR("bring-clear", Stdin.NONE),
+
+        /**
+         * Read only (build 104): each brought app the stage holds, what became of
+         * it in the guest (waiting, installed, failed and why) and whether One
+         * UI's app or its data is newer than the copy.
+         */
+        BRING_STATUS("bring-status", Stdin.NONE),
     }
 
     /**
@@ -203,7 +222,11 @@ object RootScript {
                 args.getOrNull(6)?.let { if (it != "0" && it != "1") p += "launch: Knox edm stub '$it' is not 0 or 1" }
                 args.getOrNull(7)?.let { if (it != "0" && it != "1") p += "launch: verbose boot is not 0 or 1" }
             }
-            Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE -> need(0)
+            Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE, Verb.BRING_CLEAR, Verb.BRING_STATUS -> need(0)
+            Verb.BRING_COLLECT -> {
+                need(1)
+                arg(0, DEC, "a size")
+            }
             Verb.SELFUPDATE -> {
                 need(3)
                 arg(0, DEC, "a size")

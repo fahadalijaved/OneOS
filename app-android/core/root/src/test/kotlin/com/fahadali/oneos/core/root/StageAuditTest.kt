@@ -113,6 +113,76 @@ class StageAuditTest {
         bad("TRASH=\"\$OLD_PARENT/lineage_stage.trash-1\"", "do_purge")
     }
 
+    /** Bring apps: One UI's app data is read by exactly bring-collect's tests, its du and its two copies and bring-status's one find, and never written. */
+    @Test
+    fun bringReadsOnlyTheChosenAppsDataAndNeverWritesIt() {
+        val b = "do_bring_collect"
+        assertTrue(script.contains("$b() {"))
+        fun bad(line: String, inFunction: String?, expect: String) {
+            val text = if (inFunction != null) script.replace("$inFunction() {", "$inFunction() {\n    $line") else "$script\n$line\n"
+            val p = StageAudit.audit(text)
+            assertTrue("not caught as '$expect': $line in ${inFunction ?: "main"}\n${p.joinToString("\n")}", p.any { it.contains(expect) })
+        }
+        val source = "takes a bring source"
+        // Writes to One UI's side, in bring-collect itself.
+        bad("rm -f \"\$BCE/x\"", b, source)
+        bad("mv \"\$BFROM\" \"\$dst/ce/\"", b, source)
+        bad("cp -a \"\$dst/ce\" \"\$BCE\"", b, source)
+        bad("cp -a \"\$dst/de/x\" \"\$BDE/x\"", b, source)
+        bad("chown 0:0 \"\$BDE\"", b, source)
+        bad("chmod 777 \"\${BCE}\"", b, source)
+        bad("mkdir \"\$BCE/x\"", b, source)
+        bad("echo x > \"\$BCE/x\"", b, "names a bring source")
+        bad("echo x >> \"\$BFROM\"", b, "names a bring source")
+        // Reads other than the documented ones, or to anywhere but the two stage folders.
+        bad("cat \"\$BCE/shared_prefs/x.xml\"", b, source)
+        bad("cat < \"\$BDE/x\"", b, "names a bring source")
+        bad("cp -a \"\$BFROM\" \"\$STAGE/x\"", b, source)
+        bad("cp -a \"\$BFROM\" \"\$OLD\"", b, source)
+        bad("cp \"\$BFROM\" \"\$NEW/ce/\"", b, source)
+        bad("cp -a \"\$BFROM\" \"\$dst/ce/\"", b, source)
+        bad("du -sk \"\$BCE\" /", b, source)
+        bad("ls \"\$BCE\"", b, source)
+        // The documented ones, in another function.
+        bad("cp -a \"\$BFROM\" \"\$NEW/ce/\"", "do_recover", source)
+        bad("[ -d \"\$BCE\" ]", "do_bring_status", source)
+        bad("[ -d \"\$BCE\" ]", "do_recover", source)
+        // The three variables are only what they are documented to be.
+        bad("BCE=\"\$STAGE/x\"", b, "BCE=")
+        bad("BDE=\"\$PROC/1/root\"", b, "BDE=")
+        bad("BCE=\"\$PROC/1/root\$DATA/data/\$pkg\"", "do_recover", "BCE=")
+        bad("BCE=\"\$PROC/1/root\$DATA/data/\$pkg\"", b, "BCE=")
+        bad("BDE=\"\$STAGE/x\"", "bring_sources", "BDE=")
+        bad("BFROM=\"\$STAGE/x\"", b, "BFROM=")
+        bad("for BFROM in \"\$DATA\"/*; do true; done", b, "for BFROM in")
+        bad("for BFROM in \"\$BCE\"/../*; do true; done", b, "for BFROM in")
+        // One UI's app data and init's root are named nowhere else.
+        bad("x=\"\$DATA/data\"", b, "names \$DATA/user or \$DATA/data")
+        bad("x=\"\$DATA\"/user_de/0", b, "names \$DATA/user or \$DATA/data")
+        bad("x=\"\$PROC/1/root\"", b, "names init's root")
+        // bring-status looks with exactly its one find, against the copy's own since mark; find runs nowhere else.
+        val st = "do_bring_status"
+        assertTrue(script.contains("$st() {"))
+        assertTrue(script.contains("find \"\$BCE\" \"\$BDE\" -newer \"\$ref\" -type f 2>/dev/null"))
+        bad("find \"\$BCE\" \"\$BDE\" -newer \"\$ref\" -type f -delete", st, "find ")
+        bad("find \"\$BCE\" -newer \"\$ref\"", st, "find ")
+        bad("find \"\$STAGE\" -name x", st, "find ")
+        bad("find / -newer \"\$ref\" -type f", b, "find ")
+        bad("ref=\"\$BCE/x\"", st, "ref=")
+        bad("ref=/data/local/tmp/x", st, "ref=")
+        bad("cat \"\$BCE/shared_prefs/x.xml\"", st, source)
+        bad("rm -f \"\$BDE/x\"", st, source)
+        // The copy's place until it is whole is in the stage, and bring's deletes go through purge_one's checks.
+        bad("NEW=/data/local/tmp/x", b, "NEW=")
+        bad("NEW=\"\$DATA/local\"", b, "NEW=")
+        bad("bring_drop \"\$BCE\"", b, source)
+        bad("bring_drop /data/local/tmp/x", b, "is not under the stage")
+        bad("bring_drop \"\$OLD_PARENT/x\"", st, "is not under the stage")
+        assertTrue(StageAudit.VERBS.containsAll(listOf("bring-collect", "bring-clear", "bring-status")))
+        bad("rm -rf \"\$STAGE/data/oneos_bring\"", "bring_drop", "rm -r")
+        bad("rm -rf \"\$1\"", "bring_drop", "rm -r")
+    }
+
     @Test
     fun auditChecksTheVerbs() {
         assertTrue(StageAudit.audit(script.replace("    recover) do_recover \"\$@\" ;;\n", "")).any { it.startsWith("verbs are") })

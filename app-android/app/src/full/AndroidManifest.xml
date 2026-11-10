@@ -17,6 +17,15 @@
     <!-- Once OneOS installed itself this way, Android lets its later updates skip the prompt. -->
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
+    <!-- Bring apps (0.4.75): without this Android hides other apps from us and the
+         list showed two of 120 (11-10). Every app with a launcher icon, nothing more. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application android:name=".ui.OneOsApplication">
         <service
             android:name=".session.PrepareService"
@@ -56,6 +65,11 @@
             android:name=".ui.OldStagesActivity"
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
+        <!-- Bring apps (0.4.75, Advanced): user apps with their data, One UI -> the system set up now. -->
+        <activity
+            android:name=".ui.BringAppsActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.AdvancedActivity" />
 
         <!-- The redesign: Choose a system (Home's "Choose a system", the fixes
              that choose a system or a file) and Setting up (Home's "Show

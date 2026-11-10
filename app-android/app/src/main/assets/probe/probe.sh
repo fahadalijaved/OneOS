@@ -18,8 +18,11 @@ PATH="/system/bin:$PATH"
 
 # run <id> <timeout s> <output file> <command>
 # The command's stdout and stderr become one file; its exit code is the status.
+# A reader that is gone (OneOS cancelled the run: its end of the pipe is closed)
+# ends the script at the next entry instead of running the rest of the list
+# unread; root's process cannot be signalled by the app (0.4.76).
 run() {
-    printf "@@PROBE %s %s\n" "$1" "$2"
+    printf "@@PROBE %s %s\n" "$1" "$2" || exit 0
     printf "@@FILE %s -\n" "$3"
     rc=$( { { timeout -k 2 "$2" sh -c "$4" </dev/null 2>&1; printf "%s\n" "$?" >&3; } | base64 >&4; } 3>&1 )
     printf "@@END %s\n" "$rc"
@@ -31,7 +34,7 @@ run() {
 # (or unzip -p) and becomes one file. Nothing printed = not present (3).
 # Only regular files are read (never a device, FIFO or folder).
 files() {
-    printf "@@PROBE %s %s\n" "$1" "$2"
+    printf "@@PROBE %s %s\n" "$1" "$2" || exit 0
     list=$(timeout -k 2 "$2" sh -c "$4" </dev/null 2>/dev/null)
     rc=$?
     got=0
