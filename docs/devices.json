@@ -466,6 +466,12 @@
           "label": "Nothing OS 5.0, Metroid build",
           "set": "nothing-f8u",
           "tested": false
+        },
+        {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
         }
       ]
     },
@@ -508,6 +514,12 @@
           "label": "Nothing OS 5.0, Metroid build",
           "set": "nothing-f8u",
           "tested": false
+        },
+        {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
         }
       ]
     },
@@ -544,6 +556,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
         }
       ]
     },
@@ -579,6 +597,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
           "tested": false
         }
       ]
@@ -1012,6 +1036,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
         }
       ]
     },
@@ -1077,6 +1107,18 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "nothingos5-metroid",
+          "label": "Nothing OS 5.0, Metroid build",
+          "set": "nothing-f8u",
+          "tested": false
+        },
+        {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
           "tested": false
         }
       ]
@@ -1971,6 +2013,54 @@
           "image": "oxygenos16-cph2745",
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-plus-9945",
+      "label": "Galaxy S24+ (Exynos)",
+      "model": "SM-S926",
+      "codename": "e2s",
+      "chip": "s5e9945",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "coloros17-findx9u-in",
+          "label": "ColorOS 17, Find X9 Ultra IN build",
+          "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "pixel9proxl-komodo",
+          "label": "Pixel 9 Pro XL, komodo build",
+          "set": "pixel9-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "nothingos5-metroid",
+          "label": "Nothing OS 5.0, Metroid build",
+          "set": "nothing-f8u",
+          "tested": false
+        },
+        {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
           "tested": false
         }
       ]

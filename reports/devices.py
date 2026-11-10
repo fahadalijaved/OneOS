@@ -30,6 +30,9 @@ import zipfile
 from collections import defaultdict
 from datetime import date, timedelta
 
+# Names the app has for one chip only ("Galaxy S24+ (Exynos)", no Snapdragon S24+ profile): a one-line
+# reply names the chip, so the owner of the other one does not read it as theirs.
+ONE_CHIP = set()
 LINK = ""  # --link https://github.com/fahadalijaved/OneOS/blob/main/docs/devices.md once it is public
 # The app's own label for the F8U is the profile's id; people know the phone by its name.
 DISPLAY = {"f8u": "Galaxy Z Fold8 Ultra"}
@@ -43,6 +46,7 @@ SHORT = {
     "hyperos-lhasa": "HyperOS",
     "nothingos5-metroid": "Nothing OS 5",
     "oxygenos16-cph2745": "OxygenOS 16",
+    "originos7-pd2609ma": "OriginOS 7",
 }
 CHIP = {
     "SM8850": "Snapdragon 8 Elite Gen 5", "SM8750": "Snapdragon 8 Elite", "SM8650": "Snapdragon 8 Gen 3",
@@ -84,6 +88,8 @@ def variant(p, others=()):
 def triggers(name):
     """What people type: "s25 ultra", "s25u", "fold7", "z fold 7", "flip5", "a56", "tab s9 fe+"..."""
     base = name.lower().replace("galaxy ", "").strip()
+    if "/" in base:  # "Galaxy F55/E55": one phone sold under two names, and people type either
+        return sorted({t for part in base.split("/") for t in triggers(part)}, key=lambda t: (len(t), t))
     # No "galaxy ..." forms: Rose matches whole words anywhere in a message, so "s25 plus" already
     # answers "galaxy s25 plus", while a "galaxy s25" trigger would outrank it (the longer one wins).
     out = {base}
@@ -188,6 +194,9 @@ def build(devices, rows, upcoming=(), nxt="", waiting=()):
             continue
         fams.setdefault(family(p), []).append(p)
     entries = []
+    ONE_CHIP.clear()
+    ONE_CHIP.update(name for name, phones in fams.items()
+                    if len(phones) == 1 and re.search(r"\((Exynos|Snapdragon|MediaTek)\)", phones[0]["label"]))
     for name, phones in fams.items():
         variants = []
         for p in phones:
@@ -205,8 +214,10 @@ def build(devices, rows, upcoming=(), nxt="", waiting=()):
         entries.append((name, variants))
     by_name = {name: variants for name, variants in entries}
     for w in waiting:
-        line = [("🕓", "Not yet", waiting_text(w), "🕓 " + (f"One UI {w['oneui']} now, needs 8" if w.get("oneui") else "needs One UI 8")
-                 + (" (tablet)" if w.get("tablet") else ""))]
+        # A tablet on One UI 8.5 does not "need 8": it waits because it is a tablet.
+        brief = ("tablet" + (f" (One UI {w['oneui']})" if w.get("oneui") else "") + ", not supported yet") if w.get("tablet") \
+            else (f"One UI {w['oneui']} now, needs 8" if w.get("oneui") else "needs One UI 8")
+        line = [("🕓", "Not yet", waiting_text(w), "🕓 " + brief)]
         if w.get("variantOf"):
             by_name[w["variantOf"]].append((w["variant"], line))
         else:
@@ -336,9 +347,10 @@ def scan(devices, waiting, inbox):
 
 
 LEGEND = "✅ starts every time · ⚠️ some tries · ❌ did not start · 🔲 not tested · 🔜 next update · n/m = started in n of m tries"
-GROUPS = [("s-old", "Galaxy S23 and S24", r"^Galaxy S2[34]"), ("s-new", "Galaxy S25 and S26", r"^Galaxy S2[56]"),
+GROUPS = [("s-22", "Galaxy S22", r"^Galaxy S22"),
+          ("s-old", "Galaxy S23 and S24", r"^Galaxy S2[34]"), ("s-new", "Galaxy S25 and S26", r"^Galaxy S2[56]"),
           ("fold", "Galaxy Z Fold", r"^Galaxy Z Fold"), ("flip", "Galaxy Z Flip", r"^Galaxy Z Flip"),
-          ("a", "Galaxy A", r"^Galaxy [AMF]\d")]
+          ("a", "Galaxy A, F and M", r"^Galaxy [AMF]\d")]
 
 
 def filters_grouped(entries):
@@ -346,6 +358,11 @@ def filters_grouped(entries):
     Phones that only wait for One UI 8 share one "not yet" reply."""
     cmds = filters(entries, "")[:1]  # the "which phones" overview
     later, later_trig = [], []
+    # A supported phone outside every series would lose its reply (and get a /stop) without a word:
+    # the S22s did, between their OxygenOS 16 profiles (0.4.67) and 0.4.83.
+    alone = [name for name, variants in entries
+             if not all(l[0] == "🕓" for _, ls in variants for l in ls) and not any(re.match(rx, name) for _, _, rx in GROUPS)]
+    assert not alone, ("no Rose series for", alone)
     for key, title, rx in GROUPS:
         body, trig = [], []
         for name, variants in entries:
@@ -359,7 +376,7 @@ def filters_grouped(entries):
                 fam = next((f for f, k in (("Snapdragon", "Snapdragon"), ("Exynos", "Exynos"), ("MediaTek", "Helio"),
                                            ("MediaTek", "Dimensity")) if k in v), "")
                 net = [x for x in parts[1:] if x in ("4G", "5G")]
-                label = short if len(variants) == 1 else f"{short} ({', '.join([parts[0].replace(' (not ', ', not ').rstrip(')')] + net + ([fam] if fam else []))})"
+                label = short if len(variants) == 1 and name not in ONE_CHIP else f"{short} ({', '.join([parts[0].replace(' (not ', ', not ').rstrip(')')] + net + ([fam] if fam else []))})"
                 body.append(f"{label}: " + " · ".join(l[3] for l in ls))
             trig += triggers(name)
         if not body:

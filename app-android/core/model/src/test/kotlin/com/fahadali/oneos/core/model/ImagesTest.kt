@@ -244,7 +244,8 @@ class ImagesTest {
         val hyper = Images.HYPEROS_LHASA
         // 0.4.33: Nothing OS on the Z Fold (F8U); 0.4.35 on every SVE + SME phone.
         val nothing = Images.NOTHING_METROID
-        // 0.4.73: OriginOS 7 on the Snapdragon S25/S26 series and the Z Fold7/8 phones.
+        // 0.4.73: OriginOS 7 on the Snapdragon S25/S26 series and the Z Fold7/8 phones; 0.4.82 the Snapdragon S24 and S23 phones;
+        // 0.4.83 the Exynos S24 and S24+.
         val origin = Images.ORIGINOS7
         val takes = mapOf(
             Profiles.F8U to listOf(n6, pixel, ifx, hyper, nothing, origin),
@@ -256,8 +257,11 @@ class ImagesTest {
             Profiles.S_PLUS_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin),
             Profiles.FOLD8 to listOf(n6, pixel, ifx, hyper, nothing, origin),
             Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing, origin),
-            Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing),
-            Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
+            Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.82
+            Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, origin), // 0.4.82
+            Profiles.S_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.83
+            Profiles.S_PLUS_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.83
+            Profiles.S_FE_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),
             Profiles.S_PLUS_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing, origin),
             Profiles.S_PLUS_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),
             Profiles.S_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing),

@@ -113,6 +113,8 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
         /** The gate that refused, for Details. */
         val finding: Finding? = null,
         val cancellable: Boolean = false,
+        /** The boot screen's line about the brought apps ([BringAppsJob.beforeLaunch]); stays until One UI closes. */
+        val apps: String? = null,
     ) {
         val busy: Boolean get() = phase == Phase.RUNNING
     }
@@ -144,7 +146,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
                 val refused = e as? Refused
                 update(
                     state.copy(
-                        phase = Phase.FAILED, cancellable = false, detail = null, message = e.message ?: e.javaClass.simpleName,
+                        phase = Phase.FAILED, cancellable = false, detail = null, apps = null, message = e.message ?: e.javaClass.simpleName,
                         plain = refused?.plain, finding = refused?.finding, image = refused?.image ?: state.image,
                     ),
                 )
@@ -213,6 +215,19 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
                 else "The ${image.shortName} image has no Google services to hide.",
             )
         }
+        // Bring apps (0.4.75 build 104, owner: "the loading / shifting to OneOS guest should say bringing
+        // over your apps too before shutting down"): what is ticked for this system, and the copies it has
+        // not installed yet that are newer on One UI, are copied into the stage now. A real boot only (a
+        // test run starts no apps). It never stops the boot, and Cancel is off while it copies. Build 108:
+        // the screen keeps a line of its own about them (how many come along, how many are there already),
+        // also when nothing is left to copy.
+        if (!dryRun && !guard.isCancelled()) {
+            val marker = fresh.status.marker?.takeIf { fresh.status.ours && it.imageId == image.id }
+            BringAppsJob.beforeLaunch(
+                app, marker, Images.systemName(image), guard::isCancelled,
+                onApps = { update(state.copy(apps = it)) },
+            ) { update(state.copy(detail = it, cancellable = false)) }
+        }
         if (!guard.commit()) throw Cancelled()
         update(state.copy(cancellable = false))
         val sid = ByteArray(8).also { SecureRandom().nextBytes(it) }.let(Hashes::hex)
@@ -239,7 +254,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
         val system = Images.systemName(image)
         update(
             State(
-                Phase.LAUNCHED, dryRun, image = image,
+                Phase.LAUNCHED, dryRun, image = image, apps = state.apps,
                 message = if (dryRun) {
                     "Test run started. One UI stops in a few seconds, $system is set up and checked, then the phone restarts into One UI."
                 } else {

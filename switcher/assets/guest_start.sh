@@ -346,7 +346,8 @@ while [ $n -lt 25 ] && ! service check SurfaceFlinger 2>/dev/null | grep -q ": f
     n=$((n + 1)); sleep 0.2
 done
 # /data/oneos_hwc (guest_prepare.sh) leaves the overlays on: the default since
-# run 44 for guests without oplus-services.jar, ONEOS_GUEST_HWC=1 for ColorOS.
+# run 44 for guests without oplus-services.jar and since 0.4.76 for ColorOS
+# (see there), ONEOS_GUEST_HWC=0 for GPU composition.
 # The docs record that 1008 did not stop the rejected frames (run 23 still had
 # 3890); the surfaceflinger patch that skips IQtiComposer3Client did, and the
 # Pixel surfaceflinger has no such client. Forcing GPU composition is costly:
@@ -355,7 +356,7 @@ done
 # 4800 GPU missed frames by 110 s (run 31: 5291 without window blur), about 45
 # a second; run 43's Pixel about 2 a second (221 by diag_90).
 if [ -f /data/oneos_hwc ]; then
-    echo "[Pivoted Root] SurfaceFlinger HW overlays left on (no oplus-services.jar, or ONEOS_GUEST_HWC=1)"
+    echo "[Pivoted Root] SurfaceFlinger HW overlays left on (the default; ONEOS_GUEST_HWC=0 for GPU composition)"
     # Run 44: should the composer reject the frames anyway (a black panel),
     # force GPU composition by itself instead of waiting for the return keys.
     # Its rejections (run 23's executeCommands / presentOrValidate lines)
@@ -368,6 +369,7 @@ if [ -f /data/oneos_hwc ]; then
             n=$(logcat -d -b main -s SurfaceFlinger:E -T "$HWC_T0.000" 2>/dev/null | grep -c -E 'executeCommands failed|presentOrValidate failed')
             if [ "$n" -gt 30 ]; then
                 service call SurfaceFlinger 1008 i32 1 > /data/sf_1008.log 2>&1
+                : > /data/oneos_hwc_forced
                 echo "[Pivoted Root] composer rejected $n frames with HW overlays: GPU composition forced: $(cat /data/sf_1008.log)"
                 exit 0
             fi
@@ -522,7 +524,9 @@ fi
 # for both), and on these VRR panels (one mode each, 240 Hz vsync, 120 fps peak,
 # rates down to 1 Hz) SurfaceFlinger dropped to 1 Hz within 10 ms of every
 # window transition: 9 freezes of 1-2.4 s in 5 minutes (Davey 1038 ms, "Faking
-# VSYNC due to driver stall"). ColorOS kept [120, 120] and never did. Each
+# VSYNC due to driver stall"). ColorOS kept [120, 120] and did not (below thermal status CRITICAL; at
+# CRITICAL its range is capped to 0-60 Hz too and a fold stalled the same way:
+# guest_props.sh, set_display_power_timer_ms, build 106). Each
 # panel's primary and app-request render ranges are pinned with SurfaceFlinger's
 # backdoor transaction 1035 (i32 mode id, i64 physical display id, f min, f max;
 # this image's surfaceflinger: readInt32, readUint64, readFloat twice ->
@@ -658,39 +662,104 @@ if [ -w "$KBL/brightness" ]; then
         done
     " </dev/null >> /data/backlight.log 2>&1 &
 fi
-# The LED bridge (0.4.65). On the Galaxy A07 the composer refuses every
-# brightness the guest sets ("HWCDisplay setBrightness() failed to set
-# brightness: 8"), One UI drives the LED through its lights HAL instead, and
-# ColorOS's screen stayed black after boot (0.4.62 1d1308c4: screen on, backlight
-# 0). Only where the panel is that LED: the guest's brightness (cmd display
-# get-brightness, 0..1; 40% when it gives none) and wakefulness (dumpsys power)
-# copied to it once a second; 0 asleep, 1/20 dozing. Ends with the guest.
-# ONEOS_GUEST_LED_BRIDGE=0: off.
-if [ $LEDBL = 1 ] && [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ]; then
-    $BB sh -c "
-        i=0
-        while [ \"\$(getprop service.bootanim.exit)\" != 1 ] && [ \$i -lt 600 ]; do sleep 1; i=\$((i + 1)); done
-        echo \"\$(date +%T) LED bridge: $BL (max $BLMAX)\"
-        last=''
-        while :; do
-            w=\$(timeout 3 dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)
-            case \"\$w\" in
-                Asleep) v=0 ;;
-                Dozing) v=\$(( $BLMAX / 20 + 1 )) ;;
-                Awake)
-                    f=\$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
-                    v=\$(echo \"\$f\" | awk -v m=$BLMAX '\$1 ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?\$/ && \$1 > 0 && \$1 <= 1 { x = int(\$1 * m + 0.5); if (x < 1) x = 1; print x }')
-                    [ -n \"\$v\" ] || v=$BLON ;;
-                *) v='' ;;
-            esac
-            if [ -n \"\$v\" ] && [ \"\$v\" != \"\$last\" ]; then
-                echo \$v > $BL/brightness && echo \"\$(date +%T) \$w: \$v\"
-                last=\$v
-            fi
-            sleep 1
-        done
-    " </dev/null >> /data/backlight.log 2>&1 &
-    echo "[Pivoted Root] Backlight: LED bridge started for $BL"
+# The brightness bridge. Two cases, one loop (/data/oneos_bl_bridge.sh):
+# 1. The LED bridge (0.4.65). On the Galaxy A07 the composer refuses every
+#    brightness the guest sets ("HWCDisplay setBrightness() failed to set
+#    brightness: 8"), One UI drives the LED through its lights HAL instead, and
+#    ColorOS's screen stayed black after boot (0.4.62 1d1308c4: screen on,
+#    backlight 0). Where the panel is that LED: always.
+# 2. The panel node (0.4.81). The same refusal on every Galaxy A with a backlight
+#    class device (A15, A16, A17, A24, A26, A34, A35: "useSurfaceControl=false" in
+#    the guest's display dump). ColorOS and OxygenOS send the brightness to the
+#    composer anyway ("force_anyway? true"), so nothing ever reached the panel:
+#    the node read the same at 20, 40 and 90 s in all 12 such reports of 0.4.72 to
+#    0.4.74 (A34 7e5896b0 81 of 510, A15 336e9373, A17 5G 98780abb, A24 80412f38
+#    ...), the slider did nothing. Only for that pair. A system that goes through
+#    Samsung's lights HAL (HyperOS, Pixel, Infinity-X: "force_anyway? false") is
+#    left alone: two writers on one node would fight.
+# The guest's brightness (cmd display get-brightness) and wakefulness (dumpsys
+# power) are copied once a second. ColorOS and OxygenOS give a level, not 0..1
+# (222..8191, sunlight boost to 10239: the 0.4.65 loop took that for no value and
+# wrote 40% for good, A07 9e6398f5); the range is read from the display dump.
+# On Samsung's panel node 255 is One UI's full slider and the rest of the range
+# its sunlight boost, so the guest's normal range ends at 255 and only its own
+# boost goes above. Asleep: 0 on the LED (it has no other off switch), nothing on
+# a panel node; dozing: 1/20. Ends with the guest.
+# ONEOS_GUEST_LED_BRIDGE=0 / ONEOS_GUEST_BL_BRIDGE=0: off.
+BRIDGE=0
+if [ $LEDBL = 1 ]; then [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ] && BRIDGE=1
+elif [ "${ONEOS_GUEST_BL_BRIDGE:-1}" = 1 ] && [ "$BL" = /sys/class/backlight/panel ] && [ -w "$BL/brightness" ]; then
+    case "$BLMAX" in ''|*[!0-9]*) ;; *) BRIDGE=1 ;; esac
+fi
+if [ $BRIDGE = 1 ]; then
+    cat > /data/oneos_bl_bridge.sh <<'BLEOF'
+BL=$1; MAX=$2; ON=$3; LED=$4
+i=0
+while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
+D=""; n=0
+while [ $n -lt 10 ]; do
+    D=$(timeout 15 dumpsys display 2>/dev/null | sed -n \
+        -e 's/.*\(useSurfaceControl=[a-z]* (force_anyway? [a-z]*)\).*/\1/p' \
+        -e 's/^ *\(mScreenBrightnessRangeMinimum=[0-9.]*\).*/\1/p' \
+        -e 's/^ *\(mScreenBrightnessRangeMaximum=[0-9.]*\).*/\1/p' \
+        -e 's/^ *\(mScreenBrightnessNormalMaximum=[0-9.]*\).*/\1/p')
+    case "$D" in *useSurfaceControl=*) break ;; esac
+    n=$((n + 1)); sleep 3
+done
+usc=$(echo "$D" | sed -n 's/^useSurfaceControl=\([a-z]*\) .*/\1/p' | head -n 1)
+force=$(echo "$D" | sed -n 's/^useSurfaceControl=[a-z]* (force_anyway? \([a-z]*\))$/\1/p' | head -n 1)
+lo=$(echo "$D" | sed -n 's/^mScreenBrightnessRangeMinimum=//p' | head -n 1)
+hi=$(echo "$D" | sed -n 's/^mScreenBrightnessRangeMaximum=//p' | head -n 1)
+nm=$(echo "$D" | sed -n 's/^mScreenBrightnessNormalMaximum=//p' | head -n 1)
+if [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
+    echo "$(date +%T) brightness bridge: not needed for $BL (useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read})"
+    exit 0
+fi
+# A level scale when the range ends above 1 (ColorOS, OxygenOS); else 0..1.
+SCALE=$(echo "${lo:-x} ${hi:-x} ${nm:-x}" | awk '{ t = $3; if (t !~ /^[0-9.]+$/) t = $2
+    if ($1 ~ /^[0-9.]+$/ && $2 ~ /^[0-9.]+$/ && $2 + 0 > 1 && t + 0 > $1 + 0 && $2 + 0 >= t + 0) print "level"; else print "unit" }')
+case "$nm" in ''|*[!0-9.]*) nm=$hi ;; esac
+NORM=$MAX
+[ "$LED" = 1 ] || [ "$MAX" -le 255 ] || NORM=255
+echo "$(date +%T) brightness bridge: $BL (max $MAX, the guest's full slider = $NORM; scale $SCALE ${lo:-?}..${nm:-?}..${hi:-?}; useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read})"
+last=""; pw=""
+while :; do
+    w=$(timeout 3 dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)
+    [ "$w" = "$pw" ] || last=""
+    pw=$w
+    case "$w" in
+        Asleep) if [ "$LED" = 1 ]; then v=0; else v=""; fi ;;
+        Dozing) v=$((NORM / 20 + 1)) ;;
+        Awake)
+            f=$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
+            v=$(echo "$f" | awk -v m="$MAX" -v n="$NORM" -v lo="$lo" -v nm="$nm" -v hi="$hi" -v s="$SCALE" '
+                {
+                    # The first field that is a number (AOSP prints the bare value).
+                    x = -1
+                    for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?$/) { x = $i + 0; break }
+                    if (x <= 0) exit
+                    if (s == "level") {
+                        if (x <= nm) { p = (x - lo) / (nm - lo); if (p < 0) p = 0; y = 1 + p * (n - 1) }
+                        else { p = (hi > nm) ? (x - nm) / (hi - nm) : 1; if (p > 1) p = 1; y = n + p * (m - n) }
+                    } else {
+                        if (x > 1) exit
+                        y = x * n
+                    }
+                    y = int(y + 0.5); if (y < 1) y = 1; if (y > m) y = m; print y; exit
+                }')
+            if [ -z "$v" ] && [ "$LED" = 1 ]; then v=$ON; fi ;;
+        *) v="" ;;
+    esac
+    if [ -n "$v" ] && [ "$v" != "$last" ]; then
+        echo $v > $BL/brightness && echo "$(date +%T) $w: $v"
+        last=$v
+    fi
+    sleep 1
+done
+BLEOF
+    $BB sh /data/oneos_bl_bridge.sh "$BL" "$BLMAX" "$BLON" "$LEDBL" </dev/null >> /data/backlight.log 2>&1 &
+    if [ $LEDBL = 1 ]; then echo "[Pivoted Root] Backlight: LED bridge started for $BL"
+    else echo "[Pivoted Root] Backlight: brightness bridge started for $BL (it runs only if the composer refuses brightness and the system does not use the lights HAL; see backlight.log)"; fi
 fi
 
 # aconfig flag storage. init/aconfigd normally build /metadata/aconfig from
@@ -976,9 +1045,31 @@ if [ -f /data/guest_audio.flag ]; then
             setprop ctl.start audioserver
             echo "$(date +%T) $1; handed over to the host audioserver"
         }
-        t=0
-        while [ $t -lt 60 ] && [ "$(owner)" != "$as" ] && kill -0 $as 2>/dev/null; do sleep 2; t=$((t + 2)); done
-        if [ "$(owner)" != "$as" ]; then handover "guest audioserver did not register in ${t}s"; exit 0; fi
+        # The guest audioserver registers 1 to 3 s after the guest system_server
+        # publishes its services (SetSystemProcess: the "activity" service). A flat
+        # 60 s was too short on the slow MediaTek Galaxy A (0.4.74 reports, ColorOS
+        # 17: A16 4G 96e8e88c registered at 48, 54 and 56 s, then four sessions and
+        # the A15 336e9373 missed it by 1 to 3 s). The hand-over then killed a
+        # healthy audioserver and started the One UI one, which waited for its
+        # vendor extension for good; AudioService blocked in its constructor and
+        # the watchdog killed system_server ("The other system stopped").
+        # So: 60 s as before, and never less than 20 s after the guest framework
+        # is there (a = seconds since "activity" was first found); 600 s at most
+        # while there is no framework at all (nothing needs sound until then).
+        t=0; a=-1
+        while [ "$(owner)" != "$as" ] && kill -0 $as 2>/dev/null; do
+            if [ $a -lt 0 ]; then
+                case "$(service check activity 2>/dev/null)" in *": found"*) a=0 ;; esac
+            fi
+            if [ $a -lt 0 ]; then [ $t -lt 600 ] || break
+            else [ $t -lt 60 ] || [ $a -lt 20 ] || break; fi
+            sleep 2; t=$((t + 2)); [ $a -lt 0 ] || a=$((a + 2))
+        done
+        if [ "$(owner)" != "$as" ]; then
+            if [ $a -lt 0 ]; then handover "guest audioserver did not register in ${t}s (no guest framework in that time)"
+            else handover "guest audioserver did not register in ${t}s (${a}s after the guest framework came up)"; fi
+            exit 0
+        fi
         echo "$(date +%T) guest audioserver $as registered after ${t}s"
         # Keep it the one servicemanager hands out (host init can bring
         # Samsung audioserver back through the HAL onrestart). Log why it
@@ -1306,7 +1397,7 @@ while [ $n -lt 25 ] && [ "$(dumpsys --pid idmap 2>/dev/null | tr -dc 0-9)" != "$
     n=$((n + 1)); sleep 0.2
 done
 echo "[Pivoted Root] idmap2d PID: $IDMAP_PID, servicemanager's idmap: $(dumpsys --pid idmap 2>/dev/null | tr -dc 0-9)"
-# The guest's own artd (guest_prepare.sh: its ART module is not One UI's).
+# The guest's own artd (guest_prepare.sh: whenever the guest's ART payload is mounted).
 # artd is lazy: it exits when nothing holds it, so it runs again 0.2 s later,
 # before servicemanager would ask init for One UI's. The loop ends with the guest
 # (return_to_oneui.sh kills this namespace) or at /data/oneos_artd_stop.
@@ -1324,7 +1415,7 @@ if [ -f /data/oneos_guest_artd ] && [ -x /apex/com.android.art/bin/artd ]; then
     ARTD_PID=$(dumpsys --pid artd 2>/dev/null | tr -dc 0-9)
     echo "[Pivoted Root] artd: the guest's (servicemanager's artd: ${ARTD_PID:-none yet}, $(readlink /proc/${ARTD_PID:-0}/exe 2>/dev/null || echo 'exe unknown'))"
 else
-    echo "[Pivoted Root] artd: One UI's (guest_prepare.sh chose it: the same ART module, or no guest ART payload)"
+    echo "[Pivoted Root] artd: One UI's (guest_prepare.sh chose it: no guest ART payload, or ONEOS_GUEST_ARTD=0)"
 fi
 if [ -f /data/guest_media.flag ]; then
     echo "[Pivoted Root] media.player: $(service check media.player 2>/dev/null | cut -d: -f2), media.resource_manager: $(service check media.resource_manager 2>/dev/null | cut -d: -f2)"
@@ -1348,18 +1439,20 @@ fi
 # memory at every zygote start (run 44: dex2oat64 --compiler-filter=verify
 # --oat-location=/nonx/arm64/boot.oat, 1.4 s, 3.4 s CPU) and runs framework
 # code JIT-compiled only, in every guest process. zygote_exec (zygote_launcher.c)
-# passes the flag only with ONEOS_GUEST_JIT_ZYGOTE=1: the default for ColorOS
-# guests (oplus-services.jar), which have only ever run that way and are
-# untested without it; 0, the image's boot image, for the others (Pixel).
+# passes the flag only with ONEOS_GUEST_JIT_ZYGOTE=1. Up to 0.4.75 that was
+# the default for ColorOS guests (oplus-services.jar). 0.4.76: 0 for every
+# guest. The owner's Fold in ColorOS 17 (11-10, "too hot on any OS"): no
+# process had one .oat/.odex/.art mapped, the switch took the skin from 40 to
+# 57.7 C in a minute (system_server 200% CPU, SystemUI 97%), and a trial
+# odrefresh in the running guest built its boot image in 10 s; a guest tool
+# then started on 0.05 s of CPU instead of 0.26 s. The odrefresh step below
+# builds that boot image; without one ART compiles the boot class path in
+# memory, as with the flag.
 case "${ONEOS_GUEST_JIT_ZYGOTE:-}" in
     0|1) JIT_WHY="ONEOS_GUEST_JIT_ZYGOTE=$ONEOS_GUEST_JIT_ZYGOTE" ;;
     *)
         [ -n "${ONEOS_GUEST_JIT_ZYGOTE:-}" ] && echo "[Pivoted Root] ONEOS_GUEST_JIT_ZYGOTE=$ONEOS_GUEST_JIT_ZYGOTE is not 0 or 1: the default"
-        if [ -e /system/framework/oplus-services.jar ]; then
-            ONEOS_GUEST_JIT_ZYGOTE=1; JIT_WHY="ColorOS default, oplus-services.jar"
-        else
-            ONEOS_GUEST_JIT_ZYGOTE=0; JIT_WHY="default, no oplus-services.jar"
-        fi ;;
+        ONEOS_GUEST_JIT_ZYGOTE=0; JIT_WHY="default" ;;
 esac
 export ONEOS_GUEST_JIT_ZYGOTE
 if [ "$ONEOS_GUEST_JIT_ZYGOTE" = 1 ]; then
@@ -1560,14 +1653,24 @@ fi
 # A panel is off when its DSI connector says dpms Off and its backlight is 0
 # (an AOD panel counts as on: no double tap on AOD yet); the fold state
 # follows the lit panel. From the end of the boot animation; ends with the
-# guest. ColorOS is left alone (double tap works there); ONEOS_GUEST_DT2W=0
-# turns it off, =1 on for every guest.
-DT2W=${ONEOS_GUEST_DT2W:-}
-if [ -z "$DT2W" ]; then
-    if [ -e /system/framework/oplus-services.jar ]; then DT2W=0; else DT2W=1; fi
-fi
+# guest. ONEOS_GUEST_DT2W=0 turns it off, =1 on for every guest.
+# ColorOS was left alone up to build 105 ("double tap works there"). It does
+# not (owner, 11-10, Z Fold8 Ultra): its gesture needs OPPO's touch HAL; on a
+# Galaxy nobody writes the IC's enabled node when ColorOS sleeps (kernel log of
+# that session: not one enabled_store while it slept, the cover IC went on
+# reporting plain touches), so the IC never reports KEY_WAKEUP. Build 106 kept
+# only the IC of a panel that is off by its dpms. ColorOS shows its clock for
+# about 7 s after every sleep with the panel still on (display state
+# DOZE_SUSPEND, dpms On), so the double tap came 8 s late (dt2w.log against
+# power_screen_state of that session: asleep 11:44:11, armed 11:44:19) and
+# never with the clock set to always. Now every Oplus guest is kept, on every
+# phone (owner: the ColorOS builds on the S25 and S26 series behave the same),
+# and every guest sleep arms the IC in use, panel lit or not, as on a vivo
+# image. On a fold a panel is off by its dpms alone, and the lid switch tells
+# which panel is in use after a fold made with the screen off.
+DT2W=${ONEOS_GUEST_DT2W:-1}
 if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/sec/tsp/enabled ] || [ -w /sys/class/sec/tsp1/enabled ]; }; then
-    rm -f /data/oneos_dt2w_armed.* /data/oneos_dt2w_*.fifo /data/oneos_dt2w_aod*
+    rm -f /data/oneos_dt2w_armed.* /data/oneos_dt2w_*.fifo /data/oneos_dt2w_aod* /data/oneos_dt2w_lid*
     ONEOS_BB="$BB" $BB sh -c '
         BB=$ONEOS_BB
         log() { echo "$(date +%T) $*"; }
@@ -1611,6 +1714,9 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         FOLD=0; case "$IDS" in *tsp1*tsp2*) FOLD=1 ;; esac
         # The dpms-only reading is proven on vivo OriginOS (0.4.73); other systems keep both signals.
         VIVO_IMG=0; [ -e /system/framework/vivo-services.jar ] && VIVO_IMG=1
+        # ColorOS on the same phone: the panel not in use reads backlight 0 (fold_test.log,
+        # 11-10) and its clock (AOD) is dpms On, so dpms alone says "off" there too.
+        OPLUS_IMG=0; [ -e /system/framework/oplus-services.jar ] && OPLUS_IMG=1
         # Two panels: the dpms of each panel only. The panel that is off keeps backlight 1,
         # not 0 (F8U run 13, OriginOS: inner panel0-backlight 1 with DSI-1 Off once
         # folded, cover panel1-backlight 1 with DSI-2 On in AOD), so "backlight not 0"
@@ -1620,7 +1726,7 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         lit() {
             eval c=\$C_$1 b=\$B_$1
             d=Off; [ -r "$c" ] && read -r d < "$c"
-            if [ $FOLD = 1 ] && [ $VIVO_IMG = 1 ] && [ -r "$c" ]; then [ "$d" != Off ]; return; fi
+            if [ $FOLD = 1 ] && { [ $VIVO_IMG = 1 ] || [ $OPLUS_IMG = 1 ]; } && [ -r "$c" ]; then [ "$d" != Off ]; return; fi
             l=0; read -r l < "$b"
             [ "$d" != Off ] || [ "$l" != 0 ]
         }
@@ -1654,13 +1760,43 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         AF=/data/oneos_dt2w_aod
         setaod() { echo $1 > $AF.n && $BB mv -f $AF.n $AF; }
         setaod 0
-        if [ "${ONEOS_GUEST_DT2W_AOD:-1}" = 1 ]; then
+        # An Oplus guest keeps its clock on a lit panel (DOZE_SUSPEND, dpms On: about
+        # 7 s after every sleep, or always) and does not read the taps there (owner,
+        # 11-10, build 106): on an Oplus image every guest sleep counts as AOD too.
+        AODR=${ONEOS_GUEST_DT2W_AOD:-1}
+        # Lid switch (Oplus guest on a fold). The fold state above follows the lit
+        # panel, which says nothing once the phone is folded or opened while it
+        # sleeps: the IC of the panel now in use was never armed. One blocked
+        # getevent on the "flip" switch keeps /data/oneos_dt2w_lid at 1 (folded),
+        # 0 (open) or u (not known: before the first event, after the reader
+        # ends); a lit panel still wins. No flip switch: lit panels only, as before.
+        LIDF=0; LF=/data/oneos_dt2w_lid; LV=u; OLV=u
+        if [ $FOLD = 1 ] && [ $OPLUS_IMG = 1 ]; then
+            FL=""
+            for e in /sys/class/input/event*; do
+                [ "$(cat $e/device/name 2>/dev/null)" = flip ] && { FL=/dev/input/${e##*/}; break; }
+            done
+            setlid() { echo $1 > $LF.n && $BB mv -f $LF.n $LF; }
+            if [ -n "$FL" ] && [ -c "$FL" ] && setlid u; then
+                ( getevent -l $FL 2>/dev/null | while read -r a k v; do
+                      [ "$k" = SW_LID ] || continue
+                      case "$v" in 00000001) setlid 1 ;; 00000000) setlid 0 ;; esac
+                  done
+                  setlid u
+                  log "lid: the reader of $FL ended: fold state from the lit panel only" ) &
+                LIDF=1
+                log "lid: $FL read for folds made while the screen is off"
+            else
+                log "lid: no flip switch to read: fold state from the lit panel only"
+            fi
+        fi
+        if [ "$AODR" = 1 ]; then
             ( n=0
               while [ $n -lt 20 ]; do
                   logcat -b events -v raw -s power_screen_state boot_progress_system_run -T "$(date +%s).000" 2>/dev/null |
                       while read -r l; do
                           case "$l" in
-                              "[0,"*) { [ -e /system/framework/vivo-services.jar ] || [ "$(timeout 3 settings get secure doze_always_on 2>/dev/null)" = 1 ]; } && setaod 1 ;;
+                              "[0,"*) { [ -e /system/framework/vivo-services.jar ] || [ $OPLUS_IMG = 1 ] || [ "$(timeout 3 settings get secure doze_always_on 2>/dev/null)" = 1 ]; } && setaod 1 ;;
                               "[1,"*|[0-9]*) setaod 0 ;;
                           esac
                       done
@@ -1681,6 +1817,11 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             eval GP_$1=$!
             ( while read -r a k v; do
                   [ "$k" = KEY_WAKEUP ] && [ "$v" = DOWN ] || continue
+                  if [ $LIDF = 1 ]; then
+                      # The panel not in use: inner while folded, cover while open.
+                      lv=u; { read -r lv < $LF; } 2>/dev/null
+                      case "$1$lv" in tsp11|tsp20) log "$1: double tap on the panel not in use (lid $lv): ignored"; continue ;; esac
+                  fi
                   if in_call; then log "$1: double tap during a call: ignored"; continue; fi
                   log "$1: double tap: waking the guest"
                   timeout 5 cmd input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || log "$1: cmd input keyevent failed"
@@ -1717,8 +1858,39 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             disarm $1
             log "$1: $2: enabled=$e"
         }
+        # Lid path only. A fold made in the dark changes which IC is in use while
+        # both panels stay off. The driver chooses between low-power mode and
+        # power off at the moment it is disabled, by the fold state it has then,
+        # and ignores 1,0 on an IC that is already disabled (the fold monitor
+        # disables the cover IC at every unfold; an IC armed before the fold was
+        # disabled under the other fold state). So bring it up under the new fold
+        # state first (2,0 2,1), then low-power mode as usual.
+        arm_fresh() {
+            T=/sys/class/sec/$1
+            eval g=\$GP_$1 no=\$NO_$1
+            [ -z "$no" ] || return 0
+            if [ -n "$g" ]; then
+                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+                if echo 1,0 > $T/enabled && echo 1,1 > $T/enabled; then
+                    log "$1: $2: low-power mode again under folded=$F (enabled=$(cat $T/enabled 2>/dev/null))"
+                else
+                    log "$1: $2: $T/enabled refused 1,0/1,1 under folded=$F: back on, double tap left to the guest"
+                    echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+                    [ "$(cat $T/enabled 2>/dev/null)" = 1 ] && rm -f /data/oneos_dt2w_armed.$1
+                    disarm $1
+                    eval NO_$1=1
+                fi
+                return 0
+            fi
+            if [ "$(cat $T/enabled 2>/dev/null)" = 0 ]; then
+                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
+                log "$1: off before arming (folded=$F): switched on first (enabled=$(cat $T/enabled 2>/dev/null))"
+            fi
+            arm $1 "$2"
+        }
         while :; do
             D=; read -r D < $AF 2>/dev/null; [ "$D" = 1 ] || D=0
+            if [ $LIDF = 1 ]; then LV=u; { read -r LV < $LF; } 2>/dev/null; fi
             CH=""; LC=""
             for t in $IDS; do
                 if lit $t; then l=1; else l=0; fi
@@ -1729,13 +1901,14 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                 eval ON_$t=$s
                 CH="$CH $t"
             done
-            if [ -n "$LC" ] && [ $FOLD = 1 ]; then
-                n=$F
-                if [ $L_tsp1 = 1 ]; then n=0; elif [ $L_tsp2 = 1 ]; then n=1; fi
+            if [ $FOLD = 1 ] && { [ -n "$LC" ] || [ "$LV" != "$OLV" ]; }; then
+                OLV=$LV
+                n=$F; by="lit panel"
+                if [ $L_tsp1 = 1 ]; then n=0; elif [ $L_tsp2 = 1 ]; then n=1; else case "$LV" in 0|1) n=$LV; by="lid switch, both panels off" ;; esac; fi
                 if [ "$n" != "$F" ]; then
                     F=$n
                     for t in tsp1 tsp2; do echo set_fold_state,$F > /sys/class/sec/$t/cmd 2>/dev/null; done
-                    log "folded=$F: set_fold_state,$F"
+                    log "folded=$F: set_fold_state,$F ($by)"
                     # AOD moved to the other panel while asleep: arm the one now in use.
                     for t in tsp1 tsp2; do eval s=\$ON_$t; [ $s = 0 ] && case " $CH " in *" $t "*) ;; *) CH="$CH $t" ;; esac; done
                 fi
@@ -1743,14 +1916,37 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             for t in $CH; do
                 eval s=\$ON_$t l=\$L_$t
                 if [ $s = 1 ]; then
+                    eval PA_$t=0
                     wake_tsp $t "panel on"
                 else
                     if [ $l = 1 ]; then w="AOD (guest asleep, panel lit)"; else w="panel off"; fi
                     a=1
                     [ $FOLD = 1 ] && { [ $t = tsp1 ] && [ "$F" != 0 ] && a=0; [ $t = tsp2 ] && [ "$F" != 1 ] && a=0; }
-                    [ $a = 1 ] && arm $t "$w"
+                    if [ $LIDF = 1 ]; then
+                        # Armed eight passes (about 1 s) on, below: while a fold moves the picture to the
+                        # other panel both are off for a moment, and the lid already
+                        # names the one about to light. Three passes when the guest
+                        # itself says it sleeps: no fold in progress to wait out.
+                        if [ $a = 1 ]; then eval PA_$t=8; [ $D = 1 ] && eval PA_$t=3; else eval PA_$t=0; fi
+                    elif [ $a = 1 ]; then
+                        arm $t "$w"
+                    fi
                 fi
             done
+            if [ $LIDF = 1 ]; then
+                for t in tsp1 tsp2; do
+                    eval p=\$PA_$t s=\$ON_$t
+                    [ "${p:-0}" -gt 0 ] || continue
+                    if [ $s = 1 ]; then eval PA_$t=0; continue; fi
+                    [ $D = 1 ] && [ $p -gt 3 ] && p=3
+                    p=$((p - 1)); eval PA_$t=$p
+                    [ $p = 0 ] || continue
+                    a=1; [ $t = tsp1 ] && [ "$F" != 0 ] && a=0; [ $t = tsp2 ] && [ "$F" != 1 ] && a=0
+                    eval l=\$L_$t
+                    if [ $l = 1 ]; then w="AOD (guest asleep, panel lit)"; else w="panel off"; fi
+                    [ $a = 1 ] && arm_fresh $t "$w"
+                done
+            fi
             # vivo AOD brightness (F8U run 13, OriginOS: AOD "very weak, unseeable"). The
             # vivo AOD asks for doze brightness 0.0 (DreamManager override) and maps it
             # through vivo panel tables that a Galaxy panel does not have, so the lit AOD
@@ -1834,12 +2030,15 @@ fi
 # change (ro.dalvik.vm.enable_uffd_gc, guest_props.sh) drops them first: they
 # are built for one. Not with -Xforcejitzygote. Bounded: the boot animation runs
 # meanwhile, and the zygote starts after 300 s whatever odrefresh did.
-# ONEOS_GUEST_ODREFRESH=1 on (the default for vivo OriginOS until it is proven
-# there), 0 off.
+# ONEOS_GUEST_ODREFRESH=1 on, 0 off. On for vivo OriginOS since 0.4.73 and for
+# every guest since 0.4.76: OneOS's framework and services jars replace the
+# image's in every guest, so none could use its image's boot image (ColorOS 17
+# on the owner's Fold, 11-10: "boot-framework.oat ... dex file checksum ...
+# does not match", "Attempting to fall back to imageless running").
 ODR=/apex/com.android.art/bin/odrefresh
 case "${ONEOS_GUEST_ODREFRESH:-}" in
     0|1) ;;
-    *) if [ -e /system/framework/vivo-services.jar ]; then ONEOS_GUEST_ODREFRESH=1; else ONEOS_GUEST_ODREFRESH=0; fi ;;
+    *) ONEOS_GUEST_ODREFRESH=1 ;;
 esac
 if [ "$ONEOS_GUEST_ODREFRESH" = 1 ] && [ "$ONEOS_GUEST_JIT_ZYGOTE" != 1 ] && [ -x "$ODR" ]; then
     ADC=/data/misc/apexdata/com.android.art
@@ -1868,6 +2067,12 @@ if [ "$ONEOS_GUEST_ODREFRESH" = 1 ] && [ "$ONEOS_GUEST_JIT_ZYGOTE" != 1 ] && [ -
         rm -rf "$ADC/dalvik-cache" "$ADC/cache-info.xml" "$ADC/oneos_gc"
         echo "[Pivoted Root] odrefresh: artifacts made for another collector removed ($GCNOW now; their concurrent-copying ${CCHAVE:-unknown}, the zygote's $CCWANT)"
     fi
+    # The jars the artifacts are made from (the boot class path's and the system
+    # server's: size, time and path). Only for the case below where odrefresh
+    # itself cannot say whether its artifacts are current.
+    JARS=$(for j in $(printf '%s:%s:%s' "${BOOTCLASSPATH:-}" "${SYSTEMSERVERCLASSPATH:-}" "${STANDALONE_SYSTEMSERVER_JARS:-}" | tr ':' ' '); do
+               ls -lnL "$j" 2>/dev/null | awk '{ print $5, $6, $7, $NF }'
+           done | cksum 2>/dev/null | awk '{ print $1 "-" $2 }')
     t0=$(date +%s)
     timeout 300 "$ODR" --compile > /data/odrefresh.log 2>&1; rc=$?
     # odrefresh takes the image's own primary boot image as usable and compiles only
@@ -1877,7 +2082,26 @@ if [ "$ONEOS_GUEST_ODREFRESH" = 1 ] && [ "$ONEOS_GUEST_JIT_ZYGOTE" != 1 ] && [ -
     if [ ! -f "$ADC/dalvik-cache/arm64/boot.art" ]; then
         echo "--- no boot image of the guest's own after --compile (exit $rc): --force-compile" >> /data/odrefresh.log
         timeout 300 "$ODR" --force-compile >> /data/odrefresh.log 2>&1; rc=$?
+    else
+        # odrefresh died instead of answering (ColorOS 17 trial, 11-10: exit 134,
+        # "assertion hasLastUpdateMillis() failed" on a module list entry;
+        # guest_prepare.sh gives every entry one now): its artifacts were not
+        # checked. Kept while the jars are the ones they were made from (ART
+        # checks the checksums itself and would only fall back to compiling in
+        # memory); other jars, after an update of the stage: all of it, once.
+        case "$rc" in
+            0|79|80|81|82|124) ;;
+            *) if [ -n "$JARS" ] && [ "$(cat "$ADC/oneos_jars" 2>/dev/null)" != "$JARS" ]; then
+                   echo "--- --compile ended with exit $rc and the jars are not the ones the artifacts were made from: --force-compile" >> /data/odrefresh.log
+                   timeout 300 "$ODR" --force-compile >> /data/odrefresh.log 2>&1; rc=$?
+               else
+                   echo "--- --compile ended with exit $rc; the jars are the ones the artifacts were made from: kept" >> /data/odrefresh.log
+               fi ;;
+        esac
     fi
+    case "$rc" in
+        0|80) [ -n "$JARS" ] && [ -f "$ADC/dalvik-cache/arm64/boot.art" ] && echo "$JARS" > "$ADC/oneos_jars" ;;
+    esac
     CCHAVE=$(boot_cc)
     # Once more only while the whole step stays near the 300 s the zygote waits for.
     if [ -n "$CCHAVE" ] && [ "$CCHAVE" != "$CCWANT" ] && [ $(( $(date +%s) - t0 )) -lt 120 ]; then
@@ -1900,6 +2124,367 @@ if [ "$ONEOS_GUEST_ODREFRESH" = 1 ] && [ "$ONEOS_GUEST_JIT_ZYGOTE" != 1 ] && [ -
     echo "[Pivoted Root] odrefresh: $w in $(( $(date +%s) - t0 )) s ($(ls "$ADC/dalvik-cache/arm64" 2>/dev/null | wc -l) files in $ADC/dalvik-cache/arm64, concurrent-copying ${CCHAVE:-none}, the zygote's $CCWANT; /data/odrefresh.log)"
 else
     echo "[Pivoted Root] odrefresh: not run (ONEOS_GUEST_ODREFRESH=$ONEOS_GUEST_ODREFRESH, JIT zygote $ONEOS_GUEST_JIT_ZYGOTE)"
+fi
+# Bring apps (0.4.75): the owner chose user apps on One UI and `bring-collect`
+# copied each one's APKs and its One UI data into /data/oneos_bring. Only the
+# restore script is written here; the UI Activator (oneos_switch.sh) runs it
+# inside the guest's mount namespace once the guest's own package service
+# answers. (Builds 101 and 102 started it from here: 101 trusted
+# sys.boot_completed, which One UI had already set, and 102 waited for a
+# system_server in this script's mount namespace, which never comes because
+# zygote unshares its own. Neither ever installed anything.)
+if [ -d /data/oneos_bring ] && [ ! -L /data/oneos_bring ]; then
+    cat > /data/oneos_bring_restore.sh <<'BRINGEOF'
+#!/system/bin/sh
+# OneOS Bring apps, the guest's half (0.4.75 build 103). guest_start.sh writes
+# this file at every boot and the UI Activator (oneos_switch.sh) runs it inside
+# the guest's mount namespace once the guest's UI is up, so the package service
+# that answers is the guest's own. For every app folder `bring-collect` left in
+# /data/oneos_bring it installs the APKs and lays the copied One UI data over
+# the fresh install with the guest's uid and label, so the app starts signed in.
+#
+# One way: nothing is written back to One UI. Safe to interrupt (the return to
+# One UI kills it): the data is copied beside its place and swapped in, an app
+# is marked applied only when all of it is there, and an unmarked app is done
+# again at the next start. Everything it does and every answer of the package
+# manager is in /data/oneos_bring.log, which the OneOS app shows on One UI.
+BRING=/data/oneos_bring
+LOG=/data/oneos_bring.log
+GUEST_MARK=/data/oneos_genv.sh
+HOST_MARK=/data/local/tmp/oneos/.oneos_stage
+STOP=/data/oneos_rec_stop
+GBB=/data/oneos_bin/busybox
+NOTICE=1
+CE=/data/user/0
+DE=/data/user_de/0
+PATH=/system/bin:$PATH
+export PATH
+umask 077
+
+# Only ever in the guest: this replaces app data under /data/user/0, which on
+# One UI would be One UI's own. The guest has its environment file and never
+# sees the stage at its One UI path.
+[ -f "$GUEST_MARK" ] || exit 0
+[ ! -e "$HOST_MARK" ] || exit 0
+[ -d "$BRING" ] && [ ! -L "$BRING" ] || exit 0
+
+log() { echo "[$(date '+%m-%d %H:%M:%S')] $*" >> "$LOG"; }
+is_dec() {
+    case "$1" in ''|*[!0-9]*) return 1 ;; esac
+    [ ${#1} -le 18 ]
+}
+is_package() {
+    case "$1" in ''|.*|*.|*[!A-Za-z0-9._]*|*..*) return 1 ;; esac
+    case "$1" in *.*) return 0 ;; *) return 1 ;; esac
+}
+first_line() {
+    [ -f "$1" ] && [ ! -L "$1" ] || return 0
+    head -n 1 "$1" 2>/dev/null
+}
+# The copy's stamp (when bring-collect finished it). 0 for a copy made before
+# stamps (build 102); nothing while a copy is unfinished.
+stamp_of() {
+    s=$(first_line "$1/stamp")
+    if is_dec "$s"; then echo "$s"; return; fi
+    [ -e "$1/since" ] || [ -e "$1/stamp" ] || echo 0
+}
+stopping() { [ -e "$STOP" ]; }
+short() { echo "$1" | tr '\n' ' ' | sed 's/[^A-Za-z0-9 ._:,()=\/-]/ /g' | cut -c1-240; }
+notice() {
+    [ "$NOTICE" = 1 ] || return 0
+    timeout 10 cmd notification post -S bigtext -t "Apps from One UI" oneos_bring "$1" >/dev/null 2>&1
+}
+# The package manager, as root or (sys) as the system uid, which it never
+# takes for an install over adb.
+gpm() {
+    gw=$1; gt=$2; shift 2
+    if [ "$gw" = sys ]; then timeout "$gt" "$GBB" setuidgid 1000:1000 pm "$@"
+    else timeout "$gt" pm "$@"; fi
+}
+pm_up() { gpm root 10 path android >/dev/null 2>&1; }
+wait_pm() {
+    i=0
+    while ! pm_up; do
+        stopping && return 1
+        i=$((i + 1)); [ $i -lt 60 ] || return 1
+        sleep 3
+    done
+}
+empty() {
+    for x in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+        [ -e "$x" ] || [ -L "$x" ] || continue
+        rm -rf "$x"
+    done
+}
+
+# "Verify apps over USB" would send every app to a scan first (and can ask on
+# screen): off while this runs, and back to what it was afterwards (also when
+# the last run was cut short: its saved value is still in the file).
+VSAVE="$BRING/.verifier"
+verifier_off() {
+    if [ ! -f "$VSAVE" ]; then
+        v=$(timeout 10 settings get global verifier_verify_adb_installs 2>/dev/null) || return 0
+        echo "$v" > "$VSAVE"
+    fi
+    timeout 10 settings put global verifier_verify_adb_installs 0 >/dev/null 2>&1
+}
+verifier_back() {
+    [ -f "$VSAVE" ] || return 0
+    v=$(first_line "$VSAVE")
+    case "$v" in
+        0|1) timeout 10 settings put global verifier_verify_adb_installs "$v" >/dev/null 2>&1 || return 0 ;;
+        *) timeout 10 settings delete global verifier_verify_adb_installs >/dev/null 2>&1 || return 0 ;;
+    esac
+    rm -f "$VSAVE"
+}
+
+# One install attempt of $d/apk as <root|sys> with the given options. 0 when
+# the package manager said Success; else 1 and $why holds its own words.
+install_try() {
+    who=$1; shift
+    out=$(gpm "$who" 60 install-create "$@" 2>&1)
+    sid=$(echo "$out" | sed -n 's/.*\[\([0-9][0-9]*\)\].*/\1/p' | head -n 1)
+    if [ -z "$sid" ]; then why="no install session: $(short "$out")"; return 1; fi
+    for a in "$d/apk"/*.apk; do
+        [ -f "$a" ] && [ ! -L "$a" ] || continue
+        name=${a##*/}
+        size=$(stat -c %s "$a" 2>/dev/null)
+        w=""
+        # By path as root (the package service opens the file itself), else streamed to it.
+        if [ "$who" = root ]; then w=$(gpm root 900 install-write -S "$size" "$sid" "$name" "$a" 2>&1); fi
+        case "$w" in *Success*) how=path; continue ;; esac
+        w=$(gpm "$who" 900 install-write -S "$size" "$sid" "$name" - < "$a" 2>&1)
+        case "$w" in *Success*) how=stdin; continue ;; esac
+        w=$(cat "$a" | gpm "$who" 900 install-write -S "$size" "$sid" "$name" - 2>&1)
+        case "$w" in *Success*) how=pipe; continue ;; esac
+        gpm "$who" 20 install-abandon "$sid" >/dev/null 2>&1
+        why="the installer did not take $name: $(short "$w")"
+        return 1
+    done
+    out=$(gpm "$who" 300 install-commit "$sid" 2>&1)
+    case "$out" in *Success*) return 0 ;; esac
+    gpm "$who" 20 install-abandon "$sid" >/dev/null 2>&1
+    why=$(short "$out")
+    [ -n "$why" ] || why="the installer gave no answer in 5 minutes"
+    return 1
+}
+
+# What no second try changes (the guest has another build of the app, or an
+# APK this system cannot run): said once, tried again only with a new copy.
+final_reason() {
+    case "$1" in
+        *UPDATE_INCOMPATIBLE*|*INVALID_APK*|*NO_MATCHING_ABIS*|*OLDER_SDK*|*PARSE_FAILED*|*NO_CERTIFICATES*|*MISSING_SPLIT*) return 0 ;;
+    esac
+    return 1
+}
+
+# Installs $pkg from $d/apk. 0: installed, or the guest keeps its own newer
+# version ($kept=1); 1: not installed and $why says why.
+install_app() {
+    kept=0
+    n=0
+    for a in "$d/apk"/*.apk; do [ -f "$a" ] && [ ! -L "$a" ] && n=$((n + 1)); done
+    [ $n -gt 0 ] || { why="the copy has no APK"; return 1; }
+    vend=""
+    gpm root 20 path com.android.vending >/dev/null 2>&1 && vend="-i com.android.vending"
+    round=0
+    while :; do
+        for attempt in "root -r -g $vend --user 0" "root -r --user 0" "sys -r -g $vend --user 0" "sys -r --user 0"; do
+            stopping && { why="the system was closing"; return 1; }
+            case "$attempt" in sys*) [ -x "$GBB" ] || continue ;; esac
+            if install_try $attempt; then
+                log "$pkg: installed ($n APK, as ${attempt%% *}, by $how)"
+                return 0
+            fi
+            log "$pkg: install as ${attempt%% *} did not work: $why"
+            case "$why" in
+                *VERSION_DOWNGRADE*)
+                    if gpm root 20 path "$pkg" >/dev/null 2>&1; then kept=1; return 0; fi ;;
+            esac
+            final_reason "$why" && return 1
+            case "$why" in *INSUFFICIENT_STORAGE*) return 1 ;; esac
+        done
+        round=$((round + 1)); [ $round -lt 2 ] || return 1
+        sleep 10
+        wait_pm || { why="the package manager stopped answering"; return 1; }
+    done
+}
+
+# Lays the copy <src> over the app's data folder <dst>: copied beside its
+# place inside <dst> (same quota project, so the swap is a rename), given the
+# app's uid and the folder's own label, then swapped in. 0 done; 1 and $why.
+restore_dir() {
+    src=$1; dst=$2
+    [ -d "$src" ] && [ ! -L "$src" ] || return 0
+    if [ -L "$dst" ]; then why="$dst is a link"; return 1; fi
+    if [ ! -d "$dst" ]; then
+        mkdir -p "$dst" && chown "$uid:$uid" "$dst" && chmod 700 "$dst" || { why="could not make $dst"; return 1; }
+        other=$(stat -c %C "$CE/$pkg" 2>/dev/null)
+        case "$other" in u:object_r:*) chcon "$other" "$dst" 2>/dev/null ;; *) restorecon -D "$dst" 2>/dev/null ;; esac
+    fi
+    ctx=$(stat -c %C "$dst" 2>/dev/null)
+    tmp="$dst/.oneos_bring_tmp"
+    rm -rf "$tmp"
+    need=$(du -sk "$src" 2>/dev/null | cut -f1)
+    free=$(df -k "$dst" 2>/dev/null | awk 'NR == 2 { print $4 }')
+    if is_dec "$need" && is_dec "$free" && [ "$free" -lt $((need + 262144)) ]; then
+        why="not enough free space for its data ($((need / 1024)) MB)"; return 1
+    fi
+    mkdir "$tmp" || { why="could not write in $dst"; return 1; }
+    cp -a "$src/." "$tmp/" 2>>"$LOG" || log "$pkg: some of its ${src##*/} data did not copy"
+    chown -hR "$uid:$uid" "$tmp" 2>/dev/null
+    case "$ctx" in
+        u:object_r:*) chcon -hR "$ctx" "$tmp" 2>>"$LOG" || log "$pkg: could not label its ${src##*/} data ($ctx)" ;;
+        *) log "$pkg: no label read from $dst, restorecon used"; restorecon -RD "$tmp" 2>>"$LOG" ;;
+    esac
+    chmod 700 "$tmp"
+    stopping && { rm -rf "$tmp"; why="the system was closing"; return 1; }
+    timeout 20 am force-stop "$pkg" >/dev/null 2>&1
+    # What the fresh install (or the last bring) left goes; the cache folders
+    # stay, emptied. Then the copy moves into place.
+    for e in "$dst"/* "$dst"/.[!.]* "$dst"/..?*; do
+        [ -e "$e" ] || [ -L "$e" ] || continue
+        case "${e##*/}" in
+            .oneos_bring_tmp) continue ;;
+            cache|code_cache) if [ -d "$e" ] && [ ! -L "$e" ]; then empty "$e"; continue; fi ;;
+        esac
+        rm -rf "$e"
+    done
+    for e in "$tmp"/* "$tmp"/.[!.]* "$tmp"/..?*; do
+        [ -e "$e" ] || [ -L "$e" ] || continue
+        to="$dst/${e##*/}"
+        if [ -e "$to" ] || [ -L "$to" ]; then rm -rf "$to"; fi
+        mv "$e" "$to" || { why="could not move ${e##*/} into place"; return 1; }
+    done
+    rmdir "$tmp" 2>/dev/null || rm -rf "$tmp"
+    return 0
+}
+
+restore_one() {
+    pkg=$1; stamp=$2
+    d="$BRING/$pkg"
+    why=""
+    log "$pkg: starting (copy $stamp)"
+    if ! install_app; then
+        echo "$stamp $why" > "$d/failed"
+        log "$pkg: NOT brought: $why"
+        return 1
+    fi
+    uid=$(gpm root 20 list packages -U "$pkg" 2>/dev/null | sed -n "s/^package:$pkg uid:\([0-9][0-9]*\).*/\1/p" | head -n 1)
+    is_dec "$uid" || uid=$(stat -c %u "$CE/$pkg" 2>/dev/null)
+    if ! is_dec "$uid" || [ "$uid" -lt 10000 ]; then
+        why="installed, but the system gave no app uid for it"
+        echo "$stamp $why" > "$d/failed"
+        log "$pkg: NOT brought: $why"
+        return 1
+    fi
+    if ! { restore_dir "$d/ce" "$CE/$pkg" && restore_dir "$d/de" "$DE/$pkg"; }; then
+        echo "$stamp $why" > "$d/failed"
+        log "$pkg: NOT brought: $why"
+        return 1
+    fi
+    echo "$stamp" > "$d/applied.new" && mv -f "$d/applied.new" "$d/applied" || { log "$pkg: could not mark it applied"; return 1; }
+    rm -f "$d/failed"
+    rm -rf "$d/apk" "$d/ce" "$d/de"
+    if [ $kept = 1 ]; then log "$pkg: ready (data restored; the newer version already here was kept; uid $uid, label $ctx)"
+    else log "$pkg: ready (installed and data restored; uid $uid, label $ctx)"; fi
+    return 0
+}
+
+# One run at a time (a soft reboot of the guest starts the Activator's pass again).
+# "early" (build 106): the Activator also starts this as soon as the guest's
+# system_server is there, so the apps are in the launcher when it comes up and
+# not 10-15 s later (owner, 11-10). The early run waits below; the Activator's
+# later start finds it alive and only leaves it the go file.
+MODE=${1:-}
+GO="$BRING/.go"
+if [ -f "$BRING/.pid" ]; then
+    old=$(first_line "$BRING/.pid")
+    if is_dec "$old" && [ "$old" != "$$" ] && grep -q oneos_bring_restore "/proc/$old/cmdline" 2>/dev/null; then
+        [ "$MODE" = early ] || : > "$GO"
+        exit 0
+    fi
+fi
+echo $$ > "$BRING/.pid"
+[ "$MODE" = early ] && rm -f "$GO"
+
+# What waits: a finished copy that is not applied yet.
+pending=""; count=0
+for d in "$BRING"/*; do
+    [ -d "$d" ] && [ ! -L "$d" ] || continue
+    pkg=${d##*/}
+    is_package "$pkg" || continue
+    stamp=$(stamp_of "$d")
+    [ -n "$stamp" ] || continue
+    if [ "$(first_line "$d/applied")" = "$stamp" ]; then
+        # Applied; what a cut-short clean-up left of the copy goes now.
+        rm -rf "$d/apk" "$d/ce" "$d/de"
+        continue
+    fi
+    [ -d "$d/apk" ] || continue
+    f=$(first_line "$d/failed")
+    case "$f" in "$stamp "*) final_reason "$f" && continue ;; esac
+    pending="$pending $pkg"; count=$((count + 1))
+done
+if [ $count = 0 ]; then
+    [ -f "$VSAVE" ] && pm_up && verifier_back
+    rm -f "$BRING/.pid"
+    exit 0
+fi
+
+if [ -f "$LOG" ] && [ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
+    tail -n 200 "$LOG" > "$LOG.new" && mv -f "$LOG.new" "$LOG"
+fi
+log "start: $count app(s) to bring:$pending${MODE:+ ($MODE)}"
+if [ "$MODE" = early ]; then
+    # Until the guest's user 0 is unlocked (its app data is there) and its
+    # package service answers, or the Activator's later start says go (what
+    # build 105 waited for). Neither in 10 minutes: left to the later start.
+    i=0; went=""
+    while [ $i -lt 600 ]; do
+        if stopping; then rm -f "$BRING/.pid"; exit 0; fi
+        if [ -e "$GO" ]; then went="the Activator's start"; break; fi
+        case "$(timeout 10 am get-started-user-state 0 2>/dev/null)" in
+            *RUNNING_UNLOCKED*) if pm_up; then went="user 0 unlocked"; break; fi ;;
+        esac
+        i=$((i + 1)); sleep 1
+    done
+    rm -f "$GO"
+    if [ -z "$went" ]; then
+        log "early: the guest's user was not unlocked in 10 minutes; they come with the Activator's start"
+        rm -f "$BRING/.pid"
+        exit 0
+    fi
+    log "early: $went after $i s"
+fi
+if ! wait_pm; then
+    log "the package manager did not answer; they come at the next start"
+    rm -f "$BRING/.pid"
+    exit 0
+fi
+notice "Bringing $count app(s) over from One UI. Keep this system open until they are ready."
+verifier_off
+ok=0; bad=0
+for pkg in $pending; do
+    if stopping; then log "the system is closing; the rest comes at the next start"; break; fi
+    wait_pm || { log "the package manager stopped answering; the rest comes at the next start"; break; }
+    stamp=$(stamp_of "$BRING/$pkg")
+    [ -n "$stamp" ] || continue
+    if restore_one "$pkg" "$stamp"; then ok=$((ok + 1)); else bad=$((bad + 1)); fi
+done
+verifier_back
+log "done: $ok ready, $bad not brought"
+if [ $bad = 0 ] && [ $ok -gt 0 ]; then notice "$ok app(s) from One UI are ready, with their data."
+elif [ $ok -gt 0 ]; then notice "$ok app(s) from One UI are ready; $bad could not be brought (OneOS on One UI says why)."
+elif [ $bad -gt 0 ]; then notice "$bad app(s) could not be brought from One UI (OneOS on One UI says why)."
+fi
+rm -f "$BRING/.pid"
+exit 0
+BRINGEOF
+    chmod 700 /data/oneos_bring_restore.sh
+    echo "[Pivoted Root] Bring apps: restore script written; the UI Activator runs it once the guest is up (/data/oneos_bring.log)"
+else
+    rm -f /data/oneos_bring_restore.sh
 fi
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then

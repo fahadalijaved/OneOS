@@ -438,7 +438,8 @@ object Images {
     /**
      * OriginOS 7 (0.4.73, experimental): vivo's Android 17 system from the CN PD2609MA build
      * (CP2A.260605.016, 260919185055, security patch 2026-09-01; ro.vivo.os.build.display.id
-     * "OriginOS 7"), for the Snapdragon S25/S26 series and the Z Fold8 and Fold8 Ultra. Play
+     * "OriginOS 7"), for the Snapdragon S25/S26 series and the Z Fold7, Fold8 and Fold8 Ultra;
+     * 0.4.82 also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+ (untested there, Profiles.kt). Play
      * services from the image's own gmssystem payload, the Play Store from One UI's copy (a CN
      * build has only the 2022 updater stub). Its own family: vivo's data is not ColorOS's. The
      * core binaries hold no SVE; libjxl, MediaTek's TFLite and some app libraries may use it
@@ -450,7 +451,7 @@ object Images {
         shortName = "OriginOS 7",
         name = "OriginOS 7",
         variant = null,
-        blurb = "vivo's Android 17 system, for the S25 and S26 series and the Z Fold8 phones. Experimental. With Google apps.",
+        blurb = "vivo's Android 17 system, for the S23 to S26 series and the Z Fold7 and Fold8 phones. Experimental. With Google apps.",
         downloadUrl = SHARED_FOLDER_URL,
         sdk = 37,
         buildId = "CP2A.260605.016",

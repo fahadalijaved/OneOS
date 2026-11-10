@@ -528,6 +528,76 @@ From the reports inbox (probes of 11-08 and other systems' sessions, 0.4.62-0.4.
   (no hwservicemanager stand-in needed), Samsung's Bluetooth audio factory only
   (the bridge serves the AIDL one; guest_props turns LE Audio off).
 
+#### Host check: the Snapdragon S24 and S23 phones (0.4.82, no session yet)
+
+Offered from 0.4.82 at the owner's request (2026-11-10), untested: the Galaxy S24 Ultra
+and S24 (SM8650) and the S23, S23+ and S23 Ultra (SM8550). Not the FE phones; the Exynos
+S24 and S24+ followed in 0.4.83 (the next section). The profiles' choices and the root script's
+pair table (oneos_root.sh) name them; nothing in the set or the session scripts
+changed for them: no OriginOS step depends on the vendor's generation, and the S25
+series' download already carries the set.
+
+| | S24 Ultra, S24 (s-ultra-8650, s-8650) | S23, S23+, S23 Ultra (s-8550, s-plus-8550, s-ultra-8550) |
+|---|---|---|
+| SoC, CPU | SM8650, no SVE/SME | SM8550, no SVE/SME |
+| Kernel, vendor API | 6.1, 34 (Android 14) | 5.15, 33 (Android 13) |
+| Display composer | composer3 (AIDL) | HIDL only (composer@2.4, IQtiComposer@3.1) |
+| Audio HAL | HIDL | HIDL (audio@7.1::IDevicesFactory, S23 Ultra report 13ca27fb) |
+| Other systems there (reports of 0.4.72-0.4.74) | S24 Ultra: Pixel 9 Pro XL started and returned (5e326061); its ColorOS 17 sessions ended in a stop after 50 s or a restart (7bb37deb, fd7d9016, 2d35388e, 753bfda9) | ColorOS 17, Pixel 9 Pro XL, HyperOS: started and returned |
+
+- **What the image holds for an older vendor** (a scan of the .img.gz stream for file
+  names and interface names, 2026-11-10; nothing was run): `libaudiohal@6.0.so`,
+  `@7.0.so` and `@7.1.so` next to `libaudiohal@aidl.so`, with
+  `android.hardware.audio@7.1.so`; `android.hardware.graphics.composer@2.1.so` to
+  `@2.4.so`; `android.hardware.radio@1.0.so` to `@1.6.so`. The set's
+  `surfaceflinger_patched` links composer@2.1 to @2.4 and has the HidlComposer client.
+  The CN build has no SVE in its core (the S25 Ultra check above).
+- **The session's own steps for these phones are the ones the other systems use:**
+  the hwservicemanager marker for HIDL-only HALs, the per-SDK installd tables, the
+  system_ext bind farm, the property store (every system from 0.4.81), the
+  black-screen auto-return (the S23s keep their "will most likely not start" note).
+- **Not known until a session report:** vivo's SurfaceFlinger on the HIDL composer
+  (its vivo composer3 extension and MediaTek's `libcomposer_ext` have only met an
+  AIDL composer); vivo's audio policy with Samsung's vendor policy file (which file
+  it loads, whether the Bluetooth modules are in it: the policy overlay in
+  guest_prepare.sh is HyperOS only); the radio and camera on the older HAL versions;
+  how long the first start's odrefresh takes on these chips.
+- **First report from one of them:** `sessionApp` 0.4.82 or later, then the outcome,
+  `composer_before_sf.log`, the first SurfaceFlinger lines of the boot log, the
+  audioserver's "DevicesFactoryHal" and "APM" lines, and the odrefresh line in
+  takeover_inner.log.
+
+#### Host check: the Exynos S24 and S24+ (0.4.83, no session yet)
+
+Offered from 0.4.83 at the owner's request (2026-11-10: "add the same supported roms as
+s24 ultra to plus and base too"), untested: the Galaxy S24 (Exynos) (s-9945, SM-S921,
+e1s) and the new Galaxy S24+ (Exynos) (s-plus-9945, SM-S926, e2s). They are the first
+Exynos phones with OriginOS (and get Nothing OS in the same build); the S24 FE, Z Flip7
+FE, S25 FE and the Exynos S26s do not offer it. Nothing in the set or the session
+scripts changed for them.
+
+| | S24 (Exynos), S24+ (Exynos) |
+|---|---|
+| SoC, CPU | s5e9945 (Exynos 2400), SVE and SVE2, no SME |
+| Kernel, vendor API | 6.1, 34 (Android 14) |
+| Display composer | composer3 (AIDL, `vendor.hwcomposer-3`) |
+| Audio HAL | AIDL (`vendor.audio-hal`, `vendor.secaudiohal-aidl`; the S24+ probe of 2026-11-10) |
+| Panel (S24+ probe) | 1080 x 2340 at density 450, brightnessMaximum 5.0, backlight `/sys/class/backlight/panel` |
+| Other systems there (reports of 0.4.72-0.4.74) | S24 (Exynos): ColorOS 17 started and returned on an SM-S921N; on SM-S921B several sessions ended in a restart. No session from an S24+ yet |
+
+- **No session step is there for OriginOS on Exynos:** the chip-specific steps in
+  guest_props.sh are OPPO's and OxygenOS's (the RenderEngine retry wait and Vulkan
+  choice, the Qualcomm perf library's hardware name); the image is MediaTek-built and
+  has so far only met Samsung's Snapdragon vendor. What these phones have shown with
+  other systems: ColorOS 17 and the Pixel 9 Pro XL image reach the home screen on the
+  Exynos 2400's vendor (S24 (Exynos), S24 FE).
+- **Not known until a session report:** vivo's SurfaceFlinger and its composer3
+  extension on Exynos's composer; vivo's graphics stack on the Xclipse driver (every
+  OriginOS session so far ran on Adreno); vivo's audio policy with Exynos's vendor
+  policy file; the radio (Samsung's Exynos RIL) and the camera.
+- **First report from one of them:** as for the Snapdragon S24s above, plus the
+  `guest_props:` lines of takeover_app.log.
+
 #### Staging recipe (for the run after r12; every switch needs a fresh, direct yes)
 
 All commands from the server, in the branch's worktree (its session scripts are the

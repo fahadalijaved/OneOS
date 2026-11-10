@@ -123,7 +123,9 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         subscriptions += StageCheck.observe { if (!it.busy) Readiness.tick(this); render() }
         subscriptions += PrepareJob.observe { render() }
         subscriptions += LaunchJob.observe { render() }
-        subscriptions += com.fahadali.oneos.session.LogJob.observe { render() }
+        // Only what this page shows of the log save (11-10): it rebuilt every row for each of the 135
+        // "Collecting N of M" lines, and "Skip saving logs" rebuilt under the finger lost its tap.
+        subscriptions += com.fahadali.oneos.session.LogJob.observeBy({ Triple(it.busy, it.recovering, it.stopping) }) { render() }
         subscriptions += com.fahadali.oneos.session.OldStagesJob.observe { if (!it.busy) Readiness.tick(this); render() }
     }
     override fun onResume() {
@@ -168,11 +170,19 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         // 0.4.38: say what is running, so a waiting button is never a silent one (top: the fixed action covers the bottom).
         if (!preview && !StageCheck.state.busy && (Readiness.anyBusy() || com.fahadali.oneos.session.RemoveJob.state.busy)) {
             val logs = com.fahadali.oneos.session.LogJob.state
-            val why = if (logs.busy) R.string.environment_busy_logs else R.string.environment_busy_other
+            val why = when {
+                logs.busy && logs.stopping -> R.string.environment_busy_logs_stopping
+                logs.busy -> R.string.environment_busy_logs
+                else -> R.string.environment_busy_other
+            }
             val busyCard = Cards.section(column, null, rows = true)
-            CardRows.text(busyCard, getString(why), R.style.OneOS_Text_Caption)
+            // A card of rows has no padding of its own: without the row's the round corners clipped the text (11-10).
+            CardRows.text(busyCard, getString(why), R.style.OneOS_Text_Caption, inList = true).apply {
+                setPaddingRelative(paddingStart, dp(12), paddingEnd, dp(12))
+            }
             // Skip the log save (owner, 11-08): Boot and Update no longer wait minutes for it.
-            if (logs.busy && !logs.recovering) Cards.row(busyCard, R.drawable.ic_oneos_row_last_time, getString(R.string.logs_skip), getString(R.string.logs_skip_summary)) {
+            // Once tapped the row goes and the text above says "Stopping" (11-10: nothing changed until the save had ended).
+            if (logs.busy && !logs.recovering && !logs.stopping) Cards.row(busyCard, R.drawable.ic_oneos_row_last_time, getString(R.string.logs_skip), getString(R.string.logs_skip_summary)) {
                 com.fahadali.oneos.session.LogJob.skip()
             }
         }
@@ -315,6 +325,11 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         }
         PrebootCards.row(root, "Manage guest modules", chevron = true, enabled = !rootBusy) {
             startActivity(Intent(this, GuestRuntimeActivity::class.java).putExtra("image", image.id))
+        }
+        // Bring apps lives on each system's page, like Root (owner, 11-10); its screen says so when another system is set up now.
+        PrebootCards.row(PrebootCards.section(column, getString(R.string.environment_apps)), getString(R.string.bring_title),
+            getString(R.string.environment_bring_summary), chevron = true, enabled = !preview) {
+            startActivity(BringAppsActivity.intent(this, image))
         }
         PrebootCards.row(PrebootCards.section(column), getString(R.string.environment_report), chevron = true) {
             if (preview) AlertDialog.Builder(this).setTitle(R.string.environment_report).setMessage(R.string.environment_preview).setPositiveButton(android.R.string.ok, null).show()

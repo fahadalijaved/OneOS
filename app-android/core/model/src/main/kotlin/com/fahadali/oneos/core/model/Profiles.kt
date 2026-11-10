@@ -137,6 +137,7 @@ object Profiles {
     const val ID_S25_FE = "s25-fe"
     const val ID_S_8450 = "s-8450"
     const val ID_M55S = "m55s"
+    const val ID_S_PLUS_9945 = "s-plus-9945"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -205,13 +206,29 @@ object Profiles {
      * 0.4.36 the S25 Ultra, S25, S25+, S24 Ultra, Z Fold7 and Z Fold6 (it needs
      * no SVE after all, Images.NOTHING_METROID). Only phones whose panels share
      * the Fold's brightness scale (brightnessMaximum about 5): its brightness
-     * range overlay is the Fold's.
+     * range overlay is the Fold's. 0.4.83, at the owner's request (2026-11-10,
+     * "the same supported roms as s24 ultra to plus and base too"): the Exynos
+     * S24 and S24+ (brightnessMaximum 5.0 in their One UI 9 probes), like the
+     * Exynos S26s before them.
      */
     private val NOTHING_CHOICE = ImageChoice(Images.ID_NOTHING_METROID, PackageSets.ID_NOTHING_F8U, tested = false)
     /**
      * OriginOS 7 (0.4.73, experimental): the Snapdragon S25 and S26 series and the Z Fold7, Fold8 and Fold8 Ultra
-     * (each profile names it itself: the shared choice lists also serve Exynos phones and the S24). Tested on the
-     * Z Fold8 Ultra only (fold mode 1, runs 13-24); the bar phones take vivo's phone layout, untested.
+     * (each profile names it itself: the shared choice lists also serve Exynos phones). Tested on the
+     * Z Fold8 Ultra only (fold mode 1, runs 13-24); the bar phones take vivo's phone layout (session reports of
+     * 0.4.73 and 0.4.74 from the S25, S25+, S26 Ultra and Z Fold7: started and returned).
+     * 0.4.82, at the owner's request (2026-11-10): also the Snapdragon S24 (S24, S24 Ultra) and S23 (S23, S23+,
+     * S23 Ultra) phones, untested: no OriginOS session on vendor API 34 or 33 yet. The session scripts have no
+     * OriginOS step that depends on the vendor's generation; the S23s run ColorOS 17, the Pixel 9 Pro XL image and
+     * HyperOS, the S24 Ultra the Pixel 9 Pro XL image (reports of 0.4.72-0.4.74). Sound there goes through the HIDL
+     * audio HAL and the S23s' display through the HIDL composer, which no OriginOS session has used; the image has
+     * both clients (docs/originos.md, the host check).
+     * 0.4.83, at the owner's request (2026-11-10, "the same supported roms as s24 ultra to plus and base too"):
+     * the Exynos S24 and S24+ ([S_9945], [S_PLUS_9945]), untested and the first Exynos phones with it: no OriginOS
+     * session has met Samsung's Exynos vendor (the Xclipse GPU's drivers, Exynos's composer3 and AIDL audio HAL).
+     * The session scripts have no OriginOS step that depends on the chip; ColorOS 17 and the Pixel 9 Pro XL image
+     * reach the home screen on the Exynos 2400's vendor (reports of 0.4.72-0.4.74 from the S24 (Exynos) and
+     * S24 FE). On no other Exynos phone (docs/originos.md, the host check).
      */
     private val ORIGINOS_CHOICE = ImageChoice(Images.ID_ORIGINOS7, PackageSets.ID_ORIGINOS, tested = false)
     private val ORIGINOS_TESTED = ImageChoice(Images.ID_ORIGINOS7, PackageSets.ID_ORIGINOS, tested = true)
@@ -477,7 +494,7 @@ object Profiles {
         codename = "e3q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, NOTHING_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -497,7 +514,7 @@ object Profiles {
         codename = "dm1q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -508,7 +525,7 @@ object Profiles {
         codename = "dm2q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -752,7 +769,7 @@ object Profiles {
         codename = "dm3q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -779,7 +796,9 @@ object Profiles {
      * Exynos 2400, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and kernel 6.1,
      * SVE and SVE2 but no SME, installd 85 methods; an SM-S921B probe the same). The S23s' images
      * (both Find X9 Ultra builds, the Pixel 9 Pro XL, Infinity-X and HyperOS), untested, with
-     * [EXYNOS]: the first Exynos 2400.
+     * [EXYNOS]: the first Exynos 2400. 0.4.83, at the owner's request (2026-11-10): the Galaxy S24
+     * Ultra's systems, so Nothing OS and OriginOS 7 as well (both untested here; OriginOS has run on
+     * no Exynos phone, [ORIGINOS_CHOICE]). The S24 FE, Z Flip7 FE and S25 FE keep their four.
      */
     val S_9945 = PhoneProfile(
         id = ID_S_9945,
@@ -788,9 +807,20 @@ object Profiles {
         codename = "e1s",
         socModel = "s5e9945",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
     )
+
+    /**
+     * Galaxy S24+ with Exynos, from 0.4.83: a probe report of 2026-11-10 from the owner (SM-S926B, e2s,
+     * s5e9945 Exynos 2400 like the Galaxy S24 (Exynos), One UI 9.0, Android 17 build CP2A.260605.016,
+     * vendor API 34 and kernel 6.1, one 1080 x 2340 panel on port 195 at density 450, brightnessMaximum
+     * 5.0, sec_touchscreen, composer3 and the AIDL audio HAL, backlight /sys/class/backlight/panel,
+     * SVE and SVE2 but no SME, installd 85 methods with the table of switcher/patches/host_installd.txt,
+     * KernelSU). The three probes of 2026-11-08 from this model were still One UI 8.5. The S24
+     * (Exynos)'s systems, which from this build are the S24 Ultra's, untested, with its notes.
+     */
+    val S_PLUS_9945 = S_9945.copy(id = ID_S_PLUS_9945, label = "Galaxy S24+ (Exynos)", modelPrefix = "SM-S926", codename = "e2s")
 
     /**
      * Galaxy S25 Edge, from 0.4.48: a probe report of 2026-11-04 (SM-S937B, psq, SM8750 like the
@@ -824,7 +854,7 @@ object Profiles {
         codename = "e1q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -1199,7 +1229,7 @@ object Profiles {
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
-        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP,
+        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

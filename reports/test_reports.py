@@ -9,6 +9,7 @@ import urllib.error
 
 sys.path.insert(0, os.path.dirname(__file__))
 import compat  # noqa: E402
+import devices  # noqa: E402
 import pull  # noqa: E402
 
 
@@ -73,6 +74,36 @@ class PullTest(unittest.TestCase):
             self.assertIn("bad report id", pull.collect(svc, name, d, keep=False))
 
 
+class DevicesTest(unittest.TestCase):
+    @staticmethod
+    def phone(pid, label, model, chip):
+        return {"id": pid, "label": label, "model": model, "chip": chip,
+                "systems": [{"image": "oxygenos16-cph2745", "label": "OxygenOS 16", "tested": False}]}
+
+    def test_a_phone_sold_under_two_names_answers_to_either(self):
+        self.assertEqual(["e55", "f55"], devices.triggers("Galaxy F55/E55"))
+        self.assertEqual(["s24+", "s24 +", "s24plus", "s24 plus"], devices.triggers("Galaxy S24+"))
+
+    def test_series_replies_cover_the_s22_and_name_the_chip_of_a_one_chip_phone(self):
+        entries = devices.build({"phones": [
+            self.phone("s-8450", "Galaxy S22", "SM-S901", "SM8450"),
+            self.phone("s-plus-9945", "Galaxy S24+ (Exynos)", "SM-S926", "s5e9945"),
+            self.phone("s-ultra-8650", "Galaxy S24 Ultra", "SM-S928", "SM8650"),
+        ]}, {})
+        cmds = devices.filters_grouped(entries)
+        s22 = [c for c in cmds if "OneOS on Galaxy S22\n" in c]
+        self.assertEqual(1, len(s22))
+        self.assertTrue(s22[0].startswith("/filter (s22) "), s22[0][:40])
+        s24 = "\n".join(cmds)
+        self.assertIn("\nS24+ (SM-S926, Exynos): 🔲 OxygenOS 16", s24)
+        self.assertIn("\nS24 Ultra: 🔲 OxygenOS 16", s24)
+
+    def test_a_supported_phone_outside_every_series_stops_the_run(self):
+        entries = devices.build({"phones": [self.phone("x", "Galaxy Note30", "SM-N999", "SM8650")]}, {})
+        with self.assertRaises(AssertionError):
+            devices.filters_grouped(entries)
+
+
 class CompatTest(unittest.TestCase):
     def test_counts_by_version_phone_and_system(self):
         recs = [
@@ -95,6 +126,18 @@ class CompatTest(unittest.TestCase):
         self.assertNotIn("Galaxy Z Flip5", md)
         for private in ("calls drop", "@tester", "SM-S938B", "8aea312c", "<script>"):
             self.assertNotIn(private, md)
+
+    def test_an_old_session_sent_from_a_newer_app_does_not_reorder_the_releases(self):
+        recs = [
+            record(rid="h-0007", app={"version": "0.4.74-s25", "versionCode": 100}),
+            record(rid="i-0008", app={"version": "0.4.74-s25", "versionCode": 100},
+                   sessionApp={"version": "0.4.71-s25", "versionCode": 97}),
+            record(rid="j-0009", app={"version": "0.4.100", "versionCode": 130}),
+            record(rid="k-0010", app={"version": "0.4.9", "versionCode": 20}),
+        ]
+        md = compat.render(recs, today="2026-11-10")
+        order = [l[len("## OneOS "):] for l in md.splitlines() if l.startswith("## OneOS ")]
+        self.assertEqual(["0.4.100", "0.4.74", "0.4.71", "0.4.9"], order)
 
     def test_no_reports(self):
         self.assertIn("No reports yet.", compat.render([], today="2026-10-30"))

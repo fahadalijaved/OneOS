@@ -510,6 +510,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         StageCheck.publish(check.copy(status = after, oldSwitcher = RootProbe(app).oldSwitcherInstalled(), at = SystemClock.elapsedRealtime()))
         val problems = after.verify(profile, image, set)
         if (problems.isNotEmpty()) throw Stop("The prepared stage does not check out: ${problems.first()}")
+        // Bring apps (0.4.75): a kept stage kept its brought apps; its marker's date is new, so the list follows it.
+        if (mode == RootScript.BeginMode.KEEP) BringAppsJob.carry(app, st.marker?.takeIf { st.ours }, after.marker)
         // Downloads no list of this app names any more (a set before an update) go.
         runCatching { SetDownloader.prune(app, AppAssets.allSetHashes(app)) }
         update(

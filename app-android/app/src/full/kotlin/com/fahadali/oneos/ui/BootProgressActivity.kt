@@ -74,6 +74,11 @@ class BootProgressActivity : EdgeToEdgeActivity() {
                 setText(if (cancelled) R.string.environment_boot_cancelling else android.R.string.cancel)
             }
             findViewById<TextView>(R.id.boot_status).text = state.detail ?: getString(R.string.splash_shutdown)
+            // Build 108: the brought apps have a line of their own, under whatever the boot is doing.
+            findViewById<TextView>(R.id.boot_apps).apply {
+                text = state.apps
+                visibility = if (state.apps.isNullOrEmpty()) View.GONE else View.VISIBLE
+            }
             if (state.phase == LaunchJob.Phase.IDLE) finish()
             if (state.phase == LaunchJob.Phase.FAILED && !shownFailure) {
                 shownFailure = true

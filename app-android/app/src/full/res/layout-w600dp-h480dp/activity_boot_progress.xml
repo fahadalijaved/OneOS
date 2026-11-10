@@ -8,6 +8,8 @@
     <Space android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
     <androidx.appcompat.widget.SeslProgressBar android:id="@+id/boot_spinner" android:layout_width="64dp" android:layout_height="64dp" android:indeterminate="true" />
     <androidx.appcompat.widget.AppCompatTextView android:id="@+id/boot_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:textSize="20sp" android:textStyle="bold" android:layout_marginTop="32dp" android:text="@string/splash_shutdown" />
+    <!-- 0.4.79: the brought apps (LaunchJob.State.apps): how many come along, how many are there already. -->
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/boot_apps" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginTop="10dp" android:layout_marginStart="24dp" android:layout_marginEnd="24dp" android:textAppearance="@style/OneOS.Text.Body" android:visibility="gone" />
     <!-- 0.4.43 (UX audit): how to come back, before One UI closes. -->
     <androidx.appcompat.widget.AppCompatTextView android:id="@+id/boot_back" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginTop="12dp" android:layout_marginStart="24dp" android:layout_marginEnd="24dp" android:textAppearance="@style/OneOS.Text.Caption" />
     <Space android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1.6" />

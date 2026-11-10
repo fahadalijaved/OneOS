@@ -207,6 +207,17 @@ class PrepareFragment : CardsFragment() {
         val image = report?.image
         val set = report?.set
         val canRun = !job.busy && !check.busy && r != null && !stale && !blocked && mode != null
+        // The system set up now when setup would write another one (the remembered download is a different
+        // system): said above the button and in the confirm, never only in the small print (11-10).
+        val replaced = st?.takeIf { it.ours }?.marker?.imageId?.let { Images.byId(it) }
+            ?.takeIf { image != null && it.id != image.id && source != SessionPrefs.Source.ON_PHONE }
+        if (replaced != null && image != null && !job.busy) {
+            CardRows.status(
+                run, Level.WARN,
+                getString(R.string.prepare_other_system_title, image.name, replaced.name),
+                getString(R.string.prepare_other_system_summary, image.name, replaced.name),
+            )
+        }
         if (job.busy && !team) {
             // The progress is on Setting up (Stop is there too).
             CardRows.tint(
@@ -219,7 +230,7 @@ class PrepareFragment : CardsFragment() {
             val needs = if (image != null) Units.bytes(SpaceRule.toStage(image, set)) else getString(R.string.prepare_needs_unknown)
             CardRows.row(
                 run, OuiIcons.drawable.ic_oui_download,
-                getString(R.string.prepare_run_title),
+                if (image != null) getString(R.string.prepare_run_title_system, image.name) else getString(R.string.prepare_run_title),
                 when {
                     job.busy -> getString(R.string.prepare_running)
                     r == null -> getString(R.string.prepare_run_check_first)
@@ -228,7 +239,7 @@ class PrepareFragment : CardsFragment() {
                     else -> getString(R.string.prepare_run_summary, needs)
                 },
                 enabled = canRun || job.busy,
-            ) { if (canRun) confirmPrepare(mode!!, source, image) }
+            ) { if (canRun) confirmPrepare(mode!!, source, image, replaced) }
         }
         // How the last setup ended (its plain message; Setting up has the rest).
         if (!job.busy && job.phase != PrepareJob.Phase.IDLE) {
@@ -341,9 +352,12 @@ class PrepareFragment : CardsFragment() {
             .show()
     }
 
-    private fun confirmPrepare(m: BeginMode, source: SessionPrefs.Source, image: ImageRef?) {
+    private fun confirmPrepare(m: BeginMode, source: SessionPrefs.Source, image: ImageRef?, replaced: ImageRef?) {
         val system = Images.systemName(image)
         val what = buildString {
+            if (replaced != null && image != null) {
+                append(getString(R.string.prepare_dialog_other_system, image.name, replaced.name)).append("\n\n")
+            }
             append(getString(R.string.prepare_dialog_message))
             append("\n\n")
             append(modeTitle(m)).append('.')
@@ -356,7 +370,7 @@ class PrepareFragment : CardsFragment() {
         }
         val stepsHere = team
         AlertDialog.Builder(requireContext())
-            .setTitle(R.string.prepare_dialog_title)
+            .setTitle(if (image != null) getString(R.string.confirm_setup_title, image.name) else getString(R.string.prepare_dialog_title))
             .setMessage(what)
             .setPositiveButton(R.string.confirm_setup_go) { _, _ ->
                 val a = activity ?: return@setPositiveButton

@@ -1590,6 +1590,253 @@ class StageScriptTest {
         refused(s.launch(), "test root: every launch check passed")
     }
 
+    private fun bring(fr: FakeRoot, vararg lines: String): FakeRoot.Run {
+        val b = lines.joinToString("") { "$it\n" }.toByteArray()
+        return fr.run(RootScript.Verb.BRING_COLLECT, b.size.toString(), stdin = b)
+    }
+
+    /** Bring apps (0.4.75): the chosen apps' APKs and One UI data are copied into the stage; One UI's are only read. */
+    @Test
+    fun bringCopiesTheChosenAppsIntoTheStageAndLeavesOneUiAlone() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val chat = "org.example.chat"
+        fr.hostApp(chat, listOf("base.apk", "split_config.arm64_v8a.apk"))
+        File(fr.hostCe(chat), "shared_prefs").mkdirs()
+        File(fr.hostCe(chat), "shared_prefs/login.xml").writeText("signed in")
+        File(fr.hostCe(chat), ".hidden").writeText("dot file")
+        File(fr.hostCe(chat), "cache").mkdirs()
+        File(fr.hostCe(chat), "cache/big").writeText("not worth bringing")
+        File(fr.hostCe(chat), "code_cache").mkdirs()
+        File(fr.hostDe(chat), "device.db").writeText("device protected")
+        fr.hostApp("org.example.other")
+        File(fr.hostCe("org.example.other"), "untouched").writeText("not chosen")
+        val host = File(fr.root, "proc/1/root")
+        val hostBefore = fr.listing(host) + fr.listing(File(fr.root, "data/app"))
+        val beside = fr.stage.parentFile.list()!!.sorted()
+
+        val r = bring(fr, chat, "org.example.gone")
+        s.ok(r)
+        assertEquals("1", r.reply.ok!!.substringAfter("bring-collect "))
+        assertTrue("$r", r.reply.results.any { it.startsWith("brought $chat ") })
+        assertTrue("$r", r.reply.infos.any { it.contains("org.example.gone: not an installed user app") })
+        val dir = File(fr.stage, "data/oneos_bring")
+        assertEquals("700", fr.mode(dir))
+        assertFalse(File(dir, "selected.list").exists())
+        assertFalse(File(dir, ".incoming").exists())
+        // The copy's marks: when it began, and when it was whole with the APK it was made from.
+        assertTrue(File(dir, "$chat/since").readText().trim().matches(Regex("[0-9]{9,11}")))
+        val stampLines = File(dir, "$chat/stamp").readLines()
+        assertEquals(2, stampLines.size)
+        assertTrue(stampLines[0].matches(Regex("[0-9]{9,11}")))
+        assertTrue(stampLines[1].endsWith("/data/app/~~fake/$chat-1/base.apk"))
+        assertEquals("$chat base.apk\n", File(dir, "$chat/apk/base.apk").readText())
+        assertTrue(File(dir, "$chat/apk/split_config.arm64_v8a.apk").isFile)
+        assertEquals("signed in", File(dir, "$chat/ce/shared_prefs/login.xml").readText())
+        assertEquals("dot file", File(dir, "$chat/ce/.hidden").readText())
+        assertEquals("device protected", File(dir, "$chat/de/device.db").readText())
+        assertFalse(File(dir, "$chat/ce/cache").exists())
+        assertFalse(File(dir, "$chat/ce/code_cache").exists())
+        assertFalse(File(dir, "org.example.other").exists())
+        assertFalse(File(dir, "org.example.gone").exists())
+        assertFalse(File(fr.stage, "incoming/bring.part").exists())
+        assertEquals("One UI's side changed", hostBefore, fr.listing(host) + fr.listing(File(fr.root, "data/app")))
+
+        // A second Bring adds to the first (build 104): the app brought before stays as it is.
+        File(fr.hostCe("org.example.other"), "untouched").writeText("chosen now")
+        val chatBefore = fr.listing(File(dir, chat))
+        s.ok(bring(fr, "org.example.other", "org.example.other"))
+        assertEquals(chatBefore, fr.listing(File(dir, chat)))
+        assertEquals("chosen now", File(dir, "org.example.other/ce/untouched").readText())
+        assertEquals(beside, fr.stage.parentFile.list()!!.sorted())
+        // Bringing an app again replaces its copy: the newer data is there, what One UI dropped
+        // is gone, the guest's marks of the old copy too; no old copy stays beside the stage.
+        File(dir, "$chat/applied").writeText(stampLines[0] + "\n")
+        File(fr.hostCe(chat), "shared_prefs/login.xml").writeText("signed in again")
+        assertTrue(File(fr.hostCe(chat), ".hidden").delete())
+        val again = bring(fr, chat)
+        s.ok(again)
+        assertEquals("1", again.reply.ok!!.substringAfter("bring-collect "))
+        assertEquals("signed in again", File(dir, "$chat/ce/shared_prefs/login.xml").readText())
+        assertFalse(File(dir, "$chat/ce/.hidden").exists())
+        assertFalse(File(dir, "$chat/applied").exists())
+        assertEquals("chosen now", File(dir, "org.example.other/ce/untouched").readText())
+        assertFalse(File(dir, ".incoming").exists())
+        assertEquals(beside, fr.stage.parentFile.list()!!.sorted())
+        // What a run that was cut short left of its copy is cleared by the next one; the copy that waits stays whole.
+        File(dir, ".incoming/ce").mkdirs()
+        File(dir, ".incoming/ce/half").writeText("half a copy")
+        File(dir, ".incoming/since").writeText("1\n")
+        java.nio.file.Files.setPosixFilePermissions(File(dir, ".incoming").toPath(), java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"))
+        s.ok(bring(fr, "org.example.gone"))
+        assertFalse(File(dir, ".incoming").exists())
+        assertEquals("signed in again", File(dir, "$chat/ce/shared_prefs/login.xml").readText())
+
+        // Remove brought apps: the folder goes, nothing else in the stage does.
+        File(fr.stage, "data/kept-apps").writeText("the guest's own data")
+        s.ok(fr.run(RootScript.Verb.BRING_CLEAR))
+        assertFalse(dir.exists())
+        assertEquals("the guest's own data", File(fr.stage, "data/kept-apps").readText())
+        assertEquals(beside, fr.stage.parentFile.list()!!.sorted())
+        s.ok(fr.run(RootScript.Verb.BRING_CLEAR))
+        refused(s.launch(), "test root: every launch check passed")
+    }
+
+    /** bring-status (build 104): read only; what waits, what the guest did with it, and what is newer on One UI. */
+    @Test
+    fun bringStatusTellsWhatBecameOfEachCopyAndWhatIsNewer() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        fun status(): FakeRoot.Run = fr.run(RootScript.Verb.BRING_STATUS).also { s.ok(it) }
+        fun apps(r: FakeRoot.Run) = r.reply.results.filter { it.startsWith("app ") }.sorted()
+        // Nothing brought yet.
+        assertEquals("0", status().reply.ok!!.substringAfter("bring-status "))
+        val chat = "org.example.chat"
+        val other = "org.example.other"
+        fr.hostApp(chat)
+        fr.hostApp(other)
+        File(fr.hostCe(chat), "databases").mkdirs()
+        File(fr.hostCe(chat), "databases/msgs.db").writeText("messages")
+        File(fr.hostCe(chat), "cache").mkdirs()
+        File(fr.hostDe(other), "device.db").writeText("device protected")
+        s.ok(bring(fr, chat, other))
+        val dir = File(fr.stage, "data/oneos_bring")
+        val chatStamp = File(dir, "$chat/stamp").readLines()[0]
+        val otherStamp = File(dir, "$other/stamp").readLines()[0]
+        val host = File(fr.root, "proc/1/root")
+        val before = fr.snapshot()
+        val hostBefore = fr.listing(host)
+        var r = status()
+        assertEquals("2", r.reply.ok!!.substringAfter("bring-status "))
+        assertEquals(listOf("app $chat $chatStamp waiting same", "app $other $otherStamp waiting same"), apps(r))
+        // Read only: nothing in the stage, beside it or on One UI's side changed.
+        assertEquals(before, fr.snapshot())
+        assertEquals(hostBefore, fr.listing(host))
+
+        // One UI wrote to the cache only: still the same. Then to its data: newer.
+        Thread.sleep(1100) // busybox find compares whole seconds
+        File(fr.hostCe(chat), "cache/thumb").writeText("a thumbnail")
+        assertEquals(listOf("app $chat $chatStamp waiting same", "app $other $otherStamp waiting same"), apps(status()))
+        File(fr.hostCe(chat), "databases/msgs.db").writeText("more messages")
+        File(fr.hostDe(other), "device.db").writeText("device protected, changed")
+        r = status()
+        assertEquals("$r", listOf("app $chat $chatStamp waiting data", "app $other $otherStamp waiting data"), apps(r))
+
+        // The guest's marks: installed; failed with the installer's reason, plain characters only.
+        File(dir, "$chat/applied").writeText("$chatStamp\n")
+        File(dir, "$other/failed").writeText("$otherStamp 7000 Failure INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match \$(id) `id` @@OK x\n")
+        r = status()
+        assertEquals(listOf("app $chat $chatStamp installed data", "app $other $otherStamp failed data"), apps(r))
+        val why = r.reply.results.single { it.startsWith("why ") }
+        assertTrue(why, why.startsWith("why $other 7000 Failure INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match"))
+        assertFalse(why, why.contains("$") || why.contains("`") || why.contains("@"))
+        // Marks of an older copy do not count for this one.
+        File(dir, "$chat/applied").writeText("12345\n")
+        File(dir, "$other/failed").writeText("12345 old reason\n")
+        assertEquals(listOf("app $chat $chatStamp waiting data", "app $other $otherStamp waiting data"), apps(status()))
+        File(dir, "$chat/applied").writeText("$chatStamp\n")
+        assertTrue(File(dir, "$other/failed").delete())
+
+        // The app was updated on One UI (pm names another APK), or is gone from it.
+        val pmPaths = File(fr.root, "pm_paths")
+        val paths = pmPaths.readText()
+        pmPaths.writeText(paths.replace("$chat-1/base.apk", "$chat-2/base.apk").lines().filterNot { it.startsWith("$other ") }.joinToString("\n"))
+        assertEquals(listOf("app $chat $chatStamp installed app", "app $other $otherStamp waiting gone"), apps(status()))
+        pmPaths.writeText(paths)
+
+        // A copy of build 102 (no marks): date 0, counted as newer. An unfinished copy and foreign names: not listed.
+        val legacy = "org.example.legacy"
+        fr.hostApp(legacy)
+        File(dir, "$legacy/apk").mkdirs()
+        File(dir, "$legacy/apk/base.apk").writeText("apk")
+        File(dir, "org.example.half/apk").mkdirs()
+        File(dir, "org.example.half/since").writeText("1\n")
+        File(dir, "notapackage").mkdirs()
+        File(dir, "selected.list").writeText("$legacy\n")
+        r = status()
+        assertEquals("3", r.reply.ok!!.substringAfter("bring-status "))
+        assertTrue("$r", apps(r).contains("app $legacy 0 waiting data"))
+        assertTrue("$r", apps(r).none { it.contains("half") || it.contains("notapackage") })
+        // Applied in the guest (the restore script deletes the copy and leaves its mark).
+        File(dir, "$legacy/applied").writeText("0\n")
+        assertTrue(File(dir, "$legacy/apk").deleteRecursively())
+        assertTrue("$r", apps(status()).contains("app $legacy 0 installed data"))
+
+        // The end of the guest's own log, plain characters only.
+        File(fr.stage, "data/oneos_bring.log").writeText((1..60).joinToString("") { "[11-10 07:30:$it] $chat: line $it \$(id) @@OK\n" })
+        r = status()
+        val logLines = r.reply.infos.filter { it.startsWith("log ") }
+        assertEquals(40, logLines.size)
+        assertTrue(logLines.last(), logLines.last().contains("$chat: line 60"))
+        assertTrue(logLines.none { it.contains("$") || it.contains("@") })
+        assertNotNull(r.reply.ok)
+        assertTrue(RootScript.problems(RootScript.Verb.BRING_STATUS, listOf("x")).isNotEmpty())
+        refused(s.launch(), "test root: every launch check passed")
+    }
+
+    @Test
+    fun bringRefusalsChangeNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val chat = "org.example.chat"
+        fr.hostApp(chat)
+        File(fr.hostCe(chat), "login").writeText("signed in")
+        s.ok(bring(fr, chat))
+        val before = fr.snapshot()
+        // A list that is not package names, one to a line: nothing is copied, the last Bring stays.
+        for (line in listOf("../x", "org.example.chat/../..", "org.example.chat extra", "noDots", ".org.example", "org..example", "org.example;id")) {
+            refused(bring(fr, chat, line), "the list names")
+            assertEquals("after '$line'", before, fr.snapshot())
+        }
+        // Fewer bytes than announced.
+        refused(fr.run(RootScript.Verb.BRING_COLLECT, "60000", stdin = "$chat\n".toByteArray()), "incomplete")
+        assertEquals(before, fr.snapshot())
+        // A session running (something mounted in the stage).
+        fr.mountinfo(listOf("${fr.stage.path}/rootfs"))
+        refused(bring(fr, chat), "mounted in the stage")
+        refused(fr.run(RootScript.Verb.BRING_CLEAR), "mounted in the stage")
+        fr.mountinfo(emptyList())
+        assertEquals(before, fr.snapshot())
+        // The stage's data folder as a link (to One UI's, say): never followed.
+        val data = File(fr.stage, "data")
+        val aside = File(fr.stage, "data.real")
+        assertTrue(data.renameTo(aside))
+        val elsewhere = File(fr.root, "elsewhere").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(data.toPath(), elsewhere.toPath())
+        refused(bring(fr, chat), "is a link")
+        assertEquals(emptyList<String>(), elsewhere.list()!!.toList())
+        java.nio.file.Files.delete(data.toPath())
+        assertTrue(aside.renameTo(data))
+        assertEquals(before, fr.snapshot())
+        // No system set up.
+        assertTrue(File(fr.stage, ".oneos_stage").delete())
+        refused(bring(fr, chat), "no system is set up")
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { fr.run(RootScript.Verb.BRING_COLLECT, "1;reboot") }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { fr.run(RootScript.Verb.BRING_CLEAR, "x") }
+    }
+
+    /** Only installed user apps (an APK under data/app): never a system app's path, a link, or a path that climbs. */
+    @Test
+    fun bringSkipsWhatIsNotAnInstalledUserApp() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val pmPaths = File(fr.root, "pm_paths")
+        File(fr.root, "system/app/Sys").mkdirs()
+        File(fr.root, "system/app/Sys/Sys.apk").writeText("system app")
+        pmPaths.appendText("org.example.sys ${fr.root.path}/system/app/Sys/Sys.apk\n")
+        pmPaths.appendText("org.example.climb ${fr.root.path}/data/app/../../system/app/Sys/Sys.apk\n")
+        val linked = File(fr.root, "data/app/~~fake/org.example.link-1").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(linked, "base.apk").toPath(), File(fr.root, "system/app/Sys/Sys.apk").toPath())
+        pmPaths.appendText("org.example.link ${linked.path}/base.apk\n")
+        val r = bring(fr, "org.example.sys", "org.example.climb", "org.example.link")
+        s.ok(r)
+        assertEquals("0", r.reply.ok!!.substringAfter("bring-collect "))
+        assertEquals(3, r.reply.infos.count { it.contains("not an installed user app") })
+        assertTrue(r.reply.results.none { it.startsWith("brought ") })
+        val dir = File(fr.stage, "data/oneos_bring")
+        assertEquals(emptyList<String>(), dir.list()!!.toList())
+    }
+
     @Test
     fun argumentsAreCheckedBeforeTheLauncherIsBuilt() {
         assertTrue(RootScript.problems(RootScript.Verb.RECEIVE, listOf("../x", "1", "a".repeat(64))).isNotEmpty())

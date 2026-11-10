@@ -454,7 +454,7 @@ class SystemsFragment : Fragment() {
         // OxygenOS 16 (Android 16, 0.4.67) only where the phone can take it (One UI 8), and first there.
         val entries = listOfNotNull(
             CatalogEntry(oxygen.name, oxygen, R.drawable.os_oxygenos, true).takeIf { available.any { it.id == oxygen.id } },
-            // OriginOS 7 (0.4.73, experimental) only on its phones (the Snapdragon S25/S26 series and Z Fold7/8).
+            // OriginOS 7 (0.4.73, experimental) only on its phones (the Snapdragon S23 to S26 series, the Exynos S24 and S24+, and Z Fold7/8).
             CatalogEntry(origin.name, origin, R.drawable.os_originos, true).takeIf { available.any { it.id == origin.id } },
             CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, available.any { it.id == infinity.id }),
             CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, available.any { it.id == hyper.id }),
