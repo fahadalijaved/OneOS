@@ -1467,6 +1467,24 @@ if [ -f "$STAGE/data/oneos_root/enabled" ]; then
     echo "Guest runtime: $(date +%T) modules ready"
 fi
 
+if [ -f "$STAGE/lockstate/enabled" ]; then
+    echo "Lock state: taking a host snapshot"
+    /system/bin/sh "$STAGE/oneos_lockstate.sh" snapshot || {
+        echo "Lock state snapshot failed; returning to One UI"
+        /system/bin/sh "$STAGE/return_to_oneui.sh"
+        exit 1
+    }
+    /system/bin/sh "$STAGE/oneos_lockstate.sh" stage || {
+        echo "Lock state staging failed; returning to One UI"
+        /system/bin/sh "$STAGE/return_to_oneui.sh"
+        exit 1
+    }
+else
+    # A snapshot staged by an earlier session must not re-enable the guest
+    # keyguard after the flag is turned off again.
+    rm -f "$STAGE/data/system/oneos_lockstate/enabled"
+fi
+
 # --- STOP HOST DAEMONS & LAUNCH CONTAINER ---
 echo "=== [6/6] $(date +%T) Launching the guest takeover daemon ==="
 

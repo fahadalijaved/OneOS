@@ -271,6 +271,10 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_weaver.py" "$W
 # Nor removes templates from the phone's fingerprint and face sensors, where
 # One UI's enrolments live (patches/guest_no_biometric_cleanup.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_biometric_cleanup.py" "$WORK/services")"
+# Samsung's host fingerprint HAL is AIDL v3 only. ColorOS's config picks the
+# absent HIDL 2.1 adapter and the guest never opens a sensor
+# (patches/guest_force_aidl_fingerprint.py).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_force_aidl_fingerprint.py" "$WORK/services")"
 # The phone's gatekeeper (screen lock), FRP partition and apexd stay One UI's;
 # guest apps get app ids from 15000 (no keystore namespace shared with One UI's
 # apps) and the guest makes no users or profiles (their per-user keys share
@@ -392,6 +396,10 @@ if in_image /system/framework/oplus-services.jar; then
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     # Same storage guards as services.jar (patches/guest_storage_guards.py).
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/oplus")
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    # ColorOS waits 3 s for a keystore property the guest never sets
+    # (patches/guest_skip_negotiation.py).
+    NEW=$(python3 -I "$ROOT/switcher/patches/guest_skip_negotiation.py" "$WORK/oplus")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_no_sysrq_crash.py" "$WORK/oplus")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)

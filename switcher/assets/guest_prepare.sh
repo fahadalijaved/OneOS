@@ -900,6 +900,13 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         mkdir -p "$SOV"
         mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SOV"
         rm -rf "$SOV/up" && mkdir -p "$SOV/up"
+        mkdir -p "$SOV/up/etc/permissions" &&
+            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.fingerprint" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" &&
+            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.biometrics.face" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
+            chmod 755 "$SOV/up/etc" "$SOV/up/etc/permissions" &&
+            chmod 644 "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
+            $BB chcon -R u:object_r:system_file:s0 "$SOV/up/etc" 2>/dev/null || true
+        echo "Samsung Camera: overlay $(date +%T)"
         if samcam_mountpoints "$SOV/up" sys && guest_root_mountpoint "$SOV/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$SOV/up:$ROOTFS/system" "$ROOTFS/system"; then
             if samcam_bind sys "$ROOTFS/system"; then SAMCAM=1; else
@@ -3273,6 +3280,12 @@ mkdir -p "$STAGE/data/anr" "$STAGE/data/app" "$STAGE/data/rollback" "$STAGE/data
 # The guest's own shared storage. Never the phone's /data/media: in run 25 the
 # guest's cleanup of a user it could not prepare deleted the photos in it.
 mkdir -p "$STAGE/data/media/0" "$STAGE/data/media/obb" "$STAGE/data/vendor_de/0" "$STAGE/data/vendor_ce/0"
+# The fingerprint framework makes this before setting the active user; without
+# it FingerprintUpdateActiveUserClient fails and no sensor is ever opened.
+mkdir -p "$STAGE/data/vendor_de/0/fpdata"
+chown 1000:1000 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
+chmod 700 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
+$BB chcon u:object_r:fingerprint_vendor_data_file:s0 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
 
 # OneOS: without OneLineage's LineageOS packages (Launcher3, LatinIME,
 # LineageSettings; ColorOS has none of them) and with the OneOS app in place

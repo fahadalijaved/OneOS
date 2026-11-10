@@ -1034,6 +1034,44 @@ if [ -f /data/guest_audio.flag ]; then
     else
         echo "[Pivoted Root] A2DP offload: l_a2dp_format not sent (ONEOS_GUEST_A2DP_FORMAT=0)"
     fi
+    # ColorOS's AOSP audio policy parser wants /vendor/etc/audio_policy_configuration.xml.
+    # Samsung's vendor only ships QTI's _base and sku files at other paths, so the
+    # parser fell back to setDefault: volume groups with max index 0, and SystemUI's
+    # volume slider crashes on NaN. The QTI _base file is the same format ColorOS
+    # loads; put it at the top-level path through a guest-only overlay (the f2fs
+    # upper is refused for casefold, so a small tmpfs holds the upper).
+    if [ -e /system/framework/oplus-services.jar ] && grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/ &&
+       [ -f /vendor/etc/audio_policy_configuration_base.xml ] && [ ! -e /vendor/etc/audio_policy_configuration.xml ]; then
+        AOV=/data/oneos_audio_policy
+        mkdir -p "$AOV"
+        mount | grep -q " $AOV " || $BB mount -t tmpfs -o size=8m,mode=755 tmpfs "$AOV"
+        mkdir -p "$AOV/upper" "$AOV/work"
+        cp /vendor/etc/audio_policy_configuration_base.xml "$AOV/upper/audio_policy_configuration.xml" &&
+            chmod 644 "$AOV/upper/audio_policy_configuration.xml" &&
+            $BB chcon u:object_r:vendor_configs_file:s0 "$AOV/upper/audio_policy_configuration.xml" 2>/dev/null || true
+        if $BB mount -t overlay overlay -o "lowerdir=/vendor/etc,upperdir=$AOV/upper,workdir=$AOV/work" /vendor/etc; then
+            echo "[Pivoted Root] ColorOS audio policy: _base.xml as /vendor/etc/audio_policy_configuration.xml (volume tables)"
+        else
+            echo "!!! WARNING: ColorOS audio policy: the overlay on /vendor/etc was refused; volume groups may be default"
+        fi
+    fi
+    # Samsung's audio HAL keeps the streams of a dead audioserver: a fresh one
+    # then gets -38 on every openOutputStream ("port config ... already has a
+    # stream opened"), AudioPolicyManager init fails and audio is silent until
+    # the HAL restarts. Restart it before the first audioserver and before each
+    # restart in the keeper below.
+    restart_audio_hal() {
+        service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" || return 0
+        h=$(pidof audiohalservice.qti 2>/dev/null)
+        [ -n "$h" ] && kill -9 $h 2>/dev/null
+        i=0
+        while [ $i -lt 50 ]; do
+            service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" && return 0
+            i=$((i + 1)); sleep 0.2
+        done
+        return 1
+    }
+    restart_audio_hal && echo "[Pivoted Root] audio HAL restarted before guest audioserver"
     /system/bin/audioserver > /dev/null 2>&1 &
     AS_PID=$!
     echo "[Pivoted Root] guest audioserver PID: $AS_PID (registers once the guest framework is up)"
@@ -1104,6 +1142,11 @@ if [ -f /data/guest_audio.flag ]; then
                 echo "$(date +%T) guest audioserver $why $((r + 1)) times within 2 minutes; restart in ${d}s (no hand-over)"
                 sleep $d
                 now=$(date +%s); last=$now
+            fi
+            if service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found"; then
+                h=$(pidof audiohalservice.qti 2>/dev/null); [ -n "$h" ] && kill -9 $h 2>/dev/null
+                i=0; while [ $i -lt 50 ]; do service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" && break; i=$((i + 1)); sleep 0.2; done
+                echo "$(date +%T) audio HAL restarted before audioserver"
             fi
             /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
@@ -2486,6 +2529,29 @@ BRINGEOF
 else
     rm -f /data/oneos_bring_restore.sh
 fi
+# Samsung's One UI leaves lockscreen.disabled=1 behind even with a PIN; the
+# guest's copy would make ColorOS skip its keyguard. Clear it on the guest's
+# copy only, after the guest's own boot_completed (the shared flag is cleared
+# above). The marker is staged with the lock state.
+if [ -f /data/system/oneos_lockstate/enabled ]; then
+    (
+        n=0
+        while [ "$(getprop sys.boot_completed)" != 1 ]; do
+            n=$((n+1)); [ "$n" -lt 120 ] || exit 0; sleep 1
+        done
+        n=0
+        while [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" != false ]; do
+            /system/bin/locksettings set-disabled false --user 0 >/dev/null 2>&1
+            n=$((n+1)); [ "$n" -lt 10 ] || break; sleep 1
+        done
+        if [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" = false ]; then
+            echo "keyguard enabled"
+        else
+            echo "keyguard still disabled"
+        fi
+    ) > /data/system/oneos_lockstate/late.log 2>&1 &
+fi
+
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3
