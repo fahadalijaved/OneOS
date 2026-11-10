@@ -50,6 +50,18 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.85: **Galaxy A phones on One UI 8 or 8.5 are no longer called "not supported"**. Whenever the
+app had no set-up system to go by, it measured them against Android 17 and refused them (A15, A16, A25, A33 and the
+others with OxygenOS 16). Phones whose systems are all Android 17 (A56, A57, A36, A27, S24 FE,
+Z Flip7 FE, S25 FE) now say what to do on One UI 8.5: update One UI first. The device report no longer says "Not
+supported" for low free space when a system is already set up. **OxygenOS 16 on the Galaxy A25 and A33** no longer
+stays on a black screen (the earlier fixes did not take effect there). **OriginOS 7 on the Galaxy S23 and S24 series**
+stopped after a minute on every try: vivo's refresh-rate manager refused all of Samsung's display modes; it is now
+switched off on those phones (untested on a real one). OxygenOS and ColorOS get the folder their system font link
+lives in, and the logs say more about fonts in web pages (text missing in Google sign-in and some apps on OxygenOS 16
+is still open) and about the Galaxy A57's radio library (incoming SMS). Tap Update on the system's page after
+installing.
+
 New in 0.4.84: US phones on the other US firmware are no longer refused. A carrier model (SM-...U) and the
 unlocked model (SM-...U1) are the same phone and take each other's stock firmware, but 0.4.83 and 0.4.74 called
 that "Custom ROM: One UI from another phone" and would not prepare or switch (seen on a Galaxy S26+, SM-S947U1 on

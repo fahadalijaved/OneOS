@@ -2115,7 +2115,7 @@ while true; do
                 fi
                 echo \"[UI Activator] Samsung IMS: package \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path com.sec.imsservice 2>/dev/null | head -1 | cut -c9-)\"
                 echo \"[UI Activator] Samsung IMS: mmtel override \$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd phone cc get-value -s 0 config_ims_mmtel_package_override_string 2>/dev/null | tail -1)\"
-                timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys phone 2>/dev/null | grep -i -m 6 'ImsResolver\|imsservice\|MmTel' | sed 's/^/[UI Activator] Samsung IMS: /'
+                timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys phone 2>/dev/null | grep -iE -m 6 'ImsResolver|imsservice|MmTel' | sed 's/^/[UI Activator] Samsung IMS: /'
                 # 0.4.39 (S25U AT&T report): One UI's telephony broadcasts
                 # android.intent.action.ISIM_LOADED once the SIM's ISIM files are read;
                 # the guest's AOSP telephony never does. Samsung IMS checks the ISIM once
@@ -3567,6 +3567,11 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                           echo; $BB nsenter -t \$SFP -m ls -la /dev/socket 2>&1 | grep -i zygote
                           echo; grep ' /dev/socket/' /proc/1/mountinfo
                           echo; getprop | grep -E 'abilist|ro.zygote'
+                          # 0.4.85: the fonts a WebView renderer finds (OxygenOS 16, S22 Ultra ab076b9a:
+                          # no text in web pages; ColorOS's system font is a link into
+                          # /data/format_unclear/font, a folder guest_prepare.sh now makes).
+                          echo; echo 'fonts:'
+                          timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh -c 'ls -l /system/fonts 2>&1 | grep -F -e \"->\"; ls -ld /system/etc/fonts.xml /data/format_unclear /data/format_unclear/font 2>&1; ls -l /data/format_unclear/font 2>&1 | head -n 12'
                         } > \$D/webview.txt 2>&1
                         # Is the Wallpapers fold-grid overlay (guest_prepare.sh) enabled?
                         timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list com.oplus.wallpapers > \$D/overlays_wallpapers.txt 2>&1

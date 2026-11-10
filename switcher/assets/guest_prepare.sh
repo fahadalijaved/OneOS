@@ -191,7 +191,7 @@ if ! ps -ef | grep -v grep | grep -q "oneos_wdog_feeder.sh"; then
 L=/data/local/tmp/oneos/watchdog_feeder.log
 holders() {
     for p in /proc/[0-9]*; do
-        ls -l "$p/fd" 2>/dev/null | grep -q '/dev/watchdog\|/dev/softdog' && printf ' %s:%s' "${p#/proc/}" "$(cat "$p/comm" 2>/dev/null)"
+        ls -l "$p/fd" 2>/dev/null | grep -qE '/dev/(watchdog|softdog)' && printf ' %s:%s' "${p#/proc/}" "$(cat "$p/comm" 2>/dev/null)"
     done
 }
 # Every watchdog the kernel lists: name, identity, state, timeout, time left.
@@ -3070,13 +3070,30 @@ fi
 # neither (0.4.55 4933a41d, RusUtils: /data/oplus/uxicons/
 # morph_icons_whitelist.xml ENOENT). Made in the guest's own /data only, with
 # the rc's mode and owners, never through a link the guest made.
+# 0.4.85: and its font folder. ColorOS and OxygenOS keep the system font's
+# file as a link in /data/format_unclear/font, which system_server makes at
+# each boot; without the folder every guest boot logged "FontUtils: Could not
+# update selinux policy check and correct flipfont: /data/format_unclear/font/
+# OplusOSUI-Regular.ttf: symlink failed: ENOENT" (30 of 44 OxygenOS 16 and 41
+# of 50 ColorOS 17 X9U reports among the latest 150 with logs). Not shown to
+# be why web pages lose their text on OxygenOS 16 (S22 Ultra ab076b9a, A25
+# 32a0830e: chromium remote_font_face_source.cc NOTREACHED in 4 of the 44,
+# Google sign-in without text, blank pages in some apps): ColorOS 17 logs the
+# same FontUtils line and shows web text. That cause is still open; diag
+# webview.txt has a "fonts:" part for it (oneos_switch.sh).
+# Both folders with the rc's mode and owners when an rc names them, else 0771
+# system system. Not confirmed on a phone until the first 0.4.85 report: the
+# FontUtils line gone.
 # ONEOS_GUEST_THEME_DIRS=0 leaves them alone.
 if [ "${ONEOS_GUEST_THEME_DIRS:-1}" = 1 ] && [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; then
     made=0
     for f in "$ROOTFS"/system/etc/init/*.rc "$GUEST_SYSTEM_EXT"/etc/init/*.rc; do
         [ -f "$f" ] && [ ! -L "$f" ] && cat "$f"
-    done | awk '$1 == "mkdir" && $2 ~ /^\/data\/(theme|oplus\/(uxicons|uxres|language))\/?$/ { sub(/\/$/, "", $2); print $2, ($3 ~ /^[0-7]+$/ ? $3 : "0771"), ($4 == "root" ? 0 : 1000), ($5 == "root" ? 0 : 1000) }' |
+    done | awk '$1 == "mkdir" && $2 ~ /^\/data\/(theme|format_unclear(\/font)?|oplus\/(uxicons|uxres|language))\/?$/ { sub(/\/$/, "", $2); print $2, ($3 ~ /^[0-7]+$/ ? $3 : "0771"), ($4 == "root" ? 0 : 1000), ($5 == "root" ? 0 : 1000) }' |
         sort -u -k1,1 > "$STAGE/coloros_data_dirs.txt"
+    for p in /data/format_unclear /data/format_unclear/font; do
+        grep -q "^$p " "$STAGE/coloros_data_dirs.txt" || echo "$p 0771 1000 1000" >> "$STAGE/coloros_data_dirs.txt"
+    done
     while read -r p mode u g; do
         q="$STAGE/data"; ok=1
         for part in $(echo "${p#/data/}" | tr '/' ' '); do

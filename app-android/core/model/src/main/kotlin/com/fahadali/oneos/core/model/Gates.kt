@@ -230,6 +230,9 @@ object SwitchGates {
     const val R_PROFILE_DISABLED = "disabled"
     const val R_PROFILE_UNTESTED = "untested"
     const val R_ANDROID_DIFFERS = "differs"
+
+    /** One UI is older than every system the phone is offered (One UI 8.5 where all are Android 17): update One UI. */
+    const val R_ANDROID_OLDER = "older"
     const val R_FORM_MISMATCH = "mismatch"
     const val R_IMAGE_NOT_IN_BUILD = "not-in-build"
     const val R_IMAGE_OTHER_SERIES = "other-series"
@@ -312,7 +315,7 @@ object SwitchGates {
         f.customRom?.let { out += Gate(it) }
         out += Gate(root(f))
         out += profileGate(f, resolution, profiles, switching, choice, image, images)
-        out += Gate(android(f, image, images))
+        out += Gate(android(f, image, profile, images))
         if (profile != null) {
             out += Gate(form(f, profile))
             out += Gate(
@@ -473,14 +476,30 @@ object SwitchGates {
         )
     }
 
-    private fun android(f: DeviceFacts, image: ImageRef?, images: List<ImageRef>): Finding {
-        val sdks = (image?.let { listOf(it.sdk) } ?: images.map { it.sdk }).distinct().sorted()
+    /**
+     * The phone's Android version against the chosen image; with none chosen, against the systems this phone
+     * is offered (0.4.85: every image of the build counted before, so a One UI 8.5 phone whose systems are
+     * all Android 17 passed here and was refused by the installd gate as "One UI was updated").
+     */
+    private fun android(f: DeviceFacts, image: ImageRef?, profile: PhoneProfile?, images: List<ImageRef>): Finding {
+        val offered = profile?.choices?.mapNotNull { Images.byId(it.imageId, images) }?.map { it.sdk }?.distinct()?.sorted().orEmpty()
+        val sdks = image?.let { listOf(it.sdk) } ?: offered.ifEmpty { images.map { it.sdk }.distinct().sorted() }
+        val have = f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }
         return if (f.sdk in sdks) {
             Finding(ID_ANDROID, Level.OK, "Android ${AndroidRelease.name(f.sdk)}", "SDK ${f.sdk}, the same as the image.")
+        } else if (profile != null && offered.isNotEmpty() && f.sdk < offered.first()) {
+            // No system of this phone runs next to its One UI: nothing to choose, One UI has to be updated.
+            block(
+                ID_ANDROID, "One UI is older than this phone's systems",
+                "This phone runs Android $have (SDK ${f.sdk}); the systems for the ${profile.label} are Android " +
+                    "${offered.joinToString { AndroidRelease.name(it) }} (SDK ${offered.joinToString()}). " +
+                    "The other system shares One UI's system services, so both must be the same Android version: update One UI first.",
+                R_ANDROID_OLDER,
+            )
         } else {
             block(
                 ID_ANDROID, "Android version differs from the image",
-                "This phone runs Android ${f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }} (SDK ${f.sdk}); " +
+                "This phone runs Android $have (SDK ${f.sdk}); " +
                     "the image is Android ${sdks.joinToString { AndroidRelease.name(it) }} (SDK ${sdks.joinToString()}). " +
                     "The other system shares One UI's system services, so both must be the same Android version.",
                 R_ANDROID_DIFFERS,
@@ -532,7 +551,9 @@ object SwitchGates {
 
     private fun installd(input: GateInput, image: ImageRef? = null): Finding {
         // The chosen image's Android version decides the table (0.4.66: One UI 8.5/8.0 for SDK 36 images).
-        val sdk = image?.sdk ?: 37
+        // With no system chosen yet, the phone's own (0.4.85: Android 17's table was used, so every
+        // One UI 8.5 phone with nothing set up, or with a stage of another file set, read "One UI was updated").
+        val sdk = image?.sdk ?: input.facts.sdk.takeIf { InstalldExpected.carried(it) != null } ?: 37
         val p = InstalldExpected.problems(input.installd, if (sdk == 36) input.expectedInstalldA16 else input.expectedInstalld, sdk)
         return if (p.isEmpty()) {
             Finding(

@@ -153,7 +153,13 @@ object Plain {
                 )
                 else -> m("This phone isn't supported yet", "OneOS works on ${phoneList(profiles)}.", FixAction.SEND_PHONE_DETAILS)
             }
-            SwitchGates.ID_ANDROID -> {
+            SwitchGates.ID_ANDROID -> if (r == SwitchGates.R_ANDROID_OLDER) {
+                // Every system of this phone is for a newer Android than its One UI: nothing to choose.
+                val want = (image?.sdk ?: phone?.choices?.mapNotNull { Images.byId(it.imageId)?.sdk }?.minOrNull())
+                    ?.let { "Android ${AndroidRelease.name(it)}" } ?: "a newer Android"
+                val have = facts.phoneAndroid?.let { ". Your phone has Android $it: " } ?: ": "
+                m("Update One UI first", "The systems for $yourPhone need $want${have}update One UI, then open OneOS again.", FixAction.NONE)
+            } else {
                 val want = image?.let { AndroidRelease.name(it.sdk) }
                 val have = facts.phoneAndroid
                 m(

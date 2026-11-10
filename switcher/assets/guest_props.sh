@@ -324,7 +324,10 @@ add)
             hv=$(getprop "$RR")
             case "$hv" in 1|true) "$RP" -n "$RR" 0 && echo "$RR=$hv" >> "$OVR" &&
                 echo "guest_props: $RR=$hv overridden to 0 for the session (no Adreno: SkiaGL would wait for kgsl forever)" ;; esac
-        elif grep -q "^persist\.sys\.renderengine\.retry=\(1\|true\)$" "$NEW"; then
+        # 0.4.85: -E. This was a basic expression with "\|", which the phone's grep does not take
+        # as "or" (see oneos_switch.sh), so the image's value was never rewritten here: 0 of 625
+        # reports carry the line below.
+        elif grep -qE "^persist\.sys\.renderengine\.retry=(1|true)$" "$NEW"; then
             sed -i "/^persist\.sys\.renderengine\.retry=/d" "$NEW"
             echo "$RR=0" >> "$NEW"
             echo "guest_props: $RR=0 for the session (no Adreno: SkiaGL would wait for kgsl forever)"
@@ -360,19 +363,26 @@ add)
             *mt[0-9]*|*[Mm]edia[Tt]ek*) ;;
             *s5e[0-9]*|*erd[0-9]*|*exynos*|*universal[0-9]*|*[Ss]amsung*)
                 if [ -e /vendor/lib64/egl/libGLES_mali.so ] && [ ! -e /sys/class/kgsl/kgsl-3d0/gpu_model ]; then
-                    case "$rrv" in
-                        1|true) echo "guest_props: Mali Exynos ($REP) with $RR=$rrv: Vulkan RenderEngine kept (SkiaGL would wait for kgsl)" ;;
-                        *) REV=""
+                    # 0.4.85: Vulkan is kept only when ONEOS_GUEST_RE_RETRY=1 asks for the image's
+                    # retry value. Up to 0.4.84 a retry value still at 1 kept it, and the rewrite
+                    # above never ran (its grep), so every A25/A33 whose One UI did not hold the
+                    # property went on aborting in SkiaVk (0.4.83/0.4.84: 288aabca, 6435d433,
+                    # a89343dd, 7c78775c, d7efdb60; 32a0830e ran, One UI held it blank).
+                    rrk=$rrv; [ "${ONEOS_GUEST_RE_RETRY:-0}" = 1 ] || rrk=""
+                    case "$rrk" in
+                        1|true) echo "guest_props: Mali Exynos ($REP) with $RR=$rrv: Vulkan RenderEngine kept (ONEOS_GUEST_RE_RETRY=1; SkiaGL would wait for kgsl)" ;;
+                        *) REV=""; rrs="$RR=0 (was '$rrv')"
                             case "$rrv" in
                                 0|false) ;;
                                 *)  if grep -qxF "$RR" "$HOST"; then
-                                        "$RP" -n "$RR" 0 && echo "$RR=$rrv" >> "$OVR"
+                                        "$RP" -n "$RR" 0 && echo "$RR=$rrv" >> "$OVR" ||
+                                            rrs="!!! $RR could not be set to 0 (One UI holds '$rrv'): SkiaGL may wait for kgsl"
                                     else
                                         sed -i "/^persist\.sys\.renderengine\.retry=/d" "$NEW"
                                         echo "$RR=0" >> "$NEW"
                                     fi ;;
                             esac
-                            echo "guest_props: Mali Exynos ($REP): the image's RenderEngine (SkiaGL; SkiaVk fails on this driver), $RR=0 (was '$rrv')" ;;
+                            echo "guest_props: Mali Exynos ($REP): the image's RenderEngine (SkiaGL; SkiaVk fails on this driver), $rrs" ;;
                     esac
                 fi ;;
         esac
@@ -986,6 +996,44 @@ add)
         sed -i '/^ro\.oneos\.vivo\.dtype=/d' "$NEW"
         echo "ro.oneos.vivo.dtype=$VDT" >> "$NEW"
         echo "guest_props: ro.oneos.vivo.dtype=$VDT (vivo's display and input side; apps: $(grep '^ro\.vivo\.device\.type=' "$NEW" | tail -n 1 | cut -d= -f2))"
+    fi
+    # vivo OriginOS on a phone whose composer numbers its display mode groups by resolution
+    # (0.4.85). vivo's refresh-rate manager keeps flags of its own in a group's upper bits and
+    # refuses every mode whose group is 256 or more (vivo-services, PhysicalDisplayManager.
+    # rejectDisplayMode: group >> 8 != 0). One UI's composer on the S23 and S24 series says
+    # group=720/1080/1440 (the mode's width), so every mode went: "Display device added ...
+    # modeId -1", then "Unable to locate mode id=-1,supportedModes=[]" ended system_server
+    # about 60 s in, every time (S23 Ultra e565329d and 7dfec122; none of the nine
+    # OriginOS reports of the S23/S24 series reached the home screen). The S25 series says
+    # group=0 and runs. The manager's own off switch (GlobalConfigs.IS_SUPPORTED, read once in
+    # system_server and in the apps' framework) is this property: with it false no mode is
+    # refused and Android's own mode director picks the rate. Set only where One UI's
+    # SurfaceFlinger showed an active mode in such a group (display_modes_host.log,
+    # oneos_switch.sh). Untested on a real S23/S24 until the first 0.4.85 report: look for
+    # this line. ONEOS_GUEST_VIVO_RRM=1 keeps vivo's manager, 0 switches it off on any phone.
+    if [ -f "$ROOTFS/system/framework/vivo-services.jar" ]; then
+        VRM=persist.sys.vivo.refresh_rate_manager
+        VMG=$(grep -F 'activeMode={id=' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*, group=\([0-9]*\).*/\1/p' | sort -n | tail -n 1)
+        vrm=keep
+        case "${ONEOS_GUEST_VIVO_RRM:-auto}" in
+            1) ;;
+            0) vrm=off ;;
+            *) case "$VMG" in ''|*[!0-9]*) ;; *) [ "$VMG" -ge 256 ] && vrm=off ;; esac ;;
+        esac
+        if [ "$vrm" = off ]; then
+            vrs="$VRM=false for the session"
+            if grep -qxF "$VRM" "$HOST"; then
+                vrh=$(getprop "$VRM")
+                "$RP" -n "$VRM" false && echo "$VRM=$vrh" >> "$OVR" ||
+                    vrs="!!! $VRM could not be set to false (One UI holds '$vrh')"
+            else
+                sed -i '/^persist\.sys\.vivo\.refresh_rate_manager=/d' "$NEW"
+                echo "$VRM=false" >> "$NEW"
+            fi
+            echo "guest_props: $vrs (One UI's active display mode group: ${VMG:-not read}; vivo's refresh-rate manager refuses every mode of a group above 255)"
+        else
+            echo "guest_props: vivo's refresh-rate manager kept (One UI's active display mode group: ${VMG:-not read})"
+        fi
     fi
     # Nothing OS's ringtones: NothingGenerateRingtoneService composes each with a
     # Glyph pattern from libgenerative_glyph, which sizes it by Nothing's vendor

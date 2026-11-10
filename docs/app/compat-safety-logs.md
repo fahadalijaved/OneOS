@@ -1027,7 +1027,8 @@ Device report and bundle (`CompatEvaluator`):
 | --- | --- | --- |
 | `cpu-features-missing` | WARN | `/proc/cpuinfo` lacks any of `sve2`, `sme`: "CPU lacks <features> used by the ColorOS images" (the images' `bootstrap/linker64` uses SME, MOPS, SVE/SVE2; the SM8850 Fold runs it without MOPS or SME2, so those are not required) |
 | `cpu-features` / `cpu-unknown` | OK / INFO | all present / not readable |
-| `android-version-differs` | WARN | host SDK != the images' (both Android 17, SDK 37): "Android version differs from the OneOS images (17); switching may not work"; BLOCK at switch time |
+| `android-version-differs` | WARN | host SDK matches none of the profile's systems (0.4.85: the profile's own, not every image of the build): "Android version differs from the OneOS images (17); switching may not work", or, when One UI is older than all of them, "The systems for this phone need Android 17: update One UI first"; BLOCK at switch time ("Update One UI first" on the home screen) |
+| `free-space-short` | WARN | 0.4.85 (was BLOCK, which read "Not supported" on phones with a system already set up): "Low on free space"; the set-up and switch gates check the real numbers |
 
 S25 Ultra (SM-S938*, SM8750) and S26 Ultra stay WARN (`untested-model`,
 S Ultra family), never BLOCK; One UI 9.0 (`90000`) is the tested version.
