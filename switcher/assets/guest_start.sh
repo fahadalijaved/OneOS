@@ -1973,12 +1973,16 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
 else
     echo "[Pivoted Root] Double tap to wake: left to the guest (ONEOS_GUEST_DT2W=$DT2W, getevent $(command -v getevent >/dev/null 2>&1 && echo yes || echo no))"
 fi
-# Pixel 17's WallpaperDataParser calls next() once for <description>. Its
+# Android 17's WallpaperDataParser calls next() once for <description>. Its
 # indented serializer writes whitespace there, so next() returns TEXT and the
-# saved component is skipped. Remove only whitespace between XML elements,
+# saved component is skipped. WallpaperManagerService then has no static
+# imagery and clears the record, so a live or video wallpaper comes back as
+# ImageWallpaper after a boot. Remove only whitespace between XML elements,
 # preserving every component, crop, colour, content value and wallpaper file.
-# Every Pixel guest (pull request #1 found it on the Fold8; same Pixel 17 code).
-if [ -f /system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk ]; then
+# Pixel 17 guests (pull request #1 found it on the Fold8) and ColorOS 17 guests
+# both ship this code; ColorOS logs ComponentInfo{/} then
+# "Unable to regenerate crop; resetting" and clearWallpaperLocked.
+if [ -f /data/system/users/0/wallpaper_info.xml ]; then
     WREL=system/users/0/wallpaper_info.xml
     WFILE="/data/$WREL"
     if [ ! -L /data/system ] && [ ! -L /data/system/users ] && [ ! -L /data/system/users/0 ] &&
@@ -1992,17 +1996,17 @@ s/>[[:space:]]*</></g' "$WFILE" > "$WFILE.oneos-normalized" &&
             if ! cmp -s "$WFILE" "$WFILE.oneos-normalized"; then
                 if cp -p "$WFILE" "$WFILE.oneos-spacing-backup"; then
                     mv -f "$WFILE.oneos-normalized" "$WFILE"
-                    echo "Pixel wallpaper: normalized description spacing; saved selection retained"
+                    echo "Wallpaper: normalized description spacing; saved selection retained"
                 else
                     rm -f "$WFILE.oneos-normalized"
-                    echo "WARNING: Pixel wallpaper backup failed; original retained"
+                    echo "WARNING: wallpaper backup failed; original retained"
                 fi
             else
                 rm -f "$WFILE.oneos-normalized"
             fi
         else
             rm -f "$WFILE.oneos-normalized"
-            echo "WARNING: Pixel wallpaper normalization failed; original retained"
+            echo "WARNING: wallpaper normalization failed; original retained"
         fi
     fi
 fi
