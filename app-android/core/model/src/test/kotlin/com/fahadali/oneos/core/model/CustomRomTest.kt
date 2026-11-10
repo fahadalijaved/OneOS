@@ -45,6 +45,42 @@ class CustomRomTest {
         assertEquals(CustomRomRule.R_PORT, check("Galaxy S25 Ultra", "A515FXXU8HWI5", "SM-A515F", "90000")?.reason)
     }
 
+    /** 0.4.84: a US phone on the other US firmware (carrier U, unlocked U1) is stock, not a port. */
+    @Test
+    fun usCarrierAndUnlockedModelsAreOnePhone() {
+        val same = listOf(
+            // The S26+ of 2026-11-10: U1 phone, U firmware.
+            Triple("SM-S947U1", "S947USQU5BZJA", "SM-S947U"),
+            // The other way round: U phone, U1 firmware.
+            Triple("SM-S947U", "S947U1UEU5BZJA", "SM-S947U1"),
+            Triple("SM-S908U1", "S908USQS8EXK1", "SM-S908U"),
+            Triple("SM-F966U", "F966U1UEU1AYG8", "SM-F966U1"),
+        )
+        for ((model, bl, vendor) in same) {
+            assertNull(model, check(model, bl, vendor, "90000"))
+            assertNull(model, check(model, bl, "", "90000"))
+            assertNull(model, check(model, "unknown", vendor, "90000"))
+            // Without One UI it is still a custom ROM on that phone.
+            assertEquals(model, CustomRomRule.R_NOT_ONE_UI, check(model, bl, vendor, "")?.reason)
+        }
+        assertEquals("S947U", CustomRomRule.family("S947U1"))
+        assertEquals("S947U", CustomRomRule.family("S947U"))
+        assertEquals("A346E", CustomRomRule.family("A346E"))
+        // Only U and U1 are one phone: another phone's or another region's firmware stays refused.
+        for ((model, bl, vendor) in listOf(
+            Triple("SM-S947U1", "S942USQU5BZJA", "SM-S942U"),
+            Triple("SM-S947U1", "S948USQU5BZJA", "SM-S948U"),
+            Triple("SM-S947B", "S947USQU5BZJA", "SM-S947U"),
+            Triple("SM-S947U1", "S947BXXU5BZJA", "SM-S947B"),
+            Triple("SM-S947W", "S947U1UEU5BZJA", "SM-S947U1"),
+            Triple("SM-S947U1", "S947NKSU5BZJA", "SM-S947N"),
+        )) {
+            assertEquals(model, CustomRomRule.R_PORT, check(model, bl, vendor, "90000")?.reason)
+            assertEquals(model, CustomRomRule.R_PORT, check(model, bl, "", "90000")?.reason)
+            assertEquals(model, CustomRomRule.R_PORT, check(model, "unknown", vendor, "90000")?.reason)
+        }
+    }
+
     @Test
     fun romsWithoutOneUiAreRefused() {
         assertEquals(CustomRomRule.R_NOT_ONE_UI, check("SM-G973F", "G973FXXUFHVJ1", "SM-G973F", "")?.reason)

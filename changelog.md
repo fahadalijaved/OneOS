@@ -50,6 +50,12 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.84: US phones on the other US firmware are no longer refused. A carrier model (SM-...U) and the
+unlocked model (SM-...U1) are the same phone and take each other's stock firmware, but 0.4.83 and 0.4.74 called
+that "Custom ROM: One UI from another phone" and would not prepare or switch (seen on a Galaxy S26+, SM-S947U1 on
+the U firmware). Nothing else changed: coming from 0.4.83 there is nothing to update on a system's page; from an
+older version, tap Update there as 0.4.83 asks.
+
 New in 0.4.83: **Bring apps** (experimental): take apps you installed on One UI along into a system, with their data
 and logins, so you do not sign in again there. Tick them under Bring apps on the system's page; they are copied when
 you start the system, or right away with Bring now, and the system installs them shortly after its home screen shows.
