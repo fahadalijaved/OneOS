@@ -27,6 +27,36 @@ class CustomRomTest {
     }
 
     @Test
+    fun usUnlockedAndCarrierFirmwareShareHardware() {
+        for (base in listOf("F966", "S908")) {
+            for (model in listOf("SM-${base}U", "SM-${base}U1")) {
+                for (bl in listOf("${base}USQUCCZIH", "${base}U1UEU8EXK1", "unknown")) {
+                    for (vendor in listOf("SM-${base}U", "SM-${base}U1", "")) {
+                        assertNull("$model / $bl / $vendor", check(model, bl, vendor, "90000"))
+                        if (bl != "unknown" || vendor.isNotEmpty()) {
+                            assertEquals(CustomRomRule.R_NOT_ONE_UI, check(model, bl, vendor, "")?.reason)
+                        }
+                    }
+                }
+            }
+        }
+        // Normalizing for hardware identity must not rewrite the reported model code.
+        assertEquals("F966U1", CustomRomRule.code("SM-F966U1"))
+    }
+
+    @Test
+    fun usVariantMatchingStillRejectsDifferentHardware() {
+        for ((bl, vendor) in listOf(
+            "F956USQUCCZIH" to "SM-F956U", // Another generation.
+            "F966BXXU1AYG8" to "SM-F966B", // Another region.
+            "F966USQUCCZIH" to "SM-F956U", // Only the vendor differs.
+            "F956USQUCCZIH" to "SM-F966U", // Only the bootloader differs.
+        )) {
+            assertEquals(CustomRomRule.R_PORT, check("SM-F966U1", bl, vendor, "90000")?.reason)
+        }
+    }
+
+    @Test
     fun portsAreRefused() {
         val ports = listOf(
             Triple("SM-S901B", "A217FXXSCDXE2", "SM-A217F"),

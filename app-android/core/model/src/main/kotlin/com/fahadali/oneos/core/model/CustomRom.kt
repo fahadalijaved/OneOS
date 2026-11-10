@@ -41,6 +41,7 @@ object CustomRomRule {
 
     private val SAMSUNG_BOOTLOADER = Regex("[A-Z]{1,3}[0-9]{3,4}[A-Z0-9]{0,3}[A-Z]{2,3}[A-Z0-9]{4,8}")
     private val SAMSUNG_CODE = Regex("(?:[A-Z]{1,2}[0-9]{3,4}[A-Z0-9]{0,3}|SC[0-9]{2}[A-Z]|SCG[0-9]{2})")
+    private val US_UNLOCKED_CODE = Regex("[A-Z]{1,2}[0-9]{3,4}U1")
 
     /** "SM-A346E" -> "A346E", "SC-51F" -> "SC51F", "SCG35" -> "SCG35"; "" when it is not a Samsung model number. */
     fun code(model: String): String {
@@ -56,12 +57,18 @@ object CustomRomRule {
     /** A Samsung bootloader version (not "unknown", not another maker's). */
     fun samsungBootloader(bootloader: String): Boolean = SAMSUNG_BOOTLOADER.matches(bootloader.trim().uppercase())
 
+    /** US unlocked U1 and carrier U firmware identify the same hardware. Keep other variants distinct. */
+    private fun hardwareCode(model: String): String {
+        val code = code(model)
+        return if (US_UNLOCKED_CODE.matches(code)) code.dropLast(1) else code
+    }
+
     fun check(s: Signals): Finding? {
         val oneUi = s.oneUiRaw.isNotBlank()
         val bl = s.bootloader.trim().uppercase()
         val blSamsung = samsungBootloader(bl)
-        val modelCode = code(s.model)
-        val vendorCode = code(s.vendorModel)
+        val modelCode = hardwareCode(s.model)
+        val vendorCode = hardwareCode(s.vendorModel)
         val samsungHardware = blSamsung || vendorCode.isNotEmpty()
         // The phone itself, as far as the bootloader and the vendor partition tell.
         val real = vendorCode.ifEmpty { if (blSamsung) bl.take(modelCode.length.coerceAtLeast(5)) else "" }
