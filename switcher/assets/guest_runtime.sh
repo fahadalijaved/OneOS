@@ -155,7 +155,7 @@ baseline)
     fi
     : > "$B/host-frameworks"
     for proc in /proc/[0-9]*; do
-        name=$(tr '\000' ' ' < "$proc/cmdline" 2>/dev/null || true)
+        name=$({ tr '\000' ' ' < "$proc/cmdline"; } 2>/dev/null || true)
         case "$name" in vectord|vectord' '*|lspd|lspd' '*|org.lsposed.lspd|org.lsposed.lspd' '*|org.matrix.vector.daemon|org.matrix.vector.daemon' '*)
             pid=${proc##*/}
             start=$(awk '{print $22}' "$proc/stat")
@@ -278,7 +278,16 @@ uninstall)
     # Installation/cleanup may invoke su before the normal guest daemon starts.
     "$A/oneos/bin/su" --daemon >> "$A/oneos/run/session.log" 2>&1 &
     bootstrap=$!
-    trap 'kill "$bootstrap" 2>/dev/null || true; wait "$bootstrap" 2>/dev/null || true' EXIT
+    # Ended by SIGKILL, never SIGTERM: the guest's shell (mksh) catches SIGTERM itself, and one
+    # that reaches the forked child before it has become su is swallowed there; su then never
+    # gets it and the wait never returns. With no module to remove this trap runs microseconds
+    # after the fork. Galaxy S22 Ultra 0.4.91, OxygenOS 16, 2026-11-11: three switches in a row
+    # stood behind the splash for good right after "explicit guest injection enabled" (15 and
+    # 27 minutes, forced reboots); the same lines on the Fold's own shell lost 4 of 150 kills.
+    # su --daemon has no handler: SIGTERM ended it the same way. The pid file is for the host
+    # side (guest_modules.sh), which stops a bootstrap left by a cleanup it had to end.
+    echo "$bootstrap" > "$A/oneos/run/bootstrap.pid" || true
+    trap 'kill -KILL "$bootstrap" 2>/dev/null || true; wait "$bootstrap" 2>/dev/null || true; rm -f "$A/oneos/run/bootstrap.pid" 2>/dev/null || true' EXIT
     export ASH_STANDALONE=1 PATH=/system/bin:/system/xbin:/data/adb/ksu/bin
     for m in "$A/modules/"*; do
         [ -d "$m" ] && [ ! -L "$m" ] && [ -f "$m/remove" ] || continue
@@ -308,7 +317,8 @@ install)
     A=/data/adb
     /data/adb/oneos/bin/su --daemon >> "$A/oneos/run/session.log" 2>&1 &
     bootstrap=$!
-    trap 'kill "$bootstrap" 2>/dev/null || true; wait "$bootstrap" 2>/dev/null || true' EXIT
+    # SIGKILL, as in the uninstall stage above: a SIGTERM can be lost in the forked shell.
+    trap 'kill -KILL "$bootstrap" 2>/dev/null || true; wait "$bootstrap" 2>/dev/null || true' EXIT
     A=/data/adb
     export PATH=/system/bin:/system/xbin:/data/adb/ksu/bin
     export ASH_STANDALONE=1

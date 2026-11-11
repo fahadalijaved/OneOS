@@ -54,7 +54,7 @@ SM-A155, Helio G99
 | ColorOS 17 (Find X9 Ultra) | ⚠️ started in 2 of 3 (3 reports, OneOS 0.4.83); problems reported: Bluetooth, Camera |
 | Infinity-X 4.1 | ✅ starts (1 report, OneOS 0.4.83); problems reported: Mobile data, Calls, SMS |
 | HyperOS | 🔲 not tested yet |
-| OxygenOS 16 | ⚠️ started in 2 of 8 (8 reports, OneOS 0.4.90); problems reported: Bluetooth, Camera, Heat |
+| OxygenOS 16 | ⚠️ started in 3 of 9 (9 reports, OneOS 0.4.90); problems reported: Mobile data, Bluetooth, Camera, Heat |
 
 ## Galaxy A16
 
@@ -125,7 +125,7 @@ SM-A256, s5e8825
 
 | System | Status |
 |---|---|
-| OxygenOS 16 | ⚠️ started in 2 of 17 (17 reports, OneOS 0.4.90); problems reported: Camera, Google |
+| OxygenOS 16 | ⚠️ started in 4 of 19 (19 reports, OneOS 0.4.74); problems reported: Camera, Google |
 
 ## Galaxy A26
 
@@ -154,7 +154,7 @@ SM-A336, 5G, s5e8825
 
 | System | Status |
 |---|---|
-| OxygenOS 16 | ⚠️ started in 2 of 17 (17 reports, OneOS 0.4.90); problems reported: Bluetooth, Camera |
+| OxygenOS 16 | ⚠️ started in 3 of 18 (18 reports, OneOS 0.4.90); problems reported: Bluetooth, Camera |
 
 ## Galaxy A34
 
@@ -185,7 +185,7 @@ SM-A366, Snapdragon 6 Gen 3
 | System | Status |
 |---|---|
 | ColorOS 17 (Find X9 Ultra) | ⚠️ started in 8 of 11 (11 reports, OneOS 0.4.72); problems reported: SMS, Camera |
-| Infinity-X 4.1 | ⚠️ started in 9 of 10 (10 reports, OneOS 0.4.74) |
+| Infinity-X 4.1 | ⚠️ started in 10 of 11 (11 reports, OneOS 0.4.90) |
 | HyperOS | ⚠️ started in 6 of 9 (9 reports, OneOS 0.4.84); problems reported: Mobile data, SMS, Camera |
 
 ## Galaxy A53
@@ -224,7 +224,7 @@ SM-A566, Exynos 1580
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 31 of 32 (32 reports, OneOS 0.4.85) |
+| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 33 of 34 (34 reports, OneOS 0.4.91); problems reported: Camera |
 | Pixel 9 Pro XL | ✅ starts (6 reports, OneOS 0.4.89) |
 | Infinity-X 4.1 | ⚠️ started in 2 of 4 (4 reports, OneOS 0.4.59); problems reported: Calls, SMS |
 | HyperOS | ⚠️ started in 5 of 8 (8 reports, OneOS 0.4.69); problems reported: Calls, SMS |
@@ -284,7 +284,7 @@ SM-M558, Snapdragon 7 Gen 1
 
 | System | Status |
 |---|---|
-| OxygenOS 16 | ⚠️ started in 3 of 12 (12 reports, OneOS 0.4.74); problems reported: Screen, Mobile data, Calls, SMS, Camera, Google |
+| OxygenOS 16 | ⚠️ started in 4 of 13 (13 reports, OneOS 0.4.84); problems reported: Screen, Mobile data, Calls, SMS, Camera |
 
 **SM-S908, Snapdragon 8 Gen 1**
 
@@ -312,7 +312,7 @@ SM-S911, Snapdragon 8 Gen 2
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 14 of 17 (17 reports, OneOS 0.4.74) |
+| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 15 of 18 (18 reports, OneOS 0.4.89) |
 | Pixel 9 Pro XL | ⚠️ started in 8 of 10 (10 reports, OneOS 0.4.68); problems reported: SMS, Heat |
 | Infinity-X 4.1 | ✅ starts (1 report, OneOS 0.4.40); problems reported: Calls, SMS, Back to One UI |
 | HyperOS | ⚠️ started in 10 of 15 (15 reports, OneOS 0.4.84); problems reported: Calls, SMS |
@@ -325,7 +325,7 @@ SM-S911, Snapdragon 8 Gen 2
 
 | System | Status |
 |---|---|
-| OxygenOS 16 | ⚠️ started in 2 of 9 (9 reports, OneOS 0.4.84); problems reported: Google, Heat |
+| OxygenOS 16 | ⚠️ started in 2 of 10 (10 reports, OneOS 0.4.91); problems reported: Google, Heat |
 
 **SM-S711, Snapdragon 8 Gen 1**
 
@@ -335,7 +335,7 @@ SM-S911, Snapdragon 8 Gen 2
 
 ## Galaxy S23 Ultra
 
-SM-S918, Snapdragon 8 Gen 2
+**SM-S918, Snapdragon 8 Gen 2**
 
 | System | Status |
 |---|---|
@@ -345,6 +345,17 @@ SM-S918, Snapdragon 8 Gen 2
 | HyperOS | ⚠️ started in 4 of 9 (9 reports, OneOS 0.4.68); problems reported: SMS |
 | OxygenOS 16 | 🔲 not tested yet |
 | OriginOS 7 | ⚠️ started in 1 of 6 (6 reports, OneOS 0.4.88); problems reported: Screen, Wi-Fi, Mobile data, Calls, SMS, Bluetooth, Sound, Camera, Google, Location, Heat |
+
+**SCG20, au, Snapdragon 8 Gen 2**
+
+| System | Status |
+|---|---|
+| ColorOS 17 (Find X9 Ultra) | 🔲 not tested yet |
+| Pixel 9 Pro XL | 🔲 not tested yet |
+| Infinity-X 4.1 | 🔲 not tested yet |
+| HyperOS | 🔲 not tested yet |
+| OxygenOS 16 | 🔲 not tested yet |
+| OriginOS 7 | 🔲 not tested yet |
 
 ## Galaxy S23+
 
@@ -376,7 +387,7 @@ SM-S916, Snapdragon 8 Gen 2
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 12 of 14 (14 reports, OneOS 0.4.83) |
+| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 14 of 16 (16 reports, OneOS 0.4.89) |
 | Pixel 9 Pro XL | ❌ did not start (2 reports, OneOS 0.4.85); problems reported: Back to One UI |
 | Infinity-X 4.1 | ✅ starts (2 reports, OneOS 0.4.83) |
 | HyperOS | 🔲 not tested yet |
