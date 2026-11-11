@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.84. Galaxy Z Fold, S, Z Flip, A, F and M phones with Snapdragon,
+App version 0.4.90. Galaxy Z Fold, S, Z Flip, A, F and M phones with Snapdragon,
 Exynos or MediaTek chips, on One UI 9 (and, for OxygenOS 16 only, on One UI 8);
 root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).

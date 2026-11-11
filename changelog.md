@@ -50,6 +50,84 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.90: **Bluetooth and USB headphones on the Galaxy A35**, **OxygenOS 16's status bar**, and **ColorOS's
+status bar on the Galaxy S24+**. None of the three has run on the phones concerned yet.
+- Bluetooth and USB headphones connected and the sound stayed on the phone (Galaxy A35, OxygenOS 16; any phone whose
+  vendor audio policy file names no Bluetooth or USB output). An A35 user found the fix and sent it as a script: the
+  vendor's own Bluetooth and USB policy files, included in the guest's copy of the policy file. OneOS now does that
+  before the guest starts, on phones that are not Qualcomm ones and have the files and their HAL libraries; the
+  0.4.85 way (A2DP outputs in the primary module) stays for the rest. `ONEOS_GUEST_APM_BT_MODULE=0` (or `1` for a
+  Qualcomm phone) and `ONEOS_GUEST_APM_USB=0` choose by hand.
+- OxygenOS 16 laid its status bar out for a camera in the corner on every phone (clock pushed right of the camera
+  on 1080 px phones, icons ending at the camera on 1440 px ones). 0.4.81's fix did not reach it: OPPO's SystemUI
+  reads the image's own phone's width (1272 px) from a framework resource, not from DisplayManager. The resource now
+  gets the guest's display size through an overlay. `ONEOS_GUEST_STABLE_SIZE=0` turns it off.
+- ColorOS on a Galaxy S24+ (Exynos) had the clock and all icons in the left half of the status bar. The camera
+  position was written for the whole 1440 px panel while the guest ran it at One UI's FHD+ size. The switch now asks
+  the guest for its display size as soon as its window manager answers and places the camera for that size; the
+  display density and, on Pixel and HyperOS guests, the status bar height follow the same size. Nothing changes where
+  the guest runs the whole panel. Every bar-phone session now logs the guest's display size.
+
+New in 0.4.89: **Canadian phones (SM-...W) are no longer refused as a custom ROM**. From the S24 series on, a
+stock Canadian phone carries the US carrier model's bootloader and vendor partition under its own firmware (S24 Ultra
+SM-S928W: bootloader S928U..., vendor SM-S928U), which OneOS took for One UI ported from another phone (public issue
+#128). The Canadian model now counts as the same phone as the US carrier (U) and unlocked (U1) models, with either
+bootloader, as U and U1 have counted as one since 0.4.84. One UI ported from another phone and other regions'
+firmware are still refused.
+
+New in 0.4.88: **Bluetooth headsets that drop and reconnect every few seconds in ColorOS on the Galaxy A16 4G
+(and likely the A15 4G and A07)** (untested). ColorOS's Bluetooth is OPPO's build for Qualcomm chips. When a headset
+connects it turns the Bluetooth chip's quality reports on, reads the MediaTek chip's shorter reports past their end,
+and the Bluetooth process dies and starts over, again and again. On phones with the Helio G99 (MT6789), ColorOS's
+Bluetooth now runs with its own switch for Android's original behaviour, where those reports are read with their
+length checked. The switch changes more of ColorOS's Bluetooth than the reports (codecs, remote control), so it is
+set on these phones only; ONEOS_GUEST_BT_ORIGIN=0 leaves it off, =1 sets it on any phone.
+
+New in 0.4.87: **double tap to wake on more phones**. On the S24 and S24+ (Exynos), S23 FE, A25, A34 and A35 the
+touchscreen answers two of the four writes with an error although it has done its part; OneOS took that for a refusal
+and gave double tap up for the session. The S22 Ultra and S23 Ultra, whose touchscreen reports its state with other
+numbers, were left out altogether. Both are handled now, and the first write waits until the touchscreen is held
+open (without that it was lost on some phones). Double tap needs One UI's own "Double tap to turn on screen" on.
+**Always-On Display in ColorOS and OxygenOS on phones other than the Z Fold8** (untested): the system was never told
+that the phone has one, so its setting did nothing. It is told now wherever One UI has AOD and the system carries
+its AOD app (ONEOS_GUEST_AOD=0 leaves it off). **HyperOS on Exynos phones with the older audio HAL (A16 5G, A35 and
+the like): volume stuck at the maximum, no headset, no Bluetooth audio**. HyperOS was handed Samsung's own audio
+policy file and rejected it for a Samsung-only microphone type; it gets Samsung's plain file now. **Bluetooth audio
+on those phones, in every system** (untested): the plain file has no Bluetooth music output although the audio HAL
+plays to one, so the outputs are added the way One UI's own file has them (ONEOS_GUEST_APM_A2DP=0 leaves the file
+alone). On the A25, A33 and S23 FE the Bluetooth audio HAL is an older kind the bridge cannot serve: the log says so
+now instead of waiting 15 s, and Bluetooth audio does not work there yet. **Mobile data in HyperOS**: HyperOS keeps
+its mobile data switch per SIM slot, the other systems per SIM card; OneOS carried One UI's switch over the second
+way, which on a phone with the SIM in the first slot switched the empty slot on and left the SIM's off (S25 Ultra:
+signal, but no data all session). Both slots are set now, as HyperOS's own switch does. A first HyperOS start still
+begins with mobile data off (there are no settings to change yet): turn it on once in its control centre.
+**No SIM in Infinity-X on the Galaxy A07 and A15 (and likely the A16 4G and A17)** (untested): the fix of 0.4.74
+looked for the phone's older radio service in the vendor's manifest files and did not find it there, so nothing
+changed. OneOS now asks the running phone which radio services it has, and the log says what it saw either way.
+**For reports:** when a system asks to shut the phone down or restart it, the log now keeps the request from the
+system log buffer (a busy camera used to push it out) and what the system's thermal and battery services held;
+HyperOS says when it unpacks its apps' libraries on a first start.
+
+New in 0.4.86: **a faster switch and a faster return**, from a contributor's work (public pull request #107):
+One UI's display details are read once and in the background, the Samsung Camera's files are bound in parallel
+(one by one where the root manager's busybox cannot), app data ownership is checked in one pass, and One UI's
+persist properties go back in one pass at the return (the author measured about 21 s down to 10 s for that step).
+The log now carries a time at every step. **App folders keep the labels the guest gave them** between sessions:
+the rule from 0.4.44 never took effect, because the folders were reset just before it looked. **A live or video
+wallpaper survives a restart in ColorOS 17 too**, not only in Pixel guests (public pull request #133).
+
+New in 0.4.85: **Galaxy A phones on One UI 8 or 8.5 are no longer called "not supported"**. Whenever the
+app had no set-up system to go by, it measured them against Android 17 and refused them (A15, A16, A25, A33 and the
+others with OxygenOS 16). Phones whose systems are all Android 17 (A56, A57, A36, A27, S24 FE,
+Z Flip7 FE, S25 FE) now say what to do on One UI 8.5: update One UI first. The device report no longer says "Not
+supported" for low free space when a system is already set up. **OxygenOS 16 on the Galaxy A25 and A33** no longer
+stays on a black screen (the earlier fixes did not take effect there). **OriginOS 7 on the Galaxy S23 and S24 series**
+stopped after a minute on every try: vivo's refresh-rate manager refused all of Samsung's display modes; it is now
+switched off on those phones (untested on a real one). OxygenOS and ColorOS get the folder their system font link
+lives in, and the logs say more about fonts in web pages (text missing in Google sign-in and some apps on OxygenOS 16
+is still open) and about the Galaxy A57's radio library (incoming SMS). Tap Update on the system's page after
+installing.
+
 New in 0.4.84: US phones on the other US firmware are no longer refused. A carrier model (SM-...U) and the
 unlocked model (SM-...U1) are the same phone and take each other's stock firmware, but 0.4.83 and 0.4.74 called
 that "Custom ROM: One UI from another phone" and would not prepare or switch (seen on a Galaxy S26+, SM-S947U1 on

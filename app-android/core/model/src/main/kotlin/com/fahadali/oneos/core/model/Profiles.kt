@@ -1235,6 +1235,9 @@ object Profiles {
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */
     val ONE_UI_SEEN: Set<Int> = setOf(90000)
 
+    /** One UI versions whose installd tables the app carries for Android 16 systems (One UI 8.0 and 8.5, [InstalldExpected.accepted]). */
+    val ONE_UI_SEEN_A16: Set<Int> = setOf(80000, 80500)
+
     fun byId(id: String, profiles: List<PhoneProfile> = BUILT_IN): PhoneProfile? = profiles.firstOrNull { it.id == id }
 
     fun resolve(f: DeviceFacts, profiles: List<PhoneProfile> = BUILT_IN): ProfileResolution =

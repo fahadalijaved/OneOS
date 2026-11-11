@@ -75,6 +75,36 @@ readn() { # <file> <offset> <count> -> lowercase hex digits
 }
 read4() { readn "$1" "$2" 4; }
 
+# 0.4.85: a library with neither sequence (the Galaxy A57's: all five of its reports from
+# 0.4.61 on, and the guest gets no SMS there). For the next signature the log names the
+# library and shows the code at each "flag byte, branch, compare with 1000000" place: the
+# 16 bytes before a load of 1000000 (mov wN, #0x4240; movk wN, #0xf, lsl #16) when a byte
+# load and a branch on zero are among them, and the 16 from it. Code bytes of the vendor's
+# library, nothing of the user's. At most 200 places looked at, 8 shown.
+MILLION_PAT="$(printf '\110\210\122')"
+describe_lib() {
+    echo "inbound SMS: $LIB is $("$BB" wc -c < "$LIB" 2>/dev/null) bytes, sha256 $("$BB" sha256sum "$LIB" 2>/dev/null | "$BB" cut -c1-64)"
+    seen=0; shown=0
+    for c in $(LC_ALL=C /system/bin/grep -aobF "$MILLION_PAT" "$LIB" 2>/dev/null | "$BB" cut -d: -f1 | "$BB" head -n 200); do
+        case "$c" in ''|*[!0-9]*) continue ;; esac
+        c=$((c - 1))
+        [ "$c" -ge 16 ] && [ $((c % 4)) = 0 ] || continue
+        case "$(readn "$LIB" "$c" 8)" in ??488852??01a072) ;; *) continue ;; esac
+        seen=$((seen + 1))
+        before=$(readn "$LIB" $((c - 16)) 16)
+        rest=$before; cb=0; lb=0
+        while [ -n "$rest" ]; do
+            w=${rest%"${rest#????????}"}; [ -n "$w" ] || break
+            rest=${rest#????????}
+            case "$w" in ??????3[4-7]) cb=1 ;; ????[4-7]?39) lb=1 ;; esac
+        done
+        [ $cb = 1 ] && [ $lb = 1 ] && [ $shown -lt 8 ] || continue
+        echo "inbound SMS: flag check before a compare with 1000000 at $c: $before | $(readn "$LIB" "$c" 16)"
+        shown=$((shown + 1))
+    done
+    echo "inbound SMS: $seen loads of 1000000 looked at, $shown with a flag check before them"
+}
+
 restart_ril() {
     /system/bin/setprop ctl.restart ril-daemon 2>/dev/null
     /system/bin/setprop ctl.restart multiclient-daemon 2>/dev/null
@@ -123,6 +153,7 @@ apply() {
         done
         [ "$m" = 1 ] || {
             echo "inbound SMS: found 0 matches for the rild SMS queue sequence and $m for its check from the ldrb on in $LIB; left alone"
+            describe_lib
             return 1
         }
         off=$hits

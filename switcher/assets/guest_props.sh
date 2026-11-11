@@ -110,6 +110,7 @@ drop_stale_memory_lists() {
 
 case "$1" in
 add)
+    echo "guest_props add: start $(date +%T)"
     ROOTFS="$2"
     HOST="$STAGE/host_props.txt"
     NEW="$STAGE/guest_props.new"
@@ -134,6 +135,7 @@ add)
             if (substr($0, i + 4) == "]" && (k !~ /^persist\./ || (k in b))) next
             print k
         }' > "$HOST"
+    echo "guest_props add: host set $(date +%T)"
     # The image's system_ext and product: inside system in MysticGSI's merged
     # images; at the image root in HyperOS's, where system/system_ext and
     # system/product are absolute links (-> /system_ext, /product) that root
@@ -324,7 +326,10 @@ add)
             hv=$(getprop "$RR")
             case "$hv" in 1|true) "$RP" -n "$RR" 0 && echo "$RR=$hv" >> "$OVR" &&
                 echo "guest_props: $RR=$hv overridden to 0 for the session (no Adreno: SkiaGL would wait for kgsl forever)" ;; esac
-        elif grep -q "^persist\.sys\.renderengine\.retry=\(1\|true\)$" "$NEW"; then
+        # 0.4.85: -E. This was a basic expression with "\|", which the phone's grep does not take
+        # as "or" (see oneos_switch.sh), so the image's value was never rewritten here: 0 of 625
+        # reports carry the line below.
+        elif grep -qE "^persist\.sys\.renderengine\.retry=(1|true)$" "$NEW"; then
             sed -i "/^persist\.sys\.renderengine\.retry=/d" "$NEW"
             echo "$RR=0" >> "$NEW"
             echo "guest_props: $RR=0 for the session (no Adreno: SkiaGL would wait for kgsl forever)"
@@ -360,19 +365,26 @@ add)
             *mt[0-9]*|*[Mm]edia[Tt]ek*) ;;
             *s5e[0-9]*|*erd[0-9]*|*exynos*|*universal[0-9]*|*[Ss]amsung*)
                 if [ -e /vendor/lib64/egl/libGLES_mali.so ] && [ ! -e /sys/class/kgsl/kgsl-3d0/gpu_model ]; then
-                    case "$rrv" in
-                        1|true) echo "guest_props: Mali Exynos ($REP) with $RR=$rrv: Vulkan RenderEngine kept (SkiaGL would wait for kgsl)" ;;
-                        *) REV=""
+                    # 0.4.85: Vulkan is kept only when ONEOS_GUEST_RE_RETRY=1 asks for the image's
+                    # retry value. Up to 0.4.84 a retry value still at 1 kept it, and the rewrite
+                    # above never ran (its grep), so every A25/A33 whose One UI did not hold the
+                    # property went on aborting in SkiaVk (0.4.83/0.4.84: 288aabca, 6435d433,
+                    # a89343dd, 7c78775c, d7efdb60; 32a0830e ran, One UI held it blank).
+                    rrk=$rrv; [ "${ONEOS_GUEST_RE_RETRY:-0}" = 1 ] || rrk=""
+                    case "$rrk" in
+                        1|true) echo "guest_props: Mali Exynos ($REP) with $RR=$rrv: Vulkan RenderEngine kept (ONEOS_GUEST_RE_RETRY=1; SkiaGL would wait for kgsl)" ;;
+                        *) REV=""; rrs="$RR=0 (was '$rrv')"
                             case "$rrv" in
                                 0|false) ;;
                                 *)  if grep -qxF "$RR" "$HOST"; then
-                                        "$RP" -n "$RR" 0 && echo "$RR=$rrv" >> "$OVR"
+                                        "$RP" -n "$RR" 0 && echo "$RR=$rrv" >> "$OVR" ||
+                                            rrs="!!! $RR could not be set to 0 (One UI holds '$rrv'): SkiaGL may wait for kgsl"
                                     else
                                         sed -i "/^persist\.sys\.renderengine\.retry=/d" "$NEW"
                                         echo "$RR=0" >> "$NEW"
                                     fi ;;
                             esac
-                            echo "guest_props: Mali Exynos ($REP): the image's RenderEngine (SkiaGL; SkiaVk fails on this driver), $RR=0 (was '$rrv')" ;;
+                            echo "guest_props: Mali Exynos ($REP): the image's RenderEngine (SkiaGL; SkiaVk fails on this driver), $rrs" ;;
                     esac
                 fi ;;
         esac
@@ -576,6 +588,53 @@ add)
             fi
         done
         echo "guest_props: no $BTA on this phone: LE Audio off for the session:${out:- nothing was on}"
+    fi
+    # ColorOS's Bluetooth on a Helio G99 phone (Galaxy A16 4G, reports c6e0068a
+    # of build 100 and 049d5675 of build 112: a headset connects, drops and
+    # reconnects every few seconds; com.android.bluetooth died 3 and 5 times
+    # in the session, every time in bluetooth::bqr::OplusParseBqrLinkQualityEvt).
+    # The image's Bluetooth stack is OPPO's build for Qualcomm chips
+    # (system_unify/soc/qcom). When an audio profile connects, ColorOS turns
+    # the controller's quality monitor on (" enable bqr common monitor"), the
+    # MediaTek controller answers with link quality events of the plain 48
+    # bytes (quality report version 0x100), and OPPO's parser reads the longer
+    # Qualcomm layout past their end: "bqr data length is invalid" 8,544 times
+    # in the second session, then GWP-ASan's "0 bytes right of a 48-byte
+    # allocation" or a plain SEGV, the process restarts, the headset
+    # reconnects, and so on. The stack has its own switch for Android's
+    # original behaviour, persist.sys.oplus.bt.use_origin
+    # (is_oplus_bt_use_origin in libbluetooth_jni.so, OplusUtils.USE_ORIGIN in
+    # the Bluetooth app; both only read it). With it CategorizeBqrEvent takes
+    # Android's parser, which reads the 48 bytes and tests the length before
+    # every longer layout, and ConfigureBqr takes Android's path (its fatal
+    # checks do not fire: the mask stays below 0x80080000, the action below 3).
+    # The switch is broad: the library asks it at 425 places (codecs, AVRCP,
+    # HCI, L2CAP), and nobody has run a session with it. So it is on only
+    # where the crash is proven, ro.soc.model MT6789 (A16 4G, A15 4G, A07);
+    # the A34 (MT6877) reports ColorOS's Bluetooth working without it, and the
+    # Exynos phones' 56-byte events crash nothing. In memory for the session
+    # (remove deletes it). ONEOS_GUEST_BT_ORIGIN=1 sets it on any phone, =0 on none.
+    BTO=persist.sys.oplus.bt.use_origin
+    if [ "$GUEST_OPLUS" = 1 ]; then
+        soc=$(getprop ro.soc.model)
+        case "${ONEOS_GUEST_BT_ORIGIN:-auto}:$soc" in
+            1:*) why="ONEOS_GUEST_BT_ORIGIN=1" ;;
+            auto:MT6789*) why="$soc: OPPO's quality report parser reads past this controller's 48-byte events" ;;
+            *) why="" ;;
+        esac
+        if [ -n "$why" ]; then
+            if grep -qxF "$BTO" "$HOST"; then
+                hv=$(getprop "$BTO")
+                if [ "$hv" != true ] && "$RP" -n "$BTO" true 2>/dev/null; then
+                    echo "$BTO=$hv" >> "$OVR"
+                    echo "guest_props: $BTO=$hv overridden to true for the session ($why)"
+                fi
+            else
+                sed -i "/^persist\.sys\.oplus\.bt\.use_origin=/d" "$NEW"
+                echo "$BTO=true" >> "$NEW"
+                echo "guest_props: $BTO=true for the session ($why)"
+            fi
+        fi
     fi
     # Power key stall (run 32: the power menu ~15 s late or missing after a
     # long press, Power + Volume Down screenshots late, folds handled late).
@@ -987,6 +1046,44 @@ add)
         echo "ro.oneos.vivo.dtype=$VDT" >> "$NEW"
         echo "guest_props: ro.oneos.vivo.dtype=$VDT (vivo's display and input side; apps: $(grep '^ro\.vivo\.device\.type=' "$NEW" | tail -n 1 | cut -d= -f2))"
     fi
+    # vivo OriginOS on a phone whose composer numbers its display mode groups by resolution
+    # (0.4.85). vivo's refresh-rate manager keeps flags of its own in a group's upper bits and
+    # refuses every mode whose group is 256 or more (vivo-services, PhysicalDisplayManager.
+    # rejectDisplayMode: group >> 8 != 0). One UI's composer on the S23 and S24 series says
+    # group=720/1080/1440 (the mode's width), so every mode went: "Display device added ...
+    # modeId -1", then "Unable to locate mode id=-1,supportedModes=[]" ended system_server
+    # about 60 s in, every time (S23 Ultra e565329d and 7dfec122; none of the nine
+    # OriginOS reports of the S23/S24 series reached the home screen). The S25 series says
+    # group=0 and runs. The manager's own off switch (GlobalConfigs.IS_SUPPORTED, read once in
+    # system_server and in the apps' framework) is this property: with it false no mode is
+    # refused and Android's own mode director picks the rate. Set only where One UI's
+    # SurfaceFlinger showed an active mode in such a group (display_modes_host.log,
+    # oneos_switch.sh). Untested on a real S23/S24 until the first 0.4.85 report: look for
+    # this line. ONEOS_GUEST_VIVO_RRM=1 keeps vivo's manager, 0 switches it off on any phone.
+    if [ -f "$ROOTFS/system/framework/vivo-services.jar" ]; then
+        VRM=persist.sys.vivo.refresh_rate_manager
+        VMG=$(grep -F 'activeMode={id=' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*, group=\([0-9]*\).*/\1/p' | sort -n | tail -n 1)
+        vrm=keep
+        case "${ONEOS_GUEST_VIVO_RRM:-auto}" in
+            1) ;;
+            0) vrm=off ;;
+            *) case "$VMG" in ''|*[!0-9]*) ;; *) [ "$VMG" -ge 256 ] && vrm=off ;; esac ;;
+        esac
+        if [ "$vrm" = off ]; then
+            vrs="$VRM=false for the session"
+            if grep -qxF "$VRM" "$HOST"; then
+                vrh=$(getprop "$VRM")
+                "$RP" -n "$VRM" false && echo "$VRM=$vrh" >> "$OVR" ||
+                    vrs="!!! $VRM could not be set to false (One UI holds '$vrh')"
+            else
+                sed -i '/^persist\.sys\.vivo\.refresh_rate_manager=/d' "$NEW"
+                echo "$VRM=false" >> "$NEW"
+            fi
+            echo "guest_props: $vrs (One UI's active display mode group: ${VMG:-not read}; vivo's refresh-rate manager refuses every mode of a group above 255)"
+        else
+            echo "guest_props: vivo's refresh-rate manager kept (One UI's active display mode group: ${VMG:-not read})"
+        fi
+    fi
     # Nothing OS's ringtones: NothingGenerateRingtoneService composes each with a
     # Glyph pattern from libgenerative_glyph, which sizes it by Nothing's vendor
     # props (ro.vendor.glyph.*, the Phone (3)'s 25 x 25 matrix). Samsung's
@@ -1082,6 +1179,7 @@ add)
             "$RP" -n "${line%%=*}" "${line#*=}" 2>/dev/null && echo "${line%%=*}" >> "$ADDED"
         done < "$NEW"
     fi
+    echo "guest_props add: batch done $(date +%T)"
     echo "guest_props: added $(wc -l < "$ADDED") props from the guest's build.prop files"
     rm -f "$HOST" "$NEW"
     # ColorOS's default sounds. One UI defines ro.config.ringtone,
@@ -1421,53 +1519,65 @@ restore-persist)
     deleted=0; restored=0; failed=0
     # After a hard reset (recover) One UI's init has since recorded that boot
     # in persist.sys.boot.reason*: its own record, kept as it is.
-    keep="^$"; [ "$2" = "--recover" ] && keep="^persist\.sys\.boot\.reason"
+    # (A plain name prefix: awk reads backslashes in a -v value its own way.)
+    keep=; [ "$2" = "--recover" ] && keep="persist.sys.boot.reason"
     # --recover may run long after the hard reset: One UI could have added or
     # changed its own persist props since (a new SIM's persist.radio.*, a
     # timezone or locale change the user made). The snapshot cannot tell those
     # from the guest's, so on --recover touch only props that are clearly the
     # guest's; the normal return (no flag, same boot) still restores everything.
-    guest_prop() { # 0 when $1 is clearly a guest-owned persist prop
-        case "$1" in
-            persist.sys.locale) return 0 ;;
-            persist.oplus.*|persist.sys.oplus.*) return 0 ;;
-            # vivo OriginOS: its audio policy alone sets about 370 of these (seventh run).
-            persist.vivo.*|persist.sys.vivo.*|persist.vendor.vivo.*|persist.sys.audio.vapc.*) return 0 ;;
-            # oneos_switch.sh's softdog off switch on the Exynos phones (0.4.22).
-            persist.vendor.softdog) return 0 ;;
-        esac
-        return 1
-    }
-    # Added by the guest: delete from memory and from persistent storage.
-    # Not the ones remove blanked (still empty and not in the store).
-    # With the session's own store (store-on) they were never in One UI's: blanked
-    # in memory instead, so the next session writes into the same slots (listed
-    # in guest_props.blanked, which the next snapshot leaves out).
+    blankf="$BLANKED"; [ -f "$blankf" ] || blankf=/dev/null
+    plan="$STAGE/persist_props.plan"
     : > "$BLANKED.persist"
-    for key in $(cut -d= -f1 "$NOW"); do
-        grep -q "^$key=" "$SNAP" && continue
-        grep -qxF "$key=" "$NOW" && [ -f "$BLANKED" ] && grep -qxF "$key" "$BLANKED" && continue
-        echo "$key" | grep -q "$keep" && continue
-        [ "$2" = "--recover" ] && ! guest_prop "$key" && continue
-        if [ "$STORE_SESSION" = 1 ]; then
-            if "$RP" -n "$key" "" 2>/dev/null; then echo "$key" >> "$BLANKED.persist"; blanked_p=$((${blanked_p:-0} + 1)); else failed=$((failed + 1)); fi
-        elif "$RP" -p --delete "$key" 2>/dev/null; then deleted=$((deleted + 1)); else failed=$((failed + 1)); fi
-    done
+    blanked_p=0
+    awk -v nowf="$NOW" -v snapf="$SNAP" -v blankf="$blankf" -v keep="$keep" -v mode="$2" -v store="$STORE_SESSION" '
+        function guest(k) {
+            return k == "persist.sys.locale" || index(k, "persist.oplus.") == 1 ||
+                   index(k, "persist.sys.oplus.") == 1 ||
+                   index(k, "persist.vivo.") == 1 || index(k, "persist.sys.vivo.") == 1 ||
+                   index(k, "persist.vendor.vivo.") == 1 ||
+                   index(k, "persist.sys.audio.vapc.") == 1 ||
+                   k == "persist.vendor.softdog"
+        }
+        function kept(k) { return keep != "" && index(k, keep) == 1 }
+        BEGIN {
+            while ((getline l < nowf) > 0) {
+                eq = index(l, "="); k = substr(l, 1, eq - 1)
+                now[k] = substr(l, eq + 1); nowline[l] = 1
+            }
+            while ((getline k < blankf) > 0) blank[k] = 1
+            while ((getline l < snapf) > 0) {
+                eq = index(l, "="); k = substr(l, 1, eq - 1)
+                snap[k] = 1; snapline[l] = 1
+            }
+            for (k in now) {
+                if ((k in snap) || (now[k] == "" && (k in blank)) || kept(k)) continue
+                if (mode == "--recover" && !guest(k)) continue
+                print (store == 1 ? "B " : "D ") k
+            }
+            if (mode == "--added-only") exit
+            for (l in snapline) {
+                if (l in nowline) continue
+                k = substr(l, 1, index(l, "=") - 1)
+                if (kept(k)) continue
+                if (mode == "--recover" && !guest(k)) continue
+                print "R " l
+            }
+        }' > "$plan"
+    # The whole line as it is: a restored value keeps its own leading and trailing spaces.
+    while IFS= read -r line; do
+        op=${line%% *}; val=${line#* }
+        case "$op" in
+            B) if "$RP" -n "$val" "" 2>/dev/null; then echo "$val" >> "$BLANKED.persist"; blanked_p=$((blanked_p + 1)); else failed=$((failed + 1)); fi ;;
+            D) if "$RP" -p --delete "$val" 2>/dev/null; then deleted=$((deleted + 1)); else failed=$((failed + 1)); fi ;;
+            R) if "$RP" -p "${val%%=*}" "${val#*=}" 2>/dev/null; then restored=$((restored + 1)); else failed=$((failed + 1)); fi ;;
+        esac
+    done < "$plan"
     if [ -s "$BLANKED.persist" ]; then
         { [ -f "$BLANKED" ] && cat "$BLANKED"; cat "$BLANKED.persist"; } | sort -u > "$BLANKED.tmp" &&
             mv -f "$BLANKED.tmp" "$BLANKED" && echo "$BOOT_ID" > "$BLANKED.boot"
     fi
-    rm -f "$BLANKED.persist"
-    # Changed by the guest: put the host's value back, in storage too.
-    [ "$2" = "--added-only" ] && : > "$NOW.skip"
-    while [ ! -f "$NOW.skip" ] && IFS= read -r line; do
-        key=${line%%=*}
-        grep -qxF "$line" "$NOW" && continue
-        echo "$key" | grep -q "$keep" && continue
-        [ "$2" = "--recover" ] && ! guest_prop "$key" && continue
-        if "$RP" -p "$key" "${line#*=}" 2>/dev/null; then restored=$((restored + 1)); else failed=$((failed + 1)); fi
-    done < "$SNAP"
-    rm -f "$NOW" "$NOW.skip"
+    rm -f "$BLANKED.persist" "$NOW" "$plan"
     # Fail closed: if any resetprop write failed, keep persist_session.active so
     # the app can show the failure and recover can retry, and exit non-zero.
     # Deleting the marker on a silent failure (the old behaviour) left One UI on

@@ -210,9 +210,12 @@ class CompatEvaluatorTest {
 
     @Test
     fun freeSpace() {
+        // 0.4.85: a warning, not "Not supported" (a phone that was switching read "OneOS can't run on
+        // this phone" when it ran low: the rule counts the image a set-up system already has).
         val short = eval(Fixtures.facts(storage = StorageInfo(15_000_000_000, 256_000_000_000)))
-        assertEquals(Level.BLOCK, short.level("free-space-short"))
-        assertEquals(Verdict.NOT_SUPPORTED, short.verdict)
+        assertEquals(Level.WARN, short.level("free-space-short"))
+        assertEquals(Verdict.WARNING, short.verdict)
+        assertTrue(short.find("free-space-short")!!.detail.endsWith("A system that is already set up keeps its image: switching to it needs about 11.8 GB free."))
 
         val unknown = eval(Fixtures.facts(storage = null))
         assertEquals(Level.WARN, unknown.level("free-space-unknown"))
@@ -221,10 +224,45 @@ class CompatEvaluatorTest {
         val need = SpaceRule.toStage(Images.FIND_N6, PackageSets.N6_F8U)
         val exact = eval(Fixtures.facts(storage = StorageInfo(need, 512_000_000_000)))
         assertEquals(Level.OK, exact.level("free-space"))
-        assertEquals(Level.BLOCK, eval(Fixtures.facts(storage = StorageInfo(need - 1, 512_000_000_000))).level("free-space-short"))
+        assertEquals(Level.WARN, eval(Fixtures.facts(storage = StorageInfo(need - 1, 512_000_000_000))).level("free-space-short"))
 
         assertEquals(10_276_003_840L + 11L * SpaceRule.GIB, SpaceRule.required())
         assertEquals(14_669_168_640L + 634_332_311L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
+    }
+
+    /** 0.4.85: the device report goes by the systems of this phone that fit its Android version. */
+    @Test
+    fun oneUi85PhonesAreJudgedByTheirOwnSystems() {
+        fun bar(model: String, device: String, soc: SocProps, free: Long = 100_000_000_000) = Fixtures.facts(
+            model = model, device = device, soc = soc, oneUi = "80500", sdk = 36, storage = StorageInfo(free, 128_000_000_000),
+            panels = listOf(Panel(0, "Built-in Screen", 1080, 2340, 400f, 400f)), hinge = false, inputs = listOf("hall", "sec_touchscreen"),
+        ).copy(androidRelease = "16")
+        val mediatek = SocProps(manufacturer = "Mediatek", model = "MT6789")
+
+        // Galaxy A15 (ColorOS 17 first in its list, OxygenOS 16 for One UI 8.5): no version warnings,
+        // and space is counted for OxygenOS 16, the system it can set up.
+        val oxygen = Images.byId(Images.ID_OXYGEN16)!!
+        val a15 = eval(bar("SM-A155F", "a15", mediatek))
+        assertNull(a15.find("oneui-unseen"))
+        assertNull(a15.find(CompatEvaluator.ID_ANDROID_DIFFERS))
+        assertTrue(a15.find(CompatEvaluator.ID_ANDROID_MATCHES)!!.detail.startsWith(oxygen.label))
+        val need = SpaceRule.toStage(oxygen, PackageSets.byId(PackageSets.ID_OXYGEN16))
+        assertEquals(Level.OK, eval(bar("SM-A155F", "a15", mediatek, free = need)).level("free-space"))
+        // Low on space with a system already set up (the Galaxy A24 of the reports): a warning.
+        val a24 = eval(bar("SM-A245F", "a24", mediatek, free = 14_400_000_000))
+        assertEquals(Level.WARN, a24.level("free-space-short"))
+        assertTrue(a24.findings.none { it.level == Level.BLOCK })
+        assertEquals(Verdict.WARNING, a24.verdict)
+
+        // Galaxy A56: every system is Android 17, so One UI 8.5 is too old for it, and still "not seen".
+        val a56 = eval(bar("SM-A566B", "a56x", SocProps(manufacturer = "Samsung", model = "s5e8855")))
+        assertEquals(Level.WARN, a56.level("oneui-unseen"))
+        val differs = a56.find(CompatEvaluator.ID_ANDROID_DIFFERS)!!
+        assertEquals("The systems for this phone need Android 17: update One UI first", differs.title)
+        assertTrue(differs.detail, differs.detail.contains("the systems for the Galaxy A56 are Android 17 (SDK 37)"))
+        assertNull(a56.find(CompatEvaluator.ID_ANDROID_MATCHES))
+        // One UI 8.5 on a phone with no profile is not seen either.
+        assertEquals(Level.WARN, eval(Fixtures.facts(model = "SM-S948B", device = "m3s", soc = SocProps(manufacturer = "Samsung", model = "s5e9955"), oneUi = "80500", sdk = 36)).level("oneui-unseen"))
     }
 
     @Test

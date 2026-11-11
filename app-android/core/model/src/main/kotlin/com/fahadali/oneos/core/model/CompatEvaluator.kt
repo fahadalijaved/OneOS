@@ -58,9 +58,11 @@ object CompatEvaluator {
         val out = mutableListOf<Finding>()
         val family = f.family
         val profile = Profiles.resolve(f, profiles).profile
-        // The profile's usual image (its first choice) for the CPU rule and free
-        // space; Prepare and Switch use the image actually picked or staged.
-        val choice = profile?.choices?.firstOrNull()
+        // The profile's usual image for the CPU rule and free space: its first choice made for this
+        // phone's Android version (0.4.85: a One UI 8.5 phone was measured against an Android 17 image
+        // it cannot run), else its first; Prepare and Switch use the image actually picked or staged.
+        val offered = profile?.choices.orEmpty().mapNotNull { c -> Images.byId(c.imageId, images)?.let { c to it } }
+        val choice = offered.firstOrNull { it.second.sdk == f.sdk }?.first ?: profile?.choices?.firstOrNull()
         val image = choice?.let { Images.byId(it.imageId, images) }
         val set = choice?.let { PackageSets.byId(it.packageSetId, sets) }
 
@@ -165,7 +167,10 @@ object CompatEvaluator {
                     "ro.build.version.oneui is '${f.oneUiRaw}'. OneOS has only run next to One UI.",
                 )
             }
-        } else if (oneUi.raw !in Profiles.ONE_UI_SEEN) {
+        } else if (oneUi.raw !in Profiles.ONE_UI_SEEN &&
+            // One UI 8.0 and 8.5 are known where the phone has an Android 16 system (0.4.85).
+            !(oneUi.raw in Profiles.ONE_UI_SEEN_A16 && offered.any { it.second.sdk == f.sdk })
+        ) {
             val seen = Profiles.ONE_UI_SEEN.sorted().mapNotNull { OneUiVersion.parse(it.toString()) }
             out += Finding(
                 "oneui-unseen", Level.WARN, "One UI $oneUi not seen yet",
@@ -175,18 +180,30 @@ object CompatEvaluator {
 
         // Android version vs the OneOS images (a guest must match the host SDK).
         // WARN here; switching refuses a different version (BLOCK at switch time).
-        val matching = images.filter { it.sdk == f.sdk }
+        // With a profile, its own systems count (0.4.85: every image of the build counted, so a
+        // Galaxy A56 on One UI 8.5 read "Packages for Android SDK 36" with no system it can use).
+        val candidates = offered.map { it.second }.ifEmpty { images }
+        val matching = candidates.filter { it.sdk == f.sdk }
         if (matching.isEmpty()) {
-            val sdks = images.map { it.sdk }.distinct().sorted()
+            val sdks = candidates.map { it.sdk }.distinct().sorted()
             val releases = sdks.joinToString(", ") { AndroidRelease.name(it) }
-            out += Finding(
-                ID_ANDROID_DIFFERS, Level.WARN,
-                "Android version differs from the OneOS images ($releases); switching may not work",
-                "This phone runs Android ${f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }} (SDK ${f.sdk}); " +
-                    "the OneOS images are Android $releases (SDK ${sdks.joinToString()}). A guest OS shares " +
-                    "One UI's system services, so it must have the same Android version. Switching will " +
-                    "refuse this phone until there is an image for its Android version.",
-            )
+            val have = "This phone runs Android ${f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }} (SDK ${f.sdk}); "
+            val shared = "A guest OS shares One UI's system services, so it must have the same Android version. "
+            out += if (profile != null && offered.isNotEmpty() && f.sdk < sdks.first()) {
+                Finding(
+                    ID_ANDROID_DIFFERS, Level.WARN,
+                    "The systems for this phone need Android $releases: update One UI first",
+                    have + "the systems for the ${profile.label} are Android $releases (SDK ${sdks.joinToString()}). " +
+                        shared + "Update One UI, then check again.",
+                )
+            } else {
+                Finding(
+                    ID_ANDROID_DIFFERS, Level.WARN,
+                    "Android version differs from the OneOS images ($releases); switching may not work",
+                    have + "the OneOS images are Android $releases (SDK ${sdks.joinToString()}). " + shared +
+                        "Switching will refuse this phone until there is an image for its Android version.",
+                )
+            }
         } else {
             out += Finding(
                 ID_ANDROID_MATCHES, Level.OK, "Packages for Android SDK ${f.sdk}",
@@ -225,10 +242,14 @@ object CompatEvaluator {
                 "free-space-unknown", Level.WARN, "Free space unknown",
                 "Could not read free space on /data. A session with $session needs about ${Units.bytes(need)}.",
             )
+            // A warning, not a refusal (0.4.85): the phone is supported, and a system that is already
+            // set up has its image on the phone (the rule counted it again: "Not supported" on phones
+            // that were switching). The set-up and switch gates check the real numbers.
             storage.freeBytes < need -> out += Finding(
-                "free-space-short", Level.BLOCK, "Not enough free space",
-                "${Units.bytes(storage.freeBytes)} free on /data; a session with $session needs about " +
-                    "${Units.bytes(need)} ($parts).",
+                "free-space-short", Level.WARN, "Low on free space",
+                "${Units.bytes(storage.freeBytes)} free on /data; setting up $session needs about " +
+                    "${Units.bytes(need)} ($parts). A system that is already set up keeps its image: " +
+                    "switching to it needs about ${Units.bytes(SpaceRule.LAUNCH_BYTES)} free.",
             )
             else -> out += Finding(
                 "free-space", Level.OK, "Enough free space",

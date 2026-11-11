@@ -567,6 +567,34 @@ series' download already carries the set.
   audioserver's "DevicesFactoryHal" and "APM" lines, and the odrefresh line in
   takeover_inner.log.
 
+#### What the first reports showed, and the 0.4.85 switch (not yet run on one of them)
+
+Nine OriginOS reports of 0.4.83 from the S23 and S24 series (S23, S23+ x2, S23 Ultra x3,
+S24 Ultra x3): every one ended "The other system stopped" about 60 s in, none reached
+the home screen.
+
+- **Cause (read in the set's vivo-services.jar and in the logs):** vivo's refresh-rate
+  manager keeps flags of its own in the upper bits of a display mode's group and refuses
+  every mode whose group is 256 or more (`PhysicalDisplayManager.rejectDisplayMode`:
+  `group > 0 && group >> 8 != 0`). One UI's composer on these phones numbers the groups
+  by the mode's width (`group=720`, `1080`, `1440` in `display_modes_host.log`), so every
+  mode was refused: "Display device added ... modeId -1", then "Unable to locate mode
+  id=-1,supportedModes=[]" ended system_server. The S25 series says `group=0`, the folds
+  0 and 1, and they run.
+- **The switch:** the manager's own off switch is `GlobalConfigs.IS_SUPPORTED` =
+  `persist.sys.vivo.refresh_rate_adjuster` && `persist.sys.vivo.refresh_rate_manager`
+  (read once in system_server and in the apps' framework). `guest_props.sh` sets
+  `persist.sys.vivo.refresh_rate_manager=false` for the session when One UI's active
+  mode is in a group of 256 or more; Android's own mode director then picks the rate.
+  Line in the switch log: "guest_props: persist.sys.vivo.refresh_rate_manager=false for
+  the session (One UI's active display mode group: 1080; ...)" or "vivo's refresh-rate
+  manager kept (...)". `ONEOS_GUEST_VIVO_RRM=1` keeps the manager, `0` switches it off on
+  any phone. Test: `scripts/test-vivo-rrm-props.py`.
+- **If the first 0.4.85 report still stops:** the other route is a patch of
+  `rejectDisplayMode` in `switcher/patches/vivo_guards.py` (a set revision after r17 and
+  an upload). What the phone does with vivo's manager off (which rates it offers,
+  whether 120 Hz holds) is not known until that report.
+
 #### Host check: the Exynos S24 and S24+ (0.4.83, no session yet)
 
 Offered from 0.4.83 at the owner's request (2026-11-10: "add the same supported roms as
