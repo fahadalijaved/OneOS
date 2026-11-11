@@ -1669,13 +1669,36 @@ elif $BB mount --rbind /mnt "$ROOTFS/mnt"; then
     $BB mount --make-rslave "$ROOTFS/mnt" 2>/dev/null || true
     echo "Guest /mnt: One UI's, a recursive bind (ONEOS_GUEST_OWN_MNT=${ONEOS_GUEST_OWN_MNT:-1})"
 fi
-if [ -f "$STAGE/services_patched.jar" ]; then
+# Guest-local PIN: an update of the fixes replaces services_patched.jar with a
+# build that has no PIN verifier, which strands a PIN already stored in the
+# guest's /data. A patched copy is kept in the guest's own data, stamped with
+# the jar it was built from, and used only for that same build.
+SERVICES_SRC="$STAGE/services_patched.jar"
+PIN_JAR="$STAGE/data/local/tmp/oneos_pin/services_patched.jar"
+PIN_BASE="$STAGE/data/local/tmp/oneos_pin/base.sha256"
+if [ -f "$PIN_JAR" ] && [ -f "$PIN_BASE" ] && [ -f "$SERVICES_SRC" ]; then
+    pin_want=$(head -n 1 "$PIN_BASE" 2>/dev/null | awk '{print $1}')
+    pin_have=$(sha256sum "$SERVICES_SRC" 2>/dev/null | awk '{print $1}')
+    if [ -n "$pin_want" ] && [ "$pin_want" = "$pin_have" ]; then
+        $BB chcon -h u:object_r:system_file:s0 "$PIN_JAR" 2>/dev/null || true
+        SERVICES_SRC="$PIN_JAR"
+        echo "Guest-local PIN: using the kept patched services.jar"
+    else
+        echo "Guest-local PIN: the kept jar is for another build; not used (scripts/install-pin-jar.sh)"
+        [ -f "$STAGE/data/system/oneos_pin" ] &&
+            echo "WARNING: the guest has a PIN but the services.jar in use has no verifier; it cannot be entered until scripts/install-pin-jar.sh runs for this build"
+    fi
+else
+    [ -f "$STAGE/data/system/oneos_pin" ] &&
+        echo "WARNING: the guest has a PIN but no kept verifier jar; run scripts/install-pin-jar.sh before switching"
+fi
+if [ -f "$SERVICES_SRC" ]; then
     $BB umount -l "$ROOTFS/system/framework/services.jar" 2>/dev/null || true
-    $BB mount --bind "$STAGE/services_patched.jar" "$ROOTFS/system/framework/services.jar"
+    $BB mount --bind "$SERVICES_SRC" "$ROOTFS/system/framework/services.jar"
     echo "Bound services_patched.jar -> $ROOTFS/system/framework/services.jar"
 fi
 # The guarded jar is what keeps the guest away from One UI's data.
-if [ "$(stat -c %d:%i "$ROOTFS/system/framework/services.jar")" != "$(stat -c %d:%i "$STAGE/services_patched.jar")" ]; then
+if [ "$(stat -c %d:%i "$ROOTFS/system/framework/services.jar")" != "$(stat -c %d:%i "$SERVICES_SRC")" ]; then
     echo "ERROR: the guarded services.jar is not in place; not starting the guest"
     exit 3
 fi

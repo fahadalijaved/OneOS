@@ -84,6 +84,31 @@ Verification uses `MessageDigest.isEqual`. No plaintext PIN is stored.
 `setLockCredentialInternal` guard. Without that order the guard returns false
 before the PIN can be stored.
 
+### Surviving a fixes update
+
+The app's update installs upstream's `services_patched.jar`, which has no PIN
+verifier. The guest's `/data/system/oneos_pin` stays, so ColorOS then reports
+"Screenlock already set" and no PIN can be set or checked.
+
+The PIN-patched jar is therefore kept in the guest's own data:
+
+```
+/data/local/tmp/oneos_pin/services_patched.jar
+/data/local/tmp/oneos_pin/base.sha256
+```
+
+`base.sha256` is the hash of the stage `services_patched.jar` the copy was
+built from. `guest_prepare.sh` binds the kept jar only while the hashes match,
+relabels it `system_file`, and logs which jar it used. After a new fixes build
+the stamp no longer matches, so the stock jar is used and a warning is printed;
+re-running `scripts/install-pin-jar.sh` rebuilds the kept copy for the new
+build. The update leaves the guest's `data/` alone, so the copy survives.
+
+`scripts/install-pin-jar.sh` pulls the stage jar, runs
+`scripts/patch-built-jar.sh` with `guest_local_pin.py`, checks that the rebuilt
+`classes2.dex` contains `OneOsPin`, pushes the result and its stamp into the
+guest's `data/local/tmp/oneos_pin`, and labels both.
+
 ### Tests
 
 On the S25 Ultra ColorOS 17 guest:
