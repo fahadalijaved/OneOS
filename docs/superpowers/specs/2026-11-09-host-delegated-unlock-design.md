@@ -4,9 +4,23 @@
 
 The guest runs the native ColorOS 17 keyguard and unlocks with One UI's PIN, fingerprint, or face. The guest reads One UI's lock state, verifies it, and never writes it. The ColorOS UI stays in control of the lock screen look and animation.
 
+## Scope
+
+This is an opt-in ColorOS 17 path on a Galaxy S25 Ultra (One UI 9). It
+borrows the host's gatekeeper, weaver and installd ABI, so it does not port to
+another phone or guest as-is. Other images keep their own lock screen; the
+guards in `oneos_switch.sh`, `guest_start.sh` and `return_to_oneui.sh` skip the
+snapshot and the SystemUI wave when the guest is not ColorOS.
+
+A portable follow-up is a guest-local "temporary overlay": OneOS stores a
+salted PIN verifier in the stage, the guest keyguard checks that verifier, and
+the host gatekeeper and weaver are never called. It gives every guest a PIN
+without requiring One UI to have one, at the cost of TEE-backed verification.
+Fingerprint and face still need per-device HAL and template work.
+
 ## Non-goals
 
-- Separate guest PIN, fingerprint, or face.
+- Separate guest PIN, fingerprint, or face in this host-delegated path.
 - Independent guest file-based encryption.
 - Guest enrollment of new biometrics.
 - A custom lock screen app.
