@@ -1034,6 +1034,12 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         mkdir -p "$SOV"
         mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SOV"
         rm -rf "$SOV/up" && mkdir -p "$SOV/up"
+        mkdir -p "$SOV/up/etc/permissions" &&
+            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.fingerprint" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" &&
+            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.biometrics.face" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
+            chmod 755 "$SOV/up/etc" "$SOV/up/etc/permissions" &&
+            chmod 644 "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
+            $BB chcon -R u:object_r:system_file:s0 "$SOV/up/etc" 2>/dev/null || true
         echo "Samsung Camera: overlay $(date +%T)"
         if samcam_mountpoints "$SOV/up" sys && guest_root_mountpoint "$SOV/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$SOV/up:$ROOTFS/system" "$ROOTFS/system"; then
@@ -1663,13 +1669,36 @@ elif $BB mount --rbind /mnt "$ROOTFS/mnt"; then
     $BB mount --make-rslave "$ROOTFS/mnt" 2>/dev/null || true
     echo "Guest /mnt: One UI's, a recursive bind (ONEOS_GUEST_OWN_MNT=${ONEOS_GUEST_OWN_MNT:-1})"
 fi
-if [ -f "$STAGE/services_patched.jar" ]; then
+# Guest-local PIN: an update of the fixes replaces services_patched.jar with a
+# build that has no PIN verifier, which strands a PIN already stored in the
+# guest's /data. A patched copy is kept in the guest's own data, stamped with
+# the jar it was built from, and used only for that same build.
+SERVICES_SRC="$STAGE/services_patched.jar"
+PIN_JAR="$STAGE/data/local/tmp/oneos_pin/services_patched.jar"
+PIN_BASE="$STAGE/data/local/tmp/oneos_pin/base.sha256"
+if [ -f "$PIN_JAR" ] && [ -f "$PIN_BASE" ] && [ -f "$SERVICES_SRC" ]; then
+    pin_want=$(head -n 1 "$PIN_BASE" 2>/dev/null | awk '{print $1}')
+    pin_have=$(sha256sum "$SERVICES_SRC" 2>/dev/null | awk '{print $1}')
+    if [ -n "$pin_want" ] && [ "$pin_want" = "$pin_have" ]; then
+        $BB chcon -h u:object_r:system_file:s0 "$PIN_JAR" 2>/dev/null || true
+        SERVICES_SRC="$PIN_JAR"
+        echo "Guest-local PIN: using the kept patched services.jar"
+    else
+        echo "Guest-local PIN: the kept jar is for another build; not used (scripts/install-pin-jar.sh)"
+        [ -f "$STAGE/data/system/oneos_pin" ] &&
+            echo "WARNING: the guest has a PIN but the services.jar in use has no verifier; it cannot be entered until scripts/install-pin-jar.sh runs for this build"
+    fi
+else
+    [ -f "$STAGE/data/system/oneos_pin" ] &&
+        echo "WARNING: the guest has a PIN but no kept verifier jar; run scripts/install-pin-jar.sh before switching"
+fi
+if [ -f "$SERVICES_SRC" ]; then
     $BB umount -l "$ROOTFS/system/framework/services.jar" 2>/dev/null || true
-    $BB mount --bind "$STAGE/services_patched.jar" "$ROOTFS/system/framework/services.jar"
+    $BB mount --bind "$SERVICES_SRC" "$ROOTFS/system/framework/services.jar"
     echo "Bound services_patched.jar -> $ROOTFS/system/framework/services.jar"
 fi
 # The guarded jar is what keeps the guest away from One UI's data.
-if [ "$(stat -c %d:%i "$ROOTFS/system/framework/services.jar")" != "$(stat -c %d:%i "$STAGE/services_patched.jar")" ]; then
+if [ "$(stat -c %d:%i "$ROOTFS/system/framework/services.jar")" != "$(stat -c %d:%i "$SERVICES_SRC")" ]; then
     echo "ERROR: the guarded services.jar is not in place; not starting the guest"
     exit 3
 fi
@@ -2366,6 +2395,64 @@ if [ -f "$STAGE/SystemUI_patched.apk" ] && [ -f "$QS_APK" ]; then
         fi
     else
         echo "Quick settings density patch left out (ONEOS_GUEST_QS_DENSITY=0)"
+    fi
+fi
+
+# ColorOS has no fingerprint ripples of its own: the wake glyph and the wave
+# after a successful unlock are this patched SystemUI
+# (switcher/patches/systemui-fingerprint-wave). Shipping the whole 127 MB APK
+# is wasteful, so the set carries only the patched classes3.dex and the small
+# repacker that appends it to the image's stock SystemUI — the same operation
+# scripts/apk-replace-dex.py does on the build machine. The built APK lives in
+# the guest's data, so it survives reboots and switches; it is rebuilt only
+# when the stock APK or the patched dex changes. guest_start binds it and sets
+# the 120 Hz floor.
+WAVE_STAMP_DEX="$STAGE/data/local/tmp/SystemUI_wave.dex.sha256"
+if [ -f "$STAGE/SystemUI_wave.dex" ] && [ -f "$STAGE/OneOSWaveRepack.dex" ] &&
+   [ -f "$QS_APK" ] && [ ! -f "$STAGE/SystemUI_patched.apk" ] &&
+   [ -f "$ROOTFS/system/framework/oplus-services.jar" ]; then
+    wave_dst="$STAGE/data/local/tmp"
+    mkdir -p "$wave_dst" || true
+    wave_stock_size=$(stat -c %s "$QS_APK" 2>/dev/null)
+    wave_stock_sha=$(sha256sum "$QS_APK" 2>/dev/null | awk '{print $1}')
+    wave_dex_sha=$(sha256sum "$STAGE/SystemUI_wave.dex" 2>/dev/null | awk '{print $1}')
+    if [ -f "$wave_dst/SystemUI_wave.apk" ] &&
+       [ "$(cat "$wave_dst/SystemUI_wave.stock.sha256" 2>/dev/null)" = "$wave_stock_sha" ] &&
+       [ "$(cat "$WAVE_STAMP_DEX" 2>/dev/null)" = "$wave_dex_sha" ]; then
+        echo "Guest SystemUI: the fingerprint wave APK is up to date"
+    else
+        $BB umount -l "$QS_APK" 2>/dev/null || true
+        # oneos_switch captured the host zygote's boot class paths before it
+        # stopped the framework at [4b/6]; prefer them, and only look for a
+        # live zygote when this script runs on its own.
+        wave_env=
+        if [ -n "${ONEOS_HOST_BOOTCLASSPATH:-}" ] && [ -n "${ONEOS_HOST_DEX2OATBOOTCLASSPATH:-}" ]; then
+            wave_env="BOOTCLASSPATH=$ONEOS_HOST_BOOTCLASSPATH DEX2OATBOOTCLASSPATH=$ONEOS_HOST_DEX2OATBOOTCLASSPATH"
+        else
+            wave_zpid=$(pidof zygote64 2>/dev/null | awk '{print $1}')
+            [ -n "$wave_zpid" ] || wave_zpid=$(pidof zygote 2>/dev/null | awk '{print $1}')
+            [ -n "$wave_zpid" ] &&
+                wave_env=$(tr '\0' '\n' < "/proc/$wave_zpid/environ" 2>/dev/null |
+                    grep -e '^BOOTCLASSPATH=' -e '^DEX2OATBOOTCLASSPATH=')
+        fi
+        rm -f "$wave_dst/SystemUI_wave.apk"
+        if [ -n "$wave_env" ] &&
+           env $wave_env ANDROID_ROOT=/system ANDROID_DATA=/data \
+               CLASSPATH="$STAGE/OneOSWaveRepack.dex" \
+               /system/bin/app_process /system/bin com.oneos.wave.OneOSWaveRepack \
+               "$QS_APK" classes3.dex "$STAGE/SystemUI_wave.dex" "$wave_dst/SystemUI_wave.apk"; then
+            printf '%s\n' "$wave_dex_sha" > "$WAVE_STAMP_DEX"
+            echo "Guest SystemUI: built the fingerprint wave APK from the stock SystemUI"
+        else
+            rm -f "$wave_dst/SystemUI_wave.apk"
+            echo "!!! WARNING: could not build the fingerprint wave APK; the stock SystemUI has no wave"
+        fi
+    fi
+    if [ -f "$wave_dst/SystemUI_wave.apk" ]; then
+        printf '%s\n' "$wave_stock_size" > "$wave_dst/SystemUI_wave.stock.size"
+        printf '%s\n' "$wave_stock_sha" > "$wave_dst/SystemUI_wave.stock.sha256"
+        chmod 644 "$wave_dst/SystemUI_wave.apk" "$wave_dst"/SystemUI_wave.stock.* 2>/dev/null || true
+        $BB chcon -h u:object_r:system_file:s0 "$wave_dst/SystemUI_wave.apk" 2>/dev/null || true
     fi
 fi
 
@@ -3784,6 +3871,38 @@ mkdir -p "$STAGE/data/anr" "$STAGE/data/app" "$STAGE/data/rollback" "$STAGE/data
 # The guest's own shared storage. Never the phone's /data/media: in run 25 the
 # guest's cleanup of a user it could not prepare deleted the photos in it.
 mkdir -p "$STAGE/data/media/0" "$STAGE/data/media/obb" "$STAGE/data/vendor_de/0" "$STAGE/data/vendor_ce/0"
+# The fingerprint framework makes this before setting the active user; without
+# it FingerprintUpdateActiveUserClient fails and no sensor is ever opened.
+mkdir -p "$STAGE/data/vendor_de/0/fpdata"
+chown 1000:1000 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
+chmod 700 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
+$BB chcon u:object_r:fingerprint_vendor_data_file:s0 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
+
+# ColorOS can only use the biometrics the phone's TEE already holds. Enrolling
+# inside the guest needs a HardwareAuthToken, and the guest has no gatekeeper
+# to mint one (its PIN is verified locally), so ColorOS's "Add" does nothing.
+# Carry One UI's enrollment metadata across instead: the templates never leave
+# the TEE, and no credential, gatekeeper handle or SP blob is read. ColorOS
+# reads the legacy settings_fingerprint.xml; One UI writes _0.
+BIO_DST=$STAGE/data/system/users/0
+mkdir -p "$BIO_DST" || true
+rm -f "$BIO_DST/settings_fingerprint_0.xml"
+bio=0
+for f in settings_fingerprint_0.xml settings_face.xml face_enrolled_position_0.xml; do
+    out=$f
+    [ "$f" = settings_fingerprint_0.xml ] && out=settings_fingerprint.xml
+    if [ -f "/data/system/users/0/$f" ]; then
+        cp -f "/data/system/users/0/$f" "$BIO_DST/$out" &&
+            chown 1000:1000 "$BIO_DST/$out" 2>/dev/null &&
+            chmod 644 "$BIO_DST/$out" 2>/dev/null &&
+            $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$out" 2>/dev/null
+        bio=$((bio + 1))
+    else
+        # A print or face removed in One UI must not stay listed here.
+        rm -f "$BIO_DST/$out"
+    fi
+done
+[ "$bio" -gt 0 ] && echo "Guest biometrics: carried One UI's $bio enrollment file(s) into the guest"
 
 # OneOS: without OneLineage's LineageOS packages (Launcher3, LatinIME,
 # LineageSettings; ColorOS has none of them) and with the OneOS app in place
