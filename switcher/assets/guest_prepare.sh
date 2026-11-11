@@ -5480,7 +5480,19 @@ fi
 # about /system_ext/apex).
 if [ -d /system/apex ]; then
     mkdir -p "$ROOTFS/system/apex"
-    mount | grep -q "$ROOTFS/system/apex " || $BB mount --bind /system/apex "$ROOTFS/system/apex"
+    # Bound already only if the folder at that path IS One UI's. A mount there is not enough:
+    # guest root's copy of the system top level (kernels without overlayfs: the S22 series,
+    # S23 FE, A25, A33, A53) has the image's own apex folder mounted at this path, so the bind
+    # was left out and the guest's system_server died in its APEX scan on One UI's modules the
+    # image does not have ("Unable to parse: /system/apex/com.android.bt.apex": every switch
+    # with guest root on, A33 36686a70 and 7b1d653e, S22 Ultra 5172a6c3, 0.4.85 to 0.4.92).
+    if [ "$(stat -c %d:%i "$ROOTFS/system/apex" 2>/dev/null)" != "$(stat -c %d:%i /system/apex 2>/dev/null)" ]; then
+        if mount | grep -q "$ROOTFS/system/apex "; then
+            echo "Host APEX files: One UI's /system/apex bound over the image's own folder (guest root's copy of the system top level)"
+        fi
+        $BB mount --bind /system/apex "$ROOTFS/system/apex" ||
+            echo "!!! WARNING: One UI's /system/apex not bound on $ROOTFS/system/apex; PackageManagerService will fail on host apexes"
+    fi
 fi
 
 echo "=== 9. $(date +%T) Bind-mounting Remaining Non-Payload APEXes ==="

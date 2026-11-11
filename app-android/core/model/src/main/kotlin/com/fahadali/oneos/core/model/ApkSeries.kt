@@ -42,6 +42,10 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
             Profiles.ID_S_PLUS_9945,
             // 0.4.92: the au Galaxy S23 Ultra (SCG20, One UI 9).
             Profiles.ID_S_ULTRA_8550_JP,
+            // 0.4.93: the Galaxy S22 with Exynos (One UI 8.0) and the Galaxy A16 5G with MediaTek (One UI 8.5).
+            Profiles.ID_S_9925, Profiles.ID_A16_MTK,
+            // 0.4.93: the au Galaxy S23 (SCG19, One UI 9).
+            Profiles.ID_S_8550_JP,
         ),
     ),
     ;
