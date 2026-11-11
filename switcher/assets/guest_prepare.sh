@@ -2398,6 +2398,64 @@ if [ -f "$STAGE/SystemUI_patched.apk" ] && [ -f "$QS_APK" ]; then
     fi
 fi
 
+# ColorOS has no fingerprint ripples of its own: the wake glyph and the wave
+# after a successful unlock are this patched SystemUI
+# (switcher/patches/systemui-fingerprint-wave). Shipping the whole 127 MB APK
+# is wasteful, so the set carries only the patched classes3.dex and the small
+# repacker that appends it to the image's stock SystemUI — the same operation
+# scripts/apk-replace-dex.py does on the build machine. The built APK lives in
+# the guest's data, so it survives reboots and switches; it is rebuilt only
+# when the stock APK or the patched dex changes. guest_start binds it and sets
+# the 120 Hz floor.
+WAVE_STAMP_DEX="$STAGE/data/local/tmp/SystemUI_wave.dex.sha256"
+if [ -f "$STAGE/SystemUI_wave.dex" ] && [ -f "$STAGE/OneOSWaveRepack.dex" ] &&
+   [ -f "$QS_APK" ] && [ ! -f "$STAGE/SystemUI_patched.apk" ] &&
+   [ -f "$ROOTFS/system/framework/oplus-services.jar" ]; then
+    wave_dst="$STAGE/data/local/tmp"
+    mkdir -p "$wave_dst" || true
+    wave_stock_size=$(stat -c %s "$QS_APK" 2>/dev/null)
+    wave_stock_sha=$(sha256sum "$QS_APK" 2>/dev/null | awk '{print $1}')
+    wave_dex_sha=$(sha256sum "$STAGE/SystemUI_wave.dex" 2>/dev/null | awk '{print $1}')
+    if [ -f "$wave_dst/SystemUI_wave.apk" ] &&
+       [ "$(cat "$wave_dst/SystemUI_wave.stock.sha256" 2>/dev/null)" = "$wave_stock_sha" ] &&
+       [ "$(cat "$WAVE_STAMP_DEX" 2>/dev/null)" = "$wave_dex_sha" ]; then
+        echo "Guest SystemUI: the fingerprint wave APK is up to date"
+    else
+        $BB umount -l "$QS_APK" 2>/dev/null || true
+        # oneos_switch captured the host zygote's boot class paths before it
+        # stopped the framework at [4b/6]; prefer them, and only look for a
+        # live zygote when this script runs on its own.
+        wave_env=
+        if [ -n "${ONEOS_HOST_BOOTCLASSPATH:-}" ] && [ -n "${ONEOS_HOST_DEX2OATBOOTCLASSPATH:-}" ]; then
+            wave_env="BOOTCLASSPATH=$ONEOS_HOST_BOOTCLASSPATH DEX2OATBOOTCLASSPATH=$ONEOS_HOST_DEX2OATBOOTCLASSPATH"
+        else
+            wave_zpid=$(pidof zygote64 2>/dev/null | awk '{print $1}')
+            [ -n "$wave_zpid" ] || wave_zpid=$(pidof zygote 2>/dev/null | awk '{print $1}')
+            [ -n "$wave_zpid" ] &&
+                wave_env=$(tr '\0' '\n' < "/proc/$wave_zpid/environ" 2>/dev/null |
+                    grep -e '^BOOTCLASSPATH=' -e '^DEX2OATBOOTCLASSPATH=')
+        fi
+        rm -f "$wave_dst/SystemUI_wave.apk"
+        if [ -n "$wave_env" ] &&
+           env $wave_env ANDROID_ROOT=/system ANDROID_DATA=/data \
+               CLASSPATH="$STAGE/OneOSWaveRepack.dex" \
+               /system/bin/app_process /system/bin com.oneos.wave.OneOSWaveRepack \
+               "$QS_APK" classes3.dex "$STAGE/SystemUI_wave.dex" "$wave_dst/SystemUI_wave.apk"; then
+            printf '%s\n' "$wave_dex_sha" > "$WAVE_STAMP_DEX"
+            echo "Guest SystemUI: built the fingerprint wave APK from the stock SystemUI"
+        else
+            rm -f "$wave_dst/SystemUI_wave.apk"
+            echo "!!! WARNING: could not build the fingerprint wave APK; the stock SystemUI has no wave"
+        fi
+    fi
+    if [ -f "$wave_dst/SystemUI_wave.apk" ]; then
+        printf '%s\n' "$wave_stock_size" > "$wave_dst/SystemUI_wave.stock.size"
+        printf '%s\n' "$wave_stock_sha" > "$wave_dst/SystemUI_wave.stock.sha256"
+        chmod 644 "$wave_dst/SystemUI_wave.apk" "$wave_dst"/SystemUI_wave.stock.* 2>/dev/null || true
+        $BB chcon -h u:object_r:system_file:s0 "$wave_dst/SystemUI_wave.apk" 2>/dev/null || true
+    fi
+fi
+
 # Nothing OS's launcher with more category boxes per row in the app drawer on
 # a wide panel (scripts/make-overlays.sh, patches/nothing_launcher_drawer.py):
 # two per row on any screen, sized from the width, gave boxes of about

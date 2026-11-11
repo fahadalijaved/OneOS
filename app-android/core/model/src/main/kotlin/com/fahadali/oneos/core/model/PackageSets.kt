@@ -291,9 +291,15 @@ object PackageSets {
             // 0.4.47: the Theme Store without its brand check (the Find N6 global build's APK).
             PackageFile(THEME_STORE_APK, FileRole.GUEST_FIX) +
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
-            PackageFile(ODM_AI, FileRole.GUEST_FIX),
+            PackageFile(ODM_AI, FileRole.GUEST_FIX) +
+            // OneOS: the ColorOS SystemUI with the fingerprint glyph at wake and the
+            // unlock wave (switcher/patches/systemui-fingerprint-wave). The set
+            // carries the patched classes3.dex and the repacker; the phone appends
+            // it to the image's stock SystemUI instead of downloading 127 MB.
+            PackageFile("SystemUI_wave.dex", FileRole.GUEST_FIX) +
+            PackageFile("OneOSWaveRepack.dex", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
-        approxBytes = 634_332_311L,
+        approxBytes = 644_525_755L,
         hasReturnApp = true,
     )
 

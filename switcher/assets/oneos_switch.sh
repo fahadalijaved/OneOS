@@ -1269,6 +1269,17 @@ if [ "${ONEOS_GAP_SPLASH:-1}" = 1 ]; then
         echo "Gap splash: $(grep -E '^(Status|LaunchState|TotalTime|Error)' "$GAP_SPLASH_LOG" 2>/dev/null | tr '\n' ' ')waited $((n / 5)).$((n % 5 * 2))s; One UI's surfaceflinger ${SF_FROZEN:-not frozen, black gap}${SF_FROZEN:+ frozen on it at $(date +%T)}"
     fi
 fi
+# The host zygote's boot class paths, captured while it is still running:
+# guest_prepare's wave rebuild runs at [5/6], after this stop, and the
+# repacker's app_process needs them to start. Reading /proc/<zygote>/environ
+# later finds nothing once the service is gone.
+wave_zpid=$(pidof zygote64 2>/dev/null | awk '{print $1}')
+[ -n "$wave_zpid" ] || wave_zpid=$(pidof zygote 2>/dev/null | awk '{print $1}')
+if [ -n "$wave_zpid" ]; then
+    ONEOS_HOST_BOOTCLASSPATH=$(tr '\0' '\n' < "/proc/$wave_zpid/environ" 2>/dev/null | sed -n 's/^BOOTCLASSPATH=//p')
+    ONEOS_HOST_DEX2OATBOOTCLASSPATH=$(tr '\0' '\n' < "/proc/$wave_zpid/environ" 2>/dev/null | sed -n 's/^DEX2OATBOOTCLASSPATH=//p')
+    export ONEOS_HOST_BOOTCLASSPATH ONEOS_HOST_DEX2OATBOOTCLASSPATH
+fi
 setprop ctl.stop zygote
 # zygote64_32 phones (Galaxy S23): One UI's 32-bit zygote is a service of its
 # own, and stopping zygote leaves it running. The guest's system_server then

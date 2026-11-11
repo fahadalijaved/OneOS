@@ -199,15 +199,65 @@ It changes the UDFPS mech in `classes3.dex`:
   `OnScreenFingerprintDimLayer` window out of the unlock path.
 
 `scripts/make-systemui-wave.sh` decodes the stock APK, applies the patch,
-rebuilds `classes3.dex`, and replaces it in the original archive.
-`scripts/install-systemui-wave.sh` stages the APK in the guest's
-`/data/local/tmp`, writes the stock size and SHA-256 stamps, and binds it.
-`switcher/assets/guest_start.sh` applies the bind before zygote starts on every
-boot. Two fences keep it off other firmware: the guest must have ColorOS's
+rebuilds `classes3.dex`, and replaces it in the original archive; the patched
+dex is the only changed entry. The set does not carry the 127 MB APK. It
+carries `SystemUI_wave.dex` (the patched `classes3.dex`, 10,184,264 bytes) and
+`OneOSWaveRepack.dex` (a 9,180-byte `app_process` tool built by
+`scripts/make-wave-repack.sh`) that appends the dex to the image's own stock
+SystemUI with the same layout `scripts/apk-replace-dex.py` writes on the build
+machine. The two names are listed in `PackageSets.X9U_IN_SULTRA` and in
+`set_files()` in `oneos_root.sh`.
+
+`guest_prepare.sh` rebuilds `SystemUI_wave.apk` in the guest's
+`/data/local/tmp` during `[5/6]`, before zygote starts, and keeps the stock
+size/hash stamps plus a dex stamp. The APK survives guest restarts and
+switches and is rebuilt only when the stock SystemUI or the patched dex
+changes. Two fences keep it off other firmware: the guest must have ColorOS's
 `oplus-services.jar`, and its stock SystemUI must match the size and hash the
-APK was built from. The same hook restores `min_refresh_rate 120` after boot;
-without the floor SurfaceFlinger thrashes 10-120 Hz and the wave looks like
-30 fps.
+APK was built from. `switcher/assets/guest_start.sh` binds it before zygote
+starts on every boot and restores `min_refresh_rate 120` after boot; without
+the floor SurfaceFlinger thrashes 10-120 Hz and the wave looks like 30 fps.
+
+The rebuild runs at `[5/6]`, after `oneos_switch.sh` stopped One UI's zygote at
+`[4b/6]`, so it cannot read the zygote's `/proc/<pid>/environ` then.
+`oneos_switch.sh` captures `BOOTCLASSPATH` and `DEX2OATBOOTCLASSPATH` before
+`ctl.stop zygote` and exports them as `ONEOS_HOST_BOOTCLASSPATH` and
+`ONEOS_HOST_DEX2OATBOOTCLASSPATH`; `guest_prepare.sh` prefers them and falls
+back to a live zygote only when run on its own. Without the capture `wave_env`
+stayed empty, `app_process` never ran, and the log said
+`could not build the fingerprint wave APK`.
+
+### Publishing the set
+
+`app-android/packages/` is the release's pin list; this branch does not change
+it. Before a release that includes the branch:
+
+1. Build the patched dex and the tool:
+
+   ```sh
+   sh scripts/make-systemui-wave.sh
+   unzip -p out/SystemUI_wave.apk classes3.dex > out/SystemUI_wave.dex
+   sh scripts/make-wave-repack.sh
+   ```
+
+2. Add both to `app-android/packages/x9u-in-sultra.sha256`:
+
+   ```
+   <sha256 of SystemUI_wave.dex>  SystemUI_wave.dex
+   <sha256 of OneOSWaveRepack.dex>  OneOSWaveRepack.dex
+   ```
+
+3. Add the same shas to `app-android/packages/sizes.txt` with `10184264` and
+   `9180`.
+4. Upload both files to the set's release as assets named by their sha256, and
+   add `<sha> gh:<owner>/<repo>:<tag>` lines to
+   `app-android/packages/remote.txt` (or the other mirrors it lists).
+5. Rebuild the app. `PackageSets.X9U_IN_SULTRA`, `set_files()` in
+   `oneos_root.sh`, and the guest scripts already name both files.
+
+Without the set update `PackageSet.check` refuses `x9u-in-sultra`
+(`SystemUI_wave.dex missing`) before anything is written, so publish the set
+before the app that uses it.
 
 Tested stock build:
 
@@ -275,8 +325,14 @@ git diff --check
 ```
 
 `scripts/check-shell.py` needs `dash` and `busybox`, which are not installed on
-this host, so it was not run. On-device `busybox sh -n` over the same scripts
-and a full switch/return remain.
+this host, so it was not run; `busybox sh -n` on the phone over
+`guest_prepare.sh` and `oneos_switch.sh` passed. The repacker was run on the
+phone through `app_process` with the captured host class paths and produced an
+APK byte-identical to `out/SystemUI_wave.apk`
+(`90c03316e9506973c1473ada3f360cfa004e119acaaeb6394081677d3487aa01`). A full
+switch with the rebuilt APK logged
+`Guest SystemUI: built the fingerprint wave APK from the stock SystemUI`, and
+the wave played on unlock.
 
 The PIN patcher was also run against the device's pre-pin `services.jar`. The
 rebuilt `classes2.dex` is 10,063,824 bytes, the same size as the tested
@@ -288,8 +344,9 @@ the real 0.4.90 tree.
 
 - Rebuild `services_patched.jar` through `make-overlays.sh` and confirm the PIN
   path on a fresh guest boot with the removed lock-state scripts.
-- Deploy the branch's `SystemUI_wave.apk` over the current `glyphfix11` bind and
-  test a native unlock after the animation setting change.
+- Publish `SystemUI_wave.dex` and `OneOSWaveRepack.dex` in the x9u-in-sultra set
+  (see Publishing the set) before releasing the app; without the pins
+  `PackageSet.check` refuses the set.
 - Enrollment inside ColorOS: unsupported, because it needs a gatekeeper
   `HardwareAuthToken`; add fingers and faces in One UI.
 - Biometric isolation: the templates are the phone's TEE entries, shared with
