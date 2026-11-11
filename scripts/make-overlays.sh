@@ -286,6 +286,10 @@ for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_init_survives guest_no
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
+# A PIN set in the guest is verified by the guest, not the phone's gatekeeper.
+# This runs after guest_no_gatekeeper so the PIN path sits in front of that
+# method's fail-closed guard (patches/guest_local_pin.py).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_local_pin.py" "$WORK/services")"
 # The guest's own idmap2d instead of One UI's (patches/guest_own_idmap.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_own_idmap.py" "$WORK/services")"
 # A WebView zygote that cannot start is logged, not fatal (S24 Ultra, Find X9
