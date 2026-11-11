@@ -1,11 +1,14 @@
 # Guest-local PIN and ColorOS unlock
 
-Status: draft, 2026-11-11. Both `feat/guest-local-pin` and
-`feat/host-delegated-unlock` point at the same tip and are pushed to `origin`.
+Status: draft, 2026-11-11. `feat/guest-local-pin` is the branch under review
+(PR #152). `feat/host-delegated-unlock` is kept only as the closed PR #132
+head; it does not carry the guest-local PIN, the biometric import, or the
+battery gate.
 
 ## Branch
 
-Base: `upstream/main` `210571b` (OneOS 0.4.90). The branch merges
+Base: `upstream/main` `913456d` (OneOS 0.4.93), with 0.4.92 and 0.4.93 merged.
+The branch merges
 `feat/host-delegated-unlock` (`0bfa556`..`751f2ff`) for its ColorOS fixes, adds
 the guest-local PIN patcher (`d9f85f0`, `4cfbc6e`), and then removes the
 host-delegated lock-state path. The guest-local PIN is the only screen lock.
