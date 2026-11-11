@@ -236,7 +236,7 @@ d9f85f0 Verify a guest-local PIN inside LockSettingsService
 
 The commit on top of `ff9b8c2` removes the lock-state script and its wiring.
 Both branches then build the guest-local PIN and keep the wave patch. Later
-commits add the battery gate, the kept PIN jar, the AIDL patch inside that jar,
+commits add the kept PIN jar, the AIDL patch inside that jar,
 and the biometric import. The branch is merged with `upstream/main` 0.4.92
 (`b9dd0ec`) and 0.4.93 (`64aa09a`).
 
