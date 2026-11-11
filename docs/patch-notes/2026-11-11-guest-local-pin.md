@@ -1,18 +1,48 @@
 # Guest-local PIN and ColorOS unlock
 
 Status: draft, 2026-11-11. Both `feat/guest-local-pin` and
-`feat/host-delegated-unlock` point at `ff9b8c2` and are pushed to `origin`.
+`feat/host-delegated-unlock` point at the same tip and are pushed to `origin`.
 
 ## Branch
 
-Base: `upstream/main` `210571b` (OneOS 0.4.90). The branch contains the
-host-delegated unlock work from `feat/host-delegated-unlock`
-(`0bfa556`..`751f2ff`), the guest-local PIN patcher (`d9f85f0`, `4cfbc6e`),
-and the merges `eb9415a` and `ff9b8c2`.
+Base: `upstream/main` `210571b` (OneOS 0.4.90). The branch merges
+`feat/host-delegated-unlock` (`0bfa556`..`751f2ff`) for its ColorOS fixes, adds
+the guest-local PIN patcher (`d9f85f0`, `4cfbc6e`), and then removes the
+host-delegated lock-state path. The guest-local PIN is the only screen lock.
 
-The host-delegated design and its portability limits are in
-`docs/superpowers/specs/2026-11-09-host-delegated-unlock-design.md`; its plan
-is in `docs/superpowers/plans/2026-11-09-host-delegated-unlock.md`.
+## Removed host-delegated unlock
+
+The old path snapshotted One UI's `locksettings.db`, gatekeeper handle,
+biometric settings, and SP blob into the guest, then verified against the
+phone's gatekeeper and weaver. It was ColorOS 17/S25 Ultra only and shared the
+host's credentials and biometric templates.
+
+The current tree does not use it:
+
+- `switcher/assets/oneos_lockstate.sh` is gone.
+- `oneos_switch.sh` no longer takes a host snapshot or stages one.
+- `return_to_oneui.sh` no longer verifies a host lock-state hash.
+- `oneos_root.sh`, `RootScript.kt`, and the app's script map no longer stage
+  the script.
+- The keyguard enable that depended on the staged marker now runs on every
+  guest boot in `guest_runtime.sh`, against the guest's own database.
+
+The host-fingerprint HAL fixes that the old branch introduced are kept: the
+ColorOS AIDL v3 sensor forcing, the `fpdata` directory, the panel position
+props, and the feature XMLs do not read One UI's credentials.
+
+## What was kept from the merged branch
+
+- `switcher/patches/guest_force_aidl_fingerprint.py`: ColorOS opens Samsung's
+  AIDL v3 fingerprint HAL instead of the absent HIDL 2.1 adapter.
+- `switcher/patches/guest_skip_negotiation.py`: skips the 3 s keystore
+  property wait on PIN verification.
+- `guest_prepare.sh`: fingerprint `fpdata`, sensor feature XMLs, and the
+  Samsung camera overlay.
+- `guest_props.sh`: optical icon position and size from the panel DPI.
+- `guest_start.sh`: ColorOS audio policy overlay and audio HAL restart.
+- `switcher/patches/systemui-fingerprint-wave/` and its build/install scripts:
+  the ColorOS animation fix.
 
 ## Guest-local PIN
 
@@ -139,24 +169,23 @@ d9f85f0 Verify a guest-local PIN inside LockSettingsService
 751f2ff Record the host-delegated unlock portability limits
 ```
 
-`feat/guest-local-pin` and `feat/host-delegated-unlock` are the same tree.
-`feat/guest-local-pin` has the guest-local PIN commit on top of the host
-branch; `feat/host-delegated-unlock` was fast-forwarded to the same merge.
+The commit on top of `ff9b8c2` removes the lock-state script and its wiring.
+Both branches then build the guest-local PIN and keep the wave patch.
 
 ## Portability
 
-- **Guest-local PIN:** a Patcher anchored to AOSP `LockSettingsService`
+- **Guest-local PIN:** a patcher anchored to AOSP `LockSettingsService`
   signatures and register counts. Other firmware may need new anchors, but the
   verifier and the method hooks are not ColorOS-specific.
-- **Host-delegated unlock:** ColorOS 17 on the S25 Ultra only. It borrows One
-  UI's gatekeeper, weaver, and installd ABI; the design doc lists the limits.
 - **Wave patch:** tied to the tested ColorOS 17 SystemUI build. Another build
   must be re-patched from its own smali and gets new stamps.
+- **Host-delegated unlock:** removed. Its history remains in the merge commits,
+  but nothing in the tree snapshots or verifies against One UI's credentials.
 
 ## Safety
 
-- One UI's credential store is never written. The guest-local PIN lives in the
-  guest's `/data`.
+- One UI's credential store is never read or written. The guest-local PIN lives
+  in the guest's `/data`; no lock-state snapshot is taken.
 - `guest_no_gatekeeper.py` still blocks every non-PIN credential write, and the
   weaver and biometric cleanup guards are unchanged.
 - The 42.0 C battery gate and the 45 C thermal cap are unchanged.
@@ -173,7 +202,7 @@ sh -n scripts/make-overlays.sh scripts/make-systemui-wave.sh \
       scripts/install-systemui-wave.sh switcher/assets/guest_start.sh \
       switcher/assets/guest_prepare.sh switcher/assets/guest_props.sh \
       switcher/assets/guest_runtime.sh switcher/assets/oneos_switch.sh \
-      switcher/assets/return_to_oneui.sh switcher/assets/oneos_lockstate.sh
+      switcher/assets/return_to_oneui.sh
 git diff --check
 ```
 
@@ -183,8 +212,8 @@ and a full switch/return remain.
 
 ## Open
 
+- Rebuild `services_patched.jar` through `make-overlays.sh` and confirm the PIN
+  path on a fresh guest boot with the removed lock-state scripts.
 - Deploy the branch's `SystemUI_wave.apk` over the current `glyphfix11` bind and
   test a native unlock after the animation setting change.
-- Rebuild `services_patched.jar` through `make-overlays.sh` and confirm the PIN
-  path on a fresh guest boot.
 - Face bridge and guest biometric isolation.

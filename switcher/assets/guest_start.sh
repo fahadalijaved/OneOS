@@ -2572,29 +2572,6 @@ BRINGEOF
 else
     rm -f /data/oneos_bring_restore.sh
 fi
-# Samsung's One UI leaves lockscreen.disabled=1 behind even with a PIN; the
-# guest's copy would make ColorOS skip its keyguard. Clear it on the guest's
-# copy only, after the guest's own boot_completed (the shared flag is cleared
-# above). The marker is staged with the lock state.
-if [ -f /data/system/oneos_lockstate/enabled ]; then
-    (
-        n=0
-        while [ "$(getprop sys.boot_completed)" != 1 ]; do
-            n=$((n+1)); [ "$n" -lt 120 ] || exit 0; sleep 1
-        done
-        n=0
-        while [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" != false ]; do
-            /system/bin/locksettings set-disabled false --user 0 >/dev/null 2>&1
-            n=$((n+1)); [ "$n" -lt 10 ] || break; sleep 1
-        done
-        if [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" = false ]; then
-            echo "keyguard enabled"
-        else
-            echo "keyguard still disabled"
-        fi
-    ) > /data/system/oneos_lockstate/late.log 2>&1 &
-fi
-
 # OneOS: the fingerprint-wave SystemUI. scripts/install-systemui-wave.sh
 # builds the patched APK once per SystemUI build and leaves it in the guest's
 # /data/local/tmp; this bind must run before zygote starts, because zygote and
