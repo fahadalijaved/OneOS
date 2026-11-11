@@ -34,7 +34,7 @@ SM-A066, MT6835
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 4 of 6 (6 reports, OneOS 0.4.74); problems reported: Calls, SMS |
+| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 5 of 7 (7 reports, OneOS 0.4.91); problems reported: Calls, SMS, Bluetooth |
 | Infinity-X 4.1 | ⚠️ started in 7 of 9 (9 reports, OneOS 0.4.83); problems reported: Mobile data, Calls, SMS, Bluetooth, Sound, Heat |
 | HyperOS | ✅ starts (4 reports, OneOS 0.4.74); problems reported: Calls, SMS, Camera |
 | OxygenOS 16 | 🔲 not tested yet |
@@ -52,13 +52,13 @@ SM-A155, Helio G99
 | System | Status |
 |---|---|
 | ColorOS 17 (Find X9 Ultra) | ⚠️ started in 2 of 3 (3 reports, OneOS 0.4.83); problems reported: Bluetooth, Camera |
-| Infinity-X 4.1 | ✅ starts (1 report, OneOS 0.4.83); problems reported: Mobile data, Calls, SMS |
+| Infinity-X 4.1 | ✅ starts (2 reports, OneOS 0.4.91); problems reported: Mobile data, Calls, SMS |
 | HyperOS | 🔲 not tested yet |
 | OxygenOS 16 | ⚠️ started in 3 of 9 (9 reports, OneOS 0.4.90); problems reported: Mobile data, Bluetooth, Camera, Heat |
 
 ## Galaxy A16
 
-**SM-A166 (not SM-A166P), 5G, Exynos 1330**
+**SM-A166, 5G, Exynos 1330**
 
 | System | Status |
 |---|---|
@@ -72,7 +72,7 @@ SM-A155, Helio G99
 | System | Status |
 |---|---|
 | ColorOS 17 (Find X9 Ultra) | ⚠️ started in 8 of 9 (9 reports, OneOS 0.4.88); problems reported: Camera |
-| Infinity-X 4.1 | ⚠️ started in 3 of 6 (6 reports, OneOS 0.4.59); problems reported: Mobile data, Calls, SMS |
+| Infinity-X 4.1 | ⚠️ started in 4 of 7 (7 reports, OneOS 0.4.91); problems reported: Mobile data, Calls, SMS |
 | HyperOS | ✅ starts (9 reports, OneOS 0.4.83); problems reported: Camera |
 | OxygenOS 16 | 🔲 not tested yet |
 
@@ -85,11 +85,11 @@ SM-A155, Helio G99
 | HyperOS | 🔲 not tested yet |
 | OxygenOS 16 | ✅ starts (1 report, OneOS 0.4.70) |
 
-**SM-A166P, 5G, Dimensity 6300**
+**SM-A166, MediaTek, 5G, MT6835**
 
 | System | Status |
 |---|---|
-| Not yet | 🕓 OneOS needs One UI 8 or newer (Android 16 or 17). Send findings again after the update |
+| OxygenOS 16 | 🔲 not tested yet |
 
 ## Galaxy A17
 
@@ -97,7 +97,7 @@ SM-A155, Helio G99
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 6 of 7 (7 reports, OneOS 0.4.74); problems reported: Camera |
+| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 7 of 8 (8 reports, OneOS 0.4.83); problems reported: Camera |
 | Infinity-X 4.1 | ⚠️ started in 3 of 7 (7 reports, OneOS 0.4.60); problems reported: Mobile data, Calls, SMS, Back to One UI |
 | HyperOS | ⚠️ started in 3 of 5 (5 reports, OneOS 0.4.74); problems reported: Camera |
 | OxygenOS 16 | 🔲 not tested yet |
@@ -125,7 +125,7 @@ SM-A256, s5e8825
 
 | System | Status |
 |---|---|
-| OxygenOS 16 | ⚠️ started in 4 of 19 (19 reports, OneOS 0.4.74); problems reported: Camera, Google |
+| OxygenOS 16 | ⚠️ started in 5 of 21 (21 reports, OneOS 0.4.92); problems reported: Camera, Google |
 
 ## Galaxy A26
 
@@ -173,7 +173,7 @@ SM-A356, 5G, Exynos 1380
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ✅ starts (8 reports, OneOS 0.4.74); problems reported: Calls, SMS, Bluetooth, Camera, Location |
+| ColorOS 17 (Find X9 Ultra) | ✅ starts (9 reports, OneOS 0.4.92); problems reported: Calls, SMS, Bluetooth, Camera, Location |
 | Infinity-X 4.1 | ✅ starts (1 report, OneOS 0.4.84); problems reported: Bluetooth |
 | HyperOS | ✅ starts (1 report, OneOS 0.4.84); problems reported: Bluetooth, Sound, Camera |
 | OxygenOS 16 | ✅ starts (1 report, OneOS 0.4.84) |
@@ -266,17 +266,17 @@ SM-M558, Snapdragon 7 Gen 1
 
 ## Galaxy S22
 
-**SM-S901 (not SM-S901B), Snapdragon 8 Gen 1**
+**SM-S901, Snapdragon 8 Gen 1**
 
 | System | Status |
 |---|---|
 | OxygenOS 16 | ✅ starts (1 report, OneOS 0.4.71); problems reported: Calls, SMS, Camera, Google, Location, Heat |
 
-**SM-S901B, Exynos 2200**
+**SM-S901, Exynos, s5e9925**
 
 | System | Status |
 |---|---|
-| Not yet | 🕓 OneOS needs One UI 8 or newer (Android 16 or 17); the latest findings from it showed One UI 7.0. Send findings again after the update |
+| OxygenOS 16 | 🔲 not tested yet |
 
 ## Galaxy S22 Ultra
 
@@ -284,7 +284,7 @@ SM-M558, Snapdragon 7 Gen 1
 
 | System | Status |
 |---|---|
-| OxygenOS 16 | ⚠️ started in 4 of 13 (13 reports, OneOS 0.4.84); problems reported: Screen, Mobile data, Calls, SMS, Camera |
+| OxygenOS 16 | ⚠️ started in 4 of 14 (14 reports, OneOS 0.4.92); problems reported: Screen, Mobile data, Calls, SMS, Camera |
 
 **SM-S908, Snapdragon 8 Gen 1**
 
@@ -308,7 +308,7 @@ SM-S906, s5e9925
 
 ## Galaxy S23
 
-SM-S911, Snapdragon 8 Gen 2
+**SM-S911, Snapdragon 8 Gen 2**
 
 | System | Status |
 |---|---|
@@ -318,6 +318,17 @@ SM-S911, Snapdragon 8 Gen 2
 | HyperOS | ⚠️ started in 10 of 15 (15 reports, OneOS 0.4.84); problems reported: Calls, SMS |
 | OxygenOS 16 | 🔲 not tested yet |
 | OriginOS 7 | ⚠️ started in 1 of 2 (2 reports, OneOS 0.4.89); problems reported: Mobile data, Calls, SMS |
+
+**SCG19, au, Snapdragon 8 Gen 2**
+
+| System | Status |
+|---|---|
+| ColorOS 17 (Find X9 Ultra) | 🔲 not tested yet |
+| Pixel 9 Pro XL | 🔲 not tested yet |
+| Infinity-X 4.1 | 🔲 not tested yet |
+| HyperOS | 🔲 not tested yet |
+| OxygenOS 16 | 🔲 not tested yet |
+| OriginOS 7 | 🔲 not tested yet |
 
 ## Galaxy S23 FE
 
@@ -339,7 +350,7 @@ SM-S911, Snapdragon 8 Gen 2
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 17 of 19 (19 reports, OneOS 0.4.83); problems reported: Camera, Heat |
+| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 18 of 20 (20 reports, OneOS 0.4.92); problems reported: Camera, Heat |
 | Pixel 9 Pro XL | ⚠️ started in 12 of 14 (14 reports, OneOS 0.4.74); problems reported: SMS |
 | Infinity-X 4.1 | ✅ starts (3 reports, OneOS 0.4.60) |
 | HyperOS | ⚠️ started in 4 of 9 (9 reports, OneOS 0.4.68); problems reported: SMS |
@@ -367,7 +378,7 @@ SM-S916, Snapdragon 8 Gen 2
 | Pixel 9 Pro XL | ⚠️ started in 8 of 10 (10 reports, OneOS 0.4.74); problems reported: Bluetooth |
 | Infinity-X 4.1 | 🔲 not tested yet |
 | HyperOS | 🔲 not tested yet |
-| OxygenOS 16 | 🔲 not tested yet |
+| OxygenOS 16 | ✅ starts (1 report, OneOS 0.4.91); problems reported: Bluetooth, Camera |
 | OriginOS 7 | ⚠️ started in 1 of 3 (3 reports, OneOS 0.4.85); problems reported: Mobile data, Calls, Bluetooth, Camera, Location, Heat |
 
 ## Galaxy S24
@@ -388,7 +399,7 @@ SM-S916, Snapdragon 8 Gen 2
 | System | Status |
 |---|---|
 | ColorOS 17 (Find X9 Ultra) | ⚠️ started in 14 of 16 (16 reports, OneOS 0.4.89) |
-| Pixel 9 Pro XL | ❌ did not start (2 reports, OneOS 0.4.85); problems reported: Back to One UI |
+| Pixel 9 Pro XL | ❌ did not start (5 reports, OneOS 0.4.91); problems reported: Back to One UI |
 | Infinity-X 4.1 | ✅ starts (2 reports, OneOS 0.4.83) |
 | HyperOS | 🔲 not tested yet |
 | Nothing OS 5 | 🔲 not tested yet |
@@ -411,7 +422,7 @@ SM-S928, Snapdragon 8 Gen 3
 
 | System | Status |
 |---|---|
-| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 7 of 15 (15 reports, OneOS 0.4.83) |
+| ColorOS 17 (Find X9 Ultra) | ⚠️ started in 8 of 18 (18 reports, OneOS 0.4.83); problems reported: Back to One UI |
 | Pixel 9 Pro XL | ⚠️ started in 2 of 3 (3 reports, OneOS 0.4.74); problems reported: Screen, Wi-Fi, Google |
 | Infinity-X 4.1 | ⚠️ started in 4 of 8 (8 reports, OneOS 0.4.70); problems reported: Calls, SMS |
 | HyperOS | ⚠️ started in 3 of 8 (8 reports, OneOS 0.4.70); problems reported: Calls, SMS, Bluetooth, Sound |
@@ -479,7 +490,7 @@ SM-S938, Snapdragon 8 Elite
 | Infinity-X 4.1 | ⚠️ started in 1 of 3 (3 reports, OneOS 0.4.59); problems reported: Back to One UI, Heat |
 | HyperOS | ⚠️ started in 4 of 6 (6 reports, OneOS 0.4.83) |
 | Nothing OS 5 | ✅ starts (6 reports, OneOS 0.4.74); problems reported: SMS, Camera, Heat |
-| OriginOS 7 | 🔲 not tested yet |
+| OriginOS 7 | ✅ starts (1 report, OneOS 0.4.92); problems reported: Camera, Heat |
 
 ## Galaxy S25+
 
@@ -539,7 +550,7 @@ SM-S948, Snapdragon 8 Elite Gen 5
 | Infinity-X 4.1 | ✅ starts (2 reports, OneOS 0.4.65); problems reported: Sound |
 | HyperOS | ✅ starts (1 report, OneOS 0.4.37); problems reported: Mobile data |
 | Nothing OS 5 | ✅ starts (5 reports, OneOS 0.4.72) |
-| OriginOS 7 | ✅ starts (1 report, OneOS 0.4.74); problems reported: Mobile data, SMS |
+| OriginOS 7 | ✅ starts (2 reports, OneOS 0.4.91); problems reported: Mobile data, SMS, Camera |
 
 ## Galaxy S26+
 

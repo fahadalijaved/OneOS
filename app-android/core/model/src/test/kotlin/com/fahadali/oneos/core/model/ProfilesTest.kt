@@ -267,6 +267,7 @@ class ProfilesTest {
                 Profiles.ID_S_ULTRA_8650, Profiles.ID_S_8650, Profiles.ID_S_9945, Profiles.ID_S_PLUS_9945,
                 Profiles.ID_S_ULTRA_8550, Profiles.ID_S_PLUS_8550, Profiles.ID_S_8550,
                 Profiles.ID_S_ULTRA_8550_JP, // 0.4.92: the au S23 Ultra, the S23 Ultra's list
+                Profiles.ID_S_8550_JP, // 0.4.93: the au S23, the S23's list
             ),
             offerOrigin.map { it.id }.toSet(),
         )
@@ -287,13 +288,14 @@ class ProfilesTest {
                 Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
                 Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450,
                 Profiles.A55, Profiles.S25_FE, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP, Profiles.S_PLUS_9945,
-                Profiles.S_ULTRA_8550_JP,
+                Profiles.S_ULTRA_8550_JP, Profiles.S_9925, Profiles.A16_MTK, Profiles.S_8550_JP,
             ),
             Profiles.BUILT_IN,
         )
         // 0.4.67: the phones still on One UI 8 take OxygenOS 16 only, untested, as bar phones.
         for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A53, Profiles.E55,
-                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP)) {
+                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP,
+                Profiles.S_9925, Profiles.A16_MTK)) {
             assertEquals(p.id, listOf(ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)), p.choices)
             assertEquals(p.id, FormFactor.BAR, p.form)
         }
@@ -320,6 +322,24 @@ class ProfilesTest {
         )
         assertNull(Profiles.resolve("SCG20", "dm3q", "SM8550").profile)
         assertNull(Profiles.resolve("SCG20", "SCG20", "SM8450").profile)
+        // 0.4.93: the au S23 (SCG19) the same way: the S23's systems and note; not by the S23's own
+        // codename (its ro.product.device is SCG19, only the vendor device is dm1q). The device name
+        // is matched in any case, the model number only as the phone writes it.
+        assertEquals(Profiles.S_8550_JP, Profiles.resolve("SCG19", "SCG19", "SM8550").profile)
+        assertEquals(Profiles.S_8550_JP, Profiles.resolve("SCG19", "scg19", "SM8550").profile)
+        assertEquals(
+            listOf("s-8550-jp", "Galaxy S23 (au)", FormFactor.BAR),
+            listOf(Profiles.S_8550_JP.id, Profiles.S_8550_JP.label, Profiles.S_8550_JP.form),
+        )
+        assertEquals(
+            listOf(Profiles.S_8550.choices, Profiles.S_8550.notes),
+            listOf(Profiles.S_8550_JP.choices, Profiles.S_8550_JP.notes),
+        )
+        assertNull(Profiles.resolve("SCG19", "dm1q", "SM8550").profile)
+        assertNull(Profiles.resolve("SCG19", "SCG19", "SM8450").profile)
+        // The two au models do not take each other's profile.
+        assertNull(Profiles.resolve("SCG20", "SCG19", "SM8550").profile)
+        assertNull(Profiles.resolve("SCG19", "SCG20", "SM8550").profile)
         // 0.4.48, from probe reports of phones on One UI 9: the S25 Edge takes the S25's images (untested
         // here), the S24 FE the S24 (Exynos)'s, the A26 the S23s' without HyperOS, the A17 and the A16 5G
         // (Exynos 1330) Infinity-X, like the A07; 0.4.60: Infinity-X tested there, ColorOS (X9U IN) offered too.
@@ -378,15 +398,22 @@ class ProfilesTest {
             listOf(Profiles.S25_FE.choices, Profiles.S25_FE.notes, Profiles.S25_FE.form),
         )
         assertEquals(Profiles.S_8450, Profiles.resolve("SM-S901U", "r0q", "SM8450").profile)
-        assertNull(Profiles.resolve("SM-S901B", "r0s", "s5e9925").profile) // the Exynos S22 waits for One UI 8
+        // 0.4.93: the Exynos S22 (now on One UI 8.0), the S22+'s choice and note; neither S22 by the other's chip.
+        assertEquals(Profiles.S_9925, Profiles.resolve("SM-S901B", "r0s", "s5e9925").profile)
+        assertEquals(listOf(Profiles.S_PLUS_9925.choices, Profiles.S_PLUS_9925.notes), listOf(Profiles.S_9925.choices, Profiles.S_9925.notes))
+        assertNull(Profiles.resolve("SM-S901B", "r0s", "SM8450").profile)
+        assertNull(Profiles.resolve("SM-S901B", "r0q", "s5e9925").profile)
         assertEquals(listOf(Profiles.S_ULTRA_8450.choices, Profiles.S_ULTRA_8450.notes), listOf(Profiles.S_8450.choices, Profiles.S_8450.notes))
         // 0.4.70: the Galaxy M55s (SM-M558B), the F55/E55's m55xq and SM7450 on One UI 8.5.
         assertEquals(Profiles.M55S, Profiles.resolve("SM-M558B", "m55xq", "SM7450").profile)
         assertEquals(Profiles.E55, Profiles.resolve("SM-E556B", "m55xq", "SM7450").profile)
         assertEquals(listOf(Profiles.E55.choices, Profiles.E55.notes), listOf(Profiles.M55S.choices, Profiles.M55S.notes))
         assertEquals(Profiles.A16, Profiles.resolve("SM-A166U", "a16x", "s5e8535").profile)
-        // The A16 with MediaTek (a16xm) is not the Exynos one.
-        assertNull(Profiles.resolve("SM-A166P", "a16xm", "MT6835").profile)
+        // The A16 with MediaTek (a16xm) is not the Exynos one. 0.4.93: its own profile, the A07 5G's choice and note.
+        assertEquals(Profiles.A16_MTK, Profiles.resolve("SM-A166P", "a16xm", "MT6835").profile)
+        assertEquals(listOf(Profiles.A07_5G.choices, Profiles.A07_5G.notes), listOf(Profiles.A16_MTK.choices, Profiles.A16_MTK.notes))
+        assertNull(Profiles.resolve("SM-A166P", "a16x", "MT6835").profile)
+        assertNull(Profiles.resolve("SM-A166P", "a16xm", "s5e8535").profile)
 
         // Ids unique; every choice names an image and a set built from that image,
         // each image once per profile; the fold grid with a ColorOS image on the fold
@@ -431,7 +458,7 @@ class ProfilesTest {
                 Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.S_PLUS_8750, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
                 Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945, Profiles.FLIP7_FE,
-                Profiles.S25_FE, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP,
+                Profiles.S25_FE, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP, Profiles.S_8550_JP,
             ),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_KOMODO) != null },
         )

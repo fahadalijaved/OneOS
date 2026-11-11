@@ -63,6 +63,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
   - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
+  - Galaxy S23 (au) (SCG19, SM8550), not tested yet
 
 ## Pixel 11 Fold, yogi build
 
@@ -113,6 +114,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
   - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
+  - Galaxy S23 (au) (SCG19, SM8550), not tested yet
 
 ## Infinity-X 4.1, Find X9 Ultra build
 
@@ -166,6 +168,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
   - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
+  - Galaxy S23 (au) (SCG19, SM8550), not tested yet
 
 ## HyperOS, Xiaomi 18 Fold build
 
@@ -216,6 +219,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
   - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
+  - Galaxy S23 (au) (SCG19, SM8550), not tested yet
 
 ## Nothing OS 5.0, Metroid build
 
@@ -280,6 +284,9 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M55s (SM-M558, SM7450), not tested yet
   - Galaxy S22 Ultra (au) (SCG14, SM8450), not tested yet
   - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
+  - Galaxy S22 (Exynos) (SM-S901, s5e9925), not tested yet
+  - Galaxy A16 5G (MediaTek) (SM-A166, MT6835), not tested yet
+  - Galaxy S23 (au) (SCG19, SM8550), not tested yet
 
 ## OriginOS 7, vivo PD2609MA build
 
@@ -306,3 +313,4 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
   - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
+  - Galaxy S23 (au) (SCG19, SM8550), not tested yet

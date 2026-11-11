@@ -50,6 +50,25 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.93: **root for the guest on the Galaxy S22 series, S23 FE, A25, A33 and A53**, and three more phones:
+the **Galaxy S22 with Exynos**, the **Galaxy A16 5G with MediaTek** and the **au Galaxy S23 (SCG19)**.
+- With root for the guest switched on, no system got past its logo on these phones: every switch ended in a black
+  screen or a return to One UI (reports from a Galaxy A33 on 0.4.85 and 0.4.90 and a Galaxy S22 Ultra with Exynos
+  on 0.4.92, all OxygenOS 16; with root for the guest off the same phones start). Their kernel has no overlayfs,
+  so guest root puts a copy of the system's top folder in front of the image, with each of the image's folders
+  attached inside it. One of them is the image's own folder of system modules (APEX files), and OneOS took it for
+  One UI's, which has to be at that place: the list of modules comes from One UI. The guest then looked for One
+  UI's modules among the image's, did not find them ("Unable to parse: /system/apex/com.android.bt.apex") and its
+  system server stopped at once, again and again. OneOS now checks what the folder at that place is, not only
+  that something is attached there, and puts One UI's folder over it. Not tried on the phones of the reports
+  yet. **Tap Update on each system's page** to get it: the session scripts changed.
+- The Galaxy S22 with Exynos (SM-S901B), now that findings show it on One UI 8.0: OxygenOS 16, as on the Galaxy
+  S22+ and S22 Ultra with Exynos, untested on it.
+- The Galaxy A16 5G with MediaTek (SM-A166P, One UI 8.5), from findings of 0.4.91: OxygenOS 16, as on the Galaxy
+  A07 5G, untested on it. The A16 5G with Exynos and the A16 4G were there already.
+- The au Galaxy S23 (SCG19), from findings of a phone on One UI 9.0: it takes the Galaxy S23's systems (ColorOS
+  17, Pixel, Infinity X, HyperOS and OriginOS on One UI 9; OxygenOS 16 on One UI 8.0/8.5), untested on it.
+
 New in 0.4.92: **a switch that stood on the "shutting down" splash for good with guest root on**, and the
 **au Galaxy S23 Ultra (SCG20)**.
 - With root for the guest switched on, the switch could stop behind the splash and never go on; only a forced

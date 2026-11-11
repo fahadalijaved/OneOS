@@ -139,6 +139,9 @@ object Profiles {
     const val ID_M55S = "m55s"
     const val ID_S_PLUS_9945 = "s-plus-9945"
     const val ID_S_ULTRA_8550_JP = "s-ultra-8550-jp"
+    const val ID_S_9925 = "s-9925"
+    const val ID_A16_MTK = "a16-mtk"
+    const val ID_S_8550_JP = "s-8550-jp"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -935,7 +938,7 @@ object Profiles {
      * Galaxy A16 5G (the US model, Exynos), from 0.4.48: a probe report of 2026-11-03 (SM-A166U,
      * a16x, s5e8535 Exynos 1330, One UI 9.0, Android 17, vendor API 33 and kernel 5.15, one
      * 1080 x 2340 panel, the HIDL composer, no SVE or SME, installd 85 methods). The A16s with
-     * MediaTek (SM-A166P, SM-A165) are still on One UI 8.5 and refused by the version gate. The
+     * MediaTek are other phones ([A16_4G], SM-A165; [A16_MTK], SM-A166P, on One UI 8.5). The
      * weakest chip so far: Infinity-X, with [EXYNOS]. 0.4.60: Infinity-X reached the home screen
      * (a 0.4.58 report of 2026-11-05), and the Find X9 Ultra IN ColorOS is offered too, untested:
      * the A26's ColorOS also runs on a Cortex-A78/A55 Exynos with the HIDL composer.
@@ -1211,7 +1214,7 @@ object Profiles {
      * Android 16 build BP2A.250605.031.A3, vendor and board API 31, kernel 5.10, one 1080 x 2340 panel on
      * port 130 at density 480, backlight panel0-backlight (max 510), the HIDL composer, Cortex-X2/A710/A510
      * with no SVE or SME, KernelSU): the [S_ULTRA_8450]'s chip, vendor and One UI, so its choice, OxygenOS
-     * 16 only, untested. The Exynos S22 (SM-S901B, r0s, s5e9925) was still on One UI 7.0 (waiting list).
+     * 16 only, untested. The Exynos S22 (SM-S901B, r0s, s5e9925) is [S_9925].
      */
     val S_8450 = S_ULTRA_8450.copy(id = ID_S_8450, label = "Galaxy S22 (Snapdragon)", modelPrefix = "SM-S901", codename = "r0q")
 
@@ -1238,13 +1241,36 @@ object Profiles {
      */
     val S_ULTRA_8550_JP = S_ULTRA_8550.copy(id = ID_S_ULTRA_8550_JP, label = "Galaxy S23 Ultra (au)", modelPrefix = "SCG20", codename = "SCG20")
 
+    /**
+     * Galaxy S22 with Exynos, from 0.4.93: findings of 2026-11-11 (SM-S901B, r0s, s5e9925, now on One UI
+     * 8.0 and Android 16, KernelSU, verified boot green; on the waiting list while it was on One UI 7.0).
+     * The [S_PLUS_9925]'s chip and One UI, so its choice and note: OxygenOS 16 only, untested. The
+     * Snapdragon S22 is [S_8450] (r0q).
+     */
+    val S_9925 = S_PLUS_9925.copy(id = ID_S_9925, label = "Galaxy S22 (Exynos)", modelPrefix = "SM-S901", codename = "r0s")
+
+    /**
+     * Galaxy A16 5G with MediaTek, from 0.4.93: findings of 2026-11-11 (SM-A166P, a16xm, MT6835, One UI
+     * 8.5 and Android 16, KernelSU). The [A07_5G]'s chip and One UI, so its choice and note: OxygenOS 16
+     * only, untested. The Exynos A16 5G is [A16] (a16x).
+     */
+    val A16_MTK = A07_5G.copy(id = ID_A16_MTK, label = "Galaxy A16 5G (MediaTek)", modelPrefix = "SM-A166", codename = "a16xm")
+
+    /**
+     * The au Galaxy S23, from 0.4.93: findings of 2026-11-11 (SCG19, ro.product.device SCG19, vendor
+     * device dm1q, SM8550, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 33, density 480,
+     * KernelSU; its installd table is the 85 methods of host_installd.txt). The [S_8550]'s systems and
+     * note, untested.
+     */
+    val S_8550_JP = S_8550.copy(id = ID_S_8550_JP, label = "Galaxy S23 (au)", modelPrefix = "SCG19", codename = "SCG19")
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
-        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP,
+        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

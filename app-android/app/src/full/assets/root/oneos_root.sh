@@ -240,6 +240,9 @@ profile_info() {
         m55s) echo "SM-M558 m55xq SM7450 bar" ;;
         s-plus-9945) echo "SM-S926 e2s s5e9945 bar" ;;
         s-ultra-8550-jp) echo "SCG20 SCG20 SM8550 bar" ;;
+        s-9925) echo "SM-S901 r0s s5e9925 bar" ;;
+        a16-mtk) echo "SM-A166 a16xm MT6835 bar" ;;
+        s-8550-jp) echo "SCG19 SCG19 SM8550 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -484,6 +487,15 @@ profile_set() {
         "s-ultra-8550-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
+        "s-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "a16-mtk oxygenos16-cph2745") echo oxygen16 ;;
+        # 0.4.93: the au Galaxy S23 (SCG19): the S23's rows, untested.
+        "s-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-8550-jp infinityx41-findx9u") echo infinityx ;;
+        "s-8550-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
+        "s-8550-jp originos7-pd2609ma") echo originos ;;
         *) return 1 ;;
     esac
 }
