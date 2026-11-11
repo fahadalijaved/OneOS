@@ -50,6 +50,24 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.90: **Bluetooth and USB headphones on the Galaxy A35**, **OxygenOS 16's status bar**, and **ColorOS's
+status bar on the Galaxy S24+**. None of the three has run on the phones concerned yet.
+- Bluetooth and USB headphones connected and the sound stayed on the phone (Galaxy A35, OxygenOS 16; any phone whose
+  vendor audio policy file names no Bluetooth or USB output). An A35 user found the fix and sent it as a script: the
+  vendor's own Bluetooth and USB policy files, included in the guest's copy of the policy file. OneOS now does that
+  before the guest starts, on phones that are not Qualcomm ones and have the files and their HAL libraries; the
+  0.4.85 way (A2DP outputs in the primary module) stays for the rest. `ONEOS_GUEST_APM_BT_MODULE=0` (or `1` for a
+  Qualcomm phone) and `ONEOS_GUEST_APM_USB=0` choose by hand.
+- OxygenOS 16 laid its status bar out for a camera in the corner on every phone (clock pushed right of the camera
+  on 1080 px phones, icons ending at the camera on 1440 px ones). 0.4.81's fix did not reach it: OPPO's SystemUI
+  reads the image's own phone's width (1272 px) from a framework resource, not from DisplayManager. The resource now
+  gets the guest's display size through an overlay. `ONEOS_GUEST_STABLE_SIZE=0` turns it off.
+- ColorOS on a Galaxy S24+ (Exynos) had the clock and all icons in the left half of the status bar. The camera
+  position was written for the whole 1440 px panel while the guest ran it at One UI's FHD+ size. The switch now asks
+  the guest for its display size as soon as its window manager answers and places the camera for that size; the
+  display density and, on Pixel and HyperOS guests, the status bar height follow the same size. Nothing changes where
+  the guest runs the whole panel. Every bar-phone session now logs the guest's display size.
+
 New in 0.4.89: **Canadian phones (SM-...W) are no longer refused as a custom ROM**. From the S24 series on, a
 stock Canadian phone carries the US carrier model's bootloader and vendor partition under its own firmware (S24 Ultra
 SM-S928W: bootloader S928U..., vendor SM-S928U), which OneOS took for One UI ported from another phone (public issue

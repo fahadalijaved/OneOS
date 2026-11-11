@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The guest's audio policy copy with Bluetooth A2DP outputs (guest_prepare.sh) and the Bluetooth audio
-bridge's answer on a HIDL-only phone (oneos_switch.sh), against vendor fixtures written here.
+"""The guest's audio policy copy with Bluetooth A2DP and USB outputs (guest_prepare.sh) and the Bluetooth
+audio bridge's answer on a HIDL-only phone (oneos_switch.sh), against vendor fixtures written here.
 
 Mounts are a stand-in: $BB is a script that writes down mount, umount and chcon and runs everything
 else, and mount without arguments prints what the stand-in "mounted".
@@ -23,10 +23,10 @@ def between(text, start, end):
 
 
 def local(block):
-    return block.replace('/vendor/etc/', '$V/etc/')
+    return block.replace('/vendor/etc/', '$V/etc/').replace('/vendor/lib', '$V/lib').replace('/odm/lib', '$V/odm/lib')
 
 
-COPY = local(between(PREPARE, 'apm_copy() {\n', "# HyperOS: Xiaomi's miui-services.jar"))
+COPY = local(between(PREPARE, 'apm_hw_lib() {\n', "# HyperOS: Xiaomi's miui-services.jar"))
 HYPEROS = local(between(PREPARE, '    APM_X="${ONEOS_GUEST_APM_XML:-}"\n', '\n# The other systems read AOSP'))
 OTHER = local(between(PREPARE, 'GAPM=/vendor/etc/audio_policy_configuration.xml\n', '\n# ims-ext-common.jar with a 60 s'))
 BRIDGE = local(between(SWITCH, 'BT_WHY=""\nBT_FRAG=', 'BT_COPY="$STAGE/oneos_bt_vintf.xml"'))
@@ -108,6 +108,37 @@ BT_MODULE = '''<module name="bluetooth" halVersion="2.0">
     </devicePorts>
 </module>
 '''
+# Android's module files as a vendor ships them next to its policy file: the Bluetooth one in both formats
+# (lists with commas, and with spaces for a 7.x policy file) and the USB one.
+BT_MODULE_7 = BT_MODULE.replace('role="sink"/>', 'role="sink" encodedFormats="AUDIO_FORMAT_SBC AUDIO_FORMAT_AAC"/>')
+USB_MODULE = '''<module name="usb" halVersion="2.0">
+    <mixPorts>
+        <mixPort name="usb_device output" role="source"/>
+    </mixPorts>
+    <devicePorts>
+        <devicePort tagName="USB Device Out" type="AUDIO_DEVICE_OUT_USB_DEVICE" role="sink"/>
+        <devicePort tagName="USB Headset Out" type="AUDIO_DEVICE_OUT_USB_HEADSET" role="sink"/>
+    </devicePorts>
+    <routes>
+        <route type="mix" sink="USB Device Out" sources="usb_device output"/>
+        <route type="mix" sink="USB Headset Out" sources="usb_device output"/>
+    </routes>
+</module>
+'''
+BT_FILE = 'bluetooth_audio_policy_configuration.xml'
+BT_FILE_7 = 'bluetooth_audio_policy_configuration_7_0.xml'
+USB_FILE = 'usb_audio_policy_configuration.xml'
+BT_LIB = 'lib/hw/audio.bluetooth.default.so'
+USB_LIB = 'lib64/hw/audio.usb.default.so'
+# The Galaxy A35's vendor as the user's own fix found it: both module files and both libraries, Samsung's AIDL factory.
+A35 = {'includes': {BT_FILE: BT_MODULE, USB_FILE: USB_MODULE}, 'libs': (BT_LIB, USB_LIB)}
+BT_ONLY = {'includes': {BT_FILE: BT_MODULE}, 'libs': (BT_LIB,)}
+USB_ONLY = {'includes': {USB_FILE: USB_MODULE}, 'libs': (USB_LIB,)}
+XI = '{http://www.w3.org/2001/XInclude}include'
+BT_SAID = "Bluetooth A2DP outputs added with the vendor's Bluetooth module (bluetooth_audio_policy_configuration.xml)"
+USB_SAID = "USB outputs added with the vendor's usb module (usb_audio_policy_configuration.xml)"
+PRIMARY_SAID = 'Bluetooth A2DP outputs added on primary-out,fast,deep-buffer'
+
 # One UI's own file: the Samsung-only microphone type and A2DP in the primary module.
 SEC = '''<audioPolicyConfiguration version="1.0">
     <modules>
@@ -168,7 +199,7 @@ PRELUDE = '''
 BB=$R/bin/bb
 mount() { cat "$R/mounts" 2>/dev/null; }
 chown() { :; }
-getprop() { command echo "$SKU_PROP"; }
+getprop() { case "$1" in ro.soc.manufacturer) command echo "$SOC_PROP" ;; *) command echo "$SKU_PROP" ;; esac; }
 '''
 ADDED = ['OneOS BT A2DP Out', 'OneOS BT A2DP Headphones', 'OneOS BT A2DP Speaker']
 TYPES = ['AUDIO_DEVICE_OUT_BLUETOOTH_A2DP', 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES',
@@ -181,7 +212,7 @@ def shape(root):
 
 class Fixture:
     def __init__(self, t, plain=PLAIN, sec=SEC, base=None, bt=AIDL_BT, audio=HIDL_AUDIO, includes=None, sku=None,
-                 hyperos=False, odm=False):
+                 hyperos=False, odm=False, libs=()):
         self.r = r = Path(t)
         self.v = v = r / 'vendor'
         self.stage = r / 'stage'
@@ -201,6 +232,9 @@ class Fixture:
             (v / 'etc/audio_policy_configuration_base.xml').write_text(base)
         for name, text in {'a2dpsink_audio_policy_configuration.xml': A2DP_SINK, **(includes or {})}.items():
             (v / 'etc' / name).write_text(text)
+        for lib in libs:
+            (v / lib).parent.mkdir(parents=True, exist_ok=True)
+            (v / lib).write_text('x')
         if bt is not None:
             (v / 'etc/vintf/manifest/bluetooth_audio.xml').write_text(bt)
         (v / 'etc/vintf/manifest.xml').write_text(audio)
@@ -218,7 +252,7 @@ class Fixture:
 
     def run(self, code, env=None, awk=None):
         e = dict(os.environ, R=str(self.r), V=str(self.v), STAGE=str(self.stage), ROOTFS=str(self.rootfs),
-                 MIUI_FW=str(self.miui), SKU_PROP='')
+                 MIUI_FW=str(self.miui), SKU_PROP='', SOC_PROP='S.LSI')
         e.update(env or {})
         if awk:
             (self.r / 'awkbin').mkdir(exist_ok=True)
@@ -238,14 +272,17 @@ AWKS = [None] + ([f'{shutil.which("busybox")} awk'] if shutil.which('busybox') e
 
 
 class Copy(unittest.TestCase):
-    def copy(self, may='1', env=None, awk=None, **kw):
+    def copy(self, may='1', env=None, awk=None, more=False, **kw):
+        """more: the line also says what was done for USB and whether the copy has more in it than the vendor's file."""
         with tempfile.TemporaryDirectory() as t:
             f = Fixture(t, **kw)
             src = f.v / 'etc/audio_policy_configuration.xml'
-            lines = f.run(COPY + f'apm_copy "{src}" "$R/out.xml" {may}; echo "rc=$? note=$APM_NOTE"\n', env=env, awk=awk)
+            said = 'rc=$? note=$APM_NOTE' + (' usb=$APM_USB added=$APM_ADDED' if more else '')
+            lines = f.run(COPY + f'apm_copy "{src}" "$R/out.xml" {may}; echo "{said}"\n', env=env, awk=awk)
             self.assertEqual('', f.err)
             self.assertEqual(1, len(lines), lines)
             self.assertFalse((f.r / 'out.xml.a2dp').exists())
+            self.assertFalse((f.r / 'out.xml.inc').exists())
             text = (f.r / 'out.xml').read_text() if (f.r / 'out.xml').exists() else None
             return lines[0], text, str(f.v / 'etc')
 
@@ -351,6 +388,132 @@ class Copy(unittest.TestCase):
                                      'is not one this knows)', line)
                     self.assertEqual(self.absolute(plain, etc), text)
 
+    def assert_included(self, text, plain, etc, names):
+        """The module files are the last children of <modules>, in this order, and nothing else in the file moved."""
+        root = ET.fromstring(text)
+        mods = root.find('modules')
+        got = list(mods)[len(mods) - len(names):]
+        self.assertEqual([(XI, f'{etc}/{n}') for n in names], [(e.tag, e.get('href')) for e in got])
+        for e in got:
+            mods.remove(e)
+        self.assertEqual(shape(ET.fromstring(self.absolute(plain, etc))), shape(root))
+        self.assertNotIn('OneOS BT A2DP', text)
+        self.assertEqual(len(names), text.count('<!-- OneOS: '))
+        # Each on a line of its own, indented as the modules are.
+        for n in names:
+            self.assertIn(f'\n        <xi:include href="{etc}/{n}"/>\n', text)
+        self.assertTrue(text.rstrip().endswith('</audioPolicyConfiguration>'))
+
+    def test_the_vendors_own_bluetooth_and_usb_modules_are_included(self):
+        for awk in AWKS:
+            with self.subTest(awk):
+                line, text, etc = self.copy(awk=awk, more=True, **A35)
+                self.assertEqual(f'rc=0 note={BT_SAID} usb={USB_SAID} added=1', line)
+                self.assert_included(text, PLAIN, etc, [BT_FILE, USB_FILE])
+                self.assertIn("<!-- OneOS: Bluetooth A2DP through the vendor's own Bluetooth audio module -->", text)
+                self.assertIn("<!-- OneOS: USB headphones through the vendor's own usb audio module -->", text)
+                self.assertIn(f'<xi:include href="{etc}/{USB_FILE}"/>\n    </modules>', text)
+        # Libraries in the other folders the audio HAL loads from.
+        for lib in ('lib64/hw/audio.bluetooth.default.so', 'odm/lib/hw/audio.bluetooth.default.so', 'odm/lib64/hw/audio.bluetooth.s5e8835.so'):
+            line, text, etc = self.copy(includes={BT_FILE: BT_MODULE}, libs=(lib,))
+            self.assertEqual(f'rc=0 note={BT_SAID}', line)
+
+    def test_a_7x_policy_file_gets_the_7_0_bluetooth_file(self):
+        seven = PLAIN.replace('<audioPolicyConfiguration version="1.0"', '<audioPolicyConfiguration\n\tversion="7.0"')
+        self.assertNotEqual(PLAIN, seven)
+        both = {BT_FILE: BT_MODULE, BT_FILE_7: BT_MODULE_7}
+        line, text, etc = self.copy(plain=seven, includes=both, libs=(BT_LIB,))
+        self.assertEqual(f'rc=0 note={BT_SAID.replace(BT_FILE, BT_FILE_7)}', line)
+        self.assert_included(text, seven, etc, [BT_FILE_7])
+        # No 7_0 file, or one without an A2DP output: the file the user's fix took.
+        for inc in ({BT_FILE: BT_MODULE}, {BT_FILE: BT_MODULE, BT_FILE_7: A2DP_SINK}):
+            line, text, etc = self.copy(plain=seven, includes=inc, libs=(BT_LIB,))
+            self.assertEqual(f'rc=0 note={BT_SAID}', line)
+        # A 1.0 file keeps the 1.0 module file.
+        line, text, etc = self.copy(includes=both, libs=(BT_LIB,))
+        self.assertEqual(f'rc=0 note={BT_SAID}', line)
+        self.assert_included(text, PLAIN, etc, [BT_FILE])
+
+    def test_qualcomm_and_the_switch_keep_the_primary_module_way(self):
+        for env in ({'SOC_PROP': 'QTI'}, {'ONEOS_GUEST_APM_BT_MODULE': '0'}):
+            line, text, etc = self.copy(env=env, more=True, **BT_ONLY)
+            self.assertEqual(f'rc=0 note={PRIMARY_SAID} usb= added=1', line)
+            self.assert_added(text, PLAIN, etc)
+            self.assertNotIn(BT_FILE, text)
+        line, text, etc = self.copy(env={'SOC_PROP': 'QTI', 'ONEOS_GUEST_APM_BT_MODULE': '1'}, **BT_ONLY)
+        self.assertEqual(f'rc=0 note={BT_SAID}', line)
+        line, text, etc = self.copy(env={'ONEOS_GUEST_APM_BT_MODULE': 'auto'}, **BT_ONLY)
+        self.assertEqual(f'rc=0 note={BT_SAID}', line)
+
+    def test_no_bluetooth_module_without_its_file_its_library_or_a_place_for_it(self):
+        no_xi = '\n'.join(l for l in PLAIN.splitlines() if 'xi:include' not in l).replace(' xmlns:xi="http://www.w3.org/2001/XInclude"', '') + '\n'
+        for name, kw in {
+            'no library': {'includes': {BT_FILE: BT_MODULE}},
+            'another library': {'includes': {BT_FILE: BT_MODULE}, 'libs': ('lib/hw/audio.a2dp.default.so', 'lib/audio.bluetooth.default.so')},
+            'no file': {'libs': (BT_LIB,)},
+            'a file without an A2DP output': {'includes': {BT_FILE: A2DP_SINK}, 'libs': (BT_LIB,)},
+            'no xi: in the policy file': {'plain': no_xi, **BT_ONLY},
+        }.items():
+            with self.subTest(name):
+                plain = kw.get('plain', PLAIN)
+                line, text, etc = self.copy(more=True, **kw)
+                self.assertEqual(f'rc=0 note={PRIMARY_SAID} usb= added=1', line)
+                self.assert_added(text, plain, etc)
+                self.assertNotIn(BT_FILE, text)
+        # Without an AIDL factory there is no session for either way.
+        for bt in (HIDL_BT, None):
+            line, text, etc = self.copy(bt=bt, more=True, **BT_ONLY)
+            self.assertEqual(('rc=0 note=no A2DP outputs added (no AIDL Bluetooth audio HAL on this phone) usb= added=0',
+                              self.absolute(PLAIN, etc)), (line, text))
+        # The switch for A2DP is for both ways.
+        line, text, etc = self.copy(env={'ONEOS_GUEST_APM_A2DP': '0'}, more=True, **BT_ONLY)
+        self.assertEqual(('rc=0 note=no A2DP outputs added (ONEOS_GUEST_APM_A2DP=0) usb= added=0', self.absolute(PLAIN, etc)), (line, text))
+
+    def test_the_include_goes_before_the_real_end_of_the_modules(self):
+        for awk in AWKS:
+            with self.subTest(awk):
+                # One in a comment does not count, and one that shares its line gets lines of its own.
+                commented = PLAIN.replace('<modules>', '<modules>\n        <!-- <modules> </modules> -->')
+                line, text, etc = self.copy(plain=commented, awk=awk, **BT_ONLY)
+                self.assertEqual(f'rc=0 note={BT_SAID}', line)
+                self.assert_included(text, commented, etc, [BT_FILE])
+                shared = PLAIN.replace('\n    </modules>', '</modules>')
+                self.assertNotEqual(PLAIN, shared)
+                line, text, etc = self.copy(plain=shared, awk=awk, more=True, **A35)
+                self.assertEqual(f'rc=0 note={BT_SAID} usb={USB_SAID} added=1', line)
+                self.assert_included(text, shared, etc, [BT_FILE, USB_FILE])
+
+    def test_usb_outputs_only_where_the_file_has_none(self):
+        line, text, etc = self.copy(more=True, **USB_ONLY)
+        self.assertEqual(f'rc=0 note={PRIMARY_SAID} usb={USB_SAID} added=1', line)
+        self.assertEqual([(XI, f'{etc}/{USB_FILE}')], [(e.tag, e.get('href')) for e in list(ET.fromstring(text).find('modules'))[-1:]])
+        self.assertEqual(3, text.count('tagName="OneOS BT A2DP '))
+        # Its own switch, and the one for A2DP leaves it alone.
+        line, text, etc = self.copy(env={'ONEOS_GUEST_APM_USB': '0'}, more=True, **A35)
+        self.assertEqual(f'rc=0 note={BT_SAID} usb= added=1', line)
+        self.assert_included(text, PLAIN, etc, [BT_FILE])
+        line, text, etc = self.copy(env={'ONEOS_GUEST_APM_A2DP': '0'}, more=True, **A35)
+        self.assertEqual(f'rc=0 note=no A2DP outputs added (ONEOS_GUEST_APM_A2DP=0) usb={USB_SAID} added=1', line)
+        self.assert_included(text, PLAIN, etc, [USB_FILE])
+        # A file that has USB outputs, in itself or in a module it includes, keeps them.
+        own = PLAIN.replace('<devicePort role="sink" tagName="BT SCO"', '<devicePort role="sink" tagName="USB Headset Out" '
+                            'type="AUDIO_DEVICE_OUT_USB_HEADSET"/>\n<devicePort role="sink" tagName="BT SCO"')
+        inc = PLAIN.replace('<xi:include href="a2dpsink', '<xi:include href="usb_audio_policy_configuration.xml"/>\n<xi:include href="a2dpsink')
+        for plain in (own, inc):
+            self.assertNotEqual(PLAIN, plain)
+            line, text, etc = self.copy(plain=plain, bt=HIDL_BT, more=True, **USB_ONLY)
+            self.assertEqual(('rc=0 note=no A2DP outputs added (no AIDL Bluetooth audio HAL on this phone) usb= added=0',
+                              self.absolute(plain, etc).replace('href="usb_audio', f'href="{etc}/usb_audio')), (line, text))
+        # No library for the module, no file, or a file without a USB output: nothing.
+        for kw in ({'includes': {USB_FILE: USB_MODULE}}, {'libs': (USB_LIB,)}, {'includes': {USB_FILE: A2DP_SINK}, 'libs': (USB_LIB,)},
+                   {'includes': {USB_FILE: USB_MODULE}, 'libs': ('lib64/audio.usb.default.so',)}):
+            line, text, etc = self.copy(bt=HIDL_BT, more=True, **kw)
+            self.assertEqual(('rc=0 note=no A2DP outputs added (no AIDL Bluetooth audio HAL on this phone) usb= added=0',
+                              self.absolute(PLAIN, etc)), (line, text))
+        # A plain copy stays one.
+        line, text, etc = self.copy(may='0', more=True, **A35)
+        self.assertEqual(('rc=0 note= usb= added=0', self.absolute(PLAIN, etc)), (line, text))
+
     def test_a_missing_file_fails(self):
         line, text, etc = self.copy(plain=None)
         self.assertEqual(('rc=1 note=', None), (line, text))
@@ -371,6 +534,14 @@ class HyperOS(unittest.TestCase):
                           '(no AIDL audio HAL); Bluetooth A2DP outputs added on primary-out,fast,deep-buffer'], lines)
         self.assertEqual(3, mi.count('tagName="OneOS BT A2DP '))
         self.assertNotIn('AUDIO_DEVICE_IN_2MIC', mi)
+        self.assertEqual(self.overlay, log[-1])
+
+    def test_the_vendors_modules_are_said_on_the_line(self):
+        lines, mi, log, etc, guest = self.prepare(**A35)
+        self.assertEqual([f'HyperOS audio policy: {etc}/audio_policy_configuration.xml as {etc}/audio/audio_policy_configuration_mi.xml '
+                          f'(no AIDL audio HAL); {BT_SAID}; {USB_SAID}'], lines)
+        self.assertEqual([f'{etc}/{BT_FILE}', f'{etc}/{USB_FILE}'], [e.get('href') for e in list(ET.fromstring(mi).find('modules'))[-2:]])
+        self.assertNotIn('OneOS BT A2DP', mi)
         self.assertEqual(self.overlay, log[-1])
 
     def test_a_sku_file_stays_first_and_is_only_copied(self):
@@ -420,9 +591,29 @@ class OtherGuests(unittest.TestCase):
                           f'mount --bind {f.stage}/guest_apm/audio_policy_configuration.xml {target}',
                           f'mount -o remount,ro,bind {target}'], log)
 
+    def test_the_vendors_modules_are_bound_the_same_way(self):
+        lines, copy, log, etc, f = self.prepare(**A35)
+        self.assertEqual([f'Guest audio policy: {etc}/audio_policy_configuration.xml with {BT_SAID}; {USB_SAID} (no AIDL audio HAL)'], lines)
+        self.assertEqual([f'{etc}/{BT_FILE}', f'{etc}/{USB_FILE}'], [e.get('href') for e in list(ET.fromstring(copy).find('modules'))[-2:]])
+        self.assertNotIn('OneOS BT A2DP', copy)
+        target = f'{f.guest_etc}/audio_policy_configuration.xml'
+        self.assertEqual([f'mount --bind {f.stage}/guest_apm/audio_policy_configuration.xml {target}', f'mount -o remount,ro,bind {target}'], log[-2:])
+        # USB alone is reason enough for the copy: after the primary module way, with no Bluetooth to add, with A2DP switched off.
+        for kw, env, said in (
+                (USB_ONLY, None, f'{PRIMARY_SAID}; {USB_SAID}'),
+                ({'bt': HIDL_BT, **USB_ONLY}, None, f'{USB_SAID}; no A2DP outputs added (no AIDL Bluetooth audio HAL on this phone)'),
+                (A35, {'ONEOS_GUEST_APM_A2DP': '0'}, f'{USB_SAID}; no A2DP outputs added (ONEOS_GUEST_APM_A2DP=0)')):
+            lines, copy, log, etc, f = self.prepare(env=env, **kw)
+            self.assertEqual([f'Guest audio policy: {etc}/audio_policy_configuration.xml with {said} (no AIDL audio HAL)'], lines)
+            self.assertEqual(f'{etc}/{USB_FILE}', list(ET.fromstring(copy).find('modules'))[-1].get('href'))
+            self.assertTrue(any('--bind' in l for l in log), log)
+
     def test_nothing_to_add_binds_nothing(self):
         for kw, why in (({'bt': HIDL_BT}, 'no A2DP outputs added (no AIDL Bluetooth audio HAL on this phone)'),
-                        ({'sec': None}, "no A2DP outputs added (One UI's own policy file has none)")):
+                        ({'sec': None}, "no A2DP outputs added (One UI's own policy file has none)"),
+                        ({'env': {'ONEOS_GUEST_APM_A2DP': '0'}}, 'no A2DP outputs added (ONEOS_GUEST_APM_A2DP=0)'),
+                        ({'env': {'ONEOS_GUEST_APM_USB': '0'}, 'bt': HIDL_BT, **USB_ONLY},
+                         'no A2DP outputs added (no AIDL Bluetooth audio HAL on this phone)')):
             lines, copy, log, etc, f = self.prepare(**kw)
             self.assertEqual([f'Guest audio policy: {etc}/audio_policy_configuration.xml left as it is: {why}'], lines)
             self.assertFalse(any('--bind' in l for l in log), log)
@@ -435,7 +626,8 @@ class OtherGuests(unittest.TestCase):
                          (lines, log))
 
     def test_not_for_hyperos_an_aidl_audio_hal_or_the_switch(self):
-        for kw, env in (({'hyperos': True}, None), ({'audio': AIDL_AUDIO}, None), ({}, {'ONEOS_GUEST_APM_A2DP': '0'}), ({'plain': None}, None)):
+        both_off = {'ONEOS_GUEST_APM_A2DP': '0', 'ONEOS_GUEST_APM_USB': '0'}
+        for kw, env in (({'hyperos': True, **A35}, None), ({'audio': AIDL_AUDIO, **A35}, None), (A35, both_off), ({'plain': None}, None)):
             lines, copy, log, etc, f = self.prepare(env=env, **kw)
             self.assertEqual(([], None, []), (lines, copy, log))
 
@@ -443,6 +635,10 @@ class OtherGuests(unittest.TestCase):
         lines, copy, log, etc, f = self.prepare(env={'BIND_REFUSED': '1'})
         self.assertEqual([f"!!! WARNING: guest audio policy: the bind on {etc}/audio_policy_configuration.xml was refused; "
                           "the guest keeps the vendor's file (no Bluetooth audio)"], lines)
+        for kw, lost in ((A35, 'no Bluetooth audio, no USB audio'), ({'bt': HIDL_BT, **USB_ONLY}, 'no USB audio')):
+            lines, copy, log, etc, f = self.prepare(env={'BIND_REFUSED': '1'}, **kw)
+            self.assertEqual([f"!!! WARNING: guest audio policy: the bind on {etc}/audio_policy_configuration.xml was refused; "
+                              f"the guest keeps the vendor's file ({lost})"], lines)
 
 
 BRIDGE_PRELUDE = '''

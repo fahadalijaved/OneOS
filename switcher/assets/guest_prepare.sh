@@ -1859,45 +1859,127 @@ if [ -e "$ROOTFS/system/framework/oplus-services.jar" ] || [ -L "$ROOTFS/system/
 else
     echo "No oplus-services.jar in the guest image: only services.jar carries guards"
 fi
-# Bluetooth A2DP outputs for a guest that reads Samsung's plain audio policy
-# file. On the Exynos phones with a HIDL audio HAL (A16 5G, A34, A35, S24,
-# S24+) /vendor/etc/audio_policy_configuration.xml is the short file Samsung
-# ships for the vendor tests: speaker, earpiece, wired headset and Bluetooth
-# calls, no A2DP device and no Bluetooth module, while the HAL's primary
-# module does play to A2DP (the _sec file One UI's own audioserver loads has
-# the three A2DP devices in it). A guest that reads the plain file connects
-# earbuds, the Bluetooth audio bridge starts the session, and audio policy has
-# nowhere to send the sound ("could not find HW module for device type
-# 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP'", A35 session 631945a2).
-# apm_copy <vendor file> <out file> <1: A2DP outputs may be added> writes the
-# file with its relative xi:include hrefs made absolute, since the copy no
-# longer sits next to the files they name, and then, where all of this holds,
-# adds three A2DP devices to the primary module as One UI's file has them
-# (16-bit PCM, 48 kHz stereo), fed by the speaker's own mix ports except the
-# mmap ones:
-#   - the file and the files it includes name no A2DP output,
-#   - One UI's _sec or _base file has one,
-#   - a vendor manifest names an AIDL Bluetooth audio factory (Samsung's, for
-#     the bridge, or Android's): with the older HIDL one (A25, A33, S23 FE)
-#     the guest's Bluetooth has no audio session to give the HAL, and sound
-#     would leave the speaker for nothing,
-#   - ONEOS_GUEST_APM_A2DP is not 0.
+# Bluetooth A2DP and USB outputs for a guest that reads Samsung's plain audio
+# policy file. On the Exynos phones with a HIDL audio HAL (A16 5G, A34, A35,
+# S24, S24+) /vendor/etc/audio_policy_configuration.xml is the short file
+# Samsung ships for the vendor tests: speaker, earpiece, wired headset and
+# Bluetooth calls, no A2DP device, no Bluetooth module and no USB one (the
+# _sec file One UI's own audioserver loads has them in its primary module). A
+# guest that reads the plain file connects earbuds, the Bluetooth audio bridge
+# starts the session, and audio policy has nowhere to send the sound ("could
+# not find HW module for device type 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP'", A35
+# sessions 631945a2 and b06d044f; the same for AUDIO_DEVICE_OUT_USB_HEADSET
+# in b06d044f, where only the modules primary and r_submix were loaded).
+#
+# apm_copy <vendor file> <out file> <1: outputs may be added> writes the file
+# with its relative xi:include hrefs made absolute, since the copy no longer
+# sits next to the files they name, and then adds what the file lacks.
+#
+# Bluetooth A2DP (apm_a2dp): where the file and the files it includes name no
+# A2DP output, a vendor manifest names an AIDL Bluetooth audio factory
+# (Samsung's, for the bridge, or Android's: with the older HIDL one of the
+# A25, A33 and S23 FE the guest's Bluetooth has no audio session to give the
+# HAL, and sound would leave the speaker for nothing) and ONEOS_GUEST_APM_A2DP
+# is not 0. One of two ways:
+#   - The vendor's own Bluetooth module: Android's
+#     bluetooth_audio_policy_configuration.xml (the _7_0 one for a 7.x policy
+#     file that has it) included at the end of <modules>, where the vendor has
+#     that file and the library the module loads (audio.bluetooth.*.so) and
+#     the phone is not a Qualcomm one. This is a user's fix: on his Galaxy A35
+#     with OxygenOS 16 he included this file and the USB one in a copy bound
+#     over the guest's file, with a script of his own, and Bluetooth and USB
+#     headphones played. 0.4.90 does the same before the guest starts.
+#     ONEOS_GUEST_APM_BT_MODULE=0 takes the other way, =1 takes this one on a
+#     Qualcomm phone too.
+#   - Otherwise, where One UI's _sec or _base file has an A2DP output, three
+#     A2DP devices in the primary module as that file has them (16-bit PCM,
+#     48 kHz stereo), fed by the speaker's own mix ports except the mmap ones
+#     (0.4.85; it played on a Qualcomm vendor, Nothing OS session 32b35f59,
+#     and no report says it did on an Exynos one).
+#
+# USB (apm_usb): where the file and the files it includes name no USB output
+# and the vendor has Android's usb_audio_policy_configuration.xml and the
+# library its module loads (audio.usb.*.so), that file is included the same
+# way. ONEOS_GUEST_APM_USB=0 leaves it out.
+#
 # Speaker, earpiece, headset and microphones stay as the file has them.
-# APM_NOTE says what was done; a file whose layout the awk below does not
-# follow is left as it is.
-apm_copy() {
-    APM_NOTE=""
-    rm -f "$2" "$2.a2dp"
-    [ -f "$1" ] || return 1
-    $BB sed -e "s#href=\"\([^/\"][^\"]*\)\"#href=\"${1%/*}/\1\"#g" "$1" > "$2" || return 1
-    [ -s "$2" ] || return 1
-    [ "$3" = 1 ] || return 0
+# APM_NOTE says what was done for Bluetooth and APM_USB what was done for USB
+# (empty: nothing); APM_ADDED is 1 when the copy has more in it than the
+# vendor's file. A file whose layout these do not follow is left as it is.
+
+# apm_hw_lib <module>: the vendor has the audio HAL library a policy module of
+# that name loads (audio.<module>.<variant>.so).
+apm_hw_lib() {
+    for apm_d in /vendor/lib64/hw /vendor/lib/hw /odm/lib64/hw /odm/lib/hw; do
+        for apm_f in "$apm_d/audio.$1."*.so; do
+            [ -f "$apm_f" ] && return 0
+        done
+    done
+    return 1
+}
+
+# apm_format <copy>: the version the policy file says it is written in ("7.0":
+# lists with spaces; "1.0": with commas).
+apm_format() {
+    $BB tr '\n\t' '  ' < "$1" | $BB sed -n 's/.*<audioPolicyConfiguration[^>]* version="\([0-9.]*\)".*/\1/p'
+}
+
+# apm_include <copy> <module file> <why>: the module file included at the end
+# of the copy's <modules>, under a comment that says why. Only in a file that
+# declares xi: and has one </modules> outside its comments.
+apm_include() {
+    rm -f "$1.inc"
+    if awk -v inc="$2" -v why="$3" '
+        function blank(n,  s) { s = ""; while (n-- > 0) s = s " "; return s }
+        { doc = doc $0 "\n" }
+        END {
+            w = doc
+            while ((i = index(w, "<!--")) > 0) {
+                j = index(substr(w, i), "-->"); if (!j) exit 1
+                w = substr(w, 1, i - 1) blank(j + 2) substr(w, i + j + 2)
+            }
+            if (!index(w, "xmlns:xi=")) exit 1
+            p = index(w, "</modules>"); if (!p || index(substr(w, p + 1), "</modules>")) exit 1
+            # The indentation of </modules>, where it stands alone on its line.
+            b = p; while (b > 1 && substr(doc, b - 1, 1) != "\n") b--
+            ind = substr(doc, b, p - b); lead = ""
+            if (ind !~ /^[ \t]*$/) { ind = "    "; lead = "\n" ind }
+            printf "%s", substr(doc, 1, p - 1) lead "    <!-- OneOS: " why " -->\n" ind "    <xi:include href=\"" inc "\"/>\n" ind substr(doc, p)
+        }' "$1" > "$1.inc" && [ "$($BB grep -c "<xi:include href=\"$2\"/>" "$1.inc")" = 1 ]; then
+        cat "$1.inc" > "$1"
+        rm -f "$1.inc"
+        return 0
+    fi
+    rm -f "$1.inc"
+    return 1
+}
+
+# apm_a2dp <vendor file> <copy>: the Bluetooth A2DP outputs, see above.
+apm_a2dp() {
     if [ "${ONEOS_GUEST_APM_A2DP:-1}" != 1 ]; then
         APM_NOTE="no A2DP outputs added (ONEOS_GUEST_APM_A2DP=$ONEOS_GUEST_APM_A2DP)"; return 0
     fi
     apm_inc=$($BB grep -o 'href="/[^" ]*"' "$2" | $BB sed -e 's/^href="//' -e 's/"$//')
     if $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP' "$2" $apm_inc; then
         APM_NOTE="it has A2DP outputs of its own"; return 0
+    fi
+    case "${ONEOS_GUEST_APM_BT_MODULE:-auto}" in
+        0) apm_mod=0 ;;
+        1) apm_mod=1 ;;
+        *) apm_mod=1; if [ "$(getprop ro.soc.manufacturer)" = QTI ]; then apm_mod=0; fi ;;
+    esac
+    if [ "$apm_mod" = 1 ]; then
+        apm_bt=/vendor/etc/bluetooth_audio_policy_configuration.xml
+        case "$(apm_format "$2")" in
+            7.*) if $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP"' "${apm_bt%.xml}_7_0.xml"; then apm_bt="${apm_bt%.xml}_7_0.xml"; fi ;;
+        esac
+        if $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP"' "$apm_bt" && apm_hw_lib bluetooth \
+           && $BB grep -rqs -E 'ISehBluetoothAudioProviderFactory|IBluetoothAudioProviderFactory' /vendor/etc/vintf/ \
+           && apm_include "$2" "$apm_bt" "Bluetooth A2DP through the vendor's own Bluetooth audio module"; then
+            APM_NOTE="Bluetooth A2DP outputs added with the vendor's Bluetooth module (${apm_bt##*/})"
+            APM_ADDED=1
+            return 0
+        fi
     fi
     if ! $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP"' /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml; then
         APM_NOTE="no A2DP outputs added (One UI's own policy file has none)"; return 0
@@ -1961,10 +2043,38 @@ apm_copy() {
         }' "$2" > "$2.a2dp" && [ "$($BB grep -c 'tagName="OneOS BT A2DP ' "$2.a2dp")" = 3 ]; then
         APM_NOTE="Bluetooth A2DP outputs added on $($BB sed -n 's/.*sink="OneOS BT A2DP Out" sources="\([^"]*\)".*/\1/p' "$2.a2dp")"
         cat "$2.a2dp" > "$2"
+        APM_ADDED=1
     else
         APM_NOTE="no A2DP outputs added (the layout of $1 is not one this knows)"
     fi
     rm -f "$2.a2dp"
+}
+
+# apm_usb <copy>: the USB outputs, see above.
+apm_usb() {
+    [ "${ONEOS_GUEST_APM_USB:-1}" = 1 ] || return 0
+    apm_inc=$($BB grep -o 'href="/[^" ]*"' "$1" | $BB sed -e 's/^href="//' -e 's/"$//')
+    if $BB grep -qs 'AUDIO_DEVICE_OUT_USB_' "$1" $apm_inc; then return 0; fi
+    apm_uf=/vendor/etc/usb_audio_policy_configuration.xml
+    if $BB grep -qs 'AUDIO_DEVICE_OUT_USB_' "$apm_uf" && apm_hw_lib usb \
+       && apm_include "$1" "$apm_uf" "USB headphones through the vendor's own usb audio module"; then
+        APM_USB="USB outputs added with the vendor's usb module (${apm_uf##*/})"
+        APM_ADDED=1
+    fi
+    return 0
+}
+
+apm_copy() {
+    APM_NOTE=""
+    APM_USB=""
+    APM_ADDED=0
+    rm -f "$2" "$2.a2dp" "$2.inc"
+    [ -f "$1" ] || return 1
+    $BB sed -e "s#href=\"\([^/\"][^\"]*\)\"#href=\"${1%/*}/\1\"#g" "$1" > "$2" || return 1
+    [ -s "$2" ] || return 1
+    [ "$3" = 1 ] || return 0
+    apm_a2dp "$1" "$2"
+    apm_usb "$2"
     [ -s "$2" ]
 }
 
@@ -2141,7 +2251,7 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
             $BB chcon -R u:object_r:vendor_configs_file:s0 "$APM_OV/up" 2>/dev/null || true
             if [ -s "$APM_OV/up/audio_policy_configuration_mi.xml" ] &&
                $BB mount -t overlay overlay -o "ro,lowerdir=$APM_OV/up:$ROOTFS$APM_D" "$ROOTFS$APM_D"; then
-                echo "HyperOS audio policy: $APM_X as $APM_D/audio_policy_configuration_mi.xml (no AIDL audio HAL)${APM_NOTE:+; $APM_NOTE}"
+                echo "HyperOS audio policy: $APM_X as $APM_D/audio_policy_configuration_mi.xml (no AIDL audio HAL)${APM_NOTE:+; $APM_NOTE}${APM_USB:+; $APM_USB}"
             else
                 echo "!!! WARNING: HyperOS audio policy: the overlay on $APM_D was refused; HyperOS keeps its default (speaker only, no Bluetooth audio)"
             fi
@@ -2151,13 +2261,15 @@ fi
 
 # The other systems read AOSP's file name: /odm/etc, /vendor/etc/audio/sku_<sku>
 # and then /vendor/etc/audio_policy_configuration.xml. Where that last one is
-# the file the guest gets and apm_copy has A2DP outputs to add to it (see
-# there: Exynos, HIDL audio HAL), the copy is bound over it in the guest's
-# vendor, from a small tmpfs as above; One UI's /vendor is not touched and a
-# file apm_copy adds nothing to is left alone. ONEOS_GUEST_APM_A2DP=0 leaves
-# the vendor's file.
+# the file the guest gets and apm_copy has Bluetooth A2DP or USB outputs to
+# add to it (see there: Exynos, HIDL audio HAL), the copy is bound over it in
+# the guest's vendor, from a small tmpfs as above; One UI's /vendor is not
+# touched and a file apm_copy adds nothing to is left alone.
+# ONEOS_GUEST_APM_A2DP=0 and ONEOS_GUEST_APM_USB=0 together leave the vendor's
+# file; each alone leaves out its own outputs.
 GAPM=/vendor/etc/audio_policy_configuration.xml
-if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" ] && [ "${ONEOS_GUEST_APM_A2DP:-1}" = 1 ] \
+if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" ] \
+   && { [ "${ONEOS_GUEST_APM_A2DP:-1}" = 1 ] || [ "${ONEOS_GUEST_APM_USB:-1}" = 1 ]; } \
    && [ -f "$GAPM" ] && [ -f "$ROOTFS$GAPM" ] && [ ! -L "$ROOTFS$GAPM" ] \
    && ! "$BB" grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/; then
     SKU=$(getprop ro.boot.product.vendor.sku)
@@ -2174,18 +2286,27 @@ if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" 
         mkdir -p "$GAPM_OV" && { mount | grep -q " $GAPM_OV " || $BB mount -t tmpfs -o size=2m,mode=755 tmpfs "$GAPM_OV"; } &&
             $BB mount --make-private "$GAPM_OV" 2>/dev/null
         if mount | grep -q " $GAPM_OV " && apm_copy "$GAPM" "$GAPM_OV/audio_policy_configuration.xml" 1; then
-            case "$APM_NOTE" in
-                "Bluetooth A2DP outputs added"*)
-                    chown 0:0 "$GAPM_OV/audio_policy_configuration.xml" && chmod 644 "$GAPM_OV/audio_policy_configuration.xml"
-                    $BB chcon u:object_r:vendor_configs_file:s0 "$GAPM_OV/audio_policy_configuration.xml" 2>/dev/null || true
-                    if $BB mount --bind "$GAPM_OV/audio_policy_configuration.xml" "$ROOTFS$GAPM"; then
-                        $BB mount -o remount,ro,bind "$ROOTFS$GAPM" 2>/dev/null || true
-                        echo "Guest audio policy: $GAPM with $APM_NOTE (no AIDL audio HAL)"
-                    else
-                        echo "!!! WARNING: guest audio policy: the bind on $GAPM was refused; the guest keeps the vendor's file (no Bluetooth audio)"
-                    fi ;;
-                *) echo "Guest audio policy: $GAPM left as it is${APM_NOTE:+: $APM_NOTE}" ;;
-            esac
+            if [ "$APM_ADDED" = 1 ]; then
+                # What the copy has more, Bluetooth first, and what a refused bind costs.
+                case "$APM_NOTE" in
+                    "Bluetooth A2DP outputs added"*)
+                        GAPM_SAID="$APM_NOTE${APM_USB:+; $APM_USB}"
+                        GAPM_LOST="no Bluetooth audio${APM_USB:+, no USB audio}" ;;
+                    *)
+                        GAPM_SAID="$APM_USB${APM_NOTE:+; $APM_NOTE}"
+                        GAPM_LOST="no USB audio" ;;
+                esac
+                chown 0:0 "$GAPM_OV/audio_policy_configuration.xml" && chmod 644 "$GAPM_OV/audio_policy_configuration.xml"
+                $BB chcon u:object_r:vendor_configs_file:s0 "$GAPM_OV/audio_policy_configuration.xml" 2>/dev/null || true
+                if $BB mount --bind "$GAPM_OV/audio_policy_configuration.xml" "$ROOTFS$GAPM"; then
+                    $BB mount -o remount,ro,bind "$ROOTFS$GAPM" 2>/dev/null || true
+                    echo "Guest audio policy: $GAPM with $GAPM_SAID (no AIDL audio HAL)"
+                else
+                    echo "!!! WARNING: guest audio policy: the bind on $GAPM was refused; the guest keeps the vendor's file ($GAPM_LOST)"
+                fi
+            else
+                echo "Guest audio policy: $GAPM left as it is${APM_NOTE:+: $APM_NOTE}"
+            fi
         else
             echo "!!! WARNING: guest audio policy: no copy of $GAPM could be made; the guest keeps the vendor's file"
         fi
@@ -3247,7 +3368,12 @@ echo "=== 5.3 $(date +%T) cover density ==="
 # display-manager-state.xml wins over the resource, so the panel's own size
 # (oneos_switch.sh: host_panel_size) is written there before every boot. Not on
 # a fold (two panels, one stable size). ONEOS_GUEST_STABLE_SIZE=0: left alone.
-# Look for "mStableDisplaySize" in diag_90_display.txt of the next report.
+# The reports after it (0.4.81 to 0.4.89, seven sessions): mStableDisplaySize
+# was the panel's and the status bar the same as before. OPPO's SystemUI reads
+# the resource itself ("ScreenSizeHelper--> StableDisplayWidthSize =
+# config_stableDeviceDisplayWidth: 1272", Galaxy A35 b06d044f), so since 0.4.90
+# the UI activator overlays the resource too (oneos_switch.sh, "stable display
+# size"). This write stays: DisplayManager's own value, right from the boot on.
 DMS="$STAGE/data/system/display-manager-state.xml"
 HPS=$(cat "$STAGE/host_panel_size" 2>/dev/null)
 if [ "${ONEOS_GUEST_STABLE_SIZE:-1}" != 1 ] || [ "$FORM" = fold ] ||
