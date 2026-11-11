@@ -205,6 +205,31 @@ class GatesTest {
         assertEquals(SwitchGates.R_ANDROID_DIFFERS, a17System.find(SwitchGates.ID_ANDROID)!!.finding.reason)
         assertEquals(FixAction.CHOOSE_SYSTEM, Plain.of(a17System.find(SwitchGates.ID_ANDROID)!!.finding, a17System.image, Profiles.A15).action)
 
+        // 0.4.91 (owner: "add oxygenos to s23 series on oneui8/8.5"): the Galaxy S23s still on One UI 8/8.5 are no
+        // longer told to update One UI first; OxygenOS 16 is the system they can set up, their Android 17 ones are not.
+        val s23s = listOf(
+            Triple("SM-S911B", "dm1q", Profiles.S_8550), Triple("SM-S916U", "dm2q", Profiles.S_PLUS_8550),
+            Triple("SM-S918B", "dm3q", Profiles.S_ULTRA_8550),
+        )
+        for ((model, device, profile) in s23s) {
+            val f = bar(model, device, SocProps(manufacturer = "QTI", model = "SM8550"))
+            val s23 = on(f)
+            assertEquals(profile, s23.profile)
+            assertNull(model, s23.image)
+            assertEquals(model, Level.OK, s23.level(SwitchGates.ID_ANDROID))
+            assertEquals(model, Level.OK, s23.level(SwitchGates.ID_INSTALLD))
+            assertEquals(model, SwitchGates.R_IMAGE_NOTHING, s23.find(SwitchGates.ID_IMAGE)!!.finding.reason)
+            val s23Oxygen = on(f, stage(profile, Images.ID_OXYGEN16))
+            assertEquals(model, Images.OXYGEN16, s23Oxygen.image)
+            assertEquals(
+                model, listOf(Level.OK, Level.OK, Level.OK),
+                listOf(SwitchGates.ID_ANDROID, SwitchGates.ID_INSTALLD, SwitchGates.ID_IMAGE).map { s23Oxygen.level(it) },
+            )
+            val s23Color = on(f, stage(profile))
+            assertEquals(model, 37, s23Color.image!!.sdk)
+            assertEquals(model, SwitchGates.R_ANDROID_DIFFERS, s23Color.find(SwitchGates.ID_ANDROID)!!.finding.reason)
+        }
+
         // Galaxy A56: every system is Android 17. "Update One UI first", and the installd gate has nothing to say.
         val older = on(bar("SM-A566B", "a56x", SocProps(manufacturer = "Samsung", model = "s5e8855")))
         assertEquals(Profiles.A56, older.profile)

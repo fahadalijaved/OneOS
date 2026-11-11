@@ -258,7 +258,7 @@ class ImagesTest {
             Profiles.FOLD8 to listOf(n6, pixel, ifx, hyper, nothing, origin),
             Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, hyper, nothing, origin),
             Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.82
-            Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, origin), // 0.4.82
+            Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, Images.OXYGEN16, origin), // 0.4.82; 0.4.91 OxygenOS 16
             Profiles.S_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.83
             Profiles.S_PLUS_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper, nothing, origin), // 0.4.83
             Profiles.S_FE_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, hyper),

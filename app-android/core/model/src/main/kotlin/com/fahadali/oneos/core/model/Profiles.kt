@@ -138,6 +138,7 @@ object Profiles {
     const val ID_S_8450 = "s-8450"
     const val ID_M55S = "m55s"
     const val ID_S_PLUS_9945 = "s-plus-9945"
+    const val ID_S_ULTRA_8550_JP = "s-ultra-8550-jp"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -197,7 +198,13 @@ object Profiles {
      * bar phone its cover-screen layout runs as the phone's screen.
      */
     private val HYPEROS_CHOICE = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
-    /** OxygenOS 16 (SDK 36) for phones on One UI 8 (0.4.67, experimental; the app offers it only on SDK 36). */
+    /**
+     * OxygenOS 16 (SDK 36) for phones on One UI 8 (0.4.67, experimental; the app offers it only on SDK 36).
+     * 0.4.91, at the owner's request (2026-11-11, "add oxygenos to s23 series on oneui8/8.5"): the Galaxy S23,
+     * S23+ and S23 Ultra ([S_8550], [S_PLUS_8550], [S_ULTRA_8550]) that are still on One UI 8.0/8.5, untested:
+     * no session on an SM8550 phone with an Android 16 One UI yet. The S22 Ultra and S23 FE with Snapdragon
+     * (SM8450, the HIDL composer as well) run it. Before OriginOS in their lists, which stays last.
+     */
     private val OXYGEN16_CHOICE = ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)
 
     /**
@@ -514,7 +521,7 @@ object Profiles {
         codename = "dm1q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -525,7 +532,7 @@ object Profiles {
         codename = "dm2q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -769,7 +776,7 @@ object Profiles {
         codename = "dm3q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -1223,13 +1230,21 @@ object Profiles {
      */
     val S_ULTRA_8450_JP = S_ULTRA_8450.copy(id = ID_S_ULTRA_8450_JP, label = "Galaxy S22 Ultra (au)", modelPrefix = "SCG14", codename = "SCG14")
 
+    /**
+     * The au Galaxy S23 Ultra, from 0.4.92: findings of 2026-11-11 (SCG20, ro.product.device SCG20,
+     * vendor device dm3q, SM8550, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 33, density
+     * 450, KernelSU; its installd table is the 85 methods of host_installd.txt). The [S_ULTRA_8550]'s
+     * systems and note, untested.
+     */
+    val S_ULTRA_8550_JP = S_ULTRA_8550.copy(id = ID_S_ULTRA_8550_JP, label = "Galaxy S23 Ultra (au)", modelPrefix = "SCG20", codename = "SCG20")
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
-        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945,
+        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

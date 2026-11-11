@@ -38,7 +38,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.90. Galaxy Z Fold, S, Z Flip, A, F and M phones with Snapdragon,
+App version 0.4.92. Galaxy Z Fold, S, Z Flip, A, F and M phones with Snapdragon,
 Exynos or MediaTek chips, on One UI 9 (and, for OxygenOS 16 only, on One UI 8);
 root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
@@ -111,7 +111,8 @@ of them also offers Infinity-X.
 Newer additions, each untested until a report says otherwise
 ([docs/devices.md](docs/devices.md) has today's state): from 0.4.67, OxygenOS 16
 (Android 16) for phones still on One UI 8.0 or 8.5: the Galaxy S22 series, the
-S23 FE and A, F and M phones; from 0.4.73, OriginOS 7 (vivo, Android 17) on the
+S23 FE and A, F and M phones, and from 0.4.91 the Galaxy S23, S23+ and S23 Ultra;
+from 0.4.73, OriginOS 7 (vivo, Android 17) on the
 Snapdragon Galaxy S26 and S25 phones and the Z Fold8 Ultra, Z Fold8 and Z Fold7,
 and from 0.4.82 on the Snapdragon S24 and S23 phones; and in 0.4.83 the Galaxy
 S24+ with Exynos 2400 (SM-S926B, e2s), which, like the Exynos S24, takes the

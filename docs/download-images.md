@@ -62,6 +62,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
+  - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
 
 ## Pixel 11 Fold, yogi build
 
@@ -111,6 +112,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy Z Flip7 FE (SM-F761, s5e9945), not tested yet
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
+  - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
 
 ## Infinity-X 4.1, Find X9 Ultra build
 
@@ -163,6 +165,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
+  - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
 
 ## HyperOS, Xiaomi 18 Fold build
 
@@ -212,6 +215,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
   - Galaxy S25 FE (SM-S731, s5e9945), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
+  - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
 
 ## Nothing OS 5.0, Metroid build
 
@@ -245,7 +249,10 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
 - SHA-256: `21e9b1fe37adb0ce4820610f017cdcce6373457c435aa242262b2e4ed214c5f0`
 - Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_OxygenOS16_CPH2745.img.gz/download
 - Phones:
+  - Galaxy S23 (SM-S911, SM8550), not tested yet
+  - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy A07 (SM-A075, MT6789), not tested yet
+  - Galaxy S23 Ultra (SM-S918, SM8550), not tested yet
   - Galaxy A26 (SM-A266, s5e8835), not tested yet
   - Galaxy A17 (SM-A175, MT6789), not tested yet
   - Galaxy A16 5G (SM-A166, s5e8535), not tested yet
@@ -272,6 +279,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S22 (Snapdragon) (SM-S901, SM8450), not tested yet
   - Galaxy M55s (SM-M558, SM7450), not tested yet
   - Galaxy S22 Ultra (au) (SCG14, SM8450), not tested yet
+  - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
 
 ## OriginOS 7, vivo PD2609MA build
 
@@ -297,3 +305,4 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S24 (Exynos) (SM-S921, s5e9945), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
+  - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet

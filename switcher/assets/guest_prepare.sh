@@ -6238,8 +6238,23 @@ fi
 mkdir -p "$W" || { echo "Modules: no $W"; exit 0; }
 
 # Cleanup scripts run in the guest root before deleting anything, never in host /data/adb.
+# Bounded, and by SIGKILL (a shell waiting for a child acts on SIGTERM only after it): nothing
+# here may hold the switch behind the splash (S22 Ultra 0.4.91, 2026-11-11: this step never
+# returned, guest_runtime.sh's uninstall stage has the cause). Each uninstall.sh has its own
+# 30 s. A bootstrap su the stopped cleanup left is ended by the pid it recorded.
 if [ -f "$S/data/oneos_root/enabled" ]; then
-    "$BB" chroot "$R" /system/bin/sh /data/oneos_runtime.sh uninstall || { echo "Modules: the guest's module cleanup failed (exit $?; its log: data/oneos_root/adb/oneos/run/session.log)"; exit 1; }
+    rm -f "$K/oneos/run/bootstrap.pid"
+    "$BB" timeout -s KILL 150 "$BB" chroot "$R" /system/bin/sh /data/oneos_runtime.sh uninstall || {
+        rc=$?
+        if [ "$rc" = 137 ]; then
+            echo "Modules: the guest's module cleanup did not end within 150 s and was stopped"
+            bp=$(cat "$K/oneos/run/bootstrap.pid" 2>/dev/null)
+            case "$bp" in ''|*[!0-9]*) ;; *)
+                case "$("$BB" readlink "/proc/$bp/exe" 2>/dev/null)" in */oneos/bin/su) kill -KILL "$bp" 2>/dev/null ;; esac ;;
+            esac
+            rm -f "$K/oneos/run/bootstrap.pid"
+        fi
+        echo "Modules: the guest's module cleanup failed (exit $rc; its log: data/oneos_root/adb/oneos/run/session.log)"; exit 1; }
 fi
 # Remove wins over a pending update. Never delete an active module at button press.
 for d in "$M"/* "$U"/*; do

@@ -50,6 +50,28 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.92: **a switch that stood on the "shutting down" splash for good with guest root on**, and the
+**au Galaxy S23 Ultra (SCG20)**.
+- With root for the guest switched on, the switch could stop behind the splash and never go on; only a forced
+  reboot ended it (Galaxy S22 Ultra, OxygenOS 16, 0.4.91: three switches in a row, 15 and 27 minutes). Before each
+  start the guest's module cleanup starts a helper and ends it again a moment later. The stop signal could be lost
+  in the instant the helper was starting, and the cleanup then waited for it without end; nothing bounded the
+  step. On a test phone's own shell the old lines lost 32 of 400 stops in one run, the new ones none of 1,600.
+  The helper is now ended by a signal that cannot be lost, and the whole cleanup has 150 seconds: past that it
+  is stopped and the switch ends with a message, as for any other failure while preparing. Not tried in a
+  switch on the phone of the report yet. **Tap Update on each system's page** to get it: the session scripts
+  changed.
+- The au Galaxy S23 Ultra (SCG20), from findings of a phone on One UI 9.0 sent the same day: it takes the Galaxy
+  S23 Ultra's systems (ColorOS 17, Pixel, Infinity X, HyperOS and OriginOS on One UI 9; OxygenOS 16 on One UI
+  8.0/8.5), untested on it. Japanese carrier models have their own model number and device name, so each needs
+  its own entry.
+
+New in 0.4.91: **OxygenOS 16 on the Galaxy S23, S23+ and S23 Ultra that are still on One UI 8.0 or 8.5**
+(Android 16), untested there. Until now the app told these phones to update One UI first, because all
+five of their systems are Android 17. OxygenOS 16 is the one Android 16 system and already runs on the
+S22 series and the S23 FE; on One UI 9 the S23s' list is unchanged (OxygenOS 16 is not offered there).
+The session scripts and file sets are the ones of 0.4.90: nothing to update on a system's page.
+
 New in 0.4.90: **Bluetooth and USB headphones on the Galaxy A35**, **OxygenOS 16's status bar**, and **ColorOS's
 status bar on the Galaxy S24+**. None of the three has run on the phones concerned yet.
 - Bluetooth and USB headphones connected and the sound stayed on the phone (Galaxy A35, OxygenOS 16; any phone whose
