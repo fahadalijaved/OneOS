@@ -105,9 +105,13 @@ re-running `scripts/install-pin-jar.sh` rebuilds the kept copy for the new
 build. The update leaves the guest's `data/` alone, so the copy survives.
 
 `scripts/install-pin-jar.sh` pulls the stage jar, runs
-`scripts/patch-built-jar.sh` with `guest_local_pin.py`, checks that the rebuilt
-`classes2.dex` contains `OneOsPin`, pushes the result and its stamp into the
-guest's `data/local/tmp/oneos_pin`, and labels both.
+`scripts/patch-built-jar.sh` **twice** — `guest_force_aidl_fingerprint.py`, then
+`guest_local_pin.py` — checks that `classes.dex` has no HIDL lockout call and
+that `classes2.dex` contains `OneOsPin`, pushes the result and its stamp into
+the guest's `data/local/tmp/oneos_pin`, and labels both. The release jar lacks
+both patches; with only the PIN patch the keyguard lists a print, but
+`FingerprintProvider` falls back to the absent HIDL adapter
+(`Fingerprint HAL not available`).
 
 ### Tests
 
@@ -131,7 +135,40 @@ gatekeeper/weaver call was involved.
 
 This is a probe, not a shipping path. The HAL is the phone's: any finger
 enrolled in One UI can satisfy the guest, and there is no guest-specific
-enrollment filter. Face is untested.
+enrollment filter.
+
+## Biometric enrollments
+
+ColorOS keeps the enrollment metadata in `/data/system/users/0`; the templates
+stay in the phone's TEE. The removed host lock-state snapshot was what copied
+that metadata, so without it an image with a stale copy listed a print
+("fingerprint is on, no glyph") and a fresh install listed nothing ("Add now
+does nothing").
+
+`guest_prepare.sh` copies, on every switch:
+
+- `settings_fingerprint_0.xml` -> `settings_fingerprint.xml` (ColorOS reads the
+  legacy AOSP name),
+- `settings_face.xml` and `face_enrolled_position_0.xml` unchanged,
+- owner `1000:1000`, mode 0644, label `system_data_file`.
+
+The copy is a mirror, not a merge: a file One UI does not have is removed from
+the guest, so a fingerprint or face deleted in One UI disappears from ColorOS
+too. No credential, gatekeeper handle or SP blob is read.
+
+Enrolling a new finger or face **inside** ColorOS is not possible with a
+guest-local PIN. `FingerprintEnrollClient.doEnroll` sends a gatekeeper
+`HardwareAuthToken` to `ISession.enroll`, and ColorOS gets that token from a
+successful credential confirmation. The guest has a gatekeeper service but no
+credential in it (`/data/system/gatekeeper.password.key` absent, since the PIN
+is verified locally), so there is no token and enrollment stops. Minting one
+would need the phone's gatekeeper, which is the host-delegated path this branch
+removes. Enroll in One UI; the guest imports the result on the next switch.
+
+Tested on the S25 Ultra: with the guest's `settings_fingerprint.xml` and
+`settings_face.xml` deleted, the next switch logged `Guest biometrics: carried
+One UI's 3 enrollment file(s) into the guest`; the three files landed at
+223/160/44 bytes and ColorOS listed both face and fingerprint.
 
 ## ColorOS keyguard and fingerprint wave
 
@@ -195,7 +232,10 @@ d9f85f0 Verify a guest-local PIN inside LockSettingsService
 ```
 
 The commit on top of `ff9b8c2` removes the lock-state script and its wiring.
-Both branches then build the guest-local PIN and keep the wave patch.
+Both branches then build the guest-local PIN and keep the wave patch. Later
+commits add the battery gate, the kept PIN jar, the AIDL patch inside that jar,
+and the biometric import. The branch is merged with `upstream/main` 0.4.92
+(`b9dd0ec`) and 0.4.93 (`64aa09a`).
 
 ## Portability
 
@@ -247,4 +287,8 @@ the real 0.4.90 tree.
   path on a fresh guest boot with the removed lock-state scripts.
 - Deploy the branch's `SystemUI_wave.apk` over the current `glyphfix11` bind and
   test a native unlock after the animation setting change.
-- Face bridge and guest biometric isolation.
+- Enrollment inside ColorOS: unsupported, because it needs a gatekeeper
+  `HardwareAuthToken`; add fingers and faces in One UI.
+- Biometric isolation: the templates are the phone's TEE entries, shared with
+  One UI; the guest only mirrors the metadata. A finger enrolled in One UI can
+  unlock the guest.
