@@ -260,7 +260,7 @@ object SwitchGates {
     const val R_LOGS = "not-collected"
     const val R_ZYGISK_OLD = "zygisk-next-old"
 
-    const val BATTERY_MIN_PERCENT = 10
+    const val BATTERY_MIN_PERCENT = 30
     const val BATTERY_MAX_C = 42f
 
     /**

@@ -259,10 +259,10 @@ object CompatEvaluator {
 
         // Battery (G10) is a session gate, not compatibility: only a note.
         val b = f.battery
-        if (b != null && ((b.levelPercent < SwitchGates.BATTERY_MIN_PERCENT && !b.charging) || (b.temperatureC ?: 0f) >= 42f)) {
+        if (b != null && ((b.levelPercent < 30 && !b.charging) || (b.temperatureC ?: 0f) >= 42f)) {
             out += Finding(
                 "battery-now", Level.INFO, "Battery would stop a session right now",
-                "Before a session the battery must be at ${SwitchGates.BATTERY_MIN_PERCENT}% or charging, and under 42 °C.",
+                "Before a session the battery must be at 30% or charging, and under 42 °C.",
             )
         }
 

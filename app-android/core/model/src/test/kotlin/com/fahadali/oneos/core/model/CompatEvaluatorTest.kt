@@ -293,7 +293,7 @@ class CompatEvaluatorTest {
 
     @Test
     fun infoNeverChangesTheVerdict() {
-        val r = eval(Fixtures.facts(battery = BatteryInfo(9, false, 45f)))
+        val r = eval(Fixtures.facts(battery = BatteryInfo(10, false, 45f)))
         assertEquals(Level.INFO, r.level("battery-now"))
         assertEquals(Verdict.COMPATIBLE, r.verdict)
     }

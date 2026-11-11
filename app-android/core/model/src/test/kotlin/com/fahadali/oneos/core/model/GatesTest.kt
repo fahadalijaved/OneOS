@@ -380,9 +380,9 @@ class GatesTest {
     fun battery() {
         val i = input(Bundles.F8U)
         fun level(b: BatteryInfo?) = eval(GatePhase.SWITCH, i.copy(facts = i.facts.copy(battery = b))).level(SwitchGates.ID_BATTERY)
-        assertEquals(Level.OK, level(BatteryInfo(10, false, 41.9f)))
+        assertEquals(Level.OK, level(BatteryInfo(30, false, 41.9f)))
         assertEquals(Level.OK, level(BatteryInfo(5, true, 30f)))
-        assertEquals(Level.BLOCK, level(BatteryInfo(9, false, 30f)))
+        assertEquals(Level.BLOCK, level(BatteryInfo(29, false, 30f)))
         assertEquals(Level.BLOCK, level(BatteryInfo(90, true, 42f)))
         assertEquals(Level.BLOCK, level(BatteryInfo(90, true, null)))
         assertEquals(Level.BLOCK, level(null))
