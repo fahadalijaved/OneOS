@@ -1,8 +1,10 @@
 #!/bin/sh
-# Keep a PIN-patched services.jar in the guest's own data so a fixes update
-# cannot defeat the guest-local PIN. The update replaces
-# $STAGE/services_patched.jar with a build that has no PIN verifier, which
-# leaves /data/system/oneos_pin in place but makes every PIN unusable.
+# Keep a patched services.jar in the guest's own data so a fixes update cannot
+# defeat the guest-local PIN or the AIDL fingerprint transport. The update
+# replaces $STAGE/services_patched.jar with upstream's build, which has neither
+# the PIN verifier nor the AIDL sensor forcing: /data/system/oneos_pin stays in
+# place but cannot be entered, and ColorOS asks for the absent HIDL 2.1
+# fingerprint HAL ("Fingerprint HAL not available").
 #
 # The patched copy is stamped with the sha256 of the stage jar it was built
 # from. guest_prepare.sh binds it only while that stamp matches the current
@@ -42,10 +44,14 @@ fi
 
 base=$(sha256sum "$jar" | awk '{print $1}')
 out="$root/out/services_pin.jar"
-echo "patching $jar ($base)" >&2
+step="$root/out/services_pin.step.jar"
+echo "patching $jar ($base): AIDL fingerprint, then the PIN verifier" >&2
 APKTOOL=${APKTOOL:-apktool}
 APKTOOL="$APKTOOL" sh "$root/scripts/patch-built-jar.sh" "$jar" \
+    "$root/switcher/patches/guest_force_aidl_fingerprint.py" "$step"
+APKTOOL="$APKTOOL" sh "$root/scripts/patch-built-jar.sh" "$step" \
     "$root/switcher/patches/guest_local_pin.py" "$out"
+rm -f "$step"
 
 unzip -p "$out" classes2.dex | grep -aq OneOsPin ||
     { echo "the rebuilt jar has no OneOsPin; refusing to stage it" >&2; exit 1; }
