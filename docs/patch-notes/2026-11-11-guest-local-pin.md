@@ -210,6 +210,12 @@ git diff --check
 this host, so it was not run. On-device `busybox sh -n` over the same scripts
 and a full switch/return remain.
 
+The PIN patcher was also run against the device's pre-pin `services.jar`. The
+rebuilt `classes2.dex` is 10,063,824 bytes, the same size as the tested
+`services_pin6.jar`, and the PIN block sits in front of the
+`guest_no_gatekeeper.py` return. That confirms the anchors and the ordering on
+the real 0.4.90 tree.
+
 ## Open
 
 - Rebuild `services_patched.jar` through `make-overlays.sh` and confirm the PIN
