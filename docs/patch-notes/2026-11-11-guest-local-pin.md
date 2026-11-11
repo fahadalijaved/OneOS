@@ -1,0 +1,190 @@
+# Guest-local PIN and ColorOS unlock
+
+Status: draft, 2026-11-11. Both `feat/guest-local-pin` and
+`feat/host-delegated-unlock` point at `ff9b8c2` and are pushed to `origin`.
+
+## Branch
+
+Base: `upstream/main` `210571b` (OneOS 0.4.90). The branch contains the
+host-delegated unlock work from `feat/host-delegated-unlock`
+(`0bfa556`..`751f2ff`), the guest-local PIN patcher (`d9f85f0`, `4cfbc6e`),
+and the merges `eb9415a` and `ff9b8c2`.
+
+The host-delegated design and its portability limits are in
+`docs/superpowers/specs/2026-11-09-host-delegated-unlock-design.md`; its plan
+is in `docs/superpowers/plans/2026-11-09-host-delegated-unlock.md`.
+
+## Guest-local PIN
+
+### Why
+
+One UI's credential store belongs to the phone. The guest must not read or
+write it, and a guest without One UI's PIN must still have a working screen
+lock. A guest-owned verifier gives the ColorOS keyguard a PIN on any firmware,
+at the cost of TEE-backed verification: the lock is only as strong as the
+guest's `/data`.
+
+### Storage
+
+`/data/system/oneos_pin` holds `base64(salt):base64(SHA-256(salt || pin))`.
+The salt is 16 bytes from `SecureRandom`; the file is fsynced after writing.
+Verification uses `MessageDigest.isEqual`. No plaintext PIN is stored.
+
+### LockSettingsService
+
+`switcher/patches/guest_local_pin.py` patches
+`smali_classes2/com/android/server/locksettings/LockSettingsService.smali`:
+
+- `setLockCredentialInternal` for user 0: a PIN stores the verifier, `none`
+  clears it, and any other credential falls through to the existing
+  `guest_no_gatekeeper.py` guard.
+- `doVerifyCredential` for user 0: a PIN is checked locally. On success it
+  calls the progress callback, `setDeviceUnlockedForUser`,
+  `reportSuccessfulStrongAuthUnlock`, and `notifyLockSettingsStateListeners`,
+  then returns `VerifyCredentialResponse.OK`. A wrong PIN returns
+  `OTHER_ERROR`.
+- `getCredentialTypeInternal` reports a PIN while the file exists.
+- `enforceFrpNotActive()` is skipped because the guest shares the phone's FRP
+  partition.
+- Adds `OneOsPin.smali` in the same package with `store`, `verify`, `exists`,
+  `clear`, and the SHA-256 helper.
+
+`scripts/make-overlays.sh` runs `guest_no_gatekeeper.py` first, then
+`guest_local_pin.py`, so the PIN path sits in front of the fail-closed
+`setLockCredentialInternal` guard. Without that order the guard returns false
+before the PIN can be stored.
+
+### Tests
+
+On the S25 Ultra ColorOS 17 guest:
+
+- Setting a PIN makes the keyguard show PIN entry.
+- A wrong PIN is rejected; the correct PIN unlocks.
+- Clearing the PIN returns the keyguard to no credential.
+- One UI's PIN, fingerprint, and face still work after returning to One UI.
+- The guest does not call the phone's gatekeeper or weaver to verify the PIN.
+
+## Standard fingerprint HAL
+
+A test client (`FpUnlock.java`, host path `/tmp/opencode/hal/src/...`, not
+committed) opened `android.hardware.biometrics.fingerprint.IFingerprint/default`
+(AIDL v3), used the standard `ITestSession` to release the framework's HAL
+session, opened its own session, and authenticated. On success it broadcast
+`com.oneos.UNLOCK_KEYGUARD`; the keyguard hook dismissed the keyguard. A
+correct finger unlocked and a wrong finger was rejected. No host
+gatekeeper/weaver call was involved.
+
+This is a probe, not a shipping path. The HAL is the phone's: any finger
+enrolled in One UI can satisfy the guest, and there is no guest-specific
+enrollment filter. Face is untested.
+
+## ColorOS keyguard and fingerprint wave
+
+The animation fix is the checked-in
+`switcher/patches/systemui-fingerprint-wave/` patch, with its README and a
+unified diff against stock ColorOS 17 SystemUI. It is the implementation that
+stays.
+
+It changes the UDFPS mech in `classes3.dex`:
+
+- Records `oneosWakeAt` in `onStartedWakingUp`.
+- If the touch arrives within 1200 ms of the wake, skips the pressed wave and
+  shows the glyph immediately through
+  `OnScreenFingerprintIcon.setVisibility(0, "startPressedAnimation")`.
+- Posts `OneOsGlyphShow` 300 ms after screen-on; it calls
+  `showFingerprintIconTemporarily` and forces the icon visible at alpha 1 for
+  the window where `fpIconShow` is rejected because the screen was still off.
+- At auth success (`hideUdfpsOverlay$1`), sets `pendingHide` and starts a fresh
+  `OplusAnimationDrawable` through `oneosStartWave`. The full wave plays over
+  the home screen, and the pending hide removes the ring at its end.
+- Builds the auth wave with `getOptions(8)` and 16 ms frames, not the pressed
+  animation. Changing the fingerprint animation setting therefore does not
+  remove the wave.
+- Disables `notifyHighlightVisibleUpdate`, keeping the black
+  `OnScreenFingerprintDimLayer` window out of the unlock path.
+
+`scripts/make-systemui-wave.sh` decodes the stock APK, applies the patch,
+rebuilds `classes3.dex`, and replaces it in the original archive.
+`scripts/install-systemui-wave.sh` stages the APK in the guest's
+`/data/local/tmp`, writes the stock size and SHA-256 stamps, and binds it.
+`switcher/assets/guest_start.sh` applies the bind before zygote starts on every
+boot. Two fences keep it off other firmware: the guest must have ColorOS's
+`oplus-services.jar`, and its stock SystemUI must match the size and hash the
+APK was built from. The same hook restores `min_refresh_rate 120` after boot;
+without the floor SurfaceFlinger thrashes 10-120 Hz and the wave looks like
+30 fps.
+
+Tested stock build:
+
+```
+SystemUI.apk  sha256 0e253fad7ce9a08fae656121cd907d8432b67b84bc37ae84a12e56fe01b8ef77
+classes3.dex  sha256 793b3239aaaff2272bc912c67396ced50bd3077e30f8ab511e830389754e5071
+```
+
+The build script refuses another build unless `ONEOS_WAVE_ALLOW_OTHER=1` is
+set.
+
+The ad-hoc `glyphfix11` SystemUI and `OneOsUnlockReceiver` hook built earlier
+in this session are not part of the branch and must not be deployed. They
+reused the pressed animation, so changing the animation setting stopped the
+wave. The branch patch replaces that path entirely.
+
+## Merge
+
+```
+ff9b8c2 Bring guest-local PIN into host-delegated unlock
+eb9415a Merge host-delegated unlock and the fingerprint wave
+4cfbc6e Build the guest-local PIN patch into services.jar
+d9f85f0 Verify a guest-local PIN inside LockSettingsService
+751f2ff Record the host-delegated unlock portability limits
+```
+
+`feat/guest-local-pin` and `feat/host-delegated-unlock` are the same tree.
+`feat/guest-local-pin` has the guest-local PIN commit on top of the host
+branch; `feat/host-delegated-unlock` was fast-forwarded to the same merge.
+
+## Portability
+
+- **Guest-local PIN:** a Patcher anchored to AOSP `LockSettingsService`
+  signatures and register counts. Other firmware may need new anchors, but the
+  verifier and the method hooks are not ColorOS-specific.
+- **Host-delegated unlock:** ColorOS 17 on the S25 Ultra only. It borrows One
+  UI's gatekeeper, weaver, and installd ABI; the design doc lists the limits.
+- **Wave patch:** tied to the tested ColorOS 17 SystemUI build. Another build
+  must be re-patched from its own smali and gets new stamps.
+
+## Safety
+
+- One UI's credential store is never written. The guest-local PIN lives in the
+  guest's `/data`.
+- `guest_no_gatekeeper.py` still blocks every non-PIN credential write, and the
+  weaver and biometric cleanup guards are unchanged.
+- The 42.0 C battery gate and the 45 C thermal cap are unchanged.
+- The return path to One UI is unchanged. A successful return still ends with
+  One UI's `system_server`, user 0 unlocked, and no panic.
+
+## Verification
+
+Host checks run on the merged tree:
+
+```sh
+python3 -m py_compile switcher/patches/guest_local_pin.py
+sh -n scripts/make-overlays.sh scripts/make-systemui-wave.sh \
+      scripts/install-systemui-wave.sh switcher/assets/guest_start.sh \
+      switcher/assets/guest_prepare.sh switcher/assets/guest_props.sh \
+      switcher/assets/guest_runtime.sh switcher/assets/oneos_switch.sh \
+      switcher/assets/return_to_oneui.sh switcher/assets/oneos_lockstate.sh
+git diff --check
+```
+
+`scripts/check-shell.py` needs `dash` and `busybox`, which are not installed on
+this host, so it was not run. On-device `busybox sh -n` over the same scripts
+and a full switch/return remain.
+
+## Open
+
+- Deploy the branch's `SystemUI_wave.apk` over the current `glyphfix11` bind and
+  test a native unlock after the animation setting change.
+- Rebuild `services_patched.jar` through `make-overlays.sh` and confirm the PIN
+  path on a fresh guest boot.
+- Face bridge and guest biometric isolation.
