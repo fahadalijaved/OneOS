@@ -2552,6 +2552,52 @@ if [ -f /data/system/oneos_lockstate/enabled ]; then
     ) > /data/system/oneos_lockstate/late.log 2>&1 &
 fi
 
+# OneOS: the fingerprint-wave SystemUI. scripts/install-systemui-wave.sh
+# builds the patched APK once per SystemUI build and leaves it in the guest's
+# /data/local/tmp; this bind must run before zygote starts, because zygote and
+# SystemUI unshare their own mount namespaces and would not see a later bind.
+# The image's oat/arm64 is for the stock dex checksum, so hide it as well.
+# Without the APK the stock SystemUI runs and nothing here changes the
+# keyguard.
+WAVE_APK=/data/local/tmp/SystemUI_wave.apk
+WAVE_SIZE=/data/local/tmp/SystemUI_wave.stock.size
+WAVE_OAT=/data/local/tmp/empty_oat
+if [ -f "$WAVE_APK" ] && [ -f "$WAVE_SIZE" ]; then
+    wave_want=$(cat "$WAVE_SIZE" 2>/dev/null)
+    wave_got=$($BB stat -c %s /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null)
+    if [ "$wave_want" != "$wave_got" ]; then
+        echo "[Pivoted Root] SystemUI: wave APK is for another SystemUI build; stock SystemUI"
+        WAVE_APK=
+    fi
+fi
+if [ -f "$WAVE_APK" ]; then
+    mkdir -p "$WAVE_OAT"
+    chmod 644 "$WAVE_APK" 2>/dev/null || true
+    $BB chcon u:object_r:system_file:s0 "$WAVE_APK" 2>/dev/null || true
+    if [ -d /system/system_ext/priv-app/SystemUI/oat/arm64 ]; then
+        $BB mount -o bind "$WAVE_OAT" /system/system_ext/priv-app/SystemUI/oat/arm64 2>/dev/null || true
+    fi
+    if $BB mount -o bind "$WAVE_APK" /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null; then
+        echo "[Pivoted Root] SystemUI: fingerprint wave APK bound"
+        # SurfaceFlinger thrashes 10 Hz <-> 120 Hz during the wave without a
+        # floor; the setting lives in the guest's data and resets on boot.
+        (
+            n=0
+            while [ "$(getprop sys.boot_completed)" != 1 ] && [ "$n" -lt 120 ]; do
+                n=$((n + 1)); sleep 1
+            done
+            settings put system min_refresh_rate 120 >/dev/null 2>&1 || true
+            n=0
+            while [ "$(settings get system min_refresh_rate 2>/dev/null)" != 120 ] && [ "$n" -lt 30 ]; do
+                n=$((n + 1)); sleep 1
+                settings put system min_refresh_rate 120 >/dev/null 2>&1 || true
+            done
+        ) >/dev/null 2>&1 &
+    else
+        echo "[Pivoted Root] SystemUI: fingerprint wave bind failed; stock SystemUI"
+    fi
+fi
+
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3

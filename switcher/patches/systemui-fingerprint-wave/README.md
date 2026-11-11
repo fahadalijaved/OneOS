@@ -75,7 +75,31 @@ real `DexWriter`/`Label.getLocation` exception; do not deploy that dex.
 The replaced APK keeps the original signing block, so it must be installed as
 a bind mount over the stock `SystemUI.apk` rather than through PackageManager.
 
-## Deploy (guest)
+## Stage once, apply on every boot
+
+`scripts/install-systemui-wave.sh` builds the patched APK, pushes it to the
+guest's `/data/local/tmp/SystemUI_wave.apk`, and writes
+`SystemUI_wave.stock.size` next to it. `guest_start.sh` binds both the APK and
+an empty `oat/arm64` before zygote starts on every guest boot, so the patch
+survives a guest restart. The size stamp makes the boot hook use the stock
+SystemUI after a ColorOS update until a new APK is staged.
+
+```sh
+APKTOOL="java -jar apktool.jar" scripts/install-systemui-wave.sh \
+    --stock /path/to/SystemUI.apk
+```
+
+The stock APK is needed only once per ColorOS SystemUI build. Without
+`--stock` the script uses `out/SystemUI_stock.apk`, or pulls the running
+guest's (unpatched) copy and caches it there. `--no-push` stops after the
+build. When the guest is running the script also binds the APK into zygote's
+namespace and restarts SystemUI immediately.
+
+The boot hook runs in `guest_start.sh` before `zygote_exec`: zygote and
+SystemUI unshare their mount namespaces, so a bind made after they start (or
+from another namespace) is not visible to them.
+
+## Deploy manually (running guest)
 
 The guest's `/data/local/tmp` is the host stage
 `/data/local/tmp/oneos/data/local/tmp`. The file must stay
@@ -107,13 +131,12 @@ stat -c %i /data/local/tmp/oneos/data/local/tmp/SystemUI_wave.apk
 
 ## Also required
 
-Set the guest display to a fixed 120 Hz floor or SurfaceFlinger thrashes
-10 Hz <-> 120 Hz during the wave and it looks like 30 fps:
+The wave is smooth only with a fixed 120 Hz floor; without it SurfaceFlinger
+thrashes 10 Hz <-> 120 Hz and the wave looks like 30 fps. `guest_start.sh`
+sets this after boot when it binds the wave APK. To apply it by hand:
 
 ```sh
 nsenter -t <system_server> -m -- settings put system min_refresh_rate 120
-```
-
-This setting resets on reboot. Debug markers in logcat are `OneOS glyph
+``` Debug markers in logcat are `OneOS glyph
 first`, `OneOS glyph post`, `OneOS glyph delayed`, `OneOS glyph forced` and
 `OneOS auth wave`, filtered by `OnScreenFingerprintUiMech-->|OneOS `.
