@@ -79,10 +79,16 @@ a bind mount over the stock `SystemUI.apk` rather than through PackageManager.
 
 `scripts/install-systemui-wave.sh` builds the patched APK, pushes it to the
 guest's `/data/local/tmp/SystemUI_wave.apk`, and writes
-`SystemUI_wave.stock.size` next to it. `guest_start.sh` binds both the APK and
-an empty `oat/arm64` before zygote starts on every guest boot, so the patch
-survives a guest restart. The size stamp makes the boot hook use the stock
-SystemUI after a ColorOS update until a new APK is staged.
+`SystemUI_wave.stock.size` and `SystemUI_wave.stock.sha256` next to it.
+`guest_start.sh` binds both the APK and an empty `oat/arm64` before zygote
+starts on every guest boot, so the patch survives a guest restart.
+
+Two fences keep the APK off another firmware. The boot hook runs only when the
+guest has ColorOS's `oplus-services.jar`; HyperOS, Pixel and Infinity-X keep
+their own SystemUI. It also hashes the guest's SystemUI and binds only on an
+exact match with the stock APK the patch was built from, so a ColorOS update
+falls back to stock until `install-systemui-wave.sh` is run again. Size alone
+is not used as the identity check.
 
 ```sh
 APKTOOL="java -jar apktool.jar" scripts/install-systemui-wave.sh \

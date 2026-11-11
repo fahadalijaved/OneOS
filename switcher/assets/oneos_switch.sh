@@ -1467,7 +1467,14 @@ if [ -f "$STAGE/data/oneos_root/enabled" ]; then
     echo "Guest runtime: $(date +%T) modules ready"
 fi
 
-if [ -f "$STAGE/lockstate/enabled" ]; then
+LOCKSTATE_GUEST=0
+if [ -f "$STAGE/lockstate/enabled" ] &&
+   [ -f "$STAGE/rootfs/system/framework/oplus-services.jar" ] &&
+   [ -f "$STAGE/rootfs/system/system_ext/priv-app/SystemUI/SystemUI.apk" ] &&
+   $BB grep -aq 'com/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech' "$STAGE/rootfs/system/system_ext/priv-app/SystemUI/SystemUI.apk" 2>/dev/null; then
+    LOCKSTATE_GUEST=1
+fi
+if [ "$LOCKSTATE_GUEST" = 1 ]; then
     echo "Lock state: taking a host snapshot"
     /system/bin/sh "$STAGE/oneos_lockstate.sh" snapshot || {
         echo "Lock state snapshot failed; returning to One UI"
@@ -1480,8 +1487,12 @@ if [ -f "$STAGE/lockstate/enabled" ]; then
         exit 1
     }
 else
+    if [ -f "$STAGE/lockstate/enabled" ]; then
+        echo "Lock state: guest is not ColorOS; its own lock screen is used"
+    fi
     # A snapshot staged by an earlier session must not re-enable the guest
-    # keyguard after the flag is turned off again.
+    # keyguard after the flag is turned off again, or after switching to a
+    # guest whose lock screen does not understand ColorOS's staged files.
     rm -f "$STAGE/data/system/oneos_lockstate/enabled"
 fi
 

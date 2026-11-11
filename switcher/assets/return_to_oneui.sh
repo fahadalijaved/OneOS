@@ -807,7 +807,7 @@ done < "$BASE/svcpid"
 [ "$(getprop init.svc_debug_pid.vold)" = "$(base_prop init.svc_debug_pid.vold)" ] || failsafe "One UI's vold restarted"
 say "Gate A: vold $(awk '$1 == "vold" {print $2}' "$BASE/svcpid") and the other names are still One UI's"
 
-if [ -f "$S/lockstate/enabled" ]; then
+if [ -f "$S/data/system/oneos_lockstate/enabled" ]; then
     /system/bin/sh "$S/oneos_lockstate.sh" verify ||
         failsafe "host lock state changed during the guest session"
 fi

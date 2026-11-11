@@ -47,18 +47,22 @@ APKTOOL=${APKTOOL:-apktool}
 echo "building $out from $stock" >&2
 APKTOOL="$APKTOOL" sh "$root/scripts/make-systemui-wave.sh" "$stock" "$out"
 stock_size=$(stat -c %s "$stock")
+stock_sha=$(sha256sum "$stock" | awk '{print $1}')
 printf '%s\n' "$stock_size" > "$root/out/SystemUI_wave.stock.size"
+printf '%s\n' "$stock_sha" > "$root/out/SystemUI_wave.stock.sha256"
 
 [ "$push" = 1 ] || exit 0
 
 [ "$(su_ id -u | tr -d '\r')" = 0 ] || { echo "no root on the phone (su -c id failed)" >&2; exit 1; }
 adb_ push "$out" /data/local/tmp/SystemUI_wave.apk >/dev/null
 adb_ push "$root/out/SystemUI_wave.stock.size" /data/local/tmp/SystemUI_wave.stock.size >/dev/null
+adb_ push "$root/out/SystemUI_wave.stock.sha256" /data/local/tmp/SystemUI_wave.stock.sha256 >/dev/null
 su_ "mkdir -p $GUEST_TMP &&
      mv -f /data/local/tmp/SystemUI_wave.apk $GUEST_TMP/SystemUI_wave.apk &&
      mv -f /data/local/tmp/SystemUI_wave.stock.size $GUEST_TMP/SystemUI_wave.stock.size &&
-     chown root:root $GUEST_TMP/SystemUI_wave.apk $GUEST_TMP/SystemUI_wave.stock.size &&
-     chmod 644 $GUEST_TMP/SystemUI_wave.apk $GUEST_TMP/SystemUI_wave.stock.size &&
+     mv -f /data/local/tmp/SystemUI_wave.stock.sha256 $GUEST_TMP/SystemUI_wave.stock.sha256 &&
+     chown root:root $GUEST_TMP/SystemUI_wave.apk $GUEST_TMP/SystemUI_wave.stock.size $GUEST_TMP/SystemUI_wave.stock.sha256 &&
+     chmod 644 $GUEST_TMP/SystemUI_wave.apk $GUEST_TMP/SystemUI_wave.stock.size $GUEST_TMP/SystemUI_wave.stock.sha256 &&
      chcon u:object_r:system_file:s0 $GUEST_TMP/SystemUI_wave.apk" >/dev/null
 echo "staged $GUEST_TMP/SystemUI_wave.apk (applied by guest_start.sh on the next guest boot)" >&2
 

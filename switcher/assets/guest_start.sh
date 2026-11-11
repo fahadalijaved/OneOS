@@ -2561,14 +2561,30 @@ fi
 # keyguard.
 WAVE_APK=/data/local/tmp/SystemUI_wave.apk
 WAVE_SIZE=/data/local/tmp/SystemUI_wave.stock.size
+WAVE_SHA=/data/local/tmp/SystemUI_wave.stock.sha256
 WAVE_OAT=/data/local/tmp/empty_oat
-if [ -f "$WAVE_APK" ] && [ -f "$WAVE_SIZE" ]; then
+# Only ColorOS's SystemUI is the build this APK patches. A HyperOS, Pixel or
+# Infinity-X guest has its own SystemUI, and binding ColorOS's over it would
+# crash SystemUI at boot. The stock hash is the second fence: a ColorOS OTA
+# that changed SystemUI also skips the APK until install-systemui-wave.sh is
+# run again.
+if [ ! -e /system/framework/oplus-services.jar ]; then
+    echo "[Pivoted Root] SystemUI: guest is not ColorOS; stock SystemUI"
+    WAVE_APK=
+elif [ -f "$WAVE_APK" ] && [ -f "$WAVE_SIZE" ] && [ -f "$WAVE_SHA" ]; then
     wave_want=$(cat "$WAVE_SIZE" 2>/dev/null)
+    wave_sha=$(cat "$WAVE_SHA" 2>/dev/null)
     wave_got=$($BB stat -c %s /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null)
-    if [ "$wave_want" != "$wave_got" ]; then
+    wave_hash=$($BB sha256sum /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null | awk '{print $1}')
+    if [ "$wave_want" != "$wave_got" ] || [ "$wave_sha" != "$wave_hash" ]; then
         echo "[Pivoted Root] SystemUI: wave APK is for another SystemUI build; stock SystemUI"
         WAVE_APK=
     fi
+else
+    if [ -f "$WAVE_APK" ]; then
+        echo "[Pivoted Root] SystemUI: wave APK has no stock hash; stock SystemUI"
+    fi
+    WAVE_APK=
 fi
 if [ -f "$WAVE_APK" ]; then
     mkdir -p "$WAVE_OAT"
