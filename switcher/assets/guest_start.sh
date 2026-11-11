@@ -1690,12 +1690,15 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                 done
             fi
             [ -n "$ev" ] && [ -c /dev/input/$ev ] || { log "$t: no input device under $T/input"; continue; }
-            # Only the protocol measured on the Z Fold8 Ultra (stm): enabled reads 1 (on) or
-            # 0. Others differ: the synaptics driver of the S23s reads 2 and refused one of the
-            # writes, and its chip stayed in low-power mode with no touch for the whole
-            # session (0.4.59 reports 9dbcda58, 7b972a82, 2c9c6419). Left to the guest there.
+            # What enabled reads while the IC is on: 1 on the newer drivers (on or off: Z
+            # Fold8 Ultra, S24, S25, the A series), 2 on the older ones, which show the power
+            # state (2 on, 1 low-power mode, 0 off: S22 Ultra, S23 series). The older ones
+            # were left out from 0.4.60 to build 115 for "no touch for the whole session"
+            # (0.4.59 reports 9dbcda58, 7b972a82, 2c9c6419); that was this keeper, see
+            # tsp_off below: it took the answer to 1,1 for a refusal after 1,0 had put the
+            # IC in low-power mode, and at that time did not switch it back on.
             e0=$(cat $T/enabled 2>/dev/null)
-            case "$e0" in 0|1) ;; *) log "$t ($ev): enabled reads ${e0:-nothing}, not the measured protocol: double tap left to the guest"; continue ;; esac
+            case "$e0" in 0|1) eon=1 ;; 2) eon=2 ;; *) log "$t ($ev): enabled reads ${e0:-nothing}, not a known protocol: double tap left to the guest"; continue ;; esac
             # KEY_WAKEUP (143) among its keys: bit 15 of the third word from the end.
             set -- $(cat $I/capabilities/key 2>/dev/null)
             w=""; [ $# -ge 3 ] && eval w=\${$(($# - 2))}
@@ -1706,7 +1709,7 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                 *) C=/sys/class/drm/card0-DSI-1/dpms; B=/sys/class/backlight/panel0-backlight; [ -e $B/brightness ] || B=/sys/class/backlight/panel ;;
             esac
             [ -r $B/brightness ] || { log "$t ($ev): no backlight to follow ($B)"; continue; }
-            eval "EV_$t=$ev C_$t=$C B_$t=$B/brightness ON_$t=1 L_$t=1 GP_$t="
+            eval "EV_$t=$ev C_$t=$C B_$t=$B/brightness ON_$t=1 L_$t=1 GP_$t= EON_$t=$eon"
             IDS="$IDS $t"
             log "$t: $ev ($(cat $I/name 2>/dev/null)), panel $C=$(cat $C 2>/dev/null), $B=$(cat $B/brightness 2>/dev/null), enabled=$(cat $T/enabled 2>/dev/null)"
         done
@@ -1807,6 +1810,26 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
               done
               log "AOD: reader given up: no double tap on AOD this session" ) &
         fi
+        # Only two of the four writes do anything in the driver: 1,0 (the IC goes to
+        # low-power mode when a wake gesture is on in One UI, else off) and 2,1 (on).
+        # 1,1 and 2,0 are the other half of what One UI writes. The drivers up to the
+        # kernel 6.1 generation (S24 Exynos, S23 FE, A25, A34, A35; public sec_cmd
+        # sources: enabled_store ends in "if (ret) return ret" with ret still the 2 of
+        # its sscanf) answer those two with a short write; the shell writes the rest
+        # and that fails with "Invalid argument". Up to build 115 that error, after a
+        # 1,0 that had worked, was read as a refusal: the IC was switched back on and
+        # double tap given up for the session, in every session on those phones
+        # (reports of 0.4.83 to 0.4.85). Only the write that acts decides now; the
+        # other is still sent, as One UI does, and its answer is not read.
+        tsp_off() { echo 1,0 > $1/enabled || return 1; echo 1,1 > $1/enabled 2>/dev/null; return 0; }
+        tsp_on() { echo 2,0 > $1/enabled 2>/dev/null; echo 2,1 > $1/enabled; }
+        # enabled, and 2 once seen is what this IC reads while on (an older driver that
+        # was off or asleep at the first read).
+        tsp_read() {
+            e=$(cat /sys/class/sec/$1/enabled 2>/dev/null)
+            [ "$e" = 2 ] && eval EON_$1=2
+            eval eon=\$EON_$1
+        }
         arm() {
             eval g=\$GP_$1 no=\$NO_$1
             [ -z "$g" ] && [ -z "$no" ] || return 0
@@ -1814,7 +1837,8 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             P=/data/oneos_dt2w_$1.fifo
             rm -f $P; $BB mkfifo $P || { log "$1: no fifo"; return; }
             getevent -l /dev/input/$ev > $P 2>/dev/null &
-            eval GP_$1=$!
+            g=$!
+            eval GP_$1=$g
             ( while read -r a k v; do
                   [ "$k" = KEY_WAKEUP ] && [ "$v" = DOWN ] || continue
                   if [ $LIDF = 1 ]; then
@@ -1827,17 +1851,29 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                   timeout 5 cmd input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || log "$1: cmd input keyevent failed"
                   setaod 0
               done < $P ) &
-            sleep 0.05
-            # The marker first: a chip that took the first write is in low-power mode,
-            # whatever the second answers, and only a marked one is ever put back on
-            # (here, by wake_tsp and by the return).
+            # 1,0 only counts once getevent holds the touchscreen: the driver closes only
+            # a device somebody has open, and the guest lets go of it when its panel goes
+            # off. Written before that open it does nothing, and the open then powers the
+            # IC fully on: plain touches all night, no double tap. getevent opens it after
+            # the reader above has opened the fifo, so a fixed wait can be too short.
+            i=0
+            while [ $i -lt 20 ]; do
+                sleep 0.05
+                ls -l /proc/$g/fd 2>/dev/null | grep -q "/dev/input/$ev\$" && break
+                i=$((i + 1))
+            done
+            [ $i -lt 20 ] || log "$1: getevent has not opened $ev after 1 s"
+            # The marker first: only a marked IC is ever put back on (here, by wake_tsp
+            # and by the return).
             : > /data/oneos_dt2w_armed.$1
-            if echo 1,0 > $T/enabled && echo 1,1 > $T/enabled; then
-                log "$1: $2: low-power mode (enabled=$(cat $T/enabled 2>/dev/null))"
+            if tsp_off $T; then
+                tsp_read $1
+                log "$1: $2: low-power mode (enabled=$e)"
             else
-                log "$1: panel off, but $T/enabled refused 1,0/1,1: back on, double tap left to the guest"
-                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
-                [ "$(cat $T/enabled 2>/dev/null)" = 1 ] && rm -f /data/oneos_dt2w_armed.$1
+                log "$1: panel off, but $T/enabled refused 1,0: back on, double tap left to the guest"
+                tsp_on $T
+                tsp_read $1
+                [ "$e" = "$eon" ] && rm -f /data/oneos_dt2w_armed.$1
                 disarm $1
                 eval NO_$1=1
             fi
@@ -1851,9 +1887,9 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         wake_tsp() {
             T=/sys/class/sec/$1
             [ -f /data/oneos_dt2w_armed.$1 ] || { disarm $1; return; }
-            echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
-            e=$(cat $T/enabled 2>/dev/null)
-            [ "$e" = 1 ] || { sleep 0.2; echo 2,0 > $T/enabled; echo 2,1 > $T/enabled; e=$(cat $T/enabled 2>/dev/null); }
+            tsp_on $T
+            tsp_read $1
+            [ "$e" = "$eon" ] || { sleep 0.2; tsp_on $T; tsp_read $1; }
             rm -f /data/oneos_dt2w_armed.$1
             disarm $1
             log "$1: $2: enabled=$e"
@@ -1870,21 +1906,24 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             eval g=\$GP_$1 no=\$NO_$1
             [ -z "$no" ] || return 0
             if [ -n "$g" ]; then
-                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
-                if echo 1,0 > $T/enabled && echo 1,1 > $T/enabled; then
-                    log "$1: $2: low-power mode again under folded=$F (enabled=$(cat $T/enabled 2>/dev/null))"
+                tsp_on $T
+                if tsp_off $T; then
+                    tsp_read $1
+                    log "$1: $2: low-power mode again under folded=$F (enabled=$e)"
                 else
-                    log "$1: $2: $T/enabled refused 1,0/1,1 under folded=$F: back on, double tap left to the guest"
-                    echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
-                    [ "$(cat $T/enabled 2>/dev/null)" = 1 ] && rm -f /data/oneos_dt2w_armed.$1
+                    log "$1: $2: $T/enabled refused 1,0 under folded=$F: back on, double tap left to the guest"
+                    tsp_on $T
+                    tsp_read $1
+                    [ "$e" = "$eon" ] && rm -f /data/oneos_dt2w_armed.$1
                     disarm $1
                     eval NO_$1=1
                 fi
                 return 0
             fi
             if [ "$(cat $T/enabled 2>/dev/null)" = 0 ]; then
-                echo 2,0 > $T/enabled; echo 2,1 > $T/enabled
-                log "$1: off before arming (folded=$F): switched on first (enabled=$(cat $T/enabled 2>/dev/null))"
+                tsp_on $T
+                tsp_read $1
+                log "$1: off before arming (folded=$F): switched on first (enabled=$e)"
             fi
             arm $1 "$2"
         }

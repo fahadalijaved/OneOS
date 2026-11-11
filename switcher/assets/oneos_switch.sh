@@ -359,6 +359,7 @@ echo "Last reset before this session: $(cat /proc/reset_reason 2>/dev/null | tr 
 # One header per session in auto_return.log, which every session appends to:
 # the app's last-session screen reads the outcome of the newest session only.
 echo "=== OneOS session $(date '+%F %T') epoch $(date +%s) boot $(cat /proc/sys/kernel/random/boot_id 2>/dev/null) app $APP profile ${ONEOS_PROFILE:-none} return max ${ONEOS_RETURN_MAX:-600}s black ${ONEOS_RETURN_BLACK:-150}s keys ${ONEOS_RETURN_KEYS:-1} ===" >> "$STAGE/auto_return.log"
+echo "preflight: switch start $(date +%T)"
 
 # Prove resetprop can WRITE and DELETE a persist prop, not only read one (the
 # preflight only read). Without this the snapshot below is useless and the
@@ -379,6 +380,7 @@ if ! /system/bin/sh "$STAGE/guest_props.sh" snapshot-persist; then
     echo "ERROR: One UI's persist.* props could not be saved; not switching."
     exit 1
 fi
+echo "preflight: persist snapshot done $(date +%T)"
 setprop oneos.guest.powerctl "" 2>/dev/null
 # "Back to One UI" in the guest's OneOS app (app-android/guest) is a file in
 # that app's own data folder: /data/user/0/com.fahadali.oneos.guest/files/
@@ -400,7 +402,9 @@ host_state() {
         [ -d "$p" ] && find "$p" -type f -exec stat -c '%n %s %Y' {} + 2>/dev/null | sort
     done
 }
+echo "preflight: host state start $(date +%T)"
 host_state > "$STAGE/host_state.before"
+echo "preflight: host state done $(date +%T)"
 # A Wi-Fi capture from an earlier session must not be pulled as this one's.
 # Nor a fold test or a display capture: run 43's diag_fold was run 41's (lid
 # events at 04:17, nothing cleared it), and its HALF_OPENED after a flat
@@ -423,27 +427,47 @@ echo "Host state recorded: $(wc -l < "$STAGE/host_state.before") entries"
 # middle (HOLE_LEFT_TYPE, session e98f44ff): the clock started right of it,
 # next to the real camera. Scaled to the panel's physical width
 # (cutoutPathParserInfo physicalDisplayWidth / displayWidth); see host_holes below.
+# One UI's display details (modes, cutout, density, render intent, color mode)
+# are read in the background: they are needed before guest_prepare.sh builds the
+# guest, but not before the rest of the preflight. One dumpsys in here has
+# blocked for 10 s on this phone (see the probes), and nothing below needs the
+# result, so the wait is just before [1/6].
+(
+# cut_after <text> <marker> <end>: R = what follows the first <marker> in <text>, up to
+# the first <end>; nothing when the text has no such marker. (A bare ${text#*marker}
+# hands back the whole text then, and a panel without a cutout has no
+# CutoutPathParserInfo: its width has to come out empty for the fallbacks below.)
+cut_after() { case "$1" in *"$2"*) R=${1#*"$2"}; R=${R%%"$3"*} ;; *) R= ;; esac; }
 rm -f "$STAGE/host_screenhole" "$STAGE/host_cover_screenhole" "$STAGE/host_holes"
 # The display modes as One UI's SurfaceFlinger has them, while it is alive (a
 # .log in the stage goes into the session's logs): HyperOS's SurfaceFlinger
 # aborts at the first display connect on the S24 Ultra, S23 and Z Flip5 ("No
 # matching frame rate modes" with an unrestricted policy) before it logs any.
 timeout 10 dumpsys SurfaceFlinger --display-id > "$STAGE/display_modes_host.log" 2>&1
+echo "preflight: display id done $(date +%T)"
 # Each mode as SurfaceFlinger made it: hwc id, vsync, dpi, group and the VRR
 # config (minFrameIntervalNs) the composer reports, and the peak rate taken
 # from it. The S24 Ultra's 0.4.33 sessions showed One UI's 21 modes and the
 # composer answering, yet HyperOS's SurfaceFlinger found no mode in an
 # unrestricted policy; what it takes the peak rate from is the open question.
-timeout 15 dumpsys SurfaceFlinger 2>/dev/null | grep -E 'activeMode=|[{]id=[0-9]+, hwcId=|peakRefreshRate=' | head -n 120 | cut -c1-400 >> "$STAGE/display_modes_host.log"
-timeout 10 dumpsys display 2>/dev/null | grep -E 'mSupportedModes|mActiveModeId|mDefaultModeId|DisplayModeRecord|mUserPreferredModeId|mDisplayModeSpecs|DisplayDeviceInfo\{' |
+timeout 15 dumpsys SurfaceFlinger 2>/dev/null > "$STAGE/display_sf_host.txt"
+grep -E 'activeMode=|[{]id=[0-9]+, hwcId=|peakRefreshRate=' "$STAGE/display_sf_host.txt" | head -n 120 | cut -c1-400 >> "$STAGE/display_modes_host.log"
+echo "preflight: display sf done $(date +%T)"
+timeout 10 dumpsys display 2>/dev/null > "$STAGE/display_host.txt"
+grep -E 'mSupportedModes|mActiveModeId|mDefaultModeId|DisplayModeRecord|mUserPreferredModeId|mDisplayModeSpecs|DisplayDeviceInfo\{' "$STAGE/display_host.txt" |
     cut -c1-3000 >> "$STAGE/display_modes_host.log"
+echo "preflight: display modes done $(date +%T)"
 for p in /sys/class/lcd/panel /sys/class/lcd/panel1; do
     [ -d "$p" ] || continue
     for n in vrr vrr_lfd; do echo "$p/$n (One UI): $(cat "$p/$n" 2>&1 | tr '\n' ' ' | cut -c1-600)"; done
 done >> "$STAGE/display_modes_host.log"
-HLINE=$(dumpsys display 2>/dev/null | grep 'DisplayDeviceInfo{' | grep 'type INTERNAL' | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY')
-HDW=$(printf '%s\n' "$HLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\1/p')
-HPW=$(printf '%s\n' "$HLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\2/p')
+HLINE=$(grep 'DisplayDeviceInfo{' "$STAGE/display_host.txt" | grep 'type INTERNAL' | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY')
+echo "preflight: display hline done $(date +%T)"
+# Shell globs, not sed: a greedy .* regex over the 6,849-byte DisplayDeviceInfo
+# line took 3-5 s per parse on the phones (S25 Ultra, 0.4.73), which is what the
+# display preflight's 10 s was.
+cut_after "$HLINE" 'CutoutPathParserInfo{displayWidth=' ' '; HDW=$R
+cut_after "$HLINE" 'physicalDisplayWidth=' ' '; HPW=$R
 # Each panel's camera on the whole panel (the guest runs every panel at its
 # full size), one line per internal panel with a top cutout, in host_holes:
 #   <main|cover> <uniqueId> <panel px> <rect> <lens>|<rect spec px>|<lens spec px>|<One UI's rect> at <px>
@@ -526,12 +550,14 @@ fi
 # two panels are left alone).
 rm -f "$STAGE/host_statusbar"
 if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
-    HCS=$(printf '%s\n' "$HLINE" | sed -n 's/.*cutoutSpec={\([^}]*\)}.*/\1/p' | head -n 1)
+    cut_after "$HLINE" 'cutoutSpec={' '}'; HCS=$R
     HSB=$(timeout 10 dumpsys window 2>/dev/null | sed -n "s/.*type=statusBars frame=\[0,0\]\[$HDW,\([0-9]*\)\].*/\1/p" | head -n 1)
+    echo "preflight: display statusbar done $(date +%T)"
     # The panel's corner radius (RoundedCorner{position=TopLeft, radius=<px>, ...}
     # at One UI's resolution): an image's own corners are its phone's (Infinity-X
     # on the S25 Ultra: radius 0, so SystemUI kept no clear of the curved corners).
-    HRC=$(printf '%s\n' "$HLINE" | sed -n 's/.*RoundedCorner{position=TopLeft, radius=\([0-9]*\),.*/\1/p' | head -n 1)
+    cut_after "$HLINE" 'RoundedCorner{position=TopLeft, radius=' ','; HRC=$R
+    echo "preflight: display radius done $(date +%T)"
     case "$HDW:$HPW:$HSB" in
         *[!0-9:]*|:*|*::*|*:) HSB='' ;;
         *) [ "$HDW" -gt 0 ] && HSB=$(( (HSB * HPW + HDW / 2) / HDW )) || HSB='' ;;
@@ -541,12 +567,14 @@ if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
         *) [ "$HDW" -gt 0 ] && [ "$HRC" -gt 0 ] && HRC=$(( (HRC * HPW + HDW / 2) / HDW )) || HRC='' ;;
     esac
     case "$HCS" in *[!-0-9A-Za-z._,@\ ]*) HCS='' ;; esac
+    echo "preflight: display cases done $(date +%T)"
     # The main panel's lens and One UI's rect as pixel specs of the whole panel
     # (host_holes above), for the UI activator: One UI's @dp spec, worked out in
     # a guest at the shared ro.sf.lcd_density (an Ultra's FHD+ 450) on the full
     # 1440 px panel, is 3/4 of the camera there (S24 Ultra, Nothing OS 3066a57c:
     # the guest's 695,0:746,96 for One UI's 686,0:754,128).
     HMP=$(printf '%s\n' "$HOLES" | sed -n 's/^main //p' | head -n 1)
+    echo "preflight: display hmp done $(date +%T)"
     if [ -n "$HCS$HSB$HRC" ]; then
         { echo "spec=$HCS"; echo "height=$HSB"; echo "radius=$HRC"
           [ -n "$HMP" ] && printf '%s\n' "$HMP" | awk -F'|' '{ split($1, f, " "); print "hole=" f[4]; print "rect_px=" $2; print "hole_px=" $3 }'
@@ -554,6 +582,7 @@ if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
         echo "Host status bar: cutout '${HCS:-none}', height ${HSB:-not read} px, corner radius ${HRC:-not read} px on the $HPW px panel; $(grep -E '^(hole|rect_px|hole_px)=' "$STAGE/host_statusbar" | tr '\n' ' ')"
     fi
 fi
+echo "preflight: display statusbar block done $(date +%T)"
 # The panels' corner radius, for the guests the block above leaves out (0.4.76):
 # ColorOS on any phone and every guest on a Fold. An image has its own phone's
 # corners: the Find N6's 77 px in ColorOS 17 on the owner's Fold, whose panels
@@ -582,16 +611,19 @@ esac
 # always runs the whole panel, so at that density it was 512 dp wide, a third too
 # small (S24/S25 Ultra reports), and One UI's cutout spec (@dp) missed the camera.
 # The main panel is the largest internal one: a bar phone's only panel, a flip's
-# inner one. Recorded only while it is One UI's display 0 (wm size, wm density),
-# so a flip switched shut leaves the guest at the base density.
+# inner one. Recorded only while it is One UI's display 0 (dumpsys display's
+# DisplayInfo: the active mode's width and the override density), so a flip
+# switched shut leaves the guest at the base density.
 rm -f "$STAGE/host_display"
+echo "preflight: display reset done $(date +%T)"
 MLINE=$(printf '%s\n' "$HLINE" | while IFS= read -r l; do
             s=$(echo "$l" | sed -n 's/.*uniqueId="local:[0-9]*", \([0-9]*\) x \([0-9]*\), .*/\1 \2/p')
             [ -n "$s" ] && echo "$(echo "$s" | awk '{ print $1 * $2 }') $l"
         done | sort -n | tail -n 1 | cut -d' ' -f2-)
-MW=$(printf '%s\n' "$MLINE" | sed -n 's/.*uniqueId="local:[0-9]*", \([0-9]*\) x [0-9]*, .*/\1/p')
-MDW=$(printf '%s\n' "$MLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\1/p')
-MPW=$(printf '%s\n' "$MLINE" | sed -n 's/.*CutoutPathParserInfo{displayWidth=\([0-9]*\) displayHeight=[0-9]* physicalDisplayWidth=\([0-9]*\) .*/\2/p')
+echo "preflight: display mline done $(date +%T)"
+cut_after "$MLINE" 'uniqueId="local:' ' x '; cut_after "$R" '", ' ' x '; MW=$R
+cut_after "$MLINE" 'CutoutPathParserInfo{displayWidth=' ' '; MDW=$R
+cut_after "$MLINE" 'physicalDisplayWidth=' ' '; MPW=$R
 # A panel without a cutout: One UI runs it at the size it reports.
 [ -n "$MDW" ] || MDW=$MW
 [ -n "$MPW" ] || MPW=$MW
@@ -601,10 +633,17 @@ MPH=$(printf '%s\n' "$MLINE" | sed -n 's/.*physicalDisplayWidth=[0-9]* physicalD
 [ -n "$MPH" ] || MPH=$(printf '%s\n' "$MLINE" | sed -n 's/.*uniqueId="local:[0-9]*", [0-9]* x \([0-9]*\), .*/\1/p')
 rm -f "$STAGE/host_panel_size"
 case "$MPW:$MPH" in *[!0-9:]*|:*|*:) ;; *) [ "$MPW" -ge 320 ] && [ "$MPH" -ge 320 ] && echo "$MPW $MPH" > "$STAGE/host_panel_size" ;; esac
-H0W=$(timeout 10 wm size 2>/dev/null | sed -n 's/^Physical size: \([0-9]*\)x[0-9]*$/\1/p' | head -n 1)
-HWD=$(timeout 10 wm density 2>/dev/null)
-HUD=$(printf '%s\n' "$HWD" | sed -n 's/^Override density: \([0-9]*\)$/\1/p' | head -n 1)
-[ -n "$HUD" ] || HUD=$(printf '%s\n' "$HWD" | sed -n 's/^Physical density: \([0-9]*\)$/\1/p' | head -n 1)
+B0=$(grep -m1 'mBaseDisplayInfo=DisplayInfo{' "$STAGE/display_host.txt")
+cut_after "$B0" ' mode ' ','; MODE0=$R
+# The active mode's own entry, then its width: One UI 9 prints
+# "{id=3, parentModeId=-1, sfModeId=0, flags=, width=1080, ...}", older ones "{id=3, width=1080, ...}".
+cut_after "$B0" "{id=$MODE0, " '}'; cut_after "$R" 'width=' ','; H0W=$R
+echo "preflight: display base done $(date +%T)"
+echo "preflight: display size done $(date +%T)"
+BOV=$(grep -m1 'mOverrideDisplayInfo=DisplayInfo{' "$STAGE/display_host.txt")
+HUD=$(printf '%s\n' "$BOV" | sed -n 's/.* density \([0-9][0-9]*\) .*/\1/p' | head -n 1)
+[ -n "$HUD" ] || HUD=$(printf '%s\n' "$B0" | sed -n 's/.* density \([0-9][0-9]*\) .*/\1/p' | head -n 1)
+echo "preflight: display density done $(date +%T)"
 case "$HUD:$MDW:$MPW:$H0W" in
     *[!0-9:]*|:*|*::*|*:) echo "Host display scale: not read (density '${HUD}', width '${MDW}' of '${MPW}' px, display 0 '${H0W}' px)" ;;
     *) if [ "$H0W" != "$MPW" ] && [ "$H0W" != "$MDW" ] && [ "$H0W" != "$MW" ]; then
@@ -614,6 +653,7 @@ case "$HUD:$MDW:$MPW:$H0W" in
            echo "Host display scale: density $HUD at $MDW of the $MPW px main panel ($((MDW * 160 / HUD)) dp wide)"
        fi ;;
 esac
+echo "preflight: display scale done $(date +%T)"
 # The cover panel of a fold, for guest_prepare.sh (ColorOS cover density): the
 # smaller of the two default-capable internal displays, as
 # "<uniqueId> <port> <width> <height> <xdpi>". The guest's SurfaceFlinger
@@ -643,12 +683,13 @@ fi
 # ColorOS cover screen). The UI activator asks the guest's for the same one.
 # Read here, while One UI's surfaceflinger still runs (never after [4b/6]).
 rm -f "$STAGE/host_render_intent"
-HRI=$(timeout 5 dumpsys SurfaceFlinger 2>/dev/null | sed -n 's/^DisplayRenderIntent: \([0-9][0-9]*\)$/\1/p' | head -n 1)
+HRI=$(sed -n 's/^DisplayRenderIntent: \([0-9][0-9]*\)$/\1/p' "$STAGE/display_sf_host.txt" 2>/dev/null | head -n 1)
 if [ -n "$HRI" ] && [ "$HRI" -ge 256 ] 2>/dev/null && [ "$HRI" -le 65535 ]; then
     echo "$HRI" > "$STAGE/host_render_intent" && echo "Host render intent: $HRI (One UI's screen mode, a vendor intent)"
 else
     echo "Host render intent: ${HRI:-not read} (not a vendor intent; the guest keeps its own)"
 fi
+echo "preflight: render intent done $(date +%T)"
 # One UI's color mode (F8U: SRGB, 7, on both panels, whatever is on screen). A
 # Pixel guest's SurfaceFlinger moved the panels between SRGB and DISPLAY_P3
 # every second or so while the camera or a photo was on screen (session
@@ -656,11 +697,15 @@ fi
 # and the UI activator keep the guest on One UI's mode (persist.sys.sf.color_mode,
 # the composition color mode of transaction 1023).
 rm -f "$STAGE/host_color_mode"
-HCM=$(timeout 5 dumpsys SurfaceFlinger 2>/dev/null | sed -n 's/^ *Current color mode: ColorMode::[A-Z0-9_]* (\([0-9][0-9]*\))$/\1/p' | head -n 1)
+HCM=$(sed -n 's/^ *Current color mode: ColorMode::[A-Z0-9_]* (\([0-9][0-9]*\))$/\1/p' "$STAGE/display_sf_host.txt" 2>/dev/null | head -n 1)
 case "$HCM" in
     [1-9]|[1-9][0-9]) echo "$HCM" > "$STAGE/host_color_mode" && echo "Host color mode: $HCM (the guest keeps it)" ;;
     *) echo "Host color mode: ${HCM:-not read} (the guest picks its own)" ;;
 esac
+echo "preflight: color mode done $(date +%T)"
+echo "preflight: display reads done $(date +%T)"
+) &
+DISPLAY_READS=$!
 # One UI's staged installs (Google Play system updates): 0.4.39 test2 returned in
 # place with a train pending, and One UI's own system_server rebooted 5 s after
 # it started ("Rollback staged install"). Logged for the next such return.
@@ -674,6 +719,7 @@ STG=$(timeout 10 pm list staged-sessions 2>/dev/null | grep -c 'sessionId')
 # Off by default since 0.4.39 (owner): root grants for guest apps and Zygisk are
 # not done yet; ONEOS_GUEST_KSU_MANAGER=1 turns it on. Off, nothing is staged and
 # the UI activator removes a manager an earlier session installed in the guest.
+echo "preflight: staged sessions done $(date +%T)"
 setprop oneos.ksu.mgr_pkg "" 2>/dev/null
 setprop oneos.ksu.mgr_appid "" 2>/dev/null
 KSU_DIR="$STAGE/data/oneos_ksu"
@@ -705,11 +751,15 @@ fi
 # What a return without a reboot compares against (return_to_oneui.sh): One
 # UI's APEX devices, props, SELinux mode and the servicemanager names it keeps,
 # recorded while One UI is still whole. Read only; without it the return reboots.
+echo "preflight: return baseline start $(date +%T)"
 /system/bin/sh "$STAGE/return_to_oneui.sh" baseline
+echo "preflight: return baseline done $(date +%T)"
+echo "preflight: guest baseline start $(date +%T)"
 STAGE="$STAGE" /system/bin/sh "$STAGE/guest_runtime.sh" baseline || {
     echo 'Guest root baseline failed before stopping One UI; switch cancelled'
     exit 3
 }
+echo "preflight: guest baseline done $(date +%T)"
 
 # Full logcat of the session (host and guest share logd) for pull-run-logs.sh.
 # Started here so no session runs without it: run 31 was launched without the
@@ -859,6 +909,7 @@ fi
 # keeps the rest of the guest boot from tripping over labels we cannot predict.
 # return_to_oneui.sh restores enforcing.
 setenforce 0 2>/dev/null || true
+echo "preflight: logs and watches done $(date +%T)"
 echo "SELinux mode: $(getenforce 2>/dev/null || echo unknown)"
 oneos_boot_begin enter
 
@@ -887,6 +938,7 @@ while [ "$ims_i" -lt 45 ]; do
     sleep 2
 done
 echo "IMS gate: voiceRegState=$ims_st after $((ims_i * 2))s, imsd=${ims_pid:-$(pidof imsd)}"
+echo "preflight: ims gate done $(date +%T)"
 
 # --- ADB WATCHDOG ---------------------------------------------------------
 # adb is the only way into the phone while the guest is up (until wifi is
@@ -984,6 +1036,13 @@ IMSW
         nohup /system/bin/sh /data/local/tmp/ims_watchdog.sh </dev/null >/dev/null 2>&1 &
     fi
     echo "imsd keepalive started (log: /data/local/tmp/ims_watchdog.log)"
+fi
+
+# The display reads from the start of the preflight must be complete before
+# guest_prepare.sh builds anything.
+if [ -n "$DISPLAY_READS" ]; then
+    wait "$DISPLAY_READS"
+    echo "preflight: display reads joined $(date +%T)"
 fi
 
 # Set permissive privapp permissions to avoid Signature|privileged fatal exceptions
@@ -1600,6 +1659,11 @@ elif [ -z "$BT_FRAG" ]; then
     BT_WHY="not needed (no vendor manifest declares Samsung's Bluetooth audio HAL)"
 elif chmod 755 "$STAGE/oneos_btaudio" && [ "$(timeout 5 "$STAGE/oneos_btaudio" --declared "$BTA_AOSP" 2>/dev/null)" = 1 ]; then
     BT_WHY="not needed (the vendor declares Android's factory itself)"
+elif ! grep -qs 'ISehBluetoothAudioProviderFactory' /vendor/etc/vintf/manifest/*.xml /vendor/etc/vintf/manifest.xml && grep -q 'ISehBluetoothAudioProvidersFactory' "$BT_FRAG"; then
+    # A25, A33, S23 FE: Samsung's older HIDL factory (...ProvidersFactory). The
+    # bridge speaks AIDL to Samsung's AIDL one, which never registers here: no
+    # 15 s wait for it.
+    BT_WHY="not started: Samsung's Bluetooth audio HAL on this phone is the older HIDL one, which the bridge cannot serve (no Bluetooth audio in the guest)"
 elif [ "$(grep -c '</manifest>' "$BT_FRAG")" != 1 ]; then
     BT_WHY="$BT_FRAG is not one manifest; not started"
 else
@@ -3414,7 +3478,24 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 echo \"\$(date) guest requested '\$req' after \${t}s, returning to One UI\"
                 # Who asked: the guarded ShutdownThread logs under the tag OneOS (run
                 # 31 was Restart in ColorOS's power menu, seen only in the recording).
-                timeout 5 logcat -d -b main,system -t 4000 2>/dev/null | grep -E ' OneOS|ShutdownThread|GlobalActions|RescueParty|PowerManagerService.*[Rr]eboot' | tail -15
+                # 0.4.87: the system buffer on its own. Read together with main, a busy
+                # camera filled the 4000 lines within the second and nothing was printed
+                # (S24 Ultra e99b8eae: 'shutdown' with the camera at full zoom, asker unknown).
+                timeout 5 logcat -d -b system -t 3000 2>/dev/null | grep -E ' OneOS|ShutdownThread|ShutdownActivity|GlobalActions|RescueParty|PowerManagerService.*[Rr]eboot|[Ss]hut ?down|[Oo]verheat|[Hh]igh ?[Tt]emp' | tail -15
+                # The guest's thermal and battery services can ask for a shutdown
+                # without a line in the log: what they hold now, 5 s each at most.
+                # Not after the user's own return (app, keys) or a soft reboot.
+                case \"\$req\" in
+                    app:*|keys:*|ksud:*) ;;
+                    *)
+                        SFP=\$(pidof surfaceflinger | awk '{print \$1}')
+                        if [ -n \"\$SFP\" ]; then
+                            a=\$(timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys thermalservice 2>/dev/null | grep -o -E 'Thermal Status: [0-9]+|Temperature[{][^}]*mStatus=[1-6][}]' | head -n 12 | tr '\n' ' ')
+                            echo \"guest thermal service: \${a:-no answer}\"
+                            a=\$(timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys battery 2>/dev/null | sed -n -E 's/^ *([A-Za-z]+ powered: true|(status|health|level|voltage|temperature): [-0-9]+)\$/\1/p' | head -n 12 | tr '\n' ' ')
+                            echo \"guest battery service: \${a:-no answer}\"
+                        fi ;;
+                esac
                 exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi
             # Reaching the home screen only lifts the black-screen and time
