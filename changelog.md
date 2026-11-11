@@ -50,6 +50,13 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.89: **Canadian phones (SM-...W) are no longer refused as a custom ROM**. From the S24 series on, a
+stock Canadian phone carries the US carrier model's bootloader and vendor partition under its own firmware (S24 Ultra
+SM-S928W: bootloader S928U..., vendor SM-S928U), which OneOS took for One UI ported from another phone (public issue
+#128). The Canadian model now counts as the same phone as the US carrier (U) and unlocked (U1) models, with either
+bootloader, as U and U1 have counted as one since 0.4.84. One UI ported from another phone and other regions'
+firmware are still refused.
+
 New in 0.4.88: **Bluetooth headsets that drop and reconnect every few seconds in ColorOS on the Galaxy A16 4G
 (and likely the A15 4G and A07)** (untested). ColorOS's Bluetooth is OPPO's build for Qualcomm chips. When a headset
 connects it turns the Bluetooth chip's quality reports on, reads the MediaTek chip's shorter reports past their end,
