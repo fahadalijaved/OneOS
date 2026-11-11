@@ -237,7 +237,7 @@ object PackageSets {
         // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
         // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
         // other global build's (x9u-in-sultra).
-        sourceDir = "out/overlays_n6g_r15",
+        sourceDir = "out/overlays_n6g_r16",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
         files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
@@ -279,7 +279,7 @@ object PackageSets {
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
-        sourceDir = "out/overlays_x9u_in_r70",
+        sourceDir = "out/overlays_x9u_in_r71",
         files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +
@@ -493,7 +493,7 @@ object PackageSets {
     val HYPER_F8U = PackageSet(
         id = ID_HYPER_F8U,
         imageId = Images.ID_HYPEROS_LHASA,
-        sourceDir = "out/overlays_hyperos_r25",
+        sourceDir = "out/overlays_hyperos_r26",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -554,7 +554,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r32",
+        sourceDir = "out/overlays_nothing_r33",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             // 0.4.57 (r23): also Samsung IMS's framework members (guest_secims_members.py).
@@ -654,7 +654,7 @@ object PackageSets {
 
     /**
      * OriginOS 7 (0.4.73, experimental): vivo's CN PD2609MA build on the Snapdragon S25/S26 series and the
-     * Z Fold7/8 phones (0.4.82: also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+, the same set). Set r17 (out/overlays_originos_cn_r17: make-overlays.sh with the CN vendor's
+     * Z Fold7/8 phones (0.4.82: also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+, the same set). Set r18 (out/overlays_originos_cn_r18, 0.4.95: r17 with the guest's own screen lock in services_patched.jar; r17: make-overlays.sh with the CN vendor's
      * vivo_config.ini; vivo_guards.py, vivo_brightness.py and the other vivo patches; the fold cutout overlay
      * with the cover's lens): its own services, vivo-services, framework and telephony jars, the guest vold as
      * gvld, vivo's display/input/Bluetooth/composer libraries, the patched launcher, vivo's feature list, the
@@ -663,7 +663,7 @@ object PackageSets {
     val ORIGINOS = PackageSet(
         id = ID_ORIGINOS,
         imageId = Images.ID_ORIGINOS7,
-        sourceDir = "out/overlays_originos_cn_r17",
+        sourceDir = "out/overlays_originos_cn_r18",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("vivo-services_patched.jar", FileRole.GUARD_JAR),

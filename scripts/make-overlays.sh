@@ -282,6 +282,12 @@ for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_init_survives guest_no
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
+# The guest's own screen lock: a PIN, pattern or password kept in the guest's own
+# /data/system and checked there, without the phone's gatekeeper, weaver or keystore
+# (patches/guest_local_lock.py, helper OneOSGuestLock). It goes in front of
+# guest_no_gatekeeper's guard, so it runs after that loop; a framework of another
+# shape is left as it is (no guest lock there, as before).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_local_lock.py" "$WORK/services")"
 # The guest's own idmap2d instead of One UI's (patches/guest_own_idmap.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_own_idmap.py" "$WORK/services")"
 # A WebView zygote that cannot start is logged, not fatal (S24 Ultra, Find X9

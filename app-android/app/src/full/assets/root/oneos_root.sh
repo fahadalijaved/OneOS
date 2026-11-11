@@ -243,6 +243,8 @@ profile_info() {
         s-9925) echo "SM-S901 r0s s5e9925 bar" ;;
         a16-mtk) echo "SM-A166 a16xm MT6835 bar" ;;
         s-8550-jp) echo "SCG19 SCG19 SM8550 bar" ;;
+        m35) echo "SM-M356 m35x s5e8835 bar" ;;
+        a15-5g) echo "SM-A156 a15x MT6835 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -496,6 +498,12 @@ profile_set() {
         "s-8550-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550-jp originos7-pd2609ma") echo originos ;;
+        # 0.4.95: the Galaxy M35 5G (the A35's rows) and the Galaxy A15 5G with MediaTek (OxygenOS 16 only), untested.
+        "m35 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "m35 infinityx41-findx9u") echo infinityx ;;
+        "m35 oxygenos16-cph2745") echo oxygen16 ;;
+        "m35 hyperos-lhasa") echo hyper-f8u ;;
+        "a15-5g oxygenos16-cph2745") echo oxygen16 ;;
         *) return 1 ;;
     esac
 }

@@ -15,7 +15,8 @@
 # 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
 # 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
-0757469240a71b402aea1210da3311d19f282dc8a7f1bd286a4231ea8f45d7c5  services_patched.jar
+# 0.4.95: services_patched.jar + guest_local_lock.py (the guest's own screen lock: a PIN, pattern or password kept and checked in the guest; nothing reaches the phone's gatekeeper, weaver or keystore)
+3178822957eb7693e973d3434f7ce5598fdb69835bffed908169d3e58aeb6ce9  services_patched.jar
 bc275abc635c71d88df70be48e6fbe89d413b2685a88d6967f2ce26cd224086e  miui-services_patched.jar
 5e70dbe022ca34bca76c5da686d20263f527edea54e433ba0758d46462b8679b  apprecovery.proinstaller_patched.jar
 35e1b05262dc0ebc18c59f88e7fcf8ca8cae40b43852ad079a32b66b4292d725  framework_patched.jar

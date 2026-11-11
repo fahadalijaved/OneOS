@@ -54,11 +54,11 @@ gradle.taskGraph.whenReady {
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "n6-global-f8" to (File(repoRoot, "out/fold8-global-current") to listOf("tethering_payload.img", "OneOSFoldCutout.apk", "OneOSTabletQs.apk")),
     // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
-    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r15") to listOf("tethering_payload.img")),
+    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r16") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r70") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r71") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r17") to listOf("tethering_payload.img")),
@@ -72,15 +72,15 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "infinityx" to (File(repoRoot, "out/overlays_infinityx_r14") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
-    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r25") to listOf("tethering_payload.img")),
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r26") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r32") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r33") to listOf("tethering_payload.img")),
     // OxygenOS 16 (0.4.67, experimental), for the phones on One UI 8 (Android 16): no fold overlays, no
     // tethering (One UI's stays), no apex requirement list (no ColorOS set ships one).
     "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r2") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
         "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
     // OriginOS 7 (0.4.73, experimental): set r17 = r14 plus the vivo fold cutout overlay (the cover's lens).
-    "originos" to (File(repoRoot, "out/overlays_originos_cn_r17") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
+    "originos" to (File(repoRoot, "out/overlays_originos_cn_r18") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -476,8 +476,16 @@ android {
         // Pixel 9 Pro XL r5, Infinity-X r4, Nothing OS r22 (samcam_bar.tar for phones). The panel kept at its top rate in
         // Pixel, HyperOS and Nothing OS (it stayed at 24 Hz: 10-15 fps). Infinity-X: Samsung IMS (the carve-out's
         // /system/system_ext path; framework members; SMS centre). The Galaxy A16 4G (SM-A165F).
-        versionCode = 122
-        versionName = "0.4.93"
+        // 0.4.94 (123), not published yet: the Find N6 set (the Z Folds, n6g_r16) with a screen lock of the guest's own,
+        // a PIN, pattern or password kept and checked inside the guest (patches/guest_local_lock.py,
+        // docs/guest-screen-lock.md); first for the owner's try on the Z Fold8 Ultra.
+        // 0.4.95 (124), not published yet: the same screen lock in four more sets, none tried on a phone yet:
+        // ColorOS IN (x9u_in_r71), HyperOS (hyperos_r26), Nothing OS (nothing_r33) and OriginOS (originos_cn_r18).
+        // The Pixel sets, Infinity-X and OxygenOS 16 stay without it (their frameworks have another shape; the
+        // patcher leaves them as they are). Two phones from findings of 2026-11-11, untested: the Galaxy M35 5G
+        // (SM-M356, the A35 5G's systems) and the Galaxy A15 5G with MediaTek (SM-A156, OxygenOS 16 only).
+        versionCode = 124
+        versionName = "0.4.95"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

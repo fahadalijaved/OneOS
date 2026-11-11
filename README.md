@@ -155,6 +155,11 @@ release).
    One UI apps and photos are encrypted behind that lock, so a session that
    leaves the phone unable to accept it is a factory reset, not an
    inconvenience. Leave it off unless you have a reason and accept that.
+   From 0.4.95 a guest can have a screen lock of its own (ColorOS, HyperOS,
+   Nothing OS, OriginOS): a PIN, pattern or password kept inside the guest,
+   which never touches One UI's lock. It keeps people out of the guest's
+   lock screen; it does not protect the data. See
+   [docs/guest-screen-lock.md](docs/guest-screen-lock.md).
 4. **Root, battery and heat.** The phone must be rooted (tested with KernelSU),
    charged to at least 30 % and not hot (under 42 °C).
 
@@ -318,6 +323,9 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   Pocket Studio and Google fixes, and Samsung's hinge sensor for half-folded
   postures and the open/close animations in ColorOS and Pixel, which the Z Fold8
   Ultra uses too.
+- **[@vdcoolok](https://github.com/vdcoolok)**: the idea of a screen lock kept
+  inside the guest ([pull request #152](https://github.com/fahadalijaved/OneOS/pull/152)),
+  which the guest's own PIN, pattern or password of 0.4.95 follows.
 - smali/dexlib2, AndroidX, Kotlin, Guava, ZXing and others: the full list with
   licenses is in [CREDITS.md](CREDITS.md).
 

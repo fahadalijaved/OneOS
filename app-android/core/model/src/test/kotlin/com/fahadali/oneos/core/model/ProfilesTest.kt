@@ -289,13 +289,14 @@ class ProfilesTest {
                 Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450,
                 Profiles.A55, Profiles.S25_FE, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP, Profiles.S_PLUS_9945,
                 Profiles.S_ULTRA_8550_JP, Profiles.S_9925, Profiles.A16_MTK, Profiles.S_8550_JP,
+                Profiles.M35, Profiles.A15_5G,
             ),
             Profiles.BUILT_IN,
         )
         // 0.4.67: the phones still on One UI 8 take OxygenOS 16 only, untested, as bar phones.
         for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A53, Profiles.E55,
                 Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP,
-                Profiles.S_9925, Profiles.A16_MTK)) {
+                Profiles.S_9925, Profiles.A16_MTK, Profiles.A15_5G)) {
             assertEquals(p.id, listOf(ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)), p.choices)
             assertEquals(p.id, FormFactor.BAR, p.form)
         }
@@ -377,10 +378,17 @@ class ProfilesTest {
         assertEquals(Profiles.A35, Profiles.resolve("SM-A356E", "a35x", "s5e8835").profile)
         assertEquals(Profiles.A35, Profiles.resolve("SM-A356U1", "a35x", "s5e8835").profile)
         assertEquals(Profiles.A54, Profiles.resolve("SM-A546E", "a54x", "s5e8835").profile)
+        // 0.4.95: the Galaxy M35 5G (SM-M356B, m35x), the same chip and vendor as the A35 5G: the A26's systems and
+        // notes; not by another phone's codename or chip.
+        assertEquals(Profiles.M35, Profiles.resolve("SM-M356B", "m35x", "s5e8835").profile)
+        assertEquals(listOf("m35", "Galaxy M35 5G", FormFactor.BAR), listOf(Profiles.M35.id, Profiles.M35.label, Profiles.M35.form))
+        assertNull(Profiles.resolve("SM-M356B", "a35x", "s5e8835").profile)
+        assertNull(Profiles.resolve("SM-M356B", "m35x", "SM8450").profile)
+        assertNull(Profiles.resolve("SM-A356E", "m35x", "s5e8835").profile)
         // 0.4.59: the Galaxy A27 (SM-A276B), the A36's SM6475 and generation, so its choices and notes.
         assertEquals(Profiles.A27, Profiles.resolve("SM-A276B", "a27xq", "SM6475").profile)
         assertEquals(listOf(Profiles.A36.choices, Profiles.A36.notes), listOf(Profiles.A27.choices, Profiles.A27.notes))
-        for (p in listOf(Profiles.A35, Profiles.A54)) {
+        for (p in listOf(Profiles.A35, Profiles.A54, Profiles.M35)) {
             assertEquals(listOf(Profiles.A26.choices, Profiles.A26.notes, Profiles.A26.form), listOf(p.choices, p.notes, p.form))
         }
         // 0.4.68, findings of 2026-11-08: the Galaxy A55 5G (Exynos 1480, the A35's Cortex-A78/A55, so its choices; vendor
@@ -414,6 +422,13 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.A07_5G.choices, Profiles.A07_5G.notes), listOf(Profiles.A16_MTK.choices, Profiles.A16_MTK.notes))
         assertNull(Profiles.resolve("SM-A166P", "a16x", "MT6835").profile)
         assertNull(Profiles.resolve("SM-A166P", "a16xm", "s5e8535").profile)
+        // 0.4.95: the A15 5G (SM-A156M, a15x, MT6835) is its own phone, the A07 5G's choice and note; the A15 with
+        // the Helio G99 (SM-A155, MT6789) keeps its profile.
+        assertEquals(Profiles.A15_5G, Profiles.resolve("SM-A156M", "a15x", "MT6835").profile)
+        assertEquals(listOf(Profiles.A07_5G.choices, Profiles.A07_5G.notes), listOf(Profiles.A15_5G.choices, Profiles.A15_5G.notes))
+        assertNull(Profiles.resolve("SM-A156M", "a15", "MT6835").profile)
+        assertNull(Profiles.resolve("SM-A156M", "a15x", "MT6789").profile)
+        assertEquals(Profiles.A15, Profiles.resolve("SM-A155F", "a15", "MT6789").profile)
 
         // Ids unique; every choice names an image and a set built from that image,
         // each image once per profile; the fold grid with a ColorOS image on the fold

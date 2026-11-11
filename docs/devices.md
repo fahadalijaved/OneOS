@@ -47,7 +47,7 @@ SM-A066, MT6835
 
 ## Galaxy A15
 
-SM-A155, Helio G99
+**SM-A155, Helio G99**
 
 | System | Status |
 |---|---|
@@ -55,6 +55,12 @@ SM-A155, Helio G99
 | Infinity-X 4.1 | ✅ starts (2 reports, OneOS 0.4.91); problems reported: Mobile data, Calls, SMS |
 | HyperOS | 🔲 not tested yet |
 | OxygenOS 16 | ⚠️ started in 3 of 9 (9 reports, OneOS 0.4.90); problems reported: Mobile data, Bluetooth, Camera, Heat |
+
+**SM-A156, 5G, MT6835**
+
+| System | Status |
+|---|---|
+| OxygenOS 16 | 🔲 not tested yet |
 
 ## Galaxy A16
 
@@ -246,6 +252,17 @@ SM-E556, Snapdragon 7 Gen 1
 
 | System | Status |
 |---|---|
+| OxygenOS 16 | 🔲 not tested yet |
+
+## Galaxy M35
+
+SM-M356, 5G, Exynos 1380
+
+| System | Status |
+|---|---|
+| ColorOS 17 (Find X9 Ultra) | 🔲 not tested yet |
+| Infinity-X 4.1 | 🔲 not tested yet |
+| HyperOS | 🔲 not tested yet |
 | OxygenOS 16 | 🔲 not tested yet |
 
 ## Galaxy M53

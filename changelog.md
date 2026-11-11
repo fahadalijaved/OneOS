@@ -50,6 +50,30 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.95: **a screen lock of the guest's own** (a PIN, a pattern or a password) in ColorOS, HyperOS, Nothing OS
+and OriginOS, and two more phones: the **Galaxy M35 5G** and the **Galaxy A15 5G with MediaTek**.
+- Until now a guest system refused every screen lock: it shares the phone's lock hardware with One UI, and a lock
+  set from a guest once left One UI unable to unlock. Now these systems take a PIN, pattern or password in their
+  own Settings, as on any phone. OneOS keeps it inside the guest (a salted hash in the guest's own data) and
+  checks it there; nothing of it reaches the phone's lock hardware or keystore, and One UI's lock state stays
+  exactly what it was. The idea comes from pull request #152 by @vdcoolok.
+- What it is not: it keeps other people out of the guest's lock screen, it does not protect the data. A restart
+  of the phone always lands in One UI, which has no lock while OneOS is in use, and with root there the guest's
+  files are within reach. No fingerprint or face: "Add fingerprint" in the guest refuses. An app that asks for
+  the device PIN in its own prompt behaves as on a phone without a lock. One UI's own lock still has to be off
+  before a switch.
+- Forgotten: from One UI, with root, `su -c 'rm -f /data/local/tmp/oneos/data/system/oneos_guest_lock /data/local/tmp/oneos/data/system/oneos_guest_lock.tries'`;
+  the guest starts without a lock the next time (docs/guest-screen-lock.md).
+- Where: ColorOS on the Galaxy Z Fold8 Ultra, Z Fold7, Z Fold6 and Z Fold5 (tried on the Z Fold8 Ultra: set,
+  unlock, back to One UI, all good), ColorOS on the bar phones (the Find X9 Ultra build), HyperOS, Nothing OS
+  and OriginOS. The last four have the same change but have not run on a phone yet: if such a system does not
+  start after its update, send a report. Not yet: the Pixel systems, Infinity-X, OxygenOS 16 and ColorOS on the
+  Galaxy Z Fold8; they refuse a lock as before. **Tap Update on the system's page** to get it.
+- The Galaxy M35 5G (SM-M356B, Exynos 1380, One UI 9.0), from findings of 2026-11-11: the Galaxy A35 5G's
+  systems (ColorOS 17, Infinity-X, HyperOS, OxygenOS 16), untested on it.
+- The Galaxy A15 5G with MediaTek (SM-A156M, One UI 8.5), from findings of the same day: OxygenOS 16, as on the
+  Galaxy A07 5G, untested on it. The Galaxy A15 with the Helio G99 was there already.
+
 New in 0.4.93: **root for the guest on the Galaxy S22 series, S23 FE, A25, A33 and A53**, and three more phones:
 the **Galaxy S22 with Exynos**, the **Galaxy A16 5G with MediaTek** and the **au Galaxy S23 (SCG19)**.
 - With root for the guest switched on, no system got past its logo on these phones: every switch ended in a black
