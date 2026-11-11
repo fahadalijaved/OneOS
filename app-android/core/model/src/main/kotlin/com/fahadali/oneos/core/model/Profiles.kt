@@ -197,7 +197,13 @@ object Profiles {
      * bar phone its cover-screen layout runs as the phone's screen.
      */
     private val HYPEROS_CHOICE = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
-    /** OxygenOS 16 (SDK 36) for phones on One UI 8 (0.4.67, experimental; the app offers it only on SDK 36). */
+    /**
+     * OxygenOS 16 (SDK 36) for phones on One UI 8 (0.4.67, experimental; the app offers it only on SDK 36).
+     * 0.4.91, at the owner's request (2026-11-11, "add oxygenos to s23 series on oneui8/8.5"): the Galaxy S23,
+     * S23+ and S23 Ultra ([S_8550], [S_PLUS_8550], [S_ULTRA_8550]) that are still on One UI 8.0/8.5, untested:
+     * no session on an SM8550 phone with an Android 16 One UI yet. The S22 Ultra and S23 FE with Snapdragon
+     * (SM8450, the HIDL composer as well) run it. Before OriginOS in their lists, which stays last.
+     */
     private val OXYGEN16_CHOICE = ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)
 
     /**
@@ -514,7 +520,7 @@ object Profiles {
         codename = "dm1q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -525,7 +531,7 @@ object Profiles {
         codename = "dm2q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -769,7 +775,7 @@ object Profiles {
         codename = "dm3q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 

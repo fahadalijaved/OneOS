@@ -408,6 +408,10 @@ profile_set() {
         "s-8550 originos7-pd2609ma") echo originos ;;
         "s-plus-8550 originos7-pd2609ma") echo originos ;;
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
+        # 0.4.91: OxygenOS 16 for the S23s still on One UI 8.0/8.5 (the owner, 2026-11-11), untested there.
+        "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "a06 oxygenos16-cph2745") echo oxygen16 ;;
         "a07-5g oxygenos16-cph2745") echo oxygen16 ;;
         "a15 oxygenos16-cph2745") echo oxygen16 ;;
