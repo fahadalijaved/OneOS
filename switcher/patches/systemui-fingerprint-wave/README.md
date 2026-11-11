@@ -34,9 +34,9 @@ Stock behavior is otherwise untouched: the pressed drawable, the listener,
 
 ## Files
 
-All paths are relative to
-`smali_classes3/com/oplus/systemui/biometrics/finger/udfps/` in the decoded
-APK (the working tree used `smali/` because only `classes3.dex` was decoded).
+`systemui-fingerprint-wave.patch` is a unified diff against the stock
+`smali_classes3/com/oplus/systemui/biometrics/finger/udfps/` files. It adds the
+new `OneOsGlyphShow.smali` and changes:
 
 | File | Change |
 | --- | --- |
@@ -44,8 +44,9 @@ APK (the working tree used `smali/` because only `classes3.dex` was decoded).
 | `OnScreenFingerprintUiMech$1.smali` | wake stamp in `:pswitch_b`, glyph gate + delayed show in `:pswitch_3` |
 | `OneOsGlyphShow.smali` | new `Runnable` for the delayed glyph show |
 
-These are full apktool smali files, not diffs. They apply to the ColorOS 17
-SystemUI shipped on the test device:
+`scripts/make-systemui-wave.sh` decodes a stock APK, applies the patch,
+rebuilds `classes3.dex` and replaces it in the original archive. It applies to
+the ColorOS 17 SystemUI shipped on the test device:
 
 ```
 SystemUI.apk        sha256 0e253fad7ce9a08fae656121cd907d8432b67b84bc37ae84a12e56fe01b8ef77
@@ -58,19 +59,18 @@ different offsets and must be re-patched from its own smali.
 ## Build
 
 ```sh
-apktool d -f -o sys3 SystemUI.apk
-cp OnScreenFingerprintUiMech.smali 'OnScreenFingerprintUiMech$1.smali' \
-   OneOsGlyphShow.smali sys3/smali_classes3/com/oplus/systemui/biometrics/finger/udfps/
-rm -rf sys3/build
-java -jar apktool.jar b sys3 -o SystemUI_rebuilt.apk
-unzip -o SystemUI_rebuilt.apk classes.dex -d rebuild_dex
-python3 ../../../scripts/apk-replace-dex.py SystemUI.apk classes3.dex \
-    rebuild_dex/classes.dex SystemUI_wave.apk
+APKTOOL="java -jar apktool.jar" scripts/make-systemui-wave.sh \
+    SystemUI.apk SystemUI_wave.apk
 ```
 
+Without the first argument the script pulls
+`/system/system_ext/priv-app/SystemUI/SystemUI.apk` from the connected guest;
+that copy must be unpatched. The script refuses an APK whose sha256 is not the
+tested build unless `ONEOS_WAVE_ALLOW_OTHER=1` is set.
+
 If apktool produces a `classes.dex` whose first 112 bytes are zero, a smali
-label was not placed. Delete `sys3/build` and read the real
-`DexWriter`/`Label.getLocation` exception; do not deploy that dex.
+label was not placed. Delete the decoded tree's `build` directory and read the
+real `DexWriter`/`Label.getLocation` exception; do not deploy that dex.
 
 The replaced APK keeps the original signing block, so it must be installed as
 a bind mount over the stock `SystemUI.apk` rather than through PackageManager.

@@ -1,0 +1,284 @@
+--- a/smali_classes3/com/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech.smali
++++ b/smali_classes3/com/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech.smali
+@@ -195,6 +195,8 @@
+ 
+ .field public pendingHide:Z
+ 
++.field public oneosWakeAt:J
++
+ .field private final pictorialMediator:Lcom/oplus/systemui/keyguard/wallpaper/pictorial/PictorialMediator;
+ 
+ .field public platformAnimationLevel:I
+@@ -5147,12 +5149,47 @@
+ .end method
+ 
+ .method public final hideUdfpsOverlay$1()V
+-    .locals 1
++    .locals 6
+ 
+     const/4 v0, -0x1
+ 
+     iput v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->fpShowReason:I
+ 
++    invoke-virtual {p0}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->getScreenTurnedOff()Z
++
++    move-result v1
++
++    if-nez v1, :oneos_native_hide
++
++    iget-object v1, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->fpIcon:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintIcon;
++
++    if-eqz v1, :oneos_native_hide
++
++    iget-boolean v1, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->showForEnroll:Z
++
++    if-nez v1, :oneos_native_hide
++
++    invoke-virtual {p0}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->isPressAnimRunning()Z
++
++    move-result v1
++
++    if-nez v1, :oneos_native_hide
++
++    const/4 v1, 0x1
++
++    iput-boolean v1, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->pendingHide:Z
++
++    const-string v1, "OnScreenFingerprintUiMech"
++
++    const-string v2, "OneOS auth wave"
++
++    invoke-static {v1, v2}, Lcom/oplusos/keyguard/utils/KgdLogUtil;->i(Ljava/lang/String;Ljava/lang/String;)V
++
++    invoke-virtual {p0}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->oneosStartWave()V
++
++    return-void
++
++    :oneos_native_hide
+     const/4 v0, 0x0
+ 
+     invoke-virtual {p0, v0}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->fpIconHide(I)V
+@@ -6736,6 +6773,8 @@
+ .method public final notifyHighlightVisibleUpdate(Z)V
+     .locals 1
+ 
++    return-void
++
+     sget-object v0, Lcom/oplusos/systemui/common/feature/KeyguardFeatureOption;->INSTANCE:Lcom/oplusos/systemui/common/feature/KeyguardFeatureOption;
+ 
+     invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+@@ -8934,3 +8973,65 @@
+ 
+     return-void
+ .end method
++
++.method public final oneosStartWave()V
++    .locals 3
++
++    iget-object v1, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->fpIcon:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintIcon;
++
++    if-eqz v1, :oneos_end
++
++    iget-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->pressedAnimDrawable:Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable;
++
++    if-eqz v0, :oneos_have
++
++    iget-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->context:Landroid/content/Context;
++
++    if-eqz v0, :oneos_end
++
++    const/16 v2, 0x8
++
++    invoke-virtual {p0, v2}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->getOptions(I)Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable$Options;
++
++    move-result-object v2
++
++    const/16 v0, 0x10
++
++    iput v0, v2, Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable$Options;->mDuration:I
++
++    new-instance v0, Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable;
++
++    iget-object v1, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->context:Landroid/content/Context;
++
++    invoke-direct {v0, v1, v2}, Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable;-><init>(Landroid/content/Context;Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable$Options;)V
++
++    iput-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->pressedAnimDrawable:Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable;
++
++    iget-object v1, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->pressedAnimationDrawableListener:Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable$OnAnimationDrawableListener;
++
++    invoke-virtual {v0, v1}, Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable;->setOnAnimationDrawableListener(Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable$OnAnimationDrawableListener;)V
++
++    :oneos_have
++    iget-object v1, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->fpIcon:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintIcon;
++
++    if-eqz v1, :oneos_end
++
++    iget-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->pressedAnimDrawable:Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable;
++
++    if-eqz v0, :oneos_end
++
++    const/4 v2, 0x0
++
++    invoke-virtual {v1, v2}, Landroid/view/View;->setVisibility(I)V
++
++    const/high16 v2, 0x3f800000    # 1.0f
++
++    invoke-virtual {v1, v2}, Landroid/view/View;->setAlpha(F)V
++
++    invoke-virtual {v1, v0}, Landroid/widget/ImageView;->setImageDrawable(Landroid/graphics/drawable/Drawable;)V
++
++    invoke-virtual {v0}, Lcom/oplus/systemui/keyguard/view/OplusAnimationDrawable;->start()V
++
++    :oneos_end
++    return-void
++.end method
+--- a/smali_classes3/com/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech$1.smali
++++ b/smali_classes3/com/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech$1.smali
+@@ -172,6 +172,76 @@
+     :pswitch_3
+     iget-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech$1;->this$0:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;
+ 
++    iget-wide v11, v0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->oneosWakeAt:J
++
++    invoke-static {}, Landroid/os/SystemClock;->uptimeMillis()J
++
++    move-result-wide v1
++
++    sub-long/2addr v1, v11
++
++    const-wide/16 v11, 0x4b0
++
++    cmp-long v1, v1, v11
++
++    if-ltz v1, :oneos_pswitch3_glyph
++
++    goto :oneos_pswitch3_go
++
++    :oneos_pswitch3_glyph
++    const/4 v1, 0x1
++
++    invoke-virtual {v0, v1}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->restoreIconDrawable(Z)V
++
++    iget-object v1, v0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->fpIcon:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintIcon;
++
++    if-eqz v1, :oneos_glyph_novis
++
++    const/4 v3, 0x0
++
++    const-string v2, "startPressedAnimation"
++
++    invoke-virtual {v1, v3, v2}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintIcon;->setVisibility(ILjava/lang/String;)V
++
++    const/high16 v2, 0x3f800000    # 1.0f
++
++    invoke-virtual {v1, v2}, Landroid/view/View;->setAlpha(F)V
++
++    :oneos_glyph_novis
++    invoke-static {v0}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->access$getOpticalUiUpdateHandler$p(Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;)Landroid/os/Handler;
++
++    move-result-object v1
++
++    if-eqz v1, :oneos_glyph_nopost
++
++    new-instance v2, Lcom/oplus/systemui/biometrics/finger/udfps/OneOsGlyphShow;
++
++    invoke-direct {v2, v0}, Lcom/oplus/systemui/biometrics/finger/udfps/OneOsGlyphShow;-><init>(Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;)V
++
++    const-wide/16 v3, 0x12c
++
++    invoke-virtual {v1, v2, v3, v4}, Landroid/os/Handler;->postDelayed(Ljava/lang/Runnable;J)Z
++
++    const-string v1, "OnScreenFingerprintUiMech"
++
++    const-string v2, "OneOS glyph post"
++
++    invoke-static {v1, v2}, Lcom/oplusos/keyguard/utils/KgdLogUtil;->i(Ljava/lang/String;Ljava/lang/String;)V
++
++    :oneos_glyph_nopost
++    const-string v1, "OnScreenFingerprintUiMech"
++
++    const-string v2, "OneOS glyph first"
++
++    invoke-static {v1, v2}, Lcom/oplusos/keyguard/utils/KgdLogUtil;->i(Ljava/lang/String;Ljava/lang/String;)V
++
++    return-void
++
++    :oneos_pswitch3_go
++    iget-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech$1;->this$0:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;
++
++    iget-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech$1;->this$0:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;
++
+     invoke-static {v0}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->access$getOpticalUiUpdateHandler$p(Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;)Landroid/os/Handler;
+ 
+     move-result-object v0
+@@ -1350,6 +1420,12 @@
+     :pswitch_b
+     iget-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech$1;->this$0:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;
+ 
++    invoke-static {}, Landroid/os/SystemClock;->uptimeMillis()J
++
++    move-result-wide v11
++
++    iput-wide v11, v0, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->oneosWakeAt:J
++
+     sget-object v1, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->Companion:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech$Companion;
+ 
+     invoke-virtual {v0}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->stopFadeOutAnimation()V
+--- /dev/null
++++ b/smali_classes3/com/oplus/systemui/biometrics/finger/udfps/OneOsGlyphShow.smali
+@@ -0,0 +1,54 @@
++.class public final Lcom/oplus/systemui/biometrics/finger/udfps/OneOsGlyphShow;
++.super Ljava/lang/Object;
++.implements Ljava/lang/Runnable;
++
++.field public final mech:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;
++
++.method public constructor <init>(Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;)V
++    .locals 0
++
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++
++    iput-object p1, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OneOsGlyphShow;->mech:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;
++
++    return-void
++.end method
++
++.method public final run()V
++    .locals 3
++
++    iget-object v0, p0, Lcom/oplus/systemui/biometrics/finger/udfps/OneOsGlyphShow;->mech:Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;
++
++    if-eqz v0, :end
++
++    const-string v1, "OnScreenFingerprintUiMech"
++
++    const-string v2, "OneOS glyph delayed"
++
++    invoke-static {v1, v2}, Lcom/oplusos/keyguard/utils/KgdLogUtil;->i(Ljava/lang/String;Ljava/lang/String;)V
++
++    invoke-virtual {v0, v1}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->showFingerprintIconTemporarily(Ljava/lang/String;)V
++
++    invoke-static {v0}, Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;->access$getFpIcon$p(Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintUiMech;)Lcom/oplus/systemui/biometrics/finger/udfps/OnScreenFingerprintIcon;
++
++    move-result-object v1
++
++    if-eqz v1, :end
++
++    const/4 v2, 0x0
++
++    invoke-virtual {v1, v2}, Landroid/view/View;->setVisibility(I)V
++
++    const/high16 v2, 0x3f800000    # 1.0f
++
++    invoke-virtual {v1, v2}, Landroid/view/View;->setAlpha(F)V
++
++    const-string v1, "OnScreenFingerprintUiMech"
++
++    const-string v2, "OneOS glyph forced"
++
++    invoke-static {v1, v2}, Lcom/oplusos/keyguard/utils/KgdLogUtil;->i(Ljava/lang/String;Ljava/lang/String;)V
++
++    :end
++    return-void
++.end method
