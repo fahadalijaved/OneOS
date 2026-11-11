@@ -431,6 +431,23 @@ late)
     # based framework daemons; they must not bind to stale host services.
     n=0
     while [ "$(getprop sys.boot_completed)" != 1 ]; do n=$((n+1)); [ "$n" -lt 300 ] || exit 1; sleep 1; done
+    # Samsung leaves lockscreen.disabled=1 in locksettings.db even after a PIN
+    # is set; One UI ignores it, but the guest's copy makes ColorOS skip its
+    # keyguard. Clear it in the guest's copy only and confirm.
+    if [ -f /data/system/oneos_lockstate/enabled ]; then
+        n=0
+        while [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" != false ]; do
+            /system/bin/locksettings set-disabled false --user 0 >/dev/null 2>&1
+            n=$((n+1))
+            [ "$n" -lt 10 ] || break
+            sleep 1
+        done
+        if [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" = false ]; then
+            echo 'Guest runtime: guest keyguard enabled'
+        else
+            echo 'Guest runtime: could not enable the guest keyguard'
+        fi
+    fi
     /data/adb/oneos/bin/su --oneos-info || { echo 'Guest runtime: root broker identity check failed'; exit 1; }
     # guest_start.sh clears the shared boot flag before launching zygote;
     # only the new framework's completed boot releases this gate. Also require

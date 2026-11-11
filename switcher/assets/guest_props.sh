@@ -1145,6 +1145,30 @@ add)
         { echo "screen=$inner"; echo "battery=$mah"; } > "$STAGE/nt_about.txt"
         echo "guest_props: Nothing About phone: ${gb:-?} GB, ${cpu:-?}, panels ${inner:-?}\" ${cover:+and $cover\" }, ${mah:-?} mAh"
     fi
+    FP_POS=/sys/class/fingerprint/fingerprint/position
+    if [ -r "$FP_POS" ] && [ -f "$ROOTFS/system/framework/oplus-services.jar" ]; then
+        fp=$(cat "$FP_POS")
+        fp_mb=$(echo "$fp" | cut -d, -f1)
+        fp_ah=$(echo "$fp" | cut -d, -f4)
+        fp_dpi=$(sed -n 's/.* \([0-9][0-9.]*\) x [0-9][0-9.]* dpi.*/\1/p' "$STAGE/display_modes_host.log" 2>/dev/null | head -n 1)
+        [ -n "$fp_dpi" ] || fp_dpi=501.0411
+        fp_loc=$(awk -v mb="$fp_mb" -v ah="$fp_ah" -v dpi="$fp_dpi" 'BEGIN { printf "%.0f", (mb + ah / 2) * dpi / 25.4 }')
+        for kv in persist.vendor.fingerprint.sensor_type=ultrasonic \
+                  persist.vendor.fingerprint.optical.iconlocation="$fp_loc" \
+                  persist.vendor.fingerprint.optical.iconsize=196; do
+            key=${kv%%=*}; value=${kv#*=}
+            if grep -qxF "$key" "$HOST"; then
+                hv=$(getprop "$key")
+                [ "$hv" = "$value" ] && continue
+                echo "$key=$hv" >> "$OVR" && "$RP" -n "$key" "$value" 2>/dev/null &&
+                    echo "guest_props: $key=$value for the session (One UI: ${hv:-empty})"
+            else
+                drop_new "$key"
+                echo "$key=$value" >> "$NEW"
+            fi
+        done
+        echo "guest_props: ColorOS fingerprint icon ${fp_loc}px from the bottom (${fp_mb}mm + ${fp_ah}mm/2 at ${fp_dpi} dpi)"
+    fi
     echo "guest_props add: batch $(date +%T)"
     if "$RP" -n -f "$NEW" 2>/dev/null; then
         cut -d= -f1 "$NEW" > "$ADDED"

@@ -1034,6 +1034,44 @@ if [ -f /data/guest_audio.flag ]; then
     else
         echo "[Pivoted Root] A2DP offload: l_a2dp_format not sent (ONEOS_GUEST_A2DP_FORMAT=0)"
     fi
+    # ColorOS's AOSP audio policy parser wants /vendor/etc/audio_policy_configuration.xml.
+    # Samsung's vendor only ships QTI's _base and sku files at other paths, so the
+    # parser fell back to setDefault: volume groups with max index 0, and SystemUI's
+    # volume slider crashes on NaN. The QTI _base file is the same format ColorOS
+    # loads; put it at the top-level path through a guest-only overlay (the f2fs
+    # upper is refused for casefold, so a small tmpfs holds the upper).
+    if [ -e /system/framework/oplus-services.jar ] && grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/ &&
+       [ -f /vendor/etc/audio_policy_configuration_base.xml ] && [ ! -e /vendor/etc/audio_policy_configuration.xml ]; then
+        AOV=/data/oneos_audio_policy
+        mkdir -p "$AOV"
+        mount | grep -q " $AOV " || $BB mount -t tmpfs -o size=8m,mode=755 tmpfs "$AOV"
+        mkdir -p "$AOV/upper" "$AOV/work"
+        cp /vendor/etc/audio_policy_configuration_base.xml "$AOV/upper/audio_policy_configuration.xml" &&
+            chmod 644 "$AOV/upper/audio_policy_configuration.xml" &&
+            $BB chcon u:object_r:vendor_configs_file:s0 "$AOV/upper/audio_policy_configuration.xml" 2>/dev/null || true
+        if $BB mount -t overlay overlay -o "lowerdir=/vendor/etc,upperdir=$AOV/upper,workdir=$AOV/work" /vendor/etc; then
+            echo "[Pivoted Root] ColorOS audio policy: _base.xml as /vendor/etc/audio_policy_configuration.xml (volume tables)"
+        else
+            echo "!!! WARNING: ColorOS audio policy: the overlay on /vendor/etc was refused; volume groups may be default"
+        fi
+    fi
+    # Samsung's audio HAL keeps the streams of a dead audioserver: a fresh one
+    # then gets -38 on every openOutputStream ("port config ... already has a
+    # stream opened"), AudioPolicyManager init fails and audio is silent until
+    # the HAL restarts. Restart it before the first audioserver and before each
+    # restart in the keeper below.
+    restart_audio_hal() {
+        service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" || return 0
+        h=$(pidof audiohalservice.qti 2>/dev/null)
+        [ -n "$h" ] && kill -9 $h 2>/dev/null
+        i=0
+        while [ $i -lt 50 ]; do
+            service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" && return 0
+            i=$((i + 1)); sleep 0.2
+        done
+        return 1
+    }
+    restart_audio_hal && echo "[Pivoted Root] audio HAL restarted before guest audioserver"
     /system/bin/audioserver > /dev/null 2>&1 &
     AS_PID=$!
     echo "[Pivoted Root] guest audioserver PID: $AS_PID (registers once the guest framework is up)"
@@ -1104,6 +1142,11 @@ if [ -f /data/guest_audio.flag ]; then
                 echo "$(date +%T) guest audioserver $why $((r + 1)) times within 2 minutes; restart in ${d}s (no hand-over)"
                 sleep $d
                 now=$(date +%s); last=$now
+            fi
+            if service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found"; then
+                h=$(pidof audiohalservice.qti 2>/dev/null); [ -n "$h" ] && kill -9 $h 2>/dev/null
+                i=0; while [ $i -lt 50 ]; do service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" && break; i=$((i + 1)); sleep 0.2; done
+                echo "$(date +%T) audio HAL restarted before audioserver"
             fi
             /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
@@ -2529,6 +2572,91 @@ BRINGEOF
 else
     rm -f /data/oneos_bring_restore.sh
 fi
+# Samsung's One UI leaves lockscreen.disabled=1 behind even with a PIN; the
+# guest's copy would make ColorOS skip its keyguard. Clear it on the guest's
+# copy only, after the guest's own boot_completed (the shared flag is cleared
+# above). The marker is staged with the lock state.
+if [ -f /data/system/oneos_lockstate/enabled ]; then
+    (
+        n=0
+        while [ "$(getprop sys.boot_completed)" != 1 ]; do
+            n=$((n+1)); [ "$n" -lt 120 ] || exit 0; sleep 1
+        done
+        n=0
+        while [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" != false ]; do
+            /system/bin/locksettings set-disabled false --user 0 >/dev/null 2>&1
+            n=$((n+1)); [ "$n" -lt 10 ] || break; sleep 1
+        done
+        if [ "$(/system/bin/locksettings get-disabled --user 0 2>/dev/null)" = false ]; then
+            echo "keyguard enabled"
+        else
+            echo "keyguard still disabled"
+        fi
+    ) > /data/system/oneos_lockstate/late.log 2>&1 &
+fi
+
+# OneOS: the fingerprint-wave SystemUI. scripts/install-systemui-wave.sh
+# builds the patched APK once per SystemUI build and leaves it in the guest's
+# /data/local/tmp; this bind must run before zygote starts, because zygote and
+# SystemUI unshare their own mount namespaces and would not see a later bind.
+# The image's oat/arm64 is for the stock dex checksum, so hide it as well.
+# Without the APK the stock SystemUI runs and nothing here changes the
+# keyguard.
+WAVE_APK=/data/local/tmp/SystemUI_wave.apk
+WAVE_SIZE=/data/local/tmp/SystemUI_wave.stock.size
+WAVE_SHA=/data/local/tmp/SystemUI_wave.stock.sha256
+WAVE_OAT=/data/local/tmp/empty_oat
+# Only ColorOS's SystemUI is the build this APK patches. A HyperOS, Pixel or
+# Infinity-X guest has its own SystemUI, and binding ColorOS's over it would
+# crash SystemUI at boot. The stock hash is the second fence: a ColorOS OTA
+# that changed SystemUI also skips the APK until install-systemui-wave.sh is
+# run again.
+if [ ! -e /system/framework/oplus-services.jar ]; then
+    echo "[Pivoted Root] SystemUI: guest is not ColorOS; stock SystemUI"
+    WAVE_APK=
+elif [ -f "$WAVE_APK" ] && [ -f "$WAVE_SIZE" ] && [ -f "$WAVE_SHA" ]; then
+    wave_want=$(cat "$WAVE_SIZE" 2>/dev/null)
+    wave_sha=$(cat "$WAVE_SHA" 2>/dev/null)
+    wave_got=$($BB stat -c %s /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null)
+    wave_hash=$($BB sha256sum /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null | awk '{print $1}')
+    if [ "$wave_want" != "$wave_got" ] || [ "$wave_sha" != "$wave_hash" ]; then
+        echo "[Pivoted Root] SystemUI: wave APK is for another SystemUI build; stock SystemUI"
+        WAVE_APK=
+    fi
+else
+    if [ -f "$WAVE_APK" ]; then
+        echo "[Pivoted Root] SystemUI: wave APK has no stock hash; stock SystemUI"
+    fi
+    WAVE_APK=
+fi
+if [ -f "$WAVE_APK" ]; then
+    mkdir -p "$WAVE_OAT"
+    chmod 644 "$WAVE_APK" 2>/dev/null || true
+    $BB chcon u:object_r:system_file:s0 "$WAVE_APK" 2>/dev/null || true
+    if [ -d /system/system_ext/priv-app/SystemUI/oat/arm64 ]; then
+        $BB mount -o bind "$WAVE_OAT" /system/system_ext/priv-app/SystemUI/oat/arm64 2>/dev/null || true
+    fi
+    if $BB mount -o bind "$WAVE_APK" /system/system_ext/priv-app/SystemUI/SystemUI.apk 2>/dev/null; then
+        echo "[Pivoted Root] SystemUI: fingerprint wave APK bound"
+        # SurfaceFlinger thrashes 10 Hz <-> 120 Hz during the wave without a
+        # floor; the setting lives in the guest's data and resets on boot.
+        (
+            n=0
+            while [ "$(getprop sys.boot_completed)" != 1 ] && [ "$n" -lt 120 ]; do
+                n=$((n + 1)); sleep 1
+            done
+            settings put system min_refresh_rate 120 >/dev/null 2>&1 || true
+            n=0
+            while [ "$(settings get system min_refresh_rate 2>/dev/null)" != 120 ] && [ "$n" -lt 30 ]; do
+                n=$((n + 1)); sleep 1
+                settings put system min_refresh_rate 120 >/dev/null 2>&1 || true
+            done
+        ) >/dev/null 2>&1 &
+    else
+        echo "[Pivoted Root] SystemUI: fingerprint wave bind failed; stock SystemUI"
+    fi
+fi
+
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3
