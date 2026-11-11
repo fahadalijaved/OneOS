@@ -321,7 +321,16 @@ install)
         if [ -f "$m/.oneos-pending" ]; then
             MODPATH=$m ZIPFILE=$m/.oneos-install.zip BOOTMODE=true KSU=true KSU_VER_CODE=99999 MAGISK_VER_CODE=0 ZYGISK_ENABLED=1 ARCH=arm64 IS64BIT=true API=$(getprop ro.build.version.sdk) \
                 "$B" sh /data/oneos_runtime.sh customize "$m" >> "$A/oneos/run/session.log" 2>&1 || {
-                    touch "$m/disable"; echo "Guest runtime: installation failed for ${m##*/}"; exit 1;
+                    # As a module that asks for shared SELinux changes (pre, below): disabled with
+                    # the reason for the modules screen, and the system starts without it. It used
+                    # to end the whole switch (S26 Ultra 00655d58, 0.4.74: one module's installer
+                    # failed, "Guest module installation failed (exit 1); returning to One UI").
+                    # .oneos-pending stays, so turning the module on again runs its installer again.
+                    rc=$?
+                    touch "$m/disable"
+                    echo "Its installer failed (exit $rc); turn it on again to retry, or remove it" > "$m/.oneos-disabled-reason"
+                    echo "Guest runtime: installation failed for ${m##*/} (exit $rc); disabled, the system starts without it"
+                    continue
                 }
             rm -f "$m/.oneos-pending"
             # The host helper reapplies generated mount payloads before zygote.

@@ -89,6 +89,18 @@ class HomeStateTest {
         assertEquals(Kind.READY, decide(report()).kind)
     }
 
+    /** 0.4.85: One UI older than every system of the phone: one plain message, nothing to tap. */
+    @Test
+    fun anOlderOneUiSaysToUpdateIt() {
+        val older = block(SwitchGates.ID_ANDROID, SwitchGates.R_ANDROID_OLDER)
+        val s = decide(report(older, nothing, lock, image = null))
+        assertEquals(Kind.UNSUPPORTED, s.kind)
+        assertEquals("Update One UI first", s.problem!!.title)
+        assertTrue(s.problem!!.line, s.problem!!.line.startsWith("The systems for your Z Fold"))
+        assertNull(s.primary)
+        assertNull(s.primaryLabel)
+    }
+
     @Test
     fun theWorstComesFirst() {
         // Each row adds the next worse problem; Home shows that one.

@@ -35,6 +35,24 @@ abstract class BackgroundJob<S : Any>(initial: S, name: String) {
         return { listeners -= listener }
     }
 
+    /**
+     * [observe] for a screen that shows only [key] of the state: [listener] runs when that changes,
+     * not for every progress line. A page that rebuilt its rows for each of them lost the tap on a
+     * row rebuilt under the finger (11-10: "Skip saving logs doesn't respond to touch").
+     */
+    fun <K> observeBy(key: (S) -> K, listener: (S) -> Unit): () -> Unit {
+        var first = true
+        var last: K? = null
+        return observe { s ->
+            val k = key(s)
+            if (first || k != last) {
+                first = false
+                last = k
+                listener(s)
+            }
+        }
+    }
+
     protected fun update(s: S) {
         state = s
         main.post { listeners.forEach { it(s) } }
@@ -81,12 +99,16 @@ class ReadOnlyRun(private val listAsset: String, private val dirName: String) {
         runner?.cancel()
     }
 
-    /** Runs the list; [onStarted] / [onFinished] report each entry. Blocks; call it off the main thread. */
+    /**
+     * Runs the list; [onStarted] / [onFinished] report each entry. Blocks; call it off the main thread.
+     * [cancelled]: asked once the run can be cancelled, for a [cancel] that came before that (it found no run to stop).
+     */
     fun run(
         ctx: Context,
         sink: (String) -> OutputStream,
         onStarted: (String) -> Unit = {},
         onFinished: (ProbeResult) -> Unit = {},
+        cancelled: () -> Boolean = { false },
     ): Outcome {
         val b = bundled(ctx)
         check(b.problems.isEmpty()) { "the bundled list failed its read-only check: ${b.problems.first()}" }
@@ -107,6 +129,7 @@ class ReadOnlyRun(private val listAsset: String, private val dirName: String) {
         })
         val r = RootProbeRunner(runnerFile, listFile)
         runner = r
+        if (cancelled()) r.cancel()
         val end = r.run(parser) { silence.get() }
         runner = null
         return Outcome(parser.finish(), end)

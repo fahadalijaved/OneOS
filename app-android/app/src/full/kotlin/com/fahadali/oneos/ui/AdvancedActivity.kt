@@ -45,7 +45,8 @@ class AdvancedFragment : CardsFragment() {
 
     override fun onStart() {
         super.onStart()
-        subs += LogJob.observe { redraw() }
+        // Not for each "Collecting N of M" line (0.4.76): rows rebuilt under the finger lose their tap.
+        subs += LogJob.observeBy({ Triple(it.phase, it.recovering, it.stopping) }) { redraw() }
         subs += OldStagesJob.observe { redraw() }
         subs += StageCheck.observe { redraw() }
         subs += RemoveJob.observe { redraw() }
@@ -177,6 +178,7 @@ class AdvancedFragment : CardsFragment() {
         val ctx = requireContext()
         val launch = SessionPrefs.lastLaunch(ctx) ?: return getString(R.string.advanced_last_none)
         val logs = LogJob.state
+        if (logs.busy && logs.stopping) return getString(R.string.logs_stopping)
         if (logs.busy && !logs.recovering) return getString(R.string.home_row_last_reading)
         val system = Images.systemName(Images.byId(launch.imageId))
         val outcome = launch.outcome?.let { o -> OutcomeKind.entries.firstOrNull { it.name == o } }

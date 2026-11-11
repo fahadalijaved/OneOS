@@ -50,6 +50,8 @@ object LogJob : BackgroundJob<LogJob.State>(State(), "oneos-logs") {
         val recovering: Boolean = false,
         /** The last [recover] did not restore (its reason is [message]); Last session says so in the restore card. */
         val restoreFailed: Boolean = false,
+        /** [skip] was tapped and the collection is ending: the pages say so at once (the stop itself takes a moment). */
+        val stopping: Boolean = false,
     ) {
         val busy: Boolean get() = phase == Phase.RUNNING
     }
@@ -69,10 +71,22 @@ object LogJob : BackgroundJob<LogJob.State>(State(), "oneos-logs") {
      * collect it until the next switch rotates the capture. Not for a restore.
      */
     fun skip() {
-        if (!state.busy || state.recovering) return
+        if (!state.busy || state.recovering || state.stopping) return
         skipping = true
-        update(state.copy(detail = "Stopping…"))
+        change { it.copy(detail = "Stopping…", stopping = true) }
         collect.cancel()
+    }
+
+    /** A change to the running state: [skip] (main thread) and the collection's progress (its own thread) do not overwrite each other. */
+    @Synchronized private fun change(f: (State) -> State) = update(f(state))
+
+    /** The end of a skipped collection: nothing kept, and not collected by itself again. */
+    private fun skipped(app: Context) {
+        val launch = SessionPrefs.lastLaunch(app)
+        val sid = launch?.sessionId ?: "unknown"
+        runCatching { File(logsDir(app), LogBundle.name(sid)).deleteRecursively() }
+        if (launch != null) SessionPrefs.setLogsCollected(app, launch.sessionId)
+        update(State(Phase.IDLE, message = "Session logs skipped.", sessionId = sid))
     }
 
     /** [auto]: Readiness started it after a return (no dialog: read-only, redacted, kept on the phone until shared). */
@@ -83,7 +97,9 @@ object LogJob : BackgroundJob<LogJob.State>(State(), "oneos-logs") {
         update(State(Phase.RUNNING, "Checking root…", auto = auto, sessionId = SessionPrefs.lastLaunch(app)?.sessionId))
         executor.execute {
             runCatching { run(app) }.exceptionOrNull()?.let { e ->
-                update(state.copy(phase = Phase.FAILED, detail = null, message = e.message ?: e.javaClass.simpleName))
+                // A collection cut by Skip is a skipped one, whatever the cut made it throw.
+                if (skipping) runCatching { skipped(app) }.onFailure { update(State(Phase.IDLE, message = "Session logs skipped.")) }
+                else update(state.copy(phase = Phase.FAILED, detail = null, message = e.message ?: e.javaClass.simpleName))
             }
         }
     }
@@ -176,15 +192,22 @@ object LogJob : BackgroundJob<LogJob.State>(State(), "oneos-logs") {
         }
         val b = collect.bundled(app)
         var done = 0
+        // Skip tapped while root was checked or the old bundle removed: there is no run to stop yet,
+        // and before 0.4.76 the whole list then ran to its end (the tap looked dead for minutes).
+        if (skipping) {
+            skipped(app)
+            return
+        }
         val out = collect.run(
             app, sink,
-            onStarted = { id -> update(state.copy(detail = "Collecting ${done + 1} of ${b.commands.size}: $id (personal data is removed as it arrives)")) },
+            onStarted = { id ->
+                change { if (it.stopping) it else it.copy(detail = "Collecting ${done + 1} of ${b.commands.size}: $id (personal data is removed as it arrives)") }
+            },
             onFinished = { done++ },
+            cancelled = { skipping },
         )
         if (skipping) {
-            folder.deleteRecursively()
-            if (launch != null) SessionPrefs.setLogsCollected(app, launch.sessionId)
-            update(State(Phase.IDLE, message = "Session logs skipped.", sessionId = sid))
+            skipped(app)
             return
         }
         fun text(prefix: String, suffix: String): String? = folder.walkTopDown()

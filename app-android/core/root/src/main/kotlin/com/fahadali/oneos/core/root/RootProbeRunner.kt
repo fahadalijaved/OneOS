@@ -89,7 +89,8 @@ class RootProbeRunner(private val runner: File, private val list: File) {
         } catch (_: IOException) {
             // Killed or cancelled: the stream simply ends.
         } finally {
-            if (!proc.waitFor(5, TimeUnit.SECONDS)) proc.destroyForcibly()
+            // Cancelled or killed: its exit code is not read, so it is not waited 5 s for (Skip saving logs, 11-10).
+            if (!proc.waitFor(if (cancelled || killed) 200L else 5000L, TimeUnit.MILLISECONDS)) proc.destroyForcibly()
             watchdog.interrupt()
             errReader.join(1000)
             process = null

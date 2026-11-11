@@ -218,6 +218,10 @@
     <string name="prepare_mode_aside_older">It holds an older system\'s apps and data, which %1$s can\'t use. They\'re kept as an old copy and %1$s starts fresh.</string>
     <string name="prepare_cat_run">Start</string>
     <string name="prepare_run_title">Start setup</string>
+    <string name="prepare_run_title_system">Set up %1$s</string>
+    <string name="prepare_other_system_title">This sets up %1$s, not %2$s</string>
+    <string name="prepare_other_system_summary">The file you downloaded is %1$s. To update or repair %2$s, use the button on its own page instead.</string>
+    <string name="prepare_dialog_other_system">%2$s is set up now. This sets up %1$s instead, from the file you downloaded.</string>
     <string name="prepare_run_summary">Needs about %1$s free. You confirm first.</string>
     <string name="prepare_needs_unknown">about 22 GB</string>
     <string name="prepare_running">Setting up… keep OneOS open</string>
@@ -292,4 +296,127 @@
     <string name="team_update_test_on">On: OneOS updates come from the team\'s test channel</string>
     <string name="team_update_test_dialog">The test channel code from the OneOS team. Leave it empty to go back to the released updates.</string>
     <string name="team_update_test_invalid">That is not a test channel code</string>
+
+    <!-- Bring apps (0.4.75): take user apps, with their data and logins, from One UI into the system set up now. -->
+    <string name="bring_title">Bring apps</string>
+    <string name="bring_card_about">How it works</string>
+    <string name="bring_about_body">Tick the apps you want to take along. They\'re copied, with their data and logins, from One UI into %1$s when you start it, or right away with Bring now. %1$s installs them about a minute after its home screen shows, and they open there already signed in.</string>
+    <string name="bring_about_one_way">One way: One UI\'s copy is only read, and nothing from %1$s comes back to it.</string>
+    <string name="bring_card_apps">Apps on One UI</string>
+    <plurals name="bring_ticked_n">
+        <item quantity="one">%d ticked</item>
+        <item quantity="other">%d ticked</item>
+    </plurals>
+    <string name="bring_loading">Looking for your apps…</string>
+    <string name="bring_not_read">Couldn\'t read your apps</string>
+    <string name="bring_look_again">Look again</string>
+    <string name="bring_none">No apps to bring</string>
+    <string name="bring_none_summary">Only apps you installed yourself can come along. One UI\'s own apps stay on One UI; %1$s has its own.</string>
+    <string name="bring_app_summary">%1$s · %2$s</string>
+    <string name="bring_stage_checking">Checking the system set up now…</string>
+    <string name="bring_stage_not_read">Couldn\'t check the system set up now</string>
+    <string name="bring_stage_not_read_summary">Bring needs to know which system is set up. Try Check again.</string>
+    <string name="bring_stage_check_again">Check again</string>
+    <string name="bring_no_stage">Set up a system first</string>
+    <string name="bring_no_stage_summary">Bring puts the apps into the system set up now, and there isn\'t one yet. Set one up from Home, then come back.</string>
+    <string name="bring_other_system">%1$s isn\'t the system set up now</string>
+    <string name="bring_other_system_summary">%1$s is. To bring apps into %2$s, switch to it from Home first, then come back.</string>
+    <string name="bring_do_none">Bring apps</string>
+    <string name="bring_do_none_summary">Tick apps above. They\'re copied when you start %1$s.</string>
+    <plurals name="bring_do_n">
+        <item quantity="one">Bring %d app now</item>
+        <item quantity="other">Bring %d apps now</item>
+    </plurals>
+    <string name="bring_do_summary">Or just start %1$s: ticked apps are copied on the way. Big apps take a while.</string>
+    <plurals name="bring_working_n">
+        <item quantity="one">Bringing %d app…</item>
+        <item quantity="other">Bringing %d apps…</item>
+    </plurals>
+    <string name="bring_working_summary">Copying into %1$s. Big apps can take several minutes; keep the phone unlocked. You can leave this screen.</string>
+    <string name="bring_remove">Remove brought apps</string>
+    <string name="bring_remove_summary">Deletes the copies from %1$s. Apps it already installed stay there, and nothing changes on One UI.</string>
+    <string name="bring_removing">Removing the brought apps…</string>
+    <string name="bring_done_summary">%1$s installs them about a minute after its home screen shows.</string>
+    <string name="bring_done_skipped">Some ticked apps didn\'t come along. Details says which.</string>
+    <string name="bring_confirm_title">Bring these apps into %1$s?</string>
+    <plurals name="bring_confirm_body">
+        <item quantity="one">Copies %1$d app, with its data and logins, from One UI into %2$s. A big app can take several minutes and uses as much space again. One UI isn\'t changed. %2$s installs it about a minute after its home screen shows.</item>
+        <item quantity="other">Copies %1$d apps, with their data and logins, from One UI into %2$s. Big apps can take several minutes and use as much space again. One UI isn\'t changed. %2$s installs them about a minute after its home screen shows.</item>
+    </plurals>
+    <string name="bring_confirm_do">Bring</string>
+    <string name="bring_remove_title">Remove the brought apps?</string>
+    <string name="bring_remove_confirm">Deletes the copies from %1$s. Apps it already installed stay there, and nothing changes on One UI.</string>
+    <string name="bring_remove_do">Remove</string>
+    <string name="bring_details_summary">Which apps came along, and what happens in %1$s</string>
+    <string name="bring_details_how">About a minute after its home screen shows, %1$s installs each brought app and puts the copied data under it, so it opens signed in. An app you bring again is updated there, and its data in %1$s is replaced by One UI\'s newer copy; an app %1$s has already installed is only replaced when you tick it again and say so in Bring now (starting %1$s never copies it again). The copies live inside the system set up now: setting a system up fresh starts without them, and Remove brought apps deletes them.</string>
+    <string name="bring_details_brought">Brought</string>
+    <string name="bring_details_none">Nothing has been brought yet.</string>
+    <string name="bring_details_skipped">Ticked but not brought (not installed as a user app, not enough free space, or its data couldn\'t be read: unlock the phone and try again)</string>
+    <!-- Build 104: Select all, what became of each copy, and what is newer on One UI. -->
+    <string name="bring_select_all">Select all</string>
+    <plurals name="bring_select_all_n">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
+    <plurals name="bring_newer_n">
+        <item quantity="one">%d brought app changed on One UI</item>
+        <item quantity="other">%d brought apps changed on One UI</item>
+    </plurals>
+    <string name="bring_newer_summary">Only if you want One UI\'s newer copy in %1$s: tap to tick them. Bring now asks before it replaces anything.</string>
+    <string name="bring_row_again">Ticked · Bring now asks before replacing it in %1$s</string>
+    <string name="bring_row_ticked">Ticked · copied again when %1$s starts</string>
+    <string name="bring_row_waiting">Copied · installs when %1$s next starts</string>
+    <string name="bring_row_failed">Not installed in %1$s · Details says why</string>
+    <string name="bring_row_newer_app">In %1$s · updated on One UI since: tick to bring it again</string>
+    <string name="bring_row_newer_data">In %1$s · newer data on One UI: tick to bring it again</string>
+    <string name="bring_row_installed_on">In %1$s · brought %2$s</string>
+    <string name="bring_row_installed">In %1$s</string>
+    <string name="bring_update_first">Update %1$s first</string>
+    <string name="bring_update_first_summary">This version of OneOS brings apps in a new way. Tap Update on %1$s\'s page, then come back.</string>
+    <string name="bring_working_at">Copying %1$s. Big apps can take several minutes; you can leave this screen.</string>
+    <string name="bring_count_installed">%1$d in %2$s</string>
+    <string name="bring_count_waiting">%1$d waiting</string>
+    <string name="bring_count_failed">%1$d not installed</string>
+    <string name="bring_count_failed_summary">Details says what %1$s reported.</string>
+    <string name="bring_count_waiting_summary">%1$s installs them about a minute after its home screen shows.</string>
+    <plurals name="bring_brought_n">
+        <item quantity="one">%d app brought</item>
+        <item quantity="other">%d apps brought</item>
+    </plurals>
+    <!-- Build 109: an app the system has already is brought again only when the owner says so. -->
+    <plurals name="bring_again_n">
+        <item quantity="one">Bring %d app again</item>
+        <item quantity="other">Bring %d apps again</item>
+    </plurals>
+    <string name="bring_again_summary">Already in %1$s: not copied again when it starts, only here, after asking.</string>
+    <plurals name="bring_do_there_summary">
+        <item quantity="one">The other ticked app is already in %2$s: you\'re asked before it\'s brought again.</item>
+        <item quantity="other">The other %1$d ticked apps are already in %2$s: you\'re asked before they\'re brought again.</item>
+    </plurals>
+    <plurals name="bring_confirm_there">
+        <item quantity="one">%2$s already has the other ticked app. Bring it again too? One UI\'s copy would replace its data in %2$s. With Only new it stays as it is there and is unticked.</item>
+        <item quantity="other">%2$s already has the other %1$d ticked apps. Bring them again too? One UI\'s copies would replace their data in %2$s. With Only new they stay as they are there and are unticked.</item>
+    </plurals>
+    <string name="bring_confirm_new">Only new</string>
+    <string name="bring_confirm_all">All %1$d</string>
+    <plurals name="bring_again_title">
+        <item quantity="one">Bring this app again?</item>
+        <item quantity="other">Bring these apps again?</item>
+    </plurals>
+    <plurals name="bring_again_body">
+        <item quantity="one">%2$s already has it. Bringing it again replaces its data in %2$s with One UI\'s copy: what you did in it there since is lost. One UI isn\'t changed.</item>
+        <item quantity="other">%2$s already has all %1$d. Bringing them again replaces their data in %2$s with One UI\'s copies: what you did in them there since is lost. One UI isn\'t changed.</item>
+    </plurals>
+    <string name="bring_again_do">Bring again</string>
+    <string name="bring_details_said">Notes from the copy</string>
+    <string name="bring_details_log">%1$s\'s install log</string>
+    <string name="bring_state_waiting_on">Copied %1$s · waiting to be installed</string>
+    <string name="bring_state_waiting">Copied · waiting to be installed</string>
+    <string name="bring_state_installed_on">Installed in %1$s · copy from %2$s</string>
+    <string name="bring_state_installed">Installed in %1$s</string>
+    <string name="bring_state_failed">Not installed in %1$s: %2$s</string>
+    <string name="bring_state_no_reason">no reason given</string>
+    <string name="bring_change_data">One UI has newer data</string>
+    <string name="bring_change_app">Updated on One UI since</string>
+    <string name="bring_change_gone">No longer installed on One UI</string>
 </resources>

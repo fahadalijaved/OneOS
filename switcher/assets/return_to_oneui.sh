@@ -81,21 +81,23 @@ if [ "$1" = baseline ]; then
     [ -n "$BB" ] || { echo "In-place baseline: no busybox, not taken (the return will reboot)"; exit 0; }
     rm -rf "$BASE"; mkdir -p "$BASE" || exit 0
     cat /proc/sys/kernel/random/boot_id > "$BASE/boot_id" 2>/dev/null
-    getprop > "$BASE/props"
-    getenforce > "$BASE/selinux" 2>&1
-    apex_state > "$BASE/apex"
-    apex_overlays > "$BASE/apex_overlays"
-    ip rule show > "$BASE/iprule" 2>&1
-    for f in /sys/fs/f2fs/*/gc_urgent; do [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"; done > "$BASE/gc_urgent"
+    ( getprop > "$BASE/props" ) &
+    ( getenforce > "$BASE/selinux" 2>&1 ) &
+    ( apex_state > "$BASE/apex" ) &
+    ( apex_overlays > "$BASE/apex_overlays" ) &
+    ( ip rule show > "$BASE/iprule" 2>&1 ) &
+    ( for f in /sys/fs/f2fs/*/gc_urgent; do [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"; done > "$BASE/gc_urgent" ) &
     # One UI's CPU sets and core control, which init writes only at boot; a guest's
     # performance service can write them (vivo QoS: split screen, VCFA).
-    for f in /dev/cpuset/cpus /dev/cpuset/*/cpus /sys/devices/system/cpu/cpu*/core_ctl/enable; do
+    ( for f in /dev/cpuset/cpus /dev/cpuset/*/cpus /sys/devices/system/cpu/cpu*/core_ctl/enable; do
         [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"
-    done > "$BASE/cpuset"
-    for n in $HOST_NAMES; do p=$(svc_pid "$n"); echo "$n ${p:-none}"; done > "$BASE/svcpid"
-    ls -lZ /dev/watchdog* > "$BASE/watchdog" 2>&1
+    done > "$BASE/cpuset" ) &
+    : > "$BASE/svcpid"
+    for n in $HOST_NAMES; do ( p=$(svc_pid "$n"); echo "$n ${p:-none}" >> "$BASE/svcpid" ) & done
+    ( ls -lZ /dev/watchdog* > "$BASE/watchdog" 2>&1 ) &
     # One UI's linker namespaces (a tmpfs the guest's tree binds), compared at the return.
-    "$BB" find /linkerconfig -type f -exec "$BB" sha256sum {} + > "$BASE/linkerconfig" 2>/dev/null
+    ( "$BB" find /linkerconfig -type f -exec "$BB" sha256sum {} + > "$BASE/linkerconfig" 2>/dev/null ) &
+    wait
     # The kernel log from here on is scanned for I/O errors on these devices.
     m="oneos-baseline $(date +%s)"
     echo "$m" > /dev/kmsg 2>/dev/null && echo "$m" > "$BASE/kmsg"
@@ -455,7 +457,8 @@ for t in tsp tsp1 tsp2; do
     f=$S/data/oneos_dt2w_armed.$t
     [ -f "$f" ] && [ ! -L "$f" ] || continue
     if [ -w /sys/class/sec/$t/enabled ]; then
-        echo 2,0 > /sys/class/sec/$t/enabled; echo 2,1 > /sys/class/sec/$t/enabled
+        # 2,1 is the write that acts; the older drivers answer 2,0 with an error (see the keeper).
+        echo 2,0 > /sys/class/sec/$t/enabled 2>/dev/null; echo 2,1 > /sys/class/sec/$t/enabled
         echo "Touchscreen $t: back from the guest's double-tap low-power mode (enabled=$(cat /sys/class/sec/$t/enabled 2>/dev/null))"
     fi
     rm -f "$f"

@@ -6,6 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class GatesTest {
     private fun stage(
@@ -159,6 +160,77 @@ class GatesTest {
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, changed).level(SwitchGates.ID_INSTALLD))
         assertEquals(Level.BLOCK, eval(GatePhase.SWITCH, good.copy(installd = null)).level(SwitchGates.ID_INSTALLD))
         assertEquals(Level.BLOCK, eval(GatePhase.SWITCH, good.copy(installd = InstalldDerivation.failed("x"))).level(SwitchGates.ID_INSTALLD))
+    }
+
+    /**
+     * 0.4.85: with no system chosen, the phone's own Android version decides. One UI 8.5 phones with
+     * nothing set up read "One UI was updated" before (Android 17's installd table), also the Galaxy A56,
+     * whose systems are all Android 17 (the Android gate counted every image of the build).
+     */
+    @Test
+    fun oneUi85WithNoSystemChosen() {
+        val patches = File(System.getProperty("oneos.installdFixture") ?: "../../../switcher/patches/host_installd.txt").parentFile
+        val a16 = File(patches, "host_installd_a16.txt").readText()
+        val table = InstalldDerivation(InstalldTableFormat.parseLegacy(a16), "/system/framework/services.jar", "classes.dex", null, emptyList(), null)
+        fun bar(model: String, device: String, soc: SocProps) = Fixtures.facts(
+            model = model, device = device, soc = soc, oneUi = "80500", sdk = 36,
+            panels = listOf(Panel(0, "Built-in Screen", 1080, 2340, 400f, 400f)), hinge = false, inputs = listOf("hall", "sec_touchscreen"),
+        ).copy(androidRelease = "16")
+        val empty = StageState(emptyList(), emptyList(), false, null, false)
+        fun on(f: DeviceFacts, stage: StageState = empty) =
+            eval(GatePhase.SWITCH, GateInput(f, false, false, table, stage, expectedInstalldA16 = a16, appVersionCode = 4))
+
+        // Galaxy A15: OxygenOS 16 runs next to One UI 8.5. Nothing is refused; the image gate asks for a system.
+        val a15 = bar("SM-A155F", "a15", SocProps(manufacturer = "Mediatek", model = "MT6789"))
+        val nothing = on(a15)
+        assertEquals(Profiles.A15, nothing.profile)
+        assertNull(nothing.image)
+        assertEquals(Level.OK, nothing.level(SwitchGates.ID_ANDROID))
+        assertEquals(Level.OK, nothing.level(SwitchGates.ID_FORM))
+        assertEquals(Level.OK, nothing.level(SwitchGates.ID_INSTALLD))
+        assertEquals(SwitchGates.R_IMAGE_NOTHING, nothing.find(SwitchGates.ID_IMAGE)!!.finding.reason)
+        // A stage of another file set (after an app update): an Update, with the installd gate passing.
+        val oxygen = Profiles.A15.choices.first { Images.byId(it.imageId)!!.sdk == 36 }
+        val otherSet = on(a15, stage(Profiles.A15, oxygen.imageId, set = "set-of-an-older-build"))
+        assertNull(otherSet.image)
+        assertEquals(Level.OK, otherSet.level(SwitchGates.ID_INSTALLD))
+        assertEquals(SwitchGates.R_IMAGE_OTHER_SET, otherSet.find(SwitchGates.ID_IMAGE)!!.finding.reason)
+        // Staged and matching: the image decides, as before.
+        val staged = on(a15, stage(Profiles.A15, oxygen.imageId))
+        assertEquals(Images.byId(oxygen.imageId), staged.image)
+        assertEquals(listOf(Level.OK, Level.OK, Level.OK), listOf(SwitchGates.ID_ANDROID, SwitchGates.ID_INSTALLD, SwitchGates.ID_IMAGE).map { staged.level(it) })
+        // An Android 17 system staged on One UI 8.5 is still refused, with "choose another system".
+        val a17System = on(a15, stage(Profiles.A15))
+        assertEquals(37, a17System.image!!.sdk)
+        assertEquals(SwitchGates.R_ANDROID_DIFFERS, a17System.find(SwitchGates.ID_ANDROID)!!.finding.reason)
+        assertEquals(FixAction.CHOOSE_SYSTEM, Plain.of(a17System.find(SwitchGates.ID_ANDROID)!!.finding, a17System.image, Profiles.A15).action)
+
+        // Galaxy A56: every system is Android 17. "Update One UI first", and the installd gate has nothing to say.
+        val older = on(bar("SM-A566B", "a56x", SocProps(manufacturer = "Samsung", model = "s5e8855")))
+        assertEquals(Profiles.A56, older.profile)
+        val android = older.find(SwitchGates.ID_ANDROID)!!.finding
+        assertEquals(Level.BLOCK to SwitchGates.R_ANDROID_OLDER, android.level to android.reason)
+        assertTrue(android.detail, android.detail.contains("the systems for the Galaxy A56 are Android 17 (SDK 37)"))
+        assertEquals(Level.OK, older.level(SwitchGates.ID_INSTALLD))
+        val plain = Plain.of(android, null, Profiles.A56, PlainFacts(phoneAndroid = "16"))
+        assertEquals("Update One UI first", plain.title)
+        assertEquals("The systems for your Galaxy A56 need Android 17. Your phone has Android 16: update One UI, then open OneOS again.", plain.line)
+        assertEquals(FixAction.NONE, plain.action)
+        assertEquals("The systems for your Galaxy A56 need Android 17: update One UI, then open OneOS again.", Plain.of(android, null, Profiles.A56).line)
+        // The longest phone name keeps the line within its limit.
+        for (p in Profiles.BUILT_IN) {
+            val line = Plain.of(android, null, p, PlainFacts(phoneAndroid = "16")).line
+            assertTrue("${p.id}: ${line.length}", line.length <= PlainMessage.MAX_LINE)
+        }
+
+        // One UI 9 with nothing set up: Android 17's table, as before.
+        val f8u = eval(GatePhase.SWITCH, input(Bundles.F8U, image = null))
+        assertNull(f8u.image)
+        assertEquals(Level.OK, f8u.level(SwitchGates.ID_ANDROID))
+        assertEquals(Level.OK, f8u.level(SwitchGates.ID_INSTALLD))
+        // A One UI 9 phone whose table is unknown is still "One UI was updated" with nothing set up.
+        val unknown = eval(GatePhase.SWITCH, input(Bundles.F8U, image = null).copy(installd = table))
+        assertEquals(Level.BLOCK, unknown.level(SwitchGates.ID_INSTALLD))
     }
 
     @Test
