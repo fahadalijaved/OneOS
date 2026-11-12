@@ -1,2 +1,7 @@
 # Unified diffs encode empty context lines with a single space.
 switcher/patches/fold8-coloros/systemui.patch whitespace=-blank-at-eol
+
+# Android executes these directly with /system/bin/sh. A Windows checkout
+# must not turn them into CRLF files (mksh treats the carriage return as part
+# of shell keywords and the guest takeover dies before zygote starts).
+*.sh text eol=lf
