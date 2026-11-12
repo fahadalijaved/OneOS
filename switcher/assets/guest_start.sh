@@ -1302,6 +1302,54 @@ if [ -f /data/guest_audio.flag ] && [ "${ONEOS_GUEST_CALL_SIM:-1}" != 0 ]; then
         done' sh "$BB" "${ONEOS_GUEST_CALL_SIM:-1}" "${ONEOS_GUEST_CALL_SIM_VIA:-}" </dev/null >> /data/call_audio.log 2>&1 &
 fi
 
+# The Galaxy A15/A16 4G MediaTek Bluetooth audio HAL closes the whole A2DP
+# session when AudioFlinger closes its short format-probe output.  The real
+# output opens a few milliseconds later, but its port is already DISABLED and
+# every start fails until Bluetooth is restarted.  This is visible as an
+# active A2DP device together with AHAL_BluetoothAudioPort's
+# "state=DISABLED failure".  Restart Bluetooth once, after that exact first-
+# boot failure: the real output is then already present and the replacement
+# session reaches STARTED.  Do not touch other SoCs, deliberate disconnects,
+# or a session which started normally.  ONEOS_GUEST_BT_RECOVER=0 disables it.
+if [ "$(getprop ro.soc.model)" = MT6789 ] && [ "${ONEOS_GUEST_BT_RECOVER:-1}" = 1 ]; then
+    cat > /data/oneos_bt_recover.sh <<'BTRECOVEREOF'
+#!/system/bin/sh
+LOG=/data/oneos_bt_recover.log
+start=$(date +%s)
+echo "=== $(date '+%F %T') MT6789 A2DP first-session recovery" >> "$LOG"
+i=0
+while [ $i -lt 300 ]; do
+    sleep 1
+    bad=$(logcat -d -v epoch -T "$start.000" -s 'AHAL_BluetoothAudioPort:*' '*:S' 2>/dev/null |
+        grep -F 'session_type=A2DP_SOFTWARE_ENCODING_DATAPATH' |
+        grep -F 'state=DISABLED failure' | tail -n 1)
+    if [ -n "$bad" ] && dumpsys bluetooth_manager 2>/dev/null | grep -q '<- ACTIVE'; then
+        echo "$(date +%T) active A2DP session disabled by the probe output; restarting Bluetooth once" >> "$LOG"
+        cmd bluetooth_manager disable >> "$LOG" 2>&1 &&
+            cmd bluetooth_manager wait-for-state:STATE_OFF >> "$LOG" 2>&1 &&
+            cmd bluetooth_manager enable >> "$LOG" 2>&1 &&
+            cmd bluetooth_manager wait-for-state:STATE_ON >> "$LOG" 2>&1
+        rc=$?
+        sleep 3
+        if logcat -d -v epoch -T "$start.000" -s 'AHAL_BluetoothAudioPort:*' '*:S' 2>/dev/null |
+           grep -F 'session_type=A2DP_SOFTWARE_ENCODING_DATAPATH' | grep -q 'state=STARTED'; then
+            echo "$(date +%T) replacement A2DP session STARTED (commands rc=$rc)" >> "$LOG"
+        else
+            echo "$(date +%T) replacement A2DP session not STARTED yet (commands rc=$rc)" >> "$LOG"
+        fi
+        exit 0
+    fi
+    i=$((i + 1))
+done
+echo "$(date +%T) no disabled active A2DP session in 300 s" >> "$LOG"
+BTRECOVEREOF
+    chmod 700 /data/oneos_bt_recover.sh
+    /system/bin/sh /data/oneos_bt_recover.sh < /dev/null > /dev/null 2>&1 &
+    echo "[Pivoted Root] MT6789 A2DP first-session recovery armed (/data/oneos_bt_recover.log)"
+else
+    rm -f /data/oneos_bt_recover.sh
+fi
+
 # ColorOS system daemons that its init would start on demand ("interface aidl"
 # in cotad.rc / defrag.rc). The host's init refuses ctl.interface_start for
 # services it does not know, and oplus-services waits for them.
