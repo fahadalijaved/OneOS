@@ -237,7 +237,7 @@ object PackageSets {
         // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
         // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
         // other global build's (x9u-in-sultra).
-        sourceDir = "out/overlays_n6g_r16",
+        sourceDir = "out/overlays_n6g_r17",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
         files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
@@ -279,7 +279,7 @@ object PackageSets {
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
-        sourceDir = "out/overlays_x9u_in_r71",
+        sourceDir = "out/overlays_x9u_in_r72",
         files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +
@@ -291,9 +291,12 @@ object PackageSets {
             // 0.4.47: the Theme Store without its brand check (the Find N6 global build's APK).
             PackageFile(THEME_STORE_APK, FileRole.GUEST_FIX) +
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
-            PackageFile(ODM_AI, FileRole.GUEST_FIX),
+            PackageFile(ODM_AI, FileRole.GUEST_FIX) +
+            // 0.4.97 (r72): the image's SystemUI with wallpaper AOD without OPPO's display-panel HAL
+            // (scripts/make-coloros-panoramic-aod.py; bound by guest_prepare.sh).
+            PackageFile("ColorPanoramicSystemUI.apk", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
-        approxBytes = 634_332_311L,
+        approxBytes = 634_332_311L + 116_537_002L,
         hasReturnApp = true,
     )
 

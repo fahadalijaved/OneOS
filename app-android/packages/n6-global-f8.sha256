@@ -1,7 +1,8 @@
 # OneOS package set n6-global-f8 (pull request #37): the Z Fold8's Find N6 global set, n6-f8u's files (0.4.59: out/overlays_n6g_r14, see n6-f8u.sha256) plus GlobalVerifiedAddons.tar, an empty addon archive (one empty overlays.list) that a patch channel can replace.
 # app/build.gradle.kts packs exactly these files from out/fold8-global-current (a hard-link copy of out/overlays_n6g_r14 plus the archive).
 ccf2fbddc462eca6d7cb7f112ca1b36620fe0ccd044ff6ba28bebe13cfe6b89e  Fold8AngleRelay.dex
-eca1dc6208f9ece70cc2fe663fdd7c91f50a5d2ee17523ec9a4ee1c4cb4af3cf  Fold8SystemUI.apk
+# 0.4.97: Fold8SystemUI.apk of n6-f8u r17 (wallpaper AOD without OPPO's display-panel HAL)
+9b5e00001061eb1b1eea2002a9b926c6a5bb579caa5b9686bfc7d9c8fc27d116  Fold8SystemUI.apk
 a8c0a1b43c12ea7b79801a8cba88d5705629bc20530ddb4bf5605de66fdf21b3  GlobalVerifiedAddons.tar
 2eddd38f878e61fa41d18151f5f90be5f18b5b3e161ac559ce191b9022e18c7b  KeKeThemeSpace_patched.apk
 bd03c424877de86c2864313ba3371d3725b3d5531559373aadc84d592f9cae0c  OneOSGuest.apk

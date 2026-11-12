@@ -54,11 +54,11 @@ gradle.taskGraph.whenReady {
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "n6-global-f8" to (File(repoRoot, "out/fold8-global-current") to listOf("tethering_payload.img", "OneOSFoldCutout.apk", "OneOSTabletQs.apk")),
     // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
-    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r16") to listOf("tethering_payload.img")),
+    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r17") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r71") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r72") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r17") to listOf("tethering_payload.img")),
@@ -492,8 +492,14 @@ android {
         // launch) left the boot screen on "Shutting down One UI" for good, the reason only in the log (a
         // Galaxy S23 on 0.4.95, twice: One UI's property space nearly full). Root's launch answer now waits
         // for that verdict (switch_verdict in oneos_root.sh) and passes a refusal on. Not tried on a phone yet.
-        versionCode = 125
-        versionName = "0.4.96"
+        // 0.4.97 (126), not published yet: Bluetooth sound in the guest on Samsung-HAL Snapdragon phones (the
+        // audio HAL registered Qualcomm's provider over oneos_btaudio and every playback start failed with -38,
+        // Galaxy S23 ColorOS; the bridge now takes the name back), and wallpaper AOD in ColorOS on the Z Folds
+        // (Find N6 set r17: SystemUI takes the display-panel half as given; fold8_coloros.sh adds the
+        // panoramic AOD app feature; works on the Fold8 Ultra) and on the bar phones (x9u-in r72,
+        // ColorPanoramicSystemUI.apk, guest_prepare.sh). Bluetooth and the bar phones not tried yet.
+        versionCode = 126
+        versionName = "0.4.97"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

@@ -2638,6 +2638,49 @@ if [ -f "$FEAT" ]; then
             else
                 ADDED="$ADDED $AODF"
                 echo "ColorOS Always-On Display: on ($HAOD; $AODAPP)"
+                # Wallpaper AOD (ColorOS "panoramic AOD", 0.4.97; the Find N6 build has it in
+                # fold8_coloros.sh). SystemUI offers it only with the app feature
+                # com.oplus.systemui.panoramic_aod.enable and a panel that says so through
+                # OPPO's display-panel HAL, which a Galaxy lacks; the set's
+                # ColorPanoramicSystemUI.apk takes the panel half as given (One UI shows the
+                # wallpaper on AOD on these panels), and oneos_panoramic_aod.sh adds the
+                # feature once the guest runs (the UI activator starts it). The feature's
+                # value is "boolean:true"; the content tool needs its colon escaped.
+                # ONEOS_GUEST_PANORAMIC_AOD=0 leaves both out.
+                PSUI="$STAGE/ColorPanoramicSystemUI.apk"
+                PAPK="$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk"
+                rm -f "$STAGE/data/oneos_panoramic_aod.sh"
+                if [ "${ONEOS_GUEST_PANORAMIC_AOD:-1}" != 1 ]; then
+                    echo "ColorOS wallpaper AOD: left out (ONEOS_GUEST_PANORAMIC_AOD=${ONEOS_GUEST_PANORAMIC_AOD:-})"
+                elif [ ! -f "$PSUI" ] || [ -L "$PSUI" ] || [ ! -f "$PAPK" ] || [ -L "$PAPK" ]; then
+                    echo "ColorOS wallpaper AOD: not in this set"
+                else
+                    chmod 644 "$PSUI"
+                    $BB chcon u:object_r:system_file:s0 "$PSUI" 2>/dev/null || true
+                    $BB umount -l "$PAPK" 2>/dev/null || true
+                    $BB mount --bind "$PSUI" "$PAPK" &&
+                        $BB mount -o remount,bind,ro "$PSUI" "$PAPK" 2>/dev/null
+                    if [ "$(stat -c %d:%i "$PAPK" 2>/dev/null)" = "$(stat -c %d:%i "$PSUI")" ]; then
+                        cat > "$STAGE/data/oneos_panoramic_aod.sh" <<'PANO'
+uri=content://com.oplus.customize.coreapp.configmanager.configprovider.AppFeatureProvider/app_feature
+f=com.oplus.systemui.panoramic_aod.enable
+if ! content query --uri "$uri" --where "featurename=\"$f\"" 2>/dev/null | grep -q 'parameters=boolean:true'; then
+    content delete --uri "$uri" --where "featurename=\"$f\"" 2>/dev/null
+    content insert --uri "$uri" --bind "featurename:s:$f" --bind 'parameters:s:boolean\:true' || exit 1
+    p=$(pidof com.android.systemui)
+    [ -z "$p" ] || kill -TERM $p
+    echo "wallpaper AOD feature added; SystemUI restarted"
+else
+    echo "wallpaper AOD feature present"
+fi
+PANO
+                        chmod 644 "$STAGE/data/oneos_panoramic_aod.sh"
+                        $BB chcon u:object_r:system_data_file:s0 "$STAGE/data/oneos_panoramic_aod.sh" 2>/dev/null || true
+                        echo "ColorOS wallpaper AOD: on (Bound ColorPanoramicSystemUI.apk -> $PAPK)"
+                    else
+                        echo "!!! WARNING: ColorPanoramicSystemUI.apk is not in place; no wallpaper AOD"
+                    fi
+                fi
             fi ;;
         esac
     fi

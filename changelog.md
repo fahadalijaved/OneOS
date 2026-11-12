@@ -50,6 +50,18 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.97: **Bluetooth sound in the guest on the Snapdragon Galaxies** and **wallpaper AOD in ColorOS**.
+- On the Galaxy S23, S24, S25 and the Z Folds, Bluetooth headphones connected in the guest but every sound stayed
+  on the phone's speaker (a Galaxy S23 on ColorOS). Samsung's audio service put Qualcomm's own Bluetooth audio
+  entry over OneOS's bridge a minute into the session, and Samsung's audio path never plays through that one.
+  The bridge now takes its place back.
+- ColorOS (the Find N6 system on the Z Folds, the Find X9 Ultra system on the other phones) can now show the
+  wallpaper on the always-on display. ColorOS only offered it when OPPO's own display hardware said so; One UI
+  already shows the wallpaper on AOD on these screens. Choose it in ColorOS's always-on display settings.
+- Wallpaper AOD was tried on the Z Fold8 Ultra and works; on the other phones it was not tried yet. The
+  Bluetooth fix was not tried on a phone yet. If either does not work, please send a report. **Tap Update on
+  the system's page** to get both.
+
 New in 0.4.96: **a switch that could not start no longer stays on "Shutting down One UI"**, and **Restart
 guest that ended in One UI on slower phones** (root for the guest).
 - Right before it changes anything, the switch checks the phone once more and can still refuse to start. The

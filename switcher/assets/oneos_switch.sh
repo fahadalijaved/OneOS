@@ -1703,8 +1703,11 @@ fi
 # its Bluetooth module ("BtAudioAIDLService: Could not register ...
 # IBluetoothAudioProviderFactory/default, status=-3", S24 Ultra ColorOS
 # sessions): with the declaration that now succeeds and replaces the bridge's
-# registration, which is as good (the Fold8 Ultra has exactly that); the return
-# restarts the audio HAL after taking the declaration back. Only when Samsung's
+# registration. That is NOT as good: the audio HAL's own Bluetooth path waits
+# for Samsung's sessions, so playback on Qualcomm's provider fails with -38 and
+# the sound stays on the speaker (Galaxy S23 ColorOS, report c49cdbce). The
+# bridge therefore takes the name back whenever another process holds it; the
+# return restarts the audio HAL after taking the declaration back. Only when Samsung's
 # factory is registered and Android's is not; ONEOS_GUEST_BT_AUDIO_BRIDGE=0
 # leaves it all alone.
 rm -f "$STAGE/bt_bridge_vintf"
@@ -3293,6 +3296,12 @@ while true; do
             # Galaxy Z Fold8, Find N6 set: AOD, widgets, taskbar and the hinge relay in the guest.
             if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q coloros17-findn6 \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_fold8/runtime.sh\" ]; then
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_fold8/runtime.sh runtime >\"$STAGE/fold8_runtime.log\" 2>&1 || echo '[UI Activator] Fold8 runtime setup failed; see fold8_runtime.log'
+            fi
+
+            # ColorOS wallpaper AOD on the bar phones (0.4.97): guest_prepare.sh wrote this script only where
+            # the set's ColorPanoramicSystemUI.apk is bound; it adds the app feature and restarts SystemUI once.
+            if [ -f \"$STAGE/data/oneos_panoramic_aod.sh\" ]; then
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_panoramic_aod.sh >\"$STAGE/panoramic_aod.log\" 2>&1 || echo '[UI Activator] Wallpaper AOD setup failed; see panoramic_aod.log'
             fi
 
             # Pixel Fold8 / Fold8 Ultra: start the system-UID sensor reader in the guest namespace

@@ -632,6 +632,28 @@ int main(int argc, char** argv) {
         return 1;
     }
     logf("serving %s for Samsung's factory (declared: %d)", kAospFactoryName, P.isDeclared(kAospFactoryName) ? 1 : 0);
-    P.joinPool();
+    // Keep the name. Samsung's audio HAL also carries Qualcomm's provider for
+    // Android's factory and registers it under the same name once the guest's
+    // Bluetooth opens (it can, now that the session declares the name). That
+    // replaces this bridge, and the guest's stack then opens its A2DP sessions
+    // on Qualcomm's provider, which the audio HAL's own Bluetooth path (PAL)
+    // never listens to: it waits for Samsung's sessions, so every playback start
+    // fails with -38 and the sound stays on the speaker (Galaxy S23 on ColorOS,
+    // report c49cdbce: "Registered AIDL 1.0 service ... status=0" 52 s after
+    // this bridge, then "Rx device start failed with status -38"). So check the
+    // name once a second and take it back whenever someone else holds it.
+    int taken = 0;
+    while (true) {
+        sleep(1);
+        AIBinder* cur = P.checkService(kAospFactoryName);
+        bool ours = cur && !AIBinder_isRemote(cur);
+        if (cur) AIBinder_decStrong(cur);
+        if (ours) continue;
+        ex = P.addService(factory, kAospFactoryName);
+        taken++;
+        if (taken <= 5 || taken % 100 == 0)
+            logf("%s was %s; registered again (%d): exception %d", kAospFactoryName,
+                 cur ? "another process's" : "gone", taken, ex);
+    }
     return 0;
 }

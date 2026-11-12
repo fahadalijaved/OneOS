@@ -488,6 +488,19 @@ runtime)
         content insert --uri "$uri" --bind featurename:s:com.android.launcher.TASKBAR_ENABLE --bind parameters:s:
         reload=1
     fi
+    # Wallpaper AOD (ColorOS "panoramic AOD", 0.4.97): SystemUI offers it only with this
+    # app feature (AodFeatureOption.isPanoramicAODFeatureEnable) and a panel that says
+    # so through OPPO's display-panel HAL, which a Galaxy lacks; the set's SystemUI
+    # takes the panel half as given (One UI shows the wallpaper on AOD on these panels).
+    # ONEOS_GUEST_PANORAMIC_AOD=0 leaves it out.
+    if [ "${ONEOS_GUEST_PANORAMIC_AOD:-1}" = 1 ] && ! content query --uri "$uri" --where 'featurename="com.oplus.systemui.panoramic_aod.enable"' 2>/dev/null | grep -q 'parameters=boolean:true'; then
+        # AppFeatureProviderUtils.getBoolean reads "boolean:<value>" from the parameters. The
+        # content tool splits a binding at unescaped colons ("Binding not well formed" on the
+        # Fold8 Ultra, 0.4.97 first try), so the value's colon is escaped.
+        content delete --uri "$uri" --where 'featurename="com.oplus.systemui.panoramic_aod.enable"' 2>/dev/null
+        content insert --uri "$uri" --bind featurename:s:com.oplus.systemui.panoramic_aod.enable --bind 'parameters:s:boolean\:true'
+        reload=1
+    fi
     # The Find N6 global build's launcher is an export launcher. Pull request #1
     # marked it CN_VERSION for the CN build; on the global one that made
     # FeatureOption.isExp false, and with it Circle to Search on the taskbar
