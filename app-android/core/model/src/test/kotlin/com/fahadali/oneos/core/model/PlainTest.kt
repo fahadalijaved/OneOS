@@ -203,6 +203,23 @@ class PlainTest {
         assertEquals(FixAction.OPEN_OLD_SWITCHER_INFO, r("the old switcher (com.wewaffles.onelineage) is installed: uninstall it").action)
         assertEquals(FixAction.RESTORE, r("the last session never returned: restore One UI's settings first (Last session)").action)
         assertEquals(FixAction.UPDATE, r("prepared by app build 8, this is build 9: prepare again").action)
+        // The started switch's own refusal, passed on by root since 0.4.96.
+        val full = "One UI's property space is nearly full (4 KB left in u:object_r:system_prop:s0): the sessions since the phone last " +
+            "restarted used it up. Restart the phone, then switch again"
+        assertEquals("Restart your phone first", r(full).title)
+        assertTrue(r(full).line, "ran out of room" in r(full).line)
+        check(r(full), Images.FIND_N6, full)
+        assertTrue("still running" in r("a session of this stage is still running").line)
+        val thermal = "One UI's thermal HAL is not running (thermal service: HAL Ready: false) and a root module that turns thermal " +
+            "control off is on: some_module. The other system's framework would wait for that HAL and stop after a minute, and One " +
+            "UI's own after the return too. Turn the module off in your root manager, restart the phone, then switch again"
+        assertEquals("Turn off the thermal module first", r(thermal).title)
+        assertTrue(r(thermal).line, "Turn it off" in r(thermal).line)
+        check(r(thermal), Images.FIND_N6, thermal)
+        val mounted = "mounted under the stage (/data/local/tmp/oneos/root ): a session is running or never returned; return to One UI (reboot) first"
+        assertEquals("Restart your phone first", r(mounted).title)
+        assertEquals(FixAction.NONE, r(mounted).action)
+        assertEquals(FixAction.RESTORE, r("the last session never returned: restore One UI's settings first (Last session)").action)
         val other = r("pm does not answer")
         assertEquals("Couldn't switch", other.title)
         assertEquals(FixAction.SEND_REPORT, other.action)

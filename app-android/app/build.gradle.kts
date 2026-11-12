@@ -484,8 +484,16 @@ android {
         // The Pixel sets, Infinity-X and OxygenOS 16 stay without it (their frameworks have another shape; the
         // patcher leaves them as they are). Two phones from findings of 2026-11-11, untested: the Galaxy M35 5G
         // (SM-M356, the A35 5G's systems) and the Galaxy A15 5G with MediaTek (SM-A156, OxygenOS 16 only).
-        versionCode = 124
-        versionName = "0.4.95"
+        // 0.4.96 (125), not published yet: Restart guest (root for the guest) on slower phones. The scan for the
+        // guest's processes in guest_softreboot.sh took 50 s a pass on a Galaxy A34 and ran into the watcher's
+        // 120 s limit, so the phone went back to One UI (a report on 0.4.93). One listing a pass now; the look
+        // at a single process still decides every kill. Not tried on a phone yet.
+        // Also in 125: a switch refused by its own check (oneos_switch.sh, which runs after root answered the
+        // launch) left the boot screen on "Shutting down One UI" for good, the reason only in the log (a
+        // Galaxy S23 on 0.4.95, twice: One UI's property space nearly full). Root's launch answer now waits
+        // for that verdict (switch_verdict in oneos_root.sh) and passes a refusal on. Not tried on a phone yet.
+        versionCode = 125
+        versionName = "0.4.96"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

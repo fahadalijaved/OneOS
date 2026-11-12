@@ -50,6 +50,22 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.96: **a switch that could not start no longer stays on "Shutting down One UI"**, and **Restart
+guest that ended in One UI on slower phones** (root for the guest).
+- Right before it changes anything, the switch checks the phone once more and can still refuse to start. The
+  app did not hear about that: its screen stayed on "Shutting down One UI" while One UI kept running, and the
+  reason was only in the log (a Galaxy S23 on 0.4.95, twice: after several switches without a restart One UI
+  had run out of room for settings). Now the app waits for that check and shows the reason. For this one it
+  says "Restart your phone first".
+- With root for the guest on, Restart guest (the step that applies a module change) stops the guest's processes
+  and starts the system again. Finding the guest's processes took about 50 seconds a round on a Galaxy A34, the
+  restart ran into its two-minute limit, and the phone went back to One UI instead, twice in a row (a report on
+  0.4.93). Now each round reads all processes in one go and looks closely only at those that can be the guest's;
+  what gets stopped is decided exactly as before.
+- Neither fix was tried on a phone yet: if a switch still stays on "Shutting down One UI", or Restart guest
+  still ends in One UI, send a report.
+- **Tap Update on each system's page** to get both.
+
 New in 0.4.95: **a screen lock of the guest's own** (a PIN, a pattern or a password) in ColorOS, HyperOS, Nothing OS
 and OriginOS, and two more phones: the **Galaxy M35 5G** and the **Galaxy A15 5G with MediaTek**.
 - Until now a guest system refused every screen lock: it shares the phone's lock hardware with One UI, and a lock

@@ -6413,22 +6413,44 @@ if [ -f "$S/boot_status.sh" ]; then
     oneos_boot_hold_display 'Restarting guest'
 fi
 echo "$(date +%T) soft reboot ($1): stopping the guest's processes"
+# Two spawned commands for every process in every pass took 50 s a pass on a
+# Galaxy A34 and ran the restart into the watcher's limit (0.4.93). So each
+# pass starts with one listing (one ls over every process's namespace link, one
+# stat over every root; the same two things the look below reads): a process it
+# shows outside the guest's namespace and off the guest's root is passed over,
+# every other one is looked at by itself as before, and only that look decides
+# a kill. No listing, or a process missing from it, means that look and nothing
+# else; a process the look found not to be the guest's is not looked at again
+# in a later pass.
+not_guest_awk='
+    NF >= 3 && $(NF - 1) == "->" && $NF ~ /^mnt:\[[0-9]+\]$/ && $(NF - 2) ~ /\/[0-9]+\/ns\/mnt$/ {
+        p = $(NF - 2); sub(/\/ns\/mnt$/, "", p); sub(/^.*\//, "", p); n[p] = $NF; next }
+    NF == 2 && $1 ~ /^[0-9]+$/ && $2 ~ /\/[0-9]+\/root$/ {
+        p = $2; sub(/\/root$/, "", p); sub(/^.*\//, "", p); r[p] = $1; next }
+    END { for (p in n) if ((n[p] "") != (ns "") && (dev == "" || ((p in r) && (r[p] "") != (dev "")))) printf "%s ", p }'
+host=" "
 pass=1
 while [ $pass -le 5 ]; do
-    killed=""
+    killed=0; looked=0; total=0; left=""
+    other=" $( { timeout 10 ls -l /proc/[0-9]*/ns/mnt; timeout 10 stat -L -c '%d %n' /proc/[0-9]*/root; } 2>/dev/null |
+        $BB awk -v ns="$GUEST_NS" -v dev="$GUEST_DEV" "$not_guest_awk") "
     for p in /proc/[0-9]*; do
-        if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
-            [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || continue
-        fi
         pid=${p#/proc/}
-        killed="$killed $pid:$(cat "$p/comm" 2>/dev/null)"
+        total=$((total + 1))
+        case "$other$host" in *" $pid "*) continue ;; esac
+        looked=$((looked + 1))
+        if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
+            [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || { host="$host$pid "; continue; }
+        fi
+        killed=$((killed + 1))
+        [ $pass = 5 ] && left="$left $pid:$(cat "$p/comm" 2>/dev/null)"
         kill -9 "$pid" 2>/dev/null
     done
-    [ $pass = 1 ] && echo "$(date +%T) soft reboot: killed$(echo "$killed" | wc -w | sed 's/^/ /') guest processes"
-    [ -n "$killed" ] || break
+    [ $pass = 1 ] && echo "$(date +%T) soft reboot: killed $killed guest processes (looked at $looked of $total)"
+    [ $killed -gt 0 ] || break
     pass=$((pass + 1)); sleep 0.3
 done
-[ $pass -le 5 ] || { echo "soft reboot: guest processes still running after 5 passes"; exit 1; }
+[ $pass -le 5 ] || { echo "soft reboot: guest processes still running after 5 passes:$left"; exit 1; }
 # The zygote sockets were bound onto themselves in init's namespace (the
 # switch's protect_zygote_sockets): off, so guest_start.sh can make new ones.
 for s in zygote usap_pool_primary; do

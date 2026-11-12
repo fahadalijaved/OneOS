@@ -1185,6 +1185,25 @@ find_tools() {
     done
 }
 
+# What the switch started by this launch ($1: its session id) said in its own
+# check before it changes anything (oneos_switch.sh's preflight), read from the
+# log $2: "passed", "refused <its reason>", or nothing when neither line came
+# within $3 seconds. The one place where this script waits (its one sleep).
+switch_verdict() {
+    sv_left=$3
+    while true; do
+        sv=$(awk -v sid="$1" '
+            index($0, "=== OneOS app launch " sid " ") == 1 { on = 1; v = ""; next }
+            on && v == "" && index($0, "PREFLIGHT REFUSED: ") == 1 { v = "refused " substr($0, 20) }
+            on && v == "" && index($0, "Preflight passed") == 1 { v = "passed" }
+            END { print v }' "$2" 2>/dev/null)
+        [ -z "$sv" ] || { printf '%s\n' "$sv"; return 0; }
+        [ "$sv_left" -gt 0 ] || return 1
+        sv_left=$((sv_left - 1))
+        sleep 1
+    done
+}
+
 do_launch() {
     [ $# -eq 7 ] || [ $# -eq 8 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot]"
     mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0}
@@ -1296,6 +1315,18 @@ do_launch() {
     "$BB" nsenter -t 1 -m -- "$BB" setsid /system/bin/sh -c \
         'set -a; . "$1/session.env"; set +a; exec /system/bin/sh "$1/oneos_switch.sh"' oneos-session "$STAGE" \
         </dev/null >>"$STAGE/takeover_app.log" 2>&1 &
+    # The switch checks once more by itself before it changes anything and can
+    # still refuse there, with its reason only in takeover_app.log. Up to 0.4.95
+    # the launch was answered before that: a refusal left the app's screen on
+    # "Shutting down One UI" for good (a Galaxy S23 whose property space was
+    # nearly full, twice, a report on 0.4.95). So the answer waits for that
+    # verdict. The step line tells the app that a session was started (it keeps
+    # the launch for Last session); no verdict in time is answered as before.
+    step "switch started"
+    verdict=$(switch_verdict "$sid" "$STAGE/takeover_app.log" 90)
+    case "$verdict" in
+        "refused "*) refuse "${verdict#refused }" ;;
+    esac
     say "@@OK launch $sid"
 }
 

@@ -37,6 +37,16 @@ class StageAuditTest {
     }
 
     @Test
+    fun theLaunchWaitIsTheScriptsOnlySleep() {
+        val wait = "        sleep 1\n    done\n}\n\ndo_launch() {\n"
+        assertEquals("the wait is not where the test expects it", 1, script.split(wait).size - 1)
+        assertEquals(1, Regex("""(?m)^\s*sleep\b""").findAll(script).count())
+        assertTrue(StageAudit.audit(script.replace(wait, wait.replace("sleep 1", "sleep 600"))).any { "sleep 600" in it })
+        // The same words in another function do not pass.
+        assertTrue(StageAudit.audit(script.replace(wait, wait + "    sleep 1\n")).any { it.endsWith("sleep 1") })
+    }
+
+    @Test
     fun launcherPassesTheAudit() {
         val p = StageAudit.auditLauncher(launcher)
         assertTrue("launcher problems:\n${p.joinToString("\n")}", p.isEmpty())
