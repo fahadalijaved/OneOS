@@ -501,8 +501,10 @@ android {
         // 0.4.98 (127), not published yet: AOD and wallpaper AOD in ColorOS on the Z Fold7, Fold6 and Fold5 (Find N6
         // r18: their own ColorPanoramicSystemUI.apk; they had no AOD at all, report 3ef946ef) and AOD brightness
         // without OPPO's display HAL on the bar phones (x9u-in r73). Not tried on a phone yet.
-        versionCode = 127
-        versionName = "0.4.98"
+        // 0.4.99 (128), not published yet: the Bluetooth bridge registers again every second. 0.4.97's check never
+        // saw Qualcomm's provider take the name over (S23 reports on 0.4.97: still no Bluetooth sound). Not tried yet.
+        versionCode = 128
+        versionName = "0.4.99"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

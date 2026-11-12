@@ -50,6 +50,11 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.99: **Bluetooth sound on the Snapdragon Galaxies, second try**.
+- 0.4.97's fix did not work: Galaxy S23 reports on 0.4.97 still had no sound in Bluetooth headphones. The bridge
+  was meant to notice when Samsung's audio service took its place and take it back, but it never noticed. Now
+  it simply takes its place again every second. Not tried on a phone yet. **Tap Update on the system's page**.
+
 New in 0.4.98: **always-on display in ColorOS on the Z Fold7, Fold6 and Fold5**, and **AOD brightness in
 ColorOS on the other phones**.
 - ColorOS on the older Folds (the Find N6 system) had no always-on display at all: only the Z Fold8s had it.

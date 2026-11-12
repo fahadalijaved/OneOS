@@ -640,20 +640,21 @@ int main(int argc, char** argv) {
     // never listens to: it waits for Samsung's sessions, so every playback start
     // fails with -38 and the sound stays on the speaker (Galaxy S23 on ColorOS,
     // report c49cdbce: "Registered AIDL 1.0 service ... status=0" 52 s after
-    // this bridge, then "Rx device start failed with status -38"). So check the
-    // name once a second and take it back whenever someone else holds it.
-    int taken = 0;
+    // this bridge, then "Rx device start failed with status -38"). 0.4.97 checked the name
+    // once a second and re-registered when another process held it, but that never fired
+    // (report dcb7e310, S23 on 0.4.97: the takeover 45 s in, no re-registration logged):
+    // most likely this process's service lookups are answered from libbinder's own cache,
+    // which still holds our binder (not proven on a phone). So register again every second without asking: servicemanager takes
+    // the same binder again as a no-op, and after a takeover the name is ours within a
+    // second. A log line every 10 minutes shows the bridge is alive.
+    int rounds = 0, last = EX_NONE;
     while (true) {
         sleep(1);
-        AIBinder* cur = P.checkService(kAospFactoryName);
-        bool ours = cur && !AIBinder_isRemote(cur);
-        if (cur) AIBinder_decStrong(cur);
-        if (ours) continue;
         ex = P.addService(factory, kAospFactoryName);
-        taken++;
-        if (taken <= 5 || taken % 100 == 0)
-            logf("%s was %s; registered again (%d): exception %d", kAospFactoryName,
-                 cur ? "another process's" : "gone", taken, ex);
+        rounds++;
+        if (ex != last || rounds % 600 == 0)
+            logf("%s registered again (round %d): exception %d", kAospFactoryName, rounds, ex);
+        last = ex;
     }
     return 0;
 }
