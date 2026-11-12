@@ -280,6 +280,9 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_weaver.py" "$W
 # Nor removes templates from the phone's fingerprint and face sensors, where
 # One UI's enrolments live (patches/guest_no_biometric_cleanup.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_biometric_cleanup.py" "$WORK/services")"
+# Samsung exposes its fingerprint sensor through AIDL, while some ColorOS and
+# Infinity-X frameworks select the absent HIDL adapter from a vendor flag.
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_force_aidl_fingerprint.py" "$WORK/services")"
 # The phone's gatekeeper (screen lock), FRP partition and apexd stay One UI's;
 # guest apps get app ids from 15000 (no keystore namespace shared with One UI's
 # apps) and the guest makes no users or profiles (their per-user keys share
