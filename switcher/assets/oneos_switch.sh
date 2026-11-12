@@ -2022,6 +2022,18 @@ case "${ONEOS_GUEST_DENSITY:-auto}" in
     [1-9][0-9][0-9]) [ "$ONEOS_GUEST_DENSITY" -ge 120 ] && [ "$ONEOS_GUEST_DENSITY" -le 640 ] && GUEST_DENSITY=$ONEOS_GUEST_DENSITY ;;
 esac
 [ "$GUEST_DENSITY" = "${ONEOS_GUEST_DENSITY:-auto}" ] || echo "ONEOS_GUEST_DENSITY=$ONEOS_GUEST_DENSITY is not off, auto or 120-640: auto"
+# The UI activator used to force 120 Hz on every phone.  On a 90 Hz panel that
+# creates an impossible [120, 120] DisplayModeDirector vote and Android falls
+# back to 60 Hz.  Read the highest physical mode (up to OneOS's 120 Hz policy)
+# from the One UI dump captured before the switch.  Keep 120 as the conservative
+# fallback for old stages or an incomplete dump.
+GUEST_REFRESH=120.0
+R=$(awk -F'fps=' '{ for (i = 2; i <= NF; i++) { v = $i + 0; if (v >= 30 && v <= 120 && v > m) m = v } }
+    END { if (m) printf "%.1f", m }' "$STAGE/display_host.txt" 2>/dev/null)
+case "$R" in
+    30.0|[3-9][0-9].0|1[01][0-9].0|120.0) GUEST_REFRESH=$R ;;
+esac
+echo "Guest refresh-rate policy: ${GUEST_REFRESH} Hz (One UI physical modes)"
 # ONEOS_GUEST_POSTURE=live: the fold line's posture follows the guest's hinge
 # state instead of always flat.
 # Live by default with the hinge sets of pull request #1 (Fold8) and the Fold8 Ultra's.
@@ -2100,8 +2112,8 @@ while true; do
                 echo \"[UI Activator] screen timeout: was stay_on_while_plugged_in=\${SOP:-?} screen_off_timeout=\${SOT:-?}; the forced values reset once (0, 60000)\"
             fi
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system haptic_feedback_enabled 1
-            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate 120.0
-            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 120.0
+            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate $GUEST_REFRESH
+            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate $GUEST_REFRESH
             # ColorOS's touch idle (OTI) pushes SurfaceFlinger to 240/60 Hz over the
             # 120 Hz policy on this panel (run 29); also staged off by guest_prepare.sh.
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys oplus_vrr_service oti false >/dev/null 2>&1 && echo '[UI Activator] refresh rate: ColorOS touch idle off'
