@@ -3378,15 +3378,29 @@ while true; do
         fi
     fi
 done
-# This boot's pass is done: wait for a soft reboot of the guest, or end with
-# the session (the return's first step, or its namespace record gone).
+# This boot's pass is done: wait for a soft reboot of the guest, or for its
+# system_server to be replaced without one. The latter happens after a guest
+# framework crash/watchdog restart: softreboot.gen does not change, but helpers
+# tied to the old PID (notably edmnativehelper) exit. Without checking the PID
+# here the activator waits forever and every later camera open loses five
+# seconds to the missing Knox service.
 while [ \"\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null)\" = \"\$GEN\" ]; do
     sleep 2
     [ -f $STAGE/data/oneos_rec_stop ] && exit 0
     [ -f $STAGE/guest_mntns ] || exit 0
+    NPID=\$(pidof system_server | awk '{print \$1}')
+    if [ -n \"\$NPID\" ] && [ \"\$NPID\" != \"\$PID\" ]; then
+        echo \"[UI Activator] guest system_server changed \$PID -> \$NPID without a soft-reboot generation; starting another pass\"
+        break
+    fi
 done
-GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=\$((PASS + 1))
-echo \"[UI Activator] soft reboot of the guest (generation \$GEN): pass \$PASS, waiting for its new boot\"
+NGEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=\$((PASS + 1))
+if [ \"\$NGEN\" != \"\$GEN\" ]; then
+    GEN=\$NGEN
+    echo \"[UI Activator] soft reboot of the guest (generation \$GEN): pass \$PASS, waiting for its new boot\"
+else
+    echo \"[UI Activator] guest framework restart: pass \$PASS, waiting for its new boot\"
+fi
 done
 " </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
