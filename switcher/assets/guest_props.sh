@@ -601,38 +601,60 @@ add)
     # Qualcomm layout past their end: "bqr data length is invalid" 8,544 times
     # in the second session, then GWP-ASan's "0 bytes right of a 48-byte
     # allocation" or a plain SEGV, the process restarts, the headset
-    # reconnects, and so on. The stack has its own switch for Android's
-    # original behaviour, persist.sys.oplus.bt.use_origin
-    # (is_oplus_bt_use_origin in libbluetooth_jni.so, OplusUtils.USE_ORIGIN in
-    # the Bluetooth app; both only read it). With it CategorizeBqrEvent takes
-    # Android's parser, which reads the 48 bytes and tests the length before
-    # every longer layout, and ConfigureBqr takes Android's path (its fatal
-    # checks do not fire: the mask stays below 0x80080000, the action below 3).
-    # The switch is broad: the library asks it at 425 places (codecs, AVRCP,
-    # HCI, L2CAP), and nobody has run a session with it. So it is on only
-    # where the crash is proven, ro.soc.model MT6789 (A16 4G, A15 4G, A07);
-    # the A34 (MT6877) reports ColorOS's Bluetooth working without it, and the
-    # Exynos phones' 56-byte events crash nothing. In memory for the session
-    # (remove deletes it). ONEOS_GUEST_BT_ORIGIN=1 sets it on any phone, =0 on none.
+    # reconnects, and so on.
+    #
+    # 0.4.96 used persist.sys.oplus.bt.use_origin=true as the guard. That flag
+    # is read in 425 places, not just BQR. On the Galaxy A15 (Infinity-X,
+    # MT6789) it also changes the A2DP session lifecycle: the first temporary
+    # stream is stopped while AudioFlinger reopens it with the negotiated
+    # format, and the replacement stays DISABLED forever. A live comparison
+    # on the same connection changed only use_origin to false and restarted
+    # Bluetooth: the replacement session reached STARTED and audio played.
+    #
+    # Disable the dangerous reports themselves instead. Android's BQR client
+    # honors persist.bluetooth.bqr.event_mask=0: the A15 controller confirmed
+    # ConfigureBqr mask 0 after the restart, with no reports or Bluetooth
+    # process restart while A2DP played. Keep OPPO's normal path explicitly on
+    # these phones in case the image defines use_origin=true. Both properties
+    # are in memory for the session and are restored/removed on return.
+    # ONEOS_GUEST_BT_ORIGIN=1 remains an explicit diagnostic override on any
+    # ColorOS guest; any other explicit value leaves non-MT6789 phones alone.
     BTO=persist.sys.oplus.bt.use_origin
+    BTQ=persist.bluetooth.bqr.event_mask
     if [ "$GUEST_OPLUS" = 1 ]; then
         soc=$(getprop ro.soc.model)
         case "${ONEOS_GUEST_BT_ORIGIN:-auto}:$soc" in
-            1:*) why="ONEOS_GUEST_BT_ORIGIN=1" ;;
-            auto:MT6789*) why="$soc: OPPO's quality report parser reads past this controller's 48-byte events" ;;
-            *) why="" ;;
+            1:*) bt_origin=true; bt_q=""; why="ONEOS_GUEST_BT_ORIGIN=1" ;;
+            auto:MT6789*|0:MT6789*)
+                bt_origin=false; bt_q=0
+                why="$soc: disable incompatible Bluetooth quality reports without changing A2DP"
+                ;;
+            *) bt_origin=""; bt_q=""; why="" ;;
         esac
-        if [ -n "$why" ]; then
+        if [ -n "$bt_origin" ]; then
             if grep -qxF "$BTO" "$HOST"; then
                 hv=$(getprop "$BTO")
-                if [ "$hv" != true ] && "$RP" -n "$BTO" true 2>/dev/null; then
+                if [ "$hv" != "$bt_origin" ] && "$RP" -n "$BTO" "$bt_origin" 2>/dev/null; then
                     echo "$BTO=$hv" >> "$OVR"
-                    echo "guest_props: $BTO=$hv overridden to true for the session ($why)"
+                    echo "guest_props: $BTO=$hv overridden to $bt_origin for the session ($why)"
                 fi
             else
                 sed -i "/^persist\.sys\.oplus\.bt\.use_origin=/d" "$NEW"
-                echo "$BTO=true" >> "$NEW"
-                echo "guest_props: $BTO=true for the session ($why)"
+                echo "$BTO=$bt_origin" >> "$NEW"
+                echo "guest_props: $BTO=$bt_origin for the session ($why)"
+            fi
+        fi
+        if [ -n "$bt_q" ]; then
+            if grep -qxF "$BTQ" "$HOST"; then
+                hv=$(getprop "$BTQ")
+                if [ "$hv" != "$bt_q" ] && "$RP" -n "$BTQ" "$bt_q" 2>/dev/null; then
+                    echo "$BTQ=$hv" >> "$OVR"
+                    echo "guest_props: $BTQ=$hv overridden to $bt_q for the session ($why)"
+                fi
+            else
+                sed -i "/^persist\.bluetooth\.bqr\.event_mask=/d" "$NEW"
+                echo "$BTQ=$bt_q" >> "$NEW"
+                echo "guest_props: $BTQ=$bt_q for the session ($why)"
             fi
         fi
     fi
