@@ -3810,13 +3810,25 @@ bio=0
 for f in settings_fingerprint_0.xml settings_face.xml face_enrolled_position_0.xml; do
     out=$f
     [ "$f" = settings_fingerprint_0.xml ] && out=settings_fingerprint.xml
-    if [ -f "/data/system/users/0/$f" ]; then
-        cp -f "/data/system/users/0/$f" "$BIO_DST/$out" &&
+    src="/data/system/users/0/$f"
+    tmp="$BIO_DST/.$out.oneos-new"
+    rm -f "$tmp"
+    if [ -f "$src" ]; then
+        cp -f "$src" "$tmp"
+    else
+        # DFRoot/KernelSU can deliberately give uid 0 no DAC capabilities.
+        # One UI's users/0 is system:system 0700, so read this one metadata
+        # file with its owning group. No credential or gatekeeper file is read.
+        su -g 1000 -G 1000 -c "cat '$src' > '$tmp'" 2>/dev/null || rm -f "$tmp"
+    fi
+    if [ -s "$tmp" ]; then
+        mv -f "$tmp" "$BIO_DST/$out" &&
             chown 1000:1000 "$BIO_DST/$out" 2>/dev/null &&
             chmod 644 "$BIO_DST/$out" 2>/dev/null &&
             $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$out" 2>/dev/null
         bio=$((bio + 1))
     else
+        rm -f "$tmp"
         rm -f "$BIO_DST/$out"
     fi
 done

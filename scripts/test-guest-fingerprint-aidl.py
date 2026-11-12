@@ -41,6 +41,7 @@ class GuestFingerprintTest(unittest.TestCase):
         self.assertIn("$STAGE/data/vendor_de/0/fpdata", PREPARE)
         self.assertIn("settings_fingerprint_0.xml settings_face.xml", PREPARE)
         self.assertIn("out=settings_fingerprint.xml", PREPARE)
+        self.assertIn('su -g 1000 -G 1000 -c "cat \'$src\' > \'$tmp\'"', PREPARE)
         self.assertNotIn("gatekeeper.password.key\" \"$BIO_DST", PREPARE)
 
     def test_guest_declares_biometric_features(self):
