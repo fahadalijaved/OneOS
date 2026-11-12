@@ -2604,8 +2604,10 @@ if [ -f "$FEAT" ]; then
     # UI (its floating feature, or the panel's low-power node; an LCD phone has
     # neither) and the image has OPPO's AOD app. The Find N6 build keeps its rules
     # above. ONEOS_GUEST_AOD=0 leaves it out.
+    # 0.4.98: also the Find N6 build on the Folds without the Fold8 rules (Fold7, Fold6, Fold5: no AOD in
+    # their Settings, report 3ef946ef); the Z Fold8 and Fold8 Ultra already have it in ADDED from above.
     AODF=oplus.software.display.aod_support
-    if ! grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" 2>/dev/null; then
+    if true; then
         case " $ADDED " in *" $AODF "*) ;; *)
             HAOD=""
             if grep -q '<SEC_FLOATING_FEATURE_FRAMEWORK_CONFIG_AOD_ITEM>[^<]' /system/etc/floating_feature.xml 2>/dev/null; then

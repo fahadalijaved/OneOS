@@ -11,7 +11,8 @@ check, the app feature com.oplus.systemui.panoramic_aod.enable, is added in the 
 (guest_prepare.sh, oneos_panoramic_aod.sh). The Find N6 build has the same change as a pinned
 hunk (patches/fold8-coloros/systemui-global.patch).
 
-Only the dex holding the class is rebuilt; every other entry and the signer block are kept as
+Only the dex files holding the two classes are rebuilt (DozeService: AOD brightness without the
+HAL, as the Find N6 hunk does); every other entry and the signer block are kept as
 they are (as make-fold8-coloros.py does: a root-only system overlay, not an installable APK).
 
 usage: make-coloros-panoramic-aod.py ORIGINAL_SystemUI.apk OUTPUT.apk
@@ -29,6 +30,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 CLASS = b'Lcom/oplus/systemui/aod/display/SmoothTransitionController;'
+DOZE = b'Lcom/android/systemui/doze/DozeService;'
 FIELD = 'Lcom/oplus/systemui/aod/display/SmoothTransitionController;->isSupportPanoramicByPanelFeature:Z'
 ERROR = '"initSmoothTransitionState get feature error"'
 
@@ -84,12 +86,40 @@ def patch_smali(text):
     return text[:m.start(1)] + body2 + text[m.end(1):]
 
 
-def repack(original, dex_name, dex_bytes, output, zipalign):
+def patch_doze(text):
+    """AOD brightness without OPPO's display HAL (the Find N6 hunk in systemui-global.patch, by pattern).
+
+    OPPO programs AOD brightness through its display HAL, which a Galaxy lacks: on doze states
+    (3 DOZE, 4 DOZE_SUSPEND) set Android's normalized 0.12, and where OPPO leaves the brightness
+    unset (NaN) in DozeService's brightness lambda use 0.12 too.
+    """
+    if 'oneos_doze_brightness' in text:
+        return text
+    m = re.search(r'^(\.method public setDozeScreenState\(I\)V\n    \.locals (\d+)\n)', text, re.M)
+    if not m or int(m.group(2)) < 1:
+        raise ValueError('DozeService.setDozeScreenState not as expected')
+    block = ('\n    # OneOS: OPPO programs AOD brightness through its display HAL; a Galaxy has none\n'
+             '    const/4 v0, 0x3\n    if-eq p1, v0, :oneos_doze_brightness\n'
+             '    const/4 v0, 0x4\n    if-ne p1, v0, :oneos_stock_state\n'
+             '    :oneos_doze_brightness\n    const v0, 0x3df5c28f    # 0.12f\n'
+             '    invoke-super {p0, v0}, Landroid/service/dreams/DreamService;->setDozeScreenBrightness(F)V\n'
+             '    :oneos_stock_state\n')
+    text = text[:m.end(1)] + block + text[m.end(1):]
+    lam = list(re.finditer(r'^(\.method public static \$r8\$lambda\$[^\n]*\(Lcom/android/systemui/doze/DozeService;F\)V\n    \.locals (\d+)\n)', text, re.M))
+    if len(lam) != 1 or int(lam[0].group(2)) < 1:
+        raise ValueError(f'DozeService brightness lambda: {len(lam)} found')
+    nan = ('\n    invoke-static {p1}, Ljava/lang/Float;->isNaN(F)Z\n    move-result v0\n'
+           '    if-eqz v0, :oneos_supplied_brightness\n    const p1, 0x3df5c28f    # 0.12f\n'
+           '    :oneos_supplied_brightness\n')
+    return text[:lam[0].end(1)] + nan + text[lam[0].end(1):]
+
+
+def repack(original, new_dex, output, zipalign):
     rawzip, aligned = output.with_suffix('.zip'), output.with_suffix('.aligned')
     with original.open('rb') as raw, zipfile.ZipFile(original) as src, zipfile.ZipFile(rawzip, 'w') as dst:
         for info in src.infolist():
-            if info.filename == dex_name:
-                dst.writestr(zipfile.ZipInfo(info.filename, info.date_time), dex_bytes, compress_type=zipfile.ZIP_STORED)
+            if info.filename in new_dex:
+                dst.writestr(zipfile.ZipInfo(info.filename, info.date_time), new_dex[info.filename], compress_type=zipfile.ZIP_STORED)
                 continue
             raw.seek(info.header_offset)
             header = raw.read(30)
@@ -123,7 +153,7 @@ def repack(original, dex_name, dex_bytes, output, zipalign):
         assert src.namelist() == dst.namelist()
         assert dst.testzip() is None
         for n in src.namelist():
-            if n != dex_name:
+            if n not in new_dex:
                 assert src.read(n) == dst.read(n), n
 
 
@@ -132,27 +162,35 @@ def main():
     sdk = Path(os.environ.get('ANDROID_HOME', '/opt/android-sdk'))
     bt = sdk / 'build-tools' / os.environ.get('ONEOS_BUILD_TOOLS', '37.0.0')
     apktool = os.environ.get('APKTOOL', str(ROOT / 'mysticgsi/tools/apktool/apktool.jar'))
+    jobs = ((CLASS, 'com/oplus/systemui/aod/display/SmoothTransitionController.smali', patch_smali),
+            (DOZE, 'com/android/systemui/doze/DozeService.smali', patch_doze))
     with zipfile.ZipFile(original) as z:
-        names = [n for n in z.namelist() if re.fullmatch(r'classes\d*\.dex', n) and CLASS in z.read(n) and defines(z.read(n), CLASS)]
-    if len(names) != 1:
-        raise ValueError(f'SmoothTransitionController in {len(names)} dex files')
-    dex_name = names[0]
+        dexes = [n for n in z.namelist() if re.fullmatch(r'classes\d*\.dex', n)]
+        where = {}
+        for cls, rel, fn in jobs:
+            names = [n for n in dexes if cls in z.read(n) and defines(z.read(n), cls)]
+            if len(names) != 1:
+                raise ValueError(f'{cls.decode()} defined in {len(names)} dex files')
+            where.setdefault(names[0], []).append((rel, fn))
+    new_dex = {}
     with tempfile.TemporaryDirectory(dir=output.parent, prefix='.panoramic-') as tmp:
-        w = Path(tmp)
-        one = w / 'one.apk'
-        with zipfile.ZipFile(original) as src, zipfile.ZipFile(one, 'w') as dst:
-            dst.writestr('classes.dex', src.read(dex_name))
-            for n in ('AndroidManifest.xml', 'resources.arsc'):
-                if n in src.namelist():
-                    dst.writestr(src.getinfo(n), src.read(n))
-        run('java', '-jar', apktool, 'd', '-f', '-r', '-o', w / 'd', one)
-        smali = w / 'd/smali/com/oplus/systemui/aod/display/SmoothTransitionController.smali'
-        smali.write_text(patch_smali(smali.read_text()))
-        run('java', '-jar', apktool, 'b', '-q', '-o', w / 'rebuilt.apk', w / 'd')
-        with zipfile.ZipFile(w / 'rebuilt.apk') as z:
-            dex_bytes = z.read('classes.dex')
-        repack(original, dex_name, dex_bytes, output, bt / 'zipalign')
-    print(f'{output}: {dex_name} rebuilt')
+        for k, (dex_name, edits) in enumerate(sorted(where.items())):
+            w = Path(tmp) / str(k); w.mkdir()
+            one = w / 'one.apk'
+            with zipfile.ZipFile(original) as src, zipfile.ZipFile(one, 'w') as dst:
+                dst.writestr('classes.dex', src.read(dex_name))
+                for n in ('AndroidManifest.xml', 'resources.arsc'):
+                    if n in src.namelist():
+                        dst.writestr(src.getinfo(n), src.read(n))
+            run('java', '-jar', apktool, 'd', '-f', '-r', '-o', w / 'd', one)
+            for rel, fn in edits:
+                smali = w / 'd/smali' / rel
+                smali.write_text(fn(smali.read_text()))
+            run('java', '-jar', apktool, 'b', '-q', '-o', w / 'rebuilt.apk', w / 'd')
+            with zipfile.ZipFile(w / 'rebuilt.apk') as z:
+                new_dex[dex_name] = z.read('classes.dex')
+        repack(original, new_dex, output, bt / 'zipalign')
+    print(f'{output}: {" ".join(sorted(new_dex))} rebuilt')
 
 
 if __name__ == '__main__':

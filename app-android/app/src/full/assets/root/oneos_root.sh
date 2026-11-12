@@ -532,8 +532,8 @@ image_raw() {
 
 set_files() {
     case "$1" in
-        n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar" ;;
-        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar" ;;
+        n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar ColorPanoramicSystemUI.apk" ;;
+        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
         x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;

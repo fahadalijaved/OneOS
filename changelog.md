@@ -50,6 +50,15 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.4.98: **always-on display in ColorOS on the Z Fold7, Fold6 and Fold5**, and **AOD brightness in
+ColorOS on the other phones**.
+- ColorOS on the older Folds (the Find N6 system) had no always-on display at all: only the Z Fold8s had it.
+  Now the Fold7, Fold6 and Fold5 get it too, with the wallpaper AOD style from 0.4.97 (report on a Z Fold7).
+- ColorOS sets the always-on display's brightness through OPPO's own display hardware, which a Galaxy
+  lacks. The Z Fold8s had a fix for that; the other phones on ColorOS (the Find X9 Ultra system) get it now.
+- Not tried on those phones yet: if the AOD stays black or missing, please send a report. **Tap Update on the
+  system's page** to get it.
+
 New in 0.4.97: **Bluetooth sound in the guest on the Snapdragon Galaxies** and **wallpaper AOD in ColorOS**.
 - On the Galaxy S23, S24, S25 and the Z Folds, Bluetooth headphones connected in the guest but every sound stayed
   on the phone's speaker (a Galaxy S23 on ColorOS). Samsung's audio service put Qualcomm's own Bluetooth audio

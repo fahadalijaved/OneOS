@@ -237,7 +237,7 @@ object PackageSets {
         // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
         // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
         // other global build's (x9u-in-sultra).
-        sourceDir = "out/overlays_n6g_r17",
+        sourceDir = "out/overlays_n6g_r18",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
         files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
@@ -250,6 +250,9 @@ object PackageSets {
             // 0.4.38: pull request #1's Fold8 SystemUI and hinge-angle relay, re-applied to the global
             // build (scripts/make-fold8-coloros.py --into); used on the Z Fold8 and Z Fold8 Ultra only.
             PackageFile("Fold8SystemUI.apk", FileRole.GUEST_FIX) + PackageFile("Fold8AngleRelay.dex", FileRole.GUEST_FIX) +
+            // 0.4.98 (r18): the Folds without the Fold8 rules (Fold7, Fold6, Fold5) get AOD and wallpaper AOD
+            // through this SystemUI (guest_prepare.sh binds it; the Fold8s keep Fold8SystemUI.apk).
+            PackageFile("ColorPanoramicSystemUI.apk", FileRole.GUEST_FIX) +
             // 0.4.47: the image's Theme Store without its brand check (DeviceChecker refused the Galaxy's brand).
             PackageFile(THEME_STORE_APK, FileRole.GUEST_FIX) +
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
@@ -279,7 +282,7 @@ object PackageSets {
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
-        sourceDir = "out/overlays_x9u_in_r72",
+        sourceDir = "out/overlays_x9u_in_r73",
         files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +

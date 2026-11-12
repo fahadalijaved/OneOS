@@ -38,12 +38,12 @@ class PackageSetsTest {
 
     @Test
     fun setsAsData() {
-        assertEquals(34, n6.files.size) // 0.4.63: + oplus_odm_ai.tar; 0.4.47: + KeKeThemeSpace_patched.apk; 0.4.37: + framework_patched.jar, libcamera_client_patched.so, samcam.tar; 0.4.38 (global): + cellbroadcast, Fold8SystemUI.apk, Fold8AngleRelay.dex; 0.4.39: + telephony-common_patched.jar
+        assertEquals(35, n6.files.size) // 0.4.98: + ColorPanoramicSystemUI.apk; 0.4.63: + oplus_odm_ai.tar; 0.4.47: + KeKeThemeSpace_patched.apk; 0.4.37: + framework_patched.jar, libcamera_client_patched.so, samcam.tar; 0.4.38 (global): + cellbroadcast, Fold8SystemUI.apk, Fold8AngleRelay.dex; 0.4.39: + telephony-common_patched.jar
         assertEquals(43, pixel.files.size) // 0.4.59: OneOSFoldCutout.apk, yogi-services_patched.jar, libbootanimation_preapex_patched.so, OneOSPixelLauncher.apk, OneOSPixelDoze.apk; 0.4.24: framework_patched.jar (One UI's camera transaction codes); 0.4.45: telephony-common_patched.jar; 0.4.47: libcamera_client_patched.so, samcam.tar
         assertEquals(Images.ID_FIND_N6, n6.imageId)
         assertEquals(Images.ID_PIXEL_YOGI, pixel.imageId)
-        assertEquals("out/overlays_n6g_r17", n6.sourceDir)
-        assertEquals("out/overlays_x9u_in_r72", xin.sourceDir)
+        assertEquals("out/overlays_n6g_r18", n6.sourceDir)
+        assertEquals("out/overlays_x9u_in_r73", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
         assertEquals("out/overlays_pixel_f8u_r17", pixel.sourceDir)
         assertEquals(
@@ -182,8 +182,8 @@ class PackageSetsTest {
         }
         // The IN build's set (0.4.11; 0.4.51 the only Find X9 Ultra build): the Find N6 set's files but the
         // fold's (the wallpaper grid, the Fold8 SystemUI and its hinge relay), with its own guest vold as gvld.
-        // 0.4.97 (r72): plus its own wallpaper AOD SystemUI (the Find N6 set has it in Fold8SystemUI.apk).
-        assertEquals((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex" + "ColorPanoramicSystemUI.apk").toSet(), xin.names.toSet())
+        // 0.4.97 (r72) / 0.4.98: both carry their own ColorPanoramicSystemUI.apk.
+        assertEquals((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex").toSet(), xin.names.toSet())
         // 0.4.47: the global builds' Theme Store without its brand check, the same file in both sets.
         assertEquals(ShaList.parse(shas(n6)).entries[PackageSets.THEME_STORE_APK], ShaList.parse(shas(xin)).entries[PackageSets.THEME_STORE_APK])
         assertEquals(FileRole.GUEST_FIX, n6.file(PackageSets.THEME_STORE_APK)?.role)
