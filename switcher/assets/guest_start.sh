@@ -1307,10 +1307,10 @@ fi
 # output opens a few milliseconds later, but its port is already DISABLED and
 # every start fails until Bluetooth is restarted.  This is visible as an
 # active A2DP device together with AHAL_BluetoothAudioPort's
-# "state=DISABLED failure".  Restart Bluetooth once, after that exact first-
-# boot failure: the real output is then already present and the replacement
-# session reaches STARTED.  Do not touch other SoCs, deliberate disconnects,
-# or a session which started normally.  ONEOS_GUEST_BT_RECOVER=0 disables it.
+# "state=DISABLED failure".  Restart Bluetooth after that exact first-boot
+# failure and retry once if the replacement session is also consumed by the
+# probe.  Do not touch other SoCs, deliberate disconnects, or a session which
+# started normally.  ONEOS_GUEST_BT_RECOVER=0 disables it.
 if [ "$(getprop ro.soc.model)" = MT6789 ] && [ "${ONEOS_GUEST_BT_RECOVER:-1}" = 1 ]; then
     cat > /data/oneos_bt_recover.sh <<'BTRECOVEREOF'
 #!/system/bin/sh
@@ -1324,19 +1324,30 @@ while [ $i -lt 300 ]; do
         grep -F 'session_type=A2DP_SOFTWARE_ENCODING_DATAPATH' |
         grep -F 'state=DISABLED failure' | tail -n 1)
     if [ -n "$bad" ] && dumpsys bluetooth_manager 2>/dev/null | grep -q '<- ACTIVE'; then
-        echo "$(date +%T) active A2DP session disabled by the probe output; restarting Bluetooth once" >> "$LOG"
-        cmd bluetooth_manager disable >> "$LOG" 2>&1 &&
-            cmd bluetooth_manager wait-for-state:STATE_OFF >> "$LOG" 2>&1 &&
-            cmd bluetooth_manager enable >> "$LOG" 2>&1 &&
-            cmd bluetooth_manager wait-for-state:STATE_ON >> "$LOG" 2>&1
-        rc=$?
-        sleep 3
-        if logcat -d -v epoch -T "$start.000" -s 'AHAL_BluetoothAudioPort:*' '*:S' 2>/dev/null |
-           grep -F 'session_type=A2DP_SOFTWARE_ENCODING_DATAPATH' | grep -q 'state=STARTED'; then
-            echo "$(date +%T) replacement A2DP session STARTED (commands rc=$rc)" >> "$LOG"
-        else
-            echo "$(date +%T) replacement A2DP session not STARTED yet (commands rc=$rc)" >> "$LOG"
-        fi
+        echo "$(date +%T) active A2DP session disabled by the probe output" >> "$LOG"
+        attempt=1
+        while [ $attempt -le 2 ]; do
+            attempt_start=$(date +%s)
+            echo "$(date +%T) Bluetooth recovery attempt $attempt/2" >> "$LOG"
+            cmd bluetooth_manager disable >> "$LOG" 2>&1 &&
+                cmd bluetooth_manager wait-for-state:STATE_OFF >> "$LOG" 2>&1 &&
+                cmd bluetooth_manager enable >> "$LOG" 2>&1 &&
+                cmd bluetooth_manager wait-for-state:STATE_ON >> "$LOG" 2>&1
+            rc=$?
+            waited=0
+            while [ $waited -lt 12 ]; do
+                sleep 1
+                if logcat -d -v epoch -T "$attempt_start.000" -s 'AHAL_BluetoothAudioPort:*' '*:S' 2>/dev/null |
+                   grep -F 'session_type=A2DP_SOFTWARE_ENCODING_DATAPATH' | grep -q 'state=STARTED'; then
+                    echo "$(date +%T) replacement A2DP session STARTED on attempt $attempt (commands rc=$rc)" >> "$LOG"
+                    exit 0
+                fi
+                waited=$((waited + 1))
+            done
+            echo "$(date +%T) replacement A2DP session not STARTED after attempt $attempt (commands rc=$rc)" >> "$LOG"
+            attempt=$((attempt + 1))
+        done
+        echo "$(date +%T) A2DP recovery exhausted after 2 attempts" >> "$LOG"
         exit 0
     fi
     i=$((i + 1))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The MT6789 A2DP recovery is narrowly armed and restarts Bluetooth once."""
+"""The MT6789 A2DP recovery is narrowly armed and has a bounded retry."""
 
 from pathlib import Path
 import re
@@ -27,15 +27,18 @@ class Mt6789BluetoothRecoveryTest(unittest.TestCase):
         self.assertIn("dumpsys bluetooth_manager 2>/dev/null | grep -q '<- ACTIVE'", body)
         self.assertNotIn('factoryReset', body)
 
-    def test_it_restarts_once_then_exits_and_records_the_result(self):
+    def test_it_retries_at_most_once_and_records_the_result(self):
         body = START.split("<<'BTRECOVEREOF'\n", 1)[1].split("\nBTRECOVEREOF", 1)[0]
         actions = re.findall(r'cmd bluetooth_manager ([^ >]+)', body)
         self.assertEqual(
             ['disable', 'wait-for-state:STATE_OFF', 'enable', 'wait-for-state:STATE_ON'],
             actions,
         )
-        self.assertEqual(1, body.count('exit 0'))
-        self.assertIn('replacement A2DP session STARTED', body)
+        self.assertEqual(2, body.count('exit 0'))
+        self.assertIn('while [ $attempt -le 2 ]', body)
+        self.assertIn('while [ $waited -lt 12 ]', body)
+        self.assertIn('replacement A2DP session STARTED on attempt $attempt', body)
+        self.assertIn('A2DP recovery exhausted after 2 attempts', body)
         self.assertIn('while [ $i -lt 300 ]', body)
 
 
