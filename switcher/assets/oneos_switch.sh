@@ -2971,6 +2971,15 @@ while true; do
                            # clock's digits). Only over the 8dp the static RRO
                            # gives (24 px), both sides alike. AOSP SystemUI only.
                            PAD=\$(awk -v r=\"\$HRC\" -v h=\"\${HSBG:-0}\" -v k=\"\$SBK\" 'BEGIN { if (split(k, a, \" \") == 2) r = r * a[1] / a[2]; y = h / 3; p = 0; if (y < r) p = r - sqrt(r * r - (r - y) * (r - y)); printf \"%d\", p + 0.5 }')
+                           # The Galaxy A15's physical top corners clip the AOSP
+                           # privacy chip at the calculated 40 px inset. The
+                           # device-tested 56 px inset clears both corners; a
+                           # small top inset moves the chip down from the bezel.
+                           if [ \"${ONEOS_PROFILE:-}\" = a15 ] && [ $GUEST_AOSP_SYSUI = 1 ]; then
+                               PAD=56
+                               r=\$(gdim OneOSStatusBarTop com.android.systemui com.android.systemui:dimen/status_bar_padding_top=16)
+                               case \"\$r\" in registered*) OVS=\"\$OVS OneOSStatusBarTop\" ;; *) DIMS=\"\$DIMS top padding 16 px: \$r;\" ;; esac
+                           fi
                            if [ $GUEST_AOSP_SYSUI = 1 ] && [ \"\${PAD:-0}\" -gt 24 ]; then
                                r=\$(gdim OneOSCornerPadding com.android.systemui com.android.systemui:dimen/rounded_corner_content_padding=\$PAD com.android.systemui:dimen/ongoing_appops_dot_min_padding=\$PAD)
                                case \"\$r\" in registered*) OVS=\"\$OVS OneOSCornerPadding\" ;; *) DIMS=\"\$DIMS padding \$PAD px: \$r;\" ;; esac
@@ -2988,7 +2997,7 @@ while true; do
                     case \$o in
                         OneOSCornerRadius) [ -n \"\$CRAD\" ] && continue
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
-                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerPadding)
+                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSStatusBarTop|OneOSCornerPadding)
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
                     esac
                 done
