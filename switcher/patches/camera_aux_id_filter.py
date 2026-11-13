@@ -9,11 +9,14 @@ camera 23, while the real rear torch is camera 0. Infinity-X also allowlists
 SystemUI for auxiliary cameras, so its flashlight controller sees 23 and saves
 it instead of 0, then ignores torch callbacks for 0.
 
-For SystemUI, force the existing auxiliary-camera policy off. Walk the complete
-status map and, when that policy is off, keep the public IDs 0 and 1. Other
-applications retain the image's original allowlist policy, and the existing
-status and device-policy checks still run unchanged. Refuse unless the known
-method shape matches exactly.
+For every caller, force the existing auxiliary-camera policy off. Walk the
+complete status map and, when that policy is off, keep the public IDs 0 and 1.
+This is what One UI does to regular applications anyway: with the image's
+original allowlist policy the whole status map leaks through in announcement
+order, and a third-party app then takes the first entry — a wide or auxiliary
+camera — as its default back camera (Telegram on the Galaxy A15 opened the
+wide lens instead of camera 0). The existing status and device-policy checks
+still run unchanged. Refuse unless the known method shape matches exactly.
 
 Usage: camera_aux_id_filter.py <apktool decoded framework.jar dir>
 Prints the one smali directory changed.
@@ -86,15 +89,9 @@ def patch(root):
     policy = (
         r"\1v7"
         "\n\n"
-        "    # OneOS: SystemUI's torch must use the public camera ID.\n"
-        "    invoke-static {}, Landroid/app/ActivityThread;->currentOpPackageName()Ljava/lang/String;\n\n"
-        "    move-result-object v8\n\n"
-        "    const-string v9, \"com.android.systemui\"\n\n"
-        "    invoke-virtual {v9, v8}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z\n\n"
-        "    move-result v8\n\n"
-        "    if-eqz v8, :oneos_camera_aux_policy\n\n"
+        "    # OneOS: every caller gets the public camera IDs; aux cameras stay\n"
+        "    # hidden from third-party apps exactly like One UI's own policy.\n"
         "    const/4 v7, 0x0\n\n"
-        "    :oneos_camera_aux_policy"
         r"\2\3\4"
     )
     body, count = limit.subn(policy, body)
