@@ -1031,6 +1031,11 @@ if [ -f /data/guest_audio.flag ]; then
     n=0
     while [ $n -lt 50 ] && ! service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found"; do n=$((n + 1)); sleep 0.2; done
     echo "[Pivoted Root] audio HAL IModule/default:$(service check android.hardware.audio.core.IModule/default 2>/dev/null | cut -d: -f2) after $((n / 5))s"
+    # The record above ran while the full launch's own HAL restart (oneos_switch.sh)
+    # may not have registered the module yet; record the pid now that it is up, so
+    # the next guest restart can tell a surviving HAL from a fresh one.
+    hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1 | tr -dc 0-9)
+    if [ -n "$hpid" ]; then echo "$hpid" > /data/oneos_audio_hal.pid; fi
     # A2DP offload (run 44): Samsung's QTI HAL turns its Bluetooth offload path
     # on only from the vendor parameter l_a2dp_format (bit 21 of the number,
     # Platform+8), which One UI's audioserver sends and a GSI's never does: every
