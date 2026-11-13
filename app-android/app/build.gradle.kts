@@ -505,7 +505,9 @@ android {
         // without OPPO's display HAL on the bar phones (x9u-in r73). Not tried on a phone yet.
         // 0.4.99 (128), not published yet: the Bluetooth bridge registers again every second. 0.4.97's check never
         // saw Qualcomm's provider take the name over (S23 reports on 0.4.97: still no Bluetooth sound). Not tried yet.
-        // 0.5.02 (131): the newer Find X9 Ultra IN build (coloros17-findx9u-in-1105, CPH2841IN security patch
+        // 0.5.03 (132): session snapshots record which process owns a libtimer.so / POSIX timer thread
+        // (Galaxy S24 family kernel panics in free_pipe_info, 10 reports).
+        // 0.5.02 (131, published 11-13): the newer Find X9 Ultra IN build (coloros17-findx9u-in-1105, CPH2841IN security patch
         // 2026-11-01) offered after the older one on every phone that has it, untested; set x9u-in-1105-sultra.
         // 0.5.01 (130, published 11-13): framework_patched.jar of 11 sets with patches/guest_secims_ready.py:
         // Samsung IMS hears that telephony is ready for a call's callbacks once telephony attaches to the session,
@@ -513,8 +515,8 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 131
-        versionName = "0.5.02"
+        versionCode = 132
+        versionName = "0.5.03"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's
