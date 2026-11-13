@@ -134,6 +134,20 @@ BUILDS = [
         "service.incremental.so": "c964e27681a3632a7f83acb1698acffa572b3ece773690bc64444dff7bfaf7a7",
         "crashrecovery-aosp.capex": "1c4fa1a8417b233765db1621f3911b66de230049c39b248f116c3d18a8920ca6",
     }, [("vold", 0xe163, NAME), ("vold", 0x64d8c, TRY_START), ("service.incremental.so", 0x646c0, NAME)]),
+    # LineageOS 24.0 (OnePlus 15 infiniti nightly 2026-11-11, CP2A.260605.016),
+    # built from source: start() takes "vold" at 0xdf7c (adrp 0xd000 + add 0xf7c at
+    # 0x650bc, then String16 and a new VoldNativeService; the binary's only
+    # "\0vold\0", the other references are log tags), try_start's tbz w19, #0,
+    # +0xd4 is at 0x64aa4 right after the isDeclared() call through the service
+    # manager, and service.incremental.so has the string at 0x64481 with its two
+    # lookups (adr at 0xbc51c, adrp + add at 0xbea7c). Its compressed crashrecovery
+    # APEX (com.android.crashrecovery.capex) has AOSP's RescueParty.isDisabled
+    # (persist.sys.disable_rescue, persist.sys.enable_rescue).
+    ("LineageOS 24.0 CP2A.260605.016 (infiniti)", {
+        "vold": "36191041f9c1bd3e853ed08091dc0bd742f7e1aa0e3a8044a267c18a0f714306",
+        "service.incremental.so": "308015cd20592c7bce245a816fb13e045336ef659c326b3107a3bc86c40328ff",
+        "crashrecovery-aosp.capex": "cc082be9ba96bcf361c11f7e6d6f23cf2e2abff7f118c855c0f0590e6fdee6b6",
+    }, [("vold", 0xdf7b, NAME), ("vold", 0x64aa4, TRY_START), ("service.incremental.so", 0x64480, NAME)]),
     # HyperOS OS4.0 (Xiaomi lhasa, 2026-10): start() takes "vold" at 0xf3fd
     # (adrp 0xf000 + add 0x3fd at 0x6e8f4, the binary's only "\0vold\0"),
     # try_start's tbz w19, #0, +0xd4 is at 0x6e2d4, and service.incremental.so

@@ -39,6 +39,10 @@ class AboutFragment : PreferenceFragmentCompat() {
             openInBrowser(getString(R.string.about_credit_infinityx_url))
             true
         }
+        findPreference<Preference>("credit_lineageos")?.setOnPreferenceClickListener {
+            openInBrowser(getString(R.string.about_credit_lineageos_url))
+            true
+        }
     }
 
     /** Hands the link to the browser (the app's only network use is Send to the OneOS team). */

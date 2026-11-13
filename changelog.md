@@ -50,6 +50,17 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.06: **LineageOS 24**, a new system, on every phone that offers Infinity-X (the S, Z Fold, Z Flip
+and A phones). Experimental, not tried on a phone yet.
+- The official LineageOS 24 (Android 17, November 2026 security patch) from the OnePlus 15, with LineageOS's own
+  apps. Its own system: its guest data is kept apart from every other system's.
+- LineageOS has no Google apps of its own. A session adds One UI's own Play services, Play Store and Google Services
+  Framework (the files on your phone, never their data), so you can sign in and use the Play Store. Some banking and
+  payment apps may still refuse: OneOS does not fake the device's certification. The launch screen can start it
+  without Google, as for ColorOS.
+- The switch to OneOS that refused because of an app's kernel tool (0.5.04) now says what to do: uninstall that app.
+  Restarting the phone does not help, because the app starts its tool again.
+
 New in 0.5.05: **outgoing calls in ColorOS on US carriers** (Spectrum and others), on the Z Folds and slab phones.
 - ColorOS let incoming calls and texts through but dialled every outgoing call the old way (GSM), which LTE-only
   carriers such as Spectrum do not have: the carrier's settings asked for VoLTE "provisioning", and Samsung's IMS

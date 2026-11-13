@@ -9,7 +9,7 @@ import java.util.Locale
  * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
  * packages too, and its updater, com.infinity.updater, tells it apart.
  */
-enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS }
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS, LINEAGE }
 
 /**
  * One OneOS OS image as friends download it (a gzip of the ext4 system
@@ -131,6 +131,8 @@ object Images {
     const val ID_NOTHING_METROID = "nothingos5-metroid"
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
     const val ID_ORIGINOS7 = "originos7-pd2609ma"
+    /** Starts with "lineage": switcher/assets/boot_status.sh names the boot splash from it. */
+    const val ID_LINEAGE = "lineage24-infiniti"
 
     /** Where root stages the unpacked image. */
     const val STAGE_NAME = "system.raw"
@@ -497,7 +499,39 @@ object Images {
         family = SystemFamily.ORIGINOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7)
+    /**
+     * LineageOS 24 (0.5.06, experimental): LineageOS's Android 17 (SDK 37) nightly of 2026-11-11 for the OnePlus 15
+     * (infiniti; security patch 2026-11-01), built from source and prepared with MysticGSI. The image has no Google
+     * apps: a session with Google services takes One UI's Play services, Play Store and Services Framework as
+     * overlays on the guest's product partition (guest_google.sh, set id "lineage"). Its data has LineageOS's
+     * packages (org.lineageos.), which other families' data has too. Untested. googleServices is true, as for the
+     * ColorOS images whose Google apps also come from One UI: a launch may hide them (root IMAGES_GMS; guest_google.sh
+     * then adds nothing). presentsGms stays false: no gmssystem payload in the set.
+     */
+    val LINEAGE24 = ImageRef(
+        id = ID_LINEAGE,
+        label = "LineageOS 24, OnePlus 15 build",
+        shortName = "OnePlus 15",
+        name = "LineageOS 24",
+        variant = null,
+        blurb = "LineageOS 24 (Android 17) from the OnePlus 15. Experimental. Google apps come from One UI.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_LineageOS24_OnePlus15.img.gz",
+        gzBytes = 1_076_352_597L,
+        gzSha256 = "20fdf29d8dae4579b28608b7d94b6355cc720964994a4c130d34bb6568354c33",
+        rawBytes = 2_327_068_672L,
+        rawSha256 = "f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = false,
+        family = SystemFamily.LINEAGE,
+    )
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7, LINEAGE24)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

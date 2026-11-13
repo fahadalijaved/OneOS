@@ -40,8 +40,18 @@ say() { echo "Google apps: $*"; }
 # 2022 CN stub without a launcher entry (F8U run 13: "Play Store missing"):
 # STORE_ONLY, One UI's Play Store over the stub and Play services left alone.
 STORE_ONLY=0
+# LineageOS (0.5.06, set "lineage"): the image has no Google apps at all, no
+# GmsCore folder to bind over and no Google permission files. FULL: One UI's
+# Play services, Play Store and Google Services Framework (sign-in), with One
+# UI's own Google permission, sysconfig and default-permission files, added to
+# the guest's product partition through read-only overlays (prepare_full).
+FULL=0
 selected() {
     [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ "${ONEOS_GUEST_HIDE_GMS:-0}" != 1 ] || return 1
+    if grep -q -E '"set": *"lineage"' "$STAGE/session/current.json" 2>/dev/null; then
+        FULL=1
+        return 0
+    fi
     if grep -q -E ' vivo-services_patched.jar$' "$STAGE/guards.txt" 2>/dev/null && [ -f "$STAGE/gmssystem_payload.img" ]; then
         STORE_ONLY=1
         return 0
@@ -142,6 +152,124 @@ remove_installed() { # <package>
     done
     return 0
 }
+# One UI's Google permission files (FULL): privileged permissions, sysconfig
+# (power-save and hidden-API allowances, Google features) and default runtime
+# permissions, from One UI's system and product partitions. Only XML files
+# whose names say Google; never anything from /data.
+CONFIG_DIRS="permissions sysconfig default-permissions"
+copy_config() {
+    dir="$CACHE/etc"; new="$CACHE/.etc-$$"
+    rm -rf "$new"; mkdir -p "$new" || { WHY="cannot create $new"; return 1; }
+    n=0
+    for sub in $CONFIG_DIRS; do
+        mkdir -p "$new/$sub"
+        for part in /system /product /system_ext; do
+            for f in "$part/etc/$sub"/*.xml; do
+                [ -f "$f" ] && [ ! -L "$f" ] || continue
+                case "${f##*/}" in
+                    *google*|*Google*|*gms*|*GMS*|*vending*|*gsf*|*playstore*) ;;
+                    *) continue ;;
+                esac
+                b="${part#/}-${f##*/}"
+                cp "$f" "$new/$sub/$b" || { WHY="cannot copy $f"; return 1; }
+                n=$((n + 1))
+            done
+        done
+    done
+    [ $n -gt 0 ] || { WHY="One UI has no Google permission files"; return 1; }
+    (cd "$new" && find . -type f -name '*.xml' -exec sha256sum {} + > config.sha256) || { WHY="cannot write checksums"; return 1; }
+    chown -R 0:0 "$new"; find "$new" -type d -exec chmod 755 {} \;; find "$new" -type f -exec chmod 644 {} \;
+    rm -rf "$dir"; mv "$new" "$dir" || { WHY="cannot keep the config copy"; return 1; }
+    say "Google permission files: $n copied from One UI"
+}
+verify_config() {
+    [ -d "$CACHE/etc" ] && plain_tree "$CACHE/etc" && (cd "$CACHE/etc" && [ -s config.sha256 ] && sha256sum -c config.sha256) >/dev/null 2>&1
+}
+# FULL prepare: the three apps into product/priv-app and the files into
+# product/etc/<dir>. No overlays (this kernel refuses an overlay on an overlay,
+# and an overlay layer on /data: F8U 11-14): each folder's top level is copied
+# on a small tmpfs, the image's entries bound back into it, and the apps'
+# folders and the XML files added as mount points with the checked copies bound
+# read-only on them (farm_dir, as guest_prepare.sh does for product/apex). Any
+# failure takes back every mount made here.
+farm_dir() { # <target> <work dir> <entry>... (a name ending in / is a folder)
+    fd_t=$1; fd_w=$2; shift 2
+    fd_f="$fd_w/farm"; fd_o="$fd_w/orig"
+    "$BB" umount -l "$fd_f" 2>/dev/null; "$BB" umount -l "$fd_o" 2>/dev/null
+    mkdir -p "$fd_f" "$fd_o" && "$BB" mount -t tmpfs -o size=256k,mode=755 tmpfs "$fd_f" || return 1
+    for fd_e in "$fd_t"/* "$fd_t"/.[!.]*; do
+        [ -e "$fd_e" ] || [ -L "$fd_e" ] || continue
+        fd_n=${fd_e##*/}
+        if [ -L "$fd_e" ]; then cp -P "$fd_e" "$fd_f/$fd_n"
+        elif [ -d "$fd_e" ]; then mkdir "$fd_f/$fd_n"
+        else : > "$fd_f/$fd_n"; fi || { "$BB" umount -l "$fd_f"; return 1; }
+    done
+    for fd_e in "$@"; do
+        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { "$BB" umount -l "$fd_f"; return 1; }
+    done
+    chmod 755 "$fd_f"; chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
+    "$BB" mount --bind "$fd_t" "$fd_o" || { "$BB" umount -l "$fd_f"; return 1; }
+    # Private before the farm goes over the target: a shared bind would show the farm here too.
+    "$BB" mount --make-private "$fd_o" || { "$BB" umount -l "$fd_o"; "$BB" umount -l "$fd_f"; return 1; }
+    "$BB" mount --bind "$fd_f" "$fd_t" || { "$BB" umount -l "$fd_o"; "$BB" umount -l "$fd_f"; return 1; }
+    for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
+        [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
+        "$BB" mount --bind "$fd_e" "$fd_t/${fd_e##*/}" || { unfarm "$fd_t" "$fd_w"; return 1; }
+    done
+    "$BB" mount -o remount,ro "$fd_f" 2>/dev/null
+    return 0
+}
+unfarm() { # <target> <work dir>: everything farm_dir made there
+    awk -v r="$1/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do "$BB" umount -l "$m" 2>/dev/null; done
+    grep -q " $1 tmpfs " /proc/mounts && "$BB" umount -l "$1"
+    "$BB" umount -l "$2/orig" 2>/dev/null; "$BB" umount -l "$2/farm" 2>/dev/null
+}
+prepare_full() {
+    verify_config || { say "the copy of Google's permission files does not match its checksums: not used"; return 0; }
+    PRODUCT="$ROOTFS/system/product"
+    [ -L "$PRODUCT" ] && PRODUCT="$ROOTFS/product"
+    [ -d "$PRODUCT/priv-app" ] && [ ! -L "$PRODUCT/priv-app" ] || { say "the image has no product/priv-app folder: not used"; return 0; }
+    for name in GmsCore Phonesky GoogleServicesFramework; do
+        [ ! -e "$PRODUCT/priv-app/$name" ] || { say "the image has its own priv-app/$name: not used"; return 0; }
+    done
+    W="$STAGE/google_farm"
+    farmed=
+    undo_all() { for f in $farmed; do unfarm "${f%%|*}" "${f#*|}"; done; }
+    farm_dir "$PRODUCT/priv-app" "$W/priv-app" GmsCore/ Phonesky/ GoogleServicesFramework/ ||
+        { say "could not add mount points to ${PRODUCT#$ROOTFS/}/priv-app: not used"; return 0; }
+    farmed="$PRODUCT/priv-app|$W/priv-app"
+    for name in GmsCore Phonesky GoogleServicesFramework; do
+        target="$PRODUCT/priv-app/$name"
+        chcon -R u:object_r:system_file:s0 "$CACHE/$name" &&
+            "$BB" mount --bind "$CACHE/$name" "$target" &&
+            "$BB" mount -o remount,bind,ro "$CACHE/$name" "$target" || {
+            say "could not bind $name on ${target#$ROOTFS/}: not used"; undo_all; return 0
+        }
+    done
+    nfiles=0
+    for sub in $CONFIG_DIRS; do
+        files=$(cd "$CACHE/etc/$sub" 2>/dev/null && ls *.xml 2>/dev/null)
+        [ -n "$files" ] || continue
+        tgt="$PRODUCT/etc/$sub"
+        [ -d "$tgt" ] && [ ! -L "$tgt" ] || { say "${tgt#$ROOTFS/} is missing or a link: not used"; undo_all; return 0; }
+        # A file of the same name in the image wins: ours are prefixed with their One UI partition.
+        farm_dir "$tgt" "$W/etc-$sub" $files || { say "could not add mount points to ${tgt#$ROOTFS/}: not used"; undo_all; return 0; }
+        farmed="$tgt|$W/etc-$sub $farmed"
+        for f in $files; do
+            chcon u:object_r:system_file:s0 "$CACHE/etc/$sub/$f" &&
+                "$BB" mount --bind "$CACHE/etc/$sub/$f" "$tgt/$f" &&
+                "$BB" mount -o remount,bind,ro "$CACHE/etc/$sub/$f" "$tgt/$f" || {
+                say "could not bind $sub/$f: not used"; undo_all; return 0
+            }
+            nfiles=$((nfiles + 1))
+        done
+    done
+    say "Play services, Play Store and Google Services Framework from One UI -> ${PRODUCT#$ROOTFS/}/priv-app (read-only), with $nfiles Google permission file(s) in ${PRODUCT#$ROOTFS/}/etc"
+    remove_installed com.google.android.gms
+    remove_installed com.android.vending
+    remove_installed com.google.android.gsf
+    : > "$CACHE/active"
+}
 case "$1" in
 snapshot)
     selected || exit 0
@@ -163,6 +291,10 @@ snapshot)
     WHY=
     [ $STORE_ONLY = 1 ] || copy_app com.google.android.gms GmsCore || skip "$WHY"
     copy_app com.android.vending Phonesky || skip "$WHY"
+    if [ $FULL = 1 ]; then
+        copy_app com.google.android.gsf GoogleServicesFramework || skip "$WHY"
+        copy_config || skip "$WHY"
+    fi
     rm -f "$CACHE"/.*.paths "$CACHE"/.*.stat
     ;;
 prepare)
@@ -171,9 +303,14 @@ prepare)
     ROOTFS="$STAGE/rootfs"
     [ -d "$CACHE" ] || { say "no copy from One UI (see the snapshot line before One UI stopped)"; exit 0; }
     names="GmsCore Phonesky"; [ $STORE_ONLY = 1 ] && names=Phonesky
+    [ $FULL = 1 ] && names="GmsCore Phonesky GoogleServicesFramework"
     for name in $names; do
         verify "$CACHE/$name" || { say "the copy of $name does not match its checksums: not used"; exit 0; }
     done
+    if [ $FULL = 1 ]; then
+        prepare_full
+        exit 0
+    fi
     # The image's Play services folder: in my_product (ColorOS) or in the
     # guest's product folder, found inside the rootfs (system/product can be an
     # absolute link to /product, which in this namespace is One UI's).

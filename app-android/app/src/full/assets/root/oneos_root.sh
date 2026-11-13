@@ -152,6 +152,9 @@ SET_PIXEL="services_patched.jar framework_patched.jar telephony-common_patched.j
 # Infinity-X (0.4.27): both guard jars, the camera codes, the guest vold, the AOSP
 # signal poll, the IMS backoff, the in-guest app and its own payloads.
 SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar samcam.tar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
+# LineageOS 24 (0.5.06): the guards, the camera codes, the guest vold, the AOSP signal poll, the IMS backoff, the in-guest app, the
+# fold and tablet overlays and its own payloads; no Google payload (One UI's Google apps, guest_google.sh).
+SET_LINEAGE="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk OneOSFoldCutout.apk OneOSTabletQs.apk oneos-apex-requires.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img OneOSPixelDoze.apk"
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
 SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so telephony-common_patched.jar samcam.tar samcam_bar.tar xiaomi-opt-telephony_patched.jar"
@@ -171,7 +174,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
 # sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745"
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 lineage24-infiniti"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -276,14 +279,17 @@ profile_set() {
         "flip8 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip8 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip8 infinityx41-findx9u") echo infinityx ;;
+        "flip8 lineage24-infiniti") echo lineage ;;
         "flip8 hyperos-lhasa") echo hyper-f8u ;;
         "a36 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a36 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a36 infinityx41-findx9u") echo infinityx ;;
+        "a36 lineage24-infiniti") echo lineage ;;
         "a36 hyperos-lhasa") echo hyper-f8u ;;
         "a27 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a27 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a27 infinityx41-findx9u") echo infinityx ;;
+        "a27 lineage24-infiniti") echo lineage ;;
         "a27 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
@@ -343,6 +349,7 @@ profile_set() {
         "s-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8650 infinityx41-findx9u") echo infinityx ;;
+        "s-8650 lineage24-infiniti") echo lineage ;;
         "s-8650 hyperos-lhasa") echo hyper-f8u ;;
         "s-8650 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
@@ -352,79 +359,116 @@ profile_set() {
         "flip5 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip5 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8u infinityx41-findx9u") echo infinityx ;;
+        "f8u lineage24-infiniti") echo lineage ;;
         "f8 infinityx41-findx9u") echo infinityx ;;
+        "f8 lineage24-infiniti") echo lineage ;;
         "f8 hyperos-lhasa") echo hyper-f8u ;;
         "f7 infinityx41-findx9u") echo infinityx ;;
+        "f7 lineage24-infiniti") echo lineage ;;
         "f7 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8850 lineage24-infiniti") echo lineage ;;
         "s-ultra-8850 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8850 lineage24-infiniti") echo lineage ;;
         "s-plus-8850 hyperos-lhasa") echo hyper-f8u ;;
         "s-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-8850 lineage24-infiniti") echo lineage ;;
         "s-8850 hyperos-lhasa") echo hyper-f8u ;;
         "s-8850-jp infinityx41-findx9u") echo infinityx ;;
+        "s-8850-jp lineage24-infiniti") echo lineage ;;
         "s-8850-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9965 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-9965 lineage24-infiniti") echo lineage ;;
         "s-plus-9965 hyperos-lhasa") echo hyper-f8u ;;
         "s-9965 infinityx41-findx9u") echo infinityx ;;
+        "s-9965 lineage24-infiniti") echo lineage ;;
         "s-9965 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8750 lineage24-infiniti") echo lineage ;;
         "s-ultra-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8750 lineage24-infiniti") echo lineage ;;
         "s-plus-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-8750 lineage24-infiniti") echo lineage ;;
         "s-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8650 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8650 lineage24-infiniti") echo lineage ;;
         "s-ultra-8650 hyperos-lhasa") echo hyper-f8u ;;
         "s-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-8550 lineage24-infiniti") echo lineage ;;
         "s-8550 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8550 lineage24-infiniti") echo lineage ;;
         "s-plus-8550 hyperos-lhasa") echo hyper-f8u ;;
         "flip7 infinityx41-findx9u") echo infinityx ;;
+        "flip7 lineage24-infiniti") echo lineage ;;
         "flip7 hyperos-lhasa") echo hyper-f8u ;;
         "a56 infinityx41-findx9u") echo infinityx ;;
+        "a56 lineage24-infiniti") echo lineage ;;
         "a57 infinityx41-findx9u") echo infinityx ;;
+        "a57 lineage24-infiniti") echo lineage ;;
         "a56 hyperos-lhasa") echo hyper-f8u ;;
         "a57 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8550 lineage24-infiniti") echo lineage ;;
         "flip6 infinityx41-findx9u") echo infinityx ;;
+        "flip6 lineage24-infiniti") echo lineage ;;
         "s-9945 infinityx41-findx9u") echo infinityx ;;
+        "s-9945 lineage24-infiniti") echo lineage ;;
         "s-ultra-8550 hyperos-lhasa") echo hyper-f8u ;;
         "s-9945 hyperos-lhasa") echo hyper-f8u ;;
         "flip5 infinityx41-findx9u") echo infinityx ;;
+        "flip5 lineage24-infiniti") echo lineage ;;
         "flip5 hyperos-lhasa") echo hyper-f8u ;;
         "f6 coloros17-findn6") echo n6-f8u ;;
         "f6 infinityx41-findx9u") echo infinityx ;;
+        "f6 lineage24-infiniti") echo lineage ;;
         "f5 coloros17-findn6") echo n6-f8u ;;
         "f5 infinityx41-findx9u") echo infinityx ;;
+        "f5 lineage24-infiniti") echo lineage ;;
         "a07 infinityx41-findx9u") echo infinityx ;;
+        "a07 lineage24-infiniti") echo lineage ;;
         "s-edge-8750 nothingos5-metroid") echo nothing-f8u ;;
         "s-edge-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-edge-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-edge-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-edge-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-edge-8750 lineage24-infiniti") echo lineage ;;
         "s-edge-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-fe-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-fe-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-fe-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-fe-9945 infinityx41-findx9u") echo infinityx ;;
+        "s-fe-9945 lineage24-infiniti") echo lineage ;;
         "s-fe-9945 hyperos-lhasa") echo hyper-f8u ;;
         "a26 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a26 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a26 infinityx41-findx9u") echo infinityx ;;
+        "a26 lineage24-infiniti") echo lineage ;;
         "a35 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a35 infinityx41-findx9u") echo infinityx ;;
+        "a35 lineage24-infiniti") echo lineage ;;
         "a54 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a54 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a54 infinityx41-findx9u") echo infinityx ;;
+        "a54 lineage24-infiniti") echo lineage ;;
         "a16-4g infinityx41-findx9u") echo infinityx ;;
+        "a16-4g lineage24-infiniti") echo lineage ;;
         "a16-s166 infinityx41-findx9u") echo infinityx ;;
+        "a16-s166 lineage24-infiniti") echo lineage ;;
         "a17 infinityx41-findx9u") echo infinityx ;;
+        "a17 lineage24-infiniti") echo lineage ;;
         "a16 infinityx41-findx9u") echo infinityx ;;
+        "a16 lineage24-infiniti") echo lineage ;;
         "a17-5g infinityx41-findx9u") echo infinityx ;;
+        "a17-5g lineage24-infiniti") echo lineage ;;
         "a34 infinityx41-findx9u") echo infinityx ;;
+        "a34 lineage24-infiniti") echo lineage ;;
         "a15 infinityx41-findx9u") echo infinityx ;;
+        "a15 lineage24-infiniti") echo lineage ;;
         "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a07 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "f8u originos7-pd2609ma") echo originos ;;
@@ -489,6 +533,7 @@ profile_set() {
         "flip7-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip7-fe infinityx41-findx9u") echo infinityx ;;
+        "flip7-fe lineage24-infiniti") echo lineage ;;
         "flip7-fe hyperos-lhasa") echo hyper-f8u ;;
         "a26 hyperos-lhasa") echo hyper-f8u ;;
         "a35 hyperos-lhasa") echo hyper-f8u ;;
@@ -504,12 +549,14 @@ profile_set() {
         "a55 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a55 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a55 infinityx41-findx9u") echo infinityx ;;
+        "a55 lineage24-infiniti") echo lineage ;;
         "a55 hyperos-lhasa") echo hyper-f8u ;;
         "a55 oxygenos16-cph2745") echo oxygen16 ;;
         "s25-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s25-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s25-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "s25-fe infinityx41-findx9u") echo infinityx ;;
+        "s25-fe lineage24-infiniti") echo lineage ;;
         "s25-fe hyperos-lhasa") echo hyper-f8u ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
@@ -519,6 +566,7 @@ profile_set() {
         "s-plus-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-9945 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-9945 lineage24-infiniti") echo lineage ;;
         "s-plus-9945 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9945 originos7-pd2609ma") echo originos ;;
@@ -527,6 +575,7 @@ profile_set() {
         "s-ultra-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-ultra-8550-jp infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8550-jp lineage24-infiniti") echo lineage ;;
         "s-ultra-8550-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
@@ -537,6 +586,7 @@ profile_set() {
         "s-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8550-jp infinityx41-findx9u") echo infinityx ;;
+        "s-8550-jp lineage24-infiniti") echo lineage ;;
         "s-8550-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550-jp originos7-pd2609ma") echo originos ;;
@@ -544,6 +594,7 @@ profile_set() {
         "m35 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "m35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "m35 infinityx41-findx9u") echo infinityx ;;
+        "m35 lineage24-infiniti") echo lineage ;;
         "m35 oxygenos16-cph2745") echo oxygen16 ;;
         "m35 hyperos-lhasa") echo hyper-f8u ;;
         "a15-5g oxygenos16-cph2745") echo oxygen16 ;;
@@ -568,6 +619,7 @@ image_raw() {
         nothingos5-metroid) echo "6067867648 484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b" ;;
         pixel9proxl-komodo) echo "5837496320 2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c" ;;
         infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
+        lineage24-infiniti) echo "2327068672 f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261" ;;
         oxygenos16-cph2745) echo "12273344512 dafbb026f97692b7d59b8f4ae2f46773e88e0d5bf0e1fee46b3636ff56b06e90" ;;
         originos7-pd2609ma) echo "15998222336 9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee" ;;
         *) return 1 ;;
@@ -587,6 +639,7 @@ set_files() {
         nothing-f8u) echo "$SET_NOTHING" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX" ;;
+        lineage) echo "$SET_LINEAGE" ;;
         oxygen16) echo "$SET_OXYGENOS" ;;
         originos) echo "$SET_ORIGINOS" ;;
         *) return 1 ;;
@@ -606,6 +659,7 @@ set_image() {
         nothing-f8u) echo nothingos5-metroid ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
+        lineage) echo lineage24-infiniti ;;
         oxygen16) echo oxygenos16-cph2745 ;;
         originos) echo originos7-pd2609ma ;;
         *) return 1 ;;
@@ -623,6 +677,7 @@ image_family() {
         coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in|coloros17-findx9u-in-1105) echo coloros ;;
         pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo) echo pixel ;;
         infinityx41-findx9u) echo infinityx ;;
+        lineage24-infiniti) echo lineage ;;
         hyperos-lhasa) echo hyperos ;;
         nothingos5-metroid) echo nothing ;;
         oxygenos16-cph2745) echo oxygenos ;;
@@ -637,6 +692,10 @@ data_family() {
     pk="$STAGE/data/system/packages.xml"
     if grep -q -s -F "com.infinity.updater" "$pk"; then
         echo infinityx
+    # LineageOS (0.5.06): its packages without Infinity-X's updater (Infinity-X is
+    # Lineage-based, so it is checked first).
+    elif grep -q -s -F "org.lineageos.updater" "$pk"; then
+        echo lineage
     elif grep -q -s -F "com.oneplus.membership" "$pk"; then
         echo oxygenos
     elif grep -q -s -F "com.bbk.launcher2" "$pk"; then
@@ -1005,8 +1064,10 @@ do_begin() {
                 # its data is not from (scripts/deploy-phone.sh without --fresh).
                 dfam=$(data_family)
                 ifam=$(image_family "$B_IMAGE") || refuse "$B_IMAGE has no system family"
-                [ -z "$dfam" ] || [ "$dfam" = "$ifam" ] ||
+                if [ -n "$dfam" ] && [ "$dfam" != "$ifam" ]; then
+                    [ "$dfam" = lineage ] && refuse "the stage holds LineageOS data, not $B_IMAGE's: move it aside"
                     refuse "the stage holds another system's guest data ($dfam), not $B_IMAGE's: move the stage aside"
+                fi
             fi
             if [ "$ours" = 0 ]; then
                 if grep -q -s -F "org.lineageos." "$STAGE/data/system/packages.xml"; then

@@ -166,6 +166,7 @@ object PackageSets {
     const val ID_NOTHING_F8U = "nothing-f8u"
     const val ID_OXYGEN16 = "oxygen16"
     const val ID_ORIGINOS = "originos"
+    const val ID_LINEAGE = "lineage"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
     const val TETHERING = "tethering_payload.img"
@@ -734,7 +735,49 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
+    /**
+     * LineageOS 24 (0.5.06, experimental), the OnePlus 15 (infiniti) nightly of 2026-11-11, on every phone that offers
+     * it, from out/overlays_lineage_r1: a source-built AOSP system like Infinity-X, but without OPPO's jars (no
+     * oplus-services_patched.jar) and with no samcam.tar. services_patched.jar and framework_patched.jar with
+     * the guards and One UI's camera codes (libcamera_client_patched.so), the guest vold as gvld, the IMS extension
+     * backoff, the AOSP signal poll, OneOSGuest.apk, the fold and tablet overlays and 20 APEX payloads (the
+     * 15 of every set and the bt, nfcservices, telephonycore, conscrypt and profiling modules). No gmssystem
+     * payload: the image has no Google apps, so guest_google.sh (FULL mode, keyed on this set's id) lays One UI's
+     * Play services, Play Store and Services Framework over the guest's product partition at session time.
+     * Neither tethering nor the cellbroadcast module (source-built, signed with the build's networkstack key; One UI's
+     * stays, as for Infinity-X).
+     */
+    val LINEAGE = PackageSet(
+        id = ID_LINEAGE,
+        imageId = Images.ID_LINEAGE,
+        sourceDir = "out/overlays_lineage_r2",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) } +
+            // 0.5.06 r2: AOD (SystemUI's doze service at boot), the Pixel sets' overlay.
+            PackageFile("OneOSPixelDoze.apk", FileRole.RRO),
+        omitted = listOf(TETHERING, CELLBROADCAST),
+        approxBytes = 387_175_398L + 8_538L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS, LINEAGE)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

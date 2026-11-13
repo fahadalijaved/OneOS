@@ -1105,6 +1105,63 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
     fi
     [ -d "$ROOTFS/system/xbin" ] || { echo 'ERROR: guest su mount point missing after overlay'; exit 3; }
 fi
+# One UI's product APEXes: host apexd reports Google's Play system module as
+# /product/apex/com.google.android.gmssystem.prodvic.apex, and the guest's package
+# manager parses that path (the APEX scan, as for system/apex and system_ext/apex
+# below). ColorOS ships the same file in its own product/apex; LineageOS (0.5.06)
+# has no product/apex at all, and its system_server died on every start ("Unable
+# to parse: /product/apex/com.google.android.gmssystem.prodvic.apex", F8U, 11-14).
+# Without the folder: product's top level copied on a small tmpfs (folders, empty
+# files, links), each entry of the image bound back into it, plus the apex mount
+# point, and One UI's /product/apex bound there. No overlay: this kernel refuses
+# an overlay on an overlay, and later steps lay theirs on product's subfolders
+# (product/etc's display configs); a bind keeps those on the image's own folders.
+# Made after the whole-system overlays above (they need nothing mounted under
+# system) and before anything else is mounted under product. An image with its
+# own product/apex keeps it. ONEOS_GUEST_PRODUCT_APEX=0 leaves it out.
+# farm_dir <target> <work dir> <entry>...: <target>'s top level as a tmpfs copy
+# with the image's entries bound back and empty mount points <entry> added (a
+# name ending in / is a folder, others empty files). Echoes nothing; status 0
+# when every entry is in place, else everything it made is taken back.
+farm_dir() {
+    fd_t=$1; fd_w=$2; shift 2
+    fd_f="$fd_w/farm"; fd_o="$fd_w/orig"
+    $BB umount -l "$fd_f" 2>/dev/null; $BB umount -l "$fd_o" 2>/dev/null
+    mkdir -p "$fd_f" "$fd_o" && $BB mount -t tmpfs -o size=256k,mode=755 tmpfs "$fd_f" || return 1
+    for fd_e in "$fd_t"/* "$fd_t"/.[!.]*; do
+        [ -e "$fd_e" ] || [ -L "$fd_e" ] || continue
+        fd_n=${fd_e##*/}
+        if [ -L "$fd_e" ]; then cp -P "$fd_e" "$fd_f/$fd_n"
+        elif [ -d "$fd_e" ]; then mkdir "$fd_f/$fd_n"
+        else : > "$fd_f/$fd_n"; fi || { $BB umount -l "$fd_f"; return 1; }
+    done
+    for fd_e in "$@"; do
+        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
+    done
+    chmod 755 "$fd_f"; $BB chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
+    $BB mount --bind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }
+    # Private before the farm goes over the target: a shared bind would show the farm here too.
+    $BB mount --make-private "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    $BB mount --bind "$fd_f" "$fd_t" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
+        [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
+        $BB mount --bind "$fd_e" "$fd_t/${fd_e##*/}" || {
+            awk -v r="$fd_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
+            $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
+        }
+    done
+    $BB mount -o remount,ro "$fd_f" 2>/dev/null
+    return 0
+}
+if [ "${ONEOS_GUEST_PRODUCT_APEX:-1}" = 1 ] && [ -d /product/apex ] && [ ! -e "$GUEST_PRODUCT/apex" ] && [ ! -L "$GUEST_PRODUCT/apex" ]; then
+    if farm_dir "$GUEST_PRODUCT" "$STAGE/product_farm" apex/ && [ -d "$GUEST_PRODUCT/apex" ] &&
+       $BB mount --bind /product/apex "$GUEST_PRODUCT/apex"; then
+        $BB mount --make-rslave "$GUEST_PRODUCT/apex" 2>/dev/null || true
+        echo "Host APEX files: One UI's /product/apex bound on ${GUEST_PRODUCT#$ROOTFS/}/apex (the image has none; its product top level bound into a copy with that mount point)"
+    else
+        echo "!!! WARNING: One UI's /product/apex not bound in the guest; PackageManagerService will fail on One UI's product APEXes"
+    fi
+fi
 # The camera's working folder /data/sec/camera, which One UI's init makes
 # (vendor_secdir, the camera's own uid): the camera cannot make it, "AccessDenied
 # /data/sec", and its post-processing lost every picture (run 19). In the
@@ -2882,8 +2939,12 @@ fi
 # AOD for a Pixel guest (switcher/overlays/pixel_doze): Pixel's doze service and
 # "AOD available", which a Pixel has in its vendor overlay and a guest on One
 # UI's vendor had not (getDozeComponent()=null). Static, so the dream manager
-# has them at boot. ONEOS_GUEST_DOZE=0 leaves it out.
-if [ -f "$STAGE/OneOSPixelDoze.apk" ] && [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ]; then
+# has them at boot. ONEOS_GUEST_DOZE=0 leaves it out. LineageOS (0.5.06 r2) too:
+# its AOSP SystemUI has the same DozeService and its framework names none (the
+# UI Activator's runtime overlays came after the dream manager had read them, and
+# were gone by the next session: F8U, 11-14, no AOD).
+if [ -f "$STAGE/OneOSPixelDoze.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ] ||
+                                         [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk" ]; }; then
     if [ "${ONEOS_GUEST_DOZE:-1}" = 1 ]; then
         mkdir -p "$STAGE/oem/overlay" &&
             cp "$STAGE/OneOSPixelDoze.apk" "$STAGE/oem/overlay/" &&

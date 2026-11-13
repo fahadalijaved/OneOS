@@ -192,7 +192,8 @@ class SessionEnvTest {
         // 0.4.33: Nothing OS's too, for the same reason -- its set stages no gmssystem_payload.img;
         // 0.4.38: the Find N6 global build's.
         // 0.4.67: OxygenOS 16 too (Google in the image, no gmssystem payload in its set).
-        assertEquals(listOf(Images.FIND_N6, Images.FIND_X9U_IN, Images.FIND_X9U_IN_1105, Images.NOTHING_METROID, Images.OXYGEN16), Images.ALL.filter { it.gmsHideable })
+        // 0.5.06: LineageOS 24 too (its Google apps are One UI's, added by guest_google.sh; none from a payload).
+        assertEquals(listOf(Images.FIND_N6, Images.FIND_X9U_IN, Images.FIND_X9U_IN_1105, Images.NOTHING_METROID, Images.OXYGEN16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
         assertEquals(
             listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_GUEST_SEC_IMS", "ONEOS_GUEST_EDM_STUB", "ONEOS_VERBOSE_BOOT", "ONEOS_RETURN_MODE"),
             SessionEnv.ALLOWED.keys.toList().takeLast(6),

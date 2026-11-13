@@ -30,6 +30,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -82,6 +88,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": true
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
         },
         {
           "image": "hyperos-lhasa",
@@ -138,6 +150,12 @@
           "tested": true
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -192,6 +210,12 @@
           "tested": true
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -231,6 +255,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -288,6 +318,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -333,6 +369,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -390,6 +432,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -441,6 +489,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -498,6 +552,12 @@
           "tested": true
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -549,6 +609,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -606,6 +672,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -657,6 +729,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -714,6 +792,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -768,6 +852,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -816,6 +906,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -855,6 +951,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -900,6 +1002,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -942,6 +1050,12 @@
           "tested": true
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -969,6 +1083,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1006,6 +1126,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": true
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
         },
         {
           "image": "hyperos-lhasa",
@@ -1056,6 +1182,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1098,6 +1230,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1125,6 +1263,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         }
       ]
@@ -1161,6 +1305,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1216,6 +1366,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
         }
       ]
     },
@@ -1251,6 +1407,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1308,6 +1470,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1362,6 +1530,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1395,6 +1569,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1440,6 +1620,12 @@
           "tested": true
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1480,6 +1666,12 @@
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
           "tested": true
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
         },
         {
           "image": "hyperos-lhasa",
@@ -1530,6 +1722,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1572,6 +1770,12 @@
           "tested": true
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1611,6 +1815,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1656,6 +1866,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1695,6 +1911,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1740,6 +1962,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -1773,6 +2001,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1821,6 +2055,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1893,6 +2133,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -1989,6 +2235,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -2160,6 +2412,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -2205,6 +2463,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -2304,6 +2568,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -2355,6 +2625,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {
@@ -2448,6 +2724,12 @@
           "tested": false
         },
         {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
@@ -2493,6 +2775,12 @@
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
           "tested": false
         },
         {

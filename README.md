@@ -329,9 +329,9 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
 - smali/dexlib2, AndroidX, Kotlin, Guava, ZXing and others: the full list with
   licenses is in [CREDITS.md](CREDITS.md).
 
-Not affiliated with Samsung, Google, OPPO, OnePlus or Project Infinity-X. Galaxy and One UI are
-trademarks of Samsung Electronics; Android and Pixel of Google LLC; ColorOS of
-OPPO.
+Not affiliated with Samsung, Google, OPPO, OnePlus, Project Infinity-X or the LineageOS project.
+Galaxy and One UI are trademarks of Samsung Electronics; Android and Pixel of Google LLC; ColorOS of
+OPPO; LineageOS of LineageOS LLC.
 
 ## Contributor patch channels
 

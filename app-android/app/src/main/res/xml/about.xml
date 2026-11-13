@@ -48,6 +48,11 @@
             android:key="credit_infinityx"
             android:summary="@string/about_credit_infinityx_summary"
             android:title="@string/about_credit_infinityx_title" />
+        <!-- The LineageOS 24 system (0.5.06); tap opens its site. -->
+        <Preference
+            android:key="credit_lineageos"
+            android:summary="@string/about_credit_lineageos_summary"
+            android:title="@string/about_credit_lineageos_title" />
         <Preference
             android:selectable="false"
             android:summary="@string/about_credit_oneui_summary"

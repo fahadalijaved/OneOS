@@ -38,13 +38,15 @@ root_only() {
 # folder, as the shell user, argument "umhpipe") that works on kernel pipes:
 # every S24-family kernel panic in free_pipe_info/pipe_read since 0.4.9x ran in
 # that thread (0.5.03's timer_threads.txt, report 60192300, 11-13). Not stopped
-# here: the panic comes when its pipe is freed, so killing it would be the crash.
+# here: the panic comes when its pipe is freed, so killing it would be the crash. The
+# app starts the tool again at boot (aee4e2df on 0.5.04: refused after two restarts), so
+# the message asks for the app to be uninstalled.
 for ex in /proc/[0-9]*/exe; do
     t=$(readlink "$ex" 2>/dev/null) || continue
     case "$t" in
         /data/app/*/lib/*/libtimer.so)
             a=${t#/data/app/}; a=${a#*/}; a=${a%%/lib/*}; a=${a%%-*}
-            refuse "the app $a is running its kernel tool (libtimer.so, pid $(echo "$ex" | cut -d/ -f3)), which crashed the kernel on S24 phones during OneOS sessions: close it (or restart the phone without starting it) and switch again" ;;
+            refuse "the app $a runs a kernel tool (libtimer.so, pid $(echo "$ex" | cut -d/ -f3)) that crashed the kernel of S24 phones during OneOS sessions. It starts again after every restart, so restarting does not help: uninstall $a (Settings, Apps; the phone may restart once while its tool closes), then switch again" ;;
     esac
 done
 

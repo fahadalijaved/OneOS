@@ -48,7 +48,7 @@ class PackageSetsTest {
         assertEquals("out/overlays_pixel_f8u_r19", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, xin, PackageSets.X9U_IN_1105_SULTRA, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
-                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U, PackageSets.OXYGEN16, PackageSets.ORIGINOS),
+                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U, PackageSets.OXYGEN16, PackageSets.ORIGINOS, PackageSets.LINEAGE),
             PackageSets.ALL,
         )
         // Infinity-X (0.4.27): both guard jars, the camera codes (Java and native), the guest vold, the
@@ -70,6 +70,23 @@ class PackageSetsTest {
             ifx.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(ifx.file(PackageSets.GMS_PAYLOAD) != null && ifx.hasReturnApp)
+        // LineageOS 24 (0.5.06): Infinity-X's shape without OPPO's jar, samcam.tar and the Google payload (its Google
+        // apps are One UI's, laid over the guest by guest_google.sh at session time, keyed on this set's id), with the
+        // fold and tablet overlays and the apex requirement list. 20 payloads; neither tethering nor cellbroadcast.
+        val lineage = PackageSets.LINEAGE
+        assertEquals("lineage", lineage.id)
+        assertEquals(Images.ID_LINEAGE, lineage.imageId)
+        assertEquals("out/overlays_lineage_r2", lineage.sourceDir)
+        assertEquals(37, lineage.files.size) // 0.5.06 r2: + OneOSPixelDoze.apk (AOD)
+        assertEquals(20, lineage.files.count { it.role == FileRole.APEX_PAYLOAD })
+        assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), lineage.omitted)
+        assertTrue(lineage.file(PackageSets.GMS_PAYLOAD) == null && lineage.file("oplus-services_patched.jar") == null && lineage.file("samcam.tar") == null)
+        assertEquals(
+            listOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so",
+                "libcamera_client_patched.so", "telephony-common_patched.jar"),
+            lineage.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
+        )
+        assertTrue(lineage.hasReturnApp && lineage.file(PackageSets.GUEST_APP)?.role == FileRole.GUEST_APP)
         // HyperOS (0.4.31 on every phone; made for the Z Fold8 Ultra and Z Fold8): services.jar, Xiaomi's guard jars,
         // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
         val hyper = PackageSets.HYPER_F8U
