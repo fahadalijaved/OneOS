@@ -50,6 +50,13 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.01: **calls end again when you decline or hang up**, in every system that uses Samsung's
+calling service (not OxygenOS).
+- Samsung's calling service ended the call on the network, but kept the news from the system until the
+  system said it was ready for it, which only One UI does. The call went on showing in the Phone app and
+  no other call could be made (Z Fold8 with the Pixel 11 Fold build). Now the system says so as soon as it
+  takes the call. Not tried on a phone yet. **Tap Update on the system's page**.
+
 New in 0.5.00: **Bluetooth sound on the Galaxy S23 series, third try**, in every system.
 - 0.4.99's bridge now reaches Samsung's Bluetooth audio service, but the systems asked for the DSP ("offload")
   path, which the S23's audio driver never connects for them: S23 and S23+ reports on 0.4.99 still had no sound,

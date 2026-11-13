@@ -1,5 +1,5 @@
-# OneOS package set originos: sha256sum of out/overlays_originos_cn_r19 (OriginOS 7, vivo PD2609MA CN build: r14 of 2026-11-09 from scripts/make-overlays.sh with the CN vendor's vivo_config.ini, plus OneOSFoldCutout.apk with the cover's lens, centre-relative, also as local:secondary), minus OneOSWallpapersFoldGrid.apk and OneOSTabletQs.apk (not built for vivo). 0.4.95 r18: r17 with services_patched.jar patched by patches/guest_local_lock.py (the guest's own screen lock, scripts/patch-built-jar.sh), 2026-11-11. 0.5.00 r19: r18 with services_patched.jar patched by patches/guest_pdb_frp_writes_fail.py (a PDB write with One UI's FRP active fails as an I/O error, scripts/patch-built-jar.sh), 2026-11-13.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_originos_cn_r19 differs.
+# OneOS package set originos: sha256sum of out/overlays_originos_cn_r20 (OriginOS 7, vivo PD2609MA CN build: r14 of 2026-11-09 from scripts/make-overlays.sh with the CN vendor's vivo_config.ini, plus OneOSFoldCutout.apk with the cover's lens, centre-relative, also as local:secondary), minus OneOSWallpapersFoldGrid.apk and OneOSTabletQs.apk (not built for vivo). 0.4.95 r18: r17 with services_patched.jar patched by patches/guest_local_lock.py (the guest's own screen lock, scripts/patch-built-jar.sh), 2026-11-11. 0.5.00 r19: r18 with services_patched.jar patched by patches/guest_pdb_frp_writes_fail.py (a PDB write with One UI's FRP active fails as an I/O error, scripts/patch-built-jar.sh), 2026-11-13. 0.5.01 r20: r19 with framework_patched.jar patched by patches/guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks: calls end, scripts/patch-built-jar.sh), 2026-11-13.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_originos_cn_r20 differs.
 59b7c6c4e50ccf961d240ab053682fc21810333bcd815849b080896b610df6a2  BBKLauncher2_patched.apk
 8a31e337e92868c6e45894d4f49bec0a3ba8d4f7a6042d926ef5cd7abdd91476  BBKLauncher2_patched.apk.src_sha256
 b1ff2adc5ba9493c2cae95820cb07060d7ee2c97e28a7c355112b5dcb673349b  OneOSFoldCutout.apk
@@ -15,9 +15,9 @@ d747a7ff5e3e67a26a0efe6a36ad0d840e94b45f67cf5bdba06b40599b314646  crashrecovery_
 b8e992ae9cc353ef4672f3de5345daae7485e887ef83014152e204dd65e90125  extservices_payload.img
 4bb2db56480e1c9a167bdea6537c3acd20c14adcafeee68417f71a080f203a9a  framework-adapter_patched.jar
 6f676fb813f4ba7ca2ff14ad00d6861d8d31cd882cc63013920e725ef1a1a3e1  framework-wifi_patched.jar
-edc865f835bb42c51335eb9083eaa0cc6ba0983c6837616f7872b69a5e0e67c8  framework_patched.jar
+06651a6c9380e5f24c5d508378520621f45fdcaaaf7cc08a9d57c3db1c0d8af5  framework_patched.jar
 090b00265bd7a0a3c63aa723a700769c79627c87f72817747bb05707caefc8cb  gmssystem_payload.img
-126d14b8e7570807eaa0e867b8b51b3f221a681e8d6f05acd801073d9c2a1a11  guards.txt
+2ebdddcb01f12c63f28b28218a97cc958f2249bc70f6c6b60786e897559f6455  guards.txt
 87370946b15ce2a12385596dd8343cabdf2243509ec11c6c8d8d548b64adf184  healthfitness_payload.img
 8cb442eb656707179a598bf8ca576cedd17f2855e0075940d5a95e7f8335f1aa  i18n_payload.img
 059f1275c98173126b374c153728362c5495e90bf2aa0c0b7b4521c478a3d55e  libandroid_servers_patched.so

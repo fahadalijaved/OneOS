@@ -16,9 +16,10 @@
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
 # 0.4.64: services_patched.jar + guest_soundtrigger_no_reboot.py (a refused sound model does not reboot One UI's audio HAL)
 # 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
+# 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
 9553e9bac7c2ca622687a51fb014334a3ddbae895ce0dde1dfadbd67f80bd3d6  services_patched.jar
 57de954a137cc3087a374a35eab704f24ec2b69ac0181b6f8f7ef6ec0c1c6478  vold_patched
 f4addc726653b0c1b39ff84c874d61ff96f98eecdae12d76ea6391bb7b20fad0  service.incremental_patched.so
-4c4e40e75b71c15e72674193542aea8860438e7097d2eeaf6daf7261b96d4b1c  framework_patched.jar
+965e2815cd0917e50a4e59d9dc1398d141eca1d624dfdbd192b57b1eb8862664  framework_patched.jar
 d866a4fa828d99d9964390d41a27147cc506069e3ccea0125792656f318e5d05  telephony-common_patched.jar
 a8572e8cbeca52394f66765a44d6e295a99e1313550048809bb01ccbe08526f3  libcamera_client_patched.so
