@@ -17,7 +17,8 @@
 # 0.4.59 r13: quick settings header on the cover (qqs guideline), double tap on AOD wakes (SystemUI)
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
 # 0.4.64: services_patched.jar + guest_soundtrigger_no_reboot.py (a refused sound model does not reboot One UI's audio HAL)
-5b7ba7db566b32407fb94c92f5d3a80e796a0937bd30b55c57b25ad913dfe38d  services_patched.jar
+# 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
+d75f84a12244072f3141d207652a1b977ed39d4adb1608f4b5aeb4e10ec98692  services_patched.jar
 57de954a137cc3087a374a35eab704f24ec2b69ac0181b6f8f7ef6ec0c1c6478  vold_patched
 f4addc726653b0c1b39ff84c874d61ff96f98eecdae12d76ea6391bb7b20fad0  service.incremental_patched.so
 4c4e40e75b71c15e72674193542aea8860438e7097d2eeaf6daf7261b96d4b1c  framework_patched.jar

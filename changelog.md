@@ -50,6 +50,16 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.00: **Bluetooth sound on the Galaxy S23 series, third try**, in every system.
+- 0.4.99's bridge now reaches Samsung's Bluetooth audio service, but the systems asked for the DSP ("offload")
+  path, which the S23's audio driver never connects for them: S23 and S23+ reports on 0.4.99 still had no sound,
+  in ColorOS and in the Pixel system. One UI plays Bluetooth headphones the other way, encoding the sound itself,
+  and every system now does the same on the S23s. The S24s, where Bluetooth sound works, stay as they are.
+  Not tried on a phone yet. **Tap Update on the system's page**.
+- **No more black screen on a system's first start when One UI has a screen lock and a Google account**
+  (A34 ColorOS report): the new system could not clear factory-reset protection, which stays One UI's, and its
+  lock-screen setup stopped the system at the first start. Every system now carries on. Not tried on a phone yet.
+
 New in 0.4.99: **Bluetooth sound on the Snapdragon Galaxies, second try**.
 - 0.4.97's fix did not work: Galaxy S23 reports on 0.4.97 still had no sound in Bluetooth headphones. The bridge
   was meant to notice when Samsung's audio service took its place and take it back, but it never noticed. Now

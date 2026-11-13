@@ -1890,7 +1890,16 @@ fi
 #     over the guest's file, with a script of his own, and Bluetooth and USB
 #     headphones played. 0.4.90 does the same before the guest starts.
 #     ONEOS_GUEST_APM_BT_MODULE=0 takes the other way, =1 takes this one on a
-#     Qualcomm phone too.
+#     Qualcomm phone too. The S23 family (SM8550) takes it as well (0.5.00):
+#     with 0.4.99 the bridge handed the guest's hardware-offload A2DP session
+#     to Samsung's provider, but no port of the HIDL HAL's PAL ever watched it
+#     ("has NO port state observer") and every start failed ("Rx device start
+#     failed with status -38", ColorOS reports 7eeafc87 and 5528e31a; Pixel
+#     e353ca45 played on the speaker), while One UI on the same phone plays
+#     through a software A2DP session and this module. The S24 (SM8650) plays
+#     on the primary module (Nothing OS 32b35f59, ColorOS and Pixel reports),
+#     so it keeps that way. guest_props.sh then turns A2DP offload off in the
+#     guest (the marker $STAGE/guest_bt_sw), so it opens the software session.
 #   - Otherwise, where One UI's _sec or _base file has an A2DP output, three
 #     A2DP devices in the primary module as that file has them (16-bit PCM,
 #     48 kHz stereo), fed by the speaker's own mix ports except the mmap ones
@@ -1966,7 +1975,8 @@ apm_a2dp() {
     case "${ONEOS_GUEST_APM_BT_MODULE:-auto}" in
         0) apm_mod=0 ;;
         1) apm_mod=1 ;;
-        *) apm_mod=1; if [ "$(getprop ro.soc.manufacturer)" = QTI ]; then apm_mod=0; fi ;;
+        *) apm_mod=1
+           if [ "$(getprop ro.soc.manufacturer)" = QTI ] && [ "$(getprop ro.soc.model)" != SM8550 ]; then apm_mod=0; fi ;;
     esac
     if [ "$apm_mod" = 1 ]; then
         apm_bt=/vendor/etc/bluetooth_audio_policy_configuration.xml
@@ -2268,6 +2278,7 @@ fi
 # ONEOS_GUEST_APM_A2DP=0 and ONEOS_GUEST_APM_USB=0 together leave the vendor's
 # file; each alone leaves out its own outputs.
 GAPM=/vendor/etc/audio_policy_configuration.xml
+rm -f "$STAGE/guest_bt_sw"
 if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" ] \
    && { [ "${ONEOS_GUEST_APM_A2DP:-1}" = 1 ] || [ "${ONEOS_GUEST_APM_USB:-1}" = 1 ]; } \
    && [ -f "$GAPM" ] && [ -f "$ROOTFS$GAPM" ] && [ ! -L "$ROOTFS$GAPM" ] \
@@ -2301,6 +2312,11 @@ if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" 
                 if $BB mount --bind "$GAPM_OV/audio_policy_configuration.xml" "$ROOTFS$GAPM"; then
                     $BB mount -o remount,ro,bind "$ROOTFS$GAPM" 2>/dev/null || true
                     echo "Guest audio policy: $GAPM with $GAPM_SAID (no AIDL audio HAL)"
+                    case "$APM_NOTE" in
+                        *"vendor's Bluetooth module"*)
+                            # Software A2DP for the module's stream on Qualcomm (see apm_a2dp).
+                            [ "$(getprop ro.soc.manufacturer)" = QTI ] && echo module > "$STAGE/guest_bt_sw" ;;
+                    esac
                 else
                     echo "!!! WARNING: guest audio policy: the bind on $GAPM was refused; the guest keeps the vendor's file ($GAPM_LOST)"
                 fi
