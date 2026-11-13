@@ -983,6 +983,51 @@ fi
 if [ -f /data/guest_audio.flag ]; then
     echo "[Pivoted Root] Starting guest audioserver..."
     mkdir -p /data/misc/audioserver && chown 1041:1005 /data/misc/audioserver && chmod 0700 /data/misc/audioserver
+    # A guest restart that keeps the previous generation's audio HAL leaves the
+    # new audioserver without a primary output: the HAL holds the old streams,
+    # openOutput for AUDIO_DEVICE_OUT_SPEAKER fails ("Cannot open output stream
+    # ... on hw module primary", "The policy configuration does not declare a
+    # primary output") and every createTrack gets error -19 for the rest of the
+    # session. Galaxy A15 Infinity-X: audioserver 8035 registered at 16:10:33,
+    # two minutes after the 16:10 soft reboot, and the sound stayed dead until
+    # the 14:25 full launch; the 03:33 and 04:05 sessions died the same way
+    # (sound_watch.log / sound_watch.prev). A full launch never sees this:
+    # oneos_switch.sh restarts the HAL services before us, so only a HAL whose
+    # pid survived the guest restart needs this. Restart it the way the full
+    # launch does, through the HAL's init services, and fall back to the
+    # pid when the property did not move it: init starts the service again,
+    # and the fresh HAL takes the new audioserver's streams. The recorded pid
+    # lives in the guest's /data like the other keeper logs; the pid file also
+    # guards against pid reuse restarting a fresh HAL, which would only cost
+    # another HAL restart, never a broken one.
+    hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1 | tr -dc 0-9)
+    hprev=$(cat /data/oneos_audio_hal.pid 2>/dev/null)
+    if [ -n "$hpid" ] && [ "$hpid" = "$hprev" ]; then
+        echo "[Pivoted Root] audio HAL survived the guest restart as pid $hpid; restarting it for a fresh primary output"
+        for hsv in $(getprop | sed -n 's/^\[init\.svc\.\(vendor\.audio-hal[^]]*\)\]: \[running\]$/\1/p' | tr '\n' ' '); do
+            setprop ctl.restart "$hsv"
+        done
+        n=0
+        while [ $n -lt 100 ]; do
+            sleep 0.2
+            hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1 | tr -dc 0-9)
+            if [ -n "$hpid" ] && [ "$hpid" != "$hprev" ]; then break; fi
+            n=$((n + 1))
+        done
+        if [ -n "$hpid" ] && [ "$hpid" = "$hprev" ]; then
+            echo "[Pivoted Root] audio HAL still pid $hpid after the ctl.restart; killing it"
+            kill -9 "$hpid" 2>/dev/null || true
+            n=0
+            while [ $n -lt 100 ]; do
+                sleep 0.2
+                hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1 | tr -dc 0-9)
+                if [ -n "$hpid" ] && [ "$hpid" != "$hprev" ]; then break; fi
+                n=$((n + 1))
+            done
+        fi
+        echo "[Pivoted Root] audio HAL pid after the restart: ${hpid:-none} (waited $((n / 5))s)"
+    fi
+    if [ -n "$hpid" ]; then echo "$hpid" > /data/oneos_audio_hal.pid; fi
     n=0
     while [ $n -lt 50 ] && ! service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found"; do n=$((n + 1)); sleep 0.2; done
     echo "[Pivoted Root] audio HAL IModule/default:$(service check android.hardware.audio.core.IModule/default 2>/dev/null | cut -d: -f2) after $((n / 5))s"
