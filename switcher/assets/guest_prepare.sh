@@ -92,7 +92,8 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
                                         $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" ||
-                                        $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
+                                        $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" ||
+                                        $2 == "oplus-framework_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
     sum=$(awk -v n="$need" '$2 == n {print $1}' "$STAGE/guards.txt")
     if [ -z "$sum" ] || [ "$(sha256sum "$STAGE/$need" 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         echo "ERROR: $STAGE/$need missing or not the guarded build in guards.txt; not starting the guest"
@@ -1785,6 +1786,17 @@ if [ -f "$STAGE/vivo-framework_patched.jar" ] && [ -f "$VFJ" ] && [ ! -L "$VFJ" 
     $BB umount -l "$VFJ" 2>/dev/null || true
     $BB mount --bind "$STAGE/vivo-framework_patched.jar" "$VFJ" &&
         echo "Bound vivo-framework_patched.jar -> $VFJ (brightness on the phone build's tables)"
+fi
+# oplus-framework_patched.jar (boot class path, ColorOS and OxygenOS): outgoing calls
+# over IMS where the carrier asks for VoLTE provisioning, which Samsung's IMS service
+# answers with 0 (patches/oplus_ims_provision.py; Z Fold8 Spectrum 295249c3 dialled
+# every call as GSM). guards.txt pins it (the check above).
+OFJ="$ROOTFS/system/framework/oplus-framework.jar"
+if [ -f "$STAGE/oplus-framework_patched.jar" ] && [ -f "$OFJ" ] && [ ! -L "$OFJ" ] && [ ! -L "$ROOTFS/system/framework" ]; then
+    chmod 644 "$STAGE/oplus-framework_patched.jar"
+    $BB umount -l "$OFJ" 2>/dev/null || true
+    $BB mount --bind "$STAGE/oplus-framework_patched.jar" "$OFJ" &&
+        echo "Bound oplus-framework_patched.jar -> $OFJ (IMS calls without the carrier's VoLTE provisioning)"
 fi
 # vivo's display and input side read their device type from ro.oneos.vivo.dtype
 # (guest_props.sh; make-overlays.sh renamed the property in them): "foldable" for

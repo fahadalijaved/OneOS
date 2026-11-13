@@ -38,11 +38,11 @@ class PackageSetsTest {
 
     @Test
     fun setsAsData() {
-        assertEquals(35, n6.files.size) // 0.4.98: + ColorPanoramicSystemUI.apk; 0.4.63: + oplus_odm_ai.tar; 0.4.47: + KeKeThemeSpace_patched.apk; 0.4.37: + framework_patched.jar, libcamera_client_patched.so, samcam.tar; 0.4.38 (global): + cellbroadcast, Fold8SystemUI.apk, Fold8AngleRelay.dex; 0.4.39: + telephony-common_patched.jar
+        assertEquals(36, n6.files.size) // 0.5.05: + oplus-framework_patched.jar; 0.4.98: + ColorPanoramicSystemUI.apk; 0.4.63: + oplus_odm_ai.tar; 0.4.47: + KeKeThemeSpace_patched.apk; 0.4.37: + framework_patched.jar, libcamera_client_patched.so, samcam.tar; 0.4.38 (global): + cellbroadcast, Fold8SystemUI.apk, Fold8AngleRelay.dex; 0.4.39: + telephony-common_patched.jar
         assertEquals(43, pixel.files.size) // 0.4.59: OneOSFoldCutout.apk, yogi-services_patched.jar, libbootanimation_preapex_patched.so, OneOSPixelLauncher.apk, OneOSPixelDoze.apk; 0.4.24: framework_patched.jar (One UI's camera transaction codes); 0.4.45: telephony-common_patched.jar; 0.4.47: libcamera_client_patched.so, samcam.tar
         assertEquals(Images.ID_FIND_N6, n6.imageId)
         assertEquals(Images.ID_PIXEL_YOGI, pixel.imageId)
-        assertEquals("out/overlays_n6g_r20", n6.sourceDir)
+        assertEquals("out/overlays_n6g_r21", n6.sourceDir)
         assertEquals("out/overlays_x9u_in_r75", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
         assertEquals("out/overlays_pixel_f8u_r19", pixel.sourceDir)
@@ -167,11 +167,13 @@ class PackageSetsTest {
         val camera = listOf("framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so")
         for (s in listOf(n6, xin)) {
             val cam = camera
-            assertEquals(listOf("services_patched.jar", "oplus-services_patched.jar") + cam.take(cam.size.coerceAtMost(2)),
+            // 0.5.05: the Find N6 sets carry oplus-framework_patched.jar (IMS calls); the older X9U set does not.
+            val ofw = if (s === n6) listOf("oplus-framework_patched.jar") else emptyList()
+            assertEquals(listOf("services_patched.jar", "oplus-services_patched.jar") + ofw + cam.take(cam.size.coerceAtMost(2)),
                 s.files.filter { it.role == FileRole.GUARD_JAR }.map { it.name })
             assertEquals(
                 s.id,
-                listOf("services_patched.jar", "oplus-services_patched.jar", "vold_patched", "service.incremental_patched.so") + cam,
+                listOf("services_patched.jar", "oplus-services_patched.jar", "vold_patched", "service.incremental_patched.so") + ofw + cam,
                 s.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
             )
             // 0.4.38: the Find N6 global set carries its cell broadcast module too.
@@ -183,7 +185,8 @@ class PackageSetsTest {
         // The IN build's set (0.4.11; 0.4.51 the only Find X9 Ultra build): the Find N6 set's files but the
         // fold's (the wallpaper grid, the Fold8 SystemUI and its hinge relay), with its own guest vold as gvld.
         // 0.4.97 (r72) / 0.4.98: both carry their own ColorPanoramicSystemUI.apk.
-        assertEquals((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex").toSet(), xin.names.toSet())
+        // 0.5.05: and oplus-framework_patched.jar, which the older X9U set does not get.
+        assertEquals((n6.names - PackageSets.WALLPAPER_GRID_RRO - "Fold8SystemUI.apk" - "Fold8AngleRelay.dex" - "oplus-framework_patched.jar").toSet(), xin.names.toSet())
         // 0.4.47: the global builds' Theme Store without its brand check, the same file in both sets.
         assertEquals(ShaList.parse(shas(n6)).entries[PackageSets.THEME_STORE_APK], ShaList.parse(shas(xin)).entries[PackageSets.THEME_STORE_APK])
         assertEquals(FileRole.GUEST_FIX, n6.file(PackageSets.THEME_STORE_APK)?.role)

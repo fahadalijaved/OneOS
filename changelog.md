@@ -50,6 +50,13 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.05: **outgoing calls in ColorOS on US carriers** (Spectrum and others), on the Z Folds and slab phones.
+- ColorOS let incoming calls and texts through but dialled every outgoing call the old way (GSM), which LTE-only
+  carriers such as Spectrum do not have: the carrier's settings asked for VoLTE "provisioning", and Samsung's IMS
+  service, which the systems use, answers that it is not provisioned. ColorOS now calls over IMS as the Pixel system
+  does. For the Find N6 system (Z Folds) and the Find X9 Ultra November build. Not tried on a phone yet.
+  **Tap Update on the system's page**.
+
 New in 0.5.04: **Bluetooth sound in ColorOS and OxygenOS on the Galaxy S23 series** and **an end to the Galaxy S24 restarts**.
 - On the S23, S23+ and S23 Ultra, ColorOS and OxygenOS read the phone's own audio settings from a second place and
   never saw OneOS's Bluetooth changes, so headphones connected without sound (0.4.97 to 0.5.03). They now get the

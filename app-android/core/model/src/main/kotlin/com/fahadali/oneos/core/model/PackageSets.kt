@@ -220,6 +220,14 @@ object PackageSets {
      * gvld too) and OneOS's in-guest app. 0.4.57: oplus-services_patched.jar keeps ColorOS's
      * resolution switch off on a panel without ColorOS's density tables (patches/oplus_resolution_tables.py).
      */
+    /**
+     * 0.5.05: oplus-framework.jar with outgoing calls over IMS where the carrier asks for VoLTE
+     * provisioning (patches/oplus_ims_provision.py; Samsung's IMS answers 0 and ColorOS dialled GSM:
+     * Z Fold8 Spectrum 295249c3). The Find N6 sets and the November X9U set only (owner: not the
+     * older X9U build, not OxygenOS).
+     */
+    private val OPLUS_FRAMEWORK_IMS = PackageFile("oplus-framework_patched.jar", FileRole.GUARD_JAR)
+
     private val COMMON: List<PackageFile> = listOf(
         PackageFile("services_patched.jar", FileRole.GUARD_JAR),
         PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -238,9 +246,10 @@ object PackageSets {
         // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
         // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
         // other global build's (x9u-in-sultra).
-        sourceDir = "out/overlays_n6g_r20",
+        sourceDir = "out/overlays_n6g_r21",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
-        files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
+        files = COMMON + OPLUS_FRAMEWORK_IMS +
+            PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +
@@ -259,7 +268,7 @@ object PackageSets {
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
             PackageFile(ODM_AI, FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        approxBytes = 763_750_051L,
+        approxBytes = 763_750_051L + 12_338_345L,
         hasReturnApp = true,
     )
 
@@ -267,7 +276,7 @@ object PackageSets {
     val N6_GLOBAL_F8 = PackageSet(
         id = "n6-global-f8",
         imageId = Images.ID_FIND_N6,
-        sourceDir = "out/fold8-global-r0501",
+        sourceDir = "out/fold8-global-r0505",
         files = N6_F8U.files + PackageFile("GlobalVerifiedAddons.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, "OneOSFoldCutout.apk", "OneOSTabletQs.apk"),
         // n6-f8u's files and the 10 KB empty addon archive (a channel's archive is larger, but optional).
@@ -312,7 +321,10 @@ object PackageSets {
     val X9U_IN_1105_SULTRA = X9U_IN_SULTRA.copy(
         id = ID_X9U_IN_1105_SULTRA,
         imageId = Images.ID_FIND_X9U_IN_1105,
-        sourceDir = "out/overlays_x9u_in_1105_r1",
+        sourceDir = "out/overlays_x9u_in_1105_r2",
+        // 0.5.05 (r2): oplus-framework_patched.jar right after the common files, as root's set_files lists it.
+        files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size),
+        approxBytes = X9U_IN_SULTRA.approxBytes + 12_546_637L,
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */

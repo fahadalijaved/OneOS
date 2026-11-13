@@ -1,5 +1,5 @@
-# OneOS package set n6-global-f8 (pull request #37): the Z Fold8's Find N6 global set, n6-f8u's files (0.4.59: out/overlays_n6g_r14, see n6-f8u.sha256) plus GlobalVerifiedAddons.tar, an empty addon archive (one empty overlays.list) that a patch channel can replace. 0.5.00 r0500: current with services_patched.jar patched by patches/guest_pdb_frp_writes_fail.py (a PDB write with One UI's FRP active fails as an I/O error, scripts/patch-built-jar.sh), 2026-11-13. 0.5.01 r0501: r0500 with framework_patched.jar patched by patches/guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks: calls end, scripts/patch-built-jar.sh), 2026-11-13.
-# app/build.gradle.kts packs exactly these files from out/fold8-global-r0501 (a hard-link copy of out/overlays_n6g_r14 plus the archive).
+# OneOS package set n6-global-f8 (pull request #37): the Z Fold8's Find N6 global set, n6-f8u's files (0.4.59: out/overlays_n6g_r14, see n6-f8u.sha256) plus GlobalVerifiedAddons.tar, an empty addon archive (one empty overlays.list) that a patch channel can replace. 0.5.00 r0500: current with services_patched.jar patched by patches/guest_pdb_frp_writes_fail.py (a PDB write with One UI's FRP active fails as an I/O error, scripts/patch-built-jar.sh), 2026-11-13. 0.5.01 r0501: r0500 with framework_patched.jar patched by patches/guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks: calls end, scripts/patch-built-jar.sh), 2026-11-13. 0.5.05 r0505: r0501 plus oplus-framework_patched.jar (patches/oplus_ims_provision.py: outgoing calls over IMS where the carrier asks for VoLTE provisioning, Samsung's IMS answers 0), 2026-11-13.
+# app/build.gradle.kts packs exactly these files from out/fold8-global-r0505 (a hard-link copy of out/overlays_n6g_r14 plus the archive).
 ccf2fbddc462eca6d7cb7f112ca1b36620fe0ccd044ff6ba28bebe13cfe6b89e  Fold8AngleRelay.dex
 # 0.4.97: Fold8SystemUI.apk of n6-f8u r17 (wallpaper AOD without OPPO's display-panel HAL)
 9b5e00001061eb1b1eea2002a9b926c6a5bb579caa5b9686bfc7d9c8fc27d116  Fold8SystemUI.apk
@@ -15,7 +15,7 @@ f8fc69250f59bd83b0d11399c17a4bfa4e63030d7297b2108eb84d9bc7dc94fd  configinfrastr
 2cda6104fa8266d2ee26ca9512532dfed6fef9c8c2a319663f890fd19986c0a0  crashrecovery_payload.img
 dddccf843beb0fb4552d3f0afe1c4f8bb8d7a1c4269f5a787f16ad1b08f8beaf  extservices_payload.img
 77c9d39c1e31dde3c35982c009371a231f9825b4b17a54389f3839b67979222f  framework_patched.jar
-6b9bb646eba6c7b543bd0e5d3976a3f790358f227c08af8847d605dab30a756b  guards.txt
+757d2aa99b85427cb3fd39b3000fe0fd3323ac9663d6696063902a15651829e9  guards.txt
 8f2a37629ed009b011d33f017714ac3d33caa5ffba838c2ced3a2c4f6a612efc  healthfitness_payload.img
 1750220fbfa2af1611a8ed7b1b3526074953b3a863f0e066a3fede2a4ea7d756  i18n_payload.img
 44ac958698b0dcd72b5ea77f84e5c16caba6716b153589388d09354abaadd6aa  ims-ext-common_patched.jar
@@ -38,3 +38,4 @@ e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.increm
 93f7758cee7ad56d20c4ee80cd270837d1ecb187efacfbc473f3d27c3184f2f6  wifi_payload.img
 # 0.4.98: ColorPanoramicSystemUI.apk of n6-f8u r18
 c8ddf6bcf5858f0c1dd6b012c77f8cd442254347def89a3b58a3e05ff901175b  ColorPanoramicSystemUI.apk
+86f96466150f3314872dc30f5e7254c82248e5cff5c3eb712a944b70d31e13ac  oplus-framework_patched.jar

@@ -1921,6 +1921,34 @@ if in_image /system/framework/vivo-framework.jar &&
     rm -rf "$WORK/vf" "$WORK/vf-rebuilt.jar" "$WORK/vdex" "$WORK/vivo-framework.jar"
 fi
 
+# ColorOS and OxygenOS: outgoing calls over IMS where the carrier asks for VoLTE
+# provisioning (patches/oplus_ims_provision.py; Samsung's IMS service answers 0 and
+# every call was dialled as GSM: Z Fold8 Spectrum 295249c3, S25+ US c8be0b32).
+# oplus-framework.jar is on the boot class path; only the dex the patch changed is
+# rebuilt. Nothing is written when the image has no such check.
+rm -f "$OUT/oplus-framework_patched.jar"
+if in_image /system/framework/oplus-framework.jar; then
+    "$DEBUGFS" -R "dump /system/framework/oplus-framework.jar $WORK/oplus-framework.jar" "$IMG" 2>/dev/null
+    rm -rf "$WORK/of" "$WORK/of-rebuilt.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/of" "$WORK/oplus-framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/oplus_ims_provision.py" "$WORK/of")
+    if [ -n "$DIRS" ]; then
+        java -jar "$APKTOOL" b -q -o "$WORK/of-rebuilt.jar" "$WORK/of"
+        cp "$WORK/oplus-framework.jar" "$WORK/oplus-framework_patched.jar"
+        for d in $DIRS; do
+            DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+            rm -rf "$WORK/ofdex" && mkdir -p "$WORK/ofdex"
+            unzip -q -o "$WORK/of-rebuilt.jar" "$DEX" -d "$WORK/ofdex"
+            (cd "$WORK/ofdex" && zip -q -0 "$WORK/oplus-framework_patched.jar" "$DEX")
+            echo "built $OUT/oplus-framework_patched.jar (replaced $DEX)"
+        done
+        python3 -I "$ROOT/scripts/check-dex.py" "$WORK/oplus-framework_patched.jar"
+        mv -f "$WORK/oplus-framework_patched.jar" "$OUT/oplus-framework_patched.jar"
+        chmod 644 "$OUT/oplus-framework_patched.jar"
+    fi
+    rm -rf "$WORK/of" "$WORK/of-rebuilt.jar" "$WORK/ofdex" "$WORK/oplus-framework.jar"
+fi
+
 # vivo's feature list (patches/vivo_guards.py framework: VivoConfigStoreHelper reads
 # /data/system/oneos_vivo_features, guest_prepare.sh copies this file there): vivo's
 # config store HAL is vivo's vendor's, so without it every vivo feature read as off
