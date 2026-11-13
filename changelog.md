@@ -50,6 +50,14 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.04: **Bluetooth sound in ColorOS and OxygenOS on the Galaxy S23 series** and **an end to the Galaxy S24 restarts**.
+- On the S23, S23+ and S23 Ultra, ColorOS and OxygenOS read the phone's own audio settings from a second place and
+  never saw OneOS's Bluetooth changes, so headphones connected without sound (0.4.97 to 0.5.03). They now get the
+  same settings the Pixel system plays with on the S23. Not tried on a phone yet. **Tap Update on the system's page**.
+- The Galaxy S24 restarts during sessions came from a third-party app's tool that works on the kernel (it runs as
+  "libtimer.so"), not from OneOS or the systems: 0.5.03's note caught it. OneOS now stops before switching while
+  that tool runs and says which app it is: close it, or restart the phone without starting it, and switch again.
+
 New in 0.5.03: **a clue for the Galaxy S24 restarts**.
 - Some Galaxy S24, S24+, S24 FE and S24 Ultra phones restart by themselves during a session (10 reports, in
   ColorOS, OriginOS and the Pixel 9 Pro XL system): the phone's kernel stops while a program closes. Sessions now

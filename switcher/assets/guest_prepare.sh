@@ -2315,7 +2315,27 @@ if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" 
                     case "$APM_NOTE" in
                         *"vendor's Bluetooth module"*)
                             # Software A2DP for the module's stream on Qualcomm (see apm_a2dp).
-                            [ "$(getprop ro.soc.manufacturer)" = QTI ] && echo module > "$STAGE/guest_bt_sw" ;;
+                            [ "$(getprop ro.soc.manufacturer)" = QTI ] && echo module > "$STAGE/guest_bt_sw"
+                            # ColorOS and OxygenOS (libaudiopolicycomponents) read
+                            # /vendor/etc/audio/sku_<sku>_qssi/ before this file: every
+                            # S23 ColorOS session loaded sku_kalama_qssi's (Config source
+                            # in dumpsys media.audio_policy, e305b2a1 and 30 others) and
+                            # opened A2DP on the primary module's DSP path ("Rx device
+                            # start failed with status -38"), while the Pixel system read
+                            # this copy and played (0e019498). The same copy goes there
+                            # too; other systems never read that path.
+                            for q in ${SKU:+/vendor/etc/audio/sku_${SKU}_qssi/audio_policy_configuration.xml} \
+                                     /vendor/etc/audio/sku_*_qssi/audio_policy_configuration.xml; do
+                                [ -f "$ROOTFS$q" ] && [ ! -L "$ROOTFS$q" ] || continue
+                                mount | grep -q " $ROOTFS$q " && break
+                                if $BB mount --bind "$GAPM_OV/audio_policy_configuration.xml" "$ROOTFS$q"; then
+                                    $BB mount -o remount,ro,bind "$ROOTFS$q" 2>/dev/null || true
+                                    echo "Guest audio policy: the same copy on $q (ColorOS's and OxygenOS's first choice)"
+                                else
+                                    echo "!!! WARNING: guest audio policy: the bind on $q was refused; ColorOS and OxygenOS keep it (no Bluetooth audio there)"
+                                fi
+                                break
+                            done ;;
                     esac
                 else
                     echo "!!! WARNING: guest audio policy: the bind on $GAPM was refused; the guest keeps the vendor's file ($GAPM_LOST)"

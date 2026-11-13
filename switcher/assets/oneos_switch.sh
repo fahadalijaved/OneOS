@@ -34,6 +34,20 @@ root_only() {
 }
 [ "$(id -u 2>/dev/null)" = 0 ] || refuse "not running as root"
 
+# A store app's native helper run as a program (libtimer.so from an app's lib
+# folder, as the shell user, argument "umhpipe") that works on kernel pipes:
+# every S24-family kernel panic in free_pipe_info/pipe_read since 0.4.9x ran in
+# that thread (0.5.03's timer_threads.txt, report 60192300, 11-13). Not stopped
+# here: the panic comes when its pipe is freed, so killing it would be the crash.
+for ex in /proc/[0-9]*/exe; do
+    t=$(readlink "$ex" 2>/dev/null) || continue
+    case "$t" in
+        /data/app/*/lib/*/libtimer.so)
+            a=${t#/data/app/}; a=${a#*/}; a=${a%%/lib/*}; a=${a%%-*}
+            refuse "the app $a is running its kernel tool (libtimer.so, pid $(echo "$ex" | cut -d/ -f3)), which crashed the kernel on S24 phones during OneOS sessions: close it (or restart the phone without starting it) and switch again" ;;
+    esac
+done
+
 # Root tools: the root manager's own busybox and resetprop (KernelSU, APatch,
 # Magisk), never whatever a search of /data finds (OneLineage fell back to
 # `find /data -name busybox`). A missing resetprop is fatal: without it
