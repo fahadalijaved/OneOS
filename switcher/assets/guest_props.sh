@@ -618,16 +618,36 @@ add)
     # these phones in case the image defines use_origin=true. Both properties
     # are in memory for the session and are restored/removed on return.
     # ONEOS_GUEST_BT_ORIGIN=1 remains an explicit diagnostic override on any
-    # ColorOS guest; any other explicit value leaves non-MT6789 phones alone.
+    # ColorOS guest; any other explicit value leaves phones alone. The family
+    # is all of MediaTek, not MT6789 alone: OPPO's parser reads Qualcomm's BQR
+    # layout on every MediaTek controller, and ro.soc.model alone misses
+    # builds that leave it empty or suffix it (the four-property match is the
+    # one the A2DP recovery in guest_start.sh uses). MT6789 keeps its own
+    # branch: its behavior is device-confirmed on the A15/A16 4G.
     BTO=persist.sys.oplus.bt.use_origin
     BTQ=persist.bluetooth.bqr.event_mask
     if [ "$GUEST_OPLUS" = 1 ]; then
         soc=$(getprop ro.soc.model)
+        bt_mtk=
+        case "$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)$(getprop ro.soc.model)" in
+            *mt[0-9]*|*MT[0-9]*|*[Mm]edia[Tt]ek*) bt_mtk=1 ;;
+        esac
         case "${ONEOS_GUEST_BT_ORIGIN:-auto}:$soc" in
             1:*) bt_origin=true; bt_q=""; why="ONEOS_GUEST_BT_ORIGIN=1" ;;
             auto:MT6789*|0:MT6789*)
                 bt_origin=false; bt_q=0
                 why="$soc: disable incompatible Bluetooth quality reports without changing A2DP"
+                ;;
+            auto:*|0:*)
+                bt_origin=""; bt_q=""; why=""
+                if [ -n "$bt_mtk" ]; then
+                    bt_origin=false; bt_q=0
+                    if [ -n "$soc" ]; then
+                        why="$soc: disable incompatible Bluetooth quality reports without changing A2DP"
+                    else
+                        why="MediaTek SoC: disable incompatible Bluetooth quality reports without changing A2DP"
+                    fi
+                fi
                 ;;
             *) bt_origin=""; bt_q=""; why="" ;;
         esac

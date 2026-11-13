@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Helio G99 ColorOS Bluetooth disables incompatible quality reports without changing A2DP behaviour."""
+"""MediaTek ColorOS Bluetooth disables incompatible quality reports without changing A2DP behaviour."""
 from pathlib import Path
 import os
 import subprocess
@@ -36,6 +36,7 @@ class OplusBtOrigin(unittest.TestCase):
 
     def test_the_block_is_there(self):
         self.assertIn('auto:MT6789*|0:MT6789*)', CODE)
+        self.assertIn('*mt[0-9]*|*MT[0-9]*|*[Mm]edia[Tt]ek*', CODE)
         self.assertLess(len(CODE), 3000)
 
     def test_a_helio_g99_phone_keeps_normal_a2dp_and_disables_bqr(self):
@@ -54,12 +55,32 @@ class OplusBtOrigin(unittest.TestCase):
             new=f'a=1\n{KEY}=true\n{BQR}=7\npersist.sys.oplus.bt.use_originX=1\nb=2\n')
         self.assertEqual(f'a=1\npersist.sys.oplus.bt.use_originX=1\nb=2\n{KEY}=false\n{BQR}=0\n', new)
 
+    def test_the_whole_mediaTek_family_gets_the_same_treatment(self):
+        # MT6877 (A34) had working-Bluetooth reports, but the change only
+        # disables diagnostic quality reports and pins OPPO's normal path;
+        # both are restored on return. Detected through ro.soc.model ...
+        out, new, ovr, now = self.run_case(soc='MT6877')
+        reason = G99.replace('MT6789', 'MT6877')
+        self.assertEqual(f'ro.build.id=X\n{KEY}=false\n{BQR}=0\n', new)
+        self.assertEqual(f'guest_props: {KEY}=false for the session ({reason})\n'
+                         f'guest_props: {BQR}=0 for the session ({reason})\n', out)
+        # ... and through ro.board.platform when ro.soc.model is empty.
+        out, new, ovr, now = self.run_case(soc='', props={'ro.board.platform': 'mt6768'})
+        reason = 'MediaTek SoC: disable incompatible Bluetooth quality reports without changing A2DP'
+        self.assertEqual(f'ro.build.id=X\n{KEY}=false\n{BQR}=0\n', new)
+        self.assertEqual(f'guest_props: {KEY}=false for the session ({reason})\n'
+                         f'guest_props: {BQR}=0 for the session ({reason})\n', out)
+
     def test_other_phones_and_other_systems_are_left_alone(self):
-        # A34 (MT6877): ColorOS's Bluetooth is reported working as it is. Exynos and Qualcomm: no such crash.
-        for kw in ({'soc': 'MT6877'}, {'soc': 'SM8850'}, {'soc': 's5e8845'}, {'soc': ''}, {'oplus': 0},
+        # Exynos and Qualcomm: OPPO's parser matches their BQR layout, no crash.
+        for kw in ({'soc': 'SM8850'}, {'soc': 's5e8845'}, {'soc': ''}, {'oplus': 0},
                    {'env': {'ONEOS_GUEST_BT_ORIGIN': 'yes'}}):
             with self.subTest(kw):
                 self.assertEqual(('', 'ro.build.id=X\n', '', {}), self.run_case(**kw))
+        # Explicit values other than 0/auto leave every phone alone, and the
+        # override is a no-op without a ColorOS guest.
+        self.assertEqual(('', 'ro.build.id=X\n', '', {}),
+                         self.run_case(soc='MT6877', env={'ONEOS_GUEST_BT_ORIGIN': 'yes'}))
 
     def test_the_override_sets_it_on_any_phone_with_a_coloros_guest(self):
         out, new, ovr, now = self.run_case(soc='SM8850', env={'ONEOS_GUEST_BT_ORIGIN': '1'})
