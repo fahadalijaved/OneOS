@@ -1859,45 +1859,137 @@ if [ -e "$ROOTFS/system/framework/oplus-services.jar" ] || [ -L "$ROOTFS/system/
 else
     echo "No oplus-services.jar in the guest image: only services.jar carries guards"
 fi
-# Bluetooth A2DP outputs for a guest that reads Samsung's plain audio policy
-# file. On the Exynos phones with a HIDL audio HAL (A16 5G, A34, A35, S24,
-# S24+) /vendor/etc/audio_policy_configuration.xml is the short file Samsung
-# ships for the vendor tests: speaker, earpiece, wired headset and Bluetooth
-# calls, no A2DP device and no Bluetooth module, while the HAL's primary
-# module does play to A2DP (the _sec file One UI's own audioserver loads has
-# the three A2DP devices in it). A guest that reads the plain file connects
-# earbuds, the Bluetooth audio bridge starts the session, and audio policy has
-# nowhere to send the sound ("could not find HW module for device type
-# 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP'", A35 session 631945a2).
-# apm_copy <vendor file> <out file> <1: A2DP outputs may be added> writes the
-# file with its relative xi:include hrefs made absolute, since the copy no
-# longer sits next to the files they name, and then, where all of this holds,
-# adds three A2DP devices to the primary module as One UI's file has them
-# (16-bit PCM, 48 kHz stereo), fed by the speaker's own mix ports except the
-# mmap ones:
-#   - the file and the files it includes name no A2DP output,
-#   - One UI's _sec or _base file has one,
-#   - a vendor manifest names an AIDL Bluetooth audio factory (Samsung's, for
-#     the bridge, or Android's): with the older HIDL one (A25, A33, S23 FE)
-#     the guest's Bluetooth has no audio session to give the HAL, and sound
-#     would leave the speaker for nothing,
-#   - ONEOS_GUEST_APM_A2DP is not 0.
+# Bluetooth A2DP and USB outputs for a guest that reads Samsung's plain audio
+# policy file. On the Exynos phones with a HIDL audio HAL (A16 5G, A34, A35,
+# S24, S24+) /vendor/etc/audio_policy_configuration.xml is the short file
+# Samsung ships for the vendor tests: speaker, earpiece, wired headset and
+# Bluetooth calls, no A2DP device, no Bluetooth module and no USB one (the
+# _sec file One UI's own audioserver loads has them in its primary module). A
+# guest that reads the plain file connects earbuds, the Bluetooth audio bridge
+# starts the session, and audio policy has nowhere to send the sound ("could
+# not find HW module for device type 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP'", A35
+# sessions 631945a2 and b06d044f; the same for AUDIO_DEVICE_OUT_USB_HEADSET
+# in b06d044f, where only the modules primary and r_submix were loaded).
+#
+# apm_copy <vendor file> <out file> <1: outputs may be added> writes the file
+# with its relative xi:include hrefs made absolute, since the copy no longer
+# sits next to the files they name, and then adds what the file lacks.
+#
+# Bluetooth A2DP (apm_a2dp): where the file and the files it includes name no
+# A2DP output, a vendor manifest names an AIDL Bluetooth audio factory
+# (Samsung's, for the bridge, or Android's: with the older HIDL one of the
+# A25, A33 and S23 FE the guest's Bluetooth has no audio session to give the
+# HAL, and sound would leave the speaker for nothing) and ONEOS_GUEST_APM_A2DP
+# is not 0. One of two ways:
+#   - The vendor's own Bluetooth module: Android's
+#     bluetooth_audio_policy_configuration.xml (the _7_0 one for a 7.x policy
+#     file that has it) included at the end of <modules>, where the vendor has
+#     that file and the library the module loads (audio.bluetooth.*.so) and
+#     the phone is not a Qualcomm one. This is a user's fix: on his Galaxy A35
+#     with OxygenOS 16 he included this file and the USB one in a copy bound
+#     over the guest's file, with a script of his own, and Bluetooth and USB
+#     headphones played. 0.4.90 does the same before the guest starts.
+#     ONEOS_GUEST_APM_BT_MODULE=0 takes the other way, =1 takes this one on a
+#     Qualcomm phone too. The S23 family (SM8550) takes it as well (0.5.00):
+#     with 0.4.99 the bridge handed the guest's hardware-offload A2DP session
+#     to Samsung's provider, but no port of the HIDL HAL's PAL ever watched it
+#     ("has NO port state observer") and every start failed ("Rx device start
+#     failed with status -38", ColorOS reports 7eeafc87 and 5528e31a; Pixel
+#     e353ca45 played on the speaker), while One UI on the same phone plays
+#     through a software A2DP session and this module. The S24 (SM8650) plays
+#     on the primary module (Nothing OS 32b35f59, ColorOS and Pixel reports),
+#     so it keeps that way. guest_props.sh then turns A2DP offload off in the
+#     guest (the marker $STAGE/guest_bt_sw), so it opens the software session.
+#   - Otherwise, where One UI's _sec or _base file has an A2DP output, three
+#     A2DP devices in the primary module as that file has them (16-bit PCM,
+#     48 kHz stereo), fed by the speaker's own mix ports except the mmap ones
+#     (0.4.85; it played on a Qualcomm vendor, Nothing OS session 32b35f59,
+#     and no report says it did on an Exynos one).
+#
+# USB (apm_usb): where the file and the files it includes name no USB output
+# and the vendor has Android's usb_audio_policy_configuration.xml and the
+# library its module loads (audio.usb.*.so), that file is included the same
+# way. ONEOS_GUEST_APM_USB=0 leaves it out.
+#
 # Speaker, earpiece, headset and microphones stay as the file has them.
-# APM_NOTE says what was done; a file whose layout the awk below does not
-# follow is left as it is.
-apm_copy() {
-    APM_NOTE=""
-    rm -f "$2" "$2.a2dp"
-    [ -f "$1" ] || return 1
-    $BB sed -e "s#href=\"\([^/\"][^\"]*\)\"#href=\"${1%/*}/\1\"#g" "$1" > "$2" || return 1
-    [ -s "$2" ] || return 1
-    [ "$3" = 1 ] || return 0
+# APM_NOTE says what was done for Bluetooth and APM_USB what was done for USB
+# (empty: nothing); APM_ADDED is 1 when the copy has more in it than the
+# vendor's file. A file whose layout these do not follow is left as it is.
+
+# apm_hw_lib <module>: the vendor has the audio HAL library a policy module of
+# that name loads (audio.<module>.<variant>.so).
+apm_hw_lib() {
+    for apm_d in /vendor/lib64/hw /vendor/lib/hw /odm/lib64/hw /odm/lib/hw; do
+        for apm_f in "$apm_d/audio.$1."*.so; do
+            [ -f "$apm_f" ] && return 0
+        done
+    done
+    return 1
+}
+
+# apm_format <copy>: the version the policy file says it is written in ("7.0":
+# lists with spaces; "1.0": with commas).
+apm_format() {
+    $BB tr '\n\t' '  ' < "$1" | $BB sed -n 's/.*<audioPolicyConfiguration[^>]* version="\([0-9.]*\)".*/\1/p'
+}
+
+# apm_include <copy> <module file> <why>: the module file included at the end
+# of the copy's <modules>, under a comment that says why. Only in a file that
+# declares xi: and has one </modules> outside its comments.
+apm_include() {
+    rm -f "$1.inc"
+    if awk -v inc="$2" -v why="$3" '
+        function blank(n,  s) { s = ""; while (n-- > 0) s = s " "; return s }
+        { doc = doc $0 "\n" }
+        END {
+            w = doc
+            while ((i = index(w, "<!--")) > 0) {
+                j = index(substr(w, i), "-->"); if (!j) exit 1
+                w = substr(w, 1, i - 1) blank(j + 2) substr(w, i + j + 2)
+            }
+            if (!index(w, "xmlns:xi=")) exit 1
+            p = index(w, "</modules>"); if (!p || index(substr(w, p + 1), "</modules>")) exit 1
+            # The indentation of </modules>, where it stands alone on its line.
+            b = p; while (b > 1 && substr(doc, b - 1, 1) != "\n") b--
+            ind = substr(doc, b, p - b); lead = ""
+            if (ind !~ /^[ \t]*$/) { ind = "    "; lead = "\n" ind }
+            printf "%s", substr(doc, 1, p - 1) lead "    <!-- OneOS: " why " -->\n" ind "    <xi:include href=\"" inc "\"/>\n" ind substr(doc, p)
+        }' "$1" > "$1.inc" && [ "$($BB grep -c "<xi:include href=\"$2\"/>" "$1.inc")" = 1 ]; then
+        cat "$1.inc" > "$1"
+        rm -f "$1.inc"
+        return 0
+    fi
+    rm -f "$1.inc"
+    return 1
+}
+
+# apm_a2dp <vendor file> <copy>: the Bluetooth A2DP outputs, see above.
+apm_a2dp() {
     if [ "${ONEOS_GUEST_APM_A2DP:-1}" != 1 ]; then
         APM_NOTE="no A2DP outputs added (ONEOS_GUEST_APM_A2DP=$ONEOS_GUEST_APM_A2DP)"; return 0
     fi
     apm_inc=$($BB grep -o 'href="/[^" ]*"' "$2" | $BB sed -e 's/^href="//' -e 's/"$//')
     if $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP' "$2" $apm_inc; then
         APM_NOTE="it has A2DP outputs of its own"; return 0
+    fi
+    case "${ONEOS_GUEST_APM_BT_MODULE:-auto}" in
+        0) apm_mod=0 ;;
+        1) apm_mod=1 ;;
+        *) apm_mod=1
+           if [ "$(getprop ro.soc.manufacturer)" = QTI ] && [ "$(getprop ro.soc.model)" != SM8550 ]; then apm_mod=0; fi ;;
+    esac
+    if [ "$apm_mod" = 1 ]; then
+        apm_bt=/vendor/etc/bluetooth_audio_policy_configuration.xml
+        case "$(apm_format "$2")" in
+            7.*) if $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP"' "${apm_bt%.xml}_7_0.xml"; then apm_bt="${apm_bt%.xml}_7_0.xml"; fi ;;
+        esac
+        if $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP"' "$apm_bt" && apm_hw_lib bluetooth \
+           && $BB grep -rqs -E 'ISehBluetoothAudioProviderFactory|IBluetoothAudioProviderFactory' /vendor/etc/vintf/ \
+           && apm_include "$2" "$apm_bt" "Bluetooth A2DP through the vendor's own Bluetooth audio module"; then
+            APM_NOTE="Bluetooth A2DP outputs added with the vendor's Bluetooth module (${apm_bt##*/})"
+            APM_ADDED=1
+            return 0
+        fi
     fi
     if ! $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP"' /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml; then
         APM_NOTE="no A2DP outputs added (One UI's own policy file has none)"; return 0
@@ -1961,10 +2053,38 @@ apm_copy() {
         }' "$2" > "$2.a2dp" && [ "$($BB grep -c 'tagName="OneOS BT A2DP ' "$2.a2dp")" = 3 ]; then
         APM_NOTE="Bluetooth A2DP outputs added on $($BB sed -n 's/.*sink="OneOS BT A2DP Out" sources="\([^"]*\)".*/\1/p' "$2.a2dp")"
         cat "$2.a2dp" > "$2"
+        APM_ADDED=1
     else
         APM_NOTE="no A2DP outputs added (the layout of $1 is not one this knows)"
     fi
     rm -f "$2.a2dp"
+}
+
+# apm_usb <copy>: the USB outputs, see above.
+apm_usb() {
+    [ "${ONEOS_GUEST_APM_USB:-1}" = 1 ] || return 0
+    apm_inc=$($BB grep -o 'href="/[^" ]*"' "$1" | $BB sed -e 's/^href="//' -e 's/"$//')
+    if $BB grep -qs 'AUDIO_DEVICE_OUT_USB_' "$1" $apm_inc; then return 0; fi
+    apm_uf=/vendor/etc/usb_audio_policy_configuration.xml
+    if $BB grep -qs 'AUDIO_DEVICE_OUT_USB_' "$apm_uf" && apm_hw_lib usb \
+       && apm_include "$1" "$apm_uf" "USB headphones through the vendor's own usb audio module"; then
+        APM_USB="USB outputs added with the vendor's usb module (${apm_uf##*/})"
+        APM_ADDED=1
+    fi
+    return 0
+}
+
+apm_copy() {
+    APM_NOTE=""
+    APM_USB=""
+    APM_ADDED=0
+    rm -f "$2" "$2.a2dp" "$2.inc"
+    [ -f "$1" ] || return 1
+    $BB sed -e "s#href=\"\([^/\"][^\"]*\)\"#href=\"${1%/*}/\1\"#g" "$1" > "$2" || return 1
+    [ -s "$2" ] || return 1
+    [ "$3" = 1 ] || return 0
+    apm_a2dp "$1" "$2"
+    apm_usb "$2"
     [ -s "$2" ]
 }
 
@@ -2141,7 +2261,7 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
             $BB chcon -R u:object_r:vendor_configs_file:s0 "$APM_OV/up" 2>/dev/null || true
             if [ -s "$APM_OV/up/audio_policy_configuration_mi.xml" ] &&
                $BB mount -t overlay overlay -o "ro,lowerdir=$APM_OV/up:$ROOTFS$APM_D" "$ROOTFS$APM_D"; then
-                echo "HyperOS audio policy: $APM_X as $APM_D/audio_policy_configuration_mi.xml (no AIDL audio HAL)${APM_NOTE:+; $APM_NOTE}"
+                echo "HyperOS audio policy: $APM_X as $APM_D/audio_policy_configuration_mi.xml (no AIDL audio HAL)${APM_NOTE:+; $APM_NOTE}${APM_USB:+; $APM_USB}"
             else
                 echo "!!! WARNING: HyperOS audio policy: the overlay on $APM_D was refused; HyperOS keeps its default (speaker only, no Bluetooth audio)"
             fi
@@ -2151,13 +2271,16 @@ fi
 
 # The other systems read AOSP's file name: /odm/etc, /vendor/etc/audio/sku_<sku>
 # and then /vendor/etc/audio_policy_configuration.xml. Where that last one is
-# the file the guest gets and apm_copy has A2DP outputs to add to it (see
-# there: Exynos, HIDL audio HAL), the copy is bound over it in the guest's
-# vendor, from a small tmpfs as above; One UI's /vendor is not touched and a
-# file apm_copy adds nothing to is left alone. ONEOS_GUEST_APM_A2DP=0 leaves
-# the vendor's file.
+# the file the guest gets and apm_copy has Bluetooth A2DP or USB outputs to
+# add to it (see there: Exynos, HIDL audio HAL), the copy is bound over it in
+# the guest's vendor, from a small tmpfs as above; One UI's /vendor is not
+# touched and a file apm_copy adds nothing to is left alone.
+# ONEOS_GUEST_APM_A2DP=0 and ONEOS_GUEST_APM_USB=0 together leave the vendor's
+# file; each alone leaves out its own outputs.
 GAPM=/vendor/etc/audio_policy_configuration.xml
-if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" ] && [ "${ONEOS_GUEST_APM_A2DP:-1}" = 1 ] \
+rm -f "$STAGE/guest_bt_sw"
+if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" ] \
+   && { [ "${ONEOS_GUEST_APM_A2DP:-1}" = 1 ] || [ "${ONEOS_GUEST_APM_USB:-1}" = 1 ]; } \
    && [ -f "$GAPM" ] && [ -f "$ROOTFS$GAPM" ] && [ ! -L "$ROOTFS$GAPM" ] \
    && ! "$BB" grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/; then
     SKU=$(getprop ro.boot.product.vendor.sku)
@@ -2174,18 +2297,32 @@ if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" 
         mkdir -p "$GAPM_OV" && { mount | grep -q " $GAPM_OV " || $BB mount -t tmpfs -o size=2m,mode=755 tmpfs "$GAPM_OV"; } &&
             $BB mount --make-private "$GAPM_OV" 2>/dev/null
         if mount | grep -q " $GAPM_OV " && apm_copy "$GAPM" "$GAPM_OV/audio_policy_configuration.xml" 1; then
-            case "$APM_NOTE" in
-                "Bluetooth A2DP outputs added"*)
-                    chown 0:0 "$GAPM_OV/audio_policy_configuration.xml" && chmod 644 "$GAPM_OV/audio_policy_configuration.xml"
-                    $BB chcon u:object_r:vendor_configs_file:s0 "$GAPM_OV/audio_policy_configuration.xml" 2>/dev/null || true
-                    if $BB mount --bind "$GAPM_OV/audio_policy_configuration.xml" "$ROOTFS$GAPM"; then
-                        $BB mount -o remount,ro,bind "$ROOTFS$GAPM" 2>/dev/null || true
-                        echo "Guest audio policy: $GAPM with $APM_NOTE (no AIDL audio HAL)"
-                    else
-                        echo "!!! WARNING: guest audio policy: the bind on $GAPM was refused; the guest keeps the vendor's file (no Bluetooth audio)"
-                    fi ;;
-                *) echo "Guest audio policy: $GAPM left as it is${APM_NOTE:+: $APM_NOTE}" ;;
-            esac
+            if [ "$APM_ADDED" = 1 ]; then
+                # What the copy has more, Bluetooth first, and what a refused bind costs.
+                case "$APM_NOTE" in
+                    "Bluetooth A2DP outputs added"*)
+                        GAPM_SAID="$APM_NOTE${APM_USB:+; $APM_USB}"
+                        GAPM_LOST="no Bluetooth audio${APM_USB:+, no USB audio}" ;;
+                    *)
+                        GAPM_SAID="$APM_USB${APM_NOTE:+; $APM_NOTE}"
+                        GAPM_LOST="no USB audio" ;;
+                esac
+                chown 0:0 "$GAPM_OV/audio_policy_configuration.xml" && chmod 644 "$GAPM_OV/audio_policy_configuration.xml"
+                $BB chcon u:object_r:vendor_configs_file:s0 "$GAPM_OV/audio_policy_configuration.xml" 2>/dev/null || true
+                if $BB mount --bind "$GAPM_OV/audio_policy_configuration.xml" "$ROOTFS$GAPM"; then
+                    $BB mount -o remount,ro,bind "$ROOTFS$GAPM" 2>/dev/null || true
+                    echo "Guest audio policy: $GAPM with $GAPM_SAID (no AIDL audio HAL)"
+                    case "$APM_NOTE" in
+                        *"vendor's Bluetooth module"*)
+                            # Software A2DP for the module's stream on Qualcomm (see apm_a2dp).
+                            [ "$(getprop ro.soc.manufacturer)" = QTI ] && echo module > "$STAGE/guest_bt_sw" ;;
+                    esac
+                else
+                    echo "!!! WARNING: guest audio policy: the bind on $GAPM was refused; the guest keeps the vendor's file ($GAPM_LOST)"
+                fi
+            else
+                echo "Guest audio policy: $GAPM left as it is${APM_NOTE:+: $APM_NOTE}"
+            fi
         else
             echo "!!! WARNING: guest audio policy: no copy of $GAPM could be made; the guest keeps the vendor's file"
         fi
@@ -2483,8 +2620,10 @@ if [ -f "$FEAT" ]; then
     # UI (its floating feature, or the panel's low-power node; an LCD phone has
     # neither) and the image has OPPO's AOD app. The Find N6 build keeps its rules
     # above. ONEOS_GUEST_AOD=0 leaves it out.
+    # 0.4.98: also the Find N6 build on the Folds without the Fold8 rules (Fold7, Fold6, Fold5: no AOD in
+    # their Settings, report 3ef946ef); the Z Fold8 and Fold8 Ultra already have it in ADDED from above.
     AODF=oplus.software.display.aod_support
-    if ! grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" 2>/dev/null; then
+    if true; then
         case " $ADDED " in *" $AODF "*) ;; *)
             HAOD=""
             if grep -q '<SEC_FLOATING_FEATURE_FRAMEWORK_CONFIG_AOD_ITEM>[^<]' /system/etc/floating_feature.xml 2>/dev/null; then
@@ -2517,6 +2656,49 @@ if [ -f "$FEAT" ]; then
             else
                 ADDED="$ADDED $AODF"
                 echo "ColorOS Always-On Display: on ($HAOD; $AODAPP)"
+                # Wallpaper AOD (ColorOS "panoramic AOD", 0.4.97; the Find N6 build has it in
+                # fold8_coloros.sh). SystemUI offers it only with the app feature
+                # com.oplus.systemui.panoramic_aod.enable and a panel that says so through
+                # OPPO's display-panel HAL, which a Galaxy lacks; the set's
+                # ColorPanoramicSystemUI.apk takes the panel half as given (One UI shows the
+                # wallpaper on AOD on these panels), and oneos_panoramic_aod.sh adds the
+                # feature once the guest runs (the UI activator starts it). The feature's
+                # value is "boolean:true"; the content tool needs its colon escaped.
+                # ONEOS_GUEST_PANORAMIC_AOD=0 leaves both out.
+                PSUI="$STAGE/ColorPanoramicSystemUI.apk"
+                PAPK="$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk"
+                rm -f "$STAGE/data/oneos_panoramic_aod.sh"
+                if [ "${ONEOS_GUEST_PANORAMIC_AOD:-1}" != 1 ]; then
+                    echo "ColorOS wallpaper AOD: left out (ONEOS_GUEST_PANORAMIC_AOD=${ONEOS_GUEST_PANORAMIC_AOD:-})"
+                elif [ ! -f "$PSUI" ] || [ -L "$PSUI" ] || [ ! -f "$PAPK" ] || [ -L "$PAPK" ]; then
+                    echo "ColorOS wallpaper AOD: not in this set"
+                else
+                    chmod 644 "$PSUI"
+                    $BB chcon u:object_r:system_file:s0 "$PSUI" 2>/dev/null || true
+                    $BB umount -l "$PAPK" 2>/dev/null || true
+                    $BB mount --bind "$PSUI" "$PAPK" &&
+                        $BB mount -o remount,bind,ro "$PSUI" "$PAPK" 2>/dev/null
+                    if [ "$(stat -c %d:%i "$PAPK" 2>/dev/null)" = "$(stat -c %d:%i "$PSUI")" ]; then
+                        cat > "$STAGE/data/oneos_panoramic_aod.sh" <<'PANO'
+uri=content://com.oplus.customize.coreapp.configmanager.configprovider.AppFeatureProvider/app_feature
+f=com.oplus.systemui.panoramic_aod.enable
+if ! content query --uri "$uri" --where "featurename=\"$f\"" 2>/dev/null | grep -q 'parameters=boolean:true'; then
+    content delete --uri "$uri" --where "featurename=\"$f\"" 2>/dev/null
+    content insert --uri "$uri" --bind "featurename:s:$f" --bind 'parameters:s:boolean\:true' || exit 1
+    p=$(pidof com.android.systemui)
+    [ -z "$p" ] || kill -TERM $p
+    echo "wallpaper AOD feature added; SystemUI restarted"
+else
+    echo "wallpaper AOD feature present"
+fi
+PANO
+                        chmod 644 "$STAGE/data/oneos_panoramic_aod.sh"
+                        $BB chcon u:object_r:system_data_file:s0 "$STAGE/data/oneos_panoramic_aod.sh" 2>/dev/null || true
+                        echo "ColorOS wallpaper AOD: on (Bound ColorPanoramicSystemUI.apk -> $PAPK)"
+                    else
+                        echo "!!! WARNING: ColorPanoramicSystemUI.apk is not in place; no wallpaper AOD"
+                    fi
+                fi
             fi ;;
         esac
     fi
@@ -2572,12 +2754,15 @@ if [ -f "$FEAT" ]; then
         # which sent no themes for samsung (only a search icon; scripts/apk-replace-dex.py on
         # classes4.dex and classes5.dex, OPPO's signing block kept). The
         # Find N6 global and Find X9 Ultra IN builds ship the same APK (SHA-256 below); on any
-        # other build the image's own stays.
+        # other build the image's own stays. The newer X9U IN OTA (security patch 2026-11-01)
+        # ships EXP_17.11.20 (second hash): the patched EXP_17.11.17, a whole OPPO-signed app, is
+        # bound over it as well (the newer one's edit sites were not ported).
         TS_APK="$ROOTFS/my_stock/priv-app/KeKeThemeSpace/KeKeThemeSpace.apk"
-        TS_ORIG=496ca751d42793811dfd4bf18bf6f6884e5dfe8909ecf451dff94cecca2cff6a
+        TS_ORIGS="496ca751d42793811dfd4bf18bf6f6884e5dfe8909ecf451dff94cecca2cff6a 2dcf27a362ed11cbd5d3c63145da09feddf1f2e09216df7e292183856ef4d283"
         [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && $BB umount -l "$TS_APK" 2>/dev/null
+        TS_HAVE=$(sha256sum "$TS_APK" 2>/dev/null | cut -d' ' -f1)
         if [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && [ -f "$TS_APK" ] && [ ! -L "$TS_APK" ] &&
-           [ "$(sha256sum "$TS_APK" 2>/dev/null | cut -d' ' -f1)" != $TS_ORIG ]; then
+           ! case " $TS_ORIGS " in *" $TS_HAVE "*) true ;; *) false ;; esac; then
             echo "ColorOS Theme Store: this image's KeKeThemeSpace.apk is another build; its own stays (brand check on)"
         elif [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && [ -f "$TS_APK" ] && [ ! -L "$TS_APK" ]; then
             chmod 644 "$STAGE/KeKeThemeSpace_patched.apk"
@@ -3247,7 +3432,12 @@ echo "=== 5.3 $(date +%T) cover density ==="
 # display-manager-state.xml wins over the resource, so the panel's own size
 # (oneos_switch.sh: host_panel_size) is written there before every boot. Not on
 # a fold (two panels, one stable size). ONEOS_GUEST_STABLE_SIZE=0: left alone.
-# Look for "mStableDisplaySize" in diag_90_display.txt of the next report.
+# The reports after it (0.4.81 to 0.4.89, seven sessions): mStableDisplaySize
+# was the panel's and the status bar the same as before. OPPO's SystemUI reads
+# the resource itself ("ScreenSizeHelper--> StableDisplayWidthSize =
+# config_stableDeviceDisplayWidth: 1272", Galaxy A35 b06d044f), so since 0.4.90
+# the UI activator overlays the resource too (oneos_switch.sh, "stable display
+# size"). This write stays: DisplayManager's own value, right from the boot on.
 DMS="$STAGE/data/system/display-manager-state.xml"
 HPS=$(cat "$STAGE/host_panel_size" 2>/dev/null)
 if [ "${ONEOS_GUEST_STABLE_SIZE:-1}" != 1 ] || [ "$FORM" = fold ] ||
@@ -5354,7 +5544,19 @@ fi
 # about /system_ext/apex).
 if [ -d /system/apex ]; then
     mkdir -p "$ROOTFS/system/apex"
-    mount | grep -q "$ROOTFS/system/apex " || $BB mount --bind /system/apex "$ROOTFS/system/apex"
+    # Bound already only if the folder at that path IS One UI's. A mount there is not enough:
+    # guest root's copy of the system top level (kernels without overlayfs: the S22 series,
+    # S23 FE, A25, A33, A53) has the image's own apex folder mounted at this path, so the bind
+    # was left out and the guest's system_server died in its APEX scan on One UI's modules the
+    # image does not have ("Unable to parse: /system/apex/com.android.bt.apex": every switch
+    # with guest root on, A33 36686a70 and 7b1d653e, S22 Ultra 5172a6c3, 0.4.85 to 0.4.92).
+    if [ "$(stat -c %d:%i "$ROOTFS/system/apex" 2>/dev/null)" != "$(stat -c %d:%i /system/apex 2>/dev/null)" ]; then
+        if mount | grep -q "$ROOTFS/system/apex "; then
+            echo "Host APEX files: One UI's /system/apex bound over the image's own folder (guest root's copy of the system top level)"
+        fi
+        $BB mount --bind /system/apex "$ROOTFS/system/apex" ||
+            echo "!!! WARNING: One UI's /system/apex not bound on $ROOTFS/system/apex; PackageManagerService will fail on host apexes"
+    fi
 fi
 
 echo "=== 9. $(date +%T) Bind-mounting Remaining Non-Payload APEXes ==="
@@ -6100,8 +6302,23 @@ fi
 mkdir -p "$W" || { echo "Modules: no $W"; exit 0; }
 
 # Cleanup scripts run in the guest root before deleting anything, never in host /data/adb.
+# Bounded, and by SIGKILL (a shell waiting for a child acts on SIGTERM only after it): nothing
+# here may hold the switch behind the splash (S22 Ultra 0.4.91, 2026-11-11: this step never
+# returned, guest_runtime.sh's uninstall stage has the cause). Each uninstall.sh has its own
+# 30 s. A bootstrap su the stopped cleanup left is ended by the pid it recorded.
 if [ -f "$S/data/oneos_root/enabled" ]; then
-    "$BB" chroot "$R" /system/bin/sh /data/oneos_runtime.sh uninstall || { echo "Modules: the guest's module cleanup failed (exit $?; its log: data/oneos_root/adb/oneos/run/session.log)"; exit 1; }
+    rm -f "$K/oneos/run/bootstrap.pid"
+    "$BB" timeout -s KILL 150 "$BB" chroot "$R" /system/bin/sh /data/oneos_runtime.sh uninstall || {
+        rc=$?
+        if [ "$rc" = 137 ]; then
+            echo "Modules: the guest's module cleanup did not end within 150 s and was stopped"
+            bp=$(cat "$K/oneos/run/bootstrap.pid" 2>/dev/null)
+            case "$bp" in ''|*[!0-9]*) ;; *)
+                case "$("$BB" readlink "/proc/$bp/exe" 2>/dev/null)" in */oneos/bin/su) kill -KILL "$bp" 2>/dev/null ;; esac ;;
+            esac
+            rm -f "$K/oneos/run/bootstrap.pid"
+        fi
+        echo "Modules: the guest's module cleanup failed (exit $rc; its log: data/oneos_root/adb/oneos/run/session.log)"; exit 1; }
 fi
 # Remove wins over a pending update. Never delete an active module at button press.
 for d in "$M"/* "$U"/*; do
@@ -6260,22 +6477,44 @@ if [ -f "$S/boot_status.sh" ]; then
     oneos_boot_hold_display 'Restarting guest'
 fi
 echo "$(date +%T) soft reboot ($1): stopping the guest's processes"
+# Two spawned commands for every process in every pass took 50 s a pass on a
+# Galaxy A34 and ran the restart into the watcher's limit (0.4.93). So each
+# pass starts with one listing (one ls over every process's namespace link, one
+# stat over every root; the same two things the look below reads): a process it
+# shows outside the guest's namespace and off the guest's root is passed over,
+# every other one is looked at by itself as before, and only that look decides
+# a kill. No listing, or a process missing from it, means that look and nothing
+# else; a process the look found not to be the guest's is not looked at again
+# in a later pass.
+not_guest_awk='
+    NF >= 3 && $(NF - 1) == "->" && $NF ~ /^mnt:\[[0-9]+\]$/ && $(NF - 2) ~ /\/[0-9]+\/ns\/mnt$/ {
+        p = $(NF - 2); sub(/\/ns\/mnt$/, "", p); sub(/^.*\//, "", p); n[p] = $NF; next }
+    NF == 2 && $1 ~ /^[0-9]+$/ && $2 ~ /\/[0-9]+\/root$/ {
+        p = $2; sub(/\/root$/, "", p); sub(/^.*\//, "", p); r[p] = $1; next }
+    END { for (p in n) if ((n[p] "") != (ns "") && (dev == "" || ((p in r) && (r[p] "") != (dev "")))) printf "%s ", p }'
+host=" "
 pass=1
 while [ $pass -le 5 ]; do
-    killed=""
+    killed=0; looked=0; total=0; left=""
+    other=" $( { timeout 10 ls -l /proc/[0-9]*/ns/mnt; timeout 10 stat -L -c '%d %n' /proc/[0-9]*/root; } 2>/dev/null |
+        $BB awk -v ns="$GUEST_NS" -v dev="$GUEST_DEV" "$not_guest_awk") "
     for p in /proc/[0-9]*; do
-        if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
-            [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || continue
-        fi
         pid=${p#/proc/}
-        killed="$killed $pid:$(cat "$p/comm" 2>/dev/null)"
+        total=$((total + 1))
+        case "$other$host" in *" $pid "*) continue ;; esac
+        looked=$((looked + 1))
+        if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
+            [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || { host="$host$pid "; continue; }
+        fi
+        killed=$((killed + 1))
+        [ $pass = 5 ] && left="$left $pid:$(cat "$p/comm" 2>/dev/null)"
         kill -9 "$pid" 2>/dev/null
     done
-    [ $pass = 1 ] && echo "$(date +%T) soft reboot: killed$(echo "$killed" | wc -w | sed 's/^/ /') guest processes"
-    [ -n "$killed" ] || break
+    [ $pass = 1 ] && echo "$(date +%T) soft reboot: killed $killed guest processes (looked at $looked of $total)"
+    [ $killed -gt 0 ] || break
     pass=$((pass + 1)); sleep 0.3
 done
-[ $pass -le 5 ] || { echo "soft reboot: guest processes still running after 5 passes"; exit 1; }
+[ $pass -le 5 ] || { echo "soft reboot: guest processes still running after 5 passes:$left"; exit 1; }
 # The zygote sockets were bound onto themselves in init's namespace (the
 # switch's protect_zygote_sockets): off, so guest_start.sh can make new ones.
 for s in zygote usap_pool_primary; do

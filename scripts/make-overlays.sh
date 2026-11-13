@@ -113,6 +113,15 @@ BUILDS = [
         "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
         "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
     }, [("vold", 0x104e6, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
+    # The newer Find X9 Ultra IN OTA (CPH2841IN, security patch 2026-11-01): only vold
+    # changed (8 bytes longer; the only "\0vold\0" 4 bytes earlier, try_start's tbz on
+    # isDeclared() at the same offset with the same code around it);
+    # service.incremental.so and the crashrecovery APEX are the older build's, byte for byte.
+    ("ColorOS 17 CP2A.260605.016 IN (Find X9 Ultra global, 2026-11-01)", {
+        "vold": "41a7e561a3d0e4a52954aa843d8592dfc6c4aa847c5decdd5fff13386cea0660",
+        "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
+        "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
+    }, [("vold", 0x104e2, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
     # Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse, CP2A.260605.016),
     # built from source: its own layout. start() takes the string at 0xe164
     # (adrp 0xe000 + add 0x164), try_start's tbz w19 is at 0x64d8c (+0xd4, as
@@ -278,10 +287,18 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_biometric_clea
 # guest_no_apex_installs.py, guest_app_id_offset.py, guest_no_new_users.py; the KernelSU
 # manager keeps One UI's app id (guest_ksu_manager_appid.py, 0.4.39).
 # 0.4.63: the PDB start task survives a failed FRP deactivation (guest_pdb_init_survives.py).
-for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
+# 0.5.00: with One UI's FRP active a guest PDB write fails as an I/O error instead of
+# killing system_server's main thread (A34 ColorOS 17, 0514e9ea; guest_pdb_frp_writes_fail.py).
+for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_frp_writes_fail guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
+# The guest's own screen lock: a PIN, pattern or password kept in the guest's own
+# /data/system and checked there, without the phone's gatekeeper, weaver or keystore
+# (patches/guest_local_lock.py, helper OneOSGuestLock). It goes in front of
+# guest_no_gatekeeper's guard, so it runs after that loop; a framework of another
+# shape is left as it is (no guest lock there, as before).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_local_lock.py" "$WORK/services")"
 # The guest's own idmap2d instead of One UI's (patches/guest_own_idmap.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_own_idmap.py" "$WORK/services")"
 # A WebView zygote that cannot start is logged, not fatal (S24 Ultra, Find X9
@@ -1047,6 +1064,9 @@ import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
+         # Find X9 Ultra IN, newer OTA (CPH2841IN, security patch 2026-11-01): the same
+         # bl AIBinder_getExtension / ldr x8 / cbz x8 / bl IQtiComposer3Client::fromBinder at 0x475d24.
+         "9dd1117ff4ab": 0x475d24,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
          "e5a8726a6687": 0x452a50,

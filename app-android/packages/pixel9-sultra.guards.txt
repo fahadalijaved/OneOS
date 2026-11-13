@@ -15,10 +15,12 @@
 # 0.4.59 r12: double tap to sleep (OneOSPixelSystemUI.apk lock screen + receiver, OneOSPixelLauncher.apk home screen), from this image's own SystemUIGoogle and Pixel Launcher
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
 # 0.4.64: services_patched.jar + guest_soundtrigger_no_reboot.py (a refused sound model does not reboot One UI's audio HAL)
-725ba58e75669b8ab436d52a35d06a93219bb23a987be20be7de41d98ed7c84b  services_patched.jar
+# 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
+# 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
+9a1bf8dd0d20bb34dcad0422beb2449fbf521571faeedc0a8597b49dd60e6f20  services_patched.jar
 607ae15ccbe753fb25ef8e3d40f72a3ec8a2243dc3828adea78089731eca64aa  vold_patched
 8f76de6d0c7c74e6526efc7678ae81b1cf344121f39b3d27e618116ed5d41f51  service.incremental_patched.so
-b65069737c3cfd45863f9f2e83a9a25399623c4527a520309297173f8b95203d  framework_patched.jar
+107584dbfb0b85939745a10a6ce39bbd722ce10a1e39c95cd9102e2f7e1db4a4  framework_patched.jar
 34bec0671259777da74a17bad23a4499c623887082e2c08118451020feffa877  telephony-common_patched.jar
 8d4838e51620832ea9d1260f446f6c018d5e3d1e1caaa58033e6f985ad94cc15  libcamera_client_patched.so
 576beea05ff164071db53dc2139efa98c9781ff844c8a9a61b8005066ff1b95a  libcameracompatbilityinfo_patched.so

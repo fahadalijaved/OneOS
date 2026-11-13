@@ -413,7 +413,7 @@ object StageAudit {
         "umask", "[", "echo", "printf", "id", "stat", "awk", "sed", "grep", "sort", "head", "tail", "cut", "tr", "wc",
         "cat", "ls", "mkdir", "mv", "cp", "rm", "chown", "chmod", "sha256sum", "date", "getprop", "pm", "getevent", "du",
         "env", "unset", "export", "set", "read", "exit", "return", "shift", "true", "false", "break", "continue", "exec",
-        "trap", "am", "od", "find",
+        "trap", "am", "od", "find", "sleep",
     )
 
     private val WRITES = setOf("mkdir", "mv", "cp", "rm", "chown", "chmod")
@@ -456,6 +456,13 @@ object StageAudit {
      * trap is take_lock's (0.4.71): `trap 'rm -f "$LOCK"' EXIT`, the stage's own bin/.lock.
      */
     private const val SELFUPDATE_FUNCTION = "do_selfupdate"
+
+    /**
+     * The script's one wait (build 125): switch_verdict, which launch calls after it
+     * started the switch, reads the switch's own verdict from the stage's log once a
+     * second. `sleep 1` there, and no other sleep anywhere.
+     */
+    private const val LAUNCH_WAIT_FUNCTION = "switch_verdict"
     private const val UPSRC_VALUE = "\"\$DATA/user/0/\$APP_PACKAGE/files/oneos-update/OneOS.apk\""
     private val SELFUPDATE_PM = listOf("install", "-r", "--pkg", "\"\$APP_PACKAGE\"", "\"\$upapk\"")
     private val SELFUPDATE_AM = listOf("start", "-n", "\"\$APP_PACKAGE/.ui.MainActivity\"")
@@ -634,6 +641,7 @@ object StageAudit {
                     p += "line ${c.line}: trap ${args.joinToString(" ")}"
                 }
                 "getevent" -> if (args != listOf("-pl")) p += "line ${c.line}: getevent ${args.joinToString(" ")}"
+                "sleep" -> if (args != listOf("1") || c.function != LAUNCH_WAIT_FUNCTION) p += "line ${c.line}: sleep ${args.joinToString(" ")}"
                 "exec" -> if (args.firstOrNull()?.endsWith("/system/bin/sh") != true && args.firstOrNull() != "@SH@") p += "line ${c.line}: exec ${args.firstOrNull()}"
                 "sed" -> if (args.any { it == "-i" || it.startsWith("-i") }) p += "line ${c.line}: sed -i"
                 "find" -> if (args != BRING_FIND) p += "line ${c.line}: find ${args.joinToString(" ")}"

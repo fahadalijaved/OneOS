@@ -171,7 +171,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
 # sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in nothingos5-metroid oxygenos16-cph2745"
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -239,6 +239,12 @@ profile_info() {
         s-8450) echo "SM-S901 r0q SM8450 bar" ;;
         m55s) echo "SM-M558 m55xq SM7450 bar" ;;
         s-plus-9945) echo "SM-S926 e2s s5e9945 bar" ;;
+        s-ultra-8550-jp) echo "SCG20 SCG20 SM8550 bar" ;;
+        s-9925) echo "SM-S901 r0s s5e9925 bar" ;;
+        a16-mtk) echo "SM-A166 a16xm MT6835 bar" ;;
+        s-8550-jp) echo "SCG19 SCG19 SM8550 bar" ;;
+        m35) echo "SM-M356 m35x s5e8835 bar" ;;
+        a15-5g) echo "SM-A156 a15x MT6835 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -267,52 +273,74 @@ profile_set() {
         "f7 nothingos5-metroid") echo nothing-f8u ;;
         "f6 nothingos5-metroid") echo nothing-f8u ;;
         "flip8 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip8 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip8 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip8 infinityx41-findx9u") echo infinityx ;;
         "flip8 hyperos-lhasa") echo hyper-f8u ;;
         "a36 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a36 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a36 infinityx41-findx9u") echo infinityx ;;
         "a36 hyperos-lhasa") echo hyper-f8u ;;
         "a27 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a27 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a27 infinityx41-findx9u") echo infinityx ;;
         "a27 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f7 coloros17-findn6") echo n6-f8u ;;
         "s-plus-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8 coloros17-findn6") echo n6-global-f8 ;;
         "f8 pixel11fold-yogi") echo pixel-f8 ;;
         "s-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-8850-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8850-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8850-jp pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-plus-9965 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-9965 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-9965 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-9965 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-9965 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-9965 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip7 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip7 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a56 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a56 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a57 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a57 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a56 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a57 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-ultra-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip6 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip6 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8650 infinityx41-findx9u") echo infinityx ;;
         "s-8650 hyperos-lhasa") echo hyper-f8u ;;
@@ -321,6 +349,7 @@ profile_set() {
         "flip6 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip5 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip5 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip5 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8u infinityx41-findx9u") echo infinityx ;;
         "f8 infinityx41-findx9u") echo infinityx ;;
@@ -371,18 +400,23 @@ profile_set() {
         "a07 infinityx41-findx9u") echo infinityx ;;
         "s-edge-8750 nothingos5-metroid") echo nothing-f8u ;;
         "s-edge-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-edge-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-edge-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-edge-8750 infinityx41-findx9u") echo infinityx ;;
         "s-edge-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-fe-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-fe-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-fe-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-fe-9945 infinityx41-findx9u") echo infinityx ;;
         "s-fe-9945 hyperos-lhasa") echo hyper-f8u ;;
         "a26 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a26 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a26 infinityx41-findx9u") echo infinityx ;;
         "a35 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a35 infinityx41-findx9u") echo infinityx ;;
         "a54 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a54 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a54 infinityx41-findx9u") echo infinityx ;;
         "a16-4g infinityx41-findx9u") echo infinityx ;;
         "a16-s166 infinityx41-findx9u") echo infinityx ;;
@@ -392,6 +426,7 @@ profile_set() {
         "a34 infinityx41-findx9u") echo infinityx ;;
         "a15 infinityx41-findx9u") echo infinityx ;;
         "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a07 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "f8u originos7-pd2609ma") echo originos ;;
         "f8 originos7-pd2609ma") echo originos ;;
         "f7 originos7-pd2609ma") echo originos ;;
@@ -408,6 +443,10 @@ profile_set() {
         "s-8550 originos7-pd2609ma") echo originos ;;
         "s-plus-8550 originos7-pd2609ma") echo originos ;;
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
+        # 0.4.91: OxygenOS 16 for the S23s still on One UI 8.0/8.5 (the owner, 2026-11-11), untested there.
+        "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "a06 oxygenos16-cph2745") echo oxygen16 ;;
         "a07-5g oxygenos16-cph2745") echo oxygen16 ;;
         "a15 oxygenos16-cph2745") echo oxygen16 ;;
@@ -433,13 +472,21 @@ profile_set() {
         "a16-s166 oxygenos16-cph2745") echo oxygen16 ;;
         "a17-5g oxygenos16-cph2745") echo oxygen16 ;;
         "a17 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a17 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a16-4g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16-4g coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a16 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a16-s166 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16-s166 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a17-5g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a17-5g coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a34 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a34 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a15 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a15 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip7-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip7-fe infinityx41-findx9u") echo infinityx ;;
         "flip7-fe hyperos-lhasa") echo hyper-f8u ;;
@@ -455,10 +502,12 @@ profile_set() {
         "a34 hyperos-lhasa") echo hyper-f8u ;;
         "a15 hyperos-lhasa") echo hyper-f8u ;;
         "a55 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a55 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a55 infinityx41-findx9u") echo infinityx ;;
         "a55 hyperos-lhasa") echo hyper-f8u ;;
         "a55 oxygenos16-cph2745") echo oxygen16 ;;
         "s25-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s25-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s25-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "s25-fe infinityx41-findx9u") echo infinityx ;;
         "s25-fe hyperos-lhasa") echo hyper-f8u ;;
@@ -467,11 +516,37 @@ profile_set() {
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-9945 originos7-pd2609ma") echo originos ;;
         "s-plus-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-9945 infinityx41-findx9u") echo infinityx ;;
         "s-plus-9945 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9945 originos7-pd2609ma") echo originos ;;
+        # 0.4.92: the au Galaxy S23 Ultra (SCG20): the S23 Ultra's rows, untested.
+        "s-ultra-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "s-ultra-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-ultra-8550-jp infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8550-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
+        "s-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "a16-mtk oxygenos16-cph2745") echo oxygen16 ;;
+        # 0.4.93: the au Galaxy S23 (SCG19): the S23's rows, untested.
+        "s-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "s-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-8550-jp infinityx41-findx9u") echo infinityx ;;
+        "s-8550-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
+        "s-8550-jp originos7-pd2609ma") echo originos ;;
+        # 0.4.95: the Galaxy M35 5G (the A35's rows) and the Galaxy A15 5G with MediaTek (OxygenOS 16 only), untested.
+        "m35 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "m35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "m35 infinityx41-findx9u") echo infinityx ;;
+        "m35 oxygenos16-cph2745") echo oxygen16 ;;
+        "m35 hyperos-lhasa") echo hyper-f8u ;;
+        "a15-5g oxygenos16-cph2745") echo oxygen16 ;;
         *) return 1 ;;
     esac
 }
@@ -486,6 +561,7 @@ image_raw() {
     case "$1" in
         coloros17-findn6) echo "14829686784 eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c" ;;
         coloros17-findx9u-in) echo "14669168640 92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6" ;;
+        coloros17-findx9u-in-1105) echo "14782214144 6c089f2d043d60f34b40dd58ad44f88621163163c1664121753311a115da8d7c" ;;
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
         hyperos-lhasa) echo "7749939200 269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac" ;;
@@ -500,9 +576,10 @@ image_raw() {
 
 set_files() {
     case "$1" in
-        n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar" ;;
-        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar" ;;
-        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar" ;;
+        n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar ColorPanoramicSystemUI.apk" ;;
+        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
+        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
+        x9u-in-1105-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
         pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk" ;;
@@ -522,6 +599,7 @@ set_image() {
         n6-global-f8) echo coloros17-findn6 ;;
         n6-f8u) echo coloros17-findn6 ;;
         x9u-in-sultra) echo coloros17-findx9u-in ;;
+        x9u-in-1105-sultra) echo coloros17-findx9u-in-1105 ;;
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
         hyper-f8u) echo hyperos-lhasa ;;
@@ -542,7 +620,7 @@ set_image() {
 # (com.miui.) (data_family).
 image_family() {
     case "$1" in
-        coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in) echo coloros ;;
+        coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in|coloros17-findx9u-in-1105) echo coloros ;;
         pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo) echo pixel ;;
         infinityx41-findx9u) echo infinityx ;;
         hyperos-lhasa) echo hyperos ;;
@@ -1153,6 +1231,25 @@ find_tools() {
     done
 }
 
+# What the switch started by this launch ($1: its session id) said in its own
+# check before it changes anything (oneos_switch.sh's preflight), read from the
+# log $2: "passed", "refused <its reason>", or nothing when neither line came
+# within $3 seconds. The one place where this script waits (its one sleep).
+switch_verdict() {
+    sv_left=$3
+    while true; do
+        sv=$(awk -v sid="$1" '
+            index($0, "=== OneOS app launch " sid " ") == 1 { on = 1; v = ""; next }
+            on && v == "" && index($0, "PREFLIGHT REFUSED: ") == 1 { v = "refused " substr($0, 20) }
+            on && v == "" && index($0, "Preflight passed") == 1 { v = "passed" }
+            END { print v }' "$2" 2>/dev/null)
+        [ -z "$sv" ] || { printf '%s\n' "$sv"; return 0; }
+        [ "$sv_left" -gt 0 ] || return 1
+        sv_left=$((sv_left - 1))
+        sleep 1
+    done
+}
+
 do_launch() {
     [ $# -eq 7 ] || [ $# -eq 8 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot]"
     mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0}
@@ -1264,6 +1361,18 @@ do_launch() {
     "$BB" nsenter -t 1 -m -- "$BB" setsid /system/bin/sh -c \
         'set -a; . "$1/session.env"; set +a; exec /system/bin/sh "$1/oneos_switch.sh"' oneos-session "$STAGE" \
         </dev/null >>"$STAGE/takeover_app.log" 2>&1 &
+    # The switch checks once more by itself before it changes anything and can
+    # still refuse there, with its reason only in takeover_app.log. Up to 0.4.95
+    # the launch was answered before that: a refusal left the app's screen on
+    # "Shutting down One UI" for good (a Galaxy S23 whose property space was
+    # nearly full, twice, a report on 0.4.95). So the answer waits for that
+    # verdict. The step line tells the app that a session was started (it keeps
+    # the launch for Last session); no verdict in time is answered as before.
+    step "switch started"
+    verdict=$(switch_verdict "$sid" "$STAGE/takeover_app.log" 90)
+    case "$verdict" in
+        "refused "*) refuse "${verdict#refused }" ;;
+    esac
     say "@@OK launch $sid"
 }
 

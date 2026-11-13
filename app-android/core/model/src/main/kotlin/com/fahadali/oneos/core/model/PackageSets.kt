@@ -156,6 +156,7 @@ data class PackageSet(
 object PackageSets {
     const val ID_N6_F8U = "n6-f8u"
     const val ID_X9U_IN_SULTRA = "x9u-in-sultra"
+    const val ID_X9U_IN_1105_SULTRA = "x9u-in-1105-sultra"
     const val ID_PIXEL_F8U = "pixel-f8u"
     const val ID_PIXEL_F8 = "pixel-f8"
     const val ID_PIXEL_SULTRA = "pixel-sultra"
@@ -237,7 +238,7 @@ object PackageSets {
         // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
         // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
         // other global build's (x9u-in-sultra).
-        sourceDir = "out/overlays_n6g_r15",
+        sourceDir = "out/overlays_n6g_r20",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
         files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
@@ -250,6 +251,9 @@ object PackageSets {
             // 0.4.38: pull request #1's Fold8 SystemUI and hinge-angle relay, re-applied to the global
             // build (scripts/make-fold8-coloros.py --into); used on the Z Fold8 and Z Fold8 Ultra only.
             PackageFile("Fold8SystemUI.apk", FileRole.GUEST_FIX) + PackageFile("Fold8AngleRelay.dex", FileRole.GUEST_FIX) +
+            // 0.4.98 (r18): the Folds without the Fold8 rules (Fold7, Fold6, Fold5) get AOD and wallpaper AOD
+            // through this SystemUI (guest_prepare.sh binds it; the Fold8s keep Fold8SystemUI.apk).
+            PackageFile("ColorPanoramicSystemUI.apk", FileRole.GUEST_FIX) +
             // 0.4.47: the image's Theme Store without its brand check (DeviceChecker refused the Galaxy's brand).
             PackageFile(THEME_STORE_APK, FileRole.GUEST_FIX) +
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
@@ -263,7 +267,7 @@ object PackageSets {
     val N6_GLOBAL_F8 = PackageSet(
         id = "n6-global-f8",
         imageId = Images.ID_FIND_N6,
-        sourceDir = "out/fold8-global-current",
+        sourceDir = "out/fold8-global-r0501",
         files = N6_F8U.files + PackageFile("GlobalVerifiedAddons.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, "OneOSFoldCutout.apk", "OneOSTabletQs.apk"),
         // n6-f8u's files and the 10 KB empty addon archive (a channel's archive is larger, but optional).
@@ -279,7 +283,7 @@ object PackageSets {
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
-        sourceDir = "out/overlays_x9u_in_r70",
+        sourceDir = "out/overlays_x9u_in_r75",
         files = COMMON + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) + PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +
@@ -291,10 +295,24 @@ object PackageSets {
             // 0.4.47: the Theme Store without its brand check (the Find N6 global build's APK).
             PackageFile(THEME_STORE_APK, FileRole.GUEST_FIX) +
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
-            PackageFile(ODM_AI, FileRole.GUEST_FIX),
+            PackageFile(ODM_AI, FileRole.GUEST_FIX) +
+            // 0.4.97 (r72): the image's SystemUI with wallpaper AOD without OPPO's display-panel HAL
+            // (scripts/make-coloros-panoramic-aod.py; bound by guest_prepare.sh).
+            PackageFile("ColorPanoramicSystemUI.apk", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
-        approxBytes = 634_332_311L,
+        approxBytes = 634_332_311L + 116_537_002L,
         hasReturnApp = true,
+    )
+
+    /**
+     * 0.5.02: the newer Find X9 Ultra IN build ([Images.FIND_X9U_IN_1105]): the same files as
+     * [X9U_IN_SULTRA], built from that image (out/overlays_x9u_in_1105_r1: its own surfaceflinger and
+     * vold pins, SystemUI and OPPO AI libraries; samcam.tar and the Theme Store are the older set's files).
+     */
+    val X9U_IN_1105_SULTRA = X9U_IN_SULTRA.copy(
+        id = ID_X9U_IN_1105_SULTRA,
+        imageId = Images.ID_FIND_X9U_IN_1105,
+        sourceDir = "out/overlays_x9u_in_1105_r1",
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */
@@ -369,7 +387,7 @@ object PackageSets {
     val PIXEL_F8U = PackageSet(
         id = ID_PIXEL_F8U,
         imageId = Images.ID_PIXEL_YOGI,
-        sourceDir = "out/overlays_pixel_f8u_r17",
+        sourceDir = "out/overlays_pixel_f8u_r19",
         // 0.4.59 (r7): Nothing OS's per-panel cutout for this phone (switcher/overlays/fold_display_cutout):
         // without it Pixel's cover had no cutout, its icons in the camera band and app headers under it.
         files = PIXEL_FILES + pixelHinge("OneOSPixelUnfold.apk") + PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
@@ -386,7 +404,7 @@ object PackageSets {
     val PIXEL_SULTRA = PackageSet(
         id = ID_PIXEL_SULTRA,
         imageId = Images.ID_PIXEL_KODIAK,
-        sourceDir = "out/overlays_pixel_kodiak_r16",
+        sourceDir = "out/overlays_pixel_kodiak_r18",
         files = PIXEL_FILES + PIXEL_DT2S,
         omitted = listOf(TETHERING),
         approxBytes = 695_159_961L,
@@ -397,7 +415,7 @@ object PackageSets {
     val PIXEL_F8 = PackageSet(
         id = ID_PIXEL_F8,
         imageId = Images.ID_PIXEL_YOGI,
-        sourceDir = "out/overlays_pixel_fold8_r17",
+        sourceDir = "out/overlays_pixel_fold8_r19",
         files = PIXEL_FILES + pixelHinge("Fold8PixelUnfold.apk"),
         omitted = listOf(TETHERING),
         approxBytes = 708_230_732L,
@@ -414,7 +432,7 @@ object PackageSets {
     val PIXEL9_SULTRA = PackageSet(
         id = ID_PIXEL9_SULTRA,
         imageId = Images.ID_PIXEL_KOMODO,
-        sourceDir = "out/overlays_pixel_komodo_r16",
+        sourceDir = "out/overlays_pixel_komodo_r18",
         // 0.4.47: this image's libcameracompatbilityinfo.so needs One UI's codes too (the Pixel 11 images' agree).
         files = PIXEL_FILES + PIXEL_DT2S + PackageFile("libcameracompatbilityinfo_patched.so", FileRole.GUARD_LIBRARY),
         omitted = listOf(TETHERING),
@@ -444,7 +462,7 @@ object PackageSets {
     val INFINITYX = PackageSet(
         id = ID_INFINITYX,
         imageId = Images.ID_INFINITYX,
-        sourceDir = "out/overlays_infinityx_r14",
+        sourceDir = "out/overlays_infinityx_r16",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -493,7 +511,7 @@ object PackageSets {
     val HYPER_F8U = PackageSet(
         id = ID_HYPER_F8U,
         imageId = Images.ID_HYPEROS_LHASA,
-        sourceDir = "out/overlays_hyperos_r25",
+        sourceDir = "out/overlays_hyperos_r28",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -554,7 +572,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r32",
+        sourceDir = "out/overlays_nothing_r35",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             // 0.4.57 (r23): also Samsung IMS's framework members (guest_secims_members.py).
@@ -635,7 +653,7 @@ object PackageSets {
     val OXYGEN16 = PackageSet(
         id = ID_OXYGEN16,
         imageId = Images.ID_OXYGEN16,
-        sourceDir = "out/overlays_oxygen16_r2",
+        sourceDir = "out/overlays_oxygen16_r3",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -654,7 +672,7 @@ object PackageSets {
 
     /**
      * OriginOS 7 (0.4.73, experimental): vivo's CN PD2609MA build on the Snapdragon S25/S26 series and the
-     * Z Fold7/8 phones (0.4.82: also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+, the same set). Set r17 (out/overlays_originos_cn_r17: make-overlays.sh with the CN vendor's
+     * Z Fold7/8 phones (0.4.82: also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+, the same set). Set r18 (out/overlays_originos_cn_r18, 0.4.95: r17 with the guest's own screen lock in services_patched.jar; r17: make-overlays.sh with the CN vendor's
      * vivo_config.ini; vivo_guards.py, vivo_brightness.py and the other vivo patches; the fold cutout overlay
      * with the cover's lens): its own services, vivo-services, framework and telephony jars, the guest vold as
      * gvld, vivo's display/input/Bluetooth/composer libraries, the patched launcher, vivo's feature list, the
@@ -663,7 +681,7 @@ object PackageSets {
     val ORIGINOS = PackageSet(
         id = ID_ORIGINOS,
         imageId = Images.ID_ORIGINOS7,
-        sourceDir = "out/overlays_originos_cn_r17",
+        sourceDir = "out/overlays_originos_cn_r20",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("vivo-services_patched.jar", FileRole.GUARD_JAR),
@@ -704,7 +722,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

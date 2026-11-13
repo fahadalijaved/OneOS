@@ -413,7 +413,22 @@ object Plain {
             "battery" in p -> gate(SwitchGates.ID_BATTERY, SwitchGates.R_BATTERY_LOW)
             "old switcher" in p -> gate(SwitchGates.ID_OLD_SWITCHER, SwitchGates.R_OLD_SWITCHER_INSTALLED)
             "screen lock" in p -> gate(SwitchGates.ID_SCREEN_LOCK, ScreenLockRule.R_SET)
+            // The started switch's own check (oneos_switch.sh; root passes its refusals on since build 125).
+            // Its "mounted under the stage (...): a session is running or never returned" wants a restart,
+            // not Restore; no property is ever freed before the phone restarts; and its thermal refusal
+            // says "restart the phone" too, but only after the module is off.
+            "mounted under the stage" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_RUNNING)
             "never returned" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_UNFINISHED)
+            "property space" in p -> PlainMessage(
+                "Restart your phone first",
+                "One UI ran out of room for settings after several switches. Restart your phone, then switch again.",
+                FixAction.NONE, null,
+            )
+            "thermal" in p -> PlainMessage(
+                "Turn off the thermal module first",
+                "A root module that turns off thermal control is on. Turn it off in your root app, restart your phone, then switch again.",
+                FixAction.NONE, null,
+            )
             "restart the phone" in p || "still running" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_RUNNING)
             "no oneos marker" in p || "prepare first" in p -> gate(SwitchGates.ID_IMAGE, SwitchGates.R_IMAGE_NOTHING)
             "prepare again" in p -> gate(SwitchGates.ID_IMAGE, SwitchGates.R_IMAGE_OTHER_VERSION)

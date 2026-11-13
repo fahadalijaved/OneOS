@@ -120,6 +120,8 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
     }
 
     @Volatile private var attempt: com.fahadali.oneos.core.model.LaunchCommitGuard? = null
+    /** The root script's step line once the detached switch runs (oneos_root.sh, do_launch). */
+    private const val SWITCH_STARTED = "switch started"
     private class Cancelled : Exception()
     fun cancel(): Boolean = state.busy && state.cancellable && attempt?.cancel() == true
 
@@ -246,8 +248,9 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
             silenceMs = 5 * 60_000L,
         )
         if (!reply.ok) {
-            // Nothing started: no last session to show.
-            SessionPrefs.forgetLaunch(app)
+            // Nothing started: no last session to show. A refusal by the started switch's own check
+            // (root's "switch started" step came first) is a session with a log: Last session keeps it.
+            if (SWITCH_STARTED !in reply.reply.steps) SessionPrefs.forgetLaunch(app)
             val problem = reply.problem ?: "no reason given"
             throw Refused("Root refused to switch: $problem", Plain.switchRefused(problem, image, profile), null, image)
         }

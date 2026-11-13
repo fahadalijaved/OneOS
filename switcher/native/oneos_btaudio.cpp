@@ -632,6 +632,29 @@ int main(int argc, char** argv) {
         return 1;
     }
     logf("serving %s for Samsung's factory (declared: %d)", kAospFactoryName, P.isDeclared(kAospFactoryName) ? 1 : 0);
-    P.joinPool();
+    // Keep the name. Samsung's audio HAL also carries Qualcomm's provider for
+    // Android's factory and registers it under the same name once the guest's
+    // Bluetooth opens (it can, now that the session declares the name). That
+    // replaces this bridge, and the guest's stack then opens its A2DP sessions
+    // on Qualcomm's provider, which the audio HAL's own Bluetooth path (PAL)
+    // never listens to: it waits for Samsung's sessions, so every playback start
+    // fails with -38 and the sound stays on the speaker (Galaxy S23 on ColorOS,
+    // report c49cdbce: "Registered AIDL 1.0 service ... status=0" 52 s after
+    // this bridge, then "Rx device start failed with status -38"). 0.4.97 checked the name
+    // once a second and re-registered when another process held it, but that never fired
+    // (report dcb7e310, S23 on 0.4.97: the takeover 45 s in, no re-registration logged):
+    // most likely this process's service lookups are answered from libbinder's own cache,
+    // which still holds our binder (not proven on a phone). So register again every second without asking: servicemanager takes
+    // the same binder again as a no-op, and after a takeover the name is ours within a
+    // second. A log line every 10 minutes shows the bridge is alive.
+    int rounds = 0, last = EX_NONE;
+    while (true) {
+        sleep(1);
+        ex = P.addService(factory, kAospFactoryName);
+        rounds++;
+        if (ex != last || rounds % 600 == 0)
+            logf("%s registered again (round %d): exception %d", kAospFactoryName, rounds, ex);
+        last = ex;
+    }
     return 0;
 }

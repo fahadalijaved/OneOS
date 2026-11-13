@@ -50,6 +50,161 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.03: **a clue for the Galaxy S24 restarts**.
+- Some Galaxy S24, S24+, S24 FE and S24 Ultra phones restart by themselves during a session (10 reports, in
+  ColorOS, OriginOS and the Pixel 9 Pro XL system): the phone's kernel stops while a program closes. Sessions now
+  note which program that is, so the next report can show us. If your S24 restarts on its own, send a report
+  from the app after it comes back.
+
+New in 0.5.02: **a newer ColorOS build for the slab phones (Find X9 Ultra IN, November update)**, to try.
+- OPPO's newer global build of ColorOS 17 for the Find X9 Ultra, with OPPO's latest bug fixes (security patch
+  November 2026). It shows as a second choice, "global build, November update", next to the current one on every
+  phone that has the Find X9 Ultra build; the current build stays the default and keeps working.
+- Your ColorOS stays as it is when you move to it: apps, accounts and settings come along.
+- **Untested**: nobody has started it on a phone yet. Please try it and send a report, whether it works or not.
+
+New in 0.5.01: **calls end again when you decline or hang up**, in every system that uses Samsung's
+calling service (not OxygenOS).
+- Samsung's calling service ended the call on the network, but kept the news from the system until the
+  system said it was ready for it, which only One UI does. The call went on showing in the Phone app and
+  no other call could be made (Z Fold8 with the Pixel 11 Fold build). Now the system says so as soon as it
+  takes the call. Not tried on a phone yet. **Tap Update on the system's page**.
+
+New in 0.5.00: **Bluetooth sound on the Galaxy S23 series, third try**, in every system.
+- 0.4.99's bridge now reaches Samsung's Bluetooth audio service, but the systems asked for the DSP ("offload")
+  path, which the S23's audio driver never connects for them: S23 and S23+ reports on 0.4.99 still had no sound,
+  in ColorOS and in the Pixel system. One UI plays Bluetooth headphones the other way, encoding the sound itself,
+  and every system now does the same on the S23s. The S24s, where Bluetooth sound works, stay as they are.
+  Not tried on a phone yet. **Tap Update on the system's page**.
+- **No more black screen on a system's first start when One UI has a screen lock and a Google account**
+  (A34 ColorOS report): the new system could not clear factory-reset protection, which stays One UI's, and its
+  lock-screen setup stopped the system at the first start. Every system now carries on. Not tried on a phone yet.
+
+New in 0.4.99: **Bluetooth sound on the Snapdragon Galaxies, second try**.
+- 0.4.97's fix did not work: Galaxy S23 reports on 0.4.97 still had no sound in Bluetooth headphones. The bridge
+  was meant to notice when Samsung's audio service took its place and take it back, but it never noticed. Now
+  it simply takes its place again every second. Not tried on a phone yet. **Tap Update on the system's page**.
+
+New in 0.4.98: **always-on display in ColorOS on the Z Fold7, Fold6 and Fold5**, and **AOD brightness in
+ColorOS on the other phones**.
+- ColorOS on the older Folds (the Find N6 system) had no always-on display at all: only the Z Fold8s had it.
+  Now the Fold7, Fold6 and Fold5 get it too, with the wallpaper AOD style from 0.4.97 (report on a Z Fold7).
+- ColorOS sets the always-on display's brightness through OPPO's own display hardware, which a Galaxy
+  lacks. The Z Fold8s had a fix for that; the other phones on ColorOS (the Find X9 Ultra system) get it now.
+- Not tried on those phones yet: if the AOD stays black or missing, please send a report. **Tap Update on the
+  system's page** to get it.
+
+New in 0.4.97: **Bluetooth sound in the guest on the Snapdragon Galaxies** and **wallpaper AOD in ColorOS**.
+- On the Galaxy S23, S24, S25 and the Z Folds, Bluetooth headphones connected in the guest but every sound stayed
+  on the phone's speaker (a Galaxy S23 on ColorOS). Samsung's audio service put Qualcomm's own Bluetooth audio
+  entry over OneOS's bridge a minute into the session, and Samsung's audio path never plays through that one.
+  The bridge now takes its place back.
+- ColorOS (the Find N6 system on the Z Folds, the Find X9 Ultra system on the other phones) can now show the
+  wallpaper on the always-on display. ColorOS only offered it when OPPO's own display hardware said so; One UI
+  already shows the wallpaper on AOD on these screens. Choose it in ColorOS's always-on display settings.
+- Wallpaper AOD was tried on the Z Fold8 Ultra and works; on the other phones it was not tried yet. The
+  Bluetooth fix was not tried on a phone yet. If either does not work, please send a report. **Tap Update on
+  the system's page** to get both.
+
+New in 0.4.96: **a switch that could not start no longer stays on "Shutting down One UI"**, and **Restart
+guest that ended in One UI on slower phones** (root for the guest).
+- Right before it changes anything, the switch checks the phone once more and can still refuse to start. The
+  app did not hear about that: its screen stayed on "Shutting down One UI" while One UI kept running, and the
+  reason was only in the log (a Galaxy S23 on 0.4.95, twice: after several switches without a restart One UI
+  had run out of room for settings). Now the app waits for that check and shows the reason. For this one it
+  says "Restart your phone first".
+- With root for the guest on, Restart guest (the step that applies a module change) stops the guest's processes
+  and starts the system again. Finding the guest's processes took about 50 seconds a round on a Galaxy A34, the
+  restart ran into its two-minute limit, and the phone went back to One UI instead, twice in a row (a report on
+  0.4.93). Now each round reads all processes in one go and looks closely only at those that can be the guest's;
+  what gets stopped is decided exactly as before.
+- Neither fix was tried on a phone yet: if a switch still stays on "Shutting down One UI", or Restart guest
+  still ends in One UI, send a report.
+- **Tap Update on each system's page** to get both.
+
+New in 0.4.95: **a screen lock of the guest's own** (a PIN, a pattern or a password) in ColorOS, HyperOS, Nothing OS
+and OriginOS, and two more phones: the **Galaxy M35 5G** and the **Galaxy A15 5G with MediaTek**.
+- Until now a guest system refused every screen lock: it shares the phone's lock hardware with One UI, and a lock
+  set from a guest once left One UI unable to unlock. Now these systems take a PIN, pattern or password in their
+  own Settings, as on any phone. OneOS keeps it inside the guest (a salted hash in the guest's own data) and
+  checks it there; nothing of it reaches the phone's lock hardware or keystore, and One UI's lock state stays
+  exactly what it was. The idea comes from pull request #152 by @vdcoolok.
+- What it is not: it keeps other people out of the guest's lock screen, it does not protect the data. A restart
+  of the phone always lands in One UI, which has no lock while OneOS is in use, and with root there the guest's
+  files are within reach. No fingerprint or face: "Add fingerprint" in the guest refuses. An app that asks for
+  the device PIN in its own prompt behaves as on a phone without a lock. One UI's own lock still has to be off
+  before a switch.
+- Forgotten: from One UI, with root, `su -c 'rm -f /data/local/tmp/oneos/data/system/oneos_guest_lock /data/local/tmp/oneos/data/system/oneos_guest_lock.tries'`;
+  the guest starts without a lock the next time (docs/guest-screen-lock.md).
+- Where: ColorOS on the Galaxy Z Fold8 Ultra, Z Fold7, Z Fold6 and Z Fold5 (tried on the Z Fold8 Ultra: set,
+  unlock, back to One UI, all good), ColorOS on the bar phones (the Find X9 Ultra build), HyperOS, Nothing OS
+  and OriginOS. The last four have the same change but have not run on a phone yet: if such a system does not
+  start after its update, send a report. Not yet: the Pixel systems, Infinity-X, OxygenOS 16 and ColorOS on the
+  Galaxy Z Fold8; they refuse a lock as before. **Tap Update on the system's page** to get it.
+- The Galaxy M35 5G (SM-M356B, Exynos 1380, One UI 9.0), from findings of 2026-11-11: the Galaxy A35 5G's
+  systems (ColorOS 17, Infinity-X, HyperOS, OxygenOS 16), untested on it.
+- The Galaxy A15 5G with MediaTek (SM-A156M, One UI 8.5), from findings of the same day: OxygenOS 16, as on the
+  Galaxy A07 5G, untested on it. The Galaxy A15 with the Helio G99 was there already.
+
+New in 0.4.93: **root for the guest on the Galaxy S22 series, S23 FE, A25, A33 and A53**, and three more phones:
+the **Galaxy S22 with Exynos**, the **Galaxy A16 5G with MediaTek** and the **au Galaxy S23 (SCG19)**.
+- With root for the guest switched on, no system got past its logo on these phones: every switch ended in a black
+  screen or a return to One UI (reports from a Galaxy A33 on 0.4.85 and 0.4.90 and a Galaxy S22 Ultra with Exynos
+  on 0.4.92, all OxygenOS 16; with root for the guest off the same phones start). Their kernel has no overlayfs,
+  so guest root puts a copy of the system's top folder in front of the image, with each of the image's folders
+  attached inside it. One of them is the image's own folder of system modules (APEX files), and OneOS took it for
+  One UI's, which has to be at that place: the list of modules comes from One UI. The guest then looked for One
+  UI's modules among the image's, did not find them ("Unable to parse: /system/apex/com.android.bt.apex") and its
+  system server stopped at once, again and again. OneOS now checks what the folder at that place is, not only
+  that something is attached there, and puts One UI's folder over it. Not tried on the phones of the reports
+  yet. **Tap Update on each system's page** to get it: the session scripts changed.
+- The Galaxy S22 with Exynos (SM-S901B), now that findings show it on One UI 8.0: OxygenOS 16, as on the Galaxy
+  S22+ and S22 Ultra with Exynos, untested on it.
+- The Galaxy A16 5G with MediaTek (SM-A166P, One UI 8.5), from findings of 0.4.91: OxygenOS 16, as on the Galaxy
+  A07 5G, untested on it. The A16 5G with Exynos and the A16 4G were there already.
+- The au Galaxy S23 (SCG19), from findings of a phone on One UI 9.0: it takes the Galaxy S23's systems (ColorOS
+  17, Pixel, Infinity X, HyperOS and OriginOS on One UI 9; OxygenOS 16 on One UI 8.0/8.5), untested on it.
+
+New in 0.4.92: **a switch that stood on the "shutting down" splash for good with guest root on**, and the
+**au Galaxy S23 Ultra (SCG20)**.
+- With root for the guest switched on, the switch could stop behind the splash and never go on; only a forced
+  reboot ended it (Galaxy S22 Ultra, OxygenOS 16, 0.4.91: three switches in a row, 15 and 27 minutes). Before each
+  start the guest's module cleanup starts a helper and ends it again a moment later. The stop signal could be lost
+  in the instant the helper was starting, and the cleanup then waited for it without end; nothing bounded the
+  step. On a test phone's own shell the old lines lost 32 of 400 stops in one run, the new ones none of 1,600.
+  The helper is now ended by a signal that cannot be lost, and the whole cleanup has 150 seconds: past that it
+  is stopped and the switch ends with a message, as for any other failure while preparing. Not tried in a
+  switch on the phone of the report yet. **Tap Update on each system's page** to get it: the session scripts
+  changed.
+- The au Galaxy S23 Ultra (SCG20), from findings of a phone on One UI 9.0 sent the same day: it takes the Galaxy
+  S23 Ultra's systems (ColorOS 17, Pixel, Infinity X, HyperOS and OriginOS on One UI 9; OxygenOS 16 on One UI
+  8.0/8.5), untested on it. Japanese carrier models have their own model number and device name, so each needs
+  its own entry.
+
+New in 0.4.91: **OxygenOS 16 on the Galaxy S23, S23+ and S23 Ultra that are still on One UI 8.0 or 8.5**
+(Android 16), untested there. Until now the app told these phones to update One UI first, because all
+five of their systems are Android 17. OxygenOS 16 is the one Android 16 system and already runs on the
+S22 series and the S23 FE; on One UI 9 the S23s' list is unchanged (OxygenOS 16 is not offered there).
+The session scripts and file sets are the ones of 0.4.90: nothing to update on a system's page.
+
+New in 0.4.90: **Bluetooth and USB headphones on the Galaxy A35**, **OxygenOS 16's status bar**, and **ColorOS's
+status bar on the Galaxy S24+**. None of the three has run on the phones concerned yet.
+- Bluetooth and USB headphones connected and the sound stayed on the phone (Galaxy A35, OxygenOS 16; any phone whose
+  vendor audio policy file names no Bluetooth or USB output). An A35 user found the fix and sent it as a script: the
+  vendor's own Bluetooth and USB policy files, included in the guest's copy of the policy file. OneOS now does that
+  before the guest starts, on phones that are not Qualcomm ones and have the files and their HAL libraries; the
+  0.4.85 way (A2DP outputs in the primary module) stays for the rest. `ONEOS_GUEST_APM_BT_MODULE=0` (or `1` for a
+  Qualcomm phone) and `ONEOS_GUEST_APM_USB=0` choose by hand.
+- OxygenOS 16 laid its status bar out for a camera in the corner on every phone (clock pushed right of the camera
+  on 1080 px phones, icons ending at the camera on 1440 px ones). 0.4.81's fix did not reach it: OPPO's SystemUI
+  reads the image's own phone's width (1272 px) from a framework resource, not from DisplayManager. The resource now
+  gets the guest's display size through an overlay. `ONEOS_GUEST_STABLE_SIZE=0` turns it off.
+- ColorOS on a Galaxy S24+ (Exynos) had the clock and all icons in the left half of the status bar. The camera
+  position was written for the whole 1440 px panel while the guest ran it at One UI's FHD+ size. The switch now asks
+  the guest for its display size as soon as its window manager answers and places the camera for that size; the
+  display density and, on Pixel and HyperOS guests, the status bar height follow the same size. Nothing changes where
+  the guest runs the whole panel. Every bar-phone session now logs the guest's display size.
+
 New in 0.4.89: **Canadian phones (SM-...W) are no longer refused as a custom ROM**. From the S24 series on, a
 stock Canadian phone carries the US carrier model's bootloader and vendor partition under its own firmware (S24 Ultra
 SM-S928W: bootloader S928U..., vendor SM-S928U), which OneOS took for One UI ported from another phone (public issue

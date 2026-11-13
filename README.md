@@ -66,7 +66,7 @@ WeWaffles, and builds its guest images with
 
 ## Status
 
-App version 0.4.89. Galaxy Z Fold, S, Z Flip, A, F and M phones with Snapdragon,
+App version 0.4.93. Galaxy Z Fold, S, Z Flip, A, F and M phones with Snapdragon,
 Exynos or MediaTek chips, on One UI 9 (and, for OxygenOS 16 only, on One UI 8);
 root is required (tested with KernelSU; Magisk and APatch are
 detected but untested).
@@ -139,7 +139,8 @@ of them also offers Infinity-X.
 Newer additions, each untested until a report says otherwise
 ([docs/devices.md](docs/devices.md) has today's state): from 0.4.67, OxygenOS 16
 (Android 16) for phones still on One UI 8.0 or 8.5: the Galaxy S22 series, the
-S23 FE and A, F and M phones; from 0.4.73, OriginOS 7 (vivo, Android 17) on the
+S23 FE and A, F and M phones, and from 0.4.91 the Galaxy S23, S23+ and S23 Ultra;
+from 0.4.73, OriginOS 7 (vivo, Android 17) on the
 Snapdragon Galaxy S26 and S25 phones and the Z Fold8 Ultra, Z Fold8 and Z Fold7,
 and from 0.4.82 on the Snapdragon S24 and S23 phones; and in 0.4.83 the Galaxy
 S24+ with Exynos 2400 (SM-S926B, e2s), which, like the Exynos S24, takes the
@@ -182,6 +183,11 @@ release).
    One UI apps and photos are encrypted behind that lock, so a session that
    leaves the phone unable to accept it is a factory reset, not an
    inconvenience. Leave it off unless you have a reason and accept that.
+   From 0.4.95 a guest can have a screen lock of its own (ColorOS, HyperOS,
+   Nothing OS, OriginOS): a PIN, pattern or password kept inside the guest,
+   which never touches One UI's lock. It keeps people out of the guest's
+   lock screen; it does not protect the data. See
+   [docs/guest-screen-lock.md](docs/guest-screen-lock.md).
 4. **Root, battery and heat.** The phone must be rooted (tested with KernelSU),
    charged to at least 30 % and not hot (under 42 °C).
 
@@ -345,6 +351,9 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   Pocket Studio and Google fixes, and Samsung's hinge sensor for half-folded
   postures and the open/close animations in ColorOS and Pixel, which the Z Fold8
   Ultra uses too.
+- **[@vdcoolok](https://github.com/vdcoolok)**: the idea of a screen lock kept
+  inside the guest ([pull request #152](https://github.com/fahadalijaved/OneOS/pull/152)),
+  which the guest's own PIN, pattern or password of 0.4.95 follows.
 - smali/dexlib2, AndroidX, Kotlin, Guava, ZXing and others: the full list with
   licenses is in [CREDITS.md](CREDITS.md).
 

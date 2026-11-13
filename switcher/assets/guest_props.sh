@@ -494,6 +494,28 @@ add)
         fi
         [ -z "$out" ] || echo "guest_props: ColorOS's last-boot records from an earlier session blanked for the session:$out"
     fi
+    # The S23 family (SM8550, HIDL audio HAL), any system (0.5.00):
+    # guest_prepare.sh gave the guest the vendor's Bluetooth audio module, as
+    # One UI plays A2DP (marker guest_bt_sw). That module streams through a
+    # software A2DP session, so offload goes off for the session; with it on,
+    # the guest opened the hardware-offload session the HAL's PAL never watches
+    # (S23/S23+ on 0.4.99, "Rx device start failed with status -38"; ColorOS
+    # and Pixel alike).
+    # Memory only. ONEOS_GUEST_BT_OFFLOAD=1 leaves it as One UI has it.
+    if [ "${ONEOS_GUEST_BT_OFFLOAD:-0}" = 0 ] && [ -f "$STAGE/guest_bt_sw" ]; then
+        k=persist.bluetooth.a2dp_offload.disabled
+        if grep -qxF "$k" "$HOST"; then
+            hv=$(getprop "$k")
+            if [ "$hv" != true ] && "$RP" -n "$k" true 2>/dev/null; then
+                echo "$k=$hv" >> "$OVR"
+                echo "guest_props: $k=$hv overridden to true for the session (A2DP through the vendor's Bluetooth module, as One UI)"
+            fi
+        else
+            sed -i "/^persist\.bluetooth\.a2dp_offload\.disabled=/d" "$NEW"
+            echo "$k=true" >> "$NEW"
+            echo "guest_props: $k=true for the session (A2DP through the vendor's Bluetooth module, as One UI)"
+        fi
+    fi
     if [ "${ONEOS_GUEST_BT_OFFLOAD:-0}" = 0 ] && [ "$GUEST_OPLUS" = 0 ]; then
         for k in persist.bluetooth.leaudio_offload.disabled; do
             if grep -qxF "$k" "$HOST"; then

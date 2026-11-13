@@ -52,35 +52,37 @@ gradle.taskGraph.whenReady {
 // One UI" app; the ColorOS sets since their 2026-10-25 rebuild), and
 // guest_prepare.sh puts it in the guest's /oem/app.
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
-    "n6-global-f8" to (File(repoRoot, "out/fold8-global-current") to listOf("tethering_payload.img", "OneOSFoldCutout.apk", "OneOSTabletQs.apk")),
+    "n6-global-f8" to (File(repoRoot, "out/fold8-global-r0501") to listOf("tethering_payload.img", "OneOSFoldCutout.apk", "OneOSTabletQs.apk")),
     // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
-    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r15") to listOf("tethering_payload.img")),
+    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r20") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
-    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r70") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-sultra" to (File(repoRoot, "out/overlays_x9u_in_r75") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    // 0.5.02: the newer Find X9 Ultra IN build (CPH2841IN, 2026-11-01), offered next to the older one.
+    "x9u-in-1105-sultra" to (File(repoRoot, "out/overlays_x9u_in_1105_r1") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
-    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r17") to listOf("tethering_payload.img")),
+    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r19") to listOf("tethering_payload.img")),
     // Pixel 11 Pro image (0.4.10), Galaxy S26 Ultra: the same files from that image.
-    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r16") to listOf("tethering_payload.img")),
-    "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r17") to listOf("tethering_payload.img")),
+    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r18") to listOf("tethering_payload.img")),
+    "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r19") to listOf("tethering_payload.img")),
     // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
-    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r16") to listOf("tethering_payload.img")),
+    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r18") to listOf("tethering_payload.img")),
     // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
     // is built from source (0.4.28): the guest keeps One UI's, like tethering.
-    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r14") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
+    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r16") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
-    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r25") to listOf("tethering_payload.img")),
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r28") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r32") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r35") to listOf("tethering_payload.img")),
     // OxygenOS 16 (0.4.67, experimental), for the phones on One UI 8 (Android 16): no fold overlays, no
     // tethering (One UI's stays), no apex requirement list (no ColorOS set ships one).
-    "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r2") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
+    "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r3") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
         "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
     // OriginOS 7 (0.4.73, experimental): set r17 = r14 plus the vivo fold cutout overlay (the cover's lens).
-    "originos" to (File(repoRoot, "out/overlays_originos_cn_r17") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
+    "originos" to (File(repoRoot, "out/overlays_originos_cn_r20") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -476,8 +478,45 @@ android {
         // Pixel 9 Pro XL r5, Infinity-X r4, Nothing OS r22 (samcam_bar.tar for phones). The panel kept at its top rate in
         // Pixel, HyperOS and Nothing OS (it stayed at 24 Hz: 10-15 fps). Infinity-X: Samsung IMS (the carve-out's
         // /system/system_ext path; framework members; SMS centre). The Galaxy A16 4G (SM-A165F).
-        versionCode = 118
-        versionName = "0.4.89"
+        // 0.4.94 (123), not published yet: the Find N6 set (the Z Folds, n6g_r16) with a screen lock of the guest's own,
+        // a PIN, pattern or password kept and checked inside the guest (patches/guest_local_lock.py,
+        // docs/guest-screen-lock.md); first for the owner's try on the Z Fold8 Ultra.
+        // 0.4.95 (124), not published yet: the same screen lock in four more sets, none tried on a phone yet:
+        // ColorOS IN (x9u_in_r71), HyperOS (hyperos_r26), Nothing OS (nothing_r33) and OriginOS (originos_cn_r18).
+        // The Pixel sets, Infinity-X and OxygenOS 16 stay without it (their frameworks have another shape; the
+        // patcher leaves them as they are). Two phones from findings of 2026-11-11, untested: the Galaxy M35 5G
+        // (SM-M356, the A35 5G's systems) and the Galaxy A15 5G with MediaTek (SM-A156, OxygenOS 16 only).
+        // 0.4.96 (125), not published yet: Restart guest (root for the guest) on slower phones. The scan for the
+        // guest's processes in guest_softreboot.sh took 50 s a pass on a Galaxy A34 and ran into the watcher's
+        // 120 s limit, so the phone went back to One UI (a report on 0.4.93). One listing a pass now; the look
+        // at a single process still decides every kill. Not tried on a phone yet.
+        // Also in 125: a switch refused by its own check (oneos_switch.sh, which runs after root answered the
+        // launch) left the boot screen on "Shutting down One UI" for good, the reason only in the log (a
+        // Galaxy S23 on 0.4.95, twice: One UI's property space nearly full). Root's launch answer now waits
+        // for that verdict (switch_verdict in oneos_root.sh) and passes a refusal on. Not tried on a phone yet.
+        // 0.4.97 (126), not published yet: Bluetooth sound in the guest on Samsung-HAL Snapdragon phones (the
+        // audio HAL registered Qualcomm's provider over oneos_btaudio and every playback start failed with -38,
+        // Galaxy S23 ColorOS; the bridge now takes the name back), and wallpaper AOD in ColorOS on the Z Folds
+        // (Find N6 set r17: SystemUI takes the display-panel half as given; fold8_coloros.sh adds the
+        // panoramic AOD app feature; works on the Fold8 Ultra) and on the bar phones (x9u-in r72,
+        // ColorPanoramicSystemUI.apk, guest_prepare.sh). Bluetooth and the bar phones not tried yet.
+        // 0.4.98 (127), not published yet: AOD and wallpaper AOD in ColorOS on the Z Fold7, Fold6 and Fold5 (Find N6
+        // r18: their own ColorPanoramicSystemUI.apk; they had no AOD at all, report 3ef946ef) and AOD brightness
+        // without OPPO's display HAL on the bar phones (x9u-in r73). Not tried on a phone yet.
+        // 0.4.99 (128), not published yet: the Bluetooth bridge registers again every second. 0.4.97's check never
+        // saw Qualcomm's provider take the name over (S23 reports on 0.4.97: still no Bluetooth sound). Not tried yet.
+        // 0.5.03 (132): session snapshots record which process owns a libtimer.so / POSIX timer thread
+        // (Galaxy S24 family kernel panics in free_pipe_info, 10 reports).
+        // 0.5.02 (131, published 11-13): the newer Find X9 Ultra IN build (coloros17-findx9u-in-1105, CPH2841IN security patch
+        // 2026-11-01) offered after the older one on every phone that has it, untested; set x9u-in-1105-sultra.
+        // 0.5.01 (130, published 11-13): framework_patched.jar of 11 sets with patches/guest_secims_ready.py:
+        // Samsung IMS hears that telephony is ready for a call's callbacks once telephony attaches to the session,
+        // so a declined or ended call ends in the guest (Z Fold8 Pixel, Spectrum, 4bb83bcd). Not tried yet.
+        // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
+        // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
+        // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
+        versionCode = 132
+        versionName = "0.5.03"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

@@ -122,6 +122,7 @@ object Images {
 
     const val ID_FIND_N6 = "coloros17-findn6"
     const val ID_FIND_X9U_IN = "coloros17-findx9u-in"
+    const val ID_FIND_X9U_IN_1105 = "coloros17-findx9u-in-1105"
     const val ID_PIXEL_YOGI = "pixel11fold-yogi"
     const val ID_PIXEL_KODIAK = "pixel11pro-kodiak"
     const val ID_HYPEROS_LHASA = "hyperos-lhasa"
@@ -187,6 +188,34 @@ object Images {
         gzSha256 = "c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab",
         rawBytes = 14_669_168_640L,
         rawSha256 = "92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve2", "sme"),
+        googleServices = true,
+        family = SystemFamily.COLOROS,
+    )
+
+    /**
+     * 0.5.02: the newer Find X9 Ultra IN OTA (CPH2841IN, OPPO's bug fixes, security patch 2026-11-01),
+     * offered next to [FIND_X9U_IN] on the same phones, untested (the owner's Fold cannot take the
+     * IN build). Same family, so a stage's ColorOS data is kept when a phone moves to it. Built
+     * without debloat (`--type=coloros --no-debloat`); its set has its own surfaceflinger and vold pins.
+     */
+    val FIND_X9U_IN_1105 = ImageRef(
+        id = ID_FIND_X9U_IN_1105,
+        label = "ColorOS 17, Find X9 Ultra IN build (November update)",
+        shortName = "Find X9 Ultra IN (Nov)",
+        name = "ColorOS 17",
+        variant = "global build, November update",
+        blurb = "OPPO's newer global build from the Find X9 Ultra, with OPPO's latest fixes. Untested: try it and send a report.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz",
+        gzBytes = 7_102_560_387L,
+        gzSha256 = "43eeb00bcb7105c406d5fe299259fb8e84568c6631e6c8d763bb3ff23b1d0d20",
+        rawBytes = 14_782_214_144L,
+        rawSha256 = "6c089f2d043d60f34b40dd58ad44f88621163163c1664121753311a115da8d7c",
         testedOn = null,
         cpuRequired = emptyList(),
         cpuUsedByApps = listOf("sve2", "sme"),
@@ -468,7 +497,7 @@ object Images {
         family = SystemFamily.ORIGINOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

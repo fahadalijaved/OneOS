@@ -1,9 +1,7 @@
 {
   "about": "Phones that sent findings but have no profile yet, read by reports/devices.py. 'oneui' is what their latest findings showed (null: not kept). OneOS has Android 16 (One UI 8.x, OxygenOS 16 since 0.4.67) and Android 17 (One UI 9) images, so a phone qualifies once it runs One UI 8 or newer; then it gets a profile (memory: profiles-from-findings) and leaves this list. 'variantOf' puts a model under a supported phone's name; 'variant' is the model line shown. Renamed phones (a model whose codename or chip belongs to another phone, e.g. ports like a Note20 Ultra on an S22 Ultra build) and non-Samsung phones are left out.",
   "phones": [
-    {"name": "Galaxy A16", "variantOf": "Galaxy A16", "variant": "SM-A166P, 5G, Dimensity 6300", "models": ["SM-A166P"], "oneui": null},
     {"name": "Galaxy M53", "models": ["SM-M536"], "oneui": null},
-    {"name": "Galaxy S22", "variantOf": "Galaxy S22", "variant": "SM-S901B, Exynos 2200", "models": ["SM-S901B"], "oneui": "7.0"},
     {"name": "Galaxy A05", "variant": "SM-A055, 4G", "models": ["SM-A055"], "oneui": "7.0"},
     {"name": "Galaxy A05s", "variant": "SM-A057, 4G", "models": ["SM-A057"], "oneui": "7.0"},
     {"name": "Galaxy Tab A9", "models": ["SM-X110"], "oneui": "8.0", "tablet": true},

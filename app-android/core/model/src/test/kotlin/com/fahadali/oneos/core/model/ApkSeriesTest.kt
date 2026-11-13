@@ -41,7 +41,7 @@ class ApkSeriesTest {
             ApkSeries.FOLD.setIds().intersect(ApkSeries.S25.setIds()),
         )
         assertEquals(
-            setOf(PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_INFINITYX, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U,
+            setOf(PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_X9U_IN_1105_SULTRA, PackageSets.ID_INFINITYX, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U,
                 PackageSets.ID_ORIGINOS),
             ApkSeries.S26.setIds().intersect(ApkSeries.S25.setIds()),
         )
