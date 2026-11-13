@@ -16,9 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 START = (ROOT / "switcher/assets/guest_start.sh").read_text()
 BLOCK_ANCHOR = (
     "hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default"
-    ' 2>/dev/null | head -n 1 | tr -dc 0-9)\n    hprev=$(cat /data/oneos_audio_hal.pid 2>/dev/null)'
+    " 2>/dev/null | head -n 1 | tr -dc 0-9)\n    hprev=$(cat /data/oneos_audio_hal.pid 2>/dev/null)"
 )
-END_ANCHOR = 'if [ -n "$hpid" ]; then echo "$hpid" > /data/oneos_audio_hal.pid; fi'
+END_ANCHOR = (
+    'if [ -n "$hpid" ]; then echo "$hpid" > /data/oneos_audio_hal.pid; fi\n    n=0'
+)
 
 
 def find_sh():
@@ -37,6 +39,9 @@ class AudioHalStaleRestartTest(unittest.TestCase):
     def setUp(self):
         self.assertEqual(1, START.count(BLOCK_ANCHOR))
         self.assertEqual(1, START.count(END_ANCHOR))
+        # The pid is recorded twice: once in the block (after a restart), once
+        # right after the IModule wait, so a full launch's fresh HAL is recorded.
+        self.assertEqual(2, START.count('echo "$hpid" > /data/oneos_audio_hal.pid'))
         block = BLOCK_ANCHOR + START.split(BLOCK_ANCHOR, 1)[1].split(END_ANCHOR, 1)[0] + END_ANCHOR
         self.tmp = tempfile.TemporaryDirectory()
         d = Path(self.tmp.name)
