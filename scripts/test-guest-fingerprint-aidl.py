@@ -37,6 +37,53 @@ class GuestFingerprintTest(unittest.TestCase):
                 self.assertIn(f"const/4 {register}, 0x1", patched)
                 self.assertNotIn("getResetLockoutRequiresHardwareAuthToken", patched)
 
+    def test_patcher_skips_a_framework_without_the_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / REL
+            path.parent.mkdir(parents=True)
+            original = (
+                ".class public Lcom/android/server/biometrics/sensors/fingerprint/FingerprintService;\n"
+                ".method private initSensors()V\n"
+                ".end method\n"
+            )
+            path.write_text(original)
+            result = subprocess.run(
+                [sys.executable, "-I", str(PATCHER), tmp],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(0, result.returncode)
+            self.assertEqual("", result.stdout)
+            self.assertIn("no fingerprint transport choice", result.stderr)
+            self.assertEqual(original, path.read_text())
+
+    def test_patcher_skips_a_framework_without_fingerprintserversmali(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(
+                [sys.executable, "-I", str(PATCHER), tmp],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(0, result.returncode)
+            self.assertEqual("", result.stdout)
+            self.assertIn("FingerprintService.smali in this framework", result.stderr.replace("/", "\\"))
+
+    def test_patcher_still_fails_on_ambiguous_transport_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / REL
+            path.parent.mkdir(parents=True)
+            call = (
+                "    .line 1089\n"
+                "    invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z\n\n"
+                "    move-result v3\n"
+            )
+            path.write_text(".method private initSensors()V\n" + call + call + ".end method\n")
+            result = subprocess.run(
+                [sys.executable, "-I", str(PATCHER), tmp],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertEqual("", result.stdout)
+            self.assertIn("found 2", result.stderr)
+
     def test_guest_preparation_carries_only_biometric_metadata(self):
         self.assertIn("$STAGE/data/vendor_de/0/fpdata", PREPARE)
         self.assertIn("settings_fingerprint_0.xml settings_face.xml", PREPARE)
