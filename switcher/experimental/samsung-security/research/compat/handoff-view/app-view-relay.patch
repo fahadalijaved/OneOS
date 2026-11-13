@@ -1,0 +1,247 @@
+--- a/app-android/app/src/full/java/com/fahadali/oneos/core/root/RetainedRootHostServiceV2.java
++++ b/app-android/app/src/full/java/com/fahadali/oneos/core/root/RetainedRootHostServiceV2.java
+@@ -5,8 +5,10 @@
+ import android.os.Binder;
+ import android.os.Build;
+ import android.os.IBinder;
++import android.os.Looper;
+ import android.os.Parcel;
+ import android.os.RemoteException;
++import android.os.SystemClock;
+ 
+ /** Separate v2 offer relay. The app never acquires native control authority. */
+ public final class RetainedRootHostServiceV2 extends Service {
+@@ -22,6 +24,27 @@
+         synchronized (STARTUP_LOCK) { retained = startup; }
+         try { if (retained != null && retained.service == this) retained.retireDelivery(); }
+         finally { super.onDestroy(); }
++    }
++
++    /** Claims the current acknowledged startup through its exact in-process broker. */
++    public static ViewAttempt claimView(IBinder localBroker) {
++        if (!com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION
++                || Build.VERSION.SDK_INT != 37) return null;
++        Startup retained;
++        synchronized (STARTUP_LOCK) { retained = startup; }
++        if (retained == null || retained.service.broker != localBroker) return null;
++        return retained.claimView();
++    }
++
++    /** One app-local handle. Call off the UI thread. A queued reply is only a receipt. */
++    public static final class ViewAttempt {
++        private final Startup owner;
++
++        private ViewAttempt(Startup owner) { this.owner = owner; }
++
++        public int prepare() { return owner.callView(RetainedViewAppProtocol.APP_VIEW_PREPARE); }
++        public int stop() { return owner.callView(RetainedViewAppProtocol.APP_VIEW_STOP); }
++        public int status() { return owner.callView(RetainedViewAppProtocol.APP_VIEW_STATUS); }
+     }
+ 
+     /** Created only in the actual validated Binder BEGIN entry, never from wire fields. */
+@@ -66,6 +89,17 @@
+     }
+ 
+     private static final class Startup implements Runnable {
++        private static final long VIEW_WAIT_MILLIS = 2_000;
++
++        private static final class ViewCall {
++            final int code;
++            final long deadline;
++            boolean abandoned, completed;
++            int result;
++
++            ViewCall(int code, long deadline) { this.code = code; this.deadline = deadline; }
++        }
++
+         private final Object lock = new Object();
+         final RetainedRootHostServiceV2 service;
+         private final Caller caller;
+@@ -78,6 +112,12 @@
+         private RetainedRootOfferLaunch.Offer offer;
+         private boolean retired, deathAttempted, workerStartAttempted, launchAdmitted;
+         private boolean callbackAttempted, callbackReturned, callbackUncertain, workerFinished;
++        private boolean offerAcknowledged;
++        private ViewAttempt viewAttempt;
++        private Thread viewWorker;
++        private ViewCall viewCall;
++        private ViewCall viewStop;
++        private boolean viewWorkerClaimed, viewWorkerFailed, viewPrepareIssued, viewStopIssued;
+         Startup(RetainedRootHostServiceV2 service, Caller caller, IBinder callback, String sha, long bytes) {
+             this.service = service; this.caller = caller; this.callback = callback; this.sha = sha; this.bytes = bytes;
+             death = new IBinder.DeathRecipient() {
+@@ -115,10 +155,161 @@
+             finally { synchronized (lock) { workerFinished = true; } }
+         }
+         void retireDelivery() {
+-            synchronized (lock) { retired = true; }
++            synchronized (lock) { retired = true; lock.notifyAll(); }
+             // Never destroy/signal the child, close its pipes, or send native CLOSE.
+             // An offer may already have reached a host which committed control.
+         }
++        private boolean viewCurrentLocked() {
++            return !retired && !service.destroyed && offerAcknowledged && !callbackUncertain;
++        }
++
++        ViewAttempt claimView() {
++            synchronized (lock) {
++                if (!viewCurrentLocked() || viewAttempt != null) return null;
++            }
++            try { if (!callback.isBinderAlive()) return null; }
++            catch (Throwable problem) { return null; }
++            synchronized (lock) {
++                if (!viewCurrentLocked() || viewAttempt != null) return null;
++                viewAttempt = new ViewAttempt(this);
++                return viewAttempt;
++            }
++        }
++
++        int callView(int code) {
++            boolean status = code == RetainedViewAppProtocol.APP_VIEW_STATUS;
++            boolean stop = code == RetainedViewAppProtocol.APP_VIEW_STOP;
++            int unavailable = status ? RetainedViewAppProtocol.STATUS_UNAVAILABLE
++                    : RetainedViewAppProtocol.UNAVAILABLE;
++            int unknown = status ? RetainedViewAppProtocol.STATUS_UNAVAILABLE
++                    : RetainedViewAppProtocol.UNCERTAIN;
++            if (Looper.myLooper() == Looper.getMainLooper()
++                    || (!stop && Thread.currentThread().isInterrupted())) {
++                return unavailable;
++            }
++            ViewCall call = new ViewCall(code, SystemClock.elapsedRealtime() + VIEW_WAIT_MILLIS);
++            boolean startWorker;
++            synchronized (lock) {
++                if (!viewCurrentLocked()) return unavailable;
++                if (stop) {
++                    if (!viewPrepareIssued || viewStopIssued) return unavailable;
++                    viewStopIssued = true;
++                    // Retain the only STOP even if PREPARE/STATUS is blocked in Binder.
++                    viewStop = call;
++                } else {
++                    if (viewWorkerFailed || viewCall != null || viewStop != null) return unavailable;
++                    if (code == RetainedViewAppProtocol.APP_VIEW_PREPARE) {
++                        if (viewPrepareIssued) return unavailable;
++                        viewPrepareIssued = true;
++                    }
++                    viewCall = call;
++                }
++                startWorker = !viewWorkerClaimed;
++                viewWorkerClaimed = true;
++                lock.notifyAll();
++            }
++            if (startWorker) startViewWorker();
++            try {
++                synchronized (lock) {
++                    while (!call.completed && viewCurrentLocked() && !viewWorkerFailed) {
++                        long remaining = call.deadline - SystemClock.elapsedRealtime();
++                        if (remaining <= 0) break;
++                        lock.wait(remaining);
++                    }
++                    if (call.completed && viewCurrentLocked()) return call.result;
++                    if (!stop) call.abandoned = true;
++                }
++            } catch (InterruptedException interrupted) {
++                if (!stop) synchronized (lock) { call.abandoned = true; }
++                Thread.currentThread().interrupt();
++            }
++            return unknown;
++        }
++
++        private void startViewWorker() {
++            try {
++                Thread created = new Thread(new Runnable() {
++                    @Override public void run() { Startup.this.runView(); }
++                }, "oneos-app-view-relay");
++                synchronized (lock) {
++                    viewWorker = created;
++                    if (!viewCurrentLocked()) return;
++                }
++                created.start();
++            } catch (Throwable problem) { failViewWorker(); }
++        }
++
++        private void failViewWorker() {
++            synchronized (lock) { viewWorkerFailed = true; lock.notifyAll(); }
++        }
++
++        private void runView() {
++            try {
++                for (;;) {
++                    ViewCall call;
++                    synchronized (lock) {
++                        while (viewCall == null && viewStop == null && viewCurrentLocked()) lock.wait();
++                        if (!viewCurrentLocked()) return;
++                        // The reserved ordinary call is first. No new ordinary call can overtake STOP.
++                        call = viewCall != null ? viewCall : viewStop;
++                    }
++                    int result = transactView(call);
++                    synchronized (lock) {
++                        call.result = result;
++                        call.completed = true;
++                        if (call == viewStop) viewStop = null;
++                        else viewCall = null;
++                        lock.notifyAll();
++                    }
++                }
++            } catch (Throwable problem) { failViewWorker(); }
++        }
++
++        private int transactView(ViewCall call) {
++            boolean status = call.code == RetainedViewAppProtocol.APP_VIEW_STATUS;
++            boolean stop = call.code == RetainedViewAppProtocol.APP_VIEW_STOP;
++            int unavailable = status ? RetainedViewAppProtocol.STATUS_UNAVAILABLE
++                    : RetainedViewAppProtocol.UNAVAILABLE;
++            int unknown = status ? RetainedViewAppProtocol.STATUS_UNAVAILABLE
++                    : RetainedViewAppProtocol.UNCERTAIN;
++            int result = stop ? unknown : unavailable;
++            Parcel data = null, reply = null;
++            try {
++                if (callback.isBinderAlive()) {
++                    data = Parcel.obtain(); reply = Parcel.obtain();
++                    data.writeInterfaceToken(RetainedHostControlProtocol.CALLBACK);
++                    data.writeInt(RetainedHostControlProtocol.VERSION);
++                    boolean send;
++                    synchronized (lock) {
++                        // STOP's wait bounds the observer only, never the retained send.
++                        send = viewCurrentLocked() && (stop || (!call.abandoned
++                                && SystemClock.elapsedRealtime() < call.deadline));
++                    }
++                    if (send) {
++                        if (!callback.transact(call.code, data, reply, 0)) {
++                            throw new IllegalStateException("V2 view relay unhandled");
++                        }
++                        reply.readException();
++                        int value = reply.readInt();
++                        reply.enforceNoDataAvail();
++                        if (!(status ? RetainedViewAppProtocol.isStatus(value)
++                                : RetainedViewAppProtocol.isMutationReply(value))) {
++                            throw new IllegalStateException("V2 view relay reply differs");
++                        }
++                        result = value;
++                    }
++                }
++            } catch (Throwable problem) {
++                result = unknown;
++            } finally {
++                try {
++                    try { if (reply != null) reply.recycle(); }
++                    finally { if (data != null) data.recycle(); }
++                } catch (Throwable problem) { result = unknown; }
++            }
++            return result;
++        }
++
+         private void notifyHost(RetainedRootOfferLaunch.Offer actual) {
+             boolean sendOffer;
+             synchronized (lock) {
+@@ -150,7 +341,10 @@
+                     synchronized (lock) { callbackUncertain = true; }
+                     retireDelivery(); returned = false;
+                 }
+-                synchronized (lock) { callbackReturned = returned; }
++                synchronized (lock) {
++                    callbackReturned = returned;
++                    offerAcknowledged = sendOffer && returned && !retired && !service.destroyed;
++                }
+             }
+         }
+     }

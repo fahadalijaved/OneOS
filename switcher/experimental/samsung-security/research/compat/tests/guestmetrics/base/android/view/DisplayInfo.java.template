@@ -1,0 +1,7 @@
+package android.view;
+
+/** Authored PC field container, not the original/SDK DisplayInfo implementation. */
+public class DisplayInfo {
+    public int displayId, appWidth, appHeight, logicalDensityDpi;
+    public float physicalXDpi, physicalYDpi;
+}

@@ -1,0 +1,5 @@
+package android.os;
+/** Authored direct-Java IPC signature model, not Android/SDK Binder. */
+public interface IBinder {
+    boolean transact(int code, Parcel data, Parcel reply, int flags) throws RemoteException;
+}

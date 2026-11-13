@@ -1,0 +1,1 @@
+package com.android.server.biometrics.sensors.fingerprint; public final class FingerprintService$1 extends android.hardware.fingerprint.IFingerprintService.Stub { public final FingerprintService this$0; public FingerprintService$1(FingerprintService p){this$0=p;} }

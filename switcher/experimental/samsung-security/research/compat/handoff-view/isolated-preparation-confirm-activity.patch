@@ -1,0 +1,118 @@
+--- a/PrepareActivity.java
++++ b/PrepareActivity.java
+@@ -20,6 +20,7 @@
+ import android.widget.ScrollView;
+ import android.widget.TextView;
+ import com.fahadali.oneos.core.root.RetainedRootHostServiceV2;
++import com.fahadali.oneos.core.root.RetainedRootHostServiceV2.PreparationPermit;
+ import com.fahadali.oneos.core.root.RetainedRootHostServiceV2.ViewAttempt;
+ import com.fahadali.oneos.core.root.RetainedViewAppProtocol;
+ import java.lang.ref.WeakReference;
+@@ -104,7 +105,7 @@
+         confirmingPrepare = start;
+         confirmation = new AlertDialog.Builder(this)
+                 .setTitle(start ? "Prepare a private view?" : "Stop preparation?")
+-                .setMessage(start ? "Ask the host to prepare the separate tester stage. This action prepares a view only."
++                .setMessage(start ? "Allow the tester controller to start and prepare a private view of the tester stage."
+                         : "Request that the host close this preparation. You can check cleanup status here.")
+                 .setPositiveButton(start ? "Prepare" : "Stop", this)
+                 .setNegativeButton(start ? "Cancel" : "Keep going", null)
+@@ -133,7 +134,7 @@
+         refresh.setEnabled(operation != null && operation.canRefresh());
+         if (operation != null) status.setText(operation.message());
+         else if (com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION)
+-            status.setText("Prepare a file-backed view of the tester stage. "
++            status.setText("Confirm Prepare to start the controller for a file-backed view of the tester stage. "
+                     + "The host has a two-minute window from native commit to send Prepare.");
+         else status.setText("File-backed preparation is disabled in this build.");
+     }
+@@ -147,7 +148,8 @@
+     private static final class Operation implements ServiceConnection {
+         private static final int OPEN = 0, COMMITTED = 1, CANCELLED = 2;
+         private static final long BIND_WAIT_MILLIS = 10_000;
+-        private static final long PREPARE_READY_MILLIS = 12_000;
++        // 30s for the offer, 30s for host association, and 10s of headroom.
++        private static final long PREPARE_READY_MILLIS = 70_000;
+         private static final long READY_POLL_MILLIS = 200;
+ 
+         private final Context app;
+@@ -155,6 +157,8 @@
+         private final Handler main = new Handler(Looper.getMainLooper());
+         private final Executor worker = Executors.newSingleThreadExecutor();
+         private final AtomicInteger dispatch = new AtomicInteger(OPEN);
++        private final PreparationPermit permission = new PreparationPermit();
++        private volatile boolean authorizationAccepted;
+         private final Runnable bindTimeout = new Runnable() {
+             @Override public void run() { if (!brokerDispatched) finishBeforeDispatch(); }
+         };
+@@ -205,7 +209,7 @@
+         private void connectionLost(ComponentName name) {
+             if (!component.equals(name) || releaseWanted) return;
+             connectionLost = true;
+-            dispatch.compareAndSet(OPEN, CANCELLED);
++            cancelBeforeDispatch();
+             if (!brokerDispatched) finishBeforeDispatch();
+             else changed();
+         }
+@@ -221,7 +225,7 @@
+                     @Override public void run() { prepareOnWorker(binder); }
+                 });
+             } catch (RuntimeException refused) {
+-                if (dispatch.compareAndSet(OPEN, CANCELLED)) finishBeforeDispatch();
++                if (cancelBeforeDispatch()) finishBeforeDispatch();
+             }
+         }
+ 
+@@ -247,7 +251,15 @@
+         }
+ 
+         private void prepareOnWorker(IBinder binder) {
+-            if (!awaitReadyOnWorker(binder) || !dispatch.compareAndSet(OPEN, COMMITTED)) {
++            try {
++                if (dispatch.get() == OPEN) {
++                    authorizationAccepted = RetainedRootHostServiceV2.authorizePreparation(binder, permission);
++                }
++            } catch (RuntimeException refused) {
++                // Retire the same permission even if authorization had an effect before throwing.
++            }
++            if (!authorizationAccepted || !awaitReadyOnWorker(binder) || !dispatch.compareAndSet(OPEN, COMMITTED)) {
++                cancelBeforeDispatch();
+                 main.post(new Runnable() {
+                     @Override public void run() { finishBeforeDispatch(); }
+                 });
+@@ -272,7 +284,7 @@
+         void stop() {
+             if (!canStop()) return;
+             stopRequested = true;
+-            dispatch.compareAndSet(OPEN, CANCELLED);
++            cancelBeforeDispatch();
+             if (!brokerDispatched) finishBeforeDispatch();
+             else if (dispatch.get() == COMMITTED) {
+                 try {
+@@ -353,8 +365,14 @@
+                     || status == RetainedViewAppProtocol.STATUS_STOPPED_BEFORE_DISPATCH;
+         }
+ 
++        private boolean cancelBeforeDispatch() {
++            if (dispatch.get() != OPEN) return false;
++            permission.cancel();
++            return dispatch.compareAndSet(OPEN, CANCELLED);
++        }
++
+         private void finishBeforeDispatch() {
+-            if (terminal() || (!dispatch.compareAndSet(OPEN, CANCELLED) && dispatch.get() == COMMITTED)) return;
++            if (terminal() || (!cancelBeforeDispatch() && dispatch.get() == COMMITTED)) return;
+             finishedBeforeDispatch = true;
+             releaseBinding();
+             changed();
+@@ -372,7 +390,9 @@
+ 
+         String message() {
+             if (finishedBeforeDispatch) {
+-                String result = stopRequested ? "Stopped before dispatch." : "Preparation unavailable before dispatch.";
++                String result = stopRequested ? "Stopped before the Prepare request was sent."
++                        : "Preparation unavailable before the Prepare request was sent.";
++                if (authorizationAccepted) result += "\nController cleanup is unconfirmed.";
+                 return unbindUnconfirmed ? result + "\nService registration cleanup is unconfirmed." : result;
+             }
+             StringBuilder text = new StringBuilder(dispatch.get() == OPEN && !prepareReturned

@@ -1,0 +1,130 @@
+--- a/PrepareActivity.java
++++ b/PrepareActivity.java
+@@ -23,16 +23,18 @@
+ import com.fahadali.oneos.core.root.RetainedRootHostServiceV2.PreparationPermit;
+ import com.fahadali.oneos.core.root.RetainedRootHostServiceV2.ViewAttempt;
+ import com.fahadali.oneos.core.root.RetainedViewAppProtocol;
+-import java.lang.ref.WeakReference;
++import java.util.Map;
++import java.util.WeakHashMap;
+ import java.util.concurrent.Executor;
+ import java.util.concurrent.Executors;
+ import java.util.concurrent.atomic.AtomicInteger;
+ 
+ /** Single-process preparation view over the existing private broker. */
+ public final class PrepareActivity extends Activity
+-        implements View.OnClickListener, DialogInterface.OnClickListener {
++        implements View.OnClickListener, DialogInterface.OnClickListener, DialogInterface.OnDismissListener {
+     private static Operation current;
+-    private static WeakReference<PrepareActivity> visible = new WeakReference<>(null);
++    // Accessed only on the main thread, like the shared operation.
++    private static final Map<PrepareActivity, Object> started = new WeakHashMap<>();
+ 
+     private TextView status;
+     private Button prepare, stop, refresh;
+@@ -79,21 +81,22 @@
+ 
+     @Override protected void onStart() {
+         super.onStart();
+-        visible = new WeakReference<>(this);
++        started.put(this, new Object());
+         render();
+     }
+ 
+     @Override protected void onStop() {
+-        if (visible.get() == this) visible.clear();
+-        if (confirmation != null) {
+-            confirmation.dismiss();
+-            confirmation = null;
+-        }
++        started.remove(this);
++        AlertDialog pending = confirmation;
++        confirmation = null;
++        if (pending != null) pending.dismiss();
+         super.onStop();
+     }
+ 
+     @Override public void onClick(View view) {
+-        if (visible.get() != this) return;
++        if (Looper.myLooper() != Looper.getMainLooper()) return;
++        Object startOwner = started.get(this);
++        if (startOwner == null) return;
+         if (view == refresh) {
+             if (current != null) current.refresh();
+             return;
+@@ -101,27 +104,42 @@
+         boolean start = view == prepare && current == null
+                 && com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION;
+         boolean end = view == stop && current != null && current.canStop();
+-        if ((!start && !end) || (confirmation != null && confirmation.isShowing())) return;
+-        confirmingPrepare = start;
+-        confirmation = new AlertDialog.Builder(this)
++        if ((!start && !end) || confirmation != null) return;
++        AlertDialog dialog = new AlertDialog.Builder(this)
+                 .setTitle(start ? "Prepare a private view?" : "Stop preparation?")
+                 .setMessage(start ? "Allow the tester controller to start and prepare a private view of the tester stage."
+                         : "Request that the host close this preparation. You can check cleanup status here.")
+                 .setPositiveButton(start ? "Prepare" : "Stop", this)
+                 .setNegativeButton(start ? "Cancel" : "Keep going", null)
+-                .show();
++                .create();
++        if (started.get(this) != startOwner || confirmation != null) return;
++        confirmingPrepare = start;
++        confirmation = dialog;
++        dialog.setOnDismissListener(this);
++        try {
++            dialog.show();
++        } catch (RuntimeException | Error failure) {
++            if (confirmation == dialog) confirmation = null;
++            throw failure;
++        }
++        if (confirmation != dialog && dialog.isShowing()) dialog.dismiss();
+     }
+ 
+     @Override public void onClick(DialogInterface dialog, int which) {
+-        if (dialog != confirmation || which != DialogInterface.BUTTON_POSITIVE || visible.get() != this) return;
++        if (Looper.myLooper() != Looper.getMainLooper() || dialog == null || dialog != confirmation
++                || which != DialogInterface.BUTTON_POSITIVE || !started.containsKey(this)) return;
+         confirmation = null;
+         if (confirmingPrepare && current == null && com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION) {
+             current = new Operation(getApplicationContext());
+             current.bind();
++            changed();
+         } else if (!confirmingPrepare && current != null) {
+             current.stop();
+         }
+-        render();
++    }
++
++    @Override public void onDismiss(DialogInterface dialog) {
++        if (Looper.myLooper() == Looper.getMainLooper() && dialog == confirmation) confirmation = null;
+     }
+ 
+     private void render() {
+@@ -140,8 +158,9 @@
+     }
+ 
+     private static void changed() {
+-        PrepareActivity screen = visible.get();
+-        if (screen != null) screen.render();
++        for (PrepareActivity screen : started.keySet().toArray(new PrepareActivity[0])) {
++            if (started.containsKey(screen)) screen.render();
++        }
+     }
+ 
+     /** Main owns registration and display. A serial worker owns the one claimed attempt. */
+@@ -316,8 +335,13 @@
+                         final int sample = received == RetainedViewAppProtocol.STATUS_READY_TO_PREPARE
+                                 ? RetainedViewAppProtocol.STATUS_UNAVAILABLE : received;
+                         workerTerminal = workerTerminal || terminalStatus(sample);
++                        final boolean acknowledged = attempt.stopAcknowledged();
+                         main.post(new Runnable() {
+-                            @Override public void run() { refreshing = false; observe(sample); }
++                            @Override public void run() {
++                                if (stopRequested && acknowledged) stopReply = RetainedViewAppProtocol.QUEUED;
++                                refreshing = false;
++                                observe(sample);
++                            }
+                         });
+                     }
+                 });

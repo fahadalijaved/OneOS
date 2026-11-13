@@ -1,0 +1,55 @@
+--- a/RetainedHostNativeControlV2.java
++++ b/RetainedHostNativeControlV2.java
+@@ -9,6 +9,7 @@
+ import android.system.OsConstants;
+ import android.system.StructPollfd;
+ import com.fahadali.oneos.core.root.RetainedHostControlProtocol;
++import com.fahadali.oneos.core.root.RetainedViewAppProtocol;
+ import java.io.FileDescriptor;
+ import java.io.IOException;
+ import java.io.InputStream;
+@@ -109,6 +110,44 @@
+     }
+ 
+     ViewState privateViewObservation() { synchronized (lock) { return lastViewState; } }
++
++    /** Read retained app progress only. This does not request a native observation. */
++    int appViewStatus() {
++        synchronized (lock) {
++            ViewState view = lastViewState;
++            int state = view == null ? 0 : view.state;
++            if (state == 5) return RetainedViewAppProtocol.STATUS_CLEANUP_UNCONFIRMED;
++            if (state != 6) {
++                boolean effectsPossible = viewPrepareAttempted || state != 0;
++                // During cutoff, a pidfd exit can precede a buffered terminal reply.
++                if (failure != null || workerFinished || (pidfdExited && !closeRequested)) {
++                    return effectsPossible ? RetainedViewAppProtocol.STATUS_CLEANUP_UNCONFIRMED
++                            : RetainedViewAppProtocol.STATUS_UNAVAILABLE;
++                }
++                if (state == 2) return RetainedViewAppProtocol.STATUS_NEED_STAGE;
++                if (state == 3) return RetainedViewAppProtocol.STATUS_REFUSED;
++                if (state == 4) return RetainedViewAppProtocol.STATUS_CLOSING;
++                if (state == 1 && view.observed) {
++                    return closeRequested ? RetainedViewAppProtocol.STATUS_CLOSING
++                            : RetainedViewAppProtocol.STATUS_PARTIAL;
++                }
++                if (closeRequested) {
++                    return effectsPossible ? RetainedViewAppProtocol.STATUS_CLOSING
++                            : RetainedViewAppProtocol.STATUS_UNAVAILABLE;
++                }
++                return RetainedViewAppProtocol.STATUS_PENDING;
++            }
++        }
++        // State 6 is a retained native terminal. Actual Java/process/FD cleanup
++        // is checked by the existing owner, with its thread samples outside lock.
++        if (cleanupComplete()) return RetainedViewAppProtocol.STATUS_LOCAL_CLEANUP_OBSERVED;
++        synchronized (lock) {
++            if (failure != null || (workerFinished && (!cleanupSucceeded || !pidfdExited))) {
++                return RetainedViewAppProtocol.STATUS_CLEANUP_UNCONFIRMED;
++            }
++            return RetainedViewAppProtocol.STATUS_LOCAL_TERMINAL;
++        }
++    }
+ 
+     void requestClose() {
+         synchronized (lock) { closeRequested = true; lock.notifyAll(); }

@@ -1,0 +1,20 @@
+diff --git a/compat/android/com/appleexploit/oneos/security/authority/PreparedRetainedSecurityFamilyCapture.java b/compat/android/com/appleexploit/oneos/security/authority/PreparedRetainedSecurityFamilyCapture.java
+--- a/compat/android/com/appleexploit/oneos/security/authority/PreparedRetainedSecurityFamilyCapture.java
++++ b/compat/android/com/appleexploit/oneos/security/authority/PreparedRetainedSecurityFamilyCapture.java
+@@ -47,6 +47,16 @@ public final class PreparedRetainedSecurityFamilyCapture {
+                 "local owner mismatch");
+     }
+ 
++    /** Main-thread identity check only. Does not grant a worker lease. */
++    void checkFingerprintOwnersForControl(PreparedRetainedUserRegistryCapture expectedRegistry,
++            Object expectedService, Object expectedWrapper, Object expectedRegistryOwner) {
++        require(metadata.registry == expectedRegistry && owners[3] == expectedService
++                && owners[15] == expectedWrapper && owners[16] == expectedRegistryOwner,
++                "fingerprint owner mismatch");
++        // Also checks the original wrapper-to-service and registry-to-wrapper links.
++        checkStillBound();
++    }
++
+     private static void require(boolean condition, String message) {
+         if (!condition) throw new IllegalStateException(message);
+     }

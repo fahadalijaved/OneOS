@@ -1,0 +1,396 @@
+--- a/app-android/app/src/full/kotlin/com/fahadali/oneos/ui/SwitchConfirm.kt
++++ b/app-android/app/src/full/kotlin/com/fahadali/oneos/ui/SwitchConfirm.kt
+@@ -1,5 +1,13 @@
+ package com.fahadali.oneos.ui
+ 
++import android.content.ComponentName
++import android.content.Context
++import android.content.DialogInterface
++import android.content.Intent
++import android.content.ServiceConnection
++import android.os.Handler
++import android.os.IBinder
++import android.os.Looper
+ import android.content.res.ColorStateList
+ import android.view.LayoutInflater
+ import android.view.View
+@@ -11,16 +19,22 @@
+ import androidx.annotation.DrawableRes
+ import androidx.appcompat.app.AlertDialog
+ import androidx.fragment.app.FragmentActivity
++import com.fahadali.oneos.BuildConfig
+ import com.fahadali.oneos.R
+ import com.fahadali.oneos.core.device.FactProbe
+ import com.fahadali.oneos.core.model.CarrierRules
+ import com.fahadali.oneos.core.model.GatePhase
++import com.fahadali.oneos.core.model.LaunchCommitGuard
+ import com.fahadali.oneos.core.model.Level
+ import com.fahadali.oneos.core.model.SwitchGates
++import com.fahadali.oneos.core.root.RetainedRootHostServiceV2
++import com.fahadali.oneos.core.root.RetainedViewAppProtocol as ViewProtocol
+ import com.fahadali.oneos.session.LaunchJob
+ import com.fahadali.oneos.session.Readiness
+ import com.fahadali.oneos.session.SessionPrefs
+ import com.fahadali.oneos.session.StageCheck
++import java.lang.ref.WeakReference
++import java.util.concurrent.Executors
+ 
+ /**
+  * The Switch confirm (the redesign, step 4), a One UI bottom dialog from Home
+@@ -36,6 +50,14 @@
+  */
+ internal object SwitchConfirm {
+     fun show(a: FragmentActivity) {
++        if (BuildConfig.RETAINED_WRITER_GUARD && BuildConfig.RETAINED_VIEW_PREPARATION) {
++            PrepareColorOsUi.confirm(a) { showStock(a) }
++        } else {
++            showStock(a)
++        }
++    }
++
++    private fun showStock(a: FragmentActivity) {
+         val r = StageCheck.state.result?.takeIf { it.installd != null } ?: return Readiness.tick(a, force = true)
+         val facts = FactProbe(a).refresh(r.facts)
+         val report = StageCheck.gates(a, r, GatePhase.SWITCH, screenLock = facts.screenLockSet, facts = facts)
+@@ -137,3 +159,305 @@
+     /** One way back to One UI: its icon, what to do, and one line. The first (the app) has the blue chip. */
+     private class Way(@DrawableRes val icon: Int, val title: String, val line: String, val primary: Boolean = false)
+ }
++
++/** Process-local UI custody of the one explicitly confirmed preparation. */
++private object PrepareColorOsUi {
++    private val main = Handler(Looper.getMainLooper())
++    private val worker = Executors.newSingleThreadExecutor { Thread(it, "oneos-view-request") }
++    private var current: Operation? = null
++
++    fun confirm(a: FragmentActivity, stockSwitch: () -> Unit) {
++        val hasAttempt = current != null
++        val choices = AlertDialog.Builder(a)
++            .setTitle(R.string.view_prepare_title)
++            .setMessage(if (hasAttempt) R.string.view_prepare_existing else R.string.view_prepare_confirmation)
++            .setPositiveButton(if (hasAttempt) R.string.view_prepare_status else R.string.view_prepare_action) { _, _ ->
++                if (!a.isFinishing && !a.isDestroyed) {
++                    val actual = current ?: Operation(a.applicationContext).also {
++                        current = it
++                        it.bind()
++                    }
++                    actual.show(a)
++                }
++            }
++            .setNegativeButton(android.R.string.cancel, null)
++        if (current?.terminal() != false) {
++            choices.setNeutralButton(R.string.view_prepare_stock_switch) { _, _ ->
++                if (current?.terminal() != false) stockSwitch()
++            }
++        }
++        choices.show()
++    }
++
++    private class Operation(private val app: Context) : ServiceConnection {
++        private val component = ComponentName(app, RetainedRootHostServiceV2::class.java)
++        private val commit = LaunchCommitGuard()
++        private val dialogs = mutableListOf<WeakReference<AlertDialog>>()
++        private var bindInFlight = false
++        private var bindAccepted = false
++        private var releaseWanted = false
++        private var unbindAttempted = false
++        private var pendingBroker: IBinder? = null
++        private var brokerDispatched = false
++        private var finishedBeforeDispatch = false
++        private var connectionLost = false
++        private var localCleanupUncertain = false
++        private var refreshInFlight = false
++        private var stopRequested = false
++        private var preparationReply: Int? = null
++        private var stopReply: Int? = null
++        private var sourceStatus = ViewProtocol.STATUS_PENDING
++
++        // Accessed only on the serial worker after the exact local broker is delivered.
++        private var attempt: RetainedRootHostServiceV2.ViewAttempt? = null
++        private var workerPrepareInvoked = false
++        private var workerStopIssued = false
++        private var workerTerminal = false
++        private val bindDeadline = Runnable { if (!brokerDispatched) unavailable() }
++
++        fun bind() {
++            bindInFlight = true
++            try {
++                bindAccepted = app.bindService(Intent().setComponent(component), this, Context.BIND_AUTO_CREATE)
++            } catch (_: RuntimeException) {
++                // Any registration which began still gets the one local unbind attempt below.
++            } finally {
++                bindInFlight = false
++            }
++            if (releaseWanted) {
++                releaseBinding()
++                renderDialogs()
++                return
++            }
++            if (!bindAccepted) {
++                unavailable()
++                return
++            }
++            dispatchBroker()
++            if (!brokerDispatched) main.postDelayed(bindDeadline, 10_000)
++        }
++
++        override fun onServiceConnected(name: ComponentName, service: IBinder) {
++            if (name != component || releaseWanted || brokerDispatched || pendingBroker != null) return
++            pendingBroker = service
++            dispatchBroker()
++        }
++
++        override fun onServiceDisconnected(name: ComponentName) { if (name == component) lostConnection() }
++        override fun onBindingDied(name: ComponentName) { if (name == component) lostConnection() }
++        override fun onNullBinding(name: ComponentName) { if (name == component) lostConnection() }
++
++        private fun lostConnection() {
++            if (releaseWanted) return
++            connectionLost = true
++            commit.cancel()
++            if (brokerDispatched) renderDialogs() else unavailable()
++        }
++
++        private fun dispatchBroker() {
++            val localBroker = pendingBroker ?: return
++            if (!bindAccepted || bindInFlight || releaseWanted) return
++            pendingBroker = null
++            brokerDispatched = true
++            main.removeCallbacks(bindDeadline)
++            worker.execute {
++                if (commit.isCancelled()) {
++                    finishCancelledBeforeDispatch()
++                    return@execute
++                }
++                val actual = try {
++                    RetainedRootHostServiceV2.claimView(localBroker)
++                } catch (_: RuntimeException) {
++                    main.post { finishBeforeDispatch(ViewProtocol.STATUS_UNAVAILABLE) }
++                    return@execute
++                }
++                if (actual == null) {
++                    main.post { finishBeforeDispatch(ViewProtocol.STATUS_UNAVAILABLE) }
++                    return@execute
++                }
++                attempt = actual
++                if (!commit.commit()) {
++                    finishCancelledBeforeDispatch()
++                    return@execute
++                }
++                workerPrepareInvoked = true
++                val reply = wireReply { actual.prepare() }
++                val observed = observeOnWorker(actual)
++                main.post {
++                    preparationReply = reply
++                    publish(observed)
++                }
++            }
++            renderDialogs()
++        }
++
++        private fun wireReply(send: () -> Int): Int = try {
++            when (val reply = send()) {
++                ViewProtocol.QUEUED, ViewProtocol.UNAVAILABLE, ViewProtocol.UNCERTAIN -> reply
++                else -> ViewProtocol.UNCERTAIN
++            }
++        } catch (_: RuntimeException) {
++            ViewProtocol.UNCERTAIN
++        }
++
++        private fun observeOnWorker(actual: RetainedRootHostServiceV2.ViewAttempt): Int {
++            val observed = try {
++                actual.status()
++            } catch (_: RuntimeException) {
++                ViewProtocol.STATUS_UNAVAILABLE
++            }
++            workerTerminal = workerTerminal || observed == ViewProtocol.STATUS_LOCAL_CLEANUP_OBSERVED ||
++                observed == ViewProtocol.STATUS_STOPPED_BEFORE_DISPATCH
++            return observed
++        }
++
++        private fun stopOnWorker(actual: RetainedRootHostServiceV2.ViewAttempt) {
++            if (!workerPrepareInvoked || workerStopIssued || workerTerminal) return
++            workerStopIssued = true
++            val reply = wireReply { actual.stop() }
++            val observed = observeOnWorker(actual)
++            main.post {
++                stopReply = reply
++                publish(observed)
++            }
++        }
++
++        private fun stop() {
++            if (stopRequested || terminal()) return
++            stopRequested = true
++            commit.cancel()
++            if (!brokerDispatched) {
++                finishBeforeDispatch(ViewProtocol.STATUS_STOPPED_BEFORE_DISPATCH)
++            } else {
++                worker.execute { attempt?.let(::stopOnWorker) }
++                renderDialogs()
++            }
++        }
++
++        private fun refresh() {
++            if (!brokerDispatched || refreshInFlight || terminal()) return
++            refreshInFlight = true
++            renderDialogs()
++            worker.execute {
++                val observed = if (workerPrepareInvoked) attempt?.let(::observeOnWorker) else null
++                main.post {
++                    refreshInFlight = false
++                    publish(observed)
++                }
++            }
++        }
++
++        fun terminal() = finishedBeforeDispatch || sourceStatus == ViewProtocol.STATUS_LOCAL_CLEANUP_OBSERVED ||
++            sourceStatus == ViewProtocol.STATUS_STOPPED_BEFORE_DISPATCH
++
++        private fun publish(observed: Int?) {
++            if (observed != null && !terminal()) sourceStatus = observed
++            if (terminal()) releaseBinding()
++            renderDialogs()
++        }
++
++        private fun unavailable() {
++            commit.cancel()
++            finishBeforeDispatch(ViewProtocol.STATUS_UNAVAILABLE)
++        }
++
++        private fun finishCancelledBeforeDispatch() {
++            main.post {
++                val status = if (stopRequested) ViewProtocol.STATUS_STOPPED_BEFORE_DISPATCH
++                             else ViewProtocol.STATUS_UNAVAILABLE
++                finishBeforeDispatch(status)
++            }
++        }
++
++        private fun finishBeforeDispatch(status: Int) {
++            if (terminal()) return
++            finishedBeforeDispatch = true
++            sourceStatus = status
++            releaseBinding()
++            renderDialogs()
++        }
++
++        private fun releaseBinding() {
++            releaseWanted = true
++            pendingBroker = null
++            main.removeCallbacks(bindDeadline)
++            if (bindInFlight || unbindAttempted) return
++            unbindAttempted = true
++            try {
++                app.unbindService(this)
++            } catch (_: RuntimeException) {
++                localCleanupUncertain = true
++            }
++        }
++
++        fun show(a: FragmentActivity) {
++            val dialog = AlertDialog.Builder(a)
++                .setTitle(R.string.view_prepare_title)
++                .setMessage(R.string.view_prepare_pending)
++                .setPositiveButton(R.string.view_prepare_refresh, null)
++                .setNeutralButton(R.string.view_prepare_stop, null)
++                .setNegativeButton(R.string.view_prepare_close, null)
++                .create()
++            val ref = WeakReference(dialog)
++            var remaining = 16
++            val poll = object : Runnable {
++                override fun run() {
++                    if (ref.get()?.isShowing != true || terminal() || remaining-- <= 0) return
++                    refresh()
++                    if (remaining > 0) main.postDelayed(this, 1500)
++                }
++            }
++            dialog.setOnDismissListener {
++                main.removeCallbacks(poll)
++                dialogs.remove(ref)
++            }
++            dialog.show()
++            dialogs += ref
++            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener { refresh() }
++            dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener { stop() }
++            render(dialog)
++            main.post(poll)
++        }
++
++        private fun renderDialogs() {
++            val live = dialogs.iterator()
++            while (live.hasNext()) {
++                val dialog = live.next().get()
++                if (dialog?.isShowing != true) live.remove() else render(dialog)
++            }
++        }
++
++        private fun render(dialog: AlertDialog) {
++            val context = dialog.context
++            val lines = buildList {
++                val status = when (sourceStatus) {
++                    ViewProtocol.STATUS_PENDING -> R.string.view_prepare_pending
++                    ViewProtocol.STATUS_PARTIAL -> R.string.view_prepare_partial
++                    ViewProtocol.STATUS_NEED_STAGE -> R.string.view_prepare_need_stage
++                    ViewProtocol.STATUS_REFUSED -> R.string.view_prepare_refused
++                    ViewProtocol.STATUS_CLOSING -> R.string.view_prepare_closing
++                    ViewProtocol.STATUS_CLEANUP_UNCONFIRMED -> R.string.view_prepare_cleanup_unconfirmed
++                    ViewProtocol.STATUS_LOCAL_TERMINAL -> R.string.view_prepare_local_terminal
++                    ViewProtocol.STATUS_LOCAL_CLEANUP_OBSERVED -> R.string.view_prepare_local_cleanup
++                    ViewProtocol.STATUS_STOPPED_BEFORE_DISPATCH -> R.string.view_prepare_not_dispatched
++                    else -> R.string.view_prepare_unavailable
++                }
++                add(context.getString(status))
++                preparationReply?.let { add(context.getString(replyText(it, false))) }
++                stopReply?.let { add(context.getString(replyText(it, true))) }
++                if (stopRequested && stopReply == null && !terminal()) add(context.getString(R.string.view_prepare_stop_waiting))
++                if (connectionLost) add(context.getString(R.string.view_prepare_connection_lost))
++                if (localCleanupUncertain) add(context.getString(R.string.view_prepare_connection_cleanup))
++            }
++            dialog.setMessage(lines.joinToString("\n\n"))
++            dialog.getButton(DialogInterface.BUTTON_POSITIVE).isEnabled = brokerDispatched && !terminal() && !refreshInFlight
++            dialog.getButton(DialogInterface.BUTTON_NEUTRAL).isEnabled = !stopRequested && !terminal()
++        }
++
++        private fun replyText(reply: Int, stop: Boolean): Int = when (reply) {
++            ViewProtocol.QUEUED -> if (stop) R.string.view_prepare_stop_queued else R.string.view_prepare_queued
++            ViewProtocol.UNAVAILABLE -> if (stop) R.string.view_prepare_stop_unavailable else R.string.view_prepare_request_unavailable
++            else -> if (stop) R.string.view_prepare_stop_uncertain else R.string.view_prepare_request_uncertain
++        }
++    }
++}
+--- a/app-android/app/src/full/res/values/strings.xml
++++ b/app-android/app/src/full/res/values/strings.xml
+@@ -127,4 +127,33 @@
+     <string name="fix_no_app">No app found to open this</string>
+     <!-- 0.4.43 (UX audit): the pre-boot button when a check stops the switch and has nothing to tap. -->
+     <string name="environment_what_stops">What stops the switch</string>
++
++    <string name="view_prepare_title">Prepare ColorOS</string>
++    <string name="view_prepare_confirmation">Ask the host to prepare a private filesystem view of its current stage. Starting ColorOS is a separate action.</string>
++    <string name="view_prepare_existing">A preparation attempt is already recorded. Open its status to see the last observed result.</string>
++    <string name="view_prepare_action">Prepare ColorOS</string>
++    <string name="view_prepare_status">View status</string>
++    <string name="view_prepare_stock_switch">Switch</string>
++    <string name="view_prepare_refresh">Refresh</string>
++    <string name="view_prepare_stop">Stop</string>
++    <string name="view_prepare_close">Close</string>
++    <string name="view_prepare_pending">Waiting for preparation status.</string>
++    <string name="view_prepare_partial">A partial filesystem view was observed. Boot readiness remains unconfirmed.</string>
++    <string name="view_prepare_need_stage">The host needs a prepared stage.</string>
++    <string name="view_prepare_refused">The host refused preparation.</string>
++    <string name="view_prepare_closing">The host is closing the preparation attempt.</string>
++    <string name="view_prepare_cleanup_unconfirmed">Kernel release remains unconfirmed.</string>
++    <string name="view_prepare_local_terminal">Local terminal progress was reported. Waiting for cleanup observation.</string>
++    <string name="view_prepare_local_cleanup">Local cleanup was observed. Kernel release remains unconfirmed.</string>
++    <string name="view_prepare_not_dispatched">Stopped before native preparation was dispatched.</string>
++    <string name="view_prepare_unavailable">Preparation status is unavailable.</string>
++    <string name="view_prepare_queued">The host queued the preparation request.</string>
++    <string name="view_prepare_request_unavailable">The preparation request was unavailable.</string>
++    <string name="view_prepare_request_uncertain">Preparation request delivery is uncertain.</string>
++    <string name="view_prepare_stop_queued">The host queued the stop request.</string>
++    <string name="view_prepare_stop_unavailable">The stop request was unavailable.</string>
++    <string name="view_prepare_stop_uncertain">Stop request delivery is uncertain.</string>
++    <string name="view_prepare_stop_waiting">Stop requested. Waiting for the retained attempt.</string>
++    <string name="view_prepare_connection_lost">The local service connection was lost.</string>
++    <string name="view_prepare_connection_cleanup">Local service unbind remains unconfirmed.</string>
+ </resources>
