@@ -112,9 +112,11 @@ class CameraAuxIdFilterTest(unittest.TestCase):
             patched = source.read()
         self.assertIn(".locals 10", patched)
         self.assertIn("move-result v7", patched)
-        self.assertIn('const-string v9, "com.android.systemui"', patched)
+        # The policy is forced off for every caller: a third-party app must not
+        # take the first map entry (a wide or aux camera) as its default.
+        self.assertNotIn("currentOpPackageName", patched)
+        self.assertNotIn("com.android.systemui", patched)
         self.assertIn("const/4 v7, 0x0", patched)
-        self.assertIn(":oneos_camera_aux_policy", patched)
         self.assertIn('const-string v9, "0"', patched)
         self.assertIn('const-string v9, "1"', patched)
         self.assertIn("if-eqz v9, :goto_2", patched)
