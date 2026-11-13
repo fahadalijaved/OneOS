@@ -2754,12 +2754,15 @@ PANO
         # which sent no themes for samsung (only a search icon; scripts/apk-replace-dex.py on
         # classes4.dex and classes5.dex, OPPO's signing block kept). The
         # Find N6 global and Find X9 Ultra IN builds ship the same APK (SHA-256 below); on any
-        # other build the image's own stays.
+        # other build the image's own stays. The newer X9U IN OTA (security patch 2026-11-01)
+        # ships EXP_17.11.20 (second hash): the patched EXP_17.11.17, a whole OPPO-signed app, is
+        # bound over it as well (the newer one's edit sites were not ported).
         TS_APK="$ROOTFS/my_stock/priv-app/KeKeThemeSpace/KeKeThemeSpace.apk"
-        TS_ORIG=496ca751d42793811dfd4bf18bf6f6884e5dfe8909ecf451dff94cecca2cff6a
+        TS_ORIGS="496ca751d42793811dfd4bf18bf6f6884e5dfe8909ecf451dff94cecca2cff6a 2dcf27a362ed11cbd5d3c63145da09feddf1f2e09216df7e292183856ef4d283"
         [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && $BB umount -l "$TS_APK" 2>/dev/null
+        TS_HAVE=$(sha256sum "$TS_APK" 2>/dev/null | cut -d' ' -f1)
         if [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && [ -f "$TS_APK" ] && [ ! -L "$TS_APK" ] &&
-           [ "$(sha256sum "$TS_APK" 2>/dev/null | cut -d' ' -f1)" != $TS_ORIG ]; then
+           ! case " $TS_ORIGS " in *" $TS_HAVE "*) true ;; *) false ;; esac; then
             echo "ColorOS Theme Store: this image's KeKeThemeSpace.apk is another build; its own stays (brand check on)"
         elif [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && [ -f "$TS_APK" ] && [ ! -L "$TS_APK" ]; then
             chmod 644 "$STAGE/KeKeThemeSpace_patched.apk"

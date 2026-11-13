@@ -156,6 +156,7 @@ data class PackageSet(
 object PackageSets {
     const val ID_N6_F8U = "n6-f8u"
     const val ID_X9U_IN_SULTRA = "x9u-in-sultra"
+    const val ID_X9U_IN_1105_SULTRA = "x9u-in-1105-sultra"
     const val ID_PIXEL_F8U = "pixel-f8u"
     const val ID_PIXEL_F8 = "pixel-f8"
     const val ID_PIXEL_SULTRA = "pixel-sultra"
@@ -301,6 +302,17 @@ object PackageSets {
         omitted = listOf(TETHERING, WALLPAPER_GRID_RRO),
         approxBytes = 634_332_311L + 116_537_002L,
         hasReturnApp = true,
+    )
+
+    /**
+     * 0.5.02: the newer Find X9 Ultra IN build ([Images.FIND_X9U_IN_1105]): the same files as
+     * [X9U_IN_SULTRA], built from that image (out/overlays_x9u_in_1105_r1: its own surfaceflinger and
+     * vold pins, SystemUI and OPPO AI libraries; samcam.tar and the Theme Store are the older set's files).
+     */
+    val X9U_IN_1105_SULTRA = X9U_IN_SULTRA.copy(
+        id = ID_X9U_IN_1105_SULTRA,
+        imageId = Images.ID_FIND_X9U_IN_1105,
+        sourceDir = "out/overlays_x9u_in_1105_r1",
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */
@@ -710,7 +722,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

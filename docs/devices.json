@@ -66,6 +66,12 @@
           "tested": true
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel11pro-kodiak",
           "label": "Pixel 11 Pro, kodiak build",
           "set": "pixel-sultra",
@@ -114,6 +120,12 @@
           "tested": true
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -160,6 +172,12 @@
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
           "tested": true
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
         },
         {
           "image": "pixel9proxl-komodo",
@@ -249,6 +267,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -348,6 +372,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel11pro-kodiak",
           "label": "Pixel 11 Pro, kodiak build",
           "set": "pixel-sultra",
@@ -393,6 +423,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -444,6 +480,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -489,6 +531,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -540,6 +588,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -585,6 +639,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -636,6 +696,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel11pro-kodiak",
           "label": "Pixel 11 Pro, kodiak build",
           "set": "pixel-sultra",
@@ -684,6 +750,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel11pro-kodiak",
           "label": "Pixel 11 Pro, kodiak build",
           "set": "pixel-sultra",
@@ -726,6 +798,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -759,6 +837,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -798,6 +882,12 @@
           "tested": true
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -832,6 +922,12 @@
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
           "tested": true
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
         },
         {
           "image": "pixel9proxl-komodo",
@@ -900,6 +996,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
@@ -933,6 +1035,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -975,6 +1083,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1032,6 +1146,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -1080,6 +1200,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -1107,6 +1233,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1158,6 +1290,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -1206,6 +1344,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -1239,6 +1383,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1278,6 +1428,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
@@ -1314,6 +1470,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
@@ -1347,6 +1509,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1392,6 +1560,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
@@ -1425,6 +1599,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1464,6 +1644,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
@@ -1497,6 +1683,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1536,6 +1728,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
@@ -1563,6 +1761,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1599,6 +1803,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1671,6 +1881,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1761,6 +1977,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -1926,6 +2148,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "infinityx41-findx9u",
           "label": "Infinity-X 4.1, Find X9 Ultra build",
           "set": "infinityx",
@@ -1959,6 +2187,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -2052,6 +2286,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -2097,6 +2337,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {
@@ -2184,6 +2430,12 @@
           "tested": false
         },
         {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
           "image": "pixel9proxl-komodo",
           "label": "Pixel 9 Pro XL, komodo build",
           "set": "pixel9-sultra",
@@ -2229,6 +2481,12 @@
           "image": "coloros17-findx9u-in",
           "label": "ColorOS 17, Find X9 Ultra IN build",
           "set": "x9u-in-sultra",
+          "tested": false
+        },
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
           "tested": false
         },
         {

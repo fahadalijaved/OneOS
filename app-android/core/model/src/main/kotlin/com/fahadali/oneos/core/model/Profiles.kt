@@ -170,9 +170,12 @@ object Profiles {
     /** The same image where a tester's session has reached the home screen (docs/compatibility.md). */
     private val X9U_IN_TESTED = X9U_IN_CHOICE.copy(tested = true)
 
+    /** 0.5.02: the newer Find X9 Ultra IN build, offered after the older one wherever that is (untested). */
+    private val X9U_IN_1105_CHOICE = ImageChoice(Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, tested = false)
+
     // 0.4.51: the full Find X9 Ultra IN build only (the debloated build left the app and was never on Drive);
     // tested where the debloated one was: testers started the IN build on these phones too.
-    private val S_ULTRA_CHOICES = listOf(X9U_IN_TESTED)
+    private val S_ULTRA_CHOICES = listOf(X9U_IN_TESTED, X9U_IN_1105_CHOICE)
 
     /**
      * 0.4.22: the Pixel 9 Pro XL image on the phones without SVE (SM8750, SM8650),
@@ -416,7 +419,7 @@ object Profiles {
         codename = "pa2q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE) + ORIGINOS_CHOICE,
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE) + ORIGINOS_CHOICE,
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -450,7 +453,7 @@ object Profiles {
 
     /** The Galaxy S26's images: the S Ultra's, all untested; 0.4.35 Nothing OS too. */
     private val S_8850_CHOICES = listOf(
-        X9U_IN_CHOICE,
+        X9U_IN_CHOICE, X9U_IN_1105_CHOICE,
         ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false),
         INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
     )
@@ -506,7 +509,7 @@ object Profiles {
         codename = "e3q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -526,7 +529,7 @@ object Profiles {
         codename = "dm1q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -537,7 +540,7 @@ object Profiles {
         codename = "dm2q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -592,7 +595,7 @@ object Profiles {
         codename = "b7s",
         socModel = "s5e9955",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS),
     )
 
@@ -614,7 +617,7 @@ object Profiles {
         codename = "a57x",
         socModel = "s5e8865",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_TESTED, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_TESTED, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS),
     )
 
@@ -635,7 +638,7 @@ object Profiles {
         codename = "a56x",
         socModel = "s5e8855",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS),
     )
 
@@ -659,7 +662,7 @@ object Profiles {
         codename = "b5q",
         socModel = "SM8550",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_TESTED, PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_TESTED, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -703,7 +706,7 @@ object Profiles {
         codename = "a07",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -744,7 +747,7 @@ object Profiles {
         socModel = "SM6475",
         form = FormFactor.BAR,
         // 0.4.57: not the Pixel 9 Pro XL, as on the A26: the same ARMv8.2 CPU features (no ilrcpc, frint, flagm...).
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -781,7 +784,7 @@ object Profiles {
         codename = "dm3q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -799,7 +802,7 @@ object Profiles {
         codename = "b6q",
         socModel = "SM8650",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -819,7 +822,7 @@ object Profiles {
         codename = "e1s",
         socModel = "s5e9945",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -866,7 +869,7 @@ object Profiles {
         codename = "e1q",
         socModel = "SM8650",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE),
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -883,7 +886,7 @@ object Profiles {
         codename = "r12s",
         socModel = "s5e9945",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -905,7 +908,7 @@ object Profiles {
         // 0.4.57: not the Pixel 9 Pro XL any more: its own programs stopped on "Illegal instruction" before
         // it started, in every session (0.4.54/0.4.55 reports 9f2307a3, 560a1dcb, c926c955). This ARMv8.2
         // CPU lacks what every phone it runs on has (ilrcpc, frint, flagm, jscvt, fcma, i8mm, bf16...).
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -924,7 +927,7 @@ object Profiles {
         codename = "a17",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -952,7 +955,7 @@ object Profiles {
         codename = "a16x",
         socModel = "s5e8535",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, INFINITYX_TESTED, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -1016,7 +1019,7 @@ object Profiles {
         codename = "b7r",
         socModel = "s5e9945",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE),
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -1060,7 +1063,7 @@ object Profiles {
         codename = "a15",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -1109,7 +1112,7 @@ object Profiles {
         codename = "a34x",
         socModel = "MT6877",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_CHOICE, X9U_IN_1105_CHOICE, INFINITYX_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("30 (Android 11)", "6.6")),
     )
 

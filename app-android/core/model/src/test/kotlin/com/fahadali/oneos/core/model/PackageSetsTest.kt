@@ -47,7 +47,7 @@ class PackageSetsTest {
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
         assertEquals("out/overlays_pixel_f8u_r19", pixel.sourceDir)
         assertEquals(
-            listOf(PackageSets.N6_GLOBAL_F8, n6, xin, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
+            listOf(PackageSets.N6_GLOBAL_F8, n6, xin, PackageSets.X9U_IN_1105_SULTRA, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
                 PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U, PackageSets.OXYGEN16, PackageSets.ORIGINOS),
             PackageSets.ALL,
         )

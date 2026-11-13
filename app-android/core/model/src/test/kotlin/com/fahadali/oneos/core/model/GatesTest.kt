@@ -49,10 +49,9 @@ class GatesTest {
         assertFalse(r.blocked)
         // The Find X9 Ultra build is tested on it since 0.4.7: only the carrier tick.
         assertEquals(listOf(SwitchGates.ID_CARRIER), r.toTick.map { it.id })
-        // The ticks name the system: its only ColorOS 17 build again from 0.4.51 (the debloated build
-        // retired), so "ColorOS 17" with no variant.
+        // The ticks name the system: the phone takes two ColorOS 17 builds (the November update), so the variant shows.
         val system = Images.systemName(Images.FIND_X9U_IN, Profiles.S_ULTRA_8850)
-        assertEquals("ColorOS 17", system)
+        assertEquals("ColorOS 17 · global build", system)
         assertEquals(CarrierRules.noCallsAck(system), r.find(SwitchGates.ID_CARRIER)!!.ack)
         assertEquals("I understand phone calls, including emergency calls, won't work in $system", r.find(SwitchGates.ID_CARRIER)!!.ack)
         assertNull(r.find(SwitchGates.ID_PROFILE)!!.ack)
@@ -536,22 +535,25 @@ class GatesTest {
         for ((phone, p) in listOf(Bundles.S26U to Profiles.S_ULTRA_8850, Bundles.S25U to Profiles.S_ULTRA_8750, Bundles.S25 to Profiles.S_8750)) {
             // 0.4.10: the S26 Ultra also takes the Pixel 11 Pro image (SM8850 has SVE); 0.4.11: the IN build first;
             // 0.4.22: the SM8750 phones the Pixel 9 Pro XL image (no SVE needed).
-            val usual = listOf(Images.FIND_X9U_IN)
+            val usual = listOf(Images.FIND_X9U_IN, Images.FIND_X9U_IN_1105)
             // 0.4.27: Infinity-X, on every phone; 0.4.31: HyperOS after it; then Nothing OS.
             val last = listOf(Images.NOTHING_METROID, Images.ORIGINOS7) // 0.4.35 the S26 Ultra, 0.4.36 the S25s too; 0.4.73 OriginOS 7
             assertEquals(
                 usual + (if (p == Profiles.S_ULTRA_8850) Images.PIXEL_KODIAK else Images.PIXEL_KOMODO) + Images.INFINITYX + Images.HYPEROS_LHASA + last,
                 p.images(),
             )
-            for ((image, set) in listOf(Images.FIND_X9U_IN to PackageSets.X9U_IN_SULTRA)) {
+            for ((image, set) in listOf(Images.FIND_X9U_IN to PackageSets.X9U_IN_SULTRA, Images.FIND_X9U_IN_1105 to PackageSets.X9U_IN_1105_SULTRA)) {
+                val tested = p.choice(image.id)!!.tested
                 for (phase in GatePhase.entries) {
                     val r = eval(phase, input(phone, image = image))
                     assertEquals("${p.id} ${image.id} $phase", image, r.image)
                     assertEquals(set, r.set)
                     assertFalse(r.blocked)
-                    assertEquals(Level.OK, r.level(SwitchGates.ID_PROFILE))
+                    // The November update's choices are untested (a first-sessions WARN); the first IN build is tested.
+                    assertEquals(if (tested) Level.OK else Level.WARN, r.level(SwitchGates.ID_PROFILE))
                 }
-                assertNull(eval(GatePhase.SWITCH, input(phone, image = image)).find(SwitchGates.ID_PROFILE)!!.ack)
+                val ack = eval(GatePhase.SWITCH, input(phone, image = image)).find(SwitchGates.ID_PROFILE)!!.ack
+                if (tested) assertNull(ack) else assertEquals(SwitchGates.untestedAck(p, image), ack)
             }
         }
         // The CPU rule comes with the image: the CN build needs nothing beyond arm64 (its apps WARN on the

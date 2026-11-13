@@ -113,6 +113,15 @@ BUILDS = [
         "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
         "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
     }, [("vold", 0x104e6, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
+    # The newer Find X9 Ultra IN OTA (CPH2841IN, security patch 2026-11-01): only vold
+    # changed (8 bytes longer; the only "\0vold\0" 4 bytes earlier, try_start's tbz on
+    # isDeclared() at the same offset with the same code around it);
+    # service.incremental.so and the crashrecovery APEX are the older build's, byte for byte.
+    ("ColorOS 17 CP2A.260605.016 IN (Find X9 Ultra global, 2026-11-01)", {
+        "vold": "41a7e561a3d0e4a52954aa843d8592dfc6c4aa847c5decdd5fff13386cea0660",
+        "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
+        "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
+    }, [("vold", 0x104e2, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
     # Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse, CP2A.260605.016),
     # built from source: its own layout. start() takes the string at 0xe164
     # (adrp 0xe000 + add 0x164), try_start's tbz w19 is at 0x64d8c (+0xd4, as
@@ -1055,6 +1064,9 @@ import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
+         # Find X9 Ultra IN, newer OTA (CPH2841IN, security patch 2026-11-01): the same
+         # bl AIBinder_getExtension / ldr x8 / cbz x8 / bl IQtiComposer3Client::fromBinder at 0x475d24.
+         "9dd1117ff4ab": 0x475d24,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
          "e5a8726a6687": 0x452a50,

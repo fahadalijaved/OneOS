@@ -50,6 +50,13 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.02: **a newer ColorOS build for the slab phones (Find X9 Ultra IN, November update)**, to try.
+- OPPO's newer global build of ColorOS 17 for the Find X9 Ultra, with OPPO's latest bug fixes (security patch
+  November 2026). It shows as a second choice, "global build, November update", next to the current one on every
+  phone that has the Find X9 Ultra build; the current build stays the default and keeps working.
+- Your ColorOS stays as it is when you move to it: apps, accounts and settings come along.
+- **Untested**: nobody has started it on a phone yet. Please try it and send a report, whether it works or not.
+
 New in 0.5.01: **calls end again when you decline or hang up**, in every system that uses Samsung's
 calling service (not OxygenOS).
 - Samsung's calling service ended the call on the network, but kept the news from the system until the
