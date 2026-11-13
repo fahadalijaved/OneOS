@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
-"""Galaxy A15 guests keep status-bar content inside the physical panel."""
+"""Guest status-bar content stays inside the physical panel: device-verified
+inset values live in a per-profile table, and the Galaxy A15's values are
+applied to AOSP guest SystemUIs."""
 from pathlib import Path
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "switcher/assets/oneos_switch.sh").read_text()
-BLOCK = SOURCE.split("# The Galaxy A15's physical top corners", 1)[1].split(
-    "if [ $GUEST_AOSP_SYSUI = 1 ]", 1
-)[0]
+TABLE_ANCHOR = "Device-verified status-bar insets"
+TABLE = SOURCE.split(TABLE_ANCHOR, 1)[1].split('if [ -n \\"$PADV\\" ]', 1)[0]
 
 
 class A15StatusBarInsets(unittest.TestCase):
-    def test_override_is_scoped_to_a15_aosp_systemui(self):
-        self.assertIn('[ \\"${ONEOS_PROFILE:-}\\" = a15 ]', BLOCK)
-        self.assertIn('[ $GUEST_AOSP_SYSUI = 1 ]', BLOCK)
+    def test_device_verified_values_live_in_a_per_profile_table(self):
+        self.assertEqual(1, SOURCE.count(TABLE_ANCHOR))
+        self.assertIn("a15) PADV=56; TOPV=16", TABLE)
+        self.assertIn("*) PADV=; TOPV= ;;", TABLE)
+
+    def test_the_table_only_applies_to_aosp_guest_systemuis(self):
+        self.assertIn('if [ -n \\"$PADV\\" ] && [ $GUEST_AOSP_SYSUI = 1 ]', SOURCE)
+        self.assertIn("PAD=$PADV", SOURCE)
+        self.assertIn("status_bar_padding_top=$TOPV", SOURCE)
 
     def test_device_verified_insets_are_registered(self):
-        self.assertIn("PAD=56", BLOCK)
-        self.assertIn("OneOSStatusBarTop", BLOCK)
-        self.assertIn("status_bar_padding_top=16", BLOCK)
+        self.assertIn("OneOSStatusBarTop", SOURCE)
 
     def test_stale_top_overlay_is_disabled_for_other_sessions(self):
         self.assertIn(
