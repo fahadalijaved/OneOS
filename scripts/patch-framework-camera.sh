@@ -22,6 +22,9 @@ TABLE="$ROOT/switcher/patches/host_camera.txt"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$JAR"
+# smali 3 refuses the hidden-API "blacklist" flags below API 29, and framework
+# jars still declare minSdkVersion 28 (as make-overlays.sh's decode does).
+sed -i 's/^  minSdkVersion: .*/  minSdkVersion: 29/' "$WORK/fw/apktool.yml"
 DIRS=$(python3 -I "$ROOT/switcher/patches/pixel_camera_abi.py" "$WORK/fw" "$TABLE")
 # ColorOS (extendGetComponentName) and HyperOS ("<package>&<activity>"): the
 # app's package name, not a component, for One UI's cameraserver
