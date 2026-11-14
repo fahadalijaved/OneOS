@@ -1711,6 +1711,59 @@ else
         echo "Display config: read-only overlay on product/etc refused, left out"
     fi
 fi
+# HyperOS face unlock: FeatureParser reads device_features/<Build.DEVICE>.xml
+# (miui/util/FeatureParser: /mi_ext/product/etc, /opcust/etc, /product/etc), and
+# the guest runs with One UI's ro.product.device: the props are the phone's,
+# this image is Xiaomi's lhasa build, and it carries no file for another
+# codename, so every key was false. BaseMiuiFaceManager's support_tee_face_unlock
+# read false and support_face_unlock_region_dom/global were null, so
+# KeyguardSettingsFaceUnlockUtils hid the Settings entry and the guest had no
+# face unlock at all (S25 Ultra, 2026-11-15). One file with the keys the
+# portrait path needs: TEE face unlock and region "ALL" (isFaceFeatureSupport
+# accepts it in place of Build.getRegion()).
+# Its own read-only overlay, mounted after the display-config overlay above: a
+# mount on product/etc hides a mount already made under it, and the image's
+# rootfs is read-only (the file cannot sit in the image). 600 bytes; the guest
+# has no other writer there.
+DFDIR="$GUEST_PRODUCT/etc/device_features"
+DFDEV=$(getprop ro.product.device 2>/dev/null)
+case "$DFDEV" in ''|*[!A-Za-z0-9._-]*) DFDEV= ;; esac
+if [ -e "$GUEST_SYSTEM_EXT/framework/miui-services.jar" ] && [ -n "$DFDEV" ] &&
+   [ -d "$DFDIR" ] && [ ! -L "$DFDIR" ]; then
+    if mount | grep -q " $DFDIR type overlay"; then
+        echo "HyperOS face features: $DFDIR already overlaid (an earlier prepare), left as it is"
+    else
+        DFOV="$STAGE/product_features_ov"
+        mkdir -p "$DFOV"
+        if ! mount | grep -q " $DFOV "; then
+            $BB mount -t tmpfs -o size=64k,mode=755 tmpfs "$DFOV" && $BB mount --make-private "$DFOV" 2>/dev/null
+        fi
+        mkdir -p "$DFOV/up"
+        cat > "$DFOV/up/$DFDEV.xml" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<features>
+    <!-- OneOS: the guest runs with One UI's ro.product.device ($DFDEV), for which
+         this image has no device_features file, so every FeatureParser key is
+         false and MIUI hides face unlock. The keys portrait face unlock needs:
+         the standard FaceManager path (TEE) and the region gate. -->
+    <bool name="support_tee_face_unlock">true</bool>
+    <string-array name="support_face_unlock_region_dom">
+        <item>ALL</item>
+    </string-array>
+    <string-array name="support_face_unlock_region_global">
+        <item>ALL</item>
+    </string-array>
+</features>
+EOF
+        chmod 755 "$DFOV/up" && chmod 644 "$DFOV/up/$DFDEV.xml"
+        $BB chcon -R u:object_r:system_file:s0 "$DFOV/up" 2>/dev/null || true
+        if $BB mount -t overlay overlay -o "ro,lowerdir=$DFOV/up:$DFDIR" "$DFDIR"; then
+            echo "HyperOS face features: $DFDIR/$DFDEV.xml over the image's (TEE face unlock, region ALL)"
+        else
+            echo "!!! HyperOS face features: read-only overlay on $DFDIR refused; Settings keeps face unlock hidden"
+        fi
+    fi
+fi
 # The guest's /mnt is a tmpfs of its own (0.4.63), with One UI's folders bound in
 # one by one, except the storage views guest_start.sh drops and rebuilds anyway
 # (user, pass_through, installer, androidwritable, runtime). Until 0.4.62 it was
@@ -2250,6 +2303,50 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
         exit 3
     fi
     echo "Bound framework_patched.jar -> $HFW"
+    # miui-framework.jar: DisplayFeatureManager's no-op instance when the
+    # "displayfeature" service is absent (patches/hyperos_displayfeature_stub.py).
+    # HyperOS registers that service only with Xiaomi's displayfeature vendor
+    # HAL, so on a Samsung vendor getInstance() returned null and the
+    # fingerprint-on-display overlay's setScreenEffect() NPE'd SystemUI: the
+    # lockscreen crash-looped under the FOD glyph (S25 Ultra, 2026-11-15).
+    # Optional: a stage from before the patch keeps the image's jar.
+    MDF="$MIUI_FW/miui-framework.jar"
+    if [ -f "$STAGE/miui-framework_patched.jar" ] && [ -f "$MDF" ] && [ ! -L "$MDF" ]; then
+        $BB umount -l "$MDF" 2>/dev/null || true
+        if $BB mount --bind "$STAGE/miui-framework_patched.jar" "$MDF"; then
+            echo "Bound miui-framework_patched.jar -> $MDF (DisplayFeatureManager a no-op without Xiaomi's displayfeature service)"
+        else
+            echo "!!! miui-framework_patched.jar not bound; the FOD overlay may crash SystemUI on the lockscreen"
+        fi
+    fi
+    # HyperOS face: Samsung's face HAL refuses the guest's framework.
+    # FaceService::initEnroll asks FaceChallengeManager::getChallengeInfo for the
+    # hardware auth token's challenge, which is 0 on AOSP's enroll path (Samsung's
+    # own biometric service fetches one with generateChallenge first), so it
+    # returns -9 and enrollment fails: Settings closes the camera page with
+    # "couldn't add face" (S25 Ultra, 2026-11-15). guest_start.sh stops
+    # sec-biometrics-face-aidl and registers facehal-rs as IFace/default instead;
+    # its payload is the phone vendor's own face matcher, staged here from
+    # /data/local/tmp/facehal. Without it the guest keeps Samsung's HAL.
+    FH_SRC=/data/local/tmp/facehal
+    FH_DST="$STAGE/data/local/tmp/facehal"
+    if [ -x "$FH_SRC/bin/hw/android.hardware.biometrics.face-service.facehal" ] && [ -d "$STAGE/data/local/tmp" ]; then
+        FH_NEW=0
+        for f in bin/hw/android.hardware.biometrics.face-service.facehal \
+                 lib64/libfacehal_jni.so lib64/libjni_stfaceunlock_api.so \
+                 lib64/libtensorflowlite.so lib64/libtensorflowlite_gpu_delegate.so \
+                 lib64/libc++_shared.so; do
+            [ -f "$FH_SRC/$f" ] || continue
+            cmp -s "$FH_SRC/$f" "$FH_DST/$f" && continue
+            mkdir -p "$FH_DST/${f%/*}" || continue
+            cp -f "$FH_SRC/$f" "$FH_DST/$f" && chmod 755 "$FH_DST/$f" && FH_NEW=$((FH_NEW + 1))
+        done
+        if [ "$FH_NEW" -gt 0 ]; then
+            chown -R 0:0 "$FH_DST" 2>/dev/null || true
+            $BB chcon -R u:object_r:shell_data_file:s0 "$FH_DST" 2>/dev/null || true
+            echo "HyperOS face: facehal-rs payload staged at /data/local/tmp/facehal ($FH_NEW file(s); Samsung's face HAL refuses the guest's framework)"
+        fi
+    fi
     # The SIM on a HIDL radio (0.4.70; patches/hyperos_hidl_radio.py): Xiaomi's VendorRIL waited for
     # its AIDL radio forever on the MediaTek A07, A16 4G and A17 ("getRadioServiceProxy wait for rild
     # ready", no SIM: 0.4.67 5357ba6a, d946ff36, c3630d06). Sets from r25 carry the jar; older ones

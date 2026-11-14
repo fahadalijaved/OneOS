@@ -701,10 +701,32 @@ if in_image $MIUI_JAR; then
         echo "built $OUT/framework_patched.jar (replaced $DEX)"
     done
     rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/framework.jar"
+    # miui-framework.jar: DisplayFeatureManager.getInstance() installs a no-op
+    # instance when the "displayfeature" service is absent (patches/
+    # hyperos_displayfeature_stub.py). HyperOS registers that service only with
+    # Xiaomi's vendor.xiaomi.hardware.displayfeature HAL, which a Samsung vendor
+    # does not have: getInstance() returned null and SystemUI's
+    # fingerprint-on-display overlay called setScreenEffect() on it, so the
+    # lockscreen crash-looped under the FOD glyph (S25 Ultra, 2026-11-15).
+    MFW_JAR=/system/system_ext/framework/miui-framework.jar
+    in_image $MFW_JAR || { echo "ERROR: $MIUI_JAR without $MFW_JAR" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $MFW_JAR $WORK/miui-framework.jar" "$IMG" 2>/dev/null
+    decode "$WORK/mfw" "$WORK/miui-framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_displayfeature_stub.py" "$WORK/mfw")
+    java -jar "$APKTOOL" b -q -o "$WORK/mfw-rebuilt.jar" "$WORK/mfw"
+    cp "$WORK/miui-framework.jar" "$OUT/miui-framework_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/mfw-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-framework_patched.jar" "$DEX")
+        echo "built $OUT/miui-framework_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/mfw" "$WORK/mfw-rebuilt.jar" "$WORK/miui-framework.jar"
 else
     rm -f "$OUT/miui-services_patched.jar" "$OUT/apprecovery.proinstaller_patched.jar" "$OUT/framework_patched.jar" "$OUT/miui-wifi-service_patched.jar" \
           "$OUT/miui-telephony-common_patched.jar" "$OUT/xiaomi-opt-telephony_patched.jar" "$OUT/socket_exec" \
-          "$OUT/libaudiohal_aidl_patched.so"
+          "$OUT/miui-framework_patched.jar" "$OUT/libaudiohal_aidl_patched.so"
     echo "miui-services.jar: not in the image, nothing to patch"
 fi
 
@@ -1032,6 +1054,7 @@ JARS=""
 for j in services_patched.jar oplus-services_patched.jar ims-ext-common_patched.jar oplus-telephony-common_patched.jar \
          oneos-telephony.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar \
          miui-wifi-service_patched.jar miui-telephony-common_patched.jar telephony-common_patched.jar vivo-services_patched.jar \
+         miui-framework_patched.jar \
          vivo-telephony-common-platform-ex_patched.jar framework-adapter_patched.jar; do
     [ -f "$OUT/$j" ] && JARS="$JARS $OUT/$j"
 done
@@ -1053,11 +1076,13 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
         [ -f "$OUT/framework_patched.jar" ] && echo "# HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)"
         [ -f "$OUT/miui-wifi-service_patched.jar" ] && echo "# HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)"
         [ -f "$OUT/miui-telephony-common_patched.jar" ] && echo "# HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)"
+        [ -f "$OUT/miui-framework_patched.jar" ] && echo "# HyperOS: miui-framework_patched.jar (patches/hyperos_displayfeature_stub.py, DisplayFeatureManager a no-op without Xiaomi's displayfeature service: the fingerprint-on-display overlay crashed SystemUI)"
         [ -f "$OUT/telephony-common_patched.jar" ] && echo "# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)"
         [ -f "$OUT/libcamera_client_patched.so" ] && echo "# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)"
         (cd "$OUT" && sha256sum services_patched.jar $([ -f oplus-services_patched.jar ] && echo oplus-services_patched.jar) \
             miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar \
             miui-telephony-common_patched.jar \
+            $([ -f miui-framework_patched.jar ] && echo miui-framework_patched.jar) \
             $([ "$VOLD_GVLD" = 1 ] && echo vold_patched service.incremental_patched.so) \
             $([ -f telephony-common_patched.jar ] && echo telephony-common_patched.jar) \
             $([ -f libcamera_client_patched.so ] && echo libcamera_client_patched.so) \
