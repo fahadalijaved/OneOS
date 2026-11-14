@@ -2047,6 +2047,12 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "lineage24-infiniti",$'
    [ "$(sha256sum "$STAGE/Fold8LineageSystemUI.apk" | cut -d' ' -f1)" != aa22961855b1f8a9d3dbbbc643922f9b216f6d411313e12eb8b70086287b84c3 ]; then
     POSTURE_DEFAULT=live
 fi
+# Infinity-X's contributor SystemUI uses the same native hinge posture; Stable keeps its original default.
+if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "infinityx41-findx9u",$' "$STAGE/.oneos_stage" &&
+   [ -f "$STAGE/Fold8InfinitySystemUI.apk" ] &&
+   [ "$(sha256sum "$STAGE/Fold8InfinitySystemUI.apk" | cut -d' ' -f1)" != 6a99684e831f9635738189d39667debe0f8b798012fa4eb622a7cb87ad9b1ddf ]; then
+    POSTURE_DEFAULT=live
+fi
 GUEST_POSTURE_LIVE=0; [ "${ONEOS_GUEST_POSTURE:-$POSTURE_DEFAULT}" = live ] && GUEST_POSTURE_LIVE=1
 GUEST_FOLD_FORM=0; [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && GUEST_FOLD_FORM=1
 # An OxygenOS image (its stable display size resource, see "stable display size"
@@ -3329,7 +3335,7 @@ while true; do
 
             # Pixel Fold8 / Fold8 Ultra: start the system-UID sensor reader in the guest namespace
             # (fold8_pixel.sh prepare made runtime.sh only for those two sets).
-            if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q '\"set\": \"\\(pixel-f8u\\{0,1\\}\\|lineage\\)\",' \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_pixel_hinge/runtime.sh\" ]; then
+            if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q '\"set\": \"\\(pixel-f8u\\{0,1\\}\\|lineage\\|infinityx\\)\",' \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_pixel_hinge/runtime.sh\" ]; then
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_pixel_hinge/runtime.sh runtime >\"$STAGE/pixel_hinge_runtime.log\" 2>&1 || echo '[UI Activator] Pixel hinge relay unavailable; native sensor fallback active'
             fi
 

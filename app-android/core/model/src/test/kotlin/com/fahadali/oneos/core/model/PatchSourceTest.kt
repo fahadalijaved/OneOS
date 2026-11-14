@@ -26,6 +26,7 @@ class PatchSourceTest {
         val dynamic=source.copy(targets=emptyList(),discover=true)
         assertTrue(dynamic.check().isEmpty())
         assertTrue(dynamic.supports(Profiles.FOLD8.id,Images.ID_LINEAGE,PackageSets.ID_LINEAGE))
+        assertTrue(dynamic.supports(Profiles.FOLD8.id,Images.ID_INFINITYX,PackageSets.ID_INFINITYX))
         assertFalse(dynamic.supports("unknown",Images.ID_LINEAGE,PackageSets.ID_LINEAGE))
         assertFalse(dynamic.supports(Profiles.FOLD8.id,Images.ID_LINEAGE,PackageSets.ID_PIXEL_F8))
     }

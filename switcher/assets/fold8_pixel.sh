@@ -6,6 +6,7 @@ STAGE=${STAGE:-/data/local/tmp/oneos}
 BB=${BB:-/data/oneos_bin/busybox}
 fail() { echo "Fold8 Pixel: $*" >&2; exit 3; }
 selected() {
+    if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "infinityx41-findx9u",$' "$STAGE/.oneos_stage" && grep -q '^  "set": "infinityx",$' "$STAGE/.oneos_stage"; then return 0; fi
     if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "lineage24-infiniti",$' "$STAGE/.oneos_stage" && grep -q '^  "set": "lineage",$' "$STAGE/.oneos_stage"; then return 0; fi
     grep -q '^  "image": "pixel11fold-yogi",$' "$STAGE/.oneos_stage" || return 1
     case "${ONEOS_PROFILE:-}" in
@@ -54,6 +55,11 @@ prepare)
         target="$STAGE/rootfs/system/system_ext/priv-app/SystemUI/SystemUI.apk"
         payload=Fold8LineageSystemUI.apk
         donor=aa22961855b1f8a9d3dbbbc643922f9b216f6d411313e12eb8b70086287b84c3
+    fi
+    if grep -q '^  "image": "infinityx41-findx9u",$' "$STAGE/.oneos_stage"; then
+        target="$STAGE/rootfs/system/system_ext/priv-app/SystemUI/SystemUI.apk"
+        payload=Fold8InfinitySystemUI.apk
+        donor=6a99684e831f9635738189d39667debe0f8b798012fa4eb622a7cb87ad9b1ddf
     fi
     "$BB" umount -l "$target" 2>/dev/null || true
     [ -f "$target" ] && [ ! -L "$target" ] || fail 'unexpected SystemUI path'

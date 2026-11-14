@@ -76,6 +76,10 @@ class ChannelPublisherTests(unittest.TestCase):
             data=json.loads(manifest.read_text())
             self.assertEqual('f8-lineage.json',manifest.name)
             self.assertEqual('f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261',data['imageSha256'])
+            infinity=publisher.prepare('infinityx','dynamic-infinity',inputs,root/'infinity',profile='f8')
+            infinity_data=json.loads(infinity.read_text())
+            self.assertEqual('f8-infinityx.json',infinity.name)
+            self.assertEqual('899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2',infinity_data['imageSha256'])
             with self.assertRaises(ValueError):
                 publisher.prepare('lineage','wrong-device',inputs,root/'bad',profile='unknown')
 

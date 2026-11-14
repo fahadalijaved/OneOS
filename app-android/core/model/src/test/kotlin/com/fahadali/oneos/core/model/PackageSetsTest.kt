@@ -58,7 +58,7 @@ class PackageSetsTest {
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
         assertEquals("out/overlays_infinityx_r16", ifx.sourceDir)
         // 0.4.55 (r4): telephony-common_patched.jar (the SMS centre) and samcam.tar (the S26 Ultra's camera).
-        assertEquals(36, ifx.files.size)
+        assertEquals(40, ifx.files.size)
         // 0.4.33: the status bar's corner padding, as on the Pixel images.
         assertTrue(ifx.file("OneOSPixelStatusBar.apk")?.role == FileRole.RRO)
         assertEquals(21, ifx.files.count { it.role == FileRole.APEX_PAYLOAD })

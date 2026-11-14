@@ -23,3 +23,9 @@ The stable baseline includes the original Lineage SystemUI and a resource-only
 AOD overlay. Only profile f8 activates the new Lineage SystemUI/unfold payloads.
 
 See [Lineage port](fold8-lineage.md) for exact scope and validation limits.
+
+Infinity-X on the Galaxy Z Fold8 uses `f8-infinityx.json`. Its experimental
+replacements are `Fold8InfinitySystemUI.apk`, `Fold8InfinityUnfold.apk`,
+`OneOSSettingsSplit.apk` and `OneOSPixelStatusBar.apk`. The image-specific
+SystemUI/overlay roles activate only for f8 + infinityx41-findx9u. See
+[Infinity-X port](fold8-infinityx.md) for donor pins and runtime limits.
