@@ -1105,6 +1105,19 @@ if [ -f /data/guest_audio.flag ]; then
                 sleep $d
                 now=$(date +%s); last=$now
             fi
+            # 0.5.07: the vendor audio HAL fresh first, as at the switch. The QTI AIDL
+            # HAL kept the dead audioserver streams open ("port config id 39 already
+            # has a stream opened on it"), so the new one got no output and the rest
+            # of the session had no sound at all (S25 Ultra Pixel a18ecab9; A34
+            # HyperOS c16c8f15: sound broke after a soft restart).
+            hs=$(getprop | sed -n "s/^\[init\.svc\.\(vendor\.audio-hal[^]]*\)\]: \[running\]\$/\1/p" | tr "\n" " ")
+            if [ -n "$hs" ]; then
+                for s in $hs; do setprop ctl.stop $s; done
+                sleep 1
+                for s in $hs; do setprop ctl.start $s; done
+                sleep 1
+                echo "$(date +%T) audio HAL services restarted for the new audioserver: $hs"
+            fi
             /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
         done' sh "$AS_PID" </dev/null >> /data/audio_keeper.log 2>&1 &

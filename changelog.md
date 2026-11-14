@@ -50,6 +50,13 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.08: fixes from your reports.
+- LineageOS now starts on the Galaxy A16 (it went back to One UI after 40 s: the brightness range the system asked
+  for began below OneOS's brightness curve).
+- No more lost sound for the rest of a session after the other system's audio restarted (S25 Ultra, A34).
+- Bluetooth turns on again in ColorOS on the A15, A16 and A07.
+- The "Returning to One UI" screen no longer stays on top of a One UI that is already up (S24, S24 FE).
+
 New in 0.5.07: **bring apps from inside the other system**, **remove a brought app**, and LineageOS fixes.
 - The OneOS app inside the other system has a new **Bring apps from One UI** screen: it lists your One UI apps
   (as they were when you switched) and brings the one you tap over with its data, while the system runs: no

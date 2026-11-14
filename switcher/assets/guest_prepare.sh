@@ -1546,8 +1546,11 @@ fi
 # at about 2600 nits, the panel's peak. DisplayDeviceConfig wants the curve's
 # first float at or below the framework's config_screenBrightnessSettingMinimumFloat:
 # vivo OriginOS's is 7.0E-5 ("raw min=3.66255E-4 ... backlight min=7.0E-5", second
-# OriginOS run), so the wide curve starts at 1.0E-5 (0.05 nits), below every
-# framework seen, with HyperOS's 3.66255E-4 point kept as it was.
+# OriginOS run), so the wide curve started at 1.0E-5 (0.05 nits). LineageOS 24
+# on the Galaxy A16 (MediaTek) has a minimum of 0.0 ("raw min=1.0E-5 ...
+# backlight min=0.0", 0.5.07 report 83fa9a85, system_server died on
+# android.display at every start), so since 0.5.08 the curve starts at 0.0, the
+# lowest float any framework can ask for, with HyperOS's 3.66255E-4 point kept.
 # Every panel by its own scale (0.4.35): Samsung's composer float is One UI's
 # brightness over its brightnessMaximum (dumpsys display: the panel's peak
 # over about 500 nits; the backlight's max over it is 255 or 2550 on every
@@ -1567,7 +1570,7 @@ DDCEOF
         ref = 5.2980394; k = 1
         if (m + 0 >= 1.5 && m + 0 <= 8) k = ref / m
         n = split("0.0026:2.21 0.00333:3.0 0.005015:5.0 0.00694:7.5 0.008891:10.4 0.012079:15.0 0.015279:20.0 0.021151:30.0 0.026566:40.0 0.03701:60.0 0.045723:80.0 0.054391:100.0 0.068653:135.0 0.082069:170.0 0.093062:200.0 0.110574:250.0 0.127287:300.0 0.158918:400.0 0.188764:500.0 0.196299:520.0", pt, " ")
-        if (wide == "wide") printf "        <point><value>0.00001</value><nits>0.05</nits></point>\n        <point><value>0.000366255</value><nits>0.3</nits></point>\n"
+        if (wide == "wide") printf "        <point><value>0.0</value><nits>0.05</nits></point>\n        <point><value>0.000366255</value><nits>0.3</nits></point>\n"
         for (i = 1; i <= n; i++) {
             split(pt[i], v, ":"); f = v[1] * k
             if (f >= 1.0) break

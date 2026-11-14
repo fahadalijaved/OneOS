@@ -651,7 +651,13 @@ add)
         soc=$(getprop ro.soc.model)
         case "${ONEOS_GUEST_BT_ORIGIN:-auto}:$soc" in
             1:*) why="ONEOS_GUEST_BT_ORIGIN=1" ;;
-            auto:MT6789*) why="$soc: OPPO's quality report parser reads past this controller's 48-byte events" ;;
+            # 0.5.07: no longer by default. With it, OPPO's libbluetooth_jni.so registers only
+            # Android's original natives, but the Bluetooth app still calls OPPO's own at
+            # start (OplusBtNativeChannelUtils.classInitNative): UnsatisfiedLinkError, and
+            # com.android.bluetooth died at every start, so Bluetooth never turned on at all
+            # (A16 4G dbd78088 "Bluetooth doesn't even turn on", A15 d1d7cd5a, A16 0b151c94;
+            # 14 and 22 crashes). The reconnect loop it was for is the lesser harm.
+            # ONEOS_GUEST_BT_ORIGIN=1 still sets it.
             *) why="" ;;
         esac
         if [ -n "$why" ]; then
