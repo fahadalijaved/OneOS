@@ -20,7 +20,7 @@ The existing guest startup already normalizes saved wallpaper XML spacing and
 exposes SystemUI's AOD service. Those fixes are retained. Pixel Launcher is not
 transplanted onto Trebuchet; its Pixel-only broadcast sender check is retained,
 so this port does not add the Pixel home-screen double-tap gesture to Trebuchet.
-The existing Lineage posture policy is retained for half-fold app layouts.
+The contributor SystemUI opts into native hinge posture for half-fold app layouts; Stable retains its previous policy. Explicit ONEOS_GUEST_POSTURE still overrides the default.
 
 The guest manager update adds the tested side-chat's LineageOS/OxygenOS/OriginOS
 artwork mappings, headers and wide assets. System UIDs (including shell 2000)

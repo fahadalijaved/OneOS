@@ -134,6 +134,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
     override fun onResume() {
         super.onResume()
         if (::image.isInitialized && !preview) {
+            patchDiscoveryKey = null
             Readiness.onResume(this); render()
             if (!rootBusy) {
                 rootBusy = true
