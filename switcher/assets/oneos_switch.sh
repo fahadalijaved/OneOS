@@ -2729,6 +2729,24 @@ while true; do
             # curve was wrong (run 28: 1702 looked like ~420 nits, is ~15).
             [ -f $STAGE/data/.oneos_curve2 ] || { $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system screen_brightness 4570; touch $STAGE/data/.oneos_curve2; }
             fi
+            # HyperOS starts at the image's own auto default (31 of 255, mode 1:
+            # about 20 nits on this panel) and nothing moves it, so the first
+            # minutes of every fresh stage were spent on a nearly black screen.
+            # AOSP's scale here; repaired only while the guest is still at that
+            # default, so a value the owner set later (the slider writes mode 0)
+            # stays. Not a ColorOS value: 4570 is ColorOS's scale.
+            if [ \$GUEST_MIUI = 1 ]; then
+                bm=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness 2>/dev/null)
+                mm=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness_mode 2>/dev/null)
+                case \"\${bm:-}\" in ''|*[!0-9]*) bm=-1 ;; esac
+                if [ \"\${mm:-1}\" = 1 ] && [ \$bm -ge 0 ] && [ \$bm -le 40 ]; then
+                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system screen_brightness 140
+                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system screen_brightness_mode 0
+                    echo \"[UI Activator] brightness: HyperOS at its low auto default (\$bm, mode \${mm:-?}) -> 140, manual\"
+                else
+                    echo \"[UI Activator] brightness: HyperOS \${bm:--}, mode \${mm:--} kept\"
+                fi
+            fi
             echo \"[UI Activator] refresh: min \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system min_refresh_rate) peak \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system peak_refresh_rate); brightness \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness)\"
             echo '[UI Activator] Home activated!'
             # ColorOS lock screen depth effect (0.4.60, owner; 0.4.59 A36 768c5a1d, S23
