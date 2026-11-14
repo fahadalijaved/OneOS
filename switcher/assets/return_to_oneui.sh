@@ -971,6 +971,11 @@ wait_found media.audio_policy 20 || failsafe "One UI's audioserver did not regis
 for svc in $(getprop | sed -n 's/^\[init\.svc\.\([^]]*camera[.-]provider[^]]*\)\]: \[running\]$/\1/p'); do
     setprop ctl.restart "$svc"
 done
+# One UI's face HAL: the guest's facehal-rs stopped it before registering its own
+# IFace/default (guest_start.sh), and init does not restart a service stopped
+# with "stop" until it is told. Without this One UI's face unlock stays dead and
+# Samsung's face service is missing until the next reboot.
+setprop ctl.start sec-biometrics-face-aidl
 # zygote's own onrestart list, which ctl.start skips: cameraserver, media,
 # wificond (netd follows below). The guest held the GNSS HAL's callbacks.
 setprop ctl.restart cameraserver

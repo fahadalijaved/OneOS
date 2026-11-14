@@ -2748,6 +2748,35 @@ sm_diag() {
 }
 sm_diag "before zygote"
 ( sleep 45; sm_diag "45 s after zygote" ) &
+# One UI's face HAL (sec-biometrics-face-aidl) owns IFace/default until it is
+# stopped; facehal-rs then registers the same AIDL instance in the guest mount
+# namespace before the framework starts, so FaceService binds it instead of
+# Samsung's HAL (return_to_oneui.sh starts One UI's service again). Templates
+# stay in the guest.
+# Payload, /data/local/tmp/facehal: bin/hw/android.hardware.biometrics.face-service.facehal,
+# lib64/libfacehal_jni.so, and the S25U vendor image's libjni_stfaceunlock_api.so,
+# libtensorflowlite*.so and libc++_shared.so. Without it the guest keeps Samsung's
+# HAL, which refuses the guest's framework.
+FACEHAL_DIR=/data/local/tmp/facehal
+if [ -x "$FACEHAL_DIR/bin/hw/android.hardware.biometrics.face-service.facehal" ]; then
+    if [ ! -f /data/oneos_facehal_moved ]; then
+        mkdir -p /data/system/users/0/oneos-face-host
+        mv -f /data/system/users/0/settings_face.xml /data/system/users/0/face_enrolled_position_0.xml /data/system/users/0/oneos-face-host/ 2>/dev/null
+        touch /data/oneos_facehal_moved
+        echo "[Pivoted Root] facehal-rs: One UI face metadata moved aside"
+    fi
+    echo "[Pivoted Root] facehal-rs: stopping One UI's face HAL"
+    stop sec-biometrics-face-aidl 2>/dev/null || true
+    sleep 1
+    (
+        export LD_LIBRARY_PATH="$FACEHAL_DIR:$FACEHAL_DIR/lib64"
+        export FACEHAL_ALGORITHM_LIBRARY="$FACEHAL_DIR/lib64/libjni_stfaceunlock_api.so"
+        exec "$FACEHAL_DIR/bin/hw/android.hardware.biometrics.face-service.facehal"
+    ) </dev/null >/data/facehal.log 2>&1 &
+    echo $! >/data/facehal.pid
+    sleep 1
+    echo "[Pivoted Root] facehal-rs: $(service check android.hardware.biometrics.face.IFace/default 2>&1)"
+fi
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3
