@@ -3322,7 +3322,7 @@ while true; do
 
             # Pixel Fold8 / Fold8 Ultra: start the system-UID sensor reader in the guest namespace
             # (fold8_pixel.sh prepare made runtime.sh only for those two sets).
-            if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q '\"set\": \"pixel-f8u\\{0,1\\}\",' \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_pixel_hinge/runtime.sh\" ]; then
+            if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q '\"set\": \"\\(pixel-f8u\\{0,1\\}\\|lineage\\)\",' \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_pixel_hinge/runtime.sh\" ]; then
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_pixel_hinge/runtime.sh runtime >\"$STAGE/pixel_hinge_runtime.log\" 2>&1 || echo '[UI Activator] Pixel hinge relay unavailable; native sensor fallback active'
             fi
 

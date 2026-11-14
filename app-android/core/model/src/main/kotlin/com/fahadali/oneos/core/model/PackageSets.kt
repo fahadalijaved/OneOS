@@ -752,6 +752,9 @@ object PackageSets {
         imageId = Images.ID_LINEAGE,
         sourceDir = "out/overlays_lineage_r4",
         files = listOf(
+            PackageFile("Fold8LineageSystemUI.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8LineageUnfold.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8AngleRelay.dex", FileRole.GUEST_FIX),
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
             PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),

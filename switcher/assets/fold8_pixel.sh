@@ -6,6 +6,7 @@ STAGE=${STAGE:-/data/local/tmp/oneos}
 BB=${BB:-/data/oneos_bin/busybox}
 fail() { echo "Fold8 Pixel: $*" >&2; exit 3; }
 selected() {
+    if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "lineage24-infiniti",$' "$STAGE/.oneos_stage" && grep -q '^  "set": "lineage",$' "$STAGE/.oneos_stage"; then return 0; fi
     grep -q '^  "image": "pixel11fold-yogi",$' "$STAGE/.oneos_stage" || return 1
     case "${ONEOS_PROFILE:-}" in
         f8) grep -q '^  "set": "pixel-f8",$' "$STAGE/.oneos_stage" ;;
@@ -47,12 +48,19 @@ prepare)
     bar_prepare
     selected || exit 0
     target="$STAGE/rootfs/system/system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk"
+    payload=Fold8PixelSystemUI.apk
+    donor=9934d2dac326f56290f459b9e649185cd5531e1b6ae1f5a72b11e88f865f8b03
+    if grep -q '^  "image": "lineage24-infiniti",$' "$STAGE/.oneos_stage"; then
+        target="$STAGE/rootfs/system/system_ext/priv-app/SystemUI/SystemUI.apk"
+        payload=Fold8LineageSystemUI.apk
+        donor=aa22961855b1f8a9d3dbbbc643922f9b216f6d411313e12eb8b70086287b84c3
+    fi
     "$BB" umount -l "$target" 2>/dev/null || true
     [ -f "$target" ] && [ ! -L "$target" ] || fail 'unexpected SystemUI path'
-    [ "$(sha256sum "$target" | cut -d' ' -f1)" = 9934d2dac326f56290f459b9e649185cd5531e1b6ae1f5a72b11e88f865f8b03 ] || fail 'SystemUI donor differs'
-    "$BB" mount --bind "$STAGE/Fold8PixelSystemUI.apk" "$target"
+    [ "$(sha256sum "$target" | cut -d' ' -f1)" = "$donor" ] || fail 'SystemUI donor differs'
+    "$BB" mount --bind "$STAGE/$payload" "$target"
     "$BB" mount --make-private "$target"
-    "$BB" mount -o remount,bind,ro "$STAGE/Fold8PixelSystemUI.apk" "$target"
+    "$BB" mount -o remount,bind,ro "$STAGE/$payload" "$target"
     # Pixel Launcher with double tap to sleep on the home screen (0.4.59,
     # switcher/patches/pixel-launcher): bound over the image's own when that is
     # the exact donor; otherwise the image's stays (no double tap to sleep on
@@ -82,7 +90,10 @@ prepare)
     ;;
 runtime)
     # Invoked only inside this guest, with its classpath and binder namespace.
-    [ "$(pm path com.android.systemui)" = package:/system/system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk ] || fail 'not the Pixel guest'
+    case "$(pm path com.android.systemui)" in
+        package:/system/system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk|package:/system/system_ext/priv-app/SystemUI/SystemUI.apk) ;;
+        *) fail 'not the selected AOSP guest' ;;
+    esac
     D=/data/oneos_pixel_hinge
     [ -f "$D/Fold8AngleRelay.dex" ] || fail 'relay absent'
     ui=$(pidof com.android.systemui | cut -d' ' -f1)

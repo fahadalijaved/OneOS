@@ -44,6 +44,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
     private var facts: DeviceFacts? = null
     private val subscriptions = mutableListOf<() -> Unit>()
     private var patchBusy = false
+    private var patchDiscoveryKey: String? = null
     private var rootBusy = false
     private var rootState: GuestRuntimeStore.State? = null
     private val io = java.util.concurrent.Executors.newSingleThreadExecutor()
@@ -288,6 +289,17 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             }
         }
         val patchProfile = currentFacts?.let { com.fahadali.oneos.core.model.Profiles.resolve(it).profile }
+        if (!preview && patchProfile != null) {
+            val key = "${patchProfile.id}:${image.id}"
+            if (patchDiscoveryKey != key) {
+                patchDiscoveryKey = key
+                val selectedImage = image.id
+                io.execute {
+                    PatchChannels.discover(this, patchProfile.id, selectedImage)
+                    runOnUiThread { if (!isDestroyed && image.id == selectedImage) render() }
+                }
+            }
+        }
         val patchSources = patchProfile?.let { PatchChannels.sources(this, it.id, image.id) }.orEmpty()
         if (!preview && patchProfile != null && patchSources.isNotEmpty()) {
             val heading = getString(R.string.patch_channel_title, patchProfile.label.removePrefix("Galaxy "))
@@ -460,7 +472,10 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         if (patchBusy || Readiness.anyBusy()) return
         patchBusy = true; render()
         io.execute {
-            val result = runCatching { PatchChannels.stableRelease() }
+            val result = runCatching {
+                PatchChannels.discover(this, profile.id, image.id)
+                PatchChannels.stableRelease()
+            }
             runOnUiThread {
                 patchBusy = false
                 if (!isDestroyed) {

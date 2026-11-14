@@ -3038,6 +3038,9 @@ fi
 # SystemUI and the launcher at start (pixel-f8: Fold8PixelUnfold.apk, which also
 # has the Fold8's 48dp bar and AOD; pixel-f8u: OneOSPixelUnfold.apk, the gates only).
 UNFOLD_RRO=""
+if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "lineage24-infiniti",$' "$STAGE/.oneos_stage"; then
+    UNFOLD_RRO=Fold8LineageUnfold.apk
+fi
 if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "set": "pixel-f8",$' "$STAGE/.oneos_stage"; then
     UNFOLD_RRO=Fold8PixelUnfold.apk
 elif [ "${ONEOS_PROFILE:-}" = f8u ] && grep -q '^  "set": "pixel-f8u",$' "$STAGE/.oneos_stage"; then
