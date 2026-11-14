@@ -1143,6 +1143,18 @@ if [ -f /data/guest_audio.flag ]; then
             exit 0
         fi
         echo "$(date +%T) guest audioserver $as registered after ${t}s"
+        # 0.5.13, Samsung SoC (Exynos): A2dpSuspended=false before any earbuds connect.
+        # Samsung s audio HAL opens its A2DP stream only at the connect, and only when A2DP
+        # is not suspended then; One UI s Bluetooth app clears it first, the guest never
+        # does. Sent at the hint of the HAL (0.5.12) it arrived after the connect and the
+        # stream stayed shut (S26 02e9ebd1: a2dp-suspend 0, still not ready). Again after
+        # each restart of this audioserver (a new HAL starts suspended).
+        unsusp() {
+            [ "$(getprop ro.soc.manufacturer)" = Samsung ] || return 0
+            r=$(service call media.audio_flinger 18 i32 0 s16 "A2dpSuspended=false" 2>&1 | tr -s " \n" " " | head -c 60)
+            echo "$(date +%T) A2dpSuspended=false to the HAL before Bluetooth connects (Samsung SoC): $r"
+        }
+        unsusp
         # Keep it the one servicemanager hands out (host init can bring
         # Samsung audioserver back through the HAL onrestart). Log why it
         # restarts. No apostrophes anywhere in this script: it is one
@@ -1192,6 +1204,7 @@ if [ -f /data/guest_audio.flag ]; then
             fi
             /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
+            ( n=0; while [ $n -lt 30 ] && [ "$(owner)" != "$as" ]; do sleep 2; n=$((n + 1)); done; unsusp ) &
         done' sh "$AS_PID" </dev/null >> /data/audio_keeper.log 2>&1 &
 fi
 
@@ -2082,6 +2095,27 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                     eval l=\$L_$t
                     if [ $l = 1 ]; then w="AOD (guest asleep, panel lit)"; else w="panel off"; fi
                     [ $a = 1 ] && arm_fresh $t "$w"
+                done
+            fi
+            # 0.5.13: a touch IC found off under a lit panel while the guest is awake is
+            # switched on again. Only the fold layout had this (oneos_switch.sh inner_tsp_on);
+            # on a bar phone an IC something else powered down stayed off for the whole
+            # session (S24+ LineageOS a3516486: "touch worked for a sec and stopped",
+            # enabled 0 under a lit panel at the keeper start, never written again).
+            # Not while armed (the keeper itself put it in low-power mode); checked about
+            # every 2 s, and logged once per off spell.
+            HC=$(( ${HC:-0} + 1 ))
+            if [ $HC -ge 8 ]; then
+                HC=0
+                for t in $IDS; do
+                    eval s=\$ON_$t
+                    [ "$s" = 1 ] && [ ! -f /data/oneos_dt2w_armed.$t ] || continue
+                    [ "$(cat /sys/class/sec/$t/enabled 2>/dev/null)" = 0 ] || { eval HO_$t=; continue; }
+                    tsp_on /sys/class/sec/$t
+                    tsp_read $t
+                    eval ho=\$HO_$t
+                    [ -n "$ho" ] || log "$t: touch IC off under a lit panel, guest awake: switched on (enabled=$e)"
+                    eval HO_$t=1
                 done
             fi
             # vivo AOD brightness (F8U run 13, OriginOS: AOD "very weak, unseeable"). The

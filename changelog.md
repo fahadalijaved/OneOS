@@ -50,6 +50,13 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.13: fixes from your reports.
+- **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver now hears that
+  Bluetooth audio is ready before the earbuds connect, as One UI tells it (0.5.12 told it too late), untested.
+- **Screen lock on the Galaxy Z Fold8 in ColorOS:** a PIN, pattern or password set in ColorOS now works there.
+- **Touch no longer dies after a second on bar phones** (Galaxy S24+ in LineageOS): OneOS switches the touchscreen
+  back on when it finds it off with the screen on.
+
 New in 0.5.12: fixes from your reports.
 - **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver kept the sound on
   the speaker because ColorOS never told it Bluetooth audio was ready; OneOS now does, untested.

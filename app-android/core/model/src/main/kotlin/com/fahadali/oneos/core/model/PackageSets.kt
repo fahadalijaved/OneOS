@@ -277,7 +277,7 @@ object PackageSets {
     val N6_GLOBAL_F8 = PackageSet(
         id = "n6-global-f8",
         imageId = Images.ID_FIND_N6,
-        sourceDir = "out/fold8-global-r0505",
+        sourceDir = "out/fold8-global-r0513",
         files = N6_F8U.files + PackageFile("GlobalVerifiedAddons.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, "OneOSFoldCutout.apk", "OneOSTabletQs.apk"),
         // n6-f8u's files and the 10 KB empty addon archive (a channel's archive is larger, but optional).
