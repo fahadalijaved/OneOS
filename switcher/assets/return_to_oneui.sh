@@ -456,9 +456,34 @@ fi
 for t in tsp tsp1 tsp2; do
     f=$S/data/oneos_dt2w_armed.$t
     [ -f "$f" ] && [ ! -L "$f" ] || continue
+    enum=$(cat "$f")
+    # An older keeper could mistake the STM LPM value 1 for a boolean.
+    if [ "$enum" = 1 ] && [ "$(getprop ro.product.vendor.model)" = SM-S918B ] &&
+       [ "$(readlink -f /sys/class/sec/$t/input/device/driver)" = /sys/bus/spi/drivers/stm_ts_spi ]; then enum=2; fi
+    if [ "$enum" = 2 ] && [ ! -w /sys/class/sec/$t/enabled ]; then
+        echo "Touchscreen $t: no power node for restore; keeping marker and rebooting"
+        ONEOS_RETURN_MODE=reboot
+        continue
+    fi
     if [ -w /sys/class/sec/$t/enabled ]; then
-        # 2,1 is the write that acts; the older drivers answer 2,0 with an error (see the keeper).
-        echo 2,0 > /sys/class/sec/$t/enabled 2>/dev/null; echo 2,1 > /sys/class/sec/$t/enabled
+        if [ "$enum" = 2 ]; then
+            # STM open() needs a reader after the guest died; hold it until One UI is up.
+            ev=""
+            for e in /sys/class/sec/$t/input/event*; do [ -e "$e" ] && ev=/dev/input/${e##*/}; done
+            if [ ! -c "$ev" ] || ! { exec 9<&0; } <"$ev"; then
+                echo "Touchscreen $t: no reader for restore; rebooting"
+                ONEOS_RETURN_MODE=reboot
+                continue
+            fi
+        else
+            echo 2,0 > /sys/class/sec/$t/enabled 2>/dev/null
+        fi
+        echo 2,1 > /sys/class/sec/$t/enabled
+        if [ "$enum" = 2 ] && { [ "$(cat /sys/class/sec/$t/enabled)" != 2 ] || [ "$(cat /sys/class/sec/$t/input/enabled)" != 1 ]; }; then
+            echo "Touchscreen $t: restore failed; keeping marker and rebooting"
+            ONEOS_RETURN_MODE=reboot
+            continue
+        fi
         echo "Touchscreen $t: back from the guest's double-tap low-power mode (enabled=$(cat /sys/class/sec/$t/enabled 2>/dev/null))"
     fi
     rm -f "$f"
@@ -1084,6 +1109,7 @@ while :; do
     [ $up = 0 ] && [ $t -ge 180 ] && failsafe "user 0 not unlocked within 180 s"
 done
 
+exec 9<&-
 ip rule show 2>/dev/null | "$BB" diff "$BASE/iprule" - >> "$IPLOG" 2>&1 || say "!!! ip rules differ from the switch (diff in return_inplace.log)"
 # One UI is up. RescueParty back to the stored value, the modules read through
 # their filesystems (safe now: Gate A read them below), the session's logcat

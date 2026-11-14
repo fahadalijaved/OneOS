@@ -1725,6 +1725,15 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             # IC in low-power mode, and at that time did not switch it back on.
             e0=$(cat $T/enabled 2>/dev/null)
             case "$e0" in 0|1) eon=1 ;; 2) eon=2 ;; *) log "$t ($ev): enabled reads ${e0:-nothing}, not a known protocol: double tap left to the guest"; continue ;; esac
+            power=1
+            # S23 STM requires both enum and input readback to confirm a transition.
+            if [ "$(getprop ro.product.vendor.model)" = SM-S918B ] &&
+               [ "$(readlink -f $I/device/driver)" = /sys/bus/spi/drivers/stm_ts_spi ]; then
+                case "$e0:$(cat $I/enabled 2>/dev/null)" in
+                    1:0|2:1) power=2; eon=2 ;;
+                    *) log "$t: unmeasured STM power state; double tap left to the guest"; continue ;;
+                esac
+            fi
             # KEY_WAKEUP (143) among its keys: bit 15 of the third word from the end.
             set -- $(cat $I/capabilities/key 2>/dev/null)
             w=""; [ $# -ge 3 ] && eval w=\${$(($# - 2))}
@@ -1735,7 +1744,7 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                 *) C=/sys/class/drm/card0-DSI-1/dpms; B=/sys/class/backlight/panel0-backlight; [ -e $B/brightness ] || B=/sys/class/backlight/panel ;;
             esac
             [ -r $B/brightness ] || { log "$t ($ev): no backlight to follow ($B)"; continue; }
-            eval "EV_$t=$ev C_$t=$C B_$t=$B/brightness ON_$t=1 L_$t=1 GP_$t= EON_$t=$eon"
+            eval "EV_$t=$ev C_$t=$C B_$t=$B/brightness ON_$t=1 L_$t=1 GP_$t= EON_$t=$eon POWER_$t=$power WR_$t=0"
             IDS="$IDS $t"
             log "$t: $ev ($(cat $I/name 2>/dev/null)), panel $C=$(cat $C 2>/dev/null), $B=$(cat $B/brightness 2>/dev/null), enabled=$(cat $T/enabled 2>/dev/null)"
         done
@@ -1856,6 +1865,21 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             [ "$e" = 2 ] && eval EON_$1=2
             eval eon=\$EON_$1
         }
+        power_tsp() {
+            T=/sys/class/sec/$1
+            eval p=\$POWER_$1
+            if [ "$p" = 2 ]; then
+                # Only 1,0 and 2,1 act on this STM driver.
+                case "$2" in
+                    1) echo 1,0 > $T/enabled || return 1 ;;
+                    2) echo 2,1 > $T/enabled || return 1 ;;
+                    *) return 1 ;;
+                esac
+                [ "$(cat $T/enabled)" = "$2" ] && [ "$(cat $T/input/enabled)" = "$(( $2 - 1 ))" ]
+            else
+                case "$2" in 1) tsp_off $T ;; 2) tsp_on $T ;; *) return 1 ;; esac
+            fi
+        }
         arm() {
             eval g=\$GP_$1 no=\$NO_$1
             [ -z "$g" ] && [ -z "$no" ] || return 0
@@ -1874,8 +1898,9 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                   fi
                   if in_call; then log "$1: double tap during a call: ignored"; continue; fi
                   log "$1: double tap: waking the guest"
-                  timeout 5 cmd input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || log "$1: cmd input keyevent failed"
+                  # Let the panel-on loop restore touch even while input waits for dispatch.
                   setaod 0
+                  timeout 5 cmd input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || log "$1: cmd input keyevent failed"
               done < $P ) &
             # 1,0 only counts once getevent holds the touchscreen: the driver closes only
             # a device somebody has open, and the guest lets go of it when its panel goes
@@ -1891,16 +1916,21 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
             [ $i -lt 20 ] || log "$1: getevent has not opened $ev after 1 s"
             # The marker first: only a marked IC is ever put back on (here, by wake_tsp
             # and by the return).
-            : > /data/oneos_dt2w_armed.$1
-            if tsp_off $T; then
+            eval p=\$POWER_$1
+            echo "$p" > /data/oneos_dt2w_armed.$1
+            if power_tsp $1 1; then
                 tsp_read $1
                 log "$1: $2: low-power mode (enabled=$e)"
             else
                 log "$1: panel off, but $T/enabled refused 1,0: back on, double tap left to the guest"
-                tsp_on $T
+                restored=0; power_tsp $1 2 && restored=1
                 tsp_read $1
-                [ "$e" = "$eon" ] && rm -f /data/oneos_dt2w_armed.$1
-                disarm $1
+                if [ "$restored:$e" = "1:$eon" ]; then
+                    rm -f /data/oneos_dt2w_armed.$1
+                    disarm $1
+                elif [ "$p" != 2 ]; then
+                    disarm $1
+                fi
                 eval NO_$1=1
             fi
         }
@@ -1912,11 +1942,22 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
         }
         wake_tsp() {
             T=/sys/class/sec/$1
-            [ -f /data/oneos_dt2w_armed.$1 ] || { disarm $1; return; }
-            tsp_on $T
+            [ -f /data/oneos_dt2w_armed.$1 ] || { eval WR_$1=0; disarm $1; return; }
+            restored=0; power_tsp $1 2 && restored=1
             tsp_read $1
-            [ "$e" = "$eon" ] || { sleep 0.2; tsp_on $T; tsp_read $1; }
-            rm -f /data/oneos_dt2w_armed.$1
+            if [ "$restored:$e" != "1:$eon" ]; then
+                sleep 0.2; restored=0; power_tsp $1 2 && restored=1; tsp_read $1
+            fi
+            if [ "$restored:$e" = "1:$eon" ]; then
+                rm -f /data/oneos_dt2w_armed.$1
+                eval WR_$1=0
+            else
+                eval p=\$POWER_$1
+                if [ "$p" = 2 ]; then
+                    log "$1: $2: restore not confirmed (enabled=$e), keeping reader and recovery marker"
+                    return
+                fi
+            fi
             disarm $1
             log "$1: $2: enabled=$e"
         }
@@ -1962,7 +2003,16 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                 s=$l; [ $D = 1 ] && s=0
                 eval o=\$ON_$t ol=\$L_$t
                 [ $l = $ol ] || { eval L_$t=$l; LC=1; }
-                [ $s = $o ] && continue
+                if [ $s = $o ]; then
+                    eval retry=\$WR_$t
+                    [ $s = 1 ] && [ "${retry:-0}" -gt 0 ] || continue
+                    retry=$((retry - 1)); eval WR_$t=$retry
+                    [ $((retry % 10)) = 0 ] || continue
+                else
+                    eval WR_$t=0 p=\$POWER_$t
+                    # Five paced retries while the S23 panel stays on after a failed restore.
+                    [ "$s:$p" != 1:2 ] || eval WR_$t=50
+                fi
                 eval ON_$t=$s
                 CH="$CH $t"
             done
