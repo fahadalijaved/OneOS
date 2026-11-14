@@ -1,5 +1,5 @@
-# OneOS package set lineage: sha256sum of out/overlays_lineage_r4 (LineageOS 24.0, OnePlus 15 infiniti nightly of 2026-11-11, CP2A.260605.016; r1 of 2026-11-13 from scripts/make-overlays.sh with the gvld pins for its vold and service.incremental.so), minus tethering_payload.img and cellbroadcast_payload.img (One UI's modules stay, as for Infinity-X). No gmssystem payload: One UI's Google apps are laid over the guest's product partition at session time (guest_google.sh FULL mode). 0.5.06 r2: r1 plus OneOSPixelDoze.apk (AOD), 2026-11-14. 0.5.07 r3: r2 plus libbootanimation_preapex_patched.so (boot animation on every panel), 2026-11-14. 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py, 2026-11-14.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_lineage_r4 differs.
+# OneOS package set lineage: sha256sum of out/overlays_lineage_r5 (LineageOS 24.0, OnePlus 15 infiniti nightly of 2026-11-11, CP2A.260605.016; r1 of 2026-11-13 from scripts/make-overlays.sh with the gvld pins for its vold and service.incremental.so), minus tethering_payload.img and cellbroadcast_payload.img (One UI's modules stay, as for Infinity-X). No gmssystem payload: One UI's Google apps are laid over the guest's product partition at session time (guest_google.sh FULL mode). 0.5.06 r2: r1 plus OneOSPixelDoze.apk (AOD), 2026-11-14. 0.5.07 r3: r2 plus libbootanimation_preapex_patched.so (boot animation on every panel), 2026-11-14. 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py, 2026-11-14.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_lineage_r5 differs.
 a2efd9b1170675a011ce4e667dcdd1b277c419617656dd3c1b77ff537f000afd  OneOSFoldCutout.apk
 0541e053377589e8bcc036996c0fb8d8f094207bcd9370922141f2c0b44e2f09  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
@@ -14,7 +14,7 @@ b13193e04f1d0cdd4a56050f407ba3c7462f3a67ed4afacdee621b19ac569779  conscrypt_payl
 9fa45636eda370af4330b21c0152d9911ac187a77cae974d3a542f282cc07dc5  crashrecovery_payload.img
 bfaf436768693e7c70062d19a2b61657f1392b8962dc924d8a665c626a0cb912  extservices_payload.img
 7061acea74028dc27b79933b1f3c96a5f113be95bbf9ce111dd0efcf9eaa1395  framework_patched.jar
-6433c229d8e9aa7243e244b6196680a8c1475161f27b1e3c3e18e44c340d49f9  guards.txt
+c8520e2a33c8887993ef3103402db24df358e6b94cdeb778088169da6df6869c  guards.txt
 28622e1658232edfbc3c05dd90be6d44e140593a7c06343268b2791fc6aa0102  healthfitness_payload.img
 adcf96e676fa1307eceea2f6c069a4c4a52f4fedf3713293d145a0cd12f25613  i18n_payload.img
 67dd101873bafdf90336fcf07e4576655cbd0c404f076a4f41608a40fc9cef50  ims-ext-common_patched.jar
@@ -31,7 +31,7 @@ b41e93245094fed4ef3f8122923573f41e72dfa9fe1defffd0feccb0b89cfa2b  permission_pay
 bdfa0709054f5b23b1a80d064e4cf3fc32f751d81fd7fe11f53878da7426e856  runtime_payload.img
 d373a66a2b56c4ffcd2f62a6c9542dd7e7436d40f902ae02760aa8d6377ceb8c  sdkext_payload.img
 0235d2312e659dfb00b7bab3e6b8189e36ccd2b61d1c298f01347e8d4615bc5d  service.incremental_patched.so
-a782f9229f9d20c5a8edabb580f4758ac6cf4c5e64fb5762d2057f978dc740fc  services_patched.jar
+0b05d086f6b0432d4164181823195cc4f73fc9916e3aa5035001b3a1a0928b98  services_patched.jar
 8eeb43db3299c6735887582769f69d78fbd09a7f24c12b919d5c7017639da6db  telephony-common_patched.jar
 e47bdd2692863f919b63b1e995d581a32714058558c68473bbc44136724dd7f7  telephonycore_payload.img
 edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched

@@ -4,7 +4,8 @@
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py (a synthetic password Keystore refuses no longer stops system_server; S26 Ultra b5edb256)
-a782f9229f9d20c5a8edabb580f4758ac6cf4c5e64fb5762d2057f978dc740fc  services_patched.jar
+# 0.5.10 r5: services_patched.jar + patches/guest_local_lock.py (the guest's own screen lock; LineageOS keeps getCredentialType's answer in p0), scripts/patch-built-jar.sh on r4's jar
+0b05d086f6b0432d4164181823195cc4f73fc9916e3aa5035001b3a1a0928b98  services_patched.jar
 edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched
 0235d2312e659dfb00b7bab3e6b8189e36ccd2b61d1c298f01347e8d4615bc5d  service.incremental_patched.so
 7061acea74028dc27b79933b1f3c96a5f113be95bbf9ce111dd0efcf9eaa1395  framework_patched.jar

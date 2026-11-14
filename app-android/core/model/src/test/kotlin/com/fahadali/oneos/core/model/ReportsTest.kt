@@ -118,4 +118,15 @@ class ReportsTest {
         assertNull(probe["outcome"])
         assertNull(probe["logs"])
     }
+
+    @Test
+    fun telegramUsernames() {
+        assertEquals("@sample_tester", Reports.telegramUsername("@sample_tester"))
+        assertEquals("@sample_tester", Reports.telegramUsername("  sample_tester "))
+        assertEquals("@Sample_Tester2", Reports.telegramUsername("https://t.me/Sample_Tester2/"))
+        assertEquals("@sample_tester", Reports.telegramUsername("telegram.me/sample_tester"))
+        for (bad in listOf("", "@", "abc", "@1sample", "sample tester", "sample-tester", "sample_", "_sample", "a".repeat(33), "+10000000000")) {
+            assertEquals(bad, null, Reports.telegramUsername(bad))
+        }
+    }
 }

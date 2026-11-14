@@ -23,12 +23,12 @@ class CompatEvaluatorTest {
         // Infinity-X on the S26 Ultra, S25 Ultra, S25, S24 Ultra and Z Flip5, the CN
         // ColorOS build on the Galaxy A57, and the global build on the Z Flip5.
         assertEquals("Has run on: ColorOS 17 · Find N6 global build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U); OriginOS 7 on the Z Fold (F8U); " +
-            "ColorOS 17 · global build on the Galaxy S26 Ultra; Infinity-X 4.1 on the Galaxy S26 Ultra; " +
-            "ColorOS 17 · global build on the Galaxy S25 Ultra; Infinity-X 4.1 on the Galaxy S25 Ultra; " +
-            "ColorOS 17 · global build on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
+            "ColorOS 17 · global build, November update on the Galaxy S26 Ultra; Infinity-X 4.1 on the Galaxy S26 Ultra; " +
+            "ColorOS 17 · global build, November update on the Galaxy S25 Ultra; Infinity-X 4.1 on the Galaxy S25 Ultra; " +
+            "ColorOS 17 · global build, November update on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
             "Pixel 11 Fold on the Galaxy Z Fold8; " +
-            "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build on the Galaxy A57; " +
-            "ColorOS 17 · global build on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; Infinity-X 4.1 on the Galaxy A17; Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G.",
+            "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build, November update on the Galaxy A57; " +
+            "ColorOS 17 · global build, November update on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; Infinity-X 4.1 on the Galaxy A17; Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G.",
             CompatEvaluator.TESTED_SCOPE,
         )
         assertEquals(Level.OK, r.level("soc-snapdragon"))
@@ -100,7 +100,7 @@ class CompatEvaluatorTest {
         val r = eval(Fixtures.s26Ultra())
         assertEquals(Verdict.COMPATIBLE, r.verdict)
         assertEquals(Level.OK, r.level("tested-model"))
-        assertEquals("Has run on the Galaxy S26 Ultra: ColorOS 17 · global build; Infinity-X 4.1.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Galaxy S26 Ultra: ColorOS 17 · global build, November update; Infinity-X 4.1.", r.find("tested-model")!!.detail)
         assertNull(r.find("untested-model"))
         assertNull(r.find("form-prefix-mismatch"))
         assertEquals(FormFactor.BAR, Fixtures.s26Ultra().form.form)
@@ -165,7 +165,7 @@ class CompatEvaluatorTest {
         assertEquals(Verdict.WARNING, r.verdict)
         assertEquals(0, r.count(Level.BLOCK))
         assertEquals(Level.OK, r.level("tested-model"))
-        assertEquals("Has run on the Galaxy S25: ColorOS 17 · global build; Infinity-X 4.1.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Galaxy S25: ColorOS 17 · global build, November update; Infinity-X 4.1.", r.find("tested-model")!!.detail)
         assertNull(r.find("untested-model"))
         assertNull(r.find(CompatEvaluator.ID_NO_PROFILE))
         assertNull(r.find("profile-form-mismatch"))

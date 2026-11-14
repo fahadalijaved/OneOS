@@ -89,6 +89,7 @@ internal object FixActions {
                 if (url != null) open(a, Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)) else a.startActivity(Intent(a, SystemsActivity::class.java))
             }
             FixAction.APP_UPDATE -> confirmAppUpdate(a)
+            FixAction.TURN_OFF_TOOL_APP -> confirmToolAppOff(a)
             FixAction.UPDATE, FixAction.REPAIR -> setUpAgain(a)
             FixAction.SET_UP -> setUp(a)
             FixAction.SEND_PHONE_DETAILS -> a.startActivity(Intent(a, RunTestsActivity::class.java))
@@ -101,6 +102,24 @@ internal object FixActions {
                 }
             }
         }
+    }
+
+    /** Turn off the app whose kernel tool stopped the switch (0.5.10): named by root's refusal. */
+    private fun confirmToolAppOff(a: FragmentActivity) {
+        val pkg = com.fahadali.oneos.session.ToolApps.fromRefusal(com.fahadali.oneos.session.LaunchJob.state.message)
+        if (pkg == null) {
+            toast(a, a.getString(R.string.tool_app_unknown))
+            return
+        }
+        AlertDialog.Builder(a)
+            .setTitle(a.getString(R.string.tool_app_off_title, pkg))
+            .setMessage(a.getString(R.string.tool_app_off_message, pkg))
+            .setPositiveButton(R.string.tool_app_off_run) { _, _ ->
+                com.fahadali.oneos.session.ToolApps.turnOff(a, pkg)
+                toast(a, a.getString(R.string.tool_app_off_running, pkg))
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** The downloaded file the user chose, when its size says it is a system [profile] takes (not yet one found damaged). */

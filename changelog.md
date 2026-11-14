@@ -50,6 +50,17 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.10: fixes from your reports.
+- **LineageOS gets its own screen lock**: a PIN, pattern or password set in LineageOS now works there, as in the
+  other systems.
+- **Bluetooth audio on Exynos phones** (Galaxy S26 and others): earbuds that connected and played nothing now play,
+  untested.
+- **Kernel tool apps** (S24 phones): when one stops a switch, **Turn it off** disables it for you instead of making
+  you uninstall it; the system's page has a row to turn it back on.
+- **Reports need a Telegram username** so we can get back to you; the last one you gave is filled in.
+- The first ColorOS build for the Find X9 Ultra (IN) is retired: every phone takes the newer 1105 build, and a
+  system set up with the old build keeps its apps and data when you move to 1105.
+
 New in 0.5.09: **remove one system or start it fresh**, and a smoother app.
 - Long-press a system's card, or tap its ⋮ button: the system you set up now offers **Start fresh** (erases its apps,
   accounts and settings; it stays set up and starts like new) and **Remove** (deletes it and frees its space). A saved

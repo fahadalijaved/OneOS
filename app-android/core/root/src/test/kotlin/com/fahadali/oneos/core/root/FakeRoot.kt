@@ -100,6 +100,7 @@ class FakeRoot(
             sed -n "s|^${'$'}1=||p" "${'$'}ONEOS_TEST_ROOT/props" | head -n 1
         """)
         stub("pm", """
+            case "${'$'}1" in disable-user|enable) echo "${'$'}*" >> "${'$'}ONEOS_TEST_ROOT/pm_log"; exit 0 ;; esac
             [ "${'$'}1" = path ] || exit 1
             case "${'$'}2" in
               android) echo "package:/system/framework/framework-res.apk" ;;

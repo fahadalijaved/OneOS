@@ -22,8 +22,8 @@ import org.junit.Test
 class StageStatusTest {
     private val s = RootScript.STAGE
     private val profile = Profiles.S_ULTRA_8850
-    private val image = Images.FIND_X9U_IN
-    private val set = PackageSets.X9U_IN_SULTRA
+    private val image = Images.FIND_X9U_IN_1105
+    private val set = PackageSets.X9U_IN_1105_SULTRA
 
     private fun status(out: Map<String, String>, missing: Set<String> = emptySet(), failed: Set<String> = emptySet()): StageStatus {
         val statuses = StageStatus.OUTPUTS.keys.associateWith { id ->
@@ -39,7 +39,7 @@ class StageStatusTest {
     private val names = RootScript.SCRIPTS + set.names
     private val shas = names.associateWith { Hashes.sha256(it) }
 
-    /** [profile]'s stage prepared with [image] and [set] (by default the S Ultra's, with the Find X9 Ultra IN build). */
+    /** [profile]'s stage prepared with [image] and [set] (by default the S Ultra's, with the Find X9 Ultra IN November build). */
     private fun prepared(
         extra: Map<String, String> = emptyMap(),
         image: ImageRef = this.image,
@@ -110,7 +110,7 @@ class StageStatusTest {
         val moved = "now ${image.rawBytes} 64773:9999:${image.rawBytes}:1792000001\nid ${image.rawBytes} ${image.rawSha256} 64773:1234:${image.rawBytes}:1792000000\n"
         assertTrue(problems(mapOf("stage.raw" to moved)).contains("system.raw changed since it was verified"))
         val n6 = "now 1 x\nid ${Images.FIND_N6.rawBytes} ${Images.FIND_N6.rawSha256} x\n"
-        assertTrue(problems(mapOf("stage.raw" to n6)).contains("system.raw is not the Find X9 Ultra IN image"))
+        assertTrue(problems(mapOf("stage.raw" to n6)).contains("system.raw is not the Find X9 Ultra IN (Nov) image"))
         val env = SessionEnv.generate(profile) + "ONEOS_RETURN_MAX=0\n"
         assertTrue(problems(mapOf("stage.env" to env)).any { it.contains("forbidden key ONEOS_RETURN_MAX") })
     }
@@ -187,6 +187,32 @@ class StageStatusTest {
         assertEquals(listOf(a), status(prepared(mapOf("stage.marker" to v1), image = n6, set = PackageSets.N6_F8U, profile = fold)).beginModes(pixelId))
         // Not identified yet: as before (Prepare is blocked until it is).
         assertEquals(listOf(k, a), st.beginModes(null))
+    }
+
+    /**
+     * 0.5.10: the first Find X9 Ultra IN build is retired for the 1105 build; a stage with its ColorOS data may keep
+     * it for that build (Images.DATA_UPGRADES), for no other image, and never the other way round.
+     */
+    @Test
+    fun retiredFindX9UInDataIsKeptForTheNewerBuildOnly() {
+        val k = RootScript.BeginMode.KEEP
+        val a = RootScript.BeginMode.ASIDE
+        val old = Images.FIND_X9U_IN
+        val newer = Images.FIND_X9U_IN_1105
+        val st = status(prepared(image = old, set = PackageSets.X9U_IN_SULTRA))
+        assertEquals(GuestData.COLOROS, st.guest)
+        assertEquals(listOf(k, a), st.beginModes(newer.id))
+        assertNull(st.otherImageData(newer.id))
+        assertEquals(listOf(k, a), st.beginModes(old.id))
+        for (other in listOf(Images.ID_PIXEL_YOGI, Images.ID_FIND_N6, Images.ID_LINEAGE)) {
+            assertEquals(other, listOf(a), st.beginModes(other))
+            assertEquals(other, old.id, st.otherImageData(other))
+        }
+        // The reverse: data of the 1105 build is not kept for the retired build.
+        val newerStage = status(prepared(image = newer, set = PackageSets.X9U_IN_1105_SULTRA))
+        assertEquals(listOf(k, a), newerStage.beginModes(newer.id))
+        assertEquals(listOf(a), newerStage.beginModes(old.id))
+        assertEquals(newer.id, newerStage.otherImageData(old.id))
     }
 
     /**

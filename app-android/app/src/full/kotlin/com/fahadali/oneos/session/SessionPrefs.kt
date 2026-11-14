@@ -22,7 +22,7 @@ import com.fahadali.oneos.core.root.HomeSnapshot
 object SessionPrefs {
     private const val PREFS = "oneos"
 
-    private fun p(ctx: Context) = ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    internal fun p(ctx: Context) = ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     enum class Source { GZ, ON_PHONE }
 

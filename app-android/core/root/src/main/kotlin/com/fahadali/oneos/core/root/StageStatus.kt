@@ -168,7 +168,7 @@ data class StageStatus(
      * build's /data. Null for the same image, no guest data, or no image yet.
      */
     fun otherImageData(imageId: String?): String? =
-        (marker?.takeIf { ours } ?: pendingUpdate?.takeIf { partial })?.imageId?.takeIf { guest != GuestData.NONE && imageId != null && it != imageId }
+        (marker?.takeIf { ours } ?: pendingUpdate?.takeIf { partial })?.imageId?.takeIf { guest != GuestData.NONE && imageId != null && it != imageId && Images.DATA_UPGRADES[it] != imageId }
 
     /** OneOS's own session never returned (a hard reset): its persist snapshot must be restored first. */
     val unfinishedSession: Boolean

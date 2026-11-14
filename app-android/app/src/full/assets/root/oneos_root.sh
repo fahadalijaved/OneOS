@@ -174,7 +174,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
 # sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 lineage24-infiniti"
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 lineage24-infiniti"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -275,77 +275,55 @@ profile_set() {
         "s-ultra-8650 nothingos5-metroid") echo nothing-f8u ;;
         "f7 nothingos5-metroid") echo nothing-f8u ;;
         "f6 nothingos5-metroid") echo nothing-f8u ;;
-        "flip8 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip8 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip8 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip8 infinityx41-findx9u") echo infinityx ;;
         "flip8 lineage24-infiniti") echo lineage ;;
         "flip8 hyperos-lhasa") echo hyper-f8u ;;
-        "a36 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a36 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a36 infinityx41-findx9u") echo infinityx ;;
         "a36 lineage24-infiniti") echo lineage ;;
         "a36 hyperos-lhasa") echo hyper-f8u ;;
-        "a27 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a27 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a27 infinityx41-findx9u") echo infinityx ;;
         "a27 lineage24-infiniti") echo lineage ;;
         "a27 hyperos-lhasa") echo hyper-f8u ;;
-        "s-ultra-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8850 pixel11pro-kodiak") echo pixel-sultra ;;
-        "s-ultra-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "s-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f7 coloros17-findn6") echo n6-f8u ;;
-        "s-plus-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8 coloros17-findn6") echo n6-global-f8 ;;
         "f8 pixel11fold-yogi") echo pixel-f8 ;;
-        "s-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8850 pixel11pro-kodiak") echo pixel-sultra ;;
-        "s-8850-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8850-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8850-jp pixel11pro-kodiak") echo pixel-sultra ;;
-        "s-ultra-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "s-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "s-plus-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "s-plus-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8850 pixel11pro-kodiak") echo pixel-sultra ;;
-        "s-plus-9965 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-9965 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-9965 pixel11pro-kodiak") echo pixel-sultra ;;
-        "s-9965 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-9965 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-9965 pixel11pro-kodiak") echo pixel-sultra ;;
-        "flip7 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip7 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "a56 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a56 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "a57 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a57 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a56 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a57 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "s-ultra-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "flip6 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip6 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "s-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "s-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8650 infinityx41-findx9u") echo infinityx ;;
@@ -355,7 +333,6 @@ profile_set() {
         "s-ultra-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip6 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
-        "flip5 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip5 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip5 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8u infinityx41-findx9u") echo infinityx ;;
@@ -431,27 +408,22 @@ profile_set() {
         "a07 infinityx41-findx9u") echo infinityx ;;
         "a07 lineage24-infiniti") echo lineage ;;
         "s-edge-8750 nothingos5-metroid") echo nothing-f8u ;;
-        "s-edge-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-edge-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-edge-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-edge-8750 infinityx41-findx9u") echo infinityx ;;
         "s-edge-8750 lineage24-infiniti") echo lineage ;;
         "s-edge-8750 hyperos-lhasa") echo hyper-f8u ;;
-        "s-fe-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-fe-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-fe-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-fe-9945 infinityx41-findx9u") echo infinityx ;;
         "s-fe-9945 lineage24-infiniti") echo lineage ;;
         "s-fe-9945 hyperos-lhasa") echo hyper-f8u ;;
-        "a26 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a26 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a26 infinityx41-findx9u") echo infinityx ;;
         "a26 lineage24-infiniti") echo lineage ;;
-        "a35 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a35 infinityx41-findx9u") echo infinityx ;;
         "a35 lineage24-infiniti") echo lineage ;;
-        "a54 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a54 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a54 infinityx41-findx9u") echo infinityx ;;
         "a54 lineage24-infiniti") echo lineage ;;
@@ -469,7 +441,6 @@ profile_set() {
         "a34 lineage24-infiniti") echo lineage ;;
         "a15 infinityx41-findx9u") echo infinityx ;;
         "a15 lineage24-infiniti") echo lineage ;;
-        "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a07 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "f8u originos7-pd2609ma") echo originos ;;
         "f8 originos7-pd2609ma") echo originos ;;
@@ -515,21 +486,13 @@ profile_set() {
         "a16 oxygenos16-cph2745") echo oxygen16 ;;
         "a16-s166 oxygenos16-cph2745") echo oxygen16 ;;
         "a17-5g oxygenos16-cph2745") echo oxygen16 ;;
-        "a17 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a17 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "a16-4g coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a16-4g coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "a16 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a16 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "a16-s166 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a16-s166 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "a17-5g coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a17-5g coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "a34 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a34 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "a15 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a15 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
-        "flip7-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
         "flip7-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip7-fe infinityx41-findx9u") echo infinityx ;;
@@ -546,13 +509,11 @@ profile_set() {
         "a17-5g hyperos-lhasa") echo hyper-f8u ;;
         "a34 hyperos-lhasa") echo hyper-f8u ;;
         "a15 hyperos-lhasa") echo hyper-f8u ;;
-        "a55 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "a55 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a55 infinityx41-findx9u") echo infinityx ;;
         "a55 lineage24-infiniti") echo lineage ;;
         "a55 hyperos-lhasa") echo hyper-f8u ;;
         "a55 oxygenos16-cph2745") echo oxygen16 ;;
-        "s25-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s25-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s25-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "s25-fe infinityx41-findx9u") echo infinityx ;;
@@ -562,7 +523,6 @@ profile_set() {
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-9945 originos7-pd2609ma") echo originos ;;
-        "s-plus-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-plus-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-9945 infinityx41-findx9u") echo infinityx ;;
@@ -571,7 +531,6 @@ profile_set() {
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9945 originos7-pd2609ma") echo originos ;;
         # 0.4.92: the au Galaxy S23 Ultra (SCG20): the S23 Ultra's rows, untested.
-        "s-ultra-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-ultra-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-ultra-8550-jp infinityx41-findx9u") echo infinityx ;;
@@ -582,7 +541,6 @@ profile_set() {
         "s-9925 oxygenos16-cph2745") echo oxygen16 ;;
         "a16-mtk oxygenos16-cph2745") echo oxygen16 ;;
         # 0.4.93: the au Galaxy S23 (SCG19): the S23's rows, untested.
-        "s-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
         "s-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8550-jp infinityx41-findx9u") echo infinityx ;;
@@ -591,7 +549,6 @@ profile_set() {
         "s-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550-jp originos7-pd2609ma") echo originos ;;
         # 0.4.95: the Galaxy M35 5G (the A35's rows) and the Galaxy A15 5G with MediaTek (OxygenOS 16 only), untested.
-        "m35 coloros17-findx9u-in") echo x9u-in-sultra ;;
         "m35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "m35 infinityx41-findx9u") echo infinityx ;;
         "m35 lineage24-infiniti") echo lineage ;;
@@ -630,7 +587,6 @@ set_files() {
     case "$1" in
         n6-global-f8) echo "$SET_COMMON oplus-framework_patched.jar OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar ColorPanoramicSystemUI.apk" ;;
         n6-f8u) echo "$SET_COMMON oplus-framework_patched.jar OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
-        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
         x9u-in-1105-sultra) echo "$SET_COMMON oplus-framework_patched.jar cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
@@ -651,7 +607,6 @@ set_image() {
     case "$1" in
         n6-global-f8) echo coloros17-findn6 ;;
         n6-f8u) echo coloros17-findn6 ;;
-        x9u-in-sultra) echo coloros17-findx9u-in ;;
         x9u-in-1105-sultra) echo coloros17-findx9u-in-1105 ;;
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
@@ -1016,6 +971,10 @@ check_raw() { # <bytes> <sha256>
 }
 
 # --- Verbs --------------------------------------------------------------------
+data_upgrade() { # <from image> <to image>: whether to's setup may keep from's guest data
+    case "$1 $2" in "coloros17-findx9u-in coloros17-findx9u-in-1105") return 0 ;; esac
+    return 1
+}
 do_begin() {
     [ $# -eq 5 ] || usage "begin <new|keep|aside> <profile> <image> <set> <versionCode>"
     mode=$1
@@ -1057,7 +1016,9 @@ do_begin() {
                 elif [ -f "$PLAN" ] && mine "$PLAN"; then
                     { read -r pp made pr < "$PLAN" && is_id "$made"; } || made="another image"
                 fi
-                [ -z "$made" ] || [ "$made" = "$B_IMAGE" ] ||
+                # 0.5.10: the first Find X9 Ultra IN build is retired for its 1105 build; its data
+                # moves on as an over-the-air update would (Images.DATA_UPGRADES), never back.
+                [ -z "$made" ] || [ "$made" = "$B_IMAGE" ] || data_upgrade "$made" "$B_IMAGE" ||
                     refuse "the stage's guest data is from $made, not $B_IMAGE: move the stage aside"
                 # And never another system's data (0.3.7): a stage another tool
                 # made (no marker, no plan), or one whose marker names an image
@@ -1717,6 +1678,57 @@ do_reset_data() {
     mv "$STAGE/data" "$OLD/data" || die "could not move the data out of the stage; nothing was removed"
     purge_one "${OLD##*/}"
     say "@@OK reset-data $M_IMAGE"
+}
+
+# An app's kernel tool (0.5.10; owner: "rather than asking the users to
+# uninstall ... disable it", and turn it back on when they choose). The S24
+# family's kernel panicked in free_pipe_info while a store app's native helper
+# (libtimer.so from its lib folder) ran; the switch refuses while it runs
+# (oneos_switch.sh). tool-app off <pkg> disables only an app whose libtimer.so
+# runs now (pm disable-user: the app and its data stay, nothing is removed; its
+# tool stops, which may restart the phone once, as an uninstall would) and
+# records it in $STAGE/tool_apps first, so the record outlives such a restart.
+# tool-app on <pkg> enables only an app that record names and drops it from
+# the record. tool-app list prints the record. No other app is ever touched.
+tool_running() { # <pkg>: whether its libtimer.so runs now
+    for ex in "$PROC"/[0-9]*/exe; do
+        t=$(ls -l "$ex" 2>/dev/null | sed -n 's/.* -> //p')
+        case "$t" in "/data/app/"*"/$1-"*"/lib/"*"/libtimer.so") return 0 ;; esac
+    done
+    return 1
+}
+do_tool_app() {
+    case "${1:-}" in
+        list)
+            [ $# -eq 1 ] || usage "tool-app list"
+            if [ -f "$STAGE/tool_apps" ] && mine "$STAGE/tool_apps"; then
+                while read -r t; do is_package "$t" && say "@@RESULT tool_app $t"; done < "$STAGE/tool_apps"
+            fi
+            say "@@OK tool-app list"
+            return 0 ;;
+        off|on) [ $# -eq 2 ] && is_package "$2" || usage "tool-app ${1:-} <package>" ;;
+        *) usage "tool-app <off|on> <package> | tool-app list" ;;
+    esac
+    [ ! -e "$STAGE/tool_apps" ] || { [ -f "$STAGE/tool_apps" ] && mine "$STAGE/tool_apps"; } || refuse "${STAGE#$T}/tool_apps is not root's own file"
+    part="$STAGE/.tool_apps.new"
+    if [ "$1" = off ]; then
+        # Only a session that runs now stops it (a refused switch a moment ago leaves no snapshot).
+        if [ -f "$STAGE/persist_session.active" ] && [ "$(sed -n 's/^boot_id=//p' "$STAGE/persist_session.active" | head -n 1)" = "$(boot_id)" ]; then
+            refuse "a session is running: return to One UI first"
+        fi
+        tool_running "$2" || refuse "$2 runs no kernel tool now; nothing was changed"
+        { [ -f "$STAGE/tool_apps" ] && grep -v -x -F "$2" "$STAGE/tool_apps"; echo "$2"; } > "$part" && own "$part" 0644 && mv -f "$part" "$STAGE/tool_apps" ||
+            die "could not record $2"
+        step "disable $2"
+        pm disable-user --user 0 "$2" > /dev/null 2>&1 || die "pm could not turn $2 off"
+        say "@@OK tool-app off $2"
+    else
+        [ -f "$STAGE/tool_apps" ] && grep -q -x -F "$2" "$STAGE/tool_apps" || refuse "OneOS did not turn $2 off; nothing was changed"
+        step "enable $2"
+        pm enable --user 0 "$2" > /dev/null 2>&1 || die "pm could not turn $2 on"
+        { grep -v -x -F "$2" "$STAGE/tool_apps"; true; } > "$part" && own "$part" 0644 && mv -f "$part" "$STAGE/tool_apps" || die "could not update the record"
+        say "@@OK tool-app on $2"
+    fi
 }
 
 # Use a set-aside stage again (0.4.10). Like purge's checks, but a session
@@ -2387,7 +2399,7 @@ esac
 [ -d "$STAGE" ] && mine "$STAGE" || refuse "$STAGE is not root's folder"
 [ -d "$STAGE/bin" ] && mine "$STAGE/bin" || refuse "$STAGE/bin is not root's folder"
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|remove-system|reset-data|purge|selfupdate|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog|bring-add) take_lock ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|remove-system|reset-data|tool-app|purge|selfupdate|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog|bring-add) take_lock ;;
 esac
 [ $# -gt 0 ] && shift
 case "$verb" in
@@ -2408,6 +2420,7 @@ case "$verb" in
     restore) do_restore "$@" ;;
     remove) do_remove "$@" ;;
     remove-system) do_remove_system "$@" ;;
+    tool-app) do_tool_app "$@" ;;
     reset-data) do_reset_data "$@" ;;
     selfupdate) do_selfupdate "$@" ;;
     bring-collect) do_bring_collect "$@" ;;

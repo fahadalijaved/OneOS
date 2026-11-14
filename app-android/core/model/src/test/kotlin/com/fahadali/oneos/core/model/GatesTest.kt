@@ -44,14 +44,14 @@ class GatesTest {
     fun s26UltraSwitchNeedsTheCarrierTick() {
         val r = eval(GatePhase.SWITCH, input(Bundles.S26U))
         assertEquals(Profiles.S_ULTRA_8850, r.profile)
-        assertEquals(Images.FIND_X9U_IN, r.image)
-        assertEquals(PackageSets.X9U_IN_SULTRA, r.set)
+        assertEquals(Images.FIND_X9U_IN_1105, r.image)
+        assertEquals(PackageSets.X9U_IN_1105_SULTRA, r.set)
         assertFalse(r.blocked)
         // The Find X9 Ultra build is tested on it since 0.4.7: only the carrier tick.
         assertEquals(listOf(SwitchGates.ID_CARRIER), r.toTick.map { it.id })
-        // The ticks name the system: the phone takes two ColorOS 17 builds (the November update), so the variant shows.
-        val system = Images.systemName(Images.FIND_X9U_IN, Profiles.S_ULTRA_8850)
-        assertEquals("ColorOS 17 · global build", system)
+        // The ticks name the system: the phone takes one ColorOS 17 build (the November update since 0.5.10), so no variant shows.
+        val system = Images.systemName(Images.FIND_X9U_IN_1105, Profiles.S_ULTRA_8850)
+        assertEquals("ColorOS 17", system)
         assertEquals(CarrierRules.noCallsAck(system), r.find(SwitchGates.ID_CARRIER)!!.ack)
         assertEquals("I understand phone calls, including emergency calls, won't work in $system", r.find(SwitchGates.ID_CARRIER)!!.ack)
         assertNull(r.find(SwitchGates.ID_PROFILE)!!.ack)
@@ -103,8 +103,8 @@ class GatesTest {
     fun galaxyS25SwitchNeedsItsTicks() {
         val r = eval(GatePhase.SWITCH, input(Bundles.S25))
         assertEquals(Profiles.S_8750, r.profile)
-        assertEquals(Images.FIND_X9U_IN, r.image)
-        assertEquals(PackageSets.X9U_IN_SULTRA, r.set)
+        assertEquals(Images.FIND_X9U_IN_1105, r.image)
+        assertEquals(PackageSets.X9U_IN_1105_SULTRA, r.set)
         assertFalse(r.blocked)
         assertTrue(r.toTick.isEmpty())
         assertEquals(Level.OK, r.level(SwitchGates.ID_PROFILE))
@@ -319,10 +319,10 @@ class GatesTest {
         assertEquals(Level.OK, eval(GatePhase.SWITCH, i).level(SwitchGates.ID_IMAGE))
         for (bad in listOf(
             stage(p, image = Images.ID_FIND_N6),
-            stage(p).copy(marker = StageMarker(4, Profiles.ID_F8U, Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, 1)),
+            stage(p).copy(marker = StageMarker(4, Profiles.ID_F8U, Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, 1)),
             stage(p).copy(marker = null),
             stage(p, verified = false),
-            stage(p).copy(marker = StageMarker(3, p.id, Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, 1)),
+            stage(p).copy(marker = StageMarker(3, p.id, Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, 1)),
         )) {
             assertEquals("$bad", Level.BLOCK, eval(GatePhase.SWITCH, i.copy(stage = bad)).level(SwitchGates.ID_IMAGE))
         }
@@ -332,7 +332,7 @@ class GatesTest {
             Level.OK,
             eval(
                 GatePhase.SWITCH,
-                i.copy(appVersionCode = null, stage = stage(p).copy(marker = StageMarker(3, p.id, Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, 1))),
+                i.copy(appVersionCode = null, stage = stage(p).copy(marker = StageMarker(3, p.id, Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, 1))),
             ).level(SwitchGates.ID_IMAGE),
         )
     }
@@ -346,7 +346,7 @@ class GatesTest {
         assertEquals(Level.BLOCK, wrong.level(SwitchGates.ID_IMAGE))
         assertEquals("Wrong image for this phone", wrong.find(SwitchGates.ID_IMAGE)!!.finding.title)
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(imageFile = null)).level(SwitchGates.ID_IMAGE))
-        val x9u = Images.FIND_X9U_IN
+        val x9u = Images.FIND_X9U_IN_1105
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(imageFile = ImageFileCheck(null, x9u.gzBytes))).level(SwitchGates.ID_IMAGE))
         // Prepare has no ticks: the warnings are ticked at Switch.
         val r = eval(GatePhase.PREPARE, i)
@@ -360,7 +360,7 @@ class GatesTest {
     @Test
     fun freeSpaceFromTheImagesRawSize() {
         val i = input(Bundles.S26U)
-        val need = SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA)
+        val need = SpaceRule.toStage(Images.FIND_X9U_IN_1105, PackageSets.X9U_IN_1105_SULTRA)
         assertEquals(Level.OK, eval(GatePhase.PREPARE, i.copy(freeBytes = need)).level(SwitchGates.ID_SPACE))
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(freeBytes = need - 1)).level(SwitchGates.ID_SPACE))
         // The F8U's N6 image by its own size (0.4.37: its set carries One UI's camera, so it is no longer smaller).
@@ -535,14 +535,14 @@ class GatesTest {
         for ((phone, p) in listOf(Bundles.S26U to Profiles.S_ULTRA_8850, Bundles.S25U to Profiles.S_ULTRA_8750, Bundles.S25 to Profiles.S_8750)) {
             // 0.4.10: the S26 Ultra also takes the Pixel 11 Pro image (SM8850 has SVE); 0.4.11: the IN build first;
             // 0.4.22: the SM8750 phones the Pixel 9 Pro XL image (no SVE needed).
-            val usual = listOf(Images.FIND_X9U_IN, Images.FIND_X9U_IN_1105)
+            val usual = listOf(Images.FIND_X9U_IN_1105)
             // 0.4.27: Infinity-X, on every phone; 0.5.06: LineageOS 24 after it; 0.4.31: HyperOS; then Nothing OS.
             val last = listOf(Images.NOTHING_METROID, Images.ORIGINOS7) // 0.4.35 the S26 Ultra, 0.4.36 the S25s too; 0.4.73 OriginOS 7
             assertEquals(
                 usual + (if (p == Profiles.S_ULTRA_8850) Images.PIXEL_KODIAK else Images.PIXEL_KOMODO) + Images.INFINITYX + Images.LINEAGE24 + Images.HYPEROS_LHASA + last,
                 p.images(),
             )
-            for ((image, set) in listOf(Images.FIND_X9U_IN to PackageSets.X9U_IN_SULTRA, Images.FIND_X9U_IN_1105 to PackageSets.X9U_IN_1105_SULTRA)) {
+            for ((image, set) in listOf(Images.FIND_X9U_IN_1105 to PackageSets.X9U_IN_1105_SULTRA)) {
                 val tested = p.choice(image.id)!!.tested
                 for (phase in GatePhase.entries) {
                     val r = eval(phase, input(phone, image = image))
@@ -558,8 +558,8 @@ class GatesTest {
         }
         // The CPU rule comes with the image: the CN build needs nothing beyond arm64 (its apps WARN on the
         // SM8750); the Pixel image's loader needs SVE and SVE2, which the SM8750 lacks (it is the Fold's only).
-        assertEquals(Level.WARN, eval(GatePhase.SWITCH, input(Bundles.S25U, image = Images.FIND_X9U_IN)).level(CpuRules.ID_APP_FEATURES))
-        assertNull(eval(GatePhase.SWITCH, input(Bundles.S25U, image = Images.FIND_X9U_IN)).find(CpuRules.ID_MISSING))
+        assertEquals(Level.WARN, eval(GatePhase.SWITCH, input(Bundles.S25U, image = Images.FIND_X9U_IN_1105)).level(CpuRules.ID_APP_FEATURES))
+        assertNull(eval(GatePhase.SWITCH, input(Bundles.S25U, image = Images.FIND_X9U_IN_1105)).find(CpuRules.ID_MISSING))
         val pixelOnSm8750 = CpuRules.forImage(Images.PIXEL_YOGI, Bundles.S25U.facts.cpu)
         assertEquals(CpuRules.ID_MISSING, pixelOnSm8750.id)
         assertEquals(Level.WARN, pixelOnSm8750.level)
@@ -570,7 +570,7 @@ class GatesTest {
     @Test
     fun anImageThePhoneDoesNotTakeIsBlocked() {
         // PREPARE: the X9U (CN) .gz on the Fold, the N6 or Pixel .gz on an S Ultra or the S25.
-        val wrong = listOf(Bundles.F8U to Images.FIND_X9U_IN) +
+        val wrong = listOf(Bundles.F8U to Images.FIND_X9U_IN_1105) +
             listOf(Bundles.S26U, Bundles.S25U, Bundles.S25).flatMap { listOf(it to Images.FIND_N6, it to Images.PIXEL_YOGI) }
         for ((phone, image) in wrong) {
             val r = eval(GatePhase.PREPARE, input(phone).copy(imageFile = gz(image)))
@@ -586,7 +586,7 @@ class GatesTest {
         assertEquals("Pick the image first", none.find(SwitchGates.ID_IMAGE)!!.finding.title)
         assertTrue(none.find(SwitchGates.ID_IMAGE)!!.finding.detail.contains("OneOS_Pixel11Fold_Full_ZFold8.img.gz"))
         // SWITCH: a stage holding the CN image on the Fold.
-        val cn = eval(GatePhase.SWITCH, input(Bundles.F8U).copy(stage = stage(Profiles.F8U, Images.ID_FIND_X9U_IN, set = PackageSets.ID_X9U_IN_SULTRA)))
+        val cn = eval(GatePhase.SWITCH, input(Bundles.F8U).copy(stage = stage(Profiles.F8U, Images.ID_FIND_X9U_IN_1105, set = PackageSets.ID_X9U_IN_1105_SULTRA)))
         assertEquals(Level.BLOCK, cn.level(SwitchGates.ID_IMAGE))
         assertEquals("Prepared for another phone or image", cn.find(SwitchGates.ID_IMAGE)!!.finding.title)
         // SWITCH: a stage holding the Pixel image on an S Ultra.
@@ -602,7 +602,7 @@ class GatesTest {
         val i = input(Bundles.F8U, image = Images.PIXEL_YOGI)
         assertEquals(Level.OK, eval(GatePhase.SWITCH, i).level(SwitchGates.ID_IMAGE))
         // The Pixel image with a ColorOS set, the old IN set, another or none: never.
-        for (set in listOf(PackageSets.ID_N6_F8U, PackageSets.ID_X9U_IN_SULTRA, "x9u-in-f8u", "pixel-other", null)) {
+        for (set in listOf(PackageSets.ID_N6_F8U, PackageSets.ID_X9U_IN_1105_SULTRA, "x9u-in-f8u", "pixel-other", null)) {
             val r = eval(GatePhase.SWITCH, i.copy(stage = stage(p, Images.ID_PIXEL_YOGI, set = set)))
             assertEquals("$set", Level.BLOCK, r.level(SwitchGates.ID_IMAGE))
             assertNull(r.image)
@@ -622,8 +622,8 @@ class GatesTest {
 
     @Test
     fun freeSpaceFromTheChosenImage() {
-        val cnNeed = SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA)
-        val cn = input(Bundles.S26U, image = Images.FIND_X9U_IN).copy(freeBytes = cnNeed)
+        val cnNeed = SpaceRule.toStage(Images.FIND_X9U_IN_1105, PackageSets.X9U_IN_1105_SULTRA)
+        val cn = input(Bundles.S26U, image = Images.FIND_X9U_IN_1105).copy(freeBytes = cnNeed)
         assertEquals(Level.OK, eval(GatePhase.PREPARE, cn).level(SwitchGates.ID_SPACE))
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, cn.copy(freeBytes = cnNeed - 1)).level(SwitchGates.ID_SPACE))
         // On the Fold: the Pixel image is smaller than the Find N6 one, with a bigger set; each needs its own.
@@ -655,7 +655,7 @@ class GatesTest {
         assertEquals(Images.FIND_N6, n6.image)
         assertFalse(n6.blocked)
         // The CN image in the Fold's stage, or nothing there: BLOCK.
-        assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(onPhone = StagedRaw(Images.FIND_X9U_IN.rawBytes))).level(SwitchGates.ID_IMAGE))
+        assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(onPhone = StagedRaw(Images.FIND_X9U_IN_1105.rawBytes))).level(SwitchGates.ID_IMAGE))
         assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, i.copy(onPhone = StagedRaw(null))).level(SwitchGates.ID_IMAGE))
         // With the image on the phone chosen, a picked file does not count.
         val both = eval(GatePhase.PREPARE, input(Bundles.F8U).copy(onPhone = StagedRaw(Images.PIXEL_YOGI.rawBytes)))

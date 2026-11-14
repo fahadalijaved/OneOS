@@ -1004,7 +1004,12 @@ if [ -f /data/guest_audio.flag ]; then
     # oneos_a2dp.log gets the HAL's line ("configured l_a2dp_format", or "not
     # configured ..." for a key it does not take). The log, like the keepers'
     # logs, grows across sessions: each session starts with a dated line.
+    # Qualcomm's HAL only (0.5.10): the parcel names qti.audio.core.VString, which
+    # Samsung's Exynos HAL refuses (Galaxy S26: status -3 three times a session,
+    # report cdd92328); its offload path needs no such key. MediaTek's refuses it
+    # as well (A16 4G ColorOS, report 33e2bc9b: -3, five sessions), so only QTI.
     A2F=${ONEOS_GUEST_A2DP_FORMAT:-2097152}
+    [ -n "${ONEOS_GUEST_A2DP_FORMAT:-}" ] || [ "$(getprop ro.soc.manufacturer)" = QTI ] || A2F=0
     case "$A2F" in ""|*[!0-9]*) A2F=0 ;; esac
     if [ "$A2F" != 0 ]; then
         echo "=== $(date '+%F %T') session: l_a2dp_format=$A2F to the audio HAL" >> /data/oneos_a2dp.log
@@ -1032,7 +1037,7 @@ if [ -f /data/guest_audio.flag ]; then
             done' oneos_a2dp "$A2F" "$BB" >> /data/oneos_a2dp.log 2>&1 &
         echo "[Pivoted Root] A2DP offload: l_a2dp_format=$A2F to the audio HAL, again on every HAL restart, each send checked in the HAL log (/data/oneos_a2dp.log)"
     else
-        echo "[Pivoted Root] A2DP offload: l_a2dp_format not sent (ONEOS_GUEST_A2DP_FORMAT=0)"
+        echo "[Pivoted Root] A2DP offload: l_a2dp_format not sent (${ONEOS_GUEST_A2DP_FORMAT:+ONEOS_GUEST_A2DP_FORMAT=$ONEOS_GUEST_A2DP_FORMAT}${ONEOS_GUEST_A2DP_FORMAT:-$(getprop ro.soc.manufacturer) is not a Qualcomm SoC})"
     fi
     /system/bin/audioserver > /dev/null 2>&1 &
     AS_PID=$!

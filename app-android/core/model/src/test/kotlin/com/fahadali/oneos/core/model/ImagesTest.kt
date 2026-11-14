@@ -9,8 +9,7 @@ import org.junit.Test
 class ImagesTest {
     private val n6 = Images.FIND_N6
     private val pixel = Images.PIXEL_YOGI
-    private val xin = Images.FIND_X9U_IN
-    private val xin1105 = Images.FIND_X9U_IN_1105
+    private val xin = Images.FIND_X9U_IN_1105
 
     /** A sample of an image an earlier build took (none is retired in 0.4.11). */
     private val old = RetiredImage(
@@ -56,7 +55,7 @@ class ImagesTest {
         // (Nothing's are product/priv-app GmsCore, Phonesky, GooglePartnerSetup, GoogleRestore, ConfigUpdater
         // and system_ext/priv-app GoogleServicesFramework: six folders guest_prepare.sh's patterns cover).
         assertEquals(
-            listOf(n6, xin, xin1105, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_METROID, Images.OXYGEN16, Images.ORIGINOS7, Images.LINEAGE24),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_METROID, Images.OXYGEN16, Images.ORIGINOS7, Images.LINEAGE24),
             Images.ALL.filter { it.googleServices },
         )
         // 0.5.06: LineageOS 24 has none of its own: its Google apps are One UI's, laid over the guest at session time
@@ -72,10 +71,10 @@ class ImagesTest {
         assertEquals("OnePlus 15", Images.LINEAGE24.shortName)
         // 0.4.73: OriginOS 7 presents the Play services of its own gmssystem payload, as the Pixel images.
         assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.ORIGINOS7), Images.ALL.filter { it.presentsGms })
-        assertEquals(listOf(n6, xin, xin1105, Images.NOTHING_METROID, Images.OXYGEN16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
+        assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
-            listOf(n6, xin, xin1105, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID, Images.OXYGEN16,
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID, Images.OXYGEN16,
                 Images.ORIGINOS7, Images.LINEAGE24),
             Images.ALL,
         )
@@ -112,20 +111,27 @@ class ImagesTest {
         assertEquals(SystemFamily.NOTHING, nothing.family)
         assertEquals("Nothing OS 5.0 (Android 17)", nothing.displayName)
         assertEquals(6_067_867_648L - (1L shl 32), nothing.gzIsize)
-        // 0.4.11: the Find X9 Ultra IN build is back (0.3.3-0.3.6, dropped in 0.3.7); 0.4.38: rebuilt without the debloat.
-        assertEquals("coloros17-findx9u-in", xin.id)
-        assertEquals("OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz", xin.gzName)
-        assertEquals(7_071_596_999L, xin.gzBytes)
-        assertEquals("c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab", xin.gzSha256)
-        assertEquals(14_669_168_640L, xin.rawBytes)
-        assertEquals("92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6", xin.rawSha256)
+        // 0.4.11: the Find X9 Ultra IN build is back (0.3.3-0.3.6, dropped in 0.3.7); 0.5.10: the November build is the only one.
+        assertEquals("coloros17-findx9u-in-1105", xin.id)
+        assertEquals("OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz", xin.gzName)
+        assertEquals(7_102_560_387L, xin.gzBytes)
+        assertEquals("43eeb00bcb7105c406d5fe299259fb8e84568c6631e6c8d763bb3ff23b1d0d20", xin.gzSha256)
+        assertEquals(14_782_214_144L, xin.rawBytes)
+        assertEquals("6c089f2d043d60f34b40dd58ad44f88621163163c1664121753311a115da8d7c", xin.rawSha256)
         assertEquals(null, xin.testedOn)
-        assertEquals(xin, Images.byGzSize(7_071_596_999L))
-        assertEquals(xin, Images.byRawSize(14_669_168_640L))
-        assertEquals("Find X9 Ultra IN", Images.shortName(xin.id))
+        assertEquals(xin, Images.byGzSize(7_102_560_387L))
+        assertEquals(xin, Images.byRawSize(14_782_214_144L))
+        assertEquals("Find X9 Ultra IN (Nov)", Images.shortName(xin.id))
+        // 0.5.10: the first Find X9 Ultra IN build is retired: still known by name, no longer a table image,
+        // and its stage's data may be kept for the November build (and for nothing else, never back).
+        assertNull(Images.byId(Images.ID_FIND_X9U_IN))
+        assertNull(Images.byGzSize(7_071_596_999L))
+        assertNull(Images.byRawSize(14_669_168_640L))
+        assertEquals("Find X9 Ultra IN", Images.shortName(Images.ID_FIND_X9U_IN))
+        assertEquals(mapOf(Images.ID_FIND_X9U_IN to Images.ID_FIND_X9U_IN_1105), Images.DATA_UPGRADES)
         // 0.4.51: the debloated Find X9 Ultra build is retired; a retired image's name stays known (old stages,
         // the last session), and its file is named, not called "not a OneOS image".
-        assertEquals(listOf("coloros17-findx9u"), Images.RETIRED.map { it.id })
+        assertEquals(listOf("coloros17-findx9u", "coloros17-findx9u-in"), Images.RETIRED.map { it.id })
         assertEquals(ImageIdentifier.R_RETIRED, ImageIdentifier.identify(ImageFileCheck("OneOS_ColorOS17_FindX9Ultra_S26U.img.gz", 5_290_346_735L), Profiles.S_ULTRA_8850).finding.reason)
         assertEquals("Find X8 Ultra", Images.shortName(old.id, retired = listOf(old)))
         assertEquals("Find N6", Images.shortName(n6.id))
@@ -133,7 +139,7 @@ class ImagesTest {
         // Guest data stays with its own system (0.3.7): the ColorOS builds and the Pixel images.
         assertEquals(
             listOf(
-                SystemFamily.COLOROS, SystemFamily.COLOROS, SystemFamily.COLOROS,
+                SystemFamily.COLOROS, SystemFamily.COLOROS,
                 SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL,
                 SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS, SystemFamily.LINEAGE,
             ),
@@ -203,8 +209,7 @@ class ImagesTest {
         assertEquals(Level.BLOCK, n6OnS26.finding.level)
         // The BLOCK names every image the phone takes.
         assertEquals(
-            "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
-                "or the Find X9 Ultra IN (Nov) image (OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz) " +
+            "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN (Nov) image (OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz) " +
                 "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the OnePlus 15 image (OneOS_LineageOS24_OnePlus15.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz).",
@@ -216,7 +221,7 @@ class ImagesTest {
                 val pixelOnBar = ImageIdentifier.identify(check, p)
                 assertEquals(p.id, ImageState.WRONG_FOR_PHONE, pixelOnBar.state)
                 assertEquals(pixel, pixelOnBar.image)
-                assertTrue(pixelOnBar.finding.detail, pixelOnBar.finding.detail.startsWith("This is the Pixel 11 Fold image; ${p.label} takes the Find X9 Ultra IN image"))
+                assertTrue(pixelOnBar.finding.detail, pixelOnBar.finding.detail.startsWith("This is the Pixel 11 Fold image; ${p.label} takes the Find X9 Ultra IN (Nov) image"))
             }
         }
         // The Galaxy Z Fold7 takes the Find N6 image, Infinity-X (0.4.27) and HyperOS (0.4.31), no Pixel: Pixel 11's system code needs
@@ -236,7 +241,7 @@ class ImagesTest {
             assertEquals(Level.BLOCK, x9uOnFold.finding.level)
             assertEquals(xin, x9uOnFold.image)
             assertEquals(
-                "This is the Find X9 Ultra IN image; Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) " +
+                "This is the Find X9 Ultra IN (Nov) image; Z Fold (F8U) takes the Find N6 image (OneOS_ColorOS17_FindN6_Global.img.gz) " +
                     "or the Pixel 11 Fold image (OneOS_Pixel11Fold_Full_ZFold8.img.gz) or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) " +
                     "or the OnePlus 15 image (OneOS_LineageOS24_OnePlus15.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                     "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz).",
@@ -265,27 +270,27 @@ class ImagesTest {
         val origin = Images.ORIGINOS7
         val takes = mapOf(
             Profiles.F8U to listOf(n6, pixel, ifx, lineage, hyper, nothing, origin),
-            Profiles.S_ULTRA_8850 to listOf(xin, xin1105, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing, origin),
+            Profiles.S_ULTRA_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing, origin),
             // 0.4.22: the Pixel 9 Pro XL image on the phones without SVE.
-            Profiles.S_ULTRA_8750 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin),
-            Profiles.S_8750 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin),
+            Profiles.S_ULTRA_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin),
+            Profiles.S_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin),
             Profiles.FOLD7 to listOf(n6, ifx, lineage, hyper, nothing, origin),
-            Profiles.S_PLUS_8750 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin),
+            Profiles.S_PLUS_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin),
             Profiles.FOLD8 to listOf(n6, pixel, ifx, lineage, hyper, nothing, origin),
-            Profiles.S_8850 to listOf(xin, xin1105, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing, origin),
-            Profiles.S_ULTRA_8650 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin), // 0.4.82
-            Profiles.S_8550 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper, Images.OXYGEN16, origin), // 0.4.82; 0.4.91 OxygenOS 16
-            Profiles.S_9945 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin), // 0.4.83
-            Profiles.S_PLUS_9945 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin), // 0.4.83
-            Profiles.S_FE_9945 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper),
-            Profiles.S_PLUS_8850 to listOf(xin, xin1105, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing, origin),
-            Profiles.S_PLUS_9965 to listOf(xin, xin1105, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
-            Profiles.S_9965 to listOf(xin, xin1105, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
-            Profiles.FLIP7 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper),
-            Profiles.A57 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper),
-            Profiles.FLIP5 to listOf(xin, xin1105, Images.PIXEL_KOMODO, ifx, lineage, hyper),
-            Profiles.FLIP8 to listOf(xin, xin1105, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
-            Profiles.A36 to listOf(xin, xin1105, ifx, lineage, hyper), // 0.4.57: no Pixel 9 Pro XL on ARMv8.2
+            Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing, origin),
+            Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin), // 0.4.82
+            Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, Images.OXYGEN16, origin), // 0.4.82; 0.4.91 OxygenOS 16
+            Profiles.S_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin), // 0.4.83
+            Profiles.S_PLUS_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, nothing, origin), // 0.4.83
+            Profiles.S_FE_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper),
+            Profiles.S_PLUS_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing, origin),
+            Profiles.S_PLUS_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
+            Profiles.S_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
+            Profiles.FLIP7 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper),
+            Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper),
+            Profiles.FLIP5 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper),
+            Profiles.FLIP8 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
+            Profiles.A36 to listOf(xin, ifx, lineage, hyper), // 0.4.57: no Pixel 9 Pro XL on ARMv8.2
         )
         for ((p, good) in takes) {
             assertEquals(p.id, good, p.images())
@@ -320,8 +325,7 @@ class ImagesTest {
             ImageIdentifier.accepts(Profiles.F8U),
         )
         assertEquals(
-            "Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) " +
-                "or the Find X9 Ultra IN (Nov) image (OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz) " +
+            "Galaxy S26 Ultra takes the Find X9 Ultra IN (Nov) image (OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz) " +
                 "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the OnePlus 15 image (OneOS_LineageOS24_OnePlus15.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
                 "or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz)",
@@ -365,10 +369,10 @@ class ImagesTest {
         val cnOnFold = staged(xin.rawBytes)
         assertEquals(ImageState.WRONG_FOR_PHONE, cnOnFold.state)
         assertEquals(Level.BLOCK, cnOnFold.finding.level)
-        assertTrue(cnOnFold.finding.detail.contains("Find X9 Ultra IN image; Z Fold (F8U) takes the Find N6 image"))
+        assertTrue(cnOnFold.finding.detail.contains("Find X9 Ultra IN (Nov) image; Z Fold (F8U) takes the Find N6 image"))
         val n6OnS26 = staged(n6.rawBytes, n6.rawSha256, Profiles.S_ULTRA_8850)
         assertEquals(ImageState.WRONG_FOR_PHONE, n6OnS26.state)
-        assertTrue(n6OnS26.finding.detail, n6OnS26.finding.detail.contains("Galaxy S26 Ultra takes the Find X9 Ultra IN image (OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz) or the Find X9 Ultra IN (Nov) image (OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz) or the Pixel 11 Pro image"))
+        assertTrue(n6OnS26.finding.detail, n6OnS26.finding.detail.contains("Galaxy S26 Ultra takes the Find X9 Ultra IN (Nov) image (OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz) or the Pixel 11 Pro image"))
         val pixelOnS26 = staged(pixel.rawBytes, pixel.rawSha256, Profiles.S_ULTRA_8850)
         assertEquals(ImageState.WRONG_FOR_PHONE, pixelOnS26.state)
         assertEquals(pixel, pixelOnS26.image)
@@ -432,16 +436,15 @@ class ImagesTest {
         // (the Fold takes ColorOS 17 and Pixel 11 Fold; from 0.4.11 the bar phones take two ColorOS 17 builds).
         assertEquals("ColorOS 17", Images.systemName(n6))
         assertEquals("ColorOS 17", Images.systemName(n6, Profiles.F8U))
-        // The bar phones take two ColorOS 17 builds again (the November update), so the variant shows.
-        assertEquals("ColorOS 17 · global build", Images.systemName(xin, Profiles.S_ULTRA_8850))
-        assertEquals("ColorOS 17 · global build, November update", Images.systemName(xin1105, Profiles.S_ULTRA_8850))
+        // 0.5.10: the bar phones take one ColorOS 17 build again (the November update), so no variant shows.
+        assertEquals("ColorOS 17", Images.systemName(xin, Profiles.S_ULTRA_8850))
         assertEquals("Find X9 Ultra", Images.shortName("coloros17-findx9u"))
-        val twin = Profiles.F8U.copy(choices = Profiles.F8U.choices + ImageChoice(xin.id, PackageSets.ID_X9U_IN_SULTRA, false))
+        val twin = Profiles.F8U.copy(choices = Profiles.F8U.choices + ImageChoice(xin.id, PackageSets.ID_X9U_IN_1105_SULTRA, false))
         assertEquals("ColorOS 17 · Find N6 global build", Images.systemName(n6, twin))
         assertEquals("the other system", Images.systemName(null))
         // The Fold's recommended system is the one that has run on it.
         assertEquals(Images.ID_FIND_N6, Profiles.F8U.recommended!!.imageId)
-        assertEquals(Images.ID_FIND_X9U_IN, Profiles.S_ULTRA_8850.recommended!!.imageId)
+        assertEquals(Images.ID_FIND_X9U_IN_1105, Profiles.S_ULTRA_8850.recommended!!.imageId)
     }
 
     @Test

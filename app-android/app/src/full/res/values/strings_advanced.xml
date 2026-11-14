@@ -68,6 +68,16 @@
     <string name="manage_progress_deleting_copy">Deleting %1$s</string>
     <string name="manage_progress_deleting_all">Deleting all old copies</string>
     <string name="manage_progress_hide">Hide</string>
+    <string name="tool_app_unknown">OneOS could not tell which app it is. Send a report from the system\'s page.</string>
+    <string name="tool_app_off_title">Turn off %1$s?</string>
+    <string name="tool_app_off_message">%1$s runs a tool in the phone\'s kernel that crashed Galaxy S24 phones during OneOS sessions. OneOS turns the app off (it stays installed with its data) and you can turn it back on here any time. Stopping its tool may restart the phone once.</string>
+    <string name="tool_app_off_run">Turn off</string>
+    <string name="tool_app_off_running">Turning %1$s off. If the phone restarts, open OneOS and switch again.</string>
+    <string name="tool_app_section">Turned off for OneOS</string>
+    <string name="tool_app_on_title">Turn %1$s back on</string>
+    <string name="tool_app_on_summary">Its tool starts again; the next switch will ask to turn it off, and the phone may restart then</string>
+    <string name="tool_app_on_confirm">Turn %1$s back on? The next switch will ask to turn it off again, and stopping its tool then may restart the phone once.</string>
+    <string name="tool_app_on_run">Turn on</string>
     <string name="manage_busy">OneOS is busy with your phone. Try again in a moment.</string>
 
     <!-- For the OneOS team -->

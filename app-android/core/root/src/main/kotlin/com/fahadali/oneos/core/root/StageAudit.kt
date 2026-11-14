@@ -407,7 +407,7 @@ object ShellScan {
  * phone's user data, reboots, settings, package wipes or mounts.
  */
 object StageAudit {
-    val VERBS = listOf("guest-runtime", "guest-module", "guest-module-state", "begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "remove-system", "reset-data", "selfupdate", "bring-collect", "bring-clear", "bring-status", "bring-forget", "bring-catalog", "bring-add")
+    val VERBS = listOf("guest-runtime", "guest-module", "guest-module-state", "begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "remove-system", "tool-app", "reset-data", "selfupdate", "bring-collect", "bring-clear", "bring-status", "bring-forget", "bring-catalog", "bring-add")
 
     val ALLOWED: Set<String> = setOf(
         "umask", "[", "echo", "printf", "id", "stat", "awk", "sed", "grep", "sort", "head", "tail", "cut", "tr", "wc",
@@ -466,6 +466,16 @@ object StageAudit {
     private const val UPSRC_VALUE = "\"\$DATA/user/0/\$APP_PACKAGE/files/oneos-update/OneOS.apk\""
     private val SELFUPDATE_PM = listOf("install", "-r", "--pkg", "\"\$APP_PACKAGE\"", "\"\$upapk\"")
     private val SELFUPDATE_AM = listOf("start", "-n", "\"\$APP_PACKAGE/.ui.MainActivity\"")
+
+    /**
+     * An app's kernel tool (do_tool_app only, 0.5.10): `pm disable-user` of a package whose libtimer.so
+     * runs now, and `pm enable` of one the stage's record names, both for user 0 and `"$2"` only.
+     */
+    private const val TOOL_APP_FUNCTION = "do_tool_app"
+    private val TOOL_APP_PM = setOf(
+        listOf("disable-user", "--user", "0", "\"\$2\""),
+        listOf("enable", "--user", "0", "\"\$2\""),
+    )
 
     /**
      * Bring apps (0.4.75): the script's reads of One UI's app data, never a
@@ -633,7 +643,8 @@ object StageAudit {
                     val purge = c.function == PURGE_FUNCTION && args == listOf("-rf", "\"\$TRASH\"")
                     if (!purge) args.filter { it.startsWith("-") }.forEach { if (it != "-f") p += "line ${c.line}: rm $it" }
                 }
-                "pm" -> if (!(args.firstOrNull() == "path" && args.size == 2) && !(args == SELFUPDATE_PM && c.function == SELFUPDATE_FUNCTION)) {
+                "pm" -> if (!(args.firstOrNull() == "path" && args.size == 2) && !(args == SELFUPDATE_PM && c.function == SELFUPDATE_FUNCTION) &&
+                    !(args in TOOL_APP_PM && c.function == TOOL_APP_FUNCTION)) {
                     p += "line ${c.line}: pm ${args.joinToString(" ")}"
                 }
                 "am" -> if (args != SELFUPDATE_AM || c.function != SELFUPDATE_FUNCTION) p += "line ${c.line}: am ${args.joinToString(" ")}"
