@@ -63,6 +63,14 @@ f="$S/session/current.json"
 [ -f "$f" ] || exit 3
 cat "$f"'
 
+#: The session settings this launch wrote (session.env): Send says when Full session logs were off.
+run logs.env 10 stage/session.env '
+S=/data/local/tmp/oneos
+[ -e "$S" ] || [ -L "$S" ] || [ ! -d /data/local/tmp/lineage_stage ] || [ -L /data/local/tmp/lineage_stage ] || S=/data/local/tmp/lineage_stage
+f="$S/session.env"
+[ -f "$f" ] || exit 3
+cat "$f"'
+
 #: The switch, return and watcher logs in the stage (takeover_app.log, auto_return.log, ...).
 files logs.stage 120 stage '
 S=/data/local/tmp/oneos

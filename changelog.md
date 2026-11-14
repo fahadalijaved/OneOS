@@ -50,6 +50,18 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.11: fixes from your reports.
+- **Brighter screen on the Galaxy S23, S24 and S25 phones** (base, Plus and Ultra), in every system: they ran at a
+  dimmer brightness scale than One UI's.
+- **Calls and SMS on OxygenOS** on One UI 8 phones (S22, S23 FE and others): Samsung's VoLTE (IMS) now runs there.
+- **Bluetooth audio on the Galaxy A16 4G** (and other MediaTek Galaxy A) in ColorOS: earbuds that connected and
+  played nothing should now play, untested.
+- **ColorOS no longer restarts its status bar under you** a couple of minutes after starting (it looked like a
+  SystemUI crash); the wallpaper AOD setup now waits until the screen is off.
+- **Speaker sound on LineageOS** and the other systems: Samsung's Dolby tuning now follows the output music plays on.
+- **New: Settings > Full session logs.** Turn it off to stop recording everything a session does (saves storage
+  and some heat); reports then carry only the short logs.
+
 New in 0.5.10: fixes from your reports.
 - **LineageOS gets its own screen lock**: a PIN, pattern or password set in LineageOS now works there, as in the
   other systems.

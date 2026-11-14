@@ -138,6 +138,8 @@
     <string name="send_session_summary_full">%1$s · ran on OneOS %2$s · session %3$s</string>
     <string name="send_session_old_title">This is an older session</string>
     <string name="send_session_old_summary">It ran on OneOS %1$s, and this phone now has %2$s. Sending it is fine, but it says nothing about the version you have now. For that, switch again and send the new session.</string>
+    <string name="send_full_logs_off_title">Full session logs were off</string>
+    <string name="send_full_logs_off_summary">Full session logs were off for this session; the report has only the short logs.</string>
     <string name="send_probe_summary">The findings of OneOS Probe</string>
     <string name="send_cat_how">How did it go?</string>
     <string name="send_start_title">Did it start?</string>
