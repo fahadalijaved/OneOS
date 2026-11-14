@@ -13,10 +13,13 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APKTOOL=${APKTOOL:-$(ls "$ROOT"/mysticgsi/tools/apktool/*.jar 2>/dev/null | head -1)}
 JAR=$(realpath "$JAR"); PATCHER=$(realpath "$PATCHER"); OUT=$(realpath -m "$OUT")
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
-$APKTOOL d -q -f -r -o "$W/src" "$JAR"
+java -jar "$APKTOOL" d -q -f -r -o "$W/src" "$JAR"
+# smali 3 refuses the hidden-API "blacklist" flags below API 29, and framework
+# jars still declare minSdkVersion 28 (as make-overlays.sh's decode does).
+sed -i 's/^  minSdkVersion: .*/  minSdkVersion: 29/' "$W/src/apktool.yml"
 DIRS=$(python3 -I "$PATCHER" "$W/src")
 [ -n "$DIRS" ] || { echo "$PATCHER changed nothing" >&2; exit 1; }
-$APKTOOL b -q -o "$W/rebuilt.jar" "$W/src"
+java -jar "$APKTOOL" b -q -o "$W/rebuilt.jar" "$W/src"
 cp "$JAR" "$W/out.jar"
 for d in $DIRS; do
     DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
