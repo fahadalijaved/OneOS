@@ -19,8 +19,16 @@ class PatchSourceTest {
         assertTrue(source.copy(targets = listOf(target.copy(profile = "unknown"))).check().isNotEmpty())
         assertTrue(source.copy(targets = listOf(target.copy(set = PackageSets.PIXEL_F8.id))).check().isNotEmpty())
         assertTrue(source.copy(targets = listOf(target, target)).check().isNotEmpty())
-        // A set with nothing a channel may replace (PatchManifest.REPLACEABLE) cannot be a target.
-        assertTrue(source.copy(targets = listOf(PatchSource.Target(Profiles.FOLD8.id, Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8))).check().isNotEmpty())
+        // Pixel has a replaceable resource-only spacing overlay.
+        assertTrue(source.copy(targets = listOf(PatchSource.Target(Profiles.FOLD8.id, Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8))).check().isEmpty())
+    }
+    @Test fun discoveryAcceptsSupportedOsWithoutAnEmbeddedTarget() {
+        val dynamic=source.copy(targets=emptyList(),discover=true)
+        assertTrue(dynamic.check().isEmpty())
+        assertTrue(dynamic.supports(Profiles.FOLD8.id,Images.ID_LINEAGE,PackageSets.ID_LINEAGE))
+        assertTrue(dynamic.supports(Profiles.FOLD8.id,Images.ID_INFINITYX,PackageSets.ID_INFINITYX))
+        assertFalse(dynamic.supports("unknown",Images.ID_LINEAGE,PackageSets.ID_LINEAGE))
+        assertFalse(dynamic.supports(Profiles.FOLD8.id,Images.ID_LINEAGE,PackageSets.ID_PIXEL_F8))
     }
     @Test fun repositoriesAndReleaseTagsCannotInjectUrlsOrPaths() {
         assertTrue(source.copy(repository = "https://example.com/patches").check().isNotEmpty())

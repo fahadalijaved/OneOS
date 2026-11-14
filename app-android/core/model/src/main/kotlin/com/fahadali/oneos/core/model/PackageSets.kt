@@ -477,6 +477,10 @@ object PackageSets {
         imageId = Images.ID_INFINITYX,
         sourceDir = "out/overlays_infinityx_r16",
         files = listOf(
+            PackageFile("Fold8InfinitySystemUI.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8InfinityUnfold.apk", FileRole.GUEST_FIX),
+            PackageFile("OneOSSettingsSplit.apk", FileRole.RRO),
+            PackageFile("Fold8AngleRelay.dex", FileRole.GUEST_FIX),
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -499,7 +503,7 @@ object PackageSets {
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling", "gmssystem"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
         omitted = listOf(TETHERING, CELLBROADCAST),
-        approxBytes = 616_237_045L,
+        approxBytes = 671738907L,
         hasReturnApp = true,
     )
 
@@ -752,6 +756,10 @@ object PackageSets {
         imageId = Images.ID_LINEAGE,
         sourceDir = "out/overlays_lineage_r4",
         files = listOf(
+            PackageFile("OneOSSettingsSplit.apk", FileRole.RRO),
+            PackageFile("Fold8LineageSystemUI.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8LineageUnfold.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8AngleRelay.dex", FileRole.GUEST_FIX),
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
             PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),

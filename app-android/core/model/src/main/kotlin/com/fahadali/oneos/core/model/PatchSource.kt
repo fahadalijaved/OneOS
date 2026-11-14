@@ -7,18 +7,21 @@ data class PatchSource(
     val repository: String,
     val tag: String?,
     val targets: List<Target> = emptyList(),
+    val discover: Boolean = false,
 ) {
     data class Target(val profile: String, val image: String, val set: String)
     val stable: Boolean get() = id == STABLE_ID
     fun supports(profile: String, image: String, set: String): Boolean =
-        stable || Target(profile, image, set) in targets
+        stable || Target(profile, image, set) in targets || (discover &&
+            Profiles.BUILT_IN.firstOrNull { it.id == profile }?.choice(image)?.packageSetId == set &&
+            PackageSets.byId(set)?.imageId == image)
 
     fun check(): List<String> = buildList {
         if (!Regex("[a-z0-9][a-z0-9-]{0,39}").matches(id)) add("Invalid patch source id")
         if (label.isBlank() || label.length > 100) add("Invalid patch source label")
         if (!Regex("[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*").matches(repository)) add("Invalid patch repository")
         if (!stable && (tag == null || !Regex("[a-z0-9][a-z0-9.-]{0,39}").matches(tag))) add("Invalid patch release tag")
-        if (!stable && targets.isEmpty()) add("A contributor needs explicit device/image targets")
+        if (!stable && !discover && targets.isEmpty()) add("A contributor needs explicit device/image targets")
         if (targets.distinct().size != targets.size) add("Duplicate patch target")
         for (target in targets) {
             val profile = Profiles.BUILT_IN.firstOrNull { it.id == target.profile }

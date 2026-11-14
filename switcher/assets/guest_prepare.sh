@@ -3038,10 +3038,22 @@ fi
 # SystemUI and the launcher at start (pixel-f8: Fold8PixelUnfold.apk, which also
 # has the Fold8's 48dp bar and AOD; pixel-f8u: OneOSPixelUnfold.apk, the gates only).
 UNFOLD_RRO=""
+if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "infinityx41-findx9u",$' "$STAGE/.oneos_stage"; then
+    UNFOLD_RRO=Fold8InfinityUnfold.apk
+fi
+if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "lineage24-infiniti",$' "$STAGE/.oneos_stage"; then
+    UNFOLD_RRO=Fold8LineageUnfold.apk
+fi
 if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "set": "pixel-f8",$' "$STAGE/.oneos_stage"; then
     UNFOLD_RRO=Fold8PixelUnfold.apk
 elif [ "${ONEOS_PROFILE:-}" = f8u ] && grep -q '^  "set": "pixel-f8u",$' "$STAGE/.oneos_stage"; then
     UNFOLD_RRO=OneOSPixelUnfold.apk
+fi
+if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "\(lineage24-infiniti\|infinityx41-findx9u\)",$' "$STAGE/.oneos_stage" && [ -f "$STAGE/OneOSSettingsSplit.apk" ]; then
+    mkdir -p "$STAGE/oem/overlay" &&
+        cp "$STAGE/OneOSSettingsSplit.apk" "$STAGE/oem/overlay/" &&
+        chmod 644 "$STAGE/oem/overlay/OneOSSettingsSplit.apk" &&
+        OEM_FILES="$OEM_FILES overlay/OneOSSettingsSplit.apk"
 fi
 if [ -n "$UNFOLD_RRO" ] && [ -f "$STAGE/$UNFOLD_RRO" ]; then
     mkdir -p "$STAGE/oem/overlay" &&

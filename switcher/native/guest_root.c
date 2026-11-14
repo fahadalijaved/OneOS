@@ -110,7 +110,7 @@ static int edit_grant(const char *package,int add) {
 static void list_apps(int out) {
     FILE *f=fopen(PACKAGES,"re");if(!f)return;
     char line[8192],p[256];unsigned u;
-    while(fgets(line,sizeof(line),f))if(sscanf(line,"%255s %u",p,&u)==2&&u>=10000&&safe_package(p)&&strcmp(p,MANAGER))
+    while(fgets(line,sizeof(line),f))if(sscanf(line,"%255s %u",p,&u)==2&&safe_package(p)&&strcmp(p,MANAGER))
         dprintf(out,"%s %u %d\n",p,u,granted(p,u));
     fclose(f);
 }

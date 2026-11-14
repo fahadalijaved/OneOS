@@ -58,7 +58,7 @@ class PackageSetsTest {
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
         assertEquals("out/overlays_infinityx_r16", ifx.sourceDir)
         // 0.4.55 (r4): telephony-common_patched.jar (the SMS centre) and samcam.tar (the S26 Ultra's camera).
-        assertEquals(36, ifx.files.size)
+        assertEquals(40, ifx.files.size)
         // 0.4.33: the status bar's corner padding, as on the Pixel images.
         assertTrue(ifx.file("OneOSPixelStatusBar.apk")?.role == FileRole.RRO)
         assertEquals(21, ifx.files.count { it.role == FileRole.APEX_PAYLOAD })
@@ -77,7 +77,7 @@ class PackageSetsTest {
         assertEquals("lineage", lineage.id)
         assertEquals(Images.ID_LINEAGE, lineage.imageId)
         assertEquals("out/overlays_lineage_r4", lineage.sourceDir)
-        assertEquals(38, lineage.files.size) // 0.5.07 r3: + libbootanimation_preapex_patched.so; 0.5.06 r2: + OneOSPixelDoze.apk (AOD)
+        assertEquals(42, lineage.files.size) // 0.5.07 r3: + libbootanimation_preapex_patched.so; 0.5.06 r2: + OneOSPixelDoze.apk (AOD)
         assertEquals(20, lineage.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), lineage.omitted)
         assertTrue(lineage.file(PackageSets.GMS_PAYLOAD) == null && lineage.file("oplus-services_patched.jar") == null && lineage.file("samcam.tar") == null)
