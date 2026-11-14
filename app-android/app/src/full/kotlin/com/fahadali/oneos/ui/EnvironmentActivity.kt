@@ -39,6 +39,7 @@ import dev.oneuiproject.oneui.R as Icons
 /** Read-only environment checks. Boot still goes through SwitchConfirm and LaunchJob's fresh gates. */
 class EnvironmentActivity : EdgeToEdgeActivity() {
     private lateinit var image: ImageRef
+    private var lastToolMessage: String? = null
     private var preview = false
     private lateinit var actionTextColors: ColorStateList
     private var facts: DeviceFacts? = null
@@ -129,6 +130,16 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         subscriptions += com.fahadali.oneos.session.OldStagesJob.observe { if (!it.busy) Readiness.tick(this); render() }
         // Start fresh / Remove (0.5.09): say how it ended; a removed system has no screen left, so go back to the systems.
         subscriptions += com.fahadali.oneos.session.RemoveJob.observe { removed(); render() }
+        // Root's record is the truth (the phone may have restarted before the app saw the answer).
+        if (!preview) com.fahadali.oneos.session.ToolApps.refresh(this)
+        // Turned-off kernel tool apps (0.5.10): say how it went once, then show the list again.
+        subscriptions += com.fahadali.oneos.session.ToolApps.observe { st ->
+            if (!st.busy && st.message != null && st.message != lastToolMessage) {
+                lastToolMessage = st.message
+                android.widget.Toast.makeText(applicationContext, st.message, android.widget.Toast.LENGTH_LONG).show()
+            }
+            render()
+        }
     }
     override fun onResume() {
         super.onResume()
@@ -349,6 +360,19 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         PrebootCards.row(PrebootCards.section(column), getString(R.string.environment_report), chevron = true) {
             if (preview) AlertDialog.Builder(this).setTitle(R.string.environment_report).setMessage(R.string.environment_preview).setPositiveButton(android.R.string.ok, null).show()
             else FixActions.run(this, FixAction.SEND_REPORT, image)
+        }
+        // Apps OneOS turned off because their kernel tool stopped a switch (0.5.10): turn each back on here.
+        val toolApps = if (preview) emptyList() else com.fahadali.oneos.session.ToolApps.turnedOff(this)
+        if (toolApps.isNotEmpty()) {
+            val tools = PrebootCards.section(column, getString(R.string.tool_app_section))
+            for (pkg in toolApps) {
+                PrebootCards.row(tools, getString(R.string.tool_app_on_title, pkg), getString(R.string.tool_app_on_summary),
+                    chevron = true, enabled = !com.fahadali.oneos.session.ToolApps.state.busy) {
+                    AlertDialog.Builder(this).setMessage(getString(R.string.tool_app_on_confirm, pkg))
+                        .setPositiveButton(R.string.tool_app_on_run) { _, _ -> com.fahadali.oneos.session.ToolApps.turnOn(this, pkg) }
+                        .setNegativeButton(android.R.string.cancel, null).show()
+                }
+            }
         }
         // Manage (0.5.09): Start fresh and Remove, for the system set up now.
         val ours = result?.status?.takeIf { it.ours }?.marker?.imageId == image.id

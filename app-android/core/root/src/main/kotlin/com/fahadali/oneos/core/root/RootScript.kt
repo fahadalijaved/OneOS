@@ -106,6 +106,12 @@ object RootScript {
         RESET_DATA("reset-data", Stdin.NONE),
 
         /**
+         * An app's kernel tool (0.5.10): `off <pkg>` disables an app whose libtimer.so runs now (recorded in the
+         * stage first), `on <pkg>` enables one that record names, `list` prints the record.
+         */
+        TOOL_APP("tool-app", Stdin.NONE),
+
+        /**
          * Installs the app's own update (0.4.41): the APK the app downloaded into
          * `files/oneos-update/OneOS.apk`, with its size, SHA-256 and versionCode.
          * Like begin and remove it may install the script first, so an update
@@ -269,6 +275,14 @@ object RootScript {
                 arg(0, DEC, "a size")
                 arg(1, HEX64, "a SHA-256")
                 arg(2, DEC, "a versionCode")
+            }
+            Verb.TOOL_APP -> when (args.getOrNull(0)) {
+                "list" -> need(1)
+                "off", "on" -> {
+                    need(2)
+                    args.getOrNull(1)?.let { if (!Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+").matches(it)) p += "tool-app: '${it.take(60)}' is not a package" }
+                }
+                else -> p += "tool-app: mode '${args.getOrNull(0)?.take(20)}'"
             }
             Verb.PURGE -> {
                 need(1)

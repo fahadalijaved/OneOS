@@ -30,6 +30,8 @@ enum class FixAction {
     SEND_REPORT,
     SWITCH,
     SHOW_PROGRESS,
+    /** Turn off the app whose kernel tool stops the switch (0.5.10; it stays installed, OneOS can turn it back on). */
+    TURN_OFF_TOOL_APP,
     /** A newer OneOS from its release (0.4.42, AppUpdater): download it and install it as root. */
     APP_UPDATE,
 }
@@ -383,6 +385,7 @@ object Plain {
         FixAction.SWITCH -> "Switch"
         FixAction.SHOW_PROGRESS -> "Show progress"
         FixAction.APP_UPDATE -> "Update"
+        FixAction.TURN_OFF_TOOL_APP -> "Turn it off"
     }
 
     /** Appended to a refusal at switch time: nothing was done. */
@@ -421,10 +424,14 @@ object Plain {
             // switch" (0.5.08 report 0b3ca180, the app still running its tool).
             "libtimer" in p -> {
                 val app = Regex("""the app ([A-Za-z0-9_.]{3,40}) """).find(problem)?.groupValues?.get(1) ?: "an app"
-                PlainMessage(
-                    "Uninstall an app first",
-                    "$app runs a kernel tool that crashes S24 phones during a switch. Uninstall it in Settings, Apps, then switch again.",
+                if (app == "an app") PlainMessage(
+                    "Turn off an app first",
+                    "An app runs a kernel tool that crashes S24 phones during a switch. Uninstall it in Settings, Apps, then switch again.",
                     FixAction.NONE, null,
+                ) else PlainMessage(
+                    "Turn off an app first",
+                    "$app runs a kernel tool that crashes S24 phones in a switch. Turn it off (the phone may restart once), then switch.",
+                    FixAction.TURN_OFF_TOOL_APP, defaultLabel(FixAction.TURN_OFF_TOOL_APP),
                 )
             }
             "mounted under the stage" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_RUNNING)

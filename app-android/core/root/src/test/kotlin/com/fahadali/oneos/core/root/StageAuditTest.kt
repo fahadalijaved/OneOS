@@ -242,8 +242,8 @@ class StageAuditTest {
         // and the retired images' (0.4.51: the CN Find X9 Ultra build), so their stages are still known.
         val families = Regex("""^\s+([a-z0-9|-]+)\) echo ([a-z]+) ;;$""", RegexOption.MULTILINE)
             .findAll(function("image_family")).flatMap { m -> m.groupValues[1].split('|').map { it to m.groupValues[2] } }.toMap()
-        assertEquals(listOf("coloros17-findx9u"), Images.RETIRED.map { it.id })
-        assertEquals(Images.ALL.associate { it.id to it.family.name.lowercase() } + ("coloros17-findx9u" to "coloros"), families)
+        assertEquals(listOf("coloros17-findx9u", "coloros17-findx9u-in"), Images.RETIRED.map { it.id })
+        assertEquals(Images.ALL.associate { it.id to it.family.name.lowercase() } + ("coloros17-findx9u" to "coloros") + ("coloros17-findx9u-in" to "coloros"), families)
         // data_family reads the same words as status.list, in the same order as StageStatus (Infinity-X first,
         // 0.4.27: its data has OPPO's packages too; then ColorOS, then Pixel, then HyperOS).
         val data = function("data_family")
@@ -264,10 +264,10 @@ class StageAuditTest {
         val common = shVar("SET_COMMON").split(' ')
         // 0.4.51: no set is SET_COMMON alone any more (the debloated Find X9 Ultra set retired); the IN set is
         // SET_COMMON and its own files.
-        assertTrue(PackageSets.X9U_IN_SULTRA.names.containsAll(common))
+        assertTrue(PackageSets.X9U_IN_1105_SULTRA.names.containsAll(common))
         assertEquals(
-            setOf("cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI, "ColorPanoramicSystemUI.apk"), // 0.4.97: + wallpaper AOD SystemUI
-            PackageSets.X9U_IN_SULTRA.names.toSet() - common.toSet(),
+            setOf("oplus-framework_patched.jar", "cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI, "ColorPanoramicSystemUI.apk"), // 0.4.97: + wallpaper AOD SystemUI
+            PackageSets.X9U_IN_1105_SULTRA.names.toSet() - common.toSet(),
         )
         // 0.4.59: the bar Pixel sets add double tap to sleep (their own SystemUI and launcher) to SET_PIXEL.
         assertEquals(PackageSets.PIXEL_SULTRA.names.toSet() - setOf("OneOSPixelSystemUI.apk", "OneOSPixelLauncher.apk"),

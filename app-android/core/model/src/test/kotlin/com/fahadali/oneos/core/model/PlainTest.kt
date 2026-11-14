@@ -223,7 +223,8 @@ class PlainTest {
         val timer = "the app com.roottimer.app runs a kernel tool (libtimer.so, pid 16066) that crashed the kernel of S24 phones during " +
             "OneOS sessions. It starts again after every restart, so restarting does not help: uninstall com.roottimer.app (Settings, " +
             "Apps; the phone may restart once while its tool closes), then switch again"
-        assertEquals("Uninstall an app first", r(timer).title)
+        assertEquals("Turn off an app first", r(timer).title)
+        assertEquals(FixAction.TURN_OFF_TOOL_APP, r(timer).action)
         assertTrue(r(timer).line, r(timer).line.startsWith("com.roottimer.app "))
         check(r(timer), Images.FIND_N6, timer)
         check(r("the app com.example.a.very.long.package.name.that.goes.on runs its kernel tool (libtimer.so, pid 1)"), Images.FIND_N6, "long")

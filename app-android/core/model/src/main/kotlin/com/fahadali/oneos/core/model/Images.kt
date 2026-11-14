@@ -200,7 +200,8 @@ object Images {
     /**
      * 0.5.02: the newer Find X9 Ultra IN OTA (CPH2841IN, OPPO's bug fixes, security patch 2026-11-01),
      * offered next to [FIND_X9U_IN] on the same phones, untested (the owner's Fold cannot take the
-     * IN build). Same family, so a stage's ColorOS data is kept when a phone moves to it. Built
+     * IN build). Since 0.5.10 the only Find X9 Ultra IN build; a stage of the first one keeps its ColorOS
+     * data when its phone moves to it ([DATA_UPGRADES]). Built
      * without debloat (`--type=coloros --no-debloat`); its set has its own surfaceflinger and vold pins.
      */
     val FIND_X9U_IN_1105 = ImageRef(
@@ -531,7 +532,14 @@ object Images {
         family = SystemFamily.LINEAGE,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7, LINEAGE24)
+    /**
+     * 0.5.10: a stage whose guest data an image (key) made may keep it when its phone is set up with the
+     * newer build of the same system (value), as an over-the-air update would: the first Find X9 Ultra IN
+     * build is retired for the 1105 build (owner), and nothing else moves. Never the other way.
+     */
+    val DATA_UPGRADES: Map<String, String> = mapOf(ID_FIND_X9U_IN to ID_FIND_X9U_IN_1105)
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7, LINEAGE24)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 
@@ -544,6 +552,9 @@ object Images {
     val RETIRED: List<RetiredImage> = listOf(
         // 0.4.51: the debloated Find X9 Ultra build (0.4.11 to 0.4.50); the full IN build takes its phones.
         RetiredImage("coloros17-findx9u", "Find X9 Ultra", "OneOS_ColorOS17_FindX9Ultra_S26U.img.gz", 5_290_346_735L, 10_385_141_760L),
+        // 0.5.10: the first Find X9 Ultra IN build (0.4.11 to 0.5.09); its 1105 build takes its phones, and a stage
+        // of it keeps its data there (DATA_UPGRADES).
+        RetiredImage(ID_FIND_X9U_IN, FIND_X9U_IN.shortName, FIND_X9U_IN.gzName, FIND_X9U_IN.gzBytes, FIND_X9U_IN.rawBytes),
     )
 
     /** "Find N6", a retired image's name, or the id itself when no build knew it. */

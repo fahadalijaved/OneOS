@@ -149,7 +149,9 @@
     <string name="send_note_title">Note for the team</string>
     <string name="send_note_hint">Optional: what happened, in a few words</string>
     <string name="send_contact_title">Your Telegram name</string>
-    <string name="send_contact_hint">Optional, so the team can ask you more</string>
+    <string name="send_contact_hint">Required: your Telegram @username, so the team can ask you more</string>
+    <string name="send_contact_invalid">%1$s is not a Telegram username. Use your @username (5 to 32 letters, digits or _), from Telegram\'s Settings.</string>
+    <string name="send_contact_needed">Add your Telegram @username first, so the team can reach you about this report.</string>
     <string name="send_cat_what">What is sent</string>
     <string name="send_attach_logs">Attach the logs</string>
     <string name="send_attach_findings">Attach the findings</string>

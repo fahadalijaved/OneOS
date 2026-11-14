@@ -24,6 +24,18 @@ object Reports {
     const val NOTE_MAX = 500
     const val CONTACT_MAX = 64
 
+    /**
+     * The reporter's Telegram username as "@name", or null when [raw] is not one (owner, 11-14: a contact is
+     * required, "with proper telegram username"). Takes "name", "@name" and t.me / telegram.me links; Telegram's
+     * rule: 5 to 32 letters, digits and underscores, starting with a letter, not ending with an underscore.
+     */
+    fun telegramUsername(raw: String): String? {
+        var s = raw.trim().removePrefix("https://").removePrefix("http://").removePrefix("www.")
+        if (s.startsWith("t.me/", ignoreCase = true) || s.startsWith("telegram.me/", ignoreCase = true)) s = s.substringAfter('/')
+        s = s.removePrefix("@").trimEnd('/')
+        return if (Regex("[A-Za-z][A-Za-z0-9_]{3,30}[A-Za-z0-9]").matches(s)) "@$s" else null
+    }
+
     /** Parts for a zip of [bytes] (0 for no zip). */
     fun parts(bytes: Long): Int = if (bytes <= 0) 0 else ((bytes + PART_BYTES - 1) / PART_BYTES).toInt()
 
