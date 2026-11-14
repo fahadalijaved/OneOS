@@ -152,9 +152,17 @@ su_ "mkdir -p $STAGE && chown 0:0 $STAGE && chmod 755 $STAGE && cp -f $INCOMING/
 
 # Framework overlays from scripts/make-overlays.sh (bind-mounted by
 # guest_prepare.sh). Only pushed when they differ from what is staged.
-# Staged overlays this set does not carry go to the attic first (oneos-telephony.jar
-# and .sha256 too: guest_prepare.sh would offer them to another image), and so
-# do the session scripts under their names up to 0.3.6.
+# The stage's files.sha256 is the app's prepared set: a file the set carries but
+# the profile does not name (the fold overlays in a bar phone's ColorOS set)
+# makes the launcher refuse with "is in the stage but was not prepared". It is
+# also the list of files this deploy must leave alone: a set built here cannot
+# make samcam.tar, libsurfaceflinger_patched.so or OneOSGuest.apk, so they come
+# from the app's prepare and are not the deploy's to remove.
+MANIFEST=$(su_ "cat $STAGE/files.sha256 2>/dev/null" | tr -d '\r')
+in_manifest() {
+    [ -z "$MANIFEST" ] && return 1
+    printf '%s\n' "$MANIFEST" | awk -v n="$1" '$2 == n { f = 1 } END { exit !f }'
+}
 ATTIC="$STAGE/attic/$(date +%s)"
 for name in $(su_ "ls $STAGE" | tr -d '\r'); do
     case "$name" in
@@ -167,20 +175,17 @@ for name in $(su_ "ls $STAGE" | tr -d '\r'); do
         *) continue ;;
     esac
     [ -f "$OVERLAYS/$name" ] && continue
+    in_manifest "$name" && continue
     su_ "mkdir -p $ATTIC && mv -f $STAGE/$name $ATTIC/"
     echo "moved $name to $ATTIC (not in $OVERLAYS)"
 done
-# The stage's files.sha256 is the app's prepared set: a file the set carries but
-# the profile does not name (the fold overlays in a bar phone's ColorOS set)
-# makes the launcher refuse with "is in the stage but was not prepared".
-MANIFEST=$(su_ "cat $STAGE/files.sha256 2>/dev/null" | tr -d '\r')
 for f in "$OVERLAYS"/*; do
     [ -f "$f" ] || continue
     name=$(basename "$f")
     # Provenance for the wave, not a stage file: a deploy reads it, the guest
     # never does.
     [ "$name" = build-info.txt ] && continue
-    if [ -n "$MANIFEST" ] && ! echo "$MANIFEST" | awk -v n="$name" '$2 == n { f = 1 } END { exit !f }'; then
+    if [ -n "$MANIFEST" ] && ! in_manifest "$name"; then
         echo "skipped $name (not in this profile's prepared set)"
         continue
     fi
