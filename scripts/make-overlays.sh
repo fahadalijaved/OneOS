@@ -1741,8 +1741,9 @@ GP="$OUT/gmssystem_payload.img"
 rm -f "$GP"
 if [ -z "$GMSAPEX" ]; then
     echo "payload gmssystem: no /system/product/apex/com.google.android.gmssystem*.apex in the image, none staged (no Google services from an APEX)"
+elif [ ! -x "$EXTRACT_EROFS" ]; then
+    echo "payload gmssystem: $EXTRACT_EROFS missing, cannot unpack $GMSAPEX: none staged (set EXTRACT_EROFS to a built extract.erofs; the other payloads are unaffected)" >&2
 else
-    [ -x "$EXTRACT_EROFS" ] || { echo "payload gmssystem: $EXTRACT_EROFS missing, cannot check the payload" >&2; exit 1; }
     rm -f "$WORK/g.apex" "$WORK/g.capex"
     "$DEBUGFS" -R "dump /system/product/apex/$GMSAPEX $WORK/g.capex" "$IMG" 2>/dev/null
     [ -s "$WORK/g.capex" ] || { echo "payload gmssystem: could not dump /system/product/apex/$GMSAPEX" >&2; exit 1; }
