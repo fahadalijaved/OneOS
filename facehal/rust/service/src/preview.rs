@@ -13,18 +13,24 @@ unsafe extern "C" {
         height: i32,
         sensor_orientation: i32,
         configure_window: i32,
+        portrait_geometry: i32,
     ) -> i32;
 }
 
 pub struct Preview {
     surface: Option<Surface>,
+    portrait_geometry: bool,
     failure_logged: bool,
     configured: bool,
     last_rendered_at: Option<Instant>,
 }
 
 impl Preview {
-    pub fn new(surface: Option<Surface>) -> Self {
+    /// `portrait_geometry` keeps the buffer at the rotated frame's portrait dimensions
+    /// when the surface view advertises a landscape size, which MIUI's face enrollment
+    /// does (`setFixedSize(640, 480)` inside a portrait view). Every other framework
+    /// reports the surface size it actually renders, so the window size is used as-is.
+    pub fn new(surface: Option<Surface>, portrait_geometry: bool) -> Self {
         if surface.is_some() {
             eprintln!("FaceHAL preview: enrollment surface received");
         } else {
@@ -32,6 +38,7 @@ impl Preview {
         }
         Self {
             surface,
+            portrait_geometry,
             failure_logged: false,
             configured: false,
             last_rendered_at: None,
@@ -64,6 +71,7 @@ impl Preview {
                 height,
                 sensor_orientation,
                 if self.configured { 0 } else { 1 },
+                i32::from(self.portrait_geometry),
             )
         };
         if status == 0 {

@@ -330,7 +330,9 @@ impl FaceSession {
             .name("facehal-enroll".into())
             .spawn(move || {
                 let _guard = guard;
-                let mut preview = Preview::new(preview_surface);
+                let dialect = Dialect::detect();
+                eprintln!("FaceHAL enroll: dialect={dialect:?}");
+                let mut preview = Preview::new(preview_surface, dialect == Dialect::Miui);
                 if algorithm.reset().is_err() {
                     eprintln!("FaceHAL enroll: unable to reset algorithm state");
                     notify_error(&cancellation, &callback, &closed, Error::HW_UNAVAILABLE, 0);
@@ -385,8 +387,6 @@ impl FaceSession {
                 let mut candidate: Option<(i32, usize)> = None;
                 let mut next_confirmation_at = Instant::now();
                 let mut next_acquired_at = Instant::now();
-                let dialect = Dialect::detect();
-                eprintln!("FaceHAL enroll: dialect={dialect:?}");
                 let mut previous_thumbnail: Option<[u8; THUMBNAIL_SIZE]> = None;
                 while Instant::now() < deadline {
                     if should_stop(&cancellation, &closed, &callback) {

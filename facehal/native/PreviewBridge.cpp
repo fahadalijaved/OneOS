@@ -120,7 +120,7 @@ bool writeBuffer(
 
 extern "C" int32_t facehal_preview_render_nv21(
         void* window, const uint8_t* frame, size_t frameSize, int32_t width, int32_t height,
-        int32_t sensorOrientation, int32_t configureWindow) {
+        int32_t sensorOrientation, int32_t configureWindow, int32_t portraitGeometry) {
     if (window == nullptr || frame == nullptr || width <= 0 || height <= 0 || (width & 1) != 0 ||
         (height & 1) != 0 ||
         (sensorOrientation != 0 && sensorOrientation != 90 && sensorOrientation != 180 &&
@@ -138,7 +138,11 @@ extern "C" int32_t facehal_preview_render_nv21(
         int32_t geometryHeight = bufferHeight;
         const int32_t windowWidth = ANativeWindow_getWidth(nativeWindow);
         const int32_t windowHeight = ANativeWindow_getHeight(nativeWindow);
-        if (windowWidth > 0 && windowHeight > 0) {
+        const bool sameOrientation =
+                (windowWidth > windowHeight) == (bufferWidth > bufferHeight);
+        const bool useWindowSize = windowWidth > 0 && windowHeight > 0 &&
+                (portraitGeometry == 0 || sameOrientation);
+        if (useWindowSize) {
             geometryWidth = windowWidth;
             geometryHeight = windowHeight;
         }
