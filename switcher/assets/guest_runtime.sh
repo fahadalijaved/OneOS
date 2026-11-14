@@ -148,7 +148,7 @@ baseline)
         # BusyBox requires both operands for a file bind remount; the host
         # namespace's /proc/mounts need not list the bind we just created.
         if ! "$busy" mount -o remount,bind,ro "$B/allowlist.saved" /data/adb/ksu/.allowlist; then
-            "$busy" umount /data/adb/ksu/.allowlist
+            umount -D /data/adb/ksu/.allowlist
             exit 1
         fi
         : > "$B/allowlist.protected"
@@ -192,7 +192,7 @@ verify-return)
         done < "$B/host-frameworks"
     fi
     if [ -f "$B/allowlist.protected" ]; then
-        umount /data/adb/ksu/.allowlist || exit 1
+        umount -D /data/adb/ksu/.allowlist || exit 1
         rm -f "$B/allowlist.protected"
     fi
     echo 'Guest runtime: live host grants, manager, SELinux policy and kernel modules match baseline'
