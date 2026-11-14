@@ -166,6 +166,7 @@ object PackageSets {
     const val ID_NOTHING_F8U = "nothing-f8u"
     const val ID_OXYGEN16 = "oxygen16"
     const val ID_ORIGINOS = "originos"
+    const val ID_LINEAGE = "lineage"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
     const val TETHERING = "tethering_payload.img"
@@ -220,6 +221,14 @@ object PackageSets {
      * gvld too) and OneOS's in-guest app. 0.4.57: oplus-services_patched.jar keeps ColorOS's
      * resolution switch off on a panel without ColorOS's density tables (patches/oplus_resolution_tables.py).
      */
+    /**
+     * 0.5.05: oplus-framework.jar with outgoing calls over IMS where the carrier asks for VoLTE
+     * provisioning (patches/oplus_ims_provision.py; Samsung's IMS answers 0 and ColorOS dialled GSM:
+     * Z Fold8 Spectrum 295249c3). The Find N6 sets and the November X9U set only (owner: not the
+     * older X9U build, not OxygenOS).
+     */
+    private val OPLUS_FRAMEWORK_IMS = PackageFile("oplus-framework_patched.jar", FileRole.GUARD_JAR)
+
     private val COMMON: List<PackageFile> = listOf(
         PackageFile("services_patched.jar", FileRole.GUARD_JAR),
         PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -238,9 +247,10 @@ object PackageSets {
         // 0.4.38: the Find N6 global image (CPH2765 EX01), on every Z Fold; the Z Fold8 too, whose
         // n6-f8 (pull request #1) patched the CN build's SystemUI. Its cell broadcast module, as the
         // other global build's (x9u-in-sultra).
-        sourceDir = "out/overlays_n6g_r20",
+        sourceDir = "out/overlays_n6g_r21",
         // 0.4.37: One UI's camera transaction codes (ColorOS's ICameraDeviceUser is one code off).
-        files = COMMON + PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
+        files = COMMON + OPLUS_FRAMEWORK_IMS +
+            PackageFile(WALLPAPER_GRID_RRO, FileRole.RRO) + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD) +
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR) +
             // 0.4.39: the SMS service centre as an international number (guest_smsc_international.py).
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR) +
@@ -259,7 +269,7 @@ object PackageSets {
             // 0.4.63: OPPO's AI engine for the guest's /odm (lock screen depth effect, AI features).
             PackageFile(ODM_AI, FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        approxBytes = 763_750_051L,
+        approxBytes = 763_750_051L + 12_338_345L,
         hasReturnApp = true,
     )
 
@@ -267,7 +277,7 @@ object PackageSets {
     val N6_GLOBAL_F8 = PackageSet(
         id = "n6-global-f8",
         imageId = Images.ID_FIND_N6,
-        sourceDir = "out/fold8-global-r0501",
+        sourceDir = "out/fold8-global-r0513",
         files = N6_F8U.files + PackageFile("GlobalVerifiedAddons.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, "OneOSFoldCutout.apk", "OneOSTabletQs.apk"),
         // n6-f8u's files and the 10 KB empty addon archive (a channel's archive is larger, but optional).
@@ -280,6 +290,7 @@ object PackageSets {
      * 0.4.37 One UI's camera transaction codes (framework_patched.jar, libcamera_client_patched.so): ColorOS's
      * ICameraDeviceUser is one code off from One UI's, and every camera open was refused ("access restricted").
      */
+    // 0.5.10: retired with its image (Images.RETIRED); kept as the base the 1105 set is copied from.
     val X9U_IN_SULTRA = PackageSet(
         id = ID_X9U_IN_SULTRA,
         imageId = Images.ID_FIND_X9U_IN,
@@ -312,7 +323,10 @@ object PackageSets {
     val X9U_IN_1105_SULTRA = X9U_IN_SULTRA.copy(
         id = ID_X9U_IN_1105_SULTRA,
         imageId = Images.ID_FIND_X9U_IN_1105,
-        sourceDir = "out/overlays_x9u_in_1105_r1",
+        sourceDir = "out/overlays_x9u_in_1105_r2",
+        // 0.5.05 (r2): oplus-framework_patched.jar right after the common files, as root's set_files lists it.
+        files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size),
+        approxBytes = X9U_IN_SULTRA.approxBytes + 12_546_637L,
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */
@@ -722,7 +736,51 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_SULTRA, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS)
+    /**
+     * LineageOS 24 (0.5.06, experimental), the OnePlus 15 (infiniti) nightly of 2026-11-11, on every phone that offers
+     * it, from out/overlays_lineage_r1: a source-built AOSP system like Infinity-X, but without OPPO's jars (no
+     * oplus-services_patched.jar) and with no samcam.tar. services_patched.jar and framework_patched.jar with
+     * the guards and One UI's camera codes (libcamera_client_patched.so), the guest vold as gvld, the IMS extension
+     * backoff, the AOSP signal poll, OneOSGuest.apk, the fold and tablet overlays and 20 APEX payloads (the
+     * 15 of every set and the bt, nfcservices, telephonycore, conscrypt and profiling modules). No gmssystem
+     * payload: the image has no Google apps, so guest_google.sh (FULL mode, keyed on this set's id) lays One UI's
+     * Play services, Play Store and Services Framework over the guest's product partition at session time.
+     * Neither tethering nor the cellbroadcast module (source-built, signed with the build's networkstack key; One UI's
+     * stays, as for Infinity-X).
+     */
+    val LINEAGE = PackageSet(
+        id = ID_LINEAGE,
+        imageId = Images.ID_LINEAGE,
+        sourceDir = "out/overlays_lineage_r5",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) } +
+            // 0.5.06 r2: AOD (SystemUI's doze service at boot), the Pixel sets' overlay.
+            PackageFile("OneOSPixelDoze.apk", FileRole.RRO) +
+            // 0.5.07 r3: the boot animation on every panel (patch-bootanim-multidisplay.py, Lineage's form).
+            PackageFile("libbootanimation_preapex_patched.so", FileRole.GUEST_FIX),
+        omitted = listOf(TETHERING, CELLBROADCAST),
+        approxBytes = 387_175_398L + 8_538L + 118_120L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS, LINEAGE)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

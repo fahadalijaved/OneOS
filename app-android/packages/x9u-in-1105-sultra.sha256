@@ -1,5 +1,5 @@
-# OneOS package set x9u-in-1105-sultra: sha256sum of out/overlays_x9u_in_1105_r1 (scripts/make-overlays.sh on the newer Find X9 Ultra IN image, CPH2841IN security patch 2026-11-01, MysticGSI --type=coloros --no-debloat, 2026-11-13; ColorPanoramicSystemUI.apk from scripts/make-coloros-panoramic-aod.py on its SystemUI; oplus_odm_ai.tar from its odm; samcam.tar and KeKeThemeSpace_patched.apk are x9u-in-sultra r75's files), minus tethering_payload.img OneOSWallpapersFoldGrid.apk.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_x9u_in_1105_r1 differs.
+# OneOS package set x9u-in-1105-sultra: sha256sum of out/overlays_x9u_in_1105_r2 (scripts/make-overlays.sh on the newer Find X9 Ultra IN image, CPH2841IN security patch 2026-11-01, MysticGSI --type=coloros --no-debloat, 2026-11-13; ColorPanoramicSystemUI.apk from scripts/make-coloros-panoramic-aod.py on its SystemUI; oplus_odm_ai.tar from its odm; samcam.tar and KeKeThemeSpace_patched.apk are x9u-in-sultra r75's files), minus tethering_payload.img OneOSWallpapersFoldGrid.apk. 0.5.05 r2: r1 plus oplus-framework_patched.jar (patches/oplus_ims_provision.py: outgoing calls over IMS where the carrier asks for VoLTE provisioning, Samsung's IMS answers 0), 2026-11-13.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_x9u_in_1105_r2 differs.
 3266fa12ba2453a49cbfd9d54ec2f32cb2fd83a04389792c34c5b10f5bf5d08d  ColorPanoramicSystemUI.apk
 2eddd38f878e61fa41d18151f5f90be5f18b5b3e161ac559ce191b9022e18c7b  KeKeThemeSpace_patched.apk
 0541e053377589e8bcc036996c0fb8d8f094207bcd9370922141f2c0b44e2f09  OneOSGuest.apk
@@ -11,7 +11,7 @@ f8fc69250f59bd83b0d11399c17a4bfa4e63030d7297b2108eb84d9bc7dc94fd  configinfrastr
 2cda6104fa8266d2ee26ca9512532dfed6fef9c8c2a319663f890fd19986c0a0  crashrecovery_payload.img
 dddccf843beb0fb4552d3f0afe1c4f8bb8d7a1c4269f5a787f16ad1b08f8beaf  extservices_payload.img
 5d77770303ce3ec78bf5c035abc83222ca9b57a3471a298eacd79f9baa1d49c9  framework_patched.jar
-38bbb99a425cb3a7ff80388ca47db576f95de4ae9ffb4a5704547df0798b48cc  guards.txt
+d17cf14dbb07aa54bfff367f1ce77cca5cf3ab56c875ab9e1878c52f802801a3  guards.txt
 8f2a37629ed009b011d33f017714ac3d33caa5ffba838c2ced3a2c4f6a612efc  healthfitness_payload.img
 c4f9db46a1d263facadc708fbf2e910a4de99e240ced8858347b58cdfe10392a  i18n_payload.img
 b6bfb4bb1eaa736ed356dd268ccf5f2b311616711ad5408fccdcac8f63673f37  ims-ext-common_patched.jar
@@ -32,3 +32,4 @@ e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.increm
 48f1c98d6bdd26249419047cc58aaa6683d270c65c30de83dd4e01dbbeed5bd1  telephony-common_patched.jar
 9db563d25f5afd9a205e726da2e525933f6c86b1e5ca40fa0dfdc82350e01722  vold_patched
 93f7758cee7ad56d20c4ee80cd270837d1ecb187efacfbc473f3d27c3184f2f6  wifi_payload.img
+19197cd651ef155142d37e40fdeab0ef5e8ba1177bfa1fdde3b21dfdef545d0d  oplus-framework_patched.jar

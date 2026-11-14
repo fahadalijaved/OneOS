@@ -494,6 +494,16 @@ add)
         fi
         [ -z "$out" ] || echo "guest_props: ColorOS's last-boot records from an earlier session blanked for the session:$out"
     fi
+    # LineageOS (0.5.06): About phone shows OneOS's build, not the OnePlus 15
+    # nightly it came from (owner: "20261114-OneOS"). Only the version strings;
+    # the build fingerprint and device stay the image's.
+    if grep -q '^ro\.lineage\.version=' "$NEW"; then
+        for kv in ro.lineage.version=24.0-20261114-OneOS ro.lineage.display.version=24-20261114-OneOS ro.lineage.releasetype=OneOS; do
+            sed -i "/^${kv%%=*}=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: LineageOS version shown as 24.0-20261114-OneOS"
+    fi
     # The S23 family (SM8550, HIDL audio HAL), any system (0.5.00):
     # guest_prepare.sh gave the guest the vendor's Bluetooth audio module, as
     # One UI plays A2DP (marker guest_bt_sw). That module streams through a
@@ -515,6 +525,31 @@ add)
             echo "$k=true" >> "$NEW"
             echo "guest_props: $k=true for the session (A2DP through the vendor's Bluetooth module, as One UI)"
         fi
+    fi
+    # Exynos (0.5.10): One UI describes its A2DP offload only in Samsung's own
+    # properties (persist.bluetooth.samsung.a2dp_offload.cap=sbc-aptx-ssc-hifi on
+    # the Galaxy S26 SM-S942B) and leaves AOSP's ro.bluetooth.a2dp_offload.supported
+    # empty. A guest's Bluetooth stack read that as "no offload" and opened a
+    # software session, which Samsung's Exynos audio HAL never streams to (its A2DP
+    # is the hardware-offload proxy it creates at start): the earbuds connected and
+    # played nothing (S26 ColorOS report cdd92328, "BTAudioSessionAidl ... has NO
+    # port state observer"). The guest now gets AOSP's offload properties with the
+    # codecs both sides know, so it opens the hardware-offload session One UI uses.
+    # Guest property file only; One UI's own are not touched. Qualcomm phones have
+    # their own path above. ONEOS_GUEST_BT_OFFLOAD=1 leaves it out.
+    SAMCAP=$(getprop persist.bluetooth.samsung.a2dp_offload.cap)
+    if [ "${ONEOS_GUEST_BT_OFFLOAD:-0}" = 0 ] && [ "$(getprop ro.soc.manufacturer)" = Samsung ] &&
+       [ -n "$SAMCAP" ] && [ -z "$(getprop ro.bluetooth.a2dp_offload.supported)" ] && [ ! -f "$STAGE/guest_bt_sw" ]; then
+        cap=""
+        for c in $(echo "$SAMCAP" | tr '-' ' '); do
+            case "$c" in sbc|aac|aptx|aptxhd|ldac) cap="${cap:+$cap-}$c" ;; esac
+        done
+        cap=${cap:-sbc}
+        for kv in ro.bluetooth.a2dp_offload.supported=true persist.bluetooth.a2dp_offload.disabled=false persist.bluetooth.a2dp_offload.cap=$cap; do
+            sed -i "/^$(printf '%s' "${kv%%=*}" | sed 's/[.]/\\./g')=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: Exynos A2DP offload for the guest (One UI's Samsung cap '$SAMCAP' -> persist.bluetooth.a2dp_offload.cap=$cap, supported=true, disabled=false)"
     fi
     if [ "${ONEOS_GUEST_BT_OFFLOAD:-0}" = 0 ] && [ "$GUEST_OPLUS" = 0 ]; then
         for k in persist.bluetooth.leaudio_offload.disabled; do
@@ -650,6 +685,8 @@ add)
     BTQ=persist.bluetooth.bqr.event_mask
     if [ "$GUEST_OPLUS" = 1 ]; then
         soc=$(getprop ro.soc.model)
+        # 0.5.07 upstream removed use_origin's default, but MediaTek phones still need the
+        # BQR off. Keep the family gate; MT6789 stays device-confirmed on the A15/A16 4G.
         bt_mtk=
         case "$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)$(getprop ro.soc.model)" in
             *mt[0-9]*|*MT[0-9]*|*[Mm]edia[Tt]ek*) bt_mtk=1 ;;

@@ -50,6 +50,90 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.13: fixes from your reports.
+- **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver now hears that
+  Bluetooth audio is ready before the earbuds connect, as One UI tells it (0.5.12 told it too late), untested.
+- **Screen lock on the Galaxy Z Fold8 in ColorOS:** a PIN, pattern or password set in ColorOS now works there.
+- **Touch no longer dies after a second on bar phones** (Galaxy S24+ in LineageOS): OneOS switches the touchscreen
+  back on when it finds it off with the screen on.
+
+New in 0.5.12: fixes from your reports.
+- **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver kept the sound on
+  the speaker because ColorOS never told it Bluetooth audio was ready; OneOS now does, untested.
+- **Pixel on the Galaxy S23 Ultra no longer stops after a minute** when the audio driver restarts during its start.
+
+New in 0.5.11: fixes from your reports.
+- **Brighter screen on the Galaxy S23, S24 and S25 phones** (base, Plus and Ultra), in every system: they ran at a
+  dimmer brightness scale than One UI's.
+- **Calls and SMS on OxygenOS** on One UI 8 phones (S22, S23 FE and others): Samsung's VoLTE (IMS) now runs there.
+- **Bluetooth audio on the Galaxy A16 4G** (and other MediaTek Galaxy A) in ColorOS: earbuds that connected and
+  played nothing should now play, untested.
+- **ColorOS no longer restarts its status bar under you** a couple of minutes after starting (it looked like a
+  SystemUI crash); the wallpaper AOD setup now waits until the screen is off.
+- **Speaker sound on LineageOS** and the other systems: Samsung's Dolby tuning now follows the output music plays on.
+- **New: Settings > Full session logs.** Turn it off to stop recording everything a session does (saves storage
+  and some heat); reports then carry only the short logs.
+
+New in 0.5.10: fixes from your reports.
+- **LineageOS gets its own screen lock**: a PIN, pattern or password set in LineageOS now works there, as in the
+  other systems.
+- **Bluetooth audio on Exynos phones** (Galaxy S26 and others): earbuds that connected and played nothing now play,
+  untested.
+- **Kernel tool apps** (S24 phones): when one stops a switch, **Turn it off** disables it for you instead of making
+  you uninstall it; the system's page has a row to turn it back on.
+- **Reports need a Telegram username** so we can get back to you; the last one you gave is filled in.
+- The first ColorOS build for the Find X9 Ultra (IN) is retired: every phone takes the newer 1105 build, and a
+  system set up with the old build keeps its apps and data when you move to 1105.
+
+New in 0.5.09: **remove one system or start it fresh**, and a smoother app.
+- Long-press a system's card, or tap its ⋮ button: the system you set up now offers **Start fresh** (erases its apps,
+  accounts and settings; it stays set up and starts like new) and **Remove** (deletes it and frees its space). A saved
+  copy offers **Delete saved**. The system's own page has the same two under **Manage**. One UI, other systems' saved
+  copies and your downloaded files are never touched.
+- Every delete and remove now shows what it is doing and for how long, then how much space it freed; Hide lets you
+  keep using the app meanwhile. Buttons say what is running instead of just going grey.
+- Cleaner screens: one card style and spacing per page, arrows on everything you can tap, the menu no longer
+  touches the screen edge, long names and release notes fit.
+- When a kernel tool app (S24 phones) stops a switch, OneOS now names the app to uninstall instead of "Couldn't
+  switch".
+
+New in 0.5.08: fixes from your reports.
+- LineageOS now starts on the Galaxy A16 (it went back to One UI after 40 s: the brightness range the system asked
+  for began below OneOS's brightness curve).
+- No more lost sound for the rest of a session after the other system's audio restarted (S25 Ultra, A34).
+- Bluetooth turns on again in ColorOS on the A15, A16 and A07.
+- The "Returning to One UI" screen no longer stays on top of a One UI that is already up (S24, S24 FE).
+
+New in 0.5.07: **bring apps from inside the other system**, **remove a brought app**, and LineageOS fixes.
+- The OneOS app inside the other system has a new **Bring apps from One UI** screen: it lists your One UI apps
+  (as they were when you switched) and brings the one you tap over with its data, while the system runs: no
+  restart, you stay signed in. One way, as always: One UI's data is only read.
+- In OneOS on One UI, **Bring apps** now has a Remove button for each brought app: it is uninstalled from the other
+  system at its next start; One UI keeps it.
+- LineageOS: it no longer stops on its first start on some phones (Galaxy S26 Ultra: the screen lock setup now
+  carries on without a key One UI's keystore refuses); the boot animation now shows on the Z Fold's cover screen too;
+  always-on display and the OneOS version name (Settings, About phone).
+- Every system starts lighter: a search of the phone's audio libraries that took a whole CPU core for about three
+  minutes at every start now runs once per One UI update.
+
+New in 0.5.06: **LineageOS 24**, a new system, on every phone that offers Infinity-X (the S, Z Fold, Z Flip
+and A phones). Experimental, not tried on a phone yet.
+- The official LineageOS 24 (Android 17, November 2026 security patch) from the OnePlus 15, with LineageOS's own
+  apps. Its own system: its guest data is kept apart from every other system's.
+- LineageOS has no Google apps of its own. A session adds One UI's own Play services, Play Store and Google Services
+  Framework (the files on your phone, never their data), so you can sign in and use the Play Store. Some banking and
+  payment apps may still refuse: OneOS does not fake the device's certification. The launch screen can start it
+  without Google, as for ColorOS.
+- The switch to OneOS that refused because of an app's kernel tool (0.5.04) now says what to do: uninstall that app.
+  Restarting the phone does not help, because the app starts its tool again.
+
+New in 0.5.05: **outgoing calls in ColorOS on US carriers** (Spectrum and others), on the Z Folds and slab phones.
+- ColorOS let incoming calls and texts through but dialled every outgoing call the old way (GSM), which LTE-only
+  carriers such as Spectrum do not have: the carrier's settings asked for VoLTE "provisioning", and Samsung's IMS
+  service, which the systems use, answers that it is not provisioned. ColorOS now calls over IMS as the Pixel system
+  does. For the Find N6 system (Z Folds) and the Find X9 Ultra November build. Not tried on a phone yet.
+  **Tap Update on the system's page**.
+
 New in 0.5.04: **Bluetooth sound in ColorOS and OxygenOS on the Galaxy S23 series** and **an end to the Galaxy S24 restarts**.
 - On the S23, S23+ and S23 Ultra, ColorOS and OxygenOS read the phone's own audio settings from a second place and
   never saw OneOS's Bluetooth changes, so headphones connected without sound (0.4.97 to 0.5.03). They now get the

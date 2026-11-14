@@ -1071,6 +1071,14 @@ while :; do
             # An am without the command: One UI's home screen process instead.
             *nknown*|*rror*) pidof com.sec.android.app.launcher >/dev/null && { up=$t; say "One UI Home running after ${t}s"; } ;;
         esac
+        # 0.5.07: One UI is up, so the "Returning to One UI" layer goes now. It ends
+        # itself on One UI's boot events, but twice it stayed over a working One UI
+        # (S24 FE HyperOS fbc98ae7, S24 OriginOS f4a3c170: "the Returning to One UI
+        # didn't disappear").
+        if [ $up -gt 0 ] && type oneos_boot_stop >/dev/null 2>&1; then
+            oneos_boot_stop
+            say "Return splash: stopped (One UI is up)"
+        fi
     fi
     [ $up -gt 0 ] && [ $t -ge $((up + 30)) ] && break
     [ $up = 0 ] && [ $t -ge 180 ] && failsafe "user 0 not unlocked within 180 s"

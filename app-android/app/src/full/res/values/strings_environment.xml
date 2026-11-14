@@ -19,6 +19,9 @@
     <string name="environment_busy_logs">Saving the last session’s logs (personal data removed). Boot and Update start when this finishes, usually within a few minutes.</string>
     <string name="environment_busy_other">OneOS is finishing another task. Boot and Update start when it is done.</string>
     <string name="environment_preview">Preview mode · simulated environment and boot</string>
+    <string name="switch_blocked_now">Something changed since the last check. Look at the system\'s page for what stops it.</string>
+    <string name="boot_cannot_cancel">Can\'t cancel now</string>
+    <string name="boot_cannot_cancel_line">The switch is past the point where it can stop. It finishes in a moment.</string>
     <string name="environment_boot_cancelled">Boot cancelled</string>
     <string name="environment_boot_cancelling">Cancelling…</string>
     <string name="environment_update">Update %1$s</string>

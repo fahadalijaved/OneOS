@@ -10,6 +10,7 @@ import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.SessionEnv
 import com.fahadali.oneos.core.model.ShaList
 import com.fahadali.oneos.core.model.StageMarker
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -90,7 +91,11 @@ class StageScriptTest {
         fun launch(
             mode: String = "session", hideGms: String = "0", code: String = this.code,
             heatCap: String = "1", secIms: String = "0", edmStub: String = "0", verboseBoot: String = "0",
-        ) = fr.run(RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub, verboseBoot)
+            fullLogs: String? = null,
+        ) = fr.run(
+            RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub, verboseBoot,
+            *listOfNotNull(fullLogs).toTypedArray(),
+        )
 
         fun prepare(mode: String = "new") {
             ok(begin(mode))
@@ -259,13 +264,13 @@ class StageScriptTest {
         // A file that is not in the set, and one that is too short or wrong.
         // 0.4.24: framework_patched.jar is a Pixel set file now; a name no set carries.
         assertTrue(RootScript.problems(RootScript.Verb.RECEIVE, listOf("framework_other_patched.jar", "1", "a".repeat(64))).isNotEmpty())
-        refused(s.receive("OneOSWallpapersFoldGrid.apk", "x".toByteArray()), "not a file of x9u-in-sultra")
+        refused(s.receive("OneOSWallpapersFoldGrid.apk", "x".toByteArray()), "not a file of x9u-in-1105-sultra")
         val b = s.files.getValue("art_payload.img")
         refused(s.receive("art_payload.img", b, send = b.copyOf(b.size - 3)), "arrived with")
         assertFalse(File(fr.stage, "incoming/art_payload.img.part").exists())
         refused(s.receive("art_payload.img", b, sha = Hashes.sha256("other")), "does not match its SHA-256")
         assertFalse(File(fr.stage, "incoming/art_payload.img.part").exists())
-        refused(fr.run(RootScript.Verb.RECEIVE, "system.raw", "5", "a".repeat(64), stdin = "abcde".toByteArray()), "not the coloros17-findx9u-in image")
+        refused(fr.run(RootScript.Verb.RECEIVE, "system.raw", "5", "a".repeat(64), stdin = "abcde".toByteArray()), "not the coloros17-findx9u-in-1105 image")
         // finish before everything arrived.
         refused(s.finish(), "was not received")
     }
@@ -508,6 +513,117 @@ class StageScriptTest {
         // No arguments.
         assertTrue(RootScript.problems(RootScript.Verb.REMOVE, listOf("x")).isNotEmpty())
         assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.REMOVE, emptyList()))
+    }
+
+    private fun stageFiles(fr: FakeRoot) =
+        FakeRoot.exec(listOf("find", fr.stage.path, "-printf", "%P %y\\n")).lines().filter { it.isNotBlank() && !it.startsWith(" ") }.sorted()
+
+    /** 0.5.09: remove-system deletes the system set up now and leaves a stage with only the root script. */
+    @Test
+    fun removeSystemDeletesOnlyTheSystemSetUpNow() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val old = oldStage(fr, "oneos.old-1792000000")
+        val tmp = File(fr.root, "data/local/tmp")
+        File(tmp, "oneos_logs").mkdirs()
+        File(tmp, "oneos_logs/boot.log").writeText("log\n")
+        assertTrue(File(fr.stage, ".oneos_stage").isFile)
+        val r = fr.run(RootScript.Verb.REMOVE_SYSTEM)
+        ok(r)
+        assertTrue(r.toString(), r.reply.results.any { it.startsWith("purged ") })
+        assertEquals(listOf("bin d", "bin/oneos_root.sh f"), stageFiles(fr))
+        assertFalse(File(fr.stage, ".oneos_stage").exists())
+        assertFalse(File(fr.stage, "data").exists())
+        assertTrue(File(old, "data/system/packages.xml").isFile)
+        assertEquals("log\n", File(tmp, "oneos_logs/boot.log").readText())
+        assertEquals(setOf("oneos", "oneos.old-1792000000", "oneos_logs"), tmp.list()!!.filter { !it.startsWith("oneos.trash") }.toSet())
+    }
+
+    @Test
+    fun removeSystemRefusesEveryUnsafeCaseAndChangesNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        oldStage(fr, "oneos.old-1792000000")
+        val before = fr.snapshot()
+        fun refusedUnchanged(part: String) {
+            refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), part)
+            assertEquals(before, fr.snapshot())
+        }
+        val boot = "11111111-2222-3333-4444-555555555555"
+        // Running now.
+        File(fr.stage, "guest_props.boot").writeText("$boot\n")
+        val running = fr.snapshot()
+        refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), "session")
+        assertEquals(running, fr.snapshot())
+        File(fr.stage, "guest_props.boot").delete()
+        // Never returned.
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=99999999-0000-0000-0000-000000000000\n")
+        val never = fr.snapshot()
+        refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), "never returned")
+        assertEquals(never, fr.snapshot())
+        File(fr.stage, "persist_session.active").delete()
+        // Ran since the phone started (this boot's id in the record, nothing running).
+        File(fr.stage, "guest_props.boot").writeText("boot=$boot\n")
+        val ran = fr.snapshot()
+        refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), "restart the phone")
+        assertEquals(ran, fr.snapshot())
+        File(fr.stage, "guest_props.boot").delete()
+        // Mounted.
+        fr.mountinfo(listOf("${fr.stage.path}/rootfs"))
+        refusedUnchanged("mounted")
+        fr.mountinfo(emptyList())
+        // No marker: no system is set up.
+        File(fr.stage, ".oneos_stage").delete()
+        val noMarker = fr.snapshot()
+        refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), "no system is set up")
+        assertEquals(noMarker, fr.snapshot())
+        assertTrue(RootScript.problems(RootScript.Verb.REMOVE_SYSTEM, listOf("x")).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.REMOVE_SYSTEM, emptyList()))
+    }
+
+    /** 0.5.09: reset-data deletes only the stage's data folder; the system stays set up and starts like new. */
+    @Test
+    fun resetDataDeletesOnlyTheStagesData() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val old = oldStage(fr, "oneos.old-1792000000")
+        File(fr.stage, "data/system").mkdirs()
+        File(fr.stage, "data/system/packages.xml").writeText("<packages/>")
+        val outside = File(fr.stage, "bin/oneos_root.sh").readBytes()
+        val r = fr.run(RootScript.Verb.RESET_DATA)
+        ok(r)
+        assertTrue(r.toString(), r.reply.results.any { it.startsWith("purged ") && !it.startsWith("purged none") })
+        assertFalse(File(fr.stage, "data").exists())
+        assertTrue(File(fr.stage, ".oneos_stage").isFile)
+        assertArrayEquals(outside, File(fr.stage, "bin/oneos_root.sh").readBytes())
+        assertTrue(File(old, "data/system/packages.xml").isFile)
+        // No data folder: nothing to remove.
+        val again = fr.run(RootScript.Verb.RESET_DATA)
+        ok(again)
+        assertTrue(again.toString(), again.reply.results.contains("purged none 0"))
+        assertTrue(File(fr.stage, ".oneos_stage").isFile)
+    }
+
+    @Test
+    fun resetDataRefusesAndChangesNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        File(fr.stage, "data/system").mkdirs()
+        File(fr.stage, "data/system/packages.xml").writeText("<packages/>")
+        val before = fr.snapshot()
+        File(fr.stage, "guest_props.boot").writeText("11111111-2222-3333-4444-555555555555\n")
+        refused(fr.run(RootScript.Verb.RESET_DATA), "session")
+        File(fr.stage, "guest_props.boot").delete()
+        assertEquals(before, fr.snapshot())
+        // data is a link: refused, and where it points is untouched.
+        val target = File(fr.root, "data/local/tmp/oneos_target").apply { mkdirs(); File(this, "keep").writeText("k\n") }
+        File(fr.stage, "data").deleteRecursively()
+        java.nio.file.Files.createSymbolicLink(File(fr.stage, "data").toPath(), target.toPath())
+        refused(fr.run(RootScript.Verb.RESET_DATA), "link")
+        assertEquals("k\n", File(target, "keep").readText())
+        assertTrue(java.nio.file.Files.isSymbolicLink(File(fr.stage, "data").toPath()))
+        assertTrue(RootScript.problems(RootScript.Verb.RESET_DATA, listOf("x")).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.RESET_DATA, emptyList()))
     }
 
     /** 0.4.10: restore puts a set-aside stage back and keeps the one set up now as another old copy. */
@@ -840,6 +956,38 @@ class StageScriptTest {
     }
 
     /**
+     * 0.5.10: the first Find X9 Ultra IN build is retired for its 1105 build. A stage whose ColorOS data that build made
+     * may be kept when its phone is set up with the 1105 build (as an update would), and for no other image.
+     */
+    @Test
+    fun aRetiredFindX9UInStageKeepsItsDataForThe1105BuildOnly() = eachShell { fr ->
+        val s = Stager(fr, Profiles.S_ULTRA_8850, Images.ID_FIND_X9U_IN_1105)
+        assertEquals(PackageSets.X9U_IN_1105_SULTRA, s.set)
+        s.prepare()
+        val marker = File(fr.stage, StageMarker.FILE_NAME)
+        val m = StageMarker.parse(marker.readText())!!
+        // The stage as the retired build left it, with its ColorOS guest data.
+        marker.writeText(StageMarker(4, "s-ultra-8850", Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, m.createdEpoch).toJson())
+        File(fr.stage, "data/system").mkdirs()
+        File(fr.stage, "data/system/packages.xml").writeText("com.oplus.launcher com.coloros.gallery3d")
+        // Another image of the same phone: refused, the stage is unchanged.
+        val kodiak = Stager(fr, Profiles.S_ULTRA_8850, Images.ID_PIXEL_KODIAK)
+        val before = fr.snapshot()
+        refused(kodiak.begin("keep"), "guest data is from coloros17-findx9u-in, not pixel11pro-kodiak")
+        assertEquals(before, fr.snapshot())
+        // The other way round (1105 data for the retired build) is never kept: the pair is not taken by the phone at all,
+        // and no other image's data moves to 1105 either.
+        marker.writeText(StageMarker(4, "s-ultra-8850", Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, m.createdEpoch).toJson())
+        refused(s.begin("keep"), "guest data is from pixel11pro-kodiak, not coloros17-findx9u-in-1105")
+        refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-ultra-8850", Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, "4"), "does not run coloros17-findx9u-in")
+        // Back to the retired build's own marker: now the 1105 build keeps it.
+        marker.writeText(StageMarker(4, "s-ultra-8850", Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, m.createdEpoch).toJson())
+        // The 1105 build: kept.
+        ok(s.begin("keep"))
+        assertTrue(File(fr.stage, "data/system/packages.xml").isFile)
+    }
+
+    /**
      * Switching the Fold's stage between the ColorOS and the Pixel set (keep, no guest data yet): finish moves
      * every file the new set does not carry to the attic, so guest_prepare.sh can never use another set's
      * vold_patched, oneos-telephony.* or OneOSGuest.apk, or ColorOS's surfaceflinger_patched and oplus jars.
@@ -904,10 +1052,10 @@ class StageScriptTest {
         fr.props["ro.soc.model"] = "SM8750"
         fr.writeProps()
         val s = Stager(fr, Profiles.S_8750)
-        assertEquals(PackageSets.X9U_IN_SULTRA, s.set)
+        assertEquals(PackageSets.X9U_IN_1105_SULTRA, s.set)
         s.prepare()
         val m = StageMarker.parse(File(fr.stage, StageMarker.FILE_NAME).readText())!!
-        assertEquals(StageMarker(4, "s-8750", Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, m.createdEpoch), m)
+        assertEquals(StageMarker(4, "s-8750", Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, m.createdEpoch), m)
         assertEquals(SessionEnv.generate(Profiles.S_8750), File(fr.stage, "session.env").readText())
         refused(s.launch(), "test root: every launch check passed")
         // The same stage on an S25 Ultra, or on an S25 with another codename: refused.
@@ -921,8 +1069,8 @@ class StageScriptTest {
         // Its pairs are exactly the S Ultra's: never the Fold's Find N6 or Pixel image; the IN build
         // (0.3.3-0.3.6, again from 0.4.11) with its own set only.
         refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-8750", Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, "4"), "does not run pixel11fold-yogi")
-        refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-8750", Images.ID_FIND_X9U_IN, PackageSets.ID_PIXEL9_SULTRA, "4"), "pixel9-sultra is not the file set of coloros17-findx9u-in")
-        assertEquals(PackageSets.X9U_IN_SULTRA, Stager(fr, Profiles.S_8750, Images.ID_FIND_X9U_IN).set)
+        refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-8750", Images.ID_FIND_X9U_IN_1105, PackageSets.ID_PIXEL9_SULTRA, "4"), "pixel9-sultra is not the file set of coloros17-findx9u-in")
+        assertEquals(PackageSets.X9U_IN_1105_SULTRA, Stager(fr, Profiles.S_8750, Images.ID_FIND_X9U_IN_1105).set)
         refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-8750", Images.ID_FIND_N6, PackageSets.ID_N6_F8U, "4"), "does not run coloros17-findn6")
     }
 
@@ -946,7 +1094,7 @@ class StageScriptTest {
         refused(s.launch(), "is not a SM-F966")
         // Never the Pixel image (it needs SVE) nor the S Ultras' Find X9 Ultra image.
         refused(fr.run(RootScript.Verb.BEGIN, "keep", "f7", Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, "4"), "does not run pixel11fold-yogi")
-        refused(fr.run(RootScript.Verb.BEGIN, "keep", "f7", Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, "4"), "does not run coloros17-findx9u-in")
+        refused(fr.run(RootScript.Verb.BEGIN, "keep", "f7", Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, "4"), "does not run coloros17-findx9u-in")
     }
 
     /** 0.4.10: the Galaxy S25+ (SM-S936, pa2q, SM8750) takes the S25's Find X9 Ultra set, never a Pixel or Fold image. */
@@ -957,10 +1105,10 @@ class StageScriptTest {
         fr.props["ro.soc.model"] = "SM8750"
         fr.writeProps()
         val s = Stager(fr, Profiles.S_PLUS_8750)
-        assertEquals(PackageSets.X9U_IN_SULTRA, s.set)
+        assertEquals(PackageSets.X9U_IN_1105_SULTRA, s.set)
         s.prepare()
         val m = StageMarker.parse(File(fr.stage, StageMarker.FILE_NAME).readText())!!
-        assertEquals(StageMarker(4, "s-plus-8750", Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, m.createdEpoch), m)
+        assertEquals(StageMarker(4, "s-plus-8750", Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, m.createdEpoch), m)
         refused(s.launch(), "test root: every launch check passed")
         refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-plus-8750", Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, "4"), "does not run pixel11pro-kodiak")
         refused(fr.run(RootScript.Verb.BEGIN, "keep", "s-plus-8750", Images.ID_FIND_N6, PackageSets.ID_N6_F8U, "4"), "does not run coloros17-findn6")
@@ -988,7 +1136,7 @@ class StageScriptTest {
         fr.props["ro.product.model"] = "SM-F976B"
         fr.writeProps()
         refused(n6.launch(), "is not a SM-F971")
-        refused(fr.run(RootScript.Verb.BEGIN, "keep", "f8", Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, "4"), "does not run coloros17-findx9u-in")
+        refused(fr.run(RootScript.Verb.BEGIN, "keep", "f8", Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, "4"), "does not run coloros17-findx9u-in")
     }
 
     /**
@@ -1025,8 +1173,8 @@ class StageScriptTest {
                 fr.props["ro.soc.model"] = p.socModel
                 fr.writeProps()
                 val s = Stager(fr, p)
-                assertEquals(p.id, PackageSets.X9U_IN_SULTRA, s.set)
-                assertEquals(p.id, PackageSets.X9U_IN_SULTRA, Stager(fr, p, Images.ID_FIND_X9U_IN).set)
+                assertEquals(p.id, PackageSets.X9U_IN_1105_SULTRA, s.set)
+                assertEquals(p.id, PackageSets.X9U_IN_1105_SULTRA, Stager(fr, p, Images.ID_FIND_X9U_IN_1105).set)
                 if (p.choice(Images.ID_PIXEL_KODIAK) != null) {
                     assertEquals(p.id, PackageSets.PIXEL_SULTRA, Stager(fr, p, Images.ID_PIXEL_KODIAK).set)
                 } else {
@@ -1035,7 +1183,7 @@ class StageScriptTest {
                 refused(fr.run(RootScript.Verb.BEGIN, "keep", p.id, Images.ID_FIND_N6, PackageSets.ID_N6_F8U, "4"), "does not run coloros17-findn6")
                 s.prepare()
                 val m = StageMarker.parse(File(fr.stage, StageMarker.FILE_NAME).readText())!!
-                assertEquals(StageMarker(4, p.id, Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, m.createdEpoch), m)
+                assertEquals(StageMarker(4, p.id, Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, m.createdEpoch), m)
                 refused(s.launch(), "test root: every launch check passed")
             }
         }
@@ -1066,9 +1214,9 @@ class StageScriptTest {
         val s = Stager(fr, Profiles.F8U, Images.ID_PIXEL_YOGI)
         // begin: a ColorOS set with the Pixel image on the Fold; an image the phone does not take.
         refused(s.begin(setId = PackageSets.ID_N6_F8U), "n6-f8u is not the file set of pixel11fold-yogi on f8u")
-        refused(s.begin(setId = PackageSets.ID_X9U_IN_SULTRA), "is not the file set")
+        refused(s.begin(setId = PackageSets.ID_X9U_IN_1105_SULTRA), "is not the file set")
         refused(fr.run(RootScript.Verb.BEGIN, "new", "s-ultra-8850", Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, "4"), "does not run pixel11fold-yogi")
-        refused(fr.run(RootScript.Verb.BEGIN, "new", "f8u", Images.ID_FIND_X9U_IN, PackageSets.ID_X9U_IN_SULTRA, "4"), "does not run coloros17-findx9u-in")
+        refused(fr.run(RootScript.Verb.BEGIN, "new", "f8u", Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_SULTRA, "4"), "does not run coloros17-findx9u-in")
         refused(fr.run(RootScript.Verb.BEGIN, "new", "f8u", "coloros17-findx9u-in", "x9u-in-f8u", "4"), "does not run coloros17-findx9u-in")
         assertFalse(File(fr.stage, "incoming/plan").exists())
         // finish with another set than begin's.
@@ -1089,7 +1237,7 @@ class StageScriptTest {
         val mk = File(fr.stage, StageMarker.FILE_NAME)
         for (bad in listOf(
             StageMarker(4, "f8u", Images.ID_PIXEL_YOGI, PackageSets.ID_N6_F8U, 1),
-            StageMarker(4, "f8u", Images.ID_PIXEL_YOGI, PackageSets.ID_X9U_IN_SULTRA, 1),
+            StageMarker(4, "f8u", Images.ID_PIXEL_YOGI, PackageSets.ID_X9U_IN_1105_SULTRA, 1),
             StageMarker(4, "f8u", Images.ID_PIXEL_YOGI, null, 1),
         )) {
             mk.writeText(bad.toJson())
@@ -1280,8 +1428,8 @@ class StageScriptTest {
             Shipped.rootScriptText.substringAfter("\nIMAGES_GMS=\"").substringBefore("\"\n"),
         )
         eachShell { fr ->
-            val s = Stager(fr, Profiles.S_ULTRA_8850, Images.ID_FIND_X9U_IN)
-            assertEquals(PackageSets.X9U_IN_SULTRA, s.set)
+            val s = Stager(fr, Profiles.S_ULTRA_8850, Images.ID_FIND_X9U_IN_1105)
+            assertEquals(PackageSets.X9U_IN_1105_SULTRA, s.set)
             s.prepare()
             val env = File(fr.stage, "session.env")
             assertTrue(env.readLines().contains("ONEOS_GUEST_HIDE_GMS=0"))
@@ -1549,6 +1697,26 @@ class StageScriptTest {
     }
 
     @Test
+    fun fullLogsChoiceIsWrittenOnlyAfterLaunchChecks() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val env = File(fr.stage, "session.env")
+        assertTrue(env.readLines().contains("ONEOS_FULL_LOGS=1"))
+        refused(s.launch(fullLogs = "0"), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_FULL_LOGS=0"))
+        // The 8-word launch (no fullLogs) still means on.
+        refused(s.launch(), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_FULL_LOGS=1"))
+        refused(s.launch(fullLogs = "1"), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_FULL_LOGS=1"))
+        val before = env.readText()
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { s.launch(fullLogs = "2") }
+        assertEquals(before, env.readText())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "0", "2")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "0", "0")).isEmpty())
+    }
+
+    @Test
     fun verboseBootChoiceIsWrittenOnlyAfterLaunchChecks() = eachShell { fr ->
         val s = Stager(fr)
         s.prepare()
@@ -1680,6 +1848,151 @@ class StageScriptTest {
         assertEquals(beside, fr.stage.parentFile.list()!!.sorted())
         s.ok(fr.run(RootScript.Verb.BRING_CLEAR))
         refused(s.launch(), "test root: every launch check passed")
+    }
+
+    private fun catalogLine(pkg: String, label: String = "Chat", icon: String = "iVBORw0KGgo=") = "$pkg\t$label\t$icon"
+
+    private fun catalog(fr: FakeRoot, vararg lines: String): FakeRoot.Run {
+        val b = lines.joinToString("") { "$it\n" }.toByteArray()
+        return fr.run(RootScript.Verb.BRING_CATALOG, b.size.toString(), stdin = b)
+    }
+
+    /** bring-forget: the copy goes (and partials beside it), the package is recorded once, nothing else moves. */
+    @Test
+    fun bringForgetRemovesTheCopyAndRecordsIt() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val chat = "org.example.chat"
+        val other = "org.example.other"
+        fr.hostApp(chat)
+        fr.hostApp(other)
+        File(fr.hostCe(chat), "login").writeText("in")
+        s.ok(bring(fr, chat, other))
+        val dir = File(fr.stage, "data/oneos_bring")
+        File(dir, ".$chat-partial").mkdirs()
+        java.nio.file.Files.setPosixFilePermissions(File(dir, ".$chat-partial").toPath(), java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"))
+        val beside = fr.stage.parentFile.list()!!.sorted()
+        val hostBefore = fr.listing(File(fr.root, "proc/1/root")) + fr.listing(File(fr.root, "data/app"))
+        val r = fr.run(RootScript.Verb.BRING_FORGET, chat)
+        s.ok(r)
+        assertTrue("$r", r.reply.results.any { it.startsWith("forgot $chat ") })
+        assertEquals("bring-forget", r.reply.ok)
+        assertFalse(File(dir, chat).exists())
+        assertFalse(File(dir, ".$chat-partial").exists())
+        assertTrue(File(dir, "$other/apk/base.apk").isFile)
+        assertEquals("$chat\n", File(dir, ".forget").readText())
+        assertEquals("600", fr.mode(File(dir, ".forget")))
+        assertEquals(beside, fr.stage.parentFile.list()!!.sorted())
+        assertEquals(hostBefore, fr.listing(File(fr.root, "proc/1/root")) + fr.listing(File(fr.root, "data/app")))
+        // Again (no copy left) and another: no duplicates, still recorded.
+        s.ok(fr.run(RootScript.Verb.BRING_FORGET, chat))
+        s.ok(fr.run(RootScript.Verb.BRING_FORGET, "org.example.never"))
+        assertEquals("org.example.never\n$chat\n".lines().filter { it.isNotEmpty() }.sorted(), File(dir, ".forget").readLines())
+        assertTrue(File(dir, "$other/apk/base.apk").isFile)
+        // A bad name is refused before anything is touched; so is a stage with a session.
+        val before = fr.snapshot()
+        for (bad in listOf("../x", "chat", "a.b/c", ".hidden.x", "a..b", "x.y;id")) {
+            assertTrue(bad, RootScript.problems(RootScript.Verb.BRING_FORGET, listOf(bad)).isNotEmpty())
+            // Only what the launcher could carry reaches the script (a ';' never does): its own check refuses the rest.
+            if (bad.none { it == ';' }) {
+                val rb = fr.runUnchecked(RootScript.Verb.BRING_FORGET, chat, bad)
+                assertEquals("$bad: $rb", RootScript.EXIT_USAGE, rb.exit)
+            }
+        }
+        assertEquals(before, fr.snapshot())
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=11111111-2222-3333-4444-555555555555\n")
+        refused(fr.run(RootScript.Verb.BRING_FORGET, other), "a session is starting or running")
+        assertTrue(File(dir, "$other/apk/base.apk").isFile)
+    }
+
+    /** bring-catalog: a good catalog is written whole; a bad line writes nothing; a session refuses it. */
+    @Test
+    fun bringCatalogWritesTheCatalogOrNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val dir = File(fr.stage, "data/oneos_bring_catalog")
+        val good = arrayOf(catalogLine("org.example.chat", "Chat é"), catalogLine("org.example.other", "Other", "AAAA/+=="))
+        val r = catalog(fr, *good)
+        s.ok(r)
+        assertEquals("2", r.reply.ok!!.substringAfter("bring-catalog "))
+        assertEquals(good.joinToString("") { it + "\n" }, File(dir, "catalog.tsv").readText())
+        assertEquals("755", fr.mode(dir))
+        assertEquals("644", fr.mode(File(dir, "catalog.tsv")))
+        assertFalse(File(dir, "catalog.new").exists())
+        assertFalse(File(fr.stage, "incoming/catalog.part").exists())
+        // Bad lines: nothing is replaced.
+        val before = File(dir, "catalog.tsv").readText()
+        val bads = listOf(
+            catalogLine("org.example.chat") + "\n" + catalogLine("not a package"),
+            catalogLine("org.example.chat") + "\n" + catalogLine("../x.y"),
+            "org.example.chat\tNo icon",
+            catalogLine("org.example.chat", "Bell\u0007"),
+            catalogLine("org.example.chat", ""),
+            catalogLine("org.example.chat", "Chat", "not base64!"),
+            catalogLine("org.example.chat", "Chat", ""),
+            catalogLine("org.example.chat") + "\n" + catalogLine("org.example.chat"),
+            catalogLine("org.example.chat") + "\n\n" + catalogLine("org.example.other"),
+            (1..401).joinToString("\n") { catalogLine("org.example.app$it") },
+        )
+        for (b in bads) {
+            val bytes = (b + "\n").toByteArray()
+            val rb = fr.run(RootScript.Verb.BRING_CATALOG, bytes.size.toString(), stdin = bytes)
+            assertEquals("expected a refusal for [$b]:\n$rb", RootScript.EXIT_REFUSED, rb.exit)
+            assertEquals(before, File(dir, "catalog.tsv").readText())
+            assertFalse(File(dir, "catalog.new").exists())
+            assertFalse(File(fr.stage, "incoming/catalog.part").exists())
+        }
+        // Too big, and a session.
+        assertTrue(RootScript.problems(RootScript.Verb.BRING_CATALOG, listOf("x")).isNotEmpty())
+        val big = fr.run(RootScript.Verb.BRING_CATALOG, "4194305", stdin = ByteArray(0))
+        assertEquals(RootScript.EXIT_USAGE, big.exit)
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=11111111-2222-3333-4444-555555555555\n")
+        refused(catalog(fr, *good), "a session is starting or running")
+        assertEquals(before, File(dir, "catalog.tsv").readText())
+    }
+
+    /** bring-add: only while a session runs, only for a package of the catalog that is an installed user app. */
+    @Test
+    fun bringAddNeedsARunningSessionAndACatalogApp() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val chat = "org.example.chat"
+        val other = "org.example.other"
+        fr.hostApp(chat)
+        fr.hostApp(other)
+        File(fr.hostCe(chat), "login").writeText("in")
+        s.ok(catalog(fr, catalogLine(chat), catalogLine("org.example.gone")))
+        val dir = File(fr.stage, "data/oneos_bring")
+        // No session: refused, nothing copied (a snapshot of another boot is no session).
+        refused(fr.run(RootScript.Verb.BRING_ADD, chat), "no session of this system is running")
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=99999999-0000-0000-0000-000000000000\n")
+        refused(fr.run(RootScript.Verb.BRING_ADD, chat), "no session of this system is running")
+        assertFalse(File(dir, chat).exists())
+        // A session of this boot.
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=11111111-2222-3333-4444-555555555555\n")
+        refused(fr.run(RootScript.Verb.BRING_ADD, other), "is not in the catalog")
+        refused(fr.run(RootScript.Verb.BRING_ADD, "org.example.gone"), "was not brought: not an installed user app")
+        assertTrue(RootScript.problems(RootScript.Verb.BRING_ADD, listOf("../x")).isNotEmpty())
+        assertFalse(File(dir, other).exists())
+        val hostBefore = fr.listing(File(fr.root, "proc/1/root")) + fr.listing(File(fr.root, "data/app"))
+        val r = fr.run(RootScript.Verb.BRING_ADD, chat)
+        s.ok(r)
+        assertEquals("1", r.reply.ok!!.substringAfter("bring-add "))
+        assertTrue("$r", r.reply.results.any { it.startsWith("brought $chat ") })
+        assertEquals("in", File(dir, "$chat/ce/login").readText())
+        assertTrue(File(dir, "$chat/stamp").isFile)
+        assertFalse(File(dir, ".incoming").exists())
+        assertEquals(hostBefore, fr.listing(File(fr.root, "proc/1/root")) + fr.listing(File(fr.root, "data/app")))
+        // Asked again while the session runs: the old copy is moved aside (not deleted, not refused), the new one is in place.
+        File(fr.hostCe(chat), "login").writeText("in again")
+        s.ok(fr.run(RootScript.Verb.BRING_ADD, chat))
+        assertEquals("in again", File(dir, "$chat/ce/login").readText())
+        assertEquals(1, File(dir, ".aside").list()!!.size)
+        // The guest down: the next bring-collect clears what was moved aside.
+        File(fr.stage, "persist_session.active").delete()
+        s.ok(bring(fr, "org.example.gone"))
+        assertFalse(File(dir, ".aside").exists())
+        assertEquals("in again", File(dir, "$chat/ce/login").readText())
     }
 
     /** bring-status (build 104): read only; what waits, what the guest did with it, and what is newer on One UI. */
@@ -1865,5 +2178,35 @@ class StageScriptTest {
         assertTrue(l.lines().contains("set -- begin new f8u coloros17-findn6 n6-f8u 4"))
         assertFalse(Regex("@[A-Z]+@").containsMatchIn(l))
         assertTrue(l.lines().containsAll(listOf("S=/data/local/tmp/oneos", "L=/data/local/tmp/lineage_stage")))
+    }
+
+    /** 0.5.10: an app's kernel tool (libtimer.so) is turned off only while it runs, and back on only when OneOS turned it off. */
+    @Test
+    fun toolAppOffAndOnTouchOnlyTheRunningToolsApp() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val pkg = "com.roottimer.app"
+        val log = File(fr.root, "pm_log")
+        refused(fr.run(RootScript.Verb.TOOL_APP, "off", pkg), "runs no kernel tool")
+        refused(fr.run(RootScript.Verb.TOOL_APP, "on", pkg), "did not turn")
+        assertFalse(log.exists())
+        val proc = File(fr.root, "proc/4242").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(proc, "exe").toPath(), File("/data/app/~~ab==/$pkg-xy==/lib/arm64/libtimer.so").toPath())
+        // Another app's tool running is not this one's.
+        refused(fr.run(RootScript.Verb.TOOL_APP, "off", "com.other.app"), "runs no kernel tool")
+        ok(fr.run(RootScript.Verb.TOOL_APP, "off", pkg))
+        assertEquals("disable-user --user 0 $pkg\n", log.readText())
+        assertEquals("$pkg\n", File(fr.stage, "tool_apps").readText())
+        val list = fr.run(RootScript.Verb.TOOL_APP, "list")
+        ok(list)
+        assertEquals(listOf("tool_app $pkg"), list.reply.results)
+        ok(fr.run(RootScript.Verb.TOOL_APP, "on", pkg))
+        assertEquals("disable-user --user 0 $pkg\nenable --user 0 $pkg\n", log.readText())
+        assertEquals("", File(fr.stage, "tool_apps").readText())
+        refused(fr.run(RootScript.Verb.TOOL_APP, "on", pkg), "did not turn")
+        assertTrue(RootScript.problems(RootScript.Verb.TOOL_APP, listOf("off", "x; rm -rf /")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.TOOL_APP, listOf("wipe", pkg)).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.TOOL_APP, listOf("off", pkg)))
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.TOOL_APP, listOf("list")))
     }
 }

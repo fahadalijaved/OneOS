@@ -18,6 +18,20 @@ package com.fahadali.oneos.core.model
  * them in the guest at boot and lays the saved data over the fresh install
  * with the guest's own uid.
  *
+ * Removing one app (`bring-forget <pkg>`, idle stage only): its copy goes and
+ * the package is added to `oneos_bring/.forget`, which the guest's start reads
+ * to uninstall it there; One UI keeps its app and data.
+ *
+ * Bringing from inside the guest: at every start the app writes the catalog of
+ * the same candidates ([BringCatalog]; root verb `bring-catalog`, idle stage
+ * only) to `$STAGE/data/oneos_bring_catalog/catalog.tsv`, which the guest app's
+ * "Bring apps from One UI" screen reads at `/data/oneos_bring_catalog/catalog.tsv`.
+ * A tap there asks the session's watcher for one app (a request file under
+ * `/data/oneos_bring_requests`), which runs the root verb `bring-add <pkg>`:
+ * the same copy as `bring-collect` for ONE package (one shared function in the
+ * script), but only while a session of this system is running, and only for a
+ * package the catalog lists. Still one way: One UI's data is only ever read.
+ *
  * This object is the part with no Android in it: which packages may be brought,
  * and the `selected.list` the app writes and the scripts read.
  */

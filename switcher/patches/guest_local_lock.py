@@ -534,8 +534,9 @@ def patch_lss(lines, rel, pkg_text):
     if len(t_code) not in (3, 4) or not call.fullmatch(t_code[-3][1]):
         raise Skip(f"{rel}: getCredentialType has another shape")
     # Infinity-X's tiny binder wrapper has .locals 0 and reuses p0 for the
-    # integer result.  p0 is dead after getCredentialTypeInternal returns, so
-    # it is just as safe to pass through the guest type hook as a v register.
+    # integer result; LineageOS 24 keeps the answer in p0 too (0.5.10). The
+    # hook uses only p1 and the result register after the call, so a dead p
+    # register is as good as a vN there — accept any of them.
     m = re.fullmatch(r"move-result ([vp]\d+)", t_code[-2][1])
     if not m or t_code[-1][1] != "return " + m.group(1) or t_locals > 8:
         raise Skip(f"{rel}: getCredentialType has another shape")

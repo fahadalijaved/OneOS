@@ -229,6 +229,8 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
                 app, marker, Images.systemName(image), guard::isCancelled,
                 onApps = { update(state.copy(apps = it)) },
             ) { update(state.copy(detail = it, cancellable = false)) }
+            // The apps One UI offers, for the guest's own Bring apps screen. A failure is only logged: the launch goes on.
+            if (!guard.isCancelled()) BringAppsJob.sendCatalog(app)
         }
         if (!guard.commit()) throw Cancelled()
         update(state.copy(cancellable = false))
@@ -243,7 +245,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
             listOf(
                 if (dryRun) "dry" else "session", BuildConfig.VERSION_CODE.toString(), sid, if (hideGms) "1" else "0",
                 if (SessionPrefs.heatCap(app)) "1" else "0", if (secIms) "1" else "0", if (edmStub) "1" else "0",
-                if (SessionPrefs.verboseBoot(app)) "1" else "0",
+                if (SessionPrefs.verboseBoot(app)) "1" else "0", if (SessionPrefs.fullLogs(app)) "1" else "0",
             ),
             silenceMs = 5 * 60_000L,
         )

@@ -134,6 +134,20 @@ BUILDS = [
         "service.incremental.so": "c964e27681a3632a7f83acb1698acffa572b3ece773690bc64444dff7bfaf7a7",
         "crashrecovery-aosp.capex": "1c4fa1a8417b233765db1621f3911b66de230049c39b248f116c3d18a8920ca6",
     }, [("vold", 0xe163, NAME), ("vold", 0x64d8c, TRY_START), ("service.incremental.so", 0x646c0, NAME)]),
+    # LineageOS 24.0 (OnePlus 15 infiniti nightly 2026-11-11, CP2A.260605.016),
+    # built from source: start() takes "vold" at 0xdf7c (adrp 0xd000 + add 0xf7c at
+    # 0x650bc, then String16 and a new VoldNativeService; the binary's only
+    # "\0vold\0", the other references are log tags), try_start's tbz w19, #0,
+    # +0xd4 is at 0x64aa4 right after the isDeclared() call through the service
+    # manager, and service.incremental.so has the string at 0x64481 with its two
+    # lookups (adr at 0xbc51c, adrp + add at 0xbea7c). Its compressed crashrecovery
+    # APEX (com.android.crashrecovery.capex) has AOSP's RescueParty.isDisabled
+    # (persist.sys.disable_rescue, persist.sys.enable_rescue).
+    ("LineageOS 24.0 CP2A.260605.016 (infiniti)", {
+        "vold": "36191041f9c1bd3e853ed08091dc0bd742f7e1aa0e3a8044a267c18a0f714306",
+        "service.incremental.so": "308015cd20592c7bce245a816fb13e045336ef659c326b3107a3bc86c40328ff",
+        "crashrecovery-aosp.capex": "cc082be9ba96bcf361c11f7e6d6f23cf2e2abff7f118c855c0f0590e6fdee6b6",
+    }, [("vold", 0xdf7b, NAME), ("vold", 0x64aa4, TRY_START), ("service.incremental.so", 0x64480, NAME)]),
     # HyperOS OS4.0 (Xiaomi lhasa, 2026-10): start() takes "vold" at 0xf3fd
     # (adrp 0xf000 + add 0x3fd at 0x6e8f4, the binary's only "\0vold\0"),
     # try_start's tbz w19, #0, +0xd4 is at 0x6e2d4, and service.incremental.so
@@ -292,7 +306,8 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_force_aidl_finger
 # 0.4.63: the PDB start task survives a failed FRP deactivation (guest_pdb_init_survives.py).
 # 0.5.00: with One UI's FRP active a guest PDB write fails as an I/O error instead of
 # killing system_server's main thread (A34 ColorOS 17, 0514e9ea; guest_pdb_frp_writes_fail.py).
-for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_frp_writes_fail guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
+# A synthetic password Keystore refuses does not stop the guest (S26 Ultra LineageOS b5edb256; guest_sp_migration_tolerant.py).
+for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_frp_writes_fail guest_sp_migration_tolerant guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
@@ -1922,6 +1937,34 @@ if in_image /system/framework/vivo-framework.jar &&
     mv -f "$WORK/vivo-framework_patched.jar" "$OUT/vivo-framework_patched.jar"
     chmod 644 "$OUT/vivo-framework_patched.jar"
     rm -rf "$WORK/vf" "$WORK/vf-rebuilt.jar" "$WORK/vdex" "$WORK/vivo-framework.jar"
+fi
+
+# ColorOS and OxygenOS: outgoing calls over IMS where the carrier asks for VoLTE
+# provisioning (patches/oplus_ims_provision.py; Samsung's IMS service answers 0 and
+# every call was dialled as GSM: Z Fold8 Spectrum 295249c3, S25+ US c8be0b32).
+# oplus-framework.jar is on the boot class path; only the dex the patch changed is
+# rebuilt. Nothing is written when the image has no such check.
+rm -f "$OUT/oplus-framework_patched.jar"
+if in_image /system/framework/oplus-framework.jar; then
+    "$DEBUGFS" -R "dump /system/framework/oplus-framework.jar $WORK/oplus-framework.jar" "$IMG" 2>/dev/null
+    rm -rf "$WORK/of" "$WORK/of-rebuilt.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/of" "$WORK/oplus-framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/oplus_ims_provision.py" "$WORK/of")
+    if [ -n "$DIRS" ]; then
+        java -jar "$APKTOOL" b -q -o "$WORK/of-rebuilt.jar" "$WORK/of"
+        cp "$WORK/oplus-framework.jar" "$WORK/oplus-framework_patched.jar"
+        for d in $DIRS; do
+            DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+            rm -rf "$WORK/ofdex" && mkdir -p "$WORK/ofdex"
+            unzip -q -o "$WORK/of-rebuilt.jar" "$DEX" -d "$WORK/ofdex"
+            (cd "$WORK/ofdex" && zip -q -0 "$WORK/oplus-framework_patched.jar" "$DEX")
+            echo "built $OUT/oplus-framework_patched.jar (replaced $DEX)"
+        done
+        python3 -I "$ROOT/scripts/check-dex.py" "$WORK/oplus-framework_patched.jar"
+        mv -f "$WORK/oplus-framework_patched.jar" "$OUT/oplus-framework_patched.jar"
+        chmod 644 "$OUT/oplus-framework_patched.jar"
+    fi
+    rm -rf "$WORK/of" "$WORK/of-rebuilt.jar" "$WORK/ofdex" "$WORK/oplus-framework.jar"
 fi
 
 # vivo's feature list (patches/vivo_guards.py framework: VivoConfigStoreHelper reads
