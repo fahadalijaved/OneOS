@@ -18,6 +18,13 @@ AJ=$(ls "$SDK"/platforms/android-*/android.jar | sort -V | tail -1)
 DEBUGFS=$(command -v debugfs || echo /usr/sbin/debugfs)
 # A file the image has (ColorOS's own jars are not in a Pixel image).
 in_image() { "$DEBUGFS" -R "stat $1" "$IMG" 2>&1 | grep -q '^Inode:'; }
+# smali 3 refuses the hidden-API "blacklist" flags below API 29, and older
+# framework jars still declare minSdkVersion 28. Raise it on every decoded jar;
+# resources are not decoded (-r), so nothing else reads the value.
+decode() {
+    decode "$1" "$2" || return 1
+    sed -i 's/^  minSdkVersion: .*/  minSdkVersion: 29/' "$1/apktool.yml"
+}
 [ -f "$IMG" ] || { echo "usage: $0 <system.img> [outdir]" >&2; exit 2; }
 
 WORK=$(mktemp -d)
@@ -257,7 +264,7 @@ fi
 # services.jar: LocalDisplayAdapter falls back to the active mode when
 # SurfaceFlinger has no desired mode specs (see patches/display_mode_specs.py).
 "$DEBUGFS" -R "dump /system/framework/services.jar $WORK/services.jar" "$IMG" 2>/dev/null
-java -jar "$APKTOOL" d -q -f -r -o "$WORK/services" "$WORK/services.jar"
+decode "$WORK/services" "$WORK/services.jar"
 SMALI=$(grep -rl "Desired display mode specs from SurfaceFlinger are null" "$WORK/services" | head -1)
 [ -n "$SMALI" ] || { echo "LocalDisplayAdapter not found in services.jar" >&2; exit 1; }
 python3 -I "$ROOT/switcher/patches/display_mode_specs.py" "$SMALI"
@@ -420,7 +427,7 @@ done
 # Only in ColorOS images; without it guest_prepare.sh needs no second guard jar.
 if in_image /system/framework/oplus-services.jar; then
     "$DEBUGFS" -R "dump /system/framework/oplus-services.jar $WORK/oplus-services.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/oplus" "$WORK/oplus-services.jar"
+    decode "$WORK/oplus" "$WORK/oplus-services.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/oplus_wait_for_service.py" "$WORK/oplus")
     # QSPM wait in GameGpuControlPanel, ctl.start dumpenvironment and gettpinfo (patches/oplus_boot_hangs.py).
     # (Each patcher in a plain assignment, so set -e stops the build when it fails.)
@@ -496,7 +503,7 @@ fi
 rm -f "$OUT/vivo-services_patched.jar"
 if in_image /system/framework/vivo-services.jar; then
     "$DEBUGFS" -R "dump /system/framework/vivo-services.jar $WORK/vivo-services.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vivo" "$WORK/vivo-services.jar"
+    decode "$WORK/vivo" "$WORK/vivo-services.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" vivo-services "$WORK/vivo")
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/vivo")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
@@ -529,7 +536,7 @@ rm -f "$OUT/vivo-telephony-common-platform-ex_patched.jar"
 VTX_JAR=/system/framework/vivo-telephony-common-platform-ex.jar
 if in_image $VTX_JAR; then
     "$DEBUGFS" -R "dump $VTX_JAR $WORK/vtx.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vtx" "$WORK/vtx.jar"
+    decode "$WORK/vtx" "$WORK/vtx.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_telephony.py" "$WORK/vtx")
     java -jar "$APKTOOL" b -q -o "$WORK/vtx-rebuilt.jar" "$WORK/vtx"
     cp "$WORK/vtx.jar" "$OUT/vivo-telephony-common-platform-ex_patched.jar"
@@ -550,7 +557,7 @@ rm -f "$OUT/framework-adapter_patched.jar"
 FA_JAR=/system/framework/framework-adapter.jar
 if in_image /system/framework/vivo-services.jar && in_image $FA_JAR; then
     "$DEBUGFS" -R "dump $FA_JAR $WORK/fa.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fa" "$WORK/fa.jar"
+    decode "$WORK/fa" "$WORK/fa.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" framework-adapter "$WORK/fa")
     java -jar "$APKTOOL" b -q -o "$WORK/fa-rebuilt.jar" "$WORK/fa"
     cp "$WORK/fa.jar" "$OUT/framework-adapter_patched.jar"
@@ -568,7 +575,7 @@ MIUI_JAR=/system/system_ext/framework/miui-services.jar
 PRO_JAR=/system/system_ext/framework/apprecovery.proinstaller.jar
 if in_image $MIUI_JAR; then
     "$DEBUGFS" -R "dump $MIUI_JAR $WORK/miui-services.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/miui" "$WORK/miui-services.jar"
+    decode "$WORK/miui" "$WORK/miui-services.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/miui_guards.py" "$WORK/miui")
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_storage_guards.py" "$WORK/miui")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
@@ -592,7 +599,7 @@ if in_image $MIUI_JAR; then
     done
     in_image $PRO_JAR || { echo "ERROR: $MIUI_JAR without $PRO_JAR: another HyperOS layout, not guarded" >&2; exit 1; }
     "$DEBUGFS" -R "dump $PRO_JAR $WORK/proinstaller.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/pro" "$WORK/proinstaller.jar"
+    decode "$WORK/pro" "$WORK/proinstaller.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/miui_guards.py" --proinstaller "$WORK/pro")
     java -jar "$APKTOOL" b -q -o "$WORK/pro-rebuilt.jar" "$WORK/pro"
     cp "$WORK/proinstaller.jar" "$OUT/apprecovery.proinstaller_patched.jar"
@@ -611,7 +618,7 @@ if in_image $MIUI_JAR; then
     WIFI_JAR=/system/system_ext/framework/miui-wifi-service.jar
     in_image $WIFI_JAR || { echo "ERROR: $MIUI_JAR without $WIFI_JAR" >&2; exit 1; }
     "$DEBUGFS" -R "dump $WIFI_JAR $WORK/miui-wifi-service.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mwifi" "$WORK/miui-wifi-service.jar"
+    decode "$WORK/mwifi" "$WORK/miui-wifi-service.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_hal_ext.py" --expect 5 "$WORK/mwifi" HalExtWifi)
     java -jar "$APKTOOL" b -q -o "$WORK/mwifi-rebuilt.jar" "$WORK/mwifi"
     cp "$WORK/miui-wifi-service.jar" "$OUT/miui-wifi-service_patched.jar"
@@ -629,7 +636,7 @@ if in_image $MIUI_JAR; then
     TEL_JAR=/system/system_ext/framework/miui-telephony-common.jar
     in_image $TEL_JAR || { echo "ERROR: $MIUI_JAR without $TEL_JAR" >&2; exit 1; }
     "$DEBUGFS" -R "dump $TEL_JAR $WORK/miui-telephony-common.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mtel" "$WORK/miui-telephony-common.jar"
+    decode "$WORK/mtel" "$WORK/miui-telephony-common.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_telephony.py" "$WORK/mtel")
     java -jar "$APKTOOL" b -q -o "$WORK/mtel-rebuilt.jar" "$WORK/mtel"
     cp "$WORK/miui-telephony-common.jar" "$OUT/miui-telephony-common_patched.jar"
@@ -646,7 +653,7 @@ if in_image $MIUI_JAR; then
     XOT_JAR=/system/system_ext/framework/xiaomi-opt-telephony.jar
     if in_image $XOT_JAR; then
         "$DEBUGFS" -R "dump $XOT_JAR $WORK/xiaomi-opt-telephony.jar" "$IMG" 2>/dev/null
-        java -jar "$APKTOOL" d -q -f -r -o "$WORK/xot" "$WORK/xiaomi-opt-telephony.jar"
+        decode "$WORK/xot" "$WORK/xiaomi-opt-telephony.jar"
         DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_hidl_radio.py" "$WORK/xot")
         java -jar "$APKTOOL" b -q -o "$WORK/xot-rebuilt.jar" "$WORK/xot"
         cp "$WORK/xiaomi-opt-telephony.jar" "$OUT/xiaomi-opt-telephony_patched.jar"
@@ -680,7 +687,7 @@ if in_image $MIUI_JAR; then
     # The camera transaction codes step further down builds on this jar (HYPEROS_FW).
     HYPEROS_FW=1
     "$DEBUGFS" -R "dump $FW_JAR $WORK/framework.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$WORK/framework.jar"
+    decode "$WORK/fw" "$WORK/framework.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_framework.py" "$WORK/fw")
     java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"
     cp "$WORK/framework.jar" "$OUT/framework_patched.jar"
@@ -705,7 +712,7 @@ fi
 # Not a guard jar: guest_prepare.sh binds it only when it is there.
 if in_image /system/product/framework/ims-ext-common.jar; then
     "$DEBUGFS" -R "dump /system/product/framework/ims-ext-common.jar $WORK/ims-ext-common.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/imsext" "$WORK/ims-ext-common.jar"
+    decode "$WORK/imsext" "$WORK/ims-ext-common.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/qti_ims_ext_backoff.py" "$WORK/imsext")
     java -jar "$APKTOOL" b -q -o "$WORK/imsext-rebuilt.jar" "$WORK/imsext"
     cp "$WORK/ims-ext-common.jar" "$OUT/ims-ext-common_patched.jar"
@@ -820,7 +827,7 @@ fi
 # ColorOS's jar (guest_prepare.sh).
 if in_image /system/system_ext/framework/oplus-telephony-common.jar; then
     "$DEBUGFS" -R "dump /system/system_ext/framework/oplus-telephony-common.jar $WORK/oplus-telephony-common.jar" "$IMG" 2>/dev/null
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/otc" "$WORK/oplus-telephony-common.jar"
+    decode "$WORK/otc" "$WORK/oplus-telephony-common.jar"
     NEW=$(python3 -I "$ROOT/switcher/patches/guest_signal_poll.py" "$WORK/otc" "$ROOT/switcher/patches/OneOSSignalPoll.smali")
     java -jar "$APKTOOL" b -q -o "$WORK/otc-rebuilt.jar" "$WORK/otc"
     cp "$WORK/oplus-telephony-common.jar" "$OUT/oplus-telephony-common_patched.jar"
@@ -918,7 +925,7 @@ else
         if [ -z "$INJ_WHY" ]; then
             # Another image's jar that apktool cannot read only leaves this out,
             # like every other reason here: not a failed build.
-            if ! java -jar "$APKTOOL" d -q -f -r -o "$WORK/tc" "$WORK/telephony-common.jar"; then
+            if ! decode "$WORK/tc" "$WORK/telephony-common.jar"; then
                 INJ_WHY="apktool could not decode telephony-common.jar"
             elif INJ_CHECK=$(python3 -I "$ROOT/switcher/patches/aosp_signal_poll_check.py" "$WORK/tc" 2>&1); then
                 echo "$INJ_CHECK"
@@ -1266,7 +1273,7 @@ patch_apk_dex() {
         return 0
     fi
     rm -rf "$WORK/pad"
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/pad" "$1"
+    decode "$WORK/pad" "$1"
     if PAD_DIRS=$(python3 -I "$ROOT/switcher/patches/$3" "$WORK/pad") && [ -n "$PAD_DIRS" ]; then
         # Rebuild the dex files the patcher changed only (one per line it printed);
         # the others are left out of the build, and each goes back in turn.
@@ -1812,7 +1819,7 @@ for VW in vivo-service-wifi:wifi vivo-service-wifi-ex-impl:impl; do
     [ -s "$WORK/$VWN.jar" ] || continue
     unzip -p "$WORK/$VWN.jar" 'classes*.dex' | grep -aq "addTransportType" || { echo "$VWN.jar: no transport requests, not patched"; continue; }
     rm -rf "$WORK/vw" "$WORK/vw-rebuilt.jar"
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vw" "$WORK/$VWN.jar"
+    decode "$WORK/vw" "$WORK/$VWN.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_wifi_connectivity.py" "$WORK/vw" "$VWM")
     java -jar "$APKTOOL" b -q -o "$WORK/vw-rebuilt.jar" "$WORK/vw"
     cp "$WORK/$VWN.jar" "$WORK/${VWN}_patched.jar"
@@ -1839,7 +1846,7 @@ rm -f "$WORK/framework-wifi.jar"
 [ ! -f "$OUT/wifi_payload.img" ] || "$DEBUGFS" -R "dump /javalib/framework-wifi.jar $WORK/framework-wifi.jar" "$OUT/wifi_payload.img" 2>/dev/null
 if [ -s "$WORK/framework-wifi.jar" ] && unzip -p "$WORK/framework-wifi.jar" 'classes*.dex' | grep -aq "Landroid/net/wifi/VivoTrafficStats;"; then
     rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar"
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/fw" "$WORK/framework-wifi.jar"
+    decode "$WORK/fw" "$WORK/framework-wifi.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_traffic_stats.py" "$WORK/fw")
     java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"
     cp "$WORK/framework-wifi.jar" "$WORK/framework-wifi_patched.jar"
@@ -1924,7 +1931,7 @@ if in_image /system/framework/vivo-framework.jar &&
    "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -qx 'ro.vivo.device.type=phone'; then
     "$DEBUGFS" -R "dump /system/framework/vivo-framework.jar $WORK/vivo-framework.jar" "$IMG" 2>/dev/null
     rm -rf "$WORK/vf" "$WORK/vf-rebuilt.jar"
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/vf" "$WORK/vivo-framework.jar"
+    decode "$WORK/vf" "$WORK/vivo-framework.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/vivo_brightness.py" "$WORK/vf")
     # vivo's secure TEE (sectee) and other vivo vendor HALs: no endless wait (vivo_no_wait.py).
     NEW=$(python3 -I "$ROOT/switcher/patches/vivo_no_wait.py" "$WORK/vf")
@@ -1953,7 +1960,7 @@ rm -f "$OUT/oplus-framework_patched.jar"
 if in_image /system/framework/oplus-framework.jar; then
     "$DEBUGFS" -R "dump /system/framework/oplus-framework.jar $WORK/oplus-framework.jar" "$IMG" 2>/dev/null
     rm -rf "$WORK/of" "$WORK/of-rebuilt.jar"
-    java -jar "$APKTOOL" d -q -f -r -o "$WORK/of" "$WORK/oplus-framework.jar"
+    decode "$WORK/of" "$WORK/oplus-framework.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/oplus_ims_provision.py" "$WORK/of")
     if [ -n "$DIRS" ]; then
         java -jar "$APKTOOL" b -q -o "$WORK/of-rebuilt.jar" "$WORK/of"
