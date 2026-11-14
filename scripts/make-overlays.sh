@@ -314,8 +314,10 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_force_aidl_finger
 # 0.4.63: the PDB start task survives a failed FRP deactivation (guest_pdb_init_survives.py).
 # 0.5.00: with One UI's FRP active a guest PDB write fails as an I/O error instead of
 # killing system_server's main thread (A34 ColorOS 17, 0514e9ea; guest_pdb_frp_writes_fail.py).
+# 0.5.13: the guest's PDB reports FRP inactive. MIUI-based images gate the screen-lock
+# setup on it, which also hides fingerprint behind the same page (guest_pdb_frp_inactive.py).
 # A synthetic password Keystore refuses does not stop the guest (S26 Ultra LineageOS b5edb256; guest_sp_migration_tolerant.py).
-for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_frp_writes_fail guest_sp_migration_tolerant guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
+for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_frp_writes_fail guest_pdb_frp_inactive guest_sp_migration_tolerant guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
