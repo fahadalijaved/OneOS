@@ -170,15 +170,27 @@ for name in $(su_ "ls $STAGE" | tr -d '\r'); do
     su_ "mkdir -p $ATTIC && mv -f $STAGE/$name $ATTIC/"
     echo "moved $name to $ATTIC (not in $OVERLAYS)"
 done
+# The stage's files.sha256 is the app's prepared set: a file the set carries but
+# the profile does not name (the fold overlays in a bar phone's ColorOS set)
+# makes the launcher refuse with "is in the stage but was not prepared".
+MANIFEST=$(su_ "cat $STAGE/files.sha256 2>/dev/null" | tr -d '\r')
 for f in "$OVERLAYS"/*; do
     [ -f "$f" ] || continue
     name=$(basename "$f")
+    # Provenance for the wave, not a stage file: a deploy reads it, the guest
+    # never does.
+    [ "$name" = build-info.txt ] && continue
+    if [ -n "$MANIFEST" ] && ! echo "$MANIFEST" | awk -v n="$name" '$2 == n { f = 1 } END { exit !f }'; then
+        echo "skipped $name (not in this profile's prepared set)"
+        continue
+    fi
     want=$(sha256sum "$f" | cut -d' ' -f1)
     have=$(su_ "sha256sum $STAGE/$name 2>/dev/null" | cut -d' ' -f1 | tr -d '\r')
     [ "$have" = "$want" ] && continue
     adb_ push "$f" "$INCOMING/$name"
     mode=644; [ -x "$f" ] && mode=755
-    su_ "mv -f $INCOMING/$name $STAGE/$name && chmod $mode $STAGE/$name"
+    # The push lands as shell; the launcher refuses a set file that is not root's.
+    su_ "mv -f $INCOMING/$name $STAGE/$name && chown 0:0 $STAGE/$name && chmod $mode $STAGE/$name"
 done
 
 if [ "$1" != "--scripts-only" ]; then
