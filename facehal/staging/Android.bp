@@ -1,0 +1,45 @@
+package { default_applicable_licenses: ["Android-Apache-2.0"] }
+
+cc_prebuilt_library_shared {
+    name: "libfacehal_payload_cxx_shared",
+    stem: "libc++_shared",
+    srcs: ["system_ext/lib64/facehal/libc++_shared.so"],
+    compile_multilib: "64",
+    vendor: true,
+    relative_install_path: "facehal",
+    check_elf_files: false,
+    strip: { none: true },
+}
+
+cc_prebuilt_library_shared {
+    name: "libfacehal_payload_jni_stfaceunlock_api",
+    stem: "libjni_stfaceunlock_api",
+    srcs: ["system_ext/lib64/facehal/libjni_stfaceunlock_api.so"],
+    compile_multilib: "64",
+    vendor: true,
+    relative_install_path: "facehal",
+    check_elf_files: false,
+    strip: { none: true },
+}
+
+cc_prebuilt_library_shared {
+    name: "libfacehal_payload_tensorflowlite",
+    stem: "libtensorflowlite",
+    srcs: ["system_ext/lib64/facehal/libtensorflowlite.so"],
+    compile_multilib: "64",
+    vendor: true,
+    relative_install_path: "facehal",
+    check_elf_files: false,
+    strip: { none: true },
+}
+
+cc_prebuilt_library_shared {
+    name: "libfacehal_payload_tensorflowlite_gpu_delegate",
+    stem: "libtensorflowlite_gpu_delegate",
+    srcs: ["system_ext/lib64/facehal/libtensorflowlite_gpu_delegate.so"],
+    compile_multilib: "64",
+    vendor: true,
+    relative_install_path: "facehal",
+    check_elf_files: false,
+    strip: { none: true },
+}

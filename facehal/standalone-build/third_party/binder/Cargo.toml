@@ -1,0 +1,16 @@
+[package]
+name = "android-binder"
+version = "0.1.0"
+edition = "2021"
+description = "Safe bindings to Android Binder, restricted to the NDK"
+license = "Apache-2.0"
+
+[dependencies]
+binder-ndk-sys = { package = "android-binder-ndk-sys", version = "0.1", path = "./sys" }
+downcast-rs = "1.2.1"
+libc = "0.2.159"
+zerocopy = { version = "0.8", features = ["alloc"] }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(android_vendor)", "cfg(android_ndk)", "cfg(android_vndk)", "cfg(trusty)"]

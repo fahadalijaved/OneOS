@@ -1,0 +1,14 @@
+[package]
+name = "android-binder-ndk-sys"
+version = "0.1.0"
+edition = "2021"
+description = "Bindgen bindings to android binder, restricted to the NDK"
+license = "Apache-2.0"
+
+[dependencies]
+
+[lib]
+path = "lib.rs"
+
+[build-dependencies]
+bindgen = "0.70.1"

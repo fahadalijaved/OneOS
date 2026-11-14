@@ -1,0 +1,224 @@
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "frameworks_native_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+rust_library {
+    name: "libbinder_rs",
+    crate_name: "binder",
+    srcs: ["src/lib.rs"],
+    rustlibs: [
+        "libbinder_ndk_sys",
+        "libdowncast_rs",
+        "liblibc",
+        "liblog_rust",
+        "libzerocopy",
+    ],
+    host_supported: true,
+    vendor_available: true,
+    product_available: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    min_sdk_version: "Tiramisu",
+}
+
+rust_library {
+    name: "libbinder_rs_on_trusty_mock",
+    crate_name: "binder",
+    srcs: ["src/lib.rs"],
+    cfgs: [
+        "trusty",
+    ],
+    rustlibs: [
+        "libbinder_ndk_sys_on_trusty_mock",
+        "libdowncast_rs",
+        "liblibc",
+    ],
+    vendor: true,
+}
+
+rust_library {
+    name: "libbinder_tokio_rs",
+    crate_name: "binder_tokio",
+    srcs: ["binder_tokio/lib.rs"],
+    rustlibs: [
+        "libbinder_rs",
+        "libtokio",
+    ],
+    host_supported: true,
+    vendor_available: true,
+    product_available: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    min_sdk_version: "Tiramisu",
+}
+
+rust_library {
+    name: "libbinder_ndk_sys",
+    crate_name: "binder_ndk_sys",
+    srcs: [
+        "sys/lib.rs",
+        ":libbinder_ndk_bindgen",
+    ],
+    shared_libs: [
+        "libbinder_ndk",
+    ],
+    rustlibs: [
+        "liblibc",
+    ],
+    host_supported: true,
+    vendor_available: true,
+    product_available: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    min_sdk_version: "Tiramisu",
+    lints: "none",
+    clippy_lints: "none",
+    visibility: [":__subpackages__"],
+}
+
+rust_library {
+    name: "libbinder_ndk_sys_on_trusty_mock",
+    crate_name: "binder_ndk_sys",
+    srcs: [
+        "sys/lib.rs",
+        ":libbinder_ndk_bindgen_on_trusty_mock",
+    ],
+    cfgs: [
+        "trusty",
+    ],
+    shared_libs: [
+        "libbinder_ndk_on_trusty_mock",
+    ],
+    vendor: true,
+    // Lints are checked separately for libbinder_ndk_sys.
+    // The Trusty mock copy pulls in extra headers that
+    // don't pass the lints for the bindgen output.
+    lints: "none",
+}
+
+rust_bindgen {
+    name: "libbinder_ndk_bindgen",
+    crate_name: "binder_ndk_bindgen",
+    wrapper_src: "sys/BinderBindings.hpp",
+    source_stem: "bindings",
+    bindgen_flag_files: [
+        // Unfortunately the only way to specify the rust_non_exhaustive enum
+        // style for a type is to make it the default
+        // and then specify constified enums for the enums we don't want
+        // rustified
+        "libbinder_ndk_bindgen_flags.txt",
+    ],
+    bindgen_flags: [
+        "--blocklist-type",
+        "sockaddr",
+        "--raw-line",
+        "use libc::sockaddr;",
+    ],
+    cflags: [
+        "-DANDROID_PLATFORM",
+    ],
+    shared_libs: [
+        "libbinder_ndk",
+    ],
+    rustlibs: [
+        "liblibc",
+    ],
+    host_supported: true,
+    vendor_available: true,
+    product_available: true,
+
+    // Currently necessary for host builds
+    // TODO(b/31559095): bionic on host should define this
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    min_sdk_version: "Tiramisu",
+}
+
+rust_bindgen {
+    name: "libbinder_ndk_bindgen_on_trusty_mock",
+    crate_name: "binder_ndk_bindgen",
+    wrapper_src: "sys/BinderBindings.hpp",
+    source_stem: "bindings",
+    defaults: [
+        "trusty_mock_defaults",
+    ],
+
+    bindgen_flag_files: [
+        // Unfortunately the only way to specify the rust_non_exhaustive enum
+        // style for a type is to make it the default
+        // and then specify constified enums for the enums we don't want
+        // rustified
+        "libbinder_ndk_bindgen_flags.txt",
+    ],
+    cflags: [
+        "-DANDROID_PLATFORM",
+    ],
+    shared_libs: [
+        "libbinder_ndk_on_trusty_mock",
+        "libc++",
+    ],
+}
+
+rust_test {
+    name: "libbinder_rs-internal_test",
+    crate_name: "binder",
+    srcs: ["src/lib.rs"],
+    test_suites: ["general-tests"],
+    auto_gen_config: true,
+    shared_libs: [
+        "libbinder_ndk",
+    ],
+    rustlibs: [
+        "libbinder_ndk_sys",
+        "libdowncast_rs",
+        "liblibc",
+        "liblog_rust",
+        "libzerocopy",
+    ],
+}
+
+rust_test {
+    name: "libbinder_ndk_bindgen_test",
+    srcs: [":libbinder_ndk_bindgen"],
+    crate_name: "binder_ndk_bindgen",
+    test_suites: ["general-tests"],
+    auto_gen_config: true,
+    clippy_lints: "none",
+    lints: "none",
+    rustlibs: [
+        "liblibc",
+    ],
+}

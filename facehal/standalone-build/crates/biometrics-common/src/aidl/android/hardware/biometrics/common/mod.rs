@@ -1,0 +1,11 @@
+pub mod r#AuthenticateReason;
+pub mod r#CommonProps;
+pub mod r#ComponentInfo;
+pub mod r#DisplayState;
+pub mod r#FoldState;
+pub mod r#ICancellationSignal;
+pub mod r#OperationContext;
+pub mod r#OperationReason;
+pub mod r#OperationState;
+pub mod r#SensorStrength;
+pub mod r#WakeReason;

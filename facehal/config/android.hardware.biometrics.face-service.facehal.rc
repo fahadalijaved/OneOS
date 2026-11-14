@@ -1,0 +1,10 @@
+service vendor.facehal /vendor/bin/hw/android.hardware.biometrics.face-service.facehal
+    class late_start
+    user system
+    group system camera input graphics root
+    setenv LD_LIBRARY_PATH /vendor/lib64
+    disabled
+
+on post-fs-data
+    mkdir /data/vendor_de/0/facedata 0770 system system encryption=None
+    start vendor.facehal

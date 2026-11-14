@@ -1,0 +1,82 @@
+package { default_applicable_licenses: ["Android-Apache-2.0"] }
+
+rust_library {
+    name: "libfacehal_core",
+    crate_name: "facehal_core",
+    srcs: ["rust/core/src/lib.rs"],
+    edition: "2021",
+    vendor: true,
+}
+
+cc_library_static {
+    name: "libfacehal_camera_bridge",
+    srcs: [
+        "native/CameraBridge.cpp",
+        "native/PreviewBridge.cpp",
+        "native/SenseTimeBridge.cpp",
+    ],
+    local_include_dirs: ["native"],
+    cpp_std: "c++17",
+    vendor: true,
+    cflags: [
+        "-DFACEHAL_VENDOR_CAMERA_NDK=1",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    shared_libs: [
+        "libcamera2ndk_vendor",
+        "libdl",
+        "liblog",
+        "libmediandk",
+        "libnativewindow",
+    ],
+}
+
+cc_library_shared {
+    name: "libfacehal_jni",
+    stem: "libfacehal_jni",
+    srcs: ["native/JniGraphicsShim.cpp"],
+    cpp_std: "c++17",
+    stl: "none",
+    vendor: true,
+    relative_install_path: "facehal",
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+}
+
+rust_binary {
+    name: "android.hardware.biometrics.face-service.facehal",
+    crate_name: "facehal_service",
+    srcs: ["rust/service/src/main.rs"],
+    edition: "2021",
+    relative_install_path: "hw",
+    vendor: true,
+    init_rc: [
+        "config/android.hardware.biometrics.face-service.facehal.rc",
+    ],
+    vintf_fragments: ["config/android.hardware.biometrics.face-service.facehal.xml"],
+    rustlibs: [
+        "android.hardware.biometrics.common-V4-rust",
+        "android.hardware.biometrics.face-V4-rust",
+        "android.hardware.common-V2-rust",
+        "android.hardware.keymaster-V4-rust",
+        "libbinder_rs",
+        "libfacehal_core",
+        "liblog_rust",
+        "libnativewindow_rs",
+    ],
+    shared_libs: [
+        "libcamera2ndk_vendor",
+        "libdl",
+        "liblog",
+        "libmediandk",
+        "libnativewindow",
+    ],
+    static_libs: ["libfacehal_camera_bridge"],
+    lints: "android",
+    flags: ["-Dunsafe_op_in_unsafe_fn"],
+}

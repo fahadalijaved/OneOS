@@ -1,0 +1,16 @@
+pub mod r#AcquiredInfo;
+pub mod r#AuthenticationFrame;
+pub mod r#BaseFrame;
+pub mod r#Cell;
+pub mod r#EnrollmentFrame;
+pub mod r#EnrollmentStage;
+pub mod r#EnrollmentStageConfig;
+pub mod r#EnrollmentType;
+pub mod r#Error;
+pub mod r#FaceEnrollOptions;
+pub mod r#FaceSensorType;
+pub mod r#Feature;
+pub mod r#IFace;
+pub mod r#ISession;
+pub mod r#ISessionCallback;
+pub mod r#SensorProps;

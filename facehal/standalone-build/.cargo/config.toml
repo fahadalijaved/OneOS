@@ -1,0 +1,14 @@
+[build]
+target = "aarch64-linux-android"
+
+# Linker/ar are provided by scripts/build-production.sh via
+# CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER and _AR (from ANDROID_NDK_HOME).
+[target.aarch64-linux-android]
+rustflags = [
+    "--cfg", "android_vendor",
+    "-A", "unexpected_cfgs",
+    "-C", "link-arg=-Wl,-z,max-page-size=16384",
+    "-C", "link-arg=-Wl,--hash-style=both",
+    "-C", "link-arg=-Wl,-z,relro,-z,now",
+    "-C", "link-arg=-Wl,--gc-sections",
+]

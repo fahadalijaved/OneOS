@@ -1,0 +1,11 @@
+# Build outputs
+/target/
+**/target/
+*.o
+*.a
+/android.hardware.biometrics.face-service.facehal
+/out/
+
+# Samsung runtime libraries: vendor blobs, not redistributed here.
+# staging/README.md lists what belongs in staging/system_ext/lib64/facehal.
+/staging/system_ext/lib64/facehal/*.so

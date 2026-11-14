@@ -1,0 +1,11 @@
+[package]
+name = "android-nativewindow-surface"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "nativewindow"
+path = "src/lib.rs"
+
+[dependencies]
+binder.workspace = true

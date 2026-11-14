@@ -1,0 +1,19 @@
+[package]
+name = "facehal_service"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[[bin]]
+name = "facehal_service"
+path = "../../../rust/service/src/main.rs"
+
+[dependencies]
+android_hardware_biometrics_common = { path = "../biometrics-common" }
+android_hardware_biometrics_face = { path = "../face" }
+android_hardware_common = { path = "../hardware-common" }
+android_hardware_keymaster = { path = "../keymaster" }
+binder = { workspace = true }
+facehal_core = { path = "../../../rust/core" }
+nativewindow = { package = "android-nativewindow-surface", path = "../nativewindow" }
+log = "0.4"

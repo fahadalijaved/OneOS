@@ -1,0 +1,12 @@
+[package]
+name = "android_hardware_biometrics_face"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+binder = { package = "android-binder", path = "../../third_party/binder" }
+async-trait = "0.1"
+android_hardware_biometrics_common = { path = "../biometrics-common" }
+android_hardware_common = { path = "../hardware-common" }
+android_hardware_keymaster = { path = "../keymaster" }
+nativewindow = { package = "android-nativewindow-surface", path = "../nativewindow" }
