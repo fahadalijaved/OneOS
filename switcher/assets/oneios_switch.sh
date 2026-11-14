@@ -1273,6 +1273,9 @@ echo "xnuhost: pid $XP in mount namespace $XNS, log $SESSION/xnuhost.log"
 # waits for it: without it the session runs with a dark screen.
 DH="$STAGE/runtime/bin/oneios-display"
 if [ -f "$DH" ] && [ ! -L "$DH" ] && [ -x "$DH" ] && root_only "$DH"; then
+    # This session's log only: the boot screen's hand-off (display_up) reads its markers, and a
+    # "first frame posted" of an earlier session must not end this session's boot screen early.
+    [ -f "$CTL/display.log" ] && mv -f "$CTL/display.log" "$CTL/display.log.1" 2>/dev/null
     "$BB" setsid "$DH" --session "$SESSION" --takeover --wait 60 </dev/null >>"$CTL/display.log" 2>&1 &
     DP=$!
     echo "$DP" > "$CTL/display.pid"

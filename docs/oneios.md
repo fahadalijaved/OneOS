@@ -507,7 +507,11 @@ feeder then stops the boot screen under it: it sees `oneios-display: first frame
 first, then the stop flag, and the renderer takes its own layer away. **While iOS shows nothing, the boot screen
 stays**: `ready` without a running helper leaves it up ("iOS is up: waiting for its first frame"), because
 taking it away would leave a black screen with no way back written on it. It is not brought back if the helper
-ends later.
+ends later. `control/display.log` is this session's only: the switch moves the last session's to
+`display.log.1` before it starts the helper. A helper started again by hand during a session appends its pid to
+`control/display.pid` (OneiOS's `runtime/display/README.md` has the command), or the hand-off never sees it and the
+boot screen stays up under the helper's layer (phone, 2026-11-13: the renderer was still running when the owner
+pressed the power key, after a helper that had started late).
 
 **The size.** The renderer draws for the logical size One UI's display manager gave it (1080 x 2340 with One
 UI's resolution set to FHD+). The display helper, when it connects in a takeover, sets the display's projection
