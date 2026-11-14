@@ -1055,15 +1055,24 @@ if [ -f /data/guest_audio.flag ]; then
     # a call suspends A2DP on purpose (SCO), so never during one. Follows the
     # HAL's own log tag only (no polling); at most once in 3 s, 5 tries a
     # session without a recovery. Log /data/oneos_a2dp.log.
+    # Exynos (0.5.12): Samsung's Exynos HAL opens its A2DP offload stream
+    # (proxy_a2dp_open, A2DP_STATUS_STANDBY) only once A2dpSuspended=false came,
+    # which One UI's Bluetooth app sends at every connect and ColorOS's never
+    # does (AudioDeviceBroker "clearA2dpSuspended, internalOnly: true"): the
+    # earbuds connected, the policy routed music to them, and the HAL logged
+    # "A2dp routing was requested even though not ready" and kept the speaker
+    # (Galaxy S26 b025cad0 and cdd92328; One UI's order on the S24: 87a4d7f1).
+    # That line triggers the same key.
     # ONEOS_GUEST_A2DP_NUDGE=0 leaves it out.
     if [ "${ONEOS_GUEST_A2DP_NUDGE:-1}" = 1 ] &&
-       service check android.hardware.audio.core.IModule/bluetooth 2>/dev/null | grep -q ": found"; then
+       { service check android.hardware.audio.core.IModule/bluetooth 2>/dev/null | grep -q ": found" ||
+         [ "$(getprop ro.soc.manufacturer)" = Samsung ]; }; then
         echo "=== $(date '+%F %T') session: Bluetooth stream watch (A2dpSuspended=false when the HAL drops A2DP writes)" >> /data/oneos_a2dp.log
         $BB sh -c 'bb=$1; last=0; fails=0; sent=0
-            logcat -v brief -T 1 -s AHAL_StreamBluetooth:D AHAL_BluetoothAudioPort:I 2>/dev/null | while IFS= read -r l; do
+            logcat -v brief -T 1 -s AHAL_StreamBluetooth:D AHAL_BluetoothAudioPort:I audio_hw_playback:W audio_hw_a2dp_proxy:I 2>/dev/null | while IFS= read -r l; do
                 case "$l" in
-                    *"stream state is disabled"*) ;;
-                    *"standby"*"done"*|*"start"*"STARTED"*)
+                    *"stream state is disabled"*|*"A2dp routing was requested even though not ready"*) ;;
+                    *"standby"*"done"*|*"start"*"STARTED"*|*"proxy_a2dp_open"*)
                         [ "$sent" = 1 ] && { echo "$(date +%T) Bluetooth stream back: ${l#*: }" | cut -c1-200; sent=0; fails=0; }
                         continue ;;
                     *) continue ;;
@@ -1079,7 +1088,7 @@ if [ -f /data/guest_audio.flag ]; then
                 fi
                 r=$(service call media.audio_flinger 18 i32 0 s16 "A2dpSuspended=false" 2>&1 | tr -s " \n" " " | head -c 80)
                 sent=1
-                echo "$(date +%T) HAL dropped A2DP writes (stream disabled): A2dpSuspended=false to AudioFlinger: $r"
+                echo "$(date +%T) HAL kept A2DP off (${l#*: }): A2dpSuspended=false to AudioFlinger: $r" | cut -c1-260
             done' oneos_a2dp_watch "$BB" >> /data/oneos_a2dp.log 2>&1 &
         echo "[Pivoted Root] A2DP: Bluetooth stream watch on (the HAL has a bluetooth module; /data/oneos_a2dp.log)"
     fi
@@ -1105,8 +1114,21 @@ if [ -f /data/guest_audio.flag ]; then
         # So: 60 s as before, and never less than 20 s after the guest framework
         # is there (a = seconds since "activity" was first found); 600 s at most
         # while there is no framework at all (nothing needs sound until then).
-        t=0; a=-1
-        while [ "$(owner)" != "$as" ] && kill -0 $as 2>/dev/null; do
+        # 0.5.12: a guest audioserver that dies before it registers is started again,
+        # 3 times at most, before any hand-over. The audio HAL restarted 1 s after the
+        # guest one started (HIDL: "HAL server crashed, audio server is restarting",
+        # it exits by design), the old loop took that for a failure and handed over
+        # at 2 s, and Samsung audioserver killed the Pixel framework (Invalid usage
+        # 1005; S23 Ultra Pixel 2f5a8be9, "the other system stopped" at 60 s).
+        t=0; a=-1; d=0
+        while [ "$(owner)" != "$as" ]; do
+            if ! kill -0 $as 2>/dev/null; then
+                [ $d -lt 3 ] || break
+                d=$((d + 1)); sleep 2; t=$((t + 2))
+                /system/bin/audioserver > /dev/null 2>&1 & as=$!
+                echo "$(date +%T) guest audioserver died before it registered (${t}s); started again as $as ($d of 3)"
+                continue
+            fi
             if [ $a -lt 0 ]; then
                 case "$(service check activity 2>/dev/null)" in *": found"*) a=0 ;; esac
             fi
@@ -1115,7 +1137,8 @@ if [ -f /data/guest_audio.flag ]; then
             sleep 2; t=$((t + 2)); [ $a -lt 0 ] || a=$((a + 2))
         done
         if [ "$(owner)" != "$as" ]; then
-            if [ $a -lt 0 ]; then handover "guest audioserver did not register in ${t}s (no guest framework in that time)"
+            if [ $d -ge 3 ] && ! kill -0 $as 2>/dev/null; then handover "guest audioserver died 4 times before it registered (${t}s)"
+            elif [ $a -lt 0 ]; then handover "guest audioserver did not register in ${t}s (no guest framework in that time)"
             else handover "guest audioserver did not register in ${t}s (${a}s after the guest framework came up)"; fi
             exit 0
         fi

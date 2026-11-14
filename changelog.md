@@ -50,6 +50,11 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.12: fixes from your reports.
+- **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver kept the sound on
+  the speaker because ColorOS never told it Bluetooth audio was ready; OneOS now does, untested.
+- **Pixel on the Galaxy S23 Ultra no longer stops after a minute** when the audio driver restarts during its start.
+
 New in 0.5.11: fixes from your reports.
 - **Brighter screen on the Galaxy S23, S24 and S25 phones** (base, Plus and Ultra), in every system: they ran at a
   dimmer brightness scale than One UI's.
