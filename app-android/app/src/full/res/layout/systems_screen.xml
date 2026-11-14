@@ -7,7 +7,7 @@
         <ImageView android:id="@+id/systems_update_icon" android:layout_width="40dp" android:layout_height="40dp" android:importantForAccessibility="no" android:src="@drawable/ic_oneos_update" />
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginHorizontal="14dp" android:layout_weight="1" android:orientation="vertical">
             <TextView android:id="@+id/systems_update_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="?android:attr/textColorPrimary" android:textSize="17sp" android:textStyle="bold" />
-            <TextView android:id="@+id/systems_update_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:maxLines="3" android:ellipsize="end" android:textColor="?android:attr/textColorSecondary" android:textSize="14sp" />
+            <TextView android:id="@+id/systems_update_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:maxLines="6" android:ellipsize="end" android:textColor="?android:attr/textColorSecondary" android:textSize="14sp" />
         </LinearLayout>
         <TextView android:id="@+id/systems_update_action" android:layout_width="wrap_content" android:layout_height="40dp" android:background="@drawable/oneos_button_primary_bg" android:gravity="center" android:minWidth="88dp" android:paddingHorizontal="18dp" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:importantForAccessibility="no" />
     </LinearLayout>

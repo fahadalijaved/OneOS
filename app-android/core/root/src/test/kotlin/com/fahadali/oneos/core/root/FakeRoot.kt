@@ -184,6 +184,13 @@ class FakeRoot(
         return sh(text, input)
     }
 
+    /** [verb] with an argument the host side would refuse ([bad] replaces [good], a valid one, in the launcher): what the script itself does with it. */
+    fun runUnchecked(verb: RootScript.Verb, good: String, bad: String): Run {
+        val text = RootScript.launcher(verb, listOf(good), scriptSha, script.size.toLong(), layout)
+        check(text.contains("set -- ${verb.word} $good\n"))
+        return sh(text.replace("set -- ${verb.word} $good\n", "set -- ${verb.word} $bad\n"), ByteArray(0))
+    }
+
     fun sh(text: String, input: ByteArray = ByteArray(0)): Run {
         val cmd = if (shell.appletsFirst) listOf(shell.path, "ash", "-c", text) else listOf(shell.path, "-c", text)
         val pb = ProcessBuilder(cmd)

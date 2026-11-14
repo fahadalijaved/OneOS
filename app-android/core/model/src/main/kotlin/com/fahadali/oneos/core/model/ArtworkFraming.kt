@@ -15,6 +15,8 @@ object ArtworkFraming {
         // 0.4.73: OriginOS 7's default wallpaper (VivoThemeRes wallpaper_02) with vivo's "originOS 7" wordmark from
         // Settings' About phone banner (about_phone_origin_os_img), keyed out and placed on it (the owner's choice).
         SystemFamily.ORIGINOS -> if (wide) Heading(.21f, .26f, .79f, .34f) else Heading(.19f, .24f, .81f, .30f)
+        // 0.5.06: LineageOS 24's default wallpaper with Lineage's logo (its boot animation) and LineageOS in Google Sans Flex (from the image).
+        SystemFamily.LINEAGE -> if (wide) Heading(.153f, .371f, .846f, .629f) else Heading(.153f, .406f, .845f, .594f)
         else -> Heading(.1f, .2f, .9f, .6f)
     }
     fun transform(family: SystemFamily, sourceWidth: Int, sourceHeight: Int, width: Int, height: Int, reservedBottom: Float = 0f): Transform {

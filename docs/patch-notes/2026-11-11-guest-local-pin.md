@@ -1,9 +1,15 @@
 # Guest-local PIN and ColorOS unlock
 
-Status: draft, 2026-11-11. `feat/guest-local-pin` is the branch under review
-(PR #152). `feat/host-delegated-unlock` is kept only as the closed PR #132
-head; it does not carry the guest-local PIN, the biometric import, or the
-battery gate.
+Status: superseded, 2026-11-14. Upstream 0.4.95 shipped the guest's own screen
+lock as `switcher/patches/guest_local_lock.py` (`docs/guest-screen-lock.md`):
+PIN, pattern and password, with the lockout ladder, credited to PR #152. This
+note is kept for the branch history. On top of 0.5.09 the branch keeps only the
+ColorOS fingerprint wave (`switcher/patches/guest_force_aidl_fingerprint.py`,
+`systemui-fingerprint-wave/`), the AIDL force and the biometric import; its
+`guest_local_pin.py`, the kept PIN jar and `scripts/install-pin-jar.sh` are gone.
+
+`feat/host-delegated-unlock` is kept only as the closed PR #132 head; it does
+not carry the guest-local PIN, the biometric import, or the battery gate.
 
 ## Branch
 

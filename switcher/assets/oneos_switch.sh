@@ -34,6 +34,22 @@ root_only() {
 }
 [ "$(id -u 2>/dev/null)" = 0 ] || refuse "not running as root"
 
+# A store app's native helper run as a program (libtimer.so from an app's lib
+# folder, as the shell user, argument "umhpipe") that works on kernel pipes:
+# every S24-family kernel panic in free_pipe_info/pipe_read since 0.4.9x ran in
+# that thread (0.5.03's timer_threads.txt, report 60192300, 11-13). Not stopped
+# here: the panic comes when its pipe is freed, so killing it would be the crash. The
+# app starts the tool again at boot (aee4e2df on 0.5.04: refused after two restarts), so
+# the message asks for the app to be uninstalled.
+for ex in /proc/[0-9]*/exe; do
+    t=$(readlink "$ex" 2>/dev/null) || continue
+    case "$t" in
+        /data/app/*/lib/*/libtimer.so)
+            a=${t#/data/app/}; a=${a#*/}; a=${a%%/lib/*}; a=${a%%-*}
+            refuse "the app $a runs a kernel tool (libtimer.so, pid $(echo "$ex" | cut -d/ -f3)) that crashed the kernel of S24 phones during OneOS sessions. It starts again after every restart, so restarting does not help: uninstall $a (Settings, Apps; the phone may restart once while its tool closes), then switch again" ;;
+    esac
+done
+
 # Root tools: the root manager's own busybox and resetprop (KernelSU, APatch,
 # Magisk), never whatever a search of /data finds (OneLineage fell back to
 # `find /data -name busybox`). A missing resetprop is fatal: without it
@@ -1714,8 +1730,11 @@ fi
 # its Bluetooth module ("BtAudioAIDLService: Could not register ...
 # IBluetoothAudioProviderFactory/default, status=-3", S24 Ultra ColorOS
 # sessions): with the declaration that now succeeds and replaces the bridge's
-# registration, which is as good (the Fold8 Ultra has exactly that); the return
-# restarts the audio HAL after taking the declaration back. Only when Samsung's
+# registration. That is NOT as good: the audio HAL's own Bluetooth path waits
+# for Samsung's sessions, so playback on Qualcomm's provider fails with -38 and
+# the sound stays on the speaker (Galaxy S23 ColorOS, report c49cdbce). The
+# bridge therefore takes the name back whenever another process holds it; the
+# return restarts the audio HAL after taking the declaration back. Only when Samsung's
 # factory is registered and Android's is not; ONEOS_GUEST_BT_AUDIO_BRIDGE=0
 # leaves it all alone.
 rm -f "$STAGE/bt_bridge_vintf"
@@ -3306,6 +3325,12 @@ while true; do
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_fold8/runtime.sh runtime >\"$STAGE/fold8_runtime.log\" 2>&1 || echo '[UI Activator] Fold8 runtime setup failed; see fold8_runtime.log'
             fi
 
+            # ColorOS wallpaper AOD on the bar phones (0.4.97): guest_prepare.sh wrote this script only where
+            # the set's ColorPanoramicSystemUI.apk is bound; it adds the app feature and restarts SystemUI once.
+            if [ -f \"$STAGE/data/oneos_panoramic_aod.sh\" ]; then
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_panoramic_aod.sh >\"$STAGE/panoramic_aod.log\" 2>&1 || echo '[UI Activator] Wallpaper AOD setup failed; see panoramic_aod.log'
+            fi
+
             # Pixel Fold8 / Fold8 Ultra: start the system-UID sensor reader in the guest namespace
             # (fold8_pixel.sh prepare made runtime.sh only for those two sets).
             if { [ \"${ONEOS_PROFILE:-}\" = f8 ] || [ \"${ONEOS_PROFILE:-}\" = f8u ]; } && grep -q '\"set\": \"pixel-f8u\\{0,1\\}\",' \"$STAGE/.oneos_stage\" && [ -f \"$STAGE/data/oneos_pixel_hinge/runtime.sh\" ]; then
@@ -3786,6 +3811,17 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     { for p in /sys/devices/system/cpu/cpufreq/policy*; do echo \"\$p cur/max/hw \$(cat \$p/scaling_cur_freq \$p/scaling_max_freq \$p/cpuinfo_max_freq 2>/dev/null | tr '\n' ' ')\"; done
                       echo \"gpu cur \$(cat /sys/class/kgsl/kgsl-3d0/devfreq/cur_freq 2>&1) max \$(cat /sys/class/kgsl/kgsl-3d0/max_gpuclk 2>&1)\"
                       timeout 10 logcat -d -s thermal_core 2>/dev/null | tail -n 3; } > \$D/throttle.txt 2>&1
+                    # Galaxy S24 family kernel panics in free_pipe_info (10 reports, 0.4.84-0.5.01, ColorOS IN,
+                    # OriginOS and Pixel 9 Pro XL): the exiting thread is almost always named libtimer.so (else
+                    # \"POSIX timer N\"), and no log tells whose it is. Record each such thread's process.
+                    for tk in /proc/[0-9]*/task/[0-9]*; do
+                        c=\$(cat \$tk/comm 2>/dev/null)
+                        case \"\$c\" in
+                            libtimer*|'POSIX timer'*)
+                                p=\${tk#/proc/}; p=\${p%%/*}
+                                echo \"\$c tid=\${tk##*/} pid=\$p uid=\$(stat -c %u /proc/\$p 2>/dev/null) cmd=\$(tr '\0' ' ' < /proc/\$p/cmdline 2>/dev/null | cut -c1-200) exe=\$(readlink /proc/\$p/exe 2>/dev/null)\" ;;
+                        esac
+                    done > \$D/timer_threads.txt 2>&1
                     # Did user 0 unlock, did the launcher get a window, and if not,
                     # where are the launcher and SystemUI main threads stuck?
                     if [ \$dname != 20 ]; then

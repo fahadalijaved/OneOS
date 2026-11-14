@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ArtworkFramingTest {
-    private val families = listOf(SystemFamily.COLOROS, SystemFamily.HYPEROS, SystemFamily.INFINITYX, SystemFamily.NOTHING, SystemFamily.PIXEL)
+    private val families = listOf(SystemFamily.COLOROS, SystemFamily.HYPEROS, SystemFamily.INFINITYX, SystemFamily.NOTHING, SystemFamily.PIXEL, SystemFamily.LINEAGE)
     @Test fun shortHeaderCropsKeepCompleteHeadingsAndNeverExposeSideBands() {
         for (family in families) for ((w, h) in listOf(388 to 356, 320 to 300, 600 to 500)) {
             val a = ArtworkFraming.heading(family, true)
@@ -22,5 +22,10 @@ class ArtworkFramingTest {
         assertEquals(388f / 1050, m.scale, .001f)
         assertTrue(a.top * 1548 * m.scale + m.y >= 0)
         assertTrue(a.bottom * 1548 * m.scale + m.y <= 267)
+    }
+    /** 0.5.06: LineageOS 24's logo and wordmark, not the default box (the wide export sits a little higher and taller). */
+    @Test fun lineageHeadingIsItsOwn() {
+        assertEquals(ArtworkFraming.Heading(.153f, .371f, .846f, .629f), ArtworkFraming.heading(SystemFamily.LINEAGE, true))
+        assertEquals(ArtworkFraming.Heading(.153f, .406f, .845f, .594f), ArtworkFraming.heading(SystemFamily.LINEAGE, false))
     }
 }

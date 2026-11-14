@@ -407,13 +407,13 @@ object ShellScan {
  * phone's user data, reboots, settings, package wipes or mounts.
  */
 object StageAudit {
-    val VERBS = listOf("guest-runtime", "guest-module", "guest-module-state", "begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "selfupdate", "bring-collect", "bring-clear", "bring-status")
+    val VERBS = listOf("guest-runtime", "guest-module", "guest-module-state", "begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "remove-system", "reset-data", "selfupdate", "bring-collect", "bring-clear", "bring-status", "bring-forget", "bring-catalog", "bring-add")
 
     val ALLOWED: Set<String> = setOf(
         "umask", "[", "echo", "printf", "id", "stat", "awk", "sed", "grep", "sort", "head", "tail", "cut", "tr", "wc",
         "cat", "ls", "mkdir", "mv", "cp", "rm", "chown", "chmod", "sha256sum", "date", "getprop", "pm", "getevent", "du",
         "env", "unset", "export", "set", "read", "exit", "return", "shift", "true", "false", "break", "continue", "exec",
-        "trap", "am", "od", "find",
+        "trap", "am", "od", "find", "sleep",
     )
 
     private val WRITES = setOf("mkdir", "mv", "cp", "rm", "chown", "chmod")
@@ -429,7 +429,7 @@ object StageAudit {
     private val STAGE_VARS = setOf("STAGE", "ATTIC", "PLAN", "RECEIVED", "part", "dst", "S", "F", "upd", "upapk", "LOCK", "NEW")
 
     /** Helpers that write their first argument; their call sites must pass a stage path. */
-    private val WRITE_HELPERS = setOf("own", "mkdir_mine", "bring_drop")
+    private val WRITE_HELPERS = setOf("own", "mkdir_mine", "bring_drop", "bring_aside", "bring_clearout")
 
     /**
      * Documented exceptions: `begin aside` renames the stage to its sibling
@@ -456,6 +456,13 @@ object StageAudit {
      * trap is take_lock's (0.4.71): `trap 'rm -f "$LOCK"' EXIT`, the stage's own bin/.lock.
      */
     private const val SELFUPDATE_FUNCTION = "do_selfupdate"
+
+    /**
+     * The script's one wait (build 125): switch_verdict, which launch calls after it
+     * started the switch, reads the switch's own verdict from the stage's log once a
+     * second. `sleep 1` there, and no other sleep anywhere.
+     */
+    private const val LAUNCH_WAIT_FUNCTION = "switch_verdict"
     private const val UPSRC_VALUE = "\"\$DATA/user/0/\$APP_PACKAGE/files/oneos-update/OneOS.apk\""
     private val SELFUPDATE_PM = listOf("install", "-r", "--pkg", "\"\$APP_PACKAGE\"", "\"\$upapk\"")
     private val SELFUPDATE_AM = listOf("start", "-n", "\"\$APP_PACKAGE/.ui.MainActivity\"")
@@ -466,7 +473,7 @@ object StageAudit {
      * folders seen through init's root (`$pkg` is a name is_package accepted),
      * set only in bring_sources, and `$BFROM` the variable of the two loops
      * over exactly their entries. The only commands that may take any of the
-     * three are do_bring_collect's tests (`[`), the one
+     * three are bring_one's tests (`[`), the one
      * `du -sk "$apkdir" "$BCE" "$BDE"` that sizes the app, the two copies into
      * the stage, `cp -a "$BFROM" "$NEW/ce/"` and `cp -a "$BFROM" "$NEW/de/"`
      * (`$NEW` is the copy's place in the stage until it is whole), and
@@ -476,7 +483,7 @@ object StageAudit {
      * them no function: the exact words stand in). No redirection names them,
      * and nowhere else does the script name init's root or run find.
      */
-    private const val BRING_FUNCTION = "do_bring_collect"
+    private const val BRING_FUNCTION = "bring_one"
     private const val BRING_SOURCES_FUNCTION = "bring_sources"
     private const val BCE_VALUE = "\"\$PROC/1/root\$DATA/data/\$pkg\""
     private const val BDE_VALUE = "\"\$PROC/1/root\$DATA/user_de/0/\$pkg\""
@@ -634,6 +641,7 @@ object StageAudit {
                     p += "line ${c.line}: trap ${args.joinToString(" ")}"
                 }
                 "getevent" -> if (args != listOf("-pl")) p += "line ${c.line}: getevent ${args.joinToString(" ")}"
+                "sleep" -> if (args != listOf("1") || c.function != LAUNCH_WAIT_FUNCTION) p += "line ${c.line}: sleep ${args.joinToString(" ")}"
                 "exec" -> if (args.firstOrNull()?.endsWith("/system/bin/sh") != true && args.firstOrNull() != "@SH@") p += "line ${c.line}: exec ${args.firstOrNull()}"
                 "sed" -> if (args.any { it == "-i" || it.startsWith("-i") }) p += "line ${c.line}: sed -i"
                 "find" -> if (args != BRING_FIND) p += "line ${c.line}: find ${args.joinToString(" ")}"

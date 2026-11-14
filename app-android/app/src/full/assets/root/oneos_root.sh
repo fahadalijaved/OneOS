@@ -152,6 +152,9 @@ SET_PIXEL="services_patched.jar framework_patched.jar telephony-common_patched.j
 # Infinity-X (0.4.27): both guard jars, the camera codes, the guest vold, the AOSP
 # signal poll, the IMS backoff, the in-guest app and its own payloads.
 SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar samcam.tar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
+# LineageOS 24 (0.5.06): the guards, the camera codes, the guest vold, the AOSP signal poll, the IMS backoff, the in-guest app, the
+# fold and tablet overlays and its own payloads; no Google payload (One UI's Google apps, guest_google.sh).
+SET_LINEAGE="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk OneOSFoldCutout.apk OneOSTabletQs.apk oneos-apex-requires.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img OneOSPixelDoze.apk libbootanimation_preapex_patched.so"
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
 SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so telephony-common_patched.jar samcam.tar samcam_bar.tar xiaomi-opt-telephony_patched.jar"
@@ -171,7 +174,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
 # sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in nothingos5-metroid oxygenos16-cph2745"
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 lineage24-infiniti"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -243,6 +246,8 @@ profile_info() {
         s-9925) echo "SM-S901 r0s s5e9925 bar" ;;
         a16-mtk) echo "SM-A166 a16xm MT6835 bar" ;;
         s-8550-jp) echo "SCG19 SCG19 SM8550 bar" ;;
+        m35) echo "SM-M356 m35x s5e8835 bar" ;;
+        a15-5g) echo "SM-A156 a15x MT6835 bar" ;;
         *) return 1 ;;
     esac
 }
@@ -271,131 +276,201 @@ profile_set() {
         "f7 nothingos5-metroid") echo nothing-f8u ;;
         "f6 nothingos5-metroid") echo nothing-f8u ;;
         "flip8 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip8 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip8 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip8 infinityx41-findx9u") echo infinityx ;;
+        "flip8 lineage24-infiniti") echo lineage ;;
         "flip8 hyperos-lhasa") echo hyper-f8u ;;
         "a36 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a36 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a36 infinityx41-findx9u") echo infinityx ;;
+        "a36 lineage24-infiniti") echo lineage ;;
         "a36 hyperos-lhasa") echo hyper-f8u ;;
         "a27 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a27 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a27 infinityx41-findx9u") echo infinityx ;;
+        "a27 lineage24-infiniti") echo lineage ;;
         "a27 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f7 coloros17-findn6") echo n6-f8u ;;
         "s-plus-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8 coloros17-findn6") echo n6-global-f8 ;;
         "f8 pixel11fold-yogi") echo pixel-f8 ;;
         "s-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-8850-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8850-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8850-jp pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-8850 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-plus-9965 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-9965 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-9965 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-9965 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-9965 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-9965 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip7 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip7 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a56 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a56 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a57 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a57 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a56 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a57 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-ultra-8550 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip6 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip6 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8650 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8650 infinityx41-findx9u") echo infinityx ;;
+        "s-8650 lineage24-infiniti") echo lineage ;;
         "s-8650 hyperos-lhasa") echo hyper-f8u ;;
         "s-8650 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip6 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip5 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip5 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip5 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8u infinityx41-findx9u") echo infinityx ;;
+        "f8u lineage24-infiniti") echo lineage ;;
         "f8 infinityx41-findx9u") echo infinityx ;;
+        "f8 lineage24-infiniti") echo lineage ;;
         "f8 hyperos-lhasa") echo hyper-f8u ;;
         "f7 infinityx41-findx9u") echo infinityx ;;
+        "f7 lineage24-infiniti") echo lineage ;;
         "f7 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8850 lineage24-infiniti") echo lineage ;;
         "s-ultra-8850 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8850 lineage24-infiniti") echo lineage ;;
         "s-plus-8850 hyperos-lhasa") echo hyper-f8u ;;
         "s-8850 infinityx41-findx9u") echo infinityx ;;
+        "s-8850 lineage24-infiniti") echo lineage ;;
         "s-8850 hyperos-lhasa") echo hyper-f8u ;;
         "s-8850-jp infinityx41-findx9u") echo infinityx ;;
+        "s-8850-jp lineage24-infiniti") echo lineage ;;
         "s-8850-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9965 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-9965 lineage24-infiniti") echo lineage ;;
         "s-plus-9965 hyperos-lhasa") echo hyper-f8u ;;
         "s-9965 infinityx41-findx9u") echo infinityx ;;
+        "s-9965 lineage24-infiniti") echo lineage ;;
         "s-9965 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8750 lineage24-infiniti") echo lineage ;;
         "s-ultra-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8750 lineage24-infiniti") echo lineage ;;
         "s-plus-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-8750 lineage24-infiniti") echo lineage ;;
         "s-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8650 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8650 lineage24-infiniti") echo lineage ;;
         "s-ultra-8650 hyperos-lhasa") echo hyper-f8u ;;
         "s-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-8550 lineage24-infiniti") echo lineage ;;
         "s-8550 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8550 lineage24-infiniti") echo lineage ;;
         "s-plus-8550 hyperos-lhasa") echo hyper-f8u ;;
         "flip7 infinityx41-findx9u") echo infinityx ;;
+        "flip7 lineage24-infiniti") echo lineage ;;
         "flip7 hyperos-lhasa") echo hyper-f8u ;;
         "a56 infinityx41-findx9u") echo infinityx ;;
+        "a56 lineage24-infiniti") echo lineage ;;
         "a57 infinityx41-findx9u") echo infinityx ;;
+        "a57 lineage24-infiniti") echo lineage ;;
         "a56 hyperos-lhasa") echo hyper-f8u ;;
         "a57 hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8550 infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8550 lineage24-infiniti") echo lineage ;;
         "flip6 infinityx41-findx9u") echo infinityx ;;
+        "flip6 lineage24-infiniti") echo lineage ;;
         "s-9945 infinityx41-findx9u") echo infinityx ;;
+        "s-9945 lineage24-infiniti") echo lineage ;;
         "s-ultra-8550 hyperos-lhasa") echo hyper-f8u ;;
         "s-9945 hyperos-lhasa") echo hyper-f8u ;;
         "flip5 infinityx41-findx9u") echo infinityx ;;
+        "flip5 lineage24-infiniti") echo lineage ;;
         "flip5 hyperos-lhasa") echo hyper-f8u ;;
         "f6 coloros17-findn6") echo n6-f8u ;;
         "f6 infinityx41-findx9u") echo infinityx ;;
+        "f6 lineage24-infiniti") echo lineage ;;
         "f5 coloros17-findn6") echo n6-f8u ;;
         "f5 infinityx41-findx9u") echo infinityx ;;
+        "f5 lineage24-infiniti") echo lineage ;;
         "a07 infinityx41-findx9u") echo infinityx ;;
+        "a07 lineage24-infiniti") echo lineage ;;
         "s-edge-8750 nothingos5-metroid") echo nothing-f8u ;;
         "s-edge-8750 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-edge-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-edge-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-edge-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-edge-8750 lineage24-infiniti") echo lineage ;;
         "s-edge-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-fe-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-fe-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-fe-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-fe-9945 infinityx41-findx9u") echo infinityx ;;
+        "s-fe-9945 lineage24-infiniti") echo lineage ;;
         "s-fe-9945 hyperos-lhasa") echo hyper-f8u ;;
         "a26 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a26 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a26 infinityx41-findx9u") echo infinityx ;;
+        "a26 lineage24-infiniti") echo lineage ;;
         "a35 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a35 infinityx41-findx9u") echo infinityx ;;
+        "a35 lineage24-infiniti") echo lineage ;;
         "a54 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a54 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a54 infinityx41-findx9u") echo infinityx ;;
+        "a54 lineage24-infiniti") echo lineage ;;
         "a16-4g infinityx41-findx9u") echo infinityx ;;
+        "a16-4g lineage24-infiniti") echo lineage ;;
         "a16-s166 infinityx41-findx9u") echo infinityx ;;
+        "a16-s166 lineage24-infiniti") echo lineage ;;
         "a17 infinityx41-findx9u") echo infinityx ;;
+        "a17 lineage24-infiniti") echo lineage ;;
         "a16 infinityx41-findx9u") echo infinityx ;;
+        "a16 lineage24-infiniti") echo lineage ;;
         "a17-5g infinityx41-findx9u") echo infinityx ;;
+        "a17-5g lineage24-infiniti") echo lineage ;;
         "a34 infinityx41-findx9u") echo infinityx ;;
+        "a34 lineage24-infiniti") echo lineage ;;
         "a15 infinityx41-findx9u") echo infinityx ;;
+        "a15 lineage24-infiniti") echo lineage ;;
         "a07 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a07 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "f8u originos7-pd2609ma") echo originos ;;
         "f8 originos7-pd2609ma") echo originos ;;
         "f7 originos7-pd2609ma") echo originos ;;
@@ -441,15 +516,24 @@ profile_set() {
         "a16-s166 oxygenos16-cph2745") echo oxygen16 ;;
         "a17-5g oxygenos16-cph2745") echo oxygen16 ;;
         "a17 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a17 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a16-4g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16-4g coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a16 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a16-s166 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a16-s166 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a17-5g coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a17-5g coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a34 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a34 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a15 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a15 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "flip7-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip7-fe infinityx41-findx9u") echo infinityx ;;
+        "flip7-fe lineage24-infiniti") echo lineage ;;
         "flip7-fe hyperos-lhasa") echo hyper-f8u ;;
         "a26 hyperos-lhasa") echo hyper-f8u ;;
         "a35 hyperos-lhasa") echo hyper-f8u ;;
@@ -463,27 +547,35 @@ profile_set() {
         "a34 hyperos-lhasa") echo hyper-f8u ;;
         "a15 hyperos-lhasa") echo hyper-f8u ;;
         "a55 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "a55 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a55 infinityx41-findx9u") echo infinityx ;;
+        "a55 lineage24-infiniti") echo lineage ;;
         "a55 hyperos-lhasa") echo hyper-f8u ;;
         "a55 oxygenos16-cph2745") echo oxygen16 ;;
         "s25-fe coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s25-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s25-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "s25-fe infinityx41-findx9u") echo infinityx ;;
+        "s25-fe lineage24-infiniti") echo lineage ;;
         "s25-fe hyperos-lhasa") echo hyper-f8u ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-9945 originos7-pd2609ma") echo originos ;;
         "s-plus-9945 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-plus-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-9945 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-9945 lineage24-infiniti") echo lineage ;;
         "s-plus-9945 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9945 originos7-pd2609ma") echo originos ;;
         # 0.4.92: the au Galaxy S23 Ultra (SCG20): the S23 Ultra's rows, untested.
         "s-ultra-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-ultra-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-ultra-8550-jp infinityx41-findx9u") echo infinityx ;;
+        "s-ultra-8550-jp lineage24-infiniti") echo lineage ;;
         "s-ultra-8550-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
@@ -491,11 +583,21 @@ profile_set() {
         "a16-mtk oxygenos16-cph2745") echo oxygen16 ;;
         # 0.4.93: the au Galaxy S23 (SCG19): the S23's rows, untested.
         "s-8550-jp coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "s-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8550-jp infinityx41-findx9u") echo infinityx ;;
+        "s-8550-jp lineage24-infiniti") echo lineage ;;
         "s-8550-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550-jp originos7-pd2609ma") echo originos ;;
+        # 0.4.95: the Galaxy M35 5G (the A35's rows) and the Galaxy A15 5G with MediaTek (OxygenOS 16 only), untested.
+        "m35 coloros17-findx9u-in") echo x9u-in-sultra ;;
+        "m35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "m35 infinityx41-findx9u") echo infinityx ;;
+        "m35 lineage24-infiniti") echo lineage ;;
+        "m35 oxygenos16-cph2745") echo oxygen16 ;;
+        "m35 hyperos-lhasa") echo hyper-f8u ;;
+        "a15-5g oxygenos16-cph2745") echo oxygen16 ;;
         *) return 1 ;;
     esac
 }
@@ -510,12 +612,14 @@ image_raw() {
     case "$1" in
         coloros17-findn6) echo "14829686784 eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c" ;;
         coloros17-findx9u-in) echo "14669168640 92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6" ;;
+        coloros17-findx9u-in-1105) echo "14782214144 6c089f2d043d60f34b40dd58ad44f88621163163c1664121753311a115da8d7c" ;;
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
         hyperos-lhasa) echo "7749939200 269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac" ;;
         nothingos5-metroid) echo "6067867648 484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b" ;;
         pixel9proxl-komodo) echo "5837496320 2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c" ;;
         infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
+        lineage24-infiniti) echo "2327068672 f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261" ;;
         oxygenos16-cph2745) echo "12273344512 dafbb026f97692b7d59b8f4ae2f46773e88e0d5bf0e1fee46b3636ff56b06e90" ;;
         originos7-pd2609ma) echo "15998222336 9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee" ;;
         *) return 1 ;;
@@ -524,9 +628,10 @@ image_raw() {
 
 set_files() {
     case "$1" in
-        n6-global-f8) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar" ;;
-        n6-f8u) echo "$SET_COMMON OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar" ;;
-        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar SystemUI_wave.dex OneOSWaveRepack.dex" ;;
+        n6-global-f8) echo "$SET_COMMON oplus-framework_patched.jar OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar ColorPanoramicSystemUI.apk" ;;
+        n6-f8u) echo "$SET_COMMON oplus-framework_patched.jar OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
+        x9u-in-sultra) echo "$SET_COMMON cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk SystemUI_wave.dex OneOSWaveRepack.dex" ;;
+        x9u-in-1105-sultra) echo "$SET_COMMON oplus-framework_patched.jar cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
         pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk" ;;
@@ -534,6 +639,7 @@ set_files() {
         nothing-f8u) echo "$SET_NOTHING" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX" ;;
+        lineage) echo "$SET_LINEAGE" ;;
         oxygen16) echo "$SET_OXYGENOS" ;;
         originos) echo "$SET_ORIGINOS" ;;
         *) return 1 ;;
@@ -546,12 +652,14 @@ set_image() {
         n6-global-f8) echo coloros17-findn6 ;;
         n6-f8u) echo coloros17-findn6 ;;
         x9u-in-sultra) echo coloros17-findx9u-in ;;
+        x9u-in-1105-sultra) echo coloros17-findx9u-in-1105 ;;
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
         hyper-f8u) echo hyperos-lhasa ;;
         nothing-f8u) echo nothingos5-metroid ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
+        lineage) echo lineage24-infiniti ;;
         oxygen16) echo oxygenos16-cph2745 ;;
         originos) echo originos7-pd2609ma ;;
         *) return 1 ;;
@@ -566,9 +674,10 @@ set_image() {
 # (com.miui.) (data_family).
 image_family() {
     case "$1" in
-        coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in) echo coloros ;;
+        coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in|coloros17-findx9u-in-1105) echo coloros ;;
         pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo) echo pixel ;;
         infinityx41-findx9u) echo infinityx ;;
+        lineage24-infiniti) echo lineage ;;
         hyperos-lhasa) echo hyperos ;;
         nothingos5-metroid) echo nothing ;;
         oxygenos16-cph2745) echo oxygenos ;;
@@ -583,6 +692,10 @@ data_family() {
     pk="$STAGE/data/system/packages.xml"
     if grep -q -s -F "com.infinity.updater" "$pk"; then
         echo infinityx
+    # LineageOS (0.5.06): its packages without Infinity-X's updater (Infinity-X is
+    # Lineage-based, so it is checked first).
+    elif grep -q -s -F "org.lineageos.updater" "$pk"; then
+        echo lineage
     elif grep -q -s -F "com.oneplus.membership" "$pk"; then
         echo oxygenos
     elif grep -q -s -F "com.bbk.launcher2" "$pk"; then
@@ -951,8 +1064,10 @@ do_begin() {
                 # its data is not from (scripts/deploy-phone.sh without --fresh).
                 dfam=$(data_family)
                 ifam=$(image_family "$B_IMAGE") || refuse "$B_IMAGE has no system family"
-                [ -z "$dfam" ] || [ "$dfam" = "$ifam" ] ||
+                if [ -n "$dfam" ] && [ "$dfam" != "$ifam" ]; then
+                    [ "$dfam" = lineage ] && refuse "the stage holds LineageOS data, not $B_IMAGE's: move it aside"
                     refuse "the stage holds another system's guest data ($dfam), not $B_IMAGE's: move the stage aside"
+                fi
             fi
             if [ "$ours" = 0 ]; then
                 if grep -q -s -F "org.lineageos." "$STAGE/data/system/packages.xml"; then
@@ -1177,6 +1292,25 @@ find_tools() {
     done
 }
 
+# What the switch started by this launch ($1: its session id) said in its own
+# check before it changes anything (oneos_switch.sh's preflight), read from the
+# log $2: "passed", "refused <its reason>", or nothing when neither line came
+# within $3 seconds. The one place where this script waits (its one sleep).
+switch_verdict() {
+    sv_left=$3
+    while true; do
+        sv=$(awk -v sid="$1" '
+            index($0, "=== OneOS app launch " sid " ") == 1 { on = 1; v = ""; next }
+            on && v == "" && index($0, "PREFLIGHT REFUSED: ") == 1 { v = "refused " substr($0, 20) }
+            on && v == "" && index($0, "Preflight passed") == 1 { v = "passed" }
+            END { print v }' "$2" 2>/dev/null)
+        [ -z "$sv" ] || { printf '%s\n' "$sv"; return 0; }
+        [ "$sv_left" -gt 0 ] || return 1
+        sv_left=$((sv_left - 1))
+        sleep 1
+    done
+}
+
 do_launch() {
     [ $# -eq 7 ] || [ $# -eq 8 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot]"
     mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0}
@@ -1288,6 +1422,18 @@ do_launch() {
     "$BB" nsenter -t 1 -m -- "$BB" setsid /system/bin/sh -c \
         'set -a; . "$1/session.env"; set +a; exec /system/bin/sh "$1/oneos_switch.sh"' oneos-session "$STAGE" \
         </dev/null >>"$STAGE/takeover_app.log" 2>&1 &
+    # The switch checks once more by itself before it changes anything and can
+    # still refuse there, with its reason only in takeover_app.log. Up to 0.4.95
+    # the launch was answered before that: a refusal left the app's screen on
+    # "Shutting down One UI" for good (a Galaxy S23 whose property space was
+    # nearly full, twice, a report on 0.4.95). So the answer waits for that
+    # verdict. The step line tells the app that a session was started (it keeps
+    # the launch for Last session); no verdict in time is answered as before.
+    step "switch started"
+    verdict=$(switch_verdict "$sid" "$STAGE/takeover_app.log" 90)
+    case "$verdict" in
+        "refused "*) refuse "${verdict#refused }" ;;
+    esac
     say "@@OK launch $sid"
 }
 
@@ -1512,6 +1658,65 @@ do_remove() {
     purge_one "${OLD##*/}"
     say "@@RESULT removed $kb"
     say "@@OK remove"
+}
+
+# One system only (0.5.09; owner: "remove only one OS or its data and start
+# fresh ... as simple as clicking the hero card or its 3dot button"). Both run
+# on the idle, prepared stage only, with the checks restore and purge use, and
+# refuse, having changed nothing, while a session is starting, running or never
+# returned, anything of one is mounted or bridged, or one ran in this boot
+# (purge_one's rule: restart the phone first). Old copies, the log capture and
+# the downloaded system files are never touched.
+#   remove-system: the system set up now, with its apps and data, goes; the
+#                  stage is renamed to its $OLD sibling, a new stage with only
+#                  bin/oneos_root.sh (as begin aside makes it) takes its place,
+#                  and purge_one deletes the renamed one.
+#   reset-data:    the system stays set up; only its apps, accounts and
+#                  settings ($STAGE/data) go: moved into a new $OLD folder that
+#                  purge_one deletes. The next start is a first start
+#                  (oneos_switch.sh makes $STAGE/data again).
+one_system_checks() {
+    read_marker || refuse "no system is set up"
+    idle_or_refuse
+    restore_checks "$STAGE"
+    if session_this_boot "$STAGE"; then refuse "this system ran since the phone started - restart the phone first, then try again"; fi
+}
+do_remove_system() {
+    [ $# -eq 0 ] || usage "remove-system"
+    one_system_checks
+    self_sum=$(sha "$SELF")
+    OLD="$STAGE.old-$(date +%s)"
+    [ -e "$OLD" ] && OLD="$OLD-$$"
+    [ ! -e "$OLD" ] || refuse "${OLD#$T} exists already"
+    step "aside ${STAGE#$T}"
+    mv "$STAGE" "$OLD" || die "could not move the stage aside; nothing was removed"
+    mkdir "$STAGE" && own "$STAGE" 0755 && mkdir "$STAGE/bin" && own "$STAGE/bin" 0755 ||
+        die "could not make a new stage; the system stays as the old copy ${OLD##*/}"
+    cp "$OLD/bin/oneos_root.sh" "$STAGE/bin/.oneos_root.sh.new" && own "$STAGE/bin/.oneos_root.sh.new" 0755 &&
+        [ "$(sha "$STAGE/bin/.oneos_root.sh.new")" = "$self_sum" ] &&
+        mv -f "$STAGE/bin/.oneos_root.sh.new" "$STAGE/bin/oneos_root.sh" ||
+        die "could not install the root script in the new stage; the system stays as the old copy ${OLD##*/}"
+    purge_one "${OLD##*/}"
+    say "@@OK remove-system $M_IMAGE"
+}
+do_reset_data() {
+    [ $# -eq 0 ] || usage "reset-data"
+    one_system_checks
+    [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
+    if [ ! -e "$STAGE/data" ]; then
+        say "@@RESULT purged none 0"
+        say "@@OK reset-data $M_IMAGE"
+        return 0
+    fi
+    [ -d "$STAGE/data" ] || refuse "${STAGE#$T}/data is not a folder"
+    OLD="$STAGE.old-$(date +%s)"
+    [ -e "$OLD" ] && OLD="$OLD-$$"
+    [ ! -e "$OLD" ] || refuse "${OLD#$T} exists already"
+    mkdir "$OLD" && own "$OLD" 0700 || die "could not make ${OLD#$T}; nothing was removed"
+    step "move the system's apps and data out of the stage"
+    mv "$STAGE/data" "$OLD/data" || die "could not move the data out of the stage; nothing was removed"
+    purge_one "${OLD##*/}"
+    say "@@OK reset-data $M_IMAGE"
 }
 
 # Use a set-aside stage again (0.4.10). Like purge's checks, but a session
@@ -1853,6 +2058,113 @@ bring_mark() {
     head -n 1 "$1" 2>/dev/null | tr -c 'A-Za-z0-9 ._:,()=/\n-' ' ' | cut -c1-240
 }
 
+# What one session of this stage's data looks like to bring: the stage's data
+# folder (root's) and the bring folder in it (root's alone, 0700).
+bring_dirs() {
+    if [ ! -d "$STAGE/data" ]; then
+        mkdir "$STAGE/data" && own "$STAGE/data" 0755 || die "could not make the stage's data folder"
+    fi
+    # Root's alone: the copies keep One UI's owners, which mean other apps in the
+    # guest. A folder there that is not root's own is not deleted: mkdir_mine
+    # moves it aside.
+    mkdir_mine "$STAGE/data/oneos_bring" && own "$STAGE/data/oneos_bring" 0700 || die "could not make the bring folder"
+}
+
+# Clears a folder in the bring folder before a copy takes its place. With the
+# guest down (BRING_LIVE unset) that is bring_drop. While a session runs
+# (bring-add) purge_one's checks would refuse, as the session's bridges are up,
+# so the folder is only moved aside, inside the bring folder (root's alone), and
+# the next verb that runs with the guest down deletes it.
+BRING_LIVE=0
+bring_clearout() { # <a folder in the bring folder>
+    if [ "$BRING_LIVE" = 1 ]; then bring_aside "$1"; else bring_drop "$1"; fi
+}
+bring_aside() { # <a folder in the bring folder>; 1 when it is not root's own
+    [ -e "$1" ] || [ -L "$1" ] || return 0
+    [ -d "$1" ] && mine "$1" || return 1
+    mkdir_mine "$STAGE/data/oneos_bring/.aside" || die "could not make the aside folder"
+    mv "$1" "$STAGE/data/oneos_bring/.aside/${1##*/}-$(date +%s)-$$" || die "could not move ${1##*/} aside"
+}
+
+# One package's copy, the same code for bring-collect (guest down, one run for
+# every app of the list) and bring-add (a running session, one app). Each one is
+# copied beside its place ($NEW) and swapped in when all of it is there, so the
+# copy that waits for the guest stays whole when this run is cut short. since
+# (before the first byte) and stamp (after the last, with the APK's path) are
+# what bring-status compares One UI with, and stamp is what the guest marks as
+# applied. Returns 0 when the copy is in place, 1 when the app was skipped (the
+# reason is in BRING_WHY and said as an @@INFO line). The caller made
+# $STAGE/data/oneos_bring (bring_dirs) and set NEW.
+bring_one() { # <a name is_package accepted>
+    pkg=$1
+    BRING_WHY=""
+    dst="$STAGE/data/oneos_bring/$pkg"
+    # Its APKs: the folder pm names under /data/app (a user app; One UI's
+    # own apps stay on One UI, and the app never offers them).
+    first=$(pm path "$pkg" 2>/dev/null </dev/null | sed -n 's/^package://p' | head -n 1)
+    apkdir=""
+    case "$first" in *..*) ;; "$DATA"/app/*/*.apk) apkdir=${first%/*} ;; esac
+    if [ -z "$apkdir" ] || [ ! -f "$first" ] || [ -L "$first" ]; then
+        BRING_WHY="not an installed user app"
+        say "@@INFO $pkg: $BRING_WHY, skipped"
+        return 1
+    fi
+    bring_sources
+    # Room for it, and 2 GiB left for One UI afterwards.
+    kb=$(du -sk "$apkdir" "$BCE" "$BDE" 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
+    set -- $(stat -f -c '%a %S' "$DATA" 2>/dev/null)
+    if ! { is_dec "$kb" && is_dec "$1" && is_dec "$2" && awk -v f="$1" -v b="$2" -v k="$kb" 'BEGIN { exit !(f * b / 1024 >= k + 2097152) }'; }; then
+        BRING_WHY="not enough free space on the phone"
+        say "@@INFO $pkg: $BRING_WHY, skipped"
+        return 1
+    fi
+    # The app's turn: the screen names it while it is copied.
+    step "$pkg"
+    # What a run that was cut short left there goes first (a folder that is
+    # not root's own is moved aside by mkdir_mine, never deleted).
+    bring_clearout "$NEW" || true
+    mkdir_mine "$NEW" && mkdir_mine "$NEW/apk" || die "could not make ${NEW#$T}"
+    date +%s > "$NEW/since" || die "could not write in ${NEW#$T}"
+    for apk in "$apkdir"/*.apk; do
+        [ -f "$apk" ] && [ ! -L "$apk" ] || continue
+        name=${apk##*/}
+        case "$name" in *[!A-Za-z0-9._-]*) continue ;; esac
+        cat "$apk" > "$NEW/apk/$name" && own "$NEW/apk/$name" 0644 || die "could not copy $name of $pkg"
+    done
+    lost=0
+    if [ -d "$BCE" ] && [ ! -L "$BCE" ]; then
+        mkdir_mine "$NEW/ce" || die "could not make ${NEW#$T}/ce"
+        for BFROM in "$BCE"/* "$BCE"/.[!.]* "$BCE"/..?*; do
+            [ -e "$BFROM" ] || [ -L "$BFROM" ] || continue
+            case "${BFROM##*/}" in cache|code_cache) continue ;; esac
+            cp -a "$BFROM" "$NEW/ce/" 2>/dev/null || lost=$((lost + 1))
+        done
+    else
+        lost=$((lost + 1))
+    fi
+    if [ -d "$BDE" ] && [ ! -L "$BDE" ]; then
+        mkdir_mine "$NEW/de" || die "could not make ${NEW#$T}/de"
+        for BFROM in "$BDE"/* "$BDE"/.[!.]* "$BDE"/..?*; do
+            [ -e "$BFROM" ] || [ -L "$BFROM" ] || continue
+            case "${BFROM##*/}" in cache|code_cache) continue ;; esac
+            cp -a "$BFROM" "$NEW/de/" 2>/dev/null || lost=$((lost + 1))
+        done
+    fi
+    [ "$lost" = 0 ] || say "@@INFO $pkg: $lost of its data items could not be read; it may ask to sign in"
+    printf '%s\n%s\n' "$(date +%s)" "$first" > "$NEW/stamp" || die "could not write in ${NEW#$T}"
+    # The copy brought before goes only now that the new one is whole.
+    if ! bring_clearout "$dst"; then
+        BRING_WHY="its folder in the stage is not root's own"
+        say "@@INFO $pkg: $BRING_WHY, skipped"
+        return 1
+    fi
+    mv "$NEW" "$dst" || die "could not put the copy of $pkg in place"
+    kb=$(du -sk "$dst" 2>/dev/null | cut -f1)
+    is_dec "$kb" || kb=0
+    say "@@RESULT brought $pkg $kb"
+    return 0
+}
+
 do_bring_collect() {
     [ $# -eq 1 ] || usage "bring-collect <bytes>"
     is_dec "$1" && ge 65536 "$1" || usage "bring-collect size $1"
@@ -1872,89 +2184,133 @@ do_bring_collect() {
         in_list "$pkg" "$list" || list="$list $pkg"
     done < "$part"
     rm -f "$part"
-    if [ ! -d "$STAGE/data" ]; then
-        mkdir "$STAGE/data" && own "$STAGE/data" 0755 || die "could not make the stage's data folder"
-    fi
-    # Root's alone: the copies keep One UI's owners, which mean other apps in the
-    # guest. A folder there that is not root's own is not deleted: mkdir_mine
-    # moves it aside.
-    mkdir_mine "$STAGE/data/oneos_bring" && own "$STAGE/data/oneos_bring" 0700 || die "could not make the bring folder"
-    # Only the apps named are copied; the others brought before stay as they
-    # are. Each one is copied beside its place ($NEW) and swapped in when all of
-    # it is there, so the copy that waits for the guest stays whole when this
-    # run is cut short. since (before the first byte) and stamp (after the
-    # last, with the APK's path) are what bring-status compares One UI with,
-    # and stamp is what the guest marks as applied.
+    bring_dirs
+    # Only the apps named are copied; the others brought before stay as they are.
     NEW="$STAGE/data/oneos_bring/.incoming"
     count=0
     for pkg in $list; do
-        dst="$STAGE/data/oneos_bring/$pkg"
-        # Its APKs: the folder pm names under /data/app (a user app; One UI's
-        # own apps stay on One UI, and the app never offers them).
-        first=$(pm path "$pkg" 2>/dev/null </dev/null | sed -n 's/^package://p' | head -n 1)
-        apkdir=""
-        case "$first" in *..*) ;; "$DATA"/app/*/*.apk) apkdir=${first%/*} ;; esac
-        if [ -z "$apkdir" ] || [ ! -f "$first" ] || [ -L "$first" ]; then
-            say "@@INFO $pkg: not an installed user app, skipped"
-            continue
-        fi
-        bring_sources
-        # Room for it, and 2 GiB left for One UI afterwards.
-        kb=$(du -sk "$apkdir" "$BCE" "$BDE" 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
-        set -- $(stat -f -c '%a %S' "$DATA" 2>/dev/null)
-        if ! { is_dec "$kb" && is_dec "$1" && is_dec "$2" && awk -v f="$1" -v b="$2" -v k="$kb" 'BEGIN { exit !(f * b / 1024 >= k + 2097152) }'; }; then
-            say "@@INFO $pkg: not enough free space on the phone, skipped"
-            continue
-        fi
-        # The app's turn: the screen names it while it is copied.
-        step "$pkg"
-        # What a run that was cut short left there goes first (a folder that is
-        # not root's own is moved aside by mkdir_mine, never deleted).
-        bring_drop "$NEW" || true
-        mkdir_mine "$NEW" && mkdir_mine "$NEW/apk" || die "could not make ${NEW#$T}"
-        date +%s > "$NEW/since" || die "could not write in ${NEW#$T}"
-        for apk in "$apkdir"/*.apk; do
-            [ -f "$apk" ] && [ ! -L "$apk" ] || continue
-            name=${apk##*/}
-            case "$name" in *[!A-Za-z0-9._-]*) continue ;; esac
-            cat "$apk" > "$NEW/apk/$name" && own "$NEW/apk/$name" 0644 || die "could not copy $name of $pkg"
-        done
-        lost=0
-        if [ -d "$BCE" ] && [ ! -L "$BCE" ]; then
-            mkdir_mine "$NEW/ce" || die "could not make ${NEW#$T}/ce"
-            for BFROM in "$BCE"/* "$BCE"/.[!.]* "$BCE"/..?*; do
-                [ -e "$BFROM" ] || [ -L "$BFROM" ] || continue
-                case "${BFROM##*/}" in cache|code_cache) continue ;; esac
-                cp -a "$BFROM" "$NEW/ce/" 2>/dev/null || lost=$((lost + 1))
-            done
-        else
-            lost=$((lost + 1))
-        fi
-        if [ -d "$BDE" ] && [ ! -L "$BDE" ]; then
-            mkdir_mine "$NEW/de" || die "could not make ${NEW#$T}/de"
-            for BFROM in "$BDE"/* "$BDE"/.[!.]* "$BDE"/..?*; do
-                [ -e "$BFROM" ] || [ -L "$BFROM" ] || continue
-                case "${BFROM##*/}" in cache|code_cache) continue ;; esac
-                cp -a "$BFROM" "$NEW/de/" 2>/dev/null || lost=$((lost + 1))
-            done
-        fi
-        [ "$lost" = 0 ] || say "@@INFO $pkg: $lost of its data items could not be read; it may ask to sign in"
-        printf '%s\n%s\n' "$(date +%s)" "$first" > "$NEW/stamp" || die "could not write in ${NEW#$T}"
-        # The copy brought before goes only now that the new one is whole.
-        if ! bring_drop "$dst"; then
-            say "@@INFO $pkg: its folder in the stage is not root's own, skipped"
-            continue
-        fi
-        mv "$NEW" "$dst" || die "could not put the copy of $pkg in place"
-        kb=$(du -sk "$dst" 2>/dev/null | cut -f1)
-        is_dec "$kb" || kb=0
-        say "@@RESULT brought $pkg $kb"
-        count=$((count + 1))
+        if bring_one "$pkg"; then count=$((count + 1)); fi
     done
     bring_drop "$NEW" || true
+    # Copies a bring-add moved aside during a session go now that the guest is down.
+    bring_drop "$STAGE/data/oneos_bring/.aside" || true
     # The list build 102 kept beside the copies is not used any more.
     rm -f "$STAGE/data/oneos_bring/selected.list" "$STAGE/data/oneos_bring/selected.new"
     say "@@OK bring-collect $count"
+}
+
+# A session of this system is running now: its snapshot (persist_session.active,
+# written by guest_props.sh seconds after launch and removed by the return) holds
+# this boot's id. The stricter half of session_starting: a session that only
+# just began (current.json, no snapshot yet) does not count, the guest is not up.
+session_running() {
+    a="$STAGE/persist_session.active"
+    [ -f "$a" ] && [ ! -L "$a" ] || return 1
+    [ "$(sed -n 's/^boot_id=//p' "$a" | head -n 1)" = "$(boot_id)" ]
+}
+
+# Bring one app of the catalog while a session runs (the guest asked for it, the
+# session's watcher calls this): the same copy as bring-collect (bring_one), for
+# a package the catalog offers. Refused when no session is running; the lock is
+# free because launch ends once it started the switch. A copy brought before is
+# moved aside inside the bring folder (bring_clearout) rather than deleted.
+do_bring_add() {
+    [ $# -eq 1 ] || usage "bring-add <package>"
+    is_package "$1" || usage "bring-add '$1'"
+    read_marker || refuse "no system is set up (prepare one first)"
+    session_running || refuse "no session of this system is running: bring apps from inside the guest while it runs"
+    [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
+    [ -d "$STAGE/data/oneos_bring_catalog" ] && mine "$STAGE/data/oneos_bring_catalog" || refuse "no catalog of apps (start this system from the OneOS app)"
+    catf="$STAGE/data/oneos_bring_catalog/catalog.tsv"
+    [ -f "$catf" ] && [ ! -L "$catf" ] || refuse "no catalog of apps (start this system from the OneOS app)"
+    cut -f1 "$catf" | grep -q -x -F "$1" || refuse "$1 is not in the catalog"
+    BRING_LIVE=1
+    bring_dirs
+    NEW="$STAGE/data/oneos_bring/.incoming"
+    bring_one "$1" || refuse "$1 was not brought: $BRING_WHY"
+    bring_clearout "$NEW" || true
+    say "@@OK bring-add 1"
+}
+
+# The apps One UI offers, for the guest's own screen: stdin is the catalog, one
+# "<package> TAB <label> TAB <base64 of a PNG icon>" line per app. Every line is
+# checked before anything is written (a bad line changes nothing), then the file
+# is written beside its place and renamed in. The guest reads it at
+# /data/oneos_bring_catalog/catalog.tsv (folder 0755, file 0644: not secret).
+do_bring_catalog() {
+    [ $# -eq 1 ] || usage "bring-catalog <bytes>"
+    is_dec "$1" && ge 4194304 "$1" || usage "bring-catalog size $1"
+    read_marker || refuse "no system is set up (prepare one first)"
+    idle_or_refuse
+    [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
+    mkdir_mine "$STAGE/incoming" || die "could not make $STAGE/incoming"
+    part="$STAGE/incoming/catalog.part"
+    rm -f "$part"
+    head -c "$1" > "$part" || { rm -f "$part"; die "could not read the catalog"; }
+    [ "$(stat -c %s "$part")" = "$1" ] || { rm -f "$part"; refuse "the catalog arrived incomplete"; }
+    tab=$(printf '\t')
+    list=""
+    n=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        n=$((n + 1))
+        [ "$n" -le 400 ] || { rm -f "$part"; refuse "the catalog has more than 400 apps"; }
+        case "$line" in *"$tab"*"$tab"*) ;; *) rm -f "$part"; refuse "catalog line $n is not package, label, icon" ;; esac
+        pkg=${line%%"$tab"*}
+        rest=${line#*"$tab"}
+        label=${rest%%"$tab"*}
+        icon=${rest#*"$tab"}
+        is_package "$pkg" || { rm -f "$part"; refuse "catalog line $n names '$pkg'"; }
+        in_list "$pkg" "$list" && { rm -f "$part"; refuse "catalog line $n repeats $pkg"; }
+        list="$list $pkg"
+        [ -n "$label" ] && [ ${#label} -le 320 ] || { rm -f "$part"; refuse "catalog line $n: label is empty or too long"; }
+        case "$label" in *[[:cntrl:]]*) rm -f "$part"; refuse "catalog line $n: label has control characters" ;; esac
+        [ -n "$icon" ] && [ ${#icon} -le 262144 ] || { rm -f "$part"; refuse "catalog line $n: icon is empty or too large"; }
+        case "$icon" in *[!A-Za-z0-9+/=]*) rm -f "$part"; refuse "catalog line $n: icon is not base64" ;; esac
+    done < "$part"
+    if [ ! -d "$STAGE/data" ]; then
+        mkdir "$STAGE/data" && own "$STAGE/data" 0755 || die "could not make the stage's data folder"
+    fi
+    mkdir_mine "$STAGE/data/oneos_bring_catalog" || die "could not make the catalog folder"
+    mv "$part" "$STAGE/data/oneos_bring_catalog/catalog.new" || die "could not write the catalog"
+    own "$STAGE/data/oneos_bring_catalog/catalog.new" 0644 || die "could not write the catalog"
+    mv "$STAGE/data/oneos_bring_catalog/catalog.new" "$STAGE/data/oneos_bring_catalog/catalog.tsv" || die "could not put the catalog in place"
+    say "@@RESULT catalog $n"
+    say "@@OK bring-catalog $n"
+}
+
+# Remove one brought app (idle only): its copy in the stage goes, the way
+# bring-clear removes them (bring_drop: root's own folders only, anything else
+# is left and refused, nothing is followed through a link), and the package is
+# recorded in $STAGE/data/oneos_bring/.forget (one per line, root's, 0600) for
+# the guest's next start to uninstall there. A missing copy still records the
+# forget: the guest may have the app installed already. One UI is not touched.
+do_bring_forget() {
+    [ $# -eq 1 ] || usage "bring-forget <package>"
+    is_package "$1" || usage "bring-forget '$1'"
+    read_marker || refuse "no system is set up (prepare one first)"
+    idle_or_refuse
+    [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
+    bring_dirs
+    kb=$(du -sk "$STAGE/data/oneos_bring/$1" 2>/dev/null | cut -f1)
+    is_dec "$kb" || kb=0
+    # Its own partials only (".<pkg>" and ".<pkg>-<suffix>"; a package name has no "-"):
+    # ".<pkg>"* or ".<pkg>".* would also take another package's whose name starts with
+    # this one (com.foo and com.foobar, com.foo and com.foo.bar).
+    for dst in "$STAGE/data/oneos_bring/$1" "$STAGE"/data/oneos_bring/."$1" "$STAGE"/data/oneos_bring/."$1"-* "$STAGE"/data/oneos_bring/.aside/"$1"-*; do
+        case "${dst##*/}" in .forget|.forget.new|.incoming|.aside) continue ;; esac
+        bring_drop "$dst" || refuse "${dst#$STAGE/} is not root's own folder; nothing was removed"
+    done
+    dst="$STAGE/data/oneos_bring/.forget"
+    part="$STAGE/data/oneos_bring/.forget.new"
+    {
+        if [ -f "$dst" ] && [ ! -L "$dst" ] && mine "$dst"; then cat "$dst"; fi
+        echo "$1"
+    } | while read -r line; do
+        if is_package "$line"; then echo "$line"; fi
+    done | sort -u > "$part"
+    own "$part" 0600 && mv "$part" "$dst" || die "could not record the forget"
+    say "@@RESULT forgot $1 $kb"
+    say "@@OK bring-forget"
 }
 
 # Read only (no lock, nothing written): each brought app the stage holds, when
@@ -2025,13 +2381,13 @@ do_bring_clear() {
 [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
 verb=$1
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|selfupdate|guest-runtime|guest-module|guest-module-state|bring-collect|bring-clear) migrate_legacy stage ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|remove-system|reset-data|selfupdate|guest-runtime|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog) migrate_legacy stage ;;
     old-list|purge) migrate_legacy copies ;;
 esac
 [ -d "$STAGE" ] && mine "$STAGE" || refuse "$STAGE is not root's folder"
 [ -d "$STAGE/bin" ] && mine "$STAGE/bin" || refuse "$STAGE/bin is not root's folder"
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|purge|selfupdate|guest-module|guest-module-state|bring-collect|bring-clear) take_lock ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|remove-system|reset-data|purge|selfupdate|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog|bring-add) take_lock ;;
 esac
 [ $# -gt 0 ] && shift
 case "$verb" in
@@ -2051,9 +2407,14 @@ case "$verb" in
     purge) do_purge "$@" ;;
     restore) do_restore "$@" ;;
     remove) do_remove "$@" ;;
+    remove-system) do_remove_system "$@" ;;
+    reset-data) do_reset_data "$@" ;;
     selfupdate) do_selfupdate "$@" ;;
     bring-collect) do_bring_collect "$@" ;;
     bring-clear) do_bring_clear "$@" ;;
     bring-status) do_bring_status "$@" ;;
+    bring-forget) do_bring_forget "$@" ;;
+    bring-catalog) do_bring_catalog "$@" ;;
+    bring-add) do_bring_add "$@" ;;
     *) usage "unknown verb '$verb'" ;;
 esac

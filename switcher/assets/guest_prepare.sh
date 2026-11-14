@@ -92,7 +92,8 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
                                         $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" ||
-                                        $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
+                                        $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" ||
+                                        $2 == "oplus-framework_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
     sum=$(awk -v n="$need" '$2 == n {print $1}' "$STAGE/guards.txt")
     if [ -z "$sum" ] || [ "$(sha256sum "$STAGE/$need" 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         echo "ERROR: $STAGE/$need missing or not the guarded build in guards.txt; not starting the guest"
@@ -1110,6 +1111,63 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
     fi
     [ -d "$ROOTFS/system/xbin" ] || { echo 'ERROR: guest su mount point missing after overlay'; exit 3; }
 fi
+# One UI's product APEXes: host apexd reports Google's Play system module as
+# /product/apex/com.google.android.gmssystem.prodvic.apex, and the guest's package
+# manager parses that path (the APEX scan, as for system/apex and system_ext/apex
+# below). ColorOS ships the same file in its own product/apex; LineageOS (0.5.06)
+# has no product/apex at all, and its system_server died on every start ("Unable
+# to parse: /product/apex/com.google.android.gmssystem.prodvic.apex", F8U, 11-14).
+# Without the folder: product's top level copied on a small tmpfs (folders, empty
+# files, links), each entry of the image bound back into it, plus the apex mount
+# point, and One UI's /product/apex bound there. No overlay: this kernel refuses
+# an overlay on an overlay, and later steps lay theirs on product's subfolders
+# (product/etc's display configs); a bind keeps those on the image's own folders.
+# Made after the whole-system overlays above (they need nothing mounted under
+# system) and before anything else is mounted under product. An image with its
+# own product/apex keeps it. ONEOS_GUEST_PRODUCT_APEX=0 leaves it out.
+# farm_dir <target> <work dir> <entry>...: <target>'s top level as a tmpfs copy
+# with the image's entries bound back and empty mount points <entry> added (a
+# name ending in / is a folder, others empty files). Echoes nothing; status 0
+# when every entry is in place, else everything it made is taken back.
+farm_dir() {
+    fd_t=$1; fd_w=$2; shift 2
+    fd_f="$fd_w/farm"; fd_o="$fd_w/orig"
+    $BB umount -l "$fd_f" 2>/dev/null; $BB umount -l "$fd_o" 2>/dev/null
+    mkdir -p "$fd_f" "$fd_o" && $BB mount -t tmpfs -o size=256k,mode=755 tmpfs "$fd_f" || return 1
+    for fd_e in "$fd_t"/* "$fd_t"/.[!.]*; do
+        [ -e "$fd_e" ] || [ -L "$fd_e" ] || continue
+        fd_n=${fd_e##*/}
+        if [ -L "$fd_e" ]; then cp -P "$fd_e" "$fd_f/$fd_n"
+        elif [ -d "$fd_e" ]; then mkdir "$fd_f/$fd_n"
+        else : > "$fd_f/$fd_n"; fi || { $BB umount -l "$fd_f"; return 1; }
+    done
+    for fd_e in "$@"; do
+        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
+    done
+    chmod 755 "$fd_f"; $BB chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
+    $BB mount --bind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }
+    # Private before the farm goes over the target: a shared bind would show the farm here too.
+    $BB mount --make-private "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    $BB mount --bind "$fd_f" "$fd_t" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
+        [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
+        $BB mount --bind "$fd_e" "$fd_t/${fd_e##*/}" || {
+            awk -v r="$fd_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
+            $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
+        }
+    done
+    $BB mount -o remount,ro "$fd_f" 2>/dev/null
+    return 0
+}
+if [ "${ONEOS_GUEST_PRODUCT_APEX:-1}" = 1 ] && [ -d /product/apex ] && [ ! -e "$GUEST_PRODUCT/apex" ] && [ ! -L "$GUEST_PRODUCT/apex" ]; then
+    if farm_dir "$GUEST_PRODUCT" "$STAGE/product_farm" apex/ && [ -d "$GUEST_PRODUCT/apex" ] &&
+       $BB mount --bind /product/apex "$GUEST_PRODUCT/apex"; then
+        $BB mount --make-rslave "$GUEST_PRODUCT/apex" 2>/dev/null || true
+        echo "Host APEX files: One UI's /product/apex bound on ${GUEST_PRODUCT#$ROOTFS/}/apex (the image has none; its product top level bound into a copy with that mount point)"
+    else
+        echo "!!! WARNING: One UI's /product/apex not bound in the guest; PackageManagerService will fail on One UI's product APEXes"
+    fi
+fi
 # The camera's working folder /data/sec/camera, which One UI's init makes
 # (vendor_secdir, the camera's own uid): the camera cannot make it, "AccessDenied
 # /data/sec", and its post-processing lost every picture (run 19). In the
@@ -1494,8 +1552,11 @@ fi
 # at about 2600 nits, the panel's peak. DisplayDeviceConfig wants the curve's
 # first float at or below the framework's config_screenBrightnessSettingMinimumFloat:
 # vivo OriginOS's is 7.0E-5 ("raw min=3.66255E-4 ... backlight min=7.0E-5", second
-# OriginOS run), so the wide curve starts at 1.0E-5 (0.05 nits), below every
-# framework seen, with HyperOS's 3.66255E-4 point kept as it was.
+# OriginOS run), so the wide curve started at 1.0E-5 (0.05 nits). LineageOS 24
+# on the Galaxy A16 (MediaTek) has a minimum of 0.0 ("raw min=1.0E-5 ...
+# backlight min=0.0", 0.5.07 report 83fa9a85, system_server died on
+# android.display at every start), so since 0.5.08 the curve starts at 0.0, the
+# lowest float any framework can ask for, with HyperOS's 3.66255E-4 point kept.
 # Every panel by its own scale (0.4.35): Samsung's composer float is One UI's
 # brightness over its brightnessMaximum (dumpsys display: the panel's peak
 # over about 500 nits; the backlight's max over it is 255 or 2550 on every
@@ -1515,7 +1576,7 @@ DDCEOF
         ref = 5.2980394; k = 1
         if (m + 0 >= 1.5 && m + 0 <= 8) k = ref / m
         n = split("0.0026:2.21 0.00333:3.0 0.005015:5.0 0.00694:7.5 0.008891:10.4 0.012079:15.0 0.015279:20.0 0.021151:30.0 0.026566:40.0 0.03701:60.0 0.045723:80.0 0.054391:100.0 0.068653:135.0 0.082069:170.0 0.093062:200.0 0.110574:250.0 0.127287:300.0 0.158918:400.0 0.188764:500.0 0.196299:520.0", pt, " ")
-        if (wide == "wide") printf "        <point><value>0.00001</value><nits>0.05</nits></point>\n        <point><value>0.000366255</value><nits>0.3</nits></point>\n"
+        if (wide == "wide") printf "        <point><value>0.0</value><nits>0.05</nits></point>\n        <point><value>0.000366255</value><nits>0.3</nits></point>\n"
         for (i = 1; i <= n; i++) {
             split(pt[i], v, ":"); f = v[1] * k
             if (f >= 1.0) break
@@ -1669,36 +1730,13 @@ elif $BB mount --rbind /mnt "$ROOTFS/mnt"; then
     $BB mount --make-rslave "$ROOTFS/mnt" 2>/dev/null || true
     echo "Guest /mnt: One UI's, a recursive bind (ONEOS_GUEST_OWN_MNT=${ONEOS_GUEST_OWN_MNT:-1})"
 fi
-# Guest-local PIN: an update of the fixes replaces services_patched.jar with a
-# build that has no PIN verifier, which strands a PIN already stored in the
-# guest's /data. A patched copy is kept in the guest's own data, stamped with
-# the jar it was built from, and used only for that same build.
-SERVICES_SRC="$STAGE/services_patched.jar"
-PIN_JAR="$STAGE/data/local/tmp/oneos_pin/services_patched.jar"
-PIN_BASE="$STAGE/data/local/tmp/oneos_pin/base.sha256"
-if [ -f "$PIN_JAR" ] && [ -f "$PIN_BASE" ] && [ -f "$SERVICES_SRC" ]; then
-    pin_want=$(head -n 1 "$PIN_BASE" 2>/dev/null | awk '{print $1}')
-    pin_have=$(sha256sum "$SERVICES_SRC" 2>/dev/null | awk '{print $1}')
-    if [ -n "$pin_want" ] && [ "$pin_want" = "$pin_have" ]; then
-        $BB chcon -h u:object_r:system_file:s0 "$PIN_JAR" 2>/dev/null || true
-        SERVICES_SRC="$PIN_JAR"
-        echo "Guest-local PIN: using the kept patched services.jar"
-    else
-        echo "Guest-local PIN: the kept jar is for another build; not used (scripts/install-pin-jar.sh)"
-        [ -f "$STAGE/data/system/oneos_pin" ] &&
-            echo "WARNING: the guest has a PIN but the services.jar in use has no verifier; it cannot be entered until scripts/install-pin-jar.sh runs for this build"
-    fi
-else
-    [ -f "$STAGE/data/system/oneos_pin" ] &&
-        echo "WARNING: the guest has a PIN but no kept verifier jar; run scripts/install-pin-jar.sh before switching"
-fi
-if [ -f "$SERVICES_SRC" ]; then
+if [ -f "$STAGE/services_patched.jar" ]; then
     $BB umount -l "$ROOTFS/system/framework/services.jar" 2>/dev/null || true
-    $BB mount --bind "$SERVICES_SRC" "$ROOTFS/system/framework/services.jar"
+    $BB mount --bind "$STAGE/services_patched.jar" "$ROOTFS/system/framework/services.jar"
     echo "Bound services_patched.jar -> $ROOTFS/system/framework/services.jar"
 fi
 # The guarded jar is what keeps the guest away from One UI's data.
-if [ "$(stat -c %d:%i "$ROOTFS/system/framework/services.jar")" != "$(stat -c %d:%i "$SERVICES_SRC")" ]; then
+if [ "$(stat -c %d:%i "$ROOTFS/system/framework/services.jar")" != "$(stat -c %d:%i "$STAGE/services_patched.jar")" ]; then
     echo "ERROR: the guarded services.jar is not in place; not starting the guest"
     exit 3
 fi
@@ -1815,6 +1853,17 @@ if [ -f "$STAGE/vivo-framework_patched.jar" ] && [ -f "$VFJ" ] && [ ! -L "$VFJ" 
     $BB mount --bind "$STAGE/vivo-framework_patched.jar" "$VFJ" &&
         echo "Bound vivo-framework_patched.jar -> $VFJ (brightness on the phone build's tables)"
 fi
+# oplus-framework_patched.jar (boot class path, ColorOS and OxygenOS): outgoing calls
+# over IMS where the carrier asks for VoLTE provisioning, which Samsung's IMS service
+# answers with 0 (patches/oplus_ims_provision.py; Z Fold8 Spectrum 295249c3 dialled
+# every call as GSM). guards.txt pins it (the check above).
+OFJ="$ROOTFS/system/framework/oplus-framework.jar"
+if [ -f "$STAGE/oplus-framework_patched.jar" ] && [ -f "$OFJ" ] && [ ! -L "$OFJ" ] && [ ! -L "$ROOTFS/system/framework" ]; then
+    chmod 644 "$STAGE/oplus-framework_patched.jar"
+    $BB umount -l "$OFJ" 2>/dev/null || true
+    $BB mount --bind "$STAGE/oplus-framework_patched.jar" "$OFJ" &&
+        echo "Bound oplus-framework_patched.jar -> $OFJ (IMS calls without the carrier's VoLTE provisioning)"
+fi
 # vivo's display and input side read their device type from ro.oneos.vivo.dtype
 # (guest_props.sh; make-overlays.sh renamed the property in them): "foldable" for
 # both panels while the apps keep the phone build's "phone" (fold mode 2).
@@ -1919,7 +1968,16 @@ fi
 #     over the guest's file, with a script of his own, and Bluetooth and USB
 #     headphones played. 0.4.90 does the same before the guest starts.
 #     ONEOS_GUEST_APM_BT_MODULE=0 takes the other way, =1 takes this one on a
-#     Qualcomm phone too.
+#     Qualcomm phone too. The S23 family (SM8550) takes it as well (0.5.00):
+#     with 0.4.99 the bridge handed the guest's hardware-offload A2DP session
+#     to Samsung's provider, but no port of the HIDL HAL's PAL ever watched it
+#     ("has NO port state observer") and every start failed ("Rx device start
+#     failed with status -38", ColorOS reports 7eeafc87 and 5528e31a; Pixel
+#     e353ca45 played on the speaker), while One UI on the same phone plays
+#     through a software A2DP session and this module. The S24 (SM8650) plays
+#     on the primary module (Nothing OS 32b35f59, ColorOS and Pixel reports),
+#     so it keeps that way. guest_props.sh then turns A2DP offload off in the
+#     guest (the marker $STAGE/guest_bt_sw), so it opens the software session.
 #   - Otherwise, where One UI's _sec or _base file has an A2DP output, three
 #     A2DP devices in the primary module as that file has them (16-bit PCM,
 #     48 kHz stereo), fed by the speaker's own mix ports except the mmap ones
@@ -1995,7 +2053,8 @@ apm_a2dp() {
     case "${ONEOS_GUEST_APM_BT_MODULE:-auto}" in
         0) apm_mod=0 ;;
         1) apm_mod=1 ;;
-        *) apm_mod=1; if [ "$(getprop ro.soc.manufacturer)" = QTI ]; then apm_mod=0; fi ;;
+        *) apm_mod=1
+           if [ "$(getprop ro.soc.manufacturer)" = QTI ] && [ "$(getprop ro.soc.model)" != SM8550 ]; then apm_mod=0; fi ;;
     esac
     if [ "$apm_mod" = 1 ]; then
         apm_bt=/vendor/etc/bluetooth_audio_policy_configuration.xml
@@ -2297,6 +2356,7 @@ fi
 # ONEOS_GUEST_APM_A2DP=0 and ONEOS_GUEST_APM_USB=0 together leave the vendor's
 # file; each alone leaves out its own outputs.
 GAPM=/vendor/etc/audio_policy_configuration.xml
+rm -f "$STAGE/guest_bt_sw"
 if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" ] \
    && { [ "${ONEOS_GUEST_APM_A2DP:-1}" = 1 ] || [ "${ONEOS_GUEST_APM_USB:-1}" = 1 ]; } \
    && [ -f "$GAPM" ] && [ -f "$ROOTFS$GAPM" ] && [ ! -L "$ROOTFS$GAPM" ] \
@@ -2330,6 +2390,31 @@ if [ ! -e "$MIUI_FW/miui-services.jar" ] && [ ! -L "$MIUI_FW/miui-services.jar" 
                 if $BB mount --bind "$GAPM_OV/audio_policy_configuration.xml" "$ROOTFS$GAPM"; then
                     $BB mount -o remount,ro,bind "$ROOTFS$GAPM" 2>/dev/null || true
                     echo "Guest audio policy: $GAPM with $GAPM_SAID (no AIDL audio HAL)"
+                    case "$APM_NOTE" in
+                        *"vendor's Bluetooth module"*)
+                            # Software A2DP for the module's stream on Qualcomm (see apm_a2dp).
+                            [ "$(getprop ro.soc.manufacturer)" = QTI ] && echo module > "$STAGE/guest_bt_sw"
+                            # ColorOS and OxygenOS (libaudiopolicycomponents) read
+                            # /vendor/etc/audio/sku_<sku>_qssi/ before this file: every
+                            # S23 ColorOS session loaded sku_kalama_qssi's (Config source
+                            # in dumpsys media.audio_policy, e305b2a1 and 30 others) and
+                            # opened A2DP on the primary module's DSP path ("Rx device
+                            # start failed with status -38"), while the Pixel system read
+                            # this copy and played (0e019498). The same copy goes there
+                            # too; other systems never read that path.
+                            for q in ${SKU:+/vendor/etc/audio/sku_${SKU}_qssi/audio_policy_configuration.xml} \
+                                     /vendor/etc/audio/sku_*_qssi/audio_policy_configuration.xml; do
+                                [ -f "$ROOTFS$q" ] && [ ! -L "$ROOTFS$q" ] || continue
+                                mount | grep -q " $ROOTFS$q " && break
+                                if $BB mount --bind "$GAPM_OV/audio_policy_configuration.xml" "$ROOTFS$q"; then
+                                    $BB mount -o remount,ro,bind "$ROOTFS$q" 2>/dev/null || true
+                                    echo "Guest audio policy: the same copy on $q (ColorOS's and OxygenOS's first choice)"
+                                else
+                                    echo "!!! WARNING: guest audio policy: the bind on $q was refused; ColorOS and OxygenOS keep it (no Bluetooth audio there)"
+                                fi
+                                break
+                            done ;;
+                    esac
                 else
                     echo "!!! WARNING: guest audio policy: the bind on $GAPM was refused; the guest keeps the vendor's file ($GAPM_LOST)"
                 fi
@@ -2691,8 +2776,10 @@ if [ -f "$FEAT" ]; then
     # UI (its floating feature, or the panel's low-power node; an LCD phone has
     # neither) and the image has OPPO's AOD app. The Find N6 build keeps its rules
     # above. ONEOS_GUEST_AOD=0 leaves it out.
+    # 0.4.98: also the Find N6 build on the Folds without the Fold8 rules (Fold7, Fold6, Fold5: no AOD in
+    # their Settings, report 3ef946ef); the Z Fold8 and Fold8 Ultra already have it in ADDED from above.
     AODF=oplus.software.display.aod_support
-    if ! grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" 2>/dev/null; then
+    if true; then
         case " $ADDED " in *" $AODF "*) ;; *)
             HAOD=""
             if grep -q '<SEC_FLOATING_FEATURE_FRAMEWORK_CONFIG_AOD_ITEM>[^<]' /system/etc/floating_feature.xml 2>/dev/null; then
@@ -2725,6 +2812,49 @@ if [ -f "$FEAT" ]; then
             else
                 ADDED="$ADDED $AODF"
                 echo "ColorOS Always-On Display: on ($HAOD; $AODAPP)"
+                # Wallpaper AOD (ColorOS "panoramic AOD", 0.4.97; the Find N6 build has it in
+                # fold8_coloros.sh). SystemUI offers it only with the app feature
+                # com.oplus.systemui.panoramic_aod.enable and a panel that says so through
+                # OPPO's display-panel HAL, which a Galaxy lacks; the set's
+                # ColorPanoramicSystemUI.apk takes the panel half as given (One UI shows the
+                # wallpaper on AOD on these panels), and oneos_panoramic_aod.sh adds the
+                # feature once the guest runs (the UI activator starts it). The feature's
+                # value is "boolean:true"; the content tool needs its colon escaped.
+                # ONEOS_GUEST_PANORAMIC_AOD=0 leaves both out.
+                PSUI="$STAGE/ColorPanoramicSystemUI.apk"
+                PAPK="$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk"
+                rm -f "$STAGE/data/oneos_panoramic_aod.sh"
+                if [ "${ONEOS_GUEST_PANORAMIC_AOD:-1}" != 1 ]; then
+                    echo "ColorOS wallpaper AOD: left out (ONEOS_GUEST_PANORAMIC_AOD=${ONEOS_GUEST_PANORAMIC_AOD:-})"
+                elif [ ! -f "$PSUI" ] || [ -L "$PSUI" ] || [ ! -f "$PAPK" ] || [ -L "$PAPK" ]; then
+                    echo "ColorOS wallpaper AOD: not in this set"
+                else
+                    chmod 644 "$PSUI"
+                    $BB chcon u:object_r:system_file:s0 "$PSUI" 2>/dev/null || true
+                    $BB umount -l "$PAPK" 2>/dev/null || true
+                    $BB mount --bind "$PSUI" "$PAPK" &&
+                        $BB mount -o remount,bind,ro "$PSUI" "$PAPK" 2>/dev/null
+                    if [ "$(stat -c %d:%i "$PAPK" 2>/dev/null)" = "$(stat -c %d:%i "$PSUI")" ]; then
+                        cat > "$STAGE/data/oneos_panoramic_aod.sh" <<'PANO'
+uri=content://com.oplus.customize.coreapp.configmanager.configprovider.AppFeatureProvider/app_feature
+f=com.oplus.systemui.panoramic_aod.enable
+if ! content query --uri "$uri" --where "featurename=\"$f\"" 2>/dev/null | grep -q 'parameters=boolean:true'; then
+    content delete --uri "$uri" --where "featurename=\"$f\"" 2>/dev/null
+    content insert --uri "$uri" --bind "featurename:s:$f" --bind 'parameters:s:boolean\:true' || exit 1
+    p=$(pidof com.android.systemui)
+    [ -z "$p" ] || kill -TERM $p
+    echo "wallpaper AOD feature added; SystemUI restarted"
+else
+    echo "wallpaper AOD feature present"
+fi
+PANO
+                        chmod 644 "$STAGE/data/oneos_panoramic_aod.sh"
+                        $BB chcon u:object_r:system_data_file:s0 "$STAGE/data/oneos_panoramic_aod.sh" 2>/dev/null || true
+                        echo "ColorOS wallpaper AOD: on (Bound ColorPanoramicSystemUI.apk -> $PAPK)"
+                    else
+                        echo "!!! WARNING: ColorPanoramicSystemUI.apk is not in place; no wallpaper AOD"
+                    fi
+                fi
             fi ;;
         esac
     fi
@@ -2780,12 +2910,15 @@ if [ -f "$FEAT" ]; then
         # which sent no themes for samsung (only a search icon; scripts/apk-replace-dex.py on
         # classes4.dex and classes5.dex, OPPO's signing block kept). The
         # Find N6 global and Find X9 Ultra IN builds ship the same APK (SHA-256 below); on any
-        # other build the image's own stays.
+        # other build the image's own stays. The newer X9U IN OTA (security patch 2026-11-01)
+        # ships EXP_17.11.20 (second hash): the patched EXP_17.11.17, a whole OPPO-signed app, is
+        # bound over it as well (the newer one's edit sites were not ported).
         TS_APK="$ROOTFS/my_stock/priv-app/KeKeThemeSpace/KeKeThemeSpace.apk"
-        TS_ORIG=496ca751d42793811dfd4bf18bf6f6884e5dfe8909ecf451dff94cecca2cff6a
+        TS_ORIGS="496ca751d42793811dfd4bf18bf6f6884e5dfe8909ecf451dff94cecca2cff6a 2dcf27a362ed11cbd5d3c63145da09feddf1f2e09216df7e292183856ef4d283"
         [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && $BB umount -l "$TS_APK" 2>/dev/null
+        TS_HAVE=$(sha256sum "$TS_APK" 2>/dev/null | cut -d' ' -f1)
         if [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && [ -f "$TS_APK" ] && [ ! -L "$TS_APK" ] &&
-           [ "$(sha256sum "$TS_APK" 2>/dev/null | cut -d' ' -f1)" != $TS_ORIG ]; then
+           ! case " $TS_ORIGS " in *" $TS_HAVE "*) true ;; *) false ;; esac; then
             echo "ColorOS Theme Store: this image's KeKeThemeSpace.apk is another build; its own stays (brand check on)"
         elif [ -f "$STAGE/KeKeThemeSpace_patched.apk" ] && [ -f "$TS_APK" ] && [ ! -L "$TS_APK" ]; then
             chmod 644 "$STAGE/KeKeThemeSpace_patched.apk"
@@ -2873,8 +3006,12 @@ fi
 # AOD for a Pixel guest (switcher/overlays/pixel_doze): Pixel's doze service and
 # "AOD available", which a Pixel has in its vendor overlay and a guest on One
 # UI's vendor had not (getDozeComponent()=null). Static, so the dream manager
-# has them at boot. ONEOS_GUEST_DOZE=0 leaves it out.
-if [ -f "$STAGE/OneOSPixelDoze.apk" ] && [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ]; then
+# has them at boot. ONEOS_GUEST_DOZE=0 leaves it out. LineageOS (0.5.06 r2) too:
+# its AOSP SystemUI has the same DozeService and its framework names none (the
+# UI Activator's runtime overlays came after the dream manager had read them, and
+# were gone by the next session: F8U, 11-14, no AOD).
+if [ -f "$STAGE/OneOSPixelDoze.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ] ||
+                                         [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk" ]; }; then
     if [ "${ONEOS_GUEST_DOZE:-1}" = 1 ]; then
         mkdir -p "$STAGE/oem/overlay" &&
             cp "$STAGE/OneOSPixelDoze.apk" "$STAGE/oem/overlay/" &&
@@ -5376,6 +5513,87 @@ if ! mount | grep -q "$ROOTFS/system/xbin "; then
     fi
 fi
 
+# Bring apps from inside the guest (0.5.07, owner: "bring apps inside the OneOS
+# guest app ... see our OneUi's app list"). The OneOS app on One UI leaves a
+# catalog of One UI's user apps (root verb bring-catalog: names and icons only);
+# the guest's OneOS app shows it and asks for one by creating an empty file named
+# after the package in /data/oneos_bring_requests, a folder only that app can
+# write to (its uid, once the guest's package list names it). This watcher, on
+# One UI's side and as root, takes each request: the root verb bring-add copies
+# the app and its One UI data exactly as bring-collect does before a switch, then
+# the guest's restore script installs it (as the UI Activator runs it), and
+# <pkg>.status says copying, installing, done or failed: <reason>. One UI's data
+# is only read. It ends itself when the guest's root filesystem is unmounted (the
+# return). ONEOS_GUEST_BRING_REQUESTS=0 leaves it off.
+BRQ="$STAGE/data/oneos_bring_requests"
+if [ "${ONEOS_GUEST_BRING_REQUESTS:-1}" = 1 ] && [ -f "$STAGE/data/oneos_bring_catalog/catalog.tsv" ] && [ -f "$STAGE/bin/oneos_root.sh" ]; then
+    if [ -L "$BRQ" ] || { [ -e "$BRQ" ] && [ ! -d "$BRQ" ]; }; then
+        echo "!!! Bring apps from the guest: $BRQ is not a folder; off"
+    else
+        mkdir -p "$BRQ" && chown 0:0 "$BRQ" && chmod 0700 "$BRQ"
+        rm -f "$BRQ"/*.status "$BRQ"/.watch.pid
+        cat > "$STAGE/bring_watch.sh" <<'BWEOF'
+#!/system/bin/sh
+# OneOS: Bring apps requests from the guest (guest_prepare.sh writes and starts this).
+STAGE=$1; BB=$2
+BRQ="$STAGE/data/oneos_bring_requests"; LOG="$STAGE/bring_watch.log"
+GAPP=com.fahadali.oneos.guest
+echo $$ > "$BRQ/.watch.pid"
+say() { echo "$(date +%T) $*" >> "$LOG"; }
+alive() { grep -q " $STAGE/rootfs " /proc/mounts; }
+is_package() {
+    case "$1" in ''|.*|*.|*[!A-Za-z0-9._]*|*..*) return 1 ;; esac
+    case "$1" in *.*) return 0 ;; *) return 1 ;; esac
+}
+status() { echo "$2" > "$BRQ/.$1.status.new" && chmod 0644 "$BRQ/.$1.status.new" && mv -f "$BRQ/.$1.status.new" "$BRQ/$1.status"; }
+owned=""
+say "watching $BRQ"
+while alive; do
+    # The folder becomes the guest app's once its uid is known (the guest's package list).
+    if [ -z "$owned" ]; then
+        uid=$(awk -v p="$GAPP" '$1 == p { print $2 }' "$STAGE/data/system/packages.list" 2>/dev/null)
+        case "$uid" in ''|*[!0-9]*) ;; *)
+            [ "$uid" -ge 10000 ] && chown "$uid:$uid" "$BRQ" && chmod 0700 "$BRQ" && owned=$uid && say "requests folder: the guest app's (uid $uid)" ;;
+        esac
+    fi
+    for f in "$BRQ"/*; do
+        [ -f "$f" ] && [ ! -L "$f" ] || continue
+        pkg=${f##*/}
+        case "$pkg" in *.status) continue ;; esac
+        rm -f "$f"
+        is_package "$pkg" || { say "ignored request '$pkg'"; continue; }
+        say "$pkg: requested in the guest"
+        status "$pkg" copying
+        out=$(/system/bin/sh "$STAGE/bin/oneos_root.sh" bring-add "$pkg" 2>&1); rc=$?
+        echo "$out" | tail -n 5 | sed "s/^/  $pkg: /" >> "$LOG"
+        if [ $rc != 0 ]; then
+            why=$(echo "$out" | grep -E 'REFUSED|ERROR|refuse' | tail -n 1 | sed 's/^@@[A-Z]* //' | cut -c1-160)
+            status "$pkg" "failed: ${why:-the copy did not finish}"
+            continue
+        fi
+        status "$pkg" installing
+        SPID=$(pidof system_server | tr ' ' '\n' | while read -r p; do [ -f "/proc/$p/root/data/oneos_genv.sh" ] && { echo "$p"; break; }; done)
+        if [ -z "$SPID" ]; then status "$pkg" "failed: the system is not running"; continue; fi
+        "$BB" nsenter -t "$SPID" -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_bring_restore.sh </dev/null >/dev/null 2>&1
+        stamp=$(head -n 1 "$STAGE/data/oneos_bring/$pkg/stamp" 2>/dev/null)
+        if [ -n "$stamp" ] && [ "$(head -n 1 "$STAGE/data/oneos_bring/$pkg/applied" 2>/dev/null)" = "$stamp" ]; then
+            status "$pkg" done; say "$pkg: ready in the guest"
+        else
+            why=$(head -n 1 "$STAGE/data/oneos_bring/$pkg/failed" 2>/dev/null | cut -d' ' -f2- | cut -c1-160)
+            status "$pkg" "failed: ${why:-not installed (oneos_bring.log in the guest)}"
+        fi
+    done
+    sleep 2
+done
+say "the system closed; done"
+rm -f "$BRQ/.watch.pid"
+BWEOF
+        chmod 0700 "$STAGE/bring_watch.sh"
+        ( setsid /system/bin/sh "$STAGE/bring_watch.sh" "$STAGE" "$BB" </dev/null >/dev/null 2>&1 & )
+        echo "Bring apps from the guest: requests watched in /data/oneos_bring_requests (bring_watch.log)"
+    fi
+fi
+
 echo "=== 7. $(date +%T) Setting up Fresh APEX tmpfs ==="
 # Clean any stale submounts and ensure a clean, writable tmpfs
 for m in $(cat /proc/mounts 2>/dev/null | grep "$ROOTFS/apex" | awk '{print $2}' | sort -r); do
@@ -6532,22 +6750,44 @@ if [ -f "$S/boot_status.sh" ]; then
     oneos_boot_hold_display 'Restarting guest'
 fi
 echo "$(date +%T) soft reboot ($1): stopping the guest's processes"
+# Two spawned commands for every process in every pass took 50 s a pass on a
+# Galaxy A34 and ran the restart into the watcher's limit (0.4.93). So each
+# pass starts with one listing (one ls over every process's namespace link, one
+# stat over every root; the same two things the look below reads): a process it
+# shows outside the guest's namespace and off the guest's root is passed over,
+# every other one is looked at by itself as before, and only that look decides
+# a kill. No listing, or a process missing from it, means that look and nothing
+# else; a process the look found not to be the guest's is not looked at again
+# in a later pass.
+not_guest_awk='
+    NF >= 3 && $(NF - 1) == "->" && $NF ~ /^mnt:\[[0-9]+\]$/ && $(NF - 2) ~ /\/[0-9]+\/ns\/mnt$/ {
+        p = $(NF - 2); sub(/\/ns\/mnt$/, "", p); sub(/^.*\//, "", p); n[p] = $NF; next }
+    NF == 2 && $1 ~ /^[0-9]+$/ && $2 ~ /\/[0-9]+\/root$/ {
+        p = $2; sub(/\/root$/, "", p); sub(/^.*\//, "", p); r[p] = $1; next }
+    END { for (p in n) if ((n[p] "") != (ns "") && (dev == "" || ((p in r) && (r[p] "") != (dev "")))) printf "%s ", p }'
+host=" "
 pass=1
 while [ $pass -le 5 ]; do
-    killed=""
+    killed=0; looked=0; total=0; left=""
+    other=" $( { timeout 10 ls -l /proc/[0-9]*/ns/mnt; timeout 10 stat -L -c '%d %n' /proc/[0-9]*/root; } 2>/dev/null |
+        $BB awk -v ns="$GUEST_NS" -v dev="$GUEST_DEV" "$not_guest_awk") "
     for p in /proc/[0-9]*; do
-        if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
-            [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || continue
-        fi
         pid=${p#/proc/}
-        killed="$killed $pid:$(cat "$p/comm" 2>/dev/null)"
+        total=$((total + 1))
+        case "$other$host" in *" $pid "*) continue ;; esac
+        looked=$((looked + 1))
+        if [ "$(readlink "$p/ns/mnt" 2>/dev/null)" != "$GUEST_NS" ]; then
+            [ -n "$GUEST_DEV" ] && [ "$(stat -L -c %d "$p/root/" 2>/dev/null)" = "$GUEST_DEV" ] || { host="$host$pid "; continue; }
+        fi
+        killed=$((killed + 1))
+        [ $pass = 5 ] && left="$left $pid:$(cat "$p/comm" 2>/dev/null)"
         kill -9 "$pid" 2>/dev/null
     done
-    [ $pass = 1 ] && echo "$(date +%T) soft reboot: killed$(echo "$killed" | wc -w | sed 's/^/ /') guest processes"
-    [ -n "$killed" ] || break
+    [ $pass = 1 ] && echo "$(date +%T) soft reboot: killed $killed guest processes (looked at $looked of $total)"
+    [ $killed -gt 0 ] || break
     pass=$((pass + 1)); sleep 0.3
 done
-[ $pass -le 5 ] || { echo "soft reboot: guest processes still running after 5 passes"; exit 1; }
+[ $pass -le 5 ] || { echo "soft reboot: guest processes still running after 5 passes:$left"; exit 1; }
 # The zygote sockets were bound onto themselves in init's namespace (the
 # switch's protect_zygote_sockets): off, so guest_start.sh can make new ones.
 for s in zygote usap_pool_primary; do

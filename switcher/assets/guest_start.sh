@@ -1143,10 +1143,18 @@ if [ -f /data/guest_audio.flag ]; then
                 sleep $d
                 now=$(date +%s); last=$now
             fi
-            if service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found"; then
-                h=$(pidof audiohalservice.qti 2>/dev/null); [ -n "$h" ] && kill -9 $h 2>/dev/null
-                i=0; while [ $i -lt 50 ]; do service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found" && break; i=$((i + 1)); sleep 0.2; done
-                echo "$(date +%T) audio HAL restarted before audioserver"
+            # 0.5.07: the vendor audio HAL fresh first, as at the switch. The QTI AIDL
+            # HAL kept the dead audioserver streams open ("port config id 39 already
+            # has a stream opened on it"), so the new one got no output and the rest
+            # of the session had no sound at all (S25 Ultra Pixel a18ecab9; A34
+            # HyperOS c16c8f15: sound broke after a soft restart).
+            hs=$(getprop | sed -n "s/^\[init\.svc\.\(vendor\.audio-hal[^]]*\)\]: \[running\]\$/\1/p" | tr "\n" " ")
+            if [ -n "$hs" ]; then
+                for s in $hs; do setprop ctl.stop $s; done
+                sleep 1
+                for s in $hs; do setprop ctl.start $s; done
+                sleep 1
+                echo "$(date +%T) audio HAL services restarted for the new audioserver: $hs"
             fi
             /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
@@ -1210,10 +1218,23 @@ if [ -f /data/guest_audio.flag ] && [ "${ONEOS_GUEST_CALL_SIM:-1}" != 0 ]; then
     echo "=== $(date '+%F %T') session" >> /data/call_audio.log
     $BB sh -c 'bb=$1
         if [ "$2" != 2 ]; then
-            lib=""
-            for f in $(grep -l -s -F g_call_sim_slot /vendor/lib64/*audio*.so /vendor/lib64/hw/*audio*.so /vendor/bin/hw/*audio* 2>/dev/null); do
-                grep -q -s -F updateSecVSID "$f" && { lib=$f; break; }
-            done
+            # 0.5.07: the search reads every vendor audio library and took a whole
+            # core for about three minutes at each start (F8U, 11-14); its answer
+            # changes only with the vendor, so it is kept per vendor build.
+            fp=$(getprop ro.vendor.build.fingerprint); cache=/data/oneos_call_audio.cache
+            lib=""; cached=0
+            if [ -n "$fp" ] && [ -f "$cache" ] && [ "$(sed -n 1p "$cache")" = "$fp" ]; then
+                lib=$(sed -n 2p "$cache"); cached=1
+                [ -z "$lib" ] || [ -f "$lib" ] || { lib=""; cached=0; }
+            fi
+            if [ $cached = 0 ]; then
+                for f in $(grep -l -s -F g_call_sim_slot /vendor/lib64/*audio*.so /vendor/lib64/hw/*audio*.so /vendor/bin/hw/*audio* 2>/dev/null); do
+                    grep -q -s -F updateSecVSID "$f" && { lib=$f; break; }
+                done
+                [ -z "$fp" ] || printf "%s\n%s\n" "$fp" "$lib" > "$cache"
+            else
+                echo "$(date +%T) vendor audio library search: cached for this vendor build"
+            fi
             if [ -z "$lib" ]; then
                 echo "$(date +%T) no vendor audio library has g_call_sim_slot and updateSecVSID: SIM slot loop off"
                 exit 0
@@ -2494,6 +2515,24 @@ fi
 echo $$ > "$BRING/.pid"
 [ "$MODE" = early ] && rm -f "$GO"
 
+# Removed in OneOS on One UI (0.5.07, root verb bring-forget): its copy is gone and
+# its name is in .forget; the app goes from this system too. An app brought again
+# since (a copy waits) stays. The list is done once, then removed.
+if [ -s "$BRING/.forget" ] && [ ! -L "$BRING/.forget" ]; then
+    if wait_pm; then
+        while read -r fp; do
+            is_package "$fp" || continue
+            [ -d "$BRING/$fp" ] && continue
+            gpm root 20 path "$fp" >/dev/null 2>&1 || continue
+            out=$(gpm root 60 uninstall "$fp" 2>&1)
+            log "$fp: removed (taken off the list in OneOS on One UI): $(short "$out")"
+        done < "$BRING/.forget"
+        rm -f "$BRING/.forget"
+    else
+        log "the package manager did not answer; removed apps go at the next start"
+    fi
+fi
+
 # What waits: a finished copy that is not applied yet.
 pending=""; count=0
 for d in "$BRING"/*; do
@@ -2634,6 +2673,32 @@ if [ -f "$WAVE_APK" ]; then
     fi
 fi
 
+# servicemanager diagnostics (0.5.09): on the Galaxy A34 SM-A346B with One UI 9
+# every system dies because One UI's servicemanager answers the guest's add and
+# find with "SELinux denied for service" (system_server's addService; gvld
+# "didn't start" for StorageManagerService) while getenforce says Permissive and
+# no avc line is logged (0.5.04+ reports 5d899189, ba9db9f5, 4a805de5). What the
+# kernel and servicemanager see, now and once the guest framework runs, into
+# /data/oneos_sm_diag.log (collected with the guest's other logs). Read only.
+sm_diag() {
+    {
+        echo "== $1 $(date +%T)"
+        sm=$(pidof servicemanager 2>/dev/null | cut -d' ' -f1)
+        echo "enforce=$(cat /sys/fs/selinux/enforce 2>/dev/null) getenforce=$(getenforce 2>/dev/null) deny_unknown=$(cat /sys/fs/selinux/deny_unknown 2>/dev/null) reject_unknown=$(cat /sys/fs/selinux/reject_unknown 2>/dev/null)"
+        echo "servicemanager pid=$sm ctx=$(cat /proc/$sm/attr/current 2>/dev/null | tr -d '\0') exe=$(ls -l /proc/$sm/exe 2>/dev/null | sed 's/.*-> //')"
+        echo "this shell ctx=$(cat /proc/self/attr/current 2>/dev/null | tr -d '\0') uid=$(id -u)"
+        for n in gvld vold android.system.vold.IVold/default activity package; do
+            echo "service check $n: $(service check "$n" 2>&1 | head -n 1)"
+        done
+        z=$(pidof zygote64 2>/dev/null | cut -d' ' -f1); ss=$(pidof system_server 2>/dev/null | cut -d' ' -f1)
+        [ -n "$z" ] && echo "zygote64 $z ctx=$(cat /proc/$z/attr/current 2>/dev/null | tr -d '\0')"
+        [ -n "$ss" ] && echo "system_server $ss ctx=$(cat /proc/$ss/attr/current 2>/dev/null | tr -d '\0')"
+        echo "-- kernel: servicemanager, avc and SELinux lines (last 40)"
+        dmesg 2>/dev/null | grep -iE 'servicemanager|avc:|selinux|security_compute|context' | tail -n 40 | cut -c1-300
+    } >> /data/oneos_sm_diag.log 2>&1
+}
+sm_diag "before zygote"
+( sleep 45; sm_diag "45 s after zygote" ) &
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3

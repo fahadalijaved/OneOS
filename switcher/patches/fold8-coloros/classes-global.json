@@ -54,5 +54,9 @@
   "smali_classes7/com/android/systemui/unfold/UnfoldLightRevealOverlayAnimation.smali": {
     "before": "212d100d94eb3f97c049b68880c74b2d610824f463a0b5ee189f70950ad91fd7",
     "after": "3e8b68dff1f55bc9c939ff7ffc335c7a7452c2c0ef633faa97b4cfd887cf8cb7"
+  },
+  "smali_classes3/com/oplus/systemui/aod/display/SmoothTransitionController.smali": {
+    "before": "8416aa6281531f0663badadfbca0ae8d52389c57b5eead7006f0d203b5ab64a9",
+    "after": "3ee0e3cf1fb57b0e16d31780be14fef623eb00d1daeeb4016b2f60dee967fa3f"
   }
 }

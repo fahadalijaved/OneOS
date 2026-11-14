@@ -11,10 +11,15 @@
 # 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
 # 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
-c2d165e8567a11684a681486b24fc2c30b326018689533d33c7e3a93666213ff  services_patched.jar
+# 0.4.94: services_patched.jar + guest_local_lock.py (the guest's own screen lock: a PIN, pattern or password kept and checked in the guest; nothing reaches the phone's gatekeeper, weaver or keystore)
+# 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
+# 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
+# oplus-framework_patched.jar: outgoing calls over IMS where the carrier asks for VoLTE provisioning (patches/oplus_ims_provision.py; Samsung's IMS answers 0), 0.5.05
+a2d707d55bfc986acca8b36ce56bbbe213676bed104ba7631f3c9ae3b7823dac  services_patched.jar
 61e7201e74ee8cae5ff1dad10d0c8190fa3c54dfb33efb37b8473f062bc9f415  oplus-services_patched.jar
 2d9ee6309c7581f5d55a0ec9e89686413fe0c9c3c4971cbcda81ddc0e013d845  vold_patched
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so
 fae755c0225bb9cdd3553fc26a11092fd035984c8432adbf22c3c8d70275fa30  libcamera_client_patched.so
-e61f9bebe691ea90e540eeed79b0e5e70ed537c252d12d45cb46119d0d155230  framework_patched.jar
+5c8a8b5e4f473588c10a5bc6358f825ad41740702bcce2ea431f3477805e1407  framework_patched.jar
 617e60543efd34a724106991a3b9418e4a57dbdd97f5fc0b4bc68663e167517c  telephony-common_patched.jar
+86f96466150f3314872dc30f5e7254c82248e5cff5c3eb712a944b70d31e13ac  oplus-framework_patched.jar

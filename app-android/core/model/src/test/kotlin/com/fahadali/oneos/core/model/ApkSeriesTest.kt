@@ -37,11 +37,11 @@ class ApkSeriesTest {
         // The Fold's sets are not an S phone's but Infinity-X's and HyperOS's (0.4.27, 0.4.31: one set each on
         // every phone; 0.4.36 Nothing OS's on all three), and the two S series share the ColorOS ones too.
         assertEquals(
-            setOf(PackageSets.ID_INFINITYX, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U, PackageSets.ID_ORIGINOS),
+            setOf(PackageSets.ID_INFINITYX, PackageSets.ID_LINEAGE, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U, PackageSets.ID_ORIGINOS),
             ApkSeries.FOLD.setIds().intersect(ApkSeries.S25.setIds()),
         )
         assertEquals(
-            setOf(PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_INFINITYX, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U,
+            setOf(PackageSets.ID_X9U_IN_SULTRA, PackageSets.ID_X9U_IN_1105_SULTRA, PackageSets.ID_INFINITYX, PackageSets.ID_LINEAGE, PackageSets.ID_HYPER_F8U, PackageSets.ID_NOTHING_F8U,
                 PackageSets.ID_ORIGINOS),
             ApkSeries.S26.setIds().intersect(ApkSeries.S25.setIds()),
         )

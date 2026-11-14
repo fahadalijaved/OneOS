@@ -97,6 +97,15 @@ object RootScript {
         REMOVE("remove", Stdin.SCRIPT),
 
         /**
+         * One system only (0.5.09, the system card's menu): deletes the system set up now with its apps and
+         * data; old copies, logs and downloaded files stay. The stage is left with only its root script.
+         */
+        REMOVE_SYSTEM("remove-system", Stdin.NONE),
+
+        /** Start fresh (0.5.09): deletes only the apps, accounts and settings of the system set up now. */
+        RESET_DATA("reset-data", Stdin.NONE),
+
+        /**
          * Installs the app's own update (0.4.41): the APK the app downloaded into
          * `files/oneos-update/OneOS.apk`, with its size, SHA-256 and versionCode.
          * Like begin and remove it may install the script first, so an update
@@ -122,6 +131,29 @@ object RootScript {
          * UI's app or its data is newer than the copy.
          */
         BRING_STATUS("bring-status", Stdin.NONE),
+
+        /**
+         * Remove one brought app (idle stage only): its copy goes and the package is
+         * recorded in `$STAGE/data/oneos_bring/.forget`, which the guest's start reads
+         * to uninstall it there. One UI's app and data are not touched.
+         */
+        BRING_FORGET("bring-forget", Stdin.NONE),
+
+        /**
+         * The apps One UI offers to bring, for the guest's own "Bring apps" screen
+         * (idle stage only): stdin is the catalog text (BringCatalog), one
+         * `<pkg> TAB <label> TAB <base64 PNG icon>` line per app, written as
+         * `$STAGE/data/oneos_bring_catalog/catalog.tsv` (read in the guest at
+         * `/data/oneos_bring_catalog/catalog.tsv`).
+         */
+        BRING_CATALOG("bring-catalog", Stdin.DATA),
+
+        /**
+         * One app of the catalog brought while a session of this system is running (the
+         * guest asked for it): the same copy as bring-collect makes for one package.
+         * Refused when no session is running.
+         */
+        BRING_ADD("bring-add", Stdin.NONE),
     }
 
     /**
@@ -149,6 +181,7 @@ object RootScript {
 
     private val TOKEN = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
     private val ID = Regex("^[a-z0-9][a-z0-9-]{0,31}$")
+    private val PACKAGE = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
     private val DEC = Regex("^[0-9]{1,18}$")
     private val HEX64 = Regex("^[0-9a-f]{64}$")
     private val HEX16 = Regex("^[0-9a-f]{16}$")
@@ -222,10 +255,14 @@ object RootScript {
                 args.getOrNull(6)?.let { if (it != "0" && it != "1") p += "launch: Knox edm stub '$it' is not 0 or 1" }
                 args.getOrNull(7)?.let { if (it != "0" && it != "1") p += "launch: verbose boot is not 0 or 1" }
             }
-            Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE, Verb.BRING_CLEAR, Verb.BRING_STATUS -> need(0)
-            Verb.BRING_COLLECT -> {
+            Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE, Verb.REMOVE_SYSTEM, Verb.RESET_DATA, Verb.BRING_CLEAR, Verb.BRING_STATUS -> need(0)
+            Verb.BRING_COLLECT, Verb.BRING_CATALOG -> {
                 need(1)
                 arg(0, DEC, "a size")
+            }
+            Verb.BRING_FORGET, Verb.BRING_ADD -> {
+                need(1)
+                arg(0, PACKAGE, "a package name")
             }
             Verb.SELFUPDATE -> {
                 need(3)

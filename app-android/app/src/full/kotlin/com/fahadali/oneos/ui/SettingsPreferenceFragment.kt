@@ -62,7 +62,7 @@ class SettingsPreferenceFragment : InsetPreferenceFragment() {
             setOnPreferenceClickListener {
                 if (!RemoveJob.canStart()) android.widget.Toast.makeText(ctx, R.string.remove_busy, android.widget.Toast.LENGTH_LONG).show()
                 else AlertDialog.Builder(ctx).setTitle(R.string.remove_confirm_title).setMessage(R.string.remove_confirm_message)
-                    .setPositiveButton(R.string.remove_confirm_run) { _, _ -> RemoveJob.start(ctx) }
+                    .setPositiveButton(R.string.remove_confirm_run) { _, _ -> activity?.let { SystemManage.removeAll(it) } }
                     .setNegativeButton(android.R.string.cancel, null).show()
                 true
             }

@@ -227,7 +227,7 @@ class CompatEvaluatorTest {
         assertEquals(Level.WARN, eval(Fixtures.facts(storage = StorageInfo(need - 1, 512_000_000_000))).level("free-space-short"))
 
         assertEquals(10_276_003_840L + 11L * SpaceRule.GIB, SpaceRule.required())
-        assertEquals(14_669_168_640L + 634_332_311L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
+        assertEquals(14_669_168_640L + 634_332_311L + 116_537_002L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
     }
 
     /** 0.4.85: the device report goes by the systems of this phone that fit its Android version. */

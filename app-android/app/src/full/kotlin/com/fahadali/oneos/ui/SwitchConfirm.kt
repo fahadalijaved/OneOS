@@ -40,7 +40,10 @@ internal object SwitchConfirm {
         val facts = FactProbe(a).refresh(r.facts)
         val report = StageCheck.gates(a, r, GatePhase.SWITCH, screenLock = facts.screenLockSet, facts = facts)
         // Home offers Switch only when nothing blocks; if that changed since, Home shows why.
-        if (report.blocked) return
+        if (report.blocked) {
+            android.widget.Toast.makeText(a, a.getString(R.string.switch_blocked_now), android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         val profile = report.profile ?: return
         val image = report.image ?: return
         val system = image.name

@@ -38,6 +38,13 @@ SD=$(python3 -I "$ROOT/switcher/patches/guest_secims_members.py" "$WORK/fw")
 for d in $SD; do
     case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
 done
+# Samsung IMS hears that telephony is ready for a call's callbacks once telephony
+# attaches to the session (switcher/patches/guest_secims_ready.py, 0.5.01): without
+# it the end of a call never reached the guest (Z Fold8 Pixel, 4bb83bcd).
+RD=$(python3 -I "$ROOT/switcher/patches/guest_secims_ready.py" "$WORK/fw")
+for d in $RD; do
+    case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
+done
 # vivo OriginOS: its camera JSON cache without the 31 five-second waits for
 # vivo's own camera service (switcher/patches/vivo_guards.py framework; the
 # third OriginOS run's system_server was killed by its watchdog). Other
