@@ -150,6 +150,19 @@ fi
 # The stage is root's and writable by root only: every file in it runs as root.
 su_ "mkdir -p $STAGE && chown 0:0 $STAGE && chmod 755 $STAGE && cp -f $INCOMING/*.sh $(for h in $HELPERS; do printf "%s " "$INCOMING/$h"; done) $STAGE/ && chmod 755 $STAGE/*.sh $STAGE/zygote_exec $STAGE/oneos_btaudio && chmod 644 $STAGE/OneOSBootStatus.dex $STAGE/oneos_boot_icon.png $STAGE/OneOSEdmStub.dex $STAGE/OneOSOverlayDimen.dex"
 
+# The facehal-rs payload (facehal/scripts/make-payload.sh) for images whose own
+# face HAL refuses the guest's framework: guest_prepare.sh copies it into the
+# stage and guest_start.sh runs it as IFace/default. A checkout that never built
+# it leaves the phone's copy alone, which is what every older stage expects.
+PAYLOAD="${FACEHAL_PAYLOAD:-$ROOT/facehal/payload}"
+if [ -x "$PAYLOAD/bin/hw/android.hardware.biometrics.face-service.facehal" ]; then
+    mkdir -p "$ROOT/out"
+    tar -C "$PAYLOAD" -cf "$ROOT/out/facehal.tar" bin lib64
+    adb_ push "$ROOT/out/facehal.tar" "$INCOMING/facehal.tar" >/dev/null
+    su_ "rm -rf /data/local/tmp/facehal && mkdir -p /data/local/tmp/facehal && tar -xf $INCOMING/facehal.tar -C /data/local/tmp/facehal && chown -R 0:0 /data/local/tmp/facehal && chmod 755 /data/local/tmp/facehal/bin/hw/android.hardware.biometrics.face-service.facehal && chmod 644 /data/local/tmp/facehal/lib64/*.so"
+    echo "facehal-rs payload: $(du -h "$ROOT/out/facehal.tar" | cut -f1) to /data/local/tmp/facehal"
+fi
+
 # Framework overlays from scripts/make-overlays.sh (bind-mounted by
 # guest_prepare.sh). Only pushed when they differ from what is staged.
 # The stage's files.sha256 is the app's prepared set: a file the set carries but

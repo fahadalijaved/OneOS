@@ -38,8 +38,26 @@ export ANDROID_VENDOR_LIB64=/path/to/vendor/lib64
 
 scripts/build-host.sh
 scripts/build-production.sh
+scripts/make-payload.sh      # -> payload/, what scripts/deploy-phone.sh pushes
 scripts/build-sdk-compat.sh
 ```
+
+`build-production.sh` hands the Binder crates to bindgen, which reads NDK headers.
+Two environment variables are needed when the NDK sysroot is not a full platform
+tree: `LIBCLANG_PATH` pointing at the host's `libclang`, and
+`BINDGEN_EXTRA_CLANG_ARGS=-I<dir>` when `android/llndk-versioning.h` lives outside
+the sysroot. On this build machine:
+
+```sh
+export LIBCLANG_PATH=/usr/lib
+export BINDGEN_EXTRA_CLANG_ARGS=-I/tmp/opencode/android-libs/include
+```
+
+`make-payload.sh` copies the binary and the five runtime libraries from
+`staging/system_ext/lib64/facehal/` into `payload/`, checking each library against
+the hashes in `staging/README.md` and refusing a binary older than the sources.
+The libraries are Samsung's SM-S938B vendor blobs and are not in git, so a fresh
+checkout has to restore them before a payload can be built.
 
 Output binary: `android.hardware.biometrics.face-service.facehal` (API 29+).
 
