@@ -191,7 +191,23 @@ for f in "$OVERLAYS"/*; do
     mode=644; [ -x "$f" ] && mode=755
     # The push lands as shell; the launcher refuses a set file that is not root's.
     su_ "mv -f $INCOMING/$name $STAGE/$name && chown 0:0 $STAGE/$name && chmod $mode $STAGE/$name"
+    PUSHED="$PUSHED $name"
 done
+# A file the set replaced is a new hash: without this the stage's files.sha256
+# still names the old one and the launcher refuses "changed since it was
+# prepared" (the ColorOS retest, 2026-11-14).
+if [ -n "$PUSHED" ] && [ -n "$MANIFEST" ]; then
+    TMPM=$(mktemp)
+    printf '%s\n' "$MANIFEST" > "$TMPM"
+    for n in $PUSHED; do
+        h=$(sha256sum "$OVERLAYS/$n" | cut -d' ' -f1)
+        awk -v n="$n" -v h="$h" '$2 == n { print h "  " $2; next } { print }' "$TMPM" > "$TMPM.new" && mv -f "$TMPM.new" "$TMPM"
+    done
+    adb_ push "$TMPM" "$INCOMING/files.sha256" > /dev/null
+    su_ "mv -f $INCOMING/files.sha256 $STAGE/files.sha256 && chown 0:0 $STAGE/files.sha256 && chmod 644 $STAGE/files.sha256"
+    echo "files.sha256: updated$PUSHED"
+    rm -f "$TMPM"
+fi
 
 if [ "$1" != "--scripts-only" ]; then
     IMG="$1"
