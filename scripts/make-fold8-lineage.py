@@ -43,8 +43,10 @@ def main():
         '--zipalign',bt/'zipalign','--output',overrides/'Fold8LineageSystemUI.apk')
     for variant,output in [('stable',baseline/'Fold8LineageUnfold.apk'),
                            ('experimental',overrides/'Fold8LineageUnfold.apk'),
-                           ('statusbar',overrides/'OneOSPixelStatusBar.apk')]:
-        source = ROOT/'switcher/overlays'/('lineage_fold8_'+variant)
+                           ('statusbar',overrides/'OneOSPixelStatusBar.apk'),
+                           ('settings_stable',baseline/'OneOSSettingsSplit.apk'),
+                           ('settings_experimental',overrides/'OneOSSettingsSplit.apk')]:
+        source = ROOT/'switcher/overlays'/(('lineage_'+variant) if variant.startswith('settings_') else ('lineage_fold8_'+variant))
         with tempfile.TemporaryDirectory(prefix='oneos-lineage-rro-') as temporary:
             w = Path(temporary)
             run(bt/'aapt2','compile','--dir',source/'res','-o',w/'res.zip')

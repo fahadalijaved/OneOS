@@ -46,6 +46,6 @@ data class PatchManifest(
          * Contributor-replaceable guest SystemUI APKs, resource-only overlays and the validated ColorOS addon archive.
          * System-image, device and base-file checks still apply. Nothing that guards One UI.
          */
-        val REPLACEABLE = setOf("Fold8SystemUI.apk", "GlobalVerifiedAddons.tar", "Fold8LineageSystemUI.apk", "Fold8LineageUnfold.apk", "OneOSPixelStatusBar.apk")
+        val REPLACEABLE = setOf("Fold8SystemUI.apk", "GlobalVerifiedAddons.tar", "Fold8LineageSystemUI.apk", "Fold8LineageUnfold.apk", "OneOSPixelStatusBar.apk", "OneOSSettingsSplit.apk")
     }
 }

@@ -18,7 +18,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 # The only files a channel may replace (PatchManifest.REPLACEABLE in the app, which refuses every other
 # difference): never guards.txt, a guarded jar or binary, a payload image or a script.
-REPLACEABLE = {'Fold8SystemUI.apk', 'GlobalVerifiedAddons.tar', 'Fold8LineageSystemUI.apk', 'Fold8LineageUnfold.apk', 'OneOSPixelStatusBar.apk'}
+REPLACEABLE = {'Fold8SystemUI.apk', 'GlobalVerifiedAddons.tar', 'Fold8LineageSystemUI.apk', 'Fold8LineageUnfold.apk', 'OneOSPixelStatusBar.apk', 'OneOSSettingsSplit.apk'}
 def source_config(source_id):
     catalog = json.loads((ROOT / 'app-android/packages/patch-sources.json').read_text())
     if catalog['schema'] != 1:

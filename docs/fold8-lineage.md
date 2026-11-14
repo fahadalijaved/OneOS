@@ -46,3 +46,7 @@ non-DEX entries, DEX instruction checks, model/package/source tests, native
 security regressions and packaged staging integrity. Physical hinge motion,
 lock-screen gestures, artwork framing and persistence through a guest restart
 still require an on-device run of the signed app update.
+
+Settings uses a 50:50 activity-embedding split in Experimental (resource config_activity_embed_split_ratio = 0.5); Stable retains 0.3636. Only the Fold8 Lineage guest receives this resource-only overlay.
+
+Live validation: Settings resource lookup returned 0.5 after applying the fabricated guest-only float override and restarting Settings. The owner confirmed the visible 50:50 split. Persistence through a new preparation/guest boot remains unverified.

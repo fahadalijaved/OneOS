@@ -18,7 +18,7 @@ Guard jars, guards.txt, native binaries and system-UID DEX remain APK-pinned.
 
 Lineage on the Galaxy Z Fold8 uses `f8-lineage.json`. Experimental replaces
 `Fold8LineageSystemUI.apk`, `Fold8LineageUnfold.apk` and
-`OneOSPixelStatusBar.apk`; unchanged payloads use their existing upstream pins.
+`OneOSPixelStatusBar.apk` and `OneOSSettingsSplit.apk`; unchanged payloads use their existing upstream pins.
 The stable baseline includes the original Lineage SystemUI and a resource-only
 AOD overlay. Only profile f8 activates the new Lineage SystemUI/unfold payloads.
 
