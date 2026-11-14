@@ -824,6 +824,23 @@ add)
             echo "guest_props: $MDT=2 for the session (HyperOS fold: cover screen wallpapers)"
         fi
     fi
+    # HyperOS hides the whole fingerprint UI unless a vendor is named:
+    # FingerprintServiceStubImpl.isFpHardwareDetected() reads
+    # persist.vendor.sys.fp.vendor and reports no hardware for an empty value or
+    # "none", and Settings then shows no fingerprint entry at all (HyperOS run
+    # 11-14: the entry appeared the moment the prop was set by hand). The GSI
+    # carries no vendor props; the phone's sensor is Samsung's AIDL HAL, so the
+    # value only satisfies the check. Memory only, deleted by remove.
+    if [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; then
+        k=persist.vendor.sys.fp.vendor
+        if grep -qxF "$k" "$HOST"; then
+            echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"
+        else
+            sed -i '/^persist\.vendor\.sys\.fp\.vendor=/d' "$NEW"
+            echo "$k=goodix" >> "$NEW"
+            echo "guest_props: $k=goodix for the session (HyperOS shows fingerprint only with a vendor named)"
+        fi
+    fi
     # HyperOS's rust runtime (its launcher among the packages): the image's
     # init.hyos_spawner.rc sets rust.runtime_version when zygote runs and
     # starts hyos_spawner on rust.runtime_active=1, and system_server sends

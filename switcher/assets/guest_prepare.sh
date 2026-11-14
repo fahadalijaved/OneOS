@@ -4075,24 +4075,51 @@ $BB chcon u:object_r:fingerprint_vendor_data_file:s0 "$STAGE/data/vendor_de/0/fp
 # inside the guest needs a HardwareAuthToken, and the guest has no gatekeeper
 # to mint one (its PIN is verified locally), so ColorOS's "Add" does nothing.
 # Carry One UI's enrollment metadata across instead: the templates never leave
-# the TEE, and no credential, gatekeeper handle or SP blob is read. ColorOS
-# reads the legacy settings_fingerprint.xml; One UI writes _0.
+# the TEE, and no credential, gatekeeper handle or SP blob is read.
+#
+# The file name is the image's choice, so both are written. AOSP's
+# FingerprintProvider reads settings_fingerprint_<sensorId>.xml (One UI writes
+# _0, and MIUI migrates a legacy file to that name); ColorOS reads the legacy
+# settings_fingerprint.xml. Same content, two names, mirror semantics: a print
+# removed in One UI is removed here.
 BIO_DST=$STAGE/data/system/users/0
 mkdir -p "$BIO_DST" || true
-rm -f "$BIO_DST/settings_fingerprint_0.xml"
+rm -f "$BIO_DST"/settings_fingerprint*.xml
 bio=0
-for f in settings_fingerprint_0.xml settings_face.xml face_enrolled_position_0.xml; do
-    out=$f
-    [ "$f" = settings_fingerprint_0.xml ] && out=settings_fingerprint.xml
+for f in /data/system/users/0/settings_fingerprint*.xml; do
+    [ -f "$f" ] || continue
+    out=${f##*/}
+    cp -f "$f" "$BIO_DST/$out" &&
+        chown 1000:1000 "$BIO_DST/$out" 2>/dev/null &&
+        chmod 644 "$BIO_DST/$out" 2>/dev/null &&
+        $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$out" 2>/dev/null
+    bio=$((bio + 1))
+done
+# The legacy name: sensor 0's file when One UI writes the numbered name, else
+# the phone's own legacy file when it does not.
+if [ -f /data/system/users/0/settings_fingerprint_0.xml ]; then
+    cp -f /data/system/users/0/settings_fingerprint_0.xml "$BIO_DST/settings_fingerprint.xml" &&
+        chown 1000:1000 "$BIO_DST/settings_fingerprint.xml" 2>/dev/null &&
+        chmod 644 "$BIO_DST/settings_fingerprint.xml" 2>/dev/null &&
+        $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/settings_fingerprint.xml" 2>/dev/null &&
+        bio=$((bio + 1))
+elif [ -f /data/system/users/0/settings_fingerprint.xml ] && [ ! -f "$BIO_DST/settings_fingerprint_0.xml" ]; then
+    cp -f /data/system/users/0/settings_fingerprint.xml "$BIO_DST/settings_fingerprint_0.xml" &&
+        chown 1000:1000 "$BIO_DST/settings_fingerprint_0.xml" 2>/dev/null &&
+        chmod 644 "$BIO_DST/settings_fingerprint_0.xml" 2>/dev/null &&
+        $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/settings_fingerprint_0.xml" 2>/dev/null &&
+        bio=$((bio + 1))
+fi
+for f in settings_face.xml face_enrolled_position_0.xml; do
     if [ -f "/data/system/users/0/$f" ]; then
-        cp -f "/data/system/users/0/$f" "$BIO_DST/$out" &&
-            chown 1000:1000 "$BIO_DST/$out" 2>/dev/null &&
-            chmod 644 "$BIO_DST/$out" 2>/dev/null &&
-            $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$out" 2>/dev/null
+        cp -f "/data/system/users/0/$f" "$BIO_DST/$f" &&
+            chown 1000:1000 "$BIO_DST/$f" 2>/dev/null &&
+            chmod 644 "$BIO_DST/$f" 2>/dev/null &&
+            $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$f" 2>/dev/null
         bio=$((bio + 1))
     else
         # A print or face removed in One UI must not stay listed here.
-        rm -f "$BIO_DST/$out"
+        rm -f "$BIO_DST/$f"
     fi
 done
 [ "$bio" -gt 0 ] && echo "Guest biometrics: carried One UI's $bio enrollment file(s) into the guest"
