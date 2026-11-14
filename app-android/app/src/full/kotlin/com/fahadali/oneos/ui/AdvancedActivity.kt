@@ -90,6 +90,9 @@ class AdvancedFragment : CardsFragment() {
         CardRows.toggle(sessions, getString(R.string.advanced_heat_cap_title), getString(R.string.advanced_heat_cap_summary), SessionPrefs.heatCap(ctx)) { on ->
             SessionPrefs.setHeatCap(ctx, on)
         }
+        CardRows.toggle(sessions, getString(R.string.advanced_full_logs_title), getString(R.string.advanced_full_logs_summary), SessionPrefs.fullLogs(ctx)) { on ->
+            SessionPrefs.setFullLogs(ctx, on)
+        }
         val logs = LogJob.state
         val zip = LogJob.latestZip(ctx)
         if (zip != null && !logs.busy) {

@@ -1039,6 +1039,50 @@ if [ -f /data/guest_audio.flag ]; then
     else
         echo "[Pivoted Root] A2DP offload: l_a2dp_format not sent (${ONEOS_GUEST_A2DP_FORMAT:+ONEOS_GUEST_A2DP_FORMAT=$ONEOS_GUEST_A2DP_FORMAT}${ONEOS_GUEST_A2DP_FORMAT:-$(getprop ro.soc.manufacturer) is not a Qualcomm SoC})"
     fi
+    # Bluetooth stream left disabled (0.5.11): Samsung's AIDL audio HAL with a
+    # "bluetooth" module (MediaTek Galaxy A, A16 4G ColorOS report 33e2bc9b)
+    # hands every A2DP output of a device the one Bluetooth port it made at
+    # connect (ModuleBluetooth fetchAndCheckProxy). The guest audio policy
+    # opens the output once to read its dynamic profiles, closes it and opens
+    # it again; the close stops that shared port (state DISABLED), and the
+    # real output then drops every write ("transfer: stream state is disabled",
+    # 10,134 lines in the session): earbuds connected, no sound. One UI's
+    # module config has no such probe. The HAL puts a disabled port back in
+    # standby when A2DP is re-enabled (IBluetoothA2dp.setEnabled(true), which
+    # libaudiohal sends for the standard key A2dpSuspended=false). So while
+    # the HAL logs that line outside a call, A2dpSuspended=false goes to the
+    # guest AudioFlinger (setParameters, transaction 18 as the call keeper);
+    # a call suspends A2DP on purpose (SCO), so never during one. Follows the
+    # HAL's own log tag only (no polling); at most once in 3 s, 5 tries a
+    # session without a recovery. Log /data/oneos_a2dp.log.
+    # ONEOS_GUEST_A2DP_NUDGE=0 leaves it out.
+    if [ "${ONEOS_GUEST_A2DP_NUDGE:-1}" = 1 ] &&
+       service check android.hardware.audio.core.IModule/bluetooth 2>/dev/null | grep -q ": found"; then
+        echo "=== $(date '+%F %T') session: Bluetooth stream watch (A2dpSuspended=false when the HAL drops A2DP writes)" >> /data/oneos_a2dp.log
+        $BB sh -c 'bb=$1; last=0; fails=0; sent=0
+            logcat -v brief -T 1 -s AHAL_StreamBluetooth:D AHAL_BluetoothAudioPort:I 2>/dev/null | while IFS= read -r l; do
+                case "$l" in
+                    *"stream state is disabled"*) ;;
+                    *"standby"*"done"*|*"start"*"STARTED"*)
+                        [ "$sent" = 1 ] && { echo "$(date +%T) Bluetooth stream back: ${l#*: }" | cut -c1-200; sent=0; fails=0; }
+                        continue ;;
+                    *) continue ;;
+                esac
+                now=$($bb date +%s)
+                [ $((now - last)) -ge 3 ] || continue
+                last=$now
+                cs=$(dumpsys telephony.registry 2>/dev/null | $bb grep -m1 -o "mCallState=[0-9]*" | $bb grep -o "[0-9]*$")
+                [ "${cs:-0}" = 0 ] || continue
+                if [ "$sent" = 1 ]; then
+                    fails=$((fails + 1))
+                    [ $fails -lt 5 ] || { echo "$(date +%T) Bluetooth stream still disabled after 5 tries: watch off for the session"; exit 0; }
+                fi
+                r=$(service call media.audio_flinger 18 i32 0 s16 "A2dpSuspended=false" 2>&1 | tr -s " \n" " " | head -c 80)
+                sent=1
+                echo "$(date +%T) HAL dropped A2DP writes (stream disabled): A2dpSuspended=false to AudioFlinger: $r"
+            done' oneos_a2dp_watch "$BB" >> /data/oneos_a2dp.log 2>&1 &
+        echo "[Pivoted Root] A2DP: Bluetooth stream watch on (the HAL has a bluetooth module; /data/oneos_a2dp.log)"
+    fi
     /system/bin/audioserver > /dev/null 2>&1 &
     AS_PID=$!
     echo "[Pivoted Root] guest audioserver PID: $AS_PID (registers once the guest framework is up)"

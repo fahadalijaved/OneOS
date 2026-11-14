@@ -105,6 +105,8 @@ class SendReportFragment : PreferenceFragmentCompat() {
         val sessionAppCode: Int? = null,
         /** The day the session's bundle was written, from its generatedAt. */
         val sessionDate: String? = null,
+        /** The session ran with Full session logs off (ONEOS_FULL_LOGS=0 in the bundle's stage/session.env). */
+        val fullLogsOff: Boolean = false,
     )
 
     private lateinit var facts: Facts
@@ -176,6 +178,7 @@ class SendReportFragment : PreferenceFragmentCompat() {
                 sessionAppVersion = json.optJSONObject("app")?.optString("version")?.takeIf { it.isNotEmpty() },
                 sessionAppCode = json.optJSONObject("app")?.optInt("versionCode")?.takeIf { it > 0 },
                 sessionDate = json.optString("generatedAt").takeIf { it.length >= 10 }?.take(10),
+                fullLogsOff = runCatching { File(ProbeSession.folderOf(zip), "stage/session.env").readLines().contains("ONEOS_FULL_LOGS=0") }.getOrDefault(false),
             )
         } else {
             val device = json?.optJSONObject("device")
@@ -245,6 +248,10 @@ class SendReportFragment : PreferenceFragmentCompat() {
         )
         if (ran != null && stale) {
             about.row(getString(R.string.send_session_old_title), getString(R.string.send_session_old_summary, ran, com.fahadali.oneos.BuildConfig.VERSION_NAME))
+        }
+
+        if (facts.session && facts.fullLogsOff) {
+            about.row(getString(R.string.send_full_logs_off_title), getString(R.string.send_full_logs_off_summary))
         }
 
         if (facts.session) {

@@ -196,6 +196,7 @@ fi
 case "${ONEOS_GUEST_GMS:-1}" in 0|1) ;; *) refuse "ONEOS_GUEST_GMS=$ONEOS_GUEST_GMS (0 or 1)" ;; esac
 # Cool down when hot (the heat cap below): 0 or 1, unset meaning 1.
 case "${ONEOS_HEAT_CAP:-1}" in 0|1) ;; *) refuse "ONEOS_HEAT_CAP=$ONEOS_HEAT_CAP (0 or 1)" ;; esac
+case "${ONEOS_FULL_LOGS:-1}" in 0|1) ;; *) refuse "ONEOS_FULL_LOGS=$ONEOS_FULL_LOGS (0 or 1)" ;; esac
 [ "${ONEOS_GUEST_GMS:-1}" = 1 ] && [ "${ONEOS_GUEST_HIDE_GMS:-0}" = 1 ] && [ -f "$STAGE/gmssystem_payload.img" ] &&
     refuse "ONEOS_GUEST_GMS is on (the default) with gmssystem_payload.img staged, and ONEOS_GUEST_HIDE_GMS=1 hides Google services: set one of them to 0"
 # The same guard and app-id checks as guest_prepare.sh, here so a refusal comes
@@ -472,8 +473,16 @@ timeout 15 dumpsys SurfaceFlinger 2>/dev/null > "$STAGE/display_sf_host.txt"
 grep -E 'activeMode=|[{]id=[0-9]+, hwcId=|peakRefreshRate=' "$STAGE/display_sf_host.txt" | head -n 120 | cut -c1-400 >> "$STAGE/display_modes_host.log"
 echo "preflight: display sf done $(date +%T)"
 timeout 10 dumpsys display 2>/dev/null > "$STAGE/display_host.txt"
+# Lines cut at 3000 characters; a longer DisplayDeviceInfo keeps its panel port and
+# brightnessMaximum at the end, which guest_props.sh and guest_prepare.sh read (0.5.11:
+# the S23 Ultra's 21 modes put them past 6000, and every system got the Fold's
+# brightness scale instead of this panel's: a dim screen, report 049dac7b).
 grep -E 'mSupportedModes|mActiveModeId|mDefaultModeId|DisplayModeRecord|mUserPreferredModeId|mDisplayModeSpecs|DisplayDeviceInfo\{' "$STAGE/display_host.txt" |
-    cut -c1-3000 >> "$STAGE/display_modes_host.log"
+    awk 'length($0) <= 3000 || index($0, "DisplayDeviceInfo{") == 0 { print substr($0, 1, 3000); next }
+        { t = ""
+          if (match($0, /port=[0-9]+[},]/)) t = t " " substr($0, RSTART, RLENGTH)
+          if (match($0, /brightnessMaximum [0-9.]+/)) t = t " " substr($0, RSTART, RLENGTH)
+          print substr($0, 1, 3000) " ..." t }' >> "$STAGE/display_modes_host.log"
 echo "preflight: display modes done $(date +%T)"
 for p in /sys/class/lcd/panel /sys/class/lcd/panel1; do
     [ -d "$p" ] || continue
@@ -798,7 +807,18 @@ LOGS=/data/local/tmp/oneos_logs
 # return_to_oneui.sh stops it) keeps its head/, which may hold the boot of an
 # earlier session that its rotation has dropped since.
 LOGCAT_HEAD=0
-if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
+# ONEOS_FULL_LOGS=0 (Full session logs off in the app): no capture, so no head/ either
+# (LOGCAT_HEAD stays 0 and the 90 s round skips its links); the reports then have the
+# stage logs, sound_watch.log and the diag snapshots only. A capture already running
+# (by hand, or the last session's before its stop) is left alone.
+if [ "${ONEOS_LOGCAT:-1}" = 1 ] && [ "${ONEOS_FULL_LOGS:-1}" != 1 ]; then
+    # An earlier session's files move to oneos_logs.prev, as a new capture does, so this
+    # session's report never carries them as its own.
+    if ! pgrep -f "^logcat .*$LOGS/boot.log" >/dev/null 2>&1; then
+        rm -rf "$LOGS.prev"; [ -d "$LOGS" ] && mv "$LOGS" "$LOGS.prev"
+    fi
+    echo "Logcat capture: off (Full session logs off in the app)"
+elif [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
     # pgrep -f matches the same "^logcat ... boot.log" command line in one
     # process. The loop it replaces forked tr and grep for each of ~1100 pids:
     # 1.6 s with One UI idle (measured 22 Oct, pgrep 49 ms), and it runs before

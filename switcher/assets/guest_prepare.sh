@@ -607,7 +607,18 @@ sec_ims_stage() {
     cp /system/framework/imsmanager.jar /system/framework/rcsopenapi.jar "$SECIMS/framework/" || return 1
     cp /system/framework/framework.jar "$SECIMS/framework/oneos-secims-compat.jar" || return 1
     cp /system/lib64/libsec-ims.so /system/lib64/libresampler_ims.so /system/lib64/libaresdns.so "$SECIMS/lib64/" || return 1
-    cp /system/etc/permissions/privapp-permissions-com.sec.imsservice.phone.xml "$SECIMS/etc/permissions/" || return 1
+    # The app's privileged-permission list, under whatever name this One UI has it (0.5.11: One UI 8
+    # has no ...imsservice.phone.xml, and every One UI 8 phone on OxygenOS ran without Samsung IMS:
+    # no VoLTE calls, no SMS on IMS-only networks; S22 a689f9c5, S23 FE 013daff6, 38 reports). None
+    # is fine: the guest runs with ro.control_privapp_permissions=log (oneos_switch.sh), which grants
+    # and only logs a privileged permission no list names.
+    pl=""
+    for x in /system/etc/permissions/privapp-permissions-com.sec.imsservice*.xml; do
+        [ -f "$x" ] || continue
+        cp "$x" "$SECIMS/etc/permissions/" || return 1
+        pl="$pl ${x##*/}"
+    done
+    echo "Samsung IMS in the guest: privileged-permission list${pl:- none on this One UI (granted under log mode)}"
     # Samsung's EngineeringModeManager (in the framework classes above) loads
     # lib.engmodejni.samsung.so; without it the app died at start (F8U test5:
     # UnsatisfiedLinkError, after the class loader fix). Public through One UI's
@@ -702,7 +713,7 @@ if [ "${ONEOS_GUEST_SEC_IMS:-0}" = 1 ]; then
     secims_missing=""
     for f in /system/priv-app/imsservice/imsservice.apk /system/framework/framework.jar /system/framework/imsmanager.jar \
              /system/framework/rcsopenapi.jar /system/lib64/libsec-ims.so /system/lib64/libresampler_ims.so \
-             /system/lib64/libaresdns.so /system/etc/permissions/privapp-permissions-com.sec.imsservice.phone.xml; do
+             /system/lib64/libaresdns.so; do
         [ -f "$f" ] || secims_missing="$secims_missing $f"
     done
     if [ ! -d "$GUEST_SYSTEM_EXT" ]; then sec_ims_off "the guest has no system_ext"
@@ -2777,9 +2788,20 @@ f=com.oplus.systemui.panoramic_aod.enable
 if ! content query --uri "$uri" --where "featurename=\"$f\"" 2>/dev/null | grep -q 'parameters=boolean:true'; then
     content delete --uri "$uri" --where "featurename=\"$f\"" 2>/dev/null
     content insert --uri "$uri" --bind "featurename:s:$f" --bind 'parameters:s:boolean\:true' || exit 1
-    p=$(pidof com.android.systemui)
-    [ -z "$p" ] || kill -TERM $p
-    echo "wallpaper AOD feature added; SystemUI restarted"
+    # SystemUI reads the feature at start. Restarted once the screen is off, never
+    # under the user (0.5.11: S23 6d70cb6b took the restart 2 min in, with Settings
+    # open, for a SystemUI crash, and went back to One UI).
+    echo "wallpaper AOD feature added; SystemUI restarts at the next screen off"
+    (n=0
+     while [ $n -lt 1440 ]; do
+         dumpsys power 2>/dev/null | grep -q 'mWakefulness=Awake' || break
+         n=$((n + 1)); sleep 5
+     done
+     if [ $n -lt 1440 ]; then
+         p=$(pidof com.android.systemui)
+         [ -z "$p" ] || kill -TERM $p
+         echo "$(date +%T) screen off: SystemUI restarted for the wallpaper AOD feature"
+     fi) &
 else
     echo "wallpaper AOD feature present"
 fi

@@ -25,6 +25,8 @@
 #   env <bytes>                       stdin: session.env
 #   finish <profile> <image> <set> <versionCode>
 #   launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub>
+#          [verboseBoot [fullLogs]]   (0|1 each; defaults 0 and 1: fullLogs is
+#                                     ONEOS_FULL_LOGS, the session's whole logcat capture)
 #                                     secIms 0|1: this launch's
 #                                     ONEOS_GUEST_SEC_IMS (this phone's
 #                                     Samsung IMS app in the guest)
@@ -169,7 +171,7 @@ SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched servi
 SET_ORIGINOS="BBKLauncher2_patched.apk BBKLauncher2_patched.apk.src_sha256 OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img framework-adapter_patched.jar framework-wifi_patched.jar framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libandroid_servers_patched.so libbluetooth_jni_patched.so libcamera_client_patched.so libcomposer_ext_patched.so libinputflinger_patched.so libinputservice_patched.so libsensorservice_patched.so mediaprovider_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneos-vivo-features.txt permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar telephonycore_payload.img tethering_payload.img vivo-framework_patched.jar vivo-service-wifi-ex-impl_patched.jar vivo-service-wifi_patched.jar vivo-services_patched.jar vivo-telephony-common-platform-ex_patched.jar vold_patched wifi_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
-ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_RETURN_MODE"
+ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_FULL_LOGS ONEOS_RETURN_MODE"
 # Images whose Google services a session may hide (ONEOS_GUEST_HIDE_GMS=1;
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
@@ -865,6 +867,8 @@ env_value() {
         ONEOS_GUEST_SEC_IMS) echo 0 ;;
         # 0.4.32: the Knox edmnativehelper stand-in, a launch's choice, 0 or 1 on any phone.
         ONEOS_GUEST_EDM_STUB|ONEOS_VERBOSE_BOOT) echo 0 ;;
+        # 0.5.x: the session's full logcat capture, a launch's choice (Full session logs); Prepare writes 1.
+        ONEOS_FULL_LOGS) echo 1 ;;
         # 0.4.7: Back to One UI restarts One UI in place; a failed check reboots.
         ONEOS_RETURN_MODE) echo inplace ;;
         *) return 1 ;;
@@ -886,7 +890,7 @@ check_env() { # <file> <form> <profile> <image>
         case "$seen" in *" $key "*) refuse "session.env sets $key twice" ;; esac
         seen="$seen$key "
         want=$(env_value "$key" "$2" "$3") || refuse "session.env key $key is not allowed"
-        if [ "$key" = ONEOS_GUEST_SEC_IMS ] || [ "$key" = ONEOS_GUEST_EDM_STUB ] || [ "$key" = ONEOS_VERBOSE_BOOT ]; then
+        if [ "$key" = ONEOS_GUEST_SEC_IMS ] || [ "$key" = ONEOS_GUEST_EDM_STUB ] || [ "$key" = ONEOS_VERBOSE_BOOT ] || [ "$key" = ONEOS_FULL_LOGS ]; then
             case "$val" in 0|1) continue ;; *) refuse "session.env $key=$val is not 0 or 1" ;; esac
         fi
         if [ "$key" = ONEOS_GUEST_HIDE_GMS ] && [ "$val" = 1 ]; then
@@ -1273,8 +1277,8 @@ switch_verdict() {
 }
 
 do_launch() {
-    [ $# -eq 7 ] || [ $# -eq 8 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot]"
-    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0}
+    [ $# -ge 7 ] && [ $# -le 9 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot [fullLogs]]"
+    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0} fulllogs=${9:-1}
     case "$mode" in session|dry) ;; *) usage "launch mode $mode" ;; esac
     is_dec "$code" || usage "launch versionCode $code"
     case "$sid" in *[!0-9a-f]*|'') usage "launch session id" ;; esac
@@ -1284,6 +1288,7 @@ do_launch() {
     case "$secims" in 0|1) ;; *) usage "launch secIms $secims" ;; esac
     case "$edmstub" in 0|1) ;; *) usage "launch edmStub $edmstub" ;; esac
     case "$verbose" in 0|1) ;; *) usage "launch verboseBoot $verbose" ;; esac
+    case "$fulllogs" in 0|1) ;; *) usage "launch fullLogs $fulllogs" ;; esac
     [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
     step "checks"
     [ ! -e "$STAGE/.oneos_update" ] || refuse "the installed system update did not finish: retry the update"
@@ -1338,16 +1343,19 @@ do_launch() {
 
     # This launch's Google services choice (the Switch screen; Prepare wrote 0),
     # its Cool down when hot (Advanced; Prepare wrote 1), its Samsung IMS choice
-    # and (0.4.32) its Knox edm stub choice (both Advanced; Prepare wrote 0): the
-    # five lines of session.env a launch changes, after every check. The next
+    # and (0.4.32) its Knox edm stub choice (both Advanced; Prepare wrote 0), its
+    # Verbose boot (Prepare wrote 0) and Full session logs (Prepare wrote 1)
+    # choices: the seven lines of session.env a launch changes, after every check. The next
     # launch writes its own. (Before the test root's stop, so the tests see it.)
     sed -e "s/^ONEOS_GUEST_HIDE_GMS=.*/ONEOS_GUEST_HIDE_GMS=$gms/" -e "s/^ONEOS_HEAT_CAP=.*/ONEOS_HEAT_CAP=$heat/" \
         -e "s/^ONEOS_GUEST_SEC_IMS=.*/ONEOS_GUEST_SEC_IMS=$secims/" \
         -e "s/^ONEOS_VERBOSE_BOOT=.*/ONEOS_VERBOSE_BOOT=$verbose/" \
+        -e "s/^ONEOS_FULL_LOGS=.*/ONEOS_FULL_LOGS=$fulllogs/" \
         -e "s/^ONEOS_GUEST_EDM_STUB=.*/ONEOS_GUEST_EDM_STUB=$edmstub/" "$STAGE/session.env" > "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_HIDE_GMS=$gms" "$STAGE/session.env.tmp" && grep -q -x "ONEOS_HEAT_CAP=$heat" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_SEC_IMS=$secims" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_VERBOSE_BOOT=$verbose" "$STAGE/session.env.tmp" &&
+        grep -q -x "ONEOS_FULL_LOGS=$fulllogs" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_EDM_STUB=$edmstub" "$STAGE/session.env.tmp" &&
         own "$STAGE/session.env.tmp" 0644 &&
         mv -f "$STAGE/session.env.tmp" "$STAGE/session.env" || die "could not write session.env for this launch"

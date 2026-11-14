@@ -228,6 +228,10 @@ object SessionPrefs {
     fun verboseBoot(ctx: Context): Boolean = p(ctx).getBoolean("verbose_boot", false)
     fun setVerboseBoot(ctx: Context, enabled: Boolean) { p(ctx).edit().putBoolean("verbose_boot", enabled).apply() }
 
+    /** Full session logs (Settings / Advanced), `ONEOS_FULL_LOGS` for every launch: on by default; off skips the whole logcat capture. */
+    fun fullLogs(ctx: Context): Boolean = p(ctx).getBoolean("full_logs", true)
+    fun setFullLogs(ctx: Context, enabled: Boolean) { p(ctx).edit().putBoolean("full_logs", enabled).apply() }
+
     fun heatCap(ctx: Context): Boolean = p(ctx).getBoolean("heat_cap", true)
 
     fun setHeatCap(ctx: Context, on: Boolean) {
