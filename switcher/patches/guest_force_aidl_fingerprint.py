@@ -18,6 +18,7 @@ Usage: guest_force_aidl_fingerprint.py <smali root dir>
 Prints the smali_* directories (dex files) it changed, one per line.
 """
 import os
+import re
 import sys
 
 METHOD = """.method private getProviders(Landroid/hardware/fingerprint/FingerprintSensorConfigurations;)Ljava/util/List;
@@ -27,33 +28,36 @@ METHOD_NEW = """.method private getProviders(Landroid/hardware/fingerprint/Finge
     .locals 5
 """
 
-OLD = """    .line 1201
-    invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z
+# The read sits in a different .line block per image (ColorOS 1201, HyperOS
+# 1182); match the instruction, not its line number.
+INVOKE = re.compile(
+    r"(?m)^(?P<indent>[ \t]*)"
+    r"invoke-virtual \{p1\}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->"
+    r"getResetLockoutRequiresHardwareAuthToken\(\)Z[ \t]*\n"
+    r"(?:[ \t]*\n)?"
+    r"(?P<move>[ \t]*)move-result v3[ \t]*\n"
+)
+NEW = """{indent}# OneOS: the image's flag names its own HAL's transport (false = HIDL 2.1).
+{indent}# Ask the phone instead: the AIDL instance is there on every AIDL HAL, and
+{indent}# its absence leaves a HIDL image with the value it shipped.
+{indent}const-string v4, "android.hardware.biometrics.fingerprint.IFingerprint/default"
 
-    move-result v3
-"""
-NEW = """    .line 1201
-    # OneOS: the image's flag names its own HAL's transport (false = HIDL 2.1).
-    # Ask the phone instead: the AIDL instance is there on every AIDL HAL, and
-    # its absence leaves a HIDL image with the value it shipped.
-    const-string v4, "android.hardware.biometrics.fingerprint.IFingerprint/default"
+{indent}invoke-static {{v4}}, Landroid/os/ServiceManager;->getService(Ljava/lang/String;)Landroid/os/IBinder;
 
-    invoke-static {v4}, Landroid/os/ServiceManager;->getService(Ljava/lang/String;)Landroid/os/IBinder;
+{indent}move-result-object v4
 
-    move-result-object v4
+{indent}if-eqz v4, :oneos_fingerprint_hidl
 
-    if-eqz v4, :oneos_fingerprint_hidl
+{indent}const/4 v3, 0x1
 
-    const/4 v3, 0x1
+{indent}goto :oneos_fingerprint_transport
 
-    goto :oneos_fingerprint_transport
+{indent}:oneos_fingerprint_hidl
+{indent}invoke-virtual {{p1}}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z
 
-    :oneos_fingerprint_hidl
-    invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z
+{indent}move-result v3
 
-    move-result v3
-
-    :oneos_fingerprint_transport
+{indent}:oneos_fingerprint_transport
 """
 
 
@@ -70,11 +74,14 @@ def main(root):
                        "fingerprint", "FingerprintService.smali")
     path = find(root, rel)
     src = open(path).read()
-    if src.count(OLD) != 1:
-        sys.exit(f"{rel}: the getResetLockoutRequiresHardwareAuthToken read is not there once")
     if src.count(METHOD) != 1:
         sys.exit(f"{rel}: getProviders is not there once with .locals 4")
-    src = src.replace(OLD, NEW, 1).replace(METHOD, METHOD_NEW, 1)
+    hits = list(INVOKE.finditer(src))
+    if len(hits) != 1:
+        sys.exit(f"{rel}: the getResetLockoutRequiresHardwareAuthToken read is not there once (found {len(hits)})")
+    m = hits[0]
+    src = src[:m.start()] + NEW.format(indent=m.group("indent")) + src[m.end():]
+    src = src.replace(METHOD, METHOD_NEW, 1)
     open(path, "w").write(src)
     print("FingerprintService.getProviders: AIDL sensor when the AIDL HAL is registered, "
           "the image's flag otherwise", file=sys.stderr)
