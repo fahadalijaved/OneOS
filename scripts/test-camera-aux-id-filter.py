@@ -15,7 +15,7 @@ SPEC.loader.exec_module(MODULE)
 METHOD = """.class public final Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;
 .super Ljava/lang/Object;
 
-.method private extractCameraIdListLocked(II)[Ljava/lang/String;
+.method private blacklist extractCameraIdListLocked(II)[Ljava/lang/String;
     .locals 7
 
     invoke-static {}, Landroid/hardware/Camera;->shouldExposeAuxCamera()Z
@@ -93,6 +93,94 @@ METHOD = """.class public final Landroid/hardware/camera2/CameraManager$CameraMa
 .end method
 """
 
+HYPEROS_METHOD = """.class public final Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;
+.super Ljava/lang/Object;
+
+.method private extractCameraIdListLocked(II)[Ljava/lang/String;
+    .locals 8
+
+    invoke-direct {p0, p1, p2}, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;->isVirtualCameraPolicy(II)Z
+
+    move-result v1
+
+    invoke-static {}, Landroid/app/ActivityThread;->currentOpPackageName()Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-static {v2}, Landroid/hardware/camera2/impl/CameraExtStub;->isAuxCameraClient(Ljava/lang/String;)Z
+
+    move-result v3
+
+    const/4 v4, 0x0
+
+    :goto_0
+    iget-object v5, p0, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;->mDeviceStatus:Landroid/util/ArrayMap;
+
+    invoke-virtual {v5}, Landroid/util/ArrayMap;->size()I
+
+    move-result v5
+
+    if-ge v4, v5, :cond_3
+
+    const/4 v5, 0x2
+
+    if-nez v1, :cond_0
+
+    if-nez v3, :cond_0
+
+    if-ne v4, v5, :cond_0
+
+    goto :goto_2
+
+    .line 2638
+    :cond_0
+    iget-object v6, p0, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;->mDeviceStatus:Landroid/util/ArrayMap;
+
+    invoke-virtual {v6, v4}, Landroid/util/ArrayMap;->valueAt(I)Ljava/lang/Object;
+
+    move-result-object v6
+
+    check-cast v6, Ljava/lang/Integer;
+
+    iget-object v7, p0, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;->mDeviceStatus:Landroid/util/ArrayMap;
+
+    invoke-virtual {v7, v4}, Landroid/util/ArrayMap;->keyAt(I)Ljava/lang/Object;
+
+    move-result-object v7
+
+    check-cast v7, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;
+
+    if-eqz v6, :cond_2
+
+    if-eq v6, v5, :cond_2
+
+    invoke-direct {p0, p1, p2, v7}, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;->shouldHideCamera(IILandroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;)Z
+
+    move-result v5
+
+    if-eqz v5, :cond_1
+
+    goto :goto_1
+
+    :cond_1
+    invoke-static {v7}, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;->-$$Nest$fgetmCameraId(Landroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;)Ljava/lang/String;
+
+    move-result-object v5
+
+    invoke-interface {v0, v5}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+
+    :cond_2
+    :goto_1
+    add-int/lit8 v4, v4, 0x1
+
+    goto :goto_0
+
+    :cond_3
+    :goto_2
+    return-object p1
+.end method
+"""
+
 
 class CameraAuxIdFilterTest(unittest.TestCase):
     def fixture(self, text=METHOD):
@@ -124,6 +212,31 @@ class CameraAuxIdFilterTest(unittest.TestCase):
 
     def test_is_idempotent(self):
         temp, path = self.fixture()
+        self.addCleanup(temp.cleanup)
+        MODULE.patch(temp.name)
+        with open(path, encoding="utf-8") as source:
+            once = source.read()
+        self.assertIsNone(MODULE.patch(temp.name))
+        with open(path, encoding="utf-8") as source:
+            twice = source.read()
+        self.assertEqual(once, twice)
+
+    def test_filters_hyperos_camera_ext_shape_by_id(self):
+        temp, path = self.fixture(HYPEROS_METHOD)
+        self.addCleanup(temp.cleanup)
+        self.assertEqual("smali_classes2", MODULE.patch(temp.name))
+        with open(path, encoding="utf-8") as source:
+            patched = source.read()
+        self.assertIn(".locals 10", patched)
+        self.assertIn(MODULE.MARKER, patched)
+        self.assertIn('const-string v9, "0"', patched)
+        self.assertIn('const-string v9, "1"', patched)
+        self.assertIn("if-eqz v9, :goto_1", patched)
+        self.assertNotIn("if-ne v4, v5, :cond_0", patched)
+        self.assertNotIn("goto :goto_2\n\n    .line 2638", patched)
+
+    def test_hyperos_shape_is_idempotent(self):
+        temp, path = self.fixture(HYPEROS_METHOD)
         self.addCleanup(temp.cleanup)
         MODULE.patch(temp.name)
         with open(path, encoding="utf-8") as source:

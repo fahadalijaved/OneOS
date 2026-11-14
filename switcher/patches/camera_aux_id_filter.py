@@ -49,7 +49,7 @@ def find_smali(root):
 
 def method(text):
     pattern = re.compile(
-        r"^\.method private extractCameraIdListLocked\(II\)\[Ljava/lang/String;\n"
+        r"^\.method private (?:blacklist )?extractCameraIdListLocked\(II\)\[Ljava/lang/String;\n"
         r".*?^\.end method$",
         re.M | re.S,
     )
@@ -69,6 +69,50 @@ def patch(root):
         return None
 
     locals_hits = re.findall(r"^    \.locals (\d+)$", body, re.M)
+
+    if "Landroid/hardware/camera2/impl/CameraExtStub;->isAuxCameraClient" in body:
+        if locals_hits != ["8"]:
+            die(f"HyperOS extractCameraIdListLocked locals are {locals_hits}, expected ['8']")
+
+        limit = re.compile(
+            r"(    const/4 v5, 0x2\n\n)"
+            r"    if-nez v1, :cond_0\n\n"
+            r"    if-nez v3, :cond_0\n\n"
+            r"    if-ne v4, v5, :cond_0\n\n"
+            r"    goto :goto_2\n\n"
+            r"    \.line \d+\n"
+            r"    :cond_0\n"
+        )
+        body, count = limit.subn(r"\1", body)
+        if count != 1:
+            die(f"HyperOS auxiliary-camera loop limit matched {count} times (one expected)")
+
+        key = (
+            "    check-cast v7, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;\n"
+        )
+        if body.count(key) != 1:
+            die(f"HyperOS camera-info key matched {body.count(key)} times (one expected)")
+        camera_id = (
+            "\n    " + MARKER + "\n"
+            "    invoke-static {v7}, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;->-$$Nest$fgetmCameraId(Landroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;)Ljava/lang/String;\n\n"
+            "    move-result-object v8\n\n"
+            "    const-string v9, \"0\"\n\n"
+            "    invoke-virtual {v9, v8}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z\n\n"
+            "    move-result v9\n\n"
+            "    if-nez v9, :oneos_camera_aux_allowed\n\n"
+            "    const-string v9, \"1\"\n\n"
+            "    invoke-virtual {v9, v8}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z\n\n"
+            "    move-result v9\n\n"
+            "    if-eqz v9, :goto_1\n\n"
+            "    :oneos_camera_aux_allowed\n"
+        )
+        body = body.replace(key, key + camera_id)
+        body = body.replace("    .locals 8\n", "    .locals 10\n", 1)
+        text = text[:hit.start()] + body + text[hit.end():]
+        with open(path, "w", encoding="utf-8", newline="") as output:
+            output.write(text)
+        return os.path.relpath(path, root).split(os.sep, 1)[0]
+
     if locals_hits != ["7"]:
         die(f"extractCameraIdListLocked locals are {locals_hits}, expected ['7']")
 

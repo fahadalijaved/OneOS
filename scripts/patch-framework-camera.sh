@@ -59,7 +59,7 @@ done
 # select a vendor ID (A15 Infinity-X chose 23) for the torch. Frameworks without
 # that vendor path need no such patch.
 ACM=$(find "$WORK/fw" -path '*/android/hardware/camera2/CameraManager$CameraManagerGlobal.smali' | head -1)
-if [ -n "$ACM" ] && grep -q 'shouldExposeAuxCamera()Z' "$ACM"; then
+if [ -n "$ACM" ] && grep -Eq 'shouldExposeAuxCamera\(\)Z|CameraExtStub;->isAuxCameraClient' "$ACM"; then
     AD=$(python3 -I "$ROOT/switcher/patches/camera_aux_id_filter.py" "$WORK/fw")
     for d in $AD; do
         case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac

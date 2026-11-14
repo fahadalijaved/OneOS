@@ -107,13 +107,20 @@ class Mt6789BluetoothRecoveryTest(unittest.TestCase):
     def test_it_retries_at_most_once_and_records_the_result(self):
         body = START.split("<<'BTRECOVEREOF'\n", 1)[1].split("\nBTRECOVEREOF", 1)[0]
         actions = re.findall(r'cmd bluetooth_manager ([^ >]+)', body)
-        self.assertEqual(
-            ['disable', 'wait-for-state:STATE_OFF', 'enable', 'wait-for-state:STATE_ON'],
-            actions,
-        )
+        self.assertEqual(['disable', 'enable'], actions)
+        # The stack boots slowly on some ROMs (HyperOS: its own wait-for-state
+        # timed out and the earbuds bound to the half-initialized stack), so the
+        # OFF and ON states are polled with long timeouts and the recovery
+        # settles 8 s after ON before looking for the replacement session.
+        self.assertNotIn('cmd bluetooth_manager wait-for-state', body)
+        self.assertIn("grep -q '^  State:  *OFF$'", body)
+        self.assertIn("grep -q '^  State:  *ON$'", body)
+        self.assertIn('while [ $n -lt 30 ]', body)
+        self.assertIn('while [ $n -lt 45 ]', body)
+        self.assertIn('sleep 8', body)
+        self.assertIn('while [ $waited -lt 25 ]', body)
         self.assertEqual(2, body.count('exit 0'))
         self.assertIn('while [ $attempt -le 2 ]', body)
-        self.assertIn('while [ $waited -lt 12 ]', body)
         self.assertIn('replacement A2DP session STARTED on attempt $attempt', body)
         self.assertIn('A2DP recovery exhausted after 2 attempts', body)
         self.assertIn('while [ $i -lt 300 ]', body)

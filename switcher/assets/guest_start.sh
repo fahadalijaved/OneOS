@@ -1392,22 +1392,41 @@ while [ $i -lt 300 ]; do
         while [ $attempt -le 2 ]; do
             attempt_start=$(date +%s)
             echo "$(date +%T) Bluetooth recovery attempt $attempt/2" >> "$LOG"
-            cmd bluetooth_manager disable >> "$LOG" 2>&1 &&
-                cmd bluetooth_manager wait-for-state:STATE_OFF >> "$LOG" 2>&1 &&
-                cmd bluetooth_manager enable >> "$LOG" 2>&1 &&
-                cmd bluetooth_manager wait-for-state:STATE_ON >> "$LOG" 2>&1
-            rc=$?
+            cmd bluetooth_manager disable >> "$LOG" 2>&1
+            # The stack boots slowly on some ROMs (HyperOS's wait-for-state timed
+            # out before it reached OFF or ON, and the earbuds' auto-reconnect
+            # then bound to the half-initialized stack, whose A2DP session never
+            # came up: Galaxy A15 HyperOS, sound dead after every recovery; a
+            # slow manual restart with long pauses brought it back). Poll each
+            # state over long timeouts and settle after ON, so the earbuds'
+            # auto-reconnect binds to a fully initialized stack.
+            btoff=1; n=0
+            while [ $n -lt 30 ]; do
+                sleep 1
+                if dumpsys bluetooth_manager 2>/dev/null | grep -q '^  State:  *OFF$'; then btoff=0; break; fi
+                n=$((n + 1))
+            done
+            echo "$(date +%T) stack OFF after ${n}s (reached $((1 - btoff)))" >> "$LOG"
+            cmd bluetooth_manager enable >> "$LOG" 2>&1
+            bton=1; n=0
+            while [ $n -lt 45 ]; do
+                sleep 1
+                if dumpsys bluetooth_manager 2>/dev/null | grep -q '^  State:  *ON$'; then bton=0; break; fi
+                n=$((n + 1))
+            done
+            sleep 8
+            echo "$(date +%T) stack ON after ${n}s (reached $((1 - bton))); settled 8s for the earbuds' auto-reconnect" >> "$LOG"
             waited=0
-            while [ $waited -lt 12 ]; do
+            while [ $waited -lt 25 ]; do
                 sleep 1
                 if logcat -d -v epoch -T "$attempt_start.000" -s 'AHAL_BluetoothAudioPort:*' '*:S' 2>/dev/null |
                    grep -F 'session_type=A2DP_SOFTWARE_ENCODING_DATAPATH' | grep -q 'state=STARTED'; then
-                    echo "$(date +%T) replacement A2DP session STARTED on attempt $attempt (commands rc=$rc)" >> "$LOG"
+                    echo "$(date +%T) replacement A2DP session STARTED on attempt $attempt (stack reached: OFF=$((1 - btoff)) ON=$((1 - bton)))" >> "$LOG"
                     exit 0
                 fi
                 waited=$((waited + 1))
             done
-            echo "$(date +%T) replacement A2DP session not STARTED after attempt $attempt (commands rc=$rc)" >> "$LOG"
+            echo "$(date +%T) replacement A2DP session not STARTED after attempt $attempt (stack reached: OFF=$((1 - btoff)) ON=$((1 - bton)))" >> "$LOG"
             attempt=$((attempt + 1))
         done
         echo "$(date +%T) A2DP recovery exhausted after 2 attempts" >> "$LOG"
