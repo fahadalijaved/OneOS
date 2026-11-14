@@ -1030,6 +1030,25 @@ samcam_bind() {
 guest_root_mountpoint() {
     [ ! -f "$STAGE/data/oneos_root/enabled" ] || [ -d "$ROOTFS/system/xbin" ] || mkdir -p "$1/xbin"
 }
+# The guest's PackageManager takes android.hardware.biometrics.face and
+# android.hardware.fingerprint from <feature> files in a permissions folder.
+# HyperOS/MIUI Settings picks the standard FaceManager only when the face
+# feature is declared (KeyguardSettingsFaceUnlockManager.isUseNewFaceApi) and
+# otherwise binds the vendor miui_face service, which no GSI image ships, so
+# enrollment would run against a service that is not there. ColorOS reads the
+# same feature. One UI declares both in its own /system/etc/permissions; the
+# guest image replaces /system, so the files go into whichever read-only top
+# layer this prepare already builds, or a private one below.
+face_features_into() { # <overlay top layer>
+    mkdir -p "$1/etc/permissions" || return 1
+    printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.fingerprint" />' '</permissions>' \
+        > "$1/etc/permissions/android.hardware.fingerprint.xml" &&
+    printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.biometrics.face" />' '</permissions>' \
+        > "$1/etc/permissions/android.hardware.biometrics.face.xml" &&
+    chmod 755 "$1" "$1/etc" "$1/etc/permissions" &&
+    chmod 644 "$1/etc/permissions/android.hardware.fingerprint.xml" "$1/etc/permissions/android.hardware.biometrics.face.xml" &&
+    $BB chcon -R u:object_r:system_file:s0 "$1/etc" 2>/dev/null || true
+}
 if [ -d "$SAMCAM_SRC" ] && [ $SAMCAM_IMAGE = 0 ]; then
     echo "Samsung Camera in the guest: off (this system's set has no samcam.tar; samcam_build is another system's)"
 elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
@@ -1045,13 +1064,8 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         SOV="$STAGE/system_ov"
         mkdir -p "$SOV"
         mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SOV"
-        rm -rf "$SOV/up" && mkdir -p "$SOV/up"
-        mkdir -p "$SOV/up/etc/permissions" &&
-            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.fingerprint" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" &&
-            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.biometrics.face" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
-            chmod 755 "$SOV/up/etc" "$SOV/up/etc/permissions" &&
-            chmod 644 "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
-            $BB chcon -R u:object_r:system_file:s0 "$SOV/up/etc" 2>/dev/null || true
+        rm -rf "$SOV/up" && mkdir -p "$SOV/up" &&
+            face_features_into "$SOV/up"
         echo "Samsung Camera: overlay $(date +%T)"
         if samcam_mountpoints "$SOV/up" sys && guest_root_mountpoint "$SOV/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$SOV/up:$ROOTFS/system" "$ROOTFS/system"; then
@@ -1079,6 +1093,7 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
     $BB mount --make-private "$GRO" || exit 3
     mkdir -p "$GRO/up"
     guest_root_mountpoint "$GRO/up" || exit 3
+    face_features_into "$GRO/up"
     $BB chcon -R u:object_r:system_file:s0 "$GRO/up" 2>/dev/null || true
     if $BB mount -t overlay overlay -o "ro,lowerdir=$GRO/up:$ROOTFS/system" "$ROOTFS/system"; then
         echo 'Guest root: missing system/xbin supplied by a private read-only overlay'
@@ -1121,6 +1136,25 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
         fi
     fi
     [ -d "$ROOTFS/system/xbin" ] || { echo 'ERROR: guest su mount point missing after overlay'; exit 3; }
+fi
+# The camera and guest-root layers above carry the feature files whenever they
+# run. A stage with no samcam set, or an image that needs neither, keeps its own
+# /system, so the features get a private read-only layer of their own.
+if [ ! -e "$ROOTFS/system/etc/permissions/android.hardware.biometrics.face.xml" ]; then
+    if mount | grep -q " $ROOTFS/system type overlay"; then
+        echo "Face features: $ROOTFS/system is an overlay this step did not make; the guest declares what that layer has"
+    else
+        FEO="$STAGE/face_ov"
+        if [ -L "$FEO" ]; then echo 'ERROR: face overlay is a symlink'; exit 3; fi
+        mkdir -p "$FEO"
+        mount | grep -q " $FEO " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$FEO"
+        if rm -rf "$FEO/up" && mkdir -p "$FEO/up" && face_features_into "$FEO/up" &&
+           $BB mount -t overlay overlay -o "ro,lowerdir=$FEO/up:$ROOTFS/system" "$ROOTFS/system"; then
+            echo "Face features: android.hardware.biometrics.face and android.hardware.fingerprint in a private /system layer"
+        else
+            echo "Face features: the private /system layer was refused; the guest keeps its own feature list"
+        fi
+    fi
 fi
 # One UI's product APEXes: host apexd reports Google's Play system module as
 # /product/apex/com.google.android.gmssystem.prodvic.apex, and the guest's package
