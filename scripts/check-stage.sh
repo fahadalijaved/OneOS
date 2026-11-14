@@ -8,6 +8,9 @@
 # while the source, the rebuilt APK and the guards looked right. This compares
 # the stage's copies with a set's guards.txt and build-info.txt.
 #
+# The stage's own files.sha256 is the app's manifest, not a record of what a
+# deploy pushed, so the hashes are read from the files themselves.
+#
 # Usage: scripts/check-stage.sh [<overlays dir>]   (default out/overlays)
 #   Exit 0 when every guarded file on the phone is the set's, and the set was
 #   built from HEAD. Exit 1 when something is stale, 2 on a usage error.
@@ -21,18 +24,15 @@ adb_() {
     if [ -n "$SERIAL" ]; then ${ADB:-adb} -s "$SERIAL" "$@"; else ${ADB:-adb} "$@"; fi
 }
 
-adb_ shell "su -c 'test -f $STAGE/files.sha256'" 2>/dev/null || {
-    echo "no $STAGE/files.sha256 on the phone: is a stage deployed?" >&2
-    exit 2
-}
-SUM=$(mktemp); trap 'rm -f "$SUM"' EXIT
-adb_ shell "su -c 'cat $STAGE/files.sha256'" | tr -d '\r' > "$SUM"
+NAMES=$(awk '$1 !~ /^#/ && NF >= 2 { printf "%s ", $2 }' "$OVERLAYS/guards.txt")
+[ -n "$NAMES" ] || { echo "$OVERLAYS/guards.txt names no files" >&2; exit 2; }
+ON_PHONE=$(adb_ shell "su -c 'cd $STAGE && sha256sum $NAMES 2>/dev/null'" | tr -d '\r')
 
 stale=0
 while read -r sum name; do
     case "$sum" in ''|\#*) continue ;; esac
     [ -n "$name" ] || continue
-    have=$(awk -v n="$name" '$2 == n { print $1 }' "$SUM")
+    have=$(echo "$ON_PHONE" | awk -v n="$name" '$2 == n { print $1 }')
     if [ -z "$have" ]; then
         echo "absent   $name (in $OVERLAYS/guards.txt, not in the stage)"
         stale=1
@@ -64,7 +64,7 @@ else
 fi
 
 if [ "$stale" = 1 ]; then
-    echo "rebuild and redeploy: scripts/make-overlays.sh <image> $OVERLAYS, then scripts/deploy-phone.sh --overlays $OVERLAYS <image>"
+    echo "rebuild and redeploy: scripts/make-overlays.sh <image> $OVERLAYS, then scripts/deploy-phone.sh --overlays $OVERLAYS --scripts-only"
     exit 1
 fi
-echo "stage matches $OVERLAYS ($(wc -l < "$OVERLAYS/guards.txt") guarded files)"
+echo "stage matches $OVERLAYS ($(awk '$1 !~ /^#/ && NF >= 2' "$OVERLAYS/guards.txt" | wc -l) guarded files)"
