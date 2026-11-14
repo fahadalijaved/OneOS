@@ -33,3 +33,7 @@ e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.increm
 93f7758cee7ad56d20c4ee80cd270837d1ecb187efacfbc473f3d27c3184f2f6  wifi_payload.img
 # 0.4.97 (r72), 0.4.98 (r73: + AOD brightness without OPPO's display HAL): ColorPanoramicSystemUI.apk, the image's SystemUI with wallpaper AOD allowed without OPPO's display-panel HAL (scripts/make-coloros-panoramic-aod.py)
 809533740e09960aba8b0bf9ccbde1011817346b2fb471373b8c77d76fbd255e  ColorPanoramicSystemUI.apk
+# The fingerprint wave (switcher/patches/systemui-fingerprint-wave) for this image's SystemUI:
+# guest_prepare.sh appends classes3.dex to the stock APK with the staged repacker.
+d1caea92b132bf2a56a59e44fcb2ed385d4fe4ab8b173845ff7cad1ed92c460a  SystemUI_wave.dex
+95cd0d4811c1a1c12d5ec3cf60995e2db3947a8d3303788baa3cdf2b20ce039a  OneOSWaveRepack.dex

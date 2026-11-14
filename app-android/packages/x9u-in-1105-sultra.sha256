@@ -1,6 +1,6 @@
 # OneOS package set x9u-in-1105-sultra: sha256sum of out/overlays_x9u_in_1105_r2 (scripts/make-overlays.sh on the newer Find X9 Ultra IN image, CPH2841IN security patch 2026-11-01, MysticGSI --type=coloros --no-debloat, 2026-11-13; ColorPanoramicSystemUI.apk from scripts/make-coloros-panoramic-aod.py on its SystemUI; oplus_odm_ai.tar from its odm; samcam.tar and KeKeThemeSpace_patched.apk are x9u-in-sultra r75's files), minus tethering_payload.img OneOSWallpapersFoldGrid.apk. 0.5.05 r2: r1 plus oplus-framework_patched.jar (patches/oplus_ims_provision.py: outgoing calls over IMS where the carrier asks for VoLTE provisioning, Samsung's IMS answers 0), 2026-11-13.
 # app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_x9u_in_1105_r2 differs.
-3266fa12ba2453a49cbfd9d54ec2f32cb2fd83a04389792c34c5b10f5bf5d08d  ColorPanoramicSystemUI.apk
+f13b3f5d3e445dcd4b9c7c0ec8d85820e745fbc8a94e6f3f8997fc273a2582b0  ColorPanoramicSystemUI.apk
 2eddd38f878e61fa41d18151f5f90be5f18b5b3e161ac559ce191b9022e18c7b  KeKeThemeSpace_patched.apk
 0541e053377589e8bcc036996c0fb8d8f094207bcd9370922141f2c0b44e2f09  OneOSGuest.apk
 63a54a1d705e387966c1174a6707fe02b85035b311fa1fbda1c7fcf0991a202a  adservices_payload.img
@@ -33,3 +33,12 @@ e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.increm
 9db563d25f5afd9a205e726da2e525933f6c86b1e5ca40fa0dfdc82350e01722  vold_patched
 93f7758cee7ad56d20c4ee80cd270837d1ecb187efacfbc473f3d27c3184f2f6  wifi_payload.img
 19197cd651ef155142d37e40fdeab0ef5e8ba1177bfa1fdde3b21dfdef545d0d  oplus-framework_patched.jar
+# The image's own SystemUI patched with switcher/patches/systemui-fingerprint-wave: only
+# classes3.dex and the app_process repacker, since guest_prepare.sh appends the dex to the
+# stock APK. Rebuilt from this image's SystemUI.apk (sha256 620aff68…), not the older one's.
+# ColorPanoramicSystemUI.apk is that same wave classes3.dex merged with the panoramic-AOD
+# classes3.dex and DozeService, so guests with wallpaper AOD on get both from one APK; the
+# wave dex below stays for guests that keep wallpaper AOD off
+# (ONEOS_GUEST_PANORAMIC_AOD=0). 0.5.09: the wake-glyph fix (oneosWakeGlyph).
+a21b33d32184fb94a1be83d66740826074ae103d2ed8dacc6ba9c2959d202817  SystemUI_wave.dex
+95cd0d4811c1a1c12d5ec3cf60995e2db3947a8d3303788baa3cdf2b20ce039a  OneOSWaveRepack.dex
