@@ -2094,3 +2094,18 @@ done
 RJ=""
 for j in "$OUT"/*_patched.jar "$OUT"/oneos-telephony.jar; do [ -f "$j" ] && RJ="$RJ $j"; done
 [ -z "$RJ" ] || python3 -I "$ROOT/scripts/check-oneos-refs.py" "$BT/dexdump" $RJ
+
+# Provenance, read by deploy-phone.sh and check-stage.sh: a set is only as new
+# as the patcher code it was built from, and a stage keeps whatever jars the
+# last deploy pushed (2026-11-14: the ColorOS stage held a services_patched.jar
+# from before the guest lock could mint a hardware auth token, so face
+# enrollment failed on the phone while the source looked right). Written last,
+# so an interrupted build leaves the previous stamp and both call the set old.
+{
+    echo "commit $(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+    if git -C "$ROOT" diff-index --quiet HEAD -- 2>/dev/null; then echo "dirty 0"; else echo "dirty 1"; fi
+    echo "date $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "image $IMG"
+} > "$OUT/build-info.txt"
+echo "built $OUT/build-info.txt ($(awk '$1 == "commit" { print substr($2, 1, 12) }' "$OUT/build-info.txt"))"
+

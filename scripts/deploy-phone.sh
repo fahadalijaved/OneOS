@@ -63,6 +63,25 @@ if [ "$(awk '$2 == "vold_patched" { v = 1 } $2 == "service.incremental_patched.s
     exit 1
 fi
 echo "overlays: $OVERLAYS"
+# A set is only as new as the patcher code it was built from. The app and the
+# source can move on while a stage keeps the jars of an older build (the
+# ColorOS face-enroll fix that never reached the phone, 2026-11-14), so refuse
+# a set built from a commit other than HEAD when the overlays changed since,
+# unless OVERLAYS_STALE=1 says the difference does not matter.
+[ -f "$OVERLAYS/build-info.txt" ] || { echo "$OVERLAYS: no build-info.txt (a set from before provenance: rebuild it)" >&2; exit 1; }
+SET_COMMIT=$(awk '$1 == "commit" { print $2 }' "$OVERLAYS/build-info.txt")
+HEAD_COMMIT=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)
+if [ -n "$HEAD_COMMIT" ] && [ "$SET_COMMIT" != "$HEAD_COMMIT" ]; then
+    CHANGED=$(git -C "$ROOT" log --oneline "$SET_COMMIT..HEAD" -- \
+        switcher/patches scripts/make-overlays.sh scripts/patch-framework-camera.sh \
+        scripts/patch-built-jar.sh facehal 2>/dev/null || true)
+    if [ -n "$CHANGED" ]; then
+        echo "$OVERLAYS was built from $(echo "$SET_COMMIT" | cut -c1-12), HEAD is $(echo "$HEAD_COMMIT" | cut -c1-12), and the overlays changed since:" >&2
+        echo "$CHANGED" | sed 's/^/    /' >&2
+        echo "rebuild the set with scripts/make-overlays.sh, or OVERLAYS_STALE=1 to deploy it anyway" >&2
+        [ "${OVERLAYS_STALE:-0}" = 1 ] || exit 1
+    fi
+fi
 # No plain umount in the session scripts: Android's toybox umount also detaches
 # the source's loop device (LOOP_CLR_FD) unless given -D, and through dm-verity
 # that stops one of One UI's APEX loops (return_to_oneui.sh explains). busybox
