@@ -22,7 +22,7 @@ in_image() { "$DEBUGFS" -R "stat $1" "$IMG" 2>&1 | grep -q '^Inode:'; }
 # framework jars still declare minSdkVersion 28. Raise it on every decoded jar;
 # resources are not decoded (-r), so nothing else reads the value.
 decode() {
-    decode "$1" "$2" || return 1
+    java -jar "$APKTOOL" d -q -f -r -o "$1" "$2" || return 1
     sed -i 's/^  minSdkVersion: .*/  minSdkVersion: 29/' "$1/apktool.yml"
 }
 [ -f "$IMG" ] || { echo "usage: $0 <system.img> [outdir]" >&2; exit 2; }
