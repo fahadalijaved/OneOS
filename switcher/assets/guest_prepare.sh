@@ -1035,6 +1035,14 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         mkdir -p "$SOV"
         mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SOV"
         rm -rf "$SOV/up" && mkdir -p "$SOV/up"
+        # The guest image may omit Samsung's biometric feature declarations,
+        # even though it uses the phone's host AIDL fingerprint/face services.
+        mkdir -p "$SOV/up/etc/permissions" &&
+            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.fingerprint" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" &&
+            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.biometrics.face" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
+            chmod 755 "$SOV/up/etc" "$SOV/up/etc/permissions" &&
+            chmod 644 "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
+            $BB chcon -R u:object_r:system_file:s0 "$SOV/up/etc" 2>/dev/null || true
         echo "Samsung Camera: overlay $(date +%T)"
         if samcam_mountpoints "$SOV/up" sys && guest_root_mountpoint "$SOV/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$SOV/up:$ROOTFS/system" "$ROOTFS/system"; then
@@ -3859,6 +3867,45 @@ else
 fi
 mkdir -p "$STAGE/data/user/0" "$STAGE/data/user_de/0"
 mkdir -p "$STAGE/data/system/users/0" "$STAGE/data/system_de/0/spblob" "$STAGE/data/system_ce/0"
+# The fingerprint framework sets its active user before vendor code can create
+# this directory. Without it the sensor is registered but never opened.
+mkdir -p "$STAGE/data/vendor_de/0/fpdata"
+chown 1000:1000 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
+chmod 700 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
+$BB chcon u:object_r:fingerprint_vendor_data_file:s0 "$STAGE/data/vendor_de/0/fpdata" 2>/dev/null || true
+
+# Templates remain in the phone's TEE. Carry only One UI's enrollment metadata
+# into the guest so it can refer to those templates. This is a mirror: removing
+# a biometric in One UI removes its stale guest metadata on the next switch.
+BIO_DST="$STAGE/data/system/users/0"
+rm -f "$BIO_DST/settings_fingerprint_0.xml"
+bio=0
+for f in settings_fingerprint_0.xml settings_face.xml face_enrolled_position_0.xml; do
+    out=$f
+    [ "$f" = settings_fingerprint_0.xml ] && out=settings_fingerprint.xml
+    src="/data/system/users/0/$f"
+    tmp="$BIO_DST/.$out.oneos-new"
+    rm -f "$tmp"
+    if [ -f "$src" ]; then
+        cp -f "$src" "$tmp"
+    else
+        # DFRoot/KernelSU can deliberately give uid 0 no DAC capabilities.
+        # One UI's users/0 is system:system 0700, so read this one metadata
+        # file with its owning group. No credential or gatekeeper file is read.
+        su -g 1000 -G 1000 -c "cat '$src' > '$tmp'" 2>/dev/null || rm -f "$tmp"
+    fi
+    if [ -s "$tmp" ]; then
+        mv -f "$tmp" "$BIO_DST/$out" &&
+            chown 1000:1000 "$BIO_DST/$out" 2>/dev/null &&
+            chmod 644 "$BIO_DST/$out" 2>/dev/null &&
+            $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$out" 2>/dev/null
+        bio=$((bio + 1))
+    else
+        rm -f "$tmp"
+        rm -f "$BIO_DST/$out"
+    fi
+done
+[ "$bio" -gt 0 ] && echo "Guest biometrics: carried One UI's $bio enrollment file(s) into the guest"
 # A guest lock state from before the weaver guard (patches/guest_no_weaver.py)
 # holds protectors in the phone's weaver slots, which the guarded framework
 # can no longer read, so the guest could not unlock its own user 0. Only the

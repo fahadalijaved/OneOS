@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""ColorOS's Bluetooth on a Helio G99 phone runs with the stack's own "Android's original behaviour" switch
-(guest_props.sh add): OPPO's quality report parser reads past the MediaTek controller's 48-byte events and
-the Bluetooth process dies again and again (A16 4G, reports c6e0068a and 049d5675)."""
+"""MediaTek ColorOS Bluetooth disables incompatible quality reports without changing A2DP behaviour."""
 from pathlib import Path
 import os
 import subprocess
@@ -13,7 +11,8 @@ SOURCE = (ROOT / 'switcher/assets/guest_props.sh').read_text()
 START = '    BTO=persist.sys.oplus.bt.use_origin\n'
 CODE = START + SOURCE.split(START, 1)[1].split('    # Power key stall (run 32:', 1)[0]
 KEY = 'persist.sys.oplus.bt.use_origin'
-G99 = "MT6789: OPPO's quality report parser reads past this controller's 48-byte events"
+BQR = 'persist.bluetooth.bqr.event_mask'
+G99 = 'MT6789: disable incompatible Bluetooth quality reports without changing A2DP'
 
 
 class OplusBtOrigin(unittest.TestCase):
@@ -36,28 +35,52 @@ class OplusBtOrigin(unittest.TestCase):
             return out.stdout, (root / 'new').read_text(), ovr, now
 
     def test_the_block_is_there(self):
-        self.assertIn('auto:MT6789*)', CODE)
-        self.assertLess(len(CODE), 1500)
+        self.assertIn('auto:MT6789*|0:MT6789*)', CODE)
+        self.assertIn('*mt[0-9]*|*MT[0-9]*|*[Mm]edia[Tt]ek*', CODE)
+        self.assertLess(len(CODE), 3000)
 
-    def test_a_helio_g99_phone_gets_the_switch_for_the_session(self):
+    def test_a_helio_g99_phone_keeps_normal_a2dp_and_disables_bqr(self):
         for soc in ('MT6789', 'MT6789V/CD'):
             with self.subTest(soc):
                 out, new, ovr, now = self.run_case(soc=soc)
-                self.assertEqual(f'ro.build.id=X\n{KEY}=true\n', new)
-                self.assertEqual(f'guest_props: {KEY}=true for the session ({G99.replace("MT6789", soc)})\n', out)
+                self.assertEqual(f'ro.build.id=X\n{KEY}=false\n{BQR}=0\n', new)
+                reason = G99.replace('MT6789', soc)
+                self.assertEqual(f'guest_props: {KEY}=false for the session ({reason})\n'
+                                 f'guest_props: {BQR}=0 for the session ({reason})\n', out)
                 # Nothing of One UI's is touched: the name goes the way of the image's own props.
                 self.assertEqual(('', {}), (ovr, now))
 
-    def test_the_images_own_value_is_replaced_not_doubled(self):
-        out, new, ovr, now = self.run_case(new=f'a=1\n{KEY}=false\npersist.sys.oplus.bt.use_originX=1\nb=2\n')
-        self.assertEqual(f'a=1\npersist.sys.oplus.bt.use_originX=1\nb=2\n{KEY}=true\n', new)
+    def test_the_images_own_values_are_replaced_not_doubled(self):
+        out, new, ovr, now = self.run_case(
+            new=f'a=1\n{KEY}=true\n{BQR}=7\npersist.sys.oplus.bt.use_originX=1\nb=2\n')
+        self.assertEqual(f'a=1\npersist.sys.oplus.bt.use_originX=1\nb=2\n{KEY}=false\n{BQR}=0\n', new)
+
+    def test_the_whole_mediaTek_family_gets_the_same_treatment(self):
+        # MT6877 (A34) had working-Bluetooth reports, but the change only
+        # disables diagnostic quality reports and pins OPPO's normal path;
+        # both are restored on return. Detected through ro.soc.model ...
+        out, new, ovr, now = self.run_case(soc='MT6877')
+        reason = G99.replace('MT6789', 'MT6877')
+        self.assertEqual(f'ro.build.id=X\n{KEY}=false\n{BQR}=0\n', new)
+        self.assertEqual(f'guest_props: {KEY}=false for the session ({reason})\n'
+                         f'guest_props: {BQR}=0 for the session ({reason})\n', out)
+        # ... and through ro.board.platform when ro.soc.model is empty.
+        out, new, ovr, now = self.run_case(soc='', props={'ro.board.platform': 'mt6768'})
+        reason = 'MediaTek SoC: disable incompatible Bluetooth quality reports without changing A2DP'
+        self.assertEqual(f'ro.build.id=X\n{KEY}=false\n{BQR}=0\n', new)
+        self.assertEqual(f'guest_props: {KEY}=false for the session ({reason})\n'
+                         f'guest_props: {BQR}=0 for the session ({reason})\n', out)
 
     def test_other_phones_and_other_systems_are_left_alone(self):
-        # A34 (MT6877): ColorOS's Bluetooth is reported working as it is. Exynos and Qualcomm: no such crash.
-        for kw in ({'soc': 'MT6877'}, {'soc': 'SM8850'}, {'soc': 's5e8845'}, {'soc': ''}, {'oplus': 0},
-                   {'env': {'ONEOS_GUEST_BT_ORIGIN': '0'}}, {'env': {'ONEOS_GUEST_BT_ORIGIN': 'yes'}}):
+        # Exynos and Qualcomm: OPPO's parser matches their BQR layout, no crash.
+        for kw in ({'soc': 'SM8850'}, {'soc': 's5e8845'}, {'soc': ''}, {'oplus': 0},
+                   {'env': {'ONEOS_GUEST_BT_ORIGIN': 'yes'}}):
             with self.subTest(kw):
                 self.assertEqual(('', 'ro.build.id=X\n', '', {}), self.run_case(**kw))
+        # Explicit values other than 0/auto leave every phone alone, and the
+        # override is a no-op without a ColorOS guest.
+        self.assertEqual(('', 'ro.build.id=X\n', '', {}),
+                         self.run_case(soc='MT6877', env={'ONEOS_GUEST_BT_ORIGIN': 'yes'}))
 
     def test_the_override_sets_it_on_any_phone_with_a_coloros_guest(self):
         out, new, ovr, now = self.run_case(soc='SM8850', env={'ONEOS_GUEST_BT_ORIGIN': '1'})
@@ -65,15 +88,18 @@ class OplusBtOrigin(unittest.TestCase):
                          (out, new))
         self.assertEqual(('', 'ro.build.id=X\n', '', {}), self.run_case(soc='SM8850', oplus=0, env={'ONEOS_GUEST_BT_ORIGIN': '1'}))
 
-    def test_a_name_one_ui_holds_is_overridden_and_restorable(self):
+    def test_one_ui_values_are_overridden_and_restorable(self):
         # Left behind by a session that never returned: then it is One UI's to get back.
-        host = f'ro.soc.model\n{KEY}\n'
-        out, new, ovr, now = self.run_case(host=host, props={KEY: 'false'})
-        self.assertEqual((f'guest_props: {KEY}=false overridden to true for the session ({G99})\n', 'ro.build.id=X\n',
-                          f'{KEY}=false\n', {KEY: 'true'}), (out, new, ovr, now))
-        # Already true, or a write that fails: nothing recorded, nothing said.
-        self.assertEqual(('', 'ro.build.id=X\n', '', {KEY: 'true'}), self.run_case(host=host, props={KEY: 'true'}))
-        self.assertEqual(('', 'ro.build.id=X\n', '', {KEY: 'false'}), self.run_case(host=host, props={KEY: 'false'}, rp_fails=True))
+        host = f'ro.soc.model\n{KEY}\n{BQR}\n'
+        out, new, ovr, now = self.run_case(host=host, props={KEY: 'true', BQR: '7'})
+        self.assertEqual((f'guest_props: {KEY}=true overridden to false for the session ({G99})\n'
+                          f'guest_props: {BQR}=7 overridden to 0 for the session ({G99})\n', 'ro.build.id=X\n',
+                          f'{KEY}=true\n{BQR}=7\n', {KEY: 'false', BQR: '0'}), (out, new, ovr, now))
+        # Already safe, or writes that fail: nothing is recorded or announced.
+        self.assertEqual(('', 'ro.build.id=X\n', '', {KEY: 'false', BQR: '0'}),
+                         self.run_case(host=host, props={KEY: 'false', BQR: '0'}))
+        self.assertEqual(('', 'ro.build.id=X\n', '', {KEY: 'true', BQR: '7'}),
+                         self.run_case(host=host, props={KEY: 'true', BQR: '7'}, rp_fails=True))
 
 
 if __name__ == '__main__':

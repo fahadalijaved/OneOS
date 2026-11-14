@@ -1001,6 +1001,8 @@ check_files() { # <names>
         case "$n" in
             # guest_prepare.sh writes and starts it each switch; it outlives an in-place return
             oneos_wdog_feeder.sh) ;;
+            # oneos_switch.sh writes it for the guest panel's own shape at every switch
+            guest_panel_fit.sh) ;;
             *_patched*|*_payload.img|*.apk|*.jar|*.so|*.sh|*.tar|Fold8AngleRelay.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list.xml|oneos-*)
                 in_list "$n" "$1" || refuse "$n is in the stage but was not prepared (left from an older stage)" ;;
         esac

@@ -983,9 +983,59 @@ fi
 if [ -f /data/guest_audio.flag ]; then
     echo "[Pivoted Root] Starting guest audioserver..."
     mkdir -p /data/misc/audioserver && chown 1041:1005 /data/misc/audioserver && chmod 0700 /data/misc/audioserver
+    # A guest restart that keeps the previous generation's audio HAL leaves the
+    # new audioserver without a primary output: the HAL holds the old streams,
+    # openOutput for AUDIO_DEVICE_OUT_SPEAKER fails ("Cannot open output stream
+    # ... on hw module primary", "The policy configuration does not declare a
+    # primary output") and every createTrack gets error -19 for the rest of the
+    # session. Galaxy A15 Infinity-X: audioserver 8035 registered at 16:10:33,
+    # two minutes after the 16:10 soft reboot, and the sound stayed dead until
+    # the 14:25 full launch; the 03:33 and 04:05 sessions died the same way
+    # (sound_watch.log / sound_watch.prev). A full launch never sees this:
+    # oneos_switch.sh restarts the HAL services before us, so only a HAL whose
+    # pid survived the guest restart needs this. Restart it the way the full
+    # launch does, through the HAL's init services, and fall back to the
+    # pid when the property did not move it: init starts the service again,
+    # and the fresh HAL takes the new audioserver's streams. The recorded pid
+    # lives in the guest's /data like the other keeper logs; the pid file also
+    # guards against pid reuse restarting a fresh HAL, which would only cost
+    # another HAL restart, never a broken one.
+    hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1 | tr -dc 0-9)
+    hprev=$(cat /data/oneos_audio_hal.pid 2>/dev/null)
+    if [ -n "$hpid" ] && [ "$hpid" = "$hprev" ]; then
+        echo "[Pivoted Root] audio HAL survived the guest restart as pid $hpid; restarting it for a fresh primary output"
+        for hsv in $(getprop | sed -n 's/^\[init\.svc\.\(vendor\.audio-hal[^]]*\)\]: \[running\]$/\1/p' | tr '\n' ' '); do
+            setprop ctl.restart "$hsv"
+        done
+        n=0
+        while [ $n -lt 100 ]; do
+            sleep 0.2
+            hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1 | tr -dc 0-9)
+            if [ -n "$hpid" ] && [ "$hpid" != "$hprev" ]; then break; fi
+            n=$((n + 1))
+        done
+        if [ -n "$hpid" ] && [ "$hpid" = "$hprev" ]; then
+            echo "[Pivoted Root] audio HAL still pid $hpid after the ctl.restart; killing it"
+            kill -9 "$hpid" 2>/dev/null || true
+            n=0
+            while [ $n -lt 100 ]; do
+                sleep 0.2
+                hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1 | tr -dc 0-9)
+                if [ -n "$hpid" ] && [ "$hpid" != "$hprev" ]; then break; fi
+                n=$((n + 1))
+            done
+        fi
+        echo "[Pivoted Root] audio HAL pid after the restart: ${hpid:-none} (waited $((n / 5))s)"
+    fi
+    if [ -n "$hpid" ]; then echo "$hpid" > /data/oneos_audio_hal.pid; fi
     n=0
     while [ $n -lt 50 ] && ! service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ": found"; do n=$((n + 1)); sleep 0.2; done
     echo "[Pivoted Root] audio HAL IModule/default:$(service check android.hardware.audio.core.IModule/default 2>/dev/null | cut -d: -f2) after $((n / 5))s"
+    # The record above ran while the full launch's own HAL restart (oneos_switch.sh)
+    # may not have registered the module yet; record the pid now that it is up, so
+    # the next guest restart can tell a surviving HAL from a fresh one.
+    hpid=$(dumpsys --pid android.hardware.audio.core.IModule/default 2>/dev/null | head -n 1 | tr -dc 0-9)
+    if [ -n "$hpid" ]; then echo "$hpid" > /data/oneos_audio_hal.pid; fi
     # A2DP offload (run 44): Samsung's QTI HAL turns its Bluetooth offload path
     # on only from the vendor parameter l_a2dp_format (bit 21 of the number,
     # Platform+8), which One UI's audioserver sends and a GSI's never does: every
@@ -1300,6 +1350,97 @@ if [ -f /data/guest_audio.flag ] && [ "${ONEOS_GUEST_CALL_SIM:-1}" != 0 ]; then
             last=$off; echo "$off" > /data/oneos_call_slot
             if [ "${s#?}" = "$want" ]; then cur=$off; else cur=""; fi
         done' sh "$BB" "${ONEOS_GUEST_CALL_SIM:-1}" "${ONEOS_GUEST_CALL_SIM_VIA:-}" </dev/null >> /data/call_audio.log 2>&1 &
+fi
+
+# MediaTek Bluetooth audio HALs close the whole A2DP session when AudioFlinger
+# closes its short format-probe output.  The real output opens a few
+# milliseconds later, but its port is already DISABLED and every start fails
+# until Bluetooth is restarted.  This is visible as an active A2DP device
+# together with AHAL_BluetoothAudioPort's "state=DISABLED failure" — a
+# MediaTek-only log tag, so a Qualcomm or Exynos phone can never fire this
+# watchdog.  The Galaxy A15/A16 4G (Helio G99 / MT6789) are the
+# device-confirmed cases and the same HAL generation ships on the other
+# MediaTek Galaxy phones, so arm the whole MediaTek family and let the exact
+# signature below decide.  Match the family across the four SoC properties,
+# not ro.soc.model alone: builds leave it empty or suffix it (MT6789V/CD),
+# Samsung reports it uppercase while the platform and hardware names are
+# lowercase, and boards like the A25/A33 put universalNNNN/s5eNNNN on
+# ro.board.platform/ro.hardware instead.  Restart Bluetooth after that exact
+# first-boot failure and retry once if the replacement session is also
+# consumed by the probe.  Do not touch deliberate disconnects or a session
+# which started normally.  ONEOS_GUEST_BT_RECOVER=0 disables it.
+bt_soc="$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)$(getprop ro.soc.model)"
+case "$bt_soc" in
+    *mt[0-9]*|*MT[0-9]*|*[Mm]edia[Tt]ek*) bt_mtk=1 ;;
+    *) bt_mtk= ;;
+esac
+if [ "$bt_mtk" = 1 ] && [ "${ONEOS_GUEST_BT_RECOVER:-1}" = 1 ]; then
+    cat > /data/oneos_bt_recover.sh <<'BTRECOVEREOF'
+#!/system/bin/sh
+LOG=/data/oneos_bt_recover.log
+start=$(date +%s)
+echo "=== $(date '+%F %T') MediaTek A2DP first-session recovery" >> "$LOG"
+i=0
+while [ $i -lt 300 ]; do
+    sleep 1
+    bad=$(logcat -d -v epoch -T "$start.000" -s 'AHAL_BluetoothAudioPort:*' '*:S' 2>/dev/null |
+        grep -F 'session_type=A2DP_SOFTWARE_ENCODING_DATAPATH' |
+        grep -F 'state=DISABLED failure' | tail -n 1)
+    if [ -n "$bad" ] && dumpsys bluetooth_manager 2>/dev/null | grep -q '<- ACTIVE'; then
+        echo "$(date +%T) active A2DP session disabled by the probe output" >> "$LOG"
+        attempt=1
+        while [ $attempt -le 2 ]; do
+            attempt_start=$(date +%s)
+            echo "$(date +%T) Bluetooth recovery attempt $attempt/2" >> "$LOG"
+            cmd bluetooth_manager disable >> "$LOG" 2>&1
+            # The stack boots slowly on some ROMs (HyperOS's wait-for-state timed
+            # out before it reached OFF or ON, and the earbuds' auto-reconnect
+            # then bound to the half-initialized stack, whose A2DP session never
+            # came up: Galaxy A15 HyperOS, sound dead after every recovery; a
+            # slow manual restart with long pauses brought it back). Poll each
+            # state over long timeouts and settle after ON, so the earbuds'
+            # auto-reconnect binds to a fully initialized stack.
+            btoff=1; n=0
+            while [ $n -lt 30 ]; do
+                sleep 1
+                if dumpsys bluetooth_manager 2>/dev/null | grep -q '^  State:  *OFF$'; then btoff=0; break; fi
+                n=$((n + 1))
+            done
+            echo "$(date +%T) stack OFF after ${n}s (reached $((1 - btoff)))" >> "$LOG"
+            cmd bluetooth_manager enable >> "$LOG" 2>&1
+            bton=1; n=0
+            while [ $n -lt 45 ]; do
+                sleep 1
+                if dumpsys bluetooth_manager 2>/dev/null | grep -q '^  State:  *ON$'; then bton=0; break; fi
+                n=$((n + 1))
+            done
+            sleep 8
+            echo "$(date +%T) stack ON after ${n}s (reached $((1 - bton))); settled 8s for the earbuds' auto-reconnect" >> "$LOG"
+            waited=0
+            while [ $waited -lt 25 ]; do
+                sleep 1
+                if logcat -d -v epoch -T "$attempt_start.000" -s 'AHAL_BluetoothAudioPort:*' '*:S' 2>/dev/null |
+                   grep -F 'session_type=A2DP_SOFTWARE_ENCODING_DATAPATH' | grep -q 'state=STARTED'; then
+                    echo "$(date +%T) replacement A2DP session STARTED on attempt $attempt (stack reached: OFF=$((1 - btoff)) ON=$((1 - bton)))" >> "$LOG"
+                    exit 0
+                fi
+                waited=$((waited + 1))
+            done
+            echo "$(date +%T) replacement A2DP session not STARTED after attempt $attempt (stack reached: OFF=$((1 - btoff)) ON=$((1 - bton)))" >> "$LOG"
+            attempt=$((attempt + 1))
+        done
+        echo "$(date +%T) A2DP recovery exhausted after 2 attempts" >> "$LOG"
+        exit 0
+    fi
+    i=$((i + 1))
+done
+echo "$(date +%T) no disabled active A2DP session in 300 s" >> "$LOG"
+BTRECOVEREOF
+    chmod 700 /data/oneos_bt_recover.sh
+    /system/bin/sh /data/oneos_bt_recover.sh < /dev/null > /dev/null 2>&1 &
+    echo "[Pivoted Root] MediaTek A2DP first-session recovery armed (/data/oneos_bt_recover.log)"
+else
+    rm -f /data/oneos_bt_recover.sh
 fi
 
 # ColorOS system daemons that its init would start on demand ("interface aidl"

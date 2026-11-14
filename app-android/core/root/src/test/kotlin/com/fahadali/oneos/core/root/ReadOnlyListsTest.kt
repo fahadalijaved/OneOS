@@ -52,6 +52,14 @@ class ReadOnlyListsTest {
         // The Wi-Fi entry prints only the name elements.
         val ssid = cmds.first { it.id == "logs.ssids" }.command
         assertTrue(ssid.contains("grep -h -o -i -E \"name=\\\"[a-z]*ssid\\\".[^<]*\""))
+        // Keep the newest evidence even if the optional middle-rotation search is slow,
+        // and use fixed strings for that potentially hundreds-of-megabytes scan.
+        val capture = cmds.first { it.id == "logs.capture" }.command
+        val newest = "for f in \"\$L\"/boot.log \"\$L\"/boot.log.01; do [ -f \"\$f\" ] && printf"
+        val middle = "for f in \"\$L\"/boot.log.[0-9][0-9]; do"
+        assertTrue(capture.indexOf(newest) in 0 until capture.indexOf(middle))
+        assertTrue(capture.contains("grep -q -F -e \"FATAL EXCEPTION\" -e \"am_crash\" -e \"am_anr\" -e \"Fatal signal\""))
+        assertFalse(capture.contains("grep -q -E \"FATAL EXCEPTION|am_crash|am_anr|Fatal signal\""))
     }
 
     @Test
