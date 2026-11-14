@@ -71,7 +71,12 @@ class BootProgressActivity : EdgeToEdgeActivity() {
         } else unsubscribe = LaunchJob.observe { state ->
             findViewById<Button>(R.id.boot_cancel).apply {
                 isEnabled = state.cancellable && !cancelled
-                setText(if (cancelled) R.string.environment_boot_cancelling else android.R.string.cancel)
+                // Past the point of no return the button says so, not a dead "Cancel" (11-14 UI pass).
+                setText(when {
+                    cancelled -> R.string.environment_boot_cancelling
+                    !state.cancellable -> R.string.boot_cannot_cancel
+                    else -> android.R.string.cancel
+                })
             }
             findViewById<TextView>(R.id.boot_status).text = state.detail ?: getString(R.string.splash_shutdown)
             // Build 108: the brought apps have a line of their own, under whatever the boot is doing.
@@ -93,6 +98,7 @@ class BootProgressActivity : EdgeToEdgeActivity() {
             cancelled = true
             findViewById<Button>(R.id.boot_cancel).apply { isEnabled = false; setText(R.string.environment_boot_cancelling) }
         }
+        else if (!cancelled) android.widget.Toast.makeText(this, R.string.boot_cannot_cancel_line, android.widget.Toast.LENGTH_LONG).show()
     }
     override fun onStop() { handler.removeCallbacksAndMessages(null); unsubscribe?.invoke(); unsubscribe = null; super.onStop() }
 }

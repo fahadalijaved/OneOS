@@ -10,6 +10,7 @@ import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.SessionEnv
 import com.fahadali.oneos.core.model.ShaList
 import com.fahadali.oneos.core.model.StageMarker
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -508,6 +509,117 @@ class StageScriptTest {
         // No arguments.
         assertTrue(RootScript.problems(RootScript.Verb.REMOVE, listOf("x")).isNotEmpty())
         assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.REMOVE, emptyList()))
+    }
+
+    private fun stageFiles(fr: FakeRoot) =
+        FakeRoot.exec(listOf("find", fr.stage.path, "-printf", "%P %y\\n")).lines().filter { it.isNotBlank() && !it.startsWith(" ") }.sorted()
+
+    /** 0.5.09: remove-system deletes the system set up now and leaves a stage with only the root script. */
+    @Test
+    fun removeSystemDeletesOnlyTheSystemSetUpNow() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val old = oldStage(fr, "oneos.old-1792000000")
+        val tmp = File(fr.root, "data/local/tmp")
+        File(tmp, "oneos_logs").mkdirs()
+        File(tmp, "oneos_logs/boot.log").writeText("log\n")
+        assertTrue(File(fr.stage, ".oneos_stage").isFile)
+        val r = fr.run(RootScript.Verb.REMOVE_SYSTEM)
+        ok(r)
+        assertTrue(r.toString(), r.reply.results.any { it.startsWith("purged ") })
+        assertEquals(listOf("bin d", "bin/oneos_root.sh f"), stageFiles(fr))
+        assertFalse(File(fr.stage, ".oneos_stage").exists())
+        assertFalse(File(fr.stage, "data").exists())
+        assertTrue(File(old, "data/system/packages.xml").isFile)
+        assertEquals("log\n", File(tmp, "oneos_logs/boot.log").readText())
+        assertEquals(setOf("oneos", "oneos.old-1792000000", "oneos_logs"), tmp.list()!!.filter { !it.startsWith("oneos.trash") }.toSet())
+    }
+
+    @Test
+    fun removeSystemRefusesEveryUnsafeCaseAndChangesNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        oldStage(fr, "oneos.old-1792000000")
+        val before = fr.snapshot()
+        fun refusedUnchanged(part: String) {
+            refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), part)
+            assertEquals(before, fr.snapshot())
+        }
+        val boot = "11111111-2222-3333-4444-555555555555"
+        // Running now.
+        File(fr.stage, "guest_props.boot").writeText("$boot\n")
+        val running = fr.snapshot()
+        refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), "session")
+        assertEquals(running, fr.snapshot())
+        File(fr.stage, "guest_props.boot").delete()
+        // Never returned.
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=99999999-0000-0000-0000-000000000000\n")
+        val never = fr.snapshot()
+        refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), "never returned")
+        assertEquals(never, fr.snapshot())
+        File(fr.stage, "persist_session.active").delete()
+        // Ran since the phone started (this boot's id in the record, nothing running).
+        File(fr.stage, "guest_props.boot").writeText("boot=$boot\n")
+        val ran = fr.snapshot()
+        refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), "restart the phone")
+        assertEquals(ran, fr.snapshot())
+        File(fr.stage, "guest_props.boot").delete()
+        // Mounted.
+        fr.mountinfo(listOf("${fr.stage.path}/rootfs"))
+        refusedUnchanged("mounted")
+        fr.mountinfo(emptyList())
+        // No marker: no system is set up.
+        File(fr.stage, ".oneos_stage").delete()
+        val noMarker = fr.snapshot()
+        refused(fr.run(RootScript.Verb.REMOVE_SYSTEM), "no system is set up")
+        assertEquals(noMarker, fr.snapshot())
+        assertTrue(RootScript.problems(RootScript.Verb.REMOVE_SYSTEM, listOf("x")).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.REMOVE_SYSTEM, emptyList()))
+    }
+
+    /** 0.5.09: reset-data deletes only the stage's data folder; the system stays set up and starts like new. */
+    @Test
+    fun resetDataDeletesOnlyTheStagesData() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val old = oldStage(fr, "oneos.old-1792000000")
+        File(fr.stage, "data/system").mkdirs()
+        File(fr.stage, "data/system/packages.xml").writeText("<packages/>")
+        val outside = File(fr.stage, "bin/oneos_root.sh").readBytes()
+        val r = fr.run(RootScript.Verb.RESET_DATA)
+        ok(r)
+        assertTrue(r.toString(), r.reply.results.any { it.startsWith("purged ") && !it.startsWith("purged none") })
+        assertFalse(File(fr.stage, "data").exists())
+        assertTrue(File(fr.stage, ".oneos_stage").isFile)
+        assertArrayEquals(outside, File(fr.stage, "bin/oneos_root.sh").readBytes())
+        assertTrue(File(old, "data/system/packages.xml").isFile)
+        // No data folder: nothing to remove.
+        val again = fr.run(RootScript.Verb.RESET_DATA)
+        ok(again)
+        assertTrue(again.toString(), again.reply.results.contains("purged none 0"))
+        assertTrue(File(fr.stage, ".oneos_stage").isFile)
+    }
+
+    @Test
+    fun resetDataRefusesAndChangesNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        File(fr.stage, "data/system").mkdirs()
+        File(fr.stage, "data/system/packages.xml").writeText("<packages/>")
+        val before = fr.snapshot()
+        File(fr.stage, "guest_props.boot").writeText("11111111-2222-3333-4444-555555555555\n")
+        refused(fr.run(RootScript.Verb.RESET_DATA), "session")
+        File(fr.stage, "guest_props.boot").delete()
+        assertEquals(before, fr.snapshot())
+        // data is a link: refused, and where it points is untouched.
+        val target = File(fr.root, "data/local/tmp/oneos_target").apply { mkdirs(); File(this, "keep").writeText("k\n") }
+        File(fr.stage, "data").deleteRecursively()
+        java.nio.file.Files.createSymbolicLink(File(fr.stage, "data").toPath(), target.toPath())
+        refused(fr.run(RootScript.Verb.RESET_DATA), "link")
+        assertEquals("k\n", File(target, "keep").readText())
+        assertTrue(java.nio.file.Files.isSymbolicLink(File(fr.stage, "data").toPath()))
+        assertTrue(RootScript.problems(RootScript.Verb.RESET_DATA, listOf("x")).isNotEmpty())
+        assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.RESET_DATA, emptyList()))
     }
 
     /** 0.4.10: restore puts a set-aside stage back and keeps the one set up now as another old copy. */

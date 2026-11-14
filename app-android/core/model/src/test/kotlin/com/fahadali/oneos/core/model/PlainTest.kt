@@ -220,6 +220,13 @@ class PlainTest {
         assertEquals("Restart your phone first", r(mounted).title)
         assertEquals(FixAction.NONE, r(mounted).action)
         assertEquals(FixAction.RESTORE, r("the last session never returned: restore One UI's settings first (Last session)").action)
+        val timer = "the app com.roottimer.app runs a kernel tool (libtimer.so, pid 16066) that crashed the kernel of S24 phones during " +
+            "OneOS sessions. It starts again after every restart, so restarting does not help: uninstall com.roottimer.app (Settings, " +
+            "Apps; the phone may restart once while its tool closes), then switch again"
+        assertEquals("Uninstall an app first", r(timer).title)
+        assertTrue(r(timer).line, r(timer).line.startsWith("com.roottimer.app "))
+        check(r(timer), Images.FIND_N6, timer)
+        check(r("the app com.example.a.very.long.package.name.that.goes.on runs its kernel tool (libtimer.so, pid 1)"), Images.FIND_N6, "long")
         val other = r("pm does not answer")
         assertEquals("Couldn't switch", other.title)
         assertEquals(FixAction.SEND_REPORT, other.action)

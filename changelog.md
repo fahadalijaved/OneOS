@@ -50,6 +50,18 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.09: **remove one system or start it fresh**, and a smoother app.
+- Long-press a system's card, or tap its ⋮ button: the system you set up now offers **Start fresh** (erases its apps,
+  accounts and settings; it stays set up and starts like new) and **Remove** (deletes it and frees its space). A saved
+  copy offers **Delete saved**. The system's own page has the same two under **Manage**. One UI, other systems' saved
+  copies and your downloaded files are never touched.
+- Every delete and remove now shows what it is doing and for how long, then how much space it freed; Hide lets you
+  keep using the app meanwhile. Buttons say what is running instead of just going grey.
+- Cleaner screens: one card style and spacing per page, arrows on everything you can tap, the menu no longer
+  touches the screen edge, long names and release notes fit.
+- When a kernel tool app (S24 phones) stops a switch, OneOS now names the app to uninstall instead of "Couldn't
+  switch".
+
 New in 0.5.08: fixes from your reports.
 - LineageOS now starts on the Galaxy A16 (it went back to One UI after 40 s: the brightness range the system asked
   for began below OneOS's brightness curve).

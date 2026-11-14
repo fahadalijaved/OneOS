@@ -173,7 +173,8 @@ class BringAppsFragment : CardsFragment() {
             for (pkg in broughtApps) {
                 CardRows.row(
                     one, OuiIcons.drawable.ic_oui_delete_outline,
-                    getString(R.string.bring_forget_row, label(pkg)), getString(R.string.bring_forget_row_summary, system),
+                    getString(R.string.bring_forget_row, label(pkg)),
+                    if (st.phase == Phase.CLEARING && forgetting == pkg) getString(R.string.bring_removing) else getString(R.string.bring_forget_row_summary, system),
                     enabled = !stale && !st.busy,
                 ) { confirmForget(pkg, system) }
             }
@@ -232,7 +233,8 @@ class BringAppsFragment : CardsFragment() {
                 ) { confirmBring(split, system) }
             }
         }
-        if (st.phase == Phase.CLEARING) {
+        if (st.phase != Phase.CLEARING) forgetting = null
+        if (st.phase == Phase.CLEARING && forgetting == null) {
             CardRows.tint(Cards.row(actions, OuiIcons.drawable.ic_oui_delete_outline, getString(R.string.bring_removing), null), Level.INFO)
         } else if (synced && st.brought.isNotEmpty()) {
             CardRows.row(
@@ -410,12 +412,15 @@ class BringAppsFragment : CardsFragment() {
         dialog.show()
     }
 
+    /** The brought app being removed, so its own row says so (11-14: the label showed in another card). */
+    private var forgetting: String? = null
+
     private fun confirmForget(pkg: String, system: String) {
         val name = label(pkg)
         AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.bring_forget_title, name))
             .setMessage(getString(R.string.bring_forget_confirm, name, system))
-            .setPositiveButton(R.string.bring_remove_do) { _, _ -> BringAppsJob.forget(requireContext(), pkg) }
+            .setPositiveButton(R.string.bring_remove_do) { _, _ -> forgetting = pkg; BringAppsJob.forget(requireContext(), pkg) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }

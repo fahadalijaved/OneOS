@@ -127,6 +127,8 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         // "Collecting N of M" lines, and "Skip saving logs" rebuilt under the finger lost its tap.
         subscriptions += com.fahadali.oneos.session.LogJob.observeBy({ Triple(it.busy, it.recovering, it.stopping) }) { render() }
         subscriptions += com.fahadali.oneos.session.OldStagesJob.observe { if (!it.busy) Readiness.tick(this); render() }
+        // Start fresh / Remove (0.5.09): say how it ended; a removed system has no screen left, so go back to the systems.
+        subscriptions += com.fahadali.oneos.session.RemoveJob.observe { removed(); render() }
     }
     override fun onResume() {
         super.onResume()
@@ -145,6 +147,19 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         subscriptions.forEach { it() }; subscriptions.clear(); super.onStop()
     }
     override fun onDestroy() { io.shutdownNow(); super.onDestroy() }
+
+    private fun removed() {
+        val r = SystemManage.takeResult() ?: return
+        when {
+            r.systemRemoved -> {
+                if (r.message.isNotEmpty()) android.widget.Toast.makeText(applicationContext, r.message, android.widget.Toast.LENGTH_LONG).show()
+                catalogue()
+            }
+            r.failed -> AlertDialog.Builder(this).setTitle(R.string.environment_manage_failed).setMessage(r.message)
+                .setPositiveButton(android.R.string.ok, null).show()
+            else -> if (r.message.isNotEmpty()) android.widget.Toast.makeText(applicationContext, r.message, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
 
     private fun catalogue() {
         startActivity(Intent(this, LauncherActivity::class.java).putExtra("browse_systems", true).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
@@ -175,7 +190,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 logs.busy -> R.string.environment_busy_logs
                 else -> R.string.environment_busy_other
             }
-            val busyCard = Cards.section(column, null, rows = true)
+            val busyCard = PrebootCards.section(column)
             // A card of rows has no padding of its own: without the row's the round corners clipped the text (11-10).
             CardRows.text(busyCard, getString(why), R.style.OneOS_Text_Caption, inList = true).apply {
                 setPaddingRelative(paddingStart, dp(12), paddingEnd, dp(12))
@@ -186,7 +201,8 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 com.fahadali.oneos.session.LogJob.skip()
             }
         }
-        val checks = PrebootCards.section(column, gap = false)
+        // The 20dp card gap below the busy card above (it sat glued to this one, 11-14).
+        val checks = PrebootCards.section(column)
         checks.setPadding(dp(10), dp(10), dp(10), dp(10))
         val rootValue = if (preview) "KernelSU active" else currentFacts?.rootKind?.takeUnless { it == com.fahadali.oneos.core.model.RootKind.NONE }?.label?.let { getString(R.string.environment_active, it) }
             ?: getString(R.string.environment_no_root)
@@ -280,7 +296,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             val idle = !patchBusy && !Readiness.anyBusy() && !StageCheck.state.busy
             fun label(choice: com.fahadali.oneos.core.model.PatchSource) = if (choice.stable) getString(R.string.patch_channel_stable) else choice.label
             PrebootCards.row(patches, "${label(source)} · ${patchProfile.label.removePrefix("Galaxy ")}",
-                getString(if (patchBusy) R.string.patch_channel_checking else R.string.patch_channel_summary), enabled = idle) {
+                getString(if (patchBusy) R.string.patch_channel_checking else R.string.patch_channel_summary), chevron = true, enabled = idle) {
                 AlertDialog.Builder(this).setTitle(heading)
                     .setSingleChoiceItems(patchSources.map { label(it) }.toTypedArray(), patchSources.indexOfFirst { it.id == source.id }) { dialog, which ->
                         dialog.dismiss(); choosePatches(patchSources[which].id)
@@ -290,11 +306,10 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 PatchChannels.setFor(patchProfile.id, image.id)?.let { set ->
                     if (!source.stable) runCatching { PatchChannels.snapshot(this, set, patchProfile.id)?.revision }.getOrNull()
                     else getString(R.string.patch_channel_stable_version, PatchChannels.stableVersion(this))
-                }, enabled = idle) { checkPatches() }
+                }, chevron = true, enabled = idle) { checkPatches() }
         }
         if (maintenance != null) {
-            Cards.row(Cards.section(column, null, rows = true), Icons.drawable.ic_oui_refresh,
-                maintenance.title, maintenance.line).apply { isClickable = false; isFocusable = false }
+            PrebootCards.row(PrebootCards.section(column), maintenance.title, maintenance.line)
         }
         val root = PrebootCards.section(column, "Root")
         val guest = rootState ?: GuestRuntimeStore.State(image.id)
@@ -312,7 +327,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
         }
         PrebootCards.row(root, getString(R.string.guest_root_shared_kernel_title),
             getString(R.string.guest_root_shared_kernel_summary))
-        PrebootCards.row(root, "Xposed framework", guest.providerName(), enabled = rootIdle && guest.ready) {
+        PrebootCards.row(root, "Xposed framework", guest.providerName(), chevron = true, enabled = rootIdle && guest.ready) {
             val providers = listOf("zygisk_vector") + guest.modules.filter { it.framework != null }.map { it.id }.filter { it != "zygisk_vector" }
             val names = providers.map { guest.providerName(it) } + "Import LSPosed or Vector ZIP…"
             AlertDialog.Builder(this).setTitle("Xposed framework")
@@ -335,6 +350,18 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             if (preview) AlertDialog.Builder(this).setTitle(R.string.environment_report).setMessage(R.string.environment_preview).setPositiveButton(android.R.string.ok, null).show()
             else FixActions.run(this, FixAction.SEND_REPORT, image)
         }
+        // Manage (0.5.09): Start fresh and Remove, for the system set up now.
+        val ours = result?.status?.takeIf { it.ours }?.marker?.imageId == image.id
+        if (!preview && (ours || maintenance != null)) {
+            val manage = PrebootCards.section(column, getString(R.string.manage_section, image.name))
+            val canManage = SystemManage.canRun() && !patchBusy && !rootBusy
+            PrebootCards.row(manage, getString(R.string.manage_start_fresh), getString(R.string.manage_start_fresh_summary), chevron = true, enabled = canManage) {
+                SystemManage.confirmStartFresh(this, image)
+            }
+            PrebootCards.row(manage, getString(R.string.manage_remove, image.name), getString(R.string.manage_remove_summary), chevron = true, enabled = canManage) {
+                SystemManage.confirmRemove(this, image) { if (it.systemRemoved) catalogue() }
+            }
+        }
         val blocked = report?.gates?.firstOrNull { it.level == Level.BLOCK }
         // What stops the switch, in plain words: the button below offers its fix instead of a Boot that only
         // re-ran the check (0.4.43, UX audit).
@@ -345,12 +372,14 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             // An update in progress keeps its own button, except for the restore after a force
             // restart: that gate blocks the update too, so its button is "Restore now" (11-08).
             if (maintenance == null || plain.action == FixAction.RESTORE) blockPlain = plain
-            Cards.row(Cards.section(column, null, rows = true), Cards.badge(Level.BLOCK), plain.title, plain.line) {
+            PrebootCards.row(PrebootCards.section(column), plain.title, plain.line, chevron = true) {
                 FixActions.run(this, plain.action, image)
             }
         } else if (!preview && !StageCheck.state.busy && StageCheck.state.failure != null) {
             val message = Plain.of(StageCheck.state.failure!!, image, null).line
-            CardRows.text(Cards.section(column, null), message, R.style.OneOS_Text_Caption)
+            CardRows.text(PrebootCards.section(column), message, R.style.OneOS_Text_Caption, inList = true).apply {
+                setPaddingRelative(paddingStart, dp(12), paddingEnd, dp(12))
+            }
         }
         // Any job (0.4.38: the log collection after a return can run for minutes) shows the spinner,
         // not a button whose tap readyToBoot() then ignores.

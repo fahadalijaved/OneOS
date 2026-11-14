@@ -97,6 +97,15 @@ object RootScript {
         REMOVE("remove", Stdin.SCRIPT),
 
         /**
+         * One system only (0.5.09, the system card's menu): deletes the system set up now with its apps and
+         * data; old copies, logs and downloaded files stay. The stage is left with only its root script.
+         */
+        REMOVE_SYSTEM("remove-system", Stdin.NONE),
+
+        /** Start fresh (0.5.09): deletes only the apps, accounts and settings of the system set up now. */
+        RESET_DATA("reset-data", Stdin.NONE),
+
+        /**
          * Installs the app's own update (0.4.41): the APK the app downloaded into
          * `files/oneos-update/OneOS.apk`, with its size, SHA-256 and versionCode.
          * Like begin and remove it may install the script first, so an update
@@ -246,7 +255,7 @@ object RootScript {
                 args.getOrNull(6)?.let { if (it != "0" && it != "1") p += "launch: Knox edm stub '$it' is not 0 or 1" }
                 args.getOrNull(7)?.let { if (it != "0" && it != "1") p += "launch: verbose boot is not 0 or 1" }
             }
-            Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE, Verb.BRING_CLEAR, Verb.BRING_STATUS -> need(0)
+            Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE, Verb.REMOVE_SYSTEM, Verb.RESET_DATA, Verb.BRING_CLEAR, Verb.BRING_STATUS -> need(0)
             Verb.BRING_COLLECT, Verb.BRING_CATALOG -> {
                 need(1)
                 arg(0, DEC, "a size")

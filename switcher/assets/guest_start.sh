@@ -2573,6 +2573,32 @@ BRINGEOF
 else
     rm -f /data/oneos_bring_restore.sh
 fi
+# servicemanager diagnostics (0.5.09): on the Galaxy A34 SM-A346B with One UI 9
+# every system dies because One UI's servicemanager answers the guest's add and
+# find with "SELinux denied for service" (system_server's addService; gvld
+# "didn't start" for StorageManagerService) while getenforce says Permissive and
+# no avc line is logged (0.5.04+ reports 5d899189, ba9db9f5, 4a805de5). What the
+# kernel and servicemanager see, now and once the guest framework runs, into
+# /data/oneos_sm_diag.log (collected with the guest's other logs). Read only.
+sm_diag() {
+    {
+        echo "== $1 $(date +%T)"
+        sm=$(pidof servicemanager 2>/dev/null | cut -d' ' -f1)
+        echo "enforce=$(cat /sys/fs/selinux/enforce 2>/dev/null) getenforce=$(getenforce 2>/dev/null) deny_unknown=$(cat /sys/fs/selinux/deny_unknown 2>/dev/null) reject_unknown=$(cat /sys/fs/selinux/reject_unknown 2>/dev/null)"
+        echo "servicemanager pid=$sm ctx=$(cat /proc/$sm/attr/current 2>/dev/null | tr -d '\0') exe=$(ls -l /proc/$sm/exe 2>/dev/null | sed 's/.*-> //')"
+        echo "this shell ctx=$(cat /proc/self/attr/current 2>/dev/null | tr -d '\0') uid=$(id -u)"
+        for n in gvld vold android.system.vold.IVold/default activity package; do
+            echo "service check $n: $(service check "$n" 2>&1 | head -n 1)"
+        done
+        z=$(pidof zygote64 2>/dev/null | cut -d' ' -f1); ss=$(pidof system_server 2>/dev/null | cut -d' ' -f1)
+        [ -n "$z" ] && echo "zygote64 $z ctx=$(cat /proc/$z/attr/current 2>/dev/null | tr -d '\0')"
+        [ -n "$ss" ] && echo "system_server $ss ctx=$(cat /proc/$ss/attr/current 2>/dev/null | tr -d '\0')"
+        echo "-- kernel: servicemanager, avc and SELinux lines (last 40)"
+        dmesg 2>/dev/null | grep -iE 'servicemanager|avc:|selinux|security_compute|context' | tail -n 40 | cut -c1-300
+    } >> /data/oneos_sm_diag.log 2>&1
+}
+sm_diag "before zygote"
+( sleep 45; sm_diag "45 s after zygote" ) &
 echo "[Pivoted Root] Launching guest Zygote & SystemServer via zygote_exec..."
 if [ -f /data/oneos_root/enabled ]; then
     /system/bin/sh /data/oneos_runtime.sh pre || exit 3

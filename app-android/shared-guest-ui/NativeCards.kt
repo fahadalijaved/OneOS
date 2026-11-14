@@ -9,6 +9,8 @@ object NativeCards {
     @android.annotation.SuppressLint("RestrictedApi")
     fun section(parent: LinearLayout, title: String?, color: Int): LinearLayout {
         val ctx = parent.context
+        // An untitled card under another one gets the same 20dp gap as the app's cards (it sat glued to the card above, 11-14).
+        val gap = title == null && parent.childCount > 0
         if (title != null) {
             val value = android.util.TypedValue()
             ctx.theme.resolveAttribute(androidx.preference.R.attr.preferenceTheme, value, true)
@@ -26,7 +28,9 @@ object NativeCards {
             val value = android.util.TypedValue()
             ctx.theme.resolveAttribute(androidx.appcompat.R.attr.roundedCornerColor, value, true)
             roundedCornersColor = value.data; fillHorizontalPadding = false
-            parent.addView(this, LinearLayout.LayoutParams(-1, -2))
+            parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply {
+                if (gap) topMargin = (20 * ctx.resources.displayMetrics.density + .5f).toInt()
+            })
         }
     }
     fun row(card: LinearLayout, title: String, summary: String? = null, click: (() -> Unit)? = null): CardItemView = CardItemView(card.context).apply {

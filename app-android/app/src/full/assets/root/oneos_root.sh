@@ -1660,6 +1660,65 @@ do_remove() {
     say "@@OK remove"
 }
 
+# One system only (0.5.09; owner: "remove only one OS or its data and start
+# fresh ... as simple as clicking the hero card or its 3dot button"). Both run
+# on the idle, prepared stage only, with the checks restore and purge use, and
+# refuse, having changed nothing, while a session is starting, running or never
+# returned, anything of one is mounted or bridged, or one ran in this boot
+# (purge_one's rule: restart the phone first). Old copies, the log capture and
+# the downloaded system files are never touched.
+#   remove-system: the system set up now, with its apps and data, goes; the
+#                  stage is renamed to its $OLD sibling, a new stage with only
+#                  bin/oneos_root.sh (as begin aside makes it) takes its place,
+#                  and purge_one deletes the renamed one.
+#   reset-data:    the system stays set up; only its apps, accounts and
+#                  settings ($STAGE/data) go: moved into a new $OLD folder that
+#                  purge_one deletes. The next start is a first start
+#                  (oneos_switch.sh makes $STAGE/data again).
+one_system_checks() {
+    read_marker || refuse "no system is set up"
+    idle_or_refuse
+    restore_checks "$STAGE"
+    if session_this_boot "$STAGE"; then refuse "this system ran since the phone started - restart the phone first, then try again"; fi
+}
+do_remove_system() {
+    [ $# -eq 0 ] || usage "remove-system"
+    one_system_checks
+    self_sum=$(sha "$SELF")
+    OLD="$STAGE.old-$(date +%s)"
+    [ -e "$OLD" ] && OLD="$OLD-$$"
+    [ ! -e "$OLD" ] || refuse "${OLD#$T} exists already"
+    step "aside ${STAGE#$T}"
+    mv "$STAGE" "$OLD" || die "could not move the stage aside; nothing was removed"
+    mkdir "$STAGE" && own "$STAGE" 0755 && mkdir "$STAGE/bin" && own "$STAGE/bin" 0755 ||
+        die "could not make a new stage; the system stays as the old copy ${OLD##*/}"
+    cp "$OLD/bin/oneos_root.sh" "$STAGE/bin/.oneos_root.sh.new" && own "$STAGE/bin/.oneos_root.sh.new" 0755 &&
+        [ "$(sha "$STAGE/bin/.oneos_root.sh.new")" = "$self_sum" ] &&
+        mv -f "$STAGE/bin/.oneos_root.sh.new" "$STAGE/bin/oneos_root.sh" ||
+        die "could not install the root script in the new stage; the system stays as the old copy ${OLD##*/}"
+    purge_one "${OLD##*/}"
+    say "@@OK remove-system $M_IMAGE"
+}
+do_reset_data() {
+    [ $# -eq 0 ] || usage "reset-data"
+    one_system_checks
+    [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
+    if [ ! -e "$STAGE/data" ]; then
+        say "@@RESULT purged none 0"
+        say "@@OK reset-data $M_IMAGE"
+        return 0
+    fi
+    [ -d "$STAGE/data" ] || refuse "${STAGE#$T}/data is not a folder"
+    OLD="$STAGE.old-$(date +%s)"
+    [ -e "$OLD" ] && OLD="$OLD-$$"
+    [ ! -e "$OLD" ] || refuse "${OLD#$T} exists already"
+    mkdir "$OLD" && own "$OLD" 0700 || die "could not make ${OLD#$T}; nothing was removed"
+    step "move the system's apps and data out of the stage"
+    mv "$STAGE/data" "$OLD/data" || die "could not move the data out of the stage; nothing was removed"
+    purge_one "${OLD##*/}"
+    say "@@OK reset-data $M_IMAGE"
+}
+
 # Use a set-aside stage again (0.4.10). Like purge's checks, but a session
 # earlier in this boot that returned is fine (session_this_boot would refuse
 # it): only a session still running or one that never returned stops it.
@@ -2322,13 +2381,13 @@ do_bring_clear() {
 [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
 verb=$1
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|selfupdate|guest-runtime|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog) migrate_legacy stage ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|remove-system|reset-data|selfupdate|guest-runtime|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog) migrate_legacy stage ;;
     old-list|purge) migrate_legacy copies ;;
 esac
 [ -d "$STAGE" ] && mine "$STAGE" || refuse "$STAGE is not root's folder"
 [ -d "$STAGE/bin" ] && mine "$STAGE/bin" || refuse "$STAGE/bin is not root's folder"
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|purge|selfupdate|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog|bring-add) take_lock ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|remove-system|reset-data|purge|selfupdate|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog|bring-add) take_lock ;;
 esac
 [ $# -gt 0 ] && shift
 case "$verb" in
@@ -2348,6 +2407,8 @@ case "$verb" in
     purge) do_purge "$@" ;;
     restore) do_restore "$@" ;;
     remove) do_remove "$@" ;;
+    remove-system) do_remove_system "$@" ;;
+    reset-data) do_reset_data "$@" ;;
     selfupdate) do_selfupdate "$@" ;;
     bring-collect) do_bring_collect "$@" ;;
     bring-clear) do_bring_clear "$@" ;;

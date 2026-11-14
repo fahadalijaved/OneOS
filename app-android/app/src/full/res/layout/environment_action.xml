@@ -5,7 +5,7 @@
     android:layout_gravity="bottom"
     android:paddingVertical="12dp">
     <FrameLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal">
+        android:layout_gravity="center_horizontal" android:layout_marginHorizontal="16dp">
     <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/environment_boot"
         style="@style/OneUI.ContainedButton"

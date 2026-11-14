@@ -417,6 +417,16 @@ object Plain {
             // Its "mounted under the stage (...): a session is running or never returned" wants a restart,
             // not Restore; no property is ever freed before the phone restarts; and its thermal refusal
             // says "restart the phone" too, but only after the module is off.
+            // The S24 kernel-tool guard (oneos_switch.sh, 0.5.04): it names the app; users only saw "Couldn't
+            // switch" (0.5.08 report 0b3ca180, the app still running its tool).
+            "libtimer" in p -> {
+                val app = Regex("""the app ([A-Za-z0-9_.]{3,40}) """).find(problem)?.groupValues?.get(1) ?: "an app"
+                PlainMessage(
+                    "Uninstall an app first",
+                    "$app runs a kernel tool that crashes S24 phones during a switch. Uninstall it in Settings, Apps, then switch again.",
+                    FixAction.NONE, null,
+                )
+            }
             "mounted under the stage" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_RUNNING)
             "never returned" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_UNFINISHED)
             "property space" in p -> PlainMessage(
