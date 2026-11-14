@@ -1,25 +1,31 @@
-"""Make the guest framework open Samsung's AIDL v3 fingerprint HAL.
+"""Make the guest framework reach the phone's fingerprint HAL whatever transport it uses.
 
-Samsung's fingerprint service on the host declares only
-android.hardware.biometrics.fingerprint.IFingerprint/default (AIDL v3); there
-is no HIDL 2.1 IBiometricsFingerprint service. ColorOS's
-FingerprintSensorConfigurations reports
-resetLockoutRequiresHardwareAuthToken=false, and FingerprintProvider.initSensors
-treats that flag as the transport choice: false adds
-HidlToAidlSensorAdapter wrappers and asks hwservicemanager for the missing
-HIDL 2.1 HAL (null -> "Fingerprint HAL not available" and a NullPointerException
-in FingerprintUpdateActiveUserClient), true adds the native AIDL sensor.
+The guest's FingerprintService picks its sensor adapter from
+FingerprintSensorConfigurations.resetLockoutRequiresHardwareAuthToken: false
+adds HidlToAidlSensorAdapter wrappers and asks hwservicemanager for the HIDL
+2.1 IBiometricsFingerprint HAL, true adds the native AIDL sensor. ColorOS 17
+reports false, and on a phone whose HAL is AIDL only (Samsung, Pixel, most
+2023+ devices) the guest then logs "Fingerprint HAL not available" and
+FingerprintUpdateActiveUserClient retries forever with a NullPointerException,
+so the keyguard never offers fingerprint.
 
-The guest's enrolled prints are already read from One UI's snapshot
-(settings_fingerprint.xml), so this only changes which adapter the guest
-framework uses to reach the same host HAL.
+The flag is replaced with a question the phone answers: is
+android.hardware.biometrics.fingerprint.IFingerprint/default registered? It is
+on every AIDL HAL; on a HIDL-only phone the lookup returns null and the image's
+own value is used, which is what that image shipped for its own HAL.
 
 Usage: guest_force_aidl_fingerprint.py <smali root dir>
 Prints the smali_* directories (dex files) it changed, one per line.
 """
 import os
-import re
 import sys
+
+METHOD = """.method private getProviders(Landroid/hardware/fingerprint/FingerprintSensorConfigurations;)Ljava/util/List;
+    .locals 4
+"""
+METHOD_NEW = """.method private getProviders(Landroid/hardware/fingerprint/FingerprintSensorConfigurations;)Ljava/util/List;
+    .locals 5
+"""
 
 OLD = """    .line 1201
     invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z
@@ -27,9 +33,27 @@ OLD = """    .line 1201
     move-result v3
 """
 NEW = """    .line 1201
-    # OneOS: Samsung's HAL is AIDL v3 only; the false value picked the absent
-    # HIDL 2.1 adapter. initSensors treats true as "add AIDL sensors".
+    # OneOS: the image's flag names its own HAL's transport (false = HIDL 2.1).
+    # Ask the phone instead: the AIDL instance is there on every AIDL HAL, and
+    # its absence leaves a HIDL image with the value it shipped.
+    const-string v4, "android.hardware.biometrics.fingerprint.IFingerprint/default"
+
+    invoke-static {v4}, Landroid/os/ServiceManager;->getService(Ljava/lang/String;)Landroid/os/IBinder;
+
+    move-result-object v4
+
+    if-eqz v4, :oneos_fingerprint_hidl
+
     const/4 v3, 0x1
+
+    goto :oneos_fingerprint_transport
+
+    :oneos_fingerprint_hidl
+    invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z
+
+    move-result v3
+
+    :oneos_fingerprint_transport
 """
 
 
@@ -47,10 +71,13 @@ def main(root):
     path = find(root, rel)
     src = open(path).read()
     if src.count(OLD) != 1:
-        sys.exit(f"{rel}: getProviders lockout-auth-token read not found once")
-    open(path, "w").write(src.replace(OLD, NEW, 1))
-    print("FingerprintService.getProviders: forced resetLockoutRequiresHardwareAuthToken=true",
-          file=sys.stderr)
+        sys.exit(f"{rel}: the getResetLockoutRequiresHardwareAuthToken read is not there once")
+    if src.count(METHOD) != 1:
+        sys.exit(f"{rel}: getProviders is not there once with .locals 4")
+    src = src.replace(OLD, NEW, 1).replace(METHOD, METHOD_NEW, 1)
+    open(path, "w").write(src)
+    print("FingerprintService.getProviders: AIDL sensor when the AIDL HAL is registered, "
+          "the image's flag otherwise", file=sys.stderr)
     print(os.path.relpath(path, root).split(os.sep)[0])
 
 

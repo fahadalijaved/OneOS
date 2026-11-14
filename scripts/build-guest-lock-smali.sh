@@ -23,7 +23,7 @@ mkdir "$tmp/cls" "$tmp/dex"
 "$javac" --release 17 -Xlint:all -Werror -d "$tmp/cls" "$src"
 [ "$(find "$tmp/cls" -name '*.class' | wc -l)" = 1 ] || { echo "$src must stay one class (no inner classes or lambdas)" >&2; exit 1; }
 "$d8" --release --min-api 31 --lib "$jar" --output "$tmp/dex" "$tmp/cls/com/android/server/locksettings/OneOSGuestLock.class"
-(cd "$tmp/dex" && zip -q -0 ../helper.jar classes.dex)
+(cd "$tmp/dex" && python3 -c 'import zipfile; z = zipfile.ZipFile("../helper.jar", "w", zipfile.ZIP_STORED); z.write("classes.dex"); z.close()')
 java -jar "$apktool" d -q -f -r -o "$tmp/src" "$tmp/helper.jar"
 got="$tmp/src/smali/com/android/server/locksettings/OneOSGuestLock.smali"
 [ -f "$got" ]
