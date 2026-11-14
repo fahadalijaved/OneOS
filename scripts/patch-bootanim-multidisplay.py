@@ -84,6 +84,24 @@ def main():
                 imm19 -= 0x80000
             if imm19 > 0:
                 sites.append((start + (i + 2) * 4, imm19))
+    # LineageOS 24 (0.5.07): the same guard as "begin + 1 == end", compiled as
+    #     add  xA, xB, #0x8     // begin + 1
+    #     ...  (one unrelated instruction)
+    #     subs xC, xEnd, xA     // bytes to move
+    #     b.eq skip             // nothing to erase
+    # before the memmove and the store of the new end.
+    for i in range(len(words) - 3):
+        add, _, subs, beq = words[i:i + 4]
+        ra = add & 0x1F
+        if ((add & 0xFFFFFC00) == 0x91002000 and            # add xa, xn, #8
+                (subs & 0xFFE0FC00) == 0xEB000000 and        # subs xd, xn, xm (shifted register, no shift)
+                (subs >> 16) & 0x1F == ra and
+                (beq & 0xFF00001F) == 0x54000000):           # b.eq
+            imm19 = (beq >> 5) & 0x7FFFF
+            if imm19 & 0x40000:
+                imm19 -= 0x80000
+            if 0 < imm19 < 16:
+                sites.append((start + (i + 3) * 4, imm19))
     if len(sites) != 1:
         print("bootanimation: %d candidate sites in initDisplaysAndSurfaces, not patched" % len(sites))
         return 2

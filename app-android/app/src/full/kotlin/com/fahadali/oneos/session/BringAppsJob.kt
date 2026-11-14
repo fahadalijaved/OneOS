@@ -3,8 +3,11 @@ package com.fahadali.oneos.session
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.SystemClock
 import com.fahadali.oneos.core.model.BringApps
+import com.fahadali.oneos.core.model.BringCatalog
 import com.fahadali.oneos.core.model.StageMarker
 import com.fahadali.oneos.core.model.SuState
 import com.fahadali.oneos.core.root.RootScript
@@ -414,6 +417,75 @@ object BringAppsJob : BackgroundJob<BringAppsJob.State>(State(), "oneos-bring-ap
             }
         }
     }
+
+    /**
+     * Removes one brought app (root `bring-forget`): its copy goes from the stage and the
+     * system uninstalls it at its next start (the verb records it). Its tick goes too, so
+     * the next boot does not bring it back; One UI's app and data are not touched.
+     */
+    fun forget(ctx: Context, pkg: String) {
+        if (othersBusy() || !BringApps.PACKAGE.matches(pkg)) return
+        val app = ctx.applicationContext
+        val stage = state.stageKey
+        if (!claim(Phase.CLEARING)) return
+        val name = label(app, pkg)
+        executor.execute {
+            val r = runCatching {
+                su(app)
+                RootVerbs.run(app, RootScript.Verb.BRING_FORGET, listOf(pkg), silenceMs = 5 * 60_000L)
+            }
+            val reply = r.getOrNull()
+            if (reply?.ok == true) {
+                val read = readStatus(app)
+                change { st ->
+                    if (stage != null) prefs(app).edit().putStringSet(broughtKey(stage), broughtIn(app, stage) - pkg).apply()
+                    saveTicks(app, st.imageId, ticksOf(app, st.imageId) - pkg)
+                    st.copy(
+                        phase = Phase.DONE, brought = st.brought - pkg, copies = st.copies?.filter { it.pkg != pkg },
+                        selected = st.selected - pkg, skipped = st.skipped - pkg, notes = emptyList(), failed = false,
+                        message = "Removed $name. It is uninstalled from the system at its next start; One UI keeps it.",
+                    ).with(app, read)
+                }
+            } else {
+                val msg = reply?.problem ?: r.exceptionOrNull()?.message
+                change {
+                    it.copy(
+                        phase = Phase.FAILED, failed = true, stale = it.stale || (msg != null && STALE in msg),
+                        message = msg?.let { m -> "Could not remove $name: $m" } ?: "Could not remove $name.",
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * The catalog for the guest's own Bring apps screen: the same candidates the
+     * list above offers, each with its label and a 96x96 icon, written by the root
+     * verb `bring-catalog` into the stage ([BringCatalog]). LaunchJob calls it on a
+     * real boot, before the switch. Never throws and never stops a launch: a
+     * failure is logged and the guest shows the catalog it had (or none).
+     */
+    fun sendCatalog(ctx: Context): Boolean = runCatching {
+        val app = ctx.applicationContext
+        val pm = app.packageManager
+        val entries = candidates(app).mapNotNull { c -> iconPng(pm, c.pkg)?.let { BringCatalog.Entry(c.pkg, c.label, it) } }
+        val bytes = BringCatalog.text(entries).toByteArray()
+        su(app)
+        val reply = RootVerbs.run(
+            app, RootScript.Verb.BRING_CATALOG, listOf(bytes.size.toString()),
+            feed = RootShell.Feed { it.write(bytes) }, silenceMs = 2 * 60_000L, totalMs = 5 * 60_000L,
+        )
+        check(reply.ok) { reply.problem ?: "root gave no answer" }
+    }.onFailure { android.util.Log.w("OneOS", "bring catalog not written: ${it.message}") }.isSuccess
+
+    private fun iconPng(pm: android.content.pm.PackageManager, pkg: String): ByteArray? = runCatching {
+        val size = 96
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val d = pm.getApplicationIcon(pkg)
+        d.setBounds(0, 0, size, size)
+        d.draw(Canvas(bmp))
+        java.io.ByteArrayOutputStream().also { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    }.getOrNull()
 
     /** What `bring-status` said. [copies] is null when it could not be asked. */
     private class Read(val copies: List<BringApps.Copy>?, val log: List<String>, val stale: Boolean)

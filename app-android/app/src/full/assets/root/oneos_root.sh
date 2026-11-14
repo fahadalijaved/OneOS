@@ -154,7 +154,7 @@ SET_PIXEL="services_patched.jar framework_patched.jar telephony-common_patched.j
 SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar samcam.tar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
 # LineageOS 24 (0.5.06): the guards, the camera codes, the guest vold, the AOSP signal poll, the IMS backoff, the in-guest app, the
 # fold and tablet overlays and its own payloads; no Google payload (One UI's Google apps, guest_google.sh).
-SET_LINEAGE="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk OneOSFoldCutout.apk OneOSTabletQs.apk oneos-apex-requires.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img OneOSPixelDoze.apk"
+SET_LINEAGE="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk OneOSFoldCutout.apk OneOSTabletQs.apk oneos-apex-requires.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img OneOSPixelDoze.apk libbootanimation_preapex_patched.so"
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
 SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so telephony-common_patched.jar samcam.tar samcam_bar.tar xiaomi-opt-telephony_patched.jar"
@@ -1999,6 +1999,113 @@ bring_mark() {
     head -n 1 "$1" 2>/dev/null | tr -c 'A-Za-z0-9 ._:,()=/\n-' ' ' | cut -c1-240
 }
 
+# What one session of this stage's data looks like to bring: the stage's data
+# folder (root's) and the bring folder in it (root's alone, 0700).
+bring_dirs() {
+    if [ ! -d "$STAGE/data" ]; then
+        mkdir "$STAGE/data" && own "$STAGE/data" 0755 || die "could not make the stage's data folder"
+    fi
+    # Root's alone: the copies keep One UI's owners, which mean other apps in the
+    # guest. A folder there that is not root's own is not deleted: mkdir_mine
+    # moves it aside.
+    mkdir_mine "$STAGE/data/oneos_bring" && own "$STAGE/data/oneos_bring" 0700 || die "could not make the bring folder"
+}
+
+# Clears a folder in the bring folder before a copy takes its place. With the
+# guest down (BRING_LIVE unset) that is bring_drop. While a session runs
+# (bring-add) purge_one's checks would refuse, as the session's bridges are up,
+# so the folder is only moved aside, inside the bring folder (root's alone), and
+# the next verb that runs with the guest down deletes it.
+BRING_LIVE=0
+bring_clearout() { # <a folder in the bring folder>
+    if [ "$BRING_LIVE" = 1 ]; then bring_aside "$1"; else bring_drop "$1"; fi
+}
+bring_aside() { # <a folder in the bring folder>; 1 when it is not root's own
+    [ -e "$1" ] || [ -L "$1" ] || return 0
+    [ -d "$1" ] && mine "$1" || return 1
+    mkdir_mine "$STAGE/data/oneos_bring/.aside" || die "could not make the aside folder"
+    mv "$1" "$STAGE/data/oneos_bring/.aside/${1##*/}-$(date +%s)-$$" || die "could not move ${1##*/} aside"
+}
+
+# One package's copy, the same code for bring-collect (guest down, one run for
+# every app of the list) and bring-add (a running session, one app). Each one is
+# copied beside its place ($NEW) and swapped in when all of it is there, so the
+# copy that waits for the guest stays whole when this run is cut short. since
+# (before the first byte) and stamp (after the last, with the APK's path) are
+# what bring-status compares One UI with, and stamp is what the guest marks as
+# applied. Returns 0 when the copy is in place, 1 when the app was skipped (the
+# reason is in BRING_WHY and said as an @@INFO line). The caller made
+# $STAGE/data/oneos_bring (bring_dirs) and set NEW.
+bring_one() { # <a name is_package accepted>
+    pkg=$1
+    BRING_WHY=""
+    dst="$STAGE/data/oneos_bring/$pkg"
+    # Its APKs: the folder pm names under /data/app (a user app; One UI's
+    # own apps stay on One UI, and the app never offers them).
+    first=$(pm path "$pkg" 2>/dev/null </dev/null | sed -n 's/^package://p' | head -n 1)
+    apkdir=""
+    case "$first" in *..*) ;; "$DATA"/app/*/*.apk) apkdir=${first%/*} ;; esac
+    if [ -z "$apkdir" ] || [ ! -f "$first" ] || [ -L "$first" ]; then
+        BRING_WHY="not an installed user app"
+        say "@@INFO $pkg: $BRING_WHY, skipped"
+        return 1
+    fi
+    bring_sources
+    # Room for it, and 2 GiB left for One UI afterwards.
+    kb=$(du -sk "$apkdir" "$BCE" "$BDE" 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
+    set -- $(stat -f -c '%a %S' "$DATA" 2>/dev/null)
+    if ! { is_dec "$kb" && is_dec "$1" && is_dec "$2" && awk -v f="$1" -v b="$2" -v k="$kb" 'BEGIN { exit !(f * b / 1024 >= k + 2097152) }'; }; then
+        BRING_WHY="not enough free space on the phone"
+        say "@@INFO $pkg: $BRING_WHY, skipped"
+        return 1
+    fi
+    # The app's turn: the screen names it while it is copied.
+    step "$pkg"
+    # What a run that was cut short left there goes first (a folder that is
+    # not root's own is moved aside by mkdir_mine, never deleted).
+    bring_clearout "$NEW" || true
+    mkdir_mine "$NEW" && mkdir_mine "$NEW/apk" || die "could not make ${NEW#$T}"
+    date +%s > "$NEW/since" || die "could not write in ${NEW#$T}"
+    for apk in "$apkdir"/*.apk; do
+        [ -f "$apk" ] && [ ! -L "$apk" ] || continue
+        name=${apk##*/}
+        case "$name" in *[!A-Za-z0-9._-]*) continue ;; esac
+        cat "$apk" > "$NEW/apk/$name" && own "$NEW/apk/$name" 0644 || die "could not copy $name of $pkg"
+    done
+    lost=0
+    if [ -d "$BCE" ] && [ ! -L "$BCE" ]; then
+        mkdir_mine "$NEW/ce" || die "could not make ${NEW#$T}/ce"
+        for BFROM in "$BCE"/* "$BCE"/.[!.]* "$BCE"/..?*; do
+            [ -e "$BFROM" ] || [ -L "$BFROM" ] || continue
+            case "${BFROM##*/}" in cache|code_cache) continue ;; esac
+            cp -a "$BFROM" "$NEW/ce/" 2>/dev/null || lost=$((lost + 1))
+        done
+    else
+        lost=$((lost + 1))
+    fi
+    if [ -d "$BDE" ] && [ ! -L "$BDE" ]; then
+        mkdir_mine "$NEW/de" || die "could not make ${NEW#$T}/de"
+        for BFROM in "$BDE"/* "$BDE"/.[!.]* "$BDE"/..?*; do
+            [ -e "$BFROM" ] || [ -L "$BFROM" ] || continue
+            case "${BFROM##*/}" in cache|code_cache) continue ;; esac
+            cp -a "$BFROM" "$NEW/de/" 2>/dev/null || lost=$((lost + 1))
+        done
+    fi
+    [ "$lost" = 0 ] || say "@@INFO $pkg: $lost of its data items could not be read; it may ask to sign in"
+    printf '%s\n%s\n' "$(date +%s)" "$first" > "$NEW/stamp" || die "could not write in ${NEW#$T}"
+    # The copy brought before goes only now that the new one is whole.
+    if ! bring_clearout "$dst"; then
+        BRING_WHY="its folder in the stage is not root's own"
+        say "@@INFO $pkg: $BRING_WHY, skipped"
+        return 1
+    fi
+    mv "$NEW" "$dst" || die "could not put the copy of $pkg in place"
+    kb=$(du -sk "$dst" 2>/dev/null | cut -f1)
+    is_dec "$kb" || kb=0
+    say "@@RESULT brought $pkg $kb"
+    return 0
+}
+
 do_bring_collect() {
     [ $# -eq 1 ] || usage "bring-collect <bytes>"
     is_dec "$1" && ge 65536 "$1" || usage "bring-collect size $1"
@@ -2018,89 +2125,133 @@ do_bring_collect() {
         in_list "$pkg" "$list" || list="$list $pkg"
     done < "$part"
     rm -f "$part"
-    if [ ! -d "$STAGE/data" ]; then
-        mkdir "$STAGE/data" && own "$STAGE/data" 0755 || die "could not make the stage's data folder"
-    fi
-    # Root's alone: the copies keep One UI's owners, which mean other apps in the
-    # guest. A folder there that is not root's own is not deleted: mkdir_mine
-    # moves it aside.
-    mkdir_mine "$STAGE/data/oneos_bring" && own "$STAGE/data/oneos_bring" 0700 || die "could not make the bring folder"
-    # Only the apps named are copied; the others brought before stay as they
-    # are. Each one is copied beside its place ($NEW) and swapped in when all of
-    # it is there, so the copy that waits for the guest stays whole when this
-    # run is cut short. since (before the first byte) and stamp (after the
-    # last, with the APK's path) are what bring-status compares One UI with,
-    # and stamp is what the guest marks as applied.
+    bring_dirs
+    # Only the apps named are copied; the others brought before stay as they are.
     NEW="$STAGE/data/oneos_bring/.incoming"
     count=0
     for pkg in $list; do
-        dst="$STAGE/data/oneos_bring/$pkg"
-        # Its APKs: the folder pm names under /data/app (a user app; One UI's
-        # own apps stay on One UI, and the app never offers them).
-        first=$(pm path "$pkg" 2>/dev/null </dev/null | sed -n 's/^package://p' | head -n 1)
-        apkdir=""
-        case "$first" in *..*) ;; "$DATA"/app/*/*.apk) apkdir=${first%/*} ;; esac
-        if [ -z "$apkdir" ] || [ ! -f "$first" ] || [ -L "$first" ]; then
-            say "@@INFO $pkg: not an installed user app, skipped"
-            continue
-        fi
-        bring_sources
-        # Room for it, and 2 GiB left for One UI afterwards.
-        kb=$(du -sk "$apkdir" "$BCE" "$BDE" 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
-        set -- $(stat -f -c '%a %S' "$DATA" 2>/dev/null)
-        if ! { is_dec "$kb" && is_dec "$1" && is_dec "$2" && awk -v f="$1" -v b="$2" -v k="$kb" 'BEGIN { exit !(f * b / 1024 >= k + 2097152) }'; }; then
-            say "@@INFO $pkg: not enough free space on the phone, skipped"
-            continue
-        fi
-        # The app's turn: the screen names it while it is copied.
-        step "$pkg"
-        # What a run that was cut short left there goes first (a folder that is
-        # not root's own is moved aside by mkdir_mine, never deleted).
-        bring_drop "$NEW" || true
-        mkdir_mine "$NEW" && mkdir_mine "$NEW/apk" || die "could not make ${NEW#$T}"
-        date +%s > "$NEW/since" || die "could not write in ${NEW#$T}"
-        for apk in "$apkdir"/*.apk; do
-            [ -f "$apk" ] && [ ! -L "$apk" ] || continue
-            name=${apk##*/}
-            case "$name" in *[!A-Za-z0-9._-]*) continue ;; esac
-            cat "$apk" > "$NEW/apk/$name" && own "$NEW/apk/$name" 0644 || die "could not copy $name of $pkg"
-        done
-        lost=0
-        if [ -d "$BCE" ] && [ ! -L "$BCE" ]; then
-            mkdir_mine "$NEW/ce" || die "could not make ${NEW#$T}/ce"
-            for BFROM in "$BCE"/* "$BCE"/.[!.]* "$BCE"/..?*; do
-                [ -e "$BFROM" ] || [ -L "$BFROM" ] || continue
-                case "${BFROM##*/}" in cache|code_cache) continue ;; esac
-                cp -a "$BFROM" "$NEW/ce/" 2>/dev/null || lost=$((lost + 1))
-            done
-        else
-            lost=$((lost + 1))
-        fi
-        if [ -d "$BDE" ] && [ ! -L "$BDE" ]; then
-            mkdir_mine "$NEW/de" || die "could not make ${NEW#$T}/de"
-            for BFROM in "$BDE"/* "$BDE"/.[!.]* "$BDE"/..?*; do
-                [ -e "$BFROM" ] || [ -L "$BFROM" ] || continue
-                case "${BFROM##*/}" in cache|code_cache) continue ;; esac
-                cp -a "$BFROM" "$NEW/de/" 2>/dev/null || lost=$((lost + 1))
-            done
-        fi
-        [ "$lost" = 0 ] || say "@@INFO $pkg: $lost of its data items could not be read; it may ask to sign in"
-        printf '%s\n%s\n' "$(date +%s)" "$first" > "$NEW/stamp" || die "could not write in ${NEW#$T}"
-        # The copy brought before goes only now that the new one is whole.
-        if ! bring_drop "$dst"; then
-            say "@@INFO $pkg: its folder in the stage is not root's own, skipped"
-            continue
-        fi
-        mv "$NEW" "$dst" || die "could not put the copy of $pkg in place"
-        kb=$(du -sk "$dst" 2>/dev/null | cut -f1)
-        is_dec "$kb" || kb=0
-        say "@@RESULT brought $pkg $kb"
-        count=$((count + 1))
+        if bring_one "$pkg"; then count=$((count + 1)); fi
     done
     bring_drop "$NEW" || true
+    # Copies a bring-add moved aside during a session go now that the guest is down.
+    bring_drop "$STAGE/data/oneos_bring/.aside" || true
     # The list build 102 kept beside the copies is not used any more.
     rm -f "$STAGE/data/oneos_bring/selected.list" "$STAGE/data/oneos_bring/selected.new"
     say "@@OK bring-collect $count"
+}
+
+# A session of this system is running now: its snapshot (persist_session.active,
+# written by guest_props.sh seconds after launch and removed by the return) holds
+# this boot's id. The stricter half of session_starting: a session that only
+# just began (current.json, no snapshot yet) does not count, the guest is not up.
+session_running() {
+    a="$STAGE/persist_session.active"
+    [ -f "$a" ] && [ ! -L "$a" ] || return 1
+    [ "$(sed -n 's/^boot_id=//p' "$a" | head -n 1)" = "$(boot_id)" ]
+}
+
+# Bring one app of the catalog while a session runs (the guest asked for it, the
+# session's watcher calls this): the same copy as bring-collect (bring_one), for
+# a package the catalog offers. Refused when no session is running; the lock is
+# free because launch ends once it started the switch. A copy brought before is
+# moved aside inside the bring folder (bring_clearout) rather than deleted.
+do_bring_add() {
+    [ $# -eq 1 ] || usage "bring-add <package>"
+    is_package "$1" || usage "bring-add '$1'"
+    read_marker || refuse "no system is set up (prepare one first)"
+    session_running || refuse "no session of this system is running: bring apps from inside the guest while it runs"
+    [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
+    [ -d "$STAGE/data/oneos_bring_catalog" ] && mine "$STAGE/data/oneos_bring_catalog" || refuse "no catalog of apps (start this system from the OneOS app)"
+    catf="$STAGE/data/oneos_bring_catalog/catalog.tsv"
+    [ -f "$catf" ] && [ ! -L "$catf" ] || refuse "no catalog of apps (start this system from the OneOS app)"
+    cut -f1 "$catf" | grep -q -x -F "$1" || refuse "$1 is not in the catalog"
+    BRING_LIVE=1
+    bring_dirs
+    NEW="$STAGE/data/oneos_bring/.incoming"
+    bring_one "$1" || refuse "$1 was not brought: $BRING_WHY"
+    bring_clearout "$NEW" || true
+    say "@@OK bring-add 1"
+}
+
+# The apps One UI offers, for the guest's own screen: stdin is the catalog, one
+# "<package> TAB <label> TAB <base64 of a PNG icon>" line per app. Every line is
+# checked before anything is written (a bad line changes nothing), then the file
+# is written beside its place and renamed in. The guest reads it at
+# /data/oneos_bring_catalog/catalog.tsv (folder 0755, file 0644: not secret).
+do_bring_catalog() {
+    [ $# -eq 1 ] || usage "bring-catalog <bytes>"
+    is_dec "$1" && ge 4194304 "$1" || usage "bring-catalog size $1"
+    read_marker || refuse "no system is set up (prepare one first)"
+    idle_or_refuse
+    [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
+    mkdir_mine "$STAGE/incoming" || die "could not make $STAGE/incoming"
+    part="$STAGE/incoming/catalog.part"
+    rm -f "$part"
+    head -c "$1" > "$part" || { rm -f "$part"; die "could not read the catalog"; }
+    [ "$(stat -c %s "$part")" = "$1" ] || { rm -f "$part"; refuse "the catalog arrived incomplete"; }
+    tab=$(printf '\t')
+    list=""
+    n=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        n=$((n + 1))
+        [ "$n" -le 400 ] || { rm -f "$part"; refuse "the catalog has more than 400 apps"; }
+        case "$line" in *"$tab"*"$tab"*) ;; *) rm -f "$part"; refuse "catalog line $n is not package, label, icon" ;; esac
+        pkg=${line%%"$tab"*}
+        rest=${line#*"$tab"}
+        label=${rest%%"$tab"*}
+        icon=${rest#*"$tab"}
+        is_package "$pkg" || { rm -f "$part"; refuse "catalog line $n names '$pkg'"; }
+        in_list "$pkg" "$list" && { rm -f "$part"; refuse "catalog line $n repeats $pkg"; }
+        list="$list $pkg"
+        [ -n "$label" ] && [ ${#label} -le 320 ] || { rm -f "$part"; refuse "catalog line $n: label is empty or too long"; }
+        case "$label" in *[[:cntrl:]]*) rm -f "$part"; refuse "catalog line $n: label has control characters" ;; esac
+        [ -n "$icon" ] && [ ${#icon} -le 262144 ] || { rm -f "$part"; refuse "catalog line $n: icon is empty or too large"; }
+        case "$icon" in *[!A-Za-z0-9+/=]*) rm -f "$part"; refuse "catalog line $n: icon is not base64" ;; esac
+    done < "$part"
+    if [ ! -d "$STAGE/data" ]; then
+        mkdir "$STAGE/data" && own "$STAGE/data" 0755 || die "could not make the stage's data folder"
+    fi
+    mkdir_mine "$STAGE/data/oneos_bring_catalog" || die "could not make the catalog folder"
+    mv "$part" "$STAGE/data/oneos_bring_catalog/catalog.new" || die "could not write the catalog"
+    own "$STAGE/data/oneos_bring_catalog/catalog.new" 0644 || die "could not write the catalog"
+    mv "$STAGE/data/oneos_bring_catalog/catalog.new" "$STAGE/data/oneos_bring_catalog/catalog.tsv" || die "could not put the catalog in place"
+    say "@@RESULT catalog $n"
+    say "@@OK bring-catalog $n"
+}
+
+# Remove one brought app (idle only): its copy in the stage goes, the way
+# bring-clear removes them (bring_drop: root's own folders only, anything else
+# is left and refused, nothing is followed through a link), and the package is
+# recorded in $STAGE/data/oneos_bring/.forget (one per line, root's, 0600) for
+# the guest's next start to uninstall there. A missing copy still records the
+# forget: the guest may have the app installed already. One UI is not touched.
+do_bring_forget() {
+    [ $# -eq 1 ] || usage "bring-forget <package>"
+    is_package "$1" || usage "bring-forget '$1'"
+    read_marker || refuse "no system is set up (prepare one first)"
+    idle_or_refuse
+    [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
+    bring_dirs
+    kb=$(du -sk "$STAGE/data/oneos_bring/$1" 2>/dev/null | cut -f1)
+    is_dec "$kb" || kb=0
+    # Its own partials only (".<pkg>" and ".<pkg>-<suffix>"; a package name has no "-"):
+    # ".<pkg>"* or ".<pkg>".* would also take another package's whose name starts with
+    # this one (com.foo and com.foobar, com.foo and com.foo.bar).
+    for dst in "$STAGE/data/oneos_bring/$1" "$STAGE"/data/oneos_bring/."$1" "$STAGE"/data/oneos_bring/."$1"-* "$STAGE"/data/oneos_bring/.aside/"$1"-*; do
+        case "${dst##*/}" in .forget|.forget.new|.incoming|.aside) continue ;; esac
+        bring_drop "$dst" || refuse "${dst#$STAGE/} is not root's own folder; nothing was removed"
+    done
+    dst="$STAGE/data/oneos_bring/.forget"
+    part="$STAGE/data/oneos_bring/.forget.new"
+    {
+        if [ -f "$dst" ] && [ ! -L "$dst" ] && mine "$dst"; then cat "$dst"; fi
+        echo "$1"
+    } | while read -r line; do
+        if is_package "$line"; then echo "$line"; fi
+    done | sort -u > "$part"
+    own "$part" 0600 && mv "$part" "$dst" || die "could not record the forget"
+    say "@@RESULT forgot $1 $kb"
+    say "@@OK bring-forget"
 }
 
 # Read only (no lock, nothing written): each brought app the stage holds, when
@@ -2171,13 +2322,13 @@ do_bring_clear() {
 [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
 verb=$1
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|selfupdate|guest-runtime|guest-module|guest-module-state|bring-collect|bring-clear) migrate_legacy stage ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|selfupdate|guest-runtime|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog) migrate_legacy stage ;;
     old-list|purge) migrate_legacy copies ;;
 esac
 [ -d "$STAGE" ] && mine "$STAGE" || refuse "$STAGE is not root's folder"
 [ -d "$STAGE/bin" ] && mine "$STAGE/bin" || refuse "$STAGE/bin is not root's folder"
 case "$verb" in
-    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|purge|selfupdate|guest-module|guest-module-state|bring-collect|bring-clear) take_lock ;;
+    begin|receive|keep-raw|keep-files|table|env|finish|launch|recover|restore|remove|purge|selfupdate|guest-module|guest-module-state|bring-collect|bring-clear|bring-forget|bring-catalog|bring-add) take_lock ;;
 esac
 [ $# -gt 0 ] && shift
 case "$verb" in
@@ -2201,5 +2352,8 @@ case "$verb" in
     bring-collect) do_bring_collect "$@" ;;
     bring-clear) do_bring_clear "$@" ;;
     bring-status) do_bring_status "$@" ;;
+    bring-forget) do_bring_forget "$@" ;;
+    bring-catalog) do_bring_catalog "$@" ;;
+    bring-add) do_bring_add "$@" ;;
     *) usage "unknown verb '$verb'" ;;
 esac

@@ -407,7 +407,7 @@ object ShellScan {
  * phone's user data, reboots, settings, package wipes or mounts.
  */
 object StageAudit {
-    val VERBS = listOf("guest-runtime", "guest-module", "guest-module-state", "begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "selfupdate", "bring-collect", "bring-clear", "bring-status")
+    val VERBS = listOf("guest-runtime", "guest-module", "guest-module-state", "begin", "receive", "keep-raw", "keep-files", "table", "env", "finish", "launch", "recover", "old-list", "purge", "restore", "remove", "selfupdate", "bring-collect", "bring-clear", "bring-status", "bring-forget", "bring-catalog", "bring-add")
 
     val ALLOWED: Set<String> = setOf(
         "umask", "[", "echo", "printf", "id", "stat", "awk", "sed", "grep", "sort", "head", "tail", "cut", "tr", "wc",
@@ -429,7 +429,7 @@ object StageAudit {
     private val STAGE_VARS = setOf("STAGE", "ATTIC", "PLAN", "RECEIVED", "part", "dst", "S", "F", "upd", "upapk", "LOCK", "NEW")
 
     /** Helpers that write their first argument; their call sites must pass a stage path. */
-    private val WRITE_HELPERS = setOf("own", "mkdir_mine", "bring_drop")
+    private val WRITE_HELPERS = setOf("own", "mkdir_mine", "bring_drop", "bring_aside", "bring_clearout")
 
     /**
      * Documented exceptions: `begin aside` renames the stage to its sibling
@@ -473,7 +473,7 @@ object StageAudit {
      * folders seen through init's root (`$pkg` is a name is_package accepted),
      * set only in bring_sources, and `$BFROM` the variable of the two loops
      * over exactly their entries. The only commands that may take any of the
-     * three are do_bring_collect's tests (`[`), the one
+     * three are bring_one's tests (`[`), the one
      * `du -sk "$apkdir" "$BCE" "$BDE"` that sizes the app, the two copies into
      * the stage, `cp -a "$BFROM" "$NEW/ce/"` and `cp -a "$BFROM" "$NEW/de/"`
      * (`$NEW` is the copy's place in the stage until it is whole), and
@@ -483,7 +483,7 @@ object StageAudit {
      * them no function: the exact words stand in). No redirection names them,
      * and nowhere else does the script name init's root or run find.
      */
-    private const val BRING_FUNCTION = "do_bring_collect"
+    private const val BRING_FUNCTION = "bring_one"
     private const val BRING_SOURCES_FUNCTION = "bring_sources"
     private const val BCE_VALUE = "\"\$PROC/1/root\$DATA/data/\$pkg\""
     private const val BDE_VALUE = "\"\$PROC/1/root\$DATA/user_de/0/\$pkg\""

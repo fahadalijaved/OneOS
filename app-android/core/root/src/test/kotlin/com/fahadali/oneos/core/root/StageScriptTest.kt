@@ -1682,6 +1682,151 @@ class StageScriptTest {
         refused(s.launch(), "test root: every launch check passed")
     }
 
+    private fun catalogLine(pkg: String, label: String = "Chat", icon: String = "iVBORw0KGgo=") = "$pkg\t$label\t$icon"
+
+    private fun catalog(fr: FakeRoot, vararg lines: String): FakeRoot.Run {
+        val b = lines.joinToString("") { "$it\n" }.toByteArray()
+        return fr.run(RootScript.Verb.BRING_CATALOG, b.size.toString(), stdin = b)
+    }
+
+    /** bring-forget: the copy goes (and partials beside it), the package is recorded once, nothing else moves. */
+    @Test
+    fun bringForgetRemovesTheCopyAndRecordsIt() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val chat = "org.example.chat"
+        val other = "org.example.other"
+        fr.hostApp(chat)
+        fr.hostApp(other)
+        File(fr.hostCe(chat), "login").writeText("in")
+        s.ok(bring(fr, chat, other))
+        val dir = File(fr.stage, "data/oneos_bring")
+        File(dir, ".$chat-partial").mkdirs()
+        java.nio.file.Files.setPosixFilePermissions(File(dir, ".$chat-partial").toPath(), java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"))
+        val beside = fr.stage.parentFile.list()!!.sorted()
+        val hostBefore = fr.listing(File(fr.root, "proc/1/root")) + fr.listing(File(fr.root, "data/app"))
+        val r = fr.run(RootScript.Verb.BRING_FORGET, chat)
+        s.ok(r)
+        assertTrue("$r", r.reply.results.any { it.startsWith("forgot $chat ") })
+        assertEquals("bring-forget", r.reply.ok)
+        assertFalse(File(dir, chat).exists())
+        assertFalse(File(dir, ".$chat-partial").exists())
+        assertTrue(File(dir, "$other/apk/base.apk").isFile)
+        assertEquals("$chat\n", File(dir, ".forget").readText())
+        assertEquals("600", fr.mode(File(dir, ".forget")))
+        assertEquals(beside, fr.stage.parentFile.list()!!.sorted())
+        assertEquals(hostBefore, fr.listing(File(fr.root, "proc/1/root")) + fr.listing(File(fr.root, "data/app")))
+        // Again (no copy left) and another: no duplicates, still recorded.
+        s.ok(fr.run(RootScript.Verb.BRING_FORGET, chat))
+        s.ok(fr.run(RootScript.Verb.BRING_FORGET, "org.example.never"))
+        assertEquals("org.example.never\n$chat\n".lines().filter { it.isNotEmpty() }.sorted(), File(dir, ".forget").readLines())
+        assertTrue(File(dir, "$other/apk/base.apk").isFile)
+        // A bad name is refused before anything is touched; so is a stage with a session.
+        val before = fr.snapshot()
+        for (bad in listOf("../x", "chat", "a.b/c", ".hidden.x", "a..b", "x.y;id")) {
+            assertTrue(bad, RootScript.problems(RootScript.Verb.BRING_FORGET, listOf(bad)).isNotEmpty())
+            // Only what the launcher could carry reaches the script (a ';' never does): its own check refuses the rest.
+            if (bad.none { it == ';' }) {
+                val rb = fr.runUnchecked(RootScript.Verb.BRING_FORGET, chat, bad)
+                assertEquals("$bad: $rb", RootScript.EXIT_USAGE, rb.exit)
+            }
+        }
+        assertEquals(before, fr.snapshot())
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=11111111-2222-3333-4444-555555555555\n")
+        refused(fr.run(RootScript.Verb.BRING_FORGET, other), "a session is starting or running")
+        assertTrue(File(dir, "$other/apk/base.apk").isFile)
+    }
+
+    /** bring-catalog: a good catalog is written whole; a bad line writes nothing; a session refuses it. */
+    @Test
+    fun bringCatalogWritesTheCatalogOrNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val dir = File(fr.stage, "data/oneos_bring_catalog")
+        val good = arrayOf(catalogLine("org.example.chat", "Chat é"), catalogLine("org.example.other", "Other", "AAAA/+=="))
+        val r = catalog(fr, *good)
+        s.ok(r)
+        assertEquals("2", r.reply.ok!!.substringAfter("bring-catalog "))
+        assertEquals(good.joinToString("") { it + "\n" }, File(dir, "catalog.tsv").readText())
+        assertEquals("755", fr.mode(dir))
+        assertEquals("644", fr.mode(File(dir, "catalog.tsv")))
+        assertFalse(File(dir, "catalog.new").exists())
+        assertFalse(File(fr.stage, "incoming/catalog.part").exists())
+        // Bad lines: nothing is replaced.
+        val before = File(dir, "catalog.tsv").readText()
+        val bads = listOf(
+            catalogLine("org.example.chat") + "\n" + catalogLine("not a package"),
+            catalogLine("org.example.chat") + "\n" + catalogLine("../x.y"),
+            "org.example.chat\tNo icon",
+            catalogLine("org.example.chat", "Bell\u0007"),
+            catalogLine("org.example.chat", ""),
+            catalogLine("org.example.chat", "Chat", "not base64!"),
+            catalogLine("org.example.chat", "Chat", ""),
+            catalogLine("org.example.chat") + "\n" + catalogLine("org.example.chat"),
+            catalogLine("org.example.chat") + "\n\n" + catalogLine("org.example.other"),
+            (1..401).joinToString("\n") { catalogLine("org.example.app$it") },
+        )
+        for (b in bads) {
+            val bytes = (b + "\n").toByteArray()
+            val rb = fr.run(RootScript.Verb.BRING_CATALOG, bytes.size.toString(), stdin = bytes)
+            assertEquals("expected a refusal for [$b]:\n$rb", RootScript.EXIT_REFUSED, rb.exit)
+            assertEquals(before, File(dir, "catalog.tsv").readText())
+            assertFalse(File(dir, "catalog.new").exists())
+            assertFalse(File(fr.stage, "incoming/catalog.part").exists())
+        }
+        // Too big, and a session.
+        assertTrue(RootScript.problems(RootScript.Verb.BRING_CATALOG, listOf("x")).isNotEmpty())
+        val big = fr.run(RootScript.Verb.BRING_CATALOG, "4194305", stdin = ByteArray(0))
+        assertEquals(RootScript.EXIT_USAGE, big.exit)
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=11111111-2222-3333-4444-555555555555\n")
+        refused(catalog(fr, *good), "a session is starting or running")
+        assertEquals(before, File(dir, "catalog.tsv").readText())
+    }
+
+    /** bring-add: only while a session runs, only for a package of the catalog that is an installed user app. */
+    @Test
+    fun bringAddNeedsARunningSessionAndACatalogApp() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val chat = "org.example.chat"
+        val other = "org.example.other"
+        fr.hostApp(chat)
+        fr.hostApp(other)
+        File(fr.hostCe(chat), "login").writeText("in")
+        s.ok(catalog(fr, catalogLine(chat), catalogLine("org.example.gone")))
+        val dir = File(fr.stage, "data/oneos_bring")
+        // No session: refused, nothing copied (a snapshot of another boot is no session).
+        refused(fr.run(RootScript.Verb.BRING_ADD, chat), "no session of this system is running")
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=99999999-0000-0000-0000-000000000000\n")
+        refused(fr.run(RootScript.Verb.BRING_ADD, chat), "no session of this system is running")
+        assertFalse(File(dir, chat).exists())
+        // A session of this boot.
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=11111111-2222-3333-4444-555555555555\n")
+        refused(fr.run(RootScript.Verb.BRING_ADD, other), "is not in the catalog")
+        refused(fr.run(RootScript.Verb.BRING_ADD, "org.example.gone"), "was not brought: not an installed user app")
+        assertTrue(RootScript.problems(RootScript.Verb.BRING_ADD, listOf("../x")).isNotEmpty())
+        assertFalse(File(dir, other).exists())
+        val hostBefore = fr.listing(File(fr.root, "proc/1/root")) + fr.listing(File(fr.root, "data/app"))
+        val r = fr.run(RootScript.Verb.BRING_ADD, chat)
+        s.ok(r)
+        assertEquals("1", r.reply.ok!!.substringAfter("bring-add "))
+        assertTrue("$r", r.reply.results.any { it.startsWith("brought $chat ") })
+        assertEquals("in", File(dir, "$chat/ce/login").readText())
+        assertTrue(File(dir, "$chat/stamp").isFile)
+        assertFalse(File(dir, ".incoming").exists())
+        assertEquals(hostBefore, fr.listing(File(fr.root, "proc/1/root")) + fr.listing(File(fr.root, "data/app")))
+        // Asked again while the session runs: the old copy is moved aside (not deleted, not refused), the new one is in place.
+        File(fr.hostCe(chat), "login").writeText("in again")
+        s.ok(fr.run(RootScript.Verb.BRING_ADD, chat))
+        assertEquals("in again", File(dir, "$chat/ce/login").readText())
+        assertEquals(1, File(dir, ".aside").list()!!.size)
+        // The guest down: the next bring-collect clears what was moved aside.
+        File(fr.stage, "persist_session.active").delete()
+        s.ok(bring(fr, "org.example.gone"))
+        assertFalse(File(dir, ".aside").exists())
+        assertEquals("in again", File(dir, "$chat/ce/login").readText())
+    }
+
     /** bring-status (build 104): read only; what waits, what the guest did with it, and what is newer on One UI. */
     @Test
     fun bringStatusTellsWhatBecameOfEachCopyAndWhatIsNewer() = eachShell { fr ->

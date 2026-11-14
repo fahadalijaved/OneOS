@@ -347,6 +347,11 @@
     <string name="bring_remove_title">Remove the brought apps?</string>
     <string name="bring_remove_confirm">Deletes the copies from %1$s. Apps it already installed stay there, and nothing changes on One UI.</string>
     <string name="bring_remove_do">Remove</string>
+    <string name="bring_card_brought">Remove one brought app</string>
+    <string name="bring_forget_row">Remove %1$s</string>
+    <string name="bring_forget_row_summary">Deletes its copy and uninstalls it from %1$s at the next start. One UI keeps it.</string>
+    <string name="bring_forget_title">Remove %1$s?</string>
+    <string name="bring_forget_confirm">Remove %1$s from %2$s? It is uninstalled there at the next start; One UI keeps it.</string>
     <string name="bring_details_summary">Which apps came along, and what happens in %1$s</string>
     <string name="bring_details_how">About a minute after its home screen shows, %1$s installs each brought app and puts the copied data under it, so it opens signed in. An app you bring again is updated there, and its data in %1$s is replaced by One UI\'s newer copy; an app %1$s has already installed is only replaced when you tick it again and say so in Bring now (starting %1$s never copies it again). The copies live inside the system set up now: setting a system up fresh starts without them, and Remove brought apps deletes them.</string>
     <string name="bring_details_brought">Brought</string>

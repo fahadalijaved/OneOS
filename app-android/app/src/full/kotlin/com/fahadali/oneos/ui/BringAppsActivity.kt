@@ -166,6 +166,19 @@ class BringAppsFragment : CardsFragment() {
             }
         }
 
+        // Remove one brought app: its copy goes, and the system uninstalls it at its next start.
+        val broughtApps = if (synced) st.brought.sortedBy { label(it).lowercase() } else emptyList()
+        if (broughtApps.isNotEmpty() && st.phase != Phase.COLLECTING) {
+            val one = Cards.section(column, getString(R.string.bring_card_brought), rows = true)
+            for (pkg in broughtApps) {
+                CardRows.row(
+                    one, OuiIcons.drawable.ic_oui_delete_outline,
+                    getString(R.string.bring_forget_row, label(pkg)), getString(R.string.bring_forget_row_summary, system),
+                    enabled = !stale && !st.busy,
+                ) { confirmForget(pkg, system) }
+            }
+        }
+
         // Bring now, Remove, what the stage holds, Details.
         val actions = Cards.section(column, title = null, rows = true)
         when {
@@ -395,6 +408,16 @@ class BringAppsFragment : CardsFragment() {
                 .setNeutralButton(getString(R.string.bring_confirm_all, fresh + there)) { _, _ -> BringAppsJob.collect(ctx) }
         }
         dialog.show()
+    }
+
+    private fun confirmForget(pkg: String, system: String) {
+        val name = label(pkg)
+        AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.bring_forget_title, name))
+            .setMessage(getString(R.string.bring_forget_confirm, name, system))
+            .setPositiveButton(R.string.bring_remove_do) { _, _ -> BringAppsJob.forget(requireContext(), pkg) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun confirmClear(system: String) {

@@ -50,6 +50,18 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.07: **bring apps from inside the other system**, **remove a brought app**, and LineageOS fixes.
+- The OneOS app inside the other system has a new **Bring apps from One UI** screen: it lists your One UI apps
+  (as they were when you switched) and brings the one you tap over with its data, while the system runs: no
+  restart, you stay signed in. One way, as always: One UI's data is only read.
+- In OneOS on One UI, **Bring apps** now has a Remove button for each brought app: it is uninstalled from the other
+  system at its next start; One UI keeps it.
+- LineageOS: it no longer stops on its first start on some phones (Galaxy S26 Ultra: the screen lock setup now
+  carries on without a key One UI's keystore refuses); the boot animation now shows on the Z Fold's cover screen too;
+  always-on display and the OneOS version name (Settings, About phone).
+- Every system starts lighter: a search of the phone's audio libraries that took a whole CPU core for about three
+  minutes at every start now runs once per One UI update.
+
 New in 0.5.06: **LineageOS 24**, a new system, on every phone that offers Infinity-X (the S, Z Fold, Z Flip
 and A phones). Experimental, not tried on a phone yet.
 - The official LineageOS 24 (Android 17, November 2026 security patch) from the OnePlus 15, with LineageOS's own

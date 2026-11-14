@@ -56,6 +56,23 @@
     <string name="item_heat">Heat and battery</string>
     <string name="item_fold">Both screens, folding and unfolding</string>
 
+    <!-- Bring apps from One UI, from inside this system (the apps One UI offered at this start). -->
+    <string name="bring_entry_title">Bring apps from One UI</string>
+    <string name="bring_entry_summary">Copy an app you use on One UI, signed in</string>
+    <string name="bring_title">Bring apps from One UI</string>
+    <string name="bring_intro">Tap an app to copy it, with its login, from One UI. One UI is not changed.</string>
+    <string name="bring_no_catalog">Start this system from the OneOS app on One UI to see your apps here.</string>
+    <string name="bring_none">Every app OneOS offered from One UI is already installed here.</string>
+    <string name="bring_not_writable">This system can\'t take requests right now: /data/oneos_bring_requests isn\'t writable.</string>
+    <string name="bring_reading">Reading the list of apps…</string>
+    <string name="bring_sent">Asked OneOS to copy it…</string>
+    <string name="bring_copying">Copying from One UI…</string>
+    <string name="bring_installing">Installing…</string>
+    <string name="bring_ready">Ready</string>
+    <string name="bring_failed">Failed: %1$s</string>
+    <string name="bring_failed_tap">Failed: %1$s. Tap to try again.</string>
+    <string name="bring_open">Open</string>
+
     <string name="tile_label">Back to One UI</string>
     <string name="tile_subtitle">OneOS</string>
 </resources>

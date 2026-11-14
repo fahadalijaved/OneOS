@@ -750,7 +750,7 @@ object PackageSets {
     val LINEAGE = PackageSet(
         id = ID_LINEAGE,
         imageId = Images.ID_LINEAGE,
-        sourceDir = "out/overlays_lineage_r2",
+        sourceDir = "out/overlays_lineage_r4",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -771,9 +771,11 @@ object PackageSets {
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) } +
             // 0.5.06 r2: AOD (SystemUI's doze service at boot), the Pixel sets' overlay.
-            PackageFile("OneOSPixelDoze.apk", FileRole.RRO),
+            PackageFile("OneOSPixelDoze.apk", FileRole.RRO) +
+            // 0.5.07 r3: the boot animation on every panel (patch-bootanim-multidisplay.py, Lineage's form).
+            PackageFile("libbootanimation_preapex_patched.so", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, CELLBROADCAST),
-        approxBytes = 387_175_398L + 8_538L,
+        approxBytes = 387_175_398L + 8_538L + 118_120L,
         hasReturnApp = true,
     )
 

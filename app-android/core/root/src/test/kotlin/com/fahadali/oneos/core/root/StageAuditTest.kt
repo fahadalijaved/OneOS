@@ -126,7 +126,7 @@ class StageAuditTest {
     /** Bring apps: One UI's app data is read by exactly bring-collect's tests, its du and its two copies and bring-status's one find, and never written. */
     @Test
     fun bringReadsOnlyTheChosenAppsDataAndNeverWritesIt() {
-        val b = "do_bring_collect"
+        val b = "bring_one"
         assertTrue(script.contains("$b() {"))
         fun bad(line: String, inFunction: String?, expect: String) {
             val text = if (inFunction != null) script.replace("$inFunction() {", "$inFunction() {\n    $line") else "$script\n$line\n"
@@ -188,7 +188,13 @@ class StageAuditTest {
         bad("bring_drop \"\$BCE\"", b, source)
         bad("bring_drop /data/local/tmp/x", b, "is not under the stage")
         bad("bring_drop \"\$OLD_PARENT/x\"", st, "is not under the stage")
-        assertTrue(StageAudit.VERBS.containsAll(listOf("bring-collect", "bring-clear", "bring-status")))
+        assertTrue(StageAudit.VERBS.containsAll(listOf("bring-collect", "bring-clear", "bring-status", "bring-forget", "bring-catalog", "bring-add")))
+        // The session-time verb and the rest copy through bring_one only.
+        bad("cp -a \"\$BFROM\" \"\$NEW/ce/\"", "do_bring_add", source)
+        bad("[ -d \"\$BCE\" ]", "do_bring_forget", source)
+        bad("mv \"\$dst\" /data/local/tmp/x", "bring_aside", "is not under the stage")
+        bad("bring_aside /data/local/tmp/x", "do_bring_add", "is not under the stage")
+        bad("bring_clearout \"\$BCE\"", "do_bring_add", source)
         bad("rm -rf \"\$STAGE/data/oneos_bring\"", "bring_drop", "rm -r")
         bad("rm -rf \"\$1\"", "bring_drop", "rm -r")
     }

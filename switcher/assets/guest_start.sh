@@ -1167,10 +1167,23 @@ if [ -f /data/guest_audio.flag ] && [ "${ONEOS_GUEST_CALL_SIM:-1}" != 0 ]; then
     echo "=== $(date '+%F %T') session" >> /data/call_audio.log
     $BB sh -c 'bb=$1
         if [ "$2" != 2 ]; then
-            lib=""
-            for f in $(grep -l -s -F g_call_sim_slot /vendor/lib64/*audio*.so /vendor/lib64/hw/*audio*.so /vendor/bin/hw/*audio* 2>/dev/null); do
-                grep -q -s -F updateSecVSID "$f" && { lib=$f; break; }
-            done
+            # 0.5.07: the search reads every vendor audio library and took a whole
+            # core for about three minutes at each start (F8U, 11-14); its answer
+            # changes only with the vendor, so it is kept per vendor build.
+            fp=$(getprop ro.vendor.build.fingerprint); cache=/data/oneos_call_audio.cache
+            lib=""; cached=0
+            if [ -n "$fp" ] && [ -f "$cache" ] && [ "$(sed -n 1p "$cache")" = "$fp" ]; then
+                lib=$(sed -n 2p "$cache"); cached=1
+                [ -z "$lib" ] || [ -f "$lib" ] || { lib=""; cached=0; }
+            fi
+            if [ $cached = 0 ]; then
+                for f in $(grep -l -s -F g_call_sim_slot /vendor/lib64/*audio*.so /vendor/lib64/hw/*audio*.so /vendor/bin/hw/*audio* 2>/dev/null); do
+                    grep -q -s -F updateSecVSID "$f" && { lib=$f; break; }
+                done
+                [ -z "$fp" ] || printf "%s\n%s\n" "$fp" "$lib" > "$cache"
+            else
+                echo "$(date +%T) vendor audio library search: cached for this vendor build"
+            fi
             if [ -z "$lib" ]; then
                 echo "$(date +%T) no vendor audio library has g_call_sim_slot and updateSecVSID: SIM slot loop off"
                 exit 0
@@ -2450,6 +2463,24 @@ if [ -f "$BRING/.pid" ]; then
 fi
 echo $$ > "$BRING/.pid"
 [ "$MODE" = early ] && rm -f "$GO"
+
+# Removed in OneOS on One UI (0.5.07, root verb bring-forget): its copy is gone and
+# its name is in .forget; the app goes from this system too. An app brought again
+# since (a copy waits) stays. The list is done once, then removed.
+if [ -s "$BRING/.forget" ] && [ ! -L "$BRING/.forget" ]; then
+    if wait_pm; then
+        while read -r fp; do
+            is_package "$fp" || continue
+            [ -d "$BRING/$fp" ] && continue
+            gpm root 20 path "$fp" >/dev/null 2>&1 || continue
+            out=$(gpm root 60 uninstall "$fp" 2>&1)
+            log "$fp: removed (taken off the list in OneOS on One UI): $(short "$out")"
+        done < "$BRING/.forget"
+        rm -f "$BRING/.forget"
+    else
+        log "the package manager did not answer; removed apps go at the next start"
+    fi
+fi
 
 # What waits: a finished copy that is not applied yet.
 pending=""; count=0

@@ -5414,6 +5414,87 @@ if ! mount | grep -q "$ROOTFS/system/xbin "; then
     fi
 fi
 
+# Bring apps from inside the guest (0.5.07, owner: "bring apps inside the OneOS
+# guest app ... see our OneUi's app list"). The OneOS app on One UI leaves a
+# catalog of One UI's user apps (root verb bring-catalog: names and icons only);
+# the guest's OneOS app shows it and asks for one by creating an empty file named
+# after the package in /data/oneos_bring_requests, a folder only that app can
+# write to (its uid, once the guest's package list names it). This watcher, on
+# One UI's side and as root, takes each request: the root verb bring-add copies
+# the app and its One UI data exactly as bring-collect does before a switch, then
+# the guest's restore script installs it (as the UI Activator runs it), and
+# <pkg>.status says copying, installing, done or failed: <reason>. One UI's data
+# is only read. It ends itself when the guest's root filesystem is unmounted (the
+# return). ONEOS_GUEST_BRING_REQUESTS=0 leaves it off.
+BRQ="$STAGE/data/oneos_bring_requests"
+if [ "${ONEOS_GUEST_BRING_REQUESTS:-1}" = 1 ] && [ -f "$STAGE/data/oneos_bring_catalog/catalog.tsv" ] && [ -f "$STAGE/bin/oneos_root.sh" ]; then
+    if [ -L "$BRQ" ] || { [ -e "$BRQ" ] && [ ! -d "$BRQ" ]; }; then
+        echo "!!! Bring apps from the guest: $BRQ is not a folder; off"
+    else
+        mkdir -p "$BRQ" && chown 0:0 "$BRQ" && chmod 0700 "$BRQ"
+        rm -f "$BRQ"/*.status "$BRQ"/.watch.pid
+        cat > "$STAGE/bring_watch.sh" <<'BWEOF'
+#!/system/bin/sh
+# OneOS: Bring apps requests from the guest (guest_prepare.sh writes and starts this).
+STAGE=$1; BB=$2
+BRQ="$STAGE/data/oneos_bring_requests"; LOG="$STAGE/bring_watch.log"
+GAPP=com.fahadali.oneos.guest
+echo $$ > "$BRQ/.watch.pid"
+say() { echo "$(date +%T) $*" >> "$LOG"; }
+alive() { grep -q " $STAGE/rootfs " /proc/mounts; }
+is_package() {
+    case "$1" in ''|.*|*.|*[!A-Za-z0-9._]*|*..*) return 1 ;; esac
+    case "$1" in *.*) return 0 ;; *) return 1 ;; esac
+}
+status() { echo "$2" > "$BRQ/.$1.status.new" && chmod 0644 "$BRQ/.$1.status.new" && mv -f "$BRQ/.$1.status.new" "$BRQ/$1.status"; }
+owned=""
+say "watching $BRQ"
+while alive; do
+    # The folder becomes the guest app's once its uid is known (the guest's package list).
+    if [ -z "$owned" ]; then
+        uid=$(awk -v p="$GAPP" '$1 == p { print $2 }' "$STAGE/data/system/packages.list" 2>/dev/null)
+        case "$uid" in ''|*[!0-9]*) ;; *)
+            [ "$uid" -ge 10000 ] && chown "$uid:$uid" "$BRQ" && chmod 0700 "$BRQ" && owned=$uid && say "requests folder: the guest app's (uid $uid)" ;;
+        esac
+    fi
+    for f in "$BRQ"/*; do
+        [ -f "$f" ] && [ ! -L "$f" ] || continue
+        pkg=${f##*/}
+        case "$pkg" in *.status) continue ;; esac
+        rm -f "$f"
+        is_package "$pkg" || { say "ignored request '$pkg'"; continue; }
+        say "$pkg: requested in the guest"
+        status "$pkg" copying
+        out=$(/system/bin/sh "$STAGE/bin/oneos_root.sh" bring-add "$pkg" 2>&1); rc=$?
+        echo "$out" | tail -n 5 | sed "s/^/  $pkg: /" >> "$LOG"
+        if [ $rc != 0 ]; then
+            why=$(echo "$out" | grep -E 'REFUSED|ERROR|refuse' | tail -n 1 | sed 's/^@@[A-Z]* //' | cut -c1-160)
+            status "$pkg" "failed: ${why:-the copy did not finish}"
+            continue
+        fi
+        status "$pkg" installing
+        SPID=$(pidof system_server | tr ' ' '\n' | while read -r p; do [ -f "/proc/$p/root/data/oneos_genv.sh" ] && { echo "$p"; break; }; done)
+        if [ -z "$SPID" ]; then status "$pkg" "failed: the system is not running"; continue; fi
+        "$BB" nsenter -t "$SPID" -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_bring_restore.sh </dev/null >/dev/null 2>&1
+        stamp=$(head -n 1 "$STAGE/data/oneos_bring/$pkg/stamp" 2>/dev/null)
+        if [ -n "$stamp" ] && [ "$(head -n 1 "$STAGE/data/oneos_bring/$pkg/applied" 2>/dev/null)" = "$stamp" ]; then
+            status "$pkg" done; say "$pkg: ready in the guest"
+        else
+            why=$(head -n 1 "$STAGE/data/oneos_bring/$pkg/failed" 2>/dev/null | cut -d' ' -f2- | cut -c1-160)
+            status "$pkg" "failed: ${why:-not installed (oneos_bring.log in the guest)}"
+        fi
+    done
+    sleep 2
+done
+say "the system closed; done"
+rm -f "$BRQ/.watch.pid"
+BWEOF
+        chmod 0700 "$STAGE/bring_watch.sh"
+        ( setsid /system/bin/sh "$STAGE/bring_watch.sh" "$STAGE" "$BB" </dev/null >/dev/null 2>&1 & )
+        echo "Bring apps from the guest: requests watched in /data/oneos_bring_requests (bring_watch.log)"
+    fi
+fi
+
 echo "=== 7. $(date +%T) Setting up Fresh APEX tmpfs ==="
 # Clean any stale submounts and ensure a clean, writable tmpfs
 for m in $(cat /proc/mounts 2>/dev/null | grep "$ROOTFS/apex" | awk '{print $2}' | sort -r); do
