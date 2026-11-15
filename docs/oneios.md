@@ -20,6 +20,12 @@ session. It also clears the same two shell traps from OneOS's own Android script
 `/proc` itself), upstream's new ones included, and the reboot's last resorts no longer wait on each other. Not
 yet run on the phone.
 
+**0.5.14** (143) merges OneOS 0.4.88 to 0.5.13 (upstream's 0.5.13 is 142; the faster guest start and return of
+#107 among them); none of it runs in an iOS session. The merge changes none of the iOS scripts or screens, and
+of the boot screen's three files only `boot_status.sh`, by LineageOS 24's name in its Android path. The same two
+shell traps are cleared from upstream's new lines (a redirected `:` is `true`, a `/proc/PID/cmdline` is read with
+`cat` before `tr`). Not yet run on the phone.
+
 ## Where its pieces come from
 
 | Piece | Where from | In git or a release? |

@@ -92,7 +92,7 @@ if [ "$1" = baseline ]; then
     ( for f in /dev/cpuset/cpus /dev/cpuset/*/cpus /sys/devices/system/cpu/cpu*/core_ctl/enable; do
         [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"
     done > "$BASE/cpuset" ) &
-    : > "$BASE/svcpid"
+    true > "$BASE/svcpid"
     for n in $HOST_NAMES; do ( p=$(svc_pid "$n"); echo "$n ${p:-none}" >> "$BASE/svcpid" ) & done
     ( ls -lZ /dev/watchdog* > "$BASE/watchdog" 2>&1 ) &
     # One UI's linker namespaces (a tmpfs the guest's tree binds), compared at the return.

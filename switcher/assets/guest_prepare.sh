@@ -1144,10 +1144,10 @@ farm_dir() {
         fd_n=${fd_e##*/}
         if [ -L "$fd_e" ]; then cp -P "$fd_e" "$fd_f/$fd_n"
         elif [ -d "$fd_e" ]; then mkdir "$fd_f/$fd_n"
-        else : > "$fd_f/$fd_n"; fi || { $BB umount -l "$fd_f"; return 1; }
+        else true > "$fd_f/$fd_n"; fi || { $BB umount -l "$fd_f"; return 1; }
     done
     for fd_e in "$@"; do
-        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
+        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) true > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
     done
     chmod 755 "$fd_f"; $BB chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
     $BB mount --bind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }

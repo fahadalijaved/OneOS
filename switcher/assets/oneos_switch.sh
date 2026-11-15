@@ -3828,7 +3828,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                         case \"\$c\" in
                             libtimer*|'POSIX timer'*)
                                 p=\${tk#/proc/}; p=\${p%%/*}
-                                echo \"\$c tid=\${tk##*/} pid=\$p uid=\$(stat -c %u /proc/\$p 2>/dev/null) cmd=\$(tr '\0' ' ' < /proc/\$p/cmdline 2>/dev/null | cut -c1-200) exe=\$(readlink /proc/\$p/exe 2>/dev/null)\" ;;
+                                echo \"\$c tid=\${tk##*/} pid=\$p uid=\$(stat -c %u /proc/\$p 2>/dev/null) cmd=\$(cat /proc/\$p/cmdline 2>/dev/null | tr '\0' ' ' | cut -c1-200) exe=\$(readlink /proc/\$p/exe 2>/dev/null)\" ;;
                         esac
                     done > \$D/timer_threads.txt 2>&1
                     # Did user 0 unlock, did the launcher get a window, and if not,
