@@ -943,7 +943,12 @@ the two meet at the return's lock.
     uses `HostTools.listing` (`listing.sh`) as the other snapshots do.
   On the Mac (OneiOS run 43717760387, `406f008`): Gate A, the chatter and the `find` test pass; 270 tests, 1 failed
   (the return log, above, fixed after that run). Checked on Linux: `now` with a BSD-like `date` stand-in (perl's
-  clock, the marker) and with GNU's. The return log's fix: OneiOS's next CI run of this branch.
+  clock, the marker) and with GNU's.
+- **macOS passes (2026-11-15).** OneiOS run 43720242712 (`433cb0c`): `./gradlew test` on `macos-15` (Homebrew off
+  PATH) BUILD SUCCESSFUL, core:root's 270 tests with 2 skipped as before. The same run's Linux job had one failure,
+  `aReadyGuestIsLeftRunningPastTheDeadline` at its wakelock line: a race of the test (the watcher rewrites the
+  node with `echo >` each round, and the test read it once, between the truncation and the write). The test waits
+  up to 5 s for the line instead.
 
 ## CI: the APK without a personal token
 

@@ -873,8 +873,10 @@ class OneiosScriptTest {
         // Twenty of the scripts' seconds and more.
         Thread.sleep(1500)
         assertTrue(w.isAlive)
-        // It keeps the session's wakelock up meanwhile: nothing else holds the phone awake.
-        assertEquals("oneios_session", f.lines("sys/power/wake_lock").firstOrNull())
+        // It keeps the session's wakelock up meanwhile: nothing else holds the phone awake. (Looked at until it is
+        // there: the watcher writes the node again each second with `echo > `, and a read between the truncation and
+        // the write saw an empty file once, OneiOS run 43720242712 on Linux.)
+        await("the session's wakelock", 5_000) { f.lines("sys/power/wake_lock").firstOrNull() == "oneios_session" }
         assertEquals("running", f.state)
         assertEquals(emptyList<String>(), f.setprops)
         assertTrue(f.file("proc/$XNUHOST").isDirectory)
