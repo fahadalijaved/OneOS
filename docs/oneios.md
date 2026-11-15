@@ -439,7 +439,9 @@ runtime with xnuhost is staged, this is where every switch ends.**
    Samsung's software watchdog gets its magic close and a feeder, as in an Android session. With USB debugging on, the USB watcher starts (below): adb stays on the USB gadget across unplug and replug.
 4. xnuhost starts in a **new mount namespace** in which the stage is bound over `/data`; `runtime`, `image`,
    `control`, `bin` and the two session scripts are read-only there. It gets a cgroup of its own
-   (`/sys/fs/cgroup/oneios_session`) and `oom_score_adj` 500, so that it, not One UI's daemons or the way back,
+   (`/sys/fs/cgroup/oneios_session`), the v1 cpuset's root (`/dev/cpuset`: every core; the shell the app started kept the
+   app's cpuset, and `background` allows only the A520s, where xnuhost's cpu-pin cannot place a vCPU on the X4 or an A720;
+   `oneios inner: cpuset ...` in `session/xnuhost.log`) and `oom_score_adj` 500, so that it, not One UI's daemons or the way back,
    is what the kernel ends when memory runs out:
    `/data/runtime/<xnuhost> --session-abi 1 --mode takeover --runtime /data/runtime --image /data/image --data /data/data --session /data/session`.
    If One UI's `/data` is still visible there, or `control` is writable there, it does not start.
