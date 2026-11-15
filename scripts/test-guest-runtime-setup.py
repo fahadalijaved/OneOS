@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 class SetupTest(unittest.TestCase):
  def test_native_broker_is_copied_without_a_host_su_file(self):
   script=(ROOT/'switcher/assets/guest_prepare.sh').read_text()
-  snippet=script.split('echo "=== 6. Setting up /system/xbin/su (KernelSU Bridge) ==="',1)[1].split('echo "=== 7.',1)[0]
+  snippet=script.split('Setting up /system/xbin/su (KernelSU Bridge) ==="',1)[1].split('echo "=== 7.',1)[0]
   with tempfile.TemporaryDirectory() as d:
    stage=Path(d); (stage/'data/oneos_root').mkdir(parents=True);(stage/'data/oneos_root/enabled').touch();(stage/'rootfs/system/xbin').mkdir(parents=True)
    broker=stage/'guest_root';broker.write_bytes(b'guest broker fixture')

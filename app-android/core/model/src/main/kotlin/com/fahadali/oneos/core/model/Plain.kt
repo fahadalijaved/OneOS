@@ -30,6 +30,8 @@ enum class FixAction {
     SEND_REPORT,
     SWITCH,
     SHOW_PROGRESS,
+    /** Turn off the app whose kernel tool stops the switch (0.5.10; it stays installed, OneOS can turn it back on). */
+    TURN_OFF_TOOL_APP,
     /** A newer OneOS from its release (0.4.42, AppUpdater): download it and install it as root. */
     APP_UPDATE,
 }
@@ -383,6 +385,7 @@ object Plain {
         FixAction.SWITCH -> "Switch"
         FixAction.SHOW_PROGRESS -> "Show progress"
         FixAction.APP_UPDATE -> "Update"
+        FixAction.TURN_OFF_TOOL_APP -> "Turn it off"
     }
 
     /** Appended to a refusal at switch time: nothing was done. */
@@ -413,7 +416,36 @@ object Plain {
             "battery" in p -> gate(SwitchGates.ID_BATTERY, SwitchGates.R_BATTERY_LOW)
             "old switcher" in p -> gate(SwitchGates.ID_OLD_SWITCHER, SwitchGates.R_OLD_SWITCHER_INSTALLED)
             "screen lock" in p -> gate(SwitchGates.ID_SCREEN_LOCK, ScreenLockRule.R_SET)
+            // The started switch's own check (oneos_switch.sh; root passes its refusals on since build 125).
+            // Its "mounted under the stage (...): a session is running or never returned" wants a restart,
+            // not Restore; no property is ever freed before the phone restarts; and its thermal refusal
+            // says "restart the phone" too, but only after the module is off.
+            // The S24 kernel-tool guard (oneos_switch.sh, 0.5.04): it names the app; users only saw "Couldn't
+            // switch" (0.5.08 report 0b3ca180, the app still running its tool).
+            "libtimer" in p -> {
+                val app = Regex("""the app ([A-Za-z0-9_.]{3,40}) """).find(problem)?.groupValues?.get(1) ?: "an app"
+                if (app == "an app") PlainMessage(
+                    "Turn off an app first",
+                    "An app runs a kernel tool that crashes S24 phones during a switch. Uninstall it in Settings, Apps, then switch again.",
+                    FixAction.NONE, null,
+                ) else PlainMessage(
+                    "Turn off an app first",
+                    "$app runs a kernel tool that crashes S24 phones in a switch. Turn it off (the phone may restart once), then switch.",
+                    FixAction.TURN_OFF_TOOL_APP, defaultLabel(FixAction.TURN_OFF_TOOL_APP),
+                )
+            }
+            "mounted under the stage" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_RUNNING)
             "never returned" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_UNFINISHED)
+            "property space" in p -> PlainMessage(
+                "Restart your phone first",
+                "One UI ran out of room for settings after several switches. Restart your phone, then switch again.",
+                FixAction.NONE, null,
+            )
+            "thermal" in p -> PlainMessage(
+                "Turn off the thermal module first",
+                "A root module that turns off thermal control is on. Turn it off in your root app, restart your phone, then switch again.",
+                FixAction.NONE, null,
+            )
             "restart the phone" in p || "still running" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_RUNNING)
             "no oneos marker" in p || "prepare first" in p -> gate(SwitchGates.ID_IMAGE, SwitchGates.R_IMAGE_NOTHING)
             "prepare again" in p -> gate(SwitchGates.ID_IMAGE, SwitchGates.R_IMAGE_OTHER_VERSION)

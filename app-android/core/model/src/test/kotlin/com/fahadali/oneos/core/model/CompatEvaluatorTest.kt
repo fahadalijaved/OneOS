@@ -23,12 +23,12 @@ class CompatEvaluatorTest {
         // Infinity-X on the S26 Ultra, S25 Ultra, S25, S24 Ultra and Z Flip5, the CN
         // ColorOS build on the Galaxy A57, and the global build on the Z Flip5.
         assertEquals("Has run on: ColorOS 17 · Find N6 global build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U); OriginOS 7 on the Z Fold (F8U); " +
-            "ColorOS 17 · global build on the Galaxy S26 Ultra; Infinity-X 4.1 on the Galaxy S26 Ultra; " +
-            "ColorOS 17 · global build on the Galaxy S25 Ultra; Infinity-X 4.1 on the Galaxy S25 Ultra; " +
-            "ColorOS 17 · global build on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
+            "ColorOS 17 · global build, November update on the Galaxy S26 Ultra; Infinity-X 4.1 on the Galaxy S26 Ultra; " +
+            "ColorOS 17 · global build, November update on the Galaxy S25 Ultra; Infinity-X 4.1 on the Galaxy S25 Ultra; " +
+            "ColorOS 17 · global build, November update on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
             "Pixel 11 Fold on the Galaxy Z Fold8; " +
-            "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build on the Galaxy A57; " +
-            "ColorOS 17 · global build on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; Infinity-X 4.1 on the Galaxy A17; Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G.",
+            "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build, November update on the Galaxy A57; " +
+            "ColorOS 17 · global build, November update on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; Infinity-X 4.1 on the Galaxy A17; Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G.",
             CompatEvaluator.TESTED_SCOPE,
         )
         assertEquals(Level.OK, r.level("soc-snapdragon"))
@@ -100,7 +100,7 @@ class CompatEvaluatorTest {
         val r = eval(Fixtures.s26Ultra())
         assertEquals(Verdict.COMPATIBLE, r.verdict)
         assertEquals(Level.OK, r.level("tested-model"))
-        assertEquals("Has run on the Galaxy S26 Ultra: ColorOS 17 · global build; Infinity-X 4.1.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Galaxy S26 Ultra: ColorOS 17 · global build, November update; Infinity-X 4.1.", r.find("tested-model")!!.detail)
         assertNull(r.find("untested-model"))
         assertNull(r.find("form-prefix-mismatch"))
         assertEquals(FormFactor.BAR, Fixtures.s26Ultra().form.form)
@@ -165,7 +165,7 @@ class CompatEvaluatorTest {
         assertEquals(Verdict.WARNING, r.verdict)
         assertEquals(0, r.count(Level.BLOCK))
         assertEquals(Level.OK, r.level("tested-model"))
-        assertEquals("Has run on the Galaxy S25: ColorOS 17 · global build; Infinity-X 4.1.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Galaxy S25: ColorOS 17 · global build, November update; Infinity-X 4.1.", r.find("tested-model")!!.detail)
         assertNull(r.find("untested-model"))
         assertNull(r.find(CompatEvaluator.ID_NO_PROFILE))
         assertNull(r.find("profile-form-mismatch"))
@@ -227,7 +227,7 @@ class CompatEvaluatorTest {
         assertEquals(Level.WARN, eval(Fixtures.facts(storage = StorageInfo(need - 1, 512_000_000_000))).level("free-space-short"))
 
         assertEquals(10_276_003_840L + 11L * SpaceRule.GIB, SpaceRule.required())
-        assertEquals(14_669_168_640L + 634_332_311L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
+        assertEquals(14_669_168_640L + 634_332_311L + 116_537_002L + 11L * SpaceRule.GIB, SpaceRule.toStage(Images.FIND_X9U_IN, PackageSets.X9U_IN_SULTRA))
     }
 
     /** 0.4.85: the device report goes by the systems of this phone that fit its Android version. */
@@ -248,6 +248,13 @@ class CompatEvaluatorTest {
         assertTrue(a15.find(CompatEvaluator.ID_ANDROID_MATCHES)!!.detail.startsWith(oxygen.label))
         val need = SpaceRule.toStage(oxygen, PackageSets.byId(PackageSets.ID_OXYGEN16))
         assertEquals(Level.OK, eval(bar("SM-A155F", "a15", mediatek, free = need)).level("free-space"))
+        // 0.4.91: the Galaxy S23s still on One UI 8.5 (five Android 17 systems and OxygenOS 16): the same.
+        for ((model, device) in listOf("SM-S911B" to "dm1q", "SM-S916U" to "dm2q", "SM-S918B" to "dm3q")) {
+            val s23 = eval(bar(model, device, SocProps(manufacturer = "QTI", model = "SM8550")))
+            assertNull(model, s23.find("oneui-unseen"))
+            assertNull(model, s23.find(CompatEvaluator.ID_ANDROID_DIFFERS))
+            assertTrue(model, s23.find(CompatEvaluator.ID_ANDROID_MATCHES)!!.detail.startsWith(oxygen.label))
+        }
         // Low on space with a system already set up (the Galaxy A24 of the reports): a warning.
         val a24 = eval(bar("SM-A245F", "a24", mediatek, free = 14_400_000_000))
         assertEquals(Level.WARN, a24.level("free-space-short"))

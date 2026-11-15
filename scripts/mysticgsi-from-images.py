@@ -6,10 +6,12 @@ packing extracted images back into a tar for it doubles the disk they take (vivo
 about 9 GB). This runs the same build as `cli.py build <name> <archive>` with its defaults,
 except that the extract step hard-links the images given instead (same filesystem, no copy).
 
-Usage (from anywhere): mysticgsi/.venv/bin/python scripts/mysticgsi-from-images.py [--drop] [--type=TYPE] <name> <images dir> [partition,...]
+Usage (from anywhere): mysticgsi/.venv/bin/python scripts/mysticgsi-from-images.py [--drop] [--no-debloat] [--type=TYPE] <name> <images dir> [partition,...]
 --type is cli.py's --type (default auto). MysticGSI does not detect OriginOS by itself: vivo
 images need --type=originos (patches/<sdk>/originos: the image's own init, no device overlays).
 Partitions default to system, system_ext, product, odm (vendor is never merged into a GSI).
+--no-debloat keeps every app (cli.py --no-debloat): the OneOS ColorOS images are built so
+(MysticGSI's ColorOS list removes UMS, Aod, Metis and more).
 --drop deletes each partition image (both links) once it is unpacked: the build then needs room
 for the trees and the image only (nothing later reads the images).
 The image ends up in mysticgsi/out/<name>/, as with cli.py.
@@ -24,8 +26,9 @@ MYST = os.path.join(ROOT, "mysticgsi")
 def main():
     args = sys.argv[1:]
     drop = "--drop" in args
+    debloat = "--no-debloat" not in args
     rom_type = next((a.split("=", 1)[1] for a in args if a.startswith("--type=")), "auto")
-    args = [a for a in args if a != "--drop" and not a.startswith("--type=")]
+    args = [a for a in args if a not in ("--drop", "--no-debloat") and not a.startswith("--type=")]
     if len(args) not in (2, 3):
         sys.exit(__doc__)
     name, images = args[0], os.path.abspath(args[1])
@@ -44,7 +47,7 @@ def main():
     wt.rom_type = make.safe_name(rtype, "rom_type")
     wt.override_rom_type = make.safe_name(rcustom or "default", "rom_custom")
     wt.logger = cli.ConsoleLogger()
-    wt.debloat = True
+    wt.debloat = debloat
     wt.no_merge = False
     wt.erofs_format = None
     wt.avb_key = None

@@ -118,6 +118,10 @@ class MainActivity : AppCompatActivity() {
         val list = findViewById<android.widget.LinearLayout>(R.id.guest_runtime_cards)
         list.removeAllViews()
         val cards = com.fahadali.oneos.shared.NativeCards
+        val apps = cards.section(list, getString(R.string.bring_title), getColor(R.color.preboot_card))
+        cards.row(apps, getString(R.string.bring_entry_title), getString(R.string.bring_entry_summary)) {
+            startActivity(Intent(this, BringAppsActivity::class.java))
+        }
         val root = cards.section(list, "Root", getColor(R.color.preboot_card))
         cards.row(root, "Root status", if (state.root) "Active · OneOS guest runtime" else state.error ?: "Inactive")
         cards.row(root, "Root permissions", "Manage access for apps in this guest") {

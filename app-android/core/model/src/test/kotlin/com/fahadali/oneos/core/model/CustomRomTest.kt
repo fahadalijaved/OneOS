@@ -47,6 +47,36 @@ class CustomRomTest {
 
     /** 0.4.84: a US phone on the other US firmware (carrier U, unlocked U1) is stock, not a port. */
     @Test
+    fun canadianModelIsTheUsPhone() {
+        val same = listOf(
+            // Public issue 128 (2026-11-10), stock S24 Ultra from Canada: the US bootloader and vendor under W firmware.
+            Triple("SM-S928W", "S928USQU6EZIF", "SM-S928U"),
+            // Older Canadian phones are W throughout (findings: S901W, S908W, S911W).
+            Triple("SM-S908W", "S908WVLU8EXK1", "SM-S908W"),
+            Triple("SM-S911W", "S911WVLS6DYG1", "SM-S911W"),
+            // A Canadian phone on US unlocked firmware, and a US phone on Canadian firmware.
+            Triple("SM-S947W", "S947U1UEU5BZJA", "SM-S947U1"),
+            Triple("SM-S928U", "S928WVLU6EZIF", "SM-S928W"),
+            Triple("SM-S928U1", "S928WVLU6EZIF", "SM-S928W"),
+            Triple("SM-F966W", "F966USQU1AYG8", "SM-F966U"),
+        )
+        for ((model, bl, vendor) in same) {
+            assertNull(model, check(model, bl, vendor, "90000"))
+            assertNull(model, check(model, bl, "", "90000"))
+            assertNull(model, check(model, "unknown", vendor, "90000"))
+            // Without One UI it is still a custom ROM on that phone.
+            assertEquals(model, CustomRomRule.R_NOT_ONE_UI, check(model, bl, vendor, "")?.reason)
+        }
+        assertEquals("S928U", CustomRomRule.family("S928W"))
+        assertEquals("F966U", CustomRomRule.family("F966W"))
+        // Not Canadian codes: a W at the front (SM-W2025), other letters at the end.
+        assertEquals("W2025", CustomRomRule.family("W2025"))
+        assertEquals("S928B", CustomRomRule.family("S928B"))
+        // A W bootloader belongs to the US family only: no other region's model takes it.
+        assertEquals(CustomRomRule.R_PORT, check("SM-S928N", "S928WVLU6EZIF", "SM-S928W", "90000")?.reason)
+    }
+
+    @Test
     fun usCarrierAndUnlockedModelsAreOnePhone() {
         val same = listOf(
             // The S26+ of 2026-11-10: U1 phone, U firmware.
@@ -66,14 +96,16 @@ class CustomRomTest {
         assertEquals("S947U", CustomRomRule.family("S947U1"))
         assertEquals("S947U", CustomRomRule.family("S947U"))
         assertEquals("A346E", CustomRomRule.family("A346E"))
-        // Only U and U1 are one phone: another phone's or another region's firmware stays refused.
+        // Only the US and Canadian models are one phone: another phone's or another region's firmware stays refused.
         for ((model, bl, vendor) in listOf(
             Triple("SM-S947U1", "S942USQU5BZJA", "SM-S942U"),
             Triple("SM-S947U1", "S948USQU5BZJA", "SM-S948U"),
             Triple("SM-S947B", "S947USQU5BZJA", "SM-S947U"),
             Triple("SM-S947U1", "S947BXXU5BZJA", "SM-S947B"),
-            Triple("SM-S947W", "S947U1UEU5BZJA", "SM-S947U1"),
             Triple("SM-S947U1", "S947NKSU5BZJA", "SM-S947N"),
+            Triple("SM-S947W", "S947BXXU5BZJA", "SM-S947B"),
+            Triple("SM-S947W", "S948USQU5BZJA", "SM-S948U"),
+            Triple("SM-S947B", "S947WVLU5BZJA", "SM-S947W"),
         )) {
             assertEquals(model, CustomRomRule.R_PORT, check(model, bl, vendor, "90000")?.reason)
             assertEquals(model, CustomRomRule.R_PORT, check(model, bl, "", "90000")?.reason)

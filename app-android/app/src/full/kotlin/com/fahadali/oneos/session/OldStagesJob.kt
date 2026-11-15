@@ -41,6 +41,9 @@ object OldStagesJob : BackgroundJob<OldStagesJob.State>(State(), "oneos-old-stag
         val batch: Pair<Int, Int>? = null,
         /** What the last [deleteAll] deleted; null after any other run. */
         val deletedNames: List<String>? = null,
+        /** What root is doing now in [delete], in plain words; `elapsedRealtime` it started at. */
+        val step: String? = null,
+        val startedAt: Long = 0,
     ) {
         val busy: Boolean get() = phase == Phase.LISTING || phase == Phase.DELETING || phase == Phase.RESTORING
     }
@@ -65,11 +68,14 @@ object OldStagesJob : BackgroundJob<OldStagesJob.State>(State(), "oneos-old-stag
     fun delete(ctx: Context, stage: OldStage) {
         if (state.busy || othersBusy()) return
         val app = ctx.applicationContext
-        update(state.copy(phase = Phase.DELETING, deleting = stage.name, message = null, freedKib = null, deleteFailed = false, restored = false, restoreFailed = false, deletedNames = null))
+        update(state.copy(phase = Phase.DELETING, deleting = stage.name, message = null, freedKib = null, deleteFailed = false, restored = false, restoreFailed = false, deletedNames = null,
+            step = "Checking it is safe to delete…", startedAt = android.os.SystemClock.elapsedRealtime()))
         executor.execute {
             val r = runCatching {
                 su(app)
-                RootVerbs.run(app, RootScript.Verb.PURGE, listOf(stage.name), silenceMs = 10 * 60_000L)
+                RootVerbs.run(app, RootScript.Verb.PURGE, listOf(stage.name), silenceMs = 10 * 60_000L) { raw ->
+                    RemoveJob.plainStep(raw)?.let { update(state.copy(step = it)) }
+                }
             }
             val reply = r.getOrNull()
             val freed = if (reply?.ok == true) OldStages.freedKib(reply.reply.results, stage.name) ?: stage.kib else null

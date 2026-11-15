@@ -62,7 +62,7 @@ class SettingsPreferenceFragment : InsetPreferenceFragment() {
             setOnPreferenceClickListener {
                 if (!RemoveJob.canStart()) android.widget.Toast.makeText(ctx, R.string.remove_busy, android.widget.Toast.LENGTH_LONG).show()
                 else AlertDialog.Builder(ctx).setTitle(R.string.remove_confirm_title).setMessage(R.string.remove_confirm_message)
-                    .setPositiveButton(R.string.remove_confirm_run) { _, _ -> RemoveJob.start(ctx) }
+                    .setPositiveButton(R.string.remove_confirm_run) { _, _ -> activity?.let { SystemManage.removeAll(it) } }
                     .setNegativeButton(android.R.string.cancel, null).show()
                 true
             }
@@ -77,6 +77,7 @@ class SettingsPreferenceFragment : InsetPreferenceFragment() {
         val sessions = category(R.string.advanced_card_sessions)
         row(sessions, R.string.last_title, target = LastSessionActivity::class.java)
         toggle(sessions, R.string.advanced_heat_cap_title, R.string.advanced_heat_cap_summary, SessionPrefs.heatCap(ctx)) { SessionPrefs.setHeatCap(ctx, it) }
+        toggle(sessions, R.string.advanced_full_logs_title, R.string.advanced_full_logs_summary, SessionPrefs.fullLogs(ctx)) { SessionPrefs.setFullLogs(ctx, it) }
         val experimental = category(R.string.settings_experimental)
         toggle(experimental, R.string.advanced_sec_ims_title, R.string.advanced_sec_ims_summary, SessionPrefs.secIms(ctx)) { SessionPrefs.setSecIms(ctx, it) }
         toggle(experimental, R.string.advanced_edm_stub_title, R.string.advanced_edm_stub_summary, SessionPrefs.edmStub(ctx)) { SessionPrefs.setEdmStub(ctx, it) }

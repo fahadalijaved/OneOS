@@ -1,7 +1,7 @@
 #!/bin/sh
 # The camera helpers written in Java (src/), compiled to the smali the patchers copy (smali/):
-# fix_recorder_progress.py (OneOSRecordProgress), fix_secmedia_insert.py (OneOSMedia) and
-# fix_gallery_fallback.py (OneOSGallery).
+# fix_recorder_progress.py (OneOSRecordProgress), fix_secmedia_insert.py (OneOSMedia),
+# fix_gallery_fallback.py (OneOSGallery) and fix_a_series_resolution_lookup.py (OneOSResolution).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd); R=$(cd "$HERE/../../.." && pwd)
 SDK=${ANDROID_HOME:-/opt/android-sdk}; JAR=$(ls -d "$SDK"/platforms/android-* | sort -V | tail -1)/android.jar

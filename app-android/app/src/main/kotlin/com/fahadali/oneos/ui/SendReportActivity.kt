@@ -76,7 +76,10 @@ class SendReportActivity : ToolbarActivity() {
         /** The report code a bundle was sent with (Last session shows it). */
         fun sentCode(ctx: Context, zip: File): String? = prefs(ctx).getString(zip.name.removeSuffix(".zip"), null)
 
-        private fun prefs(ctx: Context) = ctx.getSharedPreferences("reports_sent", Context.MODE_PRIVATE)
+        internal fun prefs(ctx: Context) = ctx.getSharedPreferences("reports_sent", Context.MODE_PRIVATE)
+
+        /** The reporter's last valid Telegram username (in reports_sent; the sent codes there are keyed by zip name). */
+        internal const val CONTACT_KEY = "contact_telegram"
 
         internal fun remember(ctx: Context, zip: File, code: String) {
             prefs(ctx).edit().putString(zip.name.removeSuffix(".zip"), code).apply()
@@ -102,6 +105,8 @@ class SendReportFragment : PreferenceFragmentCompat() {
         val sessionAppCode: Int? = null,
         /** The day the session's bundle was written, from its generatedAt. */
         val sessionDate: String? = null,
+        /** The session ran with Full session logs off (ONEOS_FULL_LOGS=0 in the bundle's stage/session.env). */
+        val fullLogsOff: Boolean = false,
     )
 
     private lateinit var facts: Facts
@@ -173,6 +178,7 @@ class SendReportFragment : PreferenceFragmentCompat() {
                 sessionAppVersion = json.optJSONObject("app")?.optString("version")?.takeIf { it.isNotEmpty() },
                 sessionAppCode = json.optJSONObject("app")?.optInt("versionCode")?.takeIf { it > 0 },
                 sessionDate = json.optString("generatedAt").takeIf { it.length >= 10 }?.take(10),
+                fullLogsOff = runCatching { File(ProbeSession.folderOf(zip), "stage/session.env").readLines().contains("ONEOS_FULL_LOGS=0") }.getOrDefault(false),
             )
         } else {
             val device = json?.optJSONObject("device")
@@ -244,6 +250,10 @@ class SendReportFragment : PreferenceFragmentCompat() {
             about.row(getString(R.string.send_session_old_title), getString(R.string.send_session_old_summary, ran, com.fahadali.oneos.BuildConfig.VERSION_NAME))
         }
 
+        if (facts.session && facts.fullLogsOff) {
+            about.row(getString(R.string.send_full_logs_off_title), getString(R.string.send_full_logs_off_summary))
+        }
+
         if (facts.session) {
             val how = category(getString(R.string.send_cat_how))
             if (fromGuest) how.row(getString(R.string.send_from_guest), getString(R.string.send_from_guest_summary))
@@ -269,9 +279,15 @@ class SendReportFragment : PreferenceFragmentCompat() {
         more.row(getString(R.string.send_note_title), checklist.note.ifEmpty { getString(R.string.send_note_hint) }, enabled = !sending) {
             text(R.string.send_note_title, checklist.note, Reports.NOTE_MAX, multiLine = true) { checklist = checklist.copy(note = it) }
         }
-        more.row(getString(R.string.send_contact_title), checklist.contact.ifEmpty { getString(R.string.send_contact_hint) }, enabled = !sending) {
-            text(R.string.send_contact_title, checklist.contact, Reports.CONTACT_MAX, multiLine = false) { checklist = checklist.copy(contact = it) }
+        // Required since 0.5.10 (owner: "make giving contact in the report compulsory, with proper telegram
+        // username"); the last good one is filled in again for the next report.
+        if (checklist.contact.isEmpty()) savedContact(ctx)?.let { checklist = checklist.copy(contact = it) }
+        val contactSummary = when {
+            checklist.contact.isEmpty() -> getString(R.string.send_contact_hint)
+            Reports.telegramUsername(checklist.contact) == null -> getString(R.string.send_contact_invalid, checklist.contact)
+            else -> checklist.contact
         }
+        more.row(getString(R.string.send_contact_title) + " *", contactSummary, enabled = !sending) { askContact() }
 
         // What is sent.
         val what = category(getString(R.string.send_cat_what))
@@ -365,9 +381,24 @@ class SendReportFragment : PreferenceFragmentCompat() {
             .show()
     }
 
+    private fun askContact() =
+        text(R.string.send_contact_title, checklist.contact, Reports.CONTACT_MAX, multiLine = false) { raw ->
+            val user = Reports.telegramUsername(raw)
+            checklist = checklist.copy(contact = user ?: raw)
+            if (user != null) SendReportActivity.prefs(requireContext()).edit().putString(SendReportActivity.CONTACT_KEY, user).apply()
+            else if (raw.isNotBlank()) Toast.makeText(requireContext(), getString(R.string.send_contact_invalid, raw), Toast.LENGTH_LONG).show()
+        }
+
+    private fun savedContact(ctx: Context): String? = SendReportActivity.prefs(ctx).getString(SendReportActivity.CONTACT_KEY, null)?.let(Reports::telegramUsername)
+
     private fun send(zip: File) {
         if (facts.session && checklist.start == null) {
             Toast.makeText(requireContext(), R.string.send_need_start, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (Reports.telegramUsername(checklist.contact) == null) {
+            Toast.makeText(requireContext(), R.string.send_contact_needed, Toast.LENGTH_LONG).show()
+            askContact()
             return
         }
         val app = requireContext().applicationContext

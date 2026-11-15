@@ -110,6 +110,7 @@ drop_stale_memory_lists() {
 
 case "$1" in
 add)
+    echo "guest_props add: start $(date +%T)"
     ROOTFS="$2"
     HOST="$STAGE/host_props.txt"
     NEW="$STAGE/guest_props.new"
@@ -134,6 +135,7 @@ add)
             if (substr($0, i + 4) == "]" && (k !~ /^persist\./ || (k in b))) next
             print k
         }' > "$HOST"
+    echo "guest_props add: host set $(date +%T)"
     # The image's system_ext and product: inside system in MysticGSI's merged
     # images; at the image root in HyperOS's, where system/system_ext and
     # system/product are absolute links (-> /system_ext, /product) that root
@@ -492,6 +494,63 @@ add)
         fi
         [ -z "$out" ] || echo "guest_props: ColorOS's last-boot records from an earlier session blanked for the session:$out"
     fi
+    # LineageOS (0.5.06): About phone shows OneOS's build, not the OnePlus 15
+    # nightly it came from (owner: "20261114-OneOS"). Only the version strings;
+    # the build fingerprint and device stay the image's.
+    if grep -q '^ro\.lineage\.version=' "$NEW"; then
+        for kv in ro.lineage.version=24.0-20261114-OneOS ro.lineage.display.version=24-20261114-OneOS ro.lineage.releasetype=OneOS; do
+            sed -i "/^${kv%%=*}=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: LineageOS version shown as 24.0-20261114-OneOS"
+    fi
+    # The S23 family (SM8550, HIDL audio HAL), any system (0.5.00):
+    # guest_prepare.sh gave the guest the vendor's Bluetooth audio module, as
+    # One UI plays A2DP (marker guest_bt_sw). That module streams through a
+    # software A2DP session, so offload goes off for the session; with it on,
+    # the guest opened the hardware-offload session the HAL's PAL never watches
+    # (S23/S23+ on 0.4.99, "Rx device start failed with status -38"; ColorOS
+    # and Pixel alike).
+    # Memory only. ONEOS_GUEST_BT_OFFLOAD=1 leaves it as One UI has it.
+    if [ "${ONEOS_GUEST_BT_OFFLOAD:-0}" = 0 ] && [ -f "$STAGE/guest_bt_sw" ]; then
+        k=persist.bluetooth.a2dp_offload.disabled
+        if grep -qxF "$k" "$HOST"; then
+            hv=$(getprop "$k")
+            if [ "$hv" != true ] && "$RP" -n "$k" true 2>/dev/null; then
+                echo "$k=$hv" >> "$OVR"
+                echo "guest_props: $k=$hv overridden to true for the session (A2DP through the vendor's Bluetooth module, as One UI)"
+            fi
+        else
+            sed -i "/^persist\.bluetooth\.a2dp_offload\.disabled=/d" "$NEW"
+            echo "$k=true" >> "$NEW"
+            echo "guest_props: $k=true for the session (A2DP through the vendor's Bluetooth module, as One UI)"
+        fi
+    fi
+    # Exynos (0.5.10): One UI describes its A2DP offload only in Samsung's own
+    # properties (persist.bluetooth.samsung.a2dp_offload.cap=sbc-aptx-ssc-hifi on
+    # the Galaxy S26 SM-S942B) and leaves AOSP's ro.bluetooth.a2dp_offload.supported
+    # empty. A guest's Bluetooth stack read that as "no offload" and opened a
+    # software session, which Samsung's Exynos audio HAL never streams to (its A2DP
+    # is the hardware-offload proxy it creates at start): the earbuds connected and
+    # played nothing (S26 ColorOS report cdd92328, "BTAudioSessionAidl ... has NO
+    # port state observer"). The guest now gets AOSP's offload properties with the
+    # codecs both sides know, so it opens the hardware-offload session One UI uses.
+    # Guest property file only; One UI's own are not touched. Qualcomm phones have
+    # their own path above. ONEOS_GUEST_BT_OFFLOAD=1 leaves it out.
+    SAMCAP=$(getprop persist.bluetooth.samsung.a2dp_offload.cap)
+    if [ "${ONEOS_GUEST_BT_OFFLOAD:-0}" = 0 ] && [ "$(getprop ro.soc.manufacturer)" = Samsung ] &&
+       [ -n "$SAMCAP" ] && [ -z "$(getprop ro.bluetooth.a2dp_offload.supported)" ] && [ ! -f "$STAGE/guest_bt_sw" ]; then
+        cap=""
+        for c in $(echo "$SAMCAP" | tr '-' ' '); do
+            case "$c" in sbc|aac|aptx|aptxhd|ldac) cap="${cap:+$cap-}$c" ;; esac
+        done
+        cap=${cap:-sbc}
+        for kv in ro.bluetooth.a2dp_offload.supported=true persist.bluetooth.a2dp_offload.disabled=false persist.bluetooth.a2dp_offload.cap=$cap; do
+            sed -i "/^$(printf '%s' "${kv%%=*}" | sed 's/[.]/\\./g')=/d" "$NEW"
+            echo "$kv" >> "$NEW"
+        done
+        echo "guest_props: Exynos A2DP offload for the guest (One UI's Samsung cap '$SAMCAP' -> persist.bluetooth.a2dp_offload.cap=$cap, supported=true, disabled=false)"
+    fi
     if [ "${ONEOS_GUEST_BT_OFFLOAD:-0}" = 0 ] && [ "$GUEST_OPLUS" = 0 ]; then
         for k in persist.bluetooth.leaudio_offload.disabled; do
             if grep -qxF "$k" "$HOST"; then
@@ -586,6 +645,59 @@ add)
             fi
         done
         echo "guest_props: no $BTA on this phone: LE Audio off for the session:${out:- nothing was on}"
+    fi
+    # ColorOS's Bluetooth on a Helio G99 phone (Galaxy A16 4G, reports c6e0068a
+    # of build 100 and 049d5675 of build 112: a headset connects, drops and
+    # reconnects every few seconds; com.android.bluetooth died 3 and 5 times
+    # in the session, every time in bluetooth::bqr::OplusParseBqrLinkQualityEvt).
+    # The image's Bluetooth stack is OPPO's build for Qualcomm chips
+    # (system_unify/soc/qcom). When an audio profile connects, ColorOS turns
+    # the controller's quality monitor on (" enable bqr common monitor"), the
+    # MediaTek controller answers with link quality events of the plain 48
+    # bytes (quality report version 0x100), and OPPO's parser reads the longer
+    # Qualcomm layout past their end: "bqr data length is invalid" 8,544 times
+    # in the second session, then GWP-ASan's "0 bytes right of a 48-byte
+    # allocation" or a plain SEGV, the process restarts, the headset
+    # reconnects, and so on. The stack has its own switch for Android's
+    # original behaviour, persist.sys.oplus.bt.use_origin
+    # (is_oplus_bt_use_origin in libbluetooth_jni.so, OplusUtils.USE_ORIGIN in
+    # the Bluetooth app; both only read it). With it CategorizeBqrEvent takes
+    # Android's parser, which reads the 48 bytes and tests the length before
+    # every longer layout, and ConfigureBqr takes Android's path (its fatal
+    # checks do not fire: the mask stays below 0x80080000, the action below 3).
+    # The switch is broad: the library asks it at 425 places (codecs, AVRCP,
+    # HCI, L2CAP), and nobody has run a session with it. So it is on only
+    # where the crash is proven, ro.soc.model MT6789 (A16 4G, A15 4G, A07);
+    # the A34 (MT6877) reports ColorOS's Bluetooth working without it, and the
+    # Exynos phones' 56-byte events crash nothing. In memory for the session
+    # (remove deletes it). ONEOS_GUEST_BT_ORIGIN=1 sets it on any phone, =0 on none.
+    BTO=persist.sys.oplus.bt.use_origin
+    if [ "$GUEST_OPLUS" = 1 ]; then
+        soc=$(getprop ro.soc.model)
+        case "${ONEOS_GUEST_BT_ORIGIN:-auto}:$soc" in
+            1:*) why="ONEOS_GUEST_BT_ORIGIN=1" ;;
+            # 0.5.07: no longer by default. With it, OPPO's libbluetooth_jni.so registers only
+            # Android's original natives, but the Bluetooth app still calls OPPO's own at
+            # start (OplusBtNativeChannelUtils.classInitNative): UnsatisfiedLinkError, and
+            # com.android.bluetooth died at every start, so Bluetooth never turned on at all
+            # (A16 4G dbd78088 "Bluetooth doesn't even turn on", A15 d1d7cd5a, A16 0b151c94;
+            # 14 and 22 crashes). The reconnect loop it was for is the lesser harm.
+            # ONEOS_GUEST_BT_ORIGIN=1 still sets it.
+            *) why="" ;;
+        esac
+        if [ -n "$why" ]; then
+            if grep -qxF "$BTO" "$HOST"; then
+                hv=$(getprop "$BTO")
+                if [ "$hv" != true ] && "$RP" -n "$BTO" true 2>/dev/null; then
+                    echo "$BTO=$hv" >> "$OVR"
+                    echo "guest_props: $BTO=$hv overridden to true for the session ($why)"
+                fi
+            else
+                sed -i "/^persist\.sys\.oplus\.bt\.use_origin=/d" "$NEW"
+                echo "$BTO=true" >> "$NEW"
+                echo "guest_props: $BTO=true for the session ($why)"
+            fi
+        fi
     fi
     # Power key stall (run 32: the power menu ~15 s late or missing after a
     # long press, Power + Volume Down screenshots late, folds handled late).
@@ -1096,6 +1208,7 @@ add)
         { echo "screen=$inner"; echo "battery=$mah"; } > "$STAGE/nt_about.txt"
         echo "guest_props: Nothing About phone: ${gb:-?} GB, ${cpu:-?}, panels ${inner:-?}\" ${cover:+and $cover\" }, ${mah:-?} mAh"
     fi
+    echo "guest_props add: batch $(date +%T)"
     if "$RP" -n -f "$NEW" 2>/dev/null; then
         cut -d= -f1 "$NEW" > "$ADDED"
     else
@@ -1105,6 +1218,7 @@ add)
             "$RP" -n "${line%%=*}" "${line#*=}" 2>/dev/null && echo "${line%%=*}" >> "$ADDED"
         done < "$NEW"
     fi
+    echo "guest_props add: batch done $(date +%T)"
     echo "guest_props: added $(wc -l < "$ADDED") props from the guest's build.prop files"
     rm -f "$HOST" "$NEW"
     # ColorOS's default sounds. One UI defines ro.config.ringtone,
@@ -1444,53 +1558,65 @@ restore-persist)
     deleted=0; restored=0; failed=0
     # After a hard reset (recover) One UI's init has since recorded that boot
     # in persist.sys.boot.reason*: its own record, kept as it is.
-    keep="^$"; [ "$2" = "--recover" ] && keep="^persist\.sys\.boot\.reason"
+    # (A plain name prefix: awk reads backslashes in a -v value its own way.)
+    keep=; [ "$2" = "--recover" ] && keep="persist.sys.boot.reason"
     # --recover may run long after the hard reset: One UI could have added or
     # changed its own persist props since (a new SIM's persist.radio.*, a
     # timezone or locale change the user made). The snapshot cannot tell those
     # from the guest's, so on --recover touch only props that are clearly the
     # guest's; the normal return (no flag, same boot) still restores everything.
-    guest_prop() { # 0 when $1 is clearly a guest-owned persist prop
-        case "$1" in
-            persist.sys.locale) return 0 ;;
-            persist.oplus.*|persist.sys.oplus.*) return 0 ;;
-            # vivo OriginOS: its audio policy alone sets about 370 of these (seventh run).
-            persist.vivo.*|persist.sys.vivo.*|persist.vendor.vivo.*|persist.sys.audio.vapc.*) return 0 ;;
-            # oneos_switch.sh's softdog off switch on the Exynos phones (0.4.22).
-            persist.vendor.softdog) return 0 ;;
-        esac
-        return 1
-    }
-    # Added by the guest: delete from memory and from persistent storage.
-    # Not the ones remove blanked (still empty and not in the store).
-    # With the session's own store (store-on) they were never in One UI's: blanked
-    # in memory instead, so the next session writes into the same slots (listed
-    # in guest_props.blanked, which the next snapshot leaves out).
+    blankf="$BLANKED"; [ -f "$blankf" ] || blankf=/dev/null
+    plan="$STAGE/persist_props.plan"
     true > "$BLANKED.persist"
-    for key in $(cut -d= -f1 "$NOW"); do
-        grep -q "^$key=" "$SNAP" && continue
-        grep -qxF "$key=" "$NOW" && [ -f "$BLANKED" ] && grep -qxF "$key" "$BLANKED" && continue
-        echo "$key" | grep -q "$keep" && continue
-        [ "$2" = "--recover" ] && ! guest_prop "$key" && continue
-        if [ "$STORE_SESSION" = 1 ]; then
-            if "$RP" -n "$key" "" 2>/dev/null; then echo "$key" >> "$BLANKED.persist"; blanked_p=$((${blanked_p:-0} + 1)); else failed=$((failed + 1)); fi
-        elif "$RP" -p --delete "$key" 2>/dev/null; then deleted=$((deleted + 1)); else failed=$((failed + 1)); fi
-    done
+    blanked_p=0
+    awk -v nowf="$NOW" -v snapf="$SNAP" -v blankf="$blankf" -v keep="$keep" -v mode="$2" -v store="$STORE_SESSION" '
+        function guest(k) {
+            return k == "persist.sys.locale" || index(k, "persist.oplus.") == 1 ||
+                   index(k, "persist.sys.oplus.") == 1 ||
+                   index(k, "persist.vivo.") == 1 || index(k, "persist.sys.vivo.") == 1 ||
+                   index(k, "persist.vendor.vivo.") == 1 ||
+                   index(k, "persist.sys.audio.vapc.") == 1 ||
+                   k == "persist.vendor.softdog"
+        }
+        function kept(k) { return keep != "" && index(k, keep) == 1 }
+        BEGIN {
+            while ((getline l < nowf) > 0) {
+                eq = index(l, "="); k = substr(l, 1, eq - 1)
+                now[k] = substr(l, eq + 1); nowline[l] = 1
+            }
+            while ((getline k < blankf) > 0) blank[k] = 1
+            while ((getline l < snapf) > 0) {
+                eq = index(l, "="); k = substr(l, 1, eq - 1)
+                snap[k] = 1; snapline[l] = 1
+            }
+            for (k in now) {
+                if ((k in snap) || (now[k] == "" && (k in blank)) || kept(k)) continue
+                if (mode == "--recover" && !guest(k)) continue
+                print (store == 1 ? "B " : "D ") k
+            }
+            if (mode == "--added-only") exit
+            for (l in snapline) {
+                if (l in nowline) continue
+                k = substr(l, 1, index(l, "=") - 1)
+                if (kept(k)) continue
+                if (mode == "--recover" && !guest(k)) continue
+                print "R " l
+            }
+        }' > "$plan"
+    # The whole line as it is: a restored value keeps its own leading and trailing spaces.
+    while IFS= read -r line; do
+        op=${line%% *}; val=${line#* }
+        case "$op" in
+            B) if "$RP" -n "$val" "" 2>/dev/null; then echo "$val" >> "$BLANKED.persist"; blanked_p=$((blanked_p + 1)); else failed=$((failed + 1)); fi ;;
+            D) if "$RP" -p --delete "$val" 2>/dev/null; then deleted=$((deleted + 1)); else failed=$((failed + 1)); fi ;;
+            R) if "$RP" -p "${val%%=*}" "${val#*=}" 2>/dev/null; then restored=$((restored + 1)); else failed=$((failed + 1)); fi ;;
+        esac
+    done < "$plan"
     if [ -s "$BLANKED.persist" ]; then
         { [ -f "$BLANKED" ] && cat "$BLANKED"; cat "$BLANKED.persist"; } | sort -u > "$BLANKED.tmp" &&
             mv -f "$BLANKED.tmp" "$BLANKED" && echo "$BOOT_ID" > "$BLANKED.boot"
     fi
-    rm -f "$BLANKED.persist"
-    # Changed by the guest: put the host's value back, in storage too.
-    [ "$2" = "--added-only" ] && true > "$NOW.skip"
-    while [ ! -f "$NOW.skip" ] && IFS= read -r line; do
-        key=${line%%=*}
-        grep -qxF "$line" "$NOW" && continue
-        echo "$key" | grep -q "$keep" && continue
-        [ "$2" = "--recover" ] && ! guest_prop "$key" && continue
-        if "$RP" -p "$key" "${line#*=}" 2>/dev/null; then restored=$((restored + 1)); else failed=$((failed + 1)); fi
-    done < "$SNAP"
-    rm -f "$NOW" "$NOW.skip"
+    rm -f "$BLANKED.persist" "$NOW" "$plan"
     # Fail closed: if any resetprop write failed, keep persist_session.active so
     # the app can show the failure and recover can retry, and exit non-zero.
     # Deleting the marker on a silent failure (the old behaviour) left One UI on
