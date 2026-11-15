@@ -26,6 +26,12 @@ of the boot screen's three files only `boot_status.sh`, by LineageOS 24's name i
 shell traps are cleared from upstream's new lines (a redirected `:` is `true`, a `/proc/PID/cmdline` is read with
 `cat` before `tr`). Not yet run on the phone.
 
+**The iOS screens, redesigned** (2026-11-15, on 0.5.14): the iOS flow now has the Android systems' screens and
+step order (pick, set up, the system's page, the Switch confirm with the ways back, switching, the last session),
+every step saying what to do now, what is done (versions, sizes, checks), what is next, and a refusal in plain
+words with its fix ("In the app"). Screens only: no root verb, argument, check or script changed. Not compiled
+or opened on a device yet.
+
 ## Where its pieces come from
 
 | Piece | Where from | In git or a release? |
@@ -51,22 +57,126 @@ Android guests' tables, pins or tests know it.
 
 ## In the app
 
-Choose a system → **iOS 27 (OneiOS)** → Open (`OneiosActivity`, `OneiosJob`):
+The iOS flow has the Android systems' screens, in their order: **pick** (Choose a system), **download or
+import** and **prepare** (Set up iOS 27, as Setting up), **switch** (the system's page, the Switch confirm, the
+switching screen), **return** (Last session on the system's page, Session logs). They reuse the Android flow's
+layouts and widgets, not copies of them: `activity_setup_progress`, `setup_progress_screen`, `setup_artwork` and
+`setup_actions` (Setting up), `activity_environment`, `environment_artwork` and `environment_action` (a system's
+page), `dialog_switch`, `home_way_tile` and `home_switch_ack` (the Switch confirm), `activity_boot_progress` (the
+boot screen), and `PrebootCards`, `Cards.tileGrid`, `Cards.row`, `StepRingDrawable` and the step icons. The
+redesign (2026-11-15, on 0.5.14) changed only screens: every root verb, its arguments and its order, the
+preflight, the refusals and the session files read are the ones before it (`OneiosJob`; `oneios_root.sh`,
+`oneios_switch.sh`, `oneios_return.sh` and the stage are unchanged). **Not opened on a phone or an emulator yet**:
+the screens were written and read, not compiled on the box they were written on (it has no JDK 21 or Android SDK).
 
-- **OneiOS runtime**: what is staged; *Download from OneiOS's releases* (GitHub's API for the latest release or
-  a tag, the `.sha256` asset, then the package, checked by size and SHA-256); *I have the file*. With no release
-  published it says so in one line and changes nothing.
-- **iOS image set**: what is staged; *I have the file* (the system file picker). No download.
-- **Session**: *Ready to switch*, or the one line root's preflight gave (for example "no OneiOS runtime is staged:
-  xnuhost, the program that runs iOS, comes with it"). How the last session returned.
-- *Back to One UI*, shown while a session is still open and the app runs (root's `return` verb starts
-  `oneios_return.sh`; with no open session it does nothing).
-- The experimental tick and **Switch to iOS 27**, enabled only with the tick and a passing preflight. From
-  0.4.80 the switch first stages this build's two session scripts and the boot screen's three files again, so an
-  app update reaches the stage without a new import (before, only an import staged them).
-- *Remove the iOS files*.
-- **Hardware checks**: a screen of its own (`OneiosChecksActivity`), below.
-- **Session logs**: a screen of its own (`OneiosLogsActivity`), below.
+What each screen shows is read from root's `status` (`OneiosStatus`) by `OneiosFlow` (`core/root`): the steps and
+their marks (pending, next, running, done, failed), each package's check, the one next action, and the line
+under the steps. A refusal, `@@REFUSED` of `oneios_root.sh`, `PREFLIGHT REFUSED:` of `oneios_switch.sh` (which
+root passes on as `ready 0 <why>` and as the switch's refusal) or a failure of the app's own download and
+import, is put in plain words by `OneiosPlain` (`core/model`), as the Android systems' are by `Plain`: a title of
+at most 40 characters, one line of at most 140, the step it is about, and the one fix (Get the runtime,
+Download again, Choose the runtime file, Import the image set, Back to One UI, Remove the iOS files, Check
+again, Session logs; none when the fix is outside the app: charge, cool down, restart, then Check again). The
+script's own words stay under the steps ("What it said"). `OneiosFlowTest` reads both scripts and checks that
+every refusal they can print has plain words of its own.
+
+**What a package's check says.** Root's preflight checks, in this order, this phone and root, then the runtime
+(every file's SHA-256 again), then the image set (every file is the one root hashed at staging, the files under
+64 MiB hashed again), then the phone's state, and stops at the first refusal. So the screens show a package as
+**checked** when the preflight passed or refused something later, **check failed** when the refusal is the
+package's own, and **not checked yet** when it stopped before (`OneiosFlow.check`; `OneiosFlowTest` checks the
+preflight's order on the script's text).
+
+**What `status` does not give, and how the screens do without it** (no script was changed for this):
+
+- The runtime's size and file count: `status` reports its version, session ABI, xnuhost path, image formats and
+  placeholder flag only. The app keeps its own record of what it checked when it staged each package (files,
+  bytes, the time; `OneiosStaged`, in the app's preferences) and shows it only while root reports that version
+  (and build). A stage made without the app (OneiOS's `oneios-tool phone stage`) shows no size for the runtime.
+- iOS's data (`data/`): `status` does not name it. The switch makes it at the first switch together with
+  `control/state`, so the screens say **New** while root reports the session state `never` (no state file) and
+  **Kept** after that. Whether xnuhost wrote anything there is not known to the app.
+- When the last check ran: `status` runs the preflight each time it is asked (each time an iOS screen opens), so
+  "checked" is always the screen's own last answer.
+
+### 1. Choose a system (pick)
+
+The iOS card, last in the carousel, marked Experimental, on the Galaxy S24 Ultra only ("Scope" above). Its
+button reads as an Android card's: **Set up** while root has reported no runtime or no image set, **Show
+progress** while a download or an import runs (both open Set up iOS 27), else **Open** (iOS 27's page). Before
+the app has asked root anything in this run it says Open.
+
+### 2. Set up iOS 27 (download or import, and prepare)
+
+`OneiosSetupActivity`, Setting up's layout. The title says what to do now; the footer's main button does it;
+the steps say what is done; the line under them says what comes next ("Then: Import your iOS image set").
+
+| Step | Done (its line) | Next (its line; the button) |
+|---|---|---|
+| Check this phone | `Galaxy S24 Ultra · root allowed` | a refusal of root or of the phone (Allow root access; Check again) |
+| Get the OneiOS runtime | `Version 0.1.6 · 12 files, 12 MB · every file checked` (or `placeholder, can't start iOS`, `check failed`) | "Holds xnuhost, the program that runs iOS"; **Get the runtime**: "Do you have the runtime file?" Yes: the picker; No, download it: OneiOS's latest release |
+| Import your iOS image set | `iOS 27.0.1 (24A446) · 17.9 GB · every file as staged` | "The .tar.zst you built from Apple's firmware"; **Import the image set**: "Have you built the image set?" Yes: the picker; How to build it: OneiOS's README |
+| iOS's own data | `New: made at the first switch` or `Kept from earlier sessions` | |
+| Last check before the switch | `Ready to switch` | the preflight's refusal in plain words, with its fix |
+
+While a copy runs, the hero shows `Downloading` or `Importing · 42% · About 2 min left` over the step-wise bar, the
+running step its ring, the file (`File 3 of 21: os.img (10.6 GB)`) and `3.2 GB of 17.9 GB (18%) · 412 MB/s · about
+2 min left`; the footer has **Stop**, asked first as in Setting up (nothing staged before is lost). The screen
+stays on, and `OneiosService`'s notification opens this screen. When every step is done the title is "iOS 27 is
+ready" and **Continue** opens iOS 27's page. A download or an import started on the page shows its progress here.
+
+### 3. iOS 27 (OneiOS): the system's page (switch)
+
+`OneiosActivity`, a system page's layout (`activity_environment`), the artwork on top, then:
+
+- **On this phone**: four check tiles, tinted by their state: *OneiOS runtime* (`0.1.6 · checked`), *iOS image
+  set* (`iOS 27.0.1 · checked`), *iOS data* (New or Kept), *Last check* (Passed, Refused, Not run yet).
+- **What stops the switch**, one row: the plain refusal and its fix (tap it), or "Ready to switch".
+- **OneiOS runtime**: what is staged (`xnuhost at bin/xnuhost · session ABI 1 (this OneOS: 1) · boots image format
+  1`); *Download from OneiOS's releases* (the latest); *Download a release by its tag*; *I have the file*.
+- **iOS image set**: what is staged (`Image format 1 · the runtime boots format 1`); *I have the file*; *How to
+  build it*; *iOS data* and what keeps or deletes it.
+- **Last session** (the return): *Back to One UI* while a session is still open (root's `return`, as Volume Up +
+  Volume Down); how the last session came back (`outcome` of `status`: in place, by a restart, by the failsafe
+  with its reason); *Session logs*.
+- **Tools**: *Hardware checks*. **Manage**: *Remove the iOS files* (asked first).
+- The fixed button, one action: **Set up iOS 27** (nothing staged yet: opens Set up iOS 27), a fix's label, **Back
+  to One UI**, **Check again**, or **Switch to iOS 27**; a spinner while root answers.
+
+### 4. Switch to iOS 27? (the Switch confirm)
+
+`OneiosSwitchConfirm`, the Android systems' Switch dialog: "One UI closes and iOS 27 starts on this phone's own
+kernel. Nothing of One UI's is erased." The runtime and image set lines, then **Four ways back to One UI** as
+tiles, before One UI closes (OneiOS's `oneos/interface.md` section 6, "Getting back to One UI" below):
+
+1. **Hold Volume Up + Volume Down**: both together for 3 seconds; One UI comes back in about a minute, or the
+   phone restarts into it.
+2. **Pressed while iOS is starting?** That works too: the switch stops there, iOS doesn't start, and One UI
+   comes back (a return asked during the switch wins, `control/stop.lock`).
+3. **iOS never shows up?** After 10 minutes without iOS on screen (`ONEIOS_RETURN_MAX`), or when iOS stops, One
+   UI comes back by itself (the watcher).
+4. **Still stuck?** Hold Power + Volume Down for about 7 seconds: the phone restarts into One UI.
+
+Two boxes, both every time: "I have read how to get back to One UI: Volume Up + Volume Down, both for 3 seconds"
+and the experimental tick. **Switch to iOS 27** is on only with both. The experimental tick is what root's `switch`
+gets (`switch <versionCode> 1`), as before; the other box only gates the button.
+
+### 5. Switching to iOS 27
+
+`OneiosSwitchActivity`, the boot screen's layout: what runs ("Checking before the switch…", then "Shutting down
+One UI"), and once more how to come back. The button says "Can't cancel now" while the switch runs. A refusal
+comes back as a dialog in plain words with its fix, and "Nothing changed. One UI keeps running."; its fix opens
+iOS 27's page. Once root has started the switch, One UI's framework stops and the app with it.
+
+### 6. Back in One UI (return)
+
+After a return iOS 27's page shows under **Last session** how the session came back, and *Session logs* the logs
+with their summary (below). While a session is still open (one that never stopped One UI, or is stuck) the page's
+button is **Back to One UI**.
+
+From 0.4.80 the switch first stages this build's two session scripts and the boot screen's three files again, so
+an app update reaches the stage without a new import (before, only an import staged them). The redesign keeps
+that: the same `script` verbs before `switch`.
 
 ### Importing either package
 
@@ -108,7 +218,7 @@ removes its `.part`. Files land in `<kind>.new`, and only `finish`, which is ask
 OK for every file, puts the new runtime or image in place of the old one. A failed import leaves what was staged
 before untouched.
 
-The screen during an import: the file being sent (`File 3 of 21: os.img (10.6 GB)`), a bar, and
+The screen during an import (Set up iOS 27 since the redesign; before, iOS 27's one screen): the file being sent (`File 3 of 21: os.img (10.6 GB)`), a bar, and
 `3.2 GB of 17.9 GB (18%) · 412 MB/s · about 2 min left`. The rows are built again only when the step or the
 file changes; the byte count moves the bar and that line. Before 0.4.78 the job sent a state for every MiB (a few
 hundred a second) and the screen built all its rows again for each: that was the lag. The screen stays on while a
@@ -740,6 +850,20 @@ the two meet at the return's lock.
   `receive` with three kinds of `dd` (GNU's, a stand-in that refuses `fullblock` like toybox's, one that takes no
   `iflag`) takes a file of several pipe buffers whole, takes no more than it was told, and refuses a short file
   and a wrong SHA-256. Not covered by any test: toybox's own `dd`, the screen, the service and the wakelock.
+- **The iOS screens' words and steps** (2026-11-15). `core/model` `OneiosPlainTest`: a refusal of the preflight,
+  of root and of the app's download and import in plain words (the title, the line within 40 and 140
+  characters, the step it is about, the fix), the preflight's prefix dropped and its words kept for Details, an
+  earlier session's xnuhost as a restart and not the runtime, an import's failure naming its package, and the
+  app's record of a staged package (encode, decode, shown only for the version root reports). `core/root`
+  `OneiosFlowTest`, on the scripts' text and on status lines only (no shell, no tool: it runs as it is on Linux
+  and macOS): every `refuse "..."` of `oneios_switch.sh` and of `oneios_root.sh` (but its hardware checks') and
+  every `@@REFUSED` of the launcher has plain words of its own; the preflight refuses in the order
+  `OneiosFlow.check` reads (this phone and root, the runtime, the image set, the phone's state); the steps,
+  checks and next action of a phone with no stage, before root answered, with a runtime alone, ready, refused
+  for the battery, with a changed image set, with a placeholder runtime, with a session open, during and after
+  an import or a download, after a refused switch and after a check that failed itself; how the last session
+  came back. **Not run on the box the redesign was written on** (no JDK 21, no Android SDK); not covered by any
+  test: the screens themselves.
 - `./gradlew :core:model:test :core:root:testDebugUnitTest`. The app itself needs the SESL9 libraries from
   GitHub Packages (a token in `~/.config/twidget/github.properties`), as before this change.
 - **The root script tests on macOS.** The root scripts are written for the phone's tools (toybox, busybox), which
@@ -789,6 +913,11 @@ debug build too: Android guests that already hold upstream's release-signed one 
 
 ## Not done yet
 
+- **The redesigned iOS screens have not been compiled, opened or seen** (2026-11-15): Set up iOS 27, iOS 27's
+  page, the Switch confirm and the switching screen were written on a box without JDK 21 or the Android SDK. The
+  first build (`./gradlew test assembleFullDebug`) and a click-through on the phone are their first run; real
+  screenshots are still to be taken. `status` names no runtime size and no Data store, so the screens use the
+  app's own record and the session state ("In the app"); a `status` line for either would be better.
 - **The boot screen has not run on the phone** (0.4.80). Unknown until it does: whether `app_process` starts
   the renderer from the iOS stage's `bin/` (the Android guests run it from their own stage, which is tested on
   the Fold8); whether One UI's surfaceflinger keeps showing the layer once system_server is gone (OneOS's

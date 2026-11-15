@@ -13,9 +13,11 @@ import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosManifest
 import com.fahadali.oneos.core.model.OneiosManifests
 import com.fahadali.oneos.core.model.OneiosReleases
+import com.fahadali.oneos.core.model.OneiosStaged
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.Units
+import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.core.root.OneiosImport
 import com.fahadali.oneos.core.root.OneiosRoot
 import com.fahadali.oneos.core.root.OneiosStatus
@@ -44,6 +46,12 @@ import java.security.MessageDigest
  * app on the way and by root once it has landed. Nothing replaces what is
  * staged until `finish`. While it runs [OneiosService] keeps the app alive and
  * the screen hears of the bytes four times a second ([ByteMeter], as setup does).
+ *
+ * The screens read the state through [State.flow] ([OneiosFlow]): which step is done, what to do
+ * now, and a refusal in plain words. For that the state also keeps which job ran ([State.job],
+ * [State.last]), its failure as root or the app said it ([State.failure]), and what the app checked
+ * when it staged each package ([State.runtimeRecord], [State.imageRecord]). None of it changes a
+ * root command: the verbs, their order and their arguments are the ones before the redesign.
  */
 object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     enum class Phase { IDLE, CHECKING, DOWNLOADING, STAGING, SWITCHING, REMOVING }
@@ -65,11 +73,23 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         val bytesPerSecond: Long = 0,
         /** Seconds left; null = still estimating. */
         val etaSeconds: Int? = null,
+        /** The job that runs now; null when idle. */
+        val job: OneiosFlow.Job? = null,
+        /** The job that ran last, and why it failed as root or the app said it (null: it worked). */
+        val last: OneiosFlow.Job? = null,
+        val failure: String? = null,
+        /** What the app checked when it staged the runtime and the image set (size, files). */
+        val runtimeRecord: OneiosStaged? = null,
+        val imageRecord: OneiosStaged? = null,
     ) {
         val busy: Boolean get() = phase != Phase.IDLE
 
         /** A long copy runs (a download, an import): the screen stays on and [OneiosService] holds the app. */
         val copying: Boolean get() = phase == Phase.DOWNLOADING || phase == Phase.STAGING
+
+        /** The steps, the check of each package, what to do now ([OneiosFlow]). */
+        val flow: OneiosFlow.View
+            get() = OneiosFlow.of(OneiosFlow.Input(status, offered, job, last, failure, runtimeRecord, imageRecord))
 
         /** "3.2 GB of 17.9 GB (18%) · 412 MB/s · about 2 min left", or null without a byte count. */
         val progressLine: String?
@@ -160,31 +180,55 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     private fun offered(app: Context): Boolean =
         runCatching { OneiosSystem.offeredOn(Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile) }.getOrDefault(false)
 
-    /** Runs [work] as the one job; afterwards reads the status again and shows [work]'s result line or its failure. */
-    private fun job(ctx: Context, phase: Phase, first: String, work: (Context) -> String?) {
+    // --- What the app checked at staging (shown beside root's status) ----------------
+
+    private const val PREFS = "oneios"
+
+    private fun record(app: Context, kind: OneiosKind): OneiosStaged? =
+        OneiosStaged.decode(app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(kind.word, null))
+
+    private fun remember(app: Context, m: OneiosManifest) =
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(m.kind.word, OneiosStaged.of(m, System.currentTimeMillis()).encode()).apply()
+
+    private fun forget(app: Context) = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
+
+    /**
+     * Runs [work] as the one job; afterwards reads the status again and shows [work]'s result line or
+     * its failure. A check ([OneiosFlow.Job.CHECK]) whose `status` itself fails keeps that failure, so
+     * the screen can say why (before, it stayed on "Checking…").
+     */
+    private fun job(ctx: Context, phase: Phase, kind: OneiosFlow.Job, first: String, work: (Context) -> String?) {
         if (!canStart()) return
         val app = ctx.applicationContext
         cancelled = false
         meter.reset()
-        update(state.copy(phase = phase, message = first, failed = false, done = 0, total = 0, file = null, bytesPerSecond = 0, etaSeconds = null))
+        update(state.copy(phase = phase, job = kind, last = null, failure = null, message = first, failed = false, done = 0, total = 0, file = null, bytesPerSecond = 0, etaSeconds = null))
         // Before the work, from the screen the user tapped: Android only lets a visible app start it.
         if (state.copying) OneiosService.start(app)
         executor.execute {
             val result = runCatching { work(app) }
             val offered = state.offered ?: offered(app)
-            val status = runCatching { cancelled = false; readStatus(app) }.getOrNull() ?: state.status
-            val why = result.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }
-            update(State(Phase.IDLE, status, offered, why ?: result.getOrNull(), failed = why != null))
+            val read = runCatching { cancelled = false; readStatus(app) }
+            val status = read.getOrNull() ?: state.status
+            fun words(e: Throwable) = e.message ?: e.javaClass.simpleName
+            val why = result.exceptionOrNull()?.let(::words) ?: read.exceptionOrNull()?.takeIf { kind == OneiosFlow.Job.CHECK }?.let(::words)
+            update(
+                State(
+                    Phase.IDLE, status, offered, why ?: result.getOrNull(), failed = why != null,
+                    last = kind, failure = why,
+                    runtimeRecord = record(app, OneiosKind.RUNTIME), imageRecord = record(app, OneiosKind.IMAGE),
+                ),
+            )
         }
     }
 
     // --- What the screen calls --------------------------------------------------------
 
     /** Read only: what is staged and whether a switch would start. */
-    fun refresh(ctx: Context) = job(ctx, Phase.CHECKING, "Checking what is on this phone…") { null }
+    fun refresh(ctx: Context) = job(ctx, Phase.CHECKING, OneiosFlow.Job.CHECK, "Checking what is on this phone…") { null }
 
     /** The runtime package of OneiOS's latest release, or of [tag]. */
-    fun downloadRuntime(ctx: Context, tag: String?) = job(ctx, Phase.DOWNLOADING, "Looking for the OneiOS runtime…") { app ->
+    fun downloadRuntime(ctx: Context, tag: String?) = job(ctx, Phase.DOWNLOADING, OneiosFlow.Job.DOWNLOAD_RUNTIME, "Looking for the OneiOS runtime…") { app ->
         val t = tag?.trim()?.takeIf { it.isNotEmpty() }
         if (t != null && !OneiosReleases.validTag(t)) throw Failed("'$t' is not a release tag")
         val api = http(OneiosReleases.apiUrl(t), accept = "application/vnd.github+json")
@@ -202,6 +246,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
             download(release.assetUrl, file, release.assetBytes, sha)
             meter.reset()
             val m = stage(app, OneiosKind.RUNTIME) { file.inputStream() }
+            remember(app, m)
             runtimeLine(m) + " (release ${release.tag})"
         } finally {
             file.delete()
@@ -209,10 +254,13 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     }
 
     /** "I have the file": a runtime package or the iOS image set, through the picker's read grant. */
-    fun importFile(ctx: Context, kind: OneiosKind, uri: Uri) = job(ctx, Phase.STAGING, "Reading the file…") { app ->
+    fun importFile(ctx: Context, kind: OneiosKind, uri: Uri) = job(
+        ctx, Phase.STAGING, if (kind == OneiosKind.RUNTIME) OneiosFlow.Job.IMPORT_RUNTIME else OneiosFlow.Job.IMPORT_IMAGE, "Reading the file…",
+    ) { app ->
         val m = stage(app, kind) {
             app.contentResolver.openInputStream(uri) ?: throw Failed("the picked file cannot be opened")
         }
+        remember(app, m)
         when (kind) {
             OneiosKind.RUNTIME -> runtimeLine(m)
             OneiosKind.IMAGE -> "iOS ${m.version}${m.build?.let { " ($it)" }.orEmpty()} image set is staged: ${m.files.size} files, ${Units.bytes(m.bytes)}."
@@ -224,7 +272,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      * preflight both have to pass, and a refusal changes nothing. When it works
      * One UI's framework stops, and this app with it.
      */
-    fun switch(ctx: Context, ticked: Boolean) = job(ctx, Phase.SWITCHING, "Checking before the switch…") { app ->
+    fun switch(ctx: Context, ticked: Boolean) = job(ctx, Phase.SWITCHING, OneiosFlow.Job.SWITCH, "Checking before the switch…") { app ->
         val profile = Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile
         val gate = OneiosSystem.gate(profile, ticked)
         if (gate.level != Level.OK) throw Failed(if (gate.level == Level.BLOCK) gate.detail else "Tick the box first: ${gate.title}.")
@@ -241,13 +289,14 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     }
 
     /** Back to One UI, for a session that is still open while this app runs (one that never stopped One UI, or is stuck). */
-    fun backToOneUi(ctx: Context) = job(ctx, Phase.SWITCHING, "Returning to One UI…") { app ->
+    fun backToOneUi(ctx: Context) = job(ctx, Phase.SWITCHING, OneiosFlow.Job.RETURN, "Returning to One UI…") { app ->
         val r = must(root(app, OneiosRoot.Verb.RETURN))
         if (r.reply.ok == "return nothing") "No iOS session is open." else "Returning to One UI. If it cannot be done in place, the phone restarts."
     }
 
-    fun remove(ctx: Context) = job(ctx, Phase.REMOVING, "Removing the iOS files…") { app ->
+    fun remove(ctx: Context) = job(ctx, Phase.REMOVING, OneiosFlow.Job.REMOVE, "Removing the iOS files…") { app ->
         must(root(app, OneiosRoot.Verb.REMOVE, silenceMs = 10 * 60_000L))
+        forget(app)
         File(app.cacheDir, "oneios").deleteRecursively()
         "The iOS runtime, image set and data were removed from this phone."
     }
