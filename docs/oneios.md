@@ -913,6 +913,20 @@ Each run signs with a debug key of its own unless the secret `ONEIOS_DEBUG_KEYST
 is set, so without it an earlier build has to be uninstalled before a new one installs. The in-guest app is a
 debug build too: Android guests that already hold upstream's release-signed one cannot take it as an update.
 
+**OneiOS builds this branch too (2026-11-15).** This fork is the submodule `app/` of akshaynexus/OneiOS
+(`branch = oneios`). OneiOS's one workflow, `.github/workflows/release.yml` there, takes the head of `oneios` on
+every OneiOS pull request, push to its `main`, tag and dispatch (`git submodule update --init --remote app`), runs
+the same steps as this workflow (the token probe, JDK 21, the guest app, mksh, `./gradlew test assembleFullDebug`),
+checks the APK for package sets, images and firmware, runs `./gradlew test` on macOS as well, and puts the APK
+beside the runtime on OneiOS's releases (the notes name this fork's commit, versionName and versionCode). OneiOS's
+`docs/releases.md`, "CI and releases".
+
+**This workflow stays, for this fork's own pushes.** OneiOS's workflow runs only on OneiOS's events: a push to
+`oneios` here starts nothing there, so without `oneios-apk.yml` a fork change would be built and tested only at
+the next OneiOS pull request or push. The prerelease `oneios-<version>` that this workflow publishes stays what a
+push to `oneios` gives at once (`oneios-tool app install --release <version>` installs it). The two do not
+interfere: different repositories, runs and releases.
+
 ## Not done yet
 
 - **The redesigned iOS screens have not been compiled, opened or seen** (2026-11-15): Set up iOS 27, iOS 27's
