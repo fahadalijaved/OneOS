@@ -186,4 +186,17 @@
     <string name="findings_send_team">Send to the OneOS team</string>
     <string name="last_send_summary">How it went and the logs, straight to the team</string>
     <string name="last_send_sent">Sent, report code %1$s. Tap to send again.</string>
+    <!-- 0.5.16 (owner): reports only from group members -->
+    <string name="send_cat_telegram">Telegram</string>
+    <string name="send_tg_sign_in">Sign in with Telegram</string>
+    <string name="send_tg_sign_in_summary">Reports are for members of the OneOS group</string>
+    <string name="send_tg_waiting_title">Waiting for Telegram</string>
+    <string name="send_tg_waiting_summary">Tap Start in the Telegram chat that opened, then come back here. Tap to open it again.</string>
+    <string name="send_tg_signed_in_as">Signed in as @%1$s</string>
+    <string name="send_tg_signed_in">Signed in with Telegram</string>
+    <string name="send_tg_sign_out">Sign out</string>
+    <string name="send_tg_expired">The sign-in ran out. Try again.</string>
+    <string name="send_tg_join_title">Join the OneOS group</string>
+    <string name="send_tg_join_summary">Reports are for members of the OneOS group. Join, then send again.</string>
+    <string name="send_tg_no_app">No app could open the link</string>
 </resources>

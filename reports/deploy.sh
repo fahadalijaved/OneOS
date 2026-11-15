@@ -9,6 +9,14 @@
 #   ~/.oneos-reports-upload-key   the key the app sends (it can only add reports)
 #   ~/.oneos-reports-admin-key    the key reports/pull.py reads with
 #   ~/.oneos-reports-url          the Worker's address (app/build.gradle.kts reads it)
+#   ~/.oneos-reports-pass-key     0.5.16: signs the Telegram pass (reports from group members only)
+#   ~/.oneos-reports-hook-key     0.5.16: the bot webhook's secret token
+# and reads ~/.oneos-signin-bot, the sign-in bot's token (@OneOSReportsBot);
+# without it the ping bot (~/.oneos-tg-bot) signs people in.
+# and reads ~/.oneos-reports-require-member: "1" refuses apps without a pass
+# (0.5.15 and older); absent or anything else still takes them.
+# Keep these files the same on every account that deploys (a new pass key signs
+# everyone out; a new upload key stops every installed app sending).
 # The KV namespace "oneos-reports" is found by name or created. The secrets go
 # to wrangler on stdin: no key or token is printed or put on a command line.
 set -eu
@@ -20,7 +28,7 @@ CLOUDFLARE_API_TOKEN=$(cat "$TOKEN_FILE")
 export CLOUDFLARE_API_TOKEN
 
 umask 077
-for k in upload admin; do
+for k in upload admin pass hook; do
     f=$HOME/.oneos-reports-$k-key
     [ -s "$f" ] || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$f"
 done
@@ -58,5 +66,27 @@ if [ -s "$HOME/.oneos-tg-bot" ] && [ -s "$HOME/.oneos-tg-group" ]; then
     secret TG_TOKEN < "$HOME/.oneos-tg-bot"
     sed -n 's/^chat_id=//p' "$HOME/.oneos-tg-group" | tr -d '\n' | secret TG_CHAT
     sed -n 's/^reports_thread=//p' "$HOME/.oneos-tg-group" | tr -d '\n' | secret TG_THREAD
+    # 0.5.16: sign-in through the bot. Its username (public), the pass key, the
+    # webhook's secret, and the webhook itself (only "message" updates).
+    secret PASS_KEY < "$HOME/.oneos-reports-pass-key"
+    secret TG_HOOK < "$HOME/.oneos-reports-hook-key"
+    # The sign-in bot: its own token in ~/.oneos-signin-bot (@OneOSReportsBot), else the ping bot.
+    SIGNIN=$HOME/.oneos-signin-bot; [ -s "$SIGNIN" ] || SIGNIN=$HOME/.oneos-tg-bot
+    secret TG_SIGNIN_TOKEN < "$SIGNIN"
+    python3 -I - "$SIGNIN" <<'EOF' | tr -d '\n' | secret TG_BOT
+import json, sys, urllib.request
+tok = open(sys.argv[1]).read().strip()
+print(json.load(urllib.request.urlopen(f"https://api.telegram.org/bot{tok}/getMe", timeout=20))["result"]["username"])
+EOF
+    req=0; [ "$(cat "$HOME/.oneos-reports-require-member" 2>/dev/null)" = 1 ] && req=1
+    printf %s "$req" | secret REQUIRE_MEMBER
+    python3 -I - "$SIGNIN" "$HOME/.oneos-reports-hook-key" "$URL/v1/tg" <<'EOF'
+import json, sys, urllib.request
+tok, hook = (open(f).read().strip() for f in sys.argv[1:3])
+body = json.dumps({"url": sys.argv[3], "secret_token": hook, "allowed_updates": ["message"]}).encode()
+r = json.load(urllib.request.urlopen(urllib.request.Request(f"https://api.telegram.org/bot{tok}/setWebhook", data=body,
+    headers={"Content-Type": "application/json"}), timeout=20))
+print("bot webhook:", "set" if r.get("ok") else "FAILED " + str(r.get("description")))
+EOF
 fi
 echo "Deployed: $URL"

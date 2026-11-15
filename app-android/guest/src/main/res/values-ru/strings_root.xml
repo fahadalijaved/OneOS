@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="root_filters">Фильтр приложений</string>
+    <string name="root_permissions_title">Разрешения root</string>
+    <string name="root_search_hint">Поиск</string>
+    <string name="root_access_filter">Фильтр доступа root</string>
+    <string name="root_kind_filter">Фильтр типа приложений</string>
+    <string name="root_retry">Повторить</string>
+    <string name="root_loading">Чтение гостевых приложений…</string>
+    <string name="root_no_matches">Нет приложений, подходящих под поиск или фильтры.</string>
+    <string name="root_none">Нет приложений, доступных для root.</string>
+    <string name="root_allowed">Root разрешён</string>
+    <string name="root_denied">Root запрещён</string>
+    <string name="root_saving">Сохранение…</string>
+    <string name="root_toggle">Доступ root для %1$s</string>
+    <string name="root_counts">Показано: %1$d · разрешено в этой гостевой системе: %2$d</string>
+    <string name="root_shared">Общий UID · приложений: %1$d</string>
+    <string name="root_shared_details">Эти приложения используют общий UID %1$d. Доступ root действует для всех.</string>
+    <string-array name="root_access_options"><item>Любой доступ</item><item>Разрешён</item><item>Запрещён</item></string-array>
+    <string-array name="root_kind_options"><item>Пользовательские</item><item>Все приложения</item><item>Системные</item></string-array>
+    <string name="restart_splash_title">Перезапуск %1$s</string>
+    <string name="restart_request_failed">Не удалось запросить перезапуск гостевой системы (%1$s).</string>
+</resources>

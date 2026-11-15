@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_preview_menu">Предпросмотр настройки</string>
+    <string name="setup_preview_title">Предпросмотр настройки · %1$s</string>
+    <string name="setup_preview_simulated">Имитация настройки. Файлы ОС не меняются, и никакая операционная система не запустится.</string>
+    <string name="setup_preview_cancel">Отменить предпросмотр</string>
+    <string name="setup_preview_boot">Предпросмотр запуска</string>
+    <string name="setup_preview_boot_title">Предпросмотр запуска %1$s?</string>
+    <string name="setup_preview_boot_message">Это лишь предпросмотр подтверждения. One UI продолжает работать, команды root не выполняются.</string>
+    <string name="setup_preview_finish">Завершить предпросмотр</string>
+    <string name="setup_preview_complete">Предпросмотр завершён</string>
+    <string name="setup_preview_busy">Дождитесь завершения текущей операции OneOS, прежде чем запускать предпросмотр настройки.</string>
+    <string name="setup_preview_cancelled">Предпросмотр отменён. Файлы ОС не менялись.</string>
+    <string name="setup_preview_finished">Предпросмотр настройки завершён. Файлы ОС не менялись.</string>
+</resources>

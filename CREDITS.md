@@ -44,6 +44,15 @@ state, the reveal and closing animations, and the Pixel side
 `scripts/make-fold8-pixel.py`). The Z Fold8 Ultra uses his hinge relay, the
 Pixel SystemUI adapter and the half-open state as well.
 
+## The OneOS website, by fouadd
+
+<https://github.com/fouadd123>, [pull request #237](https://github.com/fahadalijaved/OneOS/pull/237)
+
+fouadd designed and built the OneOS website, <https://fahadalijaved.github.io/OneOS/>: the systems
+catalog, the phone compatibility pages and the comparison, in one page served from the `gh-pages`
+branch. Its styling is ported from [OneUI-Web](https://github.com/SamsungInternet/OneUI-Web)
+(MIT License, Copyright (c) 2019 Diego; the license is published next to the page).
+
 ## MysticGSI
 
 <https://github.com/MysticGSI/mysticgsi>, Apache License 2.0,

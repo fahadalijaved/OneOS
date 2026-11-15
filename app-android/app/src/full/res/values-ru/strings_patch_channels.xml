@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="patch_channel_title">Канал патчей %1$s</string>
+    <string name="patch_channel_stable">Патчи OneOS (Стабильные)</string>
+    <string name="patch_channel_experimental">Патчи That Josh Guy (Экспериментальные)</string>
+    <string name="patch_channel_summary">Выберите патчи для этой системы. Примените изменения кнопкой «Обновить» перед запуском.</string>
+    <string name="patch_channel_checking">Проверка обновлений патчей…</string>
+    <string name="patch_channel_refresh">Проверить обновления патчей</string>
+    <string name="patch_channel_failed">Не удалось загрузить патчи</string>
+    <string name="patch_channel_stable_version">OneOS %1$s</string>
+    <string name="patch_channel_stable_current">Стабильные патчи актуальны для OneOS %1$s.</string>
+    <string name="patch_channel_stable_newer">Доступна OneOS %1$s. Стабильные патчи распространяются с официальным выпуском OneOS; чтобы использовать новый список патчей, нужно обновить приложение.</string>
+    <string name="patch_channel_checked">Экспериментальные патчи проверены. Примените изменения кнопкой «Обновить» перед запуском.</string>
+</resources>

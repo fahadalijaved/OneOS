@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="guest_root_shared_kernel_title">Гостевой root имеет доступ ко всему телефону</string>
+    <string name="guest_root_shared_kernel_summary">Root, выданный в гостевой системе, — это root на общем ядре этого телефона. Отдельные разрешения приложений, модули и состояние Xposed не изолируют привилегированный код от One UI полностью.</string>
+</resources>

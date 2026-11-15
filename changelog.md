@@ -50,6 +50,15 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.16: Telegram sign-in for reports, OneOS in Russian, a Turn it off button for the S24 kernel tool.
+- **Reports come only from members of the OneOS Telegram group.** Send to the OneOS team now asks you to sign in with
+  Telegram once (through @OneOSReportsBot: tap Start, then come back). Not in the group, or banned? You get the group's
+  link instead. Installing and using OneOS stay open to everyone. Older versions can no longer send reports.
+- **OneOS in Russian** (the app and the probe), when your phone's language is Russian.
+- **Turn it off, right where the switch stops:** when an app's kernel tool (com.roottimer.app on the Galaxy S24) stops a
+  switch, the progress screen now offers Turn it off instead of only OK; before, OK also took the button away from Home.
+- **The OneOS website**, by fouadd: https://fahadalijaved.github.io/OneOS/
+
 New in 0.5.15: Nothing OS for the Galaxy A series, Samsung Camera video and slow motion, steadier auto brightness.
 - **New: Nothing OS for the Galaxy A series** (untested on most phones): Nothing's system from the Phone (3a), made for
   mid-range chips, on every Galaxy A and M phone with One UI 9 (A07, A15, A16, A17, A26, A27, A34, A35, A36, A54,
