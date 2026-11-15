@@ -77,7 +77,7 @@ object OneiosChecksJob : BackgroundJob<OneiosChecksJob.State>(State(), "oneos-on
         return Answer(reply, lines, end)
     }
 
-    fun canStart(): Boolean = !state.busy && OneiosJob.canStart()
+    fun canStart(): Boolean = !state.busy && OneiosJob.canStart() && !OneiosToolJob.state.busy
 
     /** Stops the running check (its put-back step still runs) and leaves the rest. */
     fun cancel() {

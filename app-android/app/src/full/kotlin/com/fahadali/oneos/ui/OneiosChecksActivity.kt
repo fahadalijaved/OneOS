@@ -137,6 +137,11 @@ class OneiosChecksActivity : EdgeToEdgeActivity() {
         OneiosChecks.RUN_ALL.forEach { checkRow(checks, it, s, canRun) }
         val more = PrebootCards.section(list, getString(R.string.oneios_checks_experimental))
         OneiosChecks.ALL.filter { it.experimental }.forEach { checkRow(more, it, s, canRun) }
+        // oneios-tool's CPU check (`phone cpu` on the phone itself, read only): its own screen, its own verdict.
+        PrebootCards.row(PrebootCards.section(list, getString(R.string.oneios_tool_from_tool)), getString(R.string.oneios_tool_cpu),
+            getString(R.string.oneios_tool_cpu_line), chevron = true, enabled = canRun || com.fahadali.oneos.session.OneiosToolJob.state.busy) {
+            OneiosToolActivity.start(this, com.fahadali.oneos.session.OneiosToolJob.Flow.CPU)
+        }
 
         val share = PrebootCards.section(list)
         PrebootCards.row(share, getString(R.string.oneios_checks_share_all), getString(R.string.oneios_checks_share_all_line), chevron = true,

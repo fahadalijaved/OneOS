@@ -253,6 +253,67 @@ spread between runs, so that hash stays as the second check. **None of
 this has been measured on the phone**: its `dd`, `head` and `sha256sum` are toybox's, its storage and cores are
 others, and the `iflag=count_bytes` branch of `copy_bytes` runs in the tests only behind a stand-in.
 
+## oneios-tool in the app
+
+From branch `app-oneios-tool` (2026-11-15). **Not run on the phone yet**: the app's side is tested on a PC against a
+stand-in of the tool; the screens are compiled, not opened. OneiOS's Rust tools come in the runtime package as
+`bin/oneios-tool` (OneiOS's `docs/releases.md`, "oneios-tool for the phone": why there and not in the APK). The app
+runs that file as root, **one process per flow**, `oneios-tool serve`, and the tool does the work, the checks and the
+step decisions on its own worker threads (all cores, nice 10, its own heat and battery stop); the app only starts it,
+sends requests and shows what comes back. The protocol is the tool's (OneiOS's `tools/oneios-tool/README.md`,
+"serve": one JSON object a line each way, protocol 1); `OneiosTool` (`core/model`) reads and writes those lines.
+
+| Flow (screen, where) | Root | Requests | Shown |
+|---|---|---|---|
+| **Make iOS image** (Set up iOS 27's image step: "I have the file", "Make iOS image", "How to build it"; Tools on iOS 27's page) | `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with the tool's result | `make-image` (`out` `image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`) | the tool's steps, what runs and what is next, progress and time left, the space it needs and has, a heat pause, and its refusal or failure with its code |
+| **Check every file** (Tools) | `tool read` | `sums` of `runtime/` and of `image/` against the lists root wrote at staging, `strict` | each file hashed again, all of them, on all cores; a difference is the tool's `refused` `mismatch` |
+| **CPU, clocks and threads** (Hardware checks, "With oneios-tool") | `tool read` | `cpu` | the tool's report lines and its `cpu` rows |
+| **Analyse the last session**, **iOS's own log: boots**, **last boot** (Session logs, "With oneios-tool") | `tool read` | `log-list` and `log` (`file` `xnuhost`); `ioslog-boots`; `ioslog-show` (`boot` `last`), on `<stage>/data/data.img` | the tool's lines and rows |
+
+A flow stops at the first request that does not end with `ok` and shows that request's text. **`make-image` is not in
+the tool yet** (its `tweaks` step is `not-ported`): until it is, the tool answers `refused` `unknown` and Make iOS
+image says so. What the app needs from it is in OneiOS's `oneos/interface.md` section 9.
+
+**How a flow runs** (`OneiosToolJob`, app; `OneiosToolSession`, `core/root`):
+- On the job's own thread (never the main thread), inside `OneiosService`, the foreground service of the import,
+  which keeps the app and the CPU awake while it runs and whose notification shows the running step and its progress.
+- `status` first (it puts this build's root script in the stage), then one `su -c "<launcher of tool work|read>"`.
+  `oneios_root.sh tool` refuses without a staged runtime, when the runtime has no `bin/oneios-tool` ("get a newer
+  runtime"), when that file is not the one root hashed at staging, and (`work`) during a session; else it `exec`s
+  `nice -n 10 <stage>/runtime/bin/oneios-tool serve --stage <stage>` with `TMPDIR` `<stage>/tool`, on the app's pipe.
+  Root's refusal before the tool starts is the flow's answer; so is a tool of another protocol (`hello`'s `proto`).
+- The requests go one after the other on that one process. The screen hears of each step and end at once and of
+  progress four times a second at most.
+- **Stop** sends `{"cmd":"cancel","id":...}`: the tool stops at its next check, removes what it wrote and answers
+  `cancelled`. Without an answer in 15 s the app ends the session as below.
+- **The end** (the flow's last request, a Stop that got no answer, or `OneiosService` stopping): the app closes the
+  tool's standard input; the tool cancels what runs, says `bye` and exits. When it has not ended 10 s later the app
+  runs `oneios_root.sh untool` as a root command of its own (with KernelSU the tool is root's, out of the app's
+  signals): every process whose command line holds `<stage>/runtime/bin/oneios-tool serve`, and their children four
+  levels down, get SIGTERM, then SIGKILL 2 s later. Only then does the app end its `su` (first ending it would leave
+  the tool's children to init, where `untool` could no longer tell them by their parent). A request with no line from the tool for 120 s (outside a heat pause)
+  ends the session the same way.
+
+**What the root scripts keep.** The switch, the return and every check of theirs are as before: the preflight still
+hashes the runtime and the small image files itself, `receive` still checks each imported file's size and SHA-256
+itself. The tool's `sums` is an extra, complete check (every file, the large ones too), not a replacement of the
+preflight's. The import's receive check moves to the tool's `receive` only when the import does (see "Not done
+yet").
+
+**Tests** (`./gradlew :core:model:test :core:root:testDebugUnitTest`): `OneiosToolTest` (`core:model`, 7): the
+request lines and the README's own event lines, the step marks of the tool's rule, a heat pause, the output limits.
+`OneiosToolSessionTest` (`core:root`, 10) against `src/test/resources/oneios/serve-standin.sh`, a POSIX-sh stand-in
+that speaks the protocol (start, space, step, progress, ok, refused, failed, cancelled, line, row, bye; a child
+process per request, an idle end, a mode that ignores the end of its input): steps, progress and the result; two
+requests on one process; a refusal and a failure with their codes; a cancel that ends the request and its child
+while the session goes on; the end of input during a request (cancelled, by eof); a tool that does not end, ended
+by the backstop; the idle end; a silent tool given up, but not during a heat pause; root's refusal before the tool; another protocol refused.
+After each, no process the session started is left (the `su` stand-in, the tool, the tool's children: by
+`ProcessHandle`). `OneiosToolScriptTest` (`core:root`, 4) runs the stand-in as the staged `bin/oneios-tool` through
+the launcher and `oneios_root.sh tool` in a fake root: only the file hashed at staging runs; `work` is refused in a
+session, `read` is not; and `untool` ends a tool that ignores the end of its input, and its child (Linux only:
+it reads `/proc`).
+
 ## Hardware checks
 
 iOS 27 (OneiOS) → **Hardware checks**: OneiOS's own phone tools, run as root **while One UI keeps running**, one row
@@ -395,6 +456,7 @@ and neither kind of session starts while the other's stage has anything mounted.
 | `control/` | the way back's own: the session's state, the baseline, xnuhost's pid and namespace as the switch recorded them, the watcher's and key readers' pids, the return's lock and guard; `bootui/` (the boot screen's status files and pids) and `bootui.log` (the switch's lines about it). Read-only in xnuhost's namespace, like the two session scripts and `bin/` |
 | `logs/` | the five sessions before the last: `xnuhost-<epoch>.log`, moved there by the next switch (the epoch is that switch's time; the file's own time is its session's last line) |
 | `checks/` | the hardware checks' own: each check's last output (`<id>.log`), the camera pictures (`camera.png`, `camera-hal.png`), the values to put back (`saved.backlight`, `saved.als`), the tools' temporary files |
+| `tool/`, `make/` | `TMPDIR` of `runtime/bin/oneios-tool serve` ("oneios-tool in the app"); Make iOS image's work folder, which the tool removes on a cancel or a failure |
 | `switch.log`, `return.log`, `return.outcome` | the switch's output; the return's, the watcher's and the key readers'; how the last return ended. `control/display.log`, `control/watchdog_feeder.log` and `control/usb.log` are the display helper's, the watchdog feeder's and the USB watcher's ("USB and adb during a session") |
 
 ## Session flow
@@ -929,6 +991,15 @@ debug build too: Android guests that already hold upstream's release-signed one 
 
 ## Not done yet
 
+- **oneios-tool in the app has not run on the phone** (branch `app-oneios-tool`). Unknown until it does: whether
+  KernelSU's `su` from the app runs the staged `bin/oneios-tool` (it runs the checks' tools the same way, also never
+  tried); the times of each flow on the phone (OneiOS's `docs/building.md` section 7 has the Mac's steps to measure
+  them). Waiting on the tool: `make-image` (Make iOS image is refused until then). **The import still goes through
+  root's `receive`**: the tool's `receive` (`from` a FIFO the app writes, the size and SHA-256 checked as it writes,
+  the lines of `image.new.sha256` and `.ids` as root writes them) would replace that for the image set, with the
+  app's own hash taken out; it needs a FIFO in the app's folder that root's tool reads (not tried under the phone's
+  SELinux), and the app's open of the FIFO must not wait for a tool that refused before it opened it. The
+  runtime's import stays root's: it may be what replaces the tool.
 - **The redesigned iOS screens have not been compiled, opened or seen** (2026-11-15): Set up iOS 27, iOS 27's
   page, the Switch confirm and the switching screen were written on a box without JDK 21 or the Android SDK. The
   first build (`./gradlew test assembleFullDebug`) and a click-through on the phone are their first run; real

@@ -110,7 +110,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     @Volatile private var connection: HttpURLConnection? = null
 
     private fun othersBusy() = StageCheck.state.busy || PrepareJob.state.busy || LaunchJob.state.busy || LogJob.state.busy ||
-        OldStagesJob.state.busy || RemoveJob.state.busy || OneiosChecksJob.state.busy
+        OldStagesJob.state.busy || RemoveJob.state.busy || OneiosChecksJob.state.busy || OneiosToolJob.state.busy
 
     fun canStart(): Boolean = !state.busy && !othersBusy()
 

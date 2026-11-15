@@ -78,6 +78,12 @@
             android:label="@string/oneios_logs"
             android:windowSoftInputMode="adjustResize|stateHidden"
             android:parentActivityName=".ui.OneiosLogsActivity" />
+        <!-- One flow of oneios-tool on the phone (Make iOS image, Check every file, the CPU, the logs). -->
+        <activity
+            android:name=".ui.OneiosToolActivity"
+            android:exported="false"
+            android:label="@string/oneios_make_image"
+            android:parentActivityName=".ui.OneiosActivity" />
         <activity android:name=".ui.EnvironmentActivity" android:exported="false" />
         <activity android:name=".ui.BootProgressActivity" android:exported="false" />
         <activity android:name=".ui.DebugSettingsActivity" android:exported="false" />

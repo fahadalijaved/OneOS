@@ -60,6 +60,12 @@ object OneiosRoot {
 
         /** Read only: up to 1 MiB of one log, whole lines, ending at a byte offset (0 = the file's end). */
         LOGFILE("logfile", Stdin.NONE),
+
+        /** One flow of OneiOS's Rust tools: the staged runtime's bin/oneios-tool serve on this command's pipe ([OneiosToolSession]). */
+        TOOL("tool", Stdin.NONE),
+
+        /** The backstop: ends every process of the staged bin/oneios-tool serve. */
+        UNTOOL("untool", Stdin.NONE),
     }
 
     /** What the launcher's checks look at: the phone, or a fake root in the tests. */
@@ -94,7 +100,7 @@ object OneiosRoot {
             args.getOrNull(i)?.let { if (!OneiosManifests.validPath(it)) p += "${verb.word}: '${it.take(40)}' is not a plain relative path" }
         }
         when (verb) {
-            Verb.STATUS, Verb.REMOVE, Verb.RETURN, Verb.LOGS -> need(0)
+            Verb.STATUS, Verb.REMOVE, Verb.RETURN, Verb.LOGS, Verb.UNTOOL -> need(0)
             Verb.LOGFILE -> {
                 need(3)
                 args.getOrNull(0)?.let { if (!OneiosLogs.validId(it)) p += "logfile: '${it.take(40)}' is not a session log" }
@@ -102,6 +108,10 @@ object OneiosRoot {
                 args.getOrNull(2)?.let { if ((it.toLongOrNull() ?: 0) !in 1..OneiosLogs.CHUNK_MAX) p += "logfile: 1 to ${OneiosLogs.CHUNK_MAX} bytes a call" }
             }
             Verb.BEGIN -> { need(1); kind(0) }
+            Verb.TOOL -> {
+                need(1)
+                args.getOrNull(0)?.let { if (it != "work" && it != "read") p += "tool: '${it.take(40)}' is not work or read" }
+            }
             Verb.RECEIVE -> {
                 need(5); kind(0); path(1); arg(2, DEC, "a size"); arg(3, HEX64, "a SHA-256")
                 args.getOrNull(4)?.let { if (it != "0644" && it != "0755") p += "receive: mode '$it'" }
