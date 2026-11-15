@@ -94,6 +94,7 @@ class OneiosScriptTest {
             val cmd = OneiosRoot.launcher(verb, args, Hashes.sha256(script), script.size.toLong(), layout)
             val pb = ProcessBuilder(sh, "-c", cmd).redirectErrorStream(true)
             pb.environment()["ONEIOS_TEST_ROOT"] = root.path
+            pb.environment()["PATH"] = HostTools.path()
             pb.environment().putAll(env)
             val p = pb.start()
             val input = when (verb.stdin) {
@@ -249,6 +250,7 @@ class OneiosScriptTest {
         private fun builder(script: String, args: List<String>, env: Map<String, String>): ProcessBuilder {
             val pb = ProcessBuilder(listOf(sh, File(stage, script).path) + args).redirectErrorStream(true)
             pb.environment()["ONEIOS_TEST_ROOT"] = root.path
+            pb.environment()["PATH"] = HostTools.path()
             pb.environment()["ONEIOS_TEST_SH"] = sh
             pb.environment()["BB"] = busybox.path
             pb.environment().putAll(env)
@@ -500,7 +502,7 @@ class OneiosScriptTest {
         for ((kind, body) in kinds) {
             dd(body)
             used.delete()
-            val env = mapOf("PATH" to "${bin.path}:${System.getenv("PATH")}")
+            val env = mapOf("PATH" to HostTools.path(bin.path))
             val name = "$kind.img"
             val args = { size: Int, sha: String -> listOf("image", name, size.toString(), sha, "0644") }
             assertRefused(f.verb(OneiosRoot.Verb.RECEIVE, args(data.size, "0".repeat(64)), data, env), "did not arrive intact")
@@ -1479,7 +1481,7 @@ class OneiosScriptTest {
             pb.environment()["ONEOS_BOOT_DIR"] = d.path
             pb.environment()["ONEOS_BOOT_HOME"] = bin.path
             pb.environment()["ONEOS_BOOT_MAX"] = "77"
-            path?.let { pb.environment()["PATH"] = "${it.path}:${System.getenv("PATH")}" }
+            pb.environment()["PATH"] = HostTools.path(path?.path)
             pb.redirectOutput(ProcessBuilder.Redirect.appendTo(File(f.root, "boot.out")))
             return pb.redirectInput(ProcessBuilder.Redirect.from(File("/dev/null"))).start().also { started += it }
         }

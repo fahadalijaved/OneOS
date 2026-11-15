@@ -362,13 +362,13 @@ class StageScriptTest {
         File(gone, "return_keys/boot").writeText("11111111-2222-3333-4444-555555555555\n")
         // A link inside points at the active stage: deleting must not follow it.
         java.nio.file.Files.createSymbolicLink(File(gone, "data/stage_link").toPath(), fr.stage.toPath())
-        val stageBefore = FakeRoot.exec(listOf("find", fr.stage.path, "-printf", "%P %y %s\\n")).lines().sorted()
+        val stageBefore = HostTools.listing(fr.stage, "%P %y %s\\n").lines().sorted()
         val r = fr.run(RootScript.Verb.PURGE, gone.name)
         ok(r)
         assertTrue(r.toString(), r.reply.results.any { it.startsWith("purged ${gone.name} ") })
         assertFalse(gone.exists())
         assertTrue(File(keep, "data/system/packages.xml").isFile)
-        assertEquals(stageBefore, FakeRoot.exec(listOf("find", fr.stage.path, "-printf", "%P %y %s\\n")).lines().sorted())
+        assertEquals(stageBefore, HostTools.listing(fr.stage, "%P %y %s\\n").lines().sorted())
         // No trash left behind; a trash folder from an interrupted purge can be finished.
         val tmp = File(fr.root, "data/local/tmp")
         assertTrue(tmp.list()!!.none { it.startsWith("oneos.trash-") })

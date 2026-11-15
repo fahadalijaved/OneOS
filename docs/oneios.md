@@ -736,6 +736,29 @@ the two meet at the return's lock.
   and a wrong SHA-256. Not covered by any test: toybox's own `dd`, the screen, the service and the wakelock.
 - `./gradlew :core:model:test :core:root:testDebugUnitTest`. The app itself needs the SESL9 libraries from
   GitHub Packages (a token in `~/.config/twidget/github.properties`), as before this change.
+- **The root script tests on macOS.** The root scripts are written for the phone's tools (toybox, busybox), which
+  take GNU's options: `stat -c`, `sha256sum`, `timeout`, `tac`, `sed -i`. macOS's own `stat` is BSD's, which
+  refuses `-c`: on the Mac (macOS 27, `oneios-tool cycle --only build --force app` at 4ffd807) the owner check
+  (`mine()`: `stat -c '%u %A'`) read nothing, so every stage folder "is not root's folder" (`@@REFUSED`, exit 2)
+  and 140 of the 245 `:core:root` tests failed (GuestRuntimeScriptTest, OneiosImportTest, OneiosScriptTest,
+  StageScriptTest). Not the owner: under `ONEOS_TEST_ROOT` "root" is the test's own uid, and only the stage
+  path itself is checked for a link, so `/var/folders` (and `/var` being a link to `/private/var`) do not
+  matter. The fix is in the tests only: `HostTools` (`FakeRoot.kt`) runs
+  `core/root/src/test/resources/hosttools/host-tools.sh` once, which writes stand-ins into a folder that the
+  harnesses (FakeRoot, OneiosFakeStage, OneiosScriptTest) put on the scripts' PATH after their own stubs, each
+  chosen by what the machine's tool does, not by its name: Homebrew's GNU tool (`gstat`, `gsha256sum`,
+  `gtimeout`, `gtac`, `gsed`) where there is one, else a translation (`gnu-stat.sh`: GNU's `-c`, `-L` and `-f`
+  over BSD's `stat -f`; `shasum -a 256`; perl's alarm for `timeout`; awk for `tac`). With GNU coreutils
+  (Linux) the folder stays empty and nothing changes. The harness's own snapshots (`find -printf`, which BSD's
+  find has not) go through `listing.sh`. The root scripts are unchanged: on the phone the owner check is the
+  same text with the same tools, as strict as before. Checked on Linux only (no JDK 21 here): `gnu-stat.sh`
+  over a stand-in for macOS's stat prints what GNU's prints for every format the scripts use (300 checks, under
+  bash as sh and zsh as sh); `mine()` of both root scripts refuses a group- or other-writable folder, a link,
+  root's file and a missing one with the stand-in as with GNU's stat; `oneos_root.sh` under the BSD stand-in
+  alone gives the Mac's refusal, with the stand-in it passes. On the Mac: `cd app-android && ./gradlew
+  :core:root:testDebugUnitTest` (or `oneios-tool cycle --only build --force app`); expected 245 tests, 0 failed
+  (the 2 skipped as before). If it still fails, the test report's standard error names the stand-ins in use
+  (`core:root tests, this machine's stand-ins:`); `brew install coreutils gnu-sed` gives the GNU tools themselves.
 
 ## CI: the APK without a personal token
 
