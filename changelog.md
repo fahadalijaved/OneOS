@@ -50,6 +50,301 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.13: fixes from your reports.
+- **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver now hears that
+  Bluetooth audio is ready before the earbuds connect, as One UI tells it (0.5.12 told it too late), untested.
+- **Screen lock on the Galaxy Z Fold8 in ColorOS:** a PIN, pattern or password set in ColorOS now works there.
+- **Touch no longer dies after a second on bar phones** (Galaxy S24+ in LineageOS): OneOS switches the touchscreen
+  back on when it finds it off with the screen on.
+
+New in 0.5.12: fixes from your reports.
+- **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver kept the sound on
+  the speaker because ColorOS never told it Bluetooth audio was ready; OneOS now does, untested.
+- **Pixel on the Galaxy S23 Ultra no longer stops after a minute** when the audio driver restarts during its start.
+
+New in 0.5.11: fixes from your reports.
+- **Brighter screen on the Galaxy S23, S24 and S25 phones** (base, Plus and Ultra), in every system: they ran at a
+  dimmer brightness scale than One UI's.
+- **Calls and SMS on OxygenOS** on One UI 8 phones (S22, S23 FE and others): Samsung's VoLTE (IMS) now runs there.
+- **Bluetooth audio on the Galaxy A16 4G** (and other MediaTek Galaxy A) in ColorOS: earbuds that connected and
+  played nothing should now play, untested.
+- **ColorOS no longer restarts its status bar under you** a couple of minutes after starting (it looked like a
+  SystemUI crash); the wallpaper AOD setup now waits until the screen is off.
+- **Speaker sound on LineageOS** and the other systems: Samsung's Dolby tuning now follows the output music plays on.
+- **New: Settings > Full session logs.** Turn it off to stop recording everything a session does (saves storage
+  and some heat); reports then carry only the short logs.
+
+New in 0.5.10: fixes from your reports.
+- **LineageOS gets its own screen lock**: a PIN, pattern or password set in LineageOS now works there, as in the
+  other systems.
+- **Bluetooth audio on Exynos phones** (Galaxy S26 and others): earbuds that connected and played nothing now play,
+  untested.
+- **Kernel tool apps** (S24 phones): when one stops a switch, **Turn it off** disables it for you instead of making
+  you uninstall it; the system's page has a row to turn it back on.
+- **Reports need a Telegram username** so we can get back to you; the last one you gave is filled in.
+- The first ColorOS build for the Find X9 Ultra (IN) is retired: every phone takes the newer 1105 build, and a
+  system set up with the old build keeps its apps and data when you move to 1105.
+
+New in 0.5.09: **remove one system or start it fresh**, and a smoother app.
+- Long-press a system's card, or tap its ⋮ button: the system you set up now offers **Start fresh** (erases its apps,
+  accounts and settings; it stays set up and starts like new) and **Remove** (deletes it and frees its space). A saved
+  copy offers **Delete saved**. The system's own page has the same two under **Manage**. One UI, other systems' saved
+  copies and your downloaded files are never touched.
+- Every delete and remove now shows what it is doing and for how long, then how much space it freed; Hide lets you
+  keep using the app meanwhile. Buttons say what is running instead of just going grey.
+- Cleaner screens: one card style and spacing per page, arrows on everything you can tap, the menu no longer
+  touches the screen edge, long names and release notes fit.
+- When a kernel tool app (S24 phones) stops a switch, OneOS now names the app to uninstall instead of "Couldn't
+  switch".
+
+New in 0.5.08: fixes from your reports.
+- LineageOS now starts on the Galaxy A16 (it went back to One UI after 40 s: the brightness range the system asked
+  for began below OneOS's brightness curve).
+- No more lost sound for the rest of a session after the other system's audio restarted (S25 Ultra, A34).
+- Bluetooth turns on again in ColorOS on the A15, A16 and A07.
+- The "Returning to One UI" screen no longer stays on top of a One UI that is already up (S24, S24 FE).
+
+New in 0.5.07: **bring apps from inside the other system**, **remove a brought app**, and LineageOS fixes.
+- The OneOS app inside the other system has a new **Bring apps from One UI** screen: it lists your One UI apps
+  (as they were when you switched) and brings the one you tap over with its data, while the system runs: no
+  restart, you stay signed in. One way, as always: One UI's data is only read.
+- In OneOS on One UI, **Bring apps** now has a Remove button for each brought app: it is uninstalled from the other
+  system at its next start; One UI keeps it.
+- LineageOS: it no longer stops on its first start on some phones (Galaxy S26 Ultra: the screen lock setup now
+  carries on without a key One UI's keystore refuses); the boot animation now shows on the Z Fold's cover screen too;
+  always-on display and the OneOS version name (Settings, About phone).
+- Every system starts lighter: a search of the phone's audio libraries that took a whole CPU core for about three
+  minutes at every start now runs once per One UI update.
+
+New in 0.5.06: **LineageOS 24**, a new system, on every phone that offers Infinity-X (the S, Z Fold, Z Flip
+and A phones). Experimental, not tried on a phone yet.
+- The official LineageOS 24 (Android 17, November 2026 security patch) from the OnePlus 15, with LineageOS's own
+  apps. Its own system: its guest data is kept apart from every other system's.
+- LineageOS has no Google apps of its own. A session adds One UI's own Play services, Play Store and Google Services
+  Framework (the files on your phone, never their data), so you can sign in and use the Play Store. Some banking and
+  payment apps may still refuse: OneOS does not fake the device's certification. The launch screen can start it
+  without Google, as for ColorOS.
+- The switch to OneOS that refused because of an app's kernel tool (0.5.04) now says what to do: uninstall that app.
+  Restarting the phone does not help, because the app starts its tool again.
+
+New in 0.5.05: **outgoing calls in ColorOS on US carriers** (Spectrum and others), on the Z Folds and slab phones.
+- ColorOS let incoming calls and texts through but dialled every outgoing call the old way (GSM), which LTE-only
+  carriers such as Spectrum do not have: the carrier's settings asked for VoLTE "provisioning", and Samsung's IMS
+  service, which the systems use, answers that it is not provisioned. ColorOS now calls over IMS as the Pixel system
+  does. For the Find N6 system (Z Folds) and the Find X9 Ultra November build. Not tried on a phone yet.
+  **Tap Update on the system's page**.
+
+New in 0.5.04: **Bluetooth sound in ColorOS and OxygenOS on the Galaxy S23 series** and **an end to the Galaxy S24 restarts**.
+- On the S23, S23+ and S23 Ultra, ColorOS and OxygenOS read the phone's own audio settings from a second place and
+  never saw OneOS's Bluetooth changes, so headphones connected without sound (0.4.97 to 0.5.03). They now get the
+  same settings the Pixel system plays with on the S23. Not tried on a phone yet. **Tap Update on the system's page**.
+- The Galaxy S24 restarts during sessions came from a third-party app's tool that works on the kernel (it runs as
+  "libtimer.so"), not from OneOS or the systems: 0.5.03's note caught it. OneOS now stops before switching while
+  that tool runs and says which app it is: close it, or restart the phone without starting it, and switch again.
+
+New in 0.5.03: **a clue for the Galaxy S24 restarts**.
+- Some Galaxy S24, S24+, S24 FE and S24 Ultra phones restart by themselves during a session (10 reports, in
+  ColorOS, OriginOS and the Pixel 9 Pro XL system): the phone's kernel stops while a program closes. Sessions now
+  note which program that is, so the next report can show us. If your S24 restarts on its own, send a report
+  from the app after it comes back.
+
+New in 0.5.02: **a newer ColorOS build for the slab phones (Find X9 Ultra IN, November update)**, to try.
+- OPPO's newer global build of ColorOS 17 for the Find X9 Ultra, with OPPO's latest bug fixes (security patch
+  November 2026). It shows as a second choice, "global build, November update", next to the current one on every
+  phone that has the Find X9 Ultra build; the current build stays the default and keeps working.
+- Your ColorOS stays as it is when you move to it: apps, accounts and settings come along.
+- **Untested**: nobody has started it on a phone yet. Please try it and send a report, whether it works or not.
+
+New in 0.5.01: **calls end again when you decline or hang up**, in every system that uses Samsung's
+calling service (not OxygenOS).
+- Samsung's calling service ended the call on the network, but kept the news from the system until the
+  system said it was ready for it, which only One UI does. The call went on showing in the Phone app and
+  no other call could be made (Z Fold8 with the Pixel 11 Fold build). Now the system says so as soon as it
+  takes the call. Not tried on a phone yet. **Tap Update on the system's page**.
+
+New in 0.5.00: **Bluetooth sound on the Galaxy S23 series, third try**, in every system.
+- 0.4.99's bridge now reaches Samsung's Bluetooth audio service, but the systems asked for the DSP ("offload")
+  path, which the S23's audio driver never connects for them: S23 and S23+ reports on 0.4.99 still had no sound,
+  in ColorOS and in the Pixel system. One UI plays Bluetooth headphones the other way, encoding the sound itself,
+  and every system now does the same on the S23s. The S24s, where Bluetooth sound works, stay as they are.
+  Not tried on a phone yet. **Tap Update on the system's page**.
+- **No more black screen on a system's first start when One UI has a screen lock and a Google account**
+  (A34 ColorOS report): the new system could not clear factory-reset protection, which stays One UI's, and its
+  lock-screen setup stopped the system at the first start. Every system now carries on. Not tried on a phone yet.
+
+New in 0.4.99: **Bluetooth sound on the Snapdragon Galaxies, second try**.
+- 0.4.97's fix did not work: Galaxy S23 reports on 0.4.97 still had no sound in Bluetooth headphones. The bridge
+  was meant to notice when Samsung's audio service took its place and take it back, but it never noticed. Now
+  it simply takes its place again every second. Not tried on a phone yet. **Tap Update on the system's page**.
+
+New in 0.4.98: **always-on display in ColorOS on the Z Fold7, Fold6 and Fold5**, and **AOD brightness in
+ColorOS on the other phones**.
+- ColorOS on the older Folds (the Find N6 system) had no always-on display at all: only the Z Fold8s had it.
+  Now the Fold7, Fold6 and Fold5 get it too, with the wallpaper AOD style from 0.4.97 (report on a Z Fold7).
+- ColorOS sets the always-on display's brightness through OPPO's own display hardware, which a Galaxy
+  lacks. The Z Fold8s had a fix for that; the other phones on ColorOS (the Find X9 Ultra system) get it now.
+- Not tried on those phones yet: if the AOD stays black or missing, please send a report. **Tap Update on the
+  system's page** to get it.
+
+New in 0.4.97: **Bluetooth sound in the guest on the Snapdragon Galaxies** and **wallpaper AOD in ColorOS**.
+- On the Galaxy S23, S24, S25 and the Z Folds, Bluetooth headphones connected in the guest but every sound stayed
+  on the phone's speaker (a Galaxy S23 on ColorOS). Samsung's audio service put Qualcomm's own Bluetooth audio
+  entry over OneOS's bridge a minute into the session, and Samsung's audio path never plays through that one.
+  The bridge now takes its place back.
+- ColorOS (the Find N6 system on the Z Folds, the Find X9 Ultra system on the other phones) can now show the
+  wallpaper on the always-on display. ColorOS only offered it when OPPO's own display hardware said so; One UI
+  already shows the wallpaper on AOD on these screens. Choose it in ColorOS's always-on display settings.
+- Wallpaper AOD was tried on the Z Fold8 Ultra and works; on the other phones it was not tried yet. The
+  Bluetooth fix was not tried on a phone yet. If either does not work, please send a report. **Tap Update on
+  the system's page** to get both.
+
+New in 0.4.96: **a switch that could not start no longer stays on "Shutting down One UI"**, and **Restart
+guest that ended in One UI on slower phones** (root for the guest).
+- Right before it changes anything, the switch checks the phone once more and can still refuse to start. The
+  app did not hear about that: its screen stayed on "Shutting down One UI" while One UI kept running, and the
+  reason was only in the log (a Galaxy S23 on 0.4.95, twice: after several switches without a restart One UI
+  had run out of room for settings). Now the app waits for that check and shows the reason. For this one it
+  says "Restart your phone first".
+- With root for the guest on, Restart guest (the step that applies a module change) stops the guest's processes
+  and starts the system again. Finding the guest's processes took about 50 seconds a round on a Galaxy A34, the
+  restart ran into its two-minute limit, and the phone went back to One UI instead, twice in a row (a report on
+  0.4.93). Now each round reads all processes in one go and looks closely only at those that can be the guest's;
+  what gets stopped is decided exactly as before.
+- Neither fix was tried on a phone yet: if a switch still stays on "Shutting down One UI", or Restart guest
+  still ends in One UI, send a report.
+- **Tap Update on each system's page** to get both.
+
+New in 0.4.95: **a screen lock of the guest's own** (a PIN, a pattern or a password) in ColorOS, HyperOS, Nothing OS
+and OriginOS, and two more phones: the **Galaxy M35 5G** and the **Galaxy A15 5G with MediaTek**.
+- Until now a guest system refused every screen lock: it shares the phone's lock hardware with One UI, and a lock
+  set from a guest once left One UI unable to unlock. Now these systems take a PIN, pattern or password in their
+  own Settings, as on any phone. OneOS keeps it inside the guest (a salted hash in the guest's own data) and
+  checks it there; nothing of it reaches the phone's lock hardware or keystore, and One UI's lock state stays
+  exactly what it was. The idea comes from pull request #152 by @vdcoolok.
+- What it is not: it keeps other people out of the guest's lock screen, it does not protect the data. A restart
+  of the phone always lands in One UI, which has no lock while OneOS is in use, and with root there the guest's
+  files are within reach. No fingerprint or face: "Add fingerprint" in the guest refuses. An app that asks for
+  the device PIN in its own prompt behaves as on a phone without a lock. One UI's own lock still has to be off
+  before a switch.
+- Forgotten: from One UI, with root, `su -c 'rm -f /data/local/tmp/oneos/data/system/oneos_guest_lock /data/local/tmp/oneos/data/system/oneos_guest_lock.tries'`;
+  the guest starts without a lock the next time (docs/guest-screen-lock.md).
+- Where: ColorOS on the Galaxy Z Fold8 Ultra, Z Fold7, Z Fold6 and Z Fold5 (tried on the Z Fold8 Ultra: set,
+  unlock, back to One UI, all good), ColorOS on the bar phones (the Find X9 Ultra build), HyperOS, Nothing OS
+  and OriginOS. The last four have the same change but have not run on a phone yet: if such a system does not
+  start after its update, send a report. Not yet: the Pixel systems, Infinity-X, OxygenOS 16 and ColorOS on the
+  Galaxy Z Fold8; they refuse a lock as before. **Tap Update on the system's page** to get it.
+- The Galaxy M35 5G (SM-M356B, Exynos 1380, One UI 9.0), from findings of 2026-11-11: the Galaxy A35 5G's
+  systems (ColorOS 17, Infinity-X, HyperOS, OxygenOS 16), untested on it.
+- The Galaxy A15 5G with MediaTek (SM-A156M, One UI 8.5), from findings of the same day: OxygenOS 16, as on the
+  Galaxy A07 5G, untested on it. The Galaxy A15 with the Helio G99 was there already.
+
+New in 0.4.93: **root for the guest on the Galaxy S22 series, S23 FE, A25, A33 and A53**, and three more phones:
+the **Galaxy S22 with Exynos**, the **Galaxy A16 5G with MediaTek** and the **au Galaxy S23 (SCG19)**.
+- With root for the guest switched on, no system got past its logo on these phones: every switch ended in a black
+  screen or a return to One UI (reports from a Galaxy A33 on 0.4.85 and 0.4.90 and a Galaxy S22 Ultra with Exynos
+  on 0.4.92, all OxygenOS 16; with root for the guest off the same phones start). Their kernel has no overlayfs,
+  so guest root puts a copy of the system's top folder in front of the image, with each of the image's folders
+  attached inside it. One of them is the image's own folder of system modules (APEX files), and OneOS took it for
+  One UI's, which has to be at that place: the list of modules comes from One UI. The guest then looked for One
+  UI's modules among the image's, did not find them ("Unable to parse: /system/apex/com.android.bt.apex") and its
+  system server stopped at once, again and again. OneOS now checks what the folder at that place is, not only
+  that something is attached there, and puts One UI's folder over it. Not tried on the phones of the reports
+  yet. **Tap Update on each system's page** to get it: the session scripts changed.
+- The Galaxy S22 with Exynos (SM-S901B), now that findings show it on One UI 8.0: OxygenOS 16, as on the Galaxy
+  S22+ and S22 Ultra with Exynos, untested on it.
+- The Galaxy A16 5G with MediaTek (SM-A166P, One UI 8.5), from findings of 0.4.91: OxygenOS 16, as on the Galaxy
+  A07 5G, untested on it. The A16 5G with Exynos and the A16 4G were there already.
+- The au Galaxy S23 (SCG19), from findings of a phone on One UI 9.0: it takes the Galaxy S23's systems (ColorOS
+  17, Pixel, Infinity X, HyperOS and OriginOS on One UI 9; OxygenOS 16 on One UI 8.0/8.5), untested on it.
+
+New in 0.4.92: **a switch that stood on the "shutting down" splash for good with guest root on**, and the
+**au Galaxy S23 Ultra (SCG20)**.
+- With root for the guest switched on, the switch could stop behind the splash and never go on; only a forced
+  reboot ended it (Galaxy S22 Ultra, OxygenOS 16, 0.4.91: three switches in a row, 15 and 27 minutes). Before each
+  start the guest's module cleanup starts a helper and ends it again a moment later. The stop signal could be lost
+  in the instant the helper was starting, and the cleanup then waited for it without end; nothing bounded the
+  step. On a test phone's own shell the old lines lost 32 of 400 stops in one run, the new ones none of 1,600.
+  The helper is now ended by a signal that cannot be lost, and the whole cleanup has 150 seconds: past that it
+  is stopped and the switch ends with a message, as for any other failure while preparing. Not tried in a
+  switch on the phone of the report yet. **Tap Update on each system's page** to get it: the session scripts
+  changed.
+- The au Galaxy S23 Ultra (SCG20), from findings of a phone on One UI 9.0 sent the same day: it takes the Galaxy
+  S23 Ultra's systems (ColorOS 17, Pixel, Infinity X, HyperOS and OriginOS on One UI 9; OxygenOS 16 on One UI
+  8.0/8.5), untested on it. Japanese carrier models have their own model number and device name, so each needs
+  its own entry.
+
+New in 0.4.91: **OxygenOS 16 on the Galaxy S23, S23+ and S23 Ultra that are still on One UI 8.0 or 8.5**
+(Android 16), untested there. Until now the app told these phones to update One UI first, because all
+five of their systems are Android 17. OxygenOS 16 is the one Android 16 system and already runs on the
+S22 series and the S23 FE; on One UI 9 the S23s' list is unchanged (OxygenOS 16 is not offered there).
+The session scripts and file sets are the ones of 0.4.90: nothing to update on a system's page.
+
+New in 0.4.90: **Bluetooth and USB headphones on the Galaxy A35**, **OxygenOS 16's status bar**, and **ColorOS's
+status bar on the Galaxy S24+**. None of the three has run on the phones concerned yet.
+- Bluetooth and USB headphones connected and the sound stayed on the phone (Galaxy A35, OxygenOS 16; any phone whose
+  vendor audio policy file names no Bluetooth or USB output). An A35 user found the fix and sent it as a script: the
+  vendor's own Bluetooth and USB policy files, included in the guest's copy of the policy file. OneOS now does that
+  before the guest starts, on phones that are not Qualcomm ones and have the files and their HAL libraries; the
+  0.4.85 way (A2DP outputs in the primary module) stays for the rest. `ONEOS_GUEST_APM_BT_MODULE=0` (or `1` for a
+  Qualcomm phone) and `ONEOS_GUEST_APM_USB=0` choose by hand.
+- OxygenOS 16 laid its status bar out for a camera in the corner on every phone (clock pushed right of the camera
+  on 1080 px phones, icons ending at the camera on 1440 px ones). 0.4.81's fix did not reach it: OPPO's SystemUI
+  reads the image's own phone's width (1272 px) from a framework resource, not from DisplayManager. The resource now
+  gets the guest's display size through an overlay. `ONEOS_GUEST_STABLE_SIZE=0` turns it off.
+- ColorOS on a Galaxy S24+ (Exynos) had the clock and all icons in the left half of the status bar. The camera
+  position was written for the whole 1440 px panel while the guest ran it at One UI's FHD+ size. The switch now asks
+  the guest for its display size as soon as its window manager answers and places the camera for that size; the
+  display density and, on Pixel and HyperOS guests, the status bar height follow the same size. Nothing changes where
+  the guest runs the whole panel. Every bar-phone session now logs the guest's display size.
+
+New in 0.4.89: **Canadian phones (SM-...W) are no longer refused as a custom ROM**. From the S24 series on, a
+stock Canadian phone carries the US carrier model's bootloader and vendor partition under its own firmware (S24 Ultra
+SM-S928W: bootloader S928U..., vendor SM-S928U), which OneOS took for One UI ported from another phone (public issue
+#128). The Canadian model now counts as the same phone as the US carrier (U) and unlocked (U1) models, with either
+bootloader, as U and U1 have counted as one since 0.4.84. One UI ported from another phone and other regions'
+firmware are still refused.
+
+New in 0.4.88: **Bluetooth headsets that drop and reconnect every few seconds in ColorOS on the Galaxy A16 4G
+(and likely the A15 4G and A07)** (untested). ColorOS's Bluetooth is OPPO's build for Qualcomm chips. When a headset
+connects it turns the Bluetooth chip's quality reports on, reads the MediaTek chip's shorter reports past their end,
+and the Bluetooth process dies and starts over, again and again. On phones with the Helio G99 (MT6789), ColorOS's
+Bluetooth now runs with its own switch for Android's original behaviour, where those reports are read with their
+length checked. The switch changes more of ColorOS's Bluetooth than the reports (codecs, remote control), so it is
+set on these phones only; ONEOS_GUEST_BT_ORIGIN=0 leaves it off, =1 sets it on any phone.
+
+New in 0.4.87: **double tap to wake on more phones**. On the S24 and S24+ (Exynos), S23 FE, A25, A34 and A35 the
+touchscreen answers two of the four writes with an error although it has done its part; OneOS took that for a refusal
+and gave double tap up for the session. The S22 Ultra and S23 Ultra, whose touchscreen reports its state with other
+numbers, were left out altogether. Both are handled now, and the first write waits until the touchscreen is held
+open (without that it was lost on some phones). Double tap needs One UI's own "Double tap to turn on screen" on.
+**Always-On Display in ColorOS and OxygenOS on phones other than the Z Fold8** (untested): the system was never told
+that the phone has one, so its setting did nothing. It is told now wherever One UI has AOD and the system carries
+its AOD app (ONEOS_GUEST_AOD=0 leaves it off). **HyperOS on Exynos phones with the older audio HAL (A16 5G, A35 and
+the like): volume stuck at the maximum, no headset, no Bluetooth audio**. HyperOS was handed Samsung's own audio
+policy file and rejected it for a Samsung-only microphone type; it gets Samsung's plain file now. **Bluetooth audio
+on those phones, in every system** (untested): the plain file has no Bluetooth music output although the audio HAL
+plays to one, so the outputs are added the way One UI's own file has them (ONEOS_GUEST_APM_A2DP=0 leaves the file
+alone). On the A25, A33 and S23 FE the Bluetooth audio HAL is an older kind the bridge cannot serve: the log says so
+now instead of waiting 15 s, and Bluetooth audio does not work there yet. **Mobile data in HyperOS**: HyperOS keeps
+its mobile data switch per SIM slot, the other systems per SIM card; OneOS carried One UI's switch over the second
+way, which on a phone with the SIM in the first slot switched the empty slot on and left the SIM's off (S25 Ultra:
+signal, but no data all session). Both slots are set now, as HyperOS's own switch does. A first HyperOS start still
+begins with mobile data off (there are no settings to change yet): turn it on once in its control centre.
+**No SIM in Infinity-X on the Galaxy A07 and A15 (and likely the A16 4G and A17)** (untested): the fix of 0.4.74
+looked for the phone's older radio service in the vendor's manifest files and did not find it there, so nothing
+changed. OneOS now asks the running phone which radio services it has, and the log says what it saw either way.
+**For reports:** when a system asks to shut the phone down or restart it, the log now keeps the request from the
+system log buffer (a busy camera used to push it out) and what the system's thermal and battery services held;
+HyperOS says when it unpacks its apps' libraries on a first start.
+
+New in 0.4.86: **a faster switch and a faster return**, from a contributor's work (public pull request #107):
+One UI's display details are read once and in the background, the Samsung Camera's files are bound in parallel
+(one by one where the root manager's busybox cannot), app data ownership is checked in one pass, and One UI's
+persist properties go back in one pass at the return (the author measured about 21 s down to 10 s for that step).
+The log now carries a time at every step. **App folders keep the labels the guest gave them** between sessions:
+the rule from 0.4.44 never took effect, because the folders were reset just before it looked. **A live or video
+wallpaper survives a restart in ColorOS 17 too**, not only in Pixel guests (public pull request #133).
+
 New in 0.4.85: **Galaxy A phones on One UI 8 or 8.5 are no longer called "not supported"**. Whenever the
 app had no set-up system to go by, it measured them against Android 17 and refused them (A15, A16, A25, A33 and the
 others with OxygenOS 16). Phones whose systems are all Android 17 (A56, A57, A36, A27, S24 FE,

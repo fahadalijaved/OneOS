@@ -113,6 +113,15 @@ BUILDS = [
         "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
         "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
     }, [("vold", 0x104e6, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
+    # The newer Find X9 Ultra IN OTA (CPH2841IN, security patch 2026-11-01): only vold
+    # changed (8 bytes longer; the only "\0vold\0" 4 bytes earlier, try_start's tbz on
+    # isDeclared() at the same offset with the same code around it);
+    # service.incremental.so and the crashrecovery APEX are the older build's, byte for byte.
+    ("ColorOS 17 CP2A.260605.016 IN (Find X9 Ultra global, 2026-11-01)", {
+        "vold": "41a7e561a3d0e4a52954aa843d8592dfc6c4aa847c5decdd5fff13386cea0660",
+        "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
+        "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
+    }, [("vold", 0x104e2, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
     # Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse, CP2A.260605.016),
     # built from source: its own layout. start() takes the string at 0xe164
     # (adrp 0xe000 + add 0x164), try_start's tbz w19 is at 0x64d8c (+0xd4, as
@@ -125,6 +134,20 @@ BUILDS = [
         "service.incremental.so": "c964e27681a3632a7f83acb1698acffa572b3ece773690bc64444dff7bfaf7a7",
         "crashrecovery-aosp.capex": "1c4fa1a8417b233765db1621f3911b66de230049c39b248f116c3d18a8920ca6",
     }, [("vold", 0xe163, NAME), ("vold", 0x64d8c, TRY_START), ("service.incremental.so", 0x646c0, NAME)]),
+    # LineageOS 24.0 (OnePlus 15 infiniti nightly 2026-11-11, CP2A.260605.016),
+    # built from source: start() takes "vold" at 0xdf7c (adrp 0xd000 + add 0xf7c at
+    # 0x650bc, then String16 and a new VoldNativeService; the binary's only
+    # "\0vold\0", the other references are log tags), try_start's tbz w19, #0,
+    # +0xd4 is at 0x64aa4 right after the isDeclared() call through the service
+    # manager, and service.incremental.so has the string at 0x64481 with its two
+    # lookups (adr at 0xbc51c, adrp + add at 0xbea7c). Its compressed crashrecovery
+    # APEX (com.android.crashrecovery.capex) has AOSP's RescueParty.isDisabled
+    # (persist.sys.disable_rescue, persist.sys.enable_rescue).
+    ("LineageOS 24.0 CP2A.260605.016 (infiniti)", {
+        "vold": "36191041f9c1bd3e853ed08091dc0bd742f7e1aa0e3a8044a267c18a0f714306",
+        "service.incremental.so": "308015cd20592c7bce245a816fb13e045336ef659c326b3107a3bc86c40328ff",
+        "crashrecovery-aosp.capex": "cc082be9ba96bcf361c11f7e6d6f23cf2e2abff7f118c855c0f0590e6fdee6b6",
+    }, [("vold", 0xdf7b, NAME), ("vold", 0x64aa4, TRY_START), ("service.incremental.so", 0x64480, NAME)]),
     # HyperOS OS4.0 (Xiaomi lhasa, 2026-10): start() takes "vold" at 0xf3fd
     # (adrp 0xf000 + add 0x3fd at 0x6e8f4, the binary's only "\0vold\0"),
     # try_start's tbz w19, #0, +0xd4 is at 0x6e2d4, and service.incremental.so
@@ -278,10 +301,19 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_biometric_clea
 # guest_no_apex_installs.py, guest_app_id_offset.py, guest_no_new_users.py; the KernelSU
 # manager keeps One UI's app id (guest_ksu_manager_appid.py, 0.4.39).
 # 0.4.63: the PDB start task survives a failed FRP deactivation (guest_pdb_init_survives.py).
-for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
+# 0.5.00: with One UI's FRP active a guest PDB write fails as an I/O error instead of
+# killing system_server's main thread (A34 ColorOS 17, 0514e9ea; guest_pdb_frp_writes_fail.py).
+# A synthetic password Keystore refuses does not stop the guest (S26 Ultra LineageOS b5edb256; guest_sp_migration_tolerant.py).
+for g in guest_no_gatekeeper guest_pdb_readonly guest_pdb_frp_writes_fail guest_sp_migration_tolerant guest_pdb_init_survives guest_no_apex_installs guest_app_id_offset guest_ksu_manager_appid guest_no_new_users; do
     NEW=$(python3 -I "$ROOT/switcher/patches/$g.py" "$WORK/services")
     KEY_DIRS="$KEY_DIRS $NEW"
 done
+# The guest's own screen lock: a PIN, pattern or password kept in the guest's own
+# /data/system and checked there, without the phone's gatekeeper, weaver or keystore
+# (patches/guest_local_lock.py, helper OneOSGuestLock). It goes in front of
+# guest_no_gatekeeper's guard, so it runs after that loop; a framework of another
+# shape is left as it is (no guest lock there, as before).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_local_lock.py" "$WORK/services")"
 # The guest's own idmap2d instead of One UI's (patches/guest_own_idmap.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_own_idmap.py" "$WORK/services")"
 # A WebView zygote that cannot start is logged, not fatal (S24 Ultra, Find X9
@@ -1047,6 +1079,9 @@ import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
+         # Find X9 Ultra IN, newer OTA (CPH2841IN, security patch 2026-11-01): the same
+         # bl AIBinder_getExtension / ldr x8 / cbz x8 / bl IQtiComposer3Client::fromBinder at 0x475d24.
+         "9dd1117ff4ab": 0x475d24,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
          "e5a8726a6687": 0x452a50,
@@ -1899,6 +1934,34 @@ if in_image /system/framework/vivo-framework.jar &&
     mv -f "$WORK/vivo-framework_patched.jar" "$OUT/vivo-framework_patched.jar"
     chmod 644 "$OUT/vivo-framework_patched.jar"
     rm -rf "$WORK/vf" "$WORK/vf-rebuilt.jar" "$WORK/vdex" "$WORK/vivo-framework.jar"
+fi
+
+# ColorOS and OxygenOS: outgoing calls over IMS where the carrier asks for VoLTE
+# provisioning (patches/oplus_ims_provision.py; Samsung's IMS service answers 0 and
+# every call was dialled as GSM: Z Fold8 Spectrum 295249c3, S25+ US c8be0b32).
+# oplus-framework.jar is on the boot class path; only the dex the patch changed is
+# rebuilt. Nothing is written when the image has no such check.
+rm -f "$OUT/oplus-framework_patched.jar"
+if in_image /system/framework/oplus-framework.jar; then
+    "$DEBUGFS" -R "dump /system/framework/oplus-framework.jar $WORK/oplus-framework.jar" "$IMG" 2>/dev/null
+    rm -rf "$WORK/of" "$WORK/of-rebuilt.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/of" "$WORK/oplus-framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/oplus_ims_provision.py" "$WORK/of")
+    if [ -n "$DIRS" ]; then
+        java -jar "$APKTOOL" b -q -o "$WORK/of-rebuilt.jar" "$WORK/of"
+        cp "$WORK/oplus-framework.jar" "$WORK/oplus-framework_patched.jar"
+        for d in $DIRS; do
+            DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+            rm -rf "$WORK/ofdex" && mkdir -p "$WORK/ofdex"
+            unzip -q -o "$WORK/of-rebuilt.jar" "$DEX" -d "$WORK/ofdex"
+            (cd "$WORK/ofdex" && zip -q -0 "$WORK/oplus-framework_patched.jar" "$DEX")
+            echo "built $OUT/oplus-framework_patched.jar (replaced $DEX)"
+        done
+        python3 -I "$ROOT/scripts/check-dex.py" "$WORK/oplus-framework_patched.jar"
+        mv -f "$WORK/oplus-framework_patched.jar" "$OUT/oplus-framework_patched.jar"
+        chmod 644 "$OUT/oplus-framework_patched.jar"
+    fi
+    rm -rf "$WORK/of" "$WORK/of-rebuilt.jar" "$WORK/ofdex" "$WORK/oplus-framework.jar"
 fi
 
 # vivo's feature list (patches/vivo_guards.py framework: VivoConfigStoreHelper reads

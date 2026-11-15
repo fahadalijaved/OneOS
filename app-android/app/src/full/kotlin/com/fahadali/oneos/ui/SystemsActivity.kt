@@ -272,8 +272,8 @@ class SystemsFragment : Fragment() {
         subs += StageCheck.observe { if (!it.busy) context?.let(Readiness::tick); redraw() }
         subs += com.fahadali.oneos.session.AppUpdater.observe { updateLine() }
         subs += PrepareJob.observe { redraw() }
-        subs += OldStagesJob.observe { redraw() }
-        subs += com.fahadali.oneos.session.RemoveJob.observe { redraw() }
+        subs += OldStagesJob.observe { redraw(); activity?.let { SystemManage.showResult(it) } }
+        subs += com.fahadali.oneos.session.RemoveJob.observe { redraw(); activity?.let { SystemManage.showResult(it) } }
     }
 
     override fun onStop() {
@@ -451,11 +451,14 @@ class SystemsFragment : Fragment() {
         val nothing = image(com.fahadali.oneos.core.model.SystemFamily.NOTHING, Images.NOTHING_METROID)
         val oxygen = image(com.fahadali.oneos.core.model.SystemFamily.OXYGENOS, Images.OXYGEN16)
         val origin = image(com.fahadali.oneos.core.model.SystemFamily.ORIGINOS, Images.ORIGINOS7)
+        val lineage = image(com.fahadali.oneos.core.model.SystemFamily.LINEAGE, Images.LINEAGE24)
         // OxygenOS 16 (Android 16, 0.4.67) only where the phone can take it (One UI 8), and first there.
         val entries = listOfNotNull(
             CatalogEntry(oxygen.name, oxygen, R.drawable.os_oxygenos, true).takeIf { available.any { it.id == oxygen.id } },
             // OriginOS 7 (0.4.73, experimental) only on its phones (the Snapdragon S23 to S26 series, the Exynos S24 and S24+, and Z Fold7/8).
             CatalogEntry(origin.name, origin, R.drawable.os_originos, true).takeIf { available.any { it.id == origin.id } },
+            // LineageOS 24 (0.5.06, experimental) only on the phones that offer it.
+            CatalogEntry(lineage.name, lineage, R.drawable.os_lineage, true).takeIf { available.any { it.id == lineage.id } },
             CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, available.any { it.id == infinity.id }),
             CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, available.any { it.id == hyper.id }),
             CatalogEntry(color.name, color, R.drawable.os_coloros, available.any { it.id == color.id }),
@@ -604,21 +607,42 @@ class SystemsFragment : Fragment() {
             return v
         }
         val primary = v.findViewById<Button>(R.id.systems_primary)
-        v.findViewById<View>(R.id.systems_more).setOnClickListener { anchor ->
-            androidx.appcompat.widget.PopupMenu(ctx, anchor).apply {
-                menu.add(R.string.systems_download).setOnMenuItemClickListener { activity?.let { SystemsNav.open(it, image.mirrorUrl) }; true }
-                image.downloadUrl?.let { drive ->
-                    menu.add(R.string.systems_download_drive).setOnMenuItemClickListener { activity?.let { SystemsNav.open(it, drive) }; true }
-                }
-                menu.add(R.string.systems_have_file).setOnMenuItemClickListener { (activity as? SystemsActivity)?.choose(image.id); true }
-                menu.add(R.string.systems_phone_status).setOnMenuItemClickListener {
-                    startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true)); true
-                }
-                menu.add(R.string.catalog_details).setOnMenuItemClickListener {
+        // The menu follows the card's state (0.5.09): the set-up system offers Start fresh and Remove, a saved
+        // copy offers its delete, a system not set up the download and file items. A long press opens it too.
+        fun showMenu(anchor: View) {
+            val host = activity ?: return
+            // Always tappable: while another job runs, the tap says why (a greyed item gave no reason, 11-14).
+            androidx.appcompat.widget.PopupMenu(ctx, anchor, android.view.Gravity.END).apply {
+                fun details() = menu.add(R.string.catalog_details).setOnMenuItemClickListener {
                     AlertDialog.Builder(ctx).setTitle(image.displayName).setMessage(image.blurb + "\n\n" + image.variant.orEmpty() + "\n" + Units.bytes(image.gzBytes)).setPositiveButton(android.R.string.ok, null).show(); true
+                }
+                when {
+                    setUp && !settingUp -> {
+                        menu.add(R.string.manage_start_fresh).setOnMenuItemClickListener { SystemManage.confirmStartFresh(host, image); true }
+                        menu.add(getString(R.string.manage_remove, image.name)).setOnMenuItemClickListener { SystemManage.confirmRemove(host, image); true }
+                        details()
+                    }
+                    savedCopy != null -> {
+                        menu.add(getString(R.string.manage_delete_saved, image.name)).setOnMenuItemClickListener { SystemManage.confirmDeleteSaved(host, image, savedCopy); true }
+                        details()
+                    }
+                    else -> {
+                        menu.add(R.string.systems_download).setOnMenuItemClickListener { SystemsNav.open(host, image.mirrorUrl); true }
+                        image.downloadUrl?.let { drive ->
+                            menu.add(R.string.systems_download_drive).setOnMenuItemClickListener { SystemsNav.open(host, drive); true }
+                        }
+                        menu.add(R.string.systems_have_file).setOnMenuItemClickListener { (host as? SystemsActivity)?.choose(image.id); true }
+                        menu.add(R.string.systems_phone_status).setOnMenuItemClickListener {
+                            startActivity(Intent(ctx, MainActivity::class.java).putExtra("system_detail", true)); true
+                        }
+                        details()
+                    }
                 }
             }.show()
         }
+        val more = v.findViewById<View>(R.id.systems_more)
+        more.setOnClickListener { showMenu(it) }
+        v.setOnLongClickListener { showMenu(more); true }
         val a = activity as? SystemsActivity
         fun makeCardClickable(description: CharSequence, enabled: Boolean, onClick: () -> Unit) {
             v.isFocusable = true
@@ -642,7 +666,13 @@ class SystemsFragment : Fragment() {
             primary.visibility = View.GONE
             makeCardClickable(getString(R.string.catalog_open_checks, image.nameWithVariant), true, onClick)
         }
+        val removing = com.fahadali.oneos.session.RemoveJob.state.takeIf { it.busy }
+        val deletingSaved = OldStagesJob.state.takeIf { it.busy }?.deleting?.takeIf { it == savedCopy }
         when {
+            // Say on the card what runs on it (0.5.09): a disabled button with its old label read as "not working".
+            setUp && removing != null && removing.kind != com.fahadali.oneos.session.RemoveJob.Kind.ALL ->
+                only(getString(if (removing.kind == com.fahadali.oneos.session.RemoveJob.Kind.DATA) R.string.manage_card_erasing else R.string.manage_card_removing), false) {}
+            deletingSaved != null -> only(getString(R.string.manage_card_deleting), false) {}
             settingUp -> only(getString(R.string.systems_show_progress), true) { a?.let { startArtwork(it, Intent(it, SetupProgressActivity::class.java), v.findViewById(R.id.systems_artwork)) } }
             setUp && maintenance != null -> only(maintenance.actionLabel ?: getString(R.string.catalog_update),
                 !jobsBusy && StageCheck.state.phase == StageCheck.Phase.DONE,

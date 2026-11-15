@@ -474,3 +474,14 @@
 +    :missing
 +    return v1
 +.end method
+--- a/smali_classes3/com/oplus/systemui/aod/display/SmoothTransitionController.smali
++++ b/smali_classes3/com/oplus/systemui/aod/display/SmoothTransitionController.smali
+@@ -4614,7 +4614,7 @@
+ 
+     iput-boolean v8, v0, Lcom/oplus/systemui/aod/display/SmoothTransitionController;->isSupportSmoothTransition:Z
+ 
+-    iput-boolean v8, v0, Lcom/oplus/systemui/aod/display/SmoothTransitionController;->isSupportPanoramicByPanelFeature:Z
++    iput-boolean v1, v0, Lcom/oplus/systemui/aod/display/SmoothTransitionController;->isSupportPanoramicByPanelFeature:Z
+ 
+     iput-boolean v8, v0, Lcom/oplus/systemui/aod/display/SmoothTransitionController;->isSupportPanoramicAllDayByPanelFeature:Z
+ 

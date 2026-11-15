@@ -30,6 +30,8 @@
 
         <activity android:name=".ModuleWebActivity" android:exported="false" />
         <activity android:name=".GuestModulesActivity" android:exported="false" />
+        <!-- Bring apps from One UI: lists the catalog the OneOS app left, asks the host session for one app. -->
+        <activity android:name=".BringAppsActivity" android:exported="false" android:label="@string/bring_title" />
         <activity android:name=".GuestRootActivity" android:exported="false" android:windowSoftInputMode="adjustResize">
             <intent-filter><action android:name="android.intent.action.SEARCH" /></intent-filter>
             <meta-data android:name="android.app.searchable" android:resource="@xml/root_searchable" />

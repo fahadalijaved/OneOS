@@ -19,6 +19,14 @@ package com.fahadali.oneos.core.model
  * vendor SM-S947U) was refused as a port. The two count as the same model ([family]); every other
  * letter still has to match.
  *
+ * 0.4.89, the Canadian model (W) (owner, 2026-11-11: "Its canadian variant lol. U have been way
+ * strict with that"; public issue 128): from the S24 series on, a stock Canadian phone carries the US
+ * carrier model's bootloader and vendor partition under its own firmware (SM-S928W: bootloader
+ * S928USQU6EZIF, vendor SM-S928U, firmware S928WVLU6EZIF); older ones are W throughout (S901W, S908W,
+ * S911W). W is the same phone as U and U1 and counts as the same model, with either bootloader. Of 226
+ * findings with properties up to that day, that S928W was the only stock phone the rule refused; the
+ * other nine refused were ports.
+ *
  * The other systems never trip it: they have no `ro.build.version.oneui` (so never [R_PORT]),
  * their model is another maker's (so never [R_NOT_ONE_UI]), and they run on the Samsung
  * vendor and bootloader (so never [R_NOT_SAMSUNG]).
@@ -61,9 +69,25 @@ object CustomRomRule {
     }
 
     private val US_UNLOCKED = Regex("[A-Z]{1,2}[0-9]{3,4}U1")
+    private val US_CARRIER = Regex("[A-Z]{1,2}[0-9]{3,4}U")
+    private val CANADA = Regex("[A-Z]{1,2}[0-9]{3,4}W")
 
-    /** The US unlocked model's code without its "1": "S947U1" -> "S947U" (the carrier model's); others as they are. */
-    fun family(code: String): String = if (US_UNLOCKED.matches(code)) code.dropLast(1) else code
+    /**
+     * The US carrier model's code for the US unlocked and the Canadian model of the same phone:
+     * "S947U1" -> "S947U", "S928W" -> "S928U"; others as they are.
+     */
+    fun family(code: String): String = when {
+        US_UNLOCKED.matches(code) -> code.dropLast(1)
+        CANADA.matches(code) -> code.dropLast(1) + "U"
+        else -> code
+    }
+
+    /**
+     * Whether a bootloader version is one of this family's: it starts with the family's code (a U1
+     * bootloader starts with the U code too) or, for a US family, with the Canadian model's.
+     */
+    private fun bootloaderOf(bl: String, family: String): Boolean =
+        bl.startsWith(family) || (US_CARRIER.matches(family) && bl.startsWith(family.dropLast(1) + "W"))
 
     /** A Samsung bootloader version (not "unknown", not another maker's). */
     fun samsungBootloader(bootloader: String): Boolean = SAMSUNG_BOOTLOADER.matches(bootloader.trim().uppercase())
@@ -74,7 +98,7 @@ object CustomRomRule {
         val blSamsung = samsungBootloader(bl)
         val modelCode = code(s.model)
         val vendorCode = code(s.vendorModel)
-        // U and U1 are one phone: compared without the "1" (a U1 bootloader starts with the U code too).
+        // U, U1 and W are one phone: compared by the U code.
         val modelFamily = family(modelCode)
         val vendorFamily = family(vendorCode)
         val samsungHardware = blSamsung || vendorCode.isNotEmpty()
@@ -83,7 +107,7 @@ object CustomRomRule {
 
         val port = oneUi && samsungHardware && (
             modelCode.isEmpty() ||
-                (blSamsung && !bl.startsWith(modelFamily)) ||
+                (blSamsung && !bootloaderOf(bl, modelFamily)) ||
                 (vendorCode.isNotEmpty() && vendorFamily != modelFamily)
             )
         if (port) {
@@ -96,7 +120,7 @@ object CustomRomRule {
                     "that changes the model name and restart.",
             )
         }
-        val sameModel = modelCode.isNotEmpty() && ((blSamsung && bl.startsWith(modelFamily)) || vendorFamily == modelFamily)
+        val sameModel = modelCode.isNotEmpty() && ((blSamsung && bootloaderOf(bl, modelFamily)) || vendorFamily == modelFamily)
         if (!oneUi && sameModel) {
             return finding(
                 R_NOT_ONE_UI, "Custom ROM: not One UI",

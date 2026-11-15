@@ -100,6 +100,7 @@ class FakeRoot(
             sed -n "s|^${'$'}1=||p" "${'$'}ONEOS_TEST_ROOT/props" | head -n 1
         """)
         stub("pm", """
+            case "${'$'}1" in disable-user|enable) echo "${'$'}*" >> "${'$'}ONEOS_TEST_ROOT/pm_log"; exit 0 ;; esac
             [ "${'$'}1" = path ] || exit 1
             case "${'$'}2" in
               android) echo "package:/system/framework/framework-res.apk" ;;
@@ -182,6 +183,13 @@ class FakeRoot(
         val text = RootScript.launcher(verb, args.toList(), scriptSha, script.size.toLong(), layout)
         val input = stdin ?: if (verb.stdin == RootScript.Stdin.SCRIPT) script else ByteArray(0)
         return sh(text, input)
+    }
+
+    /** [verb] with an argument the host side would refuse ([bad] replaces [good], a valid one, in the launcher): what the script itself does with it. */
+    fun runUnchecked(verb: RootScript.Verb, good: String, bad: String): Run {
+        val text = RootScript.launcher(verb, listOf(good), scriptSha, script.size.toLong(), layout)
+        check(text.contains("set -- ${verb.word} $good\n"))
+        return sh(text.replace("set -- ${verb.word} $good\n", "set -- ${verb.word} $bad\n"), ByteArray(0))
     }
 
     fun sh(text: String, input: ByteArray = ByteArray(0)): Run {
