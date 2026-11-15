@@ -682,6 +682,19 @@ case "$MODE" in
         else
             echo "oneios inner: no cgroup of its own ($CG); the return ends the session by its mount namespace"
         fi
+        # Every core for the guest's vCPUs. Android's v1 cpusets (/dev/cpuset) still
+        # apply under the v2 group above: this shell kept the cpuset of the root
+        # shell the app started (top-app while the app was in front, background
+        # once it was not), and background and system-background allow the
+        # A520s only, where xnuhost's cpu-pin cannot put a vCPU on the X4 or an
+        # A720 (sched_setaffinity is limited to the cpuset). The cpuset's root has
+        # every core, as for the watcher and the key readers (out_of_the_way).
+        # xnuhost logs the cpuset it runs in ("cpu: xnuhost's cpuset ...").
+        if [ -w /dev/cpuset/cgroup.procs ] && echo $$ > /dev/cpuset/cgroup.procs 2>/dev/null; then
+            echo "oneios inner: cpuset / (cpus $(cat /dev/cpuset/cpus 2>/dev/null))"
+        else
+            echo "oneios inner: cpuset kept: $(cat /proc/$$/cpuset 2>/dev/null) (cpus $(grep Cpus_allowed_list /proc/$$/status 2>/dev/null | awk '{print $2}'))"
+        fi
         # The switch is exempt from the OOM killer (-1000) and xnuhost would
         # inherit that: with memory gone the kernel would then end One UI's
         # daemons, or panic. The guest is what goes first; its end is a return.
