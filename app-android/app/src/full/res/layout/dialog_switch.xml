@@ -10,6 +10,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:paddingStart="22dp"
+    android:paddingTop="24dp"
     android:paddingEnd="22dp"
     android:paddingBottom="14dp">
 
@@ -31,7 +32,7 @@
                 android:accessibilityHeading="true"
                 android:fontFamily="sans-serif-medium"
                 android:textColor="?android:attr/textColorPrimary"
-                android:textSize="20sp" />
+                android:textSize="22sp" />
 
             <TextView
                 android:id="@+id/switch_message"
@@ -47,14 +48,15 @@
                 style="@style/OneOS.Text.Caption"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="6dp"
                 android:visibility="gone" />
 
             <TextView
                 android:id="@+id/switch_ways_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="20dp"
                 android:accessibilityHeading="true"
                 android:fontFamily="sans-serif-medium"
                 android:textColor="@color/oneos_text_secondary"

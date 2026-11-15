@@ -1960,6 +1960,9 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                   if in_call; then log "$1: double tap during a call: ignored"; continue; fi
                   log "$1: double tap: waking the guest"
                   timeout 5 cmd input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || log "$1: cmd input keyevent failed"
+                  # 0.5.15: a click, as One UI gives for its double tap (owner: "there should be haptic
+                  # feedback for dt2w"). EFFECT_CLICK through the guest vibrator service; -f: also on silent.
+                  timeout 3 cmd vibrator_manager synced -f -d oneos_dt2w prebaked 0 >/dev/null 2>&1 &
                   setaod 0
               done < $P ) &
             # 1,0 only counts once getevent holds the touchscreen: the driver closes only

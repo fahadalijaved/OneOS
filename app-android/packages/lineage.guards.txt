@@ -8,7 +8,8 @@
 0b05d086f6b0432d4164181823195cc4f73fc9916e3aa5035001b3a1a0928b98  services_patched.jar
 edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched
 0235d2312e659dfb00b7bab3e6b8189e36ccd2b61d1c298f01347e8d4615bc5d  service.incremental_patched.so
-7061acea74028dc27b79933b1f3c96a5f113be95bbf9ce111dd0efcf9eaa1395  framework_patched.jar
 8eeb43db3299c6735887582769f69d78fbd09a7f24c12b919d5c7017639da6db  telephony-common_patched.jar
 a736ff42026ee1b6e5095349f21bfa5b01d5e765d8a2c87c05047e4798c95984  libcamera_client_patched.so
 # 0.5.14 r6: the current OneOSGuest.apk (LineageOS artwork); samcam_a.tar (the Galaxy A36's Samsung Camera, One UI 9 A366BXXUCDZIF) and samcam_bar.tar (the S26 Ultra's) built for this image with scripts/samsung-camera/build-cached.sh, guest_prepare.sh picks one per phone
+7d8a358c209adedab8d5c29ce78f8229a0c1d6ffa8932f9b86390343435d0670  framework_patched.jar
+# r7 (0.5.15): framework_patched.jar also lets Samsung Camera's slow motion open its three-output high-speed session (switcher/patches/samsung_highspeed_surfaces.py); samcam_a.tar's oneos-camera-compat.jar has SemMediaResourceHelper without its native library (video, hyperlapse, slow motion on the A-series camera).

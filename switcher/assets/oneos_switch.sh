@@ -968,7 +968,14 @@ if ! pidof imsd >/dev/null 2>&1; then
 fi
 ims_i=0
 ims_st=1
-while [ "$ims_i" -lt 45 ]; do
+# 0.5.15: no wait without a SIM that could register (none READY/LOADED in gsm.sim.state, or airplane mode),
+# and 30 s at most otherwise (was 90 s). The gate runs behind the handoff splash, which takes every touch: on a
+# phone with no SIM in service it only ever timed out, and owners took the 90 s for a hang and forced a restart
+# (0.5.14: S23 OxygenOS dfff02e3, voice out of service throughout; A17 5G LineageOS a3fa601d).
+ims_max=15
+case "$(getprop gsm.sim.state)" in *READY*|*LOADED*) ;; *) ims_max=0; echo "IMS gate: skipped (no SIM ready: $(getprop gsm.sim.state))" ;; esac
+[ "$(settings get global airplane_mode_on 2>/dev/null)" = 1 ] && { ims_max=0; echo "IMS gate: skipped (airplane mode)"; }
+while [ "$ims_i" -lt "$ims_max" ]; do
     if dumpsys telephony.registry 2>/dev/null | grep -q 'mVoiceRegState=0'; then
         ims_st=0
         break
@@ -2268,6 +2275,16 @@ while true; do
                         touch $STAGE/data/oneos_blur_default && echo \"[UI Activator] window blur off once (mid-range Galaxy; Developer options turn it back on)\"
                 fi ;;
             esac
+            # Nothing OS haptics at full strength once per guest data (0.5.15). Nothing hides Android's vibration
+            # intensity settings and leaves them at medium; Samsung's vibrator HAL then plays every effect at
+            # EffectStrength MEDIUM (amplitude 6700 on the A36: owner, \"haptics feel weak af\"). 3 = high, the
+            # HAL's STRONG. Once (marker), so the values can still be changed from adb.
+            if [ -e $STAGE/rootfs/system_ext/framework/nt-telephony-common.jar ] && [ ! -f $STAGE/data/oneos_haptics_default ]; then
+                for k in haptic_feedback_intensity notification_vibration_intensity ring_vibration_intensity alarm_vibration_intensity media_vibration_intensity; do
+                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system \$k 3 2>/dev/null
+                done
+                touch $STAGE/data/oneos_haptics_default && echo \"[UI Activator] Nothing OS vibration intensities at high once (Samsung HAL: STRONG)\"
+            fi
             NAVM=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure navigation_mode 2>/dev/null)
             echo \"[UI Activator] navigation: hide_navigationbar_enable=\$NAVK navigation_mode=\$NAVM\"
             case \"\$NAVK:\$NAVM\" in 0:2|2:0|3:0) echo \"[UI Activator] WARNING: ColorOS nav key and AOSP navigation_mode disagree\" ;; esac
@@ -2446,6 +2463,15 @@ while true; do
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
                 echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"
+            fi
+            # Screen watch (0.5.15), Nothing OS only: it writes no power_screen_state events after boot, so the
+            # double-tap keeper never knew its AOD from awake (a double tap on the AOD did nothing, A36). This
+            # asks the guest's power service every 0.3 s (a binder call) and sets /data/oneos_dt2w_aod; it also
+            # clicks for the launcher's double tap to sleep. ColorOS and vivo keep the keeper's own reader.
+            if [ -e $STAGE/rootfs/system_ext/framework/nt-telephony-common.jar ] && [ \"${ONEOS_GUEST_SCREEN_WATCH:-1}\" = 1 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
+                ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSScreenWatch \$PID > $STAGE/screen_watch.log 2>&1 </dev/null &)
+                sleep 1
+                echo \"[UI Activator] screen watch: \$(head -n 1 $STAGE/screen_watch.log 2>/dev/null || true)\"
             fi
             # Density and fold line of the inner panel (run 43), before HOME so the
             # setup wizard starts with them. With no init of its own the guest
@@ -3007,6 +3033,20 @@ while true; do
                            if [ $GUEST_AOSP_SYSUI = 1 ] && [ \"\${PAD:-0}\" -gt 24 ]; then
                                r=\$(gdim OneOSCornerPadding com.android.systemui com.android.systemui:dimen/rounded_corner_content_padding=\$PAD com.android.systemui:dimen/ongoing_appops_dot_min_padding=\$PAD)
                                case \"\$r\" in registered*) OVS=\"\$OVS OneOSCornerPadding\" ;; *) DIMS=\"\$DIMS padding \$PAD px: \$r;\" ;; esac
+                           fi
+                           # 0.5.15, Nothing OS (any phone): its status bar reads neither of those. Its clock sat on the
+                           # A36 corner curve (28 px from the edge) and its icons 9 px above the camera hole (owner,
+                           # 2026-11-15). Start and end: the padding above less Nothing's own 15 px; top: twice the gap
+                           # from the bar's middle to the hole's (One UI's cutout rectangle), so the row centres on it.
+                           if [ $GUEST_AOSP_SYSUI = 1 ] && { [ -e $STAGE/rootfs/system_ext/framework/nt-telephony-common.jar ] || [ -e $STAGE/rootfs/system/system_ext/framework/nt-telephony-common.jar ]; }; then
+                               NPS=0; [ \"\${PAD:-0}\" -gt 15 ] && NPS=\$((PAD - 15))
+                               NPT=\$(printf '%s\\n' \"\$HRP\" | awk -v h=\"\${HSBG:-0}\" -v k=\"\$SBK\" '{ for (i = 1; i <= NF; i++) if (split(\$i, q, \",\") == 2) { y = q[2] + 0; if (n == 0 || y < lo) lo = y; if (n == 0 || y > hi) hi = y; n++ } }
+                                   END { f = 1; if (split(k, a, \" \") == 2 && a[2] > 0) f = a[1] / a[2]; t = 0; if (n > 1 && h > 0) t = int(2 * ((lo + hi) / 2 * f - h / 2) + 3.5); if (t < 0) t = 0; print t }')
+                               case \"\$NPT\" in ''|*[!0-9]*) NPT=0 ;; esac
+                               if [ \$NPS -gt 0 ] || [ \$NPT -gt 0 ]; then
+                                   r=\$(gdim OneOSNtStatusBar com.android.systemui com.android.systemui:dimen/status_bar_padding_start=\$NPS com.android.systemui:dimen/status_bar_padding_end=\$NPS com.android.systemui:dimen/status_bar_padding_top=\$NPT)
+                                   case \"\$r\" in registered*) OVS=\"\$OVS OneOSNtStatusBar\" ;; *) DIMS=\"\$DIMS Nothing status bar \$NPS/\$NPT px: \$r;\" ;; esac
+                               fi
                            fi ;;
                     esac
                 fi
@@ -3021,7 +3061,7 @@ while true; do
                     case \$o in
                         OneOSCornerRadius) [ -n \"\$CRAD\" ] && continue
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
-                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerPadding)
+                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerPadding|OneOSNtStatusBar)
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
                     esac
                 done
@@ -3614,8 +3654,8 @@ if [ "$GUEST_OPLUS" != 1 ] && [ "${ONEOS_GUEST_SF_PIN:-1}" != 0 ] && [ -r /sys/c
     : oneos_panel_keeper
     echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
     F=$STAGE/panel_keeper.log
-    echo \"# \$(date) OneOS panel keeper: every 15 s; under 48 Hz twice with the screen on, oneos_sf_kick.sh\" > \$F
-    low=0; kicks=0
+    echo \"# \$(date) OneOS panel keeper: every 15 s; under 48 Hz, or 20+ Hz under the guest's active mode, twice with the screen on: oneos_sf_kick.sh\" > \$F
+    low=0; mis=0; kicks=0
     while true; do
         if [ -f $STAGE/data/oneos_rec_stop ] || [ ! -s $STAGE/guest_mntns ]; then
             echo \"# \$(date +%T) stopped (the return started, or no guest namespace record) after \$kicks kicks\" >> \$F
@@ -3628,13 +3668,24 @@ if [ "$GUEST_OPLUS" != 1 ] && [ "${ONEOS_GUEST_SF_PIN:-1}" != 0 ] && [ -r /sys/c
             v=\$(cat \$b 2>/dev/null); case \"\$v\" in ''|*[!0-9]*) ;; 0) ;; *) on=1 ;; esac
         done
         if [ \$on = 1 ] && [ \$hz -gt 0 ] && [ \$hz -lt 48 ]; then low=\$((low + 1)); else low=0; fi
-        if [ \$low -ge 2 ] && [ \$kicks -lt 40 ] && [ -f $STAGE/data/oneos_sf_kick.sh ]; then
+        # 0.5.15: also a panel left at 60 Hz under a guest whose active mode is 120 (A36 Nothing OS: the guest
+        # started at its 120 Hz mode, so it never asked for a change, and the panel stayed in One UI's idle 60;
+        # 45670 missed frames, every second one, owner: \"sluggish as hell\", \"running at 60hz\"). Only when the
+        # guest's own active mode is at least 20 Hz above the panel: a user's 60 Hz setting makes it 60.
+        sf=0
+        if [ \$on = 1 ] && [ \$hz -ge 48 ] && [ \$hz -lt 110 ]; then
+            P=\$(pidof system_server | awk '{print \$1}')
+            [ -n \"\$P\" ] && sf=\$(timeout 10 $BB nsenter -t \$P -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys SurfaceFlinger 2>/dev/null | sed -n 's/.*activeMode={id=[0-9]*,.*vsyncRate=\\([0-9]*\\).*/\\1/p' | head -n 1)
+            case \"\$sf\" in ''|*[!0-9]*) sf=0 ;; esac
+        fi
+        if [ \$sf -ge \$((hz + 20)) ]; then mis=\$((mis + 1)); else mis=0; fi
+        if { [ \$low -ge 2 ] || [ \$mis -ge 2 ]; } && [ \$kicks -lt 40 ] && [ -f $STAGE/data/oneos_sf_kick.sh ]; then
             P=\$(pidof system_server | awk '{print \$1}')
             out=''
             [ -n \"\$P\" ] && out=\$(timeout 30 $BB nsenter -t \$P -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_sf_kick.sh 2>&1 | tr '\\n' ';' | cut -c1-400)
-            kicks=\$((kicks + 1)); low=0
+            kicks=\$((kicks + 1)); low=0; mis=0
             sleep 1
-            echo \"\$(date +%T) panel at \$hz Hz with the screen on: \${out:-no guest system_server}; now \$(cut -d' ' -f1 /sys/class/lcd/panel/vrr 2>/dev/null) Hz\" >> \$F
+            echo \"\$(date +%T) panel at \$hz Hz (guest mode \$sf Hz) with the screen on: \${out:-no guest system_server}; now \$(cut -d' ' -f1 /sys/class/lcd/panel/vrr 2>/dev/null) Hz\" >> \$F
         fi
         sleep 15
     done

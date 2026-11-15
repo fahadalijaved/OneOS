@@ -28,7 +28,7 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
 mkdir -p "$WORK/classes"
 
-javac -nowarn --release 17 -classpath "$AJ" -d "$WORK/classes" "$HERE/OneOSEdmStub.java" "$HERE/OneOSCameraWorker.java" "$HERE/OneOSSoundFx.java"
+javac -nowarn --release 17 -classpath "$AJ" -d "$WORK/classes" "$HERE/OneOSEdmStub.java" "$HERE/OneOSCameraWorker.java" "$HERE/OneOSSoundFx.java" "$HERE/OneOSScreenWatch.java"
 "$D8" --release --min-api 31 --lib "$AJ" --output "$WORK" "$WORK"/classes/*.class
 mv "$WORK/classes.dex" "$ROOT/switcher/assets/OneOSEdmStub.dex"
 

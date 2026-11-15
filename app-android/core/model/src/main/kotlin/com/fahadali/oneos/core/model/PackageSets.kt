@@ -164,6 +164,7 @@ object PackageSets {
     const val ID_PIXEL9_SULTRA = "pixel9-sultra"
     const val ID_INFINITYX = "infinityx"
     const val ID_NOTHING_F8U = "nothing-f8u"
+    const val ID_NOTHING_A = "nothing-a"
     const val ID_OXYGEN16 = "oxygen16"
     const val ID_ORIGINOS = "originos"
     const val ID_LINEAGE = "lineage"
@@ -657,6 +658,61 @@ object PackageSets {
     )
 
     /**
+     * Nothing OS 5.0 for the Galaxy A series (0.5.15, untested): [Images.NOTHING_ASTEROIDS], the Phone
+     * (3a) build. make-overlays.sh on that image (vold and SurfaceFlinger pinned for it; its
+     * service.incremental.so and crashrecovery APEX are Metroid's), the same Nothing fixes as
+     * [NOTHING_F8U] (SystemUI, launcher, About pages, signal poll, Essential key), and:
+     * - no ringtone generator or kits: this build has no NothingGenerateRingtoneService; Nothing's
+     *   sounds come from nothing_product_media.tar (Metroid's vendor product/media, the same family);
+     * - OneOSBrightnessRange34.apk, the slider's range for panels at One UI brightnessMaximum about 3.4
+     *   (guest_prepare.sh picks it from One UI's value; the Fold's range topped out at two thirds);
+     * - samcam_a.tar, the Galaxy A36's own camera rewritten for this image (video without
+     *   libmediaresourcehelper);
+     * - GmsCore from its gmssystem APEX, presented as on the Pixel images.
+     */
+    val NOTHING_A = PackageSet(
+        id = ID_NOTHING_A,
+        imageId = Images.ID_NOTHING_ASTEROIDS,
+        sourceDir = "out/overlays_nothing_a_r1",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("nt-telephony-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            PackageFile("SystemUI_patched.apk", FileRole.GUEST_FIX),
+            PackageFile("NothingLauncher3_patched.apk", FileRole.GUEST_FIX),
+            PackageFile("nothing_product_media.tar", FileRole.GUEST_FIX),
+            PackageFile("libbootanimation_preapex_patched.so", FileRole.GUEST_FIX),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSNtAbout.apk", FileRole.RRO),
+            PackageFile("OneOSNtAboutFold8.apk", FileRole.RRO),
+            PackageFile("OneOSNtAboutPhone.apk", FileRole.RRO),
+            PackageFile("OneOSNtAboutS26U.apk", FileRole.RRO),
+            PackageFile("OneOSNtAboutFlip.apk", FileRole.RRO),
+            PackageFile("OneOSNtEssentialKey.apk", FileRole.RRO),
+            PackageFile("OneOSBrightnessRange.apk", FileRole.RRO),
+            PackageFile("OneOSBrightnessRange34.apk", FileRole.RRO),
+            PackageFile("samcam_a.tar", FileRole.GUEST_FIX),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
+            + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
+        omitted = listOf(TETHERING),
+        approxBytes = 924_702_781L,
+        hasReturnApp = true,
+    )
+
+    /**
      * OxygenOS 16 for One UI 8 phones (0.4.67, experimental): ColorOS's common files (the image has
      * oplus-services.jar; make-overlays.sh with ONEOS_NO_CAMERA_ABI=1 and One UI 8.5's installd table),
      * the conscrypt and profiling payloads it carries, no camera bridge yet (no One UI 8 camera tables
@@ -751,7 +807,7 @@ object PackageSets {
     val LINEAGE = PackageSet(
         id = ID_LINEAGE,
         imageId = Images.ID_LINEAGE,
-        sourceDir = "out/overlays_lineage_r6",
+        sourceDir = "out/overlays_lineage_r7",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -785,7 +841,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, OXYGEN16, ORIGINOS, LINEAGE)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

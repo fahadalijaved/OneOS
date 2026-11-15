@@ -45,12 +45,12 @@ class ProfilesTest {
                 ImageChoice("coloros17-findn6", "n6-f8u", tested = true),
                 // 0.3.7: the Pixel 11 Fold image, which runs 41-44 booted on this phone.
                 ImageChoice("pixel11fold-yogi", "pixel-f8u", tested = true),
-                ifx,
-                lineage,
+                // 0.5.15: Infinity-X, LineageOS and Nothing OS tested by the team here (the owner's runs).
+                ifx.copy(tested = true),
+                lineage.copy(tested = true),
                 // HyperOS (0.4.31: on every phone), untested.
                 ImageChoice("hyperos-lhasa", "hyper-f8u", tested = false),
-                // Nothing OS (0.4.33): this phone only, until a session on it is seen. Untested.
-                ImageChoice("nothingos5-metroid", "nothing-f8u", tested = false),
+                ImageChoice("nothingos5-metroid", "nothing-f8u", tested = true),
                 // OriginOS 7 (0.4.73): runs 13-24 on this phone.
                 ImageChoice("originos7-pd2609ma", "originos", tested = true),
             ),
@@ -192,7 +192,7 @@ class ProfilesTest {
         // 0.4.31: a tester's session reached home on the CN ColorOS build (2026-10-30),
         // the first A-series report; the rest is still the Flip7's list.
         assertEquals(
-            listOf(xinT, pixel9, ifx, lineage, hyper),
+            listOf(xinT, pixel9, ifx, lineage, hyper, ImageChoice(Images.ID_NOTHING_ASTEROIDS, PackageSets.ID_NOTHING_A, tested = false)), // 0.5.15: Nothing OS (A series), last
             a57.choices,
         )
         assertTrue(a57.testedWithAnyImage)
@@ -201,7 +201,7 @@ class ProfilesTest {
         assertEquals(listOf("a56", "Galaxy A56"), listOf(a56.id, a56.label))
         assertEquals(listOf("SM-A566", "a56x", "s5e8855"), listOf(a56.modelPrefix, a56.codename, a56.socModel))
         assertEquals(FormFactor.BAR, a56.form)
-        assertEquals(flip7.choices, a56.choices)
+        assertEquals(flip7.choices + ImageChoice(Images.ID_NOTHING_ASTEROIDS, PackageSets.ID_NOTHING_A, tested = false), a56.choices)
         for (p in listOf(s26PlusExynos, flip7, a56)) {
             assertEquals(listOf(Profiles.ID_NOTE_EXYNOS), p.notes.map { it.id })
             assertEquals(Level.WARN, p.notes.single().level)
@@ -232,14 +232,16 @@ class ProfilesTest {
         assertEquals(listOf("SM-A366", "a36xq", "SM6475"), listOf(a36.modelPrefix, a36.codename, a36.socModel))
         assertEquals(FormFactor.BAR, a36.form)
         // 0.4.57: without the Pixel 9 Pro XL (ARMv8.2, as the A26).
-        assertEquals(s25Plus.choices - nothing - origin - s25Plus.choices.filter { it.imageId == Images.ID_PIXEL_KOMODO }, a36.choices)
+        // 0.5.15: Nothing OS for the A series (the Phone (3a) build), last.
+        assertEquals(s25Plus.choices - nothing - origin - s25Plus.choices.filter { it.imageId == Images.ID_PIXEL_KOMODO } +
+            ImageChoice(Images.ID_NOTHING_ASTEROIDS, PackageSets.ID_NOTHING_A, tested = false), a36.choices)
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), a36.notes.map { it.id })
         // Nothing OS (0.4.35) on the SVE + SME phones; 0.4.36 also the S25s, S24 Ultra, Fold7 and Fold6 (brightness scale ~5); 0.4.61 the S24 (Snapdragon, scale 5.0);
         // 0.4.83 the Exynos S24 and S24+ (scale 5.0 on One UI 9).
         assertEquals(
             listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750,
                 Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_PLUS_8850,
-                Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_9965, Profiles.S_PLUS_9945),
+                Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_9965, Profiles.S_PLUS_9945, Profiles.S_PLUS_8650),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_NOTHING_METROID) != null },
         )
         // Galaxy S23 and S23+ (0.4.11): the X9U image, untested, with the will-most-likely-not-start note.
@@ -270,7 +272,7 @@ class ProfilesTest {
                 Profiles.ID_F8U, Profiles.ID_FOLD8, Profiles.ID_FOLD7,
                 Profiles.ID_S_ULTRA_8850, Profiles.ID_S_PLUS_8850, Profiles.ID_S_8850, Profiles.ID_S_8850_JP,
                 Profiles.ID_S_ULTRA_8750, Profiles.ID_S_PLUS_8750, Profiles.ID_S_8750, Profiles.ID_S_EDGE_8750,
-                Profiles.ID_S_ULTRA_8650, Profiles.ID_S_8650, Profiles.ID_S_9945, Profiles.ID_S_PLUS_9945,
+                Profiles.ID_S_ULTRA_8650, Profiles.ID_S_8650, Profiles.ID_S_9945, Profiles.ID_S_PLUS_9945, Profiles.ID_S_PLUS_8650,
                 Profiles.ID_S_ULTRA_8550, Profiles.ID_S_PLUS_8550, Profiles.ID_S_8550,
                 Profiles.ID_S_ULTRA_8550_JP, // 0.4.92: the au S23 Ultra, the S23 Ultra's list
                 Profiles.ID_S_8550_JP, // 0.4.93: the au S23, the S23's list
@@ -295,7 +297,7 @@ class ProfilesTest {
                 Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450,
                 Profiles.A55, Profiles.S25_FE, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP, Profiles.S_PLUS_9945,
                 Profiles.S_ULTRA_8550_JP, Profiles.S_9925, Profiles.A16_MTK, Profiles.S_8550_JP,
-                Profiles.M35, Profiles.A15_5G,
+                Profiles.M35, Profiles.A15_5G, Profiles.S_PLUS_8650,
             ),
             Profiles.BUILT_IN,
         )
@@ -309,7 +311,7 @@ class ProfilesTest {
         // 0.4.74: the A34 got One UI 9 (Android 17): the A07's systems, untested, and OxygenOS 16 for One UI 8.
         // 0.4.74: so did the A15 (MT6789, the A07's chip).
         for (p in listOf(Profiles.A34, Profiles.A15)) {
-            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16), p.choices.map { it.imageId })
+            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16, Images.ID_NOTHING_ASTEROIDS), p.choices.map { it.imageId })
             assertTrue(p.id, p.choices.none { it.tested })
             assertEquals(FormFactor.BAR, p.form)
         }
@@ -357,12 +359,12 @@ class ProfilesTest {
         assertEquals(listOf(xin, pixel9, ifx, lineage, hyper), Profiles.S_FE_9945.choices)
         assertEquals(Profiles.S_FE_9945.choices, Profiles.S_9945.choices - nothing - origin)
         assertEquals(listOf("SM-S721", "r12s", "s5e9945"), listOf(Profiles.S_FE_9945.modelPrefix, Profiles.S_FE_9945.codename, Profiles.S_FE_9945.socModel))
-        assertEquals(listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16), Profiles.A26.choices.map { it.imageId }) // 0.4.57: no Pixel 9 Pro XL; 0.4.66: HyperOS (owner)
+        assertEquals(listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16, Images.ID_NOTHING_ASTEROIDS), Profiles.A26.choices.map { it.imageId }) // 0.4.57: no Pixel 9 Pro XL; 0.4.66: HyperOS (owner)
         for (p in listOf(Profiles.A17, Profiles.A16, Profiles.A16_4G, Profiles.A07, Profiles.A16_S166, Profiles.A17_5G)) {
-            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16), p.choices.map { it.imageId })
+            assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16, Images.ID_NOTHING_ASTEROIDS), p.choices.map { it.imageId })
             // Tested only where a tester's session reached the home screen; that one is preselected.
             val ran = p !in listOf(Profiles.A16_S166, Profiles.A17_5G)
-            assertEquals(p.id, listOf(false, ran, false, false, false), p.choices.map { it.tested })
+            assertEquals(p.id, listOf(false, ran, false, false, false, false), p.choices.map { it.tested })
             if (ran) assertEquals(p.id, Images.ID_INFINITYX, p.recommended?.imageId)
         }
         // 0.4.60: the Galaxy A17 5G (SM-A176B, the A16 5G's Exynos 1330) and the Z Flip7 FE (SM-F761B, Exynos 2400).
@@ -479,7 +481,7 @@ class ProfilesTest {
                 Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.S_PLUS_8750, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
                 Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945, Profiles.FLIP7_FE,
-                Profiles.S25_FE, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP, Profiles.S_8550_JP,
+                Profiles.S25_FE, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP, Profiles.S_8550_JP, Profiles.S_PLUS_8650,
             ),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_KOMODO) != null },
         )
@@ -549,7 +551,7 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), Profiles.FOLD5.notes.map { it.id })
         assertEquals(Profiles.A07, profile("SM-A075F", "a07", "MT6789"))
         assertNull(profile("SM-A075F", "a07", "s5e8855"))
-        assertEquals(listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16), Profiles.A07.choices.map { it.imageId })
+        assertEquals(listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_OXYGEN16, Images.ID_NOTHING_ASTEROIDS), Profiles.A07.choices.map { it.imageId })
         assertEquals(listOf(Profiles.ID_NOTE_MEDIATEK, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.A07.notes.map { it.id })
         assertNull(profile("SM-F766U", "b7s", "s5e9965"))
         assertNull(profile("SM-S947U", "m3q", "SM8850")) // S26+ model number, S26 Ultra codename
@@ -578,7 +580,12 @@ class ProfilesTest {
         assertEquals(Profiles.S_PLUS_9945, profile("SM-S926B", "e2s", "s5e9945"))
         assertEquals(listOf("s-plus-9945", "Galaxy S24+ (Exynos)", FormFactor.BAR), listOf(Profiles.S_PLUS_9945.id, Profiles.S_PLUS_9945.label, Profiles.S_PLUS_9945.form))
         assertEquals(listOf(Profiles.S_9945.choices, Profiles.S_9945.notes), listOf(Profiles.S_PLUS_9945.choices, Profiles.S_PLUS_9945.notes))
-        assertNull(profile("SM-S926U", "e2q", "SM8650"))
+        // 0.5.15: the Snapdragon S24+ from an SM-S9260 probe: the Snapdragon S24's systems and note.
+        assertEquals(Profiles.S_PLUS_8650, profile("SM-S926U", "e2q", "SM8650"))
+        assertEquals(Profiles.S_PLUS_8650, profile("SM-S9260", "e2q", "SM8650"))
+        assertEquals(listOf("s-plus-8650", "Galaxy S24+", FormFactor.BAR), listOf(Profiles.S_PLUS_8650.id, Profiles.S_PLUS_8650.label, Profiles.S_PLUS_8650.form))
+        assertEquals(listOf(Profiles.S_8650.choices, Profiles.S_8650.notes), listOf(Profiles.S_PLUS_8650.choices, Profiles.S_PLUS_8650.notes))
+        assertNull(profile("SM-S926B", "e2q", "s5e9945"))
         assertNull(profile("SM-S926B", "e1s", "s5e9945"))
         // Galaxy S25 (base): all three ids, like the others.
         assertEquals(Profiles.S_8750, profile("SM-S931B", "pa1q", "SM8750"))
@@ -637,7 +644,8 @@ class ProfilesTest {
             val ids = p.choices.map { it.imageId }
             if (p in offerInfinity) {
                 assertEquals(p.id, ids.indexOf(Images.ID_INFINITYX) + 1, ids.indexOf(Images.ID_LINEAGE))
-                assertEquals(p.id, ImageChoice(Images.ID_LINEAGE, PackageSets.ID_LINEAGE, tested = false), p.choice(Images.ID_LINEAGE))
+                // 0.5.15: tested by the team on the Z Fold8 Ultra (the owner's runs).
+                assertEquals(p.id, ImageChoice(Images.ID_LINEAGE, PackageSets.ID_LINEAGE, tested = p.id == Profiles.ID_F8U), p.choice(Images.ID_LINEAGE))
             } else {
                 assertNull(p.id, p.choice(Images.ID_LINEAGE))
             }

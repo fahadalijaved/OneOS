@@ -99,7 +99,7 @@
 
     <!-- Switch confirm (the redesign, step 4): a dialog from Home. -->
     <string name="confirm_switch_title">Switch to %1$s?</string>
-    <string name="confirm_switch_msg">One UI closes and %1$s starts in about a minute. Nothing is erased.</string>
+    <string name="confirm_switch_msg">One UI closes and %1$s starts in about a minute. Your One UI apps and files stay as they are.</string>
     <string name="confirm_back_title">To come back</string>
     <string name="confirm_back_app">Tap Back to One UI in %1$s</string>
     <string name="confirm_back_keys">Hold Volume Up + Volume Down for 3 seconds</string>

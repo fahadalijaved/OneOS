@@ -47,6 +47,9 @@ SHORT = {
     "nothingos5-metroid": "Nothing OS 5",
     "oxygenos16-cph2745": "OxygenOS 16",
     "originos7-pd2609ma": "OriginOS 7",
+    "coloros17-findx9u-in-1105": "ColorOS 17",
+    "lineage24-infiniti": "LineageOS 24",
+    "nothingos5-asteroids": "Nothing OS 5 (A series)",
 }
 CHIP = {
     "SM8850": "Snapdragon 8 Elite Gen 5", "SM8750": "Snapdragon 8 Elite", "SM8650": "Snapdragon 8 Gen 3",
@@ -54,7 +57,7 @@ CHIP = {
     "s5e9965": "Exynos 2600", "s5e9955": "Exynos 2500", "s5e9945": "Exynos 2400", "s5e8855": "Exynos 1580",
     "s5e8865": "Exynos 1680",
     "s5e8835": "Exynos 1380", "s5e8535": "Exynos 1330", "MT6789": "Helio G99",
-    "s5e8845": "Exynos 1480", "SM8450": "Snapdragon 8 Gen 1", "SM7450": "Snapdragon 7 Gen 1",
+    "s5e8845": "Exynos 1480", "MT6835": "Dimensity 6300", "MT6877": "Dimensity 1080", "s5e8825": "Exynos 1280", "s5e9925": "Exynos 2200", "MT6769": "Helio G85", "MT6768": "Helio G85", "SM8450": "Snapdragon 8 Gen 1", "SM7450": "Snapdragon 7 Gen 1",
 }
 # Per phone: a chip that shares another's board code, and the 4G/5G a label leaves out.
 CHIP_OF = {"s-fe-9945": "Exynos 2400e"}
@@ -296,20 +299,77 @@ def filters(entries, today):
             + "\n".join(names) + "\n\nWrite your phone's name (e.g. s25 ultra, fold7) to see each system."
             + (f"\nFull list: {LINK}" if LINK else "")]
     for name, variants in entries:
-        reply = [f"📱 {name}"]
+        # Rose markdown (missrose.org/docs/formatting): *bold*, _italic_, ">" quote lines. Owner 2026-11-15:
+        # "each device in quotes for their OS", not one cluttered line per phone. Each model is a quote block,
+        # one line per system: its mark, the system in bold, and what the reports say.
+        reply = [f"📱 *{rose_safe(name)}*"]
         for v, lines in variants:
-            if len(variants) > 1:
-                reply.append(f"\n{v}:")
-            else:
-                reply.append(v)
-            reply += [f"{mark} {sysname}: {text}" for mark, sysname, text, _ in lines]
-        if LINK:
-            reply.append(f"\nFull list: {LINK}#{anchor[name]}")
+            reply.append("")
+            reply.append("*" + rose_safe(" · ".join(v.split(", "))) + "*")
+            reply += [f">{mark} *{rose_safe(sysname)}*  {rose_safe(brief(text))}" for mark, sysname, text, _ in lines]
+        reply.append("")
+        reply.append("_✅ starts · ⚠️ some tries · ❌ did not start · 🔲 not tested · 🔜 next update_")
         if any(mark in "✅⚠️❌🔲" for _, ls in variants for mark, _, _, _ in ls):
-            reply.append("Tried one? Tell us from the OneOS app: Send to the OneOS team.")
+            reply.append("Tried one? Send a report from the OneOS app.")
+        if LINK:
+            reply.append(f"[📋 Every phone and system](buttonurl://{LINK}#{anchor[name]})")
         trig = ", ".join(f'"{t}"' if " " in t else t for t in triggers(name))
         cmds.append(f"/filter ({trig}) " + "\n".join(reply))
     return cmds
+
+
+def details(text):
+    """status()'s words as the lines of a system's expandable quote (owner 2026-11-15: tries and issues inside
+    the scroll, room for more per system later)."""
+    out = []
+    m = re.match(r"(?:started in (\d+) of (\d+)|starts|did not start) \((\d+) reports?, OneOS ([^)]*)\)(?:; problems reported: (.*))?$", text)
+    if m:
+        home, tried, n, ver, issues = m.groups()
+        if home:
+            out.append(f"Started {home} of {tried} tries")
+        elif text.startswith("starts"):
+            out.append("Started every time")
+        else:
+            out.append("Did not start")
+        if issues:
+            out.append("Issues: " + issues)
+        out.append(f"From {n} report{'s' if n != '1' else ''}, latest on OneOS {ver}")
+        return out
+    return [text[:1].upper() + text[1:]]
+
+
+def rich(entries):
+    """The phones for rose_rich.py: one note per phone name, a section per model (chip first where one model
+    number has two chips), one line and an expandable quote per system."""
+    notes = []
+    for name, variants in entries:
+        secs = []
+        models = [v.split(", ")[0] for v, _ in variants]
+        for v, lines in variants:
+            parts = v.split(", ")
+            if models.count(parts[0]) > 1 or name in ONE_CHIP:
+                chip = parts[-1]
+                head = " · ".join([chip] + parts[:-1])
+            else:
+                head = " · ".join(parts)
+            secs.append({"head": head, "systems": [{"mark": mark, "name": sysname, "details": details(text)}
+                                                    for mark, sysname, text, _ in lines]})
+        notes.append({"name": name, "triggers": triggers(name), "sections": secs})
+    return notes
+
+
+def rose_safe(text):
+    """Rose reads _ * ~ | ` as formatting: none of them may come from a name or a report's words."""
+    return re.sub(r"[_*~|`]", "", text)
+
+
+def brief(text):
+    """status()'s words, short for a quote line: "started in 2 of 3 (3 reports, OneOS 0.5.13); problems
+    reported: Camera" -> "2 of 3 starts · Camera"."""
+    t = re.sub(r" \(\d+ reports?, OneOS [^)]*\)", "", text)
+    t = re.sub(r"^started in (\d+) of (\d+)", r"\1 of \2 starts", t)
+    t = t.replace("; problems reported: ", " · issues: ")
+    return t
 
 
 def exact(cmd):
@@ -408,6 +468,7 @@ def main():
     ap.add_argument("--filters", default="out/telegram/rose_filters.txt")
     ap.add_argument("--days", type=int, default=10)
     ap.add_argument("--per-phone", action="store_true", help="one Rose reply per phone instead of one per series")
+    ap.add_argument("--rich", default="", help="also write the phones as JSON for rose_rich.py (Premium emoji, quotes)")
     ap.add_argument("--link", default="", help="the public docs/devices.md URL, once published")
     ap.add_argument("--match", choices=("exact", "anywhere"), default="exact",
                     help="exact (default): a phone's reply only for a message that is just its name "
@@ -433,6 +494,9 @@ def main():
     os.makedirs(os.path.dirname(a.filters), exist_ok=True)
     global LINK
     LINK = a.link
+    if a.rich:
+        json.dump(rich(entries), open(a.rich, "w"), ensure_ascii=False, indent=1)
+        print(f"{len(entries)} phones in {a.rich}")
     cmds = filters(entries, today) if a.per_phone else filters_grouped(entries)
     if a.match == "exact":
         cmds = [exact(c) for c in cmds]

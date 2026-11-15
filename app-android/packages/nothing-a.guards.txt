@@ -1,0 +1,11 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
+# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
+# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+28f5c8c4c5b814f435af5a5914d2b350e4d22cbb2e070dda6009308fd1a1e6c0  services_patched.jar
+027946a3c268cc441c875f62503c578374125ba3ab128e2ce9ad1b0f5e378aa4  vold_patched
+f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so
+d53f75f1f9e28d8766964d3c6e5625ad94de120ee60dfdf9555d5745cadceffc  framework_patched.jar
+0967030df0a29ee0f1c1c92e5a89c0c4a1cc2952c6d9ba721007adad8999ea97  telephony-common_patched.jar
+357fa17f86b9cb7f0f4e517b940b5476693db1c4e411a0dc95bb701666ad724c  libcamera_client_patched.so

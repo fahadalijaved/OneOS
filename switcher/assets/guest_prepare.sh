@@ -1612,7 +1612,11 @@ elif [ "${ONEOS_GUEST_DISPLAY_CONFIG:-1}" != 1 ]; then
     echo "Display config: the image's own (ONEOS_GUEST_DISPLAY_CONFIG=0)"
 elif [ ! -d "$PETC" ] || [ -L "$PETC" ]; then
     echo "Display config: no product/etc folder in the image, left out"
-elif mount | grep -q " $PETC type overlay"; then
+# Only our own overlay counts as an earlier prepare's (lowerdir = product_etc_ov). 0.5.14's Samsung Camera
+# overlay on LineageOS's /system leaves its own overlay mount on system/product/etc, and this check took
+# it for ours: no One UI curve, LineageOS's default one (100 % at 255 lux, the panel's peak) on every
+# Galaxy (A36, 2026-11-15: full bright and full low by turns, heat). Over another mount ours stacks on top.
+elif grep -q " $PETC overlay .*lowerdir=$STAGE/product_etc_ov/up:" /proc/mounts; then
     echo "Display config: overlay on product/etc already there (an earlier prepare), left as it is"
 elif [ -e "$PETC/displayconfig/display_port_147.xml" ] || [ -e "$PETC/displayconfig/display_port_148.xml" ]; then
     echo "Display config: the image has its own display_port_147/148, left as it is"
@@ -3027,12 +3031,21 @@ fi
 # backlight, and Nothing OS's own range (0.0354 to 1.0) put its lowest step near
 # 70 nits and its highest at the panel's 2600-nit peak (Nothing run 23).
 # Nothing images for now. ONEOS_GUEST_BRIGHTNESS_RANGE=0 keeps the image's.
-if [ -f "$STAGE/OneOSBrightnessRange.apk" ] && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] &&
+# 0.5.15: a panel at One UI brightnessMaximum below 4.2 (the Galaxy A36's 3.4) takes OneOSBrightnessRange34.apk,
+# the same points scaled to its panel (the Fold's put the slider's top at two thirds of its normal maximum).
+BR_APK=OneOSBrightnessRange.apk
+BR_BM=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
+if [ -f "$STAGE/OneOSBrightnessRange34.apk" ] && awk -v m="$BR_BM" 'BEGIN { exit !(m + 0 >= 1.5 && m + 0 < 4.2) }'; then
+    BR_APK=OneOSBrightnessRange34.apk
+fi
+if [ -f "$STAGE/$BR_APK" ] && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] &&
    [ "${ONEOS_GUEST_BRIGHTNESS_RANGE:-1}" = 1 ]; then
+    rm -f "$STAGE/oem/overlay/OneOSBrightnessRange.apk" "$STAGE/oem/overlay/OneOSBrightnessRange34.apk"
     mkdir -p "$STAGE/oem/overlay" &&
-        cp "$STAGE/OneOSBrightnessRange.apk" "$STAGE/oem/overlay/" &&
-        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSBrightnessRange.apk" &&
-        OEM_FILES="$OEM_FILES overlay/OneOSBrightnessRange.apk"
+        cp "$STAGE/$BR_APK" "$STAGE/oem/overlay/" &&
+        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/$BR_APK" &&
+        OEM_FILES="$OEM_FILES overlay/$BR_APK" &&
+        echo "Brightness range: $BR_APK (One UI's brightnessMaximum ${BR_BM:-unknown})"
 fi
 # Essential Space from a double press of the power key, for a Nothing image
 # (switcher/overlays/nothing_essential_key): Nothing opens it with its own
@@ -6177,6 +6190,14 @@ if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Apertur
         [ -d "$d" ] && [ ! -L "$d" ] || continue
         $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
             echo "Hid guest ${d#"$ROOTFS"/} (OPPO's camera needs the Find X9 Ultra's camera config and SDK; $OCWHY; ONEOS_GUEST_OEM_CAMERA=1 keeps it)"
+    done
+    # Nothing's camera (0.5.15): it needs Nothing's camera HAL (vendor.noth.hardware.camera INtCamSession) and
+    # its libcameradecision.so, which no Galaxy has; its UFS service and the app crashed in the background
+    # on the A36 ("nothing camera crashes", owner 2026-11-15).
+    for d in "$GUEST_SYSTEM_EXT"/priv-app/NTCamera "$ROOTFS"/system/priv-app/NTCamera "$GUEST_PRODUCT"/priv-app/NTCamera; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
+            echo "Hid guest ${d#"$ROOTFS"/} (Nothing's camera needs Nothing's camera HAL; $OCWHY; ONEOS_GUEST_OEM_CAMERA=1 keeps it)"
     done
 fi
 # Google Play services (GMS_WANT, top; docs/pixel-guest.md). GmsCore is

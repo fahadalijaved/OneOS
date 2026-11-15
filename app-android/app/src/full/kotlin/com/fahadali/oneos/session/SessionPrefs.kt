@@ -229,8 +229,10 @@ object SessionPrefs {
     fun verboseBoot(ctx: Context): Boolean = p(ctx).getBoolean("verbose_boot", false)
     fun setVerboseBoot(ctx: Context, enabled: Boolean) { p(ctx).edit().putBoolean("verbose_boot", enabled).apply() }
 
-    /** Full session logs (Settings / Advanced), `ONEOS_FULL_LOGS` for every launch: on by default; off skips the whole logcat capture. */
-    fun fullLogs(ctx: Context): Boolean = p(ctx).getBoolean("full_logs", true)
+    /** Full session logs (Settings / Advanced), `ONEOS_FULL_LOGS` for every launch: off by default since 0.5.15; off skips the whole logcat capture. */
+    // 0.5.15: off by default (owner 2026-11-15, "default should be off"): the capture (logd + logcat, about a
+    // third of a core all session) showed in every heat report (S25 FE, S24 FE, A36). Testers turn it on.
+    fun fullLogs(ctx: Context): Boolean = p(ctx).getBoolean("full_logs", false)
     fun setFullLogs(ctx: Context, enabled: Boolean) { p(ctx).edit().putBoolean("full_logs", enabled).apply() }
 
     /** Anonymous usage count (Settings / Advanced): on by default; off never sends the daily check-in. Kept by [UsageCheckIn]. */

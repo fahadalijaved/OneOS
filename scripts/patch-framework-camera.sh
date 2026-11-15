@@ -53,6 +53,13 @@ VD=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" framework "$WORK/fw")
 for d in $VD; do
     case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
 done
+# Samsung Camera's slow motion: up to 4 outputs in a constrained high-speed session, as One UI's
+# framework allows (switcher/patches/samsung_highspeed_surfaces.py, 0.5.15; A36 LineageOS froze on
+# "size must be 1 or 2"). One UI's cameraserver takes the session.
+HD=$(python3 -I "$ROOT/switcher/patches/samsung_highspeed_surfaces.py" "$WORK/fw")
+for d in $HD; do
+    case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
+done
 if [ -z "$DIRS" ]; then
     rm -f "$OUT/framework_patched.jar"
     sed -i '/ framework_patched\.jar$/d' "$OUT/guards.txt" 2>/dev/null || true
