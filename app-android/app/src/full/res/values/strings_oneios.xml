@@ -60,6 +60,15 @@
     <string name="oneios_tool_space">Space needed</string>
     <string name="oneios_tool_space_free">%1$s free</string>
     <string name="oneios_tool_not_yet">Not done, as the tool says</string>
+    <string name="oneios_tool_pause">Pause</string>
+    <string name="oneios_tool_pause_line">The download stops here and keeps what it has</string>
+    <string name="oneios_tool_resume">Resume</string>
+    <string name="oneios_tool_resume_line">Goes on from where it stopped</string>
+    <string name="oneios_tool_paused">Paused</string>
+    <string name="oneios_tool_no_network">No network: it goes on when the network is back</string>
+    <string name="oneios_tool_interrupted">Resume: %1$s</string>
+    <string name="oneios_tool_interrupted_line">OneOS was closed while this ran. It goes on from what the tool kept</string>
+    <string name="oneios_tool_forget">Don\'t resume</string>
     <string name="oneios_tool_version">oneios-tool</string>
     <string name="oneios_tool_steps">Steps</string>
     <string name="oneios_tool_output">What it said</string>

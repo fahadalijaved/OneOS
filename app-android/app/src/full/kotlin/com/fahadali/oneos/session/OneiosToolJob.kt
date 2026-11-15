@@ -1,12 +1,15 @@
 package com.fahadali.oneos.session
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.SystemClock
 import com.fahadali.oneos.BuildConfig
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosToolFlow
 import com.fahadali.oneos.core.root.OneiosRoot
+import com.fahadali.oneos.core.root.OneiosToolPause
 import com.fahadali.oneos.core.root.OneiosToolSession
 import com.fahadali.oneos.core.root.RootReply
 import com.fahadali.oneos.core.root.RootShell
@@ -19,12 +22,19 @@ import com.fahadali.oneos.core.root.RootShell
  * sends the requests, passes on what it says, and ends it: when the flow ends, on Stop (the tool's cancel; the
  * session is ended if the tool does not answer within [CANCEL_WAIT_MS]), and when [OneiosService] stops. A tool
  * that does not end by itself is ended by root's `untool`. A flow stops at the first request that does not end
- * with `ok`, and shows that request's reason.
+ * with `ok`, and shows that request's reason ([Flow.showAll]: every request's answer is shown).
+ *
+ * Pause and Resume: the user's buttons and Android's default network ([OneiosToolPause]) send the tool `pause` and
+ * `resume` for the running request; how a download waits, retries and keeps its parts is the tool's. A flow that was
+ * running when the app was ended is remembered ([interrupted]); started again, its requests carry `resume` where the
+ * tool takes it, so the tool goes on from what it kept.
  *
  * While a flow runs [OneiosService] keeps the app alive (and the CPU awake), as for an import.
  */
 object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios-tool") {
     private const val S = OneiosSystem.STAGE
+    private const val PREFS = "oneios-tool"
+    private const val KEY_RUNNING = "running"
 
     /** One request of a flow: the tool's command and its keys (the tool's README). */
     data class Request(val cmd: String, val keys: Map<String, Any?> = emptyMap())
@@ -32,14 +42,16 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
     /** What the app asks the tool for; [mode] is root's `tool` argument (read: allowed during a session). */
     enum class Flow(val mode: String, val requests: List<Request>, val showAll: Boolean = false) {
         /**
-         * docs/TODO.md "Make iOS image": the tool's `make-image` (the released xnu.macho, Apple's IPSW members by
-         * range requests, the volumes, the tweaks, prelink, the audit and the stub check) into `image.new`, which
-         * root's `begin image` made and root's `finish image` puts in place with today's checks.
+         * docs/TODO.md "Make iOS image": the IPSW's members from Apple's server by range requests (`fetch` with the
+         * runtime's own profile; `resume`: a paused, stopped or interrupted fetch goes on from its parts), then the
+         * tool's `make-image` (the released xnu.macho, the volumes, the tweaks, prelink, the audit and the stub check)
+         * into `image.new`, which root's `begin image` made and root's `finish image` puts in place with today's checks.
          */
         MAKE_IMAGE(
             "work",
             listOf(
-                Request(OneiosTool.Cmd.MAKE_IMAGE, mapOf("out" to "$S/image.new", "sums_list" to "$S/image.new.sha256", "ids_list" to "$S/image.new.ids", "work" to "$S/make")),
+                Request(OneiosTool.Cmd.FETCH, mapOf("profile" to "$S/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml", "indir" to "$S/make/inputs", "resume" to true)),
+                Request(OneiosTool.Cmd.MAKE_IMAGE, mapOf("indir" to "$S/make/inputs", "out" to "$S/image.new", "sums_list" to "$S/image.new.sha256", "ids_list" to "$S/image.new.ids", "work" to "$S/make")),
                 // Until the tool has make-image: its `tweaks` answers why the image set cannot be made on the phone
                 // yet (`not-ported`), and the screen shows that answer beside make-image's. Drop it when make-image comes.
                 Request(OneiosTool.Cmd.TWEAKS),
@@ -76,6 +88,12 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         val view: OneiosToolFlow = OneiosToolFlow(),
         /** The tool's version and threads (its hello). */
         val toolVersion: String? = null,
+        /** The tool takes `pause` and `resume` (its hello's `cmds`). */
+        val canPause: Boolean = false,
+        /** The user's Pause holds the running request. */
+        val pausedByUser: Boolean = false,
+        /** Android has no default network now (the tool says its own in [OneiosToolFlow.netWaiting]). */
+        val noNetwork: Boolean = false,
         val starting: Boolean = false,
         val stopping: Boolean = false,
         /** Why the flow could not start or root's own step refused (its words). */
@@ -94,13 +112,30 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
 
     @Volatile private var stop = false
 
+    @Volatile private var pause: OneiosToolPause? = null
+
     fun canStart(): Boolean = !state.busy && OneiosJob.canStart() && !OneiosChecksJob.state.busy
+
+    /** The flow that was running when the app was last ended (by Android, a crash, a swipe); null when none. */
+    fun interrupted(ctx: Context): Flow? = if (state.busy) null else
+        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_RUNNING, null)
+            ?.let { name -> Flow.entries.firstOrNull { it.name == name } }
+
+    /** Forget an interrupted flow without starting it again. */
+    fun forget(ctx: Context) = remember(ctx.applicationContext, null)
+
+    private fun remember(app: Context, flow: Flow?) {
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
+            if (flow == null) remove(KEY_RUNNING) else putString(KEY_RUNNING, flow.name)
+        }.commit()
+    }
 
     fun run(ctx: Context, flow: Flow) {
         if (!canStart()) return
         val app = ctx.applicationContext
         stop = false
         requestId = null
+        remember(app, flow)
         update(State(flow = flow, last = flow, starting = true))
         // From the screen the user tapped: Android lets only a visible app start the service.
         OneiosService.start(app)
@@ -108,6 +143,9 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
     }
 
     private fun work(app: Context, flow: Flow) {
+        var watch: (() -> Unit)? = null
+        // False only when the tool went away in the middle of a request: then the flow stays remembered for a Resume.
+        var answered = true
         try {
             // This build's root script in the stage first (status installs it, as the checks do).
             root(app, OneiosRoot.Verb.STATUS, emptyList(), 180_000)?.let { return problem(it) }
@@ -122,27 +160,35 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                 when (val st = s.start()) {
                     is OneiosToolSession.Start.Refused -> return problem(st.reason)
                     is OneiosToolSession.Start.Failed -> return problem(st.reason)
-                    is OneiosToolSession.Start.Ready -> update(state.copy(starting = false, toolVersion = listOfNotNull(st.hello.tool, st.hello.jobs?.let { "$it threads" }).joinToString(" · ")))
+                    is OneiosToolSession.Start.Ready -> update(state.copy(
+                        starting = false, canPause = st.hello.cmds.containsAll(listOf(OneiosTool.Cmd.PAUSE, OneiosTool.Cmd.RESUME)),
+                        toolVersion = listOfNotNull(st.hello.tool, st.hello.jobs?.let { "$it threads" }).joinToString(" · "),
+                    ))
                 }
+                if (state.canPause) watch = watchNetwork(app)
                 for ((i, r) in flow.requests.withIndex()) {
                     if (stop) break
                     val view = one(s, i + 1, r)
                     if (view.end != OneiosToolFlow.End.OK) {
                         // The tool's own words for what it would not or could not do, with its code.
                         update(state.copy(refusals = state.refusals + listOfNotNull(r.cmd, view.code, view.text).joinToString(": ")))
-                        if (!flow.showAll || view.end == OneiosToolFlow.End.CANCELLED || view.end == OneiosToolFlow.End.LOST) return
+                        if (view.end == OneiosToolFlow.End.LOST) { answered = false; return }
+                        if (!flow.showAll || view.end == OneiosToolFlow.End.CANCELLED) return
                         continue
                     }
                     update(state.copy(results = state.results + (view.text ?: r.cmd)))
                     if (r.cmd == OneiosTool.Cmd.MAKE_IMAGE) finishImage(app, view.result.orEmpty())
                 }
             } finally {
+                watch?.invoke()
+                pause = null
                 s.close()
                 session = null
                 requestId = null
             }
         } finally {
-            update(state.copy(flow = null, starting = false, stopping = false))
+            if (answered) remember(app, null)
+            update(state.copy(flow = null, starting = false, stopping = false, pausedByUser = false))
         }
     }
 
@@ -151,7 +197,14 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         var view = OneiosToolFlow()
         var shown = 0L
         update(state.copy(request = n, view = view))
-        val end = s.call(r.cmd, r.keys, onId = { id -> requestId = id; if (stop) s.cancel(id) }) { e ->
+        val end = s.call(r.cmd, r.keys, onId = { id ->
+            requestId = id
+            pause = OneiosToolPause { hold -> if (hold) s.pause(id) else s.resume(id) }.also { p ->
+                if (state.pausedByUser) p.userPause()
+                if (state.noNetwork) p.networkLost()
+            }
+            if (stop) s.cancel(id)
+        }) { e ->
             view = view.with(e)
             val now = SystemClock.elapsedRealtime()
             if (e !is OneiosTool.Event.Progress || now - shown >= 250) {
@@ -162,6 +215,33 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         if (end == null) view = view.lost(s.ended ?: "the tool ended")
         update(state.copy(view = view))
         return view
+    }
+
+    /**
+     * Android's default network for the flow's length: lost, the running request is paused; back, it is resumed
+     * unless the user paused it ([OneiosToolPause]). Returns the call that stops watching.
+     */
+    private fun watchNetwork(app: Context): () -> Unit {
+        val cm = app.getSystemService(ConnectivityManager::class.java) ?: return {}
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                update(state.copy(noNetwork = false))
+                pause?.networkBack()
+            }
+
+            override fun onLost(network: Network) {
+                // The default network is gone; when another takes over, onAvailable comes again.
+                update(state.copy(noNetwork = true))
+                pause?.networkLost()
+            }
+        }
+        if (cm.activeNetwork == null) update(state.copy(noNetwork = true))
+        try {
+            cm.registerDefaultNetworkCallback(cb)
+        } catch (_: RuntimeException) {
+            return {}
+        }
+        return { runCatching { cm.unregisterNetworkCallback(cb) }; Unit }
     }
 
     /** Make iOS image's last step: root's `finish image` with what the tool's result says the set is (today's checks). */
@@ -175,6 +255,20 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
 
     private fun problem(why: String) {
         update(state.copy(problem = why, starting = false))
+    }
+
+    /** Pause on the screen: the tool holds the running request where it is. */
+    fun pauseByUser() {
+        if (!state.busy || !state.canPause) return
+        update(state.copy(pausedByUser = true))
+        pause?.userPause()
+    }
+
+    /** Resume on the screen (a lost network may still hold it: the tool then waits for it). */
+    fun resumeByUser() {
+        if (!state.busy) return
+        update(state.copy(pausedByUser = false))
+        pause?.userResume()
     }
 
     /** Stop: the tool's cancel for the request; the session itself when the tool does not answer in time. */

@@ -9,6 +9,8 @@
 #                   (default 10), then ok. It starts a child (`sleep 300`, its pid in $STANDIN_DIR/child.ID) as a
 #                   worker would, and ends it
 #   cancel          {"cmd":"cancel","id":X}: the running request X ends (its child too) with cancelled, by request
+#   pause, resume   {"cmd":"pause","id":X}: the running wait X holds (no progress) and says paused; resume: resumed, it goes on
+#   standin-net     net waiting (retry_in 2), STANDIN_PAUSE s of silence, net resumed, ok
 #   standin-refuse  refused, code space, with the tool's kind of text
 #   standin-fail    failed, code io
 #   standin-lines   three line events and a row, then ok
@@ -23,7 +25,7 @@ say() { printf '%s\n' "$*"; }
 field() { # <line> <key>: a string or number value
     printf '%s\n' "$1" | sed -n "s/.*\"$2\":\"*\([A-Za-z0-9._-]*\)\"*.*/\1/p" | head -n 1
 }
-say "{\"ev\":\"hello\",\"proto\":${STANDIN_PROTOCOL:-1},\"tool\":\"0.0.0-standin\",\"pid\":$$,\"jobs\":2,\"nice\":10,\"idle\":${STANDIN_IDLE:-300},\"stage\":\"$D\",\"cmds\":[\"ping\",\"cancel\",\"wait\"]}"
+say "{\"ev\":\"hello\",\"proto\":${STANDIN_PROTOCOL:-1},\"tool\":\"0.0.0-standin\",\"pid\":$$,\"jobs\":2,\"nice\":10,\"idle\":${STANDIN_IDLE:-300},\"stage\":\"$D\",\"cmds\":[\"ping\",\"cancel\",\"wait\",\"pause\",\"resume\"]}"
 IDLE_PID=
 idle() {
     [ -n "$IDLE_PID" ] && kill "$IDLE_PID" 2>/dev/null
@@ -68,6 +70,7 @@ while IFS= read -r line; do
                 say "{\"ev\":\"step\",\"id\":\"$id\",\"step\":\"wait\",\"n\":1,\"of\":2,\"text\":\"Waiting\"}"
                 i=0
                 while [ $i -lt "$n" ]; do
+                    if [ -e "$D/held.$id" ]; then sleep 0.1; continue; fi
                     i=$((i + 1))
                     say "{\"ev\":\"progress\",\"id\":\"$id\",\"step\":\"wait\",\"done\":$i,\"total\":$n,\"unit\":\"seconds\",\"percent\":$((i * 100 / n)).0,\"eta\":$((n - i))}"
                     sleep 0.1
@@ -91,6 +94,22 @@ while IFS= read -r line; do
             say "{\"ev\":\"ok\",\"id\":\"$id\",\"cmd\":\"$cmd\",\"seconds\":0.0,\"text\":\"3 lines\",\"lines\":3}"
             ;;
         standin-quiet) ;;
+        pause)
+            if [ -f "$D/worker.$id" ]; then touch "$D/held.$id"; say "{\"ev\":\"paused\",\"id\":\"$id\",\"by\":\"request\",\"text\":\"paused; the parts are kept\"}"
+            else say "{\"ev\":\"error\",\"text\":\"pause: no request $id runs\"}"; fi
+            ;;
+        resume)
+            if [ -e "$D/held.$id" ]; then rm -f "$D/held.$id"; say "{\"ev\":\"resumed\",\"id\":\"$id\",\"by\":\"request\",\"text\":\"going on\"}"
+            else say "{\"ev\":\"error\",\"text\":\"resume: request $id is not paused\"}"; fi
+            ;;
+        standin-net)
+            (
+                say "{\"ev\":\"net\",\"id\":\"$id\",\"state\":\"waiting\",\"retry_in\":2,\"text\":\"no network: trying again in 2 s\"}"
+                sleep "${STANDIN_PAUSE:-1.5}"
+                say "{\"ev\":\"net\",\"id\":\"$id\",\"state\":\"resumed\",\"text\":\"the network is back\"}"
+                say "{\"ev\":\"ok\",\"id\":\"$id\",\"cmd\":\"$cmd\",\"seconds\":1.5,\"text\":\"done after the network came back\"}"
+            ) < /dev/null &
+            ;;
         standin-heat)
             (
                 say "{\"ev\":\"heat\",\"id\":\"$id\",\"state\":\"paused\",\"why\":\"case\",\"text\":\"the case is at 44 C: the work waits\",\"case\":44}"

@@ -28,7 +28,7 @@ class OneiosService : KeepAliveService() {
                         busy = true,
                         key = t.flow to step?.id,
                         title = getString(R.string.oneios_title),
-                        text = listOfNotNull(step?.text ?: step?.id ?: getString(R.string.oneios_tool_starting), v.paused ?: v.progressLine).joinToString(" · "),
+                        text = listOfNotNull(step?.text ?: step?.id ?: getString(R.string.oneios_tool_starting), v.netWaiting ?: (if (v.held || t.pausedByUser) getString(R.string.oneios_tool_paused) else null) ?: v.paused ?: v.progressLine).joinToString(" · "),
                         fraction = v.total?.takeIf { it > 0 }?.let { total -> ((v.done ?: 0).toDouble() / total).toFloat().coerceIn(0f, 1f) },
                     ),
                 )

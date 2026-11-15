@@ -17,6 +17,9 @@ object OneiosTool {
         const val PING = "ping"
         const val MAKE_IMAGE = "make-image"
         const val TWEAKS = "tweaks"
+        const val FETCH = "fetch"
+        const val PAUSE = "pause"
+        const val RESUME = "resume"
         const val SUMS = "sums"
         const val CPU = "cpu"
         const val LOG = "log"
@@ -61,6 +64,12 @@ object OneiosTool {
         /** The work paused or went on for heat or the battery. */
         data class Heat(override val id: String, val state: String?, val why: String?, val text: String?, override val raw: Map<String, Any?>) : Event()
 
+        /** The request stopped for a `pause` and kept what it has (`paused`), or goes on after a `resume` (`resumed`). */
+        data class Paused(override val id: String, val paused: Boolean, val by: String?, val text: String?, override val raw: Map<String, Any?>) : Event()
+
+        /** The network went away and the tool waits and retries (`waiting`, with the seconds to the next try), or it is back (`resumed`). */
+        data class Net(override val id: String, val state: String?, val retryIn: Long?, val text: String?, override val raw: Map<String, Any?>) : Event()
+
         data class Ok(override val id: String, val cmd: String?, val seconds: Double?, val text: String?, override val raw: Map<String, Any?>) : Event()
 
         data class Refused(override val id: String, val cmd: String?, val code: String?, val text: String, override val raw: Map<String, Any?>) : Event()
@@ -88,6 +97,12 @@ object OneiosTool {
 
     /** Stops request [id] (answered at once, also while it runs). */
     fun cancel(id: String): String = request(id, Cmd.CANCEL)
+
+    /** Holds request [id] where it is (a download keeps its parts); answered at once with `paused`. */
+    fun pause(id: String): String = request(id, Cmd.PAUSE)
+
+    /** Lets request [id] go on after a pause; answered with `resumed`. */
+    fun resume(id: String): String = request(id, Cmd.RESUME)
 
     /**
      * One line of the tool's standard output: null when it is not one of the tool's (it does not begin with
@@ -125,6 +140,9 @@ object OneiosTool {
             "row" -> Event.Row(id, s("kind"), raw)
             "line" -> Event.Line(id, s("stream"), s("text").orEmpty(), raw)
             "heat" -> Event.Heat(id, s("state"), s("why"), s("text"), raw)
+            "paused" -> Event.Paused(id, true, s("by"), s("text"), raw)
+            "resumed" -> Event.Paused(id, false, s("by"), s("text"), raw)
+            "net" -> Event.Net(id, s("state"), n("retry_in") ?: n("retry"), s("text"), raw)
             "ok" -> Event.Ok(id, s("cmd"), (raw["seconds"] as? Number)?.toDouble(), s("text"), raw)
             "refused" -> Event.Refused(id, s("cmd"), s("code"), s("text") ?: "refused (${s("code") ?: "no reason"})", raw)
             "failed" -> Event.Failed(id, s("cmd"), s("code"), s("text") ?: "failed (${s("code") ?: "no reason"})", raw)
@@ -209,6 +227,11 @@ data class OneiosToolFlow(
     val spacePath: String? = null,
     /** The tool's words while the work waits for heat or the battery; null when it runs. */
     val paused: String? = null,
+    /** The request is held by a `pause` (the tool said `paused`), until its `resumed`. */
+    val held: Boolean = false,
+    /** The tool waits for the network: its words, and the seconds to its next try. */
+    val netWaiting: String? = null,
+    val netRetryIn: Long? = null,
     val lines: List<String> = emptyList(),
     val rows: List<Map<String, Any?>> = emptyList(),
     val end: End? = null,
@@ -279,12 +302,14 @@ data class OneiosToolFlow(
         )
         is OneiosTool.Event.Space -> copy(spaceNeed = e.need, spaceFree = e.free, spacePath = e.path)
         is OneiosTool.Event.Heat -> copy(paused = if (e.state == "paused") (e.text ?: e.why ?: "paused") else null)
+        is OneiosTool.Event.Paused -> copy(held = e.paused)
+        is OneiosTool.Event.Net -> if (e.state == "waiting") copy(netWaiting = e.text ?: "waiting for the network", netRetryIn = e.retryIn) else copy(netWaiting = null, netRetryIn = null)
         is OneiosTool.Event.Line -> copy(lines = (lines + e.text).takeLast(MAX_LINES))
         is OneiosTool.Event.Row -> copy(rows = (rows + e.raw).takeLast(MAX_ROWS))
-        is OneiosTool.Event.Ok -> copy(end = End.OK, text = e.text, result = e.raw, eta = null, paused = null)
-        is OneiosTool.Event.Refused -> copy(end = End.REFUSED, text = e.text, code = e.code, eta = null, paused = null)
-        is OneiosTool.Event.Failed -> copy(end = End.FAILED, text = e.text, code = e.code, eta = null, paused = null)
-        is OneiosTool.Event.Cancelled -> copy(end = End.CANCELLED, text = e.text, code = e.by, eta = null, paused = null)
+        is OneiosTool.Event.Ok -> copy(end = End.OK, text = e.text, result = e.raw, eta = null, paused = null, held = false, netWaiting = null, netRetryIn = null)
+        is OneiosTool.Event.Refused -> copy(end = End.REFUSED, text = e.text, code = e.code, eta = null, paused = null, held = false, netWaiting = null, netRetryIn = null)
+        is OneiosTool.Event.Failed -> copy(end = End.FAILED, text = e.text, code = e.code, eta = null, paused = null, held = false, netWaiting = null, netRetryIn = null)
+        is OneiosTool.Event.Cancelled -> copy(end = End.CANCELLED, text = e.text, code = e.by, eta = null, paused = null, held = false, netWaiting = null, netRetryIn = null)
         else -> this
     }
 

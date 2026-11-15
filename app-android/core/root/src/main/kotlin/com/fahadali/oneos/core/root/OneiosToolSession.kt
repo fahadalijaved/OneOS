@@ -65,8 +65,15 @@ class OneiosToolSession(
     @Volatile var ended: String? = null
         private set
 
-    /** The tool said the work waits for heat or the battery (`heat` `paused`), until its `resumed`. */
-    @Volatile private var paused = false
+    /** The tool said the work waits: for heat or the battery (`heat` `paused`), for a `pause` (`paused`), or for the
+     *  network (`net` `waiting`); each until its own end. A quiet tool is not a silent one then. */
+    @Volatile private var heatPaused = false
+
+    @Volatile private var held = false
+
+    @Volatile private var netWaiting = false
+
+    private val paused: Boolean get() = heatPaused || held || netWaiting
 
     private val ids = AtomicInteger(0)
     private val pending = ConcurrentHashMap<String, Pending>()
@@ -152,7 +159,9 @@ class OneiosToolSession(
                         is OneiosTool.Event.Hello -> { hello = e; helloSeen.countDown() }
                         is OneiosTool.Event.Bye -> ended = "the tool ended: ${e.why ?: "no reason"}"
                         // A heat pause may be quiet for minutes: the silence limit waits for the resume.
-                        is OneiosTool.Event.Heat -> { paused = e.state == "paused"; deliver(e) }
+                        is OneiosTool.Event.Heat -> { heatPaused = e.state == "paused"; deliver(e) }
+                        is OneiosTool.Event.Paused -> { held = e.paused; deliver(e) }
+                        is OneiosTool.Event.Net -> { netWaiting = e.state == "waiting"; deliver(e) }
                         else -> deliver(e)
                     }
                 }
@@ -169,6 +178,7 @@ class OneiosToolSession(
         val p = pending[id] ?: return
         runCatching { p.listener(e) }
         if (e.ends) {
+            heatPaused = false; held = false; netWaiting = false
             p.last = e
             pending.remove(id)
             p.done.countDown()
@@ -237,6 +247,18 @@ class OneiosToolSession(
     fun cancel(id: String): Boolean {
         if (hello == null || ended != null) return false
         return write(OneiosTool.cancel(id))
+    }
+
+    /** Asks the tool to hold request [id] (`pause`); its `paused` line says it did. False when the session is over. */
+    fun pause(id: String): Boolean {
+        if (hello == null || ended != null) return false
+        return write(OneiosTool.pause(id))
+    }
+
+    /** Asks the tool to let request [id] go on (`resume`). False when the session is over. */
+    fun resume(id: String): Boolean {
+        if (hello == null || ended != null) return false
+        return write(OneiosTool.resume(id))
     }
 
     /** Asks the tool to stop every open request. */

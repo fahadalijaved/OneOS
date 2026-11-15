@@ -588,19 +588,26 @@ do_checkfile() {
 # `uncheck` is for the checks). What each request may write is in its README.
 TOOL_BIN="$STAGE/runtime/bin/oneios-tool"
 tool_pids() { # the processes of the staged bin/oneios-tool serve (by their command line) and theirs
-    set --
-    for p in /proc/[0-9]*; do
-        { tr '\0' ' ' < "$p/cmdline"; } 2>/dev/null | grep -q -F "$TOOL_BIN serve" && set -- "$@" "${p#/proc/}"
+    # One grep over every command line (a fork per process would take seconds on the phone). The arguments are
+    # NUL-separated there, so the match is the path; a process is the tool's when its command line also says serve.
+    found=
+    for f in $(grep -l -F -- "$TOOL_BIN" /proc/[0-9]*/cmdline 2>/dev/null); do
+        p=${f#/proc/}
+        p=${p%/cmdline}
+        [ "$p" = "$$" ] && continue
+        { tr '\0' ' ' < "$f"; } 2>/dev/null | grep -q -F "$TOOL_BIN serve" && found="$found $p"
     done
-    [ $# -gt 0 ] || return 0
+    [ -n "$found" ] || return 0
     # Their children, four levels down (the parent is field 4 of /proc/PID/stat; a name with spaces sits in (...)).
-    all=" $* "
-    for _ in 1 2 3 4; do
+    all="$found "
+    for level in 1 2 3 4; do
         for s in /proc/[0-9]*/stat; do
             { read -r l < "$s"; } 2>/dev/null || continue
             pid=${l%% *}
-            set -- ${l##*) }
-            case "$all" in *" $pid "*) ;; *" $2 "*) all="$all$pid " ;; esac
+            rest=${l##*) }
+            ppid=${rest#* }
+            ppid=${ppid%% *}
+            case "$all" in *" $pid "*) ;; *" $ppid "*) all="$all$pid " ;; esac
         done
     done
     echo $all
@@ -635,9 +642,15 @@ do_untool() {
     [ -n "$pids" ] || { say "@@OK untool nothing"; return; }
     # shellcheck disable=SC2086
     kill -TERM $pids 2>/dev/null
+    # Up to 2 s for them to go (only the processes found: no second scan of /proc), then SIGKILL.
     n=0
-    while [ $n -lt 20 ] && [ -n "$(tool_pids)" ]; do sleep 0.1; n=$((n + 1)); done
-    left=$(tool_pids)
+    while [ $n -lt 20 ]; do
+        left=
+        for p in $pids; do [ -d "/proc/$p" ] && left="$left $p"; done
+        [ -n "$left" ] || break
+        sleep 0.1
+        n=$((n + 1))
+    done
     # shellcheck disable=SC2086
     [ -z "$left" ] || kill -KILL $left 2>/dev/null
     say "@@OK untool $(echo $pids | wc -w | tr -d ' ')"

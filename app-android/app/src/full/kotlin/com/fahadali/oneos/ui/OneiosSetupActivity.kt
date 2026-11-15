@@ -36,6 +36,7 @@ class OneiosSetupActivity : EdgeToEdgeActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        OneiosToolActivity.askNotifications(this, savedInstanceState)
         picker = OneiosPicker(this, savedInstanceState)
         setContentView(R.layout.activity_setup_progress)
         layoutInflater.inflate(R.layout.setup_progress_screen, findViewById<FrameLayout>(R.id.fragment_container), true)

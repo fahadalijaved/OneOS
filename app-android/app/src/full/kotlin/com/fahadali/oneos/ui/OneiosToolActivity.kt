@@ -28,8 +28,9 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_oneios_logs)
+        askNotifications(this, savedInstanceState)
         val toolbar = findViewById<ToolbarLayout>(R.id.oneios_logs_toolbar)
-        toolbar.setTitle(title(OneiosToolJob.state.last))
+        toolbar.setTitle(title(OneiosToolJob.state.last ?: OneiosToolJob.interrupted(this)))
         toolbar.showNavigationButtonAsBack = true
         toolbar.setNavigationButtonOnClickListener { onBackPressedDispatcher.onBackPressed() }
         toolbar.setAdaptiveMarginProvider(dev.oneuiproject.oneui.widget.AdaptiveCoordinatorLayout.MARGIN_PROVIDER_ZERO)
@@ -46,7 +47,8 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         super.onStart()
         // Rebuild the rows only when a step, the end, the progress line or the output changes.
         unsubscribe = OneiosToolJob.observeBy({ s ->
-            listOf(s.flow, s.request, s.starting, s.stopping, s.problem, s.results.size, s.view.steps, s.view.end, s.view.progressLine, s.view.paused, s.view.lines.size, s.view.rows.size)
+            listOf(s.flow, s.request, s.starting, s.stopping, s.problem, s.results.size, s.view.steps, s.view.end, s.view.progressLine, s.view.paused,
+                s.view.held, s.view.netWaiting, s.pausedByUser, s.noNetwork, s.canPause, s.view.lines.size, s.view.rows.size)
         }) { render() }
     }
 
@@ -98,7 +100,16 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             s.starting -> PrebootCards.row(now, getString(R.string.oneios_tool_starting), getString(R.string.oneios_tool_starting_line))
             s.problem != null -> PrebootCards.row(now, getString(R.string.oneios_tool_not_started), s.problem)
             end != null && end != OneiosToolFlow.End.OK -> PrebootCards.row(now, endTitle(end), listOfNotNull(v.code, v.text).joinToString(": "))
-            s.busy -> PrebootCards.row(now, running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), v.paused ?: v.progressLine)
+            s.busy -> {
+                // Held, waiting for the network or for heat: the tool's words first, then where it is.
+                val why = when {
+                    v.netWaiting != null -> v.netWaiting
+                    s.noNetwork -> getString(R.string.oneios_tool_no_network)
+                    v.held || s.pausedByUser -> getString(R.string.oneios_tool_paused)
+                    else -> v.paused
+                }
+                PrebootCards.row(now, running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), listOfNotNull(why, v.progressLine).joinToString(" · "))
+            }
             end == OneiosToolFlow.End.OK -> PrebootCards.row(now, endTitle(end), s.results.lastOrNull() ?: v.text)
             else -> PrebootCards.row(now, getString(R.string.oneios_tool_idle))
         }
@@ -130,8 +141,19 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         }
 
         val actions = PrebootCards.section(list)
+        val interrupted = OneiosToolJob.interrupted(this)
         if (s.busy) {
+            // Pause and Resume when this tool takes them (its hello); the tool holds the request and keeps its parts.
+            if (s.canPause && !s.stopping) {
+                if (s.pausedByUser) PrebootCards.row(actions, getString(R.string.oneios_tool_resume), getString(R.string.oneios_tool_resume_line)) { OneiosToolJob.resumeByUser() }
+                else PrebootCards.row(actions, getString(R.string.oneios_tool_pause), getString(R.string.oneios_tool_pause_line), enabled = !s.starting) { OneiosToolJob.pauseByUser() }
+            }
             PrebootCards.row(actions, getString(if (s.stopping) R.string.oneios_tool_stopping else R.string.oneios_tool_stop), enabled = !s.stopping) { OneiosToolJob.cancel() }
+        } else if (interrupted != null) {
+            // The app was ended while this flow ran: started again, the tool goes on from what it kept.
+            PrebootCards.row(actions, getString(R.string.oneios_tool_interrupted, title(interrupted)), getString(R.string.oneios_tool_interrupted_line),
+                enabled = OneiosToolJob.canStart()) { OneiosToolJob.run(this, interrupted) }
+            PrebootCards.row(actions, getString(R.string.oneios_tool_forget)) { OneiosToolJob.forget(this); render() }
         } else {
             val again = s.last ?: OneiosToolJob.Flow.MAKE_IMAGE
             PrebootCards.row(actions, getString(R.string.oneios_tool_run_again), enabled = OneiosToolJob.canStart()) { OneiosToolJob.run(this, again) }
@@ -153,6 +175,19 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         private const val OUTPUT_ROWS = 60
 
         fun intent(ctx: Context): Intent = Intent(ctx, OneiosToolActivity::class.java)
+
+        /**
+         * OneiosService's notification (the running step) needs this on Android 13+; asked once where an iOS
+         * download, import or tool flow is shown, as Setting up asks it. The work runs either way, without the
+         * notification if refused.
+         */
+        fun askNotifications(a: android.app.Activity, saved: Bundle?) {
+            if (saved == null && android.os.Build.VERSION.SDK_INT >= 33 &&
+                a.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                a.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 42)
+            }
+        }
 
         /** Starts [flow] (unless a flow runs) and opens this screen. */
         fun start(ctx: Context, flow: OneiosToolJob.Flow) {

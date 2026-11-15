@@ -108,6 +108,29 @@ class OneiosToolTest {
     }
 
     @Test
+    fun pauseResumeAndTheNetworkAreShownAsTheToolSaysThem() {
+        assertEquals("""{"id":"4","cmd":"pause"}""" + "\n", OneiosTool.pause("4"))
+        assertEquals("""{"id":"4","cmd":"resume"}""" + "\n", OneiosTool.resume("4"))
+        var f = fold("""{"ev":"progress","id":"4","step":"download","done":10,"total":100,"unit":"bytes"}""")
+        f = f.with(OneiosTool.parse("""{"ev":"paused","id":"4","by":"request","text":"paused"}""")!!)
+        assertTrue(f.held)
+        assertTrue(f.running)
+        f = f.with(OneiosTool.parse("""{"ev":"resumed","id":"4","by":"request"}""")!!)
+        assertFalse(f.held)
+        f = f.with(OneiosTool.parse("""{"ev":"net","id":"4","state":"waiting","retry_in":8,"text":"no network: next try in 8 s"}""")!!)
+        assertEquals("no network: next try in 8 s", f.netWaiting)
+        assertEquals(8L, f.netRetryIn)
+        f = f.with(OneiosTool.parse("""{"ev":"net","id":"4","state":"resumed"}""")!!)
+        assertNull(f.netWaiting)
+        // The end clears both.
+        f = f.with(OneiosTool.parse("""{"ev":"paused","id":"4"}""")!!)
+            .with(OneiosTool.parse("""{"ev":"net","id":"4","state":"waiting"}""")!!)
+            .with(OneiosTool.parse("""{"ev":"cancelled","id":"4","by":"eof"}""")!!)
+        assertFalse(f.held)
+        assertNull(f.netWaiting)
+    }
+
+    @Test
     fun aHeatPauseIsShownUntilTheWorkGoesOn() {
         var f = fold("""{"ev":"heat","id":"1","state":"paused","why":"case","text":"the case is at 44 C: paused"}""")
         assertEquals("the case is at 44 C: paused", f.paused)

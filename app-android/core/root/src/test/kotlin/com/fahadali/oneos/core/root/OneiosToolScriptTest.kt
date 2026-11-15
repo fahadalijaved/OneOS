@@ -20,6 +20,10 @@ import java.nio.file.Files
  */
 class OneiosToolScriptTest {
     private val rootScript = File(Shipped.fullAssets, OneiosRoot.ASSET)
+    /** The phone's shell is mksh: every case runs under it, dash and bash where the machine has them. */
+    private val shells: List<String> =
+        (listOf("/bin/sh") + TestShell.available().filterNot { it.appletsFirst }.map { it.path }).filter { File(it).canExecute() }.distinct()
+
     private val roots = mutableListOf<File>()
     private val sessions = mutableListOf<OneiosToolSession>()
 
@@ -29,13 +33,13 @@ class OneiosToolScriptTest {
         roots.forEach { it.deleteRecursively() }
     }
 
-    private inner class Fake {
+    private inner class Fake(val sh: String) {
         val root: File = Files.createTempDirectory("oneios-tool-fakeroot").toFile().also { roots += it }
         val stage = File(root, "data/local/tmp/oneios")
         val run = File(root, "standin").apply { mkdirs() }
         private val uid = exec("id", "-u")
         private val gid = exec("id", "-g")
-        val layout = OneiosRoot.Layout(stage.path, "/bin/sh", File(root, "proc").path, uid, "$uid:$gid")
+        val layout = OneiosRoot.Layout(stage.path, sh, File(root, "proc").path, uid, "$uid:$gid")
         private val script = rootScript.readBytes()
         val standin: ByteArray = OneiosToolScriptTest::class.java.getResourceAsStream("/oneios/serve-standin.sh")!!.readBytes()
 
@@ -65,7 +69,7 @@ class OneiosToolScriptTest {
         }
 
         fun verb(verb: OneiosRoot.Verb, args: List<String> = emptyList(), data: ByteArray? = null): Out {
-            val pb = ProcessBuilder("/bin/sh", "-c", command(verb, args)).redirectErrorStream(true)
+            val pb = ProcessBuilder(sh, "-c", command(verb, args)).redirectErrorStream(true)
             pb.environment().putAll(env())
             val p = pb.start()
             val input = if (verb.stdin == OneiosRoot.Stdin.SCRIPT) script else data
@@ -95,14 +99,17 @@ class OneiosToolScriptTest {
         }
 
         fun session(mode: String, backstop: (() -> Unit)? = null, closeWaitMs: Long = 10_000) = OneiosToolSession(
-            command(OneiosRoot.Verb.TOOL, listOf(mode)), launch = listOf("/bin/sh", "-c"), environment = env(),
+            command(OneiosRoot.Verb.TOOL, listOf(mode)), launch = listOf(sh, "-c"), environment = env(),
             backstop = backstop, closeWaitMs = closeWaitMs,
         ).also { sessions += it }
     }
 
     @Test
     fun aFlowRunsTheStagedToolThroughTheLauncher() {
-        val f = Fake()
+        for (sh in shells) flowRuns1(Fake(sh))
+    }
+
+    private fun flowRuns1(f: Fake) {
         f.runtime()
         val s = f.session("work")
         val st = s.start()
@@ -118,7 +125,10 @@ class OneiosToolScriptTest {
 
     @Test
     fun workIsRefusedInASessionAndReadIsNot() {
-        val f = Fake()
+        for (sh in shells) flowRuns2(Fake(sh))
+    }
+
+    private fun flowRuns2(f: Fake) {
         f.runtime()
         f.openSession()
         val work = f.session("work").start()
@@ -132,7 +142,10 @@ class OneiosToolScriptTest {
 
     @Test
     fun onlyTheFileThatWasStagedRuns() {
-        val f = Fake()
+        for (sh in shells) flowRuns3(Fake(sh))
+    }
+
+    private fun flowRuns3(f: Fake) {
         assertEquals(OneiosToolSession.Start.Refused("OneiOS's root script is not in the stage, or it changed: set up again"), f.session("work").start())
         f.runtime(withTool = false)
         assertEquals(OneiosToolSession.Start.Refused("this runtime has no bin/oneios-tool: get a newer runtime"), f.session("work").start())
@@ -150,11 +163,14 @@ class OneiosToolScriptTest {
     fun untoolEndsAToolThatDoesNotEndAndWhatItStarted() {
         // untool finds the tool's processes in /proc, as on the phone (no /proc on a Mac).
         assumeTrue(File("/proc/self/stat").exists())
-        val f = Fake()
+        for (sh in shells) flowRuns4(Fake(sh))
+    }
+
+    private fun flowRuns4(f: Fake) {
         f.runtime()
         var said = ""
         val s = OneiosToolSession(
-            f.command(OneiosRoot.Verb.TOOL, listOf("work")), launch = listOf("/bin/sh", "-c"),
+            f.command(OneiosRoot.Verb.TOOL, listOf("work")), launch = listOf(f.sh, "-c"),
             environment = f.env() + mapOf("STANDIN_HANG" to "1", "STANDIN_TICKS" to "600"),
             backstop = { said = f.verb(OneiosRoot.Verb.UNTOOL).text }, closeWaitMs = 500,
         ).also { sessions += it }

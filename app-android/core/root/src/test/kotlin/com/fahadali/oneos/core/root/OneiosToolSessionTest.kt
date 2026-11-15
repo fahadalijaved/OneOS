@@ -201,6 +201,71 @@ class OneiosToolSessionTest {
     }
 
     @Test
+    fun pauseHoldsTheRequestAndResumeLetsItGoOnWithoutTheSilenceLimit() {
+        val (s, _) = session(env = mapOf("STANDIN_TICKS" to "8"), silenceMs = 600)
+        assertTrue(ready(s).cmds.containsAll(listOf("pause", "resume")))
+        val id = java.util.concurrent.atomic.AtomicReference("")
+        var flow = OneiosToolFlow()
+        val held = java.util.concurrent.CountDownLatch(1)
+        var last: OneiosTool.Event? = null
+        val t = Thread {
+            last = s.call("wait", onId = { id.set(it) }) { e ->
+                flow = flow.with(e)
+                if (e is OneiosTool.Event.Progress && e.done == 2L) s.pause(id.get())
+                if (e is OneiosTool.Event.Paused && e.paused) held.countDown()
+            }
+        }
+        t.start()
+        assertTrue(held.await(20, java.util.concurrent.TimeUnit.SECONDS))
+        assertTrue(flow.held)
+        val doneAtPause = flow.done
+        // Held for longer than the silence limit: no progress, the session stays.
+        Thread.sleep(1500)
+        assertEquals(doneAtPause, flow.done)
+        assertEquals(null, s.ended)
+        assertTrue(s.resume(id.get()))
+        t.join(20_000)
+        assertTrue("last: $last ended: ${s.ended}", last is OneiosTool.Event.Ok)
+        assertEquals(listOf("wait", "place"), flow.steps.map { it.id })
+        assertTrue(flow.steps.all { it.state == OneiosTool.StepState.DONE })
+        assertTrue(!flow.held)
+        val procs = tree(s)
+        s.close()
+        awaitGone(procs)
+    }
+
+    @Test
+    fun theToolWaitingForTheNetworkIsShownAndIsNotSilence() {
+        val (s, _) = session(silenceMs = 600)
+        ready(s)
+        var flow = OneiosToolFlow()
+        val waits = mutableListOf<String?>()
+        val last = s.call("standin-net") { e -> flow = flow.with(e); waits += flow.netWaiting }
+        assertTrue("last: $last ended: ${s.ended}", last is OneiosTool.Event.Ok)
+        assertEquals(listOf("no network: trying again in 2 s", null, null), waits)
+        val procs = tree(s)
+        s.close()
+        awaitGone(procs)
+    }
+
+    @Test
+    fun theUserAndTheNetworkHoldARequestTogether() {
+        val sent = mutableListOf<Boolean>()
+        val p = OneiosToolPause { sent += it }
+        p.networkLost()
+        p.userPause()
+        p.networkBack()
+        assertTrue("the user's pause holds it when the network comes back", p.held)
+        p.userResume()
+        p.userPause()
+        p.networkLost()
+        p.userResume()
+        assertTrue("the network still holds it", p.held)
+        p.networkBack()
+        assertEquals(listOf(true, false, true, false), sent)
+    }
+
+    @Test
     fun aHeatPauseIsNotSilence() {
         val (s, _) = session(silenceMs = 600)
         ready(s)
