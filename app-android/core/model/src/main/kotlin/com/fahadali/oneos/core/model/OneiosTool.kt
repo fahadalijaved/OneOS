@@ -16,6 +16,7 @@ object OneiosTool {
         const val CANCEL = "cancel"
         const val PING = "ping"
         const val MAKE_IMAGE = "make-image"
+        const val TWEAKS = "tweaks"
         const val SUMS = "sums"
         const val CPU = "cpu"
         const val LOG = "log"

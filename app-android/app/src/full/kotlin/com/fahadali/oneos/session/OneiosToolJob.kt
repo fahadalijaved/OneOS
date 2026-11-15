@@ -30,13 +30,22 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
     data class Request(val cmd: String, val keys: Map<String, Any?> = emptyMap())
 
     /** What the app asks the tool for; [mode] is root's `tool` argument (read: allowed during a session). */
-    enum class Flow(val mode: String, val requests: List<Request>) {
+    enum class Flow(val mode: String, val requests: List<Request>, val showAll: Boolean = false) {
         /**
          * docs/TODO.md "Make iOS image": the tool's `make-image` (the released xnu.macho, Apple's IPSW members by
          * range requests, the volumes, the tweaks, prelink, the audit and the stub check) into `image.new`, which
          * root's `begin image` made and root's `finish image` puts in place with today's checks.
          */
-        MAKE_IMAGE("work", listOf(Request(OneiosTool.Cmd.MAKE_IMAGE, mapOf("out" to "$S/image.new", "sums_list" to "$S/image.new.sha256", "ids_list" to "$S/image.new.ids", "work" to "$S/make")))),
+        MAKE_IMAGE(
+            "work",
+            listOf(
+                Request(OneiosTool.Cmd.MAKE_IMAGE, mapOf("out" to "$S/image.new", "sums_list" to "$S/image.new.sha256", "ids_list" to "$S/image.new.ids", "work" to "$S/make")),
+                // Until the tool has make-image: its `tweaks` answers why the image set cannot be made on the phone
+                // yet (`not-ported`), and the screen shows that answer beside make-image's. Drop it when make-image comes.
+                Request(OneiosTool.Cmd.TWEAKS),
+            ),
+            showAll = true,
+        ),
 
         /** Every file of the staged runtime and image set hashed again against the lists root wrote at staging. */
         SUMS("read", listOf(
@@ -73,6 +82,8 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         val problem: String? = null,
         /** Each finished request's last line for the screen: its `text`. */
         val results: List<String> = emptyList(),
+        /** Each request that did not end with `ok`: "cmd: code: the tool's text". */
+        val refusals: List<String> = emptyList(),
     ) {
         val busy: Boolean get() = flow != null
     }
@@ -116,9 +127,14 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                 for ((i, r) in flow.requests.withIndex()) {
                     if (stop) break
                     val view = one(s, i + 1, r)
-                    if (view.end != OneiosToolFlow.End.OK) return
+                    if (view.end != OneiosToolFlow.End.OK) {
+                        // The tool's own words for what it would not or could not do, with its code.
+                        update(state.copy(refusals = state.refusals + listOfNotNull(r.cmd, view.code, view.text).joinToString(": ")))
+                        if (!flow.showAll || view.end == OneiosToolFlow.End.CANCELLED || view.end == OneiosToolFlow.End.LOST) return
+                        continue
+                    }
                     update(state.copy(results = state.results + (view.text ?: r.cmd)))
-                    if (flow == Flow.MAKE_IMAGE) finishImage(app, view.result.orEmpty())
+                    if (r.cmd == OneiosTool.Cmd.MAKE_IMAGE) finishImage(app, view.result.orEmpty())
                 }
             } finally {
                 s.close()

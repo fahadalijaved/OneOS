@@ -59,6 +59,7 @@
     <string name="oneios_tool_next">Next</string>
     <string name="oneios_tool_space">Space needed</string>
     <string name="oneios_tool_space_free">%1$s free</string>
+    <string name="oneios_tool_not_yet">Not done, as the tool says</string>
     <string name="oneios_tool_version">oneios-tool</string>
     <string name="oneios_tool_steps">Steps</string>
     <string name="oneios_tool_output">What it said</string>

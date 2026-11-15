@@ -113,6 +113,11 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             val steps = PrebootCards.section(list, getString(R.string.oneios_tool_steps))
             for (st in v.steps) PrebootCards.row(steps, st.text ?: st.id, mark(st.state))
         }
+        if (s.refusals.isNotEmpty()) {
+            // Make iOS image asks for every step's answer: what the tool cannot do on the phone yet, in its words.
+            val no = PrebootCards.section(list, getString(R.string.oneios_tool_not_yet))
+            for (r in s.refusals) PrebootCards.row(no, r)
+        }
         if (s.results.isNotEmpty()) {
             val done = PrebootCards.section(list, getString(R.string.oneios_tool_end_done))
             for (r in s.results) PrebootCards.row(done, r)

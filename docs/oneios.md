@@ -271,8 +271,12 @@ sends requests and shows what comes back. The protocol is the tool's (OneiOS's `
 | **Analyse the last session**, **iOS's own log: boots**, **last boot** (Session logs, "With oneios-tool") | `tool read` | `log-list` and `log` (`file` `xnuhost`); `ioslog-boots`; `ioslog-show` (`boot` `last`), on `<stage>/data/data.img` | the tool's lines and rows |
 
 A flow stops at the first request that does not end with `ok` and shows that request's text. **`make-image` is not in
-the tool yet** (its `tweaks` step is `not-ported`): until it is, the tool answers `refused` `unknown` and Make iOS
-image says so. What the app needs from it is in OneiOS's `oneos/interface.md` section 9.
+the tool yet**, nor are the root tweaks (still Python: the tool's `tweaks` answers `not-ported`), `scripts/image/
+build.sh`'s order and checks, and the AEA decryption. So Make iOS image sends `make-image` and then `tweaks`, shows
+both answers under "Not done, as the tool says" (`unknown`: `this tool has no command "make-image" ...`;
+`not-ported`: `The root tweaks are not in this tool yet: ...`, the tool's own words) and stages nothing. When the
+tool has `make-image`, the `tweaks` request goes (a comment in `OneiosToolJob` says so). What the app needs from it is
+in OneiOS's `oneos/interface.md` section 9.
 
 **How a flow runs** (`OneiosToolJob`, app; `OneiosToolSession`, `core/root`):
 - On the job's own thread (never the main thread), inside `OneiosService`, the foreground service of the import,
@@ -312,7 +316,11 @@ After each, no process the session started is left (the `su` stand-in, the tool,
 `ProcessHandle`). `OneiosToolScriptTest` (`core:root`, 4) runs the stand-in as the staged `bin/oneios-tool` through
 the launcher and `oneios_root.sh tool` in a fake root: only the file hashed at staging runs; `work` is refused in a
 session, `read` is not; and `untool` ends a tool that ignores the end of its input, and its child (Linux only:
-it reads `/proc`).
+it reads `/proc`). `OneiosToolRealTest` (`core:root`, 1; skipped unless `ONEIOS_TOOL_SERVE` names a host build of
+OneiOS's `oneios-tool`) runs the same session against the real `serve`: `hello`, `ping`, `wait` with its steps and
+progress, `make-image` refused `unknown`, a cancel (`by` `request`), the end of input (`bye`, `eof`). It passed on
+the Linux PC against a host build of OneiOS `tool-app-progress` (PR #52, now in main) (`ONEIOS_TOOL_SERVE=... ./gradlew --no-daemon
+:core:root:testDebugUnitTest --tests '*OneiosToolRealTest*'`).
 
 ## Hardware checks
 
