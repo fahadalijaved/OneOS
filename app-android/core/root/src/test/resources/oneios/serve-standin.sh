@@ -10,7 +10,7 @@
 #                   worker would, and ends it
 #   cancel          {"cmd":"cancel","id":X}: the running request X ends (its child too) with cancelled, by request
 #   pause, resume   {"cmd":"pause","id":X}: the running wait X holds (no progress) and says paused; resume: resumed, it goes on
-#   standin-net     net waiting (retry_in 2), STANDIN_PAUSE s of silence, net resumed, ok
+#   standin-net     net waiting (next 2.0), STANDIN_PAUSE s of silence, net resumed, ok
 #   standin-refuse  refused, code space, with the tool's kind of text
 #   standin-fail    failed, code io
 #   standin-lines   three line events and a row, then ok
@@ -96,15 +96,15 @@ while IFS= read -r line; do
         standin-quiet) ;;
         pause)
             if [ -f "$D/worker.$id" ]; then touch "$D/held.$id"; say "{\"ev\":\"paused\",\"id\":\"$id\",\"by\":\"request\",\"text\":\"paused; the parts are kept\"}"
-            else say "{\"ev\":\"error\",\"text\":\"pause: no request $id runs\"}"; fi
+            else say "{\"ev\":\"error\",\"id\":\"$id\",\"code\":\"no-such-request\",\"text\":\"pause: no request $id runs\"}"; fi
             ;;
         resume)
             if [ -e "$D/held.$id" ]; then rm -f "$D/held.$id"; say "{\"ev\":\"resumed\",\"id\":\"$id\",\"by\":\"request\",\"text\":\"going on\"}"
-            else say "{\"ev\":\"error\",\"text\":\"resume: request $id is not paused\"}"; fi
+            else say "{\"ev\":\"error\",\"id\":\"$id\",\"code\":\"not-paused\",\"text\":\"resume: request $id is not paused\"}"; fi
             ;;
         standin-net)
             (
-                say "{\"ev\":\"net\",\"id\":\"$id\",\"state\":\"waiting\",\"retry_in\":2,\"text\":\"no network: trying again in 2 s\"}"
+                say "{\"ev\":\"net\",\"id\":\"$id\",\"state\":\"waiting\",\"try\":1,\"next\":2.0,\"text\":\"no network: trying again in 2 s\"}"
                 sleep "${STANDIN_PAUSE:-1.5}"
                 say "{\"ev\":\"net\",\"id\":\"$id\",\"state\":\"resumed\",\"text\":\"the network is back\"}"
                 say "{\"ev\":\"ok\",\"id\":\"$id\",\"cmd\":\"$cmd\",\"seconds\":1.5,\"text\":\"done after the network came back\"}"

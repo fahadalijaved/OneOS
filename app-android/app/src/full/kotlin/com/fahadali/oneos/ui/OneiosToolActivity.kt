@@ -48,7 +48,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         // Rebuild the rows only when a step, the end, the progress line or the output changes.
         unsubscribe = OneiosToolJob.observeBy({ s ->
             listOf(s.flow, s.request, s.starting, s.stopping, s.problem, s.results.size, s.view.steps, s.view.end, s.view.progressLine, s.view.paused,
-                s.view.held, s.view.netWaiting, s.pausedByUser, s.noNetwork, s.canPause, s.view.lines.size, s.view.rows.size)
+                s.view.held, s.view.netWaiting, s.view.note, s.pausedByUser, s.noNetwork, s.canPause, s.view.lines.size, s.view.rows.size)
         }) { render() }
     }
 
@@ -105,7 +105,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
                 val why = when {
                     v.netWaiting != null -> v.netWaiting
                     s.noNetwork -> getString(R.string.oneios_tool_no_network)
-                    v.held || s.pausedByUser -> getString(R.string.oneios_tool_paused)
+                    v.held -> getString(R.string.oneios_tool_paused)
                     else -> v.paused
                 }
                 PrebootCards.row(now, running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), listOfNotNull(why, v.progressLine).joinToString(" · "))
@@ -114,6 +114,8 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             else -> PrebootCards.row(now, getString(R.string.oneios_tool_idle))
         }
         if (s.busy) v.next?.let { PrebootCards.row(now, getString(R.string.oneios_tool_next), it.text ?: it.id) }
+        // A pause or resume the tool could not do (not-pausable, not-paused): its words.
+        if (s.busy) v.note?.let { PrebootCards.row(now, getString(R.string.oneios_tool_note), it) }
         v.spaceNeed?.let { need ->
             val free = v.spaceFree?.let { getString(R.string.oneios_tool_space_free, Units.bytes(it)) }
             PrebootCards.row(now, getString(R.string.oneios_tool_space), listOfNotNull(Units.bytes(need), free).joinToString(" · "))

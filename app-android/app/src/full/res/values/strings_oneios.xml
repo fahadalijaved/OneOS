@@ -65,6 +65,7 @@
     <string name="oneios_tool_resume">Resume</string>
     <string name="oneios_tool_resume_line">Goes on from where it stopped</string>
     <string name="oneios_tool_paused">Paused</string>
+    <string name="oneios_tool_note">The tool says</string>
     <string name="oneios_tool_no_network">No network: it goes on when the network is back</string>
     <string name="oneios_tool_interrupted">Resume: %1$s</string>
     <string name="oneios_tool_interrupted_line">OneOS was closed while this ran. It goes on from what the tool kept</string>

@@ -39,7 +39,8 @@ object OneiosTool {
         data class Hello(val protocol: Int, val tool: String?, val pid: Long?, val jobs: Long?, val nice: Long?, val cmds: List<String>, override val raw: Map<String, Any?>) : Event()
 
         /** A line the tool could not take as a request. */
-        data class Error(val text: String, override val raw: Map<String, Any?>) : Event()
+        /** A line the tool could not take, or a pause or resume it cannot do (`code` `not-pausable`, `not-paused`, ...; with the request's `id`). */
+        data class Error(override val id: String?, val code: String?, val text: String, override val raw: Map<String, Any?>) : Event()
 
         /** The last line: why (`eof`, `idle`, `sigterm`, `requests`, `stdout`), and the threads and children left. */
         data class Bye(val why: String?, val threads: Long?, val children: Long?, override val raw: Map<String, Any?>) : Event()
@@ -120,7 +121,7 @@ object OneiosTool {
         val n = { k: String -> raw[k] as? Long }
         when (ev) {
             "hello" -> return Event.Hello(n("proto")?.toInt() ?: 0, s("tool"), n("pid"), n("jobs"), n("nice"), (raw["cmds"] as? List<*>)?.filterIsInstance<String>().orEmpty(), raw)
-            "error" -> return Event.Error(s("text") ?: "", raw)
+            "error" -> return Event.Error(s("id")?.takeIf(ID::matches), s("code"), s("text") ?: "", raw)
             "bye" -> return Event.Bye(s("why"), n("threads"), n("children"), raw)
         }
         val id = s("id")?.takeIf(ID::matches) ?: return Event.Other(ev, raw)
@@ -142,7 +143,7 @@ object OneiosTool {
             "heat" -> Event.Heat(id, s("state"), s("why"), s("text"), raw)
             "paused" -> Event.Paused(id, true, s("by"), s("text"), raw)
             "resumed" -> Event.Paused(id, false, s("by"), s("text"), raw)
-            "net" -> Event.Net(id, s("state"), n("retry_in") ?: n("retry"), s("text"), raw)
+            "net" -> Event.Net(id, s("state"), (raw["next"] as? Number)?.let { Math.round(it.toDouble()) } ?: n("retry_in"), s("text"), raw)
             "ok" -> Event.Ok(id, s("cmd"), (raw["seconds"] as? Number)?.toDouble(), s("text"), raw)
             "refused" -> Event.Refused(id, s("cmd"), s("code"), s("text") ?: "refused (${s("code") ?: "no reason"})", raw)
             "failed" -> Event.Failed(id, s("cmd"), s("code"), s("text") ?: "failed (${s("code") ?: "no reason"})", raw)
@@ -232,6 +233,8 @@ data class OneiosToolFlow(
     /** The tool waits for the network: its words, and the seconds to its next try. */
     val netWaiting: String? = null,
     val netRetryIn: Long? = null,
+    /** The tool's last `error` about this request (a pause it cannot do): its code and words. */
+    val note: String? = null,
     val lines: List<String> = emptyList(),
     val rows: List<Map<String, Any?>> = emptyList(),
     val end: End? = null,
@@ -303,6 +306,7 @@ data class OneiosToolFlow(
         is OneiosTool.Event.Space -> copy(spaceNeed = e.need, spaceFree = e.free, spacePath = e.path)
         is OneiosTool.Event.Heat -> copy(paused = if (e.state == "paused") (e.text ?: e.why ?: "paused") else null)
         is OneiosTool.Event.Paused -> copy(held = e.paused)
+        is OneiosTool.Event.Error -> copy(note = listOfNotNull(e.code, e.text.ifEmpty { null }).joinToString(": "))
         is OneiosTool.Event.Net -> if (e.state == "waiting") copy(netWaiting = e.text ?: "waiting for the network", netRetryIn = e.retryIn) else copy(netWaiting = null, netRetryIn = null)
         is OneiosTool.Event.Line -> copy(lines = (lines + e.text).takeLast(MAX_LINES))
         is OneiosTool.Event.Row -> copy(rows = (rows + e.raw).takeLast(MAX_ROWS))

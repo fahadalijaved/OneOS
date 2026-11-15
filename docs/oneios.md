@@ -1095,11 +1095,11 @@ interfere: different repositories, runs and releases.
   the lines of `image.new.sha256` and `.ids` as root writes them) would replace that for the image set, with the
   app's own hash taken out; it needs a FIFO in the app's folder that root's tool reads (not tried under the phone's
   SELinux), and the app's open of the FIFO must not wait for a tool that refused before it opened it. The
-  runtime's import stays root's: it may be what replaces the tool. **Pause, Resume and the `net` event** are the lines
-  the app expects (`{"cmd":"pause","id":...}`, `{"cmd":"resume","id":...}`; events `paused`, `resumed`, and `net` with
-  `state` `waiting` or `resumed`, `retry_in` and `text`), written before the tool's README had them (branch
-  `tool-download-resume`): the stand-in speaks them, the real tool did not yet. Align them when that README is out. A
-  tool whose `hello` does not list `pause` and `resume` shows no Pause button.
+  runtime's import stays root's: it may be what replaces the tool. **Pause, Resume and the `net` event** follow the
+  tool's README (branch `tool-download-resume`, "Downloads on a mobile network": `{"cmd":"pause","id":...}`,
+  `{"cmd":"resume","id":...}`; `paused`, `resumed`, `net` with `state`, `next`, `text`; an `error` with the id and a code such
+  as `not-pausable` for a request that is no download, shown as "The tool says"). Tested against the stand-in only: the
+  tool of that branch was not built here. A tool whose `hello` does not list `pause` and `resume` shows no Pause button.
 - **The redesigned iOS screens have not been compiled, opened or seen** (2026-11-15): Set up iOS 27, iOS 27's
   page, the Switch confirm and the switching screen were written on a box without JDK 21 or the Android SDK. The
   first build (`./gradlew test assembleFullDebug`) and a click-through on the phone are their first run; real
