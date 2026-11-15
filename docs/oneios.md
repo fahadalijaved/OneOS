@@ -905,6 +905,25 @@ the two meet at the return's lock.
   `base64` stand-in where `base64 FILE` does not work. The scripts and their checks are unchanged. Checked on
   Linux only: the stand-ins folder stays empty here, and the `base64` stand-in was tried against a BSD-like
   `base64` that takes only `-i`. Not run on the Mac yet.
+- **The third round, from OneiOS's macOS CI (2026-11-15).** OneiOS's workflow runs this fork's `./gradlew test` on
+  `macos-15` with Homebrew off PATH (OneiOS's `docs/releases.md`, "macOS: the fork's unit tests"). With the
+  second round (PR #7, `479d474`) every module passed up to `:core:root:testDebugUnitTest`, and there 431 tests
+  passed (the two skipped as before), the two of the second round among them; then
+  `aProcessThatEndsLateAfterSigkillIsWaitedForAtGateA` failed and `aHungToolIsEndedAtTheLimitAndWhatItChangedIsPutBack`
+  hung until the job was stopped (OneiOS runs 43710921989; the head of `oneios` without PR #7, run 43710905603,
+  failed the two of the second round as well). Both causes are in the tests' stand-ins, proven from the CI's
+  log and process list:
+  - The fake phone's `now` (`phone-tools.sh`) counted with `date +%s%N`. BSD's date has no `%N`: it printed
+    the seconds and a literal `N`, the sum failed, `now` printed nothing, and Gate A's 30 s wait ended at once
+    and took the failsafe. `now` now uses perl's clock when `date` prints anything but digits.
+  - `oneios_root.sh`'s `check_is_tool` reads `/proc/PID/cmdline` so that a check's time limit ends only the tool
+    it started. macOS has no `/proc`: the limit took the hung stand-in tool for gone and never ended it, and the
+    test read its output for ever (the process list: `oneios_root.sh check levels` and the stand-in `brightctl
+    levels` still running after 25 minutes). `host-tools.sh` now writes a `cat` stand-in where there is no
+    `/proc`: `cat /proc/PID/cmdline` prints `ps -p PID -o command=`, everything else goes to the real `cat`.
+  The scripts are unchanged; on Linux neither stand-in is used (`date` has `%N`, `/proc` is there). Checked on
+  Linux: the `cat` stand-in, forced on, prints a live pid's arguments, fails for a dead one like `cat` of a
+  missing file, and passes files and stdin through. On the Mac: OneiOS's next CI run of this branch.
 
 ## CI: the APK without a personal token
 
