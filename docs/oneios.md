@@ -923,7 +923,23 @@ the two meet at the return's lock.
     `/proc`: `cat /proc/PID/cmdline` prints `ps -p PID -o command=`, everything else goes to the real `cat`.
   The scripts are unchanged; on Linux neither stand-in is used (`date` has `%N`, `/proc` is there). Checked on
   Linux: the `cat` stand-in, forced on, prints a live pid's arguments, fails for a dead one like `cat` of a
-  missing file, and passes files and stdin through. On the Mac: OneiOS's next CI run of this branch.
+  missing file, and passes files and stdin through.
+- **The fourth round (2026-11-15).** With the third round the Mac's `:core:root:testDebugUnitTest` ran to its end
+  (OneiOS run 43714546247: 270 tests, 4 failed, 2 skipped; the hang was gone):
+  - `aProcessThatEndsLateAfterSigkillIsWaitedForAtGateA` still took the failsafe. Its fake clock ran 100 times
+    faster, so Gate A's 30 s were 0.3 s of real time, less than one round of kill, sleep and the session's
+    listing with the Mac's stand-ins (each a new shell). The test runs its clock 10 times faster instead (3 s).
+    `now` also takes perl's clock at once after its first call found no `%N` (a marker in the fake root).
+  - `theReturnsLogSaysWhoReturnedAndHow`: every line of the return log was there twice. `oneios_return.sh` writes
+    each line once when its stdout is the log itself, told by `[ /proc/$$/fd/1 -ef "$LOG" ]`; macOS has no
+    `/proc`. **A script change:** `/dev/fd/1` is asked too when that is false. On the phone `/proc` decides as
+    before (both name the same descriptor); the second test only runs where the first is false.
+  - `aChatteringHoldOfTheRockerStillReturns` timed out: the hold of 8 s of the test's clock (1.6 s real) ended
+    before the reader's twelve samples did on the Mac. The chatter goes on for 16 s (eight and seven lifts).
+  - `StageScriptTest.removeSystemDeletesOnlyTheSystemSetUpNow` ran `find -printf`, which BSD's find has not; it
+    uses `HostTools.listing` (`listing.sh`) as the other snapshots do.
+  Checked on Linux: the return script's test under bash, as the log and as a terminal; `now` with a BSD-like
+  `date` stand-in (perl's clock, the marker) and with GNU's. On the Mac: OneiOS's next CI run of this branch.
 
 ## CI: the APK without a personal token
 

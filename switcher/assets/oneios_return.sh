@@ -92,8 +92,10 @@ echo -1000 2>/dev/null > "$P/$$/oom_score_adj"
 
 # Every line to the caller and to the log; once only where the caller's
 # output is the log itself (the watcher, the app's root script, the key readers).
+# /dev/fd/1 is the same file where there is no /proc (the core:root tests on a
+# Mac, where every line was logged twice); on the phone /proc decides, as before.
 TEE=1
-[ "/proc/$$/fd/1" -ef "$LOG" ] && TEE=0
+{ [ "/proc/$$/fd/1" -ef "$LOG" ] || [ /dev/fd/1 -ef "$LOG" ]; } && TEE=0
 say() {
     m="$(date +%T) $*"
     echo "$m"

@@ -516,7 +516,7 @@ class StageScriptTest {
     }
 
     private fun stageFiles(fr: FakeRoot) =
-        FakeRoot.exec(listOf("find", fr.stage.path, "-printf", "%P %y\\n")).lines().filter { it.isNotBlank() && !it.startsWith(" ") }.sorted()
+        HostTools.listing(fr.stage, "%P %y\\n").lines().filter { it.isNotBlank() && !it.startsWith(" ") }.sorted()
 
     /** 0.5.09: remove-system deletes the system set up now and leaves a stage with only the root script. */
     @Test

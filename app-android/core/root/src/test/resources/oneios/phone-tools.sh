@@ -118,10 +118,12 @@ case "$me" in
         exec "$REAL_SLEEP" "$(awk -v s="$1" -v k="${k:-100}" 'BEGIN { printf "%.3f", s / k }')" ;;
     now)
         k=$(cat "$T/sleep_scale" 2>/dev/null)
-        ns=$(date +%s%N)
-        # BSD's date (macOS) has no %N: it prints the seconds and a literal N, and the sum above failed, so
-        # "now" printed nothing and Gate A's 30 s wait ended at once. perl's clock instead.
-        case "$ns" in ''|*[!0-9]*) ns=$(perl -MTime::HiRes=time -e 'printf "%.0f", time * 1e9') ;; esac
+        # BSD's date (macOS) has no %N: it prints the seconds and a literal N, the sum below failed, and "now"
+        # printed nothing (Gate A's 30 s wait ended at once). perl's clock there; the first call marks it.
+        if [ -e "$T/now.perl" ]; then ns=
+        else ns=$(date +%s%N); case "$ns" in ''|*[!0-9]*) ns=; true > "$T/now.perl" ;; esac
+        fi
+        [ -n "$ns" ] || ns=$(perl -MTime::HiRes=time -e 'printf "%.0f", time * 1e9')
         echo $((ns / (1000000000 / ${k:-100}))) ;;
     kill)
         echo "$*" >> "$T/log/kill"
