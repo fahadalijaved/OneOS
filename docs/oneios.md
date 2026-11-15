@@ -932,14 +932,18 @@ the two meet at the return's lock.
     `now` also takes perl's clock at once after its first call found no `%N` (a marker in the fake root).
   - `theReturnsLogSaysWhoReturnedAndHow`: every line of the return log was there twice. `oneios_return.sh` writes
     each line once when its stdout is the log itself, told by `[ /proc/$$/fd/1 -ef "$LOG" ]`; macOS has no
-    `/proc`. **A script change:** `/dev/fd/1` is asked too when that is false. On the phone `/proc` decides as
-    before (both name the same descriptor); the second test only runs where the first is false.
+    `/proc`. A first try, asking `[ /dev/fd/1 -ef "$LOG" ]` as well, did not help on macOS (OneiOS run
+    43717760387: the lines were still doubled) and is not kept. **A script line instead, for tests only:**
+    with a test root (`ONEIOS_TEST_ROOT`, never set on the phone) `ONEIOS_TEST_OUT_IS_LOG=1` says it, as
+    `ONEIOS_CHECK_LIMIT` is a test's; the test's `watcher()` sets it only where there is no `/proc/self/fd/1`,
+    so on Linux the script's own check is still what is tested. On the phone nothing changes.
   - `aChatteringHoldOfTheRockerStillReturns` timed out: the hold of 8 s of the test's clock (1.6 s real) ended
     before the reader's twelve samples did on the Mac. The chatter goes on for 16 s (eight and seven lifts).
   - `StageScriptTest.removeSystemDeletesOnlyTheSystemSetUpNow` ran `find -printf`, which BSD's find has not; it
     uses `HostTools.listing` (`listing.sh`) as the other snapshots do.
-  Checked on Linux: the return script's test under bash, as the log and as a terminal; `now` with a BSD-like
-  `date` stand-in (perl's clock, the marker) and with GNU's. On the Mac: OneiOS's next CI run of this branch.
+  On the Mac (OneiOS run 43717760387, `406f008`): Gate A, the chatter and the `find` test pass; 270 tests, 1 failed
+  (the return log, above, fixed after that run). Checked on Linux: `now` with a BSD-like `date` stand-in (perl's
+  clock, the marker) and with GNU's. The return log's fix: OneiOS's next CI run of this branch.
 
 ## CI: the APK without a personal token
 

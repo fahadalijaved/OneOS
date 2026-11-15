@@ -795,7 +795,11 @@ class OneiosScriptTest {
     }
 
     private fun watcher(f: Fake, max: Int = 600): Process {
-        val p = f.start("oneios_switch.sh", "--watch", env = mapOf("ONEIOS_RETURN_MAX" to "$max"), log = "data/local/tmp/oneios/return.log")
+        // The watcher's output is the return log, as on the phone. oneios_return.sh then writes each line once, told
+        // by /proc/$$/fd/1; a machine without /proc (a Mac) has the test say it (ONEIOS_TEST_OUT_IS_LOG, read only with
+        // a test root). On Linux the script's own check is what is tested.
+        val env = mapOf("ONEIOS_RETURN_MAX" to "$max") + (if (File("/proc/self/fd/1").exists()) emptyMap() else mapOf("ONEIOS_TEST_OUT_IS_LOG" to "1"))
+        val p = f.start("oneios_switch.sh", "--watch", env = env, log = "data/local/tmp/oneios/return.log")
         await("the watcher's pid") { File(f.control, "watcher.pid").let { it.isFile && it.readText().trim().toIntOrNull() != null } }
         return p
     }
