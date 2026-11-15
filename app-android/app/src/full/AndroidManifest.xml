@@ -42,12 +42,24 @@
             android:name=".session.AppUpdater$ResultReceiver"
             android:exported="false" />
         <activity android:name=".ui.GuestRuntimeActivity" android:exported="false" />
-        <!-- The iOS 27 (OneiOS) system's screen (docs/oneios.md): runtime, image set, switch. -->
+        <!-- iOS 27 (OneiOS)'s page (docs/oneios.md, "In the app"): its state, what stops the switch, Switch to iOS 27. -->
         <activity
             android:name=".ui.OneiosActivity"
             android:exported="false"
             android:label="@string/oneios_title"
             android:parentActivityName=".ui.SystemsActivity" />
+        <!-- Set up iOS 27: the steps (this phone, the runtime, the image set, iOS's data, the last check), as Setting up. -->
+        <activity
+            android:name=".ui.OneiosSetupActivity"
+            android:exported="false"
+            android:label="@string/oneios_setup_title"
+            android:parentActivityName=".ui.OneiosActivity" />
+        <!-- Switching to iOS 27: root's switch while it runs, the way back once more, a refusal in plain words. -->
+        <activity
+            android:name=".ui.OneiosSwitchActivity"
+            android:exported="false"
+            android:label="@string/oneios_title"
+            android:parentActivityName=".ui.OneiosActivity" />
         <!-- Hardware checks of the iOS system: OneiOS's phone tools, run as root beside One UI. -->
         <activity
             android:name=".ui.OneiosChecksActivity"

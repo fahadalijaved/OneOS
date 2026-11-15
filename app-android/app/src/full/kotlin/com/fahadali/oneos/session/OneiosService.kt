@@ -3,7 +3,7 @@ package com.fahadali.oneos.session
 import android.content.Context
 import android.content.Intent
 import com.fahadali.oneos.R
-import com.fahadali.oneos.ui.OneiosActivity
+import com.fahadali.oneos.ui.OneiosSetupActivity
 
 /**
  * Keeps a OneiOS download or import alive while it runs, as [PrepareService] does for setup
@@ -27,7 +27,8 @@ class OneiosService : KeepAliveService() {
         )
     }
 
-    override fun screen() = OneiosActivity.intent(this)
+    // Set up iOS 27 shows the download or import with its bytes.
+    override fun screen() = OneiosSetupActivity.intent(this)
 
     companion object {
         fun start(ctx: Context) = start(ctx, OneiosService::class.java)

@@ -582,13 +582,24 @@ class SystemsFragment : Fragment() {
         })
         badge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_catalog_device, 0, 0, 0)
         badge.compoundDrawablePadding = dp(8)
-        // A system with its own screen: always experimental here, and the card only opens that screen.
+        // A system with its own screens (iOS 27): always experimental here. Its button reads as an Android
+        // system's does: Show progress while a download or an import runs, Set up while root has reported
+        // no runtime or no image set, else Open, which is iOS 27's page (the switch is there).
         if (entry.own) {
             badge.setText(R.string.catalog_experimental)
-            val open = View.OnClickListener { startActivity(OneiosActivity.intent(ctx)) }
+            val ios = com.fahadali.oneos.session.OneiosJob.state
+            val notSetUp = ios.status?.let { it.runtime == null || it.image == null } == true
+            val label = when {
+                ios.copying -> R.string.systems_show_progress
+                notSetUp -> R.string.catalog_set_up
+                else -> R.string.oneios_open
+            }
+            val open = View.OnClickListener {
+                startActivity(if (ios.copying || notSetUp) OneiosSetupActivity.intent(ctx) else OneiosActivity.intent(ctx))
+            }
             v.findViewById<Button>(R.id.systems_primary).apply {
-                setText(R.string.oneios_open)
-                contentDescription = getString(R.string.oneios_open) + " " + entry.name
+                setText(label)
+                contentDescription = getString(label) + " " + entry.name
                 setOnClickListener(open)
             }
             v.setOnClickListener(open)
