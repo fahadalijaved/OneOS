@@ -73,4 +73,10 @@ cp "$probe/f" "$probe/s"
 if ! sed -i 's/a/b/' "$probe/s" 2>/dev/null || [ "$(cat "$probe/s")" != b ]; then
     use_gnu sed || echo "sed: this machine's sed -i is not GNU's and there is no gsed (brew install gnu-sed)" >&2
 fi
+# base64 FILE: the file's bytes in base64 (toybox's and GNU's take the file as an argument; older BSD
+# ones read only -i FILE or stdin).
+if [ "$(base64 "$probe/f" 2>/dev/null)" != YQo= ]; then
+    use_gnu base64 || { real=$(command -v base64) && [ "$("$real" -i "$probe/f" 2>/dev/null)" = YQo= ] &&
+        wrap base64 "$real -i" "case \"\$#:\$1\" in 1:-*) ;; 1:*) exec '$real' -i \"\$1\" ;; esac; exec '$real' \"\$@\""; }
+fi
 exit 0

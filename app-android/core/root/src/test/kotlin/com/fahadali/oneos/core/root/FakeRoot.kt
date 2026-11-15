@@ -49,13 +49,23 @@ object HostTools {
     /** [first] (stubs, applets), then [bin], then this machine's PATH. */
     fun path(vararg first: String?): String = (first.filterNotNull() + listOfNotNull(bin.path, System.getenv("PATH"))).joinToString(":")
 
+    /**
+     * The scripts' environment: PATH as [path], and the C locale. The phone's root shell has no LANG
+     * (toybox and busybox read bytes); a Mac's Gradle has a UTF-8 one, under which BSD's cut and sed stop
+     * at a byte that is no UTF-8 ("Illegal byte sequence") where the phone's go on.
+     */
+    fun env(vararg first: String?): Map<String, String> = mapOf("PATH" to path(*first), "LC_ALL" to "C")
+
+    /** Puts [env] into a process's environment. */
+    fun into(e: MutableMap<String, String>, vararg first: String?) = e.putAll(env(*first))
+
     /** [name]'s stand-in if there is one, else [name] (the machine's, from PATH). */
     fun tool(name: String): String = File(bin, name).takeIf { it.canExecute() }?.path ?: name
 
     /** `find [dir] -printf [format]` (%P %y %m %s), also where find has no -printf. */
     fun listing(dir: File, format: String): String {
         val p = ProcessBuilder("sh", File(home, "listing.sh").path, dir.path, format).redirectErrorStream(true)
-        p.environment()["PATH"] = path()
+        into(p.environment())
         val proc = p.start()
         val out = proc.inputStream.bufferedReader().readText()
         proc.waitFor()
@@ -238,7 +248,7 @@ class FakeRoot(
         val pb = ProcessBuilder(cmd)
         val e = pb.environment()
         e["ONEOS_TEST_ROOT"] = root.path
-        e["PATH"] = HostTools.path(stubs.path, applets.path.takeIf { shell.appletsFirst })
+        HostTools.into(e, stubs.path, applets.path.takeIf { shell.appletsFirst })
         e.putAll(env)
         val p = pb.start()
         val writer = Thread {

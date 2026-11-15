@@ -892,6 +892,20 @@ the two meet at the return's lock.
   (the 2 skipped as before). If it still fails, the test report's standard error names the stand-ins in use
   (`core:root tests, this machine's stand-ins:`); `brew install coreutils gnu-sed` gives the GNU tools themselves.
 
+- **The second round on the Mac (0.5.14, 143, 2026-11-15).** A few OneiosScriptTest tests still failed with
+  `@@REFUSED .../data/local/tmp/oneios is missing or not root's` (the script's own `stage_ok`, not the
+  launcher's check that #4 covered), among them `aCheckRunsTheStagedToolAndReportsItsOutputAndExitCode` and
+  `theLogVerbsListTheSessionLogsAndReadThemInWholeLines`. All in the tests' environment. Proven from the code:
+  `direct()` (#5's test helper that runs `oneios_root.sh` past the launcher) set no PATH, so it got BSD's stat
+  without the stand-in. Likely (guesses: the failing lines, OneiosScriptTest.kt:2020 and
+  :2175, are the picture's bytes and the return log's tail): the harnesses passed the Mac's UTF-8 locale on, under which BSD's `cut` and `sed` stop at
+  the log test's bytes that are no UTF-8, where the phone's root shell (no LANG) reads bytes; and the camera
+  check's `base64 FILE`, which an older BSD base64 takes only as `-i FILE`. The fix: `HostTools.env()`/`into()`
+  (`FakeRoot.kt`) give every harness PATH and `LC_ALL=C`, `direct()` included, and `host-tools.sh` writes a
+  `base64` stand-in where `base64 FILE` does not work. The scripts and their checks are unchanged. Checked on
+  Linux only: the stand-ins folder stays empty here, and the `base64` stand-in was tried against a BSD-like
+  `base64` that takes only `-i`. Not run on the Mac yet.
+
 ## CI: the APK without a personal token
 
 `.github/workflows/oneios-apk.yml`, on every push to `oneios` and by hand (`gh workflow run oneios-apk.yml -R

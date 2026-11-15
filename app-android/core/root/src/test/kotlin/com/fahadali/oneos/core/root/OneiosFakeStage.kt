@@ -40,7 +40,7 @@ class OneiosFakeStage(val sh: String, parent: File? = null, scriptFile: File = F
             OneiosRoot.Stdin.NONE -> null
         }
         val reply = RootReply()
-        val end = RootShell(command, listOf(sh, "-c"), mapOf("ONEIOS_TEST_ROOT" to root.path, "PATH" to HostTools.path())).run(input, { reply.accept(it) }, { silenceMs }, 30 * 60_000L)
+        val end = RootShell(command, listOf(sh, "-c"), mapOf("ONEIOS_TEST_ROOT" to root.path) + HostTools.env()).run(input, { reply.accept(it) }, { silenceMs }, 30 * 60_000L)
         return reply to end
     }
 
