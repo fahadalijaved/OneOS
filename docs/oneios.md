@@ -892,6 +892,64 @@ the two meet at the return's lock.
   (the 2 skipped as before). If it still fails, the test report's standard error names the stand-ins in use
   (`core:root tests, this machine's stand-ins:`); `brew install coreutils gnu-sed` gives the GNU tools themselves.
 
+- **The second round on the Mac (0.5.14, 143, 2026-11-15).** A few OneiosScriptTest tests still failed with
+  `@@REFUSED .../data/local/tmp/oneios is missing or not root's` (the script's own `stage_ok`, not the
+  launcher's check that #4 covered), among them `aCheckRunsTheStagedToolAndReportsItsOutputAndExitCode` and
+  `theLogVerbsListTheSessionLogsAndReadThemInWholeLines`. All in the tests' environment. Proven from the code:
+  `direct()` (#5's test helper that runs `oneios_root.sh` past the launcher) set no PATH, so it got BSD's stat
+  without the stand-in. Likely (guesses: the failing lines, OneiosScriptTest.kt:2020 and
+  :2175, are the picture's bytes and the return log's tail): the harnesses passed the Mac's UTF-8 locale on, under which BSD's `cut` and `sed` stop at
+  the log test's bytes that are no UTF-8, where the phone's root shell (no LANG) reads bytes; and the camera
+  check's `base64 FILE`, which an older BSD base64 takes only as `-i FILE`. The fix: `HostTools.env()`/`into()`
+  (`FakeRoot.kt`) give every harness PATH and `LC_ALL=C`, `direct()` included, and `host-tools.sh` writes a
+  `base64` stand-in where `base64 FILE` does not work. The scripts and their checks are unchanged. Checked on
+  Linux only: the stand-ins folder stays empty here, and the `base64` stand-in was tried against a BSD-like
+  `base64` that takes only `-i`. Not run on the Mac yet.
+- **The third round, from OneiOS's macOS CI (2026-11-15).** OneiOS's workflow runs this fork's `./gradlew test` on
+  `macos-15` with Homebrew off PATH (OneiOS's `docs/releases.md`, "macOS: the fork's unit tests"). With the
+  second round (PR #7, `479d474`) every module passed up to `:core:root:testDebugUnitTest`, and there 431 tests
+  passed (the two skipped as before), the two of the second round among them; then
+  `aProcessThatEndsLateAfterSigkillIsWaitedForAtGateA` failed and `aHungToolIsEndedAtTheLimitAndWhatItChangedIsPutBack`
+  hung until the job was stopped (OneiOS runs 43710921989; the head of `oneios` without PR #7, run 43710905603,
+  failed the two of the second round as well). Both causes are in the tests' stand-ins, proven from the CI's
+  log and process list:
+  - The fake phone's `now` (`phone-tools.sh`) counted with `date +%s%N`. BSD's date has no `%N`: it printed
+    the seconds and a literal `N`, the sum failed, `now` printed nothing, and Gate A's 30 s wait ended at once
+    and took the failsafe. `now` now uses perl's clock when `date` prints anything but digits.
+  - `oneios_root.sh`'s `check_is_tool` reads `/proc/PID/cmdline` so that a check's time limit ends only the tool
+    it started. macOS has no `/proc`: the limit took the hung stand-in tool for gone and never ended it, and the
+    test read its output for ever (the process list: `oneios_root.sh check levels` and the stand-in `brightctl
+    levels` still running after 25 minutes). `host-tools.sh` now writes a `cat` stand-in where there is no
+    `/proc`: `cat /proc/PID/cmdline` prints `ps -p PID -o command=`, everything else goes to the real `cat`.
+  The scripts are unchanged; on Linux neither stand-in is used (`date` has `%N`, `/proc` is there). Checked on
+  Linux: the `cat` stand-in, forced on, prints a live pid's arguments, fails for a dead one like `cat` of a
+  missing file, and passes files and stdin through.
+- **The fourth round (2026-11-15).** With the third round the Mac's `:core:root:testDebugUnitTest` ran to its end
+  (OneiOS run 43714546247: 270 tests, 4 failed, 2 skipped; the hang was gone):
+  - `aProcessThatEndsLateAfterSigkillIsWaitedForAtGateA` still took the failsafe. Its fake clock ran 100 times
+    faster, so Gate A's 30 s were 0.3 s of real time, less than one round of kill, sleep and the session's
+    listing with the Mac's stand-ins (each a new shell). The test runs its clock 10 times faster instead (3 s).
+    `now` also takes perl's clock at once after its first call found no `%N` (a marker in the fake root).
+  - `theReturnsLogSaysWhoReturnedAndHow`: every line of the return log was there twice. `oneios_return.sh` writes
+    each line once when its stdout is the log itself, told by `[ /proc/$$/fd/1 -ef "$LOG" ]`; macOS has no
+    `/proc`. A first try, asking `[ /dev/fd/1 -ef "$LOG" ]` as well, did not help on macOS (OneiOS run
+    43717760387: the lines were still doubled) and is not kept. **A script line instead, for tests only:**
+    with a test root (`ONEIOS_TEST_ROOT`, never set on the phone) `ONEIOS_TEST_OUT_IS_LOG=1` says it, as
+    `ONEIOS_CHECK_LIMIT` is a test's; the test's `watcher()` sets it only where there is no `/proc/self/fd/1`,
+    so on Linux the script's own check is still what is tested. On the phone nothing changes.
+  - `aChatteringHoldOfTheRockerStillReturns` timed out: the hold of 8 s of the test's clock (1.6 s real) ended
+    before the reader's twelve samples did on the Mac. The chatter goes on for 16 s (eight and seven lifts).
+  - `StageScriptTest.removeSystemDeletesOnlyTheSystemSetUpNow` ran `find -printf`, which BSD's find has not; it
+    uses `HostTools.listing` (`listing.sh`) as the other snapshots do.
+  On the Mac (OneiOS run 43717760387, `406f008`): Gate A, the chatter and the `find` test pass; 270 tests, 1 failed
+  (the return log, above, fixed after that run). Checked on Linux: `now` with a BSD-like `date` stand-in (perl's
+  clock, the marker) and with GNU's.
+- **macOS passes (2026-11-15).** OneiOS run 43720242712 (`433cb0c`): `./gradlew test` on `macos-15` (Homebrew off
+  PATH) BUILD SUCCESSFUL, core:root's 270 tests with 2 skipped as before. The same run's Linux job had one failure,
+  `aReadyGuestIsLeftRunningPastTheDeadline` at its wakelock line: a race of the test (the watcher rewrites the
+  node with `echo >` each round, and the test read it once, between the truncation and the write). The test waits
+  up to 5 s for the line instead.
+
 ## CI: the APK without a personal token
 
 `.github/workflows/oneios-apk.yml`, on every push to `oneios` and by hand (`gh workflow run oneios-apk.yml -R

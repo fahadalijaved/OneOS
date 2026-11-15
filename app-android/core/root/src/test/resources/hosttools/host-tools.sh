@@ -73,4 +73,26 @@ cp "$probe/f" "$probe/s"
 if ! sed -i 's/a/b/' "$probe/s" 2>/dev/null || [ "$(cat "$probe/s")" != b ]; then
     use_gnu sed || echo "sed: this machine's sed -i is not GNU's and there is no gsed (brew install gnu-sed)" >&2
 fi
+# base64 FILE: the file's bytes in base64 (toybox's and GNU's take the file as an argument; older BSD
+# ones read only -i FILE or stdin).
+if [ "$(base64 "$probe/f" 2>/dev/null)" != YQo= ]; then
+    use_gnu base64 || { real=$(command -v base64) && [ "$("$real" -i "$probe/f" 2>/dev/null)" = YQo= ] &&
+        wrap base64 "$real -i" "case \"\$#:\$1\" in 1:-*) ;; 1:*) exec '$real' -i \"\$1\" ;; esac; exec '$real' \"\$@\""; }
+fi
+# cat /proc/PID/cmdline: oneios_root.sh's check_is_tool reads it, so that a Hardware check's time limit
+# ends only the tool it started. A machine without /proc (macOS) had nothing to read there: the limit
+# took the tool for gone, never ended it, and the hung-tool test waited for ever. ps -p PID -o command=
+# gives the same arguments (space-separated instead of NUL-separated: the check is grep -F of a path).
+if [ ! -r /proc/self/cmdline ] && real=$(command -v cat); then
+    wrap cat "ps -p PID -o command= for /proc/PID/cmdline (no /proc here), else $real" "case \"\$#:\$1\" in
+1:/proc/*/cmdline)
+    p=\${1#/proc/}; p=\${p%/cmdline}
+    case \"\$p\" in ''|*[!0-9]*) exec '$real' \"\$@\" ;; esac
+    c=\$(ps -p \"\$p\" -o command= 2>/dev/null)
+    [ -n \"\$c\" ] || { echo \"cat: \$1: No such file or directory\" >&2; exit 1; }
+    printf '%s\\n' \"\$c\"
+    exit 0 ;;
+esac
+exec '$real' \"\$@\""
+fi
 exit 0
