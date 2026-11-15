@@ -94,6 +94,9 @@ echo -1000 2>/dev/null > "$P/$$/oom_score_adj"
 # output is the log itself (the watcher, the app's root script, the key readers).
 TEE=1
 [ "/proc/$$/fd/1" -ef "$LOG" ] && TEE=0
+# The core:root tests on a machine without /proc (a Mac) say it themselves, as
+# ONEIOS_CHECK_LIMIT is a test's: only with a test root, never on the phone.
+[ -n "$T" ] && [ "${ONEIOS_TEST_OUT_IS_LOG:-0}" = 1 ] && TEE=0
 say() {
     m="$(date +%T) $*"
     echo "$m"

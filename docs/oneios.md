@@ -975,6 +975,50 @@ the two meet at the return's lock.
   `base64` stand-in where `base64 FILE` does not work. The scripts and their checks are unchanged. Checked on
   Linux only: the stand-ins folder stays empty here, and the `base64` stand-in was tried against a BSD-like
   `base64` that takes only `-i`. Not run on the Mac yet.
+- **The third round, from OneiOS's macOS CI (2026-11-15).** OneiOS's workflow runs this fork's `./gradlew test` on
+  `macos-15` with Homebrew off PATH (OneiOS's `docs/releases.md`, "macOS: the fork's unit tests"). With the
+  second round (PR #7, `479d474`) every module passed up to `:core:root:testDebugUnitTest`, and there 431 tests
+  passed (the two skipped as before), the two of the second round among them; then
+  `aProcessThatEndsLateAfterSigkillIsWaitedForAtGateA` failed and `aHungToolIsEndedAtTheLimitAndWhatItChangedIsPutBack`
+  hung until the job was stopped (OneiOS runs 43710921989; the head of `oneios` without PR #7, run 43710905603,
+  failed the two of the second round as well). Both causes are in the tests' stand-ins, proven from the CI's
+  log and process list:
+  - The fake phone's `now` (`phone-tools.sh`) counted with `date +%s%N`. BSD's date has no `%N`: it printed
+    the seconds and a literal `N`, the sum failed, `now` printed nothing, and Gate A's 30 s wait ended at once
+    and took the failsafe. `now` now uses perl's clock when `date` prints anything but digits.
+  - `oneios_root.sh`'s `check_is_tool` reads `/proc/PID/cmdline` so that a check's time limit ends only the tool
+    it started. macOS has no `/proc`: the limit took the hung stand-in tool for gone and never ended it, and the
+    test read its output for ever (the process list: `oneios_root.sh check levels` and the stand-in `brightctl
+    levels` still running after 25 minutes). `host-tools.sh` now writes a `cat` stand-in where there is no
+    `/proc`: `cat /proc/PID/cmdline` prints `ps -p PID -o command=`, everything else goes to the real `cat`.
+  The scripts are unchanged; on Linux neither stand-in is used (`date` has `%N`, `/proc` is there). Checked on
+  Linux: the `cat` stand-in, forced on, prints a live pid's arguments, fails for a dead one like `cat` of a
+  missing file, and passes files and stdin through.
+- **The fourth round (2026-11-15).** With the third round the Mac's `:core:root:testDebugUnitTest` ran to its end
+  (OneiOS run 43714546247: 270 tests, 4 failed, 2 skipped; the hang was gone):
+  - `aProcessThatEndsLateAfterSigkillIsWaitedForAtGateA` still took the failsafe. Its fake clock ran 100 times
+    faster, so Gate A's 30 s were 0.3 s of real time, less than one round of kill, sleep and the session's
+    listing with the Mac's stand-ins (each a new shell). The test runs its clock 10 times faster instead (3 s).
+    `now` also takes perl's clock at once after its first call found no `%N` (a marker in the fake root).
+  - `theReturnsLogSaysWhoReturnedAndHow`: every line of the return log was there twice. `oneios_return.sh` writes
+    each line once when its stdout is the log itself, told by `[ /proc/$$/fd/1 -ef "$LOG" ]`; macOS has no
+    `/proc`. A first try, asking `[ /dev/fd/1 -ef "$LOG" ]` as well, did not help on macOS (OneiOS run
+    43717760387: the lines were still doubled) and is not kept. **A script line instead, for tests only:**
+    with a test root (`ONEIOS_TEST_ROOT`, never set on the phone) `ONEIOS_TEST_OUT_IS_LOG=1` says it, as
+    `ONEIOS_CHECK_LIMIT` is a test's; the test's `watcher()` sets it only where there is no `/proc/self/fd/1`,
+    so on Linux the script's own check is still what is tested. On the phone nothing changes.
+  - `aChatteringHoldOfTheRockerStillReturns` timed out: the hold of 8 s of the test's clock (1.6 s real) ended
+    before the reader's twelve samples did on the Mac. The chatter goes on for 16 s (eight and seven lifts).
+  - `StageScriptTest.removeSystemDeletesOnlyTheSystemSetUpNow` ran `find -printf`, which BSD's find has not; it
+    uses `HostTools.listing` (`listing.sh`) as the other snapshots do.
+  On the Mac (OneiOS run 43717760387, `406f008`): Gate A, the chatter and the `find` test pass; 270 tests, 1 failed
+  (the return log, above, fixed after that run). Checked on Linux: `now` with a BSD-like `date` stand-in (perl's
+  clock, the marker) and with GNU's.
+- **macOS passes (2026-11-15).** OneiOS run 43720242712 (`433cb0c`): `./gradlew test` on `macos-15` (Homebrew off
+  PATH) BUILD SUCCESSFUL, core:root's 270 tests with 2 skipped as before. The same run's Linux job had one failure,
+  `aReadyGuestIsLeftRunningPastTheDeadline` at its wakelock line: a race of the test (the watcher rewrites the
+  node with `echo >` each round, and the test read it once, between the truncation and the write). The test waits
+  up to 5 s for the line instead.
 
 ## CI: the APK without a personal token
 
@@ -996,6 +1040,20 @@ akshaynexus/OneOS --ref oneios`):
 Each run signs with a debug key of its own unless the secret `ONEIOS_DEBUG_KEYSTORE_B64` (a base64 debug keystore)
 is set, so without it an earlier build has to be uninstalled before a new one installs. The in-guest app is a
 debug build too: Android guests that already hold upstream's release-signed one cannot take it as an update.
+
+**OneiOS builds this branch too (2026-11-15).** This fork is the submodule `app/` of akshaynexus/OneiOS
+(`branch = oneios`). OneiOS's one workflow, `.github/workflows/release.yml` there, takes the head of `oneios` on
+every OneiOS pull request, push to its `main`, tag and dispatch (`git submodule update --init --remote app`), runs
+the same steps as this workflow (the token probe, JDK 21, the guest app, mksh, `./gradlew test assembleFullDebug`),
+checks the APK for package sets, images and firmware, runs `./gradlew test` on macOS as well, and puts the APK
+beside the runtime on OneiOS's releases (the notes name this fork's commit, versionName and versionCode). OneiOS's
+`docs/releases.md`, "CI and releases".
+
+**This workflow stays, for this fork's own pushes.** OneiOS's workflow runs only on OneiOS's events: a push to
+`oneios` here starts nothing there, so without `oneios-apk.yml` a fork change would be built and tested only at
+the next OneiOS pull request or push. The prerelease `oneios-<version>` that this workflow publishes stays what a
+push to `oneios` gives at once (`oneios-tool app install --release <version>` installs it). The two do not
+interfere: different repositories, runs and releases.
 
 ## Not done yet
 

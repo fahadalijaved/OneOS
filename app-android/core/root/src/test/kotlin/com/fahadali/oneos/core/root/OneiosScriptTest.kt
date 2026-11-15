@@ -690,12 +690,15 @@ class OneiosScriptTest {
     @Test
     fun aChatteringHoldOfTheRockerStillReturns() = each { f ->
         // A second of the scripts' clock is 200 ms here: a lift of 0.1 s of it at least every 2 s, on one key or the other,
-        // through an 8 s hold, then both released. No 3 s without a release: the rule before 2026-11-12 never returned here.
-        // (8 s, not 4: twelve samples of the stand-ins' clock take longer than 3 s of it.)
+        // through a 16 s hold, then both released. No 3 s without a release: the rule before 2026-11-12 never returned here.
+        // (16 s, not 4: twelve samples of the stand-ins' clock take longer than 3 s of it; 8 s was enough on Linux, not
+        // on macOS, where every sample's stand-ins start slower: OneiOS's macOS CI, 2026-11-15.)
         f.phone(scale = 5, state = "returning")
         File(f.control, "keys/session").writeText("$TOKEN\n")
-        keyEvents(f, "event0", "EV_KEY KEY_VOLUMEUP DOWN", "@ 0.1", "EV_KEY KEY_VOLUMEUP UP", "@ 0.02", "EV_KEY KEY_VOLUMEUP DOWN", "@ 0.38", "EV_KEY KEY_VOLUMEUP UP", "@ 0.02", "EV_KEY KEY_VOLUMEUP DOWN", "@ 0.38", "EV_KEY KEY_VOLUMEUP UP", "@ 0.02", "EV_KEY KEY_VOLUMEUP DOWN", "@ 0.38", "EV_KEY KEY_VOLUMEUP UP", "@ 0.02", "EV_KEY KEY_VOLUMEUP DOWN", "@ 0.38", "EV_KEY KEY_VOLUMEUP UP")
-        keyEvents(f, "event4", "EV_KEY KEY_VOLUMEDOWN DOWN", "@ 0.3", "EV_KEY KEY_VOLUMEDOWN UP", "@ 0.02", "EV_KEY KEY_VOLUMEDOWN DOWN", "@ 0.38", "EV_KEY KEY_VOLUMEDOWN UP", "@ 0.02", "EV_KEY KEY_VOLUMEDOWN DOWN", "@ 0.38", "EV_KEY KEY_VOLUMEDOWN UP", "@ 0.02", "EV_KEY KEY_VOLUMEDOWN DOWN", "@ 0.38", "EV_KEY KEY_VOLUMEDOWN UP")
+        fun chatter(key: String, first: String, lifts: Int) = listOf("EV_KEY $key DOWN", first, "EV_KEY $key UP") +
+            (1..lifts).flatMap { listOf("@ 0.02", "EV_KEY $key DOWN", "@ 0.38", "EV_KEY $key UP") }
+        keyEvents(f, "event0", *chatter("KEY_VOLUMEUP", "@ 0.1", 8).toTypedArray())
+        keyEvents(f, "event4", *chatter("KEY_VOLUMEDOWN", "@ 0.3", 7).toTypedArray())
         reader(f, "event0")
         reader(f, "event4")
         await("the request despite the chatter") { File(f.session, "return.request").let { it.isFile && it.length() > 0 } }
@@ -792,7 +795,11 @@ class OneiosScriptTest {
     }
 
     private fun watcher(f: Fake, max: Int = 600): Process {
-        val p = f.start("oneios_switch.sh", "--watch", env = mapOf("ONEIOS_RETURN_MAX" to "$max"), log = "data/local/tmp/oneios/return.log")
+        // The watcher's output is the return log, as on the phone. oneios_return.sh then writes each line once, told
+        // by /proc/$$/fd/1; a machine without /proc (a Mac) has the test say it (ONEIOS_TEST_OUT_IS_LOG, read only with
+        // a test root). On Linux the script's own check is what is tested.
+        val env = mapOf("ONEIOS_RETURN_MAX" to "$max") + (if (File("/proc/self/fd/1").exists()) emptyMap() else mapOf("ONEIOS_TEST_OUT_IS_LOG" to "1"))
+        val p = f.start("oneios_switch.sh", "--watch", env = env, log = "data/local/tmp/oneios/return.log")
         await("the watcher's pid") { File(f.control, "watcher.pid").let { it.isFile && it.readText().trim().toIntOrNull() != null } }
         return p
     }
@@ -866,8 +873,10 @@ class OneiosScriptTest {
         // Twenty of the scripts' seconds and more.
         Thread.sleep(1500)
         assertTrue(w.isAlive)
-        // It keeps the session's wakelock up meanwhile: nothing else holds the phone awake.
-        assertEquals("oneios_session", f.lines("sys/power/wake_lock").firstOrNull())
+        // It keeps the session's wakelock up meanwhile: nothing else holds the phone awake. (Looked at until it is
+        // there: the watcher writes the node again each second with `echo > `, and a read between the truncation and
+        // the write saw an empty file once, OneiOS run 43720242712 on Linux.)
+        await("the session's wakelock", 5_000) { f.lines("sys/power/wake_lock").firstOrNull() == "oneios_session" }
         assertEquals("running", f.state)
         assertEquals(emptyList<String>(), f.setprops)
         assertTrue(f.file("proc/$XNUHOST").isDirectory)
@@ -1221,7 +1230,10 @@ class OneiosScriptTest {
     fun aProcessThatEndsLateAfterSigkillIsWaitedForAtGateA() = each { f ->
         // Phone, 2026-11-12 23:15: a killed task outlived the stop's five SIGKILL rounds, Gate A looked once and the
         // failsafe restarted the phone. It ends at the 8th SIGKILL here: within Gate A's wait, so One UI comes back in place.
-        f.phone()
+        // The scripts' clock runs 10 times faster here, not 100: Gate A's 30 s are then 3 s, room for the three more
+        // rounds of kill, sleep and the session's listing that the stand-ins need on any machine (at 100 they were
+        // 0.3 s, less than one round on macOS: OneiOS's macOS CI, 2026-11-15).
+        f.phone(scale = 10)
         File(f.guest(5001, "xnuhost-tasks"), "kills_left").writeText("8\n")
         val r = f.returns()
         assertTrue(r.text, r.text.contains("Gate A: 5001 still there after SIGKILL: xnuhost-tasks"))
