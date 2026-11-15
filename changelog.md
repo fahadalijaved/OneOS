@@ -50,6 +50,18 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.14: smoother Galaxy A phones, Samsung Camera in LineageOS, real user numbers.
+- **Smoother on the Galaxy A and M phones:** the systems no longer redraw the whole screen on the graphics chip
+  every frame for the rounded corners, and window blur is off by default there (Settings > Developer options >
+  "Allow window-level blurs" turns it back on). On the Galaxy A36 in LineageOS: from 238 dropped frames in 30 s to 1.
+- **Samsung Camera in LineageOS:** the Galaxy A phones get the Galaxy A36's own camera, the S phones the S26 Ultra's.
+  Untested.
+- **No more "Update" after every session:** a helper left from the last session made OneOS ask to update the system
+  instead of switching.
+- **LineageOS shows its own artwork** in the OneOS app inside it (it showed ColorOS).
+- **New: Settings > Anonymous usage count** (on by default): once a day a random ID, your phone model, OneOS version and
+  the systems you set up, so we can count active phones. No account, number, location or files.
+
 New in 0.5.13: fixes from your reports.
 - **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver now hears that
   Bluetooth audio is ready before the earbuds connect, as One UI tells it (0.5.12 told it too late), untested.

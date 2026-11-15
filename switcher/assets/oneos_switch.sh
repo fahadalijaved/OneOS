@@ -2259,6 +2259,15 @@ while true; do
             # user's choice; a stage that never had the key gets gestures.
             NAVK=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure hide_navigationbar_enable 2>/dev/null)
             [ \"\$NAVK\" = null ] && $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put secure hide_navigationbar_enable 3 2>/dev/null
+            # Window blur off once on mid-range Galaxy A and M phones (0.5.14): blur is GPU-only, and on
+            # the A36 it alone missed about 240 frames in 30 s. Once per guest data (marker), so a user who
+            # turns it back on (Developer options > Allow window-level blurs) keeps it.
+            case \"\$(getprop ro.product.model)\" in SM-A*|SM-M*)
+                if [ ! -f $STAGE/data/oneos_blur_default ]; then
+                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put global disable_window_blurs 1 2>/dev/null &&
+                        touch $STAGE/data/oneos_blur_default && echo \"[UI Activator] window blur off once (mid-range Galaxy; Developer options turn it back on)\"
+                fi ;;
+            esac
             NAVM=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure navigation_mode 2>/dev/null)
             echo \"[UI Activator] navigation: hide_navigationbar_enable=\$NAVK navigation_mode=\$NAVM\"
             case \"\$NAVK:\$NAVM\" in 0:2|2:0|3:0) echo \"[UI Activator] WARNING: ColorOS nav key and AOSP navigation_mode disagree\" ;; esac

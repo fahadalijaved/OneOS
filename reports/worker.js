@@ -44,6 +44,7 @@ export default {
     try {
       if (req.method === 'POST' && url.pathname === '/v1/part') return await part(req, env, url)
       if (req.method === 'POST' && url.pathname === '/v1/report') return await report(req, env, ctx)
+      if (req.method === 'POST' && url.pathname === '/v1/hello') return await hello(req, env)
       if (req.method === 'GET' && url.pathname === '/v1/list') return await list(req, env, url)
       if (req.method === 'GET' && url.pathname === '/v1/get') return await get(req, env, url)
       if (req.method === 'POST' && url.pathname === '/v1/delete') return await del(req, env, url)
@@ -176,6 +177,39 @@ async function report(req, env, ctx) {
   await env.REPORTS.put(`report:${receivedAt}:${r.reportId}`, JSON.stringify({ ...r, receivedAt }), { expirationTtl: TTL })
   if (env.TG_TOKEN && env.TG_CHAT) ctx.waitUntil(ping(env, r).catch(() => {}))
   return reply(200, { ok: true, reportId: r.reportId })
+}
+
+// The daily usage check-in (0.5.14; owner: real user numbers for the Statistics topic). On by
+// default in the app, off with Settings > Anonymous usage count. A random install id (not tied to
+// the phone or an account), the phone model and OneOS profile, the app version, the systems set up
+// and how many switches since the last check-in. One Analytics Engine data point (dataset
+// oneos_usage), nothing in KV; the sender's address is used for the rate limit only, never stored.
+const INSTALL = /^[0-9a-f]{32}$/
+const IMAGE = /^[a-z0-9][a-z0-9._-]{0,47}$/
+
+async function hello(req, env) {
+  await uploader(req, env)
+  const length = int(req.headers.get('content-length'), 2, 2048)
+  const text = await req.text()
+  if (text.length > length) throw new Refused(400, 'bad length')
+  let h
+  try { h = JSON.parse(text) } catch { throw new Refused(400, 'not JSON') }
+  if (!h || typeof h !== 'object' || h.schema !== 'oneos.hello/1') throw new Refused(400, 'bad schema')
+  if (!INSTALL.test(h.install ?? '')) throw new Refused(400, 'bad install id')
+  const code = int(h.versionCode, 1, 100000)
+  if (!MODEL.test(h.model ?? '')) throw new Refused(400, 'bad model')
+  if (h.profile != null && !TOKEN.test(h.profile)) throw new Refused(400, 'bad profile')
+  const systems = Array.isArray(h.systems) ? h.systems : []
+  if (systems.length > 8 || !systems.every((x) => typeof x === 'string' && IMAGE.test(x))) throw new Refused(400, 'bad systems')
+  const switches = int(h.switches ?? 0, 0, 500)
+  if (env.USAGE) {
+    env.USAGE.writeDataPoint({
+      indexes: [h.install],
+      blobs: [h.model, h.profile ?? '', String(code), systems.join(',')],
+      doubles: [code, switches],
+    })
+  }
+  return reply(200, { ok: true })
 }
 
 // A Telegram username: 5-32 characters, starts with a letter. Anything else the

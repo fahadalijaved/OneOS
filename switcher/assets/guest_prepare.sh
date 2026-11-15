@@ -773,6 +773,13 @@ SAMCAM_TAR="$STAGE/samcam.tar"
 if [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ -f "$STAGE/samcam_bar.tar" ] && [ ! -L "$STAGE/samcam_bar.tar" ]; then
     SAMCAM_TAR="$STAGE/samcam_bar.tar"
 fi
+# 0.5.14: a Galaxy A or M phone takes the A series' own camera (samcam_a.tar, built from the Galaxy
+# A36's One UI 9) where the set has one: the flagship's camera on an A phone's sensors needed the crop,
+# mode and resolution fixes (fix_a_series_*.py) and still failed in 7 of 14 A36 ColorOS reports.
+case "$(getprop ro.product.model)" in
+    SM-A*|SM-M*)
+        if [ -f "$STAGE/samcam_a.tar" ] && [ ! -L "$STAGE/samcam_a.tar" ]; then SAMCAM_TAR="$STAGE/samcam_a.tar"; fi ;;
+esac
 SAMCAM_IMAGE=0
 [ -f "$SAMCAM_TAR" ] && [ ! -L "$SAMCAM_TAR" ] && SAMCAM_IMAGE=1
 if [ $SAMCAM_IMAGE = 1 ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then

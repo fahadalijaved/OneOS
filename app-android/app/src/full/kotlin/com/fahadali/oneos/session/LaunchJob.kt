@@ -239,6 +239,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
             app,
             SessionPrefs.Launch(sid, dryRun, profile.id, image.id, System.currentTimeMillis(), SystemClock.elapsedRealtime(), logsCollected = false),
         )
+        if (!dryRun) com.fahadali.oneos.report.UsageCheckIn.switchStarted(app)
         update(state.copy(detail = "Root is checking everything again and starting the switch…"))
         val reply = RootVerbs.run(
             app, RootScript.Verb.LAUNCH,

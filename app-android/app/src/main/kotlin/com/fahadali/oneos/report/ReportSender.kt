@@ -111,7 +111,7 @@ object ReportSender {
         throw last ?: Failed("part ${i + 1} of $n was not sent")
     }
 
-    private fun post(path: String, type: String, length: Long, body: (java.io.OutputStream) -> Unit): Pair<Int, String> {
+    internal fun post(path: String, type: String, length: Long, body: (java.io.OutputStream) -> Unit): Pair<Int, String> {
         val c = URL(BuildConfig.REPORT_URL + path).openConnection() as HttpURLConnection
         try {
             c.requestMethod = "POST"

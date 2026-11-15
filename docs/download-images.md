@@ -245,9 +245,11 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S26+ (Exynos) (SM-S947, s5e9965), not tested yet
   - Galaxy Z Fold6 (SM-F956, SM8650), not tested yet
   - Galaxy Z Flip8 (SM-F776, s5e9965), not tested yet
+  - Galaxy A36 (SM-A366, SM6475), not tested yet
   - Galaxy S24 (Exynos) (SM-S921, s5e9945), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
   - Galaxy S26 (Exynos) (SM-S942, s5e9965), not tested yet
+  - Galaxy A27 (SM-A276, SM6475), not tested yet
   - Galaxy S24+ (Exynos) (SM-S926, s5e9945), not tested yet
 
 ## OxygenOS 16, OnePlus CPH2745 build

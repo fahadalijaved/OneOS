@@ -18,7 +18,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SeslProgressBar
 import androidx.fragment.app.Fragment
 import androidx.preference.PreferenceFragmentCompat
+import android.os.Build
 import com.fahadali.oneos.BuildConfig
+import com.fahadali.oneos.report.UsageCheckIn
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.device.FactProbe
 import com.fahadali.oneos.core.model.AndroidRelease
@@ -85,6 +87,19 @@ internal object EditionHome {
     val layoutRes: Int get() = R.layout.activity_home
 
     fun createFragment(): Fragment = StatusHomeFragment()
+
+    /**
+     * Every start of the launch activity (also when it redirects on): the anonymous daily usage count.
+     * The profile and the systems come from what the app already keeps (no root): the matched profile,
+     * the system on Home's last check and the last launch's.
+     */
+    fun started(a: MainActivity) {
+        UsageCheckIn.maybeSend(
+            a,
+            profile = { Profiles.resolve(Build.MODEL, Build.DEVICE, Build.SOC_MODEL).profile?.id },
+            systems = { listOf(SessionPrefs.homeSnapshot(a)?.imageId, SessionPrefs.lastLaunch(a)?.imageId?.takeIf { it.isNotEmpty() }) },
+        )
+    }
 
     /** On the cover the hero under the bar says "OneOS", so the bar has no title; the inner screen's bar has it. */
     fun created(a: MainActivity) {

@@ -93,6 +93,9 @@ class AdvancedFragment : CardsFragment() {
         CardRows.toggle(sessions, getString(R.string.advanced_full_logs_title), getString(R.string.advanced_full_logs_summary), SessionPrefs.fullLogs(ctx)) { on ->
             SessionPrefs.setFullLogs(ctx, on)
         }
+        CardRows.toggle(sessions, getString(R.string.usage_count_title), getString(R.string.usage_count_summary), SessionPrefs.usageCount(ctx)) { on ->
+            SessionPrefs.setUsageCount(ctx, on)
+        }
         val logs = LogJob.state
         val zip = LogJob.latestZip(ctx)
         if (zip != null && !logs.busy) {

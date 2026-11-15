@@ -17,3 +17,8 @@ id = "KV_NAMESPACE_ID"
 name = "LIMITER"
 namespace_id = "1001"
 simple = { limit = 30, period = 60 }
+
+# Daily usage check-ins (worker.js hello): counted, never stored per request in KV.
+[[analytics_engine_datasets]]
+binding = "USAGE"
+dataset = "oneos_usage"

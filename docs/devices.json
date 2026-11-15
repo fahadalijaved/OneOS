@@ -1126,6 +1126,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "nothingos5-metroid",
+          "label": "Nothing OS 5.0, Metroid build",
+          "set": "nothing-f8u",
+          "tested": false
         }
       ]
     },
@@ -1773,6 +1779,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "nothingos5-metroid",
+          "label": "Nothing OS 5.0, Metroid build",
+          "set": "nothing-f8u",
           "tested": false
         }
       ]

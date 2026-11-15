@@ -166,3 +166,25 @@ test('the ping says what was checked and who sent it, never the note', async () 
   }
   assert.match(pingText(record({ checklist: null, outcome: null })), /Logs: full, 0\.0 MB/)
 })
+
+test('hello: a valid check-in writes one data point, nothing in KV', async () => {
+  const points = []
+  const e = env({ USAGE: { writeDataPoint: (p) => points.push(p) } })
+  const body = JSON.stringify({ schema: 'oneos.hello/1', install: 'a'.repeat(32), versionCode: 143, model: 'SM-A366B', profile: 'a36', systems: ['lineage24-infiniti'], switches: 3 })
+  const r = await worker.fetch(new Request(`${base}/v1/hello`, { method: 'POST', headers: { 'x-oneos-key': 'up-key', 'content-length': String(body.length) }, body }), e, ctx)
+  assert.equal(r.status, 200)
+  assert.equal(points.length, 1)
+  assert.deepEqual(points[0].indexes, ['a'.repeat(32)])
+  assert.deepEqual(points[0].doubles, [143, 3])
+  assert.equal(e.REPORTS.m.size, 0)
+})
+
+test('hello: refuses a bad key, a bad install id and junk systems', async () => {
+  const e = env({ USAGE: { writeDataPoint: () => { throw new Error('must not write') } } })
+  const send = (key, obj) => { const body = JSON.stringify(obj); return worker.fetch(new Request(`${base}/v1/hello`, { method: 'POST', headers: { 'x-oneos-key': key, 'content-length': String(body.length) }, body }), e, ctx) }
+  const ok = { schema: 'oneos.hello/1', install: 'b'.repeat(32), versionCode: 143, model: 'SM-A366B', profile: 'a36', systems: [], switches: 0 }
+  assert.equal((await send('wrong', ok)).status, 401)
+  assert.equal((await send('up-key', { ...ok, install: 'not-hex' })).status, 400)
+  assert.equal((await send('up-key', { ...ok, systems: ['../etc'] })).status, 400)
+  assert.equal((await send('up-key', { ...ok, schema: 'x' })).status, 400)
+})

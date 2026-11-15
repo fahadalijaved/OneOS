@@ -751,7 +751,7 @@ object PackageSets {
     val LINEAGE = PackageSet(
         id = ID_LINEAGE,
         imageId = Images.ID_LINEAGE,
-        sourceDir = "out/overlays_lineage_r5",
+        sourceDir = "out/overlays_lineage_r6",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -774,9 +774,14 @@ object PackageSets {
             // 0.5.06 r2: AOD (SystemUI's doze service at boot), the Pixel sets' overlay.
             PackageFile("OneOSPixelDoze.apk", FileRole.RRO) +
             // 0.5.07 r3: the boot animation on every panel (patch-bootanim-multidisplay.py, Lineage's form).
-            PackageFile("libbootanimation_preapex_patched.so", FileRole.GUEST_FIX),
+            PackageFile("libbootanimation_preapex_patched.so", FileRole.GUEST_FIX) +
+            // 0.5.14 r6: Samsung Camera (guest_prepare.sh picks one per phone): the Galaxy A36's own for the A and M
+            // phones (samcam_a.tar), the S26 Ultra's for the bar phones (samcam_bar.tar); and the current guest app,
+            // which knows LineageOS (r5's showed the ColorOS artwork).
+            PackageFile("samcam_a.tar", FileRole.GUEST_FIX) +
+            PackageFile("samcam_bar.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, CELLBROADCAST),
-        approxBytes = 387_175_398L + 8_538L + 118_120L,
+        approxBytes = 387_175_398L + 8_538L + 118_120L + 80_271_360L + 78_120_960L,
         hasReturnApp = true,
     )
 

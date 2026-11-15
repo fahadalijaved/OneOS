@@ -163,6 +163,8 @@
     <string name="send_full_title">Send the whole session log</string>
     <string name="send_full_auto">On because a problem is ticked: the team needs the whole session to find it</string>
     <string name="send_full_hint">Only the short log is sent unless you turn this on</string>
+    <string name="usage_count_title">Anonymous usage count</string>
+    <string name="usage_count_summary">Once a day, a random ID, your phone model, OneOS version and the systems you set up, so we can count active phones. No account, number, location or files.</string>
     <string name="send_privacy_title">What the team sees</string>
     <string name="send_privacy_summary">The same file Share sends, with personal data already removed, and your answers. Reports are kept for 30 days. The public compatibility table counts only the answers: never your note, name or phone details.</string>
     <string name="send_button">Send to the OneOS team</string>

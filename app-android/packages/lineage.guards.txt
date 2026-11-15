@@ -11,3 +11,4 @@ edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched
 7061acea74028dc27b79933b1f3c96a5f113be95bbf9ce111dd0efcf9eaa1395  framework_patched.jar
 8eeb43db3299c6735887582769f69d78fbd09a7f24c12b919d5c7017639da6db  telephony-common_patched.jar
 a736ff42026ee1b6e5095349f21bfa5b01d5e765d8a2c87c05047e4798c95984  libcamera_client_patched.so
+# 0.5.14 r6: the current OneOSGuest.apk (LineageOS artwork); samcam_a.tar (the Galaxy A36's Samsung Camera, One UI 9 A366BXXUCDZIF) and samcam_bar.tar (the S26 Ultra's) built for this image with scripts/samsung-camera/build-cached.sh, guest_prepare.sh picks one per phone
