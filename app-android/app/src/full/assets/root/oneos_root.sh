@@ -556,6 +556,12 @@ profile_set() {
         "s-plus-9945 lineage24-infiniti") echo lineage ;;
         "s-plus-9945 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
+        # 0.5.19: Nothing OS on the S23, S23+ and S23 Ultra (owner, untested).
+        "s-8550 nothingos5-metroid") echo nothing-f8u ;;
+        "s-plus-8550 nothingos5-metroid") echo nothing-f8u ;;
+        "s-ultra-8550 nothingos5-metroid") echo nothing-f8u ;;
+        "s-ultra-8550-jp nothingos5-metroid") echo nothing-f8u ;;
+        "s-8550-jp nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9945 originos7-pd2609ma") echo originos ;;
         # 0.4.92: the au Galaxy S23 Ultra (SCG20): the S23 Ultra's rows, untested.
         "s-ultra-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
@@ -1743,6 +1749,12 @@ tool_pids() { # <pkg>: the pids whose program is its libtimer.so
         case "$t" in "/data/app/"*"/$1-"*"/lib/"*"/libtimer.so") p=${ex%/exe}; echo "${p##*/}" ;; esac
     done
 }
+tool_files() { # <pkg>: the libtimer.so files its running tools were started from, once each
+    for ex in "$PROC"/[0-9]*/exe; do
+        t=$(ls -l "$ex" 2>/dev/null | sed -n 's/.* -> //p')
+        case "$t" in "/data/app/"*"/$1-"*"/lib/"*"/libtimer.so") echo "$t" ;; esac
+    done | sort -u
+}
 do_tool_app() {
     case "${1:-}" in
         list)
@@ -1765,8 +1777,24 @@ do_tool_app() {
         tool_running "$2" || refuse "$2 runs no kernel tool now; nothing was changed"
         { [ -f "$STAGE/tool_apps" ] && grep -v -x -F "$2" "$STAGE/tool_apps"; echo "$2"; } > "$part" && own "$part" 0644 && mv -f "$part" "$STAGE/tool_apps" ||
             die "could not record $2"
+        files=$(tool_files "$2")
         step "disable $2"
         pm disable-user --user 0 "$2" > /dev/null 2>&1 || die "pm could not turn $2 off"
+        # 0.5.19 (owner: it "keeps coming back ... even after they manually disable the app", "works only if
+        # they uninstall"): the tool is a program in the app's lib folder, started by something outside the
+        # app (it runs as the shell user), so a disabled app's tool still started at the next boot. Its
+        # libtimer.so loses its execute bits while the app is off (nothing can start it, as after an
+        # uninstall; the app and its data stay); tool-app on gives the recorded mode back.
+        for f in $files; do
+            [ -f "$T$f" ] && [ ! -L "$T$f" ] || continue
+            m=$(stat -c %a "$T$f" 2>/dev/null) || continue
+            { [ -f "$STAGE/tool_app_files" ] && awk -v f="$f" '$3 != f' "$STAGE/tool_app_files"; echo "$2 $m $f"; } > "$STAGE/.tool_app_files.new" &&
+                own "$STAGE/.tool_app_files.new" 0644 && mv -f "$STAGE/.tool_app_files.new" "$STAGE/tool_app_files" ||
+                die "could not record $f"
+            TOOLF="$T$f"
+            chmod 0 "$TOOLF" || die "could not take the execute bits off $f"
+            step "no exec ${f##*/} ($m -> 0)"
+        done
         # 0.5.17 (owner: Turn it off "is just bringing them back to start"): the app's tool runs as root,
         # outside the app's own processes, so pm's force-stop leaves it running and the next switch is
         # refused again (a tester: "su -c 'pm disable com.roottimer.app' didn't work"). Stop it too, only
@@ -1781,6 +1809,17 @@ do_tool_app() {
         [ -f "$STAGE/tool_apps" ] && grep -q -x -F "$2" "$STAGE/tool_apps" || refuse "OneOS did not turn $2 off; nothing was changed"
         step "enable $2"
         pm enable --user 0 "$2" > /dev/null 2>&1 || die "pm could not turn $2 on"
+        if [ -f "$STAGE/tool_app_files" ] && mine "$STAGE/tool_app_files"; then
+            while read -r rp rm rf; do
+                [ "$rp" = "$2" ] || continue
+                case "$rm" in [0-7][0-7][0-7]) ;; *) continue ;; esac
+                case "$rf" in "/data/app/"*"/$2-"*"/lib/"*"/libtimer.so") ;; *) continue ;; esac
+                TOOLF="$T$rf"
+                [ -f "$TOOLF" ] && [ ! -L "$TOOLF" ] && chmod "$rm" "$TOOLF" && step "exec ${rf##*/} back ($rm)"
+            done < "$STAGE/tool_app_files"
+            { awk -v p="$2" '$1 != p' "$STAGE/tool_app_files"; true; } > "$STAGE/.tool_app_files.new" && own "$STAGE/.tool_app_files.new" 0644 &&
+                mv -f "$STAGE/.tool_app_files.new" "$STAGE/tool_app_files" || die "could not update the file record"
+        fi
         { grep -v -x -F "$2" "$STAGE/tool_apps"; true; } > "$part" && own "$part" 0644 && mv -f "$part" "$STAGE/tool_apps" || die "could not update the record"
         say "@@OK tool-app on $2"
     fi

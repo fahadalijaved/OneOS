@@ -237,11 +237,12 @@ class ProfilesTest {
             ImageChoice(Images.ID_NOTHING_ASTEROIDS, PackageSets.ID_NOTHING_A, tested = false), a36.choices)
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), a36.notes.map { it.id })
         // Nothing OS (0.4.35) on the SVE + SME phones; 0.4.36 also the S25s, S24 Ultra, Fold7 and Fold6 (brightness scale ~5); 0.4.61 the S24 (Snapdragon, scale 5.0);
-        // 0.4.83 the Exynos S24 and S24+ (scale 5.0 on One UI 9).
+        // 0.4.83 the Exynos S24 and S24+ (scale 5.0 on One UI 9); 0.5.19 the S23, S23+ and S23 Ultra (owner, untested).
         assertEquals(
             listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750,
-                Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_PLUS_8850,
-                Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_9965, Profiles.S_PLUS_9945, Profiles.S_PLUS_8650),
+                Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
+                Profiles.S_PLUS_8850, Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8, Profiles.S_ULTRA_8550, Profiles.S_9945, Profiles.S_EDGE_8750,
+                Profiles.S_9965, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP, Profiles.S_8550_JP, Profiles.S_PLUS_8650),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_NOTHING_METROID) != null },
         )
         // Galaxy S23 and S23+ (0.4.11): the X9U image, untested, with the will-most-likely-not-start note.
@@ -256,7 +257,7 @@ class ProfilesTest {
             // 0.4.91 (owner: "add oxygenos to s23 series on oneui8/8.5"): OxygenOS 16 for the ones still on One UI 8, before OriginOS.
             assertEquals(
                 listOf(xin, ImageChoice(Images.ID_PIXEL_KOMODO, PackageSets.ID_PIXEL9_SULTRA, tested = false), ifx, lineage, hyper,
-                    ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false), origin),
+                    ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false), nothing, origin), // 0.5.19: Nothing OS (Metroid), owner
                 p.choices,
             )
             assertEquals(Profiles.S_ULTRA_8550.choices, p.choices)

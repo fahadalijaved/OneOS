@@ -2192,10 +2192,15 @@ class StageScriptTest {
         assertFalse(log.exists())
         val proc = File(fr.root, "proc/4242").apply { mkdirs() }
         java.nio.file.Files.createSymbolicLink(File(proc, "exe").toPath(), File("/data/app/~~ab==/$pkg-xy==/lib/arm64/libtimer.so").toPath())
+        // 0.5.19: the program file itself (so nothing outside the app can start it while the app is off).
+        val lib = File(fr.root, "data/app/~~ab==/$pkg-xy==/lib/arm64/libtimer.so").apply { parentFile.mkdirs(); writeText("tool") }
+        java.nio.file.Files.setPosixFilePermissions(lib.toPath(), java.nio.file.attribute.PosixFilePermissions.fromString("rwxr-xr-x"))
         // Another app's tool running is not this one's.
         refused(fr.run(RootScript.Verb.TOOL_APP, "off", "com.other.app"), "runs no kernel tool")
         ok(fr.run(RootScript.Verb.TOOL_APP, "off", pkg))
         assertEquals("disable-user --user 0 $pkg\n", log.readText())
+        assertEquals("---------", java.nio.file.attribute.PosixFilePermissions.toString(java.nio.file.Files.getPosixFilePermissions(lib.toPath())))
+        assertEquals("$pkg 755 /data/app/~~ab==/$pkg-xy==/lib/arm64/libtimer.so\n", File(fr.stage, "tool_app_files").readText())
         assertEquals("$pkg\n", File(fr.stage, "tool_apps").readText())
         val list = fr.run(RootScript.Verb.TOOL_APP, "list")
         ok(list)
@@ -2203,6 +2208,8 @@ class StageScriptTest {
         ok(fr.run(RootScript.Verb.TOOL_APP, "on", pkg))
         assertEquals("disable-user --user 0 $pkg\nenable --user 0 $pkg\n", log.readText())
         assertEquals("", File(fr.stage, "tool_apps").readText())
+        assertEquals("rwxr-xr-x", java.nio.file.attribute.PosixFilePermissions.toString(java.nio.file.Files.getPosixFilePermissions(lib.toPath())))
+        assertEquals("", File(fr.stage, "tool_app_files").readText())
         refused(fr.run(RootScript.Verb.TOOL_APP, "on", pkg), "did not turn")
         assertTrue(RootScript.problems(RootScript.Verb.TOOL_APP, listOf("off", "x; rm -rf /")).isNotEmpty())
         assertTrue(RootScript.problems(RootScript.Verb.TOOL_APP, listOf("wipe", pkg)).isNotEmpty())
