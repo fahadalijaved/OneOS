@@ -427,7 +427,9 @@ rm -f "$STAGE/full_logs_mid.log"
 # guest_no_apex_installs.py); a difference means a path the guards missed.
 # Read only; it only logs.
 host_state() {
-    f=$(readlink -f "$(getprop ro.frp.pst)" 2>/dev/null)
+    # One UI's FRP partition: the session points ro.frp.pst at the guest's own block (guest_props.sh).
+    f=$(cat "$STAGE/host_frp_pst" 2>/dev/null); [ -n "$f" ] || f=$(getprop ro.frp.pst)
+    f=$(readlink -f "$f" 2>/dev/null)
     [ -b "$f" ] && echo "frp $(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)"
     for p in /data/misc/gatekeeper /data/apex/active /data/apex/sessions; do
         [ -d "$p" ] && find "$p" -type f -exec stat -c '%n %s %Y' {} + 2>/dev/null | sort
@@ -1410,7 +1412,9 @@ kill -9 $(pidof system_server) 2>/dev/null || true
 # 47 s for the guest's permission service, and init rebooted the phone right after ("reboot,vold-failed",
 # 0.4.69 A15 c2da41ee: dumpstate pid 10916, "Check passed after 47063ms", shutdown 0.3 s later).
 rm -f "$STAGE/data/guest_audio.flag"
-nohup $BB sh -c "while true; do [ \"\$(getprop init.svc.zygote)\" = \"running\" ] && setprop ctl.stop zygote; [ \"\$(getprop init.svc.zygote_secondary)\" = \"running\" ] && setprop ctl.stop zygote_secondary; [ ! -f $STAGE/data/oneos_host_sf_frozen ] && [ \"\$(getprop init.svc.surfaceflinger)\" = \"running\" ] && setprop ctl.stop surfaceflinger; [ \"\$(getprop init.svc.bootanim)\" = \"running\" ] && setprop ctl.stop bootanim; [ -f $STAGE/data/guest_audio.flag ] && [ \"\$(getprop init.svc.audioserver)\" = \"running\" ] && setprop ctl.stop audioserver; for s in dumpstate dumpstatez bugreport bugreportd; do [ \"\$(getprop init.svc.\$s)\" = \"running\" ] && setprop ctl.stop \$s; done; sleep 0.2; done" </dev/null >/dev/null 2>&1 &
+# 0.5.18 (owner, A36: Nothing OS sluggish): 9 getprop processes every 0.2 s were about 9 % of a core all session.
+# Zygote and surfaceflinger still every 0.2 s; bootanim, audioserver and the dump services every second.
+nohup $BB sh -c "n=0; while true; do [ \"\$(getprop init.svc.zygote)\" = \"running\" ] && setprop ctl.stop zygote; [ ! -f $STAGE/data/oneos_host_sf_frozen ] && [ \"\$(getprop init.svc.surfaceflinger)\" = \"running\" ] && setprop ctl.stop surfaceflinger; n=\$((n + 1)); if [ \$n -ge 5 ]; then n=0; [ \"\$(getprop init.svc.zygote_secondary)\" = \"running\" ] && setprop ctl.stop zygote_secondary; [ \"\$(getprop init.svc.bootanim)\" = \"running\" ] && setprop ctl.stop bootanim; [ -f $STAGE/data/guest_audio.flag ] && [ \"\$(getprop init.svc.audioserver)\" = \"running\" ] && setprop ctl.stop audioserver; for s in dumpstate dumpstatez bugreport bugreportd; do [ \"\$(getprop init.svc.\$s)\" = \"running\" ] && setprop ctl.stop \$s; done; fi; sleep 0.2; done" </dev/null >/dev/null 2>&1 &
 sleep 1
 # The session's own copy of One UI's property store, now that One UI's
 # framework is down (guest_props.sh store-on): the guest's persist settings
@@ -1500,6 +1504,15 @@ ls -l /vendor/etc/displayconfig /vendor/odm/etc/displayconfig /vendor/odm/etc/de
       echo "== $b"; strings -a "$b" 2>/dev/null | grep -E '^/sys/|enabled|fold_state' | head -40
   done
 } > "$STAGE/diag_host/touch_nodes.txt" 2>&1
+# The panel's local HBM (in-house optical fingerprint spot, Galaxy A/S with an optical sensor): One UI's fingerprint
+# service leaves it at 1 (on, source off) while its keyguard waits for a finger, and the panel then draws its own
+# glowing circle over whatever is shown (A36, fresh Nothing OS, 0.5.18: from the guest's boot animation on, owner:
+# "glowing like hell"). One UI's service is stopped now: the panel starts the guest with it off.
+LHBM=/sys/class/lcd/panel/local_hbm
+if [ -w "$LHBM" ]; then
+    v=$(cat "$LHBM" 2>/dev/null)
+    case "$v" in 0|'') ;; *) echo 0 > "$LHBM" 2>/dev/null; echo "Panel local HBM was $v at the switch (One UI's fingerprint wait): now $(cat "$LHBM" 2>/dev/null)" ;; esac
+fi
 echo "=== [5/6] $(date +%T) Executing Mount Hierarchy Preparation ==="
 /system/bin/sh "$STAGE/guest_prepare.sh"
 PREP_RET=$?
@@ -2119,7 +2132,10 @@ $G /system/bin/am start -n com.nothing.ntessentialspace/.MainActivity >/dev/null
 ESSOPEN
     chmod 700 "$STAGE/data/oneos_essential_open.sh"
 fi
-$BB sh -c "
+# 0.5.18: kept in a variable, written to a file through a here-document (no argument: /system/bin/sh's printf is a
+# program) and run from there. As `sh -c "<script>"` it hit the kernel's 128 KiB limit for one argument once it grew
+# past it (A36, Nothing: "Argument list too long", no status bar, power key or cutout overlays that session).
+UIA="
 BB=\"$BB\"
 [ -n \"\$BB\" ] || BB=\$(which busybox 2>/dev/null || echo /data/adb/ksu/bin/busybox)
 GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=1; BRPID=''
@@ -3026,6 +3042,18 @@ while true; do
             # earlier session made.
             gxo() { timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay \"\$@\" >/dev/null 2>&1; }
             gdim() { timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_overlay_dimen.dex /system/bin/app_process /system/bin OneOSOverlayDimen \"\$@\" 2>&1 | grep -E '^(registered|failed)' | tail -n 1; }
+            # 0.5.18, Nothing OS (reports, A35: \"screen brightness is low compared to One UI\"): Nothing keeps its
+            # slider at most at config_screenBrightnessSettingMaximumFloat 0.294 (mScreenBrightnessMaximum in every
+            # Nothing session; every other guest 1.0 on the same panels), the rest being its own phones' sunlight
+            # boost, which a Galaxy never gets. The whole range, as the other guests have it; the framework reads it
+            # at start, so from the next session on.
+            if [ -f $STAGE/data/oneos_overlay_dimen.dex ] && { [ -e $STAGE/rootfs/system_ext/framework/nt-telephony-common.jar ] || [ -e $STAGE/rootfs/system/system_ext/framework/nt-telephony-common.jar ]; }; then
+                r=\$(gdim OneOSNtBrightness android android:dimen/config_screenBrightnessSettingMaximumFloat=f:1.0)
+                case \"\$r\" in
+                    registered*) gxo enable --user 0 com.android.shell:OneOSNtBrightness && echo \"[UI Activator] Nothing brightness: whole range (from the next session)\" ;;
+                    *) echo \"[UI Activator] Nothing brightness overlay not made: \$r\" ;;
+                esac
+            fi
             # The corner radius for the guests the block below leaves out (0.4.76,
             # host_corner_radius; see where the switch saves it): ColorOS on any
             # phone, every guest on a Fold. Made after the block.
@@ -3154,6 +3182,15 @@ while true; do
                 fi
                 ON=''
                 for o in \$OVS; do gxo enable --user 0 com.android.shell:\$o && ON=\"\$ON \$o\"; done
+                # 0.5.18 (owner, A36): Nothing's SystemUI reads the power key's place (the screen-off animation) once,
+                # when it starts, and in a guest it starts before these overlays hold: the animation went to Nothing's
+                # own 620 px every session, and right only after a SystemUI restart (owner: \"power animation good\",
+                # double tap to wake still working). Nothing OS with the power key overlay on: SystemUI restarted
+                # once, here, every session.
+                case \" \$ON \" in *\" OneOSNtPowerKey \"*)
+                    sp=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/pidof com.android.systemui 2>/dev/null)
+                    case \"\$sp\" in ''|*[!0-9\ ]*) ;; *) kill \$sp 2>/dev/null && echo \"[UI Activator] Nothing's SystemUI restarted for the power key place and status bar\" ;; esac ;;
+                esac
                 echo \"[UI Activator] status bar: One UI's cutout '\${HCS:-none}', as \$CUTU: '\${CUT:-none}', rect '\${CUTR:-none}'; height \${HSB:-?} px\${SBK:+ (\$HSBG px at the \${SBK% *} px the guest runs)}, corner radius \${HRC:-?} px; overlays on:\${ON:- none}\${DIMS:+ (not made:\$DIMS)}\"
             else
                 # No host cutout this session (ONEOS_GUEST_HOST_CUTOUT=0, or a
@@ -3561,7 +3598,12 @@ done
 GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=\$((PASS + 1))
 echo \"[UI Activator] soft reboot of the guest (generation \$GEN): pass \$PASS, waiting for its new boot\"
 done
-" </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
+"
+cat > "$STAGE/tmp/ui_activator.sh" <<UIAEOF && chmod 0700 "$STAGE/tmp/ui_activator.sh"
+$UIA
+UIAEOF
+unset UIA
+$BB sh "$STAGE/tmp/ui_activator.sh" </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
 # Samsung CPU/GPU votes survive the host framework; capability-detected on every profile.
 # 0.4.38: only with the heat cap off (Cool down when hot, Advanced). With it on, the heat cap
@@ -3750,6 +3792,34 @@ fi
 # only between kicks; it ends itself with the return (data/oneos_rec_stop) or
 # when the guest's namespace record is gone, like the heat cap. Logged in
 # $STAGE/panel_keeper.log. ONEOS_GUEST_SF_PIN=0: not started.
+# Local HBM keeper (0.5.18): the guest lights the fingerprint spot only while a finger is on the sensor
+# (OneOSSehTouch, ~1 s); a spot still on 10 s later was left by a touch whose up never came (or by anything
+# else) and would glow on the panel until the return. Every 5 s; three readings in a row other than 0: off.
+# Logged in $STAGE/lhbm_keeper.log; ends with the return, like the panel keeper.
+rm -f "$STAGE/lhbm_keeper.log"
+if [ -w /sys/class/lcd/panel/local_hbm ]; then
+    $BB sh -c "
+    : oneos_lhbm_keeper
+    echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
+    F=$STAGE/lhbm_keeper.log; H=/sys/class/lcd/panel/local_hbm
+    echo \"# \$(date) OneOS local HBM keeper: every 5 s, off after 3 readings in a row that are not 0\" > \$F
+    n=0; offs=0
+    while true; do
+        if [ -f $STAGE/data/oneos_rec_stop ] || [ ! -s $STAGE/guest_mntns ]; then
+            echo \"# \$(date +%T) stopped after \$offs resets\" >> \$F
+            exit 0
+        fi
+        v=\$(cat \$H 2>/dev/null)
+        case \"\$v\" in 0|'') n=0 ;; *) n=\$((n + 1)) ;; esac
+        if [ \$n -ge 3 ]; then
+            echo 0 > \$H 2>/dev/null; offs=\$((offs + 1)); n=0
+            echo \"\$(date +%T) local HBM \$v for 10+ s: off (now \$(cat \$H 2>/dev/null))\" >> \$F
+        fi
+        sleep 5
+    done
+    " </dev/null >/dev/null 2>&1 &
+    echo "Local HBM keeper started (fingerprint spot off when left on)"
+fi
 rm -f "$STAGE/panel_keeper.log"
 if [ "$GUEST_OPLUS" != 1 ] && [ "${ONEOS_GUEST_SF_PIN:-1}" != 0 ] && [ -r /sys/class/lcd/panel/vrr ]; then
     $BB sh -c "
@@ -3939,7 +4009,10 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 done
                 echo \"\$(date) logcat capture: \$(ls $LOGS/head 2>/dev/null | wc -l) files of the boot kept in $LOGS/head (hard links)\"
             fi
-            if [ -n \"\$dname\" ]; then
+            # 0.5.18: the snapshot runs beside the watcher, not in its way (A36 fresh Nothing OS: Volume Up +
+            # Volume Down held at 17:19:34, the 90 s snapshot's stack dumps took the watcher until 17:20:12 and
+            # the owner, seeing nothing happen, held them again). A request is then taken within a second.
+            if [ -n \"\$dname\" ]; then (
                 SFP=\$(pidof surfaceflinger | awk '{print \$1}')
                 if [ -n \"\$SFP\" ]; then
                     D=$STAGE/diag_\$dname; mkdir -p \$D
@@ -4128,7 +4201,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     fi
                     echo \"\$(date) display diagnostics saved in \$D\"
                 fi
-            fi
+            ) </dev/null & fi
             # A running surfaceflinger can still show nothing: when the composer
             # rejects its frames the panel keeps the last host frame.
             # The guest framework is gone for good once its zygote died: the

@@ -108,6 +108,34 @@ drop_stale_memory_lists() {
     return 0
 }
 
+# frp_format <file> <size>: a persistent data block as the guest's PersistentDataBlockService formats one
+# (formatPartitionLocked; see the FRP block in add). Offsets from the block's end: OEM unlock 1 byte, FRP
+# credential 1000, test harness 10000, FRP secret 32, FRP secret magic 8.
+frp_format() {
+    ff=$1; fs=$2
+    dd if=/dev/zero of="$ff" bs=4096 count=$((fs / 4096)) 2>/dev/null || return 1
+    printf '\031\220\030\163' | dd of="$ff" bs=1 seek=32 conv=notrunc 2>/dev/null || return 1
+    printf '\332\302\374\315\271\033\011\210' | dd of="$ff" bs=1 seek=$((fs - 1 - 1000 - 10000 - 32 - 8)) conv=notrunc 2>/dev/null || return 1
+    fd=$( { dd if=/dev/zero bs=32 count=1 2>/dev/null; dd if="$ff" bs=32 skip=1 2>/dev/null; } | sha256sum | cut -d' ' -f1)
+    case "$fd" in [0-9a-f]*) [ ${#fd} = 64 ] || return 1 ;; *) return 1 ;; esac
+    printf "$(echo "$fd" | sed 's/\(..\)/\\x\1/g')" > "$ff.d" 2>/dev/null
+    if [ "$(stat -c %s "$ff.d" 2>/dev/null)" != 32 ]; then
+        fo=""; fh=$fd
+        while [ -n "$fh" ]; do fo="$fo\\$(printf %03o $((0x$(echo "$fh" | cut -c1-2))))"; fh=${fh#??}; done
+        printf "$fo" > "$ff.d" 2>/dev/null
+    fi
+    [ "$(stat -c %s "$ff.d" 2>/dev/null)" = 32 ] && dd if="$ff.d" of="$ff" bs=32 count=1 conv=notrunc 2>/dev/null
+    r=$?; rm -f "$ff.d"; return $r
+}
+
+# frp_valid <node> <size>: the block reads back whole, with the marker and the digest the guest's service checks.
+frp_valid() {
+    [ "$(dd if="$1" bs=4096 2>/dev/null | wc -c)" = "$2" ] || return 1
+    [ "$(dd if="$1" bs=4 skip=8 count=1 2>/dev/null | od -A n -t x1 | tr -d ' \n')" = 19901873 ] || return 1
+    vd=$( { dd if=/dev/zero bs=32 count=1 2>/dev/null; dd if="$1" bs=32 skip=1 2>/dev/null; } | sha256sum | cut -d' ' -f1)
+    [ "$(dd if="$1" bs=32 count=1 2>/dev/null | od -A n -t x1 | tr -d ' \n')" = "$vd" ]
+}
+
 case "$1" in
 add)
     echo "guest_props add: start $(date +%T)"
@@ -193,6 +221,62 @@ add)
         }
         END { for (j = 0; j < n; j++) print order[j] "=" value[order[j]] }
     ' > "$NEW"
+    # The guest's own FRP block (0.5.18). ro.frp.pst is One UI's FRP partition; the guest's
+    # PersistentDataBlockService read it (its writes go to /dev/null, guest_pdb_readonly.py), so a fresh
+    # guest found One UI's Google account in it and its setup wizard stopped at "Verify your account" with
+    # no way to skip (A36, Nothing OS after Reset data). For the session the property names a loop device
+    # on $STAGE/data/oneos_frp.img: zeros the size of the real partition, the guest's own (Reset data and
+    # Remove take it with the rest of its data), so the guest never reads One UI's FRP record at all.
+    # One UI's value is on the override list (remove puts it back) and in host_frp_pst for the host-state
+    # check at the return. ONEOS_GUEST_OWN_FRP=0 leaves the property alone.
+    FRPK=ro.frp.pst
+    FRPV=$(getprop "$FRPK")
+    case "$FRPV" in ""|/dev/block/loop*|/dev/block/oneos_frp) ;; *) echo "$FRPV" > "$STAGE/host_frp_pst" ;; esac
+    # Only with SELinux permissive (oneos_switch.sh's setenforce 0): enforcing, the loop's kernel reads of the
+    # image are refused (A36: avc denied { read } for kworker on oneos_frp_test.img) and the guest could not boot.
+    if [ "$(getenforce 2>/dev/null)" != Permissive ]; then
+        echo "guest_props: SELinux is $(getenforce 2>/dev/null): $FRPK left as One UI's"
+    elif [ "${ONEOS_GUEST_OWN_FRP:-1}" = 1 ] && [ -n "$FRPV" ] && [ "${FRPV#/dev/block/loop}" = "$FRPV" ] && [ "$FRPV" != /dev/block/oneos_frp ]; then
+        FRPD=$(readlink -f "$FRPV" 2>/dev/null)
+        FRPS=$(blockdev --getsize64 "$FRPD" 2>/dev/null)
+        FRPI="$STAGE/data/oneos_frp.img"
+        case "$FRPS" in ''|0|*[!0-9]*) FRPS="" ;; esac
+        if [ -n "$FRPS" ] && [ $((FRPS % 4096)) = 0 ] && [ "$FRPS" -le 67108864 ]; then
+            # Laid out as the guest's PersistentDataBlockService.formatPartitionLocked writes it (the guest cannot
+            # write it itself: its writes go to /dev/null): the partition marker 0x19901873 and data size 0 after
+            # the 32-byte digest, FRP_SECRET_MAGIC before the all-zero default secret (FRP inactive: the service
+            # deactivates FRP with the default secret), zeros elsewhere, and the digest computeDigestLocked
+            # checks, SHA-256 of 32 zero bytes and the rest of the block. A zeroed block failed its checksum and
+            # took system_server down at boot phase 500 (TestHarnessModeService: "invalid checksum").
+            # Remade every session: nothing in it changes.
+            rm -f "$FRPI"
+            if frp_format "$FRPI" "$FRPS"; then chmod 600 "$FRPI"; else rm -f "$FRPI"; echo "guest_props: could not make $FRPI; $FRPK left as One UI's"; fi
+            FRPL=""
+            [ -f "$FRPI" ] && FRPL=$(losetup -s -f "$FRPI" 2>/dev/null)
+            # The loop's own node is root's 0600 and the guest's system_server (uid 1000) could not open it:
+            # every read failed and the service took that as a bad checksum (builds 148 and 149 never booted;
+            # A36 test in a running session: root-only loop node "Permission denied" as uid 1000, this node
+            # read). $FRPN has the real partition's owner, mode and label.
+            FRPN=/dev/block/oneos_frp
+            rm -f "$FRPN"
+            fmm=$(stat -L -c '%t %T' "$FRPL" 2>/dev/null)
+            if [ -b "$FRPL" ] && [ -n "$fmm" ] &&
+               mknod "$FRPN" b $((0x${fmm% *})) $((0x${fmm#* })) 2>/dev/null &&
+               chown 1000:1000 "$FRPN" && chmod 0600 "$FRPN" &&
+               chcon u:object_r:frp_block_device:s0 "$FRPN" 2>/dev/null &&
+               [ "$(stat -c '%u %a' "$FRPN" 2>/dev/null)" = "1000 600" ] && frp_valid "$FRPN" "$FRPS" &&
+               "$RP" -n "$FRPK" "$FRPN" 2>/dev/null; then
+                echo "$FRPK=$FRPV" >> "$OVR"
+                echo "guest_props: $FRPK=$FRPV overridden to $FRPN ($FRPL) for the session (the guest's own FRP block, $FRPS bytes)"
+            else
+                rm -f "$FRPN"
+                [ -b "$FRPL" ] && losetup -d "$FRPL" 2>/dev/null
+                echo "guest_props: no FRP node for $FRPI ('$FRPL'); $FRPK left as One UI's"
+            fi
+        else
+            echo "guest_props: $FRPK $FRPV ($FRPD) size '$FRPS' not usable; left as One UI's"
+        fi
+    fi
     # Window-level blur (run 31: glass UI flat in places). The Find N6 turns
     # it on in its vendor build.prop, which the GSI does not carry. The guest
     # SurfaceFlinger logged "Disabling blur effects, they are not supported."
@@ -1376,6 +1460,8 @@ add)
 remove)
     # Host values add overrode for the session (blur, sound names, audio HAL
     # extension, isolated compilation).
+    # The guest's FRP node (add): its loop is detached with the stage's others by return_to_oneui.sh.
+    rm -f /dev/block/oneos_frp 2>/dev/null
     if [ -f "$OVR" ]; then
         while IFS= read -r line; do
             "$RP" -n "${line%%=*}" "${line#*=}" 2>/dev/null && echo "guest_props: restored host ${line%%=*}=${line#*=}"

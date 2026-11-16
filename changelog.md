@@ -50,6 +50,19 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.18: fingerprint unlock in Nothing OS, smoother systems, a fresh setup without the account check.
+- **Nothing OS: fingerprint unlock with One UI's fingerprints** on Galaxy phones with an in-display (optical) sensor:
+  the sensor is in its place, its light comes on under the finger and the screen is bright enough to read it, as
+  in One UI. On with Advanced > Switch with a screen lock set. Tested on the Galaxy A36.
+- **Every system feels faster after its first start**: all its apps are compiled fully once (a notification shows
+  the progress; until now most apps ran uncompiled), and the app watchers in a session cost less.
+- **A fresh system no longer asks to verify your Google account** (factory reset protection): each system has its
+  own, empty protection record instead of reading One UI's. One UI's own record is never touched.
+- **Nothing OS uses the whole brightness range** (its slider stopped at about a third on a Galaxy), and its status
+  bar and power key animation are right from the start.
+- **Volume Up + Volume Down returns to One UI within seconds** (it could wait half a minute behind the session's
+  checks), and the fingerprint sensor's light no longer stays lit on the screen when a system starts.
+
 New in 0.5.17: Record full logs from inside a system, Nothing OS's Essential key on Volume Down.
 - **Groundwork for fingerprint unlock with One UI's fingerprints** (off for now: the in-display sensor still needs
   its touch signals from Nothing's lock screen). Nothing OS can never delete a fingerprint from the phone, and Settings no

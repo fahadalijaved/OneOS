@@ -1,6 +1,7 @@
 // OneOS reports (0.4.29): the service behind "Send to the OneOS team".
 //
-// A Cloudflare Worker with one Workers KV namespace (REPORTS). The app sends a
+// A Cloudflare Worker; its storage is D1 since 0.5.18 (store.js: KV's interface; the Workers KV namespace
+// REPORTS before it is only read and emptied). The app sends a
 // report's zip in parts (POST /v1/part, at most 20 MiB each: one KV value holds
 // 25 MiB) and then its record (POST /v1/report, schema oneos.report/1,
 // app-android/core/model/.../Reports.kt). The team's server collects them with
@@ -36,6 +37,8 @@
 // TG_SIGNIN_TOKEN: the sign-in bot (@OneOSReportsBot, an admin of the group) is
 // its own bot; the group pings stay on TG_TOKEN.
 
+import { store } from './store.js'
+
 const PART_MAX = 20 * 1024 * 1024
 const RECORD_MAX = 32 * 1024
 const PARTS_MAX = 4
@@ -57,6 +60,12 @@ const GROUP_LINK = 'https://t.me/TheoneOS'
 const PASS_SECONDS = 180 * 24 * 3600
 const SIGNIN_TTL = 600
 const MEMBER_TTL = 3600
+// 0.5.18, per signed-in account (2026-11-16: one pass sent 1115 reports of one session at the 30-a-minute IP limit,
+// and its counters in KV used up the free plan's 1000 KV writes a day: every sign-in and report failed with 500).
+// Counted by Cloudflare's rate limiters (no KV write): USER_LIMITER takes 3 reports a minute per account, more are
+// refused (429); FLOOD_LIMITER counts every try, refused ones included, and an account past 15 a minute is banned
+// from the group (owner: "ban anyone who spams like this"); a real sender stops at a refusal (the app tries a 429
+// three times). The ban is the only write: banned:<id>, which refuses the account from then on.
 const CODE = /^[A-Za-z0-9_-]{22}$/
 const START_LABELS = { home: 'reached the home screen', logo: 'stuck on the boot logo', black: 'black screen', back: 'came back by itself' }
 
@@ -132,6 +141,29 @@ async function uploader(req, env) {
   return user
 }
 
+async function perUser(env, user) {
+  if (env.FLOOD_LIMITER && !(await env.FLOOD_LIMITER.limit({ key: String(user.id) })).success) {
+    await floodBan(env, user)
+    throw new Refused(403, 'this account was banned from the OneOS group for flooding reports')
+  }
+  if (env.USER_LIMITER && !(await env.USER_LIMITER.limit({ key: String(user.id) })).success) {
+    throw new Refused(429, 'too many reports from this account, try again in a few minutes')
+  }
+}
+
+// Ban from the group (the sign-in bot is an admin there) and remember it (the one KV write), say so in the topic.
+async function floodBan(env, user) {
+  if ((await store(env).get(`banned:${user.id}`)) === '1') return
+  await store(env).put(`banned:${user.id}`, '1')
+  let ok = false
+  try { ok = (await tg(env, 'banChatMember', { chat_id: env.TG_CHAT, user_id: user.id, revoke_messages: true }))?.ok === true } catch {}
+  const who = user.username ? `@${user.username}` : 'an account'
+  const body = { chat_id: env.TG_CHAT, disable_web_page_preview: true,
+    text: `🚫 ${who} (id ${user.id}) sent more than 15 reports in a minute: ${ok ? 'banned from the group' : 'ban FAILED, ban by hand'}. Its report pings stay; delete them by hand.` }
+  if (env.TG_THREAD) body.message_thread_id = Number(env.TG_THREAD)
+  try { await tg(env, 'sendMessage', body) } catch {}
+}
+
 // --- Sign-in through the bot, the pass, the group check (0.5.16) ---
 
 const enc = (s) => new TextEncoder().encode(s)
@@ -176,14 +208,15 @@ async function tg(env, method, body) {
 }
 
 async function isMember(env, id) {
-  if ((await env.REPORTS.get(`member:${id}`)) === '1') return true
+  if ((await store(env).get(`banned:${id}`)) === '1') return false
+  if ((await store(env).get(`member:${id}`)) === '1') return true
   let r
   try { r = await tg(env, 'getChatMember', { chat_id: env.TG_CHAT, user_id: id }) } catch { r = null }
   // 400: Telegram does not know this account in the group (never joined).
   if (r?.ok !== true && r?.error_code !== 400) throw new Refused(503, 'the group could not be checked, try again in a minute')
   const m = r.ok ? r.result : {}
   const yes = ['creator', 'administrator', 'member'].includes(m.status) || (m.status === 'restricted' && m.is_member === true)
-  if (yes) await env.REPORTS.put(`member:${id}`, '1', { expirationTtl: MEMBER_TTL })
+  if (yes) await store(env).put(`member:${id}`, '1', { expirationTtl: MEMBER_TTL })
   return yes
 }
 
@@ -196,7 +229,7 @@ async function signin(req, env) {
   await limited(req, env)
   signinReady(env)
   const code = b64url(crypto.getRandomValues(new Uint8Array(16)))
-  await env.REPORTS.put(`signin:${code}`, '{}', { expirationTtl: SIGNIN_TTL })
+  await store(env).put(`signin:${code}`, '{}', { expirationTtl: SIGNIN_TTL })
   return reply(200, { code, url: `https://t.me/${env.TG_BOT}?start=${code}`, group: GROUP_LINK, expiresIn: SIGNIN_TTL })
 }
 
@@ -206,11 +239,11 @@ async function claim(req, env, url) {
   signinReady(env)
   const code = url.searchParams.get('code') ?? ''
   if (!CODE.test(code)) throw new Refused(400, 'bad code')
-  const v = await env.REPORTS.get(`signin:${code}`)
+  const v = await store(env).get(`signin:${code}`)
   if (v == null) throw new Refused(404, 'the sign-in ran out, start it again')
   const who = JSON.parse(v)
   if (!who.id) return reply(202, { waiting: true })
-  await env.REPORTS.delete(`signin:${code}`)
+  await store(env).delete(`signin:${code}`)
   const member = await isMember(env, who.id)
   return reply(200, { pass: await makePass(env, who), username: who.username, member, group: GROUP_LINK })
 }
@@ -228,7 +261,7 @@ async function hook(req, env, ctx) {
   const start = /^\/start(?:\s+(\S+))?$/.exec(m.text.trim())
   if (!start) return reply(200, { ok: true })
   const code = start[1] ?? ''
-  const v = CODE.test(code) ? await env.REPORTS.get(`signin:${code}`) : null
+  const v = CODE.test(code) ? await store(env).get(`signin:${code}`) : null
   const user = { id: from.id, username: typeof from.username === 'string' && TG_USER.test(from.username) ? from.username : null }
   let answer
   if (v == null) {
@@ -236,7 +269,7 @@ async function hook(req, env, ctx) {
   } else if (JSON.parse(v).id) {
     answer = 'This sign-in was already used. Start it again in OneOS.'
   } else {
-    await env.REPORTS.put(`signin:${code}`, JSON.stringify(user), { expirationTtl: SIGNIN_TTL })
+    await store(env).put(`signin:${code}`, JSON.stringify(user), { expirationTtl: SIGNIN_TTL })
     answer = null
   }
   ctx.waitUntil((async () => {
@@ -269,8 +302,8 @@ async function part(req, env, url) {
   const n = int(url.searchParams.get('n'), 1, PARTS_MAX)
   const i = int(url.searchParams.get('i'), 0, n - 1)
   const length = int(req.headers.get('content-length'), 1, PART_MAX)
-  // Streamed into KV as it arrives: the Worker never holds the part.
-  await env.REPORTS.put(`part:${id}:${i}`, req.body, { expirationTtl: TTL, metadata: { n, bytes: length } })
+  // Into D1 in 1 MiB rows (store.js); KV streamed it before 0.5.18.
+  await store(env).put(`part:${id}:${i}`, req.body, { expirationTtl: TTL, metadata: { n, bytes: length } })
   return reply(200, { ok: true, id, part: i })
 }
 
@@ -332,16 +365,17 @@ async function report(req, env, ctx) {
   try { parsed = JSON.parse(text) } catch { throw new Refused(400, 'not JSON') }
   // Who sent it comes from the pass, never from the record.
   const r = { ...check(parsed), tg: user }
+  if (user) await perUser(env, user)
   // Every part must be there before the record is: the app sends them again otherwise.
   const missing = []
   for (let i = 0; i < (r.logs?.parts ?? 0); i++) {
-    const v = await env.REPORTS.get(`part:${r.reportId}:${i}`, { type: 'stream' })
+    const v = await store(env).get(`part:${r.reportId}:${i}`, { type: 'stream' })
     if (v == null) missing.push(i)
     else await v.cancel()
   }
   if (missing.length) return reply(409, { error: 'missing parts', missing })
   const receivedAt = new Date().toISOString()
-  await env.REPORTS.put(`report:${receivedAt}:${r.reportId}`, JSON.stringify({ ...r, receivedAt }), { expirationTtl: TTL })
+  await store(env).put(`report:${receivedAt}:${r.reportId}`, JSON.stringify({ ...r, receivedAt }), { expirationTtl: TTL })
   if (env.TG_TOKEN && env.TG_CHAT) ctx.waitUntil(ping(env, r).catch(() => {}))
   return reply(200, { ok: true, reportId: r.reportId })
 }
@@ -431,7 +465,7 @@ async function list(req, env, url) {
   admin(req, env)
   const prefix = url.searchParams.get('prefix') === 'part:' ? 'part:' : 'report:'
   const cursor = url.searchParams.get('cursor') || undefined
-  const r = await env.REPORTS.list({ prefix, cursor, limit: 100 })
+  const r = await store(env).list({ prefix, cursor, limit: 100 })
   return reply(200, { keys: r.keys.map((k) => ({ name: k.name, metadata: k.metadata ?? null })), cursor: r.list_complete ? null : r.cursor })
 }
 
@@ -439,7 +473,7 @@ async function get(req, env, url) {
   admin(req, env)
   const key = url.searchParams.get('key') ?? ''
   if (!KEY.test(key)) throw new Refused(400, 'bad key name')
-  const v = await env.REPORTS.get(key, { type: 'stream' })
+  const v = await store(env).get(key, { type: 'stream' })
   if (v == null) return reply(404, { error: 'not found' })
   return new Response(v, { headers: { 'content-type': key.startsWith('part:') ? 'application/octet-stream' : 'application/json' } })
 }
@@ -448,7 +482,7 @@ async function del(req, env, url) {
   admin(req, env)
   const key = url.searchParams.get('key') ?? ''
   if (!KEY.test(key)) throw new Refused(400, 'bad key name')
-  await env.REPORTS.delete(key)
+  await store(env).delete(key)
   return reply(200, { ok: true })
 }
 

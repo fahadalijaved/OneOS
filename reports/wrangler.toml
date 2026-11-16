@@ -13,10 +13,27 @@ binding = "REPORTS"
 id = "KV_NAMESPACE_ID"
 
 # 30 requests a minute per sender (a report is at most 4 parts and its record).
+# 0.5.18: the storage (store.js); the KV namespace above is only read and emptied.
+[[d1_databases]]
+binding = "DB"
+database_name = "oneos-reports"
+database_id = "D1_DATABASE_ID"
+
 [[ratelimits]]
 name = "LIMITER"
 namespace_id = "1001"
 simple = { limit = 30, period = 60 }
+
+# 0.5.18: per signed-in account, without KV writes (worker.js perUser).
+[[ratelimits]]
+name = "USER_LIMITER"
+namespace_id = "1002"
+simple = { limit = 3, period = 60 }
+
+[[ratelimits]]
+name = "FLOOD_LIMITER"
+namespace_id = "1003"
+simple = { limit = 15, period = 60 }
 
 # Daily usage check-ins (worker.js hello): counted, never stored per request in KV.
 [[analytics_engine_datasets]]

@@ -1043,7 +1043,7 @@ guest_root_mountpoint() {
 # not a Nothing phone) declared neither: no fingerprint entry at all (owner, A36). Only with the removal guard in
 # the set (see "Guest biometrics" below); the files go into the read-only /system layers made here.
 BIO_FEATURES=0
-[ "${ONEOS_GUEST_BIOMETRICS:-0}" = 1 ] && grep -q '^# biometric-remove guard' "$STAGE/guards.txt" 2>/dev/null && BIO_FEATURES=1
+[ "${ONEOS_GUEST_BIOMETRICS:-1}" = 1 ] && grep -q '^# biometric-remove guard' "$STAGE/guards.txt" 2>/dev/null && BIO_FEATURES=1
 bio_features_into() { # <overlay top layer>
     [ "$BIO_FEATURES" = 1 ] || return 0
     mkdir -p "$1/etc/permissions" || return 1
@@ -3287,7 +3287,7 @@ done
 # null", 3 touches acquired, none matched). ONEOS_GUEST_BIOMETRICS=1: on.
 # Only a set whose services.jar refuses removals copies the lists: a guest that lists One UI's fingerprints
 # without it would delete one from the phone when "Delete" is tapped. Every other set keeps its empty lists.
-if [ "${ONEOS_GUEST_BIOMETRICS:-0}" = 1 ] && grep -q '^# biometric-remove guard' "$STAGE/guards.txt" 2>/dev/null; then
+if [ "${ONEOS_GUEST_BIOMETRICS:-1}" = 1 ] && grep -q '^# biometric-remove guard' "$STAGE/guards.txt" 2>/dev/null; then
     # ColorOS can only use the biometrics the phone's TEE already holds. Enrolling
     # inside the guest needs a HardwareAuthToken, and the guest has no gatekeeper
     # to mint one (its PIN is verified locally), so ColorOS's "Add" does nothing.
@@ -3340,6 +3340,41 @@ if [ "${ONEOS_GUEST_BIOMETRICS:-0}" = 1 ] && grep -q '^# biometric-remove guard'
         fi
     done
     [ "$bio" -gt 0 ] && echo "Guest biometrics: carried One UI's $bio enrollment file(s) into the guest"
+    # 0.5.18: the in-display sensor's place (OneOSUdfps; Samsung's HAL gives the guest none). Samsung's sysfs gives it
+    # in mm: margin from the panel's bottom edge, offset from the middle, area width and height, ...; the centre is
+    # half the area height above that margin, as One UI's SemUdfpsHelper has it (the margin alone put the A36's
+    # circle 69 px under the panel's bright spot); One UI's display line gives the panel's native size and physical dpi. x y radius in native pixels.
+    UPOS=$(head -n 1 /sys/class/fingerprint/fingerprint/position 2>/dev/null)
+    ULINE=$(grep 'type INTERNAL' "$STAGE/display_host.txt" 2>/dev/null | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY' | head -n 1)
+    UWH=$(printf '%s\n' "$ULINE" | sed -n 's/.*physicalDisplayWidth=\([0-9]*\) physicalDisplayHeight=\([0-9]*\).*/\1 \2/p')
+    UDPI=$(printf '%s\n' "$ULINE" | sed -n 's/.*density [0-9]*, \([0-9.]*\) x [0-9.]* dpi.*/\1/p')
+    UGEO=''; [ -n "$UWH" ] && [ -n "$UDPI" ] && UGEO="$UWH $UDPI"
+    # The guest's /data/system (BIO_DST is its users/0: one level up was users/, where OneOSUdfps never looked).
+    UFILE=$STAGE/data/system/oneos_udfps
+    rm -f "$UFILE" "$STAGE/data/system/users/oneos_udfps"
+    if [ -n "$UPOS" ] && [ -n "$UGEO" ]; then
+        UXYR=$(echo "$UPOS $UGEO" | awk '{ n = split($1, p, ","); w = $2; h = $3; dpi = $4;
+            if (n < 6 || w < 100 || h < 100 || dpi < 100) exit; ppm = dpi / 25.4;
+            x = int(w / 2 + p[2] * ppm + 0.5); y = int(h - (p[1] + p[4] / 2) * ppm + 0.5); r = int(p[5] / 2 * ppm + 0.5);
+            if (p[1] > 0 && y > 0 && y < h && x > 0 && x < w && r > 10) print x, y, r }')
+        if [ -n "$UXYR" ]; then
+            echo "$UXYR" > "$UFILE" && chown 1000:1000 "$UFILE" && chmod 644 "$UFILE" &&
+                $BB chcon u:object_r:system_data_file:s0 "$UFILE" 2>/dev/null
+            echo "Guest biometrics: in-display sensor at $UXYR (x y radius px; from '$UPOS' and $UGEO)"
+        fi
+    fi
+    # An optical sensor with the panel's local HBM (One UI's floating features, as its fingerprint service reads
+    # them): OneOSSehTouch (patches/guest_seh_touch.py) lights the spot and tells Samsung's HAL of each touch, as One
+    # UI does; without both every capture failed (A36). The marker is what it looks for.
+    LFILE=$STAGE/data/system/oneos_fp_lhbm
+    rm -f "$LFILE"
+    FF=/system/etc/floating_feature.xml
+    if grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_LOCAL_HBM>1</SEC_FLOATING_FEATURE_LCD_CONFIG_LOCAL_HBM>' "$FF" 2>/dev/null &&
+       grep -q '<SEC_FLOATING_FEATURE_BIOAUTH_CONFIG_FINGERPRINT_FEATURES>[^<]*optical' "$FF" 2>/dev/null &&
+       [ -e /sys/class/lcd/panel/local_hbm ]; then
+        : > "$LFILE" && chown 1000:1000 "$LFILE" && chmod 644 "$LFILE" && $BB chcon u:object_r:system_data_file:s0 "$LFILE" 2>/dev/null
+        echo "Guest biometrics: optical sensor with local HBM: the spot and Samsung's touch request on each touch"
+    fi
 else
     # No removal guard in this set (or turned off): no copied lists may stay from an earlier stage.
     rm -f "$STAGE/data/system/users/0"/settings_fingerprint*.xml "$STAGE/data/system/users/0/settings_face.xml" "$STAGE/data/system/users/0/face_enrolled_position_0.xml" 2>/dev/null
@@ -5541,13 +5576,48 @@ cat > "$STAGE/data/local/tmp/app_storage_loop.sh" <<'APPLOOP'
 # Watches for installs/removals, gives the new package its data dirs, and makes
 # the launcher re-query so the app actually shows up.
 last=""
+up=0
 while true; do
     sleep 10
     case "$(getprop sys.boot_completed)" in 1) ;; *) continue ;; esac
+    # 0.5.18 (owner, A36: Nothing OS sluggish, "on Nothing Phone 3a it's smooth"): 217 of 242 guest apps ran
+    # uncompiled (dexopt status verify): a guest's apps are compiled by the background dexopt job, which waits for
+    # an idle phone on its charger, rare in a session, and compiles only apps with a usage profile (22 of 242);
+    # the images' own precompiled code does not hold with OneOS's patched framework. Owner: "It should compile apps
+    # fully for all OS'es and all devices": once per framework (a set update changes it), two minutes after boot,
+    # every app is compiled fully (speed), in the background so the network fix below keeps its pace.
+    up=$((up + 1))
+    if [ $up -eq 12 ]; then
+        key=$(cat /system/framework/framework.jar /system/framework/services.jar 2>/dev/null | md5sum | cut -d' ' -f1)
+        if [ -n "$key" ] && [ "$(cat /data/oneos_dexopt.done 2>/dev/null)" != "$key" ]; then
+            # App by app, with its progress in a notification (owner: show that it is optimizing); the last one
+            # says it is done and is swiped away (a shell notification cannot be withdrawn).
+            ( note() { cmd notification post -S bigtext -t "$1" oneos_dexopt "$2" > /dev/null 2>&1; }
+              pkgs=$(pm list packages 2>/dev/null | sed -n 's/^package://p')
+              total=$(printf '%s\n' "$pkgs" | grep -c .)
+              echo "$(date) dexopt: compiling all $total apps fully for this framework" >> /data/app_storage.log
+              note "Optimizing apps for this system" "0 / $total · the phone may be warm and slower until it is done"
+              i=0; : > /data/oneos_dexopt.log
+              for p in $pkgs; do
+                  i=$((i + 1))
+                  cmd package compile -m speed "$p" >> /data/oneos_dexopt.log 2>&1
+                  [ $((i % 5)) -eq 0 ] && note "Optimizing apps for this system" "$i / $total · the phone may be warm and slower until it is done"
+              done
+              echo "$key" > /data/oneos_dexopt.done
+              note "Apps optimized ✓" "All $total apps are compiled for this system."
+              echo "$(date) dexopt: done" >> /data/app_storage.log ) < /dev/null > /dev/null 2>&1 &
+        fi
+    fi
     netout=$(/system/bin/sh /data/local/tmp/net_fix.sh 2>/dev/null)
     [ -n "$netout" ] && echo "$(date) $netout" >> /data/app_storage.log
     cur=$(md5sum /data/system/packages.list 2>/dev/null | cut -d' ' -f1)
-    out=$(/system/bin/sh /data/local/tmp/ensure_app_storage.sh 2>/dev/null)
+    # 0.5.18: the sweep (a few processes per package) only when the package list changed, and every 5 minutes;
+    # every 10 s it was about 6 % of a core all session (owner, A36: Nothing OS sluggish).
+    sweeps=$(( ${sweeps:-0} + 1 )); out=''
+    if [ "$cur" != "$last" ] || [ $sweeps -ge 30 ]; then
+        sweeps=0
+        out=$(/system/bin/sh /data/local/tmp/ensure_app_storage.sh 2>/dev/null)
+    fi
     if [ -n "$last" ] && { [ "$cur" != "$last" ] || [ -n "$out" ]; }; then
         # A package appeared or went away. LauncherApps caches the app list, so
         # something installed from Aurora or Play Store is missing from both the

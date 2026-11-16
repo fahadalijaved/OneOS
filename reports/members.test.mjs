@@ -18,6 +18,12 @@ class FakeKV {
   async delete(k) { this.m.delete(k) }
 }
 
+// Cloudflare's rate limiter binding: limit calls a minute per key (the tests run within one).
+class FakeLimiter {
+  constructor(n) { this.n = n; this.m = new Map() }
+  async limit({ key }) { const c = (this.m.get(key) ?? 0) + 1; this.m.set(key, c); return { success: c <= this.n } }
+}
+
 const base = 'https://oneos-reports.example.workers.dev'
 const up = { 'x-oneos-key': 'up-key' }
 let status, tgCalls, realFetch
@@ -40,6 +46,7 @@ beforeEach(() => {
       if (s === 'down') throw new Error('network')
       return Response.json(s ? { ok: true, result: { status: s, is_member: s === 'restricted-in' } } : { ok: false, error_code: 400, description: 'user not found' })
     }
+    if (method === 'sendMessage') return Response.json({ ok: true, result: { message_id: 1000 + tgCalls.length } })
     return Response.json({ ok: true, result: {} })
   }
 })
@@ -161,4 +168,23 @@ test('Telegram down: 503, not a refusal; sign-in not set up: 503', async () => {
   status[42] = 'down'
   assert.equal((await call(e, 'POST', '/v1/report', { body: rec(), headers: { ...up, 'x-oneos-pass': pass } })).status, 503)
   assert.equal((await call(env({ PASS_KEY: undefined }), 'POST', '/v1/signin', { headers: up })).status, 503)
+})
+
+test('one account: 3 reports a minute, more refused; past 15 tries it is banned, announced, and refused after', async () => {
+  const e = env({ TG_THREAD: '6', USER_LIMITER: new FakeLimiter(3), FLOOD_LIMITER: new FakeLimiter(15) })
+  const { pass } = await signIn(e)
+  const h = { ...up, 'x-oneos-pass': pass }
+  const sent = (i) => call(e, 'POST', '/v1/report', { body: rec({ reportId: `cccccccccccccccc-${String(i).padStart(4, '0')}`, sessionId: 'cccccccccccccccc' }), headers: h })
+  const codes = []
+  for (let i = 0; i < 15; i++) codes.push((await sent(i)).status)
+  assert.deepEqual(codes.slice(0, 4), [200, 200, 200, 429])
+  assert.ok(!tgCalls.some((c) => c.method === 'banChatMember'), 'no ban within 15 tries')
+  const writes = [...e.REPORTS.m.keys()].filter((k) => !k.startsWith('report:') && !k.startsWith('member:'))
+  assert.deepEqual(writes, [], 'no counters in KV')
+  assert.equal((await sent(15)).status, 403)
+  assert.equal(tgCalls.find((c) => c.method === 'banChatMember').body.user_id, 42)
+  assert.ok(tgCalls.some((c) => c.method === 'sendMessage' && /banned from the group/.test(c.body.text) && c.body.message_thread_id === 6))
+  assert.equal(e.REPORTS.m.has('banned:42'), true)
+  assert.equal((await sent(16)).status, 403)
+  assert.equal(tgCalls.filter((c) => c.method === 'banChatMember').length, 1)
 })

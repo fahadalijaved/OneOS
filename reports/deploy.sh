@@ -35,7 +35,7 @@ done
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-cp "$HERE/worker.js" "$HERE/wrangler.toml" "$WORK/"
+cp "$HERE/worker.js" "$HERE/store.js" "$HERE/package.json" "$HERE/wrangler.toml" "$WORK/"
 cd "$WORK"
 
 # The namespace, by title.
@@ -51,6 +51,22 @@ fi
 [ -n "$ID" ] || { echo "Could not find or create the KV namespace oneos-reports"; exit 1; }
 sed -i "s/KV_NAMESPACE_ID/$ID/" wrangler.toml
 echo "KV namespace oneos-reports: $ID"
+
+# 0.5.18: the D1 database "oneos-reports" (store.js; KV's 1000 writes a day ran out), by name or created, and its
+# tables (CREATE ... IF NOT EXISTS: nothing in them is touched on a later deploy).
+d1id() { $WRANGLER d1 list --json 2>/dev/null | python3 -c 'import json,sys
+for d in json.load(sys.stdin):
+    if d.get("name") == "oneos-reports": print(d.get("uuid") or d.get("database_id") or "")'; }
+DB=$(d1id)
+if [ -z "$DB" ]; then
+    $WRANGLER d1 create oneos-reports >/dev/null
+    DB=$(d1id)
+fi
+[ -n "$DB" ] || { echo "Could not find or create the D1 database oneos-reports"; exit 1; }
+sed -i "s/D1_DATABASE_ID/$DB/" wrangler.toml
+node -e 'import("./store.js").then((m) => process.stdout.write(m.SCHEMA.join(";\n") + ";\n"))' > schema.sql
+$WRANGLER d1 execute oneos-reports --remote --yes --file schema.sql >/dev/null 2>&1 || { echo "D1 schema FAILED"; exit 1; }
+echo "D1 database oneos-reports: $DB (tables ready)"
 
 $WRANGLER deploy 2>&1 | tee deploy.log | grep -E "Uploaded|Deployed|https://|error|Error" || true
 URL=$(grep -o 'https://oneos-reports\.[a-z0-9-]*\.workers\.dev' deploy.log | head -1)

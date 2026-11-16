@@ -468,7 +468,9 @@ rm -f /dev/oneos_dt2w_event* 2>/dev/null
 # One UI's protected state against the record the switch made (see
 # oneos_switch.sh): every guest process is gone by now. Logged only.
 host_state() {
-    f=$(readlink -f "$(getprop ro.frp.pst)" 2>/dev/null)
+    # One UI's FRP partition: the session points ro.frp.pst at the guest's own block (guest_props.sh).
+    f=$(cat "$S/host_frp_pst" 2>/dev/null); [ -n "$f" ] || f=$(getprop ro.frp.pst)
+    f=$(readlink -f "$f" 2>/dev/null)
     [ -b "$f" ] && echo "frp $(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)"
     for p in /data/misc/gatekeeper /data/apex/active /data/apex/sessions; do
         [ -d "$p" ] && find "$p" -type f -exec stat -c '%n %s %Y' {} + 2>/dev/null | sort

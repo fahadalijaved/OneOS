@@ -16,7 +16,8 @@
 # 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
 # biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py); the fingerprint sensor through AIDL (patches/guest_force_aidl_fingerprint.py, from pull request #152)
 # guest lock enrolment handle: verifyGatekeeperPasswordHandle answers the guest lock's own handle with a placeholder token (patches/guest_local_lock_hat.py, from pull request #152)
-fedc3ad900b8d6d84f533c62584224df346c13ec72bf565348e53e98f228d31e  services_patched.jar
+# in-display fingerprint place: FingerprintProvider.getWorkaroundSensorProps asks OneOSUdfps (/data/system/oneos_udfps, from the phone's sysfs) first (patches/guest_udfps_location.py)
+610d83b0727b4a1aaeacc18fce90a0c04c62906e9c4be6142160c567afbe0469  services_patched.jar
 3d1e391a2a9042aba2d3238b91014c35a60c476ada648651b6306573a358d80e  vold_patched
 f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so
 ef24c219f8bd129f796fc445e1bd81315822d7e8d406ac83f0b34f18c1765a59  framework_patched.jar

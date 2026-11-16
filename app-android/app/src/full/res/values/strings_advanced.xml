@@ -267,6 +267,8 @@
     <string name="prepare_running_title">Setting up · %1$d%%</string>
     <string name="prepare_stop_summary">Stops after the current file. The system is then not set up, and the switch stays off until you set it up again.</string>
     <string name="prepare_done">Finished</string>
+    <string name="prepare_first_session_title">First session: apps are optimized</string>
+    <string name="prepare_first_session_summary">The first session after this update compiles every app for the new system, for about 10–20 minutes. The phone may be warm and slower until the “Apps optimized” notification appears.</string>
     <string name="prepare_not_done">Didn\'t finish</string>
     <string name="prepare_moved_title">Kept as old copies</string>
     <string name="prepare_delete_gz_summary">%1$s isn\'t needed now. If you set up again later, you\'ll need to download it once more.</string>

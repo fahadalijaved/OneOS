@@ -253,6 +253,8 @@
     <string name="prepare_running_title">Настройка · %1$d%%</string>
     <string name="prepare_stop_summary">Останавливается после текущего файла. Тогда система не настроена, и переключение остаётся недоступным, пока вы не настроите её снова.</string>
     <string name="prepare_done">Завершено</string>
+    <string name="prepare_first_session_title">Первый сеанс: оптимизация приложений</string>
+    <string name="prepare_first_session_summary">Первый сеанс после этого обновления компилирует все приложения для новой системы, примерно 10–20 минут. Телефон может нагреваться и работать медленнее, пока не появится уведомление «Apps optimized».</string>
     <string name="prepare_not_done">Не завершено</string>
     <string name="prepare_moved_title">Сохранено как старые копии</string>
     <string name="prepare_delete_gz_summary">Теперь %1$s не нужен. Если позже вы будете настраивать снова, его придётся скачать ещё раз.</string>

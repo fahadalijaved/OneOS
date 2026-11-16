@@ -107,7 +107,7 @@ class PackageSetsTest {
         // TelephonyResCommon_Sys.apk in this guest's overlay order (run 10).
         val nothing = PackageSets.NOTHING_F8U
         assertEquals(Images.ID_NOTHING_METROID, nothing.imageId)
-        assertEquals("out/overlays_nothing_r37", nothing.sourceDir)
+        assertEquals("out/overlays_nothing_r38", nothing.sourceDir)
         assertEquals(48, nothing.files.size) // 0.4.55: samcam_bar.tar, the S26 Ultra's camera for the phones
         // r12: Nothing's SystemUI with its quick settings at the screen's own density on the inner panel;
         // r13: its launcher with the drawer's category boxes per row from the width; r17: the ringtone kits

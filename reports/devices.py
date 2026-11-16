@@ -123,6 +123,9 @@ def recent_reports(db, days):
     rows = defaultdict(lambda: {"n": 0, "home": 0, "tried": 0, "items": defaultdict(lambda: [0, 0]), "last": "", "version": ""})
     if not os.path.exists(db):
         return rows
+    # One report per session (the newest): a session sent again, or a scripted client sending one session hundreds
+    # of times (2026-11-16: 531 reports of one A35 session), counts once.
+    latest = {}
     for line in open(db):
         if not line.strip():
             continue
@@ -130,6 +133,11 @@ def recent_reports(db, days):
         c = r.get("checklist")
         if not c or not r.get("sessionId") or (r.get("receivedAt") or "")[:10] < since:
             continue
+        sid = r["sessionId"]
+        if sid not in latest or (r.get("receivedAt") or "") >= (latest[sid].get("receivedAt") or ""):
+            latest[sid] = r
+    for r in latest.values():
+        c = r["checklist"]
         key = ((r.get("phone") or {}).get("profile"), r.get("image"))
         row = rows[key]
         row["n"] += 1

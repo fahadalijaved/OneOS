@@ -289,6 +289,8 @@ class PrepareFragment : CardsFragment() {
                 Cards.row(card, OuiIcons.drawable.ic_oui_close, getString(R.string.tests_stop_title), getString(R.string.prepare_stop_summary)) { PrepareJob.cancel() }
             }
             job.message?.let { Cards.row(card, 0, getString(if (job.phase == PrepareJob.Phase.DONE) R.string.prepare_done else R.string.prepare_not_done), it) }
+            // 0.5.18 (owner): the first session after an update compiles every app (guest_prepare.sh), say so.
+            if (job.phase == PrepareJob.Phase.DONE) Cards.row(card, 0, getString(R.string.prepare_first_session_title), getString(R.string.prepare_first_session_summary))
             job.infos.takeIf { it.isNotEmpty() }?.let { Cards.row(card, 0, getString(R.string.prepare_moved_title), it.joinToString("\n")) }
         }
     }

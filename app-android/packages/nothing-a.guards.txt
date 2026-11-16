@@ -5,7 +5,8 @@
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py); the fingerprint sensor through AIDL (patches/guest_force_aidl_fingerprint.py, from pull request #152)
 # guest lock enrolment handle: verifyGatekeeperPasswordHandle answers the guest lock's own handle with a placeholder token (patches/guest_local_lock_hat.py, from pull request #152)
-3bf28151f6d0a0966a6133a12975c31386ba10d7589aba73bcefb1b3e0423e50  services_patched.jar
+# in-display fingerprint place: FingerprintProvider.getWorkaroundSensorProps asks OneOSUdfps (/data/system/oneos_udfps, from the phone's sysfs) first (patches/guest_udfps_location.py)
+cf24e6e9e9522c2fd66e42a4b7f720fba4b8d0eee262d39954dd0da5ce9c54ae  services_patched.jar
 027946a3c268cc441c875f62503c578374125ba3ab128e2ce9ad1b0f5e378aa4  vold_patched
 f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so
 d53f75f1f9e28d8766964d3c6e5625ad94de120ee60dfdf9555d5745cadceffc  framework_patched.jar
