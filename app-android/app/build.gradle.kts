@@ -540,10 +540,25 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        // oneios channel (akshaynexus/OneOS): after a merge of upstream, upstream's version and versionCode plus one.
-        // 0.5.14 (143): upstream OneOS 0.5.13 (142) merged into oneios.
-        versionCode = 143
-        versionName = "0.5.14"
+        // oneios channel (akshaynexus/OneOS). The version reads the git history (automated 2026-11-16; it was
+        // hand-set after every upstream merge: 0.5.14 (143) was upstream OneOS 0.5.13 (142) merged into oneios).
+        // versionCode counts the commits since OneiOS 0.1.10's fork commit (bb1ef38) on top of 143: it grows with
+        // every commit on oneios, and AppUpdate only compares codes. The name is 0.5.<14 + the same count>.
+        // In a checkout without that history (a shallow clone): the last released values, so a build is never
+        // older than what it carries.
+        val versionBase = "bb1ef384e594125fb6f79be6eace3ebfbd354c46" // OneOS #10's merge: OneiOS 0.1.10's fork commit
+        val commitsSinceBase = try {
+            val p = ProcessBuilder("git", "rev-list", "--count", "$versionBase..HEAD")
+                .redirectErrorStream(true)
+                .start()
+            val n = p.inputStream.readBytes().decodeToString().trim().toIntOrNull()
+            p.waitFor()
+            n ?: 0
+        } catch (e: Exception) {
+            0
+        }
+        versionCode = 143 + commitsSinceBase
+        versionName = "0.5." + (14 + commitsSinceBase)
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's
