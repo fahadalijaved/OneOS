@@ -585,12 +585,26 @@ for svc in vold keystore2 servicemanager hwservicemanager logd lmkd installd; do
     [ "$(base_prop init.svc.$svc)" = running ] || continue
     [ "$(getprop init.svc.$svc)" = running ] || failsafe "$svc is $(getprop init.svc.$svc), was running at the switch"
 done
+# The shmem THP mode back to what the switch found (the switch wrote advise
+# for the 2 MiB host pages and kept the old value in the base). Nothing when
+# the switch never saved one.
+SHMEM_EN="$T/sys/kernel/mm/transparent_hugepage/shmem_enabled"
+if [ -f "$BASE/shmem_enabled" ] && [ -f "$SHMEM_EN" ]; then
+    ORIG_SHMEM=$(cat "$BASE/shmem_enabled")
+    if [ "$(cat "$SHMEM_EN" 2>/dev/null)" != "$ORIG_SHMEM" ]; then
+        echo "$ORIG_SHMEM" > "$SHMEM_EN" 2>/dev/null &&
+            say "shmem_enabled back: $ORIG_SHMEM" ||
+            failsafe "shmem_enabled is $(cat "$SHMEM_EN" 2>/dev/null), was $ORIG_SHMEM at the switch, and the write back failed"
+    fi
+    rm -f "$BASE/shmem_enabled"
+fi
+[ ! -f "$BASE/shmem_enabled" ] || failsafe "shmem_enabled is $(cat "$SHMEM_EN" 2>/dev/null), the switch's old value $(cat "$BASE/shmem_enabled" 2>/dev/null) is still in the base: not restored"
 [ "$(getenforce 2>/dev/null)" = "$(cat "$BASE/selinux")" ] || failsafe "SELinux is $(getenforce 2>/dev/null), was $(cat "$BASE/selinux")"
 # The session scripts set no persist property. What differs from the switch
 # is One UI's own daemons' doing, or xnuhost's against its contract: by name
 # only (values can be personal), and nothing is written back.
 changed=$(getprop | awk -F'\\]: \\[' 'NR == FNR { b[$1] = $2; next } $1 ~ /^\[persist\./ && (!($1 in b) || b[$1] != $2) { sub(/^\[/, "", $1); print $1 }' "$BASE/props" - 2>/dev/null | head -n 20 | tr '\n' ' ')
-say "Gate A: no session process, the stage mounted nowhere, vold, keystore2 and servicemanager as at the switch, SELinux $(getenforce 2>/dev/null); persist properties that differ from the switch: ${changed:-none}"
+say "Gate A: no session process, the stage mounted nowhere, vold, keystore2 and servicemanager as at the switch, SELinux $(getenforce 2>/dev/null), shmem_enabled $(cat "$SHMEM_EN" 2>/dev/null || echo -); persist properties that differ from the switch: ${changed:-none}"
 
 step "[3/5] Gate B: One UI's display and services" 75
 # The stop loop must be gone before anything starts (its last ctl.stop can
