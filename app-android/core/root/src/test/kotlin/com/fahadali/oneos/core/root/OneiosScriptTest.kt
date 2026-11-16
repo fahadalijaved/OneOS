@@ -612,7 +612,7 @@ class OneiosScriptTest {
     /** The owner (2026-11-16): another phone may try it, told what to expect — a warning, not a refusal. */
     @Test
     fun theSwitchWarnsOtherPhonesInsteadOfRefusingThem() {
-        val sw = code(switchScript)
+        val sw = code(switchScript).joinToString("\n")
         assertTrue(sw.contains("WARNING: OneiOS is mainly tested and working on the Galaxy S24 Ultra 5G"))
         assertFalse(sw.contains("refuse \"iOS runs on the Galaxy S24 Ultra"))
     }
