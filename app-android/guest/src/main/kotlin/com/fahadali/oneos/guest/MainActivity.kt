@@ -122,6 +122,7 @@ class MainActivity : AppCompatActivity() {
         cards.row(apps, getString(R.string.bring_entry_title), getString(R.string.bring_entry_summary)) {
             startActivity(Intent(this, BringAppsActivity::class.java))
         }
+        fullLogsCard(list)
         val root = cards.section(list, "Root", getColor(R.color.preboot_card))
         cards.row(root, "Root status", if (state.root) "Active · OneOS guest runtime" else state.error ?: "Inactive")
         cards.row(root, "Root permissions", "Manage access for apps in this guest") {
@@ -139,6 +140,31 @@ class MainActivity : AppCompatActivity() {
                     .setMessage(next.error).setPositiveButton(android.R.string.ok,null).show()
             }
         }.isEnabled = state.active
+    }
+
+    /** Record full logs from now (0.5.17): hidden when the session's OneOS is too old to answer. */
+    private fun fullLogsCard(list: android.widget.LinearLayout) {
+        val status = FullLogs.status(this)
+        if (status == FullLogs.Status.UNSUPPORTED) return
+        val cards = com.fahadali.oneos.shared.NativeCards
+        val logs = cards.section(list, getString(R.string.logs_title), getColor(R.color.preboot_card))
+        val summary = getString(when (status) {
+            FullLogs.Status.ON -> R.string.full_logs_on
+            FullLogs.Status.STARTING -> R.string.full_logs_starting
+            else -> R.string.full_logs_off
+        })
+        cards.row(logs, getString(R.string.full_logs_title), summary) {
+            AlertDialog.Builder(this).setTitle(R.string.full_logs_title).setMessage(R.string.full_logs_confirm)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.full_logs_start) { _, _ ->
+                    runCatching { FullLogs.request(this) }.onFailure { e ->
+                        android.widget.Toast.makeText(this, getString(R.string.full_logs_failed, e.message ?: e.javaClass.simpleName), android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    // The watcher checks every second: show its answer shortly.
+                    list.postDelayed({ if (!isDestroyed) GuestRuntime.refresh(this) { if (!isDestroyed) renderRuntime(it) } }, 2500)
+                    GuestRuntime.refresh(this) { if (!isDestroyed) renderRuntime(it) }
+                }.show()
+        }.isEnabled = status == FullLogs.Status.OFF
     }
 
     override fun onNewIntent(intent: Intent) {

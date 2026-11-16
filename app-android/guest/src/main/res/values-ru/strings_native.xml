@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="add_tile_title">Добавить плитку «Вернуться в One UI»</string>
+    <string name="guest_report">Как дела?</string>
+    <string name="checklist_card_summary">Отмечайте, что работает. Отправите это потом из One UI.</string>
+    <string name="return_splash_title">Возвращение в One UI</string>
+    <string name="return_shortcut">Вернуться в One UI</string>
+</resources>

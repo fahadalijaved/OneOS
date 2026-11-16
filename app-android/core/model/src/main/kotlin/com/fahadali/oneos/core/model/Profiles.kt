@@ -138,6 +138,7 @@ object Profiles {
     const val ID_S_8450 = "s-8450"
     const val ID_M55S = "m55s"
     const val ID_S_PLUS_9945 = "s-plus-9945"
+    const val ID_S_PLUS_8650 = "s-plus-8650"
     const val ID_S_ULTRA_8550_JP = "s-ultra-8550-jp"
     const val ID_S_9925 = "s-9925"
     const val ID_A16_MTK = "a16-mtk"
@@ -228,6 +229,8 @@ object Profiles {
      * Exynos S26s before them.
      */
     private val NOTHING_CHOICE = ImageChoice(Images.ID_NOTHING_METROID, PackageSets.ID_NOTHING_F8U, tested = false)
+    /** Nothing OS for the Galaxy A series (0.5.15, untested): the Phone (3a) build, [PackageSets.NOTHING_A]; every One UI 9 A and M phone (owner: "A17, 16 etc"). */
+    private val NOTHING_A_CHOICE = ImageChoice(Images.ID_NOTHING_ASTEROIDS, PackageSets.ID_NOTHING_A, tested = false)
     /**
      * OriginOS 7 (0.4.73, experimental): the Snapdragon S25 and S26 series and the Z Fold7, Fold8 and Fold8 Ultra
      * (each profile names it itself: the shared choice lists also serve Exynos phones). Tested on the
@@ -333,7 +336,9 @@ object Profiles {
             // Tested: runs 41-44 booted it here (staged over adb by
             // scripts/deploy-phone.sh, not yet from the app).
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8U, tested = true),
-            INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, NOTHING_CHOICE,
+            // 0.5.15 (owner 2026-11-15: "infinity, nothingos, lineage all worked perfectly on f8u, we tested it
+            // ourselves"): tested by the team on this phone.
+            INFINITYX_TESTED, LINEAGE_CHOICE.copy(tested = true), HYPEROS_CHOICE, NOTHING_CHOICE.copy(tested = true),
             ORIGINOS_TESTED,
         ),
     )
@@ -618,7 +623,7 @@ object Profiles {
         codename = "a57x",
         socModel = "s5e8865",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_TESTED, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_1105_TESTED, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(EXYNOS),
     )
 
@@ -639,7 +644,7 @@ object Profiles {
         codename = "a56x",
         socModel = "s5e8855",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE),
+        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(EXYNOS),
     )
 
@@ -707,7 +712,7 @@ object Profiles {
         codename = "a07",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -748,7 +753,8 @@ object Profiles {
         socModel = "SM6475",
         form = FormFactor.BAR,
         // 0.4.57: not the Pixel 9 Pro XL, as on the A26: the same ARMv8.2 CPU features (no ilrcpc, frint, flagm...).
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE),
+        // 0.5.15: Nothing OS for the A series (the Phone (3a) build, plain ARMv8 code, its own brightness range), untested, last.
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -909,7 +915,7 @@ object Profiles {
         // 0.4.57: not the Pixel 9 Pro XL any more: its own programs stopped on "Illegal instruction" before
         // it started, in every session (0.4.54/0.4.55 reports 9f2307a3, 560a1dcb, c926c955). This ARMv8.2
         // CPU lacks what every phone it runs on has (ilrcpc, frint, flagm, jscvt, fcma, i8mm, bf16...).
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -928,7 +934,7 @@ object Profiles {
         codename = "a17",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -956,7 +962,7 @@ object Profiles {
         codename = "a16x",
         socModel = "s5e8535",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
     )
 
@@ -1064,7 +1070,7 @@ object Profiles {
         codename = "a15",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -1113,7 +1119,7 @@ object Profiles {
         codename = "a34x",
         socModel = "MT6877",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE),
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(MEDIATEK, olderVendor("30 (Android 11)", "6.6")),
     )
 
@@ -1284,13 +1290,22 @@ object Profiles {
      */
     val A15_5G = A07_5G.copy(id = ID_A15_5G, label = "Galaxy A15 5G", modelPrefix = "SM-A156", codename = "a15x")
 
+    /**
+     * Galaxy S24+ with Snapdragon, from 0.5.15: a probe report of 2026-11-15 (SM-S9260, e2q, SM8650 like the
+     * Galaxy S24, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and kernel 6.1, one panel on port
+     * 131 (backlight max 12750, One UI brightnessMaximum 5.0), density 450, no SVE or SME, installd 85
+     * methods; "sm9260 won't work": the probe refused it as an unknown model). The Snapdragon S24's images and
+     * note, untested. Shares SM-S926 with [S_PLUS_9945]: the codename and the chip tell them apart.
+     */
+    val S_PLUS_8650 = S_8650.copy(id = ID_S_PLUS_8650, label = "Galaxy S24+", modelPrefix = "SM-S926", codename = "e2q")
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
-        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, A15_5G,
+        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, A15_5G, S_PLUS_8650,
     )
 
     /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */

@@ -55,7 +55,7 @@ class ImagesTest {
         // (Nothing's are product/priv-app GmsCore, Phonesky, GooglePartnerSetup, GoogleRestore, ConfigUpdater
         // and system_ext/priv-app GoogleServicesFramework: six folders guest_prepare.sh's patterns cover).
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_METROID, Images.OXYGEN16, Images.ORIGINOS7, Images.LINEAGE24),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.ORIGINOS7, Images.LINEAGE24),
             Images.ALL.filter { it.googleServices },
         )
         // 0.5.06: LineageOS 24 has none of its own: its Google apps are One UI's, laid over the guest at session time
@@ -70,11 +70,11 @@ class ImagesTest {
         assertEquals("LineageOS 24", Images.LINEAGE24.name)
         assertEquals("OnePlus 15", Images.LINEAGE24.shortName)
         // 0.4.73: OriginOS 7 presents the Play services of its own gmssystem payload, as the Pixel images.
-        assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.ORIGINOS7), Images.ALL.filter { it.presentsGms })
+        assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.NOTHING_ASTEROIDS, Images.ORIGINOS7), Images.ALL.filter { it.presentsGms })
         assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID, Images.OXYGEN16,
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16,
                 Images.ORIGINOS7, Images.LINEAGE24),
             Images.ALL,
         )
@@ -105,7 +105,7 @@ class ImagesTest {
         assertEquals("484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b", nothing.rawSha256)
         assertEquals("AQ3A.250924.001", nothing.buildId)
         assertEquals(Images.SHARED_FOLDER_URL, nothing.downloadUrl)
-        assertEquals(null, nothing.testedOn)
+        assertEquals("Galaxy Z Fold8 Ultra", nothing.testedOn) // 0.5.15: the owner's runs
         assertEquals(emptyList<String>(), nothing.cpuRequired) // 0.4.36: no SVE needed after all
         assertEquals(emptyList<String>(), nothing.cpuUsedByApps)
         assertEquals(SystemFamily.NOTHING, nothing.family)
@@ -141,7 +141,7 @@ class ImagesTest {
             listOf(
                 SystemFamily.COLOROS, SystemFamily.COLOROS,
                 SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL,
-                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS, SystemFamily.LINEAGE,
+                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS, SystemFamily.LINEAGE,
             ),
             Images.ALL.map { it.family },
         )
@@ -287,10 +287,10 @@ class ImagesTest {
             Profiles.S_PLUS_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
             Profiles.S_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
             Profiles.FLIP7 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper),
-            Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper),
+            Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, Images.NOTHING_ASTEROIDS),
             Profiles.FLIP5 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper),
             Profiles.FLIP8 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, nothing),
-            Profiles.A36 to listOf(xin, ifx, lineage, hyper), // 0.4.57: no Pixel 9 Pro XL on ARMv8.2
+            Profiles.A36 to listOf(xin, ifx, lineage, hyper, Images.NOTHING_ASTEROIDS), // 0.4.57: no Pixel 9 Pro XL on ARMv8.2; 0.5.15: Nothing OS (A series)
         )
         for ((p, good) in takes) {
             assertEquals(p.id, good, p.images())

@@ -111,6 +111,38 @@ public final class OneOSGuestLock {
         }
     }
 
+    /**
+     * The gatekeeper-password handle the guest lock answers a matched credential with. A value no
+     * temporary gatekeeper password of the phone can have: the guest never stores one.
+     */
+    public static final long HANDLE = 0x4f4e454f53L;
+    /** Length of a gatekeeper hardware auth token; only its presence is looked at. */
+    static final int HAT_LENGTH = 69;
+
+    /**
+     * What ILockSettings.verifyGatekeeperPasswordHandle answers for the handle above: a hardware
+     * auth token, which is what a biometric enrollment needs to start. Nothing verifies it; the
+     * phone's face HAL is never asked about it (patches/guest_local_lock.py).
+     *
+     * @return null when the handle is not the guest's, or no guest lock is set: the framework
+     *         answers that call as it would
+     */
+    public static byte[] hat(long handle, int userId) {
+        if (userId != 0 || handle != HANDLE) {
+            return null;
+        }
+        try {
+            if (!sLoaded) {
+                synchronized (OneOSGuestLock.class) {
+                    loadRecord();
+                }
+            }
+            return sType != TYPE_NONE ? new byte[HAT_LENGTH] : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     /** The wait that follows the given number of failures in a row, in ms. */
     static long timeoutMs(int failures) {
         if (failures <= 0) {

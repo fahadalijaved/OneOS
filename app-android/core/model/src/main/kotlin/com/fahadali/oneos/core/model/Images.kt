@@ -129,6 +129,7 @@ object Images {
     const val ID_PIXEL_KOMODO = "pixel9proxl-komodo"
     const val ID_INFINITYX = "infinityx41-findx9u"
     const val ID_NOTHING_METROID = "nothingos5-metroid"
+    const val ID_NOTHING_ASTEROIDS = "nothingos5-asteroids"
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
     const val ID_ORIGINOS7 = "originos7-pd2609ma"
     /** Starts with "lineage": switcher/assets/boot_status.sh names the boot splash from it. */
@@ -363,7 +364,7 @@ object Images {
         gzSha256 = "608bb8602dcc0c85fc80127a2f9713a695508438b8c2d31eef3df25d23109bb5",
         rawBytes = 6_677_426_176L,
         rawSha256 = "899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2",
-        testedOn = null,
+        testedOn = "Galaxy Z Fold8 Ultra", // 0.5.15: the owner's own runs
         cpuRequired = emptyList(),
         cpuUsedByApps = listOf("sve2", "sme"),
         googleServices = true,
@@ -432,10 +433,42 @@ object Images {
         gzSha256 = "3026923ea476e998fd1ae828f441937106ffbe8fbaf613a316bce444998997bd",
         rawBytes = 6_067_867_648L,
         rawSha256 = "484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b",
+        testedOn = "Galaxy Z Fold8 Ultra", // 0.5.15: the owner's own runs
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.NOTHING,
+    )
+
+    /**
+     * Nothing OS 5.0 for the Galaxy A series (0.5.15, untested), from the Nothing Archive dump of the
+     * Phone (3a) "Asteroids" (Asteroids_C5.0-261106-1007, CQ2A.260522.002-CP2A.260605.016, security
+     * patch 2026-11-01): Nothing's mid-range build for mid-range Galaxies, the same Nothing banner. Its
+     * core binaries hold no instruction past ARMv8.2 (the bionic linker's and libc's SVE/SME/MTE/MOPS
+     * routines run only when the CPU reports them) and its boot image is compiled for plain ARMv8
+     * (features a53 + crc), so it runs on the A-series chips (Cortex-A78/A55), unlike the Pixel images.
+     */
+    val NOTHING_ASTEROIDS = ImageRef(
+        id = ID_NOTHING_ASTEROIDS,
+        label = "Nothing OS 5.0, A series build",
+        shortName = "Nothing OS",
+        name = "Nothing OS 5.0",
+        variant = "A series",
+        blurb = "Nothing's system from the Phone (3a), for the Galaxy A series. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CQ2A.260522.002-CP2A.260605.016",
+        gzName = "OneOS_NothingOS5_ASeries.img.gz",
+        gzBytes = 3_065_595_491L,
+        gzSha256 = "c64cddcff3c56c21a26c6fdb7350fddaa32b1a9c8b4edebdb713b20f52dce9fe",
+        rawBytes = 5_972_463_616L,
+        rawSha256 = "d21ded7b8b36b9cd8896e8159e7c274ae160f08de0f270eb17c14c63e66f6de6",
         testedOn = null,
         cpuRequired = emptyList(),
         cpuUsedByApps = emptyList(),
         googleServices = true,
+        // GmsCore in its product gmssystem APEX, Pixel's layout (the Metroid build's is a priv-app).
+        presentsGms = true,
         family = SystemFamily.NOTHING,
     )
 
@@ -524,7 +557,7 @@ object Images {
         gzSha256 = "20fdf29d8dae4579b28608b7d94b6355cc720964994a4c130d34bb6568354c33",
         rawBytes = 2_327_068_672L,
         rawSha256 = "f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261",
-        testedOn = null,
+        testedOn = "Galaxy Z Fold8 Ultra", // 0.5.15: the owner's own runs
         cpuRequired = emptyList(),
         cpuUsedByApps = emptyList(),
         googleServices = true,
@@ -539,7 +572,7 @@ object Images {
      */
     val DATA_UPGRADES: Map<String, String> = mapOf(ID_FIND_X9U_IN to ID_FIND_X9U_IN_1105)
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7, LINEAGE24)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, ORIGINOS7, LINEAGE24)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

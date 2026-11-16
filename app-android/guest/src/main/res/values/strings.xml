@@ -75,4 +75,13 @@
 
     <string name="tile_label">Back to One UI</string>
     <string name="tile_subtitle">OneOS</string>
+    <!-- 0.5.17 (owner): Record full logs from now, in the session (FullLogs). -->
+    <string name="logs_title">Logs</string>
+    <string name="full_logs_title">Record full logs from now</string>
+    <string name="full_logs_off">Something wrong? Turn this on, make it happen again, then go back to One UI and send a report</string>
+    <string name="full_logs_starting">Starting…</string>
+    <string name="full_logs_on">Recording full logs. Go back to One UI and send a report when you are done</string>
+    <string name="full_logs_confirm">Record everything from now until you go back to One UI? Full logs can use more battery and storage. Your report will include them.</string>
+    <string name="full_logs_start">Record</string>
+    <string name="full_logs_failed">Could not ask for full logs: %1$s</string>
 </resources>

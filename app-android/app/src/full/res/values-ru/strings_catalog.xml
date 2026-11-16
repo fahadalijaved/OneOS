@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_settings">Настройки</string>
+    <string name="catalog_set_up">Настроить</string>
+    <string name="catalog_boot">Запустить</string>
+    <string name="catalog_more">Параметры системы</string>
+    <string name="catalog_details">О системе</string>
+    <string name="catalog_optimised">Оптимизировано</string>
+    <string name="catalog_experimental">Экспериментально</string>
+    <string name="catalog_unsupported">Не поддерживается</string>
+    <string name="catalog_unsupported_message">OneOS пока не предлагает %1$s для %2$s. Другие системы с пометкой «Оптимизировано» или «Экспериментально» на нём работают.</string>
+    <string name="catalog_not_available">Недоступно</string>
+    <string name="catalog_this_phone">этого телефона</string>
+    <string name="settings_load_gsi">Загрузить свой GSI</string>
+    <string name="settings_storage">Управление памятью OneOS</string>
+    <string name="settings_repair">Исправить патчи OneOS</string>
+    <string name="settings_help">Справка и о приложении</string>
+    <string name="settings_onboarding">Прежде чем начать</string>
+    <string name="settings_debug">Отладка</string>
+    <string name="settings_thermal">Включить терморегулятор OneOS</string>
+    <string name="settings_experimental">Экспериментальное</string>
+    <string name="settings_camera">Включить исправление камеры</string>
+    <string name="settings_allow_lock">Разрешить переключение с блокировкой экрана</string>
+    <string name="catalog_open_checks">Открыть предзагрузочные проверки для %1$s</string>
+    <string name="catalog_update">Обновить</string>
+    <string name="catalog_switch">Переключиться</string>
+</resources>

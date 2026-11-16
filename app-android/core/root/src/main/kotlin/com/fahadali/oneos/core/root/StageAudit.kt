@@ -414,6 +414,8 @@ object StageAudit {
         "cat", "ls", "mkdir", "mv", "cp", "rm", "chown", "chmod", "sha256sum", "date", "getprop", "pm", "getevent", "du",
         "env", "unset", "export", "set", "read", "exit", "return", "shift", "true", "false", "break", "continue", "exec",
         "trap", "am", "od", "find", "sleep",
+        // 0.5.17: tool-app off stops the one process whose program is that app's libtimer.so (tool_pids).
+        "kill",
     )
 
     private val WRITES = setOf("mkdir", "mv", "cp", "rm", "chown", "chmod")

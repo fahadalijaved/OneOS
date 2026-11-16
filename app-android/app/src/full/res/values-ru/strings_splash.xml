@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="splash_starting">Запуск %1$s</string>
+    <string name="splash_test_run">Тестовый запуск: проверка %1$s</string>
+    <string name="splash_shutdown">Закрытие One UI</string>
+    <string name="splash_test_status">Тестовый запуск: проверка системы</string>
+</resources>

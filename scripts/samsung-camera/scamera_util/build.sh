@@ -18,6 +18,7 @@ if [ -n "$ORIG" ]; then
 fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
+[ -d "$ROOT/mysticgsi/tools/apktool" ] || ROOT=/srv/projects/OneOS  # run from a worktree: the tools stay in the main checkout
 APKTOOL=$(ls "$ROOT"/mysticgsi/tools/apktool/*.jar | head -1)
 SDK=${ANDROID_HOME:-/opt/android-sdk}
 AJ=$(ls -d "$SDK"/platforms/* | sort -V | tail -1)/android.jar

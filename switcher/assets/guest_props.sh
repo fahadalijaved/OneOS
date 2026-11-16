@@ -806,6 +806,20 @@ add)
         sed -i "s/^ro\.oplus\.display\.screenhole\.positon=.*/ro.oplus.display.screenhole.positon=$h/" "$NEW" &&
             echo "guest_props: ro.oplus.display.screenhole.positon=$h for the session ($what; the image's: $was)"
     fi
+    # Mid-range Galaxy A and M phones (0.5.14, owner's A36 on LineageOS: "a bit sluggish"): the
+    # guest's SystemUI draws its rounded corners and cutout as one full-screen layer
+    # (ScreenDecorHwcOverlay) that their composer does not take, so SurfaceFlinger composed the whole
+    # screen on the GPU every frame at 120 Hz (1,325 GPU-missed frames, GPU pinned at 1010 MHz).
+    # Without it the panel's own rounded corners are all there is to see. ONEOS_GUEST_SCREEN_DECOR=1
+    # keeps it.
+    case "$(getprop ro.product.model)" in
+        SM-A*|SM-M*)
+            if [ "${ONEOS_GUEST_SCREEN_DECOR:-0}" != 1 ]; then
+                sed -i '/^debug\.disable_screen_decorations=/d' "$NEW"
+                echo "debug.disable_screen_decorations=true" >> "$NEW"
+                echo "guest_props: debug.disable_screen_decorations=true for the session (mid-range Galaxy: the decor layer went to the GPU every frame)"
+            fi ;;
+    esac
     # AppSearch isolated storage: Pixel sets ro.appsearch.feature.enable_isolated_storage=true,
     # and system_server's AppSearch then starts a protected VM through the
     # virtualization APEX, which is One UI's here (run 41: UnsatisfiedLinkError in

@@ -21,6 +21,9 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MYST = os.path.join(ROOT, "mysticgsi")
+# Run from a worktree: MysticGSI stays checked out in the main tree only.
+if not os.path.isfile(os.path.join(MYST, "cli.py")):
+    MYST = "/srv/projects/OneOS/mysticgsi"
 
 
 def main():

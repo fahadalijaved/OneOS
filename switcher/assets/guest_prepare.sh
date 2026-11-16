@@ -773,6 +773,13 @@ SAMCAM_TAR="$STAGE/samcam.tar"
 if [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ -f "$STAGE/samcam_bar.tar" ] && [ ! -L "$STAGE/samcam_bar.tar" ]; then
     SAMCAM_TAR="$STAGE/samcam_bar.tar"
 fi
+# 0.5.14: a Galaxy A or M phone takes the A series' own camera (samcam_a.tar, built from the Galaxy
+# A36's One UI 9) where the set has one: the flagship's camera on an A phone's sensors needed the crop,
+# mode and resolution fixes (fix_a_series_*.py) and still failed in 7 of 14 A36 ColorOS reports.
+case "$(getprop ro.product.model)" in
+    SM-A*|SM-M*)
+        if [ -f "$STAGE/samcam_a.tar" ] && [ ! -L "$STAGE/samcam_a.tar" ]; then SAMCAM_TAR="$STAGE/samcam_a.tar"; fi ;;
+esac
 SAMCAM_IMAGE=0
 [ -f "$SAMCAM_TAR" ] && [ ! -L "$SAMCAM_TAR" ] && SAMCAM_IMAGE=1
 if [ $SAMCAM_IMAGE = 1 ] && [ ! -L "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
@@ -1030,6 +1037,24 @@ samcam_bind() {
 guest_root_mountpoint() {
     [ ! -f "$STAGE/data/oneos_root/enabled" ] || [ -d "$ROOTFS/system/xbin" ] || mkdir -p "$1/xbin"
 }
+# Fingerprint and face settings in the guest (0.5.17, from vdcoolok's pull request #152 branch): Settings shows
+# them only when PackageManager has android.hardware.fingerprint / android.hardware.biometrics.face, which One
+# UI declares in its own /system/etc/permissions; the guest's /system is the image's, and Nothing OS (a Galaxy is
+# not a Nothing phone) declared neither: no fingerprint entry at all (owner, A36). Only with the removal guard in
+# the set (see "Guest biometrics" below); the files go into the read-only /system layers made here.
+BIO_FEATURES=0
+[ "${ONEOS_GUEST_BIOMETRICS:-0}" = 1 ] && grep -q '^# biometric-remove guard' "$STAGE/guards.txt" 2>/dev/null && BIO_FEATURES=1
+bio_features_into() { # <overlay top layer>
+    [ "$BIO_FEATURES" = 1 ] || return 0
+    mkdir -p "$1/etc/permissions" || return 1
+    printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.fingerprint" />' '</permissions>' \
+        > "$1/etc/permissions/android.hardware.fingerprint.xml" &&
+    printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.biometrics.face" />' '</permissions>' \
+        > "$1/etc/permissions/android.hardware.biometrics.face.xml" &&
+    chmod 755 "$1" "$1/etc" "$1/etc/permissions" &&
+    chmod 644 "$1/etc/permissions/android.hardware.fingerprint.xml" "$1/etc/permissions/android.hardware.biometrics.face.xml" &&
+    $BB chcon -R u:object_r:system_file:s0 "$1/etc" 2>/dev/null || true
+}
 if [ -d "$SAMCAM_SRC" ] && [ $SAMCAM_IMAGE = 0 ]; then
     echo "Samsung Camera in the guest: off (this system's set has no samcam.tar; samcam_build is another system's)"
 elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
@@ -1045,15 +1070,7 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         SOV="$STAGE/system_ov"
         mkdir -p "$SOV"
         mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SOV"
-        rm -rf "$SOV/up" && mkdir -p "$SOV/up"
-        # The guest image may omit Samsung's biometric feature declarations,
-        # even though it uses the phone's host AIDL fingerprint/face services.
-        mkdir -p "$SOV/up/etc/permissions" &&
-            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.fingerprint" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" &&
-            printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<permissions>' '    <feature name="android.hardware.biometrics.face" />' '</permissions>' > "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
-            chmod 755 "$SOV/up/etc" "$SOV/up/etc/permissions" &&
-            chmod 644 "$SOV/up/etc/permissions/android.hardware.fingerprint.xml" "$SOV/up/etc/permissions/android.hardware.biometrics.face.xml" &&
-            $BB chcon -R u:object_r:system_file:s0 "$SOV/up/etc" 2>/dev/null || true
+        rm -rf "$SOV/up" && mkdir -p "$SOV/up" && bio_features_into "$SOV/up"
         echo "Samsung Camera: overlay $(date +%T)"
         if samcam_mountpoints "$SOV/up" sys && guest_root_mountpoint "$SOV/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$SOV/up:$ROOTFS/system" "$ROOTFS/system"; then
@@ -1081,6 +1098,7 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
     $BB mount --make-private "$GRO" || exit 3
     mkdir -p "$GRO/up"
     guest_root_mountpoint "$GRO/up" || exit 3
+    bio_features_into "$GRO/up"
     $BB chcon -R u:object_r:system_file:s0 "$GRO/up" 2>/dev/null || true
     if $BB mount -t overlay overlay -o "ro,lowerdir=$GRO/up:$ROOTFS/system" "$ROOTFS/system"; then
         echo 'Guest root: missing system/xbin supplied by a private read-only overlay'
@@ -1123,6 +1141,25 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
         fi
     fi
     [ -d "$ROOTFS/system/xbin" ] || { echo 'ERROR: guest su mount point missing after overlay'; exit 3; }
+fi
+# Neither layer above ran (no Samsung Camera set, image with its own xbin): the features get a private layer.
+if [ "$BIO_FEATURES" = 1 ] && [ ! -e "$ROOTFS/system/etc/permissions/android.hardware.fingerprint.xml" ]; then
+    if mount | grep -q " $ROOTFS/system type overlay"; then
+        echo "Biometric features: $ROOTFS/system is an overlay this step did not make; left as it is"
+    else
+        BFO="$STAGE/bio_features_ov"
+        if [ -L "$BFO" ]; then echo 'ERROR: biometric features overlay is a symlink'; exit 3; fi
+        mkdir -p "$BFO"
+        mount | grep -q " $BFO " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$BFO"
+        if rm -rf "$BFO/up" && mkdir -p "$BFO/up" && bio_features_into "$BFO/up" &&
+           $BB mount -t overlay overlay -o "ro,lowerdir=$BFO/up:$ROOTFS/system" "$ROOTFS/system"; then
+            echo "Biometric features: fingerprint and face declared in a private /system layer"
+        else
+            echo "Biometric features: the private /system layer was refused; no fingerprint or face settings"
+        fi
+    fi
+elif [ "$BIO_FEATURES" = 1 ]; then
+    echo "Biometric features: fingerprint and face declared"
 fi
 # One UI's product APEXes: host apexd reports Google's Play system module as
 # /product/apex/com.google.android.gmssystem.prodvic.apex, and the guest's package
@@ -1613,7 +1650,11 @@ elif [ "${ONEOS_GUEST_DISPLAY_CONFIG:-1}" != 1 ]; then
     echo "Display config: the image's own (ONEOS_GUEST_DISPLAY_CONFIG=0)"
 elif [ ! -d "$PETC" ] || [ -L "$PETC" ]; then
     echo "Display config: no product/etc folder in the image, left out"
-elif mount | grep -q " $PETC type overlay"; then
+# Only our own overlay counts as an earlier prepare's (lowerdir = product_etc_ov). 0.5.14's Samsung Camera
+# overlay on LineageOS's /system leaves its own overlay mount on system/product/etc, and this check took
+# it for ours: no One UI curve, LineageOS's default one (100 % at 255 lux, the panel's peak) on every
+# Galaxy (A36, 2026-11-15: full bright and full low by turns, heat). Over another mount ours stacks on top.
+elif grep -q " $PETC overlay .*lowerdir=$STAGE/product_etc_ov/up:" /proc/mounts; then
     echo "Display config: overlay on product/etc already there (an earlier prepare), left as it is"
 elif [ -e "$PETC/displayconfig/display_port_147.xml" ] || [ -e "$PETC/displayconfig/display_port_148.xml" ]; then
     echo "Display config: the image has its own display_port_147/148, left as it is"
@@ -3028,19 +3069,30 @@ fi
 # backlight, and Nothing OS's own range (0.0354 to 1.0) put its lowest step near
 # 70 nits and its highest at the panel's 2600-nit peak (Nothing run 23).
 # Nothing images for now. ONEOS_GUEST_BRIGHTNESS_RANGE=0 keeps the image's.
-if [ -f "$STAGE/OneOSBrightnessRange.apk" ] && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] &&
+# 0.5.15: a panel at One UI brightnessMaximum below 4.2 (the Galaxy A36's 3.4) takes OneOSBrightnessRange34.apk,
+# the same points scaled to its panel (the Fold's put the slider's top at two thirds of its normal maximum).
+BR_APK=OneOSBrightnessRange.apk
+BR_BM=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
+if [ -f "$STAGE/OneOSBrightnessRange34.apk" ] && awk -v m="$BR_BM" 'BEGIN { exit !(m + 0 >= 1.5 && m + 0 < 4.2) }'; then
+    BR_APK=OneOSBrightnessRange34.apk
+fi
+if [ -f "$STAGE/$BR_APK" ] && [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] &&
    [ "${ONEOS_GUEST_BRIGHTNESS_RANGE:-1}" = 1 ]; then
+    rm -f "$STAGE/oem/overlay/OneOSBrightnessRange.apk" "$STAGE/oem/overlay/OneOSBrightnessRange34.apk"
     mkdir -p "$STAGE/oem/overlay" &&
-        cp "$STAGE/OneOSBrightnessRange.apk" "$STAGE/oem/overlay/" &&
-        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSBrightnessRange.apk" &&
-        OEM_FILES="$OEM_FILES overlay/OneOSBrightnessRange.apk"
+        cp "$STAGE/$BR_APK" "$STAGE/oem/overlay/" &&
+        chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/$BR_APK" &&
+        OEM_FILES="$OEM_FILES overlay/$BR_APK" &&
+        echo "Brightness range: $BR_APK (One UI's brightnessMaximum ${BR_BM:-unknown})"
 fi
 # Essential Space from a double press of the power key, for a Nothing image
 # (switcher/overlays/nothing_essential_key): Nothing opens it with its own
 # Essential key, which no Galaxy has. Any phone; the double-tap camera gesture
-# goes with it. ONEOS_GUEST_NT_ESSENTIAL_KEY=0 leaves the power key alone.
+# goes with it. Off since 0.5.17 (owner: "vol down i guess, as power button can be for cams"): a
+# double press of Volume Down is the Essential key (OneOSEssentialKey, oneos_switch.sh) and the
+# power key keeps the camera; ONEOS_GUEST_NT_ESSENTIAL_KEY=1 brings the power double press back.
 if [ -f "$STAGE/OneOSNtEssentialKey.apk" ] && [ -d "$GUEST_PRODUCT/overlayfs_origin/system/noth/priv-app/EssentialSpace" ] &&
-   [ "${ONEOS_GUEST_NT_ESSENTIAL_KEY:-1}" = 1 ]; then
+   [ "${ONEOS_GUEST_NT_ESSENTIAL_KEY:-0}" = 1 ]; then
     mkdir -p "$STAGE/oem/overlay" &&
         cp "$STAGE/OneOSNtEssentialKey.apk" "$STAGE/oem/overlay/" &&
         chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSNtEssentialKey.apk" &&
@@ -3227,6 +3279,97 @@ for pair in libcamera_client_patched.so:libcamera_client.so libcameracompatbilit
         echo "Bound ${pair%%:*} -> $ROOTFS/system/lib64/${pair#*:}"
     fi
 done
+# Fingerprint and face unlock from One UI's own enrolments (0.5.18, owner: "if we cant give alternate fix for
+# fp/face we have to take from OneUI"; from vdcoolok's pull request #152 branch). Only the lists (names and ids)
+# are copied; the templates stay in the phone's secure hardware. The guest's services.jar never removes a
+# template (guest_no_biometric_cleanup.py, guest_no_biometric_remove.py). Off by default since the A36 test (0.5.17):
+# its in-display sensor needs SystemUI's UDFPS events in the Samsung way ("onUdfpsUiEvent received during client:
+# null", 3 touches acquired, none matched). ONEOS_GUEST_BIOMETRICS=1: on.
+# Only a set whose services.jar refuses removals copies the lists: a guest that lists One UI's fingerprints
+# without it would delete one from the phone when "Delete" is tapped. Every other set keeps its empty lists.
+if [ "${ONEOS_GUEST_BIOMETRICS:-0}" = 1 ] && grep -q '^# biometric-remove guard' "$STAGE/guards.txt" 2>/dev/null; then
+    # ColorOS can only use the biometrics the phone's TEE already holds. Enrolling
+    # inside the guest needs a HardwareAuthToken, and the guest has no gatekeeper
+    # to mint one (its PIN is verified locally), so ColorOS's "Add" does nothing.
+    # Carry One UI's enrollment metadata across instead: the templates never leave
+    # the TEE, and no credential, gatekeeper handle or SP blob is read.
+    #
+    # The file name is the image's choice, so both are written. AOSP's
+    # FingerprintProvider reads settings_fingerprint_<sensorId>.xml (One UI writes
+    # _0, and MIUI migrates a legacy file to that name); ColorOS reads the legacy
+    # settings_fingerprint.xml. Same content, two names, mirror semantics: a print
+    # removed in One UI is removed here.
+    BIO_DST=$STAGE/data/system/users/0
+    mkdir -p "$BIO_DST" || true
+    rm -f "$BIO_DST"/settings_fingerprint*.xml
+    bio=0
+    for f in /data/system/users/0/settings_fingerprint*.xml; do
+        [ -f "$f" ] || continue
+        out=${f##*/}
+        cp -f "$f" "$BIO_DST/$out" &&
+            chown 1000:1000 "$BIO_DST/$out" 2>/dev/null &&
+            chmod 644 "$BIO_DST/$out" 2>/dev/null &&
+            $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$out" 2>/dev/null
+        bio=$((bio + 1))
+    done
+    # The legacy name: sensor 0's file when One UI writes the numbered name, else
+    # the phone's own legacy file when it does not.
+    if [ -f /data/system/users/0/settings_fingerprint_0.xml ]; then
+        cp -f /data/system/users/0/settings_fingerprint_0.xml "$BIO_DST/settings_fingerprint.xml" &&
+            chown 1000:1000 "$BIO_DST/settings_fingerprint.xml" 2>/dev/null &&
+            chmod 644 "$BIO_DST/settings_fingerprint.xml" 2>/dev/null &&
+            $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/settings_fingerprint.xml" 2>/dev/null &&
+            bio=$((bio + 1))
+    elif [ -f /data/system/users/0/settings_fingerprint.xml ] && [ ! -f "$BIO_DST/settings_fingerprint_0.xml" ]; then
+        cp -f /data/system/users/0/settings_fingerprint.xml "$BIO_DST/settings_fingerprint_0.xml" &&
+            chown 1000:1000 "$BIO_DST/settings_fingerprint_0.xml" 2>/dev/null &&
+            chmod 644 "$BIO_DST/settings_fingerprint_0.xml" 2>/dev/null &&
+            $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/settings_fingerprint_0.xml" 2>/dev/null &&
+            bio=$((bio + 1))
+    fi
+    for f in settings_face.xml face_enrolled_position_0.xml; do
+        if [ -f "/data/system/users/0/$f" ]; then
+            cp -f "/data/system/users/0/$f" "$BIO_DST/$f" &&
+                chown 1000:1000 "$BIO_DST/$f" 2>/dev/null &&
+                chmod 644 "$BIO_DST/$f" 2>/dev/null &&
+                $BB chcon -h u:object_r:system_data_file:s0 "$BIO_DST/$f" 2>/dev/null
+            bio=$((bio + 1))
+        else
+            # A print or face removed in One UI must not stay listed here.
+            rm -f "$BIO_DST/$f"
+        fi
+    done
+    [ "$bio" -gt 0 ] && echo "Guest biometrics: carried One UI's $bio enrollment file(s) into the guest"
+else
+    # No removal guard in this set (or turned off): no copied lists may stay from an earlier stage.
+    rm -f "$STAGE/data/system/users/0"/settings_fingerprint*.xml "$STAGE/data/system/users/0/settings_face.xml" "$STAGE/data/system/users/0/face_enrolled_position_0.xml" 2>/dev/null
+fi
+# Bluetooth on OxygenOS 16 (the CPH2745 build's libbluetooth_jni.so only; 0.5.17, from a tester's own module
+# on his Galaxy A17: "Guest-only BQR crash bypass"): bluetooth::bqr::vendor_specific_event_callback returns at
+# once, so a vendor-specific Bluetooth quality report event (diagnostics only) from a Galaxy's chip no longer
+# takes the stack down. One instruction: the shadow-stack push after its BTI landing pad becomes RET, before
+# the return address is signed, so it is safe on every CPU. Made here from the image's own file, only when
+# both hashes match (before and after); anything else is left as it is. ONEOS_GUEST_BT_BQR_PATCH=0: off.
+BTJ="$ROOTFS/system/lib64/libbluetooth_jni.so"
+BTJ_OLD=a82e3a5a6396a2338d8889404ebfeb2976247550291a3c5fb07a358657036621
+BTJ_NEW=c7a41a6f64e09204c3d1833c0abf631e889c62a8a9c8fbb8f8855eaf17e6abf3
+if [ "${ONEOS_GUEST_BT_BQR_PATCH:-1}" = 1 ] && [ -f "$BTJ" ] && [ ! -L "$BTJ" ] &&
+   [ "$($BB sha256sum "$BTJ" 2>/dev/null | cut -c1-64)" = "$BTJ_OLD" ]; then
+    BTP="$STAGE/libbluetooth_jni_patched.so"
+    if [ "$($BB sha256sum "$BTP" 2>/dev/null | cut -c1-64)" != "$BTJ_NEW" ]; then
+        rm -f "$BTP.tmp"
+        cp -f "$BTJ" "$BTP.tmp" &&
+            $BB printf '\300\003\137\326' | $BB dd of="$BTP.tmp" bs=1 seek=8231888 count=4 conv=notrunc 2>/dev/null &&
+            [ "$($BB sha256sum "$BTP.tmp" 2>/dev/null | cut -c1-64)" = "$BTJ_NEW" ] && mv -f "$BTP.tmp" "$BTP" ||
+            { rm -f "$BTP.tmp"; echo "Bluetooth BQR patch: not made (hash after the change did not match); the image's own library stays"; }
+    fi
+    if [ "$($BB sha256sum "$BTP" 2>/dev/null | cut -c1-64)" = "$BTJ_NEW" ]; then
+        chmod 644 "$BTP"
+        $BB chcon u:object_r:system_lib_file:s0 "$BTP" 2>/dev/null || true
+        $BB umount -l "$BTJ" 2>/dev/null || true
+        $BB mount --bind "$BTP" "$BTJ" && echo "Bound libbluetooth_jni_patched.so -> $BTJ (no BQR vendor-event callback)"
+    fi
+fi
 # libcomposer_ext_patched.so (vivo OriginOS, MediaTek): its ComposerExt client
 # asked 21 times, 100 ms apart, for MediaTek's IComposerExt (no such service on
 # a Samsung vendor) on every display power-mode change, stalling SurfaceFlinger
@@ -6217,6 +6360,14 @@ if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Apertur
         [ -d "$d" ] && [ ! -L "$d" ] || continue
         $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
             echo "Hid guest ${d#"$ROOTFS"/} (OPPO's camera needs the Find X9 Ultra's camera config and SDK; $OCWHY; ONEOS_GUEST_OEM_CAMERA=1 keeps it)"
+    done
+    # Nothing's camera (0.5.15): it needs Nothing's camera HAL (vendor.noth.hardware.camera INtCamSession) and
+    # its libcameradecision.so, which no Galaxy has; its UFS service and the app crashed in the background
+    # on the A36 ("nothing camera crashes", owner 2026-11-15).
+    for d in "$GUEST_SYSTEM_EXT"/priv-app/NTCamera "$ROOTFS"/system/priv-app/NTCamera "$GUEST_PRODUCT"/priv-app/NTCamera; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
+            echo "Hid guest ${d#"$ROOTFS"/} (Nothing's camera needs Nothing's camera HAL; $OCWHY; ONEOS_GUEST_OEM_CAMERA=1 keeps it)"
     done
 fi
 # Google Play services (GMS_WANT, top; docs/pixel-guest.md). GmsCore is

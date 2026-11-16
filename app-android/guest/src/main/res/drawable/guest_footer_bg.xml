@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.5.15: the footer's own background. The One UI library's bottom fade (seslSetFadingEdge) draws on
+     One UI-style systems only; in Nothing OS the list showed through the caption and Back to One UI
+     (A36, owner 2026-11-15). A short fade into the page colour, then solid. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:height="16dp" android:gravity="top">
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#00000000" android:endColor="@color/guest_page_background" />
+        </shape>
+    </item>
+    <item android:top="16dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/guest_page_background" />
+        </shape>
+    </item>
+</layer-list>

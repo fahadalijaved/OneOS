@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- samsung_brightness_range for a panel whose One UI brightnessMaximum is about 3.4 (the Galaxy A36,
+     0.5.15): the Fold's points (brightnessMaximum 5.094) times 5.094 / 3.4 = 1.4983, so the slider's top is
+     this panel's normal maximum (1 / 3.4) instead of two thirds of it. guest_prepare.sh picks it from One UI's
+     brightnessMaximum (below 4.2). -->
+<resources>
+    <item name="config_screenBrightnessSettingMinimumFloat" format="float" type="dimen">0.003896</item>
+    <item name="config_screenBrightnessSettingMaximumFloat" format="float" type="dimen">0.294118</item>
+    <!-- 100 nits. -->
+    <item name="config_screenBrightnessSettingDefaultFloat" format="float" type="dimen">0.081494</item>
+    <!-- Dimmed before sleep: about 10 nits. -->
+    <item name="config_screenBrightnessDimFloat" format="float" type="dimen">0.013321</item>
+</resources>

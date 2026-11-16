@@ -50,6 +50,77 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.17: Record full logs from inside a system, Nothing OS's Essential key on Volume Down.
+- **Groundwork for fingerprint unlock with One UI's fingerprints** (off for now: the in-display sensor still needs
+  its touch signals from Nothing's lock screen). Nothing OS can never delete a fingerprint from the phone, and Settings no
+  longer crashes on Fingerprint. From vdcoolok's work (pull request #152).
+- **Switch with a screen lock set** now asks first: a red warning (recent Samsung firmware blocks Download Mode while a
+  lock is set; a failed switch can mean a factory reset) and a 5-second wait before it can be turned on.
+- **Record full logs from now**, in the OneOS app inside any system (Logs card): full session logs stay off by default
+  (they add heat); when something goes wrong, turn this on, make it happen again, go back to One UI and send a report.
+- **Nothing OS: double tap to wake with the AOD off too** (it only worked with the AOD on: the panel never reads off).
+- **Nothing OS: colour modes and warm/cool work** (Standard and Alive, and the temperature slider): Nothing sent them to
+  display hardware a Galaxy does not have; OneOS applies them like Android's own Night Light does.
+- **Nothing OS: the screen-off animation closes into the phone's own power button** (it went to
+  where a Nothing phone has it).
+- **Nothing OS: Volume Down twice opens Essential Space** (the power key's double press is the camera again); its
+  first-run page, which waits for a double click of Nothing's own key, is marked done.
+- **OxygenOS on the Galaxy A15, A16 and A17: SMS and VoLTE.** One UI's calling service died at every start there (it
+  looked for a Samsung Knox provider OxygenOS does not have); OneOS now gives it a stand-in, in OxygenOS only.
+- **Bluetooth audio recovery works in every system**: OneOS sent its "resume" request to the audio service by a call
+  number that is a different call in some systems (OxygenOS 16: found by a tester's own module); it now asks the system
+  itself. The same for the SIM a call uses.
+- **OxygenOS: Bluetooth no longer drops out** on phones whose Bluetooth chip sends its own quality reports (Galaxy A17
+  and others): the report handler that crashed on them is skipped. Thanks to the A17 tester who found it and built the fix.
+- **Galaxy S26 (Exynos): the camera opens and records** in every system: each camera picture waited 5 s for a One UI
+  service that is not there in another system (CPU boosts); OneOS answers it now.
+- **Galaxy S24: Turn it off really stops the timer app's kernel tool** (it runs as root, so turning the app off left it
+  running and the switch was refused again).
+- **OriginOS on phones with less room for settings** (S25): it starts again after a restart; when even a fresh restart
+  leaves too little room, OneOS says so instead of asking for another restart.
+- **Phones list** in the group counts every report again (only the last 10 days hid systems that worked).
+- The OneOS app inside a system: its bottom bar has its own background (text no longer runs under it).
+
+New in 0.5.16: Telegram sign-in for reports, OneOS in Russian, a Turn it off button for the S24 kernel tool.
+- **Reports come only from members of the OneOS Telegram group.** Send to the OneOS team now asks you to sign in with
+  Telegram once (through @OneOSReportsBot: tap Start, then come back). Not in the group, or banned? You get the group's
+  link instead. Installing and using OneOS stay open to everyone. Older versions can no longer send reports.
+- **OneOS in Russian** (the app and the probe), when your phone's language is Russian.
+- **Turn it off, right where the switch stops:** when an app's kernel tool (com.roottimer.app on the Galaxy S24) stops a
+  switch, the progress screen now offers Turn it off instead of only OK; before, OK also took the button away from Home.
+- **The OneOS website**, by fouadd: https://fahadalijaved.github.io/OneOS/
+
+New in 0.5.15: Nothing OS for the Galaxy A series, Samsung Camera video and slow motion, steadier auto brightness.
+- **New: Nothing OS for the Galaxy A series** (untested on most phones): Nothing's system from the Phone (3a), made for
+  mid-range chips, on every Galaxy A and M phone with One UI 9 (A07, A15, A16, A17, A26, A27, A34, A35, A36, A54,
+  A55, A56, A57, M35). Tried on the Galaxy A36: calls (also over Bluetooth), data, Wi-Fi, camera, Bluetooth music, the
+  AOD and double tap all work.
+- **Nothing OS on every phone:** the status bar clear of the screen's rounded corners and level with the camera hole;
+  a double tap wakes the phone from the AOD; a click for double tap to wake and to sleep; stronger vibration; Nothing's
+  own camera (which needs Nothing hardware) hidden, Samsung Camera is the camera; a brightness range for each panel.
+- **120 Hz stays 120 Hz:** a system could start while the screen was still in One UI's idle 60 Hz and stay there
+  (smooth only every other frame, and warm). OneOS now switches it back.
+- **Samsung Camera on the A phones:** video, hyperlapse and slow motion no longer close the camera in LineageOS, and
+  slow motion no longer freezes the preview.
+- **Auto brightness in LineageOS** no longer jumps between very dim and the panel's full peak.
+- **Galaxy S24+ with Snapdragon** (SM-S9260 and others) supported, with the Snapdragon S24's systems.
+- **No 90-second wait at the start without a SIM:** the switch waited for a mobile network behind a screen that took
+  no touches, and some of you restarted the phone during it.
+- **Full session logs are off by default:** they added heat. Turn them on in Settings when something goes wrong.
+- A clearer Switch dialog.
+
+New in 0.5.14: smoother Galaxy A phones, Samsung Camera in LineageOS, real user numbers.
+- **Smoother on the Galaxy A and M phones:** the systems no longer redraw the whole screen on the graphics chip
+  every frame for the rounded corners, and window blur is off by default there (Settings > Developer options >
+  "Allow window-level blurs" turns it back on). On the Galaxy A36 in LineageOS: from 238 dropped frames in 30 s to 1.
+- **Samsung Camera in LineageOS:** the Galaxy A phones get the Galaxy A36's own camera, the S phones the S26 Ultra's.
+  Untested.
+- **No more "Update" after every session:** a helper left from the last session made OneOS ask to update the system
+  instead of switching.
+- **LineageOS shows its own artwork** in the OneOS app inside it (it showed ColorOS).
+- **New: Settings > Anonymous usage count** (on by default): once a day a random ID, your phone model, OneOS version and
+  the systems you set up, so we can count active phones. No account, number, location or files.
+
 New in 0.5.13: fixes from your reports.
 - **Bluetooth audio on the Galaxy S26** (and other Exynos phones) in ColorOS: Samsung's audio driver now hears that
   Bluetooth audio is ready before the earbuds connect, as One UI tells it (0.5.12 told it too late), untested.

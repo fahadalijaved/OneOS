@@ -180,6 +180,16 @@ BUILDS = [
         "service.incremental.so": "7509ea1a751e70400057bf1afd79876b2630ad0fd1ee2e993ff06a8f1528ca74",
         "crashrecovery-google-compressed.apex": "e2661820811896284537a044664dee933e5fd62a879efe02b5104d1388f43816",
     }, [("vold", 0xe1e7, NAME), ("vold", 0x64728, TRY_START), ("service.incremental.so", 0x64410, NAME)]),
+    # Nothing OS 5.0 (Asteroids, the Phone (3a), CQ2A.260522.002-CP2A.260605.016, 2611061007): start() takes
+    # "vold" at 0xe1a8 (adrp 0xe000 + add 0x1a8 at 0x64d38, then String16; the binary's only "\0vold\0", its
+    # other references log tags around 0xa5980); try_start's tbz w19, #0, +0xd4 at 0x64728 right after
+    # isDeclared through the service manager's vtable +0x48, as in Metroid. service.incremental.so and the
+    # compressed crashrecovery APEX are Metroid's, byte for byte.
+    ("Nothing OS 5.0 (Asteroids)", {
+        "vold": "a534a45830cc7d4794f4ee5e0f059c08f4a677f02b7e57e47986e47202ef46fd",
+        "service.incremental.so": "7509ea1a751e70400057bf1afd79876b2630ad0fd1ee2e993ff06a8f1528ca74",
+        "crashrecovery-google-compressed.apex": "e2661820811896284537a044664dee933e5fd62a879efe02b5104d1388f43816",
+    }, [("vold", 0xe1a7, NAME), ("vold", 0x64728, TRY_START), ("service.incremental.so", 0x64410, NAME)]),
     # vivo OriginOS 17 (X500 Pro Max, MediaTek, CP2A.260605.016): start() takes
     # "vold" at 0x10e24 (adrp 0x10000 + add 0xe24 at 0x83a1c, the binary's only
     # "\0vold\0"); try_start's tbz w19, #0, +0xd4 on the isDeclared() result is at
@@ -1088,6 +1098,9 @@ SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
          "e5a8726a6687": 0x452a50,
+         # Nothing OS 5.0 (Asteroids, the Phone (3a), SDK 37, 2611061007): the same three
+         # instructions at 0x452770 (cbz x8 -> +0x4c between getExtension and fromBinder).
+         "cd253fa4b83b": 0x452770,
          # OnePlus OxygenOS 16 (CPH2745, Android 16): a status check (tbnz) comes between the
          # load and the cbz; cbz x8 -> +0x4c at 0x5d9bb8, the same bytes (code segment 0x2a0000,
          # file offset == vaddr).
@@ -1538,7 +1551,7 @@ done
 # One UI's brightness range (switcher/overlays/samsung_brightness_range), for a
 # Nothing image for now (guest_prepare.sh installs it there).
 BR_RRO="$ROOT/switcher/overlays/samsung_brightness_range"
-rm -f "$OUT/OneOSBrightnessRange.apk"
+rm -f "$OUT/OneOSBrightnessRange.apk" "$OUT/OneOSBrightnessRange34.apk"
 if in_image /system_ext/framework/nt-telephony-common.jar || in_image /system/system_ext/framework/nt-telephony-common.jar; then
     "$BT/aapt2" compile --dir "$BR_RRO/res" -o "$WORK/br.zip"
     "$BT/aapt2" link -o "$WORK/br.apk" -I "$AJ" --manifest "$BR_RRO/AndroidManifest.xml" \
@@ -1549,6 +1562,17 @@ if in_image /system_ext/framework/nt-telephony-common.jar || in_image /system/sy
         --out "$OUT/OneOSBrightnessRange.apk" "$WORK/br-aligned.apk"
     rm -f "$OUT/OneOSBrightnessRange.apk.idsig"
     echo "built $OUT/OneOSBrightnessRange.apk (One UI's brightness range)"
+    # 0.5.15: the same for panels at brightnessMaximum about 3.4 (Galaxy A36; guest_prepare.sh picks it).
+    BR34="$ROOT/switcher/overlays/samsung_brightness_range_34"
+    "$BT/aapt2" compile --dir "$BR34/res" -o "$WORK/br34.zip"
+    "$BT/aapt2" link -o "$WORK/br34.apk" -I "$AJ" --manifest "$BR34/AndroidManifest.xml" \
+        --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/br34.zip"
+    "$BT/zipalign" -p -f 4 "$WORK/br34.apk" "$WORK/br34-aligned.apk"
+    "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+        --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+        --out "$OUT/OneOSBrightnessRange34.apk" "$WORK/br34-aligned.apk"
+    rm -f "$OUT/OneOSBrightnessRange34.apk.idsig"
+    echo "built $OUT/OneOSBrightnessRange34.apk (One UI's brightness range, brightnessMaximum 3.4)"
 fi
 
 # Essential Space from a double press of power (switcher/overlays/

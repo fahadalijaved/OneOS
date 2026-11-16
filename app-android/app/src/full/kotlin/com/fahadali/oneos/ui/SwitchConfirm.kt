@@ -46,7 +46,9 @@ internal object SwitchConfirm {
         }
         val profile = report.profile ?: return
         val image = report.image ?: return
-        val system = image.name
+        // A short variant with the name ("Nothing OS 5.0 (A series)", 0.5.15) so the A-series build is not read
+        // as the flagship one; the long ColorOS variants ("global build, November update") stay out of the title.
+        val system = image.variant?.takeIf { it.length <= 12 }?.let { "${image.name} ($it)" } ?: image.name
         val remembered = SessionPrefs.acks(a, profile.id, image.id)
         val asks = report.toTick.filter { it.tickKey !in remembered }
         val hideGms = SessionPrefs.hideGms(a) && image.gmsHideable
@@ -61,7 +63,8 @@ internal object SwitchConfirm {
         view.findViewById<TextView>(R.id.switch_message).text = a.getString(R.string.confirm_switch_msg, system)
         val notes = buildList {
             // Calls over 2G or 3G (a carrier with neither needs the tick below instead).
-            report.find(SwitchGates.ID_CARRIER)?.finding?.takeIf { it.level == Level.INFO && it.reason == CarrierRules.R_2G_3G }?.let {
+            // 0.5.15: only without One UI's calling service; with it calls use VoLTE, and both lines contradicted.
+            report.find(SwitchGates.ID_CARRIER)?.finding?.takeIf { !secIms && it.level == Level.INFO && it.reason == CarrierRules.R_2G_3G }?.let {
                 add(a.getString(R.string.confirm_calls_2g, system))
             }
             if (hideGms) add(a.getString(R.string.confirm_gms_hidden))
@@ -73,14 +76,15 @@ internal object SwitchConfirm {
             if (image.presentsGms) add(a.getString(R.string.confirm_setup_wizard, system))
         }
         view.findViewById<TextView>(R.id.switch_notes).apply {
-            text = notes.joinToString("\n")
+            // A list, one point per line (0.5.15: one paragraph read as a wall of text).
+            text = notes.joinToString("\n") { "•  $it" }
             visibility = if (notes.isEmpty()) View.GONE else View.VISIBLE
         }
 
         // The ways back to One UI, always listed.
         val ways = buildList {
             if (report.set?.hasReturnApp == true) {
-                add(Way(R.drawable.ic_home_back_app, a.getString(R.string.home_sheet_back_app), a.getString(R.string.home_sheet_back_app_line, system), primary = true))
+                add(Way(R.drawable.ic_home_back_app, a.getString(R.string.home_sheet_back_app), a.getString(R.string.home_sheet_back_app_line, system)))
             }
             add(Way(R.drawable.ic_home_back_keys, a.getString(R.string.home_sheet_back_keys), a.getString(R.string.home_sheet_back_keys_line)))
             add(Way(R.drawable.ic_home_back_power, a.getString(R.string.home_sheet_back_stuck), a.getString(R.string.home_sheet_back_stuck_line)))

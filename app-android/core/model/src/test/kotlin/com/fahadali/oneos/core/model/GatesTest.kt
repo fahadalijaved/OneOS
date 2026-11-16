@@ -511,7 +511,9 @@ class GatesTest {
         assertFalse(prepare.blocked)
         assertEquals(Level.WARN, prepare.level(SwitchGates.ID_PROFILE))
         assertEquals("First sessions of the Pixel 11 Fold image", prepare.find(SwitchGates.ID_PROFILE)!!.finding.title)
-        assertTrue(prepare.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("with Find N6 and OriginOS 7, not yet with this image"))
+        // 0.5.15: Infinity-X, LineageOS and Nothing OS tested there too.
+        assertTrue(prepare.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("not yet with this image"))
+        assertTrue(prepare.find(SwitchGates.ID_PROFILE)!!.finding.detail.contains("Find N6"))
         assertTrue(prepare.toTick.isEmpty())
 
         val r = SwitchGates.evaluate(GatePhase.SWITCH, i, profiles)
