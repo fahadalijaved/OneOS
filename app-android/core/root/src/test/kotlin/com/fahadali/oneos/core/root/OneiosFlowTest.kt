@@ -137,8 +137,9 @@ class OneiosFlowTest {
         assertEquals(OneiosFlow.Mark.FAILED, failed.mark(OneiosFlow.Step.PHONE))
         assertEquals("Allow root access", failed.problem!!.title)
         assertEquals(OneiosFlow.Next.CHECK_AGAIN, failed.next)
-        assertEquals(OneiosFlow.Next.NOT_THIS_PHONE, flow(null, offered = false).next)
-        assertEquals(OneiosFlow.Mark.FAILED, flow(null, offered = false).mark(OneiosFlow.Step.PHONE))
+        // Not the S24 Ultra: warned, and the setup flows as usual (the owner, 2026-11-16).
+        assertEquals(OneiosFlow.Next.CHECK_AGAIN, flow(null, offered = false).next)
+        assertEquals(OneiosFlow.Mark.DONE, flow(null, offered = false).mark(OneiosFlow.Step.PHONE))
     }
 
     @Test

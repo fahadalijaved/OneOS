@@ -45,12 +45,16 @@ Both are a zstd-compressed tar with a manifest at the top: `runtime.json` or `ma
 `xnuhost` (its path) and `image_formats` (the image formats it boots). The exact schema is in OneiOS's
 `oneos/interface.md`; the image side follows OneiOS's `docs/image-format.md` once that exists.
 
-## Scope: the Galaxy S24 Ultra only
+## Scope: mainly the Galaxy S24 Ultra
 
 `OneiosSystem.offeredOn` (`core/model/.../Oneios.kt`) is true for one profile, `s-ultra-8650` (SM-S928, e3q,
-SM8650), and `oneios_switch.sh` checks the same three properties itself before anything else. On every other
-phone there is no iOS card. On the S24 Ultra the card is last in Choose a system, marked Experimental, and the
-switch needs a tick every time ("I understand that iOS 27 (OneiOS) is experimental..."), like an untested profile.
+SM8650), and `oneios_switch.sh` checks the same three properties itself before anything else. On the S24 Ultra
+the card is last in Choose a system, marked Experimental, and the switch needs a tick every time ("I understand
+that iOS 27 (OneiOS) is experimental..."), like an untested profile. The owner (2026-11-16): every other phone
+is **warned, not refused** — the switch prints what to expect and goes on, the setup flows as usual, and the
+switch's confirm has a third box ("mainly tested and working on the Galaxy S24 Ultra 5G (SM-S928B); on this
+phone it may be unstable, miss pieces, or not come back to One UI"). A Samsung device is what the code is
+written for; anything else may be unstable, half-working, or not come back.
 
 It is not an `ImageRef`: it has no Android SDK, no `system.raw`, no package set and no guard jars, so none of the
 Android guests' tables, pins or tests know it.
@@ -101,7 +105,8 @@ preflight's order on the script's text).
 
 ### 1. Choose a system (pick)
 
-The iOS card, last in the carousel, marked Experimental, on the Galaxy S24 Ultra only ("Scope" above). Its
+The iOS card, last in the carousel, marked Experimental, on every phone (warned off the S24 Ultra: "Scope"
+above). Its
 button reads as an Android card's: **Set up** while root has reported no runtime or no image set, **Show
 progress** while a download or an import runs (both open Set up iOS 27), else **Open** (iOS 27's page). Before
 the app has asked root anything in this run it says Open.

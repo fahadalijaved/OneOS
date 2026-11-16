@@ -70,11 +70,13 @@ class OneiosTest {
     }
 
     @Test
-    fun theGateBlocksOtherPhonesAndAsksForTheExperimentalTick() {
+    fun theGateWarnsOtherPhonesAndAsksForBothTicks() {
         val other = OneiosSystem.gate(Profiles.F8U, ticked = true)
-        assertEquals(Level.BLOCK, other.level)
+        assertEquals(Level.WARN, other.level)
         assertEquals(OneiosSystem.R_NOT_THIS_PHONE, other.reason)
-        assertEquals(Level.BLOCK, OneiosSystem.gate(null, ticked = true).level)
+        assertTrue(other.detail.contains("mainly tested"))
+        assertEquals(Level.WARN, OneiosSystem.gate(null, ticked = true).level)
+        assertEquals(Level.OK, OneiosSystem.gate(Profiles.F8U, ticked = true, notThisPhoneTicked = true).level)
         val ask = OneiosSystem.gate(Profiles.S_ULTRA_8650, ticked = false)
         assertEquals(Level.WARN, ask.level)
         assertEquals(OneiosSystem.R_EXPERIMENTAL, ask.reason)

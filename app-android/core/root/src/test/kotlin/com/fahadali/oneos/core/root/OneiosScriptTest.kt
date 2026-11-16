@@ -609,6 +609,14 @@ class OneiosScriptTest {
         assertTrue(sw.contains("SM-S928*") && sw.contains("e3q") && sw.contains("SM8650"))
     }
 
+    /** The owner (2026-11-16): another phone may try it, told what to expect — a warning, not a refusal. */
+    @Test
+    fun theSwitchWarnsOtherPhonesInsteadOfRefusingThem() {
+        val sw = code(switchScript)
+        assertTrue(sw.contains("WARNING: OneiOS is mainly tested and working on the Galaxy S24 Ultra 5G"))
+        assertFalse(sw.contains("refuse \"iOS runs on the Galaxy S24 Ultra"))
+    }
+
     /** Every refusal of the switch comes before its first change: nothing above "THE SESSION" stops or starts anything. */
     @Test
     fun theSwitchRefusesBeforeItChangesAnything() {

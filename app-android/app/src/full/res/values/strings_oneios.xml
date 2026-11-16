@@ -10,8 +10,9 @@
     <string name="oneios_set_up">Set up iOS 27</string>
     <string name="oneios_switch">Switch to iOS 27</string>
     <string name="oneios_continue">Continue</string>
-    <string name="oneios_not_this_phone_title">iOS 27 isn\'t for this phone</string>
-    <string name="oneios_not_this_phone">iOS 27 (OneiOS) is for the Galaxy S24 Ultra (SM-S928) only.</string>
+    <string name="oneios_not_this_phone_title">iOS 27 is mainly for the Galaxy S24 Ultra</string>
+    <string name="oneios_not_this_phone">iOS 27 (OneiOS) is mainly tested and working on the Galaxy S24 Ultra 5G (SM-S928B). On this phone it may be unstable, miss pieces, or not come back to One UI; Samsung devices are the ones it is written for.</string>
+    <string name="oneios_not_this_phone_ack">I understand that iOS 27 (OneiOS) is mainly tested and working on the Galaxy S24 Ultra 5G (SM-S928B); on this phone it may be unstable, miss pieces, or not come back to One UI, and that One UI stops while it runs.</string>
     <string name="oneios_ack">I understand that iOS 27 (OneiOS) is experimental, has never been tested on a phone like this one, and that One UI stops while it runs.</string>
     <string name="oneios_ack_read">I have read how to get back to One UI: Volume Up + Volume Down, both for 3 seconds.</string>
 
