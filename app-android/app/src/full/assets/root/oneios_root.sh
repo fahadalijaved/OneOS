@@ -45,6 +45,17 @@
 #   logfile <id> <end> <bytes>  read only: up to <bytes> bytes (1 MiB at most)
 #                               of one of them, whole lines, ending at byte
 #                               <end> (0 = the end of the file)
+#   tool <work|read>            OneiOS's Rust tools of the staged runtime
+#                               (bin/oneios-tool serve) for one flow of the
+#                               app, on the app's pipe: one request a line
+#                               in, progress and results out, until the app
+#                               closes the pipe. work: the Make iOS image
+#                               steps, never during a session; read: also
+#                               during one (the tool refuses its heavy
+#                               requests then)
+#   untool                      the backstop: ends every process of the
+#                               staged bin/oneios-tool serve (SIGTERM, 2 s,
+#                               SIGKILL)
 #
 # Writes: only under $STAGE (/data/local/tmp/oneios), which is root's, mode
 # 0700, and separate from OneOS's Android stage. Nothing of One UI's data, no
@@ -563,6 +574,88 @@ do_checkfile() {
     say "@@OK checkfile $1"
 }
 
+# --- oneios-tool --------------------------------------------------------------
+# OneiOS's Rust tools (its tools/oneios-tool, README "serve") from the staged
+# runtime, for one flow of the app (docs/oneios.md, "oneios-tool in the app").
+# Only the file root hashed when the runtime was staged runs; at nice 10, never
+# realtime; its temporary files in $STAGE/tool. It takes the app's pipe as its
+# stdin and stdout (exec: no shell stays between them), reads one request a
+# line, and ends when the app closes the pipe or after its idle time; it leaves
+# no process behind. `tool work` is refused during a session; `tool read` is
+# not (the logs, the CPU), and the tool itself then refuses its heavy requests
+# (`session`). Requests write only under the stage (the tool's --stage). `untool`
+# ends what is left when the app could not end it (the app's own backstop, as
+# `uncheck` is for the checks). What each request may write is in its README.
+TOOL_BIN="$STAGE/runtime/bin/oneios-tool"
+tool_pids() { # the processes of the staged bin/oneios-tool serve (by their command line) and theirs
+    # One grep over every command line (a fork per process would take seconds on the phone). The arguments are
+    # NUL-separated there, so the match is the path; a process is the tool's when its command line also says serve.
+    found=
+    for f in $(grep -l -F -- "$TOOL_BIN" /proc/[0-9]*/cmdline 2>/dev/null); do
+        p=${f#/proc/}
+        p=${p%/cmdline}
+        [ "$p" = "$$" ] && continue
+        { tr '\0' ' ' < "$f"; } 2>/dev/null | grep -q -F "$TOOL_BIN serve" && found="$found $p"
+    done
+    [ -n "$found" ] || return 0
+    # Their children, four levels down (the parent is field 4 of /proc/PID/stat; a name with spaces sits in (...)).
+    all="$found "
+    for level in 1 2 3 4; do
+        for s in /proc/[0-9]*/stat; do
+            { read -r l < "$s"; } 2>/dev/null || continue
+            pid=${l%% *}
+            rest=${l##*) }
+            ppid=${rest#* }
+            ppid=${ppid%% *}
+            case "$all" in *" $pid "*) ;; *" $ppid "*) all="$all$pid " ;; esac
+        done
+    done
+    echo $all
+}
+
+do_tool() {
+    [ $# -eq 1 ] || usage "tool <work|read>"
+    case "$1" in work|read) ;; *) usage "tool: '$1' is not work or read" ;; esac
+    stage_ok
+    if [ "$1" = work ]; then
+        session_open && refuse "an iOS session is running: return to One UI first"
+    fi
+    [ -f "$STAGE/runtime.conf" ] && mine "$STAGE/runtime.conf" && [ -d "$STAGE/runtime" ] ||
+        refuse "no OneiOS runtime is staged: oneios-tool comes with it"
+    if [ ! -f "$TOOL_BIN" ] || [ -L "$TOOL_BIN" ] || [ ! -x "$TOOL_BIN" ]; then
+        refuse "this runtime has no bin/oneios-tool: get a newer runtime"
+    fi
+    want=$(awk '$2 == "bin/oneios-tool" { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1)
+    [ -n "$want" ] && [ "$(sha "$TOOL_BIN")" = "$want" ] || refuse "bin/oneios-tool is not the file that was staged: stage the runtime again"
+    tmp="$STAGE/tool"
+    [ ! -L "$tmp" ] || refuse "$tmp is a link"
+    [ -d "$tmp" ] || mkdir "$tmp" || die "could not make $tmp"
+    own "$tmp" 0700 || die "could not make $tmp root's"
+    say "@@OK tool $1"
+    TMPDIR="$tmp" exec nice -n 10 "$TOOL_BIN" serve --stage "$STAGE"
+}
+
+do_untool() {
+    [ $# -eq 0 ] || usage "untool"
+    stage_ok
+    pids=$(tool_pids)
+    [ -n "$pids" ] || { say "@@OK untool nothing"; return; }
+    # shellcheck disable=SC2086
+    kill -TERM $pids 2>/dev/null
+    # Up to 2 s for them to go (only the processes found: no second scan of /proc), then SIGKILL.
+    n=0
+    while [ $n -lt 20 ]; do
+        left=
+        for p in $pids; do [ -d "/proc/$p" ] && left="$left $p"; done
+        [ -n "$left" ] || break
+        sleep 0.1
+        n=$((n + 1))
+    done
+    # shellcheck disable=SC2086
+    [ -z "$left" ] || kill -KILL $left 2>/dev/null
+    say "@@OK untool $(echo $pids | wc -w | tr -d ' ')"
+}
+
 # --- Session logs -------------------------------------------------------------
 # What the last iOS sessions left behind, for the app's Session logs screen
 # (docs/oneios.md). Both verbs only read: no file is made, changed or moved,
@@ -670,5 +763,7 @@ case "$verb" in
     checkfile) do_checkfile "$@" ;;
     logs) do_logs "$@" ;;
     logfile) do_logfile "$@" ;;
-    *) usage "oneios_root.sh status|begin|receive|script|finish|switch|return|remove|check|uncheck|checkfile|logs|logfile" ;;
+    tool) do_tool "$@" ;;
+    untool) do_untool "$@" ;;
+    *) usage "oneios_root.sh status|begin|receive|script|finish|switch|return|remove|check|uncheck|checkfile|logs|logfile|tool|untool" ;;
 esac

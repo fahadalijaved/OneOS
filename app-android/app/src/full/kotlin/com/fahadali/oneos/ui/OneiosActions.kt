@@ -15,6 +15,7 @@ import com.fahadali.oneos.core.model.OneiosPlain
 import com.fahadali.oneos.core.model.OneiosReleases
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.session.OneiosJob
+import com.fahadali.oneos.session.OneiosToolJob
 
 /**
  * The system picker for a runtime package or the image set, registered by the activity that shows the
@@ -104,13 +105,22 @@ internal object OneiosActions {
             .setNeutralButton(android.R.string.cancel, null).show()
     }
 
-    /** "Have you built the image set?": yes, the picker; no, how to build it (OneOS never downloads it). */
+    /**
+     * "Have you built the image set?": I have the file (the picker); Make iOS image (oneios-tool makes it on this
+     * phone from Apple's server, [OneiosToolJob.Flow.MAKE_IMAGE]); how to build it on a PC or a Mac. OneOS never
+     * downloads the image set itself: it is made from Apple's own files, for this phone's owner.
+     */
     fun askImage(a: AppCompatActivity, picker: OneiosPicker) {
-        AlertDialog.Builder(a).setTitle(R.string.oneios_step_image)
-            .setMessage(R.string.oneios_image_question)
-            .setPositiveButton(R.string.setup_download_yes) { _, _ -> picker.pick(OneiosKind.IMAGE) }
-            .setNegativeButton(R.string.oneios_image_how) { _, _ -> SystemsNav.open(a, "https://github.com/${OneiosReleases.REPO}#readme") }
-            .setNeutralButton(android.R.string.cancel, null).show()
+        val items = arrayOf(a.getString(R.string.oneios_image_choose), a.getString(R.string.oneios_make_image), a.getString(R.string.oneios_image_how))
+        AlertDialog.Builder(a).setTitle(R.string.oneios_image_question)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> picker.pick(OneiosKind.IMAGE)
+                    1 -> OneiosToolActivity.start(a, OneiosToolJob.Flow.MAKE_IMAGE)
+                    else -> SystemsNav.open(a, "https://github.com/${OneiosReleases.REPO}#readme")
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     /** A release by its tag (empty: the latest). */

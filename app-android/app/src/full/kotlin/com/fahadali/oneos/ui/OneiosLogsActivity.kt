@@ -113,6 +113,21 @@ class OneiosLogsActivity : EdgeToEdgeActivity() {
             }
         }
 
+        // oneios-tool reads them too, on the phone (`phone log --analyze`, `ioslog`): its own screen.
+        if (found != null && !s.noStage) {
+            val tool = PrebootCards.section(list, getString(R.string.oneios_tool_from_tool))
+            val busyTool = com.fahadali.oneos.session.OneiosToolJob.state.busy
+            PrebootCards.row(tool, getString(R.string.oneios_tool_log), getString(R.string.oneios_tool_log_line), chevron = true, enabled = idle || busyTool) {
+                OneiosToolActivity.start(this, com.fahadali.oneos.session.OneiosToolJob.Flow.LOG)
+            }
+            PrebootCards.row(tool, getString(R.string.oneios_tool_ioslog_boots), getString(R.string.oneios_tool_ioslog_line), chevron = true, enabled = idle || busyTool) {
+                OneiosToolActivity.start(this, com.fahadali.oneos.session.OneiosToolJob.Flow.IOSLOG_BOOTS)
+            }
+            PrebootCards.row(tool, getString(R.string.oneios_tool_ioslog_show), getString(R.string.oneios_tool_ioslog_line), chevron = true, enabled = idle || busyTool) {
+                OneiosToolActivity.start(this, com.fahadali.oneos.session.OneiosToolJob.Flow.IOSLOG_SHOW)
+            }
+        }
+
         val actions = PrebootCards.section(list)
         if (s.exporting != null) {
             PrebootCards.row(actions, s.exporting)

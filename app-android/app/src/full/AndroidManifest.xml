@@ -13,6 +13,8 @@
     <!-- An import of the iOS image set (about 18 GB) goes on with the screen off; held only while it runs. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- oneios-tool flows: Android's default network is watched while a flow runs (pause on loss, resume on return). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 0.4.45: the app's own update through Android's installer when root is off
          (AppUpdater); the user confirms each install. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -78,6 +80,12 @@
             android:label="@string/oneios_logs"
             android:windowSoftInputMode="adjustResize|stateHidden"
             android:parentActivityName=".ui.OneiosLogsActivity" />
+        <!-- One flow of oneios-tool on the phone (Make iOS image, Check every file, the CPU, the logs). -->
+        <activity
+            android:name=".ui.OneiosToolActivity"
+            android:exported="false"
+            android:label="@string/oneios_make_image"
+            android:parentActivityName=".ui.OneiosActivity" />
         <activity android:name=".ui.EnvironmentActivity" android:exported="false" />
         <activity android:name=".ui.BootProgressActivity" android:exported="false" />
         <activity android:name=".ui.DebugSettingsActivity" android:exported="false" />

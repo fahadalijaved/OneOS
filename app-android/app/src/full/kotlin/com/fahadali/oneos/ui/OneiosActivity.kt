@@ -20,6 +20,7 @@ import com.fahadali.oneos.core.model.OneiosReleases
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.session.OneiosJob
+import com.fahadali.oneos.session.OneiosToolJob
 import dev.oneuiproject.oneui.R as Icons
 
 /**
@@ -229,9 +230,16 @@ class OneiosActivity : EdgeToEdgeActivity() {
             startActivity(OneiosLogsActivity.intent(this))
         }
 
-        // Tools: OneiOS's phone checks beside One UI.
-        PrebootCards.row(PrebootCards.section(column, getString(R.string.oneios_tools)), getString(R.string.oneios_checks), getString(R.string.oneios_checks_line), chevron = true) {
+        // Tools: OneiOS's phone checks beside One UI, and oneios-tool's flows (docs/oneios.md, "oneios-tool in the app").
+        val tools = PrebootCards.section(column, getString(R.string.oneios_tools))
+        PrebootCards.row(tools, getString(R.string.oneios_checks), getString(R.string.oneios_checks_line), chevron = true) {
             startActivity(OneiosChecksActivity.intent(this))
+        }
+        if (st?.runtime != null) {
+            PrebootCards.row(tools, getString(R.string.oneios_make_image), getString(R.string.oneios_make_image_line), chevron = true,
+                enabled = idle || OneiosToolJob.state.busy) { OneiosToolActivity.start(this, OneiosToolJob.Flow.MAKE_IMAGE) }
+            PrebootCards.row(tools, getString(R.string.oneios_tool_sums), getString(R.string.oneios_tool_sums_line), chevron = true,
+                enabled = idle || OneiosToolJob.state.busy) { OneiosToolActivity.start(this, OneiosToolJob.Flow.SUMS) }
         }
 
         if (st?.staged == true) {
