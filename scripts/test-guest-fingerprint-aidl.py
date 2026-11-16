@@ -15,74 +15,85 @@ REL = Path("smali/com/android/server/biometrics/sensors/fingerprint/FingerprintS
 
 
 class GuestFingerprintTest(unittest.TestCase):
-    def test_patcher_accepts_both_known_register_shapes(self):
-        for register in ("v3", "p1"):
-            with self.subTest(register=register), tempfile.TemporaryDirectory() as tmp:
-                path = Path(tmp) / REL
-                path.parent.mkdir(parents=True)
-                path.write_text(
-                    ".class public Lcom/android/server/biometrics/sensors/fingerprint/FingerprintService;\n"
-                    ".method private initSensors()V\n"
-                    "    .line 1089\n"
-                    "    invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z\n\n"
-                    f"    move-result {register}\n"
-                    ".end method\n"
-                )
-                result = subprocess.run(
-                    [sys.executable, "-I", str(PATCHER), tmp],
-                    check=True, capture_output=True, text=True,
-                )
-                patched = path.read_text()
-                self.assertEqual("smali\n", result.stdout)
-                self.assertIn(f"const/4 {register}, 0x1", patched)
-                self.assertNotIn("getResetLockoutRequiresHardwareAuthToken", patched)
+    @staticmethod
+    def fixture(locals_count=4, include_transport=True):
+        body = f"    .locals {locals_count}\n"
+        if include_transport:
+            body += (
+                "    invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z\n\n"
+                "    move-result v3\n"
+            )
+        return (
+            ".class public Lcom/android/server/biometrics/sensors/fingerprint/FingerprintService;\n"
+            ".method private getProviders(Landroid/hardware/fingerprint/FingerprintSensorConfigurations;)Ljava/util/List;\n"
+            + body + ".end method\n"
+        )
 
-    def test_patcher_skips_a_framework_without_the_call(self):
+    @staticmethod
+    def run_patcher(root):
+        return subprocess.run(
+            [sys.executable, "-I", str(PATCHER), str(root)],
+            capture_output=True, text=True,
+        )
+
+    def test_patcher_selects_aidl_when_registered_and_preserves_image_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / REL
             path.parent.mkdir(parents=True)
-            original = (
-                ".class public Lcom/android/server/biometrics/sensors/fingerprint/FingerprintService;\n"
-                ".method private initSensors()V\n"
-                ".end method\n"
-            )
+            path.write_text(self.fixture())
+            result = self.run_patcher(tmp)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("smali\n", result.stdout)
+            patched = path.read_text()
+            self.assertIn(".locals 5", patched)
+            self.assertIn('const-string v4, "android.hardware.biometrics.fingerprint.IFingerprint/default"', patched)
+            self.assertIn("invoke-static {v4}, Landroid/os/ServiceManager;->getService", patched)
+            self.assertIn("if-eqz v4, :oneos_fingerprint_hidl", patched)
+            self.assertIn("invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z", patched)
+            self.assertEqual(1, patched.count("getResetLockoutRequiresHardwareAuthToken"))
+
+    def test_patcher_fails_closed_when_the_framework_has_no_fingerprint_service(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_patcher(tmp)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("expected exactly one", result.stderr)
+
+    def test_patcher_fails_closed_when_the_transport_choice_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / REL
+            path.parent.mkdir(parents=True)
+            original = self.fixture(include_transport=False)
             path.write_text(original)
-            result = subprocess.run(
-                [sys.executable, "-I", str(PATCHER), tmp],
-                capture_output=True, text=True,
-            )
-            self.assertEqual(0, result.returncode)
-            self.assertEqual("", result.stdout)
-            self.assertIn("no fingerprint transport choice", result.stderr)
+            result = self.run_patcher(tmp)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("read is not there once (found 0)", result.stderr)
             self.assertEqual(original, path.read_text())
 
-    def test_patcher_skips_a_framework_without_fingerprintserversmali(self):
+    def test_patcher_fails_closed_on_an_unknown_method_shape(self):
         with tempfile.TemporaryDirectory() as tmp:
-            result = subprocess.run(
-                [sys.executable, "-I", str(PATCHER), tmp],
-                capture_output=True, text=True,
-            )
-            self.assertEqual(0, result.returncode)
-            self.assertEqual("", result.stdout)
-            self.assertIn("FingerprintService.smali in this framework", result.stderr.replace("/", "\\"))
+            path = Path(tmp) / REL
+            path.parent.mkdir(parents=True)
+            original = self.fixture(locals_count=5)
+            path.write_text(original)
+            result = self.run_patcher(tmp)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("getProviders is not there once with .locals 4", result.stderr)
+            self.assertEqual(original, path.read_text())
 
-    def test_patcher_still_fails_on_ambiguous_transport_choices(self):
+    def test_patcher_fails_closed_on_ambiguous_transport_choices(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / REL
             path.parent.mkdir(parents=True)
             call = (
-                "    .line 1089\n"
                 "    invoke-virtual {p1}, Landroid/hardware/fingerprint/FingerprintSensorConfigurations;->getResetLockoutRequiresHardwareAuthToken()Z\n\n"
                 "    move-result v3\n"
             )
-            path.write_text(".method private initSensors()V\n" + call + call + ".end method\n")
-            result = subprocess.run(
-                [sys.executable, "-I", str(PATCHER), tmp],
-                capture_output=True, text=True,
-            )
+            original = self.fixture().replace(call, call + call)
+            path.write_text(original)
+            result = self.run_patcher(tmp)
             self.assertNotEqual(0, result.returncode)
-            self.assertEqual("", result.stdout)
             self.assertIn("found 2", result.stderr)
+            self.assertEqual(original, path.read_text())
 
     def test_guest_preparation_carries_only_biometric_metadata(self):
         self.assertIn("$STAGE/data/vendor_de/0/fpdata", PREPARE)

@@ -879,7 +879,10 @@ class HelperTest(unittest.TestCase):
 
 class SourceTest(unittest.TestCase):
     def test_the_smali_belongs_to_the_java_source(self):
-        want = hashlib.sha256(JAVA.read_bytes()).hexdigest()
+        # Git stores this Java source as LF, but Windows checkouts may convert
+        # it to CRLF. The checked-in smali records the canonical LF source hash.
+        source = JAVA.read_bytes().replace(b'\r\n', b'\n')
+        want = hashlib.sha256(source).hexdigest()
         head = SMALI.read_text().split('\n# static fields', 1)[0]
         self.assertIn(f'# from OneOSGuestLock.java (sha256 {want});', head,
                       'run scripts/build-guest-lock-smali.sh after changing the Java source')
