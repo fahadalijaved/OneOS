@@ -466,7 +466,7 @@ def main():
     ap.add_argument("--db", default="out/reports/db/reports.jsonl")
     ap.add_argument("--md", default="docs/devices.md")
     ap.add_argument("--filters", default="out/telegram/rose_filters.txt")
-    ap.add_argument("--days", type=int, default=10)
+    ap.add_argument("--days", type=int, default=400)  # owner 11-15: every report counts (10 days hid phones' working systems)
     ap.add_argument("--per-phone", action="store_true", help="one Rose reply per phone instead of one per series")
     ap.add_argument("--rich", default="", help="also write the phones as JSON for rose_rich.py (Premium emoji, quotes)")
     ap.add_argument("--link", default="", help="the public docs/devices.md URL, once published")

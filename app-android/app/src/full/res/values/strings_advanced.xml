@@ -463,4 +463,9 @@
     <string name="bring_change_data">One UI has newer data</string>
     <string name="bring_change_app">Updated on One UI since</string>
     <string name="bring_change_gone">No longer installed on One UI</string>
+    <!-- 0.5.17 (owner): the warning before "Switch with a screen lock set" (LockRiskDialog). -->
+    <string name="lock_risk_title">Switch with a screen lock: you take the risk</string>
+    <string name="lock_risk_message">Recent Samsung firmware blocks Download Mode while a PIN, pattern, password, fingerprint or face lock is set. If a switch goes wrong with your lock on, your phone may not start and may not reach Download Mode either: then the only way back is a factory reset, which erases everything on it. This has happened to a tester.\n\nA Download Mode module (such as backdownload) lowers this risk but does not remove it. Back up first. You alone are responsible for what happens to your phone and its data.</string>
+    <string name="lock_risk_accept_wait">I understand the risk (%1$d)</string>
+    <string name="lock_risk_accept">I understand the risk</string>
 </resources>

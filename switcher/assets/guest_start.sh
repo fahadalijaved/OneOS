@@ -1086,7 +1086,7 @@ if [ -f /data/guest_audio.flag ]; then
                     fails=$((fails + 1))
                     [ $fails -lt 5 ] || { echo "$(date +%T) Bluetooth stream still disabled after 5 tries: watch off for the session"; exit 0; }
                 fi
-                r=$(service call media.audio_flinger 18 i32 0 s16 "A2dpSuspended=false" 2>&1 | tr -s " \n" " " | head -c 80)
+                r=$({ /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSAudioParam "A2dpSuspended=false" || service call media.audio_flinger 18 i32 0 s16 "A2dpSuspended=false"; } 2>&1 | tr -s " \n" " " | head -c 80)
                 sent=1
                 echo "$(date +%T) HAL kept A2DP off (${l#*: }): A2dpSuspended=false to AudioFlinger: $r" | cut -c1-260
             done' oneos_a2dp_watch "$BB" >> /data/oneos_a2dp.log 2>&1 &
@@ -1151,7 +1151,7 @@ if [ -f /data/guest_audio.flag ]; then
         # each restart of this audioserver (a new HAL starts suspended).
         unsusp() {
             [ "$(getprop ro.soc.manufacturer)" = Samsung ] || return 0
-            r=$(service call media.audio_flinger 18 i32 0 s16 "A2dpSuspended=false" 2>&1 | tr -s " \n" " " | head -c 60)
+            r=$({ /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSAudioParam "A2dpSuspended=false" || service call media.audio_flinger 18 i32 0 s16 "A2dpSuspended=false"; } 2>&1 | tr -s " \n" " " | head -c 60)
             echo "$(date +%T) A2dpSuspended=false to the HAL before Bluetooth connects (Samsung SoC): $r"
         }
         unsusp
@@ -1323,7 +1323,7 @@ if [ -f /data/guest_audio.flag ] && [ "${ONEOS_GUEST_CALL_SIM:-1}" != 0 ]; then
                 vs=$((4 + $(s16 "$2"))); hs=$(($(s16 qti.audio.core.VString) + vs)); ps=$((4 + $(s16 g_call_sim_slot) + 12 + hs))
                 service call android.hardware.audio.core.IModule/default 34 i32 1 i32 1 i32 $ps s16 g_call_sim_slot i32 1 i32 1 i32 $hs s16 qti.audio.core.VString i32 $vs s16 "$2" i32 0 2>&1
             else
-                service call media.audio_flinger 18 i32 0 s16 "g_call_sim_slot=$2" 2>&1
+                { /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSAudioParam "g_call_sim_slot=$2" || service call media.audio_flinger 18 i32 0 s16 "g_call_sim_slot=$2"; } 2>&1
             fi | tr -s " \n" " " | head -c 100 | $bb sed "s/ *\$//"
         }
         # Delivered when the last "configured g_call_sim_slot" line of the

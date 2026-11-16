@@ -75,8 +75,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // the signal poll and the image's payloads.
     "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r28") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r35") to listOf("tethering_payload.img")),
-    "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r1") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r37") to listOf("tethering_payload.img")),
+    "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r3") to listOf("tethering_payload.img")),
     // OxygenOS 16 (0.4.67, experimental), for the phones on One UI 8 (Android 16): no fold overlays, no
     // tethering (One UI's stays), no apex requirement list (no ColorOS set ships one).
     "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r3") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
@@ -156,6 +156,8 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     // only have Samsung's (switcher/native/oneos_btaudio.cpp, built by build.sh).
     // oneos_switch.sh starts it only on such a phone.
     "oneos_btaudio" to File(repoRoot, "switcher/assets/oneos_btaudio"),
+    // 0.5.17: Nothing OS's Essential key from a Volume Down double press, as a uinput key (switcher/native/oneos_essential_key.c).
+    "oneos_essential_key" to File(repoRoot, "switcher/assets/oneos_essential_key"),
     // 0.4.33: the status bar's dimension overlays on bar phones
     // (switcher/patches/OneOSOverlayDimen.java, build_overlay_dimen.sh).
     "OneOSOverlayDimen.dex" to File(repoRoot, "switcher/assets/OneOSOverlayDimen.dex"),
@@ -519,8 +521,8 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 145
-        versionName = "0.5.16"
+        versionCode = 146
+        versionName = "0.5.17"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

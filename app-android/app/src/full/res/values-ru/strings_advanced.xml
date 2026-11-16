@@ -460,4 +460,9 @@
     <string name="bring_change_data">В One UI более новые данные</string>
     <string name="bring_change_app">С тех пор обновлено в One UI</string>
     <string name="bring_change_gone">Больше не установлено в One UI</string>
+    <!-- 0.5.17 (owner): the warning before "Switch with a screen lock set" (LockRiskDialog). -->
+    <string name="lock_risk_title">Переключение с блокировкой экрана: риск на вас</string>
+    <string name="lock_risk_message">Новые прошивки Samsung блокируют режим Download, пока установлен PIN-код, графический ключ, пароль, отпечаток или распознавание лица. Если переключение пойдёт не так при включённой блокировке, телефон может не запуститься и не войти в режим Download: тогда остаётся только сброс до заводских настроек, который удалит всё. Такое уже случалось у тестировщика.\n\nМодуль для режима Download (например, backdownload) снижает этот риск, но не устраняет его. Сначала сделайте резервную копию. Вся ответственность за телефон и его данные лежит только на вас.</string>
+    <string name="lock_risk_accept_wait">Я понимаю риск (%1$d)</string>
+    <string name="lock_risk_accept">Я понимаю риск</string>
 </resources>

@@ -587,7 +587,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r35",
+        sourceDir = "out/overlays_nothing_r37", // 0.5.17 r36: fingerprint from One UI, removal guard
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             // 0.4.57 (r23): also Samsung IMS's framework members (guest_secims_members.py).
@@ -673,7 +673,7 @@ object PackageSets {
     val NOTHING_A = PackageSet(
         id = ID_NOTHING_A,
         imageId = Images.ID_NOTHING_ASTEROIDS,
-        sourceDir = "out/overlays_nothing_a_r1",
+        sourceDir = "out/overlays_nothing_a_r3", // 0.5.17 r2: fingerprint from One UI, removal guard
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),

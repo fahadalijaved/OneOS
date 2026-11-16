@@ -56,5 +56,12 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+        <!-- 0.5.17: Samsung's Knox provider stand-in for One UI's calling service in OxygenOS (KnoxProviderStub);
+             off here, turned on by the session in an OxygenOS guest only. -->
+        <provider
+            android:name=".KnoxProviderStub"
+            android:authorities="com.sec.knox.provider2"
+            android:enabled="false"
+            android:exported="true" />
     </application>
 </manifest>

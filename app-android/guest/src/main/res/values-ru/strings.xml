@@ -61,4 +61,13 @@
     <string name="bring_open">Открыть</string>
     <string name="tile_label">Вернуться в One UI</string>
     <string name="tile_subtitle">OneOS</string>
+    <!-- 0.5.17 (owner): Record full logs from now, in the session (FullLogs). -->
+    <string name="logs_title">Журналы</string>
+    <string name="full_logs_title">Записывать полные журналы</string>
+    <string name="full_logs_off">Что-то не так? Включите, повторите проблему, затем вернитесь в One UI и отправьте отчёт</string>
+    <string name="full_logs_starting">Запуск…</string>
+    <string name="full_logs_on">Идёт запись полных журналов. Когда закончите, вернитесь в One UI и отправьте отчёт</string>
+    <string name="full_logs_confirm">Записывать всё с этого момента до возврата в One UI? Полные журналы расходуют больше заряда и памяти. Они войдут в ваш отчёт.</string>
+    <string name="full_logs_start">Записывать</string>
+    <string name="full_logs_failed">Не удалось включить полные журналы: %1$s</string>
 </resources>

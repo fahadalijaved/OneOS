@@ -134,7 +134,9 @@ class AdvancedFragment : CardsFragment() {
             trailing = getString(R.string.advanced_card_risky_tag), trailingLevel = Level.BLOCK, rows = true,
         )
         CardRows.toggle(risky, getString(R.string.advanced_allow_lock_title), getString(R.string.advanced_allow_lock_summary), SessionPrefs.allowScreenLock(ctx)) { on ->
-            SessionPrefs.setAllowScreenLock(ctx, on)
+            if (!on) SessionPrefs.setAllowScreenLock(ctx, false)
+            // 0.5.17 (owner): on only after the red warning and its 5 s wait; anything else redraws it off.
+            else LockRiskDialog.show(requireActivity()) { yes -> SessionPrefs.setAllowScreenLock(ctx, yes); if (!yes) requireActivity().recreate() }
         }
 
         // Help.

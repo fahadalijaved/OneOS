@@ -51,7 +51,10 @@ public final class OneOSScreenWatch {
     try { if (((Integer) reason.invoke(pm)) == 0) click(); } catch (Throwable t) { }
    }
    wasAwake = awake;
-   int v = awake ? 0 : (aodOn() ? 1 : 0);
+   // 0.5.17 (owner's A36: double tap to wake only with the AOD on): the A36's panel reads lit (dpms On, backlight
+   // 249) whether the screen is off or not, so with the AOD off the keeper never saw it go off and never armed the
+   // double tap. Asleep is now 1 with or without the AOD; a notification pulse with the AOD off is then not tappable.
+   int v = awake ? 0 : 1;
    // Asleep: report it only when it lasts 1.5 s. A double tap to sleep puts the guest to sleep on the
    // second tap's touch down; low-power mode right then turned the finger's release into a tap on the
    // AOD, which woke it again a second later (A36 Nothing OS, owner: "cant dt2s now in lockscreen").

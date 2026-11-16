@@ -436,6 +436,12 @@ object Plain {
             }
             "mounted under the stage" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_RUNNING)
             "never returned" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_UNFINISHED)
+            // 0.5.17: right after a restart and still too little room (S25 OriginOS 5e098b17): a restart cannot help.
+            "too little property space" in p -> PlainMessage(
+                "Not enough room for this system",
+                "Even after a restart, this phone's One UI leaves too little room for this system's settings. Choose another system and send a report.",
+                FixAction.CHOOSE_SYSTEM, defaultLabel(FixAction.CHOOSE_SYSTEM),
+            )
             "property space" in p -> PlainMessage(
                 "Restart your phone first",
                 "One UI ran out of room for settings after several switches. Restart your phone, then switch again.",

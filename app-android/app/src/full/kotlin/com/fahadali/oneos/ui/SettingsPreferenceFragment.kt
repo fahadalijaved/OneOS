@@ -84,7 +84,19 @@ class SettingsPreferenceFragment : InsetPreferenceFragment() {
         toggle(experimental, R.string.advanced_edm_stub_title, R.string.advanced_edm_stub_summary, SessionPrefs.edmStub(ctx)) { SessionPrefs.setEdmStub(ctx, it) }
         toggle(experimental, R.string.verbose_boot_title, R.string.verbose_boot_summary, SessionPrefs.verboseBoot(ctx)) { SessionPrefs.setVerboseBoot(ctx, it) }
         val risky = category(R.string.advanced_card_risky)
-        toggle(risky, R.string.advanced_allow_lock_title, R.string.advanced_allow_lock_summary, SessionPrefs.allowScreenLock(ctx)) { SessionPrefs.setAllowScreenLock(ctx, it) }
+        // 0.5.17 (owner): turning it on asks first, in red, with a 5 s wait (LockRiskDialog); off needs no question.
+        risky.addDescribedPreference(SwitchPreferenceCompat(ctx).apply {
+            key = "setting_${R.string.advanced_allow_lock_title}"
+            setTitle(R.string.advanced_allow_lock_title); setSummary(R.string.advanced_allow_lock_summary)
+            isIconSpaceReserved = false; isPersistent = false; isChecked = SessionPrefs.allowScreenLock(ctx)
+            setOnPreferenceChangeListener { pref, next ->
+                if (next != true) { SessionPrefs.setAllowScreenLock(ctx, false); return@setOnPreferenceChangeListener true }
+                LockRiskDialog.show(requireActivity()) { yes ->
+                    if (yes) { SessionPrefs.setAllowScreenLock(ctx, true); (pref as SwitchPreferenceCompat).isChecked = true }
+                }
+                false
+            }
+        })
         LogJob.latestZip(ctx)?.let { zip ->
             sessions.addDescribedPreference(Preference(ctx).apply {
                 key = "session_logs"

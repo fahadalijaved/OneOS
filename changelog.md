@@ -50,6 +50,37 @@ read-only there, and the guest now has its own), **no more boot failures from fa
 **ColorOS lock screen depth effect** (0.4.60 gave its files to the wrong app; OPPO's AI engine from the
 Find X9 Ultra's own firmware is in ColorOS too), and the **Samsung Camera on the A56** (its sensor crop).
 
+New in 0.5.17: Record full logs from inside a system, Nothing OS's Essential key on Volume Down.
+- **Groundwork for fingerprint unlock with One UI's fingerprints** (off for now: the in-display sensor still needs
+  its touch signals from Nothing's lock screen). Nothing OS can never delete a fingerprint from the phone, and Settings no
+  longer crashes on Fingerprint. From vdcoolok's work (pull request #152).
+- **Switch with a screen lock set** now asks first: a red warning (recent Samsung firmware blocks Download Mode while a
+  lock is set; a failed switch can mean a factory reset) and a 5-second wait before it can be turned on.
+- **Record full logs from now**, in the OneOS app inside any system (Logs card): full session logs stay off by default
+  (they add heat); when something goes wrong, turn this on, make it happen again, go back to One UI and send a report.
+- **Nothing OS: double tap to wake with the AOD off too** (it only worked with the AOD on: the panel never reads off).
+- **Nothing OS: colour modes and warm/cool work** (Standard and Alive, and the temperature slider): Nothing sent them to
+  display hardware a Galaxy does not have; OneOS applies them like Android's own Night Light does.
+- **Nothing OS: the screen-off animation closes into the phone's own power button** (it went to
+  where a Nothing phone has it).
+- **Nothing OS: Volume Down twice opens Essential Space** (the power key's double press is the camera again); its
+  first-run page, which waits for a double click of Nothing's own key, is marked done.
+- **OxygenOS on the Galaxy A15, A16 and A17: SMS and VoLTE.** One UI's calling service died at every start there (it
+  looked for a Samsung Knox provider OxygenOS does not have); OneOS now gives it a stand-in, in OxygenOS only.
+- **Bluetooth audio recovery works in every system**: OneOS sent its "resume" request to the audio service by a call
+  number that is a different call in some systems (OxygenOS 16: found by a tester's own module); it now asks the system
+  itself. The same for the SIM a call uses.
+- **OxygenOS: Bluetooth no longer drops out** on phones whose Bluetooth chip sends its own quality reports (Galaxy A17
+  and others): the report handler that crashed on them is skipped. Thanks to the A17 tester who found it and built the fix.
+- **Galaxy S26 (Exynos): the camera opens and records** in every system: each camera picture waited 5 s for a One UI
+  service that is not there in another system (CPU boosts); OneOS answers it now.
+- **Galaxy S24: Turn it off really stops the timer app's kernel tool** (it runs as root, so turning the app off left it
+  running and the switch was refused again).
+- **OriginOS on phones with less room for settings** (S25): it starts again after a restart; when even a fresh restart
+  leaves too little room, OneOS says so instead of asking for another restart.
+- **Phones list** in the group counts every report again (only the last 10 days hid systems that worked).
+- The OneOS app inside a system: its bottom bar has its own background (text no longer runs under it).
+
 New in 0.5.16: Telegram sign-in for reports, OneOS in Russian, a Turn it off button for the S24 kernel tool.
 - **Reports come only from members of the OneOS Telegram group.** Send to the OneOS team now asks you to sign in with
   Telegram once (through @OneOSReportsBot: tap Start, then come back). Not in the group, or banned? You get the group's

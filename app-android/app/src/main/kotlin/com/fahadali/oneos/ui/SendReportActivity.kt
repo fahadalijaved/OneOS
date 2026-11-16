@@ -210,7 +210,11 @@ class SendReportFragment : PreferenceFragmentCompat() {
                 sessionAppVersion = json.optJSONObject("app")?.optString("version")?.takeIf { it.isNotEmpty() },
                 sessionAppCode = json.optJSONObject("app")?.optInt("versionCode")?.takeIf { it > 0 },
                 sessionDate = json.optString("generatedAt").takeIf { it.length >= 10 }?.take(10),
-                fullLogsOff = runCatching { File(ProbeSession.folderOf(zip), "stage/session.env").readLines().contains("ONEOS_FULL_LOGS=0") }.getOrDefault(false),
+                // 0.5.17: Record full logs from now in the guest app leaves stage/full_logs_mid.log: logs from then on.
+                fullLogsOff = runCatching {
+                    val stage = File(ProbeSession.folderOf(zip), "stage")
+                    File(stage, "session.env").readLines().contains("ONEOS_FULL_LOGS=0") && !File(stage, "full_logs_mid.log").isFile
+                }.getOrDefault(false),
             )
         } else {
             val device = json?.optJSONObject("device")
