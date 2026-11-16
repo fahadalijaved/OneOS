@@ -676,7 +676,10 @@ fi
 #    0.4.74 (A34 7e5896b0 81 of 510, A15 336e9373, A17 5G 98780abb, A24 80412f38
 #    ...), the slider did nothing. Only for that pair. A system that goes through
 #    Samsung's lights HAL (HyperOS, Pixel, Infinity-X: "force_anyway? false") is
-#    left alone: two writers on one node would fight.
+#    left alone: two writers on one node would fight. A HAL that silently stops
+#    reaching the panel gets taken over: the bridge watches (fail-closed) and
+#    takes the node over after 15 s of a node stuck at 0 with the screen awake
+#    and asking for light (HyperOS on the A15, 2026-11-15).
 # The guest's brightness (cmd display get-brightness) and wakefulness (dumpsys
 # power) are copied once a second. ColorOS and OxygenOS give a level, not 0..1
 # (222..8191, sunlight boost to 10239: the 0.4.65 loop took that for no value and
@@ -687,13 +690,15 @@ fi
 # a panel node; dozing: 1/20. Ends with the guest.
 # ONEOS_GUEST_LED_BRIDGE=0 / ONEOS_GUEST_BL_BRIDGE=0: off.
 BRIDGE=0
+case "${ONEOS_GUEST_BL_BRIDGE:-1}" in force) BLFORCE=1 ;; *) BLFORCE=0 ;; esac
 if [ $LEDBL = 1 ]; then [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ] && BRIDGE=1
-elif [ "${ONEOS_GUEST_BL_BRIDGE:-1}" = 1 ] && [ "$BL" = /sys/class/backlight/panel ] && [ -w "$BL/brightness" ]; then
+elif [ "${ONEOS_GUEST_BL_BRIDGE:-1}" != 0 ] && [ "$BL" = /sys/class/backlight/panel ] && [ -w "$BL/brightness" ]; then
     case "$BLMAX" in ''|*[!0-9]*) ;; *) BRIDGE=1 ;; esac
 fi
 if [ $BRIDGE = 1 ]; then
     cat > /data/oneos_bl_bridge.sh <<'BLEOF'
 BL=$1; MAX=$2; ON=$3; LED=$4
+case "${ONEOS_GUEST_BL_BRIDGE:-1}" in force) BLFORCE=1 ;; *) BLFORCE=0 ;; esac
 i=0
 while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
 D=""; n=0
@@ -711,9 +716,43 @@ force=$(echo "$D" | sed -n 's/^useSurfaceControl=[a-z]* (force_anyway? \([a-z]*\
 lo=$(echo "$D" | sed -n 's/^mScreenBrightnessRangeMinimum=//p' | head -n 1)
 hi=$(echo "$D" | sed -n 's/^mScreenBrightnessRangeMaximum=//p' | head -n 1)
 nm=$(echo "$D" | sed -n 's/^mScreenBrightnessNormalMaximum=//p' | head -n 1)
-if [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
-    echo "$(date +%T) brightness bridge: not needed for $BL (useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read})"
-    exit 0
+if [ "$LED" != 1 ] && [ "${BLFORCE:-0}" = 1 ]; then
+    # ONEOS_GUEST_BL_BRIDGE=force skips the watch entirely: for a stage whose
+    # HAL thrashes the node instead of sticking at 0 (HyperOS on the A15,
+    # 2026-11-15: the node jumped 90..469 with the slider at minimum, and a
+    # direct write was over-written within seconds), the bridge restores the
+    # proportional value every second — one writer wins by out-writing.
+    echo "$(date +%T) brightness bridge: forced by ONEOS_GUEST_BL_BRIDGE=force (the HAL thrashes the node; restoring every second)"
+elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
+    # A lights-HAL system is normally left alone: two writers on one node would
+    # fight. But a HAL can silently stop reaching the panel: HyperOS on the A15
+    # (2026-11-15) read the node at 0 of 483 while the panel glowed at the
+    # host's last level, and the slider moved the setting without moving the
+    # panel. Watch, fail-closed: take the node over only when it sits at 0 for
+    # 15 s in a row while the screen is awake and asks for light (a real
+    # minimum is a wish, not a dead HAL), and give up after 600 s if the node
+    # moves on its own. Healthy systems never see the takeover.
+    echo "$(date +%T) brightness bridge: watching $BL (useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read}; takes over after 15 s of a dead node)"
+    n=0; i=0
+    while [ $i -lt 600 ]; do
+        i=$((i + 1)); sleep 1
+        [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] || { n=0; continue; }
+        case "$(dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)" in
+            Awake) ;;
+            *) n=0; continue ;;
+        esac
+        f=$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
+        light=$(echo "$f" | awk -v lo="${lo:-0}" -v hi="${hi:-1}" '{
+            for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?$/) {
+                print ($i + 0 > lo + 0.05 * (hi - lo)) ? 1 : 0; exit } }')
+        [ "$light" = 1 ] && n=$((n + 1)) || n=0
+        [ $n -ge 15 ] && break
+    done
+    if [ $n -lt 15 ]; then
+        echo "$(date +%T) brightness bridge: the node moved on its own after $i s; leaving it to the lights HAL"
+        exit 0
+    fi
+    echo "$(date +%T) brightness bridge: the lights HAL does not reach the panel (node 0, awake and asking for light for 15 s); taking the node over"
 fi
 # A level scale when the range ends above 1 (ColorOS, OxygenOS); else 0..1.
 SCALE=$(echo "${lo:-x} ${hi:-x} ${nm:-x}" | awk '{ t = $3; if (t !~ /^[0-9.]+$/) t = $2
