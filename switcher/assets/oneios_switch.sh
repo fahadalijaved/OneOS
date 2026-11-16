@@ -1133,9 +1133,18 @@ done > "$B/backlight" 2>/dev/null
 # changes nothing for it; the return writes the old value back.
 SHMEM_EN="$T/sys/kernel/mm/transparent_hugepage/shmem_enabled"
 if [ -f "$SHMEM_EN" ]; then
-    cat "$SHMEM_EN" > "$B/shmem_enabled" 2>/dev/null
-    if [ "$(cat "$B/shmem_enabled" 2>/dev/null)" != advise ] && echo advise > "$SHMEM_EN" 2>/dev/null; then
-        echo "shmem_enabled: $(cat "$B/shmem_enabled") -> advise"
+    # The node prints every mode with the active one in brackets:
+    # "always within_size advise [never] deny force". Save the bare mode (the
+    # bracketed token), never the whole line: writing the line back is EINVAL
+    # and that is what failed Gate A on 2026-11-16.
+    shmem_raw=$(cat "$SHMEM_EN" 2>/dev/null)
+    shmem_mode=$(printf '%s\n' "$shmem_raw" | sed -n 's/.*\[\([a-z_]*\)\].*/\1/p')
+    [ -n "$shmem_mode" ] || shmem_mode=$(printf '%s\n' "$shmem_raw" | awk '{ print $1 }')
+    if [ -n "$shmem_mode" ]; then
+        printf '%s\n' "$shmem_mode" > "$B/shmem_enabled" 2>/dev/null
+        if [ "$shmem_mode" != advise ] && echo advise > "$SHMEM_EN" 2>/dev/null; then
+            echo "shmem_enabled: $shmem_mode -> advise"
+        fi
     fi
 fi
 clocks_save

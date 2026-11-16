@@ -591,7 +591,13 @@ done
 SHMEM_EN="$T/sys/kernel/mm/transparent_hugepage/shmem_enabled"
 if [ -f "$BASE/shmem_enabled" ] && [ -f "$SHMEM_EN" ]; then
     ORIG_SHMEM=$(cat "$BASE/shmem_enabled")
-    if [ "$(cat "$SHMEM_EN" 2>/dev/null)" != "$ORIG_SHMEM" ]; then
+    # The node shows its modes with the active one in brackets; compare the
+    # modes, not the whole line (2026-11-16: the switch saved that line and the
+    # write back was EINVAL, so Gate A failed and the phone rebooted).
+    shmem_raw=$(cat "$SHMEM_EN" 2>/dev/null)
+    CUR_SHMEM=$(printf '%s\n' "$shmem_raw" | sed -n 's/.*\[\([a-z_]*\)\].*/\1/p')
+    [ -n "$CUR_SHMEM" ] || CUR_SHMEM=$(printf '%s\n' "$shmem_raw" | awk '{ print $1 }')
+    if [ "$CUR_SHMEM" != "$ORIG_SHMEM" ]; then
         echo "$ORIG_SHMEM" > "$SHMEM_EN" 2>/dev/null &&
             say "shmem_enabled back: $ORIG_SHMEM" ||
             failsafe "shmem_enabled is $(cat "$SHMEM_EN" 2>/dev/null), was $ORIG_SHMEM at the switch, and the write back failed"

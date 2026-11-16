@@ -802,16 +802,33 @@ class OneiosScriptTest {
         f.assertInPlace()
     }
 
-    /** The shmem THP mode the switch wrote (advise, for the 2 MiB host pages) comes back at the return. */
+    /** The shmem THP mode the switch wrote (advise, for the 2 MiB host pages) comes back at the return. The node
+     *  carries every mode with the active one in brackets ("always within_size [advise] deny force"): the base keeps
+     *  the bare mode, and the return compares and restores the bare mode (2026-11-16: the whole line written back was
+     *  EINVAL and that rebooted the phone out of Gate A). */
     @Test
     fun shmemEnabledComesBackAtTheReturn() = each { f ->
         f.phone()
         File(f.root, "sys/kernel/mm/transparent_hugepage").mkdirs()
-        File(f.root, "sys/kernel/mm/transparent_hugepage/shmem_enabled").writeText("advise\n")
+        File(f.root, "sys/kernel/mm/transparent_hugepage/shmem_enabled").writeText("always within_size [advise] deny force\n")
         File(f.control, "base/shmem_enabled").writeText("never\n")
         f.returns()
         f.assertInPlace()
         assertEquals("never\n", f.file("sys/kernel/mm/transparent_hugepage/shmem_enabled").readText())
+        assertFalse(File(f.control, "base/shmem_enabled").exists())
+    }
+
+    /** The node is already at the mode the switch found (bracketed, in the annotated line): nothing is written. */
+    @Test
+    fun shmemAlreadyBackIsNotWrittenAgain() = each { f ->
+        f.phone()
+        File(f.root, "sys/kernel/mm/transparent_hugepage").mkdirs()
+        val line = "always within_size advise [never] deny force\n"
+        File(f.root, "sys/kernel/mm/transparent_hugepage/shmem_enabled").writeText(line)
+        File(f.control, "base/shmem_enabled").writeText("never\n")
+        f.returns()
+        f.assertInPlace()
+        assertEquals(line, f.file("sys/kernel/mm/transparent_hugepage/shmem_enabled").readText())
         assertFalse(File(f.control, "base/shmem_enabled").exists())
     }
 
@@ -820,10 +837,10 @@ class OneiosScriptTest {
     fun shmemLeftAloneWhenTheSwitchNeverWrote() = each { f ->
         f.phone()
         File(f.root, "sys/kernel/mm/transparent_hugepage").mkdirs()
-        File(f.root, "sys/kernel/mm/transparent_hugepage/shmem_enabled").writeText("always\n")
+        File(f.root, "sys/kernel/mm/transparent_hugepage/shmem_enabled").writeText("always within_size advise [never] deny force\n")
         f.returns()
         f.assertInPlace()
-        assertEquals("always\n", f.file("sys/kernel/mm/transparent_hugepage/shmem_enabled").readText())
+        assertEquals("always within_size advise [never] deny force\n", f.file("sys/kernel/mm/transparent_hugepage/shmem_enabled").readText())
     }
 
     private fun watcher(f: Fake, max: Int = 600): Process {

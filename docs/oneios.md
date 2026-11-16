@@ -521,7 +521,9 @@ runtime with xnuhost is staged, this is where every switch ends.**
 1. Session folder, control folder and baseline: boot id, SELinux mode, properties, the pids of vold, keystore2,
    surfaceflinger and servicemanager, init's mount points, the panel's brightness, the shmem THP mode
    (`control/base/shmem_enabled`: the switch writes `advise` for xnuhost's 2 MiB host pages, OneiOS 8a9caf3, and the
-   return writes the old value back before gate A), and **One UI's clock caps**
+   return writes the old value back before gate A). The file saves only the bare mode (`never`, `advise`, ...), parsed
+   from the bracketed token of the node's annotated line; both sides compare bare modes, because writing the whole
+   `always within_size advise [never] deny force` line back is `EINVAL` (the 2026-11-16 Gate A failure and reboot), and **One UI's clock caps**
    (`control/base/clocks`: each node, One UI's value, the session's): Samsung's `cpufreq_limit`
    (`/sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit` and `cpufreq_min_limit`, `drivers/cpufreq/cpufreq_limit.c`
    of the SM8650 kernel: SSRM's one value for every cluster, a freq QoS request of its own, so `scaling_max_freq`
