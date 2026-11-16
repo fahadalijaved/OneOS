@@ -32,6 +32,8 @@ jobs:
       PROBE_POM: https://maven.pkg.github.com/tribalfs/*/io/github/tribalfs/oneui-design/0.9.13+oneui8/oneui-design-0.9.13+oneui8.pom
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the version is the commit count since bb1ef38 (build.gradle.kts reads the same)
 
       - name: Which token reads tribalfs' packages
         env:
@@ -86,8 +88,12 @@ jobs:
       - name: Version
         id: version
         run: |
-          v=$(sed -n 's/^ *versionName = "\([0-9.]*\)"$/\1/p' app-android/app/build.gradle.kts | head -n 1)
-          [ -n "$v" ] || { echo "::error::no versionName in app/build.gradle.kts"; exit 1; }
+          # The version is the git count now (app-android/app/build.gradle.kts reads the same history):
+          # the commits since OneiOS 0.1.10's fork commit bb1ef38 on top of 143/0.5.14.
+          base=bb1ef384e594125fb6f79be6eace3ebfbd354c46
+          count=$(git rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
+          case "$count" in ''|*[!0-9]*) count=0 ;; esac
+          v="0.5.$((14 + count))"
           echo "name=$v" >> "$GITHUB_OUTPUT"
           echo "tag=oneios-$v" >> "$GITHUB_OUTPUT"
 
