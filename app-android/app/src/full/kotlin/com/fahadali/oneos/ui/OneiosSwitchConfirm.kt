@@ -19,10 +19,11 @@ import com.fahadali.oneos.session.OneiosJob
  * (dialog_switch, home_way_tile, home_switch_ack), with the ways back of an iOS session as its tiles
  * (OneiOS's oneos/interface.md, section 6, and docs/oneios.md, "Getting back to One UI"): Volume Up +
  * Volume Down for 3 s, the same keys while iOS is still starting (a return asked during the switch
- * wins), One UI coming back by itself when iOS never shows, and Power + Volume Down. Two boxes, both
- * every time: the experimental tick (root's `switch` gets it, as before) and "I have read how to get
- * back". Switch is on only with both. Then [OneiosJob.switch]: the same root verbs and preflight as
- * before; a refusal comes back in plain words on the switching screen.
+ * wins), One UI coming back by itself when iOS never shows, and Power + Volume Down. Three boxes:
+ * "I have read how to get back" and the experimental tick (root's `switch` gets it, as before) every
+ * time, and on a phone that is not the Galaxy S24 Ultra the device warning (the owner, 2026-11-16:
+ * another phone may try it, told what to expect). Switch is on only with all. Then [OneiosJob.switch]:
+ * the same root verbs and preflight as before; a refusal comes back in plain words on the switching screen.
  */
 internal object OneiosSwitchConfirm {
     fun show(a: AppCompatActivity) {
@@ -76,24 +77,31 @@ internal object OneiosSwitchConfirm {
             text = a.getString(R.string.oneios_ack)
             ackList.addView(this)
         }
+        val deviceBox = if (OneiosJob.state.offered == false) {
+            (inflater.inflate(R.layout.home_switch_ack, ackList, false) as CheckBox).apply {
+                text = a.getString(R.string.oneios_not_this_phone_ack)
+                ackList.addView(this)
+            }
+        } else null
         ackList.visibility = View.VISIBLE
 
         val dialog = AlertDialog.Builder(a).setView(view).create()
         val go = view.findViewById<Button>(R.id.switch_go)
         go.setText(R.string.oneios_switch)
         fun update() {
-            go.isEnabled = readBox.isChecked && experimentalBox.isChecked
+            go.isEnabled = readBox.isChecked && experimentalBox.isChecked && (deviceBox?.isChecked ?: true)
         }
         readBox.setOnCheckedChangeListener { _, _ -> update() }
         experimentalBox.setOnCheckedChangeListener { _, _ -> update() }
+        deviceBox?.setOnCheckedChangeListener { _, _ -> update() }
         update()
         view.findViewById<Button>(R.id.switch_cancel).setOnClickListener { dialog.dismiss() }
         go.setOnClickListener {
-            if (!readBox.isChecked || !experimentalBox.isChecked) return@setOnClickListener
+            if (!readBox.isChecked || !experimentalBox.isChecked || deviceBox?.isChecked == false) return@setOnClickListener
             if (OneiosJob.state.busy) return@setOnClickListener
             dialog.dismiss()
             // The experimental tick is what root's switch verb takes; the read box only gates this button.
-            OneiosJob.switch(a, experimentalBox.isChecked)
+            OneiosJob.switch(a, experimentalBox.isChecked, deviceBox?.isChecked == true)
             if (OneiosJob.state.busy) a.startActivity(OneiosSwitchActivity.intent(a))
         }
         dialog.show()

@@ -110,8 +110,8 @@ object OneiosFlow {
         fun failedBy(vararg jobs: Job) = failure?.takeIf { i.last in jobs }
 
         val phone = when {
-            i.offered == false -> Row(Step.PHONE, Mark.FAILED, OneiosPlain.refused("iOS runs on the Galaxy S24 Ultra (SM-S928) only").line)
             st == null && i.running == Job.CHECK -> Row(Step.PHONE, Mark.RUNNING, "Asking root what is on this phone…")
+            i.offered == false -> Row(Step.PHONE, Mark.DONE, "warned: OneiOS is mainly tested and working on the Galaxy S24 Ultra; on this phone it may be unstable")
             // A check whose own `status` failed: what is shown of the stage is the last answer, not this one.
             failedBy(Job.CHECK) != null || (st == null && failure != null) -> Row(Step.PHONE, Mark.FAILED, failure!!.line)
             st == null -> Row(Step.PHONE, Mark.PENDING, null)
@@ -154,7 +154,6 @@ object OneiosFlow {
         // unless it only says what the next step is and that step is already on the screen.
         val problem = failure?.takeIf { i.running == null } ?: refusal
         val next = when {
-            i.offered == false -> Next.NOT_THIS_PHONE
             i.running != null -> Next.WAIT
             st?.sessionOpen == true -> Next.BACK_TO_ONE_UI
             st == null -> Next.CHECK_AGAIN
