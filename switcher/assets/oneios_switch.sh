@@ -1119,11 +1119,22 @@ awk '{ print $5 }' /proc/1/mountinfo | sort > "$B/mounts"
 for bl in "$T"/sys/class/backlight/*/brightness; do
     [ -f "$bl" ] && echo "${bl#"$T"} $(cat "$bl" 2>/dev/null)"
 done > "$B/backlight" 2>/dev/null
+# The shmem THP mode as One UI has it: xnuhost's 2 MiB host pages map the
+# guest's RAM with MADV_HUGEPAGE, which shmem honours only in the advise mode
+# (OneiOS 8a9caf3, docs/booter.md 2.6c). One UI never advises, so advise
+# changes nothing for it; the return writes the old value back.
+SHMEM_EN="$T/sys/kernel/mm/transparent_hugepage/shmem_enabled"
+if [ -f "$SHMEM_EN" ]; then
+    cat "$SHMEM_EN" > "$B/shmem_enabled" 2>/dev/null
+    if [ "$(cat "$B/shmem_enabled" 2>/dev/null)" != advise ] && echo advise > "$SHMEM_EN" 2>/dev/null; then
+        echo "shmem_enabled: $(cat "$B/shmem_enabled") -> advise"
+    fi
+fi
 clocks_save
 # The USB gadget and adbd as One UI has them (control/base/usb), for the
 # session's USB watcher and the return.
 usb_save
-echo "Baseline: boot $(cat "$B/boot_id"), SELinux $(cat "$B/selinux"), $(tr '\n' ' ' < "$B/pids")wifi $(cat "$B/wifi_on")"
+echo "Baseline: boot $(cat "$B/boot_id"), SELinux $(cat "$B/selinux"), shmem $(cat "$B/shmem_enabled" 2>/dev/null || echo -), $(tr '\n' ' ' < "$B/pids")wifi $(cat "$B/wifi_on")"
 
 echo "=== [2/5] $(date +%T) Arming the way back ==="
 # Before the stop: the watcher returns to One UI by itself if this script

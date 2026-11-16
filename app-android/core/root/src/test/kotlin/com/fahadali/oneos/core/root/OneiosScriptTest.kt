@@ -794,6 +794,30 @@ class OneiosScriptTest {
         f.assertInPlace()
     }
 
+    /** The shmem THP mode the switch wrote (advise, for the 2 MiB host pages) comes back at the return. */
+    @Test
+    fun shmemEnabledComesBackAtTheReturn() = each { f ->
+        f.phone()
+        File(f.root, "sys/kernel/mm/transparent_hugepage").mkdirs()
+        File(f.root, "sys/kernel/mm/transparent_hugepage/shmem_enabled").writeText("advise\n")
+        File(f.control, "base/shmem_enabled").writeText("never\n")
+        f.returns()
+        f.assertInPlace()
+        assertEquals("never\n", f.file("sys/kernel/mm/transparent_hugepage/shmem_enabled").readText())
+        assertFalse(File(f.control, "base/shmem_enabled").exists())
+    }
+
+    /** The switch never wrote (no value in the base): the return touches nothing. */
+    @Test
+    fun shmemLeftAloneWhenTheSwitchNeverWrote() = each { f ->
+        f.phone()
+        File(f.root, "sys/kernel/mm/transparent_hugepage").mkdirs()
+        File(f.root, "sys/kernel/mm/transparent_hugepage/shmem_enabled").writeText("always\n")
+        f.returns()
+        f.assertInPlace()
+        assertEquals("always\n", f.file("sys/kernel/mm/transparent_hugepage/shmem_enabled").readText())
+    }
+
     private fun watcher(f: Fake, max: Int = 600): Process {
         // The watcher's output is the return log, as on the phone. oneios_return.sh then writes each line once, told
         // by /proc/$$/fd/1; a machine without /proc (a Mac) has the test say it (ONEIOS_TEST_OUT_IS_LOG, read only with
