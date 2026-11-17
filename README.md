@@ -11,7 +11,12 @@
   <img alt="Android 17" src="https://img.shields.io/badge/Android-17-1C5FD6?style=flat-square&labelColor=2B3445">
   <img alt="One UI 9" src="https://img.shields.io/badge/One%20UI-9-1C5FD6?style=flat-square&labelColor=2B3445">
   <img alt="Root: KernelSU" src="https://img.shields.io/badge/root-KernelSU-1C5FD6?style=flat-square&labelColor=2B3445">
+  <a href="https://fahadalijaved.github.io/OneOS/" target="_blank" style="text-decoration: none;">
+    <img alt="Website: OneOS" src="https://img.shields.io/badge/Website-OneOS-10B981?style=flat-square&labelColor=2B3445">
+  </a>
 </p>
+
+
 
 OneOS runs a second Android system next to One UI on a rooted Samsung Galaxy
 and switches between the two without flashing anything. One UI stays
