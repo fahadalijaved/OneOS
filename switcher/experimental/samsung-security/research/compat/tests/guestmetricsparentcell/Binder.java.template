@@ -1,0 +1,8 @@
+package android.os;
+/** AUTHORED PC identity-bearing value/model, not native Binder. */
+public class Binder implements IBinder {
+    public boolean transact(int code, Parcel data, Parcel reply, int flags)
+            throws RemoteException {
+        return false;
+    }
+}

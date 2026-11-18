@@ -1,0 +1,70 @@
+package com.appleexploit.oneos.security.authority;
+import android.os.Binder;
+import android.os.IBinder;
+import android.os.Parcel;
+import android.os.RemoteException;
+import cellmodels.ModelControl;
+/** AUTHORED dependency MODEL, not the frozen Endpoint implementation. */
+public final class PreparedGuestMetricsEndpoint {
+    private int state;
+    private final Binder binder = new EndpointBinder();
+    private PreparedGuestMetricsEndpoint() { }
+    public static PreparedGuestMetricsEndpoint prepare(PreparedGuestMetricsProducer producer) {
+        ModelControl.endpointPrepareCalls.incrementAndGet();
+        ModelControl.run(ModelControl.endpointPrepareBefore);
+        PreparedGuestMetricsEndpoint made = new PreparedGuestMetricsEndpoint();
+        ModelControl.lastEndpoint = made;
+        return made;
+    }
+    public void activate() {
+        ModelControl.activationCalls.incrementAndGet();
+        ModelControl.run(ModelControl.activationBefore);
+        if (ModelControl.activationFault != null) {
+            throw ModelControl.raise(ModelControl.activationFault);
+        }
+        synchronized (this) {
+            if (state != 0) throw new IllegalStateException("Model endpoint cannot activate");
+            state = 1;
+        }
+        ModelControl.activationApplied.incrementAndGet();
+        ModelControl.run(ModelControl.activationAfter);
+    }
+    public void retire() {
+        ModelControl.retirementCalls.incrementAndGet();
+        ModelControl.run(ModelControl.retirementBefore);
+        if (ModelControl.retirementFault != null) {
+            throw ModelControl.raise(ModelControl.retirementFault);
+        }
+        synchronized (this) { state = 2; }
+        ModelControl.retirementApplied.incrementAndGet();
+        ModelControl.run(ModelControl.retirementAfter);
+    }
+    public IBinder protocolBinder() {
+        ModelControl.protocolCalls.incrementAndGet();
+        ModelControl.run(ModelControl.protocolBefore);
+        if (ModelControl.protocolFault != null) {
+            throw ModelControl.raise(ModelControl.protocolFault);
+        }
+        return binder;
+    }
+    public synchronized boolean modelRetired() { return state == 2; }
+    final class EndpointBinder extends Binder {
+        @Override public boolean transact(int code, Parcel data, Parcel reply, int flags)
+                throws RemoteException {
+            synchronized (PreparedGuestMetricsEndpoint.this) {
+                if (state != 1) throw new IllegalStateException("Model endpoint inactive");
+            }
+            ModelControl.dispatchCalls.incrementAndGet();
+            ModelControl.lastCode = code;
+            ModelControl.lastData = data;
+            ModelControl.lastReply = reply;
+            ModelControl.lastFlags = flags;
+            ModelControl.run(ModelControl.dispatchBefore);
+            if (ModelControl.dispatchFault != null) {
+                throw ModelControl.raise(ModelControl.dispatchFault);
+            }
+            // An already admitted MODEL result can complete after model retirement.
+            return ModelControl.dispatchResult;
+        }
+    }
+}

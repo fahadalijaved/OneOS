@@ -1,0 +1,25 @@
+package com.android.internal.widget;
+
+import android.os.Binder;
+import android.os.RemoteException;
+
+/** Shared modeled interface and virtual receiver, with no Binder wire processing. */
+public interface ILockSettings {
+    VerifyCredentialResponse checkCredential(LockscreenCredential credential, int userId,
+            ICheckCredentialProgressCallback callback) throws RemoteException;
+
+    abstract class Stub extends Binder implements ILockSettings {
+        /* CASE10_DEFAULT */
+
+        public final VerifyCredentialResponse dispatchDecodedCase10(TypedCredentialCall call)
+                throws RemoteException {
+            call.enforceNoDataAvail();
+            return checkCredentialFromBinder(call.credential, call.userId, call.callback);
+        }
+
+        public final VerifyCredentialResponse dispatchDecodedCase10(LockscreenCredential credential,
+                int userId, ICheckCredentialProgressCallback callback) throws RemoteException {
+            return dispatchDecodedCase10(new TypedCredentialCall(credential, userId, callback));
+        }
+    }
+}

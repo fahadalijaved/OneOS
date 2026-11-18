@@ -1,0 +1,138 @@
+import android.os.Binder;
+import android.view.DisplayInfo;
+import com.android.server.display.DisplayManagerService;
+import com.appleexploit.oneos.security.authority.PreparedGuestMetricsProducer;
+import com.appleexploit.oneos.security.authority.PreparedGuestMetricsProducer.Sample;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+/** Exercises unchanged authored production logic with authored models only. */
+public final class ProducerProbe {
+    private static int checks;
+    private static void check(boolean value, String name) {
+        checks++; if (!value) throw new AssertionError(name);
+    }
+    private interface Attempt { void run() throws Throwable; }
+    private static Throwable failure(Attempt attempt) throws Throwable {
+        try { attempt.run(); } catch (Throwable t) { return t; }
+        throw new AssertionError("Expected refusal");
+    }
+    private static DisplayInfo info(int id, int width, int xBits, int yBits) {
+        DisplayInfo i = new DisplayInfo(); i.displayId = id; i.appWidth = width;
+        i.appHeight = Integer.MIN_VALUE; i.logicalDensityDpi = -123;
+        i.physicalXDpi = Float.intBitsToFloat(xBits); i.physicalYDpi = Float.intBitsToFloat(yBits);
+        return i;
+    }
+    private static final class ChildInfo extends DisplayInfo {}
+    public static void main(String[] args) throws Throwable {
+        Binder.reset(1000, 77);
+        check(failure(() -> PreparedGuestMetricsProducer.prepare(null)) instanceof NullPointerException,
+                "null receiver");
+        check(failure(() -> PreparedGuestMetricsProducer.prepare(new Object())) instanceof IllegalArgumentException,
+                "wrong receiver");
+        AtomicInteger calls = new AtomicInteger();
+        DisplayInfo original = info(7, Integer.MAX_VALUE, 0x7fc12345, 0x80000000);
+        PreparedGuestMetricsProducer p = PreparedGuestMetricsProducer.prepare(
+                DisplayManagerService.service(id -> { calls.incrementAndGet(); return original; }));
+        Sample s = p.capture(7);
+        check(calls.get() == 1, "one original getter invocation");
+        check(s.appWidth() == Integer.MAX_VALUE && s.appHeight() == Integer.MIN_VALUE
+                && s.logicalDensityDpi() == -123, "raw signed integer preservation");
+        check(s.physicalXDpiBits() == 0x7fc12345 && s.physicalYDpiBits() == 0x80000000,
+                "noncanonical quiet NaN and negative zero bits");
+        original.appWidth = 9; original.physicalXDpi = 1.0f;
+        check(s.appWidth() == Integer.MAX_VALUE && s.physicalXDpiBits() == 0x7fc12345,
+                "owned sample survives later fixture mutation");
+        Field[] sampleFields = Sample.class.getDeclaredFields();
+        check(sampleFields.length == 5, "five sample fields");
+        for (Field f : sampleFields) check(f.getType() == int.class
+                && Modifier.isPrivate(f.getModifiers()) && Modifier.isFinal(f.getModifiers()),
+                "sample retains only private final scalar");
+        Field[] metadata = PreparedGuestMetricsProducer.class.getDeclaredFields();
+        Object[] before = new Object[metadata.length];
+        for (int n = 0; n < metadata.length; n++) { metadata[n].setAccessible(true); before[n] = metadata[n].get(p); }
+        p.capture(7);
+        boolean same = true;
+        for (int n = 0; n < metadata.length; n++) same &= before[n] == metadata[n].get(p);
+        check(same && calls.get() == 2, "prepared metadata retained across captures");
+
+        PreparedGuestMetricsProducer absent = PreparedGuestMetricsProducer.prepare(
+                DisplayManagerService.service(id -> null));
+        check(absent.capture(-4) == null, "genuine null including negative requested ID");
+        PreparedGuestMetricsProducer wrongId = PreparedGuestMetricsProducer.prepare(
+                DisplayManagerService.service(id -> info(id + 1, 2, 0, 0)));
+        check(failure(() -> wrongId.capture(4)) instanceof IllegalStateException, "wrong display refused");
+        PreparedGuestMetricsProducer wrongType = PreparedGuestMetricsProducer.prepare(
+                DisplayManagerService.service(id -> { ChildInfo i = new ChildInfo(); i.displayId = id; return i; }));
+        check(failure(() -> wrongType.capture(4)) instanceof IllegalStateException, "subclass result refused");
+
+        for (Throwable expected : new Throwable[]{new Exception("authored checked"),
+                new IllegalArgumentException("authored runtime"), new OutOfMemoryError("authored error")}) {
+            Binder.reset(1000, 77);
+            PreparedGuestMetricsProducer throwing = PreparedGuestMetricsProducer.prepare(
+                    DisplayManagerService.service(id -> { Binder.setIdentity(2000, 88); throw expected; }));
+            check(failure(() -> throwing.capture(4)) == expected && Binder.reads() == 2,
+                    "exact original throwable wins without caller postread");
+        }
+        for (boolean nullResult : new boolean[]{false, true}) {
+            Binder.reset(1000, 77);
+            PreparedGuestMetricsProducer drift = PreparedGuestMetricsProducer.prepare(
+                    DisplayManagerService.service(id -> { Binder.setIdentity(2000, 77);
+                        return nullResult ? null : info(id, 5, 0, 0); }));
+            check(failure(() -> drift.capture(4)) instanceof IllegalStateException,
+                    "UID drift refuses normal/null result");
+        }
+        Binder.reset(1000, 77);
+        PreparedGuestMetricsProducer pidDrift = PreparedGuestMetricsProducer.prepare(
+                DisplayManagerService.service(id -> { Binder.setIdentity(1000, 88); return info(id, 5, 0, 0); }));
+        check(failure(() -> pidDrift.capture(4)) instanceof IllegalStateException, "PID drift");
+        Binder.reset(1000, 77); Binder.driftUidAtRead(5);
+        PreparedGuestMetricsProducer lateDrift = PreparedGuestMetricsProducer.prepare(
+                DisplayManagerService.service(id -> info(id, 5, 0, 0)));
+        check(failure(() -> lateDrift.capture(4)) instanceof IllegalStateException,
+                "caller postcheck after all scalar loads");
+
+        Binder.reset(1000, 77);
+        for (int[] bits : new int[][]{{0x7f800000, 0xff800000}, {1, 0xffc54321}}) {
+            PreparedGuestMetricsProducer raw = PreparedGuestMetricsProducer.prepare(
+                    DisplayManagerService.service(id -> info(id, 5, bits[0], bits[1])));
+            Sample sample = raw.capture(4);
+            check(sample.physicalXDpiBits() == bits[0] && sample.physicalYDpiBits() == bits[1],
+                    "infinity/subnormal/signed NaN preservation");
+        }
+        AtomicInteger depth = new AtomicInteger(); AtomicInteger reentrantCalls = new AtomicInteger();
+        AtomicReference<Sample> inner = new AtomicReference<>();
+        final PreparedGuestMetricsProducer[] recursive = new PreparedGuestMetricsProducer[1];
+        recursive[0] = PreparedGuestMetricsProducer.prepare(DisplayManagerService.service(id -> {
+            reentrantCalls.incrementAndGet();
+            if (depth.getAndIncrement() == 0) inner.set(recursive[0].capture(id + 1));
+            depth.decrementAndGet(); return info(id, id * 10, 0, 0);
+        }));
+        Sample outer = recursive[0].capture(10);
+        check(outer.appWidth() == 100 && inner.get().appWidth() == 110 && reentrantCalls.get() == 2,
+                "reentrant capture has independent local result");
+
+        CountDownLatch entered = new CountDownLatch(2), proceed = new CountDownLatch(1);
+        AtomicReference<Throwable> threadError = new AtomicReference<>();
+        PreparedGuestMetricsProducer concurrent = PreparedGuestMetricsProducer.prepare(
+                DisplayManagerService.service(id -> { entered.countDown(); proceed.await();
+                    return info(id, id * 10, 0, 0); }));
+        Thread[] threads = new Thread[2];
+        for (int n = 0; n < 2; n++) {
+            final int id = n + 20;
+            threads[n] = new Thread(() -> {
+                try { Binder.reset(1000 + id, 100 + id); Sample v = concurrent.capture(id);
+                    if (v.appWidth() != id * 10) throw new AssertionError("cross-call result");
+                } catch (Throwable t) { threadError.compareAndSet(null, t); }
+            }); threads[n].start();
+        }
+        if (!entered.await(10, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("overlap timed out");
+        proceed.countDown(); for (Thread t : threads) t.join(10000);
+        check(threadError.get() == null && !threads[0].isAlive() && !threads[1].isAlive(),
+                "overlapping threads keep caller and scalar state local");
+        System.out.println("{\"pass\":true,\"checks\":" + checks + ",\"authoredFixturesOnly\":true}");
+    }
+}

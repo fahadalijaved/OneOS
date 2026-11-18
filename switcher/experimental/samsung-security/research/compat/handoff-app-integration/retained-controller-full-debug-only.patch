@@ -1,0 +1,63 @@
+--- a/app-android/app/build.gradle.kts
++++ b/app-android/app/build.gradle.kts
+@@ -1,3 +1,5 @@
++import com.android.build.api.variant.BuildConfigField
++import com.android.build.api.variant.ResValue
+ import java.security.MessageDigest
+ import java.util.Properties
+ import java.util.zip.ZipFile
+@@ -619,16 +621,12 @@
+             val rootBytes = rootScript.readBytes()
+             buildConfigField("String", "ROOT_SCRIPT_SHA256", "\"${sha256(rootBytes)}\"")
+             buildConfigField("long", "ROOT_SCRIPT_BYTES", "${rootBytes.size}L")
+-            // Absent property disables installation; only an explicit opt-in ships the asset.
+-            buildConfigField("String", "RETAINED_CONTROLLER_SHA256",
+-                "\"${if (retainedControllerPath != null) retainedControllerSha256 else ""}\"")
+-            buildConfigField("long", "RETAINED_CONTROLLER_BYTES",
+-                "${if (retainedControllerPath != null) retainedControllerBytes else 0L}L")
+-            buildConfigField("String", "RETAINED_HANDOFF_SHA256",
+-                "\"${if (retainedHandoffPath != null) retainedHandoffSha256 else ""}\"")
+-            buildConfigField("long", "RETAINED_HANDOFF_BYTES",
+-                "${if (retainedHandoffPath != null) retainedHandoffBytes else 0L}L")
+-            resValue("bool", "retained_handoff_enabled", (retainedHandoffPath != null).toString())
++            // Only the opted-in Full Debug variant overrides these defaults.
++            buildConfigField("String", "RETAINED_CONTROLLER_SHA256", "\"\"")
++            buildConfigField("long", "RETAINED_CONTROLLER_BYTES", "0L")
++            buildConfigField("String", "RETAINED_HANDOFF_SHA256", "\"\"")
++            buildConfigField("long", "RETAINED_HANDOFF_BYTES", "0L")
++            resValue("bool", "retained_handoff_enabled", "false")
+             buildConfigField("String", "SCRIPTS_SHA256", "\"${sha256(scriptsList.toByteArray())}\"")
+             buildConfigField("String", "SERIES", "\"${seriesId.orEmpty()}\"")
+             if (seriesId != null) versionNameSuffix = "-$seriesId"
+@@ -792,11 +790,26 @@
+             // Only OneOS carries the package sets and the session scripts.
+             "full" -> {
+                 variant.sources.assets?.addGeneratedSourceDirectory(oneosFiles, OneOsFilesTask::outputDir)
+-                retainedHandoffAssets?.let { task ->
+-                    variant.sources.assets?.addGeneratedSourceDirectory(task, RetainedHandoffAssetTask::outputDir)
+-                }
+-                retainedControllerAssets?.let { task ->
+-                    variant.sources.assets?.addGeneratedSourceDirectory(task, RetainedControllerAssetTask::outputDir)
++                if (variant.buildType == "debug") {
++                    val retainedConfig = checkNotNull(variant.buildConfigFields)
++                    retainedHandoffAssets?.let { task ->
++                        checkNotNull(variant.sources.assets)
++                            .addGeneratedSourceDirectory(task, RetainedHandoffAssetTask::outputDir)
++                        retainedConfig.put("RETAINED_HANDOFF_SHA256",
++                            BuildConfigField("String", "\"$retainedHandoffSha256\"", null))
++                        retainedConfig.put("RETAINED_HANDOFF_BYTES",
++                            BuildConfigField("long", "${retainedHandoffBytes}L", null))
++                        variant.resValues.put(variant.makeResValueKey("bool", "retained_handoff_enabled"),
++                            ResValue("true", null))
++                    }
++                    retainedControllerAssets?.let { task ->
++                        checkNotNull(variant.sources.assets)
++                            .addGeneratedSourceDirectory(task, RetainedControllerAssetTask::outputDir)
++                        retainedConfig.put("RETAINED_CONTROLLER_SHA256",
++                            BuildConfigField("String", "\"$retainedControllerSha256\"", null))
++                        retainedConfig.put("RETAINED_CONTROLLER_BYTES",
++                            BuildConfigField("long", "${retainedControllerBytes}L", null))
++                    }
+                 }
+             }
+             "probe" -> {

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Authored full-flavor merge fragment; no existing app manifest is changed. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <service
+            android:name="com.fahadali.oneos.core.root.RetainedRootHostService"
+            android:exported="false" />
+    </application>
+</manifest>

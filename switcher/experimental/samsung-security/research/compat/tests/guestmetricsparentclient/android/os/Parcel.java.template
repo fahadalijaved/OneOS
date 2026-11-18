@@ -1,0 +1,39 @@
+package android.os;
+import java.nio.*;
+import java.util.*;
+/** Entirely authored byte-buffer API model. No Android decoder/serialization/native implementation. */
+public final class Parcel {
+ public static final class Plan {
+  public int obtains,recycles,decodes,ranges,strings; public Throwable obtain1,obtain2,requestClose,replyClose,decoder;
+  public Runnable effect; public int end=4, reported=-1, requestSize=-1, driftAt=-1; public boolean stringWrong,forbidTail;
+  public IBinder owner; public Parcel request,reply;
+ }
+ public static final ThreadLocal<Plan> PLAN=new ThreadLocal<Plan>();
+ public final Plan plan; public final boolean reply; public byte[] bytes=new byte[131072]; public int pos,size;
+ public final List<Integer> binderObjects=new ArrayList<Integer>(),fdObjects=new ArrayList<Integer>();
+ private Parcel(Plan p,boolean r){plan=p;reply=r;}
+ public static Parcel obtain(IBinder b){Parcel p=acquire();p.plan.owner=b;return p;}
+ public static Parcel obtain(){return acquire();}
+ private static Parcel acquire(){Plan p=PLAN.get();int n=++p.obtains;Throwable t=n==1?p.obtain1:p.obtain2;if(t!=null)throw unchecked(t);Parcel v=new Parcel(p,n==2);if(n==1)p.request=v;else p.reply=v;return v;}
+ public int dataSize(){return reply&&plan.reported>=0?plan.reported:!reply&&plan.requestSize>=0?plan.requestSize:size;}
+ public final int dataAvail(){return size-pos;}
+ public final int dataPosition(){return pos;}
+ public final void setDataPosition(int n){if(n<0||n>size)throw new BadParcelableException("model position");pos=n;}
+ private ByteBuffer buf(){return ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder());}
+ public final int readInt(){if(pos<0||pos>size-4)throw new BadParcelableException("model underflow");int at=pos,v=buf().getInt(pos);pos+=4;if(at==plan.driftAt)pos+=4;return v;}
+ public final void writeInt(int v){buf().putInt(pos,v);pos+=4;size=Math.max(size,pos);}
+ public final void writeInterfaceToken(String s){writeString(s);}
+ public void writeString(String s){if(s==null){writeInt(-1);return;}writeInt(s.length());for(int i=0;i<s.length();i++){buf().putChar(pos,s.charAt(i));pos+=2;}buf().putChar(pos,(char)0);pos+=2;while((pos&3)!=0)bytes[pos++]=0;size=Math.max(size,pos);}
+ public final String readString(){plan.strings++;int n=readInt();if(n==-1)return plan.stringWrong?"wrong":null;if(n<0||n>(size-pos)/2-1)throw new BadParcelableException("model string");char[] s=new char[n];for(int i=0;i<n;i++)s[i]=buf().getChar(pos+i*2);pos+=(2*(n+1)+3)&~3;return plan.stringWrong?null:new String(s);}
+ public final void readException(){plan.decodes++;if(plan.effect!=null)plan.effect.run();if(plan.decoder!=null)throw unchecked(plan.decoder);pos=plan.end;}
+ public final void recycle(){plan.recycles++;Throwable t=reply?plan.replyClose:plan.requestClose;if(t!=null)throw unchecked(t);}
+ public void enforceNoDataAvail(){if(dataAvail()!=0)throw new BadParcelableException("model trailing");}
+ public boolean hasBinders(int o,int n){return objects(o,n,binderObjects);}
+ public boolean hasFileDescriptors(int o,int n){return objects(o,n,fdObjects);}
+ private boolean objects(int o,int n,List<Integer> list){plan.ranges++;if(o<0||n<0||o>size||n>size-o)throw new AssertionError("model invalid range");if(plan.forbidTail&&o+n>4)throw new AssertionError("ordinary error tail inspected");for(int at:list)if(at>=o&&at<o+n)return true;return false;}
+ public void load(byte[] b){System.arraycopy(b,0,bytes,0,b.length);size=b.length;pos=0;}
+ public void patch(int at,int v){buf().putInt(at,v);}
+ public byte[] snapshot(){return Arrays.copyOf(bytes,size);}
+ public static RuntimeException unchecked(Throwable t){Parcel.<RuntimeException>raise(t);return null;}
+ @SuppressWarnings("unchecked")private static <T extends Throwable>void raise(Throwable t)throws T{throw(T)t;}
+}

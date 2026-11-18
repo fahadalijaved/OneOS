@@ -1,0 +1,5 @@
+package android.os;
+/** Authored checked exception; no native transport or SDK implementation. */
+public class RemoteException extends Exception {
+    public RemoteException(String message) { super(message); }
+}

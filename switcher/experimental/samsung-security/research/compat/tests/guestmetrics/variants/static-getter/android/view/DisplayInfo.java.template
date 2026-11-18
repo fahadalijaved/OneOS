@@ -1,0 +1,1 @@
+package android.view; /* Authored malformed PC fixture. */ public class DisplayInfo { public int displayId,appHeight,logicalDensityDpi; public int appWidth; public float physicalXDpi,physicalYDpi; }

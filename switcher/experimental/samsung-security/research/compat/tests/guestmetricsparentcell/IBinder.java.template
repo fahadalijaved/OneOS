@@ -1,0 +1,5 @@
+package android.os;
+/** AUTHORED PC dependency model. No Android/SDK/OEM implementation. */
+public interface IBinder {
+    boolean transact(int code, Parcel data, Parcel reply, int flags) throws RemoteException;
+}

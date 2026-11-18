@@ -1,0 +1,399 @@
+--- a/compat/handoff-host/com/appleexploit/oneos/security/authority/PreparedRetainedHostNativeBindingV2.java
++++ b/compat/handoff-host/com/appleexploit/oneos/security/authority/PreparedRetainedHostNativeBindingV2.java
+@@ -56,6 +56,7 @@
+     private boolean connected, connectionConsumed, beginClaimed, beginKnown, beginQueued;
+     private boolean callbackClaimed, incomingFailed, incomingConsumed, brokerDeathAttempted;
+     private boolean hashConsumed, nativeNotice, launcherNotice, identityConsumed, commitConsumed, appTransportLost;
++    private boolean viewCreditIssued, privateViewClosing;
+     private int appUid = -1, activeCommands, suppressionAttempts, reconnectNotices;
+     private Throwable failure;
+     private IBinder broker, latestIgnoredReconnect;
+@@ -148,7 +149,7 @@
+         require(Thread.currentThread() != mainThread, "Off-main direct control required");
+         RetainedHostNativeControlV2 actual;
+         synchronized (lock) {
+-            require(!retired && state == State.HOST_LINKED_CLOSED && nativeControl != null,
++            require(!retired && !privateViewClosing && state == State.HOST_LINKED_CLOSED && nativeControl != null,
+                     "Direct host control unavailable");
+             actual = nativeControl; activeCommands++;
+         }
+@@ -157,6 +158,95 @@
+             synchronized (lock) { require(!retired && nativeControl == actual, "Direct control retired during ping"); }
+         } catch (Throwable problem) { fail(problem); throw problem; }
+         finally { synchronized (lock) { activeCommands--; } signalMain(); }
++    }
++
++    /** One source-owned main credit; no automatic post-COMMIT preparation. */
++    void requestPrivateView() throws Throwable {
++        enterMain();
++        try {
++            synchronized (lock) {
++                require(!viewCreditIssued && !privateViewClosing, "Private view request is one shot");
++                viewCreditIssued = true; // Retain the attempt before external work/dispatch.
++            }
++            RetainedHostNativeControlV2 actual = checkedViewControl();
++            actual.preparePrivateViewFromMain();
++            require(checkedViewControl() == actual, "Private view source changed during dispatch");
++        } catch (Throwable problem) { fail(problem); throw problem; }
++        finally { leaveMain(); }
++    }
++
++    /** Cut off private-view commands but retain the authentic Binding for metadata. */
++    void requestPrivateViewClose() throws Throwable {
++        enterMain();
++        try {
++            RetainedHostNativeControlV2 actual = checkedViewControl();
++            synchronized (lock) {
++                require(viewCreditIssued && !privateViewClosing, "Private view close unavailable");
++                privateViewClosing = true;
++            }
++            actual.closePrivateViewFromMain();
++            checkSource(); recheckPackage(hashJob.snapshot, hashJob.identity); checkSource();
++            synchronized (lock) { require(!retired && nativeControl == actual, "Private view close source changed"); }
++        } catch (Throwable problem) { fail(problem); throw problem; }
++        finally { leaveMain(); }
++    }
++
++    void checkNativeViewClose(RetainedHostNativeControlV2 actual) throws Throwable {
++        require(Thread.currentThread() == mainThread, "Actual source main required");
++        require(checkedViewControl() == actual, "Foreign private view close client");
++        synchronized (lock) { require(viewCreditIssued && privateViewClosing, "No source-owned private view close"); }
++    }
++
++    /** Metadata request only, on the same retained socket and sequence. */
++    void queryPrivateView() throws Throwable {
++        enterMain();
++        try {
++            RetainedHostNativeControlV2 actual = checkedViewControl();
++            actual.queryPrivateViewFromMain();
++            require(checkedViewControl() == actual, "Private view query source changed");
++        } catch (Throwable problem) { fail(problem); throw problem; }
++        finally { leaveMain(); }
++    }
++
++    /** Last actual wire observation only; never fresh child/mount/readiness proof. */
++    RetainedHostNativeControlV2.ViewState privateViewObservation() throws Throwable {
++        enterMain();
++        try {
++            checkSource(); recheckPackage(hashJob.snapshot, hashJob.identity); checkSource();
++            RetainedHostNativeControlV2 actual;
++            synchronized (lock) { actual = nativeControl; require(actual != null, "No retained native client"); }
++            RetainedHostNativeControlV2.ViewState observed = actual.privateViewObservation();
++            checkSource(); recheckPackage(hashJob.snapshot, hashJob.identity); checkSource();
++            synchronized (lock) { require(nativeControl == actual, "Native observation owner changed"); }
++            return observed;
++        } catch (Throwable problem) { fail(problem); throw problem; }
++        finally { leaveMain(); }
++    }
++
++    private RetainedHostNativeControlV2 checkedViewControl() throws Throwable {
++        checkSource(); recheckPackage(hashJob.snapshot, hashJob.identity); checkSource();
++        RetainedHostNativeControlV2 actual;
++        synchronized (lock) {
++            require(!retired && state == State.HOST_LINKED_CLOSED && commitConsumed && nativeControl != null,
++                    "Committed captured host required for private view control");
++            actual = nativeControl;
++        }
++        require(actual.committed(), "Native control no longer observed committed");
++        checkSource(); recheckPackage(hashJob.snapshot, hashJob.identity); checkSource();
++        synchronized (lock) { require(!retired && nativeControl == actual && state == State.HOST_LINKED_CLOSED,
++                "Private view source retired"); }
++        return actual;
++    }
++
++    void checkNativeViewPrepare(RetainedHostNativeControlV2 actual) throws Throwable {
++        require(Thread.currentThread() == mainThread, "Actual source main required");
++        require(checkedViewControl() == actual, "Foreign private view client");
++        synchronized (lock) { require(viewCreditIssued && !privateViewClosing, "No source-owned private view credit"); }
++    }
++
++    void checkNativeViewQuery(RetainedHostNativeControlV2 actual) throws Throwable {
++        require(Thread.currentThread() == mainThread, "Actual source main required");
++        require(checkedViewControl() == actual, "Foreign private view query client");
+     }
+ 
+     /** Cut off commands first. Unbind/ACK are not native or callback-drain receipts. */
+--- a/compat/handoff-host/com/appleexploit/oneos/security/authority/RetainedHostNativeControlV2.java
++++ b/compat/handoff-host/com/appleexploit/oneos/security/authority/RetainedHostNativeControlV2.java
+@@ -42,6 +42,9 @@
+     private boolean procCloseFailed, cleanupSucceeded, closeAcked;
+     private Throwable failure;
+     private Ping ping;
++    private ViewCommand viewCommand, viewPreparation;
++    private ViewState lastViewState;
++    private boolean viewPrepareIssued, viewPrepareAttempted;
+     private long initialDeadline, sequence = 1;
+ 
+     RetainedHostNativeControlV2(PreparedRetainedHostNativeBindingV2 actualOwner,
+@@ -67,6 +70,45 @@
+             lock.notifyAll();
+         }
+     }
++
++    void preparePrivateViewFromMain() throws Throwable {
++        owner.checkNativeViewPrepare(this);
++        ViewCommand request = new ViewCommand(true);
++        synchronized (lock) {
++            require(committed && !closeRequested && failure == null && !pidfdExited && ping == null
++                    && viewCommand == null && !viewPrepareIssued, "Private view request unavailable");
++            viewPrepareIssued = true;
++            viewPreparation = request; // Permanent preparation tombstone, including its actual response.
++            viewCommand = request; // Retained before the sole worker can send.
++            lock.notifyAll();
++        }
++    }
++
++    void closePrivateViewFromMain() throws Throwable {
++        owner.checkNativeViewClose(this);
++        synchronized (lock) {
++            require(committed && viewPrepareIssued && !closeRequested && failure == null && !pidfdExited,
++                    "Private view close unavailable");
++            closeRequested = true; lock.notifyAll();
++        }
++    }
++
++    void queryPrivateViewFromMain() throws Throwable {
++        owner.checkNativeViewQuery(this);
++        ViewCommand request = new ViewCommand(false);
++        synchronized (lock) {
++            require(committed && failure == null && !pidfdExited, "Private view query unavailable");
++            if (closeRequested) {
++                require(viewPrepareIssued && !workerFinished, "Private view drain unavailable");
++                lock.notifyAll(); // The sole worker already sends QUERY-only drain frames.
++                return;
++            }
++            require(ping == null && viewCommand == null, "Private view query already pending");
++            viewCommand = request; lock.notifyAll();
++        }
++    }
++
++    ViewState privateViewObservation() { synchronized (lock) { return lastViewState; } }
+ 
+     void requestClose() {
+         synchronized (lock) { closeRequested = true; lock.notifyAll(); }
+@@ -78,14 +120,21 @@
+         Thread actual, observer;
+         synchronized (lock) { actual = worker; observer = exitThread; }
+         boolean ended = actual != null && !actual.isAlive() && (observer == null || !observer.isAlive());
+-        synchronized (lock) { return ended && workerFinished && cleanupSucceeded && pidfdExited; }
++        synchronized (lock) {
++            // Local process/descriptor cleanup only. Unknown view effects or
++            // terminal3 never become full kernel return/cleanup success.
++            boolean viewLocalTerminal = (!viewPrepareAttempted
++                    && (lastViewState == null || lastViewState.state == 0))
++                    || (lastViewState != null && lastViewState.state == 6);
++            return ended && workerFinished && cleanupSucceeded && pidfdExited && viewLocalTerminal;
++        }
+     }
+ 
+     void ping() throws Throwable {
+         require(Looper.myLooper() != Looper.getMainLooper(), "Native ping requires worker");
+         Ping request = new Ping();
+         synchronized (lock) {
+-            require(committed && !closeRequested && failure == null && !pidfdExited && ping == null,
++            require(committed && !closeRequested && failure == null && !pidfdExited && ping == null && viewCommand == null,
+                     "Native control unavailable");
+             ping = request; lock.notifyAll();
+         }
+@@ -156,19 +205,61 @@
+     }
+ 
+     private void controls() throws Throwable {
++        boolean closeSent = false;
+         for (;;) {
+             Ping request;
+-            boolean close;
++            ViewCommand view;
++            boolean close, draining;
+             synchronized (lock) {
+-                while (!closeRequested && ping == null && failure == null) lock.wait();
++                while (!closeRequested && ping == null && viewCommand == null && failure == null) lock.wait();
+                 if (failure != null) throw failure;
+-                close = closeRequested; request = ping;
+-            }
++                close = closeRequested; draining = close && closeSent;
++                request = ping; view = close ? null : viewCommand;
++                if (view != null) {
++                    require(!view.sent, "Consumed private view command");
++                    view.sent = true;
++                    if (view.prepare) viewPrepareAttempted = true; // BEFORE any possibly delivered byte.
++                }
++            }
++            // No cleanup deadline converts HOLD into exit. Each metadata frame
++            // is bounded; the retained actual provider can continue draining.
++            if (draining) Thread.sleep(100);
+             require(sequence < 0xffffffffL, "Native sequence exhausted");
+             long next = ++sequence, until = deadline();
+             alive();
+-            send(close ? RetainedHostControlProtocol.CLOSE : RetainedHostControlProtocol.PING, next, until);
++            int kind = draining ? RetainedHostControlProtocol.VIEW_QUERY
++                    : close ? RetainedHostControlProtocol.CLOSE
++                    : view != null ? (view.prepare ? RetainedHostControlProtocol.VIEW_PREPARE
++                            : RetainedHostControlProtocol.VIEW_QUERY)
++                    : RetainedHostControlProtocol.PING;
++            send(kind, next, until);
++            if (close) closeSent = true;
+             byte[] response = receive(false, until);
++            boolean viewClose;
++            synchronized (lock) { viewClose = viewPrepareAttempted || (lastViewState != null && lastViewState.state != 0); }
++            if (view != null || draining || (close && viewClose)) {
++                ViewState observed = readViewState(response, next);
++                if (view != null && view.prepare) require(observed.state != 0, "Prepare attempt disappeared");
++                if (close) require(observed.state >= 4, "View cutoff requires HOLD or explicit local terminal");
++                synchronized (lock) {
++                    retainViewState(observed);
++                    if (view != null) {
++                        require(viewCommand == view, "Private view command owner changed");
++                        view.response = observed;
++                        if (!closeRequested && failure == null) {
++                            view.done = true;
++                            viewCommand = null;
++                        } // Retired/in-flight command remains retained, never a new credit.
++                    }
++                    // Refused/stage-missing PREPARE has already cut native
++                    // ingress into QUERY-only drain. Never send it another CLOSE.
++                    if (observed.state >= 2) { closeRequested = true; closeSent = true; }
++                    lock.notifyAll();
++                }
++                owner.nativeProgress(this);
++                if (observed.state == 5 || observed.state == 6) return;
++                continue;
++            }
+             RetainedHostControlProtocol.check(response,
+                     close ? RetainedHostControlProtocol.CLOSED : RetainedHostControlProtocol.PONG, next,
+                     close ? RetainedHostControlProtocol.LOCAL_CLOSED : RetainedHostControlProtocol.ADMISSION_CLOSED);
+@@ -180,6 +271,36 @@
+                 request.done = true; ping = null; lock.notifyAll();
+             }
+         }
++    }
++
++    private ViewState readViewState(byte[] response, long sequence) throws Throwable {
++        RetainedHostControlProtocol.check(response, RetainedHostControlProtocol.VIEW_STATE, sequence,
++                RetainedHostControlProtocol.ADMISSION_CLOSED);
++        long state = RetainedHostControlProtocol.readU32(response, 16);
++        long observed = RetainedHostControlProtocol.readU32(response, 20);
++        require(state <= 6 && observed <= 1, "Private view metadata differs");
++        long namespace = readU64(response, 24), data = readU64(response, 32), mirror = readU64(response, 40);
++        require(observed != 0 || (namespace == 0 && data == 0 && mirror == 0), "Unobserved private view carries values");
++        RetainedHostControlProtocol.zeroTail(response, 48);
++        return new ViewState((int) state, observed == 1, namespace, data, mirror);
++    }
++    private static long readU64(byte[] response, int offset) {
++        long value = 0;
++        for (int n = 0; n < 8; n++) value = (value << 8) | (response[offset + n] & 255L);
++        return value; // Raw unsigned bits: never truncate or require signed-positive.
++    }
++    /** Called with our own lock; no foreign work. Preserve the actual tombstone. */
++    private void retainViewState(ViewState observed) {
++        if (lastViewState != null) {
++            require(!lastViewState.observed || (observed.observed
++                    && lastViewState.namespaceInodeBits == observed.namespaceInodeBits
++                    && lastViewState.dataGroupBits == observed.dataGroupBits
++                    && lastViewState.mirrorGroupBits == observed.mirrorGroupBits), "Private view observation changed");
++            if (lastViewState.state >= 4) require(observed.state >= 4, "Private view drain regressed");
++            if (lastViewState.state == 5 || lastViewState.state == 6)
++                require(observed.state == lastViewState.state, "Private view terminal changed");
++        }
++        lastViewState = observed;
+     }
+ 
+     private void send(int kind, long sequence, long until) throws Throwable {
+@@ -333,5 +454,21 @@
+         return (int) Math.max(1, Math.min(30000, TimeUnit.NANOSECONDS.toMillis(left)));
+     }
+     private static void require(boolean value, String reason) { if (!value) throw new IllegalStateException(reason); }
++    /** Metadata only. No FD, process, namespace handle or authority is exported. */
++    static final class ViewState {
++        final int state;
++        final boolean observed;
++        final long namespaceInodeBits, dataGroupBits, mirrorGroupBits;
++        private ViewState(int state, boolean observed, long namespace, long data, long mirror) {
++            this.state = state; this.observed = observed;
++            namespaceInodeBits = namespace; dataGroupBits = data; mirrorGroupBits = mirror;
++        }
++    }
++    private static final class ViewCommand {
++        final boolean prepare;
++        boolean sent, done;
++        ViewState response;
++        ViewCommand(boolean prepare) { this.prepare = prepare; }
++    }
+     private static final class Ping { boolean done; }
+ }
+--- a/compat/handoff-shared/com/fahadali/oneos/core/root/RetainedHostControlProtocol.java
++++ b/compat/handoff-shared/com/fahadali/oneos/core/root/RetainedHostControlProtocol.java
+@@ -15,12 +15,13 @@
+     public static final int INIT = 1, NATIVE_OFFER = 2, IDENTITY = 3;
+     public static final int PING = 4, PONG = 5, CLOSE = 6, CLOSED = 7;
+     public static final int COMMIT = 8, COMMITTED = 9;
++    public static final int VIEW_PREPARE = 10, VIEW_STATE = 11, VIEW_QUERY = 12;
+     public static final int REQUEST = 0, ADMISSION_CLOSED = 1, LOCAL_CLOSED = 2, REFUSED = 3;
+ 
+     private RetainedHostControlProtocol() { }
+ 
+     public static byte[] frame(int kind, long sequence, int status) {
+-        if (kind < INIT || kind > COMMITTED || sequence < 0 || sequence > 0xffffffffL
++        if (kind < INIT || kind > VIEW_QUERY || sequence < 0 || sequence > 0xffffffffL
+                 || status < REQUEST || status > REFUSED) {
+             throw new IllegalArgumentException("Bounded direct-host frame required");
+         }
+--- a/compat/handoff-host-module/com/appleexploit/oneos/security/authority/RetainedPinHostModule.java
++++ b/compat/handoff-host-module/com/appleexploit/oneos/security/authority/RetainedPinHostModule.java
+@@ -229,6 +229,56 @@
+         }
+     }
+ 
++    /** Genuine main control entry for a future selected launch action, not a source factory. */
++    void requestPrivateViewForControl() throws Throwable {
++        try {
++            HostBootstrapController expected = checkedPrivateViewController();
++            PreparedRetainedHostNativeBindingV2 actual = expected.rootLink;
++            actual.requestPrivateView();
++            require(checkedPrivateViewController() == expected && expected.rootLink == actual);
++        } catch (Throwable problem) { poison(); throw problem; }
++    }
++
++    void requestPrivateViewCloseForControl() throws Throwable {
++        try {
++            HostBootstrapController expected = checkedPrivateViewController();
++            PreparedRetainedHostNativeBindingV2 actual = expected.rootLink;
++            actual.requestPrivateViewClose();
++            require(checkedPrivateViewController() == expected && expected.rootLink == actual);
++        } catch (Throwable problem) { poison(); throw problem; }
++    }
++
++    void queryPrivateViewForControl() throws Throwable {
++        try {
++            HostBootstrapController expected = checkedPrivateViewController();
++            PreparedRetainedHostNativeBindingV2 actual = expected.rootLink;
++            actual.queryPrivateView();
++            require(checkedPrivateViewController() == expected && expected.rootLink == actual);
++        } catch (Throwable problem) { poison(); throw problem; }
++    }
++
++    /** Immutable last wire metadata only; never live mount/guest/security admission. */
++    RetainedHostNativeControlV2.ViewState privateViewStateForControl() throws Throwable {
++        try {
++            HostBootstrapController expected = checkedPrivateViewController();
++            PreparedRetainedHostNativeBindingV2 actual = expected.rootLink;
++            RetainedHostNativeControlV2.ViewState observed = actual.privateViewObservation();
++            require(checkedPrivateViewController() == expected && expected.rootLink == actual);
++            return observed;
++        } catch (Throwable problem) { poison(); throw problem; }
++    }
++
++    private HostBootstrapController checkedPrivateViewController() throws Throwable {
++        HostBootstrapController expected;
++        synchronized (lock) { expected = controller; }
++        require(expected != null);
++        checkConstruction(expected);
++        checkRootLinkForControl(expected.registry, expected.family);
++        checkConstruction(expected);
++        require(expected.rootLink != null);
++        return expected;
++    }
++
+     private static final class Entry {
+         boolean counted;
+         boolean finished;

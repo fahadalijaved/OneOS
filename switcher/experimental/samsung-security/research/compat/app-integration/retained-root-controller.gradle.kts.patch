@@ -1,0 +1,143 @@
+--- a/app-android/app/build.gradle.kts
++++ b/app-android/app/build.gradle.kts
+@@ -290,6 +290,105 @@
+     remoteIds.set(setRemoteIds)
+     packages.set(packagesDir)
+     outputDir.set(layout.buildDirectory.dir("generated/oneos/assets"))
++}
++
++// Explicit local opt-in only. No native binary is checked in or required by Probe.
++// These literal pins name the separately reviewed, already-built closed controller.
++val retainedControllerPath = providers.gradleProperty("oneos.retainedControllerFile").orNull
++val retainedControllerSha256 = "1cacc47717468c6e91b791126ce011af25dab9bdbde50765ec0a013cea2b116b"
++val retainedControllerBytes = 596312L
++
++abstract class RetainedControllerAssetTask : DefaultTask() {
++    @get:InputFile
++    @get:PathSensitive(PathSensitivity.NONE)
++    abstract val controller: RegularFileProperty
++
++    @get:Input
++    abstract val expectedSha256: Property<String>
++
++    @get:Input
++    abstract val expectedBytes: Property<Long>
++
++    @get:OutputDirectory
++    abstract val outputDir: DirectoryProperty
++
++    @TaskAction
++    fun packageController() {
++        val source = controller.get().asFile
++        val limit = 2 * 1024 * 1024
++        if (!source.isFile || java.nio.file.Files.isSymbolicLink(source.toPath())) {
++            throw GradleException("oneos.retainedControllerFile must name an existing regular built artifact")
++        }
++        if (source.length() !in 1L..limit.toLong()) {
++            throw GradleException("Retained controller exceeds the 2 MiB input limit or is empty")
++        }
++        // Retain one bounded byte snapshot. A growing/replaced source is never
++        // copied unboundedly, and only these verified bytes can reach the asset.
++        val buffer = ByteArray(limit + 1)
++        val count = source.inputStream().use { input ->
++            var used = 0
++            while (used < buffer.size) {
++                val amount = input.read(buffer, used, buffer.size - used)
++                if (amount < 0) break
++                if (amount == 0) throw GradleException("Retained controller read made no progress")
++                used += amount
++            }
++            used
++        }
++        if (count > limit || count.toLong() != expectedBytes.get()) {
++            throw GradleException("Retained controller size differs from the admitted build")
++        }
++        val bytes = buffer.copyOf(count)
++        val hash = MessageDigest.getInstance("SHA-256").digest(bytes)
++            .joinToString("") { "%02x".format(it) }
++        if (hash != expectedSha256.get()) {
++            throw GradleException("Retained controller SHA-256 differs from the admitted build")
++        }
++        val output = outputDir.get().asFile
++        val root = File(output, "root")
++        val target = File(root, "oneos_retained_root_session")
++        if (output.exists()) {
++            output.walkTopDown().forEach { entry ->
++                if (java.nio.file.Files.isSymbolicLink(entry.toPath()) ||
++                    (entry != output && entry != root && entry != target) ||
++                    (entry == target && !entry.isFile) ||
++                    (entry != target && !entry.isDirectory)) {
++                    throw GradleException("Unexpected retained-controller generated asset entry")
++                }
++            }
++        }
++        if (!root.isDirectory && !root.mkdirs()) {
++            throw GradleException("Could not create retained-controller generated asset directory")
++        }
++        target.writeBytes(bytes)
++        val readback = ByteArray(count + 1)
++        val readCount = target.inputStream().use { input ->
++            var used = 0
++            while (used < readback.size) {
++                val amount = input.read(readback, used, readback.size - used)
++                if (amount < 0) break
++                if (amount == 0) throw GradleException("Retained-controller asset readback made no progress")
++                used += amount
++            }
++            used
++        }
++        if (readCount != count || !readback.copyOf(readCount).contentEquals(bytes)) {
++            throw GradleException("Retained-controller generated asset readback differs")
++        }
++    }
++}
++
++val retainedControllerAssets = retainedControllerPath?.let { path ->
++    tasks.register<RetainedControllerAssetTask>("retainedControllerAssets") {
++        group = "build"
++        description = "Verifies and packages the opt-in closed controller for the full edition only."
++        controller.set(file(path))
++        expectedSha256.set(retainedControllerSha256)
++        expectedBytes.set(retainedControllerBytes)
++        outputDir.set(layout.buildDirectory.dir("generated/retained-controller/assets"))
++        // Revalidate the admitted byte snapshot even when the file timestamp is unchanged.
++        outputs.upToDateWhen { false }
++    }
+ }
+ 
+ // Release signing key: private to the account that builds releases, never in the
+@@ -419,6 +518,11 @@
+             val rootBytes = rootScript.readBytes()
+             buildConfigField("String", "ROOT_SCRIPT_SHA256", "\"${sha256(rootBytes)}\"")
+             buildConfigField("long", "ROOT_SCRIPT_BYTES", "${rootBytes.size}L")
++            // Absent property disables installation; only an explicit opt-in ships the asset.
++            buildConfigField("String", "RETAINED_CONTROLLER_SHA256",
++                "\"${if (retainedControllerPath != null) retainedControllerSha256 else ""}\"")
++            buildConfigField("long", "RETAINED_CONTROLLER_BYTES",
++                "${if (retainedControllerPath != null) retainedControllerBytes else 0L}L")
+             buildConfigField("String", "SCRIPTS_SHA256", "\"${sha256(scriptsList.toByteArray())}\"")
+             buildConfigField("String", "SERIES", "\"${seriesId.orEmpty()}\"")
+             if (seriesId != null) versionNameSuffix = "-$seriesId"
+@@ -580,7 +684,12 @@
+     onVariants { variant ->
+         when (variant.flavorName) {
+             // Only OneOS carries the package sets and the session scripts.
+-            "full" -> variant.sources.assets?.addGeneratedSourceDirectory(oneosFiles, OneOsFilesTask::outputDir)
++            "full" -> {
++                variant.sources.assets?.addGeneratedSourceDirectory(oneosFiles, OneOsFilesTask::outputDir)
++                retainedControllerAssets?.let { task ->
++                    variant.sources.assets?.addGeneratedSourceDirectory(task, RetainedControllerAssetTask::outputDir)
++                }
++            }
+             "probe" -> {
+                 val name = variant.name.replaceFirstChar { it.uppercase() }
+                 val check = tasks.register<ProbeApkCheckTask>("check${name}Apk") {
+@@ -591,7 +700,7 @@
+                     manifest.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST))
+                     // The session scripts, the root script and its lists, and every file of the package sets.
+                     val setNames = packageSets.keys.flatMap { id -> File(packagesDir, "$id.sha256").takeIf { it.isFile }?.let { readShaList(it).keys }.orEmpty() }
+-                    forbiddenNames.set(sessionScripts.keys + setOf("oneos_root.sh", "status.list", "installd.list", "collect.list") + setNames)
++                    forbiddenNames.set(sessionScripts.keys + setOf("oneos_root.sh", "status.list", "installd.list", "collect.list", "oneos_retained_root_session") + setNames)
+                     // SESL9 unshrunk debug libraries are ~48 MB. Release is not shrunk either (R8 off):
+                     // 0.4.38's release Probe is 38 MB, all of it code (no asset beyond probe/).
+                     maxBytes.set((if (variant.buildType == "debug") 60L else 50L) * 1000 * 1000)

@@ -1,0 +1,68 @@
+--- a/PrepareActivity.java
++++ b/PrepareActivity.java
+@@ -87,10 +87,19 @@
+ 
+     @Override protected void onStop() {
+         started.remove(this);
++        dismissConfirmation();
++        super.onStop();
++    }
++
++    private void dismissConfirmation() {
+         AlertDialog pending = confirmation;
+         confirmation = null;
+         if (pending != null) pending.dismiss();
+-        super.onStop();
++    }
++
++    private static boolean canConfirm(boolean prepare) {
++        if (prepare) return current == null && com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION;
++        return current != null && current.canStop();
+     }
+ 
+     @Override public void onClick(View view) {
+@@ -101,10 +110,8 @@
+             if (current != null) current.refresh();
+             return;
+         }
+-        boolean start = view == prepare && current == null
+-                && com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION;
+-        boolean end = view == stop && current != null && current.canStop();
+-        if ((!start && !end) || confirmation != null) return;
++        boolean start = view == prepare;
++        if ((!start && view != stop) || confirmation != null || !canConfirm(start)) return;
+         AlertDialog dialog = new AlertDialog.Builder(this)
+                 .setTitle(start ? "Prepare a private view?" : "Stop preparation?")
+                 .setMessage(start ? "Allow the tester controller to start and prepare a private view of the tester stage."
+@@ -112,7 +119,7 @@
+                 .setPositiveButton(start ? "Prepare" : "Stop", this)
+                 .setNegativeButton(start ? "Cancel" : "Keep going", null)
+                 .create();
+-        if (started.get(this) != startOwner || confirmation != null) return;
++        if (started.get(this) != startOwner || confirmation != null || !canConfirm(start)) return;
+         confirmingPrepare = start;
+         confirmation = dialog;
+         dialog.setOnDismissListener(this);
+@@ -129,11 +136,12 @@
+         if (Looper.myLooper() != Looper.getMainLooper() || dialog == null || dialog != confirmation
+                 || which != DialogInterface.BUTTON_POSITIVE || !started.containsKey(this)) return;
+         confirmation = null;
+-        if (confirmingPrepare && current == null && com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION) {
++        if (!canConfirm(confirmingPrepare)) return;
++        if (confirmingPrepare) {
+             current = new Operation(getApplicationContext());
+             current.bind();
+             changed();
+-        } else if (!confirmingPrepare && current != null) {
++        } else {
+             current.stop();
+         }
+     }
+@@ -143,6 +151,7 @@
+     }
+ 
+     private void render() {
++        if (confirmation != null && !canConfirm(confirmingPrepare)) dismissConfirmation();
+         Operation operation = current;
+         prepare.setVisibility(operation == null ? View.VISIBLE : View.GONE);
+         prepare.setEnabled(com.fahadali.oneos.BuildConfig.RETAINED_VIEW_PREPARATION);

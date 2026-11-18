@@ -1,0 +1,170 @@
+--- a/app-android/app/build.gradle.kts
++++ b/app-android/app/build.gradle.kts
+@@ -77,6 +77,24 @@
+ // downloads the files its phone's set needs, by hash. -Poneos.packSets=true packs them as
+ // before (a local test build, no download).
+ val packSetsInApk: Boolean = (findProperty("oneos.packSets") as String?)?.trim() == "true"
++
++// Explicit local debug/download-only option; defaults still verify real payloads.
++val debugDownloadMetadataOption = providers.gradleProperty("oneos.debugDownloadMetadata").orNull
++check(debugDownloadMetadataOption == null || debugDownloadMetadataOption in setOf("true", "false")) {
++    "oneos.debugDownloadMetadata must be true or false"
++}
++val debugDownloadMetadataEnabled = debugDownloadMetadataOption == "true"
++if (debugDownloadMetadataEnabled) {
++    check(!packSetsInApk && testPackagesDir == null && seriesId == null) {
++        "debug download metadata requires packSets=false, original packages and all nine sets"
++    }
++    gradle.taskGraph.whenReady {
++        check(allTasks.none { it.name.contains("Release", ignoreCase = true) }) {
++            "oneos.debugDownloadMetadata is local debug-only; Release tasks are forbidden"
++        }
++    }
++}
++
+ // 0.4.53: each file's sources, comma-separated: "gh:<tag>" (an asset of that release of fahadalijaved/OneOS-files,
+ // named by its sha256) and Drive ids, copies in OneOS/files and OneOS/files2.. (Drive refuses a file once "too
+ // many users" downloaded it that day; each copy has its own limit).
+@@ -178,6 +196,13 @@
+     @get:Input
+     abstract val remoteIds: MapProperty<String, String>
+ 
++    /** Fixed, source-pinned public release metadata, never a packaged payload. */
++    @get:InputFile
++    @get:Optional
++    @get:PathSensitive(PathSensitivity.NONE)
++    abstract val debugDownloadMetadata: RegularFileProperty
++
++
+     @get:InputDirectory
+     @get:PathSensitive(PathSensitivity.RELATIVE)
+     abstract val packages: DirectoryProperty
+@@ -214,8 +239,91 @@
+     private fun render(entries: Map<String, String>) =
+         entries.entries.sortedBy { it.key }.joinToString("") { "${it.value}  ${it.key}\n" }
+ 
++    private data class DebugDownloads(
++        val sizes: Map<String, Long>, val lists: Map<String, Map<String, String>>,
++    )
++
++    // Read one opened snapshot only, with a final-component nofollow open and
++    // bounded length/EOF. The fixed hash checks the selected build-input profile;
++    // it is not proof that any remote payload was downloaded or verified.
++    private fun debugBytes(f: File, expected: String, limit: Int): ByteArray {
++        val path = f.toPath()
++        val nofollow = java.nio.file.LinkOption.NOFOLLOW_LINKS
++        val before = java.nio.file.Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes::class.java, nofollow)
++        check(before.isRegularFile && !java.nio.file.Files.isSymbolicLink(path)) { "debug metadata must be a regular nonlink file: $f" }
++        val data = java.nio.channels.FileChannel.open(path, java.nio.file.StandardOpenOption.READ, nofollow).use { channel ->
++            val length = channel.size()
++            check(length in 1L..limit.toLong()) { "debug metadata bound: $f" }
++            val buffer = java.nio.ByteBuffer.allocate(length.toInt())
++            while (buffer.hasRemaining()) check(channel.read(buffer) > 0) { "truncated debug metadata: $f" }
++            check(channel.read(java.nio.ByteBuffer.allocate(1)) == -1) { "growing debug metadata: $f" }
++            buffer.array()
++        }
++        val after = java.nio.file.Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes::class.java, nofollow)
++        check(after.isRegularFile && before.fileKey() != null && before.fileKey() == after.fileKey()) { "debug metadata identity changed: $f" }
++        val digest = MessageDigest.getInstance("SHA-256").digest(data).joinToString("") { "%02x".format(it) }
++        check(digest == expected) { "debug metadata source hash differs: $f" }
++        return data
++    }
++
++    private fun readDebugDownloadMetadata(): DebugDownloads? {
++        if (!debugDownloadMetadata.isPresent) return null
++        check(!packSets.get()) { "metadata cannot replace packaged payloads" }
++        val packagePins = linkedMapOf(
++            "n6-f8u" to "434b349f090b0e478e4d6d929868034554d3ce4a19a06a06a1d6d504da2cad5e",
++            "x9u-in-sultra" to "cca1a57021c781d7fb590c311194a009b98345304520e56d46828e670cbdbc57",
++            "pixel-f8u" to "6b902ae69a2ddf5cc6cc95ef9517df3ff7e606bd7603c69e1c5e46a2728c94d3",
++            "pixel-sultra" to "e25a53ff3a5767280aa4ee6020949431cab1317e9ec39db295bbb5ea8c569377",
++            "pixel-f8" to "3264925984a95cb2095aa7f538477b4763bae1059ef6074a91c699eb5c1e7da8",
++            "pixel9-sultra" to "dbbf8f7fd33ba87167cfd6e812e2ad56c0c973d245abf42b3d149fb800c16aed",
++            "infinityx" to "7759a3fe25bd4766a19fd7c97bed0f2990b36e5e2cf56c655b8c1143c58e4dc9",
++            "hyper-f8u" to "71af473a335e8a6b0a00c5c7d9e9871234b32ffb856f15a7ff4316f919fc2453",
++            "nothing-f8u" to "7be7c10bb129172bbfb12b2f9eede71db373414cd1ab0836f50c61ead8eb2d23",
++        )
++        check(sets.get().keys == packagePins.keys) { "debug metadata requires all nine original sets" }
++        val directory = packages.get().asFile
++        val lists = linkedMapOf<String, Map<String, String>>()
++        for ((id, expected) in packagePins) {
++            val bytes = debugBytes(File(directory, "$id.sha256"), expected, 65_536)
++            val want = linkedMapOf<String, String>()
++            bytes.toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() && !it.startsWith("#") }.forEach { line ->
++                val m = Regex("^([0-9a-f]{64})  ([A-Za-z0-9_][A-Za-z0-9._+-]*)$").matchEntire(line)
++                    ?: throw GradleException("$id: invalid pinned set list")
++                check(want.put(m.groupValues[2], m.groupValues[1]) == null) { "$id: duplicate pinned filename" }
++            }
++            check(want.isNotEmpty()) { "$id: empty pinned set" }
++            lists[id] = want
++        }
++        val required = lists.values.flatMap { it.values }.toSet()
++        check(required.size == 242) { "expected 242 genuine current hashes" }
++        val remoteBytes = debugBytes(File(directory, "remote.txt"), "0dc3487438439386da64635d3ab9a4d014a3d60583aa9f1163e0e37e556972a0", 131_072)
++        val pinnedRemote = linkedMapOf<String, String>()
++        remoteBytes.toString(Charsets.UTF_8).lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.forEach { line ->
++            val m = Regex("^([0-9a-f]{64}) (.+)$").matchEntire(line) ?: throw GradleException("invalid pinned remote mapping")
++            check(m.groupValues[2].split(',').contains("gh:sets-1")) { "missing genuine sets-1 source" }
++            check(pinnedRemote.put(m.groupValues[1], m.groupValues[2]) == null) { "duplicate pinned remote hash" }
++        }
++        check(pinnedRemote.keys == required && pinnedRemote == remoteIds.get()) { "current remote mapping differs" }
++        val metadata = debugBytes(debugDownloadMetadata.get().asFile,
++            "ae4f9703e8756f2e20452fcfa13199e1e59526fecd0dcc5b74ac36db075c7f16", 32_768)
++        check(metadata.last() == 10.toByte()) { "metadata requires final LF" }
++        val rows = metadata.toString(Charsets.US_ASCII).split('\n').dropLast(1)
++        check(rows.size == 242) { "metadata requires 242 rows" }
++        val sizes = linkedMapOf<String, Long>()
++        for (row in rows) {
++            val m = Regex("^([0-9a-f]{64})\t([1-9][0-9]{0,8})$").matchEntire(row)
++                ?: throw GradleException("invalid debug asset metadata row")
++            val size = m.groupValues[2].toLongOrNull() ?: throw GradleException("invalid debug asset size")
++            check(size in 1L..receiveMax) { "debug asset exceeds root receive bound" }
++            check(sizes.put(m.groupValues[1], size) == null) { "duplicate debug asset hash" }
++        }
++        check(sizes.keys == required) { "missing or extraneous debug asset hashes" }
++        return DebugDownloads(sizes, lists)
++    }
++
+     @TaskAction
+     fun run() {
++        val debug = readDebugDownloadMetadata()
+         val out = outputDir.get().asFile
+         out.deleteRecursively()
+         val files = File(out, "oneos/files").apply { mkdirs() }
+@@ -237,6 +345,7 @@
+             sizes[sum] = src.length()
+             remote[sum] = id
+         }
++        if (debug == null) {
+         for ((id, spec) in sets.get()) {
+             val dir = File(spec.substringBefore('|'))
+             val omitted = spec.substringAfter('|').split(',').filter { it.isNotBlank() }.toSet()
+@@ -260,6 +369,18 @@
+             if (problems.isNotEmpty()) throw GradleException("package set $id:\n  " + problems.joinToString("\n  "))
+             File(setsDir, "$id.sha256").writeText(render(want))
+         }
++        } else {
++            for ((id, spec) in sets.get()) {
++                val omitted = spec.substringAfter('|').split(',').filter { it.isNotBlank() }.toSet()
++                val want = debug.lists.getValue(id)
++                for ((name, sum) in want) {
++                    check(name !in omitted) { "$name is listed but left out of $id" }
++                    sizes[sum] = debug.sizes.getValue(sum)
++                    remote[sum] = ids.getValue(sum)
++                }
++                File(setsDir, "$id.sha256").writeText(render(want))
++            }
++        }
+         val scriptSums = linkedMapOf<String, String>()
+         for ((n, path) in scripts.get()) {
+             val f = File(path)
+@@ -288,6 +409,9 @@
+     notShipped.set(switcherNotShipped)
+     packSets.set(packSetsInApk)
+     remoteIds.set(setRemoteIds)
++    if (debugDownloadMetadataEnabled) {
++        debugDownloadMetadata.set(rootProject.layout.projectDirectory.file("packages/debug-download-assets.tsv"))
++    }
+     packages.set(packagesDir)
+     outputDir.set(layout.buildDirectory.dir("generated/oneos/assets"))
+ }
