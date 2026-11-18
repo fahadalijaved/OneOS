@@ -401,6 +401,12 @@ if [ -n "$zs_left" ]; then
     ONEOS_RETURN_MODE=reboot
 fi
 
+# The guest's adb keys, bound over One UI's /data/misc/adb by guest_prepare.sh.
+if zs_bound /data/misc/adb; then
+    if [ -n "$BB" ]; then in_init_ns "$BB" umount -l /data/misc/adb 2>/dev/null; else in_init_ns umount -D -l /data/misc/adb 2>/dev/null; fi
+    zs_bound /data/misc/adb || echo "Took the guest's adb keys off /data/misc/adb"
+fi
+
 # The Bluetooth audio bridge (oneos_switch.sh, Samsung-only HAL phones): stop
 # it and take Android's factory out of the device manifest again before One
 # UI's framework starts. One UI's Bluetooth asks for Android's factory first
