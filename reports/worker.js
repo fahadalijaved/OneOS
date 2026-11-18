@@ -67,12 +67,20 @@ const MEMBER_TTL = 3600
 // from the group (owner: "ban anyone who spams like this"); a real sender stops at a refusal (the app tries a 429
 // three times). The ban is the only write: banned:<id>, which refuses the account from then on.
 const CODE = /^[A-Za-z0-9_-]{22}$/
+const REPORTS_PAUSED = false
+// 11-18 (four throwaway accounts sent 622 fake reports in two days): an account's reports are held, stored but not
+// posted in the topic, for its first two days after its first sign-in (seen:<id>), and five a day is the most taken.
+const HOLD_SECONDS = 2 * 24 * 3600
+const DAILY_MAX = 5
 const START_LABELS = { home: 'reached the home screen', logo: 'stuck on the boot logo', black: 'black screen', back: 'came back by itself' }
 
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url)
     try {
+      // 11-18 (owner: "Stop all reports"): new reports are refused until this is turned back on.
+      if (REPORTS_PAUSED && req.method === 'POST' && (url.pathname === '/v1/part' || url.pathname === '/v1/report'))
+        return reply(503, { error: 'reports are paused for now' })
       if (req.method === 'POST' && url.pathname === '/v1/part') return await part(req, env, url)
       if (req.method === 'POST' && url.pathname === '/v1/report') return await report(req, env, ctx)
       if (req.method === 'POST' && url.pathname === '/v1/hello') return await hello(req, env)
@@ -244,6 +252,7 @@ async function claim(req, env, url) {
   const who = JSON.parse(v)
   if (!who.id) return reply(202, { waiting: true })
   await store(env).delete(`signin:${code}`)
+  if ((await store(env).get(`seen:${who.id}`)) == null) await store(env).put(`seen:${who.id}`, String(Date.now()))
   const member = await isMember(env, who.id)
   return reply(200, { pass: await makePass(env, who), username: who.username, member, group: GROUP_LINK })
 }
@@ -365,7 +374,18 @@ async function report(req, env, ctx) {
   try { parsed = JSON.parse(text) } catch { throw new Refused(400, 'not JSON') }
   // Who sent it comes from the pass, never from the record.
   const r = { ...check(parsed), tg: user }
-  if (user) await perUser(env, user)
+  let held = false
+  let dayKey = null
+  let dayCount = 0
+  if (user) {
+    await perUser(env, user)
+    dayKey = `day:${user.id}:${new Date().toISOString().slice(0, 10)}`
+    dayCount = Number((await store(env).get(dayKey)) ?? 0)
+    if (dayCount >= DAILY_MAX) throw new Refused(429, `${DAILY_MAX} reports a day is the most from one account, send more tomorrow`)
+    let seen = Number(await store(env).get(`seen:${user.id}`))
+    if (!seen) { seen = Date.now(); await store(env).put(`seen:${user.id}`, String(seen)) }
+    held = Date.now() - seen < HOLD_SECONDS * 1000
+  }
   // Every part must be there before the record is: the app sends them again otherwise.
   const missing = []
   for (let i = 0; i < (r.logs?.parts ?? 0); i++) {
@@ -375,8 +395,9 @@ async function report(req, env, ctx) {
   }
   if (missing.length) return reply(409, { error: 'missing parts', missing })
   const receivedAt = new Date().toISOString()
-  await store(env).put(`report:${receivedAt}:${r.reportId}`, JSON.stringify({ ...r, receivedAt }), { expirationTtl: TTL })
-  if (env.TG_TOKEN && env.TG_CHAT) ctx.waitUntil(ping(env, r).catch(() => {}))
+  await store(env).put(`report:${receivedAt}:${r.reportId}`, JSON.stringify({ ...r, receivedAt, ...(held ? { held: true } : {}) }), { expirationTtl: TTL })
+  if (dayKey) await store(env).put(dayKey, String(dayCount + 1), { expirationTtl: 2 * 24 * 3600 })
+  if (!held && env.TG_TOKEN && env.TG_CHAT) ctx.waitUntil(ping(env, r).catch(() => {}))
   return reply(200, { ok: true, reportId: r.reportId })
 }
 

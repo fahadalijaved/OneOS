@@ -2029,6 +2029,37 @@ fi
 # and every guest sleep arms the IC in use, panel lit or not, as on a vivo
 # image. On a fold a panel is off by its dpms alone, and the lid switch tells
 # which panel is in use after a fold made with the screen off.
+# Samsung's audio settings that One UI's sound service sends and no other system knows (0.5.21; A36
+# ColorOS 11-18: the speaker "70 % of One UI" with them, quieter and duller without): Samsung's Dolby
+# on with the Auto profile and its volume leveler (g_effect_dolby_*, as One UI sends them), and the
+# speaker amplifier's temperature every 10 s (g_hw_speaker_amp_temp_spk/_rcv; One UI sends 28-37 C
+# from the phone's temperature: without it the amplifier's protection never got a reading, sysfs
+# audio/amp ready -1). The battery temperature stands in for it. Only where the amplifier node
+# exists (a Samsung smart amp); ONEOS_GUEST_SAMSUNG_AUDIO=0 leaves it out. Log: /data/oneos_sec_audio.log.
+if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/amp ] && [ -f /data/oneos_edm_stub.dex ]; then
+    ONEOS_BB="$BB" $BB sh -c '
+        BB=$ONEOS_BB
+        log() { echo "$(date +%T) $*" >> /data/oneos_sec_audio.log; }
+        param() { /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSAudioParam "$1" 2>&1 | tail -n 1; }
+        i=0
+        while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
+        sleep 10
+        for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=7; do log "$(param $kv)"; done
+        last=""
+        while :; do
+            t=$(cat /sys/class/power_supply/battery/temp 2>/dev/null)
+            case "$t" in ""|*[!0-9-]*) t=300 ;; esac
+            t=$((t / 10))
+            [ $t -ge 10 ] && [ $t -le 70 ] || t=30
+            if [ "$t" != "$last" ]; then
+                r1=$(param g_hw_speaker_amp_temp_spk=$t); param g_hw_speaker_amp_temp_rcv=$t >/dev/null
+                [ -n "$last" ] || log "amp temperature: $r1"
+                last=$t
+            fi
+            sleep 10
+        done
+    ' </dev/null >/dev/null 2>&1 &
+fi
 DT2W=${ONEOS_GUEST_DT2W:-1}
 if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/sec/tsp/enabled ] || [ -w /sys/class/sec/tsp1/enabled ]; }; then
     rm -f /data/oneos_dt2w_armed.* /data/oneos_dt2w_*.fifo /data/oneos_dt2w_aod* /data/oneos_dt2w_lid*

@@ -89,7 +89,8 @@ function d1(db) {
 export function store(env) {
   if (!env.DB) return env.REPORTS
   const a = d1(env.DB)
-  const old = env.REPORTS
+  // 11-18: the old KV namespace is no longer touched (its deletes and fallback reads used up the daily KV limit).
+  const old = null
   return {
     async get(key, opts) {
       const v = await a.get(key, opts)

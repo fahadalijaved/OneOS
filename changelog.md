@@ -667,3 +667,11 @@ New in 0.5.20: Share my files, fingerprint and Samsung Camera in ColorOS on the 
 - Website badge in the README (thanks to the website contributors).
 - Galaxy Z Fold8: patch channels from a contributor are found automatically (never selected for you); Pixel fold fixes and equal Settings panes for LineageOS and Infinity-X follow with the next system sets (thanks thatjoshguy67).
 - Galaxy S24+ (and other phones whose firmware has One UI's Bluetooth-offload audio file): volume steps work in Nothing OS, LineageOS and HyperOS; sound played at full volume at any setting, untested.
+
+New in 0.5.21: sound, videos and updates.
+- **Louder, clearer speaker** in the other systems on Galaxy phones: Samsung's Dolby and the speaker amplifier's
+  temperature are set as One UI sets them.
+- **Videos from Samsung Camera play upright** on the Galaxy A phones in ColorOS, Nothing OS and LineageOS (they had
+  no rotation and showed sideways).
+- **Updating a system you already use** needs room for the update only, not for a new setup (ColorOS asked for
+  27.4 GB).

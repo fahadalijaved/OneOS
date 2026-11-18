@@ -79,24 +79,16 @@ test('expired values are gone; lists page with a cursor and keep to their prefix
   assert.ok(names.every((n) => n.startsWith('report:')))
 })
 
-test('what is left in the old KV namespace is read, listed after D1 and deleted; nothing is written there', async () => {
+test('with D1 the old KV namespace is never touched: not read, listed, deleted or written', async () => {
   const kv = new FakeKV()
   await kv.put('report:2026-11-15T10:00:00.000Z:old-0001', '{"old":true}')
   const s = store({ DB: new FakeD1(), REPORTS: kv })
   await s.put('report:2026-11-16T10:00:00.000Z:new-0001', '{"new":true}')
-  assert.equal(await s.get('report:2026-11-15T10:00:00.000Z:old-0001'), '{"old":true}')
-  const names = []
-  let cursor
-  do {
-    const r = await s.list({ prefix: 'report:', cursor, limit: 1 })
-    names.push(...r.keys.map((k) => k.name))
-    cursor = r.list_complete ? undefined : r.cursor
-  } while (cursor)
-  assert.deepEqual(names, ['report:2026-11-16T10:00:00.000Z:new-0001', 'report:2026-11-15T10:00:00.000Z:old-0001'])
+  assert.equal(await s.get('report:2026-11-15T10:00:00.000Z:old-0001'), null)
+  const r = await s.list({ prefix: 'report:' })
+  assert.deepEqual(r.keys.map((k) => k.name), ['report:2026-11-16T10:00:00.000Z:new-0001'])
   await s.delete('report:2026-11-15T10:00:00.000Z:old-0001')
-  assert.equal(kv.m.size, 0)
-  await s.put('signin:zzz', '{}')
-  assert.equal(kv.m.size, 0, 'writes go to D1 only')
+  assert.equal(kv.m.size, 1, 'the old namespace is left alone')
 })
 
 test('the worker on D1: a report with a 3 MB log part is taken and collected', async () => {

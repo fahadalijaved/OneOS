@@ -358,6 +358,23 @@ class GatesTest {
     }
 
     @Test
+    fun anUpdateThatKeepsTheDataNeedsNoRoomForNewData() {
+        // A ColorOS update (0.5.20 report): the stage's system.raw is reused (reclaimBytes) and its data stays, so
+        // the image + files + 1 GB logs + 1 GB margin, not 8 GB of new data on top (27.4 GB asked, 7.8 GB free).
+        val i = input(Bundles.S26U)
+        val raw = Images.FIND_X9U_IN_1105.rawBytes
+        val kept = i.copy(stage = i.stage!!.copy(dataStaged = true), reclaimBytes = raw)
+        val need = SpaceRule.toStage(Images.FIND_X9U_IN_1105, PackageSets.X9U_IN_1105_SULTRA, keepsData = true)
+        assertEquals(raw + PackageSets.X9U_IN_1105_SULTRA.approxBytes + SpaceRule.LAUNCH_STAGED_BYTES, need)
+        assertEquals(Level.OK, eval(GatePhase.PREPARE, kept.copy(freeBytes = need - raw)).level(SwitchGates.ID_SPACE))
+        assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, kept.copy(freeBytes = need - raw - 1)).level(SwitchGates.ID_SPACE))
+        // Kept image but no data yet (set up, never started): the data still needs its room.
+        val noData = i.copy(stage = i.stage!!.copy(dataStaged = false), reclaimBytes = raw)
+        val full = SpaceRule.toStage(Images.FIND_X9U_IN_1105, PackageSets.X9U_IN_1105_SULTRA)
+        assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, noData.copy(freeBytes = full - raw - 1)).level(SwitchGates.ID_SPACE))
+    }
+
+    @Test
     fun freeSpaceFromTheImagesRawSize() {
         val i = input(Bundles.S26U)
         val need = SpaceRule.toStage(Images.FIND_X9U_IN_1105, PackageSets.X9U_IN_1105_SULTRA)

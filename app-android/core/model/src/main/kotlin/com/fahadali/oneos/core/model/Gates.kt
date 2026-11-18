@@ -615,15 +615,19 @@ object SwitchGates {
         else -> Finding(ID_STAGE, Level.OK, "Nothing mounted, no session running")
     }
 
+    /** An update that keeps the stage's system and its data: root reuses system.raw (reclaimBytes) and the data stays. */
+    private fun keepsData(input: GateInput): Boolean = input.reclaimBytes > 0 && input.stage?.dataStaged == true
+
     private fun space(phase: GatePhase, input: GateInput, image: ImageRef?, set: PackageSet?): Finding? {
         val need = when (phase) {
             GatePhase.SWITCH -> SpaceRule.launch(input.stage?.dataStaged == true)
-            GatePhase.PREPARE -> image?.let { SpaceRule.toStage(it, set) } ?: return null
+            GatePhase.PREPARE -> image?.let { SpaceRule.toStage(it, set, keepsData(input)) } ?: return null
         }
         val what = if (phase == GatePhase.SWITCH) {
             if (input.stage?.dataStaged == true) "1 GB logs + 1 GB margin; its data is already on the phone" else "8 GB data + 1 GB logs + 2 GB margin"
         } else {
-            "the ${image!!.shortName} image ${Units.bytes(image.rawBytes)} + files + 8 GB data + 1 GB logs + 2 GB margin"
+            if (keepsData(input)) "the ${image!!.shortName} image ${Units.bytes(image.rawBytes)} (already on the phone) + files + 1 GB logs + 1 GB margin; its data stays"
+            else "the ${image!!.shortName} image ${Units.bytes(image.rawBytes)} + files + 8 GB data + 1 GB logs + 2 GB margin"
         }
         val free = input.freeBytes ?: return block(
             ID_SPACE, "Free space unknown", "Could not read free space on /data; about ${Units.bytes(need)} is needed.", R_SPACE_UNKNOWN,

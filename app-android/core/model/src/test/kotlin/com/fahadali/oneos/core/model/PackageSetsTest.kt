@@ -76,7 +76,7 @@ class PackageSetsTest {
         val lineage = PackageSets.LINEAGE
         assertEquals("lineage", lineage.id)
         assertEquals(Images.ID_LINEAGE, lineage.imageId)
-        assertEquals("out/overlays_lineage_r7", lineage.sourceDir)
+        assertEquals("out/overlays_lineage_r8", lineage.sourceDir)
         assertEquals(40, lineage.files.size) // 0.5.14 r6: + samcam_a.tar, samcam_bar.tar; 0.5.07 r3: + libbootanimation_preapex_patched.so; 0.5.06 r2: + OneOSPixelDoze.apk (AOD)
         assertEquals(20, lineage.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), lineage.omitted)

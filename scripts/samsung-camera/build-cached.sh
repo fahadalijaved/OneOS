@@ -81,6 +81,9 @@ python3 -I "$HERE/fix_recorder_track_started.py" proj_SamsungCamera >/dev/null
 python3 -I "$HERE/fix_gallery_fallback.py" proj_SamsungCamera >/dev/null
 # 0.4.59: the recording timer (no 0x385 from AOSP's recorder), and media entries without Samsung's secmedia provider.
 python3 -I "$HERE/fix_recorder_progress.py" proj_SamsungCamera >/dev/null
+# Videos with their rotation (0.5.21): after fix_recorder_progress.py, which it builds on. Applied by hand to the
+# flagship cameras since 0.4.59 and never added here, so every camera built since (the A-series samcam_a) lost it.
+python3 -I "$HERE/fix_video_rotation.py" proj_SamsungCamera >/dev/null
 python3 -I "$HERE/fix_secmedia_insert.py" proj_SamsungCamera >/dev/null
 [ "${SAMCAM_BAR:-0}" = 1 ] || python3 -I "$HERE/fix_bar_width.py" proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o SamsungCamera-rw.apk proj_SamsungCamera

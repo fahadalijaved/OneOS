@@ -94,8 +94,24 @@ test('a member signs in through the bot and sends a report; the record and the p
   const key = [...e.REPORTS.m.keys()].find((k) => k.startsWith('report:'))
   const stored = JSON.parse(await e.REPORTS.get(key))
   assert.deepEqual(stored.tg, { id: 42, username: 'tester_one' })
+  // A new account's report is held: stored, not posted, for its first two days (11-18 flood).
+  assert.equal(stored.held, true)
+  assert.ok(!tgCalls.some((x) => x.method === 'sendMessage' && x.body.chat_id === '-1001'), 'no ping for a new account')
+  // Two days after its first sign-in it is posted.
+  await e.REPORTS.put('seen:42', String(Date.now() - 3 * 24 * 3600 * 1000))
+  const r2 = await call(e, 'POST', '/v1/report', { body: rec({ reportId: '8aea312c31b8821d-3f2b' }), headers: { ...up, 'x-oneos-pass': got.pass }, c })
+  assert.equal(r2.status, 200)
   const ping = tgCalls.find((x) => x.method === 'sendMessage' && x.body.chat_id === '-1001')
   assert.match(ping.body.text, /From: @tester_one/)
+})
+
+test('five reports a day from one account, the sixth refused', async () => {
+  const e = env()
+  const { pass } = await signIn(e)
+  const h = { ...up, 'x-oneos-pass': pass }
+  const codes = []
+  for (let i = 0; i < 6; i++) codes.push((await call(e, 'POST', '/v1/report', { body: rec({ reportId: `dddddddddddddddd-${String(i).padStart(4, '0')}`, sessionId: 'dddddddddddddddd' }), headers: h })).status)
+  assert.deepEqual(codes, [200, 200, 200, 200, 200, 429])
 })
 
 test('a banned account and one that never joined are refused with the group link; joining works at once', async () => {
@@ -179,8 +195,9 @@ test('one account: 3 reports a minute, more refused; past 15 tries it is banned,
   for (let i = 0; i < 15; i++) codes.push((await sent(i)).status)
   assert.deepEqual(codes.slice(0, 4), [200, 200, 200, 429])
   assert.ok(!tgCalls.some((c) => c.method === 'banChatMember'), 'no ban within 15 tries')
-  const writes = [...e.REPORTS.m.keys()].filter((k) => !k.startsWith('report:') && !k.startsWith('member:'))
-  assert.deepEqual(writes, [], 'no counters in KV')
+  // Only the first-sign-in time and the day's count besides the reports (D1 in production).
+  const writes = [...e.REPORTS.m.keys()].filter((k) => !k.startsWith('report:') && !k.startsWith('member:') && !k.startsWith('seen:') && !k.startsWith('day:'))
+  assert.deepEqual(writes, [], 'no other counters')
   assert.equal((await sent(15)).status, 403)
   assert.equal(tgCalls.find((c) => c.method === 'banChatMember').body.user_id, 42)
   assert.ok(tgCalls.some((c) => c.method === 'sendMessage' && /banned from the group/.test(c.body.text) && c.body.message_thread_id === 6))
