@@ -62,9 +62,7 @@ guest (`switcher/assets/guest_prepare.sh`, "Guest biometrics"). OneOS added the 
 
 fouadd designed and built the OneOS website, <https://fahadalijaved.github.io/OneOS/>: the systems
 catalog, the phone compatibility pages and the comparison, in one page served from the `gh-pages`
-branch. Its styling is ported from [OneUI-Web](https://github.com/SamsungInternet/OneUI-Web)
-(MIT License, Copyright (c) 2019 Diego; the license is published next to the page).
-
+branch. Credits to thatjoshguy67 [<https://github.com/thatjoshguy67>], the website styling is ported from tjg.gg (his website) with permission.
 ## MysticGSI
 
 <https://github.com/MysticGSI/mysticgsi>, Apache License 2.0,
