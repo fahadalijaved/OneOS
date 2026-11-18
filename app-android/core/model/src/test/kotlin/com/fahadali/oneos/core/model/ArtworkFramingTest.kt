@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ArtworkFramingTest {
-    private val families = listOf(SystemFamily.COLOROS, SystemFamily.HYPEROS, SystemFamily.INFINITYX, SystemFamily.NOTHING, SystemFamily.PIXEL, SystemFamily.LINEAGE)
+    private val families = listOf(SystemFamily.COLOROS, SystemFamily.HYPEROS, SystemFamily.INFINITYX, SystemFamily.NOTHING, SystemFamily.PIXEL, SystemFamily.LINEAGE, SystemFamily.ONEUI)
     @Test fun shortHeaderCropsKeepCompleteHeadingsAndNeverExposeSideBands() {
         for (family in families) for ((w, h) in listOf(388 to 356, 320 to 300, 600 to 500)) {
             val a = ArtworkFraming.heading(family, true)

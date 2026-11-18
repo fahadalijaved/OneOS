@@ -40,15 +40,19 @@ Usage: pixel_camera_native.py <host_camera.txt> <in.so> <out.so>
          to diff a host's libcamera_client.so against the guest's.
 No dependencies: the ELF symbol table and the encodings are read here.
 """
+import os
 import re
 import struct
 import sys
 
 UNUSED_CODE = 200
 # Guest-only void or oneway methods (ColorOS; vivo's onFrozenPackage is oneway, flags 1).
-GUEST_ONLY_VOID = {"notifySmartWindowChange", "notifyDisplayRotationChange", "onFrozenPackage"}
+# One UI 9.5 (S948BXXU6ZZKN): injectSessionParamsN (9) and notifyPrewarmId (29), both void, which One UI 9.0's cameraserver does not have.
+GUEST_ONLY_VOID = {"notifySmartWindowChange", "notifyDisplayRotationChange", "onFrozenPackage", "injectSessionParamsN", "notifyPrewarmId"}
 # Guest-only methods with a result whose Bp returns transact's error status as it is (HyperOS; vivo).
 GUEST_ONLY_STATUS = {"addFaceListener", "removeFaceListener", "setVersionName"}
+# One UI 9.5: same signature as One UI 9.0's, contents its cameraserver crashes on (pixel_camera_abi.py).
+NOT_TO_HOST = {"notifyPkgListParamChange"}
 NOP = 0xD503201F
 # (interface, mangled namespace, Bp class, Bn class)
 AIDL = {
@@ -153,7 +157,9 @@ def patch_bp(elf, host, changed):
     for iface, (ns, cls) in AIDL.items():
         guest = bp_methods(elf, ns, cls)
         for meth, (o, gcode) in sorted(guest.items()):
-            if meth in host[iface]:
+            if meth in NOT_TO_HOST:
+                hcode = UNUSED_CODE
+            elif meth in host[iface]:
                 hcode = host[iface][meth]
             elif meth in GUEST_ONLY_VOID or meth in GUEST_ONLY_STATUS:
                 hcode = UNUSED_CODE
@@ -182,6 +188,13 @@ def patch_bn(elf, host, changed):
         for c, m in sorted(drop.items()):
             hits = [i for i, (_, _, w) in enumerate(ws[:-1]) if (w & ~(0xFFF << 10)) == 0x7100003F and (w >> 10) & 0xFFF == c]
             if len(hits) != 1:
+                # One UI 9.5's BnCameraServiceListener switches through a jump table. With
+                # ONEOS_CAMERA_NATIVE_SKIP_BN=1 its callbacks stay as they are (only native
+                # NDK listeners could misread One UI 9.0's code); the outgoing Bp codes, which
+                # system_server's vendor tag setup needs, are still renumbered.
+                if not hits and os.environ.get("ONEOS_CAMERA_NATIVE_SKIP_BN") == "1":
+                    changed.append(f"{bn}::onTransact: code {c} ({m}) NOT ignored (jump table, ONEOS_CAMERA_NATIVE_SKIP_BN=1); the host's {by_host[c]}")
+                    continue
                 die(f"{bn}::onTransact: `cmp w1, #{c}` found {len(hits)} times (one expected; a jump table?)")
             _, _, cw = ws[hits[0]]
             va, o, bw = ws[hits[0] + 1]

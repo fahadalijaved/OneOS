@@ -52,6 +52,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": true
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -105,6 +111,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -160,6 +172,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -214,6 +232,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -261,6 +285,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -316,6 +346,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -369,6 +405,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -424,6 +466,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -477,6 +525,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -532,6 +586,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -585,6 +645,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -646,6 +712,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -706,6 +778,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -760,6 +838,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -808,6 +892,12 @@
           "label": "Nothing OS 5.0, Metroid build",
           "set": "nothing-f8u",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -849,6 +939,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -898,6 +994,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -946,6 +1048,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -988,6 +1096,12 @@
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1023,6 +1137,12 @@
           "image": "nothingos5-metroid",
           "label": "Nothing OS 5.0, Metroid build",
           "set": "nothing-f8u",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -1072,6 +1192,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1120,6 +1246,12 @@
           "label": "Nothing OS 5.0, Metroid build",
           "set": "nothing-f8u",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1162,6 +1294,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1191,6 +1329,12 @@
           "image": "lineage24-infiniti",
           "label": "LineageOS 24, OnePlus 15 build",
           "set": "lineage",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -1252,6 +1396,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1287,6 +1437,12 @@
           "image": "lineage24-infiniti",
           "label": "LineageOS 24, OnePlus 15 build",
           "set": "lineage",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -1342,6 +1498,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1396,6 +1558,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1437,6 +1605,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -1486,6 +1660,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1533,6 +1713,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -1582,6 +1768,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1629,6 +1821,12 @@
           "image": "nothingos5-metroid",
           "label": "Nothing OS 5.0, Metroid build",
           "set": "nothing-f8u",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -1678,6 +1876,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1725,6 +1929,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -1774,6 +1984,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1822,6 +2038,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1863,6 +2085,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -1912,6 +2140,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -1953,6 +2187,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -2037,6 +2277,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -2139,6 +2385,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -2314,6 +2566,12 @@
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -2355,6 +2613,12 @@
           "image": "hyperos-lhasa",
           "label": "HyperOS, Xiaomi 18 Fold build",
           "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -2464,6 +2728,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -2523,6 +2793,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -2620,6 +2896,12 @@
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -2667,6 +2949,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -2739,6 +3027,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]

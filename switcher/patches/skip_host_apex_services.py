@@ -14,6 +14,9 @@ that branched to the call (dead after the branch; v5 on ColorOS, v3 on Pixel).
 Android 16's (OxygenOS 16) loads mSystemServiceManager between the label and the
 call; the check goes before that load.
 
+One UI 9.5 (S948BXXU6ZZKN): startServiceFromJar returns void (hence the "V" alternative) and
+mSystemServiceManager is loaded before the isEmpty branch, not between the label and the call.
+
 Usage: skip_host_apex_services.py <smali root dir>
 Prints the smali_* directory (dex file) it changed.
 """
@@ -23,7 +26,7 @@ import sys
 
 METHOD = re.compile(r"^\.method (?:private |public |final )*startApexServices\(Lcom/android/server/utils/TimingsTraceAndSlog;\)V$", re.M)
 CALL = re.compile(r"^\s*invoke-virtual \{(v\d+), (v\d+), (v\d+)\}, Lcom/android/server/SystemServiceManager;->"
-                  r"startServiceFromJar\(Ljava/lang/String;Ljava/lang/String;\)Lcom/android/server/SystemService;$")
+                  r"startServiceFromJar\(Ljava/lang/String;Ljava/lang/String;\)(?:Lcom/android/server/SystemService;|V)$")
 
 
 def code(lines, i, step):

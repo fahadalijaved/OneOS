@@ -1356,17 +1356,23 @@ add)
         fpf=$(sed -n 's/.*<SEC_FLOATING_FEATURE_BIOAUTH_CONFIG_FINGERPRINT_FEATURES>\([^<]*\)<.*/\1/p' "$FF" 2>/dev/null | head -n 1)
         case "$fpf" in *ultrasonic*) fpt=ultrasonic ;; *optical*) fpt=optical ;; *) fpt="" ;; esac
         UPOS=$(head -n 1 /sys/class/fingerprint/fingerprint/position 2>/dev/null)
-        UDPI=$(grep 'type INTERNAL' "$STAGE/display_host.txt" 2>/dev/null | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY' | head -n 1 |
-            sed -n 's/.*density [0-9]*, \([0-9.]*\) x [0-9.]* dpi.*/\1/p')
-        fpl=$(echo "$UPOS $UDPI" | awk '{ n = split($1, p, ","); dpi = $2; if (n < 6 || dpi < 100 || p[1] <= 0) exit;
-            printf "%d", (p[1] + p[4] / 2) * dpi / 25.4 + 0.5 }')
+        ULINE=$(grep 'type INTERNAL' "$STAGE/display_host.txt" 2>/dev/null | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY' | head -n 1)
+        UDPI=$(printf '%s\n' "$ULINE" | sed -n 's/.*density [0-9]*, \([0-9.]*\) x [0-9.]* dpi.*/\1/p')
+        # OPPO's SystemUI places the icon in the pixels of the resolution the panel runs at, the sysfs position is in
+        # the physical panel's: scaled by the two widths (0.5.22, S24 Ultra: a 1440 px panel at 1080, the icon a
+        # quarter too high, "in heaven"; the A36 runs at its physical 1080). The size, 196 px at 1080, the same way.
+        UMODE=$(printf '%s\n' "$ULINE" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) x [0-9][0-9]*, modeId.*/\1/p')
+        UPHYS=$(printf '%s\n' "$ULINE" | sed -n 's/.*physicalDisplayWidth=\([0-9]*\).*/\1/p')
+        fpl=$(echo "$UPOS $UDPI ${UMODE:-0} ${UPHYS:-0}" | awk '{ n = split($1, p, ","); dpi = $2; k = ($3 > 0 && $4 > 0) ? $3 / $4 : 1;
+            if (n < 6 || dpi < 100 || p[1] <= 0) exit; printf "%d", (p[1] + p[4] / 2) * dpi / 25.4 * k + 0.5 }')
+        fps=$(echo "${UMODE:-1080}" | awk '{ printf "%d", 196 * ($1 > 0 ? $1 : 1080) / 1080 + 0.5 }')
         if [ -n "$fpt" ] && [ -n "$fpl" ]; then
             for kv in "persist.vendor.fingerprint.sensor_type=$fpt" "persist.vendor.fingerprint.optical.iconlocation=$fpl" \
-                      "persist.vendor.fingerprint.optical.iconsize=196"; do
+                      "persist.vendor.fingerprint.optical.iconsize=$fps"; do
                 drop_new "${kv%%=*}"
                 echo "$kv" >> "$NEW"
             done
-            echo "guest_props: OPPO fingerprint: $fpt sensor, icon centre ${fpl}px from the bottom (from '$UPOS' at $UDPI dpi)"
+            echo "guest_props: OPPO fingerprint: $fpt sensor, icon centre ${fpl}px from the bottom, size $fps (from '$UPOS' at $UDPI dpi, panel ${UPHYS:-?} px wide running at ${UMODE:-?})"
             # The panel lights the spot itself (local HBM, as One UI's fingerprint service reads it): ColorOS's
             # lock screen then keeps its brightness instead of its dim layer (patch-coloros-keyguard-lhbm.py).
             if [ "$fpt" = optical ] && [ -e /sys/class/lcd/panel/local_hbm ] &&
@@ -1518,6 +1524,38 @@ add)
                     echo "guest_props: $key=$g for the session (One UI: $h; the guest framework has no $h APIs)"
             fi ;;
     esac
+    # One UI's own version from a One UI image (0.5.22, One UI 9.5 on One UI 9.0 phones): the guest
+    # framework is the image's, so Settings, Samsung's apps and feature checks read its version,
+    # not the phone's (A36 run 9 showed One UI 9.0 everywhere). The model and device stay One UI's.
+    if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        for key in ro.build.version.oneui ro.build.version.sem ro.build.version.sem_platform_int; do
+            g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
+            h=$(getprop "$key")
+            case "$g" in ""|*[!0-9]*) continue ;; esac
+            [ -n "$h" ] && [ "$g" != "$h" ] || continue
+            echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
+                echo "guest_props: $key=$g for the session (One UI image; the phone's One UI: $h)"
+        done
+    fi
+    # The image's model for a One UI image (0.5.22, owner: "modify the OS info as S26 itself. No need
+    # for A366b"): every ro.product.*.model and ro.boot.em.model the phone sets becomes the image's
+    # (One UI 9.5 S948BXXU6ZZKN: SM-S948B), so Galaxy Store offers the image's apps (Live Effect was
+    # "not compatible" for the A36). Device and product names, the SoC and the carrier/CSC props stay
+    # the phone's: Samsung picks carrier settings and hardware resources by those. Back at the return.
+    # ONEOS_ONEUI_IMAGE_MODEL=0 keeps the phone's model.
+    if [ "${ONEOS_ONEUI_IMAGE_MODEL:-1}" = 1 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        g=$(sed -n 's/^ro.product.system.model=//p' "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
+        case "$g" in SM-[A-Z0-9]*) ;; *) g="" ;; esac
+        if [ -n "$g" ]; then
+            n=0; phone=$(getprop ro.product.vendor.model)
+            for key in $(getprop | sed -n 's/^\[\(ro\.product\.[a-z_]*\.\{0,1\}model\)\]: .*/\1/p') ro.boot.em.model; do
+                h=$(getprop "$key")
+                [ -n "$h" ] && [ "$h" != "$g" ] || continue
+                echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null && n=$((n + 1))
+            done
+            echo "guest_props: model $g for the session in $n props (One UI image; the phone's: $phone)"
+        fi
+    fi
     # No isolated compilation from the guest. SystemServer starts
     # IsolatedCompilationService when ro.config.isolated_compilation_enabled is
     # true (One UI: true); it schedules compiles in the HOST's composd (One UI's

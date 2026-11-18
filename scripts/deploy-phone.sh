@@ -67,7 +67,8 @@ echo "overlays: $OVERLAYS"
 # the source's loop device (LOOP_CLR_FD) unless given -D, and through dm-verity
 # that stops one of One UI's APEX loops (return_to_oneui.sh explains). busybox
 # ($BB umount) or umnt only.
-PLAIN=$(grep -n '^[^#]*umount' "$ROOT"/switcher/assets/*.sh | grep -v 'BB" umount\|$BB umount\|BB umount\|umnt\|umount -D\|applets\|for a in sh mount umount' || true)
+# guest_runtime.sh: "$busy" is its busybox; /data/adb/ksu/.allowlist is a bind of one file (no loop device).
+PLAIN=$(grep -n '^[^#]*umount' "$ROOT"/switcher/assets/*.sh | grep -v 'BB" umount\|$BB umount\|BB umount\|busy" umount\|umnt\|umount -D\|applets\|for a in sh mount umount\|umount /data/adb/ksu/.allowlist ||' || true)
 if [ -n "$PLAIN" ]; then
     echo "plain umount in the session scripts (use \$BB umount or umnt):" >&2
     echo "$PLAIN" >&2

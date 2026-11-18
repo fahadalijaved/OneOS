@@ -55,6 +55,11 @@ STAGED = "/system_ext/priv-app/OneOSSecIms"
 # system_server at every boot). Read-only like the other; never an app's install path.
 STAGED_UNDER_SYSTEM = "/system" + STAGED
 GETNAME = "invoke-virtual {p0}, Lcom/android/server/pm/PackageSetting;->getPackageName()Ljava/lang/String;"
+# One UI 9.5 (S948BXXU6ZZKN): R8 inlined getPackageName() into verifySignatures: the first instruction
+# reads PackageSetting.mName into a local that is written nowhere else in the method.
+WRITES = (r"^\s*(?:const\S*|move\S*|new-\S+|[ais]get\S*|check-cast|instance-of|array-length|neg-\S+|not-\S+|\S+-to-\S+|"
+          r"(?:add|sub|rsub|mul|div|rem|and|or|xor|shl|shr|ushr)-\S+|cmp\S*) {r}(?:,|$)")
+GETNAME_FIELD = re.compile(r"^\s*iget-object (v\d+), p0, Lcom/android/server/pm/PackageSetting;->mName:Ljava/lang/String;$")
 
 
 def find(root, rel):
@@ -99,15 +104,24 @@ def main(root):
 
     # The register the package name lives in (getPackageName() -> move-result-object).
     gp = [i for i in body if lines[i].strip() == GETNAME]
-    if len(gp) != 1:
-        sys.exit(f"{path}: getPackageName() on p0 not found exactly once in verifySignatures")
-    j = gp[0] + 1
-    while j < end and lines[j].strip() == "":
-        j += 1
-    name_m = re.match(r"\s*move-result-object (v\d+)\s*$", lines[j]) if j < end else None
-    if not name_m:
-        sys.exit(f"{path}: getPackageName() result not captured as expected")
-    name_reg = name_m.group(1)
+    if len(gp) == 1:
+        j = gp[0] + 1
+        while j < end and lines[j].strip() == "":
+            j += 1
+        name_m = re.match(r"\s*move-result-object (v\d+)\s*$", lines[j]) if j < end else None
+        if not name_m:
+            sys.exit(f"{path}: getPackageName() result not captured as expected")
+        name_reg = name_m.group(1)
+    else:
+        # One UI 9.5: mName read directly into a register nothing else writes.
+        gf = [i for i in body if GETNAME_FIELD.match(lines[i])]
+        if len(gp) != 0 or len(gf) != 1:
+            sys.exit(f"{path}: getPackageName() on p0 not found exactly once in verifySignatures")
+        name_reg = GETNAME_FIELD.match(lines[gf[0]]).group(1)
+        others = [i for i in body if i != gf[0] and re.match(WRITES.format(r=re.escape(name_reg)), lines[i])]
+        if others:
+            sys.exit(f"{path}: {name_reg} (package name) is written again in verifySignatures (line {others[0] + 1})")
+        j = gf[0]
 
     # The single shared-user throw: new-instance ... PackageManagerException,
     # whose message is the "has no signatures that match" one.
@@ -128,6 +142,10 @@ def main(root):
     # so it is still live at the throw and the carve-out compares the right value.
     appended = any(re.match(r"\s*invoke-virtual \{[vp]\d+, " + name_reg + r"\}, Ljava/lang/StringBuilder;->append\(",
                            lines[k]) for k in range(throw_idx, msg_line))
+    if not appended and len(gp) == 0:
+        # One UI 9.5 builds the message in an outlined helper: m(String "Package ", name, MSG) just after the message.
+        appended = any(re.match(r"\s*invoke-static \{[vp]\d+, " + name_reg + r", [vp]\d+\}, \S+->m\(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;\)Ljava/lang/StringBuilder;$",
+                                lines[k]) for k in range(msg_line, min(msg_line + 6, end)))
     if not appended:
         sys.exit(f"{path}: {name_reg} is not the package name appended in the throw message; register layout differs")
 

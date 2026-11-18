@@ -85,33 +85,20 @@ function d1(db) {
   }
 }
 
-// D1 first, the old KV namespace after it for reads; writes to D1 only. Without a DB binding: KV as before.
+// Report records and the small keys in D1; log parts ("part:...") in KV, streamed (11-18: copying a part of a few MB
+// into D1's rows went past the Workers CPU limit, every full log was refused). KV is not read for anything else
+// any more (its fallback reads, lists and deletes for every key used up the daily limit). Without a DB binding: KV.
+const isPart = (k) => typeof k === 'string' && k.startsWith('part:')
+
 export function store(env) {
   if (!env.DB) return env.REPORTS
   const a = d1(env.DB)
-  // 11-18: the old KV namespace is no longer touched (its deletes and fallback reads used up the daily KV limit).
-  const old = null
+  const kv = env.REPORTS
+  const pick = (k) => (kv && isPart(k) ? kv : a)
   return {
-    async get(key, opts) {
-      const v = await a.get(key, opts)
-      return v != null || !old ? v : old.get(key, opts)
-    },
-    put: (key, value, opts) => a.put(key, value, opts),
-    async delete(key) {
-      await a.delete(key)
-      if (old) await old.delete(key).catch(() => {})
-    },
-    // The cursor says which store: "d1:<last key>" or "kv:<KV's cursor>".
-    async list({ prefix, cursor, limit = 100 }) {
-      if (!cursor || cursor.startsWith('d1:')) {
-        const r = await a.list({ prefix, cursor: cursor ? cursor.slice(3) : undefined, limit })
-        if (!r.list_complete) return { keys: r.keys, list_complete: false, cursor: 'd1:' + r.cursor }
-        if (!old) return r
-        if (r.keys.length) return { keys: r.keys, list_complete: false, cursor: 'kv:' }
-        cursor = 'kv:'
-      }
-      const r = await old.list({ prefix, cursor: cursor.slice(3) || undefined, limit })
-      return { keys: r.keys, list_complete: r.list_complete, cursor: r.list_complete ? undefined : 'kv:' + r.cursor }
-    },
+    get: (key, opts) => pick(key).get(key, opts),
+    put: (key, value, opts) => pick(key).put(key, value, opts),
+    delete: (key) => pick(key).delete(key),
+    list: (o) => (kv && isPart(o?.prefix ?? '') ? kv : a).list(o),
   }
 }

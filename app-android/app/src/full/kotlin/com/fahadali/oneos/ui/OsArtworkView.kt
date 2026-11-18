@@ -31,6 +31,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
         SystemFamily.OXYGENOS -> R.drawable.os_oxygenos
         SystemFamily.ORIGINOS -> R.drawable.os_originos
         SystemFamily.LINEAGE -> R.drawable.os_lineage
+        SystemFamily.ONEUI -> R.drawable.os_oneui
         else -> R.drawable.os_coloros
     })
     fun bindArtwork(resource: Int) {
@@ -44,6 +45,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
             R.drawable.os_oxygenos -> SystemFamily.OXYGENOS
             R.drawable.os_originos -> SystemFamily.ORIGINOS
             R.drawable.os_lineage -> SystemFamily.LINEAGE
+            R.drawable.os_oneui -> SystemFamily.ONEUI
             else -> SystemFamily.COLOROS
         }
         frame()
@@ -67,6 +69,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
             SystemFamily.OXYGENOS -> R.drawable.os_oxygenos_header
             SystemFamily.ORIGINOS -> R.drawable.os_originos_header
             SystemFamily.LINEAGE -> R.drawable.os_lineage_header
+            SystemFamily.ONEUI -> R.drawable.os_oneui_header
             else -> R.drawable.os_coloros_header
         }
         if (rendered != resource) { rendered = resource; setImageResource(resource) }

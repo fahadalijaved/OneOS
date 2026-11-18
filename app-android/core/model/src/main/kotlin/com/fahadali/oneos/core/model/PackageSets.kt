@@ -168,6 +168,7 @@ object PackageSets {
     const val ID_OXYGEN16 = "oxygen16"
     const val ID_ORIGINOS = "originos"
     const val ID_LINEAGE = "lineage"
+    const val ID_ONEUI95 = "oneui95"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
     const val TETHERING = "tethering_payload.img"
@@ -844,7 +845,41 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE)
+    /**
+     * One UI 9.5 for the phones on One UI 9 (0.5.22, untested): [Images.ONEUI95], the Galaxy S26 Ultra build
+     * (S948BXXU6ZZKN). make-overlays.sh on that image (r1): the guard jars and One UI's camera codes, the
+     * signal poll, OneOSGuest.apk, the 22 APEX payloads (the 15 of every set and bt, nfcservices, gmssystem,
+     * npumanager, telephonycore, webapp and the cellbroadcast module), and oneui_floating_add.txt, the image's
+     * software floating features for guest_prepare.sh's merge. No guest vold or SurfaceFlinger patch in
+     * this set. Tethering never mounts.
+     */
+    val ONEUI95 = PackageSet(
+        id = ID_ONEUI95,
+        imageId = Images.ID_ONEUI95,
+        sourceDir = "out/overlays_oneui95_r1",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libcameracompatbilityinfo_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("oneui_floating_add.txt", FileRole.GUEST_FIX),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem", "npumanager", "telephonycore", "webapp")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
+            + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
+        omitted = listOf(TETHERING),
+        approxBytes = 584_720_823L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE, ONEUI95)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

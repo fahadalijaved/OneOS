@@ -78,6 +78,13 @@ if [ -z "$DIRS" ]; then
     echo "framework_patched.jar: not needed (the guest's camera tables are One UI's)"
     exit 0
 fi
+# A patched framework.jar runs without the image's boot image, whose initialized classes had
+# filled Android 17's device-policy registry (switcher/patches/policy_metadata_init.py; One UI 9.5,
+# A36 run 6: DevicePolicyManagerService died at boot). Only when the jar is patched anyway.
+PM=$(python3 -I "$ROOT/switcher/patches/policy_metadata_init.py" "$WORK/fw")
+for d in $PM; do
+    case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
+done
 java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"
 cp "$JAR" "$OUT/framework_patched.jar"
 for d in $DIRS; do
@@ -87,6 +94,8 @@ for d in $DIRS; do
     (cd "$WORK/dex" && zip -q -0 "$OUT/framework_patched.jar" "$DEX")
     echo "built $OUT/framework_patched.jar (replaced $DEX)"
 done
+# A dex-container framework.jar (One UI 9.5) needs all rebuilt dex files; no class may go missing.
+python3 -I "$ROOT/scripts/dex-container-fix.py" "$JAR" "$WORK/fw-rebuilt.jar" "$OUT/framework_patched.jar" || exit 1
 chmod 644 "$OUT/framework_patched.jar"
 python3 -I "$ROOT/scripts/check-dex.py" "$OUT/framework_patched.jar"
 if [ -f "$OUT/guards.txt" ]; then

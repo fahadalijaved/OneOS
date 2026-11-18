@@ -296,6 +296,15 @@ case "$IMAGE_SDK" in
 esac
 echo "installd: the image is SDK $IMAGE_SDK, host table $(basename "$HOST_INSTALLD")"
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" "$WORK/services" "$HOST_INSTALLD")"
+# KnoxGuard 3.0 is never started in a One UI guest (patches/samsung_no_knoxguard30.py): it cannot
+# reach the phone's KnoxGuard TA and locked the guest's screen asking for data to report to
+# Samsung (A36 runs 9, 10). The old KnoxGuard service stays off through MysticGSI's
+# knoxguard_utils_patch (gsi-patches/37/oneui).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/samsung_no_knoxguard30.py" "$WORK/services")"
+# netd's Samsung extension with One UI's codes (patches/guest_oemnetd_abi.py, host_oemnetd.txt from
+# One UI 9.0): One UI 9.5 numbers IOemNetd differently, and netd is One UI's (A36 run 8). Images
+# without IOemNetd (not Samsung's framework) are left alone.
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_oemnetd_abi.py" "$WORK/services" "$ROOT/switcher/patches/host_oemnetd.txt")"
 # No kernel crash from the guest's watchdog (patches/guest_no_sysrq_crash.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_sysrq_crash.py" "$WORK/services")"
 # The guest never touches the phone's weaver slots, where One UI's lock
@@ -420,6 +429,8 @@ for d in $(printf '%s\n' "$DISPLAY_DIR" $KEY_DIRS | sort -u); do
     (cd "$WORK/dex" && zip -q -0 "$OUT/services_patched.jar" "$DEX")
     echo "built $OUT/services_patched.jar (replaced $DEX)"
 done
+# A dex-container services.jar needs all rebuilt dex files; no class may go missing (scripts/dex-container-fix.py).
+python3 -I "$ROOT/scripts/dex-container-fix.py" "$WORK/services.jar" "$WORK/rebuilt.jar" "$OUT/services_patched.jar"
 
 # oplus-services.jar: waitForService -> checkService for OPPO-only services
 # (patches/oplus_wait_for_service.py). Every dex it touched is replaced.
@@ -985,6 +996,16 @@ rm -f "$OUT/framework_patched.jar" "$OUT/libcamera_client_patched.so" "$OUT/libc
 # ONEOS_NO_CAMERA_ABI=1: no camera bridge in this set (0.4.66, the Android 16 OxygenOS set for One UI 8
 # phones: the host tables here are One UI 9's; One UI 8's camera numbering is not on the server yet).
 # The guest's camera then does not work; everything else is built as usual.
+# 0.5.22 first assumed a One UI image (One UI 9.5 S948BXXU6ZZKN) spoke the phone's ICameraService.
+IMAGE_ONEUI=$("$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | sed -n 's/^ro.build.version.oneui=//p' | head -n 1)
+# (It is not: One UI 9.5's ICameraService has injectSessionParamsN at 9, so every later code is
+# One UI 9.0's next method. A One UI image gets the bridge like any other.)
+# One UI 9.5's software floating features for guest_prepare.sh's merge (switcher/patches/oneui95_floating_add.txt).
+rm -f "$OUT/oneui_floating_add.txt"
+[ "$IMAGE_ONEUI" = 90500 ] && cp "$ROOT/switcher/patches/oneui95_floating_add.txt" "$OUT/oneui_floating_add.txt" &&
+    echo "oneui_floating_add.txt: $(grep -c '^SEC_FLOATING_FEATURE_' "$OUT/oneui_floating_add.txt") software features of One UI 9.5"
+# Its native listener's switch is a jump table: renumber the native Bp calls, leave the listener.
+[ -n "$IMAGE_ONEUI" ] && export ONEOS_CAMERA_NATIVE_SKIP_BN=1
 if [ "${ONEOS_NO_CAMERA_ABI:-0}" = 1 ]; then
     echo "camera bridge: left out (ONEOS_NO_CAMERA_ABI=1)"
     rm -f "$WORK/framework-cam.jar"
@@ -993,7 +1014,11 @@ elif in_image /system/framework/framework.jar; then
     "$ROOT/scripts/patch-framework-camera.sh" "$WORK/framework-cam.jar" "$OUT"
     rm -f "$WORK/framework-cam.jar"
 fi
-if [ "${ONEOS_NO_CAMERA_ABI:-0}" != 1 ] && in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
+# ONEOS_NO_CAMERA_NATIVE=1: the Java bridge only (One UI 9.5 first boots: its BnCameraServiceListener
+# switch is a jump table pixel_camera_native.py does not patch yet).
+if [ "${ONEOS_NO_CAMERA_NATIVE:-0}" = 1 ]; then
+    echo "camera bridge: native client libraries left out (ONEOS_NO_CAMERA_NATIVE=1)"
+elif [ "${ONEOS_NO_CAMERA_ABI:-0}" != 1 ] && in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
     "$DEBUGFS" -R "dump /system/lib64/libcamera_client.so $WORK/libcamera_client.so" "$IMG" 2>/dev/null
     "$DEBUGFS" -R "dump /system/lib64/libcameracompatbilityinfo.so $WORK/libcameracompatbilityinfo.so" "$IMG" 2>/dev/null
     "$ROOT/scripts/patch-camera-native.sh" "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so" "$OUT"
@@ -1084,10 +1109,17 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 # Ultra IN image (CPH2841IN) has the same code 0x5b0 later (0x471178, after
 # AIBinder_getExtension, before IQtiComposer3Client::fromBinder), same bytes.
 "$DEBUGFS" -R "dump /system/bin/surfaceflinger $WORK/surfaceflinger" "$IMG" 2>/dev/null
-python3 -I - "$WORK/surfaceflinger" "$OUT/surfaceflinger_patched" <<'PYEOF'
+ONEOS_IMAGE_ONEUI="$IMAGE_ONEUI" python3 -I - "$WORK/surfaceflinger" "$OUT/surfaceflinger_patched" <<'PYEOF'
 import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
+# One UI image (0.5.22): Samsung's own SurfaceFlinger on Samsung's composer, the pair One UI itself
+# runs on these phones; its QTI composer client stays.
+if os.environ.get("ONEOS_IMAGE_ONEUI"):
+    if os.path.exists(dst):
+        os.remove(dst)
+    print("surfaceflinger: One UI image, Samsung's own build runs as it is")
+    sys.exit(0)
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
          # Find X9 Ultra IN, newer OTA (CPH2841IN, security patch 2026-11-01): the same
          # bl AIBinder_getExtension / ldr x8 / cbz x8 / bl IQtiComposer3Client::fromBinder at 0x475d24.
@@ -1674,8 +1706,15 @@ fi
 # Process.setProcessThreadGroup). guest_prepare.sh mounts these only when
 # staged; ColorOS's images have the platform jar, so their sets are unchanged.
 EXTRA=""
+# One UI 9.5 (S948BXXU6ZZKN) brings modules One UI 9.0 does not have at all (telephonycore,
+# npumanager, webapp): the guest's derive_classpath found no fragment for them and the zygote
+# died preloading SystemServiceRegistry (NoClassDefFoundError, A36 first run 2026-11-18).
+if "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -q '^ro.build.version.oneui='; then
+    EXTRA="telephonycore npumanager webapp"
+    echo "One UI image: also the image's $EXTRA (modules One UI 9.0 has none of)"
+fi
 if ! in_image /system/framework/framework-telecom.jar; then
-    EXTRA="telephonycore conscrypt profiling"
+    EXTRA="$EXTRA telephonycore conscrypt profiling"
     echo "no platform framework-telecom.jar: also the image's $EXTRA"
 fi
 for name in art i18n runtime sdkext nfcservices tethering crashrecovery cellbroadcast \

@@ -49,6 +49,19 @@ INSTALLD = ("destroyUserData", "destroyAppData", "clearAppData",
             "onPrivateVolumeRemoved", "freeCache", "reconcileSdkData")
 KEYSTORE = ("clearNamespace", "onUserRemoved", "onUserLskfRemoved", "onUserAdded",
             "migrateKeyNamespace", "initUserSuperKeys", "deleteAllKeys")
+# One UI 9.5 (S948BXXU6ZZKN): Samsung's additions with the same danger. Keep storage
+# (Samsung's per-user encrypted store: create/prepare/lock/unlock/destroy and the
+# per-package keep-data wipes) and Knox's DualDAR / RCP file calls act on the same user ids
+# and /data as One UI's. They return a status: a dropped call reads as 0 / false, and the
+# registers keep their meaning (result Z false = the operation failed, nothing was done).
+SAMSUNG_VOLD = ("destroyKeepData", "clearKeepData", "createKeepStorage", "destroyKeepStorage",
+                "prepareKeepStorage", "lockKeepStorage", "unlockKeepStorage",
+                "autoLockKeepStorageDestroy", "autoLockKeepStorageLockdown",
+                "setDualDARPolicyCmd")
+SAMSUNG_INSTALLD = ("deleteKnoxFile", "copyKnoxAppData", "copyKnoxChunks", "setDualDARPolicyDir",
+                    "setDualDARPolicyDirRecursively", "setEviction")
+SAMSUNG_CALL = re.compile(
+    r"^\s*invoke-interface(?:/range)? \{[^}]*\}, Landroid/os/(IVold|IInstalld);->(\w+)\([^)]*\)([VIZ])\s*$")
 
 VOID_CALL = re.compile(
     r"^\s*invoke-interface(?:/range)? \{[^}]*\}, Landroid/os/(IVold|IInstalld);->(\w+)\([^)]*\)V\s*$")
@@ -58,12 +71,32 @@ KEYSTORE_CALL = re.compile(
 PREPARER = os.path.join("com", "android", "server", "pm", "UserDataPreparer.smali")
 SMS = os.path.join("com", "android", "server", "StorageManagerService.smali")
 SSS = os.path.join("com", "android", "server", "usage", "StorageStatsService.smali")
-QUOTA = ".method public isQuotaSupported(Ljava/lang/String;Ljava/lang/String;)Z"
-CE_UNLOCKED = ".method public isCeStorageUnlocked(I)Z"
-DESTROY_LI = re.compile(r"^\.method (?:public |final )*destroyUserDataLI\(Ljava/lang/String;II\)V$")
+# "public final": One UI 9.5 (S948BXXU6ZZKN)
+QUOTA = (".method public isQuotaSupported(Ljava/lang/String;Ljava/lang/String;)Z",
+         ".method public final isQuotaSupported(Ljava/lang/String;Ljava/lang/String;)Z")
+# "public final": One UI 9.5 (S948BXXU6ZZKN)
+CE_UNLOCKED = (".method public isCeStorageUnlocked(I)Z",
+               ".method public final isCeStorageUnlocked(I)Z")
+# (IILjava/lang/String;)V: One UI 9.5 (S948BXXU6ZZKN) reordered the parameters.
+DESTROY_LI = re.compile(
+    r"^\.method (?:public |final )*destroyUserDataLI\((?:Ljava/lang/String;II|IILjava/lang/String;)\)V$")
 WIPE = re.compile(
     r"^(\s*)invoke-static \{([vp]\d+), ([vp]\d+)\}, Landroid/os/RecoverySystem;->"
     r"rebootPromptAndWipeUserData\(Landroid/content/Context;Ljava/lang/String;\)V\s*$")
+
+
+def zero_result(lines, i, what):
+    """The move-result after the dropped call at lines[i], if any, becomes const 0."""
+    for j in range(i + 1, len(lines)):
+        s = lines[j].strip()
+        if not s or s.startswith("."):
+            continue
+        r = re.match(r"move-result ([vp]\d+)$", s)
+        if r:
+            lines[j] = f"    const/4 {r.group(1)}, 0x0"
+        elif s.startswith("move-result"):
+            sys.exit(f"{what}: unexpected {s!r} after the dropped call")
+        break
 
 
 def guard_calls(lines, rel, counts):
@@ -74,6 +107,12 @@ def guard_calls(lines, rel, counts):
             # A nop, not nothing: a dropped call can be the only instruction of a
             # try block, and ART rejects an empty try range (VerifyError, run 26).
             lines[i] = f"    # OneOS: {m.group(1)}.{m.group(2)} dropped (would act on the phone's data)\n    nop"
+            key = f"{m.group(1)}.{m.group(2)}"
+        elif (m := SAMSUNG_CALL.match(line)) and m.group(2) in (
+                SAMSUNG_VOLD if m.group(1) == "IVold" else SAMSUNG_INSTALLD):
+            lines[i] = f"    # OneOS: {m.group(1)}.{m.group(2)} dropped (would act on the phone's data)\n    nop"
+            if m.group(3) != "V":
+                zero_result(lines, i, f"{m.group(1)}.{m.group(2)}")
             key = f"{m.group(1)}.{m.group(2)}"
         else:
             m = KEYSTORE_CALL.match(line)
@@ -124,7 +163,7 @@ def guard_preparer(lines):
 
 
 def guard_ce_unlocked(lines):
-    idx = [i for i, l in enumerate(lines) if l == CE_UNLOCKED]
+    idx = [i for i, l in enumerate(lines) if l in CE_UNLOCKED]
     if len(idx) != 1:
         sys.exit("StorageManagerService.isCeStorageUnlocked not found exactly once")
     j = idx[0] + 1
@@ -136,7 +175,7 @@ def guard_ce_unlocked(lines):
 
 
 def guard_no_quota(lines):
-    idx = [i for i, l in enumerate(lines) if l == QUOTA]
+    idx = [i for i, l in enumerate(lines) if l in QUOTA]
     if len(idx) != 1:
         sys.exit("StorageStatsService.isQuotaSupported not found exactly once")
     j = idx[0] + 1

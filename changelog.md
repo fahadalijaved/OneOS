@@ -675,3 +675,20 @@ New in 0.5.21: sound, videos and updates.
   no rotation and showed sideways).
 - **Updating a system you already use** needs room for the update only, not for a new setup (ColorOS asked for
   27.4 GB).
+
+New in 0.5.22: **One UI 9.5 on One UI 9 Galaxies.**
+- **One UI 9.5 (the Galaxy S26 Ultra's, S948BXXU6ZZKN) as a OneOS system** for every Galaxy on One UI 9,
+  months before Samsung sends it to most of them. Tested on the Galaxy A36: it boots, runs fast, Wi-Fi
+  with internet, apps brought with their data (Add apps). It comes with One UI 9.5's software features
+  (Color Lens, the AI erasers and document scan, desktop windowing) on top of the phone's own hardware
+  features, and the phone shows as a Galaxy S26 Ultra in it (Galaxy Store then offers Live Effect).
+  Your One UI stays as it is.
+  **Untested yet:** every other Galaxy (it should work on the S25, S24 and S23 series, the Folds and Flips
+  and the A series on One UI 9), the camera (fixed for the A36, not confirmed), calls with the S26 Ultra
+  model name, Live Effect and the AI features on phones without the S26 Ultra's NPU. Please send a report
+  from the app if something does not work.
+- **App optimizing after the first start is gone** for every system: it made phones warm and slow for a
+  long time and gave no visible gain.
+- **ColorOS on the Galaxy S24 Ultra and other QHD phones:** the fingerprint icon sits on the sensor again (it was
+  drawn near the top of the screen).
+- **Add apps from inside the other system** works again ("not an installed user app" for every app).

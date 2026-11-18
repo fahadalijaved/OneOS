@@ -99,7 +99,7 @@ EOF
     python3 -I - "$SIGNIN" "$HOME/.oneos-reports-hook-key" "$URL/v1/tg" <<'EOF'
 import json, sys, urllib.request
 tok, hook = (open(f).read().strip() for f in sys.argv[1:3])
-body = json.dumps({"url": sys.argv[3], "secret_token": hook, "allowed_updates": ["message"]}).encode()
+body = json.dumps({"url": sys.argv[3], "secret_token": hook, "allowed_updates": ["message", "chat_join_request", "chat_member", "callback_query"]}).encode()
 r = json.load(urllib.request.urlopen(urllib.request.Request(f"https://api.telegram.org/bot{tok}/setWebhook", data=body,
     headers={"Content-Type": "application/json"}), timeout=20))
 print("bot webhook:", "set" if r.get("ok") else "FAILED " + str(r.get("description")))

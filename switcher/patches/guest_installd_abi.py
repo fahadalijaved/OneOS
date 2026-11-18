@@ -104,6 +104,27 @@ def own_class(lines):
     text = text.replace(PROXY_DESC, OWN)
     if "Ldalvik/annotation/InnerClass;" in text or "IInstalld$Stub$Proxy" in text:
         sys.exit("IInstalld$Stub$Proxy: references left in OneOSInstalldProxy")
+    # One UI 9.5 (S948BXXU6ZZKN): R8 dropped the proxy's constructor; Stub.asInterface makes the
+    # object with Object.<init> and sets mRemote itself. The copy gets the constructor back, the
+    # one OWN_AS_INTERFACE calls (without it system_server died at Installer.connect, A36 run 3).
+    if f".method public constructor <init>(Landroid/os/IBinder;)V" not in text and \
+            f".method constructor <init>(Landroid/os/IBinder;)V" not in text:
+        if text.count(".field public mRemote:Landroid/os/IBinder;") != 1 or \
+                any(l.startswith(".method") and "<init>" in l for l in text.split("\n")):
+            sys.exit("IInstalld$Stub$Proxy: no <init>(IBinder) and not the One UI shape (one mRemote field, no constructor)")
+        text = text.rstrip("\n") + f"""
+
+.method public constructor <init>(Landroid/os/IBinder;)V
+    .locals 0
+
+    invoke-direct {{p0}}, Ljava/lang/Object;-><init>()V
+
+    iput-object p1, p0, {OWN}->mRemote:Landroid/os/IBinder;
+
+    return-void
+.end method
+"""
+        print("OneOSInstalldProxy: <init>(IBinder) added (the proxy has no constructor in this build)", file=sys.stderr)
     return text.rstrip("\n") + "\n\n" + OWN_AS_INTERFACE
 
 

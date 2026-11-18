@@ -205,3 +205,29 @@ test('one account: 3 reports a minute, more refused; past 15 tries it is banned,
   assert.equal((await sent(16)).status, 403)
   assert.equal(tgCalls.filter((c) => c.method === 'banChatMember').length, 1)
 })
+
+test('a join request goes to the group creator with its signals and buttons; only the creator can approve', async () => {
+  const e = env()
+  const orig = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    const method = String(url).split('/').pop()
+    const body = JSON.parse(init.body)
+    if (method === 'getChatAdministrators') { tgCalls.push({ method, body }); return Response.json({ ok: true, result: [{ status: 'creator', user: { id: 500 } }] }) }
+    if (method === 'getUserProfilePhotos') { tgCalls.push({ method, body }); return Response.json({ ok: true, result: { total_count: 0 } }) }
+    return orig(url, init)
+  }
+  const hook = { 'x-telegram-bot-api-secret-token': 'hook-key' }
+  const jr = JSON.stringify({ update_id: 2, chat_join_request: { chat: { id: -1001 }, from: { id: 8832741362, first_name: 'X', username: 'gducufu' }, date: 1 } })
+  assert.equal((await call(e, 'POST', '/v1/tg', { body: jr, headers: hook })).status, 200)
+  const dm = tgCalls.find((c) => c.method === 'sendMessage' && c.body.chat_id === 500)
+  assert.match(dm.body.text, /likely throwaway/)
+  assert.match(dm.body.text, /no profile photo/)
+  assert.deepEqual(dm.body.reply_markup.inline_keyboard[0].map((b) => b.callback_data), ['jr:a:8832741362', 'jr:d:8832741362'])
+  // Someone else pressing the button does nothing.
+  const cb = (from) => JSON.stringify({ update_id: 3, callback_query: { id: 'q', from: { id: from }, data: 'jr:d:8832741362', message: { message_id: 7, chat: { id: 500 }, text: 'x' } } })
+  await call(e, 'POST', '/v1/tg', { body: cb(42), headers: hook })
+  assert.ok(!tgCalls.some((c) => c.method === 'declineChatJoinRequest'))
+  await call(e, 'POST', '/v1/tg', { body: cb(500), headers: hook })
+  assert.equal(tgCalls.find((c) => c.method === 'declineChatJoinRequest').body.user_id, 8832741362)
+  assert.ok(tgCalls.some((c) => c.method === 'editMessageText' && /Declined by you/.test(c.body.text)))
+})

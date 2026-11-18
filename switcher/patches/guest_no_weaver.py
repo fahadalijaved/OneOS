@@ -33,6 +33,10 @@ HEADER = re.compile(r"^\.method (?:private |public |final )*getWeaverServiceLock
 # Taken only when nothing else calls getWeaverServiceInternal() and mWeaver is written nowhere else
 # (its death recipient clears it through the -$$Nest$fputmWeaver accessor).
 HEADER16 = re.compile(r"^\.method (?:private |public |final |declared-synchronized )*getWeaverService\(\)Landroid/hardware/weaver/IWeaver;$")
+# One UI 9.5 (S948BXXU6ZZKN): getWeaverService() returns the WeaverConnection wrapper (public final, one
+# mWeaverInitializationLock monitor); its initialize() is the only thing that opens the AIDL or HIDL HAL.
+HEADER_CONN = re.compile(r"^\.method (?:private |public |final |declared-synchronized )*getWeaverService\(\)Lcom/android/server/security/weaver/WeaverConnection;$")
+HEADER_SUPPORT = re.compile(r"^\.method (?:private |public |final )*isSupportWeaver\(\)Z$")
 
 
 def span_of(lines, k):
@@ -57,6 +61,81 @@ def android16_lookup(path, lines):
     return heads
 
 
+def connection_lookup(path, lines, root):
+    """One UI 9.5: getWeaverService() hands out the WeaverConnection. Accepted only when its callers
+    treat null as "no weaver" (a null check on the result) and initialize() and the connection's own
+    HAL lookups are reached from nowhere else, so returning null before them opens no slot."""
+    heads = [k for k, l in enumerate(lines) if HEADER_CONN.match(l)]
+    if len(heads) != 1:
+        return []
+    own = span_of(lines, heads[0])
+    for k, l in enumerate(lines):
+        if "WeaverConnection;->initialize()Z" in l and span_of(lines, k) != own:
+            sys.exit(f"{path}: WeaverConnection.initialize() called outside getWeaverService() (line {k + 1})")
+    for dp, _, fs in os.walk(root):
+        for f in fs:
+            if not f.endswith(".smali") or f.startswith("WeaverConnection"):
+                continue
+            fp = os.path.join(dp, f)
+            if fp == path:
+                continue
+            txt = open(fp).read()
+            if re.search(r"WeaverConnection;->(initialize\(\)Z|getWeaverAidlService|getWeaverHidlService)", txt) or \
+               ("SyntheticPasswordManager;->getWeaverService()" in txt and not _null_checked(txt)):
+                sys.exit(f"{fp}: reaches the weaver lookup without a null check")
+    if not _null_checked("\n".join(lines)):
+        sys.exit(f"{path}: a getWeaverService() caller does not null-check the result")
+    return heads
+
+
+def _null_checked(txt):
+    """Every getWeaverService() call in txt is followed by move-result-object and an if-eqz/if-nez on it
+    within a few lines (checkWeaverStatus() tests it after a try/catch)."""
+    ls = txt.split("\n")
+    for k, l in enumerate(ls):
+        if "SyntheticPasswordManager;->getWeaverService()" in l and l.lstrip().startswith("invoke"):
+            tail = [x.strip() for x in ls[k + 1:k + 40] if x.strip()]
+            if not tail or not tail[0].startswith("move-result-object"):
+                return False
+            reg = tail[0].split()[-1]
+            if not any(re.match(r"if-(eqz|nez) " + re.escape(reg) + ",", x) for x in tail[1:25]):
+                return False
+    return True
+
+
+def samsung_no_securehw(root):
+    """One UI 9.5: LockSettingsService.isSupportWeaver() is the system property security.securehw.available,
+    and when it is set Samsung's rate-limit and policy paths ask HermesService, which reads weaver slot
+    100000 + userId on the HAL (getFailureCount) with an empty key. Make it false: the guest is software only."""
+    out = set()
+    for dirpath, _, files in os.walk(root):
+        if "LockSettingsService.smali" not in files:
+            continue
+        path = os.path.join(dirpath, "LockSettingsService.smali")
+        text = open(path).read()
+        if not re.match(r"\.class (?:public |final )*Lcom/android/server/locksettings/LockSettingsService;\n", text):
+            continue
+        if "HermesService/IHermesService;->" not in text:
+            continue
+        lines = text.split("\n")
+        heads = [k for k, l in enumerate(lines) if HEADER_SUPPORT.match(l)]
+        if len(heads) != 1:
+            sys.exit(f"{path}: isSupportWeaver() found {len(heads)} times, expected once")
+        i = heads[0]
+        e = next(k for k in range(i, len(lines)) if lines[k].startswith(".end method"))
+        body = [x.strip() for x in lines[i + 1:e] if x.strip()]
+        if body != [".locals 1", 'const-string/jumbo p0, "security.securehw.available"', "const/4 v0, 0x0",
+                    "invoke-static {p0, v0}, Landroid/os/SystemProperties;->getBoolean(Ljava/lang/String;Z)Z",
+                    "move-result p0", "return p0"]:
+            sys.exit(f"{path}: isSupportWeaver() is not the expected property read")
+        lines[i + 1:e] = ["    .locals 1", "", "    # OneOS One UI 9.5: no securehw (Hermes weaver reads) in the guest; software protectors only.",
+                          "    const/4 p0, 0x0", "", "    return p0"]
+        open(path, "w").write("\n".join(lines))
+        print(f"{os.path.relpath(path, root)}: isSupportWeaver() returns false", file=sys.stderr)
+        out.add(os.path.relpath(path, root).split(os.sep)[0])
+    return out
+
+
 def main(root):
     changed = set()
     for dirpath, _, files in os.walk(root):
@@ -67,6 +146,10 @@ def main(root):
         if not any(l.startswith(".class ") and l.endswith("Lcom/android/server/locksettings/SyntheticPasswordManager;") for l in lines):
             continue
         heads = [k for k, l in enumerate(lines) if HEADER.match(l)]
+        is_conn = False
+        if not heads:
+            heads = connection_lookup(path, lines, root)
+            is_conn = bool(heads)
         if not heads:
             heads = android16_lookup(path, lines)
         if len(heads) != 1:
@@ -93,7 +176,10 @@ def main(root):
         ]
         open(path, "w").write("\n".join(lines))
         changed.add(os.path.relpath(path, root).split(os.sep)[0])
-        print(f"{os.path.relpath(path, root)}: getWeaverServiceLocked() returns null", file=sys.stderr)
+        what = "getWeaverService() returns null" if is_conn else "getWeaverServiceLocked() returns null"
+        print(f"{os.path.relpath(path, root)}: {what}", file=sys.stderr)
+    if changed:
+        changed |= samsung_no_securehw(root)
     if not changed:
         sys.exit("SyntheticPasswordManager not found")
     for d in sorted(changed):

@@ -576,7 +576,7 @@ class GatesTest {
             // 0.4.22: the SM8750 phones the Pixel 9 Pro XL image (no SVE needed).
             val usual = listOf(Images.FIND_X9U_IN_1105)
             // 0.4.27: Infinity-X, on every phone; 0.5.06: LineageOS 24 after it; 0.4.31: HyperOS; then Nothing OS.
-            val last = listOf(Images.NOTHING_METROID, Images.ORIGINOS7) // 0.4.35 the S26 Ultra, 0.4.36 the S25s too; 0.4.73 OriginOS 7
+            val last = listOf(Images.NOTHING_METROID, Images.ORIGINOS7, Images.ONEUI95) // 0.4.35 the S26 Ultra, 0.4.36 the S25s too; 0.4.73 OriginOS 7; 0.5.22 One UI 9.5
             assertEquals(
                 usual + (if (p == Profiles.S_ULTRA_8850) Images.PIXEL_KODIAK else Images.PIXEL_KOMODO) + Images.INFINITYX + Images.LINEAGE24 + Images.HYPEROS_LHASA + last,
                 p.images(),
