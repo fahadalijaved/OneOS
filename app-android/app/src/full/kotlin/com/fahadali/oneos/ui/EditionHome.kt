@@ -246,6 +246,16 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         subs += LogJob.observeBy({ Triple(it.phase, it.recovering, it.stopping) }, onChange)
         subs += OldStagesJob.observe(onChange)
         subs += AppUpdater.observe(onChange)
+        // Plugging in lifts the low-battery block at once, without leaving Home.
+        val power = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: android.content.Intent?) { if (isAdded) redraw() }
+        }
+        val ctx = requireContext()
+        androidx.core.content.ContextCompat.registerReceiver(ctx, power, android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_POWER_CONNECTED)
+            addAction(android.content.Intent.ACTION_POWER_DISCONNECTED)
+        }, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        subs += { runCatching { ctx.unregisterReceiver(power) } }
     }
 
     override fun onResume() {
@@ -447,7 +457,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
                 val free = facts?.storage?.freeBytes
                 when {
                     f == null || free == null || f.reason == SwitchGates.R_SPACE_UNKNOWN -> unknown
-                    f.level == Level.BLOCK -> ctx.getString(R.string.home_value_space_short, Units.bytes((SpaceRule.LAUNCH_BYTES - free).coerceAtLeast(0)))
+                    f.level == Level.BLOCK -> ctx.getString(R.string.home_value_space_short, Units.bytes((r.launchBytes - free).coerceAtLeast(0)))
                     setupNeed != null && free < setupNeed -> {
                         if (level == Level.OK) level = Level.WARN
                         ctx.getString(R.string.home_value_space_setup, Units.bytes(free), Units.bytes(setupNeed))

@@ -95,10 +95,19 @@ TYPE_BODIES = {
 
     :cond_0
     return v0''',
+    'parameter_result': f'''    .locals 0
+
+    invoke-virtual {{p0}}, {LSS}->checkHavePermission()V
+
+    invoke-virtual {{p0, p1}}, {LSS}->getCredentialTypeInternal(I)I
+
+    move-result p0
+
+    return p0''',
 }
 
 
-def lss_text(guard='decoded', type_body='plain', helpers='private'):
+def lss_text(guard='decoded', type_body='plain', helpers='private', verify_locals=14):
     return f'''.class public {LSS}
 .super {W}ILockSettings$Stub;
 .source "LockSettingsService.java"
@@ -110,7 +119,7 @@ def lss_text(guard='decoded', type_body='plain', helpers='private'):
 
 # direct methods
 .method private doVerifyCredential({CRED}I{CB}I){VCR}
-    .locals 14
+    .locals {verify_locals}
     .param p1, "credential"    # {CRED}
     .param p2, "userId"    # I
     .param p3, "progressCallback"    # {CB}
@@ -371,6 +380,17 @@ class PatcherTest(unittest.TestCase):
             f'invoke-virtual {{p1}}, {CRED}->isNone()Z',
         ])
 
+    def test_a_zero_local_verify_wrapper_gets_one_safe_register(self):
+        self.patched(lss=lss_text(verify_locals=0))
+        text = self.read(LSS_FILE)
+        method = text.split(f'.method private doVerifyCredential({CRED}', 1)[1]
+        method = method.split('.end method', 1)[0]
+        self.assertTrue(method.startswith(f'I{CB}I){VCR}\n    .locals 1\n'))
+        self.assertIn(
+            f'invoke-direct/range {{p0 .. p3}}, {LSS}->oneosGuestLockVerify',
+            method,
+        )
+
     def test_the_credential_type_comes_from_the_guest_lock_and_survives_a_missing_helper(self):
         self.patched()
         text = self.read(LSS_FILE)
@@ -392,6 +412,14 @@ class PatcherTest(unittest.TestCase):
             'move-exception v1',
             'goto :oneos_gl_type_done',
         ])
+
+    def test_the_credential_type_may_reuse_p0_as_in_infinity_x(self):
+        self.patched(lss=lss_text(type_body='parameter_result'))
+        text = self.read(LSS_FILE)
+        method = text.split('.method public getCredentialType(I)I\n', 1)[1].split('.end method')[0]
+        self.assertTrue(method.startswith('    .locals 1\n'))
+        self.assertIn(f'invoke-static {{p1, p0}}, {HELPER}->credentialType(II)I', method)
+        self.assertIn('move-exception v0', method)
 
     def test_the_frp_check_of_the_set_path_is_off(self):
         self.patched()
@@ -851,7 +879,10 @@ class HelperTest(unittest.TestCase):
 
 class SourceTest(unittest.TestCase):
     def test_the_smali_belongs_to_the_java_source(self):
-        want = hashlib.sha256(JAVA.read_bytes()).hexdigest()
+        # Git stores this Java source as LF, but Windows checkouts may convert
+        # it to CRLF. The checked-in smali records the canonical LF source hash.
+        source = JAVA.read_bytes().replace(b'\r\n', b'\n')
+        want = hashlib.sha256(source).hexdigest()
         head = SMALI.read_text().split('\n# static fields', 1)[0]
         self.assertIn(f'# from OneOSGuestLock.java (sha256 {want});', head,
                       'run scripts/build-guest-lock-smali.sh after changing the Java source')

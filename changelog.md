@@ -640,3 +640,30 @@ Camera in the Pixel systems (0.4.24): the flashlight tile and apps that use
 the Camera2 API work (Open Camera: Settings › Camera API › Camera2). Apps
 that use the older camera API still fail; Pixel Camera itself needs Google's
 camera hardware support and will not work on a Galaxy.
+
+New in 0.5.20: Share my files, fingerprint and Samsung Camera in ColorOS on the Galaxy A36.
+- **Share my files** (Settings, off by default): One UI's photos, downloads, documents, videos and music inside the
+  other system; its apps can change and delete them, as in One UI.
+- **ColorOS (Find X9 Ultra IN, November)**: fingerprint unlock with One UI's fingerprints, and Samsung Camera on the
+  Galaxy A and M phones (the A36's own camera, built for ColorOS), untested.
+- **ColorOS on the Galaxy A36**: the lock screen fingerprint icon comes back after every unlock; Always-On Display
+  shows again when you pick the phone up; the Updater stays for its About phone banner but cannot download; no lag
+  from a warm phone (ColorOS no longer sees "severe" heat at 45 °C). Full-screen wallpaper AOD is work in progress
+  (it flickers); the normal AOD works.
+- **A session ended by powering off** inside the other system counts as a clean return (a boot-safety module sent
+  the phone to Download Mode at every start afterwards).
+- **The "optimizing apps" notification** shows again.
+- **Smoother in every system:** Samsung's touch booster is on during a session, as in One UI.
+- **Record full logs** keeps recording for the whole session (some full reports were cut to 1 MB).
+- Switching to a system you already set up needs 2 GB free instead of 11 GB, and the message says how much is
+  missing (issue #265).
+- An update whose notes are long no longer stops the in-app update (issue #210).
+- You can start a session below 30 % battery while the phone is on its charger.
+- Smoother sessions: old log readers from earlier sessions no longer pile up.
+- Back to One UI from the OneOS app inside the other system goes only after you confirm it.
+- Galaxy S23 Ultra: touch works again after a double tap wakes the other system (thanks corexo).
+- Other systems on MediaTek phones (Galaxy A15): Bluetooth audio recovery, sound after a soft reboot, screen refresh rate, brightness, camera list and lock screen fixes (thanks helixoff).
+- Root inside the other system can be given to uid 0, 1000 and 2000 (thanks thatjoshguy67).
+- Website badge in the README (thanks to the website contributors).
+- Galaxy Z Fold8: patch channels from a contributor are found automatically (never selected for you); Pixel fold fixes and equal Settings panes for LineageOS and Infinity-X follow with the next system sets (thanks thatjoshguy67).
+- Galaxy S24+ (and other phones whose firmware has One UI's Bluetooth-offload audio file): volume steps work in Nothing OS, LineageOS and HyperOS; sound played at full volume at any setting, untested.

@@ -376,6 +376,26 @@ class GatesTest {
     }
 
     @Test
+    fun switchToAStagedSystemNeedsOnlyLogsAndMargin() {
+        val i = input(Bundles.S26U)
+        val staged = i.copy(stage = i.stage!!.copy(dataStaged = true))
+        val need = SpaceRule.LAUNCH_STAGED_BYTES
+        assertEquals(2L * SpaceRule.GIB, need)
+        // Issue 265: 8 GiB free is enough for a system that already has its data.
+        assertEquals(Level.OK, eval(GatePhase.SWITCH, staged.copy(freeBytes = 8L * SpaceRule.GIB)).level(SwitchGates.ID_SPACE))
+        assertEquals(Level.OK, eval(GatePhase.SWITCH, staged.copy(freeBytes = need)).level(SwitchGates.ID_SPACE))
+        val short = eval(GatePhase.SWITCH, staged.copy(freeBytes = need - 1))
+        assertEquals(Level.BLOCK, short.level(SwitchGates.ID_SPACE))
+        assertEquals(need, short.launchBytes)
+        assertTrue(short.find(SwitchGates.ID_SPACE)!!.finding.detail.contains("short"))
+        // Without its data in the stage the full 11 GiB stays.
+        assertEquals(Level.BLOCK, eval(GatePhase.SWITCH, i.copy(freeBytes = 8L * SpaceRule.GIB)).level(SwitchGates.ID_SPACE))
+        assertEquals(SpaceRule.LAUNCH_BYTES, eval(GatePhase.SWITCH, i).launchBytes)
+        // Setting up (PREPARE) is unchanged.
+        assertEquals(Level.BLOCK, eval(GatePhase.PREPARE, staged.copy(freeBytes = 8L * SpaceRule.GIB)).level(SwitchGates.ID_SPACE))
+    }
+
+    @Test
     fun battery() {
         val i = input(Bundles.F8U)
         fun level(b: BatteryInfo?) = eval(GatePhase.SWITCH, i.copy(facts = i.facts.copy(battery = b))).level(SwitchGates.ID_BATTERY)

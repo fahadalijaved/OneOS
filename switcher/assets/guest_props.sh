@@ -742,44 +742,82 @@ add)
     # Qualcomm layout past their end: "bqr data length is invalid" 8,544 times
     # in the second session, then GWP-ASan's "0 bytes right of a 48-byte
     # allocation" or a plain SEGV, the process restarts, the headset
-    # reconnects, and so on. The stack has its own switch for Android's
-    # original behaviour, persist.sys.oplus.bt.use_origin
-    # (is_oplus_bt_use_origin in libbluetooth_jni.so, OplusUtils.USE_ORIGIN in
-    # the Bluetooth app; both only read it). With it CategorizeBqrEvent takes
-    # Android's parser, which reads the 48 bytes and tests the length before
-    # every longer layout, and ConfigureBqr takes Android's path (its fatal
-    # checks do not fire: the mask stays below 0x80080000, the action below 3).
-    # The switch is broad: the library asks it at 425 places (codecs, AVRCP,
-    # HCI, L2CAP), and nobody has run a session with it. So it is on only
-    # where the crash is proven, ro.soc.model MT6789 (A16 4G, A15 4G, A07);
-    # the A34 (MT6877) reports ColorOS's Bluetooth working without it, and the
-    # Exynos phones' 56-byte events crash nothing. In memory for the session
-    # (remove deletes it). ONEOS_GUEST_BT_ORIGIN=1 sets it on any phone, =0 on none.
+    # reconnects, and so on.
+    #
+    # 0.4.96 used persist.sys.oplus.bt.use_origin=true as the guard. That flag
+    # is read in 425 places, not just BQR. On the Galaxy A15 (Infinity-X,
+    # MT6789) it also changes the A2DP session lifecycle: the first temporary
+    # stream is stopped while AudioFlinger reopens it with the negotiated
+    # format, and the replacement stays DISABLED forever. A live comparison
+    # on the same connection changed only use_origin to false and restarted
+    # Bluetooth: the replacement session reached STARTED and audio played.
+    #
+    # Disable the dangerous reports themselves instead. Android's BQR client
+    # honors persist.bluetooth.bqr.event_mask=0: the A15 controller confirmed
+    # ConfigureBqr mask 0 after the restart, with no reports or Bluetooth
+    # process restart while A2DP played. Keep OPPO's normal path explicitly on
+    # these phones in case the image defines use_origin=true. Both properties
+    # are in memory for the session and are restored/removed on return.
+    # ONEOS_GUEST_BT_ORIGIN=1 remains an explicit diagnostic override on any
+    # ColorOS guest; any other explicit value leaves phones alone. The family
+    # is all of MediaTek, not MT6789 alone: OPPO's parser reads Qualcomm's BQR
+    # layout on every MediaTek controller, and ro.soc.model alone misses
+    # builds that leave it empty or suffix it (the four-property match is the
+    # one the A2DP recovery in guest_start.sh uses). MT6789 keeps its own
+    # branch: its behavior is device-confirmed on the A15/A16 4G.
     BTO=persist.sys.oplus.bt.use_origin
+    BTQ=persist.bluetooth.bqr.event_mask
     if [ "$GUEST_OPLUS" = 1 ]; then
         soc=$(getprop ro.soc.model)
-        case "${ONEOS_GUEST_BT_ORIGIN:-auto}:$soc" in
-            1:*) why="ONEOS_GUEST_BT_ORIGIN=1" ;;
-            # 0.5.07: no longer by default. With it, OPPO's libbluetooth_jni.so registers only
-            # Android's original natives, but the Bluetooth app still calls OPPO's own at
-            # start (OplusBtNativeChannelUtils.classInitNative): UnsatisfiedLinkError, and
-            # com.android.bluetooth died at every start, so Bluetooth never turned on at all
-            # (A16 4G dbd78088 "Bluetooth doesn't even turn on", A15 d1d7cd5a, A16 0b151c94;
-            # 14 and 22 crashes). The reconnect loop it was for is the lesser harm.
-            # ONEOS_GUEST_BT_ORIGIN=1 still sets it.
-            *) why="" ;;
+        # 0.5.07 upstream removed use_origin's default, but MediaTek phones still need the
+        # BQR off. Keep the family gate; MT6789 stays device-confirmed on the A15/A16 4G.
+        bt_mtk=
+        case "$(getprop ro.board.platform)$(getprop ro.hardware)$(getprop ro.soc.manufacturer)$(getprop ro.soc.model)" in
+            *mt[0-9]*|*MT[0-9]*|*[Mm]edia[Tt]ek*) bt_mtk=1 ;;
         esac
-        if [ -n "$why" ]; then
+        case "${ONEOS_GUEST_BT_ORIGIN:-auto}:$soc" in
+            1:*) bt_origin=true; bt_q=""; why="ONEOS_GUEST_BT_ORIGIN=1" ;;
+            auto:MT6789*|0:MT6789*)
+                bt_origin=false; bt_q=0
+                why="$soc: disable incompatible Bluetooth quality reports without changing A2DP"
+                ;;
+            auto:*|0:*)
+                bt_origin=""; bt_q=""; why=""
+                if [ -n "$bt_mtk" ]; then
+                    bt_origin=false; bt_q=0
+                    if [ -n "$soc" ]; then
+                        why="$soc: disable incompatible Bluetooth quality reports without changing A2DP"
+                    else
+                        why="MediaTek SoC: disable incompatible Bluetooth quality reports without changing A2DP"
+                    fi
+                fi
+                ;;
+            *) bt_origin=""; bt_q=""; why="" ;;
+        esac
+        if [ -n "$bt_origin" ]; then
             if grep -qxF "$BTO" "$HOST"; then
                 hv=$(getprop "$BTO")
-                if [ "$hv" != true ] && "$RP" -n "$BTO" true 2>/dev/null; then
+                if [ "$hv" != "$bt_origin" ] && "$RP" -n "$BTO" "$bt_origin" 2>/dev/null; then
                     echo "$BTO=$hv" >> "$OVR"
-                    echo "guest_props: $BTO=$hv overridden to true for the session ($why)"
+                    echo "guest_props: $BTO=$hv overridden to $bt_origin for the session ($why)"
                 fi
             else
                 sed -i "/^persist\.sys\.oplus\.bt\.use_origin=/d" "$NEW"
-                echo "$BTO=true" >> "$NEW"
-                echo "guest_props: $BTO=true for the session ($why)"
+                echo "$BTO=$bt_origin" >> "$NEW"
+                echo "guest_props: $BTO=$bt_origin for the session ($why)"
+            fi
+        fi
+        if [ -n "$bt_q" ]; then
+            if grep -qxF "$BTQ" "$HOST"; then
+                hv=$(getprop "$BTQ")
+                if [ "$hv" != "$bt_q" ] && "$RP" -n "$BTQ" "$bt_q" 2>/dev/null; then
+                    echo "$BTQ=$hv" >> "$OVR"
+                    echo "guest_props: $BTQ=$hv overridden to $bt_q for the session ($why)"
+                fi
+            else
+                sed -i "/^persist\.bluetooth\.bqr\.event_mask=/d" "$NEW"
+                echo "$BTQ=$bt_q" >> "$NEW"
+                echo "guest_props: $BTQ=$bt_q for the session ($why)"
             fi
         fi
     fi
@@ -1305,6 +1343,41 @@ add)
         done
         { echo "screen=$inner"; echo "battery=$mah"; } > "$STAGE/nt_about.txt"
         echo "guest_props: Nothing About phone: ${gb:-?} GB, ${cpu:-?}, panels ${inner:-?}\" ${cover:+and $cover\" }, ${mah:-?} mAh"
+    fi
+    # ColorOS/OxygenOS on a Galaxy with an in-display sensor (0.5.20, A36): OPPO's fingerprint service and
+    # SystemUI read the sensor kind from persist.vendor.fingerprint.sensor_type (OplusFingerprintSupportUtils;
+    # "unknow" without it: no icon on the lock screen, "swipe up for fingerprint unlock") and place the icon by
+    # persist.vendor.fingerprint.optical.iconlocation, its centre in px from the panel's bottom edge
+    # (SystemUI: udfpsBottomPadding = location - size / 2), and .iconsize. Read once at boot, so set here.
+    # The kind from One UI's floating features, the centre as guest_prepare.sh computes it for OneOSUdfps
+    # (the sysfs margin plus half the area height, at the panel's physical dpi).
+    if [ "$GUEST_OPLUS" = 1 ]; then
+        FF=/system/etc/floating_feature.xml
+        fpf=$(sed -n 's/.*<SEC_FLOATING_FEATURE_BIOAUTH_CONFIG_FINGERPRINT_FEATURES>\([^<]*\)<.*/\1/p' "$FF" 2>/dev/null | head -n 1)
+        case "$fpf" in *ultrasonic*) fpt=ultrasonic ;; *optical*) fpt=optical ;; *) fpt="" ;; esac
+        UPOS=$(head -n 1 /sys/class/fingerprint/fingerprint/position 2>/dev/null)
+        UDPI=$(grep 'type INTERNAL' "$STAGE/display_host.txt" 2>/dev/null | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY' | head -n 1 |
+            sed -n 's/.*density [0-9]*, \([0-9.]*\) x [0-9.]* dpi.*/\1/p')
+        fpl=$(echo "$UPOS $UDPI" | awk '{ n = split($1, p, ","); dpi = $2; if (n < 6 || dpi < 100 || p[1] <= 0) exit;
+            printf "%d", (p[1] + p[4] / 2) * dpi / 25.4 + 0.5 }')
+        if [ -n "$fpt" ] && [ -n "$fpl" ]; then
+            for kv in "persist.vendor.fingerprint.sensor_type=$fpt" "persist.vendor.fingerprint.optical.iconlocation=$fpl" \
+                      "persist.vendor.fingerprint.optical.iconsize=196"; do
+                drop_new "${kv%%=*}"
+                echo "$kv" >> "$NEW"
+            done
+            echo "guest_props: OPPO fingerprint: $fpt sensor, icon centre ${fpl}px from the bottom (from '$UPOS' at $UDPI dpi)"
+            # The panel lights the spot itself (local HBM, as One UI's fingerprint service reads it): ColorOS's
+            # lock screen then keeps its brightness instead of its dim layer (patch-coloros-keyguard-lhbm.py).
+            if [ "$fpt" = optical ] && [ -e /sys/class/lcd/panel/local_hbm ] &&
+               grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_LOCAL_HBM>1</SEC_FLOATING_FEATURE_LCD_CONFIG_LOCAL_HBM>' "$FF" 2>/dev/null; then
+                drop_new ro.oneos.fp_lhbm
+                echo "ro.oneos.fp_lhbm=1" >> "$NEW"
+                echo "guest_props: ro.oneos.fp_lhbm=1 (the panel lights the fingerprint spot itself)"
+            fi
+        else
+            echo "guest_props: OPPO fingerprint: no in-display sensor known (features '${fpf}', position '${UPOS}', dpi '${UDPI}')"
+        fi
     fi
     echo "guest_props add: batch $(date +%T)"
     if "$RP" -n -f "$NEW" 2>/dev/null; then

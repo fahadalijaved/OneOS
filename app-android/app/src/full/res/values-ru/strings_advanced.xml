@@ -26,6 +26,8 @@
     <string name="advanced_heat_cap_summary">Контроль нагрева One UI не работает в другой системе. Начиная с 45 °C OneOS замедляет там процессор, пока телефон не остынет.</string>
     <string name="advanced_full_logs_title">Полные журналы сеансов</string>
     <string name="advanced_full_logs_summary">Записывает всё, что делают системы, для отчётов об ошибках. По умолчанию выключено: из-за этого телефон греется и расходуется память. Включите, когда что-то идёт не так, и отправьте отчёт.</string>
+    <string name="advanced_share_files_title">Общие файлы с другими системами</string>
+    <string name="advanced_share_files_summary">Показывает папки One UI DCIM, Pictures, Download, Documents, Movies и Music внутри другой системы. Приложения там могут изменять и удалять эти файлы, как в One UI. Выключено: у каждой системы своё пустое хранилище.</string>
     <string name="advanced_card_help">Справка</string>
     <string name="advanced_before_summary">Что может сломаться, резервные копии и блокировка экрана</string>
     <string name="advanced_about_summary">Версия, безопасность и авторы</string>

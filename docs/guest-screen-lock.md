@@ -53,12 +53,14 @@ The guest starts without a lock the next time.
 | HyperOS | `hyper-f8u`, hyperos r26 | 0.4.95 |
 | Nothing OS | `nothing-f8u`, nothing r33 | 0.4.95 |
 | OriginOS | `originos`, originos_cn r18 | 0.4.95 |
+| Infinity-X | `infinityx` | after 0.4.96 (`2edec71`) |
 
 The 0.4.95 sets were made with `scripts/patch-built-jar.sh` from the jars of the revision before
 (only `services_patched.jar` and the hash list differ) and had not run on a phone when they were
-uploaded. Not yet: the Pixel sets, Infinity-X and OxygenOS 16. Their `LockSettingsService` has
-another shape (`getCredentialType`, the wrong-credential answer, no free register), so the patcher
-leaves them unchanged and the guest refuses a screen lock there as before.
+uploaded. Infinity-X was added after 0.4.96: its public verification and credential-type wrappers
+use no local registers and reuse `p0` for the result, shapes the patcher now supports. Not yet: the
+Pixel sets and OxygenOS 16; their remaining framework differences still leave the guest without a
+screen lock.
 
 ## How it is built
 

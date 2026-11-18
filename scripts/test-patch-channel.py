@@ -68,6 +68,21 @@ class ChannelPublisherTests(unittest.TestCase):
             entry = next(f for f in data['files'] if f['name'] == 'Fold8SystemUI.apk')
             self.assertEqual('gh:another-contributor/patches:testing', entry['source'])
 
+    def test_discovery_publishes_supported_os_without_embedded_target(self):
+        config = dict(publisher.source_config('that-josh-guy'), discover=True, targets=[])
+        with tempfile.TemporaryDirectory() as tmp, patch.object(publisher, 'source_config', return_value=config):
+            root = Path(tmp); inputs=root/'inputs'; inputs.mkdir()
+            manifest=publisher.prepare('lineage','dynamic-1',inputs,root/'release',profile='f8')
+            data=json.loads(manifest.read_text())
+            self.assertEqual('f8-lineage.json',manifest.name)
+            self.assertEqual('f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261',data['imageSha256'])
+            infinity=publisher.prepare('infinityx','dynamic-infinity',inputs,root/'infinity',profile='f8')
+            infinity_data=json.loads(infinity.read_text())
+            self.assertEqual('f8-infinityx.json',infinity.name)
+            self.assertEqual('899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2',infinity_data['imageSha256'])
+            with self.assertRaises(ValueError):
+                publisher.prepare('lineage','wrong-device',inputs,root/'bad',profile='unknown')
+
 
 if __name__ == '__main__':
     unittest.main()

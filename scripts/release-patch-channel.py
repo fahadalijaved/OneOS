@@ -9,6 +9,7 @@ Only existing payload names can change; scripts and new payload roles need an AP
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,7 +18,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 # The only files a channel may replace (PatchManifest.REPLACEABLE in the app, which refuses every other
 # difference): never guards.txt, a guarded jar or binary, a payload image or a script.
-REPLACEABLE = {'Fold8SystemUI.apk', 'GlobalVerifiedAddons.tar'}
+REPLACEABLE = {'Fold8SystemUI.apk', 'GlobalVerifiedAddons.tar', 'Fold8LineageSystemUI.apk', 'Fold8LineageUnfold.apk', 'OneOSPixelStatusBar.apk', 'OneOSSettingsSplit.apk', 'Fold8InfinitySystemUI.apk', 'Fold8InfinityUnfold.apk'}
 def source_config(source_id):
     catalog = json.loads((ROOT / 'app-android/packages/patch-sources.json').read_text())
     if catalog['schema'] != 1:
@@ -50,6 +51,14 @@ def gh(repo, *args):
 def prepare(sid, revision, overrides, output, source_id='that-josh-guy', profile=None):
     config = source_config(source_id)
     candidates = [t for t in config['targets'] if t['set'] == sid and (profile is None or t['profile'] == profile)]
+    if not candidates and config.get('discover') and profile:
+        root_script = (ROOT / 'app-android/app/src/full/assets/root/oneos_root.sh').read_text()
+        pair = re.search(r'"' + re.escape(profile) + r' ([a-z0-9-]+)"\) echo ' + re.escape(sid) + r' ;;', root_script)
+        if pair:
+            image = pair.group(1)
+            pin = re.search(r'^\s*' + re.escape(image) + r'\) echo "[0-9]+ ([0-9a-f]{64})" ;;$', root_script, re.M)
+            if pin:
+                candidates = [dict(profile=profile,image=image,set=sid,imageSha256=pin.group(1))]
     if len({t['profile'] for t in candidates}) != 1:
         raise ValueError('choose --profile for this contributor and system')
     profile = candidates[0]['profile']

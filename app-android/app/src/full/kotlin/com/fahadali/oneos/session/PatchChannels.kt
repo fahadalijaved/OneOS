@@ -26,7 +26,7 @@ object PatchChannels {
                 (0 until targets.length()).map { i -> targets.getJSONObject(i).let {
                     require(Images.byId(it.getString("image"))?.rawSha256 == it.getString("imageSha256")) { "Patch target image hash differs from this app" }
                     PatchSource.Target(it.getString("profile"), it.getString("image"), it.getString("set"))
-                } })
+                } }, discover = item.optBoolean("discover", false))
         }
         require(contributors.none { it.stable } && contributors.map { it.id }.distinct().size == contributors.size)
         require(contributors.all { it.check().isEmpty() }) { "The app's patch source registry is invalid" }
@@ -39,7 +39,10 @@ object PatchChannels {
         ?.choice(image)?.packageSetId?.let(PackageSets::byId)
     fun sources(ctx: Context, profile: String, image: String): List<PatchSource> {
         val set = setFor(profile, image) ?: return listOf(PatchSource.STABLE)
-        return listOf(PatchSource.STABLE) + catalog(ctx).contributors.filter { it.supports(profile, image, set.id) }
+        return listOf(PatchSource.STABLE) + catalog(ctx).contributors.filter { source ->
+            source.supports(profile, image, set.id) && (runCatching { readManifest(ctx, set, source, profile) }.isSuccess ||
+                prefs(ctx).getString("$profile:$image", null) == source.id)
+        }
     }
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("patch_channels", Context.MODE_PRIVATE)
     fun selected(ctx: Context, profile: String, image: String): PatchSource {
@@ -83,7 +86,7 @@ object PatchChannels {
     }
     /** Resolve once before staging. Neither failure nor a new manifest changes the installed guest. */
     fun refresh(ctx: Context, set: PackageSet, profile: String, sourceId: String = selected(ctx, profile, set.imageId).id): PatchManifest {
-        val source = sources(ctx, profile, set.imageId).first { it.id == sourceId }
+        val source = catalog(ctx).contributors.first { it.id == sourceId }
         require(!source.stable && source.supports(profile, set.imageId, set.id))
         val bytes = fetch("https://github.com/${source.repository}/releases/download/${source.tag}/$profile-${set.id}.json?check=${System.currentTimeMillis()}")
         val manifest = parse(ctx, bytes, set, source, profile)
@@ -95,6 +98,14 @@ object PatchChannels {
         }
         return manifest
     }
+    /** Run on IO: probe only the selected supported device/system, retaining validated offline snapshots. */
+    fun discover(ctx: Context, profile: String, image: String) {
+        val set = setFor(profile, image) ?: return
+        for (source in catalog(ctx).contributors.filter { it.supports(profile, image, set.id) }) {
+            runCatching { refresh(ctx, set, profile, source.id) }
+        }
+    }
+
     fun stableRelease(): AppUpdate = AppUpdate.parse(fetch(AppUpdate.URL).toString(Charsets.UTF_8)).getOrThrow()
 
     private fun fetch(url: String): ByteArray {
@@ -117,7 +128,9 @@ object PatchChannels {
     }
 
     fun cachedHashes(ctx: Context): Set<String> = catalog(ctx).contributors.flatMap { source ->
-        source.targets.flatMap { target ->
+        (source.targets + if (source.discover) Profiles.BUILT_IN.flatMap { profile ->
+            profile.choices.map { choice -> PatchSource.Target(profile.id, choice.imageId, choice.packageSetId) }
+        } else emptyList()).distinct().flatMap { target ->
             runCatching { readManifest(ctx, PackageSets.byId(target.set)!!, source, target.profile).files.map { it.sha256 } }.getOrDefault(emptyList())
         }
     }.toSet()

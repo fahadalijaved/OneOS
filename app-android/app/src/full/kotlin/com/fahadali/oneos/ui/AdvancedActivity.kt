@@ -93,6 +93,9 @@ class AdvancedFragment : CardsFragment() {
         CardRows.toggle(sessions, getString(R.string.advanced_full_logs_title), getString(R.string.advanced_full_logs_summary), SessionPrefs.fullLogs(ctx)) { on ->
             SessionPrefs.setFullLogs(ctx, on)
         }
+        CardRows.toggle(sessions, getString(R.string.advanced_share_files_title), getString(R.string.advanced_share_files_summary), SessionPrefs.shareFiles(ctx)) { on ->
+            SessionPrefs.setShareFiles(ctx, on)
+        }
         CardRows.toggle(sessions, getString(R.string.usage_count_title), getString(R.string.usage_count_summary), SessionPrefs.usageCount(ctx)) { on ->
             SessionPrefs.setUsageCount(ctx, on)
         }

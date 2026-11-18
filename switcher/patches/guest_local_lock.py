@@ -554,8 +554,16 @@ def patch_lss(lines, rel, pkg_text):
     req_i, _, _ = method(lines, "requireStrongAuth", "(II)V", rel)
     if " private " in lines[req_i]:
         raise Skip(f"{rel}: requireStrongAuth is private")
-    if s_locals < 1 or v_locals < 1:
-        raise Skip(f"{rel}: no free register at the entry of the set or verify method")
+    # Some AOSP-derived builds (Infinity-X 4.1) make the public
+    # doVerifyCredential wrapper a pass-through with .locals 0.  The hooks use
+    # v0 at the entry, and all parameters are addressed as pN, so reserving one
+    # local register is safe and does not renumber any instruction we keep.
+    if s_locals < 1:
+        lines[s_i + 1] = "    .locals 1"
+        s_locals = 1
+    if v_locals < 1:
+        lines[v_i + 1] = "    .locals 1"
+        v_locals = 1
     tail = added_methods(invoke_kind(lines, inv_i), invoke_kind(lines, lis_i), "invoke-virtual")
 
     # 1. The set hook goes in front of the gatekeeper guard (v0 is free at the entry).
@@ -574,9 +582,11 @@ def patch_lss(lines, rel, pkg_text):
                       + r"->getCredentialTypeInternal\(I\)I")
     if len(t_code) not in (3, 4) or not call.fullmatch(t_code[-3][1]):
         raise Skip(f"{rel}: getCredentialType has another shape")
-    # LineageOS 24 keeps the answer in p0 (".locals 0"); the hook uses only p1 and the result
-    # register after the call, so p0 is as good as a vN there (0.5.10).
-    m = re.fullmatch(r"move-result (v\d+|p0)", t_code[-2][1])
+    # Infinity-X's tiny binder wrapper has .locals 0 and reuses p0 for the
+    # integer result; LineageOS 24 keeps the answer in p0 too (0.5.10). The
+    # hook uses only p1 and the result register after the call, so a dead p
+    # register is as good as a vN there — accept any of them.
+    m = re.fullmatch(r"move-result ([vp]\d+)", t_code[-2][1])
     if not m or t_code[-1][1] != "return " + m.group(1) or t_locals > 8:
         raise Skip(f"{rel}: getCredentialType has another shape")
     if any(".catch" in l or l.strip().startswith(":") for l in lines[t_i:t_end]):

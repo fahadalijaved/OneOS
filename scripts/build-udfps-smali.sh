@@ -16,7 +16,7 @@ d8=$(find "$sdk/build-tools" -name d8 | sort -V | tail -1)
 apktool=${APKTOOL:-$(ls mysticgsi/tools/apktool/*.jar 2>/dev/null | head -1)}
 [ -n "$jar" ] && [ -n "$d8" ] && [ -n "$apktool" ]
 name=${1:-OneOSUdfps}
-case $name in OneOSUdfps|OneOSSehTouch) ;; *) echo "usage: $0 [OneOSUdfps|OneOSSehTouch]" >&2; exit 2 ;; esac
+case $name in OneOSUdfps|OneOSSehTouch|OneOSFpTouch) ;; *) echo "usage: $0 [OneOSUdfps|OneOSSehTouch|OneOSFpTouch]" >&2; exit 2 ;; esac
 src=switcher/patches/$name.java
 out=switcher/patches/$name.smali
 tmp=$(mktemp -d)

@@ -36,7 +36,8 @@
             <intent-filter><action android:name="android.intent.action.SEARCH" /></intent-filter>
             <meta-data android:name="android.app.searchable" android:resource="@xml/root_searchable" />
         </activity>
-        <activity android:name=".ReturnSplashActivity" android:exported="false" android:launchMode="singleTop" />
+        <activity android:name=".ReturnSplashActivity" android:exported="false" android:launchMode="singleTop"
+            android:excludeFromRecents="true" android:noHistory="true" />
 
         <!-- How's it going? (0.4.30): the checklist, saved in this app's own folder. -->
         <activity

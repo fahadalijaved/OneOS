@@ -33,6 +33,8 @@
     <string name="advanced_heat_cap_summary">One UI\'s heat control doesn\'t run in the other system. From 45 °C, OneOS slows the processor there until the phone cools down.</string>
     <string name="advanced_full_logs_title">Full session logs</string>
     <string name="advanced_full_logs_summary">Records everything the systems do, for bug reports. Off by default: it adds heat and uses storage. Turn it on when something goes wrong, then send a report.</string>
+    <string name="advanced_share_files_title">Share my files with other systems</string>
+    <string name="advanced_share_files_summary">Shows One UI\'s DCIM, Pictures, Download, Documents, Movies and Music inside the other system. Apps there can change and delete these files, as in One UI. Off: each system keeps its own empty storage.</string>
     <string name="advanced_card_help">Help</string>
     <string name="advanced_before_summary">What can break, backups and the screen lock</string>
     <string name="advanced_about_summary">Version, safety and credits</string>

@@ -53,6 +53,18 @@ VD=$(python3 -I "$ROOT/switcher/patches/vivo_guards.py" framework "$WORK/fw")
 for d in $VD; do
     case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
 done
+# Samsung providers may announce camera statuses in a non-numeric order. A few
+# AOSP-derived frameworks carry Qualcomm's shouldExposeAuxCamera path; where it
+# exists, filter IDs 0/1 rather than truncate the status map, or SystemUI can
+# select a vendor ID (A15 Infinity-X chose 23) for the torch. Frameworks without
+# that vendor path need no such patch.
+ACM=$(find "$WORK/fw" -path '*/android/hardware/camera2/CameraManager$CameraManagerGlobal.smali' | head -1)
+if [ -n "$ACM" ] && grep -Eq 'shouldExposeAuxCamera\(\)Z|CameraExtStub;->isAuxCameraClient' "$ACM"; then
+    AD=$(python3 -I "$ROOT/switcher/patches/camera_aux_id_filter.py" "$WORK/fw")
+    for d in $AD; do
+        case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
+    done
+fi
 # Samsung Camera's slow motion: up to 4 outputs in a constrained high-speed session, as One UI's
 # framework allows (switcher/patches/samsung_highspeed_surfaces.py, 0.5.15; A36 LineageOS froze on
 # "size must be 1 or 2"). One UI's cameraserver takes the session.

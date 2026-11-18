@@ -99,7 +99,7 @@ object Plain {
     /** [of] with the facts read from [report] and the phone's [facts]. */
     fun of(finding: Finding, report: GateReport, facts: DeviceFacts?, installedReusable: Boolean = true): PlainMessage {
         val need = when (report.phase) {
-            GatePhase.SWITCH -> SpaceRule.LAUNCH_BYTES
+            GatePhase.SWITCH -> report.launchBytes
             GatePhase.PREPARE -> report.image?.let { SpaceRule.toStage(it, report.set) }
         }
         return of(
@@ -208,7 +208,7 @@ object Plain {
                     val missing = missing(facts)
                     m(
                         if (missing != null) "Free up $missing to switch" else "Free up space to switch",
-                        "Switching needs about ${Units.bytes(facts.needBytes ?: SpaceRule.LAUNCH_BYTES)} free for $system's data.",
+                        "Switching needs about ${Units.bytes(facts.needBytes ?: SpaceRule.LAUNCH_BYTES)} free${if (missing != null) " ($missing more than you have)" else ""}.",
                         FixAction.FREE_UP_SPACE,
                     )
                 }

@@ -1,0 +1,1 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="oneos.overlay.lineage.settings"><application android:hasCode="false"/><overlay android:targetPackage="com.android.settings" android:isStatic="true" android:priority="999"/></manifest>

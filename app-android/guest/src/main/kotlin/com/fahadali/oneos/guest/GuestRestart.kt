@@ -11,7 +11,7 @@ object GuestRestart {
         AlertDialog.Builder(activity).setTitle("Restart this guest?")
             .setMessage("Guest apps will close and pending module changes will apply. One UI stays stopped while the guest restarts. If recovery fails, OneOS will return to One UI.")
             .setNegativeButton(android.R.string.cancel,null).setPositiveButton("Restart guest") { _,_ ->
-                activity.startActivity(android.content.Intent(activity,ReturnSplashActivity::class.java).putExtra(EXTRA_RESTART,true))
+                activity.startActivity(android.content.Intent(activity,ReturnSplashActivity::class.java).putExtra(EXTRA_RESTART,true).putExtra(ReturnSplashActivity.EXTRA_ASKED_AT,System.currentTimeMillis()))
             }.show()
     }
     const val EXTRA_RESTART="restart_guest"

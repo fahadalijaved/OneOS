@@ -43,9 +43,9 @@ data class PatchManifest(
 
     companion object {
         /**
-         * The files a contributor channel may replace (pull request #37 review): the guest's Fold8 SystemUI and
-         * the addon archive, whose members fold8_coloros.sh checks before unpacking. Nothing that guards One UI.
+         * Contributor-replaceable guest SystemUI APKs, resource-only overlays and the validated ColorOS addon archive.
+         * System-image, device and base-file checks still apply. Nothing that guards One UI.
          */
-        val REPLACEABLE = setOf("Fold8SystemUI.apk", "GlobalVerifiedAddons.tar")
+        val REPLACEABLE = setOf("Fold8SystemUI.apk", "GlobalVerifiedAddons.tar", "Fold8LineageSystemUI.apk", "Fold8LineageUnfold.apk", "OneOSPixelStatusBar.apk", "OneOSSettingsSplit.apk", "Fold8InfinitySystemUI.apk", "Fold8InfinityUnfold.apk")
     }
 }

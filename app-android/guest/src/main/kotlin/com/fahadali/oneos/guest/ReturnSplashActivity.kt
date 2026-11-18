@@ -26,6 +26,12 @@ class ReturnSplashActivity : AppCompatActivity() {
         setContentView(R.layout.activity_return_splash)
         if(restarting)findViewById<TextView>(R.id.transition_title).text=getString(R.string.restart_splash_title,GuestName.read() ?: "guest")
         submitted = savedInstanceState?.getBoolean("submitted") == true || if(restarting)GuestRestart.pending(this) else ReturnRequest.pending(this)
+        if (!submitted && !freshlyAsked(savedInstanceState)) {
+            // Not a confirmation from this moment: the screen came back from Recents or a restored task
+            // (the guest's /data keeps them across sessions), which used to send the request on its own.
+            finish()
+            return
+        }
         if (submitted) scheduleNoAnswer()
         window.insetsController?.apply {
             hide(WindowInsets.Type.systemBars())
@@ -41,6 +47,19 @@ class ReturnSplashActivity : AppCompatActivity() {
             }
         })
     }
+    /**
+     * Only a request confirmed in the dialog seconds ago is sent. Reports (S24, S24+, 0.5.18-0.5.19) showed
+     * "Back to One UI" after 5-10 min that users had not asked for: this screen stayed on top of the app's
+     * task at the end of a session, the task was kept in Recents, and opening it in a later session
+     * recreated the screen, which sent the request at its first frame.
+     */
+    private fun freshlyAsked(saved: Bundle?): Boolean {
+        if (saved != null) return false
+        if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return false
+        val age = System.currentTimeMillis() - intent.getLongExtra(EXTRA_ASKED_AT, 0L)
+        return age in 0..ASK_VALID_MS
+    }
+
     private fun submit() {
         if (submitted || isFinishing || isDestroyed) return
         try {
@@ -59,6 +78,10 @@ class ReturnSplashActivity : AppCompatActivity() {
         handler.postDelayed({
             findViewById<TextView>(R.id.return_error).apply { setText(R.string.status_no_answer); visibility = View.VISIBLE }
         }, 30_000)
+    }
+    companion object {
+        const val EXTRA_ASKED_AT = "asked_at"
+        private const val ASK_VALID_MS = 60_000L
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putBoolean("submitted", submitted); super.onSaveInstanceState(outState) }
     override fun onDestroy() { handler.removeCallbacksAndMessages(null); super.onDestroy() }

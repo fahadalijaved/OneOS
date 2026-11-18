@@ -324,10 +324,13 @@ object PackageSets {
     val X9U_IN_1105_SULTRA = X9U_IN_SULTRA.copy(
         id = ID_X9U_IN_1105_SULTRA,
         imageId = Images.ID_FIND_X9U_IN_1105,
-        sourceDir = "out/overlays_x9u_in_1105_r2",
+        // 0.5.20 (r3): fingerprint from One UI (services_patched.jar: removal guard, AIDL sensor, its place,
+        // Samsung's touch request) and samcam_a.tar (the Galaxy A36's camera for this image, A and M phones).
+        sourceDir = "out/overlays_x9u_in_1105_r4", // 0.5.20 r4: OneOSFpTouch
         // 0.5.05 (r2): oplus-framework_patched.jar right after the common files, as root's set_files lists it.
-        files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size),
-        approxBytes = X9U_IN_SULTRA.approxBytes + 12_546_637L,
+        files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size) +
+            PackageFile("samcam_a.tar", FileRole.GUEST_FIX),
+        approxBytes = X9U_IN_SULTRA.approxBytes + 12_546_637L + 80_261_120L,
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */
@@ -837,7 +840,7 @@ object PackageSets {
             PackageFile("samcam_a.tar", FileRole.GUEST_FIX) +
             PackageFile("samcam_bar.tar", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING, CELLBROADCAST),
-        approxBytes = 387_175_398L + 8_538L + 118_120L + 80_271_360L + 78_120_960L,
+        approxBytes = 387_175_398L + 8_538L + 118_120L + 80_261_120L + 78_120_960L,
         hasReturnApp = true,
     )
 

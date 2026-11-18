@@ -22,7 +22,22 @@ for d in $DIRS; do
     DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
     rm -rf "$W/dex" && mkdir -p "$W/dex"
     unzip -q -o "$W/rebuilt.jar" "$DEX" -d "$W/dex"
-    (cd "$W/dex" && zip -q -0 "$W/out.jar" "$DEX")
+    if command -v zip >/dev/null 2>&1; then
+        (cd "$W/dex" && zip -q -0 "$W/out.jar" "$DEX")
+    else
+        # The Windows toolchain has the JDK but no Info-ZIP. jar's
+        # --no-compress update keeps the replacement dex stored as ART expects.
+        jar --update --file "$W/out.jar" --no-compress -C "$W/dex" "$DEX"
+    fi
+    python3 - "$W/out.jar" "$DEX" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    info = archive.getinfo(sys.argv[2])
+    if info.compress_type != zipfile.ZIP_STORED:
+        raise SystemExit(f"{sys.argv[2]} is not stored")
+    if archive.testzip() is not None:
+        raise SystemExit("rebuilt jar failed its ZIP integrity check")
+PY
     echo "replaced $DEX"
 done
 python3 "$ROOT/scripts/check-dex.py" "$W/out.jar" >&2 || true

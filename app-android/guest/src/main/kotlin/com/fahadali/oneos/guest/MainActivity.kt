@@ -243,7 +243,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun send(reason: String) {
-        startActivity(Intent(this, ReturnSplashActivity::class.java).putExtra(EXTRA_REASON, reason))
+        startActivity(Intent(this, ReturnSplashActivity::class.java).putExtra(EXTRA_REASON, reason)
+            .putExtra(ReturnSplashActivity.EXTRA_ASKED_AT, System.currentTimeMillis()))
     }
 
     /** A request is pending until the watcher takes it (and the phone restarts into One UI). */

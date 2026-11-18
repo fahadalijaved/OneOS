@@ -18,6 +18,15 @@ object SpaceRule {
     /** Free at launch: data + logs + margin, 11 GiB. */
     const val LAUNCH_BYTES: Long = STAGED_DATA_BYTES + LOGS_BYTES + MARGIN_BYTES
 
+    /** Margin when the guest data is already staged: nothing new is written but the session's logs. */
+    const val STAGED_MARGIN_BYTES: Long = 1 * GIB
+
+    /** Free at launch when the system is already set up with its data: logs + margin, 2 GiB. */
+    const val LAUNCH_STAGED_BYTES: Long = LOGS_BYTES + STAGED_MARGIN_BYTES
+
+    /** Free needed to switch: [LAUNCH_STAGED_BYTES] when the guest's data is already in the stage, else [LAUNCH_BYTES]. */
+    fun launch(dataStaged: Boolean): Long = if (dataStaged) LAUNCH_STAGED_BYTES else LAUNCH_BYTES
+
     /** An image of [imageBytes] + data + logs + margin (the probe builds' rule, files not counted). */
     fun required(imageBytes: Long = TYPICAL_IMAGE_BYTES): Long = imageBytes + LAUNCH_BYTES
 

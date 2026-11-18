@@ -16,8 +16,6 @@
   </a>
 </p>
 
-
-
 OneOS runs a second Android system next to One UI on a rooted Samsung Galaxy
 and switches between the two without flashing anything. One UI stays
 installed; the other system lives in a folder on the phone and starts on One

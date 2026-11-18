@@ -228,6 +228,7 @@ data class StageStatus(
             filesVerified = profile != null && staged != null && verify(profile, staged.first, staged.second).isEmpty() &&
                 (expectedHashes == null || (expectedHashes.isNotEmpty() && expectedHashes.all { (name, sha) -> hashes[name] == sha })),
             unfinishedSession = unfinishedSession,
+            dataStaged = ours && guest != GuestData.NONE && guest != GuestData.EMPTY,
         )
     }
 
