@@ -35,7 +35,13 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://jitpack.io")
+        maven("https://jitpack.io") {
+            // Tribalfs is published on GitHub Packages, not on JitPack.
+            content {
+                excludeGroup("io.github.tribalfs")
+                excludeGroupByRegex("sesl[.].*")
+            }
+        }
         // Match each group to its actual publisher repo, not tribalfs/*.
         maven("https://maven.pkg.github.com/tribalfs/oneui-design") {
             content { includeGroup("io.github.tribalfs") }
