@@ -325,7 +325,7 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   the Fold8's Find N6 ColorOS set, its cover display, Quick Settings, AOD, widgets,
   Pocket Studio and Google fixes, and Samsung's hinge sensor for half-folded
   postures and the open/close animations in ColorOS and Pixel, which the Z Fold8
-  Ultra uses too.
+  Ultra uses too. Also provided base style for OneOS website.
 - **[@vdcoolok](https://github.com/vdcoolok)**: the screen lock kept inside the guest
   ([pull request #152](https://github.com/fahadalijaved/OneOS/pull/152)), which the guest's own
   PIN, pattern or password of 0.4.95 follows, and its enrolment handle (0.5.17); fingerprint and
