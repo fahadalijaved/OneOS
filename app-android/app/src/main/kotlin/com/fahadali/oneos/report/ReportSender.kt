@@ -36,6 +36,14 @@ object ReportSender {
     /** The OneOS Telegram group. */
     const val GROUP_URL = "https://t.me/TheoneOS"
 
+    /**
+     * 0.5.24: reports are posted from the user's own Telegram into the private OneOSReports group (files only,
+     * slow mode; reports/tgbot.py checks OneOS-group membership, files each report and replies). This link asks to
+     * join; the bot lets members of the OneOS group in. The Telegram apps tried first, in this order, for Share.
+     */
+    const val REPORTS_INVITE = "https://t.me/+mKhV2d_lcJs4YjQ8"
+    val TELEGRAM_PACKAGES = listOf("org.telegram.messenger", "org.telegram.messenger.web", "org.thunderdog.challegram", "com.fahadali.xgram")
+
     /** Sign-in (0.5.16): the code and the t.me link to open; the user taps Start there. */
     fun signin(): Pair<String, String> {
         check(available) { "this build has no report service" }

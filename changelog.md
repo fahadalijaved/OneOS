@@ -703,3 +703,10 @@ New in 0.5.23: **One UI 9.5 test fix for heat and calls.**
 - Phones stuck in the setup wizard or with "keeps stopping" messages: the calling crash loop above kept the system
   too busy; please report if setup still does not finish.
 - **The One UI 9.5 card** shows "One UI 9.5" above the Set up button.
+
+New in 0.5.24: **reports go to Telegram.**
+- **Send report posts to the private OneOSReports Telegram group:** tap Post to OneOSReports, pick the group in Telegram,
+  send. Join it once from the Send screen; members of the OneOS group are let in automatically. The bot checks
+  membership, files the report and shows it as one card with its summary. Nothing in the app can be abused any more:
+  no keys, no upload service (the old one was flooded and is switched off; older OneOS versions can no longer send).
+- **Fingerprint: set it up in One UI, not in the other system.** OneOS uses the fingerprints saved in One UI.

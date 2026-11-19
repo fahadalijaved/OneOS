@@ -148,12 +148,8 @@ class SendReportFragment : PreferenceFragmentCompat() {
         val host = requireActivity() as SendReportActivity
         val zip = host.zip
         preferenceScreen = preferenceManager.createPreferenceScreen(preferenceManager.context)
-        if (zip == null || !ReportSender.available) {
+        if (zip == null) {
             category("").row(getString(R.string.send_unavailable), null)
-            return
-        }
-        ReportSender.refusal?.let { why ->
-            category("").row(why, null)
             return
         }
         facts = readFacts(zip)
@@ -323,7 +319,7 @@ class SendReportFragment : PreferenceFragmentCompat() {
             Reports.telegramUsername(checklist.contact) == null -> getString(R.string.send_contact_invalid, checklist.contact)
             else -> checklist.contact
         }
-        more.row(getString(R.string.send_contact_title) + " *", contactSummary, enabled = !sending) { askContact() }
+        more.row(getString(R.string.send_contact_title), contactSummary, enabled = !sending) { askContact() }
 
         // Who sends (0.5.16, owner: reports only from group members).
         telegramRows(category(getString(R.string.send_cat_telegram)))
@@ -370,7 +366,7 @@ class SendReportFragment : PreferenceFragmentCompat() {
             }
             else -> {
                 failure?.let { send.row(getString(R.string.send_failed_title), it) }
-                send.row(getString(R.string.send_button), getString(R.string.send_button_summary), enabled = pass != null) { send(zip) }
+                send.row(getString(R.string.send_button), getString(R.string.send_button_summary)) { send(zip) }
                 if (failure != null) {
                     send.row(getString(R.string.send_share_instead), getString(R.string.send_share_instead_summary)) { shareInstead(zip) }
                 }
@@ -379,27 +375,9 @@ class SendReportFragment : PreferenceFragmentCompat() {
     }
 
     private fun telegramRows(cat: PreferenceCategory) {
-        if (pass != null) {
-            val name = username
-            cat.row(
-                if (name != null) getString(R.string.send_tg_signed_in_as, name) else getString(R.string.send_tg_signed_in),
-                null,
-                enabled = !sending,
-            )
-            cat.row(getString(R.string.send_tg_sign_out), null, enabled = !sending) {
-                SendReportActivity.prefs(requireContext()).edit().remove(SendReportActivity.PASS_KEY).remove(SendReportActivity.USERNAME_KEY).apply()
-                notMember = false
-                signinNote = null
-                redraw()
-            }
-            if (notMember) cat.row(getString(R.string.send_tg_join_title), getString(R.string.send_tg_join_summary)) { openLink(ReportSender.GROUP_URL) }
-            return
-        }
-        signinNote?.let { cat.row(it, null) }
-        if (claimCode != null) {
-            cat.row(getString(R.string.send_tg_waiting_title), getString(R.string.send_tg_waiting_summary)) { signinUrl?.let(::openLink) }
-        } else {
-            cat.row(getString(R.string.send_tg_sign_in), getString(R.string.send_tg_sign_in_summary), enabled = !signingIn && !sending) { startSignIn() }
+        // 0.5.24: no sign-in; the user posts the report from their own Telegram into OneOSReports.
+        cat.row(getString(R.string.send_tg_reports_join_title), getString(R.string.send_tg_reports_join_summary), enabled = !sending) {
+            openLink(ReportSender.REPORTS_INVITE)
         }
     }
 
@@ -541,13 +519,6 @@ class SendReportFragment : PreferenceFragmentCompat() {
             Toast.makeText(requireContext(), R.string.send_need_start, Toast.LENGTH_SHORT).show()
             return
         }
-        if (Reports.telegramUsername(checklist.contact) == null) {
-            Toast.makeText(requireContext(), R.string.send_contact_needed, Toast.LENGTH_LONG).show()
-            askContact()
-            return
-        }
-        val tgPass = pass
-        if (tgPass == null) return
         val app = requireContext().applicationContext
         sending = true
         failure = null
@@ -590,20 +561,34 @@ class SendReportFragment : PreferenceFragmentCompat() {
                     form = f.profile?.form,
                     logs = file?.let { ReportLogs(if (f.session) "session" else "probe", it.name, full = f.session && it == zip, bytes = it.length(), sha256 = sha256(it)) },
                 )
+                // 0.5.24: one zip for Telegram, the bundle's own files plus the record (reports/tgbot.py reads it).
+                val out = File(File(app.cacheDir, "findings").apply { mkdirs() }, "oneos-report-${record.reportId}.zip")
                 try {
-                    ReportSender.send(record, file, tgPass) { sent, total ->
-                        if (total > 0) main.post { progress = app.getString(R.string.send_progress, (sent * 100 / total).toInt(), Units.bytes(total)); if (isAdded) redraw() }
+                    java.util.zip.ZipOutputStream(out.outputStream().buffered()).use { zo ->
+                        if (file != null) java.util.zip.ZipFile(file).use { zf ->
+                            for (e in zf.entries()) {
+                                if (e.isDirectory || e.name == "oneos-report.json") continue
+                                zo.putNextEntry(java.util.zip.ZipEntry(e.name))
+                                zf.getInputStream(e).use { it.copyTo(zo) }
+                                zo.closeEntry()
+                            }
+                        }
+                        zo.putNextEntry(java.util.zip.ZipEntry("oneos-report.json"))
+                        zo.write(record.toJson().toByteArray(Charsets.UTF_8))
+                        zo.closeEntry()
                     }
                 } finally {
                     shortDir.deleteRecursively()
                 }
-                record.reportId
+                Triple(record.reportId, out, caption(record))
             }
             main.post {
                 sending = false
-                result.onSuccess { code ->
-                    sentCode = code
-                    SendReportActivity.remember(app, zip, code)
+                result.onSuccess { (code, out, text) ->
+                    if (isAdded && postToTelegram(out, text)) {
+                        sentCode = code
+                        SendReportActivity.remember(app, zip, code)
+                    }
                 }.onFailure { e ->
                     failure = e.message ?: e.javaClass.simpleName
                     when (e) {
@@ -617,6 +602,37 @@ class SendReportFragment : PreferenceFragmentCompat() {
                 }
                 if (isAdded) redraw()
             }
+        }
+    }
+
+    /** The caption Telegram shows under the file (the full answers are in the zip's oneos-report.json). */
+    private fun caption(r: ReportRecord): String = buildString {
+        append("OneOS report ").append(r.reportId)
+        r.phoneLabel?.let { append("\n📱 ").append(it) }
+        r.imageName?.let { append("\n💿 ").append(it) }
+        r.checklist?.start?.let { append("\n🚀 ").append(it.label) }
+    }
+
+    /** Share [out] to Telegram (a Telegram app directly when one is installed, else the share sheet). */
+    private fun postToTelegram(out: File, text: String): Boolean {
+        val ctx = requireContext()
+        val uri = androidx.core.content.FileProvider.getUriForFile(ctx, "${com.fahadali.oneos.BuildConfig.APPLICATION_ID}.findings", out)
+        fun intent() = Intent(Intent.ACTION_SEND).setType("application/zip").putExtra(Intent.EXTRA_STREAM, uri)
+            .putExtra(Intent.EXTRA_TEXT, text).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .also { it.clipData = ClipData.newRawUri(out.name, uri) }
+        for (pkg in ReportSender.TELEGRAM_PACKAGES) {
+            try {
+                startActivity(intent().setPackage(pkg))
+                return true
+            } catch (_: ActivityNotFoundException) {
+            }
+        }
+        return try {
+            startActivity(Intent.createChooser(intent(), getString(R.string.send_button)))
+            true
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(ctx, R.string.send_tg_no_app, Toast.LENGTH_LONG).show()
+            false
         }
     }
 
