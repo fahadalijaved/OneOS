@@ -48,6 +48,10 @@ DAILY_MAX = 5
 MAX_BYTES = 200 * 1024 * 1024
 RECORD = "oneos-report.json"
 NAME = re.compile(r"^oneos-report-[A-Za-z0-9_-]{4,80}\.zip$")
+# The session logs zip the app also shares (Logs > Share): no record of ours, its own report.json inside.
+LOGS = re.compile(r"^oneos-logs-([A-Za-z0-9-]{4,40})(?: ?\(\d+\))?\.zip$")
+HOW = ("Only OneOS report zips go here. In OneOS open the session, tap Send report, "
+       "then pick this group in Telegram. The logs zip from Share works too.")
 ID_OK = set("abcdefghijklmnopqrstuvwxyz0123456789-")
 START = {"home": "reached the home screen", "logo": "stuck on the boot logo", "black": "black screen", "back": "came back by itself"}
 
@@ -104,6 +108,30 @@ def read_record(data):
     if not isinstance(rid, str) or not 4 <= len(rid) <= 80 or set(rid) - ID_OK:
         return None
     return r
+
+
+def read_logs(data, sid):
+    """A record for a bare session logs zip (oneos.logbundle/1 report.json inside), or None."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            names = [n for n in z.namelist() if n.endswith("/report.json") or n == "report.json"]
+            if len(names) != 1 or z.getinfo(names[0]).file_size > 256 * 1024:
+                return None
+            b = json.loads(z.read(names[0]).decode("utf-8", "replace"))
+    except (zipfile.BadZipFile, ValueError):
+        return None
+    if not isinstance(b, dict) or b.get("schema") != "oneos.logbundle/1":
+        return None
+    rid = "logs-" + "".join(c for c in sid.lower() if c in ID_OK)[:40]
+    out = b.get("outcome") if isinstance(b.get("outcome"), dict) else {}
+    s = lambda v: v if isinstance(v, str) and len(v) <= 200 else None
+    return {
+        "schema": "oneos.report/1", "reportId": rid, "kind": "session-logs",
+        "image": s(b.get("image")), "phone": {"label": s(b.get("profile"))},
+        "app": b.get("app") if isinstance(b.get("app"), dict) else {},
+        "note": " ".join(x for x in (s(out.get("kind")), s(b.get("bootReason"))) if x),
+        "logs": {"kind": "session", "name": f"oneos-logs-{sid}.zip", "bytes": len(data)},
+    }
 
 
 def summary(r, who):
@@ -185,7 +213,23 @@ async def main():
             return False
         return not isinstance(p.participant, (types.ChannelParticipantBanned, types.ChannelParticipantLeft))
 
-    async def drop(msg, why, ban=False):
+    async def tell(msg, text):
+        """A short reply to the poster, removed again after two minutes so the group stays reports only."""
+        try:
+            m = await msg.reply(text)
+        except Exception:
+            return
+        async def later():
+            await asyncio.sleep(120)
+            try:
+                await m.delete()
+            except Exception:
+                pass
+        asyncio.ensure_future(later())
+
+    async def drop(msg, why, ban=False, say=None):
+        if say:
+            await tell(msg, say)
         await msg.delete()
         if ban:
             await client.edit_permissions(reports, msg.sender_id, view_messages=False)
@@ -201,17 +245,21 @@ async def main():
             return
         doc = msg.document
         name = next((x.file_name for x in (doc.attributes if doc else []) if isinstance(x, types.DocumentAttributeFilename)), "")
-        if not doc or not NAME.match(name or "") or doc.size > MAX_BYTES:
-            return await drop(msg, f"not a report ({name or 'no file'})")
+        logs = LOGS.match(name or "")
+        if not doc or not (NAME.match(name or "") or logs) or doc.size > MAX_BYTES:
+            return await drop(msg, f"not a report ({name or 'no file'})", say=HOW)
         if not await member(msg.sender_id):
             return await drop(msg, "not in the OneOS group", ban=True)
         if not counts.take(msg.sender_id):
-            await msg.reply(f"{DAILY_MAX} reports a day is the most from one account, send more tomorrow.")
-            return await drop(msg, "daily limit")
+            return await drop(msg, "daily limit", say=f"{DAILY_MAX} reports a day is the most from one account, send more tomorrow.")
         data = await client.download_media(msg, file=bytes)
-        r = read_record(data)
+        r = read_logs(data, logs.group(1)) if logs else read_record(data)
         if r is None:
-            return await drop(msg, "no OneOS record in the zip")
+            return await drop(msg, "no OneOS record in the zip", say="That zip has no OneOS record in it. " + HOW)
+        if logs:
+            name = f"oneos-logs-{logs.group(1)}.zip"
+            if any(os.path.isdir(os.path.join(a.dest, "inbox", d, r["reportId"])) for d in (os.listdir(os.path.join(a.dest, "inbox")) if os.path.isdir(os.path.join(a.dest, "inbox")) else [])):
+                return await drop(msg, f"already have {r['reportId']}", say="Got this one already, thanks.")
         who = f"@{sender.username}" if getattr(sender, "username", None) else f"id {msg.sender_id}"
         r["receivedAt"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         why = pull.implausible(data, r.get("logs"))

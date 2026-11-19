@@ -89,6 +89,12 @@ def main(argv):
                     files[p] = s
     ifaces, total, out = {}, 0, {}
     for p, s in sorted(files.items()):
+        # Not a HAL: WifiOptimizationImpl.getMiuiExtension asks the IpClient binder of the guest's own NetworkStack for
+        # IMiuiIpClientExtension (HyperOS OS4.0.5.0 Global, 11-19). Skipped only in that exact shape.
+        if p.endswith("/com/android/server/wifi/WifiOptimizationImpl.smali") and s.count(EXT) == 1 \
+                and "Lcom/xiaomi/net/ip/IMiuiIpClientExtension$Stub;->asInterface" in s and not CAST.findall(s):
+            print("hyperos_hal_ext: WifiOptimizationImpl's IpClient extension left as it is (the guest's own NetworkStack)", file=sys.stderr)
+            continue
         calls = s.count(EXT)
         casts = CAST.findall(s)
         if calls != len(casts):

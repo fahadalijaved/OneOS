@@ -853,11 +853,13 @@ object PackageSets {
      * software floating features for guest_prepare.sh's merge. No guest vold or SurfaceFlinger patch in
      * this set. Tethering never mounts. r2 (0.5.23): framework_patched.jar with Privacy Display off
      * (patches/oneui_no_privacy_display.py; the S26 Ultra panel feature, on in the image at build time).
+     * r4: framework_patched.jar also turns the engmode client off where the phone's VINTF lacks
+     * ISehEngmode/default (patches/oneui_engmode_undeclared.py; the S23 family waited forever for it).
      */
     val ONEUI95 = PackageSet(
         id = ID_ONEUI95,
         imageId = Images.ID_ONEUI95,
-        sourceDir = "out/overlays_oneui95_r2",
+        sourceDir = "out/overlays_oneui95_r4",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),

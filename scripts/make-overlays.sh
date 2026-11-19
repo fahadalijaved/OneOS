@@ -400,6 +400,10 @@ fi
 # Z Fold's cover becomes display 0 when it folds: no app could use it
 # (patches/qti_builtin_display_public.py; nothing in images without them).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/qti_builtin_display_public.py" "$WORK/services")"
+# One UI images (set oneui95 r3): Privacy Display binder calls safe without a controller (CoreRune flags off).
+if "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -q '^ro.build.version.oneui='; then
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_privacy_display_null_safe.py" "$WORK/services")" || exit 1
+fi
 # A dex the added OneOS classes push past 65536 method references (the Pixel 9
 # Pro XL's classes2: 65568) gets them moved to a dex of their own after the
 # last one: one jar, one class loader, so they keep their package access.

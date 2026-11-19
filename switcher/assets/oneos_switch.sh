@@ -1423,7 +1423,15 @@ kill -9 $(pidof system_server) 2>/dev/null || true
 rm -f "$STAGE/data/guest_audio.flag"
 # 0.5.18 (owner, A36: Nothing OS sluggish): 9 getprop processes every 0.2 s were about 9 % of a core all session.
 # Zygote and surfaceflinger still every 0.2 s; bootanim, audioserver and the dump services every second.
-nohup $BB sh -c "n=0; while true; do [ \"\$(getprop init.svc.zygote)\" = \"running\" ] && setprop ctl.stop zygote; [ ! -f $STAGE/data/oneos_host_sf_frozen ] && [ \"\$(getprop init.svc.surfaceflinger)\" = \"running\" ] && setprop ctl.stop surfaceflinger; n=\$((n + 1)); if [ \$n -ge 5 ]; then n=0; [ \"\$(getprop init.svc.zygote_secondary)\" = \"running\" ] && setprop ctl.stop zygote_secondary; [ \"\$(getprop init.svc.bootanim)\" = \"running\" ] && setprop ctl.stop bootanim; [ -f $STAGE/data/guest_audio.flag ] && [ \"\$(getprop init.svc.audioserver)\" = \"running\" ] && setprop ctl.stop audioserver; for s in dumpstate dumpstatez bugreport bugreportd; do [ \"\$(getprop init.svc.\$s)\" = \"running\" ] && setprop ctl.stop \$s; done; fi; sleep 0.2; done" </dev/null >/dev/null 2>&1 &
+# zygote64_32 phones (11-19 report 9edcee1b, S23 Ultra on Nothing OS, 0.5.24): One UI's 32-bit zygote
+# came back during the switch and, with ro.product.cpu.abilist32 blank for the session
+# (guest_props.sh), aborted at once ("app_process: Unable to determine ABI list from property
+# ro.product.cpu.abilist32"), 9 times in 40 s. It is an updatable service: init ran
+# flags_health_check UPDATABLE_CRASHING and the return ended in "reboot,rollback_staged_install
+# (zygote_secondary)". Checked once a second while "running" only, it was missed between crashes
+# (init's state is "restarting" there). Now every 0.2 s, "restarting" too, on phones that have it.
+ZS2=0; [ -n "$(getprop init.svc.zygote_secondary)" ] && ZS2=1
+nohup $BB sh -c "n=0; while true; do [ \"\$(getprop init.svc.zygote)\" = \"running\" ] && setprop ctl.stop zygote; if [ $ZS2 = 1 ]; then case \"\$(getprop init.svc.zygote_secondary)\" in running|restarting) setprop ctl.stop zygote_secondary ;; esac; fi; [ ! -f $STAGE/data/oneos_host_sf_frozen ] && [ \"\$(getprop init.svc.surfaceflinger)\" = \"running\" ] && setprop ctl.stop surfaceflinger; n=\$((n + 1)); if [ \$n -ge 5 ]; then n=0; [ \"\$(getprop init.svc.bootanim)\" = \"running\" ] && setprop ctl.stop bootanim; [ -f $STAGE/data/guest_audio.flag ] && [ \"\$(getprop init.svc.audioserver)\" = \"running\" ] && setprop ctl.stop audioserver; for s in dumpstate dumpstatez bugreport bugreportd; do [ \"\$(getprop init.svc.\$s)\" = \"running\" ] && setprop ctl.stop \$s; done; fi; sleep 0.2; done" </dev/null >/dev/null 2>&1 &
 sleep 1
 # The session's own copy of One UI's property store, now that One UI's
 # framework is down (guest_props.sh store-on): the guest's persist settings
@@ -2680,7 +2688,11 @@ while true; do
                         echo \"[UI Activator] density: \$CUR kept (chosen in the guest; this panel wants \$D, base \$BD)\"
                     elif [ -L $STAGE/data/oneos_auto_density ]; then
                         echo \"[UI Activator] density: data/oneos_auto_density is a link, not made by OneOS; left at base \$BD\"
-                    elif [ $GUEST_DENSITY = auto ] && { [ \$((D * 10)) -lt \$((XDPI * 9)) ] || [ \$D -ge \$BD ]; }; then
+                    # Only ever lowered from a real base (One UI's shared 480): a base under 80% of the
+                    # panel's dpi is SurfaceFlinger's 213 fallback on a fold without ro.sf.lcd_density
+                    # (11-19 report 080a3fee, Z Fold7: inner 1968x2184 at 367 dpi ran at 213, sw1478dp),
+                    # and is raised to the panel's 840 dp density like any other.
+                    elif [ $GUEST_DENSITY = auto ] && { [ \$((D * 10)) -lt \$((XDPI * 9)) ] || { [ \$D -ge \$BD ] && [ \$((BD * 10)) -ge \$((XDPI * 8)) ]; }; }; then
                         echo \"[UI Activator] density: left at base \$BD (inner \${W}x\${H} at \$XDPI dpi too small for 840 dp: \$D)\"
                     elif ! $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | grep -q -x \"Physical size: \${W}x\${H}\" && [ $GUEST_VIVO = 0 ]; then
                         echo \"[UI Activator] density: not set, display 0 is not the inner panel (started folded); the next session sets it\"
@@ -3975,7 +3987,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
     $BB sh -c "
         echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
         echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
-        t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0
+        t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0; sui=0
         while [ \$t -lt $RETURN_MAX ]; do
             # The 10 s wait ends early on a request. Run 34: Volume Up + Volume
             # Down were held 3 s from 16:43:56, but the request was handled only
@@ -4028,7 +4040,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # and the home screen counts once this boot's activator pass says so.
             if [ \"\$req\" = ksud:soft-reboot ] && [ -f $STAGE/tmp/guest_softreboot.sh ]; then
                 setprop oneos.guest.powerctl ''
-                echo \"\$(date) guest requested a soft reboot (\$req) after \${t}s\"
+                echo \"\$(date) guest requested a soft reboot (\$req) after \${total}s\"
                 if BB=$BB timeout 120 /system/bin/sh $STAGE/tmp/guest_softreboot.sh \"\$req\"; then
                     t=0; dead=-60; sfgone=-30; prev_failed=0; wmseen=0; hwcarm=0; rm -f $STAGE/data/oneos_hwc_forced
                     homebase=\$(grep -c 'Home activated' /data/local/tmp/ui_activator.log 2>/dev/null)
@@ -4039,7 +4051,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi
             if [ -n \"\$req\" ]; then
-                echo \"\$(date) guest requested '\$req' after \${t}s, returning to One UI\"
+                echo \"\$(date) guest requested '\$req' after \${total}s, returning to One UI\"
                 # Who asked: the guarded ShutdownThread logs under the tag OneOS (run
                 # 31 was Restart in ColorOS's power menu, seen only in the recording).
                 # 0.4.87: the system buffer on its own. Read together with main, a busy
@@ -4358,7 +4370,11 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # The activator logs the dismissal before it kills bootanim.
             ba=\$(pidof bootanimation)
             [ \$wm = 0 ] && [ \"\$(grep -c 'Dismissing bootanim' /data/local/tmp/ui_activator.log 2>/dev/null)\" -gt \"\${wmbase:-0}\" ] && wm=1
-            if [ \$t -ge $RETURN_BLACK ] && { ! pidof surfaceflinger >/dev/null || [ \$new_failed -gt 100 ] || { [ \$home = 0 ] && [ -z \"\$ba\" ] && { [ \$wm = 0 ] || [ \$wmseen -ge 120 ]; }; }; }; then
+            # The guest's SystemUI up for under a minute: the first boot is drawing its first screens, not black
+            # (11-19 report 24e2628b, A17 on One UI 9.5: returned at 150 s, 1 s after SystemUI and the setup
+            # wizard started, the boot animation already gone and the activator's dismissal not yet logged).
+            if pidof com.android.systemui >/dev/null; then sui=\$((sui + 10)); else sui=0; fi
+            if [ \$t -ge $RETURN_BLACK ] && { ! pidof surfaceflinger >/dev/null || [ \$new_failed -gt 100 ] || { [ \$home = 0 ] && [ -z \"\$ba\" ] && { [ \$sui = 0 ] || [ \$sui -ge 60 ]; } && { [ \$wm = 0 ] || [ \$wmseen -ge 120 ]; }; }; }; then
                 echo \"\$(date) black screen after \${t}s (surfaceflinger: \$(pidof surfaceflinger), bootanimation: \$(pidof bootanimation), new failed frames: \$new_failed), returning to One UI\"
                 exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi

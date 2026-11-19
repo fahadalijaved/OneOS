@@ -6,7 +6,7 @@ packing extracted images back into a tar for it doubles the disk they take (vivo
 about 9 GB). This runs the same build as `cli.py build <name> <archive>` with its defaults,
 except that the extract step hard-links the images given instead (same filesystem, no copy).
 
-Usage (from anywhere): mysticgsi/.venv/bin/python scripts/mysticgsi-from-images.py [--drop] [--no-debloat] [--type=TYPE] <name> <images dir> [partition,...]
+Usage (from anywhere): mysticgsi/.venv/bin/python scripts/mysticgsi-from-images.py [--drop] [--no-debloat | --debloat-list=<json>] [--type=TYPE] <name> <images dir> [partition,...]
 --type is cli.py's --type (default auto). MysticGSI does not detect OriginOS by itself: vivo
 images need --type=originos (patches/<sdk>/originos: the image's own init, no device overlays).
 Partitions default to system, system_ext, product, odm (vendor is never merged into a GSI).
@@ -30,8 +30,11 @@ def main():
     args = sys.argv[1:]
     drop = "--drop" in args
     debloat = "--no-debloat" not in args
+    # --debloat-list=<json>: remove only these ({partition: {folder: [app, ...]}}) instead of MysticGSI's list
+    # (owner 11-19: HyperOS on a Galaxy keeps everything but what cannot work there; scripts/debloat/).
+    dlist = next((a.split("=", 1)[1] for a in args if a.startswith("--debloat-list=")), None)
     rom_type = next((a.split("=", 1)[1] for a in args if a.startswith("--type=")), "auto")
-    args = [a for a in args if a not in ("--drop", "--no-debloat") and not a.startswith("--type=")]
+    args = [a for a in args if a not in ("--drop", "--no-debloat") and not a.startswith(("--type=", "--debloat-list="))]
     if len(args) not in (2, 3):
         sys.exit(__doc__)
     name, images = args[0], os.path.abspath(args[1])
@@ -45,6 +48,20 @@ def main():
     import tools
 
     tools.check_environment(cli.erofs_tools(None))
+    if dlist:
+        import json
+        import tools.porting.assets as assets
+        with open(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", dlist)) if not os.path.isabs(dlist) else dlist) as f:
+            ours = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+        real_load = json.load
+
+        def load(fp, *a, **k):
+            c = real_load(fp, *a, **k)
+            if isinstance(c, dict) and "debloat" in c:
+                c = dict(c, debloat=ours)
+            return c
+        assets.json.load = load
+        debloat = True
     wt = make.RomPorter(name, "")
     rtype, _, rcustom = rom_type.partition(":")
     wt.rom_type = make.safe_name(rtype, "rom_type")

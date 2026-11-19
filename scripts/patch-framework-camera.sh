@@ -85,7 +85,11 @@ PM=$(python3 -I "$ROOT/switcher/patches/policy_metadata_init.py" "$WORK/fw")
 # One UI 9.5's Privacy Display flags are true at build time (the S26 Ultra's panel feature): off
 # (switcher/patches/oneui_no_privacy_display.py; nothing on images without them).
 PD=$(python3 -I "$ROOT/switcher/patches/oneui_no_privacy_display.py" "$WORK/fw") || exit 1
-for d in $PM $PD; do
+# One UI 9.5's engmode client off where the phone's VINTF lacks ISehEngmode/default (the S23 family):
+# its callers waited forever, SetupWizard and system_server ANRs (switcher/patches/oneui_engmode_undeclared.py,
+# set oneui95 r4; nothing on images without EngineeringModeManager).
+ED=$(python3 -I "$ROOT/switcher/patches/oneui_engmode_undeclared.py" "$WORK/fw") || exit 1
+for d in $PM $PD $ED; do
     case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
 done
 java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"

@@ -710,3 +710,22 @@ New in 0.5.24: **reports go to Telegram.**
   membership, files the report and shows it as one card with its summary. Nothing in the app can be abused any more:
   no keys, no upload service (the old one was flooded and is switched off; older OneOS versions can no longer send).
 - **Fingerprint: set it up in One UI, not in the other system.** OneOS uses the fingerprints saved in One UI.
+
+New in 0.5.25: **One UI 9.5 fixes from your reports, and fixes for every system.**
+- **One UI 9.5: SystemUI no longer crashes every few seconds** (set r4). The Privacy Display switch-off in 0.5.23
+  left SystemUI asking for a Privacy Display list the system no longer had; it now gets an empty one (A16, A17, S23,
+  S23 Ultra reports).
+- **One UI 9.5 on the Galaxy S23, S23+ and S23 Ultra: setup and "System isn't responding"** no longer wait forever
+  for a Samsung service those phones do not have. Untested on an S23: please report setup and Bluetooth (Bluetooth may
+  still not turn on there).
+- **One UI 9.5 black screen on some Galaxy A36 phones** (the screen stayed black and OneOS returned after 30 s) fixed.
+- **One UI 9.5 on slow first boots** (A17): OneOS no longer returns to One UI while the setup screen is still coming up.
+- **Galaxy S23 family, every system:** after Back to One UI the phone could restart by itself a minute later
+  ("rollback"): One UI's 32-bit system process was crash-looping during the session. Fixed.
+- **Every system:** a forced restart could block every later start ("Performance limit snapshot failed"); fixed.
+  Back to One UI no longer restarts the phone when a Samsung Camera library was left in use.
+- **Exynos phones:** video recording in the other system uses the phone's hardware encoder (the rear camera froze
+  after 2 s and could not save on the A56 with Nothing OS). Untested: please report video recording.
+- **Galaxy Z Fold7:** One UI 9.5 no longer runs at a tablet-sized tiny layout (both screens at 213 dpi).
+- Session logs now show the real session time.
+- Returning from One UI 9.5 still restarts the phone (being worked on).

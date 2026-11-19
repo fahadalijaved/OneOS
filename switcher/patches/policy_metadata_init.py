@@ -42,7 +42,10 @@ def main(root):
         print("policy_metadata_init: GeneratedPolicyMetadata not present", file=sys.stderr)
         return
     if not groups:
-        sys.exit("policy_metadata_init: no policy group registers itself; not patched")
+        # Nothing to run (HyperOS OS4.0.5 Global, 11-19): no group fills the registry from a static initializer,
+        # so a missing boot image cannot leave it empty.
+        print("policy_metadata_init: no policy group registers itself; not needed", file=sys.stderr)
+        return
     text = open(meta).read()
     hdr = re.search(r"^\.method (?:private )?static (?:[a-z-]+ )*ensureInitialized\(\)V\n    \.locals (\d+)\n", text, re.M)
     if not hdr or text.count("ensureInitialized()V\n    .locals") != 1 or int(hdr.group(1)) < 1:

@@ -725,7 +725,10 @@ for p in /proc/[0-9]*; do
     [ -n "$n" ] && [ -n "$I_NS" ] && [ "$n" != "$I_NS" ] || continue
     case "$seen" in *" $n "*) continue ;; esac
     seen="$seen$n "
-    mps=$("$BB" awk -v s="$S/" 'index($5, s) == 1 {print $5}' "$p/mountinfo" 2>/dev/null | "$BB" sort -r)
+    # And binds from the stage onto One UI's paths, by source like the check below (11-19 report e3a52c49,
+    # S25 on ColorOS: "stage still mounted: .../samcam_build/libsimba.heifdec.media.samsung.so on
+    # /system/lib64/..." in one process's namespace, a reboot instead of the in-place return).
+    mps=$("$BB" awk -v s="$S/" -v r="/local/tmp/oneos/" 'index($5, s) == 1 || index($4, r) == 1 {print $5}' "$p/mountinfo" 2>/dev/null | "$BB" sort -r -u)
     [ -n "$mps" ] || continue
     u=0; t=0; pv=0
     for mp in $mps; do

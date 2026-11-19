@@ -976,6 +976,31 @@ add)
         done
         echo "guest_props: rust.runtime_version=3.1.0 rust.runtime_active=1 for the session (HyperOS rust packages through hyos_spawner)"
     fi
+    # HyperOS's visual level (11-19 A36 test, Global OS4.0.5.0: no blur or glass anywhere, also with window
+    # blur allowed). HyperOS picks blur, Control Center glass and animation effects from its device class,
+    # persist.sys.computility(V2).* in the image's product build.prop, which the root-partition filter
+    # above leaves out with Xiaomi's other persist tuning, and from the blur switches in Xiaomi's own vendor
+    # build.prop, which a Galaxy does not have. Memory only, blanked by remove, never over a value One UI
+    # has. ONEOS_GUEST_MIUI_VISUAL=0 leaves them out.
+    if [ "${ONEOS_GUEST_MIUI_VISUAL:-1}" = 1 ] &&
+       { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; }; then
+        VIS=$(cat "$ROOTFS"/system/build.prop "$ROOTFS"/product/etc/build.prop "$ROOTFS"/system/product/etc/build.prop \
+                  "$ROOTFS"/mi_ext/etc/build.prop "$ROOTFS"/system/mi_ext/etc/build.prop 2>/dev/null |
+              grep -E '^persist\.sys\.computility(V2)?\.(cpulevel|gpulevel|devicelevel|version)=[0-9]+$' | sort -u -t= -k1,1)
+        VIS="$VIS
+persist.sys.background_blur_supported=true
+persist.sys.background_blur_status_default=true
+persist.sys.advanced_visual_release=3
+ro.miui.backdrop_sampling_enabled=true"
+        added=""
+        for kv in $VIS; do
+            k=${kv%%=*}
+            grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$kv" >> "$NEW"; added="$added ${kv#persist.sys.}"
+        done
+        [ -n "$added" ] && echo "guest_props: HyperOS visual level for the session:$added"
+    fi
     # HyperOS's telephony (xiaomi-opt-telephony.jar, XmTelephonyUtils.ModemProvider)
     # takes the modem's maker from ro.vendor.radio.modem.provider, else from
     # ro.mi.os.soc.vendor, which the image's own build.prop sets to xring. On
@@ -1480,6 +1505,20 @@ add)
             [ "$g" != "$h" ] || continue
             echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
                 echo "guest_props: $key='$g' for the session (One UI: $h; the guest has no 32-bit zygote)"
+        done
+    fi
+    # Vsync phase offsets on a phone that also runs SurfaceFlinger on durations (11-19 report
+    # 5d0564ae, A36 on One UI 9.5: the guest's surfaceflinger aborted at once, "debug.sf.
+    # early_phase_offset_ns is set to 500000 but expecting duration", black screen, return after 30 s).
+    # With debug.sf.use_phase_offsets_as_durations=1 AOSP's WorkDuration refuses any phase offset
+    # property that is set; One UI's own surfaceflinger lives with it, a newer one does not. Each one
+    # is "-1" for the session (SurfaceFlinger's "not set"; an empty value reads as 0, still set).
+    if [ "$(getprop debug.sf.use_phase_offsets_as_durations)" = 1 ]; then
+        for key in $(getprop | sed -n 's/^\[\(debug\.sf\.[a-z_]*phase_offset[a-z_]*_ns\)\]: \[-\{0,1\}[0-9][0-9]*\]$/\1/p'); do
+            h=$(getprop "$key")
+            [ "$h" != -1 ] || continue
+            echo "$key=$h" >> "$OVR" && "$RP" -n "$key" -1 2>/dev/null &&
+                echo "guest_props: $key=-1 for the session (One UI: $h; SurfaceFlinger runs on durations here)"
         done
     fi
     # A Qualcomm-built guest on an Exynos phone (Galaxy S26+, 4cad07e6, 0.4.19).

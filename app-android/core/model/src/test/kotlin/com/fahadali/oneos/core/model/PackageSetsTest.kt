@@ -92,7 +92,7 @@ class PackageSetsTest {
         val oneui = PackageSets.ONEUI95
         assertEquals("oneui95", oneui.id)
         assertEquals(Images.ID_ONEUI95, oneui.imageId)
-        assertEquals("out/overlays_oneui95_r2", oneui.sourceDir)
+        assertEquals("out/overlays_oneui95_r4", oneui.sourceDir)
         assertEquals(36, oneui.files.size)
         assertEquals(22, oneui.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), oneui.omitted)

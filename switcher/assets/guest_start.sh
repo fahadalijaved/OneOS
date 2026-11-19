@@ -213,6 +213,32 @@ if [ -d /data/oneos_cameradata ] && [ -d /system/cameradata ]; then
     $BB mount --bind /data/oneos_cameradata /system/cameradata && \
         echo "[Pivoted Root] Camera: the phone's cameradata bound over /system/cameradata"
 fi
+# Video recording on Exynos phones (11-19 report 2991b714, A56 on Nothing OS: rear video froze
+# after 2 s, "couldn't save"): the guest recorded with its own software encoder
+# c2.android.avc.encoder, which faulted reading the camera's 1080p buffer
+# (SIGSEGV SEGV_ACCERR in CopyRow_NEON <- NV12ToI420 <- C2SoftAvcEnc::setEncodeArgs), three
+# times; the phone's Exynos Codec2 service logged nothing, it was never asked. Rank the software
+# video encoders after every other one in this namespace only, so MediaCodecList offers the
+# phone's hardware encoders first; the software ones stay for anything only they can do.
+# Only where the phone's own lists name an Exynos video encoder. ONEOS_GUEST_SW_VENC=keep: as is.
+VPERF=/vendor/etc/media_codecs_performance.xml
+if [ "${ONEOS_GUEST_SW_VENC:-last}" != keep ] && [ -f "$VPERF" ] && grep -q '</MediaCodecs>' "$VPERF" && \
+   cat /vendor/etc/media_codecs*.xml 2>/dev/null | grep -qE 'name="c2\.exynos\.(h264|avc|hevc|h265)\.encoder"'; then
+    VADD=''
+    for c in avc:video/avc hevc:video/hevc; do
+        VADD="$VADD    <MediaCodec name=\"c2.android.${c%%:*}.encoder\" type=\"${c#*:}\" update=\"true\" rank=\"4096\" />\n"
+    done
+    if $BB awk -v add="$VADD" '{ l[NR] = $0 } /<\/MediaCodecs>/ { last = NR }
+            END { for (i = 1; i <= NR; i++) { if (i == last) printf "  <Encoders>\n%s  </Encoders>\n", add; print l[i] } }' \
+            "$VPERF" > /data/oneos_media_codecs_performance.xml && grep -q 'c2.android.avc.encoder" type="video/avc" update="true" rank="4096"' /data/oneos_media_codecs_performance.xml; then
+        chmod 644 /data/oneos_media_codecs_performance.xml
+        chcon u:object_r:vendor_configs_file:s0 /data/oneos_media_codecs_performance.xml 2>/dev/null
+        $BB mount --bind /data/oneos_media_codecs_performance.xml "$VPERF" && \
+            echo "[Pivoted Root] Video encoders: the guest's software AVC/HEVC encoders ranked after the phone's Exynos ones"
+    else
+        echo "[Pivoted Root] Video encoders: $VPERF not rewritten, left as it is"
+    fi
+fi
 DISPLAYCONFIG=/vendor/etc/displayconfig
 LAYOUT_HIDDEN=0
 rm -f /data/oneos_fold_mode /data/oneos_inner_display
