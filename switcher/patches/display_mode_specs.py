@@ -37,15 +37,33 @@ NEEDED = (
 )
 
 
-def ranges_to_infinity():
+# One UI 9.5 (S948BXXU6ZZKN): this = v1, display token = v2, TAG = v6, DynamicDisplayInfo = v7,
+# specs = v8; v0 must stay as it is (read after the check); v6 and v9 are overwritten right
+# after the check, so they are the scratch registers. Samsung's Slog wrapper logs the message.
+SAMSUNG_OLD = re.compile(r"""    const-string v0, "Desired display mode specs from SurfaceFlinger are null"
+
+    invoke-static \{v6, v0\}, Lcom/android/server/power/Slog;->w\(Ljava/lang/String;Ljava/lang/String;\)I
+
+    return-void
+""")
+SAMSUNG_NEEDED = (
+    re.compile(r"    invoke-static \{v2\}, Landroid/view/SurfaceControl;->getDesiredDisplayModeSpecs\(Landroid/os/IBinder;\)"
+               + re.escape(DS) + r"\n\n    move-result-object v8\n\n    if-nez v8, :cond_6\n\n"),
+    re.compile(r"iget v8, v7, Landroid/view/SurfaceControl\$DynamicDisplayInfo;->activeColorMode:I"),
+    re.compile(r"    :cond_6\n    iget-object v6, v1, Lcom/android/server/display/LocalDisplayAdapter;->mDevices:"
+               r"Landroid/util/LongSparseArray;\n\n    invoke-virtual \{v6, v3, v4\}"),
+)
+
+
+def ranges_to_infinity(chain="v1", inf="v2"):
     out = []
     for ranges in ("primaryRanges", "appRequestRanges"):
         for kind in ("physical", "render"):
-            out.append(f"""    iget-object v1, v8, {DS}->{ranges}:{RS}
+            out.append(f"""    iget-object {chain}, v8, {DS}->{ranges}:{RS}
 
-    iget-object v1, v1, {RS}->{kind}:{R}
+    iget-object {chain}, {chain}, {RS}->{kind}:{R}
 
-    iput v2, v1, {R}->max:F
+    iput {inf}, {chain}, {R}->max:F
 """)
     return "\n".join(out)
 
@@ -71,9 +89,38 @@ NEW = f"""    # OneOS: no mode specs from ColorOS's SurfaceFlinger without the O
 {ranges_to_infinity()}"""
 
 
+NEW_SAMSUNG = f"""    # OneOS: no mode specs from the SurfaceFlinger without the vendor display
+    # HALs (One UI 9.5 S948BXXU6ZZKN); use the active mode with unrestricted ranges.
+    const-string v9, "OneOS: desired display mode specs from SurfaceFlinger are null, using the active mode"
+
+    invoke-static {{v6, v9}}, Landroid/util/Slog;->w(Ljava/lang/String;Ljava/lang/String;)I
+
+    new-instance v8, {DS}
+
+    invoke-direct {{v8}}, {DS}-><init>()V
+
+    iput-object v2, v8, {DS}->displayToken:Landroid/os/IBinder;
+
+    iget v9, v7, Landroid/view/SurfaceControl$DynamicDisplayInfo;->activeDisplayModeId:I
+
+    iput v9, v8, {DS}->defaultMode:I
+
+    const v9, 0x7f800000    # +Infinity
+
+{ranges_to_infinity("v6", "v9")}"""
+
+
 def main(path):
     with open(path) as f:
         smali = f.read()
+    if len(SAMSUNG_OLD.findall(smali)) == 1 and not OLD.findall(smali):
+        for n in SAMSUNG_NEEDED:
+            if len(n.findall(smali)) != 1:
+                sys.exit(f"{path}: registers differ ({n.pattern[:60]}...)")
+        with open(path, "w") as f:
+            f.write(SAMSUNG_OLD.sub(lambda m: NEW_SAMSUNG, smali))
+        print(f"patched {path} (One UI 9.5 shape)")
+        return
     if len(OLD.findall(smali)) != 1:
         sys.exit(f"{path}: expected the null mode specs check exactly once")
     for n in NEEDED:

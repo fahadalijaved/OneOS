@@ -201,6 +201,18 @@ done
 # The file has to be absent, not empty: an empty <layouts/> enables no display
 # at all and DisplayManagerService times out waiting for a default display. A
 # copy of the directory without it keeps the per-panel display_id_*.xml.
+# One UI images (0.5.22, guest_prepare.sh): the merged floating feature list and the phone's camera
+# configuration, in this namespace only.
+if [ -f /data/oneos_floating_feature.xml ] && [ -f /vendor/etc/floating_feature.xml ]; then
+    chcon u:object_r:vendor_configs_file:s0 /data/oneos_floating_feature.xml 2>/dev/null
+    $BB mount --bind /data/oneos_floating_feature.xml /vendor/etc/floating_feature.xml && \
+        echo "[Pivoted Root] Floating features: merged list bound over /vendor/etc/floating_feature.xml"
+fi
+if [ -d /data/oneos_cameradata ] && [ -d /system/cameradata ]; then
+    chcon -R u:object_r:system_file:s0 /data/oneos_cameradata 2>/dev/null
+    $BB mount --bind /data/oneos_cameradata /system/cameradata && \
+        echo "[Pivoted Root] Camera: the phone's cameradata bound over /system/cameradata"
+fi
 DISPLAYCONFIG=/vendor/etc/displayconfig
 LAYOUT_HIDDEN=0
 rm -f /data/oneos_fold_mode /data/oneos_inner_display

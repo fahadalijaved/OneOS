@@ -46,6 +46,10 @@ import sys
 CALLBACK_IFACES = ("android.hardware.ICameraServiceListener", "android.hardware.camera2.ICameraDeviceCallbacks")
 # A transaction code none of One UI's camera interfaces uses (the highest is 38).
 UNUSED_CODE = 200
+# Same name and signature as One UI's, but contents One UI's cameraserver cannot parse: One UI
+# 9.5's notifyPkgListParamChange string lists crashed One UI 9.0's cameraserver in
+# PackagePolicyList::applyPkgListParamChange (A36 run 9, 5 times). Void; sent to UNUSED_CODE.
+NOT_TO_HOST = {"notifyPkgListParamChange"}
 COMPAT = "android/content/res/CameraCompatibilityInfo.smali"
 TRANSACT = "Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z"
 # v registers in R8 builds (Pixel, ColorOS); p registers too in a build with
@@ -137,7 +141,7 @@ def patch_proxy(text, iface, host, guest, changed):
         if name is None or TRANSACT not in body or name not in guest:
             continue
         gcode, gsig = guest[name]
-        if name not in host:
+        if name not in host or name in NOT_TO_HOST:
             # ColorOS adds notifySmartWindowChange and notifyDisplayRotationChange. A void
             # call goes to a code One UI does not have: its Binder answers "unknown
             # transaction" (transact() returns false) and the Proxy goes on. A call with
@@ -232,11 +236,28 @@ READ6 = re.compile(
     r"    :cond_\1\n    move v1, v2\n\n    :goto_\2\n    iput-boolean v1, p0, Landroid/content/res/CameraCompatibilityInfo;->mShouldOverrideLensFacingFrontToBack:Z\n")
 
 
+# One UI 9.5 (S948BXXU6ZZKN, Samsung's R8 output): the same sixth field with other registers and
+# .line markers; One UI 9.0's cameraserver reads five (A36 run 4: getCameraVendorTagDescriptor
+# reached it as another call and CameraServiceWorker took system_server down).
+WRITE6_SEC = re.compile(
+    r"(?:    \.line \d+\n)?    iget-boolean p0, p0, Landroid/content/res/CameraCompatibilityInfo;->mShouldOverrideLensFacingFrontToBack:Z\n\n"
+    r"    invoke-virtual \{p1, p0\}, Landroid/os/Parcel;->writeBoolean\(Z\)V\n")
+READ6_SEC = re.compile(
+    r"(?:    \.line \d+\n)?    invoke-virtual \{p1\}, Landroid/os/Parcel;->readByte\(\)B\n\n    move-result p1\n\n    if-eqz p1, :cond_(\d+)\n\n    goto :goto_(\d+)\n\n"
+    r"    :cond_\1\n    move v1, v2\n\n    :goto_\2\n    iput-boolean v1, p0, Landroid/content/res/CameraCompatibilityInfo;->mShouldOverrideLensFacingFrontToBack:Z\n")
+
+
 def patch_compat(root, changed):
     path = find_smali(root, COMPAT)
     text = open(path).read()
     if "mShouldOverrideLensFacingFrontToBack" not in text:
         return None
+    if text.count(WRITE6) == 0 and len(WRITE6_SEC.findall(text)) == 1 and len(READ6_SEC.findall(text)) == 1:
+        text = WRITE6_SEC.sub("", text)
+        text = READ6_SEC.sub("", text)
+        open(path, "w").write(text)
+        changed.append("CameraCompatibilityInfo: sixth field (mShouldOverrideLensFacingFrontToBack) not written or read (Samsung shape)")
+        return path
     if text.count(WRITE6) != 1:
         die(f"CameraCompatibilityInfo: the sixth field's write found {text.count(WRITE6)} times (one expected)")
     text = text.replace(WRITE6, "")

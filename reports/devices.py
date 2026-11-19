@@ -50,6 +50,7 @@ SHORT = {
     "coloros17-findx9u-in-1105": "ColorOS 17",
     "lineage24-infiniti": "LineageOS 24",
     "nothingos5-asteroids": "Nothing OS 5 (A series)",
+    "oneui95-s948b": "One UI 9.5",
 }
 CHIP = {
     "SM8850": "Snapdragon 8 Elite Gen 5", "SM8750": "Snapdragon 8 Elite", "SM8650": "Snapdragon 8 Gen 3",

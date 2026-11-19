@@ -58,6 +58,22 @@ registers, before any parameter is touched; where .locals is lower than the
 registers it needs, .locals is raised to that (the parameters move up, which
 smali takes care of; the total stays within 16 registers).
 
+One UI 9.5 (S948BXXU6ZZKN, R8): ApexManager keeps only abortStagedSession,
+markStagedSessionSuccessful, revertActiveSessions and submitStagedSession, and ApexManagerImpl
+has no isApexSupported() (the check is gone), installPackage, markStagedSessionReady,
+markBootCompleted, uninstallApex, the snapshot methods or reserveSpaceForCompressedApex: R8 inlined
+them into their callers, which now call IApexService themselves. That shape (SAMSUNG_TARGETS,
+none of the other methods declared) gets the early returns above for its four methods, and each
+other state-changing IApexService call is found by name and must be exactly the known one
+(SAMSUNG_SITES): ten calls in PackageSessionVerifier, StagingManager$Lifecycle,
+PackageManagerInternalImpl, RecoverySystemService, RollbackManagerServiceImpl (and its lambda),
+AppDataRollbackHelper and InstallingSession. Nine are void and become a nop (their callers
+only log on failure). installAndActivatePackage in InstallingSession (the rebootless
+install) throws an Exception instead, which the call's own handler turns into
+PackageManagerException(-110, message), the error it gives when apexd refuses. APEX sessions
+still fail at submitStagedSession (-22). Any other state-changing call, or a site that does
+not look as expected, stops with nothing written.
+
 Usage: guest_no_apex_installs.py <smali root dir>
 Prints the smali_* directory (dex file) it changed.
 """
@@ -98,6 +114,23 @@ THROW = {
 }
 UNSUPPORTED = "isApexSupported()Z"
 TARGETS = (UNSUPPORTED,) + RETURN_VOID + RETURN_FALSE + tuple(THROW)
+# One UI 9.5 (S948BXXU6ZZKN): what R8 left of ApexManager.
+SAMSUNG_TARGETS = ("abortStagedSession(I)Z", "markStagedSessionSuccessful(I)V", "revertActiveSessions()Z",
+                   "submitStagedSession(Landroid/apex/ApexSessionParams;)Landroid/apex/ApexInfoList;")
+# The state-changing IApexService calls R8 inlined out of ApexManagerImpl, by (file, call);
+# each must be found exactly once. "drop": a void call (nop); "throw": installAndActivatePackage.
+SAMSUNG_SITES = {
+    ("PackageSessionVerifier.smali", "markStagedSessionReady"): "drop",
+    ("StagingManager$Lifecycle.smali", "markBootCompleted"): "drop",
+    ("PackageManagerService$PackageManagerInternalImpl.smali", "unstagePackages"): "drop",
+    ("RecoverySystemService.smali", "reserveSpaceForCompressedApex"): "drop",
+    ("RollbackManagerServiceImpl.smali", "destroyDeSnapshots"): "drop",
+    ("RollbackManagerServiceImpl.smali", "destroyCeSnapshots"): "drop",
+    ("RollbackManagerServiceImpl$$ExternalSyntheticLambda1.smali", "destroyCeSnapshotsNotSpecified"): "drop",
+    ("AppDataRollbackHelper.smali", "restoreCeData"): "drop",
+    ("AppDataRollbackHelper.smali", "snapshotCeData"): "drop",
+    ("InstallingSession.smali", "installAndActivatePackage"): "throw",
+}
 
 # IApexService calls that only read apexd's state. Any other call is taken as
 # state-changing and must be in a method that returns at entry.
@@ -195,9 +228,74 @@ def early_return(sig):
     ]
 
 
+def samsung_sites(root, foreign_at):
+    """Check the inlined state-changing IApexService calls (One UI 9.5 shape); return a function
+    that patches them, to run after everything else has been checked."""
+    CALLRE = re.compile(r"^(\s*)invoke-interface \{([vp]\d+)(?:, ([vp]\d+))?(?:, [vp]\d+)*\}, "
+                        + re.escape(APEXD) + r"->(\w+)\(([^)]*)\)(\S+)\s*$")
+    seen = {}
+    for path, name in foreign_at:
+        key = (os.path.basename(path), name)
+        if key not in SAMSUNG_SITES:
+            sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} is not a known inlined call")
+        seen.setdefault(key, []).append(path)
+    for key in SAMSUNG_SITES:
+        if len(seen.get(key, [])) != 1:
+            sys.exit(f"expected IApexService.{key[1]} once in {key[0]}, found {len(seen.get(key, []))}")
+    plan = []
+    texts = {}
+    for (base, name), path in ((k, v[0]) for k, v in seen.items()):
+        if path not in texts:
+            with open(path) as f:
+                texts[path] = f.read().split("\n")
+        lines = texts[path]
+        idx = [i for i, l in enumerate(lines) if CALLRE.match(l) and CALLRE.match(l).group(4) == name]
+        if len(idx) != 1:
+            sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} call not found as expected")
+        plan.append((path, lines, idx[0], name, SAMSUNG_SITES[(base, name)]))
+        m = CALLRE.match(lines[idx[0]])
+        if SAMSUNG_SITES[(base, name)] == "drop":
+            if m.group(6) != "V":
+                sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} is not void")
+        else:
+            # installAndActivatePackage(String, Z) -> ApexInfo, then move-result-object
+            nxt = next(l.strip() for l in lines[idx[0] + 1:] if l.strip())
+            if m.group(6) != "Landroid/apex/ApexInfo;" or not re.match(r"move-result-object [vp]\d+$", nxt) \
+                    or not m.group(3) or not m.group(2).startswith("v") or not m.group(3).startswith("v"):
+                sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} call not as expected")
+            if not any(re.match(r"^\s*\.catch Ljava/lang/Exception; \{:try_start_\d+ \.\. :try_end_\d+\} :catch_\d+$", l)
+                       for l in lines[idx[0]:idx[0] + 8]):
+                sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} is not covered by a catch of Exception")
+
+    def apply():
+        for path, lines, i, name, kind in plan:
+            m = CALLRE.match(lines[i])
+            ind = m.group(1)
+            if kind == "drop":
+                lines[i] = (f"{ind}# OneOS: IApexService.{name} dropped (apexd is the phone's, One UI's)\n"
+                            f"{ind}nop")
+            else:
+                svc, arg = m.group(2), m.group(3)
+                j = next(k for k in range(i + 1, len(lines)) if lines[k].strip())
+                lines[j] = f"{ind}nop"
+                lines[i] = (f"{ind}# OneOS: no rebootless APEX install from the guest (apexd is the phone's, One UI's);\n"
+                            f"{ind}# the call's own handler turns this into PackageManagerException(-110, message).\n"
+                            f"{ind}new-instance {svc}, Ljava/lang/Exception;\n\n"
+                            f'{ind}const-string {arg}, "{MSG}"\n\n'
+                            f"{ind}invoke-direct {{{svc}, {arg}}}, Ljava/lang/Exception;-><init>(Ljava/lang/String;)V\n\n"
+                            f"{ind}throw {svc}")
+            print(f"{os.path.relpath(path, root)}: IApexService.{name}: {kind}", file=sys.stderr)
+        for path, lines in texts.items():
+            with open(path, "w") as f:
+                f.write("\n".join(lines))
+        return {os.path.relpath(path, root).split(os.sep)[0] for path in texts}
+    return apply
+
+
 def main(root):
     classes = {BASE: [], IMPL: []}
     foreign = []
+    foreign_at = []
     for dirpath, _, files in os.walk(root):
         for name in files:
             if not name.endswith(".smali"):
@@ -220,8 +318,7 @@ def main(root):
                 for m in ANY_CALL.finditer(text):
                     if m.group(1) not in READS:
                         foreign.append(f"{os.path.relpath(path, root)}: IApexService.{m.group(1)}")
-    if foreign:
-        sys.exit("state-changing apexd calls outside ApexManagerImpl:\n  " + "\n  ".join(foreign))
+                        foreign_at.append((path, m.group(1)))
     for cls, paths in classes.items():
         if len(paths) != 1:
             sys.exit(f"{cls} found {len(paths)} times, expected once")
@@ -230,7 +327,23 @@ def main(root):
     base_path = classes[BASE][0]
     with open(base_path) as f:
         base = methods(f.read().split("\n"), base_path)
-    for sig in TARGETS:
+    targets = TARGETS
+    samsung = False
+    path = classes[IMPL][0]
+    if not all(len(base.get(sig, [])) == 1 and "abstract" in base[sig][0][2] for sig in TARGETS):
+        with open(path) as f:
+            impl_sigs = methods(f.read().split("\n"), path)
+        extra = [sig for sig in TARGETS if sig not in SAMSUNG_TARGETS]
+        if all(len(base.get(sig, [])) == 1 and "abstract" in base[sig][0][2] for sig in SAMSUNG_TARGETS) and \
+                not any(sig in base or sig in impl_sigs for sig in extra):
+            samsung = True
+            targets = SAMSUNG_TARGETS
+    apply_sites = None
+    if samsung:
+        apply_sites = samsung_sites(root, foreign_at)
+    elif foreign:
+        sys.exit("state-changing apexd calls outside ApexManagerImpl:\n  " + "\n  ".join(foreign))
+    for sig in targets:
         found = base.get(sig, [])
         if len(found) != 1 or "abstract" not in found[0][2]:
             sys.exit(f"{os.path.relpath(base_path, root)}: {sig} not declared abstract exactly once")
@@ -259,7 +372,7 @@ def main(root):
             sys.exit(f"{rel}: {sig}: unexpected apexd call {line.strip()!r}")
         if m.group(1) in READS:
             kind = "read, kept"
-        elif sig in TARGETS:
+        elif sig in targets:
             kind = "state-changing, method returns at entry"
         else:
             sys.exit(f"{rel}: {sig} calls IApexService.{m.group(1)}, which is not a known read")
@@ -267,7 +380,7 @@ def main(root):
 
     # Insert from the bottom up, so the indices found above stay valid.
     sites = []
-    for sig in TARGETS:
+    for sig in targets:
         found = impl.get(sig, [])
         if len(found) != 1:
             sys.exit(f"{rel}: {sig} found {len(found)} times, expected once")
@@ -291,9 +404,16 @@ def main(root):
         lines[j:j] = code
     with open(path, "w") as f:
         f.write("\n".join(lines))
-    print(f"{rel}: isApexSupported() false, {len(TARGETS) - 1} state-changing methods return at entry",
-          file=sys.stderr)
-    print(rel.split(os.sep)[0])
+    extra_dirs = set()
+    if apply_sites:
+        extra_dirs = apply_sites()
+        print(f"{rel}: {len(targets)} state-changing methods return at entry (no isApexSupported here)",
+              file=sys.stderr)
+    else:
+        print(f"{rel}: isApexSupported() false, {len(TARGETS) - 1} state-changing methods return at entry",
+              file=sys.stderr)
+    for d in sorted({rel.split(os.sep)[0]} | extra_dirs):
+        print(d)
 
 
 if __name__ == "__main__":

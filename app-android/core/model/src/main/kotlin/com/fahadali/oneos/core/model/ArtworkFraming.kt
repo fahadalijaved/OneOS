@@ -17,6 +17,8 @@ object ArtworkFraming {
         SystemFamily.ORIGINOS -> if (wide) Heading(.21f, .26f, .79f, .34f) else Heading(.19f, .24f, .81f, .30f)
         // 0.5.06: LineageOS 24's default wallpaper with Lineage's logo (its boot animation) and LineageOS in Google Sans Flex (from the image).
         SystemFamily.LINEAGE -> if (wide) Heading(.153f, .371f, .846f, .629f) else Heading(.153f, .406f, .845f, .594f)
+        // 0.5.22: One UI 9.5's own arches (the Software update app's artwork) with "One UI" / "9.5" in One UI Sans, bottom left.
+        SystemFamily.ONEUI -> if (wide) Heading(.067f, .663f, .521f, .907f) else Heading(.071f, .736f, .558f, .927f)
         else -> Heading(.1f, .2f, .9f, .6f)
     }
     fun transform(family: SystemFamily, sourceWidth: Int, sourceHeight: Int, width: Int, height: Int, reservedBottom: Float = 0f): Transform {

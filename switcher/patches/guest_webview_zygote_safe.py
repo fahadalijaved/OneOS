@@ -66,6 +66,73 @@ PATCHED = """    .locals 2
 .end method"""
 
 
+# One UI 9.5 (S948BXXU6ZZKN): R8 inlined ensureZygoteStarted() into the Runnable that
+# WebViewUpdateServiceImpl2 posts to AsyncTask.THREAD_POOL_EXECUTOR (an uncaught exception
+# there ends system_server). SystemImpl has no ensureZygoteStarted any more.
+LAMBDA_REL = os.path.join("com", "android", "server", "webkit", "WebViewUpdateServiceImpl2$$ExternalSyntheticLambda0.smali")
+LAMBDA_RUN = """.method public final run()V
+    .locals 0
+
+    iget-object p0, p0, Lcom/android/server/webkit/WebViewUpdateServiceImpl2$$ExternalSyntheticLambda0;->f$0:Lcom/android/server/webkit/WebViewUpdateServiceImpl2;
+
+    invoke-virtual {p0}, Lcom/android/server/webkit/WebViewUpdateServiceImpl2;->waitForAndGetProvider()Landroid/webkit/WebViewProviderResponse;
+
+    iget-object p0, p0, Lcom/android/server/webkit/WebViewUpdateServiceImpl2;->mSystemInterface:Lcom/android/server/webkit/SystemImpl;
+
+    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+
+    {call}
+
+    return-void
+.end method"""
+LAMBDA_PATCHED = """.method public final run()V
+    .locals 2
+
+    iget-object p0, p0, Lcom/android/server/webkit/WebViewUpdateServiceImpl2$$ExternalSyntheticLambda0;->f$0:Lcom/android/server/webkit/WebViewUpdateServiceImpl2;
+
+    invoke-virtual {p0}, Lcom/android/server/webkit/WebViewUpdateServiceImpl2;->waitForAndGetProvider()Landroid/webkit/WebViewProviderResponse;
+
+    iget-object p0, p0, Lcom/android/server/webkit/WebViewUpdateServiceImpl2;->mSystemInterface:Lcom/android/server/webkit/SystemImpl;
+
+    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+
+    :oneos_webview_try_start
+    {call}
+    :oneos_webview_try_end
+    .catch Ljava/lang/RuntimeException; {:oneos_webview_try_start .. :oneos_webview_try_end} :oneos_webview_catch
+
+    return-void
+
+    :oneos_webview_catch
+    move-exception v0
+
+    const-string v1, "WebViewUpdateService"
+
+    const-string p0, "OneOS: the WebView zygote did not start; WebView runs without it"
+
+    invoke-static {v1, p0, v0}, Landroid/util/Slog;->w(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)I
+
+    return-void
+.end method"""
+
+
+def patch_lambda(root):
+    hits = [os.path.join(d, f) for d, _, fs in os.walk(root) for f in fs
+            if os.path.join(d, f).endswith(os.sep + LAMBDA_REL)]
+    if len(hits) != 1:
+        return False
+    path = hits[0]
+    smali = open(path).read()
+    for call in CALLS:
+        old = LAMBDA_RUN.replace("{call}", call)
+        if smali.count(old) == 1:
+            open(path, "w").write(smali.replace(old, LAMBDA_PATCHED.replace("{call}", call)))
+            print("WebViewUpdateServiceImpl2 zygote Runnable: a failed WebView zygote start is logged, not fatal (One UI 9.5 shape)", file=sys.stderr)
+            print(os.path.relpath(path, root).split(os.sep)[0])
+            return True
+    return False
+
+
 def find(root):
     hits = [os.path.join(d, f) for d, _, fs in os.walk(root) for f in fs
             if os.path.join(d, f).endswith(os.path.join("com", "android", "server", "webkit", "SystemImpl.smali"))]
@@ -81,6 +148,8 @@ def main():
     if "oneos_webview_try_start" in smali:
         sys.exit("SystemImpl already patched")
     start = smali.find(HEADER)
+    if start < 0 and patch_lambda(root):
+        return
     if start < 0 or smali.count(HEADER) != 1:
         sys.exit("SystemImpl.ensureZygoteStarted not found")
     body_start = start + len(HEADER) + 1

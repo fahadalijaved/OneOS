@@ -49,8 +49,27 @@ def main():
     t = open(p, encoding="utf-8").read()
     if MARK in t:
         fail("already patched")
-    methods = [m for m in re.finditer(r"^\.method ([^\n]*)\n(.*?)^\.end method\n", t, re.M | re.S)
-               if "->automaticallyDeactivateFrpIfPossible()Z" in m.group(2) and "->signalInitDone()V" in m.group(2)]
+    def start_tasks(text):
+        return [m for m in re.finditer(r"^\.method ([^\n]*)\n(.*?)^\.end method\n", text, re.M | re.S)
+                if "->automaticallyDeactivateFrpIfPossible()Z" in m.group(2) and "->signalInitDone()V" in m.group(2)]
+    methods = start_tasks(t)
+    if not methods:
+        # One UI 9.5 (S948BXXU6ZZKN): R8 moved the start task into the class's
+        # ExternalSyntheticLambda0.run(); the service class itself has no such method.
+        cands = []
+        pdb_dir = os.path.dirname(p)
+        for name in sorted(os.listdir(pdb_dir)):
+            if name.startswith("PersistentDataBlockService$$ExternalSyntheticLambda") and name.endswith(".smali"):
+                lt = open(os.path.join(pdb_dir, name), encoding="utf-8").read()
+                found = start_tasks(lt)
+                if found:
+                    cands.append((os.path.join(pdb_dir, name), lt, found))
+        if len(cands) == 1 and len(cands[0][2]) == 1:
+            p, t, methods = cands[0]
+            if MARK in t:
+                fail("already patched")
+        else:
+            methods = []
     if len(methods) != 1:
         fail("the start task (deactivate FRP, then signal init done) found %d times" % len(methods))
     m = methods[0]
@@ -86,7 +105,7 @@ def main():
     body2 = body2.rstrip("\n") + "\n" + handler
     t = t[:m.start(2)] + body2 + t[m.end(2):]
     open(p, "w", encoding="utf-8").write(t)
-    print("guest_pdb_init_survives: %s/%s: the start task survives a failed FRP deactivation" % (d, REL), file=sys.stderr)
+    print("guest_pdb_init_survives: %s: the start task survives a failed FRP deactivation" % os.path.relpath(p, root), file=sys.stderr)
     print(d)
 
 

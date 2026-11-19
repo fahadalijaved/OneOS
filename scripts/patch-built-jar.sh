@@ -40,6 +40,8 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
 PY
     echo "replaced $DEX"
 done
+# A dex-container original (One UI 9.5's telephony-common.jar) needs all rebuilt dex files; no class may go missing.
+python3 -I "$ROOT/scripts/dex-container-fix.py" "$JAR" "$W/rebuilt.jar" "$W/out.jar"
 python3 "$ROOT/scripts/check-dex.py" "$W/out.jar" >&2 || true
 mv "$W/out.jar" "$OUT"
 echo "built $OUT"

@@ -39,3 +39,7 @@ simple = { limit = 15, period = 60 }
 [[analytics_engine_datasets]]
 binding = "USAGE"
 dataset = "oneos_usage"
+
+# Hourly sweep of leftover log parts (worker.js sweep).
+[triggers]
+crons = ["17 * * * *"]

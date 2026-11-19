@@ -19,6 +19,14 @@ getBlockOutputChannelIgnoringFrp() already opens "/dev/null" (guest_pdb_readonly
 and only an enforce call directly followed by that delegation is dropped (in
 getBlockOutputChannel(), or where R8 inlined it). No such pair: nothing is changed.
 
+One UI 9.5 (S948BXXU6ZZKN): R8 inlined getBlockOutputChannel() and its delegate into
+the callers. Without getBlockOutputChannelIgnoringFrp(), the same enforce call is dropped
+where it directly precedes `new RandomAccessFile` whose path guest_pdb_readonly.py has
+already turned into "/dev/null" (exactly four such sites: computeAndWriteDigestLocked,
+doSetOemUnlockEnabledLocked, InternalService.writeDataBuffer, $1.write; the two
+sites that never had the check, formatPartitionLocked and writeFrpMagicAndDefaultSecret,
+are untouched). Any other count and nothing is changed.
+
 Usage: guest_pdb_frp_writes_fail.py <apktool decoded services.jar dir>
 Prints the smali_* directory it changed.
 """
@@ -43,6 +51,41 @@ def method(t, sig):
     return found[0]
 
 
+def inlined_shape(root, d):
+    pdb_dir = os.path.join(root, d, os.path.dirname(REL))
+    # enforce call, then (only blank lines / .line) `new RandomAccessFile`, then the
+    # "/dev/null" path guest_pdb_readonly.py put in place of the mDataBlockFile load.
+    pat = re.compile(r"^(\s*)invoke-virtual \{([vp]\d+)\}, " + re.escape(CLS)
+                     + r"->enforceFactoryResetProtectionInactive\(\)V\n((?:\s*\.line \d+\n|[ \t]*\n)*"
+                     r"\s*new-instance [vp]\d+, Ljava/io/RandomAccessFile;\n(?:[ \t]*\n)*"
+                     r"[ \t]*# OneOS: the FRP partition is One UI's; the guest opens /dev/null instead\.\n"
+                     r"[ \t]*const-string [vp]\d+, \"/dev/null\"\n)", re.M)
+    total = 0
+    todo = []
+    for name in sorted(os.listdir(pdb_dir)):
+        if not (name.startswith("PersistentDataBlockService") and name.endswith(".smali")):
+            continue
+        path = os.path.join(pdb_dir, name)
+        t = open(path, encoding="utf-8").read()
+        if MARK in t:
+            fail("already patched")
+        hits = list(pat.finditer(t))
+        if hits:
+            todo.append((path, t, hits))
+            total += len(hits)
+    if total != 4:
+        fail("expected 4 FRP checks before a /dev/null write-open, found %d (guest_pdb_readonly.py first?)" % total)
+    note = ("# OneOS (patches/%s.py): writes go to /dev/null (guest_pdb_readonly);\n"
+            "%s# with One UI's FRP active they fail as IOException, which every caller handles.\n")
+    for path, t, hits in todo:
+        for h in reversed(hits):
+            ind = h.group(1)
+            t = t[:h.start()] + ind + note % (MARK, ind) + h.group(3) + t[h.end():]
+        open(path, "w", encoding="utf-8").write(t)
+        print("%s: %s: %d PDB write-open(s) with FRP active fail as an I/O error" % (MARK, os.path.relpath(path, root), len(hits)), file=sys.stderr)
+    print(d)
+
+
 def main():
     if len(sys.argv) != 2:
         fail(__doc__)
@@ -55,6 +98,8 @@ def main():
     t = open(p, encoding="utf-8").read()
     if MARK in t:
         fail("already patched")
+    if not re.search(r"^\.method [^\n]*getBlockOutputChannelIgnoringFrp\(\)Ljava/nio/channels/FileChannel;$", t, re.M):
+        return inlined_shape(root, d)
     ign = method(t, "getBlockOutputChannelIgnoringFrp()Ljava/nio/channels/FileChannel;")
     if '"/dev/null"' not in ign.group(2):
         fail("getBlockOutputChannelIgnoringFrp() does not open /dev/null (run guest_pdb_readonly.py first)")

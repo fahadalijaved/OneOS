@@ -14,7 +14,8 @@ import os
 import re
 import sys
 
-HEADER = re.compile(r"^\.method (?:private |public |final )*doSysRq\(C\)V$")
+# One UI 9.5 (S948BXXU6ZZKN) has it as public static (char in p0, no 'c' caller left).
+HEADER = re.compile(r"^\.method (?:private |public |final |static )*doSysRq\(C\)V$")
 
 
 def main(root):
@@ -31,6 +32,7 @@ def main(root):
             if len(heads) != 1:
                 sys.exit(f"{name}: doSysRq(C) found more than once")
             i = heads[0]
+            char_reg = "p0" if " static " in lines[i] else "p1"
             m = re.match(r"\s*\.locals (\d+)$", lines[i + 1])
             if not m or int(m.group(1)) < 1:
                 sys.exit(f"{name}: unexpected doSysRq header")
@@ -41,7 +43,7 @@ def main(root):
                 "    # OneOS: no kernel crash ('c') from the container; the phone's kernel is shared.",
                 "    const/16 v0, 0x63",
                 "",
-                "    if-ne p1, v0, :oneos_not_crash",
+                f"    if-ne {char_reg}, v0, :oneos_not_crash",
                 "",
                 "    return-void",
                 "",
