@@ -851,12 +851,13 @@ object PackageSets {
      * signal poll, OneOSGuest.apk, the 22 APEX payloads (the 15 of every set and bt, nfcservices, gmssystem,
      * npumanager, telephonycore, webapp and the cellbroadcast module), and oneui_floating_add.txt, the image's
      * software floating features for guest_prepare.sh's merge. No guest vold or SurfaceFlinger patch in
-     * this set. Tethering never mounts.
+     * this set. Tethering never mounts. r2 (0.5.23): framework_patched.jar with Privacy Display off
+     * (patches/oneui_no_privacy_display.py; the S26 Ultra panel feature, on in the image at build time).
      */
     val ONEUI95 = PackageSet(
         id = ID_ONEUI95,
         imageId = Images.ID_ONEUI95,
-        sourceDir = "out/overlays_oneui95_r1",
+        sourceDir = "out/overlays_oneui95_r2",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),

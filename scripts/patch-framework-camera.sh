@@ -82,7 +82,10 @@ fi
 # filled Android 17's device-policy registry (switcher/patches/policy_metadata_init.py; One UI 9.5,
 # A36 run 6: DevicePolicyManagerService died at boot). Only when the jar is patched anyway.
 PM=$(python3 -I "$ROOT/switcher/patches/policy_metadata_init.py" "$WORK/fw")
-for d in $PM; do
+# One UI 9.5's Privacy Display flags are true at build time (the S26 Ultra's panel feature): off
+# (switcher/patches/oneui_no_privacy_display.py; nothing on images without them).
+PD=$(python3 -I "$ROOT/switcher/patches/oneui_no_privacy_display.py" "$WORK/fw") || exit 1
+for d in $PM $PD; do
     case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac
 done
 java -jar "$APKTOOL" b -q -o "$WORK/fw-rebuilt.jar" "$WORK/fw"

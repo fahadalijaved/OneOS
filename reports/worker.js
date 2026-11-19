@@ -642,23 +642,42 @@ async function screening(env, u) {
 
 // --- Budget (11-18, owner: "make it robust"): the service stays under Cloudflare's free KV limits whatever the apps
 // do. Log parts are the only KV writes: at most PARTS_PER_DAY a day (KV takes 1,000 writes) and PARTS_BYTES stored
-// over the two days a part lives (KV holds 1 GB). Past either, an upload is told to come back later (503; the app
-// keeps the report and sends it again). The counters are in D1 (budget:<day>). The owner hears it once a day.
+// at once (KV holds 1 GB). Past either, an upload is told to come back later (503; the app keeps the report and
+// sends it again). The owner hears it once a day.
+// 11-19: the bytes are what KV holds now (the parts' own sizes from a KV list, at most every 10 minutes, plus what
+// came in since), not what was uploaded over two days: parts the puller collected and deleted kept counting, so
+// 839 MB uploaded on 11-18 refused every log the next day with 70 KB actually stored.
 const PARTS_PER_DAY = 700
 const PARTS_BYTES = 800 * 1024 * 1024
+const STORED_EVERY = 10 * 60 * 1000
 
 const today = (d = 0) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10)
+
+async function stored(env) {
+  const s = store(env)
+  const c = JSON.parse((await s.get('stored')) ?? "null")
+  if (c && Date.now() - c.t < STORED_EVERY) return c
+  let b = 0
+  let cursor
+  do {
+    const r = await s.list({ prefix: 'part:', cursor, limit: 1000 })
+    for (const k of r.keys) b += Number(k.metadata?.bytes ?? 0)
+    cursor = r.list_complete ? undefined : r.cursor
+  } while (cursor)
+  return { t: Date.now(), b }
+}
 
 async function budget(env, bytes) {
   if (!env.DB) return
   const s = store(env)
   const t = JSON.parse((await s.get(`budget:${today()}`)) ?? '{"n":0,"b":0}')
-  const y = JSON.parse((await s.get(`budget:${today(1)}`)) ?? '{"n":0,"b":0}')
-  if (t.n >= PARTS_PER_DAY || t.b + y.b + bytes > PARTS_BYTES) {
-    await warnOnce(env, `⚠️ OneOS reports at today's limit (${t.n} log parts, ${Math.round((t.b + y.b) / 1048576)} MB stored): new uploads wait until tomorrow (KV's free limits). Nothing to do unless it repeats.`)
+  const now = await stored(env)
+  if (t.n >= PARTS_PER_DAY || now.b + bytes > PARTS_BYTES) {
+    await warnOnce(env, `⚠️ OneOS reports at today's limit (${t.n} log parts today, ${Math.round(now.b / 1048576)} MB stored): new uploads wait (KV's free limits). Nothing to do unless it repeats.`)
     throw new Refused(503, 'the report service is busy, OneOS sends it again later')
   }
   await s.put(`budget:${today()}`, JSON.stringify({ n: t.n + 1, b: t.b + bytes }), { expirationTtl: 3 * 86400 })
+  await s.put('stored', JSON.stringify({ t: now.t, b: now.b + bytes }), { expirationTtl: 86400 })
 }
 
 async function warnOnce(env, text) {

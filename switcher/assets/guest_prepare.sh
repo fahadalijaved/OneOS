@@ -717,6 +717,11 @@ if [ "${ONEOS_GUEST_SEC_IMS:-0}" = 1 ]; then
         [ -f "$f" ] || secims_missing="$secims_missing $f"
     done
     if [ ! -d "$GUEST_SYSTEM_EXT" ]; then sec_ims_off "the guest has no system_ext"
+    # A One UI image brings its own Samsung IMS (0.5.23): the phone's imsmanager.jar under the image's newer
+    # imsservice crashed it in a loop (One UI 9.5 on a One UI 9 A56: NoSuchMethodError ImsProfile.isIpSecVerificationEnabled,
+    # 260 crashes in 10 minutes with a dump each, three cores busy, the phone throttling).
+    elif grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        sec_ims_off "this system is a One UI image with its own Samsung IMS"
     elif [ -L "$SECIMS" ]; then echo "ERROR: $SECIMS is a symlink; not starting the guest"; exit 3
     # Only the sets whose services.jar carries the carve-out can keep the
     # Samsung-signed package in android.uid.system; on the others the guest's

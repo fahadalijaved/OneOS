@@ -29,13 +29,13 @@ export class FakeD1 {
 }
 
 class FakeKV {
-  constructor() { this.m = new Map() }
-  async put(k, v) { this.m.set(k, typeof v === 'string' ? v : new TextDecoder().decode(v)) }
+  constructor() { this.m = new Map(); this.meta = new Map() }
+  async put(k, v, opts) { this.m.set(k, typeof v === 'string' ? v : new TextDecoder().decode(v)); this.meta.set(k, opts?.metadata ?? null) }
   async get(k, opts) { const v = this.m.get(k); if (v == null) return null; return opts?.type === 'stream' ? new Response(v).body : v }
   async list({ prefix, cursor, limit = 100 }) {
     const all = [...this.m.keys()].filter((k) => k.startsWith(prefix)).sort()
     const start = cursor ? Number(cursor) : 0
-    const keys = all.slice(start, start + limit).map((name) => ({ name, metadata: null }))
+    const keys = all.slice(start, start + limit).map((name) => ({ name, metadata: this.meta.get(name) ?? null }))
     const done = start + limit >= all.length
     return { keys, list_complete: done, cursor: done ? undefined : String(start + limit) }
   }
@@ -135,9 +135,27 @@ test('budget: log parts stop at the daily cap (KV write limit), told to come bac
   assert.deepEqual(JSON.parse(await s.get(`budget:${day}`)), { n: 1, b: 1000 })
   await s.put(`budget:${day}`, JSON.stringify({ n: 700, b: 5000 }))
   await assert.rejects(budget(e, 1000), (err) => err.status === 503)
-  // Bytes: today + yesterday stay under 800 MB.
+  // Bytes: what KV holds now stays under 800 MB.
   await s.put(`budget:${day}`, JSON.stringify({ n: 1, b: 799 * 1024 * 1024 }))
+  await s.put('stored', JSON.stringify({ t: Date.now(), b: 799 * 1024 * 1024 }))
   await assert.rejects(budget(e, 2 * 1024 * 1024), (err) => err.status === 503)
+})
+
+test('budget: bytes the puller already collected do not count (11-19: 839 MB uploaded, 70 KB stored, every log refused)', async () => {
+  const kv = new FakeKV()
+  const e = { DB: new FakeD1(), REPORTS: kv }
+  const day = new Date().toISOString().slice(0, 10)
+  const yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const s = store(e)
+  await s.put(`warned:${day}`, '1')
+  await s.put(`budget:${yday}`, JSON.stringify({ n: 69, b: 838850180 }))
+  await s.put(`budget:${day}`, JSON.stringify({ n: 3, b: 200 * 1024 * 1024 }))
+  await s.put('part:abc-0001:0', 'x'.repeat(70000), { metadata: { n: 1, bytes: 70000 } })
+  await budget(e, 5 * 1024 * 1024)
+  assert.equal(JSON.parse(await s.get('stored')).b, 70000 + 5 * 1024 * 1024)
+  // The cached figure grows with each upload until the next count.
+  await budget(e, 1000)
+  assert.equal(JSON.parse(await s.get('stored')).b, 70000 + 5 * 1024 * 1024 + 1000)
 })
 
 test('sweep: leftover parts older than 6 hours go, newer ones stay', async () => {

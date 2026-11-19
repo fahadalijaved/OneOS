@@ -692,3 +692,14 @@ New in 0.5.22: **One UI 9.5 on One UI 9 Galaxies.**
 - **ColorOS on the Galaxy S24 Ultra and other QHD phones:** the fingerprint icon sits on the sensor again (it was
   drawn near the top of the screen).
 - **Add apps from inside the other system** works again ("not an installed user app" for every app).
+
+New in 0.5.23: **One UI 9.5 test fix for heat and calls.**
+- **One UI 9.5 no longer overheats from a calling crash loop.** Started from the app, it got One UI 9's Samsung
+  calling files on top of its own; its calling service then crashed hundreds of times (A56: 260 in 10 minutes),
+  kept three cores busy and the phone throttled (choppy sound, "IMS services keeps stopping", no calls or SMS).
+  One UI 9.5 now keeps its own. Untested with a SIM: please report calls, SMS and heat.
+- **Privacy Display is off in One UI 9.5** (set r2): it is the Galaxy S26 Ultra's own panel feature, and One UI 9.5
+  had it switched on for every phone.
+- Phones stuck in the setup wizard or with "keeps stopping" messages: the calling crash loop above kept the system
+  too busy; please report if setup still does not finish.
+- **The One UI 9.5 card** shows "One UI 9.5" above the Set up button.
