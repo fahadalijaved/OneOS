@@ -162,6 +162,8 @@ SET_LINEAGE="services_patched.jar framework_patched.jar vold_patched service.inc
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
 SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so telephony-common_patched.jar samcam.tar samcam_bar.tar xiaomi-opt-telephony_patched.jar"
+# HyperOS 4 Global (0.5.28): the HyperOS guards plus miui-framework, guest vold, camera kits and stub, fold cutout, apex requirements, 18 payloads incl. gmssystem (set r2); no tethering.
+SET_HYPERHK="OneOSCameraProcessingStub.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img apprecovery.proinstaller_patched.jar appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libaudiohal_aidl_patched.so libcamera_client_patched.so libsurfaceflinger_patched.so mediaprovider_payload.img miui-framework_patched.jar miui-services_patched.jar miui-telephony-common_patched.jar miui-wifi-service_patched.jar ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar samcam_a.tar samcam_bar.tar sdkext_payload.img service.incremental_patched.so services_patched.jar socket_exec telephony-common_patched.jar vold_patched wifi_payload.img"
 # Nothing OS 5.0 (0.4.33, the Z Fold8 Ultra): its system is close to AOSP, so only
 # services.jar and framework.jar need the guards; no vendor framework, no vold
 # patch (its build is unknown to the patcher) and no signal poll injection.
@@ -268,6 +270,7 @@ profile_set() {
         "f8u coloros17-findn6") echo n6-f8u ;;
         "f8u pixel11fold-yogi") echo pixel-f8u ;;
         "f8u hyperos-lhasa") echo hyper-f8u ;;
+        "f8u hyperos-hongkong") echo hyper-hk ;;
         "f8u nothingos5-metroid") echo nothing-f8u ;;
         "f8 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8850 nothingos5-metroid") echo nothing-f8u ;;
@@ -289,17 +292,20 @@ profile_set() {
         "flip8 lineage24-infiniti") echo lineage ;;
         "flip8 oneui95-s948b") echo oneui95 ;;
         "flip8 hyperos-lhasa") echo hyper-f8u ;;
+        "flip8 hyperos-hongkong") echo hyper-hk ;;
         "a36 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a36 infinityx41-findx9u") echo infinityx ;;
         "a36 lineage24-infiniti") echo lineage ;;
         "a36 oneui95-s948b") echo oneui95 ;;
         "a36 hyperos-lhasa") echo hyper-f8u ;;
+        "a36 hyperos-hongkong") echo hyper-hk ;;
         "a36 nothingos5-asteroids") echo nothing-a ;;
         "a27 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a27 infinityx41-findx9u") echo infinityx ;;
         "a27 lineage24-infiniti") echo lineage ;;
         "a27 oneui95-s948b") echo oneui95 ;;
         "a27 hyperos-lhasa") echo hyper-f8u ;;
+        "a27 hyperos-hongkong") echo hyper-hk ;;
         "a27 nothingos5-asteroids") echo nothing-a ;;
         "s-ultra-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8850 pixel11pro-kodiak") echo pixel-sultra ;;
@@ -350,7 +356,9 @@ profile_set() {
         "s-plus-8650 lineage24-infiniti") echo lineage ;;
         "s-plus-8650 oneui95-s948b") echo oneui95 ;;
         "s-8650 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8650 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-8650 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8650 hyperos-hongkong") echo hyper-hk ;;
         "s-8650 nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-8650 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
@@ -365,62 +373,77 @@ profile_set() {
         "f8 lineage24-infiniti") echo lineage ;;
         "f8 oneui95-s948b") echo oneui95 ;;
         "f8 hyperos-lhasa") echo hyper-f8u ;;
+        "f8 hyperos-hongkong") echo hyper-hk ;;
         "f7 infinityx41-findx9u") echo infinityx ;;
         "f7 lineage24-infiniti") echo lineage ;;
         "f7 oneui95-s948b") echo oneui95 ;;
         "f7 hyperos-lhasa") echo hyper-f8u ;;
+        "f7 hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8850 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8850 lineage24-infiniti") echo lineage ;;
         "s-ultra-8850 oneui95-s948b") echo oneui95 ;;
         "s-ultra-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8850 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-8850 infinityx41-findx9u") echo infinityx ;;
         "s-plus-8850 lineage24-infiniti") echo lineage ;;
         "s-plus-8850 oneui95-s948b") echo oneui95 ;;
         "s-plus-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8850 hyperos-hongkong") echo hyper-hk ;;
         "s-8850 infinityx41-findx9u") echo infinityx ;;
         "s-8850 lineage24-infiniti") echo lineage ;;
         "s-8850 oneui95-s948b") echo oneui95 ;;
         "s-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8850 hyperos-hongkong") echo hyper-hk ;;
         "s-8850-jp infinityx41-findx9u") echo infinityx ;;
         "s-8850-jp lineage24-infiniti") echo lineage ;;
         "s-8850-jp oneui95-s948b") echo oneui95 ;;
         "s-8850-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-8850-jp hyperos-hongkong") echo hyper-hk ;;
         "s-plus-9965 infinityx41-findx9u") echo infinityx ;;
         "s-plus-9965 lineage24-infiniti") echo lineage ;;
         "s-plus-9965 oneui95-s948b") echo oneui95 ;;
         "s-plus-9965 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-9965 hyperos-hongkong") echo hyper-hk ;;
         "s-9965 infinityx41-findx9u") echo infinityx ;;
         "s-9965 lineage24-infiniti") echo lineage ;;
         "s-9965 oneui95-s948b") echo oneui95 ;;
         "s-9965 hyperos-lhasa") echo hyper-f8u ;;
+        "s-9965 hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8750 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8750 lineage24-infiniti") echo lineage ;;
         "s-ultra-8750 oneui95-s948b") echo oneui95 ;;
         "s-ultra-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-8750 infinityx41-findx9u") echo infinityx ;;
         "s-plus-8750 lineage24-infiniti") echo lineage ;;
         "s-plus-8750 oneui95-s948b") echo oneui95 ;;
         "s-plus-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-8750 infinityx41-findx9u") echo infinityx ;;
         "s-8750 lineage24-infiniti") echo lineage ;;
         "s-8750 oneui95-s948b") echo oneui95 ;;
         "s-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8650 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8650 lineage24-infiniti") echo lineage ;;
         "s-ultra-8650 oneui95-s948b") echo oneui95 ;;
         "s-ultra-8650 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8650 hyperos-hongkong") echo hyper-hk ;;
         "s-8550 infinityx41-findx9u") echo infinityx ;;
         "s-8550 lineage24-infiniti") echo lineage ;;
         "s-8550 oneui95-s948b") echo oneui95 ;;
         "s-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8550 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-8550 infinityx41-findx9u") echo infinityx ;;
         "s-plus-8550 lineage24-infiniti") echo lineage ;;
         "s-plus-8550 oneui95-s948b") echo oneui95 ;;
         "s-plus-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8550 hyperos-hongkong") echo hyper-hk ;;
         "flip7 infinityx41-findx9u") echo infinityx ;;
         "flip7 lineage24-infiniti") echo lineage ;;
         "flip7 oneui95-s948b") echo oneui95 ;;
         "flip7 hyperos-lhasa") echo hyper-f8u ;;
+        "flip7 hyperos-hongkong") echo hyper-hk ;;
         "a56 infinityx41-findx9u") echo infinityx ;;
         "a56 lineage24-infiniti") echo lineage ;;
         "a56 oneui95-s948b") echo oneui95 ;;
@@ -428,7 +451,9 @@ profile_set() {
         "a57 lineage24-infiniti") echo lineage ;;
         "a57 oneui95-s948b") echo oneui95 ;;
         "a56 hyperos-lhasa") echo hyper-f8u ;;
+        "a56 hyperos-hongkong") echo hyper-hk ;;
         "a57 hyperos-lhasa") echo hyper-f8u ;;
+        "a57 hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8550 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8550 lineage24-infiniti") echo lineage ;;
         "s-ultra-8550 oneui95-s948b") echo oneui95 ;;
@@ -439,11 +464,14 @@ profile_set() {
         "s-9945 lineage24-infiniti") echo lineage ;;
         "s-9945 oneui95-s948b") echo oneui95 ;;
         "s-ultra-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8550 hyperos-hongkong") echo hyper-hk ;;
         "s-9945 hyperos-lhasa") echo hyper-f8u ;;
+        "s-9945 hyperos-hongkong") echo hyper-hk ;;
         "flip5 infinityx41-findx9u") echo infinityx ;;
         "flip5 lineage24-infiniti") echo lineage ;;
         "flip5 oneui95-s948b") echo oneui95 ;;
         "flip5 hyperos-lhasa") echo hyper-f8u ;;
+        "flip5 hyperos-hongkong") echo hyper-hk ;;
         "f6 coloros17-findn6") echo n6-f8u ;;
         "f6 infinityx41-findx9u") echo infinityx ;;
         "f6 lineage24-infiniti") echo lineage ;;
@@ -463,12 +491,14 @@ profile_set() {
         "s-edge-8750 lineage24-infiniti") echo lineage ;;
         "s-edge-8750 oneui95-s948b") echo oneui95 ;;
         "s-edge-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-edge-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-fe-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-fe-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-fe-9945 infinityx41-findx9u") echo infinityx ;;
         "s-fe-9945 lineage24-infiniti") echo lineage ;;
         "s-fe-9945 oneui95-s948b") echo oneui95 ;;
         "s-fe-9945 hyperos-lhasa") echo hyper-f8u ;;
+        "s-fe-9945 hyperos-hongkong") echo hyper-hk ;;
         "a26 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a26 infinityx41-findx9u") echo infinityx ;;
         "a26 lineage24-infiniti") echo lineage ;;
@@ -571,22 +601,35 @@ profile_set() {
         "flip7-fe lineage24-infiniti") echo lineage ;;
         "flip7-fe oneui95-s948b") echo oneui95 ;;
         "flip7-fe hyperos-lhasa") echo hyper-f8u ;;
+        "flip7-fe hyperos-hongkong") echo hyper-hk ;;
         "a26 hyperos-lhasa") echo hyper-f8u ;;
+        "a26 hyperos-hongkong") echo hyper-hk ;;
         "a35 hyperos-lhasa") echo hyper-f8u ;;
+        "a35 hyperos-hongkong") echo hyper-hk ;;
         "a54 hyperos-lhasa") echo hyper-f8u ;;
+        "a54 hyperos-hongkong") echo hyper-hk ;;
         "a07 hyperos-lhasa") echo hyper-f8u ;;
+        "a07 hyperos-hongkong") echo hyper-hk ;;
         "a17 hyperos-lhasa") echo hyper-f8u ;;
+        "a17 hyperos-hongkong") echo hyper-hk ;;
         "a16-4g hyperos-lhasa") echo hyper-f8u ;;
+        "a16-4g hyperos-hongkong") echo hyper-hk ;;
         "a16 hyperos-lhasa") echo hyper-f8u ;;
+        "a16 hyperos-hongkong") echo hyper-hk ;;
         "a16-s166 hyperos-lhasa") echo hyper-f8u ;;
+        "a16-s166 hyperos-hongkong") echo hyper-hk ;;
         "a17-5g hyperos-lhasa") echo hyper-f8u ;;
+        "a17-5g hyperos-hongkong") echo hyper-hk ;;
         "a34 hyperos-lhasa") echo hyper-f8u ;;
+        "a34 hyperos-hongkong") echo hyper-hk ;;
         "a15 hyperos-lhasa") echo hyper-f8u ;;
+        "a15 hyperos-hongkong") echo hyper-hk ;;
         "a55 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a55 infinityx41-findx9u") echo infinityx ;;
         "a55 lineage24-infiniti") echo lineage ;;
         "a55 oneui95-s948b") echo oneui95 ;;
         "a55 hyperos-lhasa") echo hyper-f8u ;;
+        "a55 hyperos-hongkong") echo hyper-hk ;;
         "a55 oxygenos16-cph2745") echo oxygen16 ;;
         "a55 nothingos5-asteroids") echo nothing-a ;;
         "s25-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
@@ -595,6 +638,7 @@ profile_set() {
         "s25-fe lineage24-infiniti") echo lineage ;;
         "s25-fe oneui95-s948b") echo oneui95 ;;
         "s25-fe hyperos-lhasa") echo hyper-f8u ;;
+        "s25-fe hyperos-hongkong") echo hyper-hk ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
@@ -605,6 +649,7 @@ profile_set() {
         "s-plus-9945 lineage24-infiniti") echo lineage ;;
         "s-plus-9945 oneui95-s948b") echo oneui95 ;;
         "s-plus-9945 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-9945 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
         # 0.5.19: Nothing OS on the S23, S23+ and S23 Ultra (owner, untested).
         "s-8550 nothingos5-metroid") echo nothing-f8u ;;
@@ -620,6 +665,7 @@ profile_set() {
         "s-ultra-8550-jp lineage24-infiniti") echo lineage ;;
         "s-ultra-8550-jp oneui95-s948b") echo oneui95 ;;
         "s-ultra-8550-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8550-jp hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
         "s-9925 oxygenos16-cph2745") echo oxygen16 ;;
@@ -631,6 +677,7 @@ profile_set() {
         "s-8550-jp lineage24-infiniti") echo lineage ;;
         "s-8550-jp oneui95-s948b") echo oneui95 ;;
         "s-8550-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-8550-jp hyperos-hongkong") echo hyper-hk ;;
         "s-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550-jp originos7-pd2609ma") echo originos ;;
         # 0.4.95: the Galaxy M35 5G (the A35's rows) and the Galaxy A15 5G with MediaTek (OxygenOS 16 only), untested.
@@ -640,6 +687,7 @@ profile_set() {
         "m35 oneui95-s948b") echo oneui95 ;;
         "m35 oxygenos16-cph2745") echo oxygen16 ;;
         "m35 hyperos-lhasa") echo hyper-f8u ;;
+        "m35 hyperos-hongkong") echo hyper-hk ;;
         "m35 nothingos5-asteroids") echo nothing-a ;;
         "a15-5g oxygenos16-cph2745") echo oxygen16 ;;
         *) return 1 ;;
@@ -660,6 +708,7 @@ image_raw() {
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
         hyperos-lhasa) echo "7749939200 269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac" ;;
+        hyperos-hongkong) echo "10482176000 29083fa42c8144637066015d9648f9c927ddf761eefdf78989024e88f13e1721" ;;
         nothingos5-metroid) echo "6067867648 484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b" ;;
         oneui95-s948b) echo "14259888128 82ddc8561a2687f041c2820a0d910f266b3b71753582a65ebff0cec7e8d0bbe4" ;;
         nothingos5-asteroids) echo "5972463616 d21ded7b8b36b9cd8896e8159e7c274ae160f08de0f270eb17c14c63e66f6de6" ;;
@@ -681,6 +730,7 @@ set_files() {
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
         pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk" ;;
         hyper-f8u) echo "$SET_HYPEROS" ;;
+        hyper-hk) echo "$SET_HYPERHK" ;;
         nothing-f8u) echo "$SET_NOTHING" ;;
         nothing-a) echo "$SET_NOTHINGA" ;;
         oneui95) echo "$SET_ONEUI" ;;
@@ -702,6 +752,7 @@ set_image() {
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
         hyper-f8u) echo hyperos-lhasa ;;
+        hyper-hk) echo hyperos-hongkong ;;
         nothing-f8u) echo nothingos5-metroid ;;
         nothing-a) echo nothingos5-asteroids ;;
         oneui95) echo oneui95-s948b ;;
@@ -727,6 +778,7 @@ image_family() {
         infinityx41-findx9u) echo infinityx ;;
         lineage24-infiniti) echo lineage ;;
         hyperos-lhasa) echo hyperos ;;
+        hyperos-hongkong) echo hyperos ;;
         nothingos5-metroid|nothingos5-asteroids) echo nothing ;;
         oxygenos16-cph2745) echo oxygenos ;;
         originos7-pd2609ma) echo originos ;;

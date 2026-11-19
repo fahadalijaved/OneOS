@@ -48,7 +48,7 @@ class PackageSetsTest {
         assertEquals("out/overlays_pixel_f8u_r19", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, PackageSets.X9U_IN_1105_SULTRA, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
-                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95),
+                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.HYPER_HK, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95),
             PackageSets.ALL,
         )
         // Infinity-X (0.4.27): both guard jars, the camera codes (Java and native), the guest vold, the
@@ -92,7 +92,7 @@ class PackageSetsTest {
         val oneui = PackageSets.ONEUI95
         assertEquals("oneui95", oneui.id)
         assertEquals(Images.ID_ONEUI95, oneui.imageId)
-        assertEquals("out/overlays_oneui95_r5", oneui.sourceDir)
+        assertEquals("out/overlays_oneui95_r6", oneui.sourceDir)
         assertEquals(36, oneui.files.size)
         assertEquals(22, oneui.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), oneui.omitted)
@@ -118,6 +118,22 @@ class PackageSetsTest {
             hyper.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(hyper.hasReturnApp && "vold_patched" in hyper.names)
+        // HyperOS 4 Global (0.5.28): the HyperOS guards plus miui-framework.jar, the guest vold, One UI's camera kits and
+        // the 18 payloads with the GmsCore one (presented, as on One UI 9.5).
+        val hk = PackageSets.HYPER_HK
+        assertEquals(Images.ID_HYPEROS_HONGKONG, hk.imageId)
+        assertEquals("out/overlays_hyperos_hk_r2", hk.sourceDir)
+        assertEquals(44, hk.files.size)
+        assertEquals(18, hk.files.count { it.role == FileRole.APEX_PAYLOAD })
+        assertEquals(listOf(PackageSets.TETHERING), hk.omitted)
+        assertEquals(
+            listOf("services_patched.jar", "miui-services_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
+                "miui-wifi-service_patched.jar", "miui-telephony-common_patched.jar", "telephony-common_patched.jar", "miui-framework_patched.jar",
+                "vold_patched", "service.incremental_patched.so", "libcamera_client_patched.so", "libsurfaceflinger_patched.so"),
+            hk.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
+        )
+        assertTrue(hk.file(PackageSets.GMS_PAYLOAD) != null && hk.hasReturnApp && Images.HYPEROS_HONGKONG.presentsGms)
+        assertEquals(listOf("samcam.tar", "samcam_a.tar", "samcam_bar.tar"), hk.files.filter { it.name.startsWith("samcam") }.map { it.name })
         // Nothing OS (0.4.33), the smallest set: Nothing ships no vendor framework jar, so services.jar and
         // framework.jar carry every guard. The signal-poll injection RRO goes in /oem, after the image's own
         // TelephonyResCommon_Sys.apk in this guest's overlay order (run 10).

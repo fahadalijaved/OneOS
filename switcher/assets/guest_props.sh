@@ -960,6 +960,79 @@ add)
             echo "guest_props: $MDT=2 for the session (HyperOS fold: cover screen wallpapers)"
         fi
     fi
+    # (from vdcoolok's feat/guest-local-pin, ported 11-19)
+    # HyperOS hides the whole fingerprint UI unless a vendor is named:
+    # FingerprintServiceStubImpl.isFpHardwareDetected() reads
+    # persist.vendor.sys.fp.vendor and reports no hardware for an empty value or
+    # "none", and Settings then shows no fingerprint entry at all (HyperOS run
+    # 11-14: the entry appeared the moment the prop was set by hand). The GSI
+    # carries no vendor props; the phone's sensor is Samsung's AIDL HAL, so the
+    # value only satisfies the check. Memory only, deleted by remove.
+    if [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; then
+        k=persist.vendor.sys.fp.vendor
+        if grep -qxF "$k" "$HOST"; then
+            echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"
+        else
+            sed -i '/^persist\.vendor\.sys\.fp\.vendor=/d' "$NEW"
+            echo "$k=goodix" >> "$NEW"
+            echo "guest_props: $k=goodix for the session (HyperOS shows fingerprint only with a vendor named)"
+        fi
+    fi
+    # HyperOS's fingerprint-on-display glyph: MiuiConfigs.GXZW_SENSOR is
+    # SystemProperties.getBoolean("ro.hardware.fp.fod"), and MiuiFingerPrintFactory
+    # builds MiuiGxzwManager (the lockscreen icon, its animation and the FOD
+    # tap) only when it is true; the sensor still unlocks without it, but
+    # nothing is drawn over it. MiuiGxzwUtils places the glyph from two more
+    # props, read as percentages of the panel's physical size and scaled to the
+    # current resolution, so both are in the phone's physical pixels: the
+    # glyph's top-left corner and its width/height. Written from this phone's
+    # own geometry: Samsung's sensor position (/sys/class/fingerprint/
+    # fingerprint/position, bottom offset and sensor height in mm) and the
+    # panel's physical mode (display_modes_host.log). 13.5 mm across, centred,
+    # so the glyph lands on the sensor at any resolution (S25 Ultra: 587,2251
+    # and 266,266 in 1440x3120, 200 px at 1080x2340).
+    # ro.vendor.localhbm.enable=true with them: Samsung's panel lights the
+    # sensor spot itself (local HBM). Without it HyperOS's SystemUI treats the
+    # sensor as a global-HBM one (MiuiGxzwManager makes MiuiGxzwOverlayView only
+    # when MiuiGxzwUtils.GXZW_LHBM_FINGER and GXZW_CFOD_FINGER are false) and
+    # lays its "hbm_overlay", a full-screen black window at alpha 0.657, over
+    # the lock screen to offset a panel boost that never comes on One UI's
+    # panel: the lock screen ran at a third of its brightness (A36, 11-19). The
+    # flag's only other reader, FodFingerprintServiceStubImpl.fodCallBack, then
+    # leaves "show touches" alone during a sensor touch.
+    if [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; then
+        FOD_MM=$(awk -F, 'NR == 1 { printf "%.2f", $1 + $4 / 2 }' /sys/class/fingerprint/fingerprint/position 2>/dev/null)
+        FOD_PX=$(awk -v mm="${FOD_MM:-0}" '
+            match($0, /resolution=[0-9]+x[0-9]+/) {
+                split(substr($0, RSTART + 11, RLENGTH - 11), a, "x")
+                if (a[1] + 0 <= w) next
+                w = a[1] + 0; h = a[2] + 0
+                if (match($0, /dpi=[0-9.]+/)) d = substr($0, RSTART + 4, RLENGTH - 4) + 0
+            }
+            END {
+                if (w == 0 || h == 0 || d == 0 || mm == 0) exit
+                s = int(13.5 * d / 25.4 + 0.5)
+                x = int((w - s) / 2 + 0.5)
+                y = int(h - mm * d / 25.4 - s / 2 + 0.5)
+                printf "%d,%d %d,%d", x, y, s, s
+            }' "$STAGE/display_modes_host.log" 2>/dev/null)
+        if [ -n "$FOD_PX" ]; then
+            for kv in "ro.hardware.fp.fod=1" "ro.vendor.localhbm.enable=true" \
+                      "persist.vendor.sys.fp.fod.location.X_Y=${FOD_PX% *}" \
+                      "persist.vendor.sys.fp.fod.size.width_height=${FOD_PX#* }"; do
+                k=${kv%%=*}
+                if grep -qxF "$k" "$HOST"; then
+                    echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"
+                    continue
+                fi
+                sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+                echo "$kv" >> "$NEW"
+            done
+            echo "guest_props: ro.hardware.fp.fod=1, ro.vendor.localhbm.enable=true, glyph ${FOD_PX% *} size ${FOD_PX#* } in physical pixels (sensor ${FOD_MM:-?} mm from the bottom) for the session (HyperOS draws the fingerprint icon)"
+        else
+            echo "guest_props: FOD glyph props left unset (no sensor position or panel mode in the stage); HyperOS draws no fingerprint icon"
+        fi
+    fi
     # HyperOS's rust runtime (its launcher among the packages): the image's
     # init.hyos_spawner.rc sets rust.runtime_version when zygote runs and
     # starts hyos_spawner on rust.runtime_active=1, and system_server sends
@@ -1041,6 +1114,21 @@ ro.miui.backdrop_sampling_enabled=true"
             echo "$k=${tl##*:}" >> "$NEW"
         done
         echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type = S and AdrenoVK-0 = W for the session (failures and dumps on every frame or call)"
+        # HyperOS Global (11-19, A36, "slightly sluggish"): logd at 35-106 % of a core. Its own debug and info
+        # chatter, per 200,000 lines: MI-SF 27,000, backgroundBlur 13,400, AllInOneBase 7,900, hyper_launcher_app
+        # 7,500, AllInOneConvertDataDebug 6,200, MiuiBlurUtils 5,700, hyos_spawner 4,800, flutter 4,700,
+        # PowerInsight_DisplayCalculator 3,200, the lock screen editor's views 2,500-2,800 each, MIUIInput 2,300.
+        # Down to W: their warnings and errors still reach the log and the reports.
+        VQ=""
+        for t in MI-SF backgroundBlur AllInOneBase hyper_launcher_app AllInOneConvertDataDebug MiuiBlurUtils hyos_spawner \
+                 flutter PowerInsight_DisplayCalculator AllInOneTemplateView Keyguard-Editor-CombinedWallpaperView \
+                 Keyguard-Editor-PagerMarginTransformer Keyguard-Editor-GLTextureView MIUIInput; do
+            k=log.tag.$t
+            grep -qxF "$k" "$HOST" && continue
+            sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
+            echo "$k=W" >> "$NEW"; VQ="$VQ $t"
+        done
+        [ -n "$VQ" ] && echo "guest_props: log.tag = W for the session (HyperOS's debug chatter):$VQ"
         # HyperOS's SurfaceFlinger pre-warms its shaders at start with fake
         # layers, and died there on two phones (0.4.38): S24 Ultra 548e7b73
         # SIGSEGV in DolbyRenderer::requiresDolbyEffect, A57 609d7c2f abort

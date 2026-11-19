@@ -161,6 +161,7 @@ object PackageSets {
     const val ID_PIXEL_F8 = "pixel-f8"
     const val ID_PIXEL_SULTRA = "pixel-sultra"
     const val ID_HYPER_F8U = "hyper-f8u"
+    const val ID_HYPER_HK = "hyper-hk"
     const val ID_PIXEL9_SULTRA = "pixel9-sultra"
     const val ID_INFINITYX = "infinityx"
     const val ID_NOTHING_F8U = "nothing-f8u"
@@ -570,6 +571,52 @@ object PackageSets {
     )
 
     /**
+     * HyperOS 4 Global (0.5.28), out/overlays_hyperos_hk_r2: [Images.HYPEROS_HONGKONG], Xiaomi's OS4.0.5.0.XFRMIXM.
+     * The HyperOS guards as in [HYPER_F8U] plus miui-framework.jar (DisplayFeatureManager without Xiaomi's
+     * displayfeature service), the guest vold as gvld, SurfaceFlinger with the mode group read whole, One UI's
+     * camera for the phones (samcam.tar, samcam_a.tar for the A and M phones, samcam_bar.tar) and its stub
+     * app (OneOSCameraProcessingStub.apk), the fold cutout overlay, the apex requirement list, and the 18 APEX
+     * payloads (the 15 of every set, bt, cellbroadcast and gmssystem: GmsCore, presented as on the One UI 9.5
+     * image). Tethering never mounts.
+     */
+    val HYPER_HK = PackageSet(
+        id = ID_HYPER_HK,
+        imageId = Images.ID_HYPEROS_HONGKONG,
+        sourceDir = "out/overlays_hyperos_hk_r2",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("apprecovery.proinstaller_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-wifi-service_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libsurfaceflinger_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("socket_exec", FileRole.GUEST_FIX),
+            PackageFile("libaudiohal_aidl_patched.so", FileRole.GUEST_FIX),
+            PackageFile("OneOSCameraProcessingStub.apk", FileRole.GUEST_FIX),
+            PackageFile("samcam.tar", FileRole.GUEST_FIX),
+            PackageFile("samcam_a.tar", FileRole.GUEST_FIX),
+            PackageFile("samcam_bar.tar", FileRole.GUEST_FIX),
+        ) + (COMMON_PAYLOADS + listOf("bt", "cellbroadcast", "gmssystem")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING),
+        approxBytes = 866_589_706L,
+        hasReturnApp = true,
+    )
+
+    /**
      * Nothing OS 5.0 (0.4.33), out/overlays_nothing_r11. The smallest set so far:
      * Nothing's system is close enough to AOSP that only services.jar and
      * framework.jar need the guards. It does have a vendor framework jar,
@@ -859,7 +906,7 @@ object PackageSets {
     val ONEUI95 = PackageSet(
         id = ID_ONEUI95,
         imageId = Images.ID_ONEUI95,
-        sourceDir = "out/overlays_oneui95_r5",
+        sourceDir = "out/overlays_oneui95_r6",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -882,7 +929,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE, ONEUI95)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE, ONEUI95)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

@@ -734,3 +734,16 @@ New in 0.5.26: **One UI 9.5 no longer stops after a few minutes.**
 - **One UI 9.5's system stopped by itself 1 to 6 minutes in** on many phones (S23, S23 Ultra, A26 reports), and OneOS
   returned to One UI: one more place in the system still expected the Privacy Display part that 0.5.23 switched off
   (set r5). Please report how long One UI 9.5 now runs.
+
+New in 0.5.27: **HyperOS 4 Global**, and One UI 9.5 no longer stuck in setup on the S23s.
+- **HyperOS 4 Global** (Xiaomi's global build OS4.0.5.0.XFRMIXM, with Google apps and Xiaomi's region apps), on every
+  phone that has the older HyperOS. Tested on the Galaxy A36: setup with Wi-Fi, HyperOS blur and visual effects,
+  Themes / Personalization, Xiaomi Dialer and Messages, the status bar and Dynamic Island around the camera hole,
+  rounded corners, the in-display fingerprint (lock screen at normal brightness), Samsung Camera (opens in about a
+  second), Gallery, the screen recorder, and Back to One UI without a restart. The first minutes after the first
+  boot are slow while Google updates Play services.
+- **One UI 9.5 on the Galaxy S23, S23+ and S23 Ultra stayed on the setup screen** (and could stop after about two
+  minutes): a Samsung security service these phones do not have was waited for forever at the end of boot. It now
+  goes on without it (set r6).
+- **One UI 9.5 could not start on some phones** ("Unable to load SELinux MMAC policy": A07, S23, Z Fold8): a part of
+  the phone's own app permissions file One UI 9.5 ignores stopped the whole system. It is now skipped (set r6).

@@ -44,6 +44,7 @@ SHORT = {
     "pixel9proxl-komodo": "Pixel 9 Pro XL",
     "infinityx41-findx9u": "Infinity-X 4.1",
     "hyperos-lhasa": "HyperOS",
+    "hyperos-hongkong": "HyperOS 4 Global",
     "nothingos5-metroid": "Nothing OS 5",
     "oxygenos16-cph2745": "OxygenOS 16",
     "originos7-pd2609ma": "OriginOS 7",

@@ -22,9 +22,19 @@ object ArtworkFraming {
         SystemFamily.ONEUI -> if (wide) Heading(.067f, .663f, .521f, .907f) else Heading(.071f, .600f, .553f, .791f)
         else -> Heading(.1f, .2f, .9f, .6f)
     }
-    fun transform(family: SystemFamily, sourceWidth: Int, sourceHeight: Int, width: Int, height: Int, reservedBottom: Float = 0f): Transform {
+    /**
+     * 0.5.27: HyperOS 4 Global's own card (os_hyperos_global), apart from the Xiaomi 18 Fold build's: the image's lock
+     * wallpaper with "HyperOS / 4 / Global" in MiSans, in the top third so the Set up card never covers it.
+     */
+    fun hyperOsGlobalHeading(wide: Boolean): Heading =
+        if (wide) Heading(.07f, .114f, .895f, .528f) else Heading(.069f, .104f, .894f, .41f)
+    fun transform(
+        family: SystemFamily, sourceWidth: Int, sourceHeight: Int, width: Int, height: Int, reservedBottom: Float = 0f,
+        hyperOsGlobal: Boolean = false,
+    ): Transform {
         require(sourceWidth > 0 && sourceHeight > 0 && width > 0 && height > 0)
-        val heading = heading(family, sourceWidth.toFloat() / sourceHeight > .6f)
+        val wide = sourceWidth.toFloat() / sourceHeight > .6f
+        val heading = if (hyperOsGlobal) hyperOsGlobalHeading(wide) else heading(family, wide)
         val areaHeight = (height - reservedBottom.coerceIn(0f, height * .4f)).coerceAtLeast(1f)
         val cover = maxOf(width.toFloat() / sourceWidth, height.toFloat() / sourceHeight)
         // Keep the real bitmap covering the view: no edge stretching or side bands.

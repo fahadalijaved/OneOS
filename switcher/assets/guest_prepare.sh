@@ -2299,6 +2299,23 @@ if [ -e "$MIUI_FW/miui-services.jar" ] || [ -L "$MIUI_FW/miui-services.jar" ]; t
         exit 3
     fi
     echo "Bound framework_patched.jar -> $HFW"
+    # (from vdcoolok's feat/guest-local-pin, ported 11-19)
+    # miui-framework.jar: DisplayFeatureManager's no-op instance when the
+    # "displayfeature" service is absent (patches/hyperos_displayfeature_stub.py).
+    # HyperOS registers that service only with Xiaomi's displayfeature vendor
+    # HAL, so on a Samsung vendor getInstance() returned null and the
+    # fingerprint-on-display overlay's setScreenEffect() NPE'd SystemUI: the
+    # lockscreen crash-looped under the FOD glyph (S25 Ultra, 2026-11-15).
+    # Optional: a stage from before the patch keeps the image's jar.
+    MDF="$MIUI_FW/miui-framework.jar"
+    if [ -f "$STAGE/miui-framework_patched.jar" ] && [ -f "$MDF" ] && [ ! -L "$MDF" ]; then
+        $BB umount -l "$MDF" 2>/dev/null || true
+        if $BB mount --bind "$STAGE/miui-framework_patched.jar" "$MDF"; then
+            echo "Bound miui-framework_patched.jar -> $MDF (DisplayFeatureManager a no-op without Xiaomi's displayfeature service)"
+        else
+            echo "!!! miui-framework_patched.jar not bound; the FOD overlay may crash SystemUI on the lockscreen"
+        fi
+    fi
     # The SIM on a HIDL radio (0.4.70; patches/hyperos_hidl_radio.py): Xiaomi's VendorRIL waited for
     # its AIDL radio forever on the MediaTek A07, A16 4G and A17 ("getRadioServiceProxy wait for rild
     # ready", no SIM: 0.4.67 5357ba6a, d946ff36, c3630d06). Sets from r25 carry the jar; older ones
@@ -3048,6 +3065,12 @@ fi
 #   tile. A plain system app, not privileged, no permission: it writes a
 #   request file in its own data folder, which oneos_switch.sh's watcher
 #   takes. ONEOS_GUEST_APP=0 leaves it out.
+# - app/OneOSCameraProcessingStub/OneOSCameraProcessingStub.apk, HyperOS sets
+#   only (make-overlays.sh builds it for an image without Xiaomi Camera), when
+#   the guest has no MiuiCamera: the Xiaomi Camera's "photos still processing"
+#   list, always empty. HyperOS's Gallery queries it on opening a photo and
+#   aborted without it (A36 HyperOS Global 11-19: every photo opened from the
+#   camera). ONEOS_GUEST_CAMERA_PROCESSING_STUB=0 leaves it out.
 $BB umount -l "$ROOTFS/oem" 2>/dev/null
 rm -rf "$STAGE/oem"
 OEM_FILES=""
@@ -3215,6 +3238,18 @@ if [ $INJ = 1 ]; then
         chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSPhoneInjection.apk" &&
         OEM_FILES="$OEM_FILES overlay/OneOSPhoneInjection.apk" &&
         echo "Signal poll: TelephonyComponentFactory injection (oneos-telephony.jar), GET_SIGNAL_STRENGTH every 20 s with the screen on"
+fi
+if [ -f "$STAGE/OneOSCameraProcessingStub.apk" ] && [ ! -d "$GUEST_PRODUCT/priv-app/MiuiCamera" ] &&
+        [ ! -d "$ROOTFS/system/priv-app/MiuiCamera" ] && [ ! -d "$GUEST_SYSTEM_EXT/priv-app/MiuiCamera" ]; then
+    if [ "${ONEOS_GUEST_CAMERA_PROCESSING_STUB:-1}" = 1 ]; then
+        mkdir -p "$STAGE/oem/app/OneOSCameraProcessingStub" &&
+            cp "$STAGE/OneOSCameraProcessingStub.apk" "$STAGE/oem/app/OneOSCameraProcessingStub/" &&
+            chmod 755 "$STAGE/oem" "$STAGE/oem/app" "$STAGE/oem/app/OneOSCameraProcessingStub" &&
+            chmod 644 "$STAGE/oem/app/OneOSCameraProcessingStub/OneOSCameraProcessingStub.apk" &&
+            OEM_FILES="$OEM_FILES app/OneOSCameraProcessingStub/OneOSCameraProcessingStub.apk"
+    else
+        echo "Camera processing stub left out (ONEOS_GUEST_CAMERA_PROCESSING_STUB=0)"
+    fi
 fi
 if [ "${ONEOS_GUEST_APP:-1}" = 1 ]; then
     mkdir -p "$STAGE/data/oneos_bootui"
@@ -3453,7 +3488,10 @@ if [ "${ONEOS_GUEST_BIOMETRICS:-1}" = 1 ] && grep -q '^# biometric-remove guard'
     # (guest_fp_touchwatch.py) reads the touch panel. "<evdev node> <max x> <max y> <panel width> <panel height>".
     TFILE=$STAGE/data/system/oneos_fp_touch
     rm -f "$TFILE"
-    if [ -f "$LFILE" ] && [ -f "$UFILE" ] && [ -e "$ROOTFS/system/framework/oplus-services.jar" ] &&
+    # HyperOS too (11-19, A36): its fingerprint icon tells Xiaomi's touch driver and display ("fodCallBack ...
+    # cmdSendToTouch:1 ... writeRes:false"), never Samsung's HAL, so the sensor never scanned.
+    if [ -f "$LFILE" ] && [ -f "$UFILE" ] && { [ -e "$ROOTFS/system/framework/oplus-services.jar" ] ||
+       [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; } &&
        [ "${ONEOS_GUEST_FP_TOUCHWATCH:-1}" = 1 ]; then
         TDEV=''
         for e in /sys/class/input/event*; do
@@ -6584,6 +6622,40 @@ if [ "${ONEOS_GUEST_MIUI_PROVISION:-0}" != 1 ]; then
             echo "Hid guest ${d#"$ROOTFS"/} (Xiaomi's fallback setup next to Google's wizard: one setup wizard; ONEOS_GUEST_MIUI_PROVISION=1 keeps it)"
         break
     done
+fi
+# HyperOS Global's screen recorder (11-19 A36 test: "screenrecorder keeps crashing"): it is installed from
+# /product/data-app, so as an updatable app, and Android 15+ grants a platform-signed app outside the system
+# partitions the platform's signature permissions only when a <signature-permissions> allowlist names it.
+# Xiaomi's lists in the image do not (its entry is in a partition a Galaxy does not have), so its floating
+# control died: "DisplayPolicy: uid ... does not have android.permission.INTERNAL_SYSTEM_WINDOW". Its own
+# requested signature permissions are added to a copy of Xiaomi's voiceassist list, bound over it.
+# ONEOS_GUEST_MIUI_SIGPERMS=0 leaves the image's lists alone.
+SIGL=""
+for f in "$ROOTFS/system/product/etc/permissions/signature-permissions-voiceassist.xml" "$ROOTFS/product/etc/permissions/signature-permissions-voiceassist.xml"; do
+    [ -f "$f" ] && [ ! -L "$f" ] && { SIGL=$f; break; }
+done
+if [ "${ONEOS_GUEST_MIUI_SIGPERMS:-1}" = 1 ] && [ -n "$SIGL" ] && grep -q '</permissions>' "$SIGL" &&
+   ! grep -q 'package="com.miui.screenrecorder"' "$SIGL" &&
+   { [ -d "$ROOTFS/system/product/data-app/MIUIScreenRecorder" ] || [ -d "$ROOTFS/product/data-app/MIUIScreenRecorder" ]; }; then
+    SIGC="$STAGE/data/oneos_sigperms_voiceassist.xml"
+    {
+        sed '/<\/permissions>/d' "$SIGL"
+        echo '   <signature-permissions package="com.miui.screenrecorder">'
+        for perm in ACCESS_SURFACE_FLINGER CAPTURE_VIDEO_OUTPUT CAPTURE_VOICE_COMMUNICATION_OUTPUT INTERACT_ACROSS_USERS \
+                    INTERNAL_SYSTEM_WINDOW MANAGE_MEDIA_PROJECTION MANAGE_USERS MOUNT_UNMOUNT_FILESYSTEMS \
+                    READ_PRIVILEGED_PHONE_STATE RECORD_SENSITIVE_CONTENT START_ACTIVITIES_FROM_BACKGROUND STATUS_BAR \
+                    SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE WRITE_MEDIA_STORAGE WRITE_SECURE_SETTINGS; do
+            echo "      <permission name=\"android.permission.$perm\" />"
+        done
+        echo '   </signature-permissions>'
+        echo '</permissions>'
+    } > "$SIGC.tmp" && mv -f "$SIGC.tmp" "$SIGC" && chmod 644 "$SIGC" &&
+    $BB chcon u:object_r:system_file:s0 "$SIGC" 2>/dev/null
+    if grep -q 'INTERNAL_SYSTEM_WINDOW' "$SIGC" 2>/dev/null && $BB mount --bind "$SIGC" "$SIGL"; then
+        echo "HyperOS screen recorder: its signature permissions allowed (${SIGL#"$ROOTFS"/})"
+    else
+        echo "HyperOS screen recorder: allowlist not bound; it keeps crashing at its floating control"
+    fi
 fi
 # OPPO's camera in an image that also has LineageOS's Aperture (Infinity-X 4.1
 # for the Find X9 Ultra): OplusCamera takes its camera list from the Find X9

@@ -74,6 +74,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
     "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r28") to listOf("tethering_payload.img")),
+    // HyperOS 4 Global (0.5.28): Xiaomi's global build OS4.0.5.0.XFRMIXM with Google apps (gmssystem payload). Tethering never mounts.
+    "hyper-hk" to (File(repoRoot, "out/overlays_hyperos_hk_r2") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
     "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r38") to listOf("tethering_payload.img")),
     "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r6") to listOf("tethering_payload.img")),
@@ -88,7 +90,7 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // cellbroadcast module is left out like Infinity-X's.
     "lineage" to (File(repoRoot, "out/overlays_lineage_r8") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // One UI 9.5 (0.5.22, untested): the Galaxy S26 Ultra build, on the phones on One UI 9. Tethering never mounts.
-    "oneui95" to (File(repoRoot, "out/overlays_oneui95_r5") to listOf("tethering_payload.img")),
+    "oneui95" to (File(repoRoot, "out/overlays_oneui95_r6") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -523,8 +525,8 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 169
-        versionName = "0.5.26"
+        versionCode = 170
+        versionName = "0.5.27"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

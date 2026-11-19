@@ -1,0 +1,23 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# HyperOS: miui-services_patched.jar and apprecovery.proinstaller_patched.jar (patches/miui_guards.py)
+# HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)
+# HyperOS: miui-wifi-service_patched.jar (patches/hyperos_hal_ext.py, Xiaomi's HAL extension casts only on Xiaomi's)
+# HyperOS: miui-telephony-common_patched.jar (patches/hyperos_telephony.py, the IMS controller without an IMS phone)
+# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+# libsurfaceflinger_patched.so: Xiaomi's SurfaceFlinger with the display mode group read 32-bit (patches/hyperos_sf_group.py; 11-19 A36: abort at the first display, 'No matching frame rate modes')
+# biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py); the fingerprint sensor through AIDL (patches/guest_force_aidl_fingerprint.py, from pull request #152); HyperOS Global hk r2; Samsung's touch request and the touch watcher for the optical sensor (patches/guest_seh_touch.py, guest_fp_touchwatch.py)
+# miui-framework_patched.jar: DisplayFeatureManager a no-op without Xiaomi's displayfeature service (patches/hyperos_displayfeature_stub.py, vdcoolok); hk r2
+# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
+a9f5f8f1cb9677341c1df6721be3d44ed1f74d8d6a66eb5444ff9dca7e788688  services_patched.jar
+83818d4752b6979df7f619e782ca17fb3626e36929700ee876eb1efd16a221f9  miui-services_patched.jar
+8897213ef865937737fbea3f58880e3c188012064471620f6f479265a79dfb4c  apprecovery.proinstaller_patched.jar
+b97cd4d84be630d80a7ea4ad10a4cf0d8b4b9b99ba0e697f0799c5dab769ca91  framework_patched.jar
+1529a6fbe5ba7af0a251cc1cc186f3e685279f282e18cc5733d05dce228e7240  miui-wifi-service_patched.jar
+628c48e472f850a5c8633ba19ee3bc55b86d49c1868c851bfbd146c89b078bee  miui-telephony-common_patched.jar
+728899fa4aad11e3bae3b268ed0ef123ec2d70d6b123b39ee0659c7d7cb5de18  telephony-common_patched.jar
+6c1e3145d4d4fba2d8413e9266e1d6c4685fcce545663e681751213809427cbd  libcamera_client_patched.so
+39b2c7555a7b14a5e78f8617eccfd10a569778390ddd8aa49c465b4ef5559f6a  libsurfaceflinger_patched.so
+28a82c4e120fc22b1e0546cca875f79973781b42398f361373d9d685b29fb7d0  miui-framework_patched.jar
+04c35b486f838198034e9cf92cff23985a027cedb3eb80cb4a31927fa39f4af8  vold_patched
+f786400efceda164e04bb85c2ebe9477b6f688aeb06b724af06e95b57de2ebd5  service.incremental_patched.so

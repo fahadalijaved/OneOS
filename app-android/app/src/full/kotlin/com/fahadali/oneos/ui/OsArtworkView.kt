@@ -15,6 +15,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
     private var artwork = 0
     private var rendered = 0
     private var family = SystemFamily.COLOROS
+    private var hyperOsGlobal = false
     internal val artworkFamily: SystemFamily get() = family
     init {
         scaleType = ScaleType.CENTER_CROP
@@ -23,7 +24,8 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
         foreground = androidx.appcompat.content.res.AppCompatResources.getDrawable(context, R.drawable.catalog_card_outline)
         clipToOutline = true
     }
-    fun bind(image: ImageRef?) = bindArtwork(when (image?.family) {
+    // 0.5.27: HyperOS 4 Global has its own artwork ("Global" on it), apart from the Xiaomi 18 Fold build's.
+    fun bind(image: ImageRef?) = bindArtwork(if (image?.id == com.fahadali.oneos.core.model.Images.ID_HYPEROS_HONGKONG) R.drawable.os_hyperos_global else when (image?.family) {
         SystemFamily.PIXEL -> R.drawable.os_pixel
         SystemFamily.HYPEROS -> R.drawable.os_hyperos
         SystemFamily.NOTHING -> R.drawable.os_nothing
@@ -37,8 +39,9 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
     fun bindArtwork(resource: Int) {
         if (artwork == resource) return
         artwork = resource
+        hyperOsGlobal = resource == R.drawable.os_hyperos_global
         family = when (resource) {
-            R.drawable.os_hyperos -> SystemFamily.HYPEROS
+            R.drawable.os_hyperos, R.drawable.os_hyperos_global -> SystemFamily.HYPEROS
             R.drawable.os_nothing -> SystemFamily.NOTHING
             R.drawable.os_infinity -> SystemFamily.INFINITYX
             R.drawable.os_pixel -> SystemFamily.PIXEL
@@ -61,7 +64,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
     private fun frame() {
         if (artwork == 0) return
         val header = tag?.toString()?.startsWith("heading") == true && height > 0 && width.toFloat() / height > .8f
-        val resource = if (!header) artwork else when (family) {
+        val resource = if (!header) artwork else if (hyperOsGlobal) R.drawable.os_hyperos_global_header else when (family) {
             SystemFamily.HYPEROS -> R.drawable.os_hyperos_header
             SystemFamily.NOTHING -> R.drawable.os_nothing_header
             SystemFamily.INFINITYX -> R.drawable.os_infinity_header
@@ -77,7 +80,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
         val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: return
         scaleType = ScaleType.MATRIX
         val bottom = if (tag == "heading_progress") minOf(112 * resources.displayMetrics.density, height * .30f) else 0f
-        val crop = ArtworkFraming.transform(family, bitmap.width, bitmap.height, width, height, bottom)
+        val crop = ArtworkFraming.transform(family, bitmap.width, bitmap.height, width, height, bottom, hyperOsGlobal)
         imageMatrix = Matrix().apply { setScale(crop.scale, crop.scale); postTranslate(crop.x, crop.y) }
     }
 }

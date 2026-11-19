@@ -161,6 +161,19 @@ BUILDS = [
         "service.incremental.so": "e7da297ddedc625df330317c2321b5a2fd25f4dd2535f9c65a1490b5b8d6687d",
         "crashrecovery-aosp.capex": "d31bc1ccbb9bd60d2c78f0bd045cbb194838f936aafe2b551ab5d8344c9f2cd8",
     }, [("vold", 0xf3fc, NAME), ("vold", 0x6e2d4, TRY_START), ("service.incremental.so", 0x64745, NAME)]),
+    # HyperOS OS4.0.5.0 Global (hongkong, XFRMIXM, 11-19): VoldNativeService::start() takes "vold" at 0x385b1
+    # (adrp 0x38000 + add 0x5b1 at 0xa8cd8, then String16; the binary's only "\0vold\0", its other references
+    # are log tags around 0xf3200); VendorVoldNativeService::try_start's tbz w19, #0 at 0xa86c8 right after
+    # isDeclared("android.system.vold.IVold/default", adr 0x41644) through the service manager's vtable.
+    # service.incremental.so has the string at 0x649af (BinderIncrementalService::start's adr, and
+    # RealServiceManager::getVoldService's adrp + add). Its compressed crashrecovery APEX has AOSP's
+    # RescueParty.isDisabled (persist.sys.enable_rescue, the DeviceConfig flag, eng/userdebug). Without it every
+    # return from this image rebooted (A36 test 11-19: "vold is not registered now").
+    ("HyperOS OS4.0.5.0 Global (hongkong)", {
+        "vold": "5104274bd3e152bceaaf0a2fdf50fff5a9d3c81f47d5bfec8fd3313b0a166887",
+        "service.incremental.so": "3b541bd10d4d7553fe31f28de309e3d2566ab1095113abd95ebbfa9cddb02667",
+        "crashrecovery-google-compressed.apex": "925502907d50a3e37fec22a9219b3b6633a4712ab815c2ef0bbe04d8e67714b4",
+    }, [("vold", 0x385b0, NAME), ("vold", 0xa86c8, TRY_START), ("service.incremental.so", 0x649ae, NAME)]),
     # Nothing OS 5.0 (Metroid, AQ3A.250924.001): start() takes "vold" at 0xe1e8
     # (adrp 0xe000 + add 0x1e8 at 0x64d38, then String16 and a new
     # VoldNativeService; the binary's only "\0vold\0", whose other 9 references
@@ -404,6 +417,12 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/qti_builtin_display_pub
 if "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -q '^ro.build.version.oneui='; then
     KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_privacy_display_null_safe.py" "$WORK/services")" || exit 1
     KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_privacy_display_controller_always.py" "$WORK/services")" || exit 1
+    # Set r6: VaultKeeperService unsupported when no ISehVaultKeeper HAL is registered (S23 family:
+    # DmcService's boot-completed phase waited for it forever, setup wizard stuck, watchdog).
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_vaultkeeper_unreachable.py" "$WORK/services")" || exit 1
+    # Set r6: a vendor <signer> stanza emptied by ignore_mac_permissions_package is dropped, not fatal
+    # ("Unable to load SELinux MMAC policy" on the A07, S23 and Fold8).
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_mmac_empty_signer.py" "$WORK/services")" || exit 1
 fi
 # A dex the added OneOS classes push past 65536 method references (the Pixel 9
 # Pro XL's classes2: 65568) gets them moved to a dex of their own after the
@@ -710,10 +729,44 @@ if in_image $MIUI_JAR; then
         echo "built $OUT/framework_patched.jar (replaced $DEX)"
     done
     rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/framework.jar"
+    # (from vdcoolok's feat/guest-local-pin, ported 11-19)
+    # miui-framework.jar: DisplayFeatureManager.getInstance() installs a no-op
+    # instance when the "displayfeature" service is absent (patches/
+    # hyperos_displayfeature_stub.py). HyperOS registers that service only with
+    # Xiaomi's vendor.xiaomi.hardware.displayfeature HAL, which a Samsung vendor
+    # does not have: getInstance() returned null and SystemUI's
+    # fingerprint-on-display overlay called setScreenEffect() on it, so the
+    # lockscreen crash-looped under the FOD glyph (S25 Ultra, 2026-11-15).
+    MFW_JAR=/system/system_ext/framework/miui-framework.jar
+    in_image $MFW_JAR || { echo "ERROR: $MIUI_JAR without $MFW_JAR" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $MFW_JAR $WORK/miui-framework.jar" "$IMG" 2>/dev/null
+    decode "$WORK/mfw" "$WORK/miui-framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_displayfeature_stub.py" "$WORK/mfw")
+    java -jar "$APKTOOL" b -q -o "$WORK/mfw-rebuilt.jar" "$WORK/mfw"
+    cp "$WORK/miui-framework.jar" "$OUT/miui-framework_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/mfw-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-framework_patched.jar" "$DEX")
+        echo "built $OUT/miui-framework_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/mfw" "$WORK/mfw-rebuilt.jar" "$WORK/miui-framework.jar"
+    # HyperOS's Gallery asks the Xiaomi Camera for the photos still processing
+    # and aborts without it (scripts/hyperos/camera_processing_stub; A36 HyperOS
+    # Global 11-19). The Samsung Camera replaces Xiaomi's, so an empty list
+    # stands in; guest_prepare.sh puts it in /oem when the guest has no
+    # MiuiCamera.
+    if in_image /system/product/priv-app/MiuiCamera; then
+        rm -f "$OUT/OneOSCameraProcessingStub.apk"
+        echo "camera processing stub: the image has Xiaomi Camera, not built"
+    else
+        sh "$ROOT/scripts/hyperos/camera_processing_stub/build.sh" "$OUT"
+    fi
 else
     rm -f "$OUT/miui-services_patched.jar" "$OUT/apprecovery.proinstaller_patched.jar" "$OUT/framework_patched.jar" "$OUT/miui-wifi-service_patched.jar" \
           "$OUT/miui-telephony-common_patched.jar" "$OUT/xiaomi-opt-telephony_patched.jar" "$OUT/socket_exec" \
-          "$OUT/libaudiohal_aidl_patched.so"
+          "$OUT/libaudiohal_aidl_patched.so" "$OUT/miui-framework_patched.jar" "$OUT/OneOSCameraProcessingStub.apk"
     echo "miui-services.jar: not in the image, nothing to patch"
 fi
 
