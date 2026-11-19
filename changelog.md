@@ -729,3 +729,8 @@ New in 0.5.25: **One UI 9.5 fixes from your reports, and fixes for every system.
 - **Galaxy Z Fold7:** One UI 9.5 no longer runs at a tablet-sized tiny layout (both screens at 213 dpi).
 - Session logs now show the real session time.
 - Returning from One UI 9.5 still restarts the phone (being worked on).
+
+New in 0.5.26: **One UI 9.5 no longer stops after a few minutes.**
+- **One UI 9.5's system stopped by itself 1 to 6 minutes in** on many phones (S23, S23 Ultra, A26 reports), and OneOS
+  returned to One UI: one more place in the system still expected the Privacy Display part that 0.5.23 switched off
+  (set r5). Please report how long One UI 9.5 now runs.

@@ -403,6 +403,7 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/qti_builtin_display_pub
 # One UI images (set oneui95 r3): Privacy Display binder calls safe without a controller (CoreRune flags off).
 if "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -q '^ro.build.version.oneui='; then
     KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_privacy_display_null_safe.py" "$WORK/services")" || exit 1
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_privacy_display_controller_always.py" "$WORK/services")" || exit 1
 fi
 # A dex the added OneOS classes push past 65536 method references (the Pixel 9
 # Pro XL's classes2: 65568) gets them moved to a dex of their own after the

@@ -41,11 +41,18 @@ root_only() {
 # here: the panic comes when its pipe is freed, so killing it would be the crash. The
 # app starts the tool again at boot (aee4e2df on 0.5.04: refused after two restarts), so
 # the message asks for the app to be uninstalled.
+# 11-19 report 176dcdab (S24 Ultra, 0.5.25, kernel panic in libtimer.so pid 1730): the app had been updated
+# while its tool ran, and the tool's exe read ".../==deleted==/.../lib/arm64/libtimer.so (deleted)", which the
+# pattern missed; the app's name is then taken from the command line (its old /data/app path).
 for ex in /proc/[0-9]*/exe; do
     t=$(readlink "$ex" 2>/dev/null) || continue
     case "$t" in
-        /data/app/*/lib/*/libtimer.so)
+        /data/app/*/lib/*/libtimer.so|/data/app/*/lib/*/libtimer.so" (deleted)")
             a=${t#/data/app/}; a=${a#*/}; a=${a%%/lib/*}; a=${a%%-*}
+            case "$t:$a" in *" (deleted)":*|*:|*:*/*)
+                a=$(tr '\0' ' ' < "${ex%/exe}/cmdline" 2>/dev/null | sed -n 's|^/data/app/[^/]*/\([A-Za-z0-9_.]*\)-[^/]*/lib/.*|\1|p')
+                [ -n "$a" ] || a="(an app updated since it started the tool)" ;;
+            esac
             refuse "the app $a runs a kernel tool (libtimer.so, pid $(echo "$ex" | cut -d/ -f3)) that crashed the kernel of S24 phones during OneOS sessions. It starts again after every restart, so restarting does not help: uninstall $a (Settings, Apps; the phone may restart once while its tool closes), then switch again" ;;
     esac
 done
@@ -3139,6 +3146,7 @@ while true; do
                [ -f $STAGE/data/oneos_overlay_dimen.dex ] && { [ \"$GUEST_AOSP_SYSUI$GUEST_MIUI\" = 00 ] || [ $GUEST_FOLD_FORM = 1 ]; }; then
                 CRAD=\$(head -n 1 $STAGE/host_corner_radius)
                 case \"\$CRAD\" in ''|*[!0-9]*) CRAD='' ;; esac
+                [ $GUEST_MIUI = 1 ] && [ -n \"\$CRAD\" ] && CRAD=\$((CRAD / 2))
             fi
             if [ \"${ONEOS_GUEST_HOST_CUTOUT:-1}\" = 1 ] && [ -f $STAGE/host_statusbar ] && [ ! -L $STAGE/host_statusbar ]; then
                 HCS=\$(sed -n 's/^spec=//p' $STAGE/host_statusbar | head -n 1)
@@ -3172,6 +3180,11 @@ while true; do
                 case \"\$CUT\$CUTR\" in *[!-0-9A-Za-z._,@\\ ]*) CUT='' CUTR='' ;; esac
                 HSB=\$(sed -n 's/^height=//p' $STAGE/host_statusbar | head -n 1)
                 HRC=\$(sed -n 's/^radius=//p' $STAGE/host_statusbar | head -n 1)
+                # HyperOS animates app launches as cards with the window corner radius; at this phone's own
+                # (A36: 118 px) they stayed round far into the launch (owner 11-19: \"so much rounded before they
+                # fill\"); half of it looked right on the A36 (60 px).
+                HRCF=\$HRC
+                [ $GUEST_MIUI = 1 ] && case \"\$HRC\" in ''|*[!0-9]*) ;; *) HRC=\$((HRC / 2)) ;; esac
                 OVS=''
                 if [ -n \"\$CUT\" ] && [ -n \"\$CUTR\" ] &&
                    gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string \"\$CUT\" &&
@@ -3215,12 +3228,26 @@ while true; do
                         ''|*[!0-9]*) ;;
                         *) r=\$(gdim OneOSCornerRadius android android:dimen/rounded_corner_radius=\$HRC android:dimen/rounded_corner_radius_top=\$HRC android:dimen/rounded_corner_radius_bottom=\$HRC)
                            case \"\$r\" in registered*) OVS=\"\$OVS OneOSCornerRadius\" ;; *) DIMS=\"\$DIMS radius: \$r;\" ;; esac
+                           # HyperOS's island (SystemUI's DynamicIslandController answers the plugin's
+                           # cutout_y with dimen/cut_out_center_y, Xiaomi's own phone's value) centred on
+                           # this phone's camera hole: the middle of One UI's cutout rect (A36: 24..92 -> 58;
+                           # it sat at 76 and the hole showed above the island, owner 11-19).
+                           if [ $GUEST_MIUI = 1 ]; then
+                               CY=\$(echo \"\$CUTR\" | tr -c '0-9,-' ' ' | tr ' ' '\\n' | sed -n 's/^-*[0-9]*,\\([0-9][0-9]*\\)\$/\\1/p' | sort -n | sed -n '1p;\$p' | tr '\\n' ' ')
+                               CY=\$(echo \"\$CY\" | awk 'NF == 2 && \$2 > \$1 { printf \"%d\", (\$1 + \$2) / 2 }')
+                               if [ -n \"\$CY\" ]; then
+                                   r=\$(gdim OneOSIslandCenter com.android.systemui com.android.systemui:dimen/cut_out_center_y=\$CY)
+                                   case \"\$r\" in registered*) OVS=\"\$OVS OneOSIslandCenter\" ;; *) DIMS=\"\$DIMS island \$CY px: \$r;\" ;; esac
+                               fi
+                           fi
                            # Where the corner's curve leaves the status bar's icons
                            # room: at a third of the bar's height (the top of the
                            # clock's digits). Only over the 8dp the static RRO
                            # gives (24 px), both sides alike. AOSP SystemUI only.
-                           PAD=\$(awk -v r=\"\$HRC\" -v h=\"\${HSBG:-0}\" -v k=\"\$SBK\" 'BEGIN { if (split(k, a, \" \") == 2) r = r * a[1] / a[2]; y = h / 3; p = 0; if (y < r) p = r - sqrt(r * r - (r - y) * (r - y)); printf \"%d\", p + 0.5 }')
-                           if [ $GUEST_AOSP_SYSUI = 1 ] && [ \"\${PAD:-0}\" -gt 24 ]; then
+                           PAD=\$(awk -v r=\"\${HRCF:-\$HRC}\" -v h=\"\${HSBG:-0}\" -v k=\"\$SBK\" 'BEGIN { if (split(k, a, \" \") == 2) r = r * a[1] / a[2]; y = h / 3; p = 0; if (y < r) p = r - sqrt(r * r - (r - y) * (r - y)); printf \"%d\", p + 0.5 }')
+                           # HyperOS too (11-19, A36): Xiaomi's own SystemUI overlay gives 100 px, the
+                           # clock started at 113 px; this phone's curve gives 36 (\"perfect\", owner).
+                           if { [ $GUEST_AOSP_SYSUI = 1 ] || [ $GUEST_MIUI = 1 ]; } && [ \"\${PAD:-0}\" -gt 24 ]; then
                                r=\$(gdim OneOSCornerPadding com.android.systemui com.android.systemui:dimen/rounded_corner_content_padding=\$PAD com.android.systemui:dimen/ongoing_appops_dot_min_padding=\$PAD)
                                case \"\$r\" in registered*) OVS=\"\$OVS OneOSCornerPadding\" ;; *) DIMS=\"\$DIMS padding \$PAD px: \$r;\" ;; esac
                            fi
@@ -3277,7 +3304,7 @@ while true; do
                     case \$o in
                         OneOSCornerRadius) [ -n \"\$CRAD\" ] && continue
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
-                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerPadding|OneOSNtStatusBar|OneOSNtPowerKey)
+                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerPadding|OneOSNtStatusBar|OneOSNtPowerKey|OneOSIslandCenter)
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
                     esac
                 done
