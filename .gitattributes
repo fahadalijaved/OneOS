@@ -5,3 +5,8 @@ switcher/patches/fold8-coloros/systemui.patch whitespace=-blank-at-eol
 # must not turn them into CRLF files (mksh treats the carriage return as part
 # of shell keywords and the guest takeover dies before zygote starts).
 *.sh text eol=lf
+# The probe lists are sourced by probe.sh; a CRLF list makes its first line
+# "unzip: inaccessible or not found" and every entry fail. host_installd.txt is
+# read line by line by the installd table parser.
+*.list text eol=lf
+switcher/patches/host_installd.txt text eol=lf
