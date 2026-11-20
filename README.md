@@ -1,3 +1,31 @@
+OneOS SwBridge IO Addon [v2.0 Final] - 2026-11-09 OneUI 7-9 (OneOS 0.4.72+)
+🚀 Pure Screen Lock & Quick Switch Bridge (Zero SuperUser Manipulation)
+All Root Backup and Manipulation Codes Removed: Based on feedback provided to the developer, since the issue of reactivating rooted applications in the manager has been resolved,
+all complex superuser backup, dynamic UID calculation, allowlist parsing, and profile copying operations within the module have been completely removed.
+The module is now solely focused on what it does best: instantly removing and restoring screen locks and encryption keys!
+Streamlined Actions (SwOUT & SwIN): The old SwapOUT and SwapIN buttons have been shortened to SwOUT and SwIN.
+SwOUT: Removes the device password and lock screen protection within milliseconds (locksettings clear, set-disabled true). Provides password-free, instant switching to another OS.
+SwIN: When returning to the system, it restores the predefined PIN or password with a single key press (locksettings set-pin/password).
+Unnecessary ManualSUBak, SU Backup, SU Restore, and Clear buttons, broken references, and obsolete functions have been completely removed.
+100% Solution for Admin Crash Issues: Commands like am force-stop or killall that suddenly kill the BakaSU/KernelSU WebUI have been completely removed.
+Administrators absolutely do not touch the /data/data databases or SELinux labels.
+Duplicate IDs and in-directory symbolic links that caused the Compose LazyColumn list to crash were removed.
+Performance & Code Cleanup: The background service load has been reduced to zero.
+The script size and execution time were minimized.
+The zip file size has been reduced and the package name has been standardized to OneOS_Sw_Bridge_IO_v2.zip.
+[v1.3.x] - Intermediate Versions WebUI optimizations and multi-theme support were added for BakaSU and KowSU manager.
+Magisk / KernelSU bootstrap has been standardized.
+[v1.2.0] - First Production Release Initial basic unlocking logic and WebUI draft.
+
+## 👥 Credits & Authors
+
+* **Maintainer & Developer:** [Mualiy.net](http://Mualiy.net)
+* **OneOS Core Project:** [Fahad Ali](https://github.com/fahadalijaved) & Team
+* **Upstream Acknowledgements:**
+  - WeWaffles (*OneLineage container concept*)
+  - The MysticGSI Authors & phh (*TrebleDroid / GSI foundations*)
+  - KernelSU Team (*Kernel-assisted root & WebUI bridge*)
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="images/banner-dark-2x.png">
