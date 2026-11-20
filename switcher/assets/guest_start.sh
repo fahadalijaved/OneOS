@@ -461,18 +461,19 @@ else
     echo "[Pivoted Root] SurfaceFlinger HW overlays disabled: $(cat /data/sf_1008.log)"
 fi
 
-# Fold layout (see "Foldable layouts" above), like the Find N6: lid closed
-# (Samsung's device state 0) puts ColorOS on the cover, lid open (3) on the
-# inner panel; the other panel is switched off. State 0 comes first and lists
+# Fold and Flip layout (see "Foldable layouts" above), like the Find N6: lid
+# closed (Samsung's device state 0) puts the guest on the cover, lid open (3)
+# on the inner panel; the other panel is switched off. State 0 comes first and lists
 # both panels with the cover enabled: ColorOS maps addresses by that rule, so
 # with the real ids its mapping is the identity. The ids come from the guest
-# SurfaceFlinger: port 147 is the inner panel, 148 the cover (run 30; the Find
-# N6's own overlay uses the same two ports). SurfaceFlinger keeps the port in
-# the id's low byte, which is where DeviceStateToLayoutMap takes the port from
+# SurfaceFlinger; on the Find N6 port 147 is the inner panel and 148 the cover
+# (run 30), and a Flip has its own pair. SurfaceFlinger keeps the port in the
+# id's low byte, which is where DeviceStateToLayoutMap takes the port from
 # when the file has no <port>. ONEOS_GUEST_FOLD=off: inner panel only (run 30).
 # OneOS: the ports come from the host's touch-to-display associations
-# (sec_touchscreen = inner, sec_touchscreen2 = cover), 147/148 when the file
-# does not say, so another foldable does not get the Fold's.
+# (sec_touchscreen = inner, sec_touchscreen2 = cover) or, when that file does
+# not name them, from One UI's display dump (guest_prepare.sh); the Fold's
+# 147/148 is the last fallback only.
 if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
     IN_PORT=''; CV_PORT=''
     for f in /vendor/etc/input-port-associations.xml /vendor/odm/etc/input-port-associations.xml; do
@@ -481,8 +482,16 @@ if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
         CV_PORT=$(sed -n 's/.*<port display="\([0-9][0-9]*\)" input="sec_touchscreen2".*/\1/p' "$f" | head -1)
         break
     done
+    # A Flip's vendor file may not name both touch devices: guest_prepare.sh
+    # leaves the host's own ports in the staged /data (oneos_cover_port,
+    # oneos_inner_port) from One UI's display dump. The Fold's 147/148 is the
+    # last fallback only.
+    if [ -z "$IN_PORT" ] || [ -z "$CV_PORT" ] || [ "$IN_PORT" = "$CV_PORT" ]; then
+        CV_PORT=$(cat /data/oneos_cover_port 2>/dev/null)
+        IN_PORT=$(cat /data/oneos_inner_port 2>/dev/null)
+    fi
     [ -n "$IN_PORT" ] && [ -n "$CV_PORT" ] && [ "$IN_PORT" != "$CV_PORT" ] || { IN_PORT=147; CV_PORT=148; }
-    echo "[Pivoted Root] Fold ports: inner $IN_PORT, cover $CV_PORT"
+    echo "[Pivoted Root] Fold/flip ports: inner $IN_PORT, cover $CV_PORT"
     INNER=''; COVER=''; n=0
     while [ $n -lt 25 ]; do
         DIDS=$(dumpsys SurfaceFlinger --display-id 2>/dev/null)
@@ -520,7 +529,7 @@ if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
             # outer primary, 2 HALF_OPENED and 3 OPENED inner, 4 OPENED_REVERSE
             # outer (the Pixel order below put 3 on the cover).
             STATES="0:$COVER:$INNER 1:$COVER:$INNER 2:$INNER:$COVER 3:$INNER:$COVER 4:$COVER:$INNER"
-            LNOTE="HyperOS fold states 0 closed and 1 tent on the cover, 2 half open and 3 open on the inner panel, 4 reverse on the cover."
+            LNOTE="HyperOS fold/flip states 0 closed and 1 tent on the cover, 2 half open and 3 open on the inner panel, 4 reverse on the cover."
         else
             # AOSP's numbering is only right for an image that brings its own
             # device states, because it is its own file that makes 1 and 2
@@ -719,13 +728,17 @@ LEDBL=0
 BLMAX=$(cat $BL/max_brightness 2>/dev/null); BLON=928
 case "$BLMAX" in ''|*[!0-9]*) [ $LEDBL = 1 ] && { BLMAX=255; BLON=102; } ;; *) [ "$BLMAX" -lt 928 ] && BLON=$((BLMAX * 2 / 5)) ;; esac
 echo "[Pivoted Root] Backlight: inner=$(cat $BL/brightness 2>/dev/null) cover=$(cat $BL2/brightness 2>/dev/null)$([ $LEDBL = 1 ] && echo " (LED $BL, max ${BLMAX:-?})")"
-# A Fold switched while folded has the inner panel at 0 and the cover lit:
-# the cover is the one kept lit then (guest_props.sh puts the boot animation
-# there too), not the inner panel nobody can see.
-# Never on a flip or bar phone (ONEOS_GUEST_FORM=phone): a Z Flip5 on HyperOS
-# booted with its main panel dark and the cover lit (0.4.59 report 1e8846f4).
+# A Fold or Flip switched while folded has the inner panel at 0 and the cover
+# lit: the cover is the one kept lit then (guest_props.sh puts the boot
+# animation there too), not the inner panel nobody can see.
+# Never on a bar phone (ONEOS_GUEST_FORM=phone): a Z Flip5 on HyperOS booted
+# with its main panel dark and the cover lit (0.4.59 report 1e8846f4); the
+# flip form now takes this branch so that a Flip started folded keeps its
+# cover, not the dark inner panel.
 KBL=$BL; KNAME=inner
-if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] && [ -w "$BL2/brightness" ] && [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ]; then
+if { [ "${ONEOS_GUEST_FORM:-fold}" = fold ] || [ "${ONEOS_GUEST_FORM:-fold}" = flip ]; } &&
+        [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] && [ -w "$BL2/brightness" ] &&
+        [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ]; then
     KBL=$BL2; KNAME=cover
 fi
 if [ -w "$KBL/brightness" ]; then

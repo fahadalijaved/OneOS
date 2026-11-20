@@ -29,12 +29,15 @@ as on Snapdragon. What the session scripts had learned on Snapdragon:
   / `panel1` on Exynos. guest_start.sh's boot-animation wake and the
   diagnostics take whichever exists. The wake value 928 is in the range the
   probes showed in normal use (838 and 1295 of 12750).
-- **Ports** are 129/130 instead of 147/148. Only the fold layout and the Z Fold8
-  Ultra's Pixel display configs use ports, and neither applies here.
+- **Ports** are 129/130 instead of 147/148. The fold layout (guest_start.sh)
+  and the Z Fold8 Ultra's Pixel display configs use ports; the layout now reads
+  a Flip's own ports from the vendor input-port associations (129/130 when the
+  file does not name them).
 
-The Flip7 runs the guest as a phone on the main screen (the bar settings; root
-gives every non-fold profile the phone values). With the lid closed, the guest
-does nothing for the cover screen yet.
+The Flip7 runs the guest with the flip form (0.5.31): the fold display layout
+and the cover touch IC are on, while the fold-only UI extras stay off. With the
+lid closed the guest runs on the cover; the cover's own density comes from
+One UI's dump. The cover UI compatibility (widgets, AOD) is a later layer.
 
 The compatibility check keeps every other Exynos phone blocked. With a
 profile, Exynos is a warning ("Exynos: first runs"), and both profiles carry

@@ -749,14 +749,18 @@ case "$HUD:$MDW:$MPW:$H0W" in
        fi ;;
 esac
 echo "preflight: display scale done $(date +%T)"
-# The cover panel of a fold, for guest_prepare.sh (ColorOS cover density): the
-# smaller of the two default-capable internal displays, as
+# The cover panel of a fold or flip, for guest_prepare.sh (cover density and
+# the boot animation) and guest_props.sh: the smaller of the two
+# default-capable internal displays, as
 # "<uniqueId> <port> <width> <height> <xdpi>". The guest's SurfaceFlinger
 # gives the panels the same ids (local:<id>) and ports as One UI's.
 rm -f "$STAGE/host_cover_display"
-if [ "${ONEOS_GUEST_FORM:-fold}" = fold ]; then
+if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] || [ "${ONEOS_GUEST_FORM:-fold}" = flip ]; then
+    # Every internal panel, not only the default-capable ones: a Flip's cover
+    # is an internal panel even where One UI does not let it be the default.
+    CLINE=$(grep 'DisplayDeviceInfo{' "$STAGE/display_host.txt" | grep 'type INTERNAL')
     # One record per panel (a dump may list a panel more than once).
-    CVDS=$(printf '%s\n' "$HLINE" | while IFS= read -r l; do
+    CVDS=$(printf '%s\n' "$CLINE" | while IFS= read -r l; do
         u=$(echo "$l" | sed -n 's/.*uniqueId="\(local:[0-9]*\)", \([0-9]*\) x \([0-9]*\), .*/\1 \2 \3/p')
         p=$(echo "$l" | sed -n 's/.*address [A-Za-z]*{[^}]*port=\([0-9]*\)[,}].*/\1/p')
         x=$(echo "$l" | sed -n 's/.*, density [0-9]*, \([0-9]*\)[.0-9]* x [.0-9]* dpi.*/\1/p')
@@ -2213,6 +2217,9 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "infinityx41-findx9u",$
     POSTURE_DEFAULT=live
 fi
 GUEST_POSTURE_LIVE=0; [ "${ONEOS_GUEST_POSTURE:-$POSTURE_DEFAULT}" = live ] && GUEST_POSTURE_LIVE=1
+# Fold-only UI (the inner panel's density and fold line): a Flip's hinge is
+# horizontal and its inner panel is a plain phone, so the flip form keeps the
+# phone's density path below even though it uses the fold display layout.
 GUEST_FOLD_FORM=0; [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && GUEST_FOLD_FORM=1
 # An OxygenOS image (its stable display size resource, see "stable display size"
 # in the UI activator).
@@ -2791,7 +2798,7 @@ while true; do
                     echo \"[UI Activator] density and fold line: inner panel \$IN not found in dumpsys display, left alone\"
                 fi
             else
-                # A bar phone or flip (ONEOS_GUEST_FORM=phone): One UI's dp scale
+                # A bar phone or a Flip (the flip form keeps this path): One UI's dp scale
                 # (host_display, from the switch). Where the guest runs the panel at its
                 # full width, One UI's density x physical / One UI's width keeps One
                 # UI's dp width there (S25 Ultra at FHD+: 450 x 1440 / 1080 = 600,
@@ -3462,10 +3469,10 @@ while true; do
             # IC (tsp1) is never written, so it stays on for the whole session and
             # unfolding always gives touch back. ONEOS_COVER_TSP=0 leaves both ICs
             # alone (run 31 behaviour).
-            # OneOS: and only on a foldable, never by chance: fold form, a flip
-            # lid switch and a sec_touchscreen2 must all be there. On a bar phone
-            # (S Ultra) the one touch IC is a single /sys/class/sec/tsp, which
-            # the TSP1 match below would find.
+            # OneOS: and only on a foldable, never by chance: the fold or flip
+            # form, a flip lid switch and a sec_touchscreen2 must all be there.
+            # On a bar phone (S Ultra) the one touch IC is a single
+            # /sys/class/sec/tsp, which the TSP1 match below would find.
             if [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ]; then
                 FD=$STAGE/diag_fold; mkdir -p \$FD
                 FLIP=''; TS2=''; TSP1=''; TSP2=''; TSPLOG=''
@@ -3475,7 +3482,7 @@ while true; do
                         sec_touchscreen2) TS2=/dev/input/\${e##*/} ;;
                     esac
                 done
-                if [ \"${ONEOS_COVER_TSP:-1}\" = 1 ] && [ \"${ONEOS_GUEST_FORM:-fold}\" = fold ] && [ -n \"\$FLIP\" ] && [ -n \"\$TS2\" ]; then
+                if [ \"${ONEOS_COVER_TSP:-1}\" = 1 ] && { [ \"${ONEOS_GUEST_FORM:-fold}\" = fold ] || [ \"${ONEOS_GUEST_FORM:-fold}\" = flip ]; } && [ -n \"\$FLIP\" ] && [ -n \"\$TS2\" ]; then
                     for d in /sys/class/sec/tsp*; do
                         [ \"\$(cat \$d/input/name 2>/dev/null)\" = sec_touchscreen2 ] && [ -w \$d/enabled ] && TSP2=\$d
                         [ \"\$(cat \$d/input/name 2>/dev/null)\" = sec_touchscreen ] && [ -w \$d/enabled ] && TSP1=\$d

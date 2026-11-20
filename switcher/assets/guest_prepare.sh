@@ -2790,7 +2790,7 @@ STAGE="$STAGE" BB="$BB" /system/bin/sh "$STAGE/fold8_pixel.sh" prepare || exit 3
 FEAT="$GUEST_SYSTEM_EXT/etc/permissions/com.oplus.features_config.xml"
 $BB umount -l "$FEAT" 2>/dev/null
 FORM="${ONEOS_GUEST_FORM:-fold}"
-case "$FORM" in fold|tablet|phone) ;; *) echo "WARNING: ONEOS_GUEST_FORM=$FORM unknown, using fold"; FORM=fold ;; esac
+case "$FORM" in fold|flip|tablet|phone) ;; *) echo "WARNING: ONEOS_GUEST_FORM=$FORM unknown, using fold"; FORM=fold ;; esac
 if [ -f "$FEAT" ]; then
     ADDED="oplus.software.display.multibits_dimming_support"
     # Galaxy Z Fold8, Find N6 (pull request #1): Live Alerts, AOD, fold animations,
@@ -3788,7 +3788,7 @@ else
     echo "Guest display size: $(grep -o 'name="display_density_forced" value="[^"]*"' "$SSET" 2>/dev/null || echo 'not forced')"
 fi
 echo "=== 5.2 $(date +%T) accessibility, mobile data, density ==="
-# ColorOS's cover screen on a fold (owner, 0.4.10 on the Z Fold8 Ultra: "outer
+# ColorOS's cover screen on a fold or flip (owner, 0.4.10 on the Z Fold8 Ultra: "outer
 # display looks 720p", "set to high, still looks blurry"). The guest drew it at
 # the panel's full 1080 x 2520 (SurfaceFlinger: 1:1 projection, full-size
 # window buffers), but at Samsung's shared ro.sf.lcd_density 480, a 360 dp wide
@@ -3818,7 +3818,7 @@ CV_GUEST=""
 CV_BASE=$(getprop ro.sf.lcd_density)
 case "$CV_BASE" in ''|*[!0-9]*) CV_BASE=213 ;; esac
 [ -z "$CV_GUEST" ] && [ "$CV_BASE" -le 213 ] && CV_GUEST="this system (no ro.sf.lcd_density, base 213)"
-if [ "$FORM" != fold ] || [ -z "$CV_GUEST" ] || [ "$CDEN" = off ]; then
+if { [ "$FORM" != fold ] && [ "$FORM" != flip ]; } || [ -z "$CV_GUEST" ] || [ "$CDEN" = off ]; then
     :
 elif [ "$(echo "$CVD" | wc -w)" != 5 ]; then
     echo "Cover density: not set (the cover panel was not read)"
@@ -3868,6 +3868,23 @@ else
         rm -f "$DTXT" "$DTXT.new"
     fi
 fi
+# The two panels' ports for guest_start.sh's layout. A Flip's vendor
+# input-port-associations.xml may not name sec_touchscreen/sec_touchscreen2
+# (the Fold's does), so the host's own display dump supplies them: the cover
+# from host_cover_display, the inner panel as the other port One UI's
+# SurfaceFlinger listed. Written into the staged /data (read after the pivot).
+rm -f "$STAGE/data/oneos_cover_port" "$STAGE/data/oneos_inner_port"
+if [ -d "$STAGE/data" ] && [ "$(echo "$CVD" | wc -w)" = 5 ]; then
+    CPORT=$(echo "$CVD" | awk '{ print $2 }')
+    IPORT=$(sed -n 's/^Display [0-9][0-9]* (HWC display [0-9][0-9]*): port=\([0-9][0-9]*\).*/\1/p' "$STAGE/display_modes_host.log" 2>/dev/null |
+        grep -vx "$CPORT" | head -n 1)
+    if [ -n "$CPORT" ] && [ -n "$IPORT" ] && [ "$CPORT" != "$IPORT" ]; then
+        echo "$CPORT" > "$STAGE/data/oneos_cover_port"
+        echo "$IPORT" > "$STAGE/data/oneos_inner_port"
+        chmod 644 "$STAGE/data/oneos_cover_port" "$STAGE/data/oneos_inner_port"
+        echo "Display ports: inner $IPORT, cover $CPORT (for the fold/flip layout)"
+    fi
+fi
 
 echo "=== 5.3 $(date +%T) cover density ==="
 # OxygenOS's status bar on another phone's panel (0.4.81). The image carries its
@@ -3882,7 +3899,7 @@ echo "=== 5.3 $(date +%T) cover density ==="
 # HOLE_CENTER_TYPE) and is right. The size DisplayManager has saved in
 # display-manager-state.xml wins over the resource, so the panel's own size
 # (oneos_switch.sh: host_panel_size) is written there before every boot. Not on
-# a fold (two panels, one stable size). ONEOS_GUEST_STABLE_SIZE=0: left alone.
+# a fold or flip (two panels, one stable size). ONEOS_GUEST_STABLE_SIZE=0: left alone.
 # The reports after it (0.4.81 to 0.4.89, seven sessions): mStableDisplaySize
 # was the panel's and the status bar the same as before. OPPO's SystemUI reads
 # the resource itself ("ScreenSizeHelper--> StableDisplayWidthSize =
@@ -3891,7 +3908,7 @@ echo "=== 5.3 $(date +%T) cover density ==="
 # size"). This write stays: DisplayManager's own value, right from the boot on.
 DMS="$STAGE/data/system/display-manager-state.xml"
 HPS=$(cat "$STAGE/host_panel_size" 2>/dev/null)
-if [ "${ONEOS_GUEST_STABLE_SIZE:-1}" != 1 ] || [ "$FORM" = fold ] ||
+if [ "${ONEOS_GUEST_STABLE_SIZE:-1}" != 1 ] || [ "$FORM" = fold ] || [ "$FORM" = flip ] ||
         ! grep -q '^  "image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null; then
     :
 elif [ "$(echo "$HPS" | wc -w)" != 2 ]; then
@@ -4724,7 +4741,8 @@ fi
 echo "=== 5.13 $(date +%T) device states ==="
 # HyperOS's device states. Its DeviceStateProviderImpl (Xiaomi's change) reads
 # product/etc/devicestate/device_state_configuration.xml, whose states all wait
-# on Xiaomi's hinge sensor (xiaomi.sensor.fold_status). This phone has none:
+# on Xiaomi's hinge sensor (xiaomi.sensor.fold_status). This phone (fold or
+# flip) has none:
 # "No declared device states match any of the required conditions", no state
 # was ever committed, DisplayManager stayed on the inner panel's default layout
 # and the cover screen never came on (seventh HyperOS run). A copy with
@@ -4738,7 +4756,8 @@ echo "=== 5.13 $(date +%T) device states ==="
 # eighth run either, "Failed to find Sensor with type: xiaomi.sensor.fold_status").
 HDSC="$GUEST_PRODUCT/etc/devicestate/device_state_configuration.xml"
 if [ -e "$GUEST_SYSTEM_EXT/framework/miui-services.jar" ] && [ -f "$HDSC" ] && [ ! -L "$HDSC" ] &&
-   grep -q 'xiaomi.sensor.fold_status' "$HDSC" && [ "${ONEOS_GUEST_FORM:-fold}" = fold ]; then
+   grep -q 'xiaomi.sensor.fold_status' "$HDSC" &&
+   { [ "${ONEOS_GUEST_FORM:-fold}" = fold ] || [ "${ONEOS_GUEST_FORM:-fold}" = flip ]; }; then
     awk '
         function flush(   i, out) {
             if (n == 0) return

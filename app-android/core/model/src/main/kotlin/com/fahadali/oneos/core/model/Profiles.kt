@@ -599,8 +599,8 @@ object Profiles {
      * 130, sec_touchscreen and sec_touchscreen2, a "flip" lid switch,
      * backlights panel and panel1, composer vendor.hwcomposer-3, SVE and SVE2
      * but no SME, installd table identical to host_installd.txt). It runs the
-     * guest as a phone on the main panel (the bar settings; no cover layout
-     * yet), with the Find X9 Ultra builds, untested, and [EXYNOS]. The ColorOS
+     * guest with the flip form (cover and inner panel, 0.5.31, untested),
+     * with the Find X9 Ultra builds, untested, and [EXYNOS]. The ColorOS
      * images also start on the SM8750 phones, which have no SME either.
      */
     val FLIP7 = PhoneProfile(
@@ -666,8 +666,8 @@ object Profiles {
      * and panel1-backlight (max 765), the HIDL display composer and audio HAL
      * (no composer3, no audio.core), no SVE, installd table identical to
      * host_installd.txt). The S23s' images (both Find X9 Ultra builds and
-     * Infinity-X), run as a phone on the main screen like the Z Flip7 (no
-     * cover layout), with their [EXPECT_NO_START] note: the same chip and
+     * Infinity-X), run with the flip form like the Z Flip7 (cover and inner
+     * panel), with their [EXPECT_NO_START] note: the same chip and
      * vendor, which no system has started on yet.
      */
     val FLIP5 = PhoneProfile(
@@ -729,7 +729,7 @@ object Profiles {
      * Galaxy Z Flip8, from 0.4.35: a probe report of 2026-11-01 (SM-F776B, b8s,
      * s5e9965 Exynos 2600 like the S26+ (Exynos), One UI 9.0, Android 17 build
      * CP2A.260605.016, SVE, SVE2, SME and SME2, installd 85 methods). A flip run
-     * as a phone on its main screen like the Z Flip7, with the S26+ (Exynos)'s
+     * with the flip form like the Z Flip7 (cover and inner panel), with the S26+ (Exynos)'s
      * images (its chip has the SVE and SME the Pixel 11 Pro and Nothing OS need),
      * untested, with [EXYNOS].
      */
@@ -807,8 +807,8 @@ object Profiles {
     /**
      * Galaxy Z Flip6, from 0.4.40: a probe report of 2026-11-02 (SM-F741B, b6q, SM8650 like the
      * Galaxy S24 Ultra and Z Fold6, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34 and
-     * kernel 6.1, no SVE or SME, installd 85 methods). Run as a phone on the main screen like the
-     * Z Flip5 and Z Flip7, with the S24 Ultra's images except HyperOS (the Z Fold6's reason: its
+     * kernel 6.1, no SVE or SME, installd 85 methods). Run with the flip form like the
+     * Z Flip5 and Z Flip7 (cover and inner panel), with the S24 Ultra's images except HyperOS (the Z Fold6's reason: its
      * SurfaceFlinger died on that chip; 0.4.39's fix is untested there); untested on it.
      */
     val FLIP6 = PhoneProfile(
@@ -1025,7 +1025,7 @@ object Profiles {
      * Galaxy Z Flip7 FE, from 0.4.60: findings of 2026-11-07 (SM-F761B, b7r, s5e9945 Exynos 2400 like
      * the Galaxy S24 (Exynos) and S24 FE, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 34
      * and kernel 6.1, density 480, SVE and SVE2 but no SME, KernelSU, installd 85 methods). A flip run
-     * as a phone on its main screen like the [FLIP7], with the S24 (Exynos)'s images, untested, with
+     * with the flip form like the [FLIP7] (cover and inner panel), with the S24 (Exynos)'s images, untested, with
      * [EXYNOS].
      */
     val FLIP7_FE = PhoneProfile(

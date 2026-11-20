@@ -778,3 +778,13 @@ New in 0.5.29: **Galaxy S24 phones can switch again.**
 New in 0.5.30: **the OneOS app and Back to One UI inside One UI 9.5.**
 - One UI 9.5 never installed the OneOS app (its package manager does not look where OneOS puts it), so the only way
   back was Volume Up + Volume Down. The app now goes where One UI 9.5 finds it, as on vivo's OriginOS.
+
+New in 0.5.31: **the Galaxy Z Flip's cover screen.**
+- **A Flip has its own form now** (`ONEOS_GUEST_FORM=flip`): the fold display layout and the cover touch IC are on,
+  while the fold-only UI extras (compact window, wallpaper grid, the inner panel's fold line) stay off. The app gives
+  every Z Flip profile it knows (Flip5, Flip6, Flip7, Flip7 FE, Flip8) this form.
+- **HyperOS 4 Global on a Flip:** its device states now follow Samsung's lid switch, as on a Fold; closing the phone
+  moves the guest to the cover, opening it moves the guest to the inner panel. The cover's own density comes from
+  One UI's display dump, and the session's boot animation stays on the panel that is lit.
+- **Untested on a phone yet.** Please send a report from the app: what the cover shows when the phone is closed,
+  whether touch works there, and the camera's cover preview. The cover UI itself (widgets, AOD) is a later layer.

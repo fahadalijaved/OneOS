@@ -193,7 +193,8 @@ IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in-1105 nothingos5-metroid oxygen
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
 # the Galaxy S25+ and the Z Fold8 from 0.4.10, the Exynos Galaxy S26+ and Z
-# Flip7 from 0.4.17). A flip gets the phone settings (env_value: not fold).
+# Flip7 from 0.4.17). A flip gets the flip form (env_value: two panels, small
+# cover), not the fold-only UI extras.
 profile_info() {
     case "$1" in
         f8u) echo "SM-F976 q8q SM8850 fold" ;;
@@ -1014,9 +1015,13 @@ env_value() {
         ONEOS_PROFILE) echo "$3" ;;
         ONEOS_SPLASH_COMPONENT) echo "$SPLASH_COMPONENT" ;;
         ONEOS_WALLPAPER_PROBE|ONEOS_RECORD) echo 0 ;;
-        ONEOS_GUEST_FORM) if [ "$2" = fold ]; then echo fold; else echo phone; fi ;;
-        ONEOS_GUEST_FOLD) if [ "$2" = fold ]; then echo layout; else echo off; fi ;;
-        ONEOS_COVER_TSP|ONEOS_GUEST_FOLD_CONTINUE|ONEOS_GUEST_UNFOLD_PORTRAIT|ONEOS_GUEST_COMPACT_WINDOW|ONEOS_GUEST_WALLPAPER_GRID)
+        ONEOS_GUEST_FORM) case "$2" in fold) echo fold ;; flip) echo flip ;; *) echo phone ;; esac ;;
+        ONEOS_GUEST_FOLD) case "$2" in fold|flip) echo layout ;; *) echo off ;; esac ;;
+        # The cover touch IC and the fold/cover handover are for both foldables;
+        # the fold-only UI extras stay off on a Flip (its cover is a phone panel).
+        ONEOS_COVER_TSP|ONEOS_GUEST_FOLD_CONTINUE|ONEOS_GUEST_UNFOLD_PORTRAIT)
+            case "$2" in fold|flip) echo 1 ;; *) echo 0 ;; esac ;;
+        ONEOS_GUEST_COMPACT_WINDOW|ONEOS_GUEST_WALLPAPER_GRID)
             if [ "$2" = fold ]; then echo 1; else echo 0; fi ;;
         ONEOS_GUEST_HIDE_GMS) echo 0 ;;
         ONEOS_HEAT_CAP) echo 1 ;;

@@ -75,7 +75,7 @@ object SessionEnv {
         "ONEOS_WALLPAPER_PROBE" to Regex("0"),
         "ONEOS_RECORD" to Regex("0"),
         "ONEOS_LOGCAT" to Regex("1"),
-        "ONEOS_GUEST_FORM" to Regex("fold|phone"),
+        "ONEOS_GUEST_FORM" to Regex("fold|flip|phone"),
         "ONEOS_GUEST_FOLD" to Regex("layout|off"),
         "ONEOS_COVER_TSP" to Regex("[01]"),
         "ONEOS_GUEST_FOLD_CONTINUE" to Regex("[01]"),
@@ -130,6 +130,23 @@ object SessionEnv {
     )
 
     /**
+     * Flip (Galaxy Z Flip): two panels like a Fold, but the cover is the small
+     * outer screen, so the fold layout and the cover touch IC are on while the
+     * fold-only UI extras (compact window, wallpaper grid) stay off. The
+     * scripts treat `flip` as a foldable for the display layout and as a phone
+     * for the fold line and the density (a Flip's hinge is horizontal).
+     */
+    val FLIP_FORM: Map<String, String> = linkedMapOf(
+        "ONEOS_GUEST_FORM" to "flip",
+        "ONEOS_GUEST_FOLD" to "layout",
+        "ONEOS_COVER_TSP" to "1",
+        "ONEOS_GUEST_FOLD_CONTINUE" to "1",
+        "ONEOS_GUEST_UNFOLD_PORTRAIT" to "1",
+        "ONEOS_GUEST_COMPACT_WINDOW" to "0",
+        "ONEOS_GUEST_WALLPAPER_GRID" to "0",
+    )
+
+    /**
      * The values for [profile], in file order (also for a disabled profile, for
      * tests and display). Google services stay on ([HIDE_GMS]=0): owner, once a
      * run with them works they stay on; a launch may turn them off for itself.
@@ -138,8 +155,8 @@ object SessionEnv {
         val form = when (profile.form) {
             FormFactor.FOLD -> FOLD_FORM
             FormFactor.BAR -> BAR_FORM
-            // 0.4.17, Galaxy Z Flip7: a phone on the main panel; no cover layout yet.
-            FormFactor.FLIP -> BAR_FORM
+            // 0.5.31: the Flip's cover screen (two panels, small outer panel).
+            FormFactor.FLIP -> FLIP_FORM
         }
         val out = linkedMapOf(
             "ONEOS_APP" to "1",

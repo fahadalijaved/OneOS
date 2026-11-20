@@ -171,6 +171,31 @@ class StageScriptTest {
     }
 
     @Test
+    fun flipProfileGetsItsCoverSettings() = eachShell { fr ->
+        fr.props["ro.product.model"] = "SM-F761B"
+        fr.props["ro.product.device"] = "b7r"
+        fr.props["ro.soc.model"] = "s5e9945"
+        fr.writeProps()
+        val s = Stager(fr, Profiles.FLIP7_FE)
+        s.prepare()
+        val env = File(fr.stage, "session.env").readText()
+        assertEquals(SessionEnv.generate(Profiles.FLIP7_FE), env)
+        assertTrue(env.lines().containsAll(listOf(
+            "ONEOS_GUEST_FORM=flip",
+            "ONEOS_GUEST_FOLD=layout",
+            "ONEOS_COVER_TSP=1",
+            "ONEOS_GUEST_COMPACT_WINDOW=0",
+            "ONEOS_GUEST_WALLPAPER_GRID=0",
+        )))
+        ok(s.begin("keep"))
+        // The phone form and the fold-only settings are refused for a Flip.
+        refused(s.env(env.replace("ONEOS_GUEST_FORM=flip", "ONEOS_GUEST_FORM=phone")), "ONEOS_GUEST_FORM=phone")
+        refused(s.env(env.replace("ONEOS_COVER_TSP=1", "ONEOS_COVER_TSP=0")), "ONEOS_COVER_TSP=0")
+        refused(s.env(env.replace("ONEOS_GUEST_WALLPAPER_GRID=0", "ONEOS_GUEST_WALLPAPER_GRID=1")), "ONEOS_GUEST_WALLPAPER_GRID=1")
+        ok(s.env(env))
+    }
+
+    @Test
     fun launchRefusesWhatChangedAfterPreparing() = eachShell { fr ->
         val s = Stager(fr)
         s.prepare()
@@ -1166,6 +1191,9 @@ class StageScriptTest {
             // 0.4.35: the Galaxy Z Flip8 and A36.
             Profiles.FLIP8 to "SM-F776B",
             Profiles.A36 to "SM-A366B",
+            // 0.4.40: the Galaxy Z Flip6; 0.4.60: the Z Flip7 FE.
+            Profiles.FLIP6 to "SM-F741B",
+            Profiles.FLIP7_FE to "SM-F761B",
         )) {
             eachShell { fr ->
                 fr.props["ro.product.model"] = model

@@ -511,8 +511,9 @@ others can test too"):
   folder with the other images.
 - The `hyper-f8u` set from `out/overlays_hyperos_r10` (r1 until the camera status fix, r2 until the netd guard, r3 until the HAL extension casts, r4 until the fourth run fixes, r5 until the sixth run fixes, r6 until the seventh run's vold pins, r7 until the ninth run's cover panel patch, r8 until socket_exec --seqpacket for zygote_next, r9 until 0.4.31's rebuild with the guards added since: the wipe guard and the native-only services guard), in every series download.
 - An untested choice on every phone, after Infinity-X. Made for the Z Fold8
-  Ultra and Z Fold8, whose cover the HyperOS fold layout drives; on the other
-  phones it runs as a phone on the main screen.
+  Ultra and Z Fold8, whose cover the HyperOS fold layout drives; on a bar phone
+  it runs as a phone on the main screen, and on a Flip with the flip form
+  (`docs/flip-cover.md`).
 - A system family of its own. HyperOS guest data (`com.miui.` packages) is
   never kept for a ColorOS or Pixel image, and theirs is never kept for
   HyperOS.

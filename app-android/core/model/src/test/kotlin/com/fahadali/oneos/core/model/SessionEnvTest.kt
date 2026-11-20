@@ -71,6 +71,46 @@ class SessionEnvTest {
     }
 
     @Test
+    fun goldenFlip7Fe() {
+        assertEquals(
+            """
+            ONEOS_APP=1
+            ONEOS_PROFILE=flip7-fe
+            ONEOS_SPLASH_COMPONENT=com.fahadali.oneos/.ui.GapSplashActivity
+            ONEOS_WALLPAPER_PROBE=0
+            ONEOS_RECORD=0
+            ONEOS_LOGCAT=1
+            ONEOS_GUEST_FORM=flip
+            ONEOS_GUEST_FOLD=layout
+            ONEOS_COVER_TSP=1
+            ONEOS_GUEST_FOLD_CONTINUE=1
+            ONEOS_GUEST_UNFOLD_PORTRAIT=1
+            ONEOS_GUEST_COMPACT_WINDOW=0
+            ONEOS_GUEST_WALLPAPER_GRID=0
+            ONEOS_GUEST_HIDE_GMS=0
+            ONEOS_HEAT_CAP=1
+            ONEOS_GUEST_SEC_IMS=0
+            ONEOS_GUEST_EDM_STUB=0
+            ONEOS_VERBOSE_BOOT=0
+            ONEOS_FULL_LOGS=1
+            ONEOS_SHARE_FILES=0
+            ONEOS_RETURN_MODE=inplace
+
+            """.trimIndent(),
+            SessionEnv.generate(Profiles.FLIP7_FE),
+        )
+    }
+
+    @Test
+    fun flipGetsTheFlipSet() {
+        val text = SessionEnv.generate(Profiles.FLIP7_FE)
+        val v = SessionEnv.values(Profiles.FLIP7_FE)
+        assertEquals("flip", v["ONEOS_GUEST_FORM"])
+        assertEquals(SessionEnv.FLIP_FORM, v.filterKeys { it in SessionEnv.FLIP_FORM })
+        assertEquals(emptyList<String>(), SessionEnv.validate(text))
+    }
+
+    @Test
     fun s25UltraGetsTheBarSet() {
         val text = SessionEnv.generate(Profiles.S_ULTRA_8750)
         val v = SessionEnv.values(Profiles.S_ULTRA_8750)
@@ -113,6 +153,7 @@ class SessionEnvTest {
         assertFalse(allowed.getValue("ONEOS_RETURN_MODE").matches("reboot"))
         assertFalse(allowed.getValue("ONEOS_LOGCAT").matches("0"))
         assertFalse(allowed.getValue("ONEOS_GUEST_FORM").matches("tablet"))
+        assertTrue(allowed.getValue("ONEOS_GUEST_FORM").matches("flip"))
         assertFalse(allowed.getValue("ONEOS_SPLASH_COMPONENT").matches("com.wewaffles.onelineage/.SplashActivity"))
         assertTrue(SessionEnv.FORBIDDEN.keys.none { it in allowed })
     }
@@ -120,8 +161,10 @@ class SessionEnvTest {
     @Test
     fun validateFailsClosed() {
         val good = SessionEnv.generate(Profiles.S_ULTRA_8850)
+        val flip = SessionEnv.generate(Profiles.FLIP7_FE)
         assertEquals(emptyList<String>(), SessionEnv.validate(good))
         assertEquals(emptyList<String>(), SessionEnv.validate(SessionEnv.generate(Profiles.F8U)))
+        assertEquals(emptyList<String>(), SessionEnv.validate(flip))
 
         fun problems(text: String) = SessionEnv.validate(text)
 
@@ -152,6 +195,9 @@ class SessionEnvTest {
         // A fold value in an S Ultra file: the profile decides the form.
         assertTrue(problems(good.replace("ONEOS_COVER_TSP=0", "ONEOS_COVER_TSP=1")).contains("ONEOS_COVER_TSP=1 does not match profile s-ultra-8850 (0)"))
         assertTrue(problems(good.replace("ONEOS_GUEST_FORM=phone", "ONEOS_GUEST_FORM=fold")).isNotEmpty())
+        assertTrue(problems(flip.replace("ONEOS_GUEST_FORM=flip", "ONEOS_GUEST_FORM=phone")).isNotEmpty())
+        assertTrue(problems(flip.replace("ONEOS_COVER_TSP=1", "ONEOS_COVER_TSP=0")).contains("ONEOS_COVER_TSP=0 does not match profile flip7-fe (1)"))
+        assertTrue(problems(flip.replace("ONEOS_GUEST_WALLPAPER_GRID=0", "ONEOS_GUEST_WALLPAPER_GRID=1")).isNotEmpty())
         assertTrue(problems(good.replace("s-ultra-8850", "s-ultra-9999")).contains("unknown profile s-ultra-9999"))
         assertTrue(problems("").isNotEmpty())
         assertTrue(problems("A".repeat(SessionEnv.MAX_BYTES + 1)).isNotEmpty())

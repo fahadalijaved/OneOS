@@ -399,8 +399,12 @@ other phones and guests.
 | `fold.display_features` | Fold line for apps: Settings.Global `display_features` = the inner panel's middle line, `fold-[1128,0,1128,2504]-flat` | form fold AND fold layout AND not ColorOS | auto / advanced (`ONEOS_GUEST_POSTURE=live` drops `-flat`) | `oneos_switch.sh` UI activator | activator | run 43: WM Extensions rejected yogi's `fold-[1038,0,1038,2152]` ("must have full height"), no FoldingFeature | with `live`, false tabletop layouts while the hinge reads HALF_OPENED (run 41) |
 | `fold.device_states_oneos` | AOSP fold properties: own `device_state_configuration.xml` (OUTER/INNER_PRIMARY, wake on unfold) | fold, opt-in | off / advanced (`ONEOS_GUEST_DEVICE_STATES=oneos`) | `mp:621-673` | stage | experiment; vendor file used since run 30 | fold handling changes |
 
-There are no Flip-specific entries yet. The Flip's cover screen, ports and
-touch ICs are unknown, so every `fold.*` entry is hidden for `device.form=flip`.
+The Flip now has a form of its own (`ONEOS_GUEST_FORM=flip`): it takes the
+fold display layout and the cover touch IC, while the fold-only UI extras
+(compact window, wallpaper grid, inner-panel fold line) stay off. The cover's
+own resolution, density and orientation still come from One UI's dumps. The
+`fold.*` entries stay hidden for `device.form=flip` until a Flip session has
+been tested.
 
 ### 6.5 GUEST: ColorOS / OPPO (all [CF] unless noted; hidden when `guest.family != coloros`)
 
@@ -414,7 +418,7 @@ touch ICs are unknown, so every `fold.*` entry is hidden for `device.form=flip`.
 | `coloros.backlight_curve` [F8U] | Correct brightness on Samsung's panel: ColorOS level to nits to One UI float (`OneOSPanelBacklight` table) | `LocalDisplayDeviceExtImpl.getBacklightFromBrightness` AND a pack table for `device.vendor_device` | auto / toggle | `p/samsung_backlight_curve.py`, `p/OneOSPanelBacklight.smali`; `mo:77` | patch (table from pack) | run 28: 31 nits minimum, jumpy | F8U table on another panel: too bright or too dim. OFF on S26U until measured. |
 | `coloros.brightness_defaults` [F8U] | Sensible start brightness: level 4570 if below 222; one-time reset (`.oneos_curve2`) | with `coloros.backlight_curve` | auto / toggle | `sw:622-628` | activator | run 28 | |
 | `coloros.multibits_dimming` | Smooth brightness slider: feature `multibits_dimming_support` | | auto / toggle | `mp:238` | stage | run 28: jumpy slider | |
-| `coloros.form_feature` | Device type for ColorOS: `type.fold` (fold), `type.tablet`, or none (phone) | from `device.form`: fold gives fold; bar gives phone; flip unknown (phone) | auto / advanced (`ONEOS_GUEST_FORM`) | `mp:235-248` | stage | runs 28 (phone), 29 (tablet), 30+ (fold) | `fold` on a bar phone: foldable layouts; `tablet`: off-screen grid |
+| `coloros.form_feature` | Device type for ColorOS: `type.fold` (fold), `type.tablet`, or none (phone) | from `device.form`: fold gives fold; bar and flip give phone | auto / advanced (`ONEOS_GUEST_FORM`) | `mp:235-248` | stage | runs 28 (phone), 29 (tablet), 30+ (fold) | `fold` on a bar phone: foldable layouts; `tablet`: off-screen grid |
 | `coloros.unfold_portrait` [F8U] | Right-edge back gesture on a portrait inner panel: `feature_unfold_width_small_high` | form fold AND inner panel portrait at rotation 0 | auto / toggle (`ONEOS_GUEST_UNFOLD_PORTRAIT`) | `mp:241-243` | stage | run 31: back zone off screen | gesture zones off on a landscape panel |
 | `coloros.compact_window` | Foldable layout in Wallpapers & styles: `windowmode.compact` (also OPPO compact window mode in WMS) | form fold | auto / toggle (`ONEOS_GUEST_COMPACT_WINDOW`) | `mp:244-246` | stage | run 32: header 2419 px | compat-window behaviour on a phone |
 | `coloros.wallpapers_fold_grid` | Wallpapers card grid 8x2 (RRO in `/oem/overlay`) | form fold AND anchor `personal_card_fold_large_layout` `columnCount=4` | auto / toggle (`ONEOS_GUEST_WALLPAPER_GRID`) | `switcher/overlays/wallpapers_fold_grid`; `mo:124-149`; `mp:262-278` | pack (our RRO) + stage | run 30 | wrong layout if the anchor differs (the check prevents it) |
