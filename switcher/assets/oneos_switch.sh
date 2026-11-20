@@ -153,6 +153,9 @@ for f in oneos_switch.sh guest_prepare.sh guest_start.sh guest_props.sh return_t
          check_host_apex.sh bridges.sh fold8_coloros.sh guest_google.sh zygote_exec guards.txt services_patched.jar; do
     [ -f "$STAGE/$f" ] || refuse "$STAGE/$f is missing"
 done
+if [ "${ONEOS_GUEST_FORM:-fold}" = flip ] && [ "${ONEOS_GUEST_COVER_TOUCH:-1}" = 1 ]; then
+    [ -x "$STAGE/oneos_touch_rotate" ] || refuse "$STAGE/oneos_touch_rotate is missing (the Flip cover touch helper)"
+fi
 # The guarded jars: services_patched.jar, and oplus-services_patched.jar for a
 # ColorOS image, miui-services_patched.jar and apprecovery.proinstaller_patched.jar
 # for a HyperOS one (guards.txt lists what make-overlays.sh built;
@@ -2258,11 +2261,12 @@ fi
 UIA="
 BB=\"$BB\"
 [ -n \"\$BB\" ] || BB=\$(which busybox 2>/dev/null || echo /data/adb/ksu/bin/busybox)
-GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=1; BRPID=''; ROT_PID=''; ROT_ST=''; ROT_D=''
+GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=1; BRPID=''; ROT_PID=''; ROT_ST=''; ROT_D=''; TRPID=''
 while true; do
 while true; do
     sleep 2
     PID=\$(pidof system_server | awk '{print \$1}')
+    [ -n \"\$PID\" ] && echo \"\$PID\" > $STAGE/guest_system_server.pid
     if [ -n \"\$PID\" ]; then
         # Bring apps, early (owner, 11-10: the apps came 10-15 s after the
         # launcher; the restore below only starts at the end of this pass, about
@@ -2694,6 +2698,41 @@ while true; do
                 fi
                 echo \"[UI Activator] essential key: \$(grep -v '^node ' $STAGE/essential_key.log 2>/dev/null | head -n 1)\"
             fi
+            # Cover touch (oneos_touch_rotate.c): a Flip's panel is installed
+            # 90 degrees. The guest UI is rotated to user rotation 1, but its
+            # InputReader keeps the panel's 720x748 axes and lands a touch 90
+            # degrees clockwise. A uinput touchscreen with the panel's name
+            # (so the guest's input-port-associations still selects the cover
+            # display) turns the raw axes with the display. ONEOS_GUEST_COVER_TOUCH=0:
+            # off. ONEOS_GUEST_COVER_CAL="xmin xmax ymin ymax" stretches an
+            # inset active area; unset leaves the full raw range.
+            if [ \"${ONEOS_GUEST_FORM:-fold}\" = flip ] && [ \"${ONEOS_GUEST_COVER_TOUCH:-1}\" = 1 ] && [ \"\$TRPID\" != \"\$PID\" ] && [ -x $STAGE/oneos_touch_rotate ] && [ ! -L $STAGE/oneos_touch_rotate ]; then
+                CTDEV=''
+                for e in /sys/class/input/event*; do
+                    [ \"\$(cat \$e/device/name 2>/dev/null)\" = sec_touchscreen2 ] && { CTDEV=/dev/input/\${e##*/}; break; }
+                done
+                if [ -n \"\$CTDEV\" ]; then
+                    TRPID=\$PID
+                    echo cw > $STAGE/data/oneos_touch_rotate_dir
+                    if [ -n \"${ONEOS_GUEST_COVER_CAL:-}\" ]; then
+                        echo \"${ONEOS_GUEST_COVER_CAL}\" > $STAGE/data/oneos_touch_rotate_cal
+                    else
+                        rm -f $STAGE/data/oneos_touch_rotate_cal
+                    fi
+                    ($BB nohup $STAGE/oneos_touch_rotate \"\$CTDEV\" \"\$PID\" $STAGE/data/oneos_touch_rotate_dir > $STAGE/touch_rotate.log 2>&1 </dev/null &)
+                    sleep 1
+                    trn=\$(sed -n 's/^node \\(event[0-9]*\\) \\([0-9]*\\):\\([0-9]*\\)\$/\\1 \\2 \\3/p' $STAGE/touch_rotate.log | head -n 1)
+                    if [ -n \"\$trn\" ]; then
+                        set -- \$trn
+                        timeout 10 $BB nsenter -t \$PID -m /system/bin/sh -c \"[ -e /dev/input/\$1 ] || { mknod /dev/input/\$1 c \$2 \$3 && chown 1000:1004 /dev/input/\$1 && chmod 660 /dev/input/\$1 && chcon u:object_r:input_device:s0 /dev/input/\$1; }\" &&
+                            echo \"[UI Activator] cover touch: rotated through /dev/input/\$1\" || echo \"[UI Activator] cover touch: could not make /dev/input/\$1\"
+                    else
+                        echo \"[UI Activator] cover touch: no uinput node (see touch_rotate.log)\"
+                    fi
+                else
+                    echo \"[UI Activator] cover touch: sec_touchscreen2 not found\"
+                fi
+            fi
             # Density and fold line of the inner panel (run 43), before HOME so the
             # setup wizard starts with them. With no init of its own the guest
             # takes ro.sf.lcd_density from the property area it shares with One
@@ -2945,6 +2984,7 @@ while true; do
                             s=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d \$d 2>/dev/null | sed -n 's/^Physical size: //p' | head -1)
                             case \"\$s\" in 720x748|748x720)
                                 if [ \"\$ROT_D\" != \"\$d\" ]; then
+                                    \$BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm fixed-to-user-rotation -d \$d enabled >/dev/null 2>&1
                                     r=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm user-rotation -d \$d lock 1 2>&1)
                                     ROT_D=\$d
                                     echo \"[UI Activator] cover rotation: display \$d (\$s) -> user rotation 1 (\${r:-ok})\"
@@ -3816,22 +3856,42 @@ $BB sh "$STAGE/tmp/ui_activator.sh" </dev/null >/data/local/tmp/ui_activator.log
 if [ "${ONEOS_GUEST_FORM:-fold}" = flip ] && [ "${ONEOS_GUEST_COVER_ROTATION:-1}" != off ]; then
     (
         ROT_ST=''
+        ROT_D=''
+        echo cw > "$STAGE/data/oneos_touch_rotate_dir"
         while true; do
             [ -f "$STAGE/data/oneos_rec_stop" ] && exit 0
             [ -s "$STAGE/guest_mntns" ] || exit 0
-            P=$(pidof system_server | awk '{print $1}')
+            P=$(cat "$STAGE/guest_system_server.pid" 2>/dev/null)
+            [ -n "$P" ] && [ -d "/proc/$P" ] || P=$(pidof system_server | awk '{print $1}')
             if [ -z "$P" ]; then sleep 2; continue; fi
-            S=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd device_state print-state 2>/dev/null | head -1)
+            G="$BB nsenter -t $P -m /system/bin/sh /data/oneos_genv.sh"
+            S=$($G /system/bin/cmd device_state print-state 2>/dev/null | head -1)
             if [ "$S" != "$ROT_ST" ]; then
                 ROT_ST=$S
+                ROT_D=''
+                echo cw > "$STAGE/data/oneos_touch_rotate_dir"
                 for d in 0 1 2 3 4 5 6 7; do
-                    Z=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d "$d" 2>/dev/null | sed -n 's/^Physical size: //p' | head -1)
+                    Z=$($G /system/bin/wm size -d "$d" 2>/dev/null | sed -n 's/^Physical size: //p' | head -1)
                     case "$Z" in 720x748|748x720)
-                        R=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm user-rotation -d "$d" lock 1 2>&1)
+                        # HyperOS records user rotation but only applies it when the
+                        # display is fixed to it; without this it reports lock 1
+                        # while the panel stays at rotation 0.
+                        $G /system/bin/wm fixed-to-user-rotation -d "$d" enabled >/dev/null 2>&1
+                        R=$($G /system/bin/wm user-rotation -d "$d" lock 1 2>&1)
+                        ROT_D=$d
                         echo "$(date +%T) cover display $d ($Z), state $S: user rotation 1 (${R:-ok})" >> "$STAGE/cover_rotation.log"
                         ;;
                     esac
                 done
+            elif [ -n "$ROT_D" ]; then
+                # The lid event's own display update can land after ours and
+                # reset the user rotation. Re-assert it if that happened.
+                U=$($G /system/bin/wm user-rotation -d "$ROT_D" 2>/dev/null)
+                if [ "$U" != "lock 1" ]; then
+                    $G /system/bin/wm fixed-to-user-rotation -d "$ROT_D" enabled >/dev/null 2>&1
+                    R=$($G /system/bin/wm user-rotation -d "$ROT_D" lock 1 2>&1)
+                    echo "$(date +%T) cover display $ROT_D, state $S: user rotation 1 re-asserted (${R:-ok})" >> "$STAGE/cover_rotation.log"
+                fi
             fi
             sleep 2
         done

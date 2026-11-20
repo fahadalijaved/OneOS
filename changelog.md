@@ -786,5 +786,11 @@ New in 0.5.31: **the Galaxy Z Flip's cover screen.**
 - **HyperOS 4 Global on a Flip:** its device states now follow Samsung's lid switch, as on a Fold; closing the phone
   moves the guest to the cover, opening it moves the guest to the inner panel. The cover's own density comes from
   One UI's display dump, and the session's boot animation stays on the panel that is lit.
-- **Untested on a phone yet.** Please send a report from the app: what the cover shows when the phone is closed,
-  whether touch works there, and the camera's cover preview. The cover UI itself (widgets, AOD) is a later layer.
+- **Cover rotation and touch:** HyperOS records `wm user-rotation` but only applies it together with
+  `wm fixed-to-user-rotation`, and a lid event resets it; a keeper now re-applies both after each lid change. The
+  guest's input reader still maps the panel's 720x748 axes, so `oneos_touch_rotate` passes the cover touchscreen
+  through a uinput device with the same name and turns X/Y one quarter. `ONEOS_GUEST_COVER_ROTATION=off` and
+  `ONEOS_GUEST_COVER_TOUCH=0` turn them off.
+- **Tested on the Z Flip7 FE** with HyperOS 4 Global: the cover UI is upright and touch follows it. Still open: the
+  UI's extreme edges, Samsung Camera's front camera while folded and the cover preview, and HyperOS's notification
+  panel and wallpaper backgrounds. The cover UI itself (widgets, AOD) is a later layer.

@@ -162,6 +162,9 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "oneos_btaudio" to File(repoRoot, "switcher/assets/oneos_btaudio"),
     // 0.5.17: Nothing OS's Essential key from a Volume Down double press, as a uinput key (switcher/native/oneos_essential_key.c).
     "oneos_essential_key" to File(repoRoot, "switcher/assets/oneos_essential_key"),
+    // A Flip's cover touchscreen, turned with the cover display
+    // (switcher/native/oneos_touch_rotate.c).
+    "oneos_touch_rotate" to File(repoRoot, "switcher/assets/oneos_touch_rotate"),
     // 0.4.33: the status bar's dimension overlays on bar phones
     // (switcher/patches/OneOSOverlayDimen.java, build_overlay_dimen.sh).
     "OneOSOverlayDimen.dex" to File(repoRoot, "switcher/assets/OneOSOverlayDimen.dex"),

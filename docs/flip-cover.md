@@ -52,14 +52,54 @@ on a Flip, `guest_prepare.sh` binds a copy whose 0 (CLOSED) and 3 (OPENED)
 states use Samsung's lid switch; the other Xiaomi states stay request-only.
 `guest_start.sh` writes the matching display layout.
 
+## Cover rotation and touch
+
+The cover panel is mounted at 90 degrees (One UI's display info reports it as
+748x720, `installOrientation 1`), while the guest's SurfaceFlinger reports it
+as 720x748 at rotation 0 and lays a phone UI out sideways. `oneos_switch.sh`
+puts the cover's logical display at user rotation 1 (90 degrees). HyperOS
+records `wm user-rotation` but only applies it when the display is also fixed
+to the user rotation, so both are set:
+
+    wm fixed-to-user-rotation -d <id> enabled
+    wm user-rotation -d <id> lock 1
+
+A lid event resets the rotation to 0, and the cover's display id changes with
+every lid event, so a keeper in `oneos_switch.sh` watches the guest's device
+state, finds the display whose size is the cover's (720x748 or 748x720) and
+re-applies both after each change. It also re-asserts the user rotation if
+HyperOS resets it after the lid event. The inner panel (1080x2640) is never
+touched. `ONEOS_GUEST_COVER_ROTATION=off` disables the keeper.
+
+The guest's InputReader still maps the panel's raw 720x748 axes, so a touch
+lands 90 degrees clockwise from the finger while the UI is upright.
+`oneos_touch_rotate` (`switcher/native/oneos_touch_rotate.c`) grabs
+`sec_touchscreen2` (read-only otherwise: every event is passed through) and
+makes a uinput touchscreen with the panel's name, so the guest's
+`input-port-associations.xml` still selects the cover display. X/Y are turned
+one quarter in the raw 0..4095 space; multitouch slots, tracking ids and
+pressure are copied unchanged. The direction is read from
+`data/oneos_touch_rotate_dir` on every `SYN_REPORT`: `cw` goes with user
+rotation 1. `ONEOS_GUEST_COVER_TOUCH=0` disables it. An inset panel active
+area can be stretched over the whole display with
+`ONEOS_GUEST_COVER_CAL="xmin xmax ymin ymax"`; unset keeps the full raw range.
+
 ## Still open
 
-- **Cover orientation.** The cover panel's rotation is not read yet. A Flip
-  started folded may lay the guest out sideways until the panel's rotation is
-  applied.
+- **Cover UI edges.** HyperOS's phone UI may leave the panel's extreme edges
+  without content or touch targets; the remapper only aligns the axes. On the
+  Z Flip7 FE the raw touch IC's active area read 350..3765 / 241..3847, and
+  stretching it with `ONEOS_GUEST_COVER_CAL` did not make the UI edges respond,
+  so this is a UI-layout question, not the input mapping.
 - **Samsung Camera on the cover.** The Flip still takes `samcam_bar.tar` (the
-  bar phone's set) until a Flip set is built from the phone; camera start and
-  the cover preview need a session log.
+  bar phone's set) plus the A-series resolution-lookup guards. Back camera
+  start works; the front camera while folded and the cover preview still need
+  a session log (the HAL opens camera 1 and then gets no frames).
+- **System UI.** The notification/control panel background and the wallpaper
+  stay black in HyperOS. The guest's `/storage/emulated/0` FUSE mount also
+  failed with "Transport endpoint is not connected" in the same session, so
+  MiWallpaper, the media provider and the storage mount are the first things
+  to check in the next run.
 - **Cover UI.** HyperOS's own cover UI is made for Xiaomi's fold; the guest
   currently gets its phone UI at the cover's density. Widgets, AOD and a
   FlexWindow-like layer are a later compatibility app, not part of this form.
@@ -72,7 +112,10 @@ states use Samsung's lid switch; the other Xiaomi states stay request-only.
 3. `adb shell dumpsys display` (the cover's size, density and rotation).
 4. `/data/local/tmp/oneos/diag_display/display.txt`, `diag_displays.txt` and
    the session's `all.log` around the fold and the camera start.
-5. Whether the cover is lit, whether touch works there, and whether the guest
+5. `cover_rotation.log` and `touch_rotate.log`, and `dumpsys input` for both
+   `sec_touchscreen2` devices (the panel and the virtual one). Touch the
+   centre and each edge after a fold.
+6. Whether the cover is lit, whether touch works there, and whether the guest
    switches back to the inner panel on unfold.
 
 The first Flip session is the source of truth: this form is untested on a
