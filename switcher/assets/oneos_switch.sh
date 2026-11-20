@@ -2258,7 +2258,7 @@ fi
 UIA="
 BB=\"$BB\"
 [ -n \"\$BB\" ] || BB=\$(which busybox 2>/dev/null || echo /data/adb/ksu/bin/busybox)
-GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=1; BRPID=''
+GEN=\$(cat $STAGE/tmp/softreboot.gen 2>/dev/null); PASS=1; BRPID=''; ROT_PID=''; ROT_ST=''; ROT_D=''
 while true; do
 while true; do
     sleep 2
@@ -2929,6 +2929,30 @@ while true; do
             # and its touches go nowhere: switch it off. The inner panel is display 0.
             if [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ]; then
                 echo \"[UI Activator] fold layout: \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd device_state print-state 2>&1 | head -1); \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys display 2>/dev/null | grep -m1 -o 'mCurrentLayout=.*' | cut -c1-300)\"
+                # A Flip's cover panel is installed at 90 degrees (One UI's
+                # installOrientation 1: 748x720), and its SurfaceFlinger reports
+                # the guest's logical display as 720x748 at rotation 0, so a
+                # phone UI came out sideways on it. Rotate the cover's logical
+                # display to user rotation 1 (90 degrees); the inner panel is
+                # 1080x2640 and stays as it is. The cover's display id changes
+                # between folded and unfolded, so look for its size at each lid
+                # event (and after a guest soft reboot), not for a fixed id.
+                if [ \"${ONEOS_GUEST_FORM:-fold}\" = flip ]; then
+                    ROT_S=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd device_state print-state 2>/dev/null | head -1)
+                    if [ \"\$ROT_PID\" != \"\$PID\" ] || [ \"\$ROT_S\" != \"\$ROT_ST\" ]; then
+                        ROT_PID=\$PID; ROT_ST=\$ROT_S; ROT_D=''
+                        for d in 0 1 2 3 4 5 6 7; do
+                            s=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d \$d 2>/dev/null | sed -n 's/^Physical size: //p' | head -1)
+                            case \"\$s\" in 720x748|748x720)
+                                if [ \"\$ROT_D\" != \"\$d\" ]; then
+                                    r=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm set-user-rotation lock 1 -d \$d 2>&1)
+                                    ROT_D=\$d
+                                    echo \"[UI Activator] cover rotation: display \$d (\$s) -> user rotation 1 (\${r:-ok})\"
+                                fi ;;
+                            esac
+                        done
+                    fi
+                fi
                 # What folding does (Settings > Foldable features > Screen switching,
                 # system continue_using_apps_when_folded): 0 = swipe up to continue,
                 # ColorOS's default, 1 = continue using, 2 = turn screen off. With 0
