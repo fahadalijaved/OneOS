@@ -2704,8 +2704,8 @@ while true; do
             # degrees clockwise. A uinput touchscreen with the panel's name
             # (so the guest's input-port-associations still selects the cover
             # display) turns the raw axes with the display. ONEOS_GUEST_COVER_TOUCH=0:
-            # off. ONEOS_GUEST_COVER_CAL="xmin xmax ymin ymax" stretches an
-            # inset active area; unset leaves the full raw range.
+            # off. ONEOS_GUEST_COVER_CAL takes xmin xmax ymin ymax and
+            # stretches an inset active area; unset leaves the full raw range.
             if [ \"${ONEOS_GUEST_FORM:-fold}\" = flip ] && [ \"${ONEOS_GUEST_COVER_TOUCH:-1}\" = 1 ] && [ \"\$TRPID\" != \"\$PID\" ] && [ -x $STAGE/oneos_touch_rotate ] && [ ! -L $STAGE/oneos_touch_rotate ]; then
                 CTDEV=''
                 for e in /sys/class/input/event*; do
