@@ -424,7 +424,12 @@ object Plain {
             // switch" (0.5.08 report 0b3ca180, the app still running its tool).
             "libtimer" in p -> {
                 val app = Regex("""the app ([A-Za-z0-9_.]{3,40}) """).find(problem)?.groupValues?.get(1) ?: "an app"
-                if (app == "an app") PlainMessage(
+                // 0.5.28: the switch stops the tool itself; it refuses only when the tool survived that.
+                if ("did not stop" in p) PlainMessage(
+                    "Restart the phone first",
+                    "An app's kernel tool that crashes S24 phones did not stop when OneOS stopped it. Restart the phone, then switch again.",
+                    FixAction.NONE, null,
+                ) else if (app == "an app") PlainMessage(
                     "Turn off an app first",
                     "An app runs a kernel tool that crashes S24 phones during a switch. Uninstall it in Settings, Apps, then switch again.",
                     FixAction.NONE, null,

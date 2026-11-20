@@ -228,6 +228,12 @@ class PlainTest {
         assertTrue(r(timer).line, r(timer).line.startsWith("com.roottimer.app "))
         check(r(timer), Images.FIND_N6, timer)
         check(r("the app com.example.a.very.long.package.name.that.goes.on runs its kernel tool (libtimer.so, pid 1)"), Images.FIND_N6, "long")
+        // 0.5.28: the switch stops the tool itself and refuses only when it survives: a restart, no Turn it off.
+        val survived = r("the app com.roottimer.app runs a kernel tool (libtimer.so, pid 16066) that crashed the kernel of S24 phones during " +
+            "OneOS sessions, and it did not stop: restart the phone, then switch again")
+        assertEquals("Restart the phone first", survived.title)
+        assertEquals(FixAction.NONE, survived.action)
+        check(survived, Images.FIND_N6, "survived")
         val other = r("pm does not answer")
         assertEquals("Couldn't switch", other.title)
         assertEquals(FixAction.SEND_REPORT, other.action)

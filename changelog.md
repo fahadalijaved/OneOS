@@ -765,3 +765,12 @@ New in 0.5.28: **Galaxy S26 phones updated to One UI 9.5 can switch**, the **Gal
   had no log; it now starts again on the standard logs.
 - Reports: the Probe's findings zip is accepted in the reports group again, and session logs carry the phone's video
   encoders (for the Exynos video recording crash).
+
+New in 0.5.29: **Galaxy S24 phones can switch again.**
+- **OneOS now stops the timer app's kernel tool itself** before every switch, and again if it starts during a session.
+  Since 0.5.24 the S24, S24+ and S24 Ultra refused every system while the tool ran, also after the app was
+  uninstalled (the tool kept running from its deleted file until a restart, where Turn it off did not see it). The
+  switch is refused only if the tool survives being stopped; then a restart helps.
+- **Full session logs on phones with another "logcat" program** (Galaxy S24 FE: a tool on the phone answered in
+  logcat's place, so the log stayed empty and some of OneOS's own checks saw nothing): OneOS now uses Android's own
+  logcat for the session.

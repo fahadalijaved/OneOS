@@ -34,28 +34,61 @@ root_only() {
 }
 [ "$(id -u 2>/dev/null)" = 0 ] || refuse "not running as root"
 
+# 0.5.29: Android's own logcat, first in PATH for this session and everything it starts (the watcher, the
+# return, the capture). On a Galaxy S24 FE (reports e15e83eb, e3b995a7) the "logcat" root's shell found was
+# another program ("error: unexpected argument '-d' found / Usage: logcat <COMMAND>"): the full session log
+# stayed empty and the watcher's logcat checks (the guest's power-off request among them) saw nothing.
+LOGCAT_BIN=""
+for c in /system/bin/logcat $(command -v logcat 2>/dev/null); do
+    [ -x "$c" ] || continue
+    if timeout 5 "$c" -d -t 1 >/dev/null 2>&1; then LOGCAT_BIN=$c; break; fi
+done
+LC_PATH=$(command -v logcat 2>/dev/null)
+if [ -z "$LOGCAT_BIN" ]; then
+    echo "preflight: no logcat that takes logcat's options (PATH's: ${LC_PATH:-none}; $(ls -l /system/bin/logcat 2>&1 | cut -c1-160); mounts on it: $(grep -F ' /system/bin/logcat ' /proc/self/mountinfo 2>/dev/null | cut -d' ' -f4,5,9 | tr '\n' ';')): this session's logs have no logcat"
+elif [ "$LC_PATH" != "$LOGCAT_BIN" ]; then
+    mkdir -p /data/local/tmp/oneos_logcat_bin && ln -sf "$LOGCAT_BIN" /data/local/tmp/oneos_logcat_bin/logcat &&
+        PATH="/data/local/tmp/oneos_logcat_bin:$PATH" && export PATH
+    echo "preflight: logcat in PATH was ${LC_PATH:-none} ($(timeout 5 "${LC_PATH:-/nonexistent}" -d -t 1 2>&1 | head -n 1 | cut -c1-120)); using $LOGCAT_BIN"
+fi
+
 # A store app's native helper run as a program (libtimer.so from an app's lib
 # folder, as the shell user, argument "umhpipe") that works on kernel pipes:
 # every S24-family kernel panic in free_pipe_info/pipe_read since 0.4.9x ran in
-# that thread (0.5.03's timer_threads.txt, report 60192300, 11-13). Not stopped
-# here: the panic comes when its pipe is freed, so killing it would be the crash. The
-# app starts the tool again at boot (aee4e2df on 0.5.04: refused after two restarts), so
-# the message asks for the app to be uninstalled.
+# that thread (0.5.03's timer_threads.txt, report 60192300, 11-13). Up to 0.5.27 it was
+# not stopped here (the panic was thought to come when its pipe is freed) and the switch
+# refused until the app was uninstalled or turned off; see 0.5.28 below.
 # 11-19 report 176dcdab (S24 Ultra, 0.5.25, kernel panic in libtimer.so pid 1730): the app had been updated
 # while its tool ran, and the tool's exe read ".../==deleted==/.../lib/arm64/libtimer.so (deleted)", which the
 # pattern missed; the app's name is then taken from the command line (its old /data/app path).
-for ex in /proc/[0-9]*/exe; do
-    t=$(readlink "$ex" 2>/dev/null) || continue
-    case "$t" in
-        /data/app/*/lib/*/libtimer.so|/data/app/*/lib/*/libtimer.so" (deleted)")
-            a=${t#/data/app/}; a=${a#*/}; a=${a%%/lib/*}; a=${a%%-*}
-            case "$t:$a" in *" (deleted)":*|*:|*:*/*)
-                a=$(tr '\0' ' ' < "${ex%/exe}/cmdline" 2>/dev/null | sed -n 's|^/data/app/[^/]*/\([A-Za-z0-9_.]*\)-[^/]*/lib/.*|\1|p')
-                [ -n "$a" ] || a="(an app updated since it started the tool)" ;;
-            esac
-            refuse "the app $a runs a kernel tool (libtimer.so, pid $(echo "$ex" | cut -d/ -f3)) that crashed the kernel of S24 phones during OneOS sessions. It starts again after every restart, so restarting does not help: uninstall $a (Settings, Apps; the phone may restart once while its tool closes), then switch again" ;;
-    esac
-done
+# 0.5.28 (owner: "can we not just kill it ourselves before booting"): S24 users could not start any system
+# since 0.5.24, also after uninstalling the app: an uninstalled or updated app's tool keeps running from its
+# deleted file until a restart, and "Turn it off" did not see it there. OneOS now stops every libtimer.so
+# program itself, wherever it was started from (deleted or not), before anything else; the watcher stops one
+# that starts during the session too. The switch is refused only when one survives the kill.
+timer_tools() { # pid and program of every process whose program is a libtimer.so
+    for ex in /proc/[0-9]*/exe; do
+        t=$(readlink "$ex" 2>/dev/null) || continue
+        case "${t% (deleted)}" in */libtimer.so) p=${ex%/exe}; echo "${p##*/} $t" ;; esac
+    done
+}
+TT=$(timer_tools)
+if [ -n "$TT" ]; then
+    echo "$TT" | while read -r tp tt; do
+        echo "preflight: stopping an app's kernel tool, pid $tp ($tt): it crashed the kernel of S24 phones during OneOS sessions"
+        kill -s KILL "$tp" 2>/dev/null
+    done
+    n=0
+    while [ -n "$(timer_tools)" ] && [ $n -lt 10 ]; do sleep 0.3; n=$((n + 1)); done
+    TT=$(timer_tools)
+    if [ -n "$TT" ]; then
+        tt=$(echo "$TT" | head -n 1 | cut -d' ' -f2-)
+        a=${tt#/data/app/}; a=${a#*/}; a=${a%%/lib/*}; a=${a%%-*}
+        case "$a" in */*|""|"$tt") a="an app" ;; esac
+        refuse "the app $a runs a kernel tool (libtimer.so, pid $(echo "$TT" | head -n 1 | cut -d' ' -f1)) that crashed the kernel of S24 phones during OneOS sessions, and it did not stop: restart the phone, then switch again"
+    fi
+    echo "preflight: the kernel tool stopped"
+fi
 
 # Root tools: the root manager's own busybox and resetprop (KernelSU, APatch,
 # Magisk), never whatever a search of /data finds (OneLineage fell back to
@@ -4033,6 +4066,16 @@ if [ "$RETURN_MAX" -gt 0 ]; then
         echo -1000 > /proc/\$\$/oom_score_adj 2>/dev/null
         t=0; total=0; dead=0; sfgone=0; prev_failed=0; homebase=0; wmbase=0; wmseen=0; sui=0
         while [ \$t -lt $RETURN_MAX ]; do
+            # 0.5.28: an app's kernel tool (libtimer.so, see the preflight) started during the session is
+            # stopped too (S24 Ultra e4e21a83: the kernel panicked in such a thread 8 minutes in).
+            for ex in /proc/[0-9]*/exe; do
+                tt=\$(readlink \$ex 2>/dev/null) || continue
+                case \"\${tt% (deleted)}\" in */libtimer.so)
+                    tp=\${ex%/exe}; tp=\${tp##*/}
+                    kill -s KILL \$tp 2>/dev/null
+                    echo \"\$(date) stopped an app's kernel tool started during the session: pid \$tp (\$tt)\" ;;
+                esac
+            done
             # The 10 s wait ends early on a request. Run 34: Volume Up + Volume
             # Down were held 3 s from 16:43:56, but the request was handled only
             # at 16:44:06 (the rest of this wait, then the diagnostics and the
