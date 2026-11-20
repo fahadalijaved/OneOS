@@ -1393,10 +1393,18 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         # step. With no partition-order config, system_ext overlays rank above vendor's
         # and product's (run 13: vendor 5, product 11), as /oem's did elsewhere.
         # ONEOS_GUEST_VIVO_SYSEXT=0 leaves them in /oem only.
-        if [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && [ "${ONEOS_GUEST_VIVO_SYSEXT:-1}" = 1 ]; then
-            for n in app/OneOSGuest:OneOSGuest.apk overlay/OneOSFoldCutout:OneOSFoldCutout.apk; do
+        # 0.5.29: One UI 9.5's package manager does not scan /oem either (owner: "no OneOS app in the One UI 9.5
+        # build and there is no return to One UI"; A17 dbb261b7: OneOSGuest.apk bound in /oem, never installed, the
+        # user held Volume Up+Down after 26 min). The same system_ext folders for a One UI guest.
+        if { [ -f "$ROOTFS/system/framework/vivo-services.jar" ] || grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; } &&
+                [ "${ONEOS_GUEST_VIVO_SYSEXT:-1}" = 1 ]; then
+            SE_LIST="app/OneOSGuest:OneOSGuest.apk"
+            [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && SE_LIST="$SE_LIST overlay/OneOSFoldCutout:OneOSFoldCutout.apk"
+            for n in $SE_LIST; do
                 d=${n%%:*}; f=${n#*:}
-                [ -f "$STAGE/$f" ] && [ ! -e "$GUEST_SYSTEM_EXT/$d" ] || continue
+                # The OneOS app is staged as OneOSGuest.apk or guest_manager.apk (the /oem step names either OneOSGuest.apk).
+                { [ -f "$STAGE/$f" ] || { [ "$f" = OneOSGuest.apk ] && [ -f "$STAGE/guest_manager.apk" ]; }; } &&
+                    [ ! -e "$GUEST_SYSTEM_EXT/$d" ] || continue
                 mkdir -p "$OV/up/$d" && VIVO_SE="$VIVO_SE $d"
             done
             for d in app overlay; do
@@ -3290,9 +3298,9 @@ for d in $VIVO_SE; do
     esac
     if [ -f "$src/$n.apk" ] && [ -d "$GUEST_SYSTEM_EXT/$d" ] && $BB mount --bind "$src" "$GUEST_SYSTEM_EXT/$d"; then
         $BB mount --make-rslave "$GUEST_SYSTEM_EXT/$d" 2>/dev/null || true
-        echo "vivo: $n.apk in /system_ext/$d (vivo does not scan /oem)"
+        echo "$n.apk in /system_ext/$d (this system does not scan /oem)"
     else
-        echo "vivo: $n.apk not placed in /system_ext/$d (not in this session's /oem, or no mount point)"
+        echo "$n.apk not placed in /system_ext/$d (not in this session's /oem, or no mount point)"
     fi
 done
 # ColorOS apps whose SELinux domain the host policy does not have (run 31: 35

@@ -774,3 +774,7 @@ New in 0.5.29: **Galaxy S24 phones can switch again.**
 - **Full session logs on phones with another "logcat" program** (Galaxy S24 FE: a tool on the phone answered in
   logcat's place, so the log stayed empty and some of OneOS's own checks saw nothing): OneOS now uses Android's own
   logcat for the session.
+
+New in 0.5.30: **the OneOS app and Back to One UI inside One UI 9.5.**
+- One UI 9.5 never installed the OneOS app (its package manager does not look where OneOS puts it), so the only way
+  back was Volume Up + Volume Down. The app now goes where One UI 9.5 finds it, as on vivo's OriginOS.
