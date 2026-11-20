@@ -52,45 +52,45 @@ gradle.taskGraph.whenReady {
 // One UI" app; the ColorOS sets since their 2026-10-25 rebuild), and
 // guest_prepare.sh puts it in the guest's /oem/app.
 val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
-    "n6-global-f8" to (File(repoRoot, "out/fold8-global-r0528") to listOf("tethering_payload.img", "OneOSFoldCutout.apk", "OneOSTabletQs.apk")),
+    "n6-global-f8" to (File(repoRoot, "out/fold8-global-r0531") to listOf("tethering_payload.img", "OneOSFoldCutout.apk", "OneOSTabletQs.apk")),
     // Find N6 global image (0.4.38), the Z Folds. tethering_payload.img is never mounted.
-    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r22") to listOf("tethering_payload.img")),
+    "n6-f8u" to (File(repoRoot, "out/overlays_n6g_r23") to listOf("tethering_payload.img")),
     // Find X9 Ultra image, S Ultra: no fold grid either.
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
     // 0.5.02: the newer Find X9 Ultra IN build (CPH2841IN, 2026-11-01), offered next to the older one.
-    "x9u-in-1105-sultra" to (File(repoRoot, "out/overlays_x9u_in_1105_r6") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-1105-sultra" to (File(repoRoot, "out/overlays_x9u_in_1105_r7") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
-    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r20") to listOf("tethering_payload.img")),
+    "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r21") to listOf("tethering_payload.img")),
     // Pixel 11 Pro image (0.4.10), Galaxy S26 Ultra: the same files from that image.
-    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r19") to listOf("tethering_payload.img")),
-    "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r20") to listOf("tethering_payload.img")),
+    "pixel-sultra" to (File(repoRoot, "out/overlays_pixel_kodiak_r20") to listOf("tethering_payload.img")),
+    "pixel-f8" to (File(repoRoot, "out/overlays_pixel_fold8_r21") to listOf("tethering_payload.img")),
     // Pixel 9 Pro XL image (0.4.22), Galaxy S25 Ultra, S25, S25+ and S24 Ultra: the same files from that image.
-    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r19") to listOf("tethering_payload.img")),
+    "pixel9-sultra" to (File(repoRoot, "out/overlays_pixel_komodo_r20") to listOf("tethering_payload.img")),
     // Infinity-X image (0.4.27), every phone: one set from that image. Its cellbroadcast module
     // is built from source (0.4.28): the guest keeps One UI's, like tethering.
-    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r17") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
+    "infinityx" to (File(repoRoot, "out/overlays_infinityx_r18") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // HyperOS image (docs/hyperos.md), made for the Z Fold8 Ultra and Z Fold8, on every phone from 0.4.31: Xiaomi's guarded jars,
     // the signal poll and the image's payloads.
-    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r29") to listOf("tethering_payload.img")),
+    "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r30") to listOf("tethering_payload.img")),
     // HyperOS 4 Global (0.5.27): Xiaomi's global build OS4.0.5.0.XFRMIXM with Google apps (gmssystem payload). Tethering never mounts.
-    "hyper-hk" to (File(repoRoot, "out/overlays_hyperos_hk_r3") to listOf("tethering_payload.img")),
+    "hyper-hk" to (File(repoRoot, "out/overlays_hyperos_hk_r4") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
-    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r39") to listOf("tethering_payload.img")),
-    "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r7") to listOf("tethering_payload.img")),
+    "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r40") to listOf("tethering_payload.img")),
+    "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r8") to listOf("tethering_payload.img")),
     // OxygenOS 16 (0.4.67, experimental), for the phones on One UI 8 (Android 16): no fold overlays, no
     // tethering (One UI's stays), no apex requirement list (no ColorOS set ships one).
     "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r3") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
         "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
     // OriginOS 7 (0.4.73, experimental): set r17 = r14 plus the vivo fold cutout overlay (the cover's lens).
-    "originos" to (File(repoRoot, "out/overlays_originos_cn_r21") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
+    "originos" to (File(repoRoot, "out/overlays_originos_cn_r22") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
     // LineageOS 24 (0.5.06, experimental): the OnePlus 15 nightly, on every phone that offers Infinity-X. No gmssystem
     // payload (One UI's Google apps are laid over the guest at session time). Tethering never mounts; its source-built
     // cellbroadcast module is left out like Infinity-X's.
-    "lineage" to (File(repoRoot, "out/overlays_lineage_r9") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
+    "lineage" to (File(repoRoot, "out/overlays_lineage_r10") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // One UI 9.5 (0.5.22, untested): the Galaxy S26 Ultra build, on the phones on One UI 9. Tethering never mounts.
-    "oneui95" to (File(repoRoot, "out/overlays_oneui95_r7") to listOf("tethering_payload.img")),
+    "oneui95" to (File(repoRoot, "out/overlays_oneui95_r8") to listOf("tethering_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -525,8 +525,8 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 173
-        versionName = "0.5.30"
+        versionCode = 174
+        versionName = "0.5.31"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

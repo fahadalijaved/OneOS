@@ -42,10 +42,10 @@ class PackageSetsTest {
         assertEquals(43, pixel.files.size) // 0.4.59: OneOSFoldCutout.apk, yogi-services_patched.jar, libbootanimation_preapex_patched.so, OneOSPixelLauncher.apk, OneOSPixelDoze.apk; 0.4.24: framework_patched.jar (One UI's camera transaction codes); 0.4.45: telephony-common_patched.jar; 0.4.47: libcamera_client_patched.so, samcam.tar
         assertEquals(Images.ID_FIND_N6, n6.imageId)
         assertEquals(Images.ID_PIXEL_YOGI, pixel.imageId)
-        assertEquals("out/overlays_n6g_r22", n6.sourceDir)
+        assertEquals("out/overlays_n6g_r23", n6.sourceDir)
         assertEquals("out/overlays_x9u_in_r75", xin.sourceDir)
         assertEquals(Images.ID_FIND_X9U_IN, xin.imageId)
-        assertEquals("out/overlays_pixel_f8u_r20", pixel.sourceDir)
+        assertEquals("out/overlays_pixel_f8u_r21", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, PackageSets.X9U_IN_1105_SULTRA, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
                 PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.HYPER_HK, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95),
@@ -56,7 +56,7 @@ class PackageSetsTest {
         // Not its cellbroadcast module (0.4.28): One UI's stays, as tethering does.
         val ifx = PackageSets.INFINITYX
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
-        assertEquals("out/overlays_infinityx_r17", ifx.sourceDir)
+        assertEquals("out/overlays_infinityx_r18", ifx.sourceDir)
         // 0.4.55 (r4): telephony-common_patched.jar (the SMS centre) and samcam.tar (the S26 Ultra's camera).
         assertEquals(36, ifx.files.size)
         // 0.4.33: the status bar's corner padding, as on the Pixel images.
@@ -76,7 +76,7 @@ class PackageSetsTest {
         val lineage = PackageSets.LINEAGE
         assertEquals("lineage", lineage.id)
         assertEquals(Images.ID_LINEAGE, lineage.imageId)
-        assertEquals("out/overlays_lineage_r9", lineage.sourceDir)
+        assertEquals("out/overlays_lineage_r10", lineage.sourceDir)
         assertEquals(40, lineage.files.size) // 0.5.14 r6: + samcam_a.tar, samcam_bar.tar; 0.5.07 r3: + libbootanimation_preapex_patched.so; 0.5.06 r2: + OneOSPixelDoze.apk (AOD)
         assertEquals(20, lineage.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), lineage.omitted)
@@ -92,7 +92,7 @@ class PackageSetsTest {
         val oneui = PackageSets.ONEUI95
         assertEquals("oneui95", oneui.id)
         assertEquals(Images.ID_ONEUI95, oneui.imageId)
-        assertEquals("out/overlays_oneui95_r7", oneui.sourceDir)
+        assertEquals("out/overlays_oneui95_r8", oneui.sourceDir)
         assertEquals(36, oneui.files.size)
         assertEquals(22, oneui.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), oneui.omitted)
@@ -107,7 +107,7 @@ class PackageSetsTest {
         // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
         val hyper = PackageSets.HYPER_F8U
         assertEquals(Images.ID_HYPEROS_LHASA, hyper.imageId)
-        assertEquals("out/overlays_hyperos_r29", hyper.sourceDir)
+        assertEquals("out/overlays_hyperos_r30", hyper.sourceDir)
         assertEquals(39, hyper.files.size) // 0.4.38: + libsurfaceflinger_patched.so; 0.4.59: + telephony, two cameras; 0.4.70: + xiaomi-opt-telephony_patched.jar
         assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar"),
             hyper.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
@@ -122,7 +122,7 @@ class PackageSetsTest {
         // the 18 payloads with the GmsCore one (presented, as on One UI 9.5).
         val hk = PackageSets.HYPER_HK
         assertEquals(Images.ID_HYPEROS_HONGKONG, hk.imageId)
-        assertEquals("out/overlays_hyperos_hk_r3", hk.sourceDir)
+        assertEquals("out/overlays_hyperos_hk_r4", hk.sourceDir)
         assertEquals(44, hk.files.size)
         assertEquals(18, hk.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), hk.omitted)
@@ -139,7 +139,7 @@ class PackageSetsTest {
         // TelephonyResCommon_Sys.apk in this guest's overlay order (run 10).
         val nothing = PackageSets.NOTHING_F8U
         assertEquals(Images.ID_NOTHING_METROID, nothing.imageId)
-        assertEquals("out/overlays_nothing_r39", nothing.sourceDir)
+        assertEquals("out/overlays_nothing_r40", nothing.sourceDir)
         assertEquals(48, nothing.files.size) // 0.4.55: samcam_bar.tar, the S26 Ultra's camera for the phones
         // r12: Nothing's SystemUI with its quick settings at the screen's own density on the inner panel;
         // r13: its launcher with the drawer's category boxes per row from the width; r17: the ringtone kits

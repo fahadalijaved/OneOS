@@ -2013,6 +2013,32 @@ class StageScriptTest {
         assertEquals("in again", File(dir, "$chat/ce/login").readText())
     }
 
+    /** 0.5.31: while a session runs the bridges cover One UI's folders; bring-add reads One UI's own through the switch's read-only view. */
+    @Test
+    fun bringAddDuringASessionReadsOneUiThroughTheView() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val chat = "org.example.chat"
+        s.ok(catalog(fr, catalogLine(chat)))
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=11111111-2222-3333-4444-555555555555\n")
+        File(fr.stage, "guest_mntns").writeText("mnt:[4026535178]\n")
+        // Without the view (an older switch): the bridged folders are the guest's, and the app is not there.
+        refused(fr.run(RootScript.Verb.BRING_ADD, chat), "was not brought: not an installed user app")
+        val v = File(fr.root, "mnt/oneos_oneui")
+        File(v, "app/~~ab==/$chat-xy==").mkdirs()
+        File(v, "app/~~ab==/$chat-xy==/base.apk").writeText("apk")
+        File(v, "data/$chat").mkdirs()
+        File(v, "data/$chat/login").writeText("from One UI")
+        File(v, "user_de/0/$chat").mkdirs()
+        val before = fr.listing(v)
+        val r = fr.run(RootScript.Verb.BRING_ADD, chat)
+        s.ok(r)
+        val dir = File(fr.stage, "data/oneos_bring")
+        assertEquals("from One UI", File(dir, "$chat/ce/login").readText())
+        assertTrue(File(dir, "$chat/apk/base.apk").isFile || File(dir, "$chat/apk").list()!!.isNotEmpty())
+        assertEquals(before, fr.listing(v))
+    }
+
     /** bring-status (build 104): read only; what waits, what the guest did with it, and what is newer on One UI. */
     @Test
     fun bringStatusTellsWhatBecameOfEachCopyAndWhatIsNewer() = eachShell { fr ->

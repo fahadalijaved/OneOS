@@ -434,6 +434,12 @@ for pair in $BRIDGES; do
     d=${pair%%:*}
     umnt "/data/$d" || umnt -l "/data/$d" || true
 done
+# The read-only view of One UI's folders for Bring apps (guest_prepare.sh, 0.5.31).
+for d in app data user_de; do
+    umnt "/mnt/oneos_oneui/$d" 2>/dev/null || umnt -l "/mnt/oneos_oneui/$d" 2>/dev/null || true
+done
+# HyperOS's status bar threshold (guest_prepare.sh, 0.5.31): only the value OneOS set.
+[ "$(getprop debug.layered.strategy.phone)" = 99 ] && setprop debug.layered.strategy.phone "" 2>/dev/null || true
 # Never touch One UI's files, or start One UI in place, while a bridge is
 # still there: it would act on the guest's staged copy.
 still_bridged=""

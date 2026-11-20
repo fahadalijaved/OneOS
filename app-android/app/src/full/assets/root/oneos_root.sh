@@ -2283,9 +2283,21 @@ bring_drop() { # <the stage's bring folder, or one folder in it>
 }
 
 # One UI's two data folders of $pkg (a name is_package accepted), read only.
+# 0.5.31: while a session runs, the session's bridges cover these folders in One UI's namespace (and so in
+# init's root) with the guest's copies; One UI's own are then read from the switch's read-only view of them
+# (guest_prepare.sh, $T/mnt/oneos_oneui), which the guest never sees.
 bring_sources() {
-    BCE="$PROC/1/root$DATA/data/$pkg"
-    BDE="$PROC/1/root$DATA/user_de/0/$pkg"
+    if bring_view; then
+        BCE="$T/mnt/oneos_oneui/data/$pkg"
+        BDE="$T/mnt/oneos_oneui/user_de/0/$pkg"
+    else
+        BCE="$PROC/1/root$DATA/data/$pkg"
+        BDE="$PROC/1/root$DATA/user_de/0/$pkg"
+    fi
+}
+# Whether a session runs and its read-only view of One UI's folders is there.
+bring_view() {
+    { [ "$BRING_LIVE" = 1 ] || [ -s "$STAGE/guest_mntns" ]; } && [ -d "$T/mnt/oneos_oneui/app" ] && [ -d "$T/mnt/oneos_oneui/data" ]
 }
 
 # The first line of one of a brought app's mark files, plain characters only
@@ -2338,7 +2350,9 @@ bring_aside() { # <a folder in the bring folder>; 1 when it is not root's own
 # /data/app is read instead, /data/app/<random>/<package>-<random>/, the newest when an update left two. Only for a
 # name is_package accepted.
 apk_of() { # <package>
-    if [ "$BRING_LIVE" = 1 ] || [ -s "$STAGE/guest_mntns" ]; then
+    if bring_view; then
+        ls -td "$T"/mnt/oneos_oneui/app/*/"$1"-*/base.apk 2>/dev/null | head -n 1
+    elif [ "$BRING_LIVE" = 1 ] || [ -s "$STAGE/guest_mntns" ]; then
         ls -td "$DATA"/app/*/"$1"-*/base.apk 2>/dev/null | head -n 1
     else
         pm path "$1" 2>/dev/null </dev/null | sed -n 's/^package://p' | head -n 1
@@ -2353,7 +2367,7 @@ bring_one() { # <a name is_package accepted>
     # own apps stay on One UI, and the app never offers them).
     first=$(apk_of "$pkg")
     apkdir=""
-    case "$first" in *..*) ;; "$DATA"/app/*/*.apk) apkdir=${first%/*} ;; esac
+    case "$first" in *..*) ;; "$DATA"/app/*/*.apk|"$T"/mnt/oneos_oneui/app/*/*.apk) apkdir=${first%/*} ;; esac
     if [ -z "$apkdir" ] || [ ! -f "$first" ] || [ -L "$first" ]; then
         BRING_WHY="not an installed user app"
         say "@@INFO $pkg: $BRING_WHY, skipped"

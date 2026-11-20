@@ -499,6 +499,9 @@ object StageAudit {
     private const val BRING_SOURCES_FUNCTION = "bring_sources"
     private const val BCE_VALUE = "\"\$PROC/1/root\$DATA/data/\$pkg\""
     private const val BDE_VALUE = "\"\$PROC/1/root\$DATA/user_de/0/\$pkg\""
+    /** 0.5.31: while a session runs, the switch's read-only view of One UI's folders (guest_prepare.sh). */
+    private const val BCE_LIVE_VALUE = "\"\$T/mnt/oneos_oneui/data/\$pkg\""
+    private const val BDE_LIVE_VALUE = "\"\$T/mnt/oneos_oneui/user_de/0/\$pkg\""
     private val BFROM_WORDS = setOf(
         listOf("\"\$BCE\"/*", "\"\$BCE\"/.[!.]*", "\"\$BCE\"/..?*"),
         listOf("\"\$BDE\"/*", "\"\$BDE\"/.[!.]*", "\"\$BDE\"/..?*"),
@@ -610,8 +613,8 @@ object StageAudit {
                 "L" -> if (a.value != RootScript.LEGACY_STAGE && !a.value.matches(Regex("^/[A-Za-z0-9._/-]+$"))) p += "line ${a.line}: L=${a.value}"
                 "OLD" -> if (!v.startsWith("\$STAGE.old-") && !self) p += "line ${a.line}: OLD=${a.value}"
                 "upsrc" -> if (a.value != UPSRC_VALUE || a.function != SELFUPDATE_FUNCTION) p += "line ${a.line}: upsrc=${a.value}"
-                "BCE" -> if (a.value != BCE_VALUE || a.function != BRING_SOURCES_FUNCTION) p += "line ${a.line}: BCE=${a.value}"
-                "BDE" -> if (a.value != BDE_VALUE || a.function != BRING_SOURCES_FUNCTION) p += "line ${a.line}: BDE=${a.value}"
+                "BCE" -> if ((a.value != BCE_VALUE && a.value != BCE_LIVE_VALUE) || a.function != BRING_SOURCES_FUNCTION) p += "line ${a.line}: BCE=${a.value}"
+                "BDE" -> if ((a.value != BDE_VALUE && a.value != BDE_LIVE_VALUE) || a.function != BRING_SOURCES_FUNCTION) p += "line ${a.line}: BDE=${a.value}"
                 "BFROM" -> p += "line ${a.line}: BFROM=${a.value} (only the loops set it)"
                 "ref" -> if (a.value != BRING_REF_VALUE) p += "line ${a.line}: ref=${a.value}"
                 "OLD_PARENT" -> if (a.value != "\"\$DATA/local/tmp\"") p += "line ${a.line}: OLD_PARENT=${a.value}"
