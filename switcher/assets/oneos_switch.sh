@@ -3804,6 +3804,40 @@ UIAEOF
 unset UIA
 $BB sh "$STAGE/tmp/ui_activator.sh" </dev/null >/data/local/tmp/ui_activator.log 2>&1 &
 
+# A Flip's cover panel is installed at 90 degrees (One UI's installOrientation
+# 1: 748x720), while the guest reports its logical display as 720x748 at
+# rotation 0 and lays a phone UI out sideways. The UI activator's one-time
+# window-ready block cannot see the cover when the session starts unfolded,
+# and the cover's display id changes with every lid event, so a separate
+# keeper looks for the cover's size after each state change. The inner panel
+# (1080x2640) is never touched. It ends with the return, like the other
+# keepers (return_to_oneui.sh's data/oneos_rec_stop), so it cannot rotate One
+# UI's cover afterwards. ONEOS_GUEST_COVER_ROTATION=off leaves it out.
+if [ "${ONEOS_GUEST_FORM:-fold}" = flip ] && [ "${ONEOS_GUEST_COVER_ROTATION:-1}" != off ]; then
+    (
+        ROT_ST=''
+        while true; do
+            [ -f "$STAGE/data/oneos_rec_stop" ] && exit 0
+            [ -s "$STAGE/guest_mntns" ] || exit 0
+            P=$(pidof system_server | awk '{print $1}')
+            if [ -z "$P" ]; then sleep 2; continue; fi
+            S=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd device_state print-state 2>/dev/null | head -1)
+            if [ "$S" != "$ROT_ST" ]; then
+                ROT_ST=$S
+                for d in 0 1 2 3 4 5 6 7; do
+                    Z=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d "$d" 2>/dev/null | sed -n 's/^Physical size: //p' | head -1)
+                    case "$Z" in 720x748|748x720)
+                        R=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm set-user-rotation lock 1 -d "$d" 2>&1)
+                        echo "$(date +%T) cover display $d ($Z), state $S: user rotation 1 (${R:-ok})" >> "$STAGE/cover_rotation.log"
+                        ;;
+                    esac
+                done
+            fi
+            sleep 2
+        done
+    ) </dev/null >> "$STAGE/cover_rotation.log" 2>&1 &
+fi
+
 # Samsung CPU/GPU votes survive the host framework; capability-detected on every profile.
 # 0.4.38: only with the heat cap off (Cool down when hot, Advanced). With it on, the heat cap
 # below caps from 45 C and lifts One UI's stale vote itself; the worker only releases under
