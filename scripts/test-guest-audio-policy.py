@@ -608,6 +608,27 @@ class OtherGuests(unittest.TestCase):
             self.assertEqual(f'{etc}/{USB_FILE}', list(ET.fromstring(copy).find('modules'))[-1].get('href'))
             self.assertTrue(any('--bind' in l for l in log), log)
 
+    def test_the_bluetooth_offload_variants_get_the_same_copy(self):
+        # S24+ d98f425d, 5d625e0e, 8ca56b25: Nothing OS and LineageOS read One UI's
+        # audio_policy_configuration_le_offload_disabled.xml (flat volume curves).
+        with tempfile.TemporaryDirectory() as t:
+            f = Fixture(t)
+            variant = f.guest_etc / 'audio_policy_configuration_le_offload_disabled.xml'
+            variant.write_text(PLAIN)
+            lines = f.run(COPY + OTHER)
+            self.assertEqual('', f.err)
+            self.assertEqual(f'Guest audio policy: the same copy on {f.v}/etc/audio_policy_configuration_le_offload_disabled.xml '
+                             '(read before the plain file when Bluetooth offload is off)', lines[-1])
+            log = f.log()
+            self.assertIn(f'mount --bind {f.stage}/guest_apm/audio_policy_configuration.xml {variant}', log)
+            self.assertIn(f'mount -o remount,ro,bind {variant}', log)
+        with tempfile.TemporaryDirectory() as t:
+            f = Fixture(t)
+            variant = f.guest_etc / 'audio_policy_configuration_le_offload_disabled.xml'
+            variant.write_text(PLAIN)
+            f.run(COPY + OTHER, env={'ONEOS_GUEST_APM_VARIANTS': '0'})
+            self.assertFalse(any(str(variant) in l for l in f.log()), f.log())
+
     def test_nothing_to_add_binds_nothing(self):
         for kw, why in (({'bt': HIDL_BT}, 'no A2DP outputs added (no AIDL Bluetooth audio HAL on this phone)'),
                         ({'sec': None}, "no A2DP outputs added (One UI's own policy file has none)"),

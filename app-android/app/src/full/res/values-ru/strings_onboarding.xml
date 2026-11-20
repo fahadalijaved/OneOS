@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_welcome">Добро пожаловать в OneOS</string>
+    <string name="onboarding_start">Начать</string>
+    <string name="onboarding_prerequisites">Требования</string>
+    <string name="onboarding_root">Поставщик root</string>
+    <string name="onboarding_no_root">Root не обнаружен. Вы можете посмотреть доступные системы.</string>
+    <string name="onboarding_nearby">Устройства поблизости</string>
+    <string name="onboarding_nearby_summary">Не требуется для локального переключения</string>
+    <string name="onboarding_lock">Блокировка экрана</string>
+    <string name="onboarding_lock_summary">Для переключения блокировка экрана должна быть выключена (PIN-код, графический ключ, пароль, отпечаток пальца и лицо). Так данные One UI в безопасности, если что-то пойдёт не так.</string>
+    <string name="onboarding_lock_on">Вкл. · выключите её перед переключением</string>
+    <string name="onboarding_lock_off">Выкл. · готово</string>
+    <string name="onboarding_root_found">Найден %1$s · OneOS запросит доступ при настройке</string>
+    <string name="onboarding_experimental">OneOS экспериментальная</string>
+    <string name="onboarding_experimental_summary">Приложение переключает устройство из One UI в другую систему без прошивки. Что-то может сломаться.</string>
+    <string name="onboarding_backup">Сделайте резервную копию данных</string>
+    <string name="onboarding_backup_summary">Сначала сохраните аккаунты и важные данные.</string>
+    <string name="onboarding_data">Данные и приложения</string>
+    <string name="onboarding_data_summary">Приложения в другой системе получают те же права root, что и One UI. Данные не являются общими, но всё, что обращается к системе, получит полный доступ. Будьте благоразумны.</string>
+</resources>

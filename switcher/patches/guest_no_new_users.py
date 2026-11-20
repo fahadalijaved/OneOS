@@ -76,11 +76,17 @@ SIGNATURES = (
      f"{CLS}->createUserInternalUnchecked({SA}{SA}IIZ[{SA}Ljava/lang/Object;){UI}"),
     (f"{CLS}->createUserInternalUncheckedNoTracing({SA}{SA}IIZ[{SA}Lcom/android/server/utils/TimingsTraceAndSlog;Ljava/lang/Object;[{SA}){UI}",
      f"{CLS}->createUserInternalUnchecked({SA}{SA}IIZ[{SA}Ljava/lang/Object;[{SA}){UI}"),
+    # One UI 9.5 (S948BXXU6ZZKN): the same trailing String[], and no boolean after the two ints.
+    (f"{CLS}->createUserInternalUncheckedNoTracing({SA}{SA}II[{SA}Lcom/android/server/utils/TimingsTraceAndSlog;Ljava/lang/Object;[{SA}){UI}",
+     f"{CLS}->createUserInternalUnchecked({SA}{SA}II[{SA}Ljava/lang/Object;[{SA}){UI}"),
 )
 SYSTEM_USER_INFO = f"{UI}-><init>(I{SA}{SA}I{SA})V"
 EXC = "Landroid/os/UserManager$CheckedUserOperationException;"
 EXC_INIT = f"{EXC}-><init>({SA}I)V"
 THROW_HELPER = f"{CLS}->throwCheckedUserOperationException({SA}I)V"
+# One UI 9.5 (S948BXXU6ZZKN): static, code first: throwCheckedUserOperationException(int code, String message).
+THROW_HELPER_STATIC = f"{CLS}->throwCheckedUserOperationException(I{SA})V"
+THROW_HELPERS = (THROW_HELPER, THROW_HELPER_STATIC)
 USER_OPERATION_ERROR_UNKNOWN = 1
 MESSAGE = "OneOS: no users or profiles in the guest"
 
@@ -229,6 +235,50 @@ def only_called_from(callers, callee, allowed, what):
     return names
 
 
+IGET_OBJ = re.compile(r"^\s*iget-object (v\d+|p\d+), \S+, (\S+)$")
+SPARSE_WRITE_ARGS = re.compile(r"^\s*invoke-\S+ \{(v\d+|p\d+), (v\d+|p\d+), (v\d+|p\d+)\}.*Landroid/util/SparseArray;->(?:put|set)\(")
+
+
+def musers_writers_r8(defs, files, funnel):
+    """One UI 9.5: R8 inlined addUserDataLU() into its callers. The methods that write mUsers are those with
+    a SparseArray write whose receiver register was last loaded from mUsers or from anything unrecognised
+    (fail closed); a write into another field's array (the journey logger's map) does not count."""
+    writers = {}
+    for k, (path, i, j) in defs.items():
+        body = files[path][i:j]
+        if not any(r in l for l in body for r in USERS_REFS):
+            continue
+        for n, line in enumerate(body):
+            m = SPARSE_WRITE_RECV.search(line)
+            if not m:
+                continue
+            src = last_write(body, m.group(1), n, 0)
+            g = IGET_OBJ.match(src) if src else None
+            if g and not any(r in g.group(2) for r in USERS_REFS) and "mUsers:" not in g.group(2):
+                continue
+            writers.setdefault(k, []).append((n, body))
+    return writers
+
+
+def check_updated_user_is_existing(path, i, j, lines):
+    """updateUserInfo() puts back a UserData it read from mUsers.get(userId): it adds no user."""
+    body = lines[i:j]
+    puts = [n for n, l in enumerate(body) if SPARSE_WRITE_ARGS.search(l)]
+    if len(puts) != 1:
+        sys.exit("UserManagerService.updateUserInfo: expected one SparseArray put")
+    val = SPARSE_WRITE_ARGS.search(body[puts[0]]).group(3)
+    writes = re.compile(WRITES.format(r=re.escape(val)))
+    got = [n for n in range(len(body)) if body[n].strip() == f"check-cast {val}, Lcom/android/server/pm/UserManagerService$UserData;"]
+    ok = False
+    for n in got:
+        prev = [x.strip() for x in body[:n] if x.strip()][-2:]
+        if len(prev) == 2 and prev[1] == f"move-result-object {val}" and "Landroid/util/SparseArray;->get(I)Ljava/lang/Object;" in prev[0]:
+            # nothing else writes the register between the cast and the put
+            ok = not any(writes.match(body[x]) for x in range(n + 1, puts[0]))
+    if not ok:
+        sys.exit("UserManagerService.updateUserInfo: the UserData it puts is not the one read from mUsers")
+
+
 def check_system_user_path(defs, edges, callers, files, funnel):
     """Prove that adding user 0 (first boot or later boots) never reaches the patched method."""
     def key(name):
@@ -237,21 +287,34 @@ def check_system_user_path(defs, edges, callers, files, funnel):
             sys.exit(f"UserManagerService.{name} not found")
         return found
     writers = []
-    for k, (path, i, j) in defs.items():
-        body = files[path][i:j]
-        if any(r in l for l in body for r in USERS_REFS) and any(SPARSE_WRITE.search(l) for l in body):
-            if writes_only_fresh_arrays(body):
-                print(f"{label(k)} reads mUsers and writes only a SparseArray of its own: not a writer", file=sys.stderr)
-                continue
-            writers.append(label(k))
-    if writers != ["UserManagerService.addUserDataLU"]:
-        sys.exit(f"methods writing UserManagerService.mUsers are {writers}, expected only addUserDataLU")
-    adders = set()
-    for add in key("addUserDataLU"):
-        adders |= set(only_called_from(callers, add, {"createUserInternalUncheckedNoTracing", "putUserInfo", "readUserListLP"},
-                                       "a user could be added outside the patched method"))
-    if "createUserInternalUncheckedNoTracing" not in adders:
-        sys.exit("UserManagerService: createUserInternalUncheckedNoTracing does not call addUserDataLU, unexpected build")
+    if any(k.startswith(f"{CLS}->addUserDataLU(") for k in defs):
+        for k, (path, i, j) in defs.items():
+            body = files[path][i:j]
+            if any(r in l for l in body for r in USERS_REFS) and any(SPARSE_WRITE.search(l) for l in body):
+                if writes_only_fresh_arrays(body):
+                    print(f"{label(k)} reads mUsers and writes only a SparseArray of its own: not a writer", file=sys.stderr)
+                    continue
+                writers.append(label(k))
+        if writers != ["UserManagerService.addUserDataLU"]:
+            sys.exit(f"methods writing UserManagerService.mUsers are {writers}, expected only addUserDataLU")
+        adders = set()
+        for add in key("addUserDataLU"):
+            adders |= set(only_called_from(callers, add, {"createUserInternalUncheckedNoTracing", "putUserInfo", "readUserListLP"},
+                                           "a user could be added outside the patched method"))
+        if "createUserInternalUncheckedNoTracing" not in adders:
+            sys.exit("UserManagerService: createUserInternalUncheckedNoTracing does not call addUserDataLU, unexpected build")
+    else:
+        # One UI 9.5 (S948BXXU6ZZKN): no addUserDataLU(); R8 put its body into these four methods.
+        found = musers_writers_r8(defs, files, funnel)
+        names = sorted(label(k) for k in found)
+        want = sorted(f"UserManagerService.{n}" for n in ("createUserInternalUncheckedNoTracing", "putUserInfo", "readUserListLP", "updateUserInfo"))
+        if names != want:
+            sys.exit(f"methods writing UserManagerService.mUsers are {names}, expected {want}")
+        for k in found:
+            if name_of(k) == "updateUserInfo":
+                check_updated_user_is_existing(*defs[k][:1], defs[k][1], defs[k][2], files[defs[k][0]])
+        print("One UI form: mUsers is written only by the patched method, putUserInfo, readUserListLP and "
+              "updateUserInfo (puts back the user it read)", file=sys.stderr)
     for put in key("putUserInfo"):
         only_called_from(callers, put, {"fallbackToSingleUserLP"}, "a user could be added outside the patched method")
     for fb in key("fallbackToSingleUserLP"):
@@ -267,7 +330,8 @@ def check_system_user_path(defs, edges, callers, files, funnel):
         first = last_write(lines, regs[1], ctor[0], i) if len(regs) == 6 else None
         if first != f"const/4 {regs[1]}, 0x0":
             sys.exit(f"UserManagerService.fallbackToSingleUserLP: UserInfo id set by {first!r}, expected user 0")
-    starts = key("<init>") + key("readUserListLP") + key("fallbackToSingleUserLP") + key("putUserInfo") + key("addUserDataLU")
+    starts = key("<init>") + key("readUserListLP") + key("fallbackToSingleUserLP") + key("putUserInfo") + \
+        (key("addUserDataLU") if any(k.startswith(f"{CLS}->addUserDataLU(") for k in defs) else [])
     for s in starts:
         p = path_to(edges, s, funnel)
         if p:
@@ -281,7 +345,22 @@ def check_system_user_path(defs, edges, callers, files, funnel):
     print(f"none of {sorted({name_of(s) for s in starts})} reaches createUserInternalUncheckedNoTracing", file=sys.stderr)
 
 
-def check_entries(defs, edges, callers, funnel, unchecked):
+PRECREATE_STUB = ("new-instance p0, Ljava/lang/UnsupportedOperationException;",
+                  'const-string/jumbo p1, "Precreated users are no longer supported"',
+                  "invoke-direct {p0, p1}, Ljava/lang/UnsupportedOperationException;-><init>(Ljava/lang/String;)V",
+                  "throw p0")
+
+
+def is_precreate_stub(defs, files, k):
+    """One UI 9.5 (Android 17): preCreateUserWithThrow only throws; it creates nothing."""
+    if name_of(k) != "preCreateUserWithThrow":
+        return False
+    path, i, j = defs[k]
+    body = [l.strip() for l in files[path][i + 1:j] if l.strip()]
+    return body[:1] == [".locals 0"] and tuple(body[1:]) == PRECREATE_STUB
+
+
+def check_entries(defs, edges, callers, funnel, unchecked, files):
     if callers.get(funnel, []) != [unchecked]:
         sys.exit(f"createUserInternalUncheckedNoTracing called from {callers.get(funnel, [])}, expected once from createUserInternalUnchecked")
     entries = list(ENTRIES)
@@ -293,6 +372,9 @@ def check_entries(defs, edges, callers, funnel, unchecked):
     for k in entries:
         if k not in defs:
             sys.exit(f"entry point {k} not found, unexpected build")
+        if is_precreate_stub(defs, files, k):
+            print(f"entry {label(k)}: only throws UnsupportedOperationException (no precreated users)", file=sys.stderr)
+            continue
         p = path_to(edges, k, funnel)
         if not p:
             sys.exit(f"entry point {k} does not reach createUserInternalUncheckedNoTracing: a user could be created around the guard")
@@ -320,14 +402,16 @@ def check_error_unknown(lines, i, end):
     anchor = [k for k in range(i, end) if '"Cannot create user of invalid user type: "' in lines[k]]
     if len(anchor) != 1:
         sys.exit("createUserInternalUncheckedNoTracing: invalid user type message not found exactly once")
-    call = next((k for k in range(anchor[0], end) if lines[k].strip().endswith(THROW_HELPER)), None)
+    call = next((k for k in range(anchor[0], end) if lines[k].strip().endswith(THROW_HELPERS)), None)
     if call is None:
         sys.exit("createUserInternalUncheckedNoTracing: no throwCheckedUserOperationException after the invalid user type message")
     regs = regs_of(lines[call])
-    if len(regs) != 3:
+    static = lines[call].strip().endswith(THROW_HELPER_STATIC)
+    if len(regs) != (2 if static else 3):
         sys.exit("createUserInternalUncheckedNoTracing: unexpected throwCheckedUserOperationException call")
-    last = last_write(lines, regs[2], call, i)
-    if last != f"const/4 {regs[2]}, {hex(USER_OPERATION_ERROR_UNKNOWN)}":
+    code = regs[0] if static else regs[2]
+    last = last_write(lines, code, call, i)
+    if last != f"const/4 {code}, {hex(USER_OPERATION_ERROR_UNKNOWN)}":
         sys.exit(f"createUserInternalUncheckedNoTracing: invalid user type refused with {last!r}, expected USER_OPERATION_ERROR_UNKNOWN = 1")
 
 
@@ -351,11 +435,11 @@ def main(root):
         sys.exit(f"{path}: createUserInternalUncheckedNoTracing found {len(heads)} times, expected once")
     i = heads[0]
     end = defs[funnel][2]
-    n = check_entries(defs, edges, callers, funnel, unchecked)
+    n = check_entries(defs, edges, callers, funnel, unchecked, files)
     check_system_user_path(defs, edges, callers, files, funnel)
     if not any(l.strip().endswith(EXC_INIT) for l in lines):
         sys.exit(f"{path}: CheckedUserOperationException(String, int) not used, unexpected build")
-    if not any(l.strip().endswith(THROW_HELPER) for l in lines[i:end]):
+    if not any(l.strip().endswith(THROW_HELPERS) for l in lines[i:end]):
         sys.exit(f"{path}: createUserInternalUncheckedNoTracing does not throw CheckedUserOperationException, unexpected build")
     check_error_unknown(lines, i, end)
     locals_ = [re.match(r"\s*\.locals (\d+)$", l) for l in lines[i + 1:end]]

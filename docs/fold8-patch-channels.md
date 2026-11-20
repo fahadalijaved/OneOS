@@ -200,3 +200,35 @@ Stable ColorOS adds one empty, immutable addon archive (one empty
 `overlays.list`), mirrored in OneOS-files with the other set files. It applies
 no overlays; all upstream payloads keep their upstream hashes. Experimental
 payloads remain hosted by their registered contributor.
+
+## Contributor patch discovery
+
+The pre-boot page checks That Josh Guy's OneOS-files fork in the background for
+`<profile>-<set>.json` on the `fold8-experimental` release. A source appears only
+after its manifest validates for the selected phone, package set and exact raw
+image hash. Check for patch updates probes for newly published sources as well.
+Validated snapshots remain usable offline. Discovery never selects a source or
+changes the prepared guest; choose the source and apply Update/Repair as usual.
+
+The app trusts the contributor repository and release tag in
+`app-android/packages/patch-sources.json`. `discover: true` lets that contributor
+publish for any already supported phone/OS without adding another embedded
+target. Explicit targets remain available for contributors with narrower scope.
+The publisher accepts `--profile` and derives the exact image pin from the app's
+root compatibility table when publishing an OS not listed in the registry.
+New payload roles, new OS images and session scripts still require an app update.
+Guard jars, guards.txt, native binaries and system-UID DEX remain APK-pinned.
+
+Lineage on the Galaxy Z Fold8 uses `f8-lineage.json`. Experimental replaces
+`Fold8LineageSystemUI.apk`, `Fold8LineageUnfold.apk` and
+`OneOSPixelStatusBar.apk` and `OneOSSettingsSplit.apk`; unchanged payloads use their existing upstream pins.
+The stable baseline includes the original Lineage SystemUI and a resource-only
+AOD overlay. Only profile f8 activates the new Lineage SystemUI/unfold payloads.
+
+See [Lineage port](fold8-lineage.md) for exact scope and validation limits.
+
+Infinity-X on the Galaxy Z Fold8 uses `f8-infinityx.json`. Its experimental
+replacements are `Fold8InfinitySystemUI.apk`, `Fold8InfinityUnfold.apk`,
+`OneOSSettingsSplit.apk` and `OneOSPixelStatusBar.apk`. The image-specific
+SystemUI/overlay roles activate only for f8 + infinityx41-findx9u. See
+[Infinity-X port](fold8-infinityx.md) for donor pins and runtime limits.

@@ -22,11 +22,14 @@ class GuestArtworkView @JvmOverloads constructor(context: Context, attrs: Attrib
         clipToOutline = true
     }
     fun bind(image: String?) = bindArtwork(when {
+        image?.contains("One UI", true) == true -> R.drawable.os_oneui
         image?.contains("Pixel", true) == true -> R.drawable.os_pixel
         image?.contains("Hyper", true) == true -> R.drawable.os_hyperos
         image?.contains("Nothing", true) == true -> R.drawable.os_nothing
         image?.contains("Infinity", true) == true -> R.drawable.os_infinity
         image?.contains("Lineage", true) == true -> R.drawable.os_lineage
+        image?.contains("Oxygen", true) == true -> R.drawable.os_oxygenos
+        image?.contains("Origin", true) == true -> R.drawable.os_originos
         else -> R.drawable.os_coloros
     })
     fun bindArtwork(resource: Int) {
@@ -36,7 +39,10 @@ class GuestArtworkView @JvmOverloads constructor(context: Context, attrs: Attrib
             R.drawable.os_hyperos -> SystemFamily.HYPEROS
             R.drawable.os_nothing -> SystemFamily.NOTHING
             R.drawable.os_infinity -> SystemFamily.INFINITYX
+            R.drawable.os_oxygenos -> SystemFamily.OXYGENOS
+            R.drawable.os_originos -> SystemFamily.ORIGINOS
             R.drawable.os_lineage -> SystemFamily.LINEAGE
+            R.drawable.os_oneui -> SystemFamily.ONEUI
             R.drawable.os_pixel -> SystemFamily.PIXEL
             else -> SystemFamily.COLOROS
         }
@@ -57,7 +63,10 @@ class GuestArtworkView @JvmOverloads constructor(context: Context, attrs: Attrib
             SystemFamily.HYPEROS -> R.drawable.os_hyperos_header
             SystemFamily.NOTHING -> R.drawable.os_nothing_header
             SystemFamily.INFINITYX -> R.drawable.os_infinity_header
+            SystemFamily.OXYGENOS -> R.drawable.os_oxygenos_header
+            SystemFamily.ORIGINOS -> R.drawable.os_originos_header
             SystemFamily.LINEAGE -> R.drawable.os_lineage_header
+            SystemFamily.ONEUI -> R.drawable.os_oneui_header
             SystemFamily.PIXEL -> R.drawable.os_pixel_header
             else -> R.drawable.os_coloros_header
         }

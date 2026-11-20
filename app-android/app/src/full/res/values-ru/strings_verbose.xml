@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="verbose_boot_title">Подробный запуск</string>
+    <string name="verbose_boot_summary">Показывать события процессов и системных служб в реальном времени при входе в гостевую систему и возврате в One UI.</string>
+    <string name="splash_launching_into">Запуск %1$s</string>
+</resources>

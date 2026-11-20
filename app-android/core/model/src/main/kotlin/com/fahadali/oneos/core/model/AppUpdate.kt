@@ -61,6 +61,12 @@ data class AppUpdate(
         private val HEX64 = Regex("^[0-9a-f]{64}$")
         private val APK_PATH = Regex("^v[0-9.]{3,15}/OneOS-[0-9.]{3,15}\\.apk$")
 
+        /** Notes are shown on one line: a longer text is cut to this many characters, ending in an ellipsis (issue 210). */
+        const val NOTES_SHOWN = 140
+
+        private fun shortNotes(n: String): String =
+            if (n.length <= NOTES_SHOWN) n else n.take(NOTES_SHOWN - 1).trimEnd() + "\u2026"
+
         /**
          * The update [text] names, or why it is not one (a flat JSON object, these five keys).
          * [test]: the test channel's, whose APK may also be a file in the owner's Drive.
@@ -91,10 +97,9 @@ data class AppUpdate(
             if (bytes !in 1..MAX_BYTES) error("APK size $bytes")
             if (!HEX64.matches(sha)) error("sha256 '$sha'")
             val notes = optStr("notes")?.trim()?.takeIf { it.isNotEmpty() }
-            if (notes != null && notes.length > 140) error("notes are longer than 140 characters")
             val systems = optStr("systems")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
             if (systems.any { it != "*" && !Regex("^[a-z0-9][a-z0-9-]{0,31}$").matches(it) }) error("systems '$systems'")
-            AppUpdate(code.toInt(), name, apk, bytes, sha, notes, systems)
+            AppUpdate(code.toInt(), name, apk, bytes, sha, notes?.let { shortNotes(it) }, systems)
         }
     }
 }

@@ -3,7 +3,9 @@ package com.fahadali.oneos.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -29,6 +31,7 @@ import com.fahadali.oneos.core.model.PhoneProfile
 import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.ReportLogs
 import com.fahadali.oneos.core.model.ReportRecord
+import com.fahadali.oneos.core.model.ReportReply
 import com.fahadali.oneos.core.model.Reports
 import com.fahadali.oneos.core.model.StartAnswer
 import com.fahadali.oneos.core.model.Units
@@ -81,6 +84,10 @@ class SendReportActivity : ToolbarActivity() {
         /** The reporter's last valid Telegram username (in reports_sent; the sent codes there are keyed by zip name). */
         internal const val CONTACT_KEY = "contact_telegram"
 
+        /** 0.5.16 (owner): the Telegram sign-in's pass and @username (in reports_sent). */
+        internal const val PASS_KEY = "tg_pass"
+        internal const val USERNAME_KEY = "tg_username"
+
         internal fun remember(ctx: Context, zip: File, code: String) {
             prefs(ctx).edit().putString(zip.name.removeSuffix(".zip"), code).apply()
         }
@@ -123,16 +130,26 @@ class SendReportFragment : PreferenceFragmentCompat() {
     /** The answers came from How's it going? in the other system (0.4.30). */
     private var fromGuest = false
 
+    // 0.5.16 (owner): reports only from group members. Sign-in state; the pass itself is in prefs.
+    private var signingIn = false
+    private var claimCode: String? = null
+    private var signinUrl: String? = null
+    private var claimTries = 0
+    private var claimErrors = 0
+    private var claimBusy = false
+    private var signinNote: String? = null
+    private var notMember = false
+    private val poll = Runnable { pollClaim() }
+
+    private val pass: String? get() = SendReportActivity.prefs(requireContext()).getString(SendReportActivity.PASS_KEY, null)?.takeIf { it.isNotEmpty() }
+    private val username: String? get() = SendReportActivity.prefs(requireContext()).getString(SendReportActivity.USERNAME_KEY, null)?.takeIf { it.isNotEmpty() }
+
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         val host = requireActivity() as SendReportActivity
         val zip = host.zip
         preferenceScreen = preferenceManager.createPreferenceScreen(preferenceManager.context)
-        if (zip == null || !ReportSender.available) {
+        if (zip == null) {
             category("").row(getString(R.string.send_unavailable), null)
-            return
-        }
-        ReportSender.refusal?.let { why ->
-            category("").row(why, null)
             return
         }
         facts = readFacts(zip)
@@ -155,7 +172,18 @@ class SendReportFragment : PreferenceFragmentCompat() {
         redraw()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (claimCode != null) schedulePoll()
+    }
+
+    override fun onPause() {
+        main.removeCallbacks(poll)
+        super.onPause()
+    }
+
     override fun onDestroy() {
+        main.removeCallbacks(poll)
         io.shutdown()
         super.onDestroy()
     }
@@ -178,7 +206,11 @@ class SendReportFragment : PreferenceFragmentCompat() {
                 sessionAppVersion = json.optJSONObject("app")?.optString("version")?.takeIf { it.isNotEmpty() },
                 sessionAppCode = json.optJSONObject("app")?.optInt("versionCode")?.takeIf { it > 0 },
                 sessionDate = json.optString("generatedAt").takeIf { it.length >= 10 }?.take(10),
-                fullLogsOff = runCatching { File(ProbeSession.folderOf(zip), "stage/session.env").readLines().contains("ONEOS_FULL_LOGS=0") }.getOrDefault(false),
+                // 0.5.17: Record full logs from now in the guest app leaves stage/full_logs_mid.log: logs from then on.
+                fullLogsOff = runCatching {
+                    val stage = File(ProbeSession.folderOf(zip), "stage")
+                    File(stage, "session.env").readLines().contains("ONEOS_FULL_LOGS=0") && !File(stage, "full_logs_mid.log").isFile
+                }.getOrDefault(false),
             )
         } else {
             val device = json?.optJSONObject("device")
@@ -287,7 +319,10 @@ class SendReportFragment : PreferenceFragmentCompat() {
             Reports.telegramUsername(checklist.contact) == null -> getString(R.string.send_contact_invalid, checklist.contact)
             else -> checklist.contact
         }
-        more.row(getString(R.string.send_contact_title) + " *", contactSummary, enabled = !sending) { askContact() }
+        more.row(getString(R.string.send_contact_title), contactSummary, enabled = !sending) { askContact() }
+
+        // Who sends (0.5.16, owner: reports only from group members).
+        telegramRows(category(getString(R.string.send_cat_telegram)))
 
         // What is sent.
         val what = category(getString(R.string.send_cat_what))
@@ -337,6 +372,94 @@ class SendReportFragment : PreferenceFragmentCompat() {
                 }
             }
         }
+    }
+
+    private fun telegramRows(cat: PreferenceCategory) {
+        // 0.5.24: no sign-in; the user posts the report from their own Telegram into OneOSReports.
+        cat.row(getString(R.string.send_tg_reports_join_title), getString(R.string.send_tg_reports_join_summary), enabled = !sending) {
+            openLink(ReportSender.REPORTS_INVITE)
+        }
+    }
+
+    private fun openLink(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(requireContext(), R.string.send_tg_no_app, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startSignIn() {
+        signingIn = true
+        signinNote = null
+        redraw()
+        io.execute {
+            val result = runCatching { ReportSender.signin() }
+            main.post {
+                signingIn = false
+                if (!isAdded) return@post
+                result.onSuccess { (code, url) ->
+                    claimCode = code
+                    signinUrl = url
+                    claimTries = 0
+                    claimErrors = 0
+                    openLink(url)
+                    if (isResumed) schedulePoll()
+                }.onFailure { e -> signinNote = e.message ?: e.javaClass.simpleName }
+                redraw()
+            }
+        }
+    }
+
+    /** Every 3 s while the screen is in front, 60 times (3 minutes); a pause does not use them up. */
+    private fun schedulePoll() {
+        main.removeCallbacks(poll)
+        main.postDelayed(poll, 3_000L)
+    }
+
+    private fun pollClaim() {
+        val code = claimCode ?: return
+        if (claimBusy || !isAdded) return
+        if (claimTries >= 60) return endSignIn(getString(R.string.send_tg_expired))
+        claimTries++
+        claimBusy = true
+        io.execute {
+            val result = runCatching { ReportSender.claim(code) }
+            main.post {
+                claimBusy = false
+                if (!isAdded || claimCode != code) return@post
+                result.onSuccess { claim ->
+                    claimErrors = 0
+                    when (claim) {
+                        ReportReply.Claim.Waiting -> if (isResumed) schedulePoll()
+                        ReportReply.Claim.Expired -> endSignIn(getString(R.string.send_tg_expired))
+                        is ReportReply.Claim.Done -> {
+                            SendReportActivity.prefs(requireContext()).edit()
+                                .putString(SendReportActivity.PASS_KEY, claim.pass)
+                                .putString(SendReportActivity.USERNAME_KEY, claim.username ?: "")
+                                .apply()
+                            notMember = !claim.member
+                            endSignIn(null)
+                        }
+                    }
+                }.onFailure { e ->
+                    // A dropped connection is tried again twice; a refusal or a 5xx is shown.
+                    if (e !is ReportSender.Failed && ++claimErrors < 3) {
+                        if (isResumed) schedulePoll()
+                    } else {
+                        endSignIn(e.message ?: e.javaClass.simpleName)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun endSignIn(note: String?) {
+        main.removeCallbacks(poll)
+        claimCode = null
+        signinUrl = null
+        signinNote = note
+        if (isAdded) redraw()
     }
 
     private fun imageLabel(i: ImageRef): String = if (i.name.contains(i.shortName)) i.name else "${i.name} (${i.shortName})"
@@ -396,11 +519,6 @@ class SendReportFragment : PreferenceFragmentCompat() {
             Toast.makeText(requireContext(), R.string.send_need_start, Toast.LENGTH_SHORT).show()
             return
         }
-        if (Reports.telegramUsername(checklist.contact) == null) {
-            Toast.makeText(requireContext(), R.string.send_contact_needed, Toast.LENGTH_LONG).show()
-            askContact()
-            return
-        }
         val app = requireContext().applicationContext
         sending = true
         failure = null
@@ -443,23 +561,78 @@ class SendReportFragment : PreferenceFragmentCompat() {
                     form = f.profile?.form,
                     logs = file?.let { ReportLogs(if (f.session) "session" else "probe", it.name, full = f.session && it == zip, bytes = it.length(), sha256 = sha256(it)) },
                 )
+                // 0.5.24: one zip for Telegram, the bundle's own files plus the record (reports/tgbot.py reads it).
+                val out = File(File(app.cacheDir, "findings").apply { mkdirs() }, "oneos-report-${record.reportId}.zip")
                 try {
-                    ReportSender.send(record, file) { sent, total ->
-                        if (total > 0) main.post { progress = app.getString(R.string.send_progress, (sent * 100 / total).toInt(), Units.bytes(total)); if (isAdded) redraw() }
+                    java.util.zip.ZipOutputStream(out.outputStream().buffered()).use { zo ->
+                        if (file != null) java.util.zip.ZipFile(file).use { zf ->
+                            for (e in zf.entries()) {
+                                if (e.isDirectory || e.name == "oneos-report.json") continue
+                                zo.putNextEntry(java.util.zip.ZipEntry(e.name))
+                                zf.getInputStream(e).use { it.copyTo(zo) }
+                                zo.closeEntry()
+                            }
+                        }
+                        zo.putNextEntry(java.util.zip.ZipEntry("oneos-report.json"))
+                        zo.write(record.toJson().toByteArray(Charsets.UTF_8))
+                        zo.closeEntry()
                     }
                 } finally {
                     shortDir.deleteRecursively()
                 }
-                record.reportId
+                Triple(record.reportId, out, caption(record))
             }
             main.post {
                 sending = false
-                result.onSuccess { code ->
-                    sentCode = code
-                    SendReportActivity.remember(app, zip, code)
-                }.onFailure { e -> failure = e.message ?: e.javaClass.simpleName }
+                result.onSuccess { (code, out, text) ->
+                    if (isAdded && postToTelegram(out, text)) {
+                        sentCode = code
+                        SendReportActivity.remember(app, zip, code)
+                    }
+                }.onFailure { e ->
+                    failure = e.message ?: e.javaClass.simpleName
+                    when (e) {
+                        // 0.5.16: sign in again (the pass is no longer good), or join the group and retry.
+                        is ReportSender.NeedsSignIn -> {
+                            SendReportActivity.prefs(app).edit().remove(SendReportActivity.PASS_KEY).remove(SendReportActivity.USERNAME_KEY).apply()
+                            notMember = false
+                        }
+                        is ReportSender.NotMember -> { notMember = true; failure = null }
+                    }
+                }
                 if (isAdded) redraw()
             }
+        }
+    }
+
+    /** The caption Telegram shows under the file (the full answers are in the zip's oneos-report.json). */
+    private fun caption(r: ReportRecord): String = buildString {
+        append("OneOS report ").append(r.reportId)
+        r.phoneLabel?.let { append("\n📱 ").append(it) }
+        r.imageName?.let { append("\n💿 ").append(it) }
+        r.checklist?.start?.let { append("\n🚀 ").append(it.label) }
+    }
+
+    /** Share [out] to Telegram (a Telegram app directly when one is installed, else the share sheet). */
+    private fun postToTelegram(out: File, text: String): Boolean {
+        val ctx = requireContext()
+        val uri = androidx.core.content.FileProvider.getUriForFile(ctx, "${com.fahadali.oneos.BuildConfig.APPLICATION_ID}.findings", out)
+        fun intent() = Intent(Intent.ACTION_SEND).setType("application/zip").putExtra(Intent.EXTRA_STREAM, uri)
+            .putExtra(Intent.EXTRA_TEXT, text).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .also { it.clipData = ClipData.newRawUri(out.name, uri) }
+        for (pkg in ReportSender.TELEGRAM_PACKAGES) {
+            try {
+                startActivity(intent().setPackage(pkg))
+                return true
+            } catch (_: ActivityNotFoundException) {
+            }
+        }
+        return try {
+            startActivity(Intent.createChooser(intent(), getString(R.string.send_button)))
+            true
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(ctx, R.string.send_tg_no_app, Toast.LENGTH_LONG).show()
+            false
         }
     }
 

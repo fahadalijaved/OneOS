@@ -1,9 +1,12 @@
 # framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
-5e361d3aeeaf4d70705c2eaa626d44e61f5d3b12a296713b38886f3263f69b9f  services_patched.jar
+# oplus-framework_patched.jar: outgoing calls over IMS where the carrier asks for VoLTE provisioning (patches/oplus_ims_provision.py; Samsung's IMS answers 0), 0.5.05
+# biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py); the fingerprint sensor through AIDL (patches/guest_force_aidl_fingerprint.py, from pull request #152); a finger on the optical sensor from the touch panel (patches/guest_fp_touchwatch.py, 0.5.20 r4)
+8300abd3470e631f3bfe43f6f77d1fef89b126a04d59d26fc13c64e4ecbd0e2e  services_patched.jar
 9fcaf57457d45a27226ad2bbb5753a7963ab1f2093cf832bfc79660194eaadf9  oplus-services_patched.jar
 9db563d25f5afd9a205e726da2e525933f6c86b1e5ca40fa0dfdc82350e01722  vold_patched
 e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so

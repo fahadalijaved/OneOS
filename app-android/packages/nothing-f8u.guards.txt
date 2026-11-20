@@ -1,4 +1,5 @@
 # framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
@@ -14,7 +15,10 @@
 # 0.4.95: services_patched.jar + guest_local_lock.py (the guest's own screen lock: a PIN, pattern or password kept and checked in the guest; nothing reaches the phone's gatekeeper, weaver or keystore)
 # 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
 # 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
-270c548beee73ec4726581bd5ad277f9a13eb16ccf80a780dce4c27aae736d59  services_patched.jar
+# biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py); the fingerprint sensor through AIDL (patches/guest_force_aidl_fingerprint.py, from pull request #152)
+# guest lock enrolment handle: verifyGatekeeperPasswordHandle answers the guest lock's own handle with a placeholder token (patches/guest_local_lock_hat.py, from pull request #152)
+# in-display fingerprint place: FingerprintProvider.getWorkaroundSensorProps asks OneOSUdfps (/data/system/oneos_udfps, from the phone's sysfs) first (patches/guest_udfps_location.py)
+2d8f30c75cc88dadd516610ffa68e1af23e2966f26d3b3face26a1e42417644e  services_patched.jar
 3d1e391a2a9042aba2d3238b91014c35a60c476ada648651b6306573a358d80e  vold_patched
 f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so
 ef24c219f8bd129f796fc445e1bd81315822d7e8d406ac83f0b34f18c1765a59  framework_patched.jar

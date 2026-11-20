@@ -9,7 +9,7 @@ import java.util.Locale
  * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
  * packages too, and its updater, com.infinity.updater, tells it apart.
  */
-enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS, LINEAGE }
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS, LINEAGE, ONEUI }
 
 /**
  * One OneOS OS image as friends download it (a gzip of the ext4 system
@@ -126,13 +126,18 @@ object Images {
     const val ID_PIXEL_YOGI = "pixel11fold-yogi"
     const val ID_PIXEL_KODIAK = "pixel11pro-kodiak"
     const val ID_HYPEROS_LHASA = "hyperos-lhasa"
+    /** Starts with "hyper": switcher/assets/boot_status.sh names the boot splash from it. */
+    const val ID_HYPEROS_HONGKONG = "hyperos-hongkong"
     const val ID_PIXEL_KOMODO = "pixel9proxl-komodo"
     const val ID_INFINITYX = "infinityx41-findx9u"
     const val ID_NOTHING_METROID = "nothingos5-metroid"
+    const val ID_NOTHING_ASTEROIDS = "nothingos5-asteroids"
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
     const val ID_ORIGINOS7 = "originos7-pd2609ma"
     /** Starts with "lineage": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_LINEAGE = "lineage24-infiniti"
+    /** Starts with "oneui": switcher/assets/boot_status.sh names the boot splash from it. */
+    const val ID_ONEUI95 = "oneui95-s948b"
 
     /** Where root stages the unpacked image. */
     const val STAGE_NAME = "system.raw"
@@ -363,7 +368,7 @@ object Images {
         gzSha256 = "608bb8602dcc0c85fc80127a2f9713a695508438b8c2d31eef3df25d23109bb5",
         rawBytes = 6_677_426_176L,
         rawSha256 = "899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2",
-        testedOn = null,
+        testedOn = "Galaxy Z Fold8 Ultra", // 0.5.15: the owner's own runs
         cpuRequired = emptyList(),
         cpuUsedByApps = listOf("sve2", "sme"),
         googleServices = true,
@@ -404,6 +409,36 @@ object Images {
     )
 
     /**
+     * HyperOS 4 Global (0.5.27, tested on the Galaxy A36): Xiaomi's global build OS4.0.5.0.XFRMIXM
+     * (`CP2A.260605.016`), MysticGSI's HyperOS patch set (`mysticgsi/out/oneos-hyperos-hongkong`). Google
+     * services: GmsCore and the Play Store are ordinary priv-apps in its product partition (as in the Nothing
+     * image), and its set also stages `gmssystem_payload.img`, so sessions present that GmsCore as on the
+     * One UI 9.5 image ([presentsGms]): Google services cannot be hidden for a launch.
+     */
+    val HYPEROS_HONGKONG = ImageRef(
+        id = ID_HYPEROS_HONGKONG,
+        label = "HyperOS 4 Global",
+        shortName = "HyperOS 4 Global",
+        name = "HyperOS 4",
+        variant = null,
+        blurb = "Xiaomi's HyperOS 4 global build. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_HyperOS4_Global.img.gz",
+        gzBytes = 5_626_496_228L,
+        gzSha256 = "c9dbf413b8d4cd14387b2cac68b6d5a62a160c920f7b63dc55f07216828258b7",
+        rawBytes = 10_482_176_000L,
+        rawSha256 = "29083fa42c8144637066015d9648f9c927ddf761eefdf78989024e88f13e1721",
+        testedOn = "Galaxy A36",
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.HYPEROS,
+    )
+
+    /**
      * Nothing OS 5.0 (0.4.33), from the Nothing Archive dump of the A024
      * "Metroid" (nothing_archive, Metroid_C5.0-260924-2115). Android 17 on a
      * Qualcomm qssi_64 system image, like the ColorOS and Infinity-X builds.
@@ -432,10 +467,42 @@ object Images {
         gzSha256 = "3026923ea476e998fd1ae828f441937106ffbe8fbaf613a316bce444998997bd",
         rawBytes = 6_067_867_648L,
         rawSha256 = "484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b",
+        testedOn = "Galaxy Z Fold8 Ultra", // 0.5.15: the owner's own runs
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.NOTHING,
+    )
+
+    /**
+     * Nothing OS 5.0 for the Galaxy A series (0.5.15, untested), from the Nothing Archive dump of the
+     * Phone (3a) "Asteroids" (Asteroids_C5.0-261106-1007, CQ2A.260522.002-CP2A.260605.016, security
+     * patch 2026-11-01): Nothing's mid-range build for mid-range Galaxies, the same Nothing banner. Its
+     * core binaries hold no instruction past ARMv8.2 (the bionic linker's and libc's SVE/SME/MTE/MOPS
+     * routines run only when the CPU reports them) and its boot image is compiled for plain ARMv8
+     * (features a53 + crc), so it runs on the A-series chips (Cortex-A78/A55), unlike the Pixel images.
+     */
+    val NOTHING_ASTEROIDS = ImageRef(
+        id = ID_NOTHING_ASTEROIDS,
+        label = "Nothing OS 5.0, A series build",
+        shortName = "Nothing OS",
+        name = "Nothing OS 5.0",
+        variant = "A series",
+        blurb = "Nothing's system from the Phone (3a), for the Galaxy A series. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CQ2A.260522.002-CP2A.260605.016",
+        gzName = "OneOS_NothingOS5_ASeries.img.gz",
+        gzBytes = 3_065_595_491L,
+        gzSha256 = "c64cddcff3c56c21a26c6fdb7350fddaa32b1a9c8b4edebdb713b20f52dce9fe",
+        rawBytes = 5_972_463_616L,
+        rawSha256 = "d21ded7b8b36b9cd8896e8159e7c274ae160f08de0f270eb17c14c63e66f6de6",
         testedOn = null,
         cpuRequired = emptyList(),
         cpuUsedByApps = emptyList(),
         googleServices = true,
+        // GmsCore in its product gmssystem APEX, Pixel's layout (the Metroid build's is a priv-app).
+        presentsGms = true,
         family = SystemFamily.NOTHING,
     )
 
@@ -524,12 +591,43 @@ object Images {
         gzSha256 = "20fdf29d8dae4579b28608b7d94b6355cc720964994a4c130d34bb6568354c33",
         rawBytes = 2_327_068_672L,
         rawSha256 = "f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261",
-        testedOn = null,
+        testedOn = "Galaxy Z Fold8 Ultra", // 0.5.15: the owner's own runs
         cpuRequired = emptyList(),
         cpuUsedByApps = emptyList(),
         googleServices = true,
         presentsGms = false,
         family = SystemFamily.LINEAGE,
+    )
+
+    /**
+     * One UI 9.5 (0.5.22, untested): Samsung's own Android 17 (SDK 37) system from the Galaxy S26 Ultra
+     * (S948BXXU6ZZKN, ro.build.version.oneui 90500), for the phones on One UI 9. Its own family: Samsung's
+     * data is not another system's. Google services from the image's own gmssystem payload, presented as on
+     * the Pixel images. The session scripts already know a One UI image (guest_prepare.sh: the modules One UI 9.0
+     * lacks, the phone's camera modes and software features, the Samsung apps that cannot work in a guest).
+     * cpuRequired is empty until a session shows what the build's libraries need.
+     */
+    val ONEUI95 = ImageRef(
+        id = ID_ONEUI95,
+        label = "One UI 9.5, Galaxy S26 Ultra build",
+        shortName = "Galaxy S26 Ultra",
+        name = "One UI 9.5",
+        variant = null,
+        blurb = "Samsung's One UI 9.5 (Android 17) from the Galaxy S26 Ultra, for phones on One UI 9. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "S948BXXU6ZZKN",
+        gzName = "OneOS_OneUI9.5_S26Ultra.img.gz",
+        gzBytes = 7_890_863_374L,
+        gzSha256 = "2cf64284a3d72a7a2e4d9ce759010c4adcd5d43817f8c18c36d296f272c93a34",
+        rawBytes = 14_259_888_128L,
+        rawSha256 = "82ddc8561a2687f041c2820a0d910f266b3b71753582a65ebff0cec7e8d0bbe4",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.ONEUI,
     )
 
     /**
@@ -539,7 +637,7 @@ object Images {
      */
     val DATA_UPGRADES: Map<String, String> = mapOf(ID_FIND_X9U_IN to ID_FIND_X9U_IN_1105)
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7, LINEAGE24)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, ORIGINOS7, LINEAGE24, ONEUI95)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

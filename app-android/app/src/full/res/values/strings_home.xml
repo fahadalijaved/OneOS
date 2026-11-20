@@ -17,7 +17,7 @@
     <string name="home_line_moment">This takes a moment…</string>
 
     <!-- Under the main button -->
-    <string name="home_caption_switch">About a minute · nothing is erased</string>
+    <string name="home_caption_switch">About a minute · One UI stays as it is</string>
     <string name="home_caption_setup">About 15 minutes · One UI keeps working</string>
 
     <!-- The check tiles -->

@@ -33,7 +33,10 @@ class AppUpdateTest {
         assertTrue(u.changes("coloros17-findn6") && u.changes("hyperos-lhasa") && !u.changes("pixel11fold-yogi"))
         assertTrue(AppUpdate.parse(json().removeSuffix("}") + ", \"systems\": \"*\"}").getOrThrow().changes("pixel11fold-yogi"))
         assertTrue(AppUpdate.parse(json().removeSuffix("}") + ", \"systems\": \"../x\"}").isFailure)
-        assertTrue(AppUpdate.parse(json().removeSuffix("}") + ", \"notes\": \"" + "x".repeat(141) + "\"}").isFailure)
+        val longNotes = AppUpdate.parse(json().removeSuffix("}") + ", \"notes\": \"" + "x".repeat(141) + "\"}").getOrThrow().notes!!
+        assertEquals(AppUpdate.NOTES_SHOWN, longNotes.length)
+        assertTrue(longNotes.endsWith("\u2026"))
+        assertEquals("x".repeat(140), AppUpdate.parse(json().removeSuffix("}") + ", \"notes\": \"" + "x".repeat(140) + "\"}").getOrThrow().notes)
     }
 
     @Test

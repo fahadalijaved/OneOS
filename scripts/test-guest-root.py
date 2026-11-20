@@ -90,5 +90,22 @@ class NativeBundleTest(unittest.TestCase):
         for name in ("daemon", "daemon.apk", "manager.apk", "framework/vector.dex", "zygisk/arm64-v8a.so", "bin/dex2oat64"):
             self.assertTrue(files[name], name)
 
+class SystemUidListTest(unittest.TestCase):
+    def test_native_manager_lists_shell_and_system_packages(self):
+        start=SOURCE.index('static void list_apps(')
+        end=SOURCE.index('/* Take exactly',start)
+        with tempfile.TemporaryDirectory() as temporary:
+            w=Path(temporary); packages=w/'packages.list'
+            packages.write_text('android 1000\ncom.android.shell 2000\ncom.low 9999\ncom.normal 10001\ncom.fahadali.oneos.guest 10002\n')
+            code='#include <stdio.h>\n#include <string.h>\n#include <unistd.h>\n'
+            code+='#define PACKAGES "'+str(packages)+'"\n#define MANAGER "com.fahadali.oneos.guest"\n'
+            code+='static int safe_package(const char *p) { return 1; }\nstatic int granted(const char *p,unsigned u) { return u==2000; }\n'
+            code+=SOURCE[start:end]+'\nint main(void) { list_apps(1); return 0; }\n'
+            source=w/'list.c';source.write_text(code);binary=w/'list'
+            subprocess.run(['cc',str(source),'-o',str(binary)],check=True)
+            rows=subprocess.check_output([str(binary)],text=True).splitlines()
+            self.assertEqual(['android 1000 0','com.android.shell 2000 1','com.low 9999 0','com.normal 10001 0'],rows)
+
+
 if __name__ == "__main__":
     unittest.main()

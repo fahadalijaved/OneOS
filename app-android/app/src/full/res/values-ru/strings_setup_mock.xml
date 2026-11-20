@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_mock_title">Настройка %1$s</string>
+    <string name="setup_installing">Установка</string>
+    <string name="setup_preview_badge">Предпросмотр · имитация настройки</string>
+    <string name="setup_check_phone">Проверка телефона</string>
+    <string name="setup_check_files">Проверка загрузки</string>
+    <string name="setup_image">Установка системы</string>
+    <string name="setup_files_patches">Установка исправлений OneOS</string>
+    <string name="setup_download_files">Загрузка исправлений OneOS</string>
+    <string name="setup_table">Подготовка установки приложений</string>
+    <string name="setup_session">Сохранение настроек переключения</string>
+    <string name="setup_cleanup">Уборка</string>
+    <string name="setup_download_question">Вы скачали файл?</string>
+    <string name="setup_preview_setting">Режим предпросмотра</string>
+    <string name="setup_preview_setting_summary">Имитирует экраны настройки и запуска. На карточке системы нажмите «Настроить», затем «Да», чтобы пропустить выбор файла. Файлы не меняются, ОС не запускается.</string>
+    <string name="setup_download_yes">Да</string>
+    <string name="setup_download_no">Нет</string>
+    <string name="setup_preview_cancelled_title">Предпросмотр отменён</string>
+    <string name="setup_update_title">Обновление %1$s</string>
+    <string name="setup_updating">Обновление</string>
+    <string name="setup_check_update">Проверка телефона для обновления</string>
+    <string name="setup_verify_existing_image">Проверка системы, уже имеющейся на телефоне</string>
+    <string name="setup_notification_title">Настройка %1$s</string>
+    <string name="setup_notification_channel">Настройка системы</string>
+    <string name="setup_stop_setup">Остановить настройку</string>
+    <string name="setup_stop_title">Остановить настройку %1$s?</string>
+    <string name="setup_keep_going">Продолжить</string>
+    <string name="setup_wait_check">Сначала проверяется телефон. Через мгновение нажмите «Настроить» снова.</string>
+    <string name="setup_no_profile">В OneOS нет системы для этого телефона, поэтому настроить её нельзя.</string>
+</resources>

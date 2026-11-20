@@ -91,10 +91,10 @@ class StageScriptTest {
         fun launch(
             mode: String = "session", hideGms: String = "0", code: String = this.code,
             heatCap: String = "1", secIms: String = "0", edmStub: String = "0", verboseBoot: String = "0",
-            fullLogs: String? = null,
+            fullLogs: String? = null, shareFiles: String? = null,
         ) = fr.run(
             RootScript.Verb.LAUNCH, mode, code, "0123456789abcdef", hideGms, heatCap, secIms, edmStub, verboseBoot,
-            *listOfNotNull(fullLogs).toTypedArray(),
+            *listOfNotNull(fullLogs ?: shareFiles?.let { "1" }, shareFiles).toTypedArray(),
         )
 
         fun prepare(mode: String = "new") {
@@ -1717,6 +1717,24 @@ class StageScriptTest {
     }
 
     @Test
+    fun shareFilesChoiceIsWrittenOnlyAfterLaunchChecks() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val env = File(fr.stage, "session.env")
+        assertTrue(env.readLines().contains("ONEOS_SHARE_FILES=0"))
+        refused(s.launch(shareFiles = "1"), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_SHARE_FILES=1"))
+        // The shorter launches (no shareFiles) still mean off.
+        refused(s.launch(), "test root: every launch check passed")
+        assertTrue(env.readLines().contains("ONEOS_SHARE_FILES=0"))
+        val before = env.readText()
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { s.launch(shareFiles = "2") }
+        assertEquals(before, env.readText())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "0", "1", "2")).isNotEmpty())
+        assertTrue(RootScript.problems(RootScript.Verb.LAUNCH, listOf("session", "4", "0123456789abcdef", "0", "1", "0", "0", "0", "1", "1")).isEmpty())
+    }
+
+    @Test
     fun verboseBootChoiceIsWrittenOnlyAfterLaunchChecks() = eachShell { fr ->
         val s = Stager(fr)
         s.prepare()
@@ -2192,10 +2210,15 @@ class StageScriptTest {
         assertFalse(log.exists())
         val proc = File(fr.root, "proc/4242").apply { mkdirs() }
         java.nio.file.Files.createSymbolicLink(File(proc, "exe").toPath(), File("/data/app/~~ab==/$pkg-xy==/lib/arm64/libtimer.so").toPath())
+        // 0.5.19: the program file itself (so nothing outside the app can start it while the app is off).
+        val lib = File(fr.root, "data/app/~~ab==/$pkg-xy==/lib/arm64/libtimer.so").apply { parentFile.mkdirs(); writeText("tool") }
+        java.nio.file.Files.setPosixFilePermissions(lib.toPath(), java.nio.file.attribute.PosixFilePermissions.fromString("rwxr-xr-x"))
         // Another app's tool running is not this one's.
         refused(fr.run(RootScript.Verb.TOOL_APP, "off", "com.other.app"), "runs no kernel tool")
         ok(fr.run(RootScript.Verb.TOOL_APP, "off", pkg))
         assertEquals("disable-user --user 0 $pkg\n", log.readText())
+        assertEquals("---------", java.nio.file.attribute.PosixFilePermissions.toString(java.nio.file.Files.getPosixFilePermissions(lib.toPath())))
+        assertEquals("$pkg 755 /data/app/~~ab==/$pkg-xy==/lib/arm64/libtimer.so\n", File(fr.stage, "tool_app_files").readText())
         assertEquals("$pkg\n", File(fr.stage, "tool_apps").readText())
         val list = fr.run(RootScript.Verb.TOOL_APP, "list")
         ok(list)
@@ -2203,6 +2226,8 @@ class StageScriptTest {
         ok(fr.run(RootScript.Verb.TOOL_APP, "on", pkg))
         assertEquals("disable-user --user 0 $pkg\nenable --user 0 $pkg\n", log.readText())
         assertEquals("", File(fr.stage, "tool_apps").readText())
+        assertEquals("rwxr-xr-x", java.nio.file.attribute.PosixFilePermissions.toString(java.nio.file.Files.getPosixFilePermissions(lib.toPath())))
+        assertEquals("", File(fr.stage, "tool_app_files").readText())
         refused(fr.run(RootScript.Verb.TOOL_APP, "on", pkg), "did not turn")
         assertTrue(RootScript.problems(RootScript.Verb.TOOL_APP, listOf("off", "x; rm -rf /")).isNotEmpty())
         assertTrue(RootScript.problems(RootScript.Verb.TOOL_APP, listOf("wipe", pkg)).isNotEmpty())

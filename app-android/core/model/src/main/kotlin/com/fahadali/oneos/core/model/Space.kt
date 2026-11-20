@@ -18,9 +18,23 @@ object SpaceRule {
     /** Free at launch: data + logs + margin, 11 GiB. */
     const val LAUNCH_BYTES: Long = STAGED_DATA_BYTES + LOGS_BYTES + MARGIN_BYTES
 
+    /** Margin when the guest data is already staged: nothing new is written but the session's logs. */
+    const val STAGED_MARGIN_BYTES: Long = 1 * GIB
+
+    /** Free at launch when the system is already set up with its data: logs + margin, 2 GiB. */
+    const val LAUNCH_STAGED_BYTES: Long = LOGS_BYTES + STAGED_MARGIN_BYTES
+
+    /** Free needed to switch: [LAUNCH_STAGED_BYTES] when the guest's data is already in the stage, else [LAUNCH_BYTES]. */
+    fun launch(dataStaged: Boolean): Long = if (dataStaged) LAUNCH_STAGED_BYTES else LAUNCH_BYTES
+
     /** An image of [imageBytes] + data + logs + margin (the probe builds' rule, files not counted). */
     fun required(imageBytes: Long = TYPICAL_IMAGE_BYTES): Long = imageBytes + LAUNCH_BYTES
 
-    /** To stage [image] with [set]: unpacked image + files + data + logs + margin. */
-    fun toStage(image: ImageRef, set: PackageSet?): Long = image.rawBytes + (set?.approxBytes ?: 0L) + LAUNCH_BYTES
+    /**
+     * To stage [image] with [set]: unpacked image + files + data + logs + margin. [keepsData]: an update that keeps the
+     * system's apps and data (the stage's own system.raw reused, its data already on the phone) writes no new data, so
+     * logs + margin only, as a switch of a set-up system (0.5.21; a ColorOS update asked for 27.4 GB, 8 GB of it data).
+     */
+    fun toStage(image: ImageRef, set: PackageSet?, keepsData: Boolean = false): Long =
+        image.rawBytes + (set?.approxBytes ?: 0L) + launch(keepsData)
 }

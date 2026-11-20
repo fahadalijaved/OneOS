@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="retry_update">Повторить обновление</string>
+    <string name="update_interrupted_title">Завершите обновление %1$s</string>
+    <string name="update_interrupted_summary">Обновление не завершилось. Ваши приложения и данные сохранены. Повторите, чтобы проверить существующий образ системы и завершить обновление файлов OneOS.</string>
+</resources>

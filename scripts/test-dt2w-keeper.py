@@ -36,6 +36,7 @@ def local(block):
 
 
 PRELUDE = r'''
+getprop() { :; }
 log() { command echo "$*"; }
 BB=; LIDF=0
 in_call() { return 1; }
@@ -141,7 +142,8 @@ command echo "NO=$NO_tsp"
         self.assertEqual('NO=1 GP=', got['out'][-1])
         # One try, the way back (2,0 2,1), and nothing at the second sleep.
         self.assertEqual(['1,0', '2,0', '2,1'], got['writes'])
-        self.assertEqual(('1', False), (got['enabled'], got['marker']))
+        # Failed restore keeps the recovery marker even if readback was already on.
+        self.assertEqual(('1', True), (got['enabled'], got['marker']))
 
     def test_other_readings_are_left_to_the_guest(self):
         for start in ('3', '', 'on'):
@@ -165,7 +167,7 @@ command echo "NO=$NO_tsp"
         got = self.run_keeper('arm tsp "panel off"\n: > $R/tap\ni=0; while [ ! -e $R/woke ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i + 1)); done\n'
                               'wake_tsp tsp "panel on"\n')
         self.assertIn('tsp: double tap: waking the guest', got['out'])
-        self.assertEqual(['input', 'keyevent', 'KEYCODE_WAKEUP'], got['woke'])
+        self.assertEqual(['input', 'keyevent', 'KEYCODE_WAKEUP'], got['woke'][:3])  # a haptic click (vibrator_manager) follows
 
     def test_the_return_switches_a_sleeping_ic_on_without_an_error(self):
         code = ': > $S/data/oneos_dt2w_armed.tsp\n' + RETURN.replace('/sys/class/', '$R/sys/class/')

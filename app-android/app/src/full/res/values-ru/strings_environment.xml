@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="environment_boot">Запустить %1$s</string>
+    <string name="environment_root">Root</string>
+    <string name="environment_storage">Место в памяти</string>
+    <string name="environment_battery">Батарея</string>
+    <string name="environment_lock">Блокировка экрана</string>
+    <string name="environment_guest_root">Root-доступ гостевой системы</string>
+    <string name="environment_guest_root_status">Включён существующим мостом гостевого root в OneOS</string>
+    <string name="environment_no_root">Root не обнаружен</string>
+    <string name="environment_lock_off">Выкл.</string>
+    <string name="environment_lock_on">Вкл.</string>
+    <string name="environment_unknown">Не проверено</string>
+    <string name="environment_free">Свободно %1$s</string>
+    <string name="environment_active">%1$s активна</string>
+    <string name="environment_apps">Приложения</string>
+    <string name="environment_bring_summary">Взять приложения из One UI с их данными и входами в аккаунты</string>
+    <string name="environment_report">Сообщить о проблеме команде OneOS</string>
+    <string name="environment_checking">Проверка телефона и подготовленной системы…</string>
+    <string name="environment_busy_logs">Сохранение журналов последнего сеанса (личные данные удалены). Запуск и обновление начнутся после завершения, обычно в течение нескольких минут.</string>
+    <string name="environment_busy_other">OneOS завершает другую задачу. Запуск и обновление начнутся после её завершения.</string>
+    <string name="environment_preview">Режим предпросмотра · имитация среды и запуска</string>
+    <string name="switch_blocked_now">С прошлой проверки что-то изменилось. Что мешает, смотрите на странице системы.</string>
+    <string name="boot_cannot_cancel">Сейчас отменить нельзя</string>
+    <string name="boot_cannot_cancel_line">Переключение прошло точку, после которой его нельзя остановить. Оно скоро завершится.</string>
+    <string name="environment_boot_cancelled">Запуск отменён</string>
+    <string name="environment_boot_cancelling">Отмена…</string>
+    <string name="environment_update">Обновить %1$s</string>
+    <string name="environment_restage_title">%1$s нужно настроить заново</string>
+    <string name="environment_restage_summary">Предыдущая настройка не завершилась. Обновите настройку перед запуском.</string>
+    <string name="logs_skip">Не сохранять журналы</string>
+    <string name="logs_skip_summary">Прекращает сохранение журналов последнего сеанса, чтобы можно было переключиться или обновиться сейчас. Ничего не отправляется. Сохранить их можно в «Последнем сеансе» до следующего переключения.</string>
+    <string name="logs_keep">Продолжить сохранение</string>
+    <string name="logs_stopping">Остановка сохранения журналов…</string>
+    <string name="environment_busy_logs_stopping">Остановка сохранения журналов. Запуск и обновление будут готовы через мгновение.</string>
+</resources>

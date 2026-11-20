@@ -102,14 +102,41 @@ def session_app(data):
     return {"version": v, "versionCode": c if isinstance(c, int) else None}
 
 
+TIME = re.compile(rb"\d\d:\d\d:\d\d")
+
+
+def garbage(b):
+    """Random characters, not log text: no time anywhere and hardly a space (log text has words)."""
+    if TIME.search(b):
+        return False
+    return b.count(b" ") + b.count(b"\n") < len(b) * 0.06
+
+
+def implausible(data, logs):
+    """Why a log bundle cannot be a real session, or None (11-18: 622 scripted reports from four throwaway
+    accounts, each ~200 log files of random characters). Not the size: real full logs can be small (some
+    were cut to under 1 MB), so only what is inside counts."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(bytes(data))) as z:
+            logs_in = [i for i in z.infolist() if i.filename.endswith(".log") and i.file_size >= 32]
+            if len(logs_in) >= 10:
+                bad = sum(1 for i in logs_in if garbage(z.read(i)[:4096]))
+                if bad * 2 >= len(logs_in):
+                    return f"{bad} of {len(logs_in)} log files are random characters"
+    except zipfile.BadZipFile:
+        return None  # judged by the record alone (two old reports of 11-11 were stored that way)
+    return None
+
+
 def collect(svc, name, dest, keep):
     record = json.loads(svc.call("GET", "/v1/get", key=name))
     rid = record.get("reportId", "")
     if not rid or set(rid) - ID_OK:
         return f"skipped {name}: bad report id"
     day = (record.get("receivedAt") or "unknown")[:10]
-    folder = os.path.join(dest, "inbox", day, rid)
-    os.makedirs(folder, exist_ok=True)
+    # Held (the account's first two days, reports/worker.js) and implausible reports go beside the inbox.
+    box = "held" if record.get("held") else "inbox"
+    folder = os.path.join(dest, box, day, rid)
     logs = record.get("logs")
     parts = []
     if logs:
@@ -124,11 +151,16 @@ def collect(svc, name, dest, keep):
             parts.append(key)
         if len(data) != logs["bytes"] or hashlib.sha256(data).hexdigest() != logs["sha256"]:
             return f"waiting {rid}: the parts do not match the record (size or SHA-256)"
+        why = implausible(data, logs)
+        if why:
+            record["suspect"] = why
+            folder = os.path.join(dest, "suspect", day, rid)
+        os.makedirs(folder, exist_ok=True)
         with open(os.path.join(folder, zname), "wb") as f:
             f.write(data)
         # Findings: what the probe says about the phone, to Phone reports (reports/notify.py).
         # Never in the way of collecting: any failure is only logged.
-        if logs.get("kind") == "probe":
+        if logs.get("kind") == "probe" and box == "inbox" and not record.get("suspect"):
             try:
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
                 import notify
@@ -145,6 +177,7 @@ def collect(svc, name, dest, keep):
         ran = session_app(data)
         if ran:
             record["sessionApp"] = ran
+    os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "report.json"), "w") as f:
         json.dump(record, f, indent=2)
         f.write("\n")
@@ -174,6 +207,10 @@ def collect(svc, name, dest, keep):
     ver = f"OneOS {sent}"
     if ran and ran.split("-")[0] != sent.split("-")[0]:
         ver = f"OneOS {sent} !! STALE SESSION: it ran on {ran}, not {sent} !!"
+    if record.get("suspect"):
+        return f"suspect {rid} ({record['suspect']}): {phone}, from {(record.get('tg') or {}).get('username')} -> {folder}"
+    if box == "held":
+        return f"held {rid} (new account): {phone}, from {(record.get('tg') or {}).get('username')} -> {folder}"
     return f"new {rid}: {phone}, {record.get('imageName') or record.get('image')}, {ver}, start {start}, {size} -> {folder}"
 
 

@@ -61,7 +61,18 @@ internal object FixActions {
             .show()
     }
 
-    fun run(a: FragmentActivity, action: FixAction, image: ImageRef?) {
+    /**
+     * [refusal]: the switch refusal the action answers (Turn it off reads the app's name from it), given by a
+     * screen that clears the refusal itself. [then]: run once the action is handed over (after its own
+     * confirmation closes, for the actions that ask first): the progress screen closes itself with it.
+     */
+    fun run(a: FragmentActivity, action: FixAction, image: ImageRef?, refusal: String? = null, then: (() -> Unit)? = null) {
+        if (action == FixAction.TURN_OFF_TOOL_APP) return confirmToolAppOff(a, refusal ?: com.fahadali.oneos.session.LaunchJob.state.message, then)
+        act(a, action, image)
+        then?.invoke()
+    }
+
+    private fun act(a: FragmentActivity, action: FixAction, image: ImageRef?) {
         if (action == FixAction.OPEN_LOCK_SETTINGS || action == FixAction.OPEN_ROOT_APP || action == FixAction.OPEN_OLD_SWITCHER_INFO) {
             Readiness.recheckOnResume()
         }
@@ -89,7 +100,7 @@ internal object FixActions {
                 if (url != null) open(a, Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)) else a.startActivity(Intent(a, SystemsActivity::class.java))
             }
             FixAction.APP_UPDATE -> confirmAppUpdate(a)
-            FixAction.TURN_OFF_TOOL_APP -> confirmToolAppOff(a)
+            FixAction.TURN_OFF_TOOL_APP -> confirmToolAppOff(a, com.fahadali.oneos.session.LaunchJob.state.message, null)
             FixAction.UPDATE, FixAction.REPAIR -> setUpAgain(a)
             FixAction.SET_UP -> setUp(a)
             FixAction.SEND_PHONE_DETAILS -> a.startActivity(Intent(a, RunTestsActivity::class.java))
@@ -105,10 +116,11 @@ internal object FixActions {
     }
 
     /** Turn off the app whose kernel tool stopped the switch (0.5.10): named by root's refusal. */
-    private fun confirmToolAppOff(a: FragmentActivity) {
-        val pkg = com.fahadali.oneos.session.ToolApps.fromRefusal(com.fahadali.oneos.session.LaunchJob.state.message)
+    private fun confirmToolAppOff(a: FragmentActivity, refusal: String?, then: (() -> Unit)?) {
+        val pkg = com.fahadali.oneos.session.ToolApps.fromRefusal(refusal)
         if (pkg == null) {
             toast(a, a.getString(R.string.tool_app_unknown))
+            then?.invoke()
             return
         }
         AlertDialog.Builder(a)
@@ -119,6 +131,7 @@ internal object FixActions {
                 toast(a, a.getString(R.string.tool_app_off_running, pkg))
             }
             .setNegativeButton(android.R.string.cancel, null)
+            .setOnDismissListener { then?.invoke() }
             .show()
     }
 

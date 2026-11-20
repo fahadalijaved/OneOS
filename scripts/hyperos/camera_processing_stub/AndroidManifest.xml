@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stands in for the Xiaomi Camera's "photos still processing" list
+     (com.xiaomi.camera.parallelservice.provider.SpecialTypesProvider) in a HyperOS
+     guest, where the Samsung Camera replaces Xiaomi's and no app has it. HyperOS's
+     Gallery (com.miui.gallery, its Rust app_gallery) queries .../processing when it
+     opens a photo and aborts when the provider is missing ("Failed to find provider
+     ... SpecialTypesProvider", A36 HyperOS Global 11-19: the gallery died on every
+     photo opened from the camera, and the camera hung waiting for it). The Samsung
+     Camera never leaves a photo processing, so the list is always empty. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.hyperos.processingstub">
+    <application android:hasCode="true" android:label="Camera processing">
+        <provider android:name="oneos.miprocessing.ProcessingStubProvider"
+            android:authorities="com.xiaomi.camera.parallelservice.provider.SpecialTypesProvider"
+            android:exported="true"/>
+    </application>
+</manifest>

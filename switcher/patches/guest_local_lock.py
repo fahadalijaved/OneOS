@@ -13,7 +13,7 @@ encryption, or a credential the keystore knows. A restart of the phone goes back
 which has no lock, and root there reaches the guest's data and can remove the record (that is
 also the way out of a forgotten lock: delete oneos_guest_lock* in the guest's data/system).
 
-Six changes, all or none:
+Seven changes, all or none:
 
 1. LockSettingsService.setLockCredentialInternal: in front of the gatekeeper guard, the added
    method oneosGuestLockSet asks OneOSGuestLock.change() for user 0. Done -> true (the public
@@ -22,11 +22,12 @@ Six changes, all or none:
 2. LockSettingsService.doVerifyCredential: at the entry, the added method oneosGuestLockVerify
    asks OneOSGuestLock.verify() for user 0. No guest lock -> the method goes its own way. A
    match -> the progress callback (AOSP's lock screen opens on it, not on the result), strong
-   auth reported, listeners told, VerifyCredentialResponse.OK: never a gatekeeper handle or
-   token, whatever the flags, and nothing of the framework's own unlock (keystore, CE storage,
-   recoverable keystore). A wrong guess -> credIncorrect(wait), a guess during a wait ->
-   fromTimeout(left), as the framework's own software rate limiter answers; with a wait, strong
-   auth "after lockout" is required as there.
+   auth reported, listeners told, and VerifyCredentialResponse holding OneOSGuestLock.HANDLE, the
+   guest lock's gatekeeper-password handle (never a password or token of the phone's gatekeeper,
+   whatever the flags), so Settings can ask for a token to enroll a face; nothing of the
+   framework's own unlock (keystore, CE storage, recoverable keystore) is touched. A wrong guess ->
+   credIncorrect(wait), a guess during a wait -> fromTimeout(left), as the framework's own
+   software rate limiter answers; with a wait, strong auth "after lockout" is required as there.
 3. LockSettingsService.getCredentialType (the public binder method only): the guest lock's type
    when one is set. The lock screen, Settings, WindowManager and TrustManager read it through
    LockPatternUtils; getCredentialTypeInternal and with it the service's own state (synthetic
@@ -45,6 +46,11 @@ Six changes, all or none:
    token, which the guest lock cannot give (ColorOS SystemUI throws on the missing token). So
    such prompts answer what they answer today, without a lock: no credential enrolled. A
    constant on the register, because classes.dex has no room for a new method reference.
+7. LockSettingsService.verifyGatekeeperPasswordHandle: the handle of change 2 is answered with
+   the token OneOSGuestLock.hat() makes (null for any other handle, or no lock: the framework
+   answers that call itself). Settings asks for exactly that token after the credential prompt
+   (BiometricUtils.requestGatekeeperHat) and hands it to the biometric enrollment; the phone's
+   gatekeeper is not asked, and the guest's face HAL ignores it.
 
 Apps therefore see a secure, lockable device (KeyguardManager), but nothing that needs the
 keystore's idea of the user's credential: keys bound to user authentication cannot be made, as
@@ -77,6 +83,7 @@ AUTH = "Lcom/android/server/locksettings/LockSettingsStrongAuth;"
 HELPER = "Lcom/android/server/locksettings/OneOSGuestLock;"
 CRED = "Lcom/android/internal/widget/LockscreenCredential;"
 VCR = "Lcom/android/internal/widget/VerifyCredentialResponse;"
+BUILDER = "Lcom/android/internal/widget/VerifyCredentialResponse$Builder;"
 CALLBACK = "Lcom/android/internal/widget/ICheckCredentialProgressCallback;"
 DURATION = "Ljava/time/Duration;"
 SLOG = "Landroid/util/Slog;"
@@ -219,6 +226,33 @@ def type_hook(result, spare):
 
     goto :oneos_gl_type_done""".split("\n")
     return front, back
+
+
+GK_HOOK = f"""\
+    # OneOS: the handle a matched guest credential hands out has no gatekeeper password of the
+    # phone behind it; answer it with the token the enrollment only carries along, and leave
+    # every other handle to the framework (patches/guest_local_lock.py).
+    invoke-static {{p1, p2, p5}}, {HELPER}->hat(JI)[B
+
+    move-result-object v0
+
+    if-eqz v0, :oneos_gl_gk_native
+
+    new-instance v1, {BUILDER}
+
+    invoke-direct {{v1}}, {BUILDER}-><init>()V
+
+    invoke-virtual {{v1, v0}}, {BUILDER}->setGatekeeperHAT([B){BUILDER}
+
+    move-result-object v1
+
+    invoke-virtual {{v1}}, {BUILDER}->build(){VCR}
+
+    move-result-object v1
+
+    return-object v1
+
+    :oneos_gl_gk_native""".split("\n")
 
 
 FRP_HOOK = """\
@@ -410,7 +444,21 @@ def added_methods(invalidate, listeners, strong):
 
     {listeners} {{p0, v0, p2}}, {LSS}->notifyLockSettingsStateListeners(ZI)V
 
-    sget-object v7, {VCR}->OK:{VCR}
+    # The guest lock's gatekeeper-password handle: Settings turns it into an enrollment token
+    # (change 7). No handle or token of the phone's gatekeeper exists behind it.
+    new-instance v7, {BUILDER}
+
+    invoke-direct {{v7}}, {BUILDER}-><init>()V
+
+    const-wide v0, 0x4f4e454f53L
+
+    invoke-virtual {{v7, v0, v1}}, {BUILDER}->setGatekeeperPasswordHandle(J){BUILDER}
+
+    move-result-object v7
+
+    invoke-virtual {{v7}}, {BUILDER}->build(){VCR}
+
+    move-result-object v7
 
     return-object v7
 
@@ -499,14 +547,23 @@ def patch_lss(lines, rel, pkg_text):
     s_i, s_end, s_locals = method(lines, "setLockCredentialInternal", f"({CRED}{CRED}IZ)Z", rel)
     v_i, v_end, v_locals = method(lines, "doVerifyCredential", f"({CRED}I{CALLBACK}I){VCR}", rel)
     t_i, t_end, t_locals = method(lines, "getCredentialType", "(I)I", rel)
+    g_i, _, g_locals = method(lines, "verifyGatekeeperPasswordHandle", f"(JJI){VCR}", rel)
     f_i, f_end, _ = method(lines, "enforceFrpNotActive", "()V", rel)
     inv_i, _, _ = method(lines, "invalidateCredentialTypeCaches", "(I)V", rel)
     lis_i, _, _ = method(lines, "notifyLockSettingsStateListeners", "(ZI)V", rel)
     req_i, _, _ = method(lines, "requireStrongAuth", "(II)V", rel)
     if " private " in lines[req_i]:
         raise Skip(f"{rel}: requireStrongAuth is private")
-    if s_locals < 1 or v_locals < 1:
-        raise Skip(f"{rel}: no free register at the entry of the set or verify method")
+    # Some AOSP-derived builds (Infinity-X 4.1) make the public
+    # doVerifyCredential wrapper a pass-through with .locals 0.  The hooks use
+    # v0 at the entry, and all parameters are addressed as pN, so reserving one
+    # local register is safe and does not renumber any instruction we keep.
+    if s_locals < 1:
+        lines[s_i + 1] = "    .locals 1"
+        s_locals = 1
+    if v_locals < 1:
+        lines[v_i + 1] = "    .locals 1"
+        v_locals = 1
     tail = added_methods(invoke_kind(lines, inv_i), invoke_kind(lines, lis_i), "invoke-virtual")
 
     # 1. The set hook goes in front of the gatekeeper guard (v0 is free at the entry).
@@ -525,9 +582,11 @@ def patch_lss(lines, rel, pkg_text):
                       + r"->getCredentialTypeInternal\(I\)I")
     if len(t_code) not in (3, 4) or not call.fullmatch(t_code[-3][1]):
         raise Skip(f"{rel}: getCredentialType has another shape")
-    # LineageOS 24 keeps the answer in p0 (".locals 0"); the hook uses only p1 and the result
-    # register after the call, so p0 is as good as a vN there (0.5.10).
-    m = re.fullmatch(r"move-result (v\d+|p0)", t_code[-2][1])
+    # Infinity-X's tiny binder wrapper has .locals 0 and reuses p0 for the
+    # integer result; LineageOS 24 keeps the answer in p0 too (0.5.10). The
+    # hook uses only p1 and the result register after the call, so a dead p
+    # register is as good as a vN there — accept any of them.
+    m = re.fullmatch(r"move-result ([vp]\d+)", t_code[-2][1])
     if not m or t_code[-1][1] != "return " + m.group(1) or t_locals > 8:
         raise Skip(f"{rel}: getCredentialType has another shape")
     if any(".catch" in l or l.strip().startswith(":") for l in lines[t_i:t_end]):
@@ -537,6 +596,9 @@ def patch_lss(lines, rel, pkg_text):
     # 4. The FRP check.
     f_at = entry(lines, f_i)
 
+    # 5. The handle of change 2, answered with a token at the entry.
+    g_at = entry(lines, g_i)
+
     edits = [
         (s_at, s_at, set_hook()),
         (v_at, v_at, verify_hook()),
@@ -544,6 +606,8 @@ def patch_lss(lines, rel, pkg_text):
         (t_code[-2][0] + 1, t_code[-2][0] + 1, front),
         (t_code[-1][0] + 1, t_code[-1][0] + 1, back),
         (f_at, f_at, FRP_HOOK),
+        (g_i + 1, g_i + 2, [f"    .locals {max(g_locals, 2)}"]),
+        (g_at, g_at, GK_HOOK),
     ]
     for first, last, new in sorted(edits, reverse=True):
         lines[first:last] = new

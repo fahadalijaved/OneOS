@@ -7,8 +7,12 @@ class GuestRootPermissionsTest {
     private val p=GuestRootPermissions
     private fun app(pkg:String,uid:Int,allowed:Boolean=false,label:String=pkg,system:Boolean=false)=GuestRootPermissions.App(pkg,uid,allowed,label,system)
     @Test fun parserRejectsInvalidGrantsAndDuplicates() {
-        val rows=p.parse("com.test.app 10001 1\ncom.test.app 10001 0\n../escape 10002 1\ncom.other 9999 1\ncom.bad x 1\ncom.bad 10004 2\n")
+        val rows=p.parse("com.test.app 10001 1\ncom.test.app 10001 0\n../escape 10002 1\ncom.other -1 1\ncom.bad x 1\ncom.bad 10004 2\n")
         assertEquals(listOf(GuestRootPermissions.Grant("com.test.app",10001,true)),rows)
+    }
+    @Test fun parserIncludesSystemAndShellUids() {
+        val rows=p.parse("android 1000 1\ncom.android.shell 2000 0\ncom.root 0 1\ncom.low 9999 0\n")
+        assertEquals(listOf(1000,2000,0,9999),rows.map { it.uid })
     }
     @Test fun sharedUidShowsEffectiveAccessAndPrefersUserApp() {
         val group=p.groups(listOf(app("com.system",10001,true,"System",true),app("com.user",10001,false,"User"))).single()

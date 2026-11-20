@@ -25,8 +25,10 @@
 #   env <bytes>                       stdin: session.env
 #   finish <profile> <image> <set> <versionCode>
 #   launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub>
-#          [verboseBoot [fullLogs]]   (0|1 each; defaults 0 and 1: fullLogs is
-#                                     ONEOS_FULL_LOGS, the session's whole logcat capture)
+#          [verboseBoot [fullLogs [shareFiles]]]   (0|1 each; defaults 0, 1 and 0:
+#                                     fullLogs is ONEOS_FULL_LOGS, the session's whole
+#                                     logcat capture; shareFiles is ONEOS_SHARE_FILES,
+#                                     One UI's DCIM, Pictures... shown in the guest)
 #                                     secIms 0|1: this launch's
 #                                     ONEOS_GUEST_SEC_IMS (this phone's
 #                                     Samsung IMS app in the guest)
@@ -145,8 +147,13 @@ INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
 # InstalldExpected.SHA256_A16); One UI 8.0's table works with them too (SHA256_A16_ONEUI80).
 INSTALLD_SHA_36=a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
 INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977 9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
+# 0.5.28: One UI 9.5's table (switcher/patches/host_installd_95.txt, InstalldExpected.SHA256_95; the S26
+# phones updated to One UI 9.5). Accepted only with a set whose guards.txt has RUNTIME_CODES: its
+# services_patched.jar reads the codes from this phone's table instead of carrying One UI 9.0's.
+INSTALLD_SHA_95=86a30991dbd5d91aeda1726ec860b12a2d057dd7b9ca3872f32376478078a23c
+RUNTIME_CODES="# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones"
 # Session scripts from switcher/assets plus the expected installd table.
-SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio OneOSOverlayDimen.dex host_installd.txt"
+SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio oneos_essential_key OneOSOverlayDimen.dex host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
@@ -156,14 +163,19 @@ SET_PIXEL="services_patched.jar framework_patched.jar telephony-common_patched.j
 SET_INFINITYX="services_patched.jar oplus-services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar samcam.tar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img gmssystem_payload.img"
 # LineageOS 24 (0.5.06): the guards, the camera codes, the guest vold, the AOSP signal poll, the IMS backoff, the in-guest app, the
 # fold and tablet overlays and its own payloads; no Google payload (One UI's Google apps, guest_google.sh).
-SET_LINEAGE="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk OneOSFoldCutout.apk OneOSTabletQs.apk oneos-apex-requires.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img OneOSPixelDoze.apk libbootanimation_preapex_patched.so"
+SET_LINEAGE="services_patched.jar framework_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so telephony-common_patched.jar guards.txt ims-ext-common_patched.jar oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk OneOSGuest.apk OneOSPixelStatusBar.apk OneOSFoldCutout.apk OneOSTabletQs.apk oneos-apex-requires.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img nfcservices_payload.img telephonycore_payload.img conscrypt_payload.img profiling_payload.img OneOSPixelDoze.apk libbootanimation_preapex_patched.so samcam_a.tar samcam_bar.tar"
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
 SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so telephony-common_patched.jar samcam.tar samcam_bar.tar xiaomi-opt-telephony_patched.jar"
+# HyperOS 4 Global (0.5.27): the HyperOS guards plus miui-framework, guest vold, camera kits and stub, fold cutout, apex requirements, 18 payloads incl. gmssystem (set r2); no tethering.
+SET_HYPERHK="OneOSCameraProcessingStub.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img apprecovery.proinstaller_patched.jar appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libaudiohal_aidl_patched.so libcamera_client_patched.so libsurfaceflinger_patched.so mediaprovider_payload.img miui-framework_patched.jar miui-services_patched.jar miui-telephony-common_patched.jar miui-wifi-service_patched.jar ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar samcam_a.tar samcam_bar.tar sdkext_payload.img service.incremental_patched.so services_patched.jar socket_exec telephony-common_patched.jar vold_patched wifi_payload.img"
 # Nothing OS 5.0 (0.4.33, the Z Fold8 Ultra): its system is close to AOSP, so only
 # services.jar and framework.jar need the guards; no vendor framework, no vold
 # patch (its build is unknown to the patcher) and no signal poll injection.
 SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_customringtone.tar nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar samcam_bar.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched vold_patched wifi_payload.img"
+SET_NOTHINGA="NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSBrightnessRange34.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam_a.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar vold_patched wifi_payload.img"
+# One UI 9.5 (0.5.22): the Galaxy S26 Ultra build's guarded jars and camera libraries, signal poll, payloads and software floating features (set r1); no vold, no tethering.
+SET_ONEUI="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img"
 # OxygenOS 16 (0.4.67): ColorOS's common files and its own payloads; the guest vold as gvld from r2 (0.4.69).
 SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img conscrypt_payload.img profiling_payload.img"
 # OriginOS 7 (0.4.73): vivo's own jars, libraries, launcher and feature list, the signal poll, the fold
@@ -171,7 +183,7 @@ SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched servi
 SET_ORIGINOS="BBKLauncher2_patched.apk BBKLauncher2_patched.apk.src_sha256 OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img framework-adapter_patched.jar framework-wifi_patched.jar framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libandroid_servers_patched.so libbluetooth_jni_patched.so libcamera_client_patched.so libcomposer_ext_patched.so libinputflinger_patched.so libinputservice_patched.so libsensorservice_patched.so mediaprovider_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneos-vivo-features.txt permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar telephonycore_payload.img tethering_payload.img vivo-framework_patched.jar vivo-service-wifi-ex-impl_patched.jar vivo-service-wifi_patched.jar vivo-services_patched.jar vivo-telephony-common-platform-ex_patched.jar vold_patched wifi_payload.img"
 # Host /data trees of switcher/assets/bridges.sh (relative to /data).
 BRIDGE_HOSTS="app app-staging user user_de dalvik-cache misc/profiles data media misc/user misc_ce/0/sdksandbox misc_de/0/sdksandbox misc_ce/0/rollback misc_de/0/rollback resource-cache"
-ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_FULL_LOGS ONEOS_RETURN_MODE"
+ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE ONEOS_RECORD ONEOS_LOGCAT ONEOS_GUEST_FORM ONEOS_GUEST_FOLD ONEOS_COVER_TSP ONEOS_GUEST_FOLD_CONTINUE ONEOS_GUEST_UNFOLD_PORTRAIT ONEOS_GUEST_COMPACT_WINDOW ONEOS_GUEST_WALLPAPER_GRID ONEOS_GUEST_HIDE_GMS ONEOS_HEAT_CAP ONEOS_GUEST_SEC_IMS ONEOS_GUEST_EDM_STUB ONEOS_VERBOSE_BOOT ONEOS_FULL_LOGS ONEOS_SHARE_FILES ONEOS_RETURN_MODE"
 # Images whose Google services a session may hide (ONEOS_GUEST_HIDE_GMS=1;
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
@@ -227,6 +239,7 @@ profile_info() {
         flip6) echo "SM-F741 b6q SM8650 flip" ;;
         s-9945) echo "SM-S921 e1s s5e9945 bar" ;;
         s-8650) echo "SM-S921 e1q SM8650 bar" ;;
+        s-plus-8650) echo "SM-S926 e2q SM8650 bar" ;;
         s-edge-8750) echo "SM-S937 psq SM8750 bar" ;;
         s-fe-9945) echo "SM-S721 r12s s5e9945 bar" ;;
         a26) echo "SM-A266 a26x s5e8835 bar" ;;
@@ -241,6 +254,7 @@ profile_info() {
         s-9965) echo "SM-S942 m1s s5e9965 bar" ;;
         a55) echo "SM-A556 a55x s5e8845 bar" ;;
         s25-fe) echo "SM-S731 r13s s5e9945 bar" ;;
+        s26-fe) echo "SM-S741 r14s s5e9955 bar" ;;
         s-8450) echo "SM-S901 r0q SM8450 bar" ;;
         m55s) echo "SM-M558 m55xq SM7450 bar" ;;
         s-plus-9945) echo "SM-S926 e2s s5e9945 bar" ;;
@@ -262,6 +276,7 @@ profile_set() {
         "f8u coloros17-findn6") echo n6-f8u ;;
         "f8u pixel11fold-yogi") echo pixel-f8u ;;
         "f8u hyperos-lhasa") echo hyper-f8u ;;
+        "f8u hyperos-hongkong") echo hyper-hk ;;
         "f8u nothingos5-metroid") echo nothing-f8u ;;
         "f8 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8850 nothingos5-metroid") echo nothing-f8u ;;
@@ -281,15 +296,23 @@ profile_set() {
         "flip8 pixel11pro-kodiak") echo pixel-sultra ;;
         "flip8 infinityx41-findx9u") echo infinityx ;;
         "flip8 lineage24-infiniti") echo lineage ;;
+        "flip8 oneui95-s948b") echo oneui95 ;;
         "flip8 hyperos-lhasa") echo hyper-f8u ;;
+        "flip8 hyperos-hongkong") echo hyper-hk ;;
         "a36 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a36 infinityx41-findx9u") echo infinityx ;;
         "a36 lineage24-infiniti") echo lineage ;;
+        "a36 oneui95-s948b") echo oneui95 ;;
         "a36 hyperos-lhasa") echo hyper-f8u ;;
+        "a36 hyperos-hongkong") echo hyper-hk ;;
+        "a36 nothingos5-asteroids") echo nothing-a ;;
         "a27 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a27 infinityx41-findx9u") echo infinityx ;;
         "a27 lineage24-infiniti") echo lineage ;;
+        "a27 oneui95-s948b") echo oneui95 ;;
         "a27 hyperos-lhasa") echo hyper-f8u ;;
+        "a27 hyperos-hongkong") echo hyper-hk ;;
+        "a27 nothingos5-asteroids") echo nothing-a ;;
         "s-ultra-8850 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8850 pixel11pro-kodiak") echo pixel-sultra ;;
         "s-ultra-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
@@ -320,18 +343,30 @@ profile_set() {
         "flip7 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip7 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a56 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "a56 nothingos5-asteroids") echo nothing-a ;;
         "a57 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "a57 nothingos5-asteroids") echo nothing-a ;;
         "a56 pixel9proxl-komodo") echo pixel9-sultra ;;
         "a57 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-ultra-8550 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "flip6 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "s-plus-8650 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-plus-8650 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8650 infinityx41-findx9u") echo infinityx ;;
+        "s-plus-8650 infinityx41-findx9u") echo infinityx ;;
         "s-8650 lineage24-infiniti") echo lineage ;;
+        "s-8650 oneui95-s948b") echo oneui95 ;;
+        "s-plus-8650 lineage24-infiniti") echo lineage ;;
+        "s-plus-8650 oneui95-s948b") echo oneui95 ;;
         "s-8650 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8650 hyperos-hongkong") echo hyper-hk ;;
+        "s-plus-8650 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8650 hyperos-hongkong") echo hyper-hk ;;
         "s-8650 nothingos5-metroid") echo nothing-f8u ;;
+        "s-plus-8650 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8550 pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip6 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
@@ -339,110 +374,180 @@ profile_set() {
         "flip5 pixel9proxl-komodo") echo pixel9-sultra ;;
         "f8u infinityx41-findx9u") echo infinityx ;;
         "f8u lineage24-infiniti") echo lineage ;;
+        "f8u oneui95-s948b") echo oneui95 ;;
         "f8 infinityx41-findx9u") echo infinityx ;;
         "f8 lineage24-infiniti") echo lineage ;;
+        "f8 oneui95-s948b") echo oneui95 ;;
         "f8 hyperos-lhasa") echo hyper-f8u ;;
+        "f8 hyperos-hongkong") echo hyper-hk ;;
         "f7 infinityx41-findx9u") echo infinityx ;;
         "f7 lineage24-infiniti") echo lineage ;;
+        "f7 oneui95-s948b") echo oneui95 ;;
         "f7 hyperos-lhasa") echo hyper-f8u ;;
+        "f7 hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8850 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8850 lineage24-infiniti") echo lineage ;;
+        "s-ultra-8850 oneui95-s948b") echo oneui95 ;;
         "s-ultra-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8850 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-8850 infinityx41-findx9u") echo infinityx ;;
         "s-plus-8850 lineage24-infiniti") echo lineage ;;
+        "s-plus-8850 oneui95-s948b") echo oneui95 ;;
         "s-plus-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8850 hyperos-hongkong") echo hyper-hk ;;
         "s-8850 infinityx41-findx9u") echo infinityx ;;
         "s-8850 lineage24-infiniti") echo lineage ;;
+        "s-8850 oneui95-s948b") echo oneui95 ;;
         "s-8850 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8850 hyperos-hongkong") echo hyper-hk ;;
         "s-8850-jp infinityx41-findx9u") echo infinityx ;;
         "s-8850-jp lineage24-infiniti") echo lineage ;;
+        "s-8850-jp oneui95-s948b") echo oneui95 ;;
         "s-8850-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-8850-jp hyperos-hongkong") echo hyper-hk ;;
         "s-plus-9965 infinityx41-findx9u") echo infinityx ;;
         "s-plus-9965 lineage24-infiniti") echo lineage ;;
+        "s-plus-9965 oneui95-s948b") echo oneui95 ;;
         "s-plus-9965 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-9965 hyperos-hongkong") echo hyper-hk ;;
         "s-9965 infinityx41-findx9u") echo infinityx ;;
         "s-9965 lineage24-infiniti") echo lineage ;;
+        "s-9965 oneui95-s948b") echo oneui95 ;;
         "s-9965 hyperos-lhasa") echo hyper-f8u ;;
+        "s-9965 hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8750 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8750 lineage24-infiniti") echo lineage ;;
+        "s-ultra-8750 oneui95-s948b") echo oneui95 ;;
         "s-ultra-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-8750 infinityx41-findx9u") echo infinityx ;;
         "s-plus-8750 lineage24-infiniti") echo lineage ;;
+        "s-plus-8750 oneui95-s948b") echo oneui95 ;;
         "s-plus-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-8750 infinityx41-findx9u") echo infinityx ;;
         "s-8750 lineage24-infiniti") echo lineage ;;
+        "s-8750 oneui95-s948b") echo oneui95 ;;
         "s-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8650 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8650 lineage24-infiniti") echo lineage ;;
+        "s-ultra-8650 oneui95-s948b") echo oneui95 ;;
         "s-ultra-8650 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8650 hyperos-hongkong") echo hyper-hk ;;
         "s-8550 infinityx41-findx9u") echo infinityx ;;
         "s-8550 lineage24-infiniti") echo lineage ;;
+        "s-8550 oneui95-s948b") echo oneui95 ;;
         "s-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8550 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-8550 infinityx41-findx9u") echo infinityx ;;
         "s-plus-8550 lineage24-infiniti") echo lineage ;;
+        "s-plus-8550 oneui95-s948b") echo oneui95 ;;
         "s-plus-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-8550 hyperos-hongkong") echo hyper-hk ;;
         "flip7 infinityx41-findx9u") echo infinityx ;;
         "flip7 lineage24-infiniti") echo lineage ;;
+        "flip7 oneui95-s948b") echo oneui95 ;;
         "flip7 hyperos-lhasa") echo hyper-f8u ;;
+        "flip7 hyperos-hongkong") echo hyper-hk ;;
         "a56 infinityx41-findx9u") echo infinityx ;;
         "a56 lineage24-infiniti") echo lineage ;;
+        "a56 oneui95-s948b") echo oneui95 ;;
         "a57 infinityx41-findx9u") echo infinityx ;;
         "a57 lineage24-infiniti") echo lineage ;;
+        "a57 oneui95-s948b") echo oneui95 ;;
         "a56 hyperos-lhasa") echo hyper-f8u ;;
+        "a56 hyperos-hongkong") echo hyper-hk ;;
         "a57 hyperos-lhasa") echo hyper-f8u ;;
+        "a57 hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8550 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8550 lineage24-infiniti") echo lineage ;;
+        "s-ultra-8550 oneui95-s948b") echo oneui95 ;;
         "flip6 infinityx41-findx9u") echo infinityx ;;
         "flip6 lineage24-infiniti") echo lineage ;;
+        "flip6 oneui95-s948b") echo oneui95 ;;
         "s-9945 infinityx41-findx9u") echo infinityx ;;
         "s-9945 lineage24-infiniti") echo lineage ;;
+        "s-9945 oneui95-s948b") echo oneui95 ;;
         "s-ultra-8550 hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8550 hyperos-hongkong") echo hyper-hk ;;
         "s-9945 hyperos-lhasa") echo hyper-f8u ;;
+        "s-9945 hyperos-hongkong") echo hyper-hk ;;
         "flip5 infinityx41-findx9u") echo infinityx ;;
         "flip5 lineage24-infiniti") echo lineage ;;
+        "flip5 oneui95-s948b") echo oneui95 ;;
         "flip5 hyperos-lhasa") echo hyper-f8u ;;
+        "flip5 hyperos-hongkong") echo hyper-hk ;;
         "f6 coloros17-findn6") echo n6-f8u ;;
         "f6 infinityx41-findx9u") echo infinityx ;;
         "f6 lineage24-infiniti") echo lineage ;;
+        "f6 oneui95-s948b") echo oneui95 ;;
         "f5 coloros17-findn6") echo n6-f8u ;;
         "f5 infinityx41-findx9u") echo infinityx ;;
         "f5 lineage24-infiniti") echo lineage ;;
+        "f5 oneui95-s948b") echo oneui95 ;;
         "a07 infinityx41-findx9u") echo infinityx ;;
         "a07 lineage24-infiniti") echo lineage ;;
+        "a07 oneui95-s948b") echo oneui95 ;;
+        "a07 nothingos5-asteroids") echo nothing-a ;;
         "s-edge-8750 nothingos5-metroid") echo nothing-f8u ;;
         "s-edge-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-edge-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-edge-8750 infinityx41-findx9u") echo infinityx ;;
         "s-edge-8750 lineage24-infiniti") echo lineage ;;
+        "s-edge-8750 oneui95-s948b") echo oneui95 ;;
         "s-edge-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-edge-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-fe-9945 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-fe-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-fe-9945 infinityx41-findx9u") echo infinityx ;;
         "s-fe-9945 lineage24-infiniti") echo lineage ;;
+        "s-fe-9945 oneui95-s948b") echo oneui95 ;;
         "s-fe-9945 hyperos-lhasa") echo hyper-f8u ;;
+        "s-fe-9945 hyperos-hongkong") echo hyper-hk ;;
         "a26 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a26 infinityx41-findx9u") echo infinityx ;;
         "a26 lineage24-infiniti") echo lineage ;;
+        "a26 oneui95-s948b") echo oneui95 ;;
+        "a26 nothingos5-asteroids") echo nothing-a ;;
         "a35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a35 infinityx41-findx9u") echo infinityx ;;
         "a35 lineage24-infiniti") echo lineage ;;
+        "a35 oneui95-s948b") echo oneui95 ;;
+        "a35 nothingos5-asteroids") echo nothing-a ;;
         "a54 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a54 infinityx41-findx9u") echo infinityx ;;
         "a54 lineage24-infiniti") echo lineage ;;
+        "a54 oneui95-s948b") echo oneui95 ;;
+        "a54 nothingos5-asteroids") echo nothing-a ;;
         "a16-4g infinityx41-findx9u") echo infinityx ;;
         "a16-4g lineage24-infiniti") echo lineage ;;
+        "a16-4g oneui95-s948b") echo oneui95 ;;
+        "a16-4g nothingos5-asteroids") echo nothing-a ;;
         "a16-s166 infinityx41-findx9u") echo infinityx ;;
         "a16-s166 lineage24-infiniti") echo lineage ;;
+        "a16-s166 oneui95-s948b") echo oneui95 ;;
+        "a16-s166 nothingos5-asteroids") echo nothing-a ;;
         "a17 infinityx41-findx9u") echo infinityx ;;
         "a17 lineage24-infiniti") echo lineage ;;
+        "a17 oneui95-s948b") echo oneui95 ;;
+        "a17 nothingos5-asteroids") echo nothing-a ;;
         "a16 infinityx41-findx9u") echo infinityx ;;
         "a16 lineage24-infiniti") echo lineage ;;
+        "a16 oneui95-s948b") echo oneui95 ;;
+        "a16 nothingos5-asteroids") echo nothing-a ;;
         "a17-5g infinityx41-findx9u") echo infinityx ;;
         "a17-5g lineage24-infiniti") echo lineage ;;
+        "a17-5g oneui95-s948b") echo oneui95 ;;
+        "a17-5g nothingos5-asteroids") echo nothing-a ;;
         "a34 infinityx41-findx9u") echo infinityx ;;
         "a34 lineage24-infiniti") echo lineage ;;
+        "a34 oneui95-s948b") echo oneui95 ;;
+        "a34 nothingos5-asteroids") echo nothing-a ;;
         "a15 infinityx41-findx9u") echo infinityx ;;
         "a15 lineage24-infiniti") echo lineage ;;
+        "a15 oneui95-s948b") echo oneui95 ;;
+        "a15 nothingos5-asteroids") echo nothing-a ;;
         "a07 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "f8u originos7-pd2609ma") echo originos ;;
         "f8 originos7-pd2609ma") echo originos ;;
@@ -457,6 +562,7 @@ profile_set() {
         "s-edge-8750 originos7-pd2609ma") echo originos ;;
         "s-ultra-8650 originos7-pd2609ma") echo originos ;;
         "s-8650 originos7-pd2609ma") echo originos ;;
+        "s-plus-8650 originos7-pd2609ma") echo originos ;;
         "s-8550 originos7-pd2609ma") echo originos ;;
         "s-plus-8550 originos7-pd2609ma") echo originos ;;
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
@@ -499,28 +605,53 @@ profile_set() {
         "flip7-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "flip7-fe infinityx41-findx9u") echo infinityx ;;
         "flip7-fe lineage24-infiniti") echo lineage ;;
+        "flip7-fe oneui95-s948b") echo oneui95 ;;
         "flip7-fe hyperos-lhasa") echo hyper-f8u ;;
+        "flip7-fe hyperos-hongkong") echo hyper-hk ;;
         "a26 hyperos-lhasa") echo hyper-f8u ;;
+        "a26 hyperos-hongkong") echo hyper-hk ;;
         "a35 hyperos-lhasa") echo hyper-f8u ;;
+        "a35 hyperos-hongkong") echo hyper-hk ;;
         "a54 hyperos-lhasa") echo hyper-f8u ;;
+        "a54 hyperos-hongkong") echo hyper-hk ;;
         "a07 hyperos-lhasa") echo hyper-f8u ;;
+        "a07 hyperos-hongkong") echo hyper-hk ;;
         "a17 hyperos-lhasa") echo hyper-f8u ;;
+        "a17 hyperos-hongkong") echo hyper-hk ;;
         "a16-4g hyperos-lhasa") echo hyper-f8u ;;
+        "a16-4g hyperos-hongkong") echo hyper-hk ;;
         "a16 hyperos-lhasa") echo hyper-f8u ;;
+        "a16 hyperos-hongkong") echo hyper-hk ;;
         "a16-s166 hyperos-lhasa") echo hyper-f8u ;;
+        "a16-s166 hyperos-hongkong") echo hyper-hk ;;
         "a17-5g hyperos-lhasa") echo hyper-f8u ;;
+        "a17-5g hyperos-hongkong") echo hyper-hk ;;
         "a34 hyperos-lhasa") echo hyper-f8u ;;
+        "a34 hyperos-hongkong") echo hyper-hk ;;
         "a15 hyperos-lhasa") echo hyper-f8u ;;
+        "a15 hyperos-hongkong") echo hyper-hk ;;
         "a55 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "a55 infinityx41-findx9u") echo infinityx ;;
         "a55 lineage24-infiniti") echo lineage ;;
+        "a55 oneui95-s948b") echo oneui95 ;;
         "a55 hyperos-lhasa") echo hyper-f8u ;;
+        "a55 hyperos-hongkong") echo hyper-hk ;;
         "a55 oxygenos16-cph2745") echo oxygen16 ;;
+        "a55 nothingos5-asteroids") echo nothing-a ;;
         "s25-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s25-fe pixel9proxl-komodo") echo pixel9-sultra ;;
         "s25-fe infinityx41-findx9u") echo infinityx ;;
         "s25-fe lineage24-infiniti") echo lineage ;;
+        "s25-fe oneui95-s948b") echo oneui95 ;;
         "s25-fe hyperos-lhasa") echo hyper-f8u ;;
+        "s25-fe hyperos-hongkong") echo hyper-hk ;;
+        "s26-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "s26-fe pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s26-fe infinityx41-findx9u") echo infinityx ;;
+        "s26-fe lineage24-infiniti") echo lineage ;;
+        "s26-fe oneui95-s948b") echo oneui95 ;;
+        "s26-fe hyperos-lhasa") echo hyper-f8u ;;
+        "s26-fe hyperos-hongkong") echo hyper-hk ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
@@ -529,15 +660,25 @@ profile_set() {
         "s-plus-9945 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-plus-9945 infinityx41-findx9u") echo infinityx ;;
         "s-plus-9945 lineage24-infiniti") echo lineage ;;
+        "s-plus-9945 oneui95-s948b") echo oneui95 ;;
         "s-plus-9945 hyperos-lhasa") echo hyper-f8u ;;
+        "s-plus-9945 hyperos-hongkong") echo hyper-hk ;;
         "s-plus-9945 nothingos5-metroid") echo nothing-f8u ;;
+        # 0.5.19: Nothing OS on the S23, S23+ and S23 Ultra (owner, untested).
+        "s-8550 nothingos5-metroid") echo nothing-f8u ;;
+        "s-plus-8550 nothingos5-metroid") echo nothing-f8u ;;
+        "s-ultra-8550 nothingos5-metroid") echo nothing-f8u ;;
+        "s-ultra-8550-jp nothingos5-metroid") echo nothing-f8u ;;
+        "s-8550-jp nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-9945 originos7-pd2609ma") echo originos ;;
         # 0.4.92: the au Galaxy S23 Ultra (SCG20): the S23 Ultra's rows, untested.
         "s-ultra-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-ultra-8550-jp infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8550-jp lineage24-infiniti") echo lineage ;;
+        "s-ultra-8550-jp oneui95-s948b") echo oneui95 ;;
         "s-ultra-8550-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-ultra-8550-jp hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
         "s-9925 oxygenos16-cph2745") echo oxygen16 ;;
@@ -547,15 +688,20 @@ profile_set() {
         "s-8550-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8550-jp infinityx41-findx9u") echo infinityx ;;
         "s-8550-jp lineage24-infiniti") echo lineage ;;
+        "s-8550-jp oneui95-s948b") echo oneui95 ;;
         "s-8550-jp hyperos-lhasa") echo hyper-f8u ;;
+        "s-8550-jp hyperos-hongkong") echo hyper-hk ;;
         "s-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550-jp originos7-pd2609ma") echo originos ;;
         # 0.4.95: the Galaxy M35 5G (the A35's rows) and the Galaxy A15 5G with MediaTek (OxygenOS 16 only), untested.
         "m35 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "m35 infinityx41-findx9u") echo infinityx ;;
         "m35 lineage24-infiniti") echo lineage ;;
+        "m35 oneui95-s948b") echo oneui95 ;;
         "m35 oxygenos16-cph2745") echo oxygen16 ;;
         "m35 hyperos-lhasa") echo hyper-f8u ;;
+        "m35 hyperos-hongkong") echo hyper-hk ;;
+        "m35 nothingos5-asteroids") echo nothing-a ;;
         "a15-5g oxygenos16-cph2745") echo oxygen16 ;;
         *) return 1 ;;
     esac
@@ -575,7 +721,10 @@ image_raw() {
         pixel11fold-yogi) echo "6559223808 8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830" ;;
         pixel11pro-kodiak) echo "6529871872 ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6" ;;
         hyperos-lhasa) echo "7749939200 269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac" ;;
+        hyperos-hongkong) echo "10482176000 29083fa42c8144637066015d9648f9c927ddf761eefdf78989024e88f13e1721" ;;
         nothingos5-metroid) echo "6067867648 484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b" ;;
+        oneui95-s948b) echo "14259888128 82ddc8561a2687f041c2820a0d910f266b3b71753582a65ebff0cec7e8d0bbe4" ;;
+        nothingos5-asteroids) echo "5972463616 d21ded7b8b36b9cd8896e8159e7c274ae160f08de0f270eb17c14c63e66f6de6" ;;
         pixel9proxl-komodo) echo "5837496320 2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c" ;;
         infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
         lineage24-infiniti) echo "2327068672 f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261" ;;
@@ -589,12 +738,15 @@ set_files() {
     case "$1" in
         n6-global-f8) echo "$SET_COMMON oplus-framework_patched.jar OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar ColorPanoramicSystemUI.apk" ;;
         n6-f8u) echo "$SET_COMMON oplus-framework_patched.jar OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
-        x9u-in-1105-sultra) echo "$SET_COMMON oplus-framework_patched.jar cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
+        x9u-in-1105-sultra) echo "$SET_COMMON oplus-framework_patched.jar cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk samcam_a.tar" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
         pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk" ;;
         hyper-f8u) echo "$SET_HYPEROS" ;;
+        hyper-hk) echo "$SET_HYPERHK" ;;
         nothing-f8u) echo "$SET_NOTHING" ;;
+        nothing-a) echo "$SET_NOTHINGA" ;;
+        oneui95) echo "$SET_ONEUI" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX" ;;
         lineage) echo "$SET_LINEAGE" ;;
@@ -613,7 +765,10 @@ set_image() {
         pixel-f8u|pixel-f8) echo pixel11fold-yogi ;;
         pixel-sultra) echo pixel11pro-kodiak ;;
         hyper-f8u) echo hyperos-lhasa ;;
+        hyper-hk) echo hyperos-hongkong ;;
         nothing-f8u) echo nothingos5-metroid ;;
+        nothing-a) echo nothingos5-asteroids ;;
+        oneui95) echo oneui95-s948b ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
         lineage) echo lineage24-infiniti ;;
@@ -636,9 +791,11 @@ image_family() {
         infinityx41-findx9u) echo infinityx ;;
         lineage24-infiniti) echo lineage ;;
         hyperos-lhasa) echo hyperos ;;
-        nothingos5-metroid) echo nothing ;;
+        hyperos-hongkong) echo hyperos ;;
+        nothingos5-metroid|nothingos5-asteroids) echo nothing ;;
         oxygenos16-cph2745) echo oxygenos ;;
         originos7-pd2609ma) echo originos ;;
+        oneui95-s948b) echo oneui ;;
         *) return 1 ;;
     esac
 }
@@ -677,7 +834,7 @@ pair_set() { # <profile> <image>
 # Executables 0755 (as scripts/deploy-phone.sh pushes them; PackageFile.mode).
 file_mode() {
     case "$1" in
-        *.sh|guest_root|guest_zygiskd|guest_zygisk_ptrace|zygote_exec|oneos_btaudio|surfaceflinger_patched|vold_patched) echo 0755 ;;
+        *.sh|guest_root|guest_zygiskd|guest_zygisk_ptrace|zygote_exec|oneos_btaudio|oneos_essential_key|surfaceflinger_patched|vold_patched) echo 0755 ;;
         *) echo 0644 ;;
     esac
 }
@@ -869,6 +1026,8 @@ env_value() {
         ONEOS_GUEST_EDM_STUB|ONEOS_VERBOSE_BOOT) echo 0 ;;
         # 0.5.x: the session's full logcat capture, a launch's choice (Full session logs); Prepare writes 1.
         ONEOS_FULL_LOGS) echo 1 ;;
+        # 0.5.20: One UI's DCIM, Pictures, Download, Documents, Movies and Music shown in the guest, a launch's choice (Share my files); Prepare writes 0.
+        ONEOS_SHARE_FILES) echo 0 ;;
         # 0.4.7: Back to One UI restarts One UI in place; a failed check reboots.
         ONEOS_RETURN_MODE) echo inplace ;;
         *) return 1 ;;
@@ -890,7 +1049,7 @@ check_env() { # <file> <form> <profile> <image>
         case "$seen" in *" $key "*) refuse "session.env sets $key twice" ;; esac
         seen="$seen$key "
         want=$(env_value "$key" "$2" "$3") || refuse "session.env key $key is not allowed"
-        if [ "$key" = ONEOS_GUEST_SEC_IMS ] || [ "$key" = ONEOS_GUEST_EDM_STUB ] || [ "$key" = ONEOS_VERBOSE_BOOT ] || [ "$key" = ONEOS_FULL_LOGS ]; then
+        if [ "$key" = ONEOS_GUEST_SEC_IMS ] || [ "$key" = ONEOS_GUEST_EDM_STUB ] || [ "$key" = ONEOS_VERBOSE_BOOT ] || [ "$key" = ONEOS_FULL_LOGS ] || [ "$key" = ONEOS_SHARE_FILES ]; then
             case "$val" in 0|1) continue ;; *) refuse "session.env $key=$val is not 0 or 1" ;; esac
         fi
         if [ "$key" = ONEOS_GUEST_HIDE_GMS ] && [ "$val" = 1 ]; then
@@ -901,6 +1060,8 @@ check_env() { # <file> <form> <profile> <image>
         [ "$val" = "$want" ] || refuse "session.env $key=$val (profile $3: $want)"
     done < "$f"
     for k in $ENV_KEYS; do
+        # A system prepared before 0.5.20 has no ONEOS_SHARE_FILES line: off; the launch adds it.
+        [ "$k" = ONEOS_SHARE_FILES ] && continue
         case "$seen" in *" $k "*) ;; *) refuse "session.env lacks $k" ;; esac
     done
 }
@@ -913,7 +1074,8 @@ image_sdk() { # <image id>
 check_table() { # <file> <image id>
     f=$1
     if [ "$(image_sdk "$2")" = 36 ]; then carried=$INSTALLD_SHA_36 ok=$INSTALLD_OK_36
-    else carried=$INSTALLD_SHA ok=$INSTALLD_SHA; fi
+    else carried=$INSTALLD_SHA ok=$INSTALLD_SHA
+        grep -qxF "$RUNTIME_CODES" "$STAGE/guards.txt" 2>/dev/null && ok="$ok $INSTALLD_SHA_95"; fi
     [ -f "$f" ] || refuse "host_installd.table missing"
     ge 65536 "$(stat -c %s "$f")" || refuse "host_installd.table is over 64 kB"
     [ "$(grep -v '^#' "$STAGE/host_installd.txt" 2>/dev/null | sha256sum | cut -d' ' -f1)" = "$carried" ] ||
@@ -958,9 +1120,12 @@ check_files() { # <names>
         [ -d "$f" ] && [ ! -L "$f" ] && continue
         n=${f##*/}
         case "$n" in
-            # guest_prepare.sh writes and starts it each switch; it outlives an in-place return
-            oneos_wdog_feeder.sh) ;;
-            *_patched*|*_payload.img|*.apk|*.jar|*.so|*.sh|*.tar|Fold8AngleRelay.dex|zygote_exec|oneos_btaudio|socket_exec|clean_apex_info_list.xml|oneos-*)
+            # guest_prepare.sh writes and starts these each switch; they can outlive an in-place
+            # return. 0.5.14: bring_watch.sh too (the Bring apps watcher).
+            oneos_wdog_feeder.sh|bring_watch.sh) ;;
+            # oneos_switch.sh writes it for the guest panel's own shape at every switch
+            guest_panel_fit.sh) ;;
+            *_patched*|*_payload.img|*.apk|*.jar|*.so|*.sh|*.tar|Fold8AngleRelay.dex|zygote_exec|oneos_btaudio|oneos_essential_key|socket_exec|clean_apex_info_list.xml|oneui_floating_add.txt|oneos-*)
                 in_list "$n" "$1" || refuse "$n is in the stage but was not prepared (left from an older stage)" ;;
         esac
     done
@@ -1277,8 +1442,8 @@ switch_verdict() {
 }
 
 do_launch() {
-    [ $# -ge 7 ] && [ $# -le 9 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot [fullLogs]]"
-    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0} fulllogs=${9:-1}
+    [ $# -ge 7 ] && [ $# -le 10 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot [fullLogs [shareFiles]]]"
+    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0} fulllogs=${9:-1} sharefiles=${10:-0}
     case "$mode" in session|dry) ;; *) usage "launch mode $mode" ;; esac
     is_dec "$code" || usage "launch versionCode $code"
     case "$sid" in *[!0-9a-f]*|'') usage "launch session id" ;; esac
@@ -1289,6 +1454,7 @@ do_launch() {
     case "$edmstub" in 0|1) ;; *) usage "launch edmStub $edmstub" ;; esac
     case "$verbose" in 0|1) ;; *) usage "launch verboseBoot $verbose" ;; esac
     case "$fulllogs" in 0|1) ;; *) usage "launch fullLogs $fulllogs" ;; esac
+    case "$sharefiles" in 0|1) ;; *) usage "launch shareFiles $sharefiles" ;; esac
     [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
     step "checks"
     [ ! -e "$STAGE/.oneos_update" ] || refuse "the installed system update did not finish: retry the update"
@@ -1344,18 +1510,21 @@ do_launch() {
     # This launch's Google services choice (the Switch screen; Prepare wrote 0),
     # its Cool down when hot (Advanced; Prepare wrote 1), its Samsung IMS choice
     # and (0.4.32) its Knox edm stub choice (both Advanced; Prepare wrote 0), its
-    # Verbose boot (Prepare wrote 0) and Full session logs (Prepare wrote 1)
-    # choices: the seven lines of session.env a launch changes, after every check. The next
+    # Verbose boot (Prepare wrote 0), Full session logs (Prepare wrote 1) and
+    # (0.5.20) Share my files (Prepare wrote 0) choices: the eight lines of session.env a launch changes, after every check. The next
     # launch writes its own. (Before the test root's stop, so the tests see it.)
+    grep -q '^ONEOS_SHARE_FILES=' "$STAGE/session.env" || echo "ONEOS_SHARE_FILES=0" >> "$STAGE/session.env" || die "could not write session.env for this launch"
     sed -e "s/^ONEOS_GUEST_HIDE_GMS=.*/ONEOS_GUEST_HIDE_GMS=$gms/" -e "s/^ONEOS_HEAT_CAP=.*/ONEOS_HEAT_CAP=$heat/" \
         -e "s/^ONEOS_GUEST_SEC_IMS=.*/ONEOS_GUEST_SEC_IMS=$secims/" \
         -e "s/^ONEOS_VERBOSE_BOOT=.*/ONEOS_VERBOSE_BOOT=$verbose/" \
         -e "s/^ONEOS_FULL_LOGS=.*/ONEOS_FULL_LOGS=$fulllogs/" \
+        -e "s/^ONEOS_SHARE_FILES=.*/ONEOS_SHARE_FILES=$sharefiles/" \
         -e "s/^ONEOS_GUEST_EDM_STUB=.*/ONEOS_GUEST_EDM_STUB=$edmstub/" "$STAGE/session.env" > "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_HIDE_GMS=$gms" "$STAGE/session.env.tmp" && grep -q -x "ONEOS_HEAT_CAP=$heat" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_SEC_IMS=$secims" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_VERBOSE_BOOT=$verbose" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_FULL_LOGS=$fulllogs" "$STAGE/session.env.tmp" &&
+        grep -q -x "ONEOS_SHARE_FILES=$sharefiles" "$STAGE/session.env.tmp" &&
         grep -q -x "ONEOS_GUEST_EDM_STUB=$edmstub" "$STAGE/session.env.tmp" &&
         own "$STAGE/session.env.tmp" 0644 &&
         mv -f "$STAGE/session.env.tmp" "$STAGE/session.env" || die "could not write session.env for this launch"
@@ -1705,6 +1874,18 @@ tool_running() { # <pkg>: whether its libtimer.so runs now
     done
     return 1
 }
+tool_pids() { # <pkg>: the pids whose program is its libtimer.so
+    for ex in "$PROC"/[0-9]*/exe; do
+        t=$(ls -l "$ex" 2>/dev/null | sed -n 's/.* -> //p')
+        case "$t" in "/data/app/"*"/$1-"*"/lib/"*"/libtimer.so") p=${ex%/exe}; echo "${p##*/}" ;; esac
+    done
+}
+tool_files() { # <pkg>: the libtimer.so files its running tools were started from, once each
+    for ex in "$PROC"/[0-9]*/exe; do
+        t=$(ls -l "$ex" 2>/dev/null | sed -n 's/.* -> //p')
+        case "$t" in "/data/app/"*"/$1-"*"/lib/"*"/libtimer.so") echo "$t" ;; esac
+    done | sort -u
+}
 do_tool_app() {
     case "${1:-}" in
         list)
@@ -1727,13 +1908,49 @@ do_tool_app() {
         tool_running "$2" || refuse "$2 runs no kernel tool now; nothing was changed"
         { [ -f "$STAGE/tool_apps" ] && grep -v -x -F "$2" "$STAGE/tool_apps"; echo "$2"; } > "$part" && own "$part" 0644 && mv -f "$part" "$STAGE/tool_apps" ||
             die "could not record $2"
+        files=$(tool_files "$2")
         step "disable $2"
         pm disable-user --user 0 "$2" > /dev/null 2>&1 || die "pm could not turn $2 off"
+        # 0.5.19 (owner: it "keeps coming back ... even after they manually disable the app", "works only if
+        # they uninstall"): the tool is a program in the app's lib folder, started by something outside the
+        # app (it runs as the shell user), so a disabled app's tool still started at the next boot. Its
+        # libtimer.so loses its execute bits while the app is off (nothing can start it, as after an
+        # uninstall; the app and its data stay); tool-app on gives the recorded mode back.
+        for f in $files; do
+            [ -f "$T$f" ] && [ ! -L "$T$f" ] || continue
+            m=$(stat -c %a "$T$f" 2>/dev/null) || continue
+            { [ -f "$STAGE/tool_app_files" ] && awk -v f="$f" '$3 != f' "$STAGE/tool_app_files"; echo "$2 $m $f"; } > "$STAGE/.tool_app_files.new" &&
+                own "$STAGE/.tool_app_files.new" 0644 && mv -f "$STAGE/.tool_app_files.new" "$STAGE/tool_app_files" ||
+                die "could not record $f"
+            TOOLF="$T$f"
+            chmod 0 "$TOOLF" || die "could not take the execute bits off $f"
+            step "no exec ${f##*/} ($m -> 0)"
+        done
+        # 0.5.17 (owner: Turn it off "is just bringing them back to start"): the app's tool runs as root,
+        # outside the app's own processes, so pm's force-stop leaves it running and the next switch is
+        # refused again (a tester: "su -c 'pm disable com.roottimer.app' didn't work"). Stop it too, only
+        # the process whose program is that app's libtimer.so; this may restart the phone once.
+        if [ "$PROC" = /proc ]; then
+            step "stop $2's kernel tool"
+            for pid in $(tool_pids "$2"); do kill -s KILL "$pid" 2>/dev/null; done
+            tool_running "$2" && die "$2 is off, but its kernel tool still runs: restart the phone, then switch"
+        fi
         say "@@OK tool-app off $2"
     else
         [ -f "$STAGE/tool_apps" ] && grep -q -x -F "$2" "$STAGE/tool_apps" || refuse "OneOS did not turn $2 off; nothing was changed"
         step "enable $2"
         pm enable --user 0 "$2" > /dev/null 2>&1 || die "pm could not turn $2 on"
+        if [ -f "$STAGE/tool_app_files" ] && mine "$STAGE/tool_app_files"; then
+            while read -r rp rm rf; do
+                [ "$rp" = "$2" ] || continue
+                case "$rm" in [0-7][0-7][0-7]) ;; *) continue ;; esac
+                case "$rf" in "/data/app/"*"/$2-"*"/lib/"*"/libtimer.so") ;; *) continue ;; esac
+                TOOLF="$T$rf"
+                [ -f "$TOOLF" ] && [ ! -L "$TOOLF" ] && chmod "$rm" "$TOOLF" && step "exec ${rf##*/} back ($rm)"
+            done < "$STAGE/tool_app_files"
+            { awk -v p="$2" '$1 != p' "$STAGE/tool_app_files"; true; } > "$STAGE/.tool_app_files.new" && own "$STAGE/.tool_app_files.new" 0644 &&
+                mv -f "$STAGE/.tool_app_files.new" "$STAGE/tool_app_files" || die "could not update the file record"
+        fi
         { grep -v -x -F "$2" "$STAGE/tool_apps"; true; } > "$part" && own "$part" 0644 && mv -f "$part" "$STAGE/tool_apps" || die "could not update the record"
         say "@@OK tool-app on $2"
     fi
@@ -2115,13 +2332,26 @@ bring_aside() { # <a folder in the bring folder>; 1 when it is not root's own
 # applied. Returns 0 when the copy is in place, 1 when the app was skipped (the
 # reason is in BRING_WHY and said as an @@INFO line). The caller made
 # $STAGE/data/oneos_bring (bring_dirs) and set NEW.
+# A user app's base APK in One UI (0.5.22). With no session running, pm answers for One UI. While a session runs it
+# answers from the other system's package manager (its services stand in for One UI's): an app installed only in
+# One UI read as "not an installed user app" in Add apps (owner and users, 11-18). Then One UI's own folder under
+# /data/app is read instead, /data/app/<random>/<package>-<random>/, the newest when an update left two. Only for a
+# name is_package accepted.
+apk_of() { # <package>
+    if [ "$BRING_LIVE" = 1 ] || [ -s "$STAGE/guest_mntns" ]; then
+        ls -td "$DATA"/app/*/"$1"-*/base.apk 2>/dev/null | head -n 1
+    else
+        pm path "$1" 2>/dev/null </dev/null | sed -n 's/^package://p' | head -n 1
+    fi
+}
+
 bring_one() { # <a name is_package accepted>
     pkg=$1
     BRING_WHY=""
     dst="$STAGE/data/oneos_bring/$pkg"
     # Its APKs: the folder pm names under /data/app (a user app; One UI's
     # own apps stay on One UI, and the app never offers them).
-    first=$(pm path "$pkg" 2>/dev/null </dev/null | sed -n 's/^package://p' | head -n 1)
+    first=$(apk_of "$pkg")
     apkdir=""
     case "$first" in *..*) ;; "$DATA"/app/*/*.apk) apkdir=${first%/*} ;; esac
     if [ -z "$apkdir" ] || [ ! -f "$first" ] || [ -L "$first" ]; then
@@ -2366,7 +2596,7 @@ do_bring_status() {
             change=same
             was=""
             if [ -f "$dst/stamp" ] && [ ! -L "$dst/stamp" ]; then was=$(sed -n 2p "$dst/stamp" 2>/dev/null); fi
-            now=$(pm path "$pkg" 2>/dev/null </dev/null | sed -n 's/^package://p' | head -n 1)
+            now=$(apk_of "$pkg")
             bring_sources
             if [ -z "$now" ]; then
                 change=gone

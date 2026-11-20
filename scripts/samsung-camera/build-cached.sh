@@ -11,7 +11,7 @@ IMG="$1"; SET="$2"; W="$3"; OUT="$4"
 # and the shims then tried to stand in for APEX classes' constructors: "extraneous input '<init>'").
 IMG=$(realpath "$IMG"); SET=$(realpath "$SET"); W=$(realpath -m "$W"); OUT=$(realpath -m "$OUT")
 ls "$SET"/*_payload.img >/dev/null 2>&1 || { echo "$SET has no *_payload.img (APEX jars)" >&2; exit 1; }
-C=${SAMCAM_CACHE:-/tmp/samcam}; R=/srv/projects/OneOS; HERE=$R/scripts/samsung-camera
+C=${SAMCAM_CACHE:-/tmp/samcam}; R=/srv/projects/OneOS; HERE=$(cd "$(dirname "$0")" && pwd)
 APKTOOL=$(ls $R/mysticgsi/tools/apktool/*.jar | head -1); BT=$(ls -d /opt/android-sdk/build-tools/* | sort | tail -1)
 mkdir -p "$W" "$OUT"; cd "$W"
 # 2. the guest's framework jars and library names
@@ -61,6 +61,9 @@ grep -q 'PendingIntent__ExternalSyntheticLambda1__<init>' out/shims.txt && {
     sed -i '/PendingIntent__ExternalSyntheticLambda1__<init>/d' out/shims.txt
     python3 -I "$HERE/gen_sem.py" out/shims.txt out/compat/smali/oneos/semcompat/Sem.smali
 }
+# 0.5.15: SemMediaResourceHelper without libmediaresourcehelper.so (needs Samsung's libmedia; the A36 camera
+# closed on every switch to video in LineageOS).
+python3 -I "$HERE/fix_media_resource_helper.py" out/compat/smali
 rm -rf proj_compat && mkdir proj_compat && cp -r out/compat/smali proj_compat/smali
 cp -r "$HERE/compat_extra/." proj_compat/smali/
 printf 'version: 3.0.3\napkFileName: oneos-camera-compat.jar\nsdkInfo:\n  minSdkVersion: 36\ndoNotCompress:\n- dex\n' > proj_compat/apktool.yml
@@ -78,6 +81,9 @@ python3 -I "$HERE/fix_recorder_track_started.py" proj_SamsungCamera >/dev/null
 python3 -I "$HERE/fix_gallery_fallback.py" proj_SamsungCamera >/dev/null
 # 0.4.59: the recording timer (no 0x385 from AOSP's recorder), and media entries without Samsung's secmedia provider.
 python3 -I "$HERE/fix_recorder_progress.py" proj_SamsungCamera >/dev/null
+# Videos with their rotation (0.5.21): after fix_recorder_progress.py, which it builds on. Applied by hand to the
+# flagship cameras since 0.4.59 and never added here, so every camera built since (the A-series samcam_a) lost it.
+python3 -I "$HERE/fix_video_rotation.py" proj_SamsungCamera >/dev/null
 python3 -I "$HERE/fix_secmedia_insert.py" proj_SamsungCamera >/dev/null
 [ "${SAMCAM_BAR:-0}" = 1 ] || python3 -I "$HERE/fix_bar_width.py" proj_SamsungCamera
 java -jar "$APKTOOL" b -q -o SamsungCamera-rw.apk proj_SamsungCamera

@@ -44,6 +44,27 @@ state, the reveal and closing animations, and the Pixel side
 `scripts/make-fold8-pixel.py`). The Z Fold8 Ultra uses his hinge relay, the
 Pixel SystemUI adapter and the half-open state as well.
 
+## Guest screen lock, fingerprint and face, by vdcoolok
+
+<https://github.com/vdcoolok>, [pull request #152](https://github.com/fahadalijaved/OneOS/pull/152)
+(Apache-2.0, as a contribution to this repository).
+
+The screen lock kept inside the guest (`switcher/patches/guest_local_lock.py`,
+`OneOSGuestLock.java`: the idea, and from 0.5.17 its gatekeeper-password handle for the guest's
+enrolment flow), the guest reaching the phone's fingerprint sensor through AIDL
+(`switcher/patches/guest_force_aidl_fingerprint.py`) and One UI's enrolment lists carried into the
+guest (`switcher/assets/guest_prepare.sh`, "Guest biometrics"). OneOS added the removal guard
+(`switcher/patches/guest_no_biometric_remove.py`) before shipping them.
+
+## The OneOS website, by fouadd
+
+<https://github.com/fouadd123>, [pull request #237](https://github.com/fahadalijaved/OneOS/pull/237)
+
+fouadd designed and built the OneOS website, <https://fahadalijaved.github.io/OneOS/>: the systems
+catalog, the phone compatibility pages and the comparison, in one page served from the `gh-pages`
+branch. Its styling is ported from [OneUI-Web](https://github.com/SamsungInternet/OneUI-Web)
+(MIT License, Copyright (c) 2019 Diego; the license is published next to the page).
+
 ## MysticGSI
 
 <https://github.com/MysticGSI/mysticgsi>, Apache License 2.0,

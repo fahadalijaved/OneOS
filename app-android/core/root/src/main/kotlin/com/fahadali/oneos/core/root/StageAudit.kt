@@ -414,6 +414,8 @@ object StageAudit {
         "cat", "ls", "mkdir", "mv", "cp", "rm", "chown", "chmod", "sha256sum", "date", "getprop", "pm", "getevent", "du",
         "env", "unset", "export", "set", "read", "exit", "return", "shift", "true", "false", "break", "continue", "exec",
         "trap", "am", "od", "find", "sleep",
+        // 0.5.17: tool-app off stops the one process whose program is that app's libtimer.so (tool_pids).
+        "kill",
     )
 
     private val WRITES = setOf("mkdir", "mv", "cp", "rm", "chown", "chmod")
@@ -615,6 +617,11 @@ object StageAudit {
                 "OLD_PARENT" -> if (a.value != "\"\$DATA/local/tmp\"") p += "line ${a.line}: OLD_PARENT=${a.value}"
                 "OLDDIR" -> if (a.value != "\"\$OLD_PARENT/\$1\"" || a.function != PURGE_FUNCTION) p += "line ${a.line}: OLDDIR=${a.value}"
                 "RFROM" -> if (a.value != "\"\$OLD_PARENT/\$1\"" || a.function != RESTORE_FUNCTION) p += "line ${a.line}: RFROM=${a.value}"
+                // 0.5.19: an app's kernel tool (libtimer.so in its lib folder) loses its execute bits while the
+                // app is off, and gets them back with tool-app on: the one write outside the stage, in tool-app only.
+                "TOOLF" -> if (a.function != TOOL_APP_FUNCTION || (a.value != "\"\$T\$f\"" && a.value != "\"\$T\$rf\"")) {
+                    p += "line ${a.line}: TOOLF=${a.value}"
+                }
                 "TRASH" -> if (a.function != PURGE_FUNCTION ||
                     !(v.startsWith("\$OLD_PARENT/oneos.trash-") || a.value == "\"\$OLDDIR\"" || self)
                 ) p += "line ${a.line}: TRASH=${a.value}"
@@ -674,6 +681,7 @@ object StageAudit {
                 }
                 for (a in paths) {
                     if (bringCopy && a == "\"\$BFROM\"") continue
+                    if (n == "chmod" && a == "\"\$TOOLF\"" && c.function == TOOL_APP_FUNCTION) continue
                     if (!stagePath(a, c.function, loopVars)) p += "line ${c.line}: $n $a is not under the stage"
                 }
             }

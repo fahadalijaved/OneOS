@@ -15,6 +15,8 @@ A ServiceSpecificException (the HAL's own answer: it is alive) is now thrown on 
 the reboot, so that one model fails to load and nothing else; a dead HAL and any other
 exception are handled as before.
 
+One UI 9.5 (S948BXXU6ZZKN) declares handleException(RuntimeException)V, the same body.
+
 Prints the smali_* directory it changed; nothing when the class is not there. Fails if
 the method is there but not in the form this was written for.
 
@@ -47,7 +49,7 @@ def main():
     t = open(p, encoding="utf-8").read()
     if MARK in t:
         fail("already patched")
-    ms = [m for m in re.finditer(r"^\.method (?:public |private |protected )?(?:final )?handleException\(Ljava/lang/RuntimeException;\)Ljava/lang/RuntimeException;\n(.*?)^\.end method\n",
+    ms = [m for m in re.finditer(r"^\.method (?:public |private |protected )?(?:final )?handleException\(Ljava/lang/RuntimeException;\)(?:Ljava/lang/RuntimeException;|V)\n(.*?)^\.end method\n",
                                  t, re.M | re.S)]
     if len(ms) != 1:
         fail("handleException found %d times" % len(ms))

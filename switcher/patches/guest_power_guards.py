@@ -29,12 +29,32 @@ import sys
 
 # The register differs per build: v1 on the Android 17 images, v3 on OnePlus's Android 16 (OxygenOS 16).
 AMS_CALL = re.compile(r"^    invoke-interface \{[vp]\d+\}, Landroid/os/storage/IStorageManager;->commitChanges\(\)V\n", re.M)
+# Each entry point: the accepted signatures, exactly one of which must exist once.
+# One UI 9.5 (S948BXXU6ZZKN) has rebootOrShutdown(Context, String, boolean) and
+# rebootSafeMode(Context).
 ENTRY_POINTS = [
-    "reboot(Landroid/content/Context;Ljava/lang/String;Z)V",
-    "rebootOrShutdown(Landroid/content/Context;ZLjava/lang/String;)V",
-    "rebootSafeMode(Landroid/content/Context;Z)V",
-    "shutdown(Landroid/content/Context;Ljava/lang/String;Z)V",
+    ("reboot(Landroid/content/Context;Ljava/lang/String;Z)V",),
+    ("rebootOrShutdown(Landroid/content/Context;ZLjava/lang/String;)V",
+     "rebootOrShutdown(Landroid/content/Context;Ljava/lang/String;Z)V"),
+    ("rebootSafeMode(Landroid/content/Context;Z)V",
+     "rebootSafeMode(Landroid/content/Context;)V"),
+    ("shutdown(Landroid/content/Context;Ljava/lang/String;Z)V",),
 ]
+# One UI 9.5 only (used when its rebootOrShutdown shape is found): Samsung's own
+# entry points into the shutdown sequence (BatteryService, Knox custom manager).
+SAMSUNG_ENTRY_POINTS = [
+    ("systemShutdown(Landroid/content/Context;Ljava/lang/String;)V",),
+    ("shutdownInner(Landroid/content/Context;)V",),
+]
+SAMSUNG_REBOOT_OR_SHUTDOWN = "rebootOrShutdown(Landroid/content/Context;Ljava/lang/String;Z)V"
+# One UI 9.5: classes outside PowerManagerService that write sys.powerctl themselves
+# (rescue party, enterprise HDM, APEX decompression, ShutdownThread's last step): file -> writes.
+SAMSUNG_POWERCTL_WRITERS = {
+    os.path.join("com", "android", "server", "power", "ShutdownThread.smali"): 1,
+    os.path.join("com", "android", "server", "SecRescueParty.smali"): 2,
+    os.path.join("com", "android", "server", "enterprise", "hdm", "HdmSoftwareBlock.smali"): 1,
+    os.path.join("com", "android", "server", "pm", "InstallPackageHelper.smali"): 1,
+}
 POWERCTL = 'const-string/jumbo {reg}, "sys.powerctl"'
 
 
@@ -68,7 +88,14 @@ def guard_ams(root):
 def guard_shutdown_thread(root):
     path = find(root, os.path.join("com", "android", "server", "power", "ShutdownThread.smali"))
     lines = open(path).read().split("\n")
-    for sig in ENTRY_POINTS:
+    present = {l for l in lines if l.startswith(".method public static ")}
+    samsung = f".method public static {SAMSUNG_REBOOT_OR_SHUTDOWN}" in present
+    entries = ENTRY_POINTS + (SAMSUNG_ENTRY_POINTS if samsung else [])
+    for alts in entries:
+        found = [a for a in alts if any(l == f".method public static {a}" for l in lines)]
+        if len(found) != 1:
+            sys.exit(f"ShutdownThread: {alts[0]} not found exactly once")
+        sig = found[0]
         header = f".method public static {sig}"
         idx = [i for i, l in enumerate(lines) if l == header]
         if len(idx) != 1:
@@ -109,7 +136,7 @@ def guard_shutdown_thread(root):
         lines[j:j] = guard
         print(f"ShutdownThread.{name}: guarded", file=sys.stderr)
     open(path, "w").write("\n".join(lines))
-    return top_dir(root, path)
+    return top_dir(root, path), samsung
 
 
 def guard_powerctl(root):
@@ -117,17 +144,48 @@ def guard_powerctl(root):
     smali = open(path).read()
     pattern = re.compile(r'const-string/jumbo (v\d+), "sys\.powerctl"')
     count = len(pattern.findall(smali))
-    if count != 2:
+    # One UI 9.5 has no lowLevelShutdown here (ShutdownThread.rebootOrShutdown writes the
+    # shutdown request itself), so lowLevelReboot's is the only write.
+    expected = 2
+    if count == 1 and ".method public static lowLevelShutdown(" not in smali:
+        expected = 1
+    if count != expected:
         sys.exit(f"PowerManagerService: expected 2 sys.powerctl writes, found {count}")
     smali = pattern.sub(r'const-string/jumbo \1, "oneos.guest.powerctl"', smali)
     open(path, "w").write(smali)
-    print("PowerManagerService: sys.powerctl -> oneos.guest.powerctl (2)", file=sys.stderr)
+    print(f"PowerManagerService: sys.powerctl -> oneos.guest.powerctl ({count})", file=sys.stderr)
     return top_dir(root, path)
 
 
+def guard_samsung_powerctl(root):
+    """One UI 9.5: the other classes that write sys.powerctl go to the guest property too."""
+    pattern = re.compile(r'const-string/jumbo (v\d+|p\d+), "sys\.powerctl"')
+    dirs = set()
+    for rel, expected in SAMSUNG_POWERCTL_WRITERS.items():
+        hits = []
+        for dirpath, _, files in os.walk(root):
+            for name in files:
+                path = os.path.join(dirpath, name)
+                if path.endswith(os.sep + rel):
+                    hits.append(path)
+        if not hits:
+            continue
+        if len(hits) != 1:
+            sys.exit(f"expected exactly one {rel}, found {len(hits)}")
+        smali = open(hits[0]).read()
+        count = len(pattern.findall(smali))
+        if count != expected:
+            sys.exit(f"{os.path.basename(rel)}: expected {expected} sys.powerctl writes, found {count}")
+        open(hits[0], "w").write(pattern.sub(r'const-string/jumbo \1, "oneos.guest.powerctl"', smali))
+        print(f"{os.path.basename(rel)}: sys.powerctl -> oneos.guest.powerctl ({count})", file=sys.stderr)
+        dirs.add(top_dir(root, hits[0]))
+    return dirs
+
+
+# One UI 9.5 (S948BXXU6ZZKN): setupOrClearBcb(String, boolean).
 RECOVERY_METHODS = [
-    "setupOrClearBcb(ZLjava/lang/String;)Z",
-    "uncrypt(Ljava/lang/String;Landroid/os/IRecoverySystemProgressListener;)Z",
+    ("setupOrClearBcb(ZLjava/lang/String;)Z", "setupOrClearBcb(Ljava/lang/String;Z)Z"),
+    ("uncrypt(Ljava/lang/String;Landroid/os/IRecoverySystemProgressListener;)Z",),
 ]
 
 
@@ -144,7 +202,11 @@ def guard_recovery(root):
     """
     path = find(root, os.path.join("com", "android", "server", "recoverysystem", "RecoverySystemService.smali"))
     lines = open(path).read().split("\n")
-    for sig in RECOVERY_METHODS:
+    for alts in RECOVERY_METHODS:
+        sigs = [a for a in alts if any(l.startswith(".method ") and l.endswith(a) for l in lines)]
+        if len(sigs) != 1:
+            sys.exit(f"RecoverySystemService: {alts[0]} not found exactly once")
+        sig = sigs[0]
         idx = [i for i, l in enumerate(lines) if l.startswith(".method ") and l.endswith(sig)]
         if len(idx) != 1:
             sys.exit(f"RecoverySystemService: {sig} not found exactly once")
@@ -176,7 +238,11 @@ def guard_recovery(root):
 
 
 def main(root):
-    dirs = {guard_ams(root), guard_shutdown_thread(root), guard_powerctl(root), guard_recovery(root)}
+    ams = guard_ams(root)
+    st_dir, samsung = guard_shutdown_thread(root)
+    dirs = {ams, st_dir, guard_powerctl(root), guard_recovery(root)}
+    if samsung:
+        dirs |= guard_samsung_powerctl(root)
     for d in sorted(dirs):
         print(d)
 

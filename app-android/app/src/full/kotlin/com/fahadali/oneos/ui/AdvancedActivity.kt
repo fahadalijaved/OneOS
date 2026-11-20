@@ -93,6 +93,12 @@ class AdvancedFragment : CardsFragment() {
         CardRows.toggle(sessions, getString(R.string.advanced_full_logs_title), getString(R.string.advanced_full_logs_summary), SessionPrefs.fullLogs(ctx)) { on ->
             SessionPrefs.setFullLogs(ctx, on)
         }
+        CardRows.toggle(sessions, getString(R.string.advanced_share_files_title), getString(R.string.advanced_share_files_summary), SessionPrefs.shareFiles(ctx)) { on ->
+            SessionPrefs.setShareFiles(ctx, on)
+        }
+        CardRows.toggle(sessions, getString(R.string.usage_count_title), getString(R.string.usage_count_summary), SessionPrefs.usageCount(ctx)) { on ->
+            SessionPrefs.setUsageCount(ctx, on)
+        }
         val logs = LogJob.state
         val zip = LogJob.latestZip(ctx)
         if (zip != null && !logs.busy) {
@@ -131,7 +137,9 @@ class AdvancedFragment : CardsFragment() {
             trailing = getString(R.string.advanced_card_risky_tag), trailingLevel = Level.BLOCK, rows = true,
         )
         CardRows.toggle(risky, getString(R.string.advanced_allow_lock_title), getString(R.string.advanced_allow_lock_summary), SessionPrefs.allowScreenLock(ctx)) { on ->
-            SessionPrefs.setAllowScreenLock(ctx, on)
+            if (!on) SessionPrefs.setAllowScreenLock(ctx, false)
+            // 0.5.17 (owner): on only after the red warning and its 5 s wait; anything else redraws it off.
+            else LockRiskDialog.show(requireActivity()) { yes -> SessionPrefs.setAllowScreenLock(ctx, yes); if (!yes) requireActivity().recreate() }
         }
 
         // Help.

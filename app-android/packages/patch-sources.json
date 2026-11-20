@@ -12,8 +12,15 @@
           "image": "coloros17-findn6",
           "set": "n6-global-f8",
           "imageSha256": "eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c"
+        },
+        {
+          "profile": "f8",
+          "image": "lineage24-infiniti",
+          "set": "lineage",
+          "imageSha256": "f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261"
         }
-      ]
+      ],
+      "discover": true
     }
   ]
 }

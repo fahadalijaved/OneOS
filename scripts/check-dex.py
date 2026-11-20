@@ -13,7 +13,9 @@ Exits 1 and lists the methods if anything is found.
 """
 import glob, os, re, subprocess, sys, tempfile, zipfile
 
-dexdump = sorted(glob.glob(os.path.join(os.environ.get("ANDROID_HOME", "/opt/android-sdk"), "build-tools", "*", "dexdump")))[-1]
+dexdump = sorted(glob.glob(os.path.join(
+    os.environ.get("ANDROID_HOME", "/opt/android-sdk"), "build-tools", "*", "dexdump*"
+)))[-1]
 bad = []
 for jar in sys.argv[1:]:
     with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(jar) as z:

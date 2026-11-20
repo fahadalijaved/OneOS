@@ -1,7 +1,9 @@
-# OneOS package set lineage: sha256sum of out/overlays_lineage_r5 (LineageOS 24.0, OnePlus 15 infiniti nightly of 2026-11-11, CP2A.260605.016; r1 of 2026-11-13 from scripts/make-overlays.sh with the gvld pins for its vold and service.incremental.so), minus tethering_payload.img and cellbroadcast_payload.img (One UI's modules stay, as for Infinity-X). No gmssystem payload: One UI's Google apps are laid over the guest's product partition at session time (guest_google.sh FULL mode). 0.5.06 r2: r1 plus OneOSPixelDoze.apk (AOD), 2026-11-14. 0.5.07 r3: r2 plus libbootanimation_preapex_patched.so (boot animation on every panel), 2026-11-14. 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py, 2026-11-14.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_lineage_r5 differs.
+# OneOS package set lineage: sha256sum of out/overlays_lineage_r6 (LineageOS 24.0, OnePlus 15 infiniti nightly of 2026-11-11, CP2A.260605.016; r1 of 2026-11-13 from scripts/make-overlays.sh with the gvld pins for its vold and service.incremental.so), minus tethering_payload.img and cellbroadcast_payload.img (One UI's modules stay, as for Infinity-X). No gmssystem payload: One UI's Google apps are laid over the guest's product partition at session time (guest_google.sh FULL mode). 0.5.06 r2: r1 plus OneOSPixelDoze.apk (AOD), 2026-11-14. 0.5.07 r3: r2 plus libbootanimation_preapex_patched.so (boot animation on every panel), 2026-11-14. 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py, 2026-11-14.
+# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_lineage_r6 differs.
+# 0.5.14 r6: r5 with the current OneOSGuest.apk and Samsung Camera (samcam_a.tar for A/M phones, samcam_bar.tar for bar phones).
+# 0.5.15 r7: framework_patched.jar with Samsung slow motion's three-output high-speed session; samcam_a.tar without libmediaresourcehelper (A-series video).
 a2efd9b1170675a011ce4e667dcdd1b277c419617656dd3c1b77ff537f000afd  OneOSFoldCutout.apk
-0541e053377589e8bcc036996c0fb8d8f094207bcd9370922141f2c0b44e2f09  OneOSGuest.apk
+fab32e6817804b30f982d93a96e3a33f13ff2c16f0e84ef3f05fe59eff8e8229  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
 466e8b95c9805c6544f736c0a134f6b0de6035232b4473897dc64508bb91114a  OneOSPixelStatusBar.apk
 53ce08cda6a9c2e6933a576019a33ce81f7e667d23d4f1e88157275b136fcae1  OneOSTabletQs.apk
@@ -13,8 +15,8 @@ c6ed8d24bb1456f8d8b6fa6fca8aecbd3d447b2360cdb2b27cb212f62c242747  configinfrastr
 b13193e04f1d0cdd4a56050f407ba3c7462f3a67ed4afacdee621b19ac569779  conscrypt_payload.img
 9fa45636eda370af4330b21c0152d9911ac187a77cae974d3a542f282cc07dc5  crashrecovery_payload.img
 bfaf436768693e7c70062d19a2b61657f1392b8962dc924d8a665c626a0cb912  extservices_payload.img
-7061acea74028dc27b79933b1f3c96a5f113be95bbf9ce111dd0efcf9eaa1395  framework_patched.jar
-c8520e2a33c8887993ef3103402db24df358e6b94cdeb778088169da6df6869c  guards.txt
+7d8a358c209adedab8d5c29ce78f8229a0c1d6ffa8932f9b86390343435d0670  framework_patched.jar
+215284ae6c2aed747620ffe1f9eef2bec2588ee68ec2e5375d580eb9cc85a0f3  guards.txt
 28622e1658232edfbc3c05dd90be6d44e140593a7c06343268b2791fc6aa0102  healthfitness_payload.img
 adcf96e676fa1307eceea2f6c069a4c4a52f4fedf3713293d145a0cd12f25613  i18n_payload.img
 67dd101873bafdf90336fcf07e4576655cbd0c404f076a4f41608a40fc9cef50  ims-ext-common_patched.jar
@@ -31,10 +33,12 @@ b41e93245094fed4ef3f8122923573f41e72dfa9fe1defffd0feccb0b89cfa2b  permission_pay
 bdfa0709054f5b23b1a80d064e4cf3fc32f751d81fd7fe11f53878da7426e856  runtime_payload.img
 d373a66a2b56c4ffcd2f62a6c9542dd7e7436d40f902ae02760aa8d6377ceb8c  sdkext_payload.img
 0235d2312e659dfb00b7bab3e6b8189e36ccd2b61d1c298f01347e8d4615bc5d  service.incremental_patched.so
-0b05d086f6b0432d4164181823195cc4f73fc9916e3aa5035001b3a1a0928b98  services_patched.jar
+4664508479629ea9a90c855ae43cd99a474a3cc4012632aea3eb555a4da3c70a  services_patched.jar
 8eeb43db3299c6735887582769f69d78fbd09a7f24c12b919d5c7017639da6db  telephony-common_patched.jar
 e47bdd2692863f919b63b1e995d581a32714058558c68473bbc44136724dd7f7  telephonycore_payload.img
 edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched
 5792ef451f842b008ead2fdb849535b5135d3cff5b181cf1cc1e9341eaaaba1e  wifi_payload.img
 4d3d9dcf685f925af6f69a74fbaa79f463e0bfcb5a1cca99eb8f257efb2cc0f8  OneOSPixelDoze.apk
 11191f7bb7c3597250a150bda7ebb1e6a87d1ce25a92c3d396fc12d4d88fff07  libbootanimation_preapex_patched.so
+bf80b005ea633d41b71117213d231cf6a867dd45bb6da92b35749879dffa2f73  samcam_a.tar
+4aa119a92b8c9409b2b9ed9fca636613d369d57e8a72abcf2aed3de511c2fe6c  samcam_bar.tar

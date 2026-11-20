@@ -456,9 +456,34 @@ fi
 for t in tsp tsp1 tsp2; do
     f=$S/data/oneos_dt2w_armed.$t
     [ -f "$f" ] && [ ! -L "$f" ] || continue
+    enum=$(cat "$f")
+    # An older keeper could mistake the STM LPM value 1 for a boolean.
+    if [ "$enum" = 1 ] && [ "$(getprop ro.product.vendor.model)" = SM-S918B ] &&
+       [ "$(readlink -f /sys/class/sec/$t/input/device/driver)" = /sys/bus/spi/drivers/stm_ts_spi ]; then enum=2; fi
+    if [ "$enum" = 2 ] && [ ! -w /sys/class/sec/$t/enabled ]; then
+        echo "Touchscreen $t: no power node for restore; keeping marker and rebooting"
+        ONEOS_RETURN_MODE=reboot
+        continue
+    fi
     if [ -w /sys/class/sec/$t/enabled ]; then
-        # 2,1 is the write that acts; the older drivers answer 2,0 with an error (see the keeper).
-        echo 2,0 > /sys/class/sec/$t/enabled 2>/dev/null; echo 2,1 > /sys/class/sec/$t/enabled
+        if [ "$enum" = 2 ]; then
+            # STM open() needs a reader after the guest died; hold it until One UI is up.
+            ev=""
+            for e in /sys/class/sec/$t/input/event*; do [ -e "$e" ] && ev=/dev/input/${e##*/}; done
+            if [ ! -c "$ev" ] || ! { exec 9<&0; } <"$ev"; then
+                echo "Touchscreen $t: no reader for restore; rebooting"
+                ONEOS_RETURN_MODE=reboot
+                continue
+            fi
+        else
+            echo 2,0 > /sys/class/sec/$t/enabled 2>/dev/null
+        fi
+        echo 2,1 > /sys/class/sec/$t/enabled
+        if [ "$enum" = 2 ] && { [ "$(cat /sys/class/sec/$t/enabled)" != 2 ] || [ "$(cat /sys/class/sec/$t/input/enabled)" != 1 ]; }; then
+            echo "Touchscreen $t: restore failed; keeping marker and rebooting"
+            ONEOS_RETURN_MODE=reboot
+            continue
+        fi
         echo "Touchscreen $t: back from the guest's double-tap low-power mode (enabled=$(cat /sys/class/sec/$t/enabled 2>/dev/null))"
     fi
     rm -f "$f"
@@ -468,7 +493,9 @@ rm -f /dev/oneos_dt2w_event* 2>/dev/null
 # One UI's protected state against the record the switch made (see
 # oneos_switch.sh): every guest process is gone by now. Logged only.
 host_state() {
-    f=$(readlink -f "$(getprop ro.frp.pst)" 2>/dev/null)
+    # One UI's FRP partition: the session points ro.frp.pst at the guest's own block (guest_props.sh).
+    f=$(cat "$S/host_frp_pst" 2>/dev/null); [ -n "$f" ] || f=$(getprop ro.frp.pst)
+    f=$(readlink -f "$f" 2>/dev/null)
     [ -b "$f" ] && echo "frp $(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)"
     for p in /data/misc/gatekeeper /data/apex/active /data/apex/sessions; do
         [ -d "$p" ] && find "$p" -type f -exec stat -c '%n %s %Y' {} + 2>/dev/null | sort
@@ -520,6 +547,10 @@ umnt -l /data/local/tmp/oneos/system_ext_ov || true
 # baseline of this very boot and with no stage mount or bridge left; a guest
 # shutdown request always takes the reboot path (it powers off).
 MODE=${ONEOS_RETURN_MODE:-reboot}
+# Samsung's touch booster as One UI had it (oneos_switch.sh turned it on for the session).
+v=$(cat $S/host_input_booster 2>/dev/null)
+case "$v" in 0|1) echo "$v" > /sys/class/input_booster/enable_event 2>/dev/null && echo "Touch booster: back to One UI's $v" ;; esac
+rm -f $S/host_input_booster
 if [ "$MODE" = inplace ]; then
     RP=""
     for c in /data/adb/ksu/bin/resetprop /data/adb/ap/bin/resetprop /debug_ramdisk/resetprop /sbin/resetprop; do
@@ -551,11 +582,22 @@ fi
 # errors=panic kernel panic. Temp root does not survive either way. Undo what
 # would persist (guest persist.* props; /data binds and mounts are gone above)
 # and reboot cleanly. ONEOS_RETURN_MODE=inplace: see below.
+# The session's sound watch ends with it (0.5.20): left to its two-hour timeout, which stops while the phone
+# sleeps, it read the log in One UI for hours and the next sessions piled up more of them.
+for p in $(pgrep -f "^logcat .*/data/local/tmp/oneos/sound_watch.log" 2>/dev/null) $(pgrep -f "timeout 7200 logca[t] .*/data/local/tmp/oneos/sound_watch.log" 2>/dev/null); do
+    kill "$p" 2>/dev/null
+done
 if [ "$MODE" != inplace ]; then
     oneos_boot_release_display
     rm -f /data/local/tmp/oneos/data/guest_audio.flag /data/local/tmp/oneos/host_audio_hal_svcs
     STAGE=/data/local/tmp/oneos /system/bin/sh /data/local/tmp/oneos/guest_props.sh restore-persist
     pkill -9 -f "app_storage_loop.sh" 2>/dev/null || true
+    p=$(cat $S/share_holder.pid 2>/dev/null); case "$p" in ""|*[!0-9]*) ;; *) grep -q sleep /proc/$p/cmdline 2>/dev/null && kill "$p" 2>/dev/null ;; esac; rm -f $S/share_holder.pid
+    # The session is undone: record a clean return ("<boot_id> <epoch>") for this
+    # path too. Without it a guest power-off or a reboot return left the last
+    # launch unanswered, and a boot-safety module that reads this file (owner's
+    # backdownload) sent every later boot to Download Mode.
+    echo "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) $(date +%s)" > $S/return_inplace.done
     sync
     # A guest shutdown request (low battery, thermal, power off), recorded by the
     # guarded ShutdownThread, becomes a real host shutdown; anything else reboots.
@@ -683,7 +725,10 @@ for p in /proc/[0-9]*; do
     [ -n "$n" ] && [ -n "$I_NS" ] && [ "$n" != "$I_NS" ] || continue
     case "$seen" in *" $n "*) continue ;; esac
     seen="$seen$n "
-    mps=$("$BB" awk -v s="$S/" 'index($5, s) == 1 {print $5}' "$p/mountinfo" 2>/dev/null | "$BB" sort -r)
+    # And binds from the stage onto One UI's paths, by source like the check below (11-19 report e3a52c49,
+    # S25 on ColorOS: "stage still mounted: .../samcam_build/libsimba.heifdec.media.samsung.so on
+    # /system/lib64/..." in one process's namespace, a reboot instead of the in-place return).
+    mps=$("$BB" awk -v s="$S/" -v r="/local/tmp/oneos/" 'index($5, s) == 1 || index($4, r) == 1 {print $5}' "$p/mountinfo" 2>/dev/null | "$BB" sort -r -u)
     [ -n "$mps" ] || continue
     u=0; t=0; pv=0
     for mp in $mps; do
@@ -1084,6 +1129,7 @@ while :; do
     [ $up = 0 ] && [ $t -ge 180 ] && failsafe "user 0 not unlocked within 180 s"
 done
 
+exec 9<&-
 ip rule show 2>/dev/null | "$BB" diff "$BASE/iprule" - >> "$IPLOG" 2>&1 || say "!!! ip rules differ from the switch (diff in return_inplace.log)"
 # One UI is up. RescueParty back to the stored value, the modules read through
 # their filesystems (safe now: Gate A read them below), the session's logcat

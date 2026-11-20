@@ -18,7 +18,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SeslProgressBar
 import androidx.fragment.app.Fragment
 import androidx.preference.PreferenceFragmentCompat
+import android.os.Build
 import com.fahadali.oneos.BuildConfig
+import com.fahadali.oneos.report.UsageCheckIn
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.device.FactProbe
 import com.fahadali.oneos.core.model.AndroidRelease
@@ -85,6 +87,19 @@ internal object EditionHome {
     val layoutRes: Int get() = R.layout.activity_home
 
     fun createFragment(): Fragment = StatusHomeFragment()
+
+    /**
+     * Every start of the launch activity (also when it redirects on): the anonymous daily usage count.
+     * The profile and the systems come from what the app already keeps (no root): the matched profile,
+     * the system on Home's last check and the last launch's.
+     */
+    fun started(a: MainActivity) {
+        UsageCheckIn.maybeSend(
+            a,
+            profile = { Profiles.resolve(Build.MODEL, Build.DEVICE, Build.SOC_MODEL).profile?.id },
+            systems = { listOf(SessionPrefs.homeSnapshot(a)?.imageId, SessionPrefs.lastLaunch(a)?.imageId?.takeIf { it.isNotEmpty() }) },
+        )
+    }
 
     /** On the cover the hero under the bar says "OneOS", so the bar has no title; the inner screen's bar has it. */
     fun created(a: MainActivity) {
@@ -231,6 +246,16 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
         subs += LogJob.observeBy({ Triple(it.phase, it.recovering, it.stopping) }, onChange)
         subs += OldStagesJob.observe(onChange)
         subs += AppUpdater.observe(onChange)
+        // Plugging in lifts the low-battery block at once, without leaving Home.
+        val power = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: android.content.Intent?) { if (isAdded) redraw() }
+        }
+        val ctx = requireContext()
+        androidx.core.content.ContextCompat.registerReceiver(ctx, power, android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_POWER_CONNECTED)
+            addAction(android.content.Intent.ACTION_POWER_DISCONNECTED)
+        }, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        subs += { runCatching { ctx.unregisterReceiver(power) } }
     }
 
     override fun onResume() {
@@ -432,7 +457,7 @@ class StatusHomeFragment : Fragment(R.layout.home_content) {
                 val free = facts?.storage?.freeBytes
                 when {
                     f == null || free == null || f.reason == SwitchGates.R_SPACE_UNKNOWN -> unknown
-                    f.level == Level.BLOCK -> ctx.getString(R.string.home_value_space_short, Units.bytes((SpaceRule.LAUNCH_BYTES - free).coerceAtLeast(0)))
+                    f.level == Level.BLOCK -> ctx.getString(R.string.home_value_space_short, Units.bytes((r.launchBytes - free).coerceAtLeast(0)))
                     setupNeed != null && free < setupNeed -> {
                         if (level == Level.OK) level = Level.WARN
                         ctx.getString(R.string.home_value_space_setup, Units.bytes(free), Units.bytes(setupNeed))

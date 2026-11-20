@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OneOS Probe</string>
+    <string name="before_link_summary">Что читают тесты, root и что передаётся</string>
+    <string name="before_probe_reads_title">OneOS Probe только читает</string>
+    <string name="before_probe_reads_summary">Запускает тесты только для чтения с root и упаковывает найденное в архив для команды OneOS. Ничего на телефоне не меняется: root не записывает файлов, не меняет настроек и свойств, ничего не прошивается и не переключается.</string>
+    <string name="before_probe_root_title">Нужен root</string>
+    <string name="before_probe_root_summary">Тесты запускаются с root (KernelSU, Magisk или APatch). Разрешите OneOS Probe, когда менеджер root спросит; в KernelSU или APatch сначала разрешите её в списке суперпользователя.</string>
+    <string name="before_probe_privacy_title">Личные данные сначала удаляются</string>
+    <string name="before_probe_privacy_summary">Прежде чем результатами можно будет поделиться, OneOS Probe удаляет IMEI и MEID, серийные номера и идентификаторы устройства, MAC-адреса, номера SIM и телефонов, адреса электронной почты, названия сетей Wi-Fi, имена аккаунтов и местоположение. Перед отправкой можно открыть каждый файл.</string>
+    <string name="before_probe_share_title">Вы решаете, чем делиться</string>
+    <string name="before_probe_share_summary">Результаты остаются в приложении, пока вы не отправите архив или не сохраните его. У OneOS Probe нет разрешения на доступ в интернет.</string>
+    <string name="before_probe_switch_title">Переключение — в приложении OneOS</string>
+    <string name="before_probe_switch_summary">Это приложение не может подготовить другую ОС или переключиться на неё. Результаты показывают команде OneOS, сможет ли приложение OneOS работать на этом телефоне.</string>
+    <string name="before_ack">Я понимаю, что тестам нужен root и они только читают</string>
+    <string name="home_subtitle">Тесты только для чтения для команды OneOS</string>
+    <string name="home_about_title">Об OneOS Probe</string>
+    <string name="report_warning_next">Приложение OneOS заново проверяет всё перед подготовкой или переключением.</string>
+    <string name="report_readonly_summary">Эти данные получены из API Android и системных свойств. OneOS Probe ничего не записывал и не запускал с root, кроме su -c id, если вы нажали «Проверить root».</string>
+    <string name="check_root_running">Ожидание root… разрешите OneOS Probe, если менеджер root спросит.</string>
+    <string name="check_root_dialog_message">OneOS Probe один раз выполнит \"su -c id\". Команда только выводит, от какого пользователя запущена, и ничего не меняет.\n\nMagisk может попросить разрешить OneOS Probe. В KernelSU или APatch сначала разрешите OneOS Probe в списке суперпользователя.</string>
+    <string name="tests_checking_root">Проверка root… разрешите OneOS Probe, если менеджер root спросит.</string>
+    <string name="tests_readonly_summary">Все команды только читают. Root не записывает файлов, не меняет свойств и настроек и ничего не запускает и не останавливает. Результаты передаются в OneOS Probe по каналу и хранятся в его собственной памяти, пока вы ими не поделитесь. Нажмите на тест ниже, чтобы увидеть его точную команду.</string>
+    <string name="tests_privacy_summary">Прежде чем результатами можно будет поделиться, OneOS Probe удаляет IMEI и MEID, серийные номера и идентификаторы устройства, MAC-адреса, номера SIM (ICCID, IMSI), номера телефонов, адреса электронной почты, названия сетей Wi-Fi, имена аккаунтов и местоположение. Журналы, сообщения, контакты, фото и файлы не читаются. Перед отправкой можно открыть каждый файл.</string>
+    <string name="tests_dialog_message">OneOS Probe выполнит \"su -c id\", а затем команды только для чтения, перечисленные на этом экране. Ничего на телефоне не меняется. Результаты остаются в OneOS Probe, пока вы ими не поделитесь, а личные данные до этого удаляются.\n\nMagisk может попросить разрешить OneOS Probe. В KernelSU или APatch сначала разрешите OneOS Probe в списке суперпользователя.</string>
+    <string name="findings_delete_summary">Удаляет архив и папку с результатами из памяти OneOS Probe.</string>
+    <string name="about_title">Об OneOS Probe</string>
+    <string name="about_version_scope_summary">OneOS Probe — это часть OneOS только для чтения в виде отдельного приложения, для передачи результатов: проверяет телефон, запускает тесты с root, удаляет личные данные и собирает архив с результатами, которым можно поделиться. Подготовить или переключить что-либо оно не может; это делает приложение OneOS. Устанавливается рядом с OneOS и требует собственного разрешения root.</string>
+    <string name="about_safety_summary">Каждая команда root есть в списке «Запуск тестов» (нажмите на тест, чтобы увидеть её) и только читает; приложение сверяет список со своими правилами только для чтения перед каждым запуском. Root не записывает файлов, ничего не настраивает и ничего не запускает и не останавливает. Ничего не покидает телефон, пока вы не поделитесь.</string>
+</resources>

@@ -1,0 +1,12 @@
+{
+  "_comment": "HyperOS on a Galaxy (owner 11-19: debloat only what cannot work on our Samsungs). Xiaomi/Qualcomm factory, modem and DSP tools and Xiaomi's camera app (needs Xiaomi's camera HAL). Everything else stays.",
+  "system": {"app": ["CatchLog", "MiModemDebugService", "ModemTestBox"]},
+  "product": {
+    "app": ["Cit", "MiuiCit", "cit", "CameraTools", "CameraTools_beta", "AutoTest", "LogManager", "Longcheer*"],
+    "priv-app": ["MiuiCamera", "HotwordEnrollmentOKGoogleHEXAGON_WIDEBAND", "HotwordEnrollmentXGoogleHEXAGON_WIDEBAND"]
+  },
+  "system_ext": {
+    "app": ["QCC", "atfwd", "datastatusnotification"],
+    "priv-app": ["QualcommVoiceActivation", "qcrilmsgtunnel", "dpmserviceapp"]
+  }
+}

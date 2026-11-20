@@ -85,7 +85,8 @@ POWERCTL_CLASS = "com/android/server/RescuePartyImpl"
 POWERCTL = '    const-string/jumbo v1, "sys.powerctl"'
 POWERCTL_NEW = '    const-string/jumbo v1, "oneos.guest.powerctl"'
 VOLD_CLASS = "com/android/server/MiuiGcImproveImpl"
-VOLD_CALL = re.compile(r"^\s*invoke-interface \{v\d+, p\d+\}, Landroid/os/IVold;->setDiscardIoAwareGran\(I\)V\n", re.M)
+# HyperOS OS4.0 lhasa (CN): setDiscardIoAwareGran(I)V with an argument; OS4.0.5 Global (hongkong, 11-19): ()V.
+VOLD_CALL = re.compile(r"^\s*invoke-interface \{v\d+(?:, [vp]\d+)?\}, Landroid/os/IVold;->setDiscardIoAwareGran\((?:I)?\)V\n", re.M)
 BOOTANIM_CLASS = "com/android/server/power/ShutdownThreadImpl"
 BOOTANIM = re.compile(r'^\s*const-string(?:/jumbo)? (v\d+), "service\.bootanim\.exit"\n\n?'
                       r'\s*const-string (v\d+), "0"\n\n?'
@@ -162,7 +163,8 @@ def return_at_entry(smali, header, kind, cls):
 # callers must handle it.
 OEMNETD_PROXY = "com/android/internal/net/IOemNetd$Stub$Proxy"
 OEMNETD_PROXY_KEEP = ("<init>(", "asBinder(", "getInterfaceDescriptor(", "isAlive(")
-OEMNETD_PROXY_METHODS = 54
+# Xiaomi 18 Fold OS4.0.26.0.XPNCNXM: 54; OS4.0.5.0.XFRMIXM Global (hongkong, 11-19): 48. Another count stops the build.
+OEMNETD_PROXY_METHODS = (54, 48)
 OEMNETD_CLASS = "com/android/server/net/MiuiNetworkManagementService"
 # The methods that use IOemNetd (25 calls on mNetd, 3 by reflection on
 # IOemNetd$Stub), Xiaomi 18 Fold OS4.0.26.0.XPNCNXM. Another count stops the
@@ -244,7 +246,7 @@ def main(root, proinstaller=False):
     if not any("isAlive()Z" in h for h in headers):
         sys.exit(f"{OEMNETD_PROXY}: no isAlive()")
     headers = [h for h in headers if not any(k in h for k in OEMNETD_PROXY_KEEP)]
-    if len(headers) != OEMNETD_PROXY_METHODS:
+    if len(headers) not in OEMNETD_PROXY_METHODS:
         sys.exit(f"{OEMNETD_PROXY}: {len(headers)} methods to block, expected {OEMNETD_PROXY_METHODS}")
     for h in headers:
         if " abstract " in h or " native " in h:

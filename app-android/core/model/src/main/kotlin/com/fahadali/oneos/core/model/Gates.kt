@@ -28,6 +28,8 @@ data class GateReport(
     /** The set that goes with [image] on this phone ([ImageChoice]). */
     val set: PackageSet?,
     val gates: List<Gate>,
+    /** Free bytes a switch needs for this stage ([SpaceRule.launch]). */
+    val launchBytes: Long = SpaceRule.LAUNCH_BYTES,
 ) {
     val blocked: Boolean get() = gates.any { it.level == Level.BLOCK }
 
@@ -124,6 +126,8 @@ data class StageState(
      * Restore). Distinguishes "reboot" advice from "restore" advice.
      */
     val unfinishedSession: Boolean = false,
+    /** The stage already holds the guest's data (a system that was set up and used): a switch writes only logs. */
+    val dataStaged: Boolean = false,
 )
 
 /**
@@ -379,7 +383,7 @@ object SwitchGates {
                 ),
             )
         }
-        return GateReport(phase, profile, image, set, out)
+        return GateReport(phase, profile, image, set, out, SpaceRule.launch(input.stage?.dataStaged == true))
     }
 
     private fun block(id: String, title: String, detail: String, reason: String) = Finding(id, Level.BLOCK, title, detail, reason)
@@ -611,15 +615,19 @@ object SwitchGates {
         else -> Finding(ID_STAGE, Level.OK, "Nothing mounted, no session running")
     }
 
+    /** An update that keeps the stage's system and its data: root reuses system.raw (reclaimBytes) and the data stays. */
+    private fun keepsData(input: GateInput): Boolean = input.reclaimBytes > 0 && input.stage?.dataStaged == true
+
     private fun space(phase: GatePhase, input: GateInput, image: ImageRef?, set: PackageSet?): Finding? {
         val need = when (phase) {
-            GatePhase.SWITCH -> SpaceRule.LAUNCH_BYTES
-            GatePhase.PREPARE -> image?.let { SpaceRule.toStage(it, set) } ?: return null
+            GatePhase.SWITCH -> SpaceRule.launch(input.stage?.dataStaged == true)
+            GatePhase.PREPARE -> image?.let { SpaceRule.toStage(it, set, keepsData(input)) } ?: return null
         }
         val what = if (phase == GatePhase.SWITCH) {
-            "8 GB data + 1 GB logs + 2 GB margin"
+            if (input.stage?.dataStaged == true) "1 GB logs + 1 GB margin; its data is already on the phone" else "8 GB data + 1 GB logs + 2 GB margin"
         } else {
-            "the ${image!!.shortName} image ${Units.bytes(image.rawBytes)} + files + 8 GB data + 1 GB logs + 2 GB margin"
+            if (keepsData(input)) "the ${image!!.shortName} image ${Units.bytes(image.rawBytes)} (already on the phone) + files + 1 GB logs + 1 GB margin; its data stays"
+            else "the ${image!!.shortName} image ${Units.bytes(image.rawBytes)} + files + 8 GB data + 1 GB logs + 2 GB margin"
         }
         val free = input.freeBytes ?: return block(
             ID_SPACE, "Free space unknown", "Could not read free space on /data; about ${Units.bytes(need)} is needed.", R_SPACE_UNKNOWN,
@@ -629,7 +637,7 @@ object SwitchGates {
             block(
                 ID_SPACE, "Not enough free space",
                 "${Units.bytes(free)} free on /data${if (input.reclaimBytes > 0) " (+ ${Units.bytes(input.reclaimBytes)} freed first)" else ""}; " +
-                    "about ${Units.bytes(need)} needed ($what).",
+                    "about ${Units.bytes(need)} needed ($what), ${Units.bytes(need - have)} short.",
                 if (phase == GatePhase.SWITCH) R_SPACE_SWITCH else R_SPACE_SETUP,
             )
         } else {

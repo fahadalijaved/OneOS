@@ -11,8 +11,11 @@ set -eu
 cd "$(dirname "$0")/.."
 sdk=${ANDROID_HOME:?Set ANDROID_HOME to the Android SDK}
 javac=${JAVA_HOME:+$JAVA_HOME/bin/}javac
+java=${JAVA_HOME:+$JAVA_HOME/bin/}java
+jar_tool=${JAVA_HOME:+$JAVA_HOME/bin/}jar
 jar=$(find "$sdk/platforms" -name android.jar | sort -V | tail -1)
-d8=$(find "$sdk/build-tools" -name d8 | sort -V | tail -1)
+# Unix SDKs ship `d8`, Windows SDKs ship `d8.bat`; Git Bash can run either.
+d8=$(find "$sdk/build-tools" \( -name d8 -o -name d8.bat \) | sort -V | tail -1)
 apktool=${APKTOOL:-$(ls mysticgsi/tools/apktool/*.jar 2>/dev/null | head -1)}
 [ -n "$jar" ] && [ -n "$d8" ] && [ -n "$apktool" ]
 src=switcher/patches/OneOSGuestLock.java
@@ -23,8 +26,8 @@ mkdir "$tmp/cls" "$tmp/dex"
 "$javac" --release 17 -Xlint:all -Werror -d "$tmp/cls" "$src"
 [ "$(find "$tmp/cls" -name '*.class' | wc -l)" = 1 ] || { echo "$src must stay one class (no inner classes or lambdas)" >&2; exit 1; }
 "$d8" --release --min-api 31 --lib "$jar" --output "$tmp/dex" "$tmp/cls/com/android/server/locksettings/OneOSGuestLock.class"
-(cd "$tmp/dex" && zip -q -0 ../helper.jar classes.dex)
-java -jar "$apktool" d -q -f -r -o "$tmp/src" "$tmp/helper.jar"
+(cd "$tmp/dex" && "$jar_tool" --create --file ../helper.jar -0 classes.dex)
+"$java" -jar "$apktool" d -q -f -r -o "$tmp/src" "$tmp/helper.jar"
 got="$tmp/src/smali/com/android/server/locksettings/OneOSGuestLock.smali"
 [ -f "$got" ]
 if grep -q -E 'invoke-custom|invoke-polymorphic|const-method-handle' "$got"; then

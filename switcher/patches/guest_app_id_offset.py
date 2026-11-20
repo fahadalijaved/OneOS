@@ -45,6 +45,11 @@ too (VIVO below, matched whole like LOOP):
   - when the list holds 10000 entries, it rescans from index 0 for a free slot
     (ids from 10000): the rescan now starts at index 5000.
 
+One UI 9.5 (S948BXXU6ZZKN) has the stock loop (R8: p0 reused for the index, list elements read
+through WatchedArrayList.mStorage, which has no size() or add() of its own) followed by AOSP 17's
+rescan from index 0 when the list holds 10000 entries (SAMSUNG below, matched whole). The prologue
+pads and reads mStorage directly, and the rescan starts at index 5000 as in vivo's form.
+
 Usage: guest_app_id_offset.py <smali root dir>
 Prints the smali_* directory (dex file) it changed.
 """
@@ -172,6 +177,55 @@ VIVO = re.compile("\n".join([
     rf"add-int/lit16 (?P<r2>{R}), (?P=size), 0x2710",
     r"return (?P=r2)",
 ]))
+AL = "Ljava/util/ArrayList;"
+ST = re.escape(f"{WAL}->mStorage:{AL}")
+# One UI 9.5: stock loop, then a rescan from index 0 (const/4 p0, 0x0) when the list is full.
+SAMSUNG = re.compile("\n".join([
+    rf"iget-object (?P<l0>{R}), p0, {L}",
+    rf"iget-object (?P<s0>{R}), (?P=l0), {ST}",
+    rf"invoke-virtual \{{(?P=s0)\}}, {re.escape(AL)}->size\(\)I",
+    rf"move-result (?P<size>{R})",
+    rf"iget (?P<i>{R}), p0, {F}",
+    r"add-int/lit16 (?P=i), (?P=i), -0x2710",
+    r"(?P<loop>:\w+)",
+    r"if-ge (?P=i), (?P=size), (?P<full>:\w+)",
+    rf"iget-object (?P<s1>{R}), (?P=l0), {ST}",
+    rf"invoke-virtual \{{(?P=s1), (?P=i)\}}, {re.escape(AL)}->get\(I\)Ljava/lang/Object;",
+    rf"move-result-object (?P<o>{R})",
+    r"if-nez (?P=o), (?P<next>:\w+)",
+    rf"invoke-virtual \{{(?P=l0), (?P=i), p1\}}, {W}->set\(ILcom/android/server/pm/SettingBase;\)V",
+    r"(?P<done>:\w+)",
+    r"add-int/lit16 (?P=i), (?P=i), 0x2710",
+    r"return (?P=i)",
+    r"(?P=next)",
+    r"add-int/lit8 (?P=i), (?P=i), 0x1",
+    r"goto(?:/16|/32)? (?P=loop)",
+    r"(?P=full)(?:\nnop)?",
+    rf"const/16 (?P=i), 0x270f",
+    r"if-le (?P=size), (?P=i), (?P<append>:\w+)",
+    rf"(?P<rescan_start>const/4 (?P=i), 0x0)",
+    r"(?P<wloop>:\w+)",
+    r"if-ge (?P=i), (?P=size), (?P<wfull>:\w+)",
+    rf"iget-object (?P<s2>{R}), (?P=l0), {ST}",
+    rf"invoke-virtual \{{(?P=s2), (?P=i)\}}, {re.escape(AL)}->get\(I\)Ljava/lang/Object;",
+    rf"move-result-object (?P<o2>{R})",
+    r"if-nez (?P=o2), (?P<wnext>:\w+)",
+    rf"invoke-virtual \{{(?P=l0), (?P=i), p1\}}, {W}->set\(ILcom/android/server/pm/SettingBase;\)V",
+    r"goto(?:/16|/32)? (?P=done)",
+    r"(?P=wnext)",
+    r"add-int/lit8 (?P=i), (?P=i), 0x1",
+    r"goto(?:/16|/32)? (?P=wloop)",
+    r"(?P=wfull)(?:\nnop)?",
+    rf"const/4 (?P=i), -0x1",
+    r"return (?P=i)",
+    r"(?P=append)",
+    rf"iget-object (?P=i), (?P=l0), {ST}",
+    rf"invoke-virtual \{{(?P=i), p1\}}, {re.escape(AL)}->add\(Ljava/lang/Object;\)Z",
+    rf"invoke-virtual \{{(?P=l0), p1\}}, {W}->registerChild\(Ljava/lang/Object;\)V",
+    rf"invoke-virtual \{{(?P=l0), (?P=l0)\}}, Lcom/android/server/utils/WatchableImpl;->dispatchChange\(Lcom/android/server/utils/Watchable;\)V",
+    rf"add-int/lit16 (?P=size), (?P=size), 0x2710",
+    r"return (?P=size)",
+]))
 DEBUG = (".line ", ".local ", ".end local ", ".restart local ", ".param ", ".end param", ".prologue")
 
 
@@ -234,6 +288,18 @@ def vivo(lines, i, end, code, rel):
           "rescan from index 5000", file=sys.stderr)
 
 
+def samsung(lines, i, end, code, rel):
+    """One UI 9.5's rescan from index 0 when full: it starts at index 5000 (app id 15000)."""
+    hits = [k for k in range(i + 2, end) if lines[k].strip() == code["rescan_start"]]
+    if len(hits) != 1:
+        sys.exit(f"{rel}: One UI form: rescan start found {len(hits)} times; not patched")
+    k = hits[0]
+    ind = lines[k][:len(lines[k]) - len(lines[k].lstrip())]
+    lines[k:k + 1] = [ind + "# OneOS One UI 9.5: the rescan when full starts at index 5000 (app id 15000), not 0.",
+                      ind + f"const/16 {code['i']}, {hex(FIRST_INDEX)}"]
+    print(f"{rel}: One UI form: rescan from index 5000", file=sys.stderr)
+
+
 def main(root):
     hits = [os.path.join(d, f) for d, _, fs in os.walk(root) for f in fs
             if os.path.join(d, f).endswith(os.sep + SUFFIX)]
@@ -256,16 +322,26 @@ def main(root):
         sys.exit(f"{rel}: acquireAndRegisterNewAppId: expected .locals >= 2 after the header")
     end = lines.index(".end method", i)
     code = LOOP.fullmatch("\n".join(instructions(lines[i + 2:end])))
+    one_ui = False
+    if not code:
+        code = SAMSUNG.fullmatch("\n".join(instructions(lines[i + 2:end])))
+        one_ui = bool(code)
     if not code:
         code = VIVO.fullmatch("\n".join(instructions(lines[i + 2:end])))
         if not code:
             sys.exit(f"{rel}: acquireAndRegisterNewAppId is not the expected scan-then-append loop "
                      "(index = mFirstAvailableAppId - 10000, bound 9999, -1 when full), nor vivo's form; not patched")
         vivo(lines, i, end, code, rel)
-    print(f"{rel}: loop index {code['i']} from mFirstAvailableAppId, size {code['size']}, "
-          f"returns {code['r1']} / {code['r2']} / -1 in {code['m']}", file=sys.stderr)
+    if one_ui:
+        if int(m.group(1)) < 3:
+            sys.exit(f"{rel}: acquireAndRegisterNewAppId: expected .locals >= 3 for the One UI form")
+        samsung(lines, i, end, code, rel)
+        print(f"{rel}: loop index {code['i']} from mFirstAvailableAppId, size {code['size']}", file=sys.stderr)
+    else:
+        print(f"{rel}: loop index {code['i']} from mFirstAvailableAppId, size {code['size']}, "
+              f"returns {code['r1']} / {code['r2']} / -1 in {code['m']}", file=sys.stderr)
     j = entry(lines, i)
-    lines[j:j] = [
+    prologue = [
         "    # OneOS: keystore2 is One UI's and keys live under the app's uid; One UI's apps",
         "    # hold 10000 and up, so the guest's new app ids start at 15000 (index 5000).",
         f"    iget v0, p0, {CLS}->mFirstAvailableAppId:I",
@@ -313,6 +389,42 @@ def main(root):
         "",
         "    :oneos_appid_padded",
     ]
+    if one_ui:
+        # WatchedArrayList has no size()/add() here: pad through mStorage as registerExistingAppId does.
+        ST_ = f"{WAL}->mStorage:{AL}"
+        prologue = [
+            "    # OneOS One UI 9.5: keystore2 is One UI's and keys live under the app's uid; One UI's apps",
+            "    # hold 10000 and up, so the guest's new app ids start at 15000 (index 5000).",
+            f"    iget v0, p0, {CLS}->mFirstAvailableAppId:I", "",
+            f"    const/16 v1, {hex(10000 + FIRST_INDEX)}", "",
+            "    if-ge v0, v1, :oneos_appid_first_ok", "",
+            f"    iput v1, p0, {CLS}->mFirstAvailableAppId:I", "",
+            "    :oneos_appid_first_ok",
+            f"    iget-object v0, p0, {CLS}->mNonSystemSettings:{WAL}", "",
+            f"    iget-object v1, v0, {ST_}", "",
+            f"    invoke-virtual {{v1}}, {AL}->size()I", "",
+            "    move-result v2", "",
+            f"    add-int/lit16 v2, v2, -{hex(FIRST_INDEX)}", "",
+            "    if-gez v2, :oneos_appid_padded", "",
+            '    const-string v0, "PackageManager"', "",
+            '    const-string v1, "OneOS: new app ids start at 15000, above One UI\'s apps (shared keystore2)"', "",
+            "    invoke-static {v0, v1}, Landroid/util/Slog;->i(Ljava/lang/String;Ljava/lang/String;)I", "",
+            "    # Null slots up to index 5000, as registerExistingAppId pads.",
+            "    :oneos_appid_pad",
+            f"    iget-object v0, p0, {CLS}->mNonSystemSettings:{WAL}", "",
+            f"    iget-object v1, v0, {ST_}", "",
+            f"    invoke-virtual {{v1}}, {AL}->size()I", "",
+            "    move-result v2", "",
+            f"    add-int/lit16 v2, v2, -{hex(FIRST_INDEX)}", "",
+            "    if-gez v2, :oneos_appid_padded", "",
+            "    const/4 v2, 0x0", "",
+            f"    invoke-virtual {{v1, v2}}, {AL}->add(Ljava/lang/Object;)Z", "",
+            f"    invoke-virtual {{v0, v2}}, {WAL}->registerChild(Ljava/lang/Object;)V", "",
+            f"    invoke-virtual {{v0, v0}}, Lcom/android/server/utils/WatchableImpl;->dispatchChange(Lcom/android/server/utils/Watchable;)V", "",
+            "    goto :oneos_appid_pad", "",
+            "    :oneos_appid_padded",
+        ]
+    lines[j:j] = prologue
     with open(path, "w") as f:
         f.write("\n".join(lines))
     print(f"{rel}: acquireAndRegisterNewAppId hands out app ids from 15000", file=sys.stderr)

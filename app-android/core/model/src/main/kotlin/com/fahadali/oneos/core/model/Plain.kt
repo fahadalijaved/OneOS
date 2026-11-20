@@ -99,7 +99,7 @@ object Plain {
     /** [of] with the facts read from [report] and the phone's [facts]. */
     fun of(finding: Finding, report: GateReport, facts: DeviceFacts?, installedReusable: Boolean = true): PlainMessage {
         val need = when (report.phase) {
-            GatePhase.SWITCH -> SpaceRule.LAUNCH_BYTES
+            GatePhase.SWITCH -> report.launchBytes
             GatePhase.PREPARE -> report.image?.let { SpaceRule.toStage(it, report.set) }
         }
         return of(
@@ -208,7 +208,7 @@ object Plain {
                     val missing = missing(facts)
                     m(
                         if (missing != null) "Free up $missing to switch" else "Free up space to switch",
-                        "Switching needs about ${Units.bytes(facts.needBytes ?: SpaceRule.LAUNCH_BYTES)} free for $system's data.",
+                        "Switching needs about ${Units.bytes(facts.needBytes ?: SpaceRule.LAUNCH_BYTES)} free${if (missing != null) " ($missing more than you have)" else ""}.",
                         FixAction.FREE_UP_SPACE,
                     )
                 }
@@ -424,7 +424,12 @@ object Plain {
             // switch" (0.5.08 report 0b3ca180, the app still running its tool).
             "libtimer" in p -> {
                 val app = Regex("""the app ([A-Za-z0-9_.]{3,40}) """).find(problem)?.groupValues?.get(1) ?: "an app"
-                if (app == "an app") PlainMessage(
+                // 0.5.28: the switch stops the tool itself; it refuses only when the tool survived that.
+                if ("did not stop" in p) PlainMessage(
+                    "Restart the phone first",
+                    "An app's kernel tool that crashes S24 phones did not stop when OneOS stopped it. Restart the phone, then switch again.",
+                    FixAction.NONE, null,
+                ) else if (app == "an app") PlainMessage(
                     "Turn off an app first",
                     "An app runs a kernel tool that crashes S24 phones during a switch. Uninstall it in Settings, Apps, then switch again.",
                     FixAction.NONE, null,
@@ -436,6 +441,12 @@ object Plain {
             }
             "mounted under the stage" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_RUNNING)
             "never returned" in p -> gate(SwitchGates.ID_STAGE, SwitchGates.R_STAGE_UNFINISHED)
+            // 0.5.17: right after a restart and still too little room (S25 OriginOS 5e098b17): a restart cannot help.
+            "too little property space" in p -> PlainMessage(
+                "Not enough room for this system",
+                "Even after a restart, this phone's One UI leaves too little room for this system's settings. Choose another system and send a report.",
+                FixAction.CHOOSE_SYSTEM, defaultLabel(FixAction.CHOOSE_SYSTEM),
+            )
             "property space" in p -> PlainMessage(
                 "Restart your phone first",
                 "One UI ran out of room for settings after several switches. Restart your phone, then switch again.",

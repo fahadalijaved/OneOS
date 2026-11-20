@@ -133,18 +133,34 @@ object CompatEvaluator {
             )
             // 0.4.17: an Exynos phone with its own profile (Galaxy S26+ Exynos, Z
             // Flip7, from 0.4.29 the A57) is a first run, not a block; any other stays blocked.
-            SocVendor.EXYNOS -> out += if (profile != null) Finding(
+            // 0.5.28: one whose profile has run a system (a session report) is no longer a first run.
+            SocVendor.EXYNOS -> out += if (profile != null && profile.testedWithAnyImage) Finding(
+                "soc-exynos", Level.OK, "Exynos",
+                "${f.soc.display}. OneOS has run on the ${profile.label}.",
+            ) else if (profile != null) Finding(
                 "soc-exynos", Level.WARN, "Exynos: first runs",
-                "${f.soc.display}. Exynos phones have had only a few test sessions so far; the ${profile.label} profile " +
-                    "is for its first sessions.",
+                "${f.soc.display}. The ${profile.label} profile has had no session report yet; " +
+                    "other Exynos Galaxy phones run OneOS.",
             ) else Finding(
                 "soc-exynos", Level.BLOCK, "Exynos is not supported yet",
                 "${f.soc.display}. Only the Snapdragon display path is known; Exynos stays " +
                     "blocked until an Exynos profile exists.",
             )
-            SocVendor.MEDIATEK, SocVendor.UNKNOWN -> out += Finding(
+            // 0.5.28: MediaTek Galaxy A phones (A07, A15, A16 4G, A17) have profiles and run.
+            SocVendor.MEDIATEK -> out += if (profile != null && profile.testedWithAnyImage) Finding(
+                "soc-mediatek", Level.OK, "MediaTek",
+                "${f.soc.display}. OneOS has run on the ${profile.label}.",
+            ) else if (profile != null) Finding(
+                "soc-mediatek", Level.WARN, "MediaTek: first runs",
+                "${f.soc.display}. The ${profile.label} profile has had no session report yet; " +
+                    "other MediaTek Galaxy A phones run OneOS.",
+            ) else Finding(
                 "soc-unknown", Level.WARN, "Chip not recognised",
-                "${f.soc.display}. Only Snapdragon has been tested.",
+                "${f.soc.display}. OneOS runs on Snapdragon and on the MediaTek and Exynos phones it has a profile for.",
+            )
+            SocVendor.UNKNOWN -> out += Finding(
+                "soc-unknown", Level.WARN, "Chip not recognised",
+                "${f.soc.display}. OneOS runs on Snapdragon and on the MediaTek and Exynos phones it has a profile for.",
             )
         }
 

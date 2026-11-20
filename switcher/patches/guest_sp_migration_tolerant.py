@@ -24,7 +24,7 @@ import sys
 SIG = ".method public final migrateUserToSpWithBoundKeysLocked(I)V"
 CALL = re.compile(
     r"^(    invoke-virtual \{(p0|v\d+), (p1|v\d+)\}, Lcom/android/server/locksettings/LockSettingsService;"
-    r"->initializeSyntheticPassword\(I\)Lcom/android/server/locksettings/SyntheticPasswordManager\$SyntheticPassword;\n)"
+    r"->initializeSyntheticPassword\(I\)Lcom/android/server/locksettings/(?:SyntheticPasswordManager\$)?SyntheticPassword;\n)"
     r"(\n)?"
     r"(    return-void\n)", re.M)
 
@@ -51,7 +51,8 @@ def main():
     if not m or int(m.group(1)) < 3:
         sys.exit("migrateUserToSpWithBoundKeysLocked: unexpected locals")
     # v0 and v2 are free at the call (v1 holds the "LockSettingsService" tag, set above it).
-    if 'const-string v1, "LockSettingsService"' not in body:
+    # One UI 9.5 (S948BXXU6ZZKN) writes the tag as const-string/jumbo and the class as locksettings.SyntheticPassword.
+    if not re.search(r'^    const-string(?:/jumbo)? v1, "LockSettingsService"$', body, re.M):
         sys.exit("migrateUserToSpWithBoundKeysLocked: no LockSettingsService tag in v1")
     found = CALL.findall(body)
     if len(found) != 1:

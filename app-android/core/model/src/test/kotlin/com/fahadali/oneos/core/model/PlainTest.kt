@@ -133,7 +133,7 @@ class PlainTest {
         // The phone list comes from the profiles: every name while they fit one line (0.4.28),
         // the families once they do not (0.4.29, with the A57 and Z Flip5).
         assertEquals(
-            "OneOS works on 55 Galaxy phones so far: Z Fold, S, Z Flip, A, F and M models; the README lists them.",
+            "OneOS works on 56 Galaxy phones so far: Z Fold, S, Z Flip, A, F and M models; the README lists them.",
             of(SwitchGates.ID_PROFILE, SwitchGates.R_PROFILE_NONE).line,
         )
         assertEquals("the Galaxy Z Fold (F8U), S26 Ultra and S25", Plain.phoneList(listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_8750)))
@@ -228,6 +228,12 @@ class PlainTest {
         assertTrue(r(timer).line, r(timer).line.startsWith("com.roottimer.app "))
         check(r(timer), Images.FIND_N6, timer)
         check(r("the app com.example.a.very.long.package.name.that.goes.on runs its kernel tool (libtimer.so, pid 1)"), Images.FIND_N6, "long")
+        // 0.5.28: the switch stops the tool itself and refuses only when it survives: a restart, no Turn it off.
+        val survived = r("the app com.roottimer.app runs a kernel tool (libtimer.so, pid 16066) that crashed the kernel of S24 phones during " +
+            "OneOS sessions, and it did not stop: restart the phone, then switch again")
+        assertEquals("Restart the phone first", survived.title)
+        assertEquals(FixAction.NONE, survived.action)
+        check(survived, Images.FIND_N6, "survived")
         val other = r("pm does not answer")
         assertEquals("Couldn't switch", other.title)
         assertEquals(FixAction.SEND_REPORT, other.action)

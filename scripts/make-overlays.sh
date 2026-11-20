@@ -161,6 +161,19 @@ BUILDS = [
         "service.incremental.so": "e7da297ddedc625df330317c2321b5a2fd25f4dd2535f9c65a1490b5b8d6687d",
         "crashrecovery-aosp.capex": "d31bc1ccbb9bd60d2c78f0bd045cbb194838f936aafe2b551ab5d8344c9f2cd8",
     }, [("vold", 0xf3fc, NAME), ("vold", 0x6e2d4, TRY_START), ("service.incremental.so", 0x64745, NAME)]),
+    # HyperOS OS4.0.5.0 Global (hongkong, XFRMIXM, 11-19): VoldNativeService::start() takes "vold" at 0x385b1
+    # (adrp 0x38000 + add 0x5b1 at 0xa8cd8, then String16; the binary's only "\0vold\0", its other references
+    # are log tags around 0xf3200); VendorVoldNativeService::try_start's tbz w19, #0 at 0xa86c8 right after
+    # isDeclared("android.system.vold.IVold/default", adr 0x41644) through the service manager's vtable.
+    # service.incremental.so has the string at 0x649af (BinderIncrementalService::start's adr, and
+    # RealServiceManager::getVoldService's adrp + add). Its compressed crashrecovery APEX has AOSP's
+    # RescueParty.isDisabled (persist.sys.enable_rescue, the DeviceConfig flag, eng/userdebug). Without it every
+    # return from this image rebooted (A36 test 11-19: "vold is not registered now").
+    ("HyperOS OS4.0.5.0 Global (hongkong)", {
+        "vold": "5104274bd3e152bceaaf0a2fdf50fff5a9d3c81f47d5bfec8fd3313b0a166887",
+        "service.incremental.so": "3b541bd10d4d7553fe31f28de309e3d2566ab1095113abd95ebbfa9cddb02667",
+        "crashrecovery-google-compressed.apex": "925502907d50a3e37fec22a9219b3b6633a4712ab815c2ef0bbe04d8e67714b4",
+    }, [("vold", 0x385b0, NAME), ("vold", 0xa86c8, TRY_START), ("service.incremental.so", 0x649ae, NAME)]),
     # Nothing OS 5.0 (Metroid, AQ3A.250924.001): start() takes "vold" at 0xe1e8
     # (adrp 0xe000 + add 0x1e8 at 0x64d38, then String16 and a new
     # VoldNativeService; the binary's only "\0vold\0", whose other 9 references
@@ -180,6 +193,16 @@ BUILDS = [
         "service.incremental.so": "7509ea1a751e70400057bf1afd79876b2630ad0fd1ee2e993ff06a8f1528ca74",
         "crashrecovery-google-compressed.apex": "e2661820811896284537a044664dee933e5fd62a879efe02b5104d1388f43816",
     }, [("vold", 0xe1e7, NAME), ("vold", 0x64728, TRY_START), ("service.incremental.so", 0x64410, NAME)]),
+    # Nothing OS 5.0 (Asteroids, the Phone (3a), CQ2A.260522.002-CP2A.260605.016, 2611061007): start() takes
+    # "vold" at 0xe1a8 (adrp 0xe000 + add 0x1a8 at 0x64d38, then String16; the binary's only "\0vold\0", its
+    # other references log tags around 0xa5980); try_start's tbz w19, #0, +0xd4 at 0x64728 right after
+    # isDeclared through the service manager's vtable +0x48, as in Metroid. service.incremental.so and the
+    # compressed crashrecovery APEX are Metroid's, byte for byte.
+    ("Nothing OS 5.0 (Asteroids)", {
+        "vold": "a534a45830cc7d4794f4ee5e0f059c08f4a677f02b7e57e47986e47202ef46fd",
+        "service.incremental.so": "7509ea1a751e70400057bf1afd79876b2630ad0fd1ee2e993ff06a8f1528ca74",
+        "crashrecovery-google-compressed.apex": "e2661820811896284537a044664dee933e5fd62a879efe02b5104d1388f43816",
+    }, [("vold", 0xe1a7, NAME), ("vold", 0x64728, TRY_START), ("service.incremental.so", 0x64410, NAME)]),
     # vivo OriginOS 17 (X500 Pro Max, MediaTek, CP2A.260605.016): start() takes
     # "vold" at 0x10e24 (adrp 0x10000 + add 0xe24 at 0x83a1c, the binary's only
     # "\0vold\0"); try_start's tbz w19, #0, +0xd4 on the isDeclared() result is at
@@ -286,6 +309,18 @@ case "$IMAGE_SDK" in
 esac
 echo "installd: the image is SDK $IMAGE_SDK, host table $(basename "$HOST_INSTALLD")"
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_installd_abi.py" "$WORK/services" "$HOST_INSTALLD")"
+# KnoxGuard 3.0 is never started in a One UI guest (patches/samsung_no_knoxguard30.py): it cannot
+# reach the phone's KnoxGuard TA and locked the guest's screen asking for data to report to
+# Samsung (A36 runs 9, 10). The old KnoxGuard service stays off through MysticGSI's
+# knoxguard_utils_patch (gsi-patches/37/oneui).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/samsung_no_knoxguard30.py" "$WORK/services")"
+# netd's Samsung extension with One UI's codes (patches/guest_oemnetd_abi.py, host_oemnetd.txt from
+# One UI 9.0): One UI 9.5 numbers IOemNetd differently, and netd is One UI's (A36 run 8). Images
+# without IOemNetd (not Samsung's framework) are left alone.
+# 0.5.28: the code each IOemNetd call is sent with is chosen on the phone from these tables by its One UI
+# (OneOSOemNetdCodes), and installd's from the phone's own table (OneOSInstalldCodes), so a set works on
+# One UI 9.0 and 9.5 phones (an S26 updated to One UI 9.5 renumbered both).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_oemnetd_abi.py" "$WORK/services" "90000=$ROOT/switcher/patches/host_oemnetd.txt" "90500=$ROOT/switcher/patches/host_oemnetd_95.txt")"
 # No kernel crash from the guest's watchdog (patches/guest_no_sysrq_crash.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_sysrq_crash.py" "$WORK/services")"
 # The guest never touches the phone's weaver slots, where One UI's lock
@@ -381,6 +416,17 @@ fi
 # Z Fold's cover becomes display 0 when it folds: no app could use it
 # (patches/qti_builtin_display_public.py; nothing in images without them).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/qti_builtin_display_public.py" "$WORK/services")"
+# One UI images (set oneui95 r3): Privacy Display binder calls safe without a controller (CoreRune flags off).
+if "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -q '^ro.build.version.oneui='; then
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_privacy_display_null_safe.py" "$WORK/services")" || exit 1
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_privacy_display_controller_always.py" "$WORK/services")" || exit 1
+    # Set r6: VaultKeeperService unsupported when no ISehVaultKeeper HAL is registered (S23 family:
+    # DmcService's boot-completed phase waited for it forever, setup wizard stuck, watchdog).
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_vaultkeeper_unreachable.py" "$WORK/services")" || exit 1
+    # Set r6: a vendor <signer> stanza emptied by ignore_mac_permissions_package is dropped, not fatal
+    # ("Unable to load SELinux MMAC policy" on the A07, S23 and Fold8).
+    KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/oneui_mmac_empty_signer.py" "$WORK/services")" || exit 1
+fi
 # A dex the added OneOS classes push past 65536 method references (the Pixel 9
 # Pro XL's classes2: 65568) gets them moved to a dex of their own after the
 # last one: one jar, one class loader, so they keep their package access.
@@ -410,6 +456,8 @@ for d in $(printf '%s\n' "$DISPLAY_DIR" $KEY_DIRS | sort -u); do
     (cd "$WORK/dex" && zip -q -0 "$OUT/services_patched.jar" "$DEX")
     echo "built $OUT/services_patched.jar (replaced $DEX)"
 done
+# A dex-container services.jar needs all rebuilt dex files; no class may go missing (scripts/dex-container-fix.py).
+python3 -I "$ROOT/scripts/dex-container-fix.py" "$WORK/services.jar" "$WORK/rebuilt.jar" "$OUT/services_patched.jar"
 
 # oplus-services.jar: waitForService -> checkService for OPPO-only services
 # (patches/oplus_wait_for_service.py). Every dex it touched is replaced.
@@ -684,10 +732,44 @@ if in_image $MIUI_JAR; then
         echo "built $OUT/framework_patched.jar (replaced $DEX)"
     done
     rm -rf "$WORK/fw" "$WORK/fw-rebuilt.jar" "$WORK/framework.jar"
+    # (from vdcoolok's feat/guest-local-pin, ported 11-19)
+    # miui-framework.jar: DisplayFeatureManager.getInstance() installs a no-op
+    # instance when the "displayfeature" service is absent (patches/
+    # hyperos_displayfeature_stub.py). HyperOS registers that service only with
+    # Xiaomi's vendor.xiaomi.hardware.displayfeature HAL, which a Samsung vendor
+    # does not have: getInstance() returned null and SystemUI's
+    # fingerprint-on-display overlay called setScreenEffect() on it, so the
+    # lockscreen crash-looped under the FOD glyph (S25 Ultra, 2026-11-15).
+    MFW_JAR=/system/system_ext/framework/miui-framework.jar
+    in_image $MFW_JAR || { echo "ERROR: $MIUI_JAR without $MFW_JAR" >&2; exit 1; }
+    "$DEBUGFS" -R "dump $MFW_JAR $WORK/miui-framework.jar" "$IMG" 2>/dev/null
+    decode "$WORK/mfw" "$WORK/miui-framework.jar"
+    DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_displayfeature_stub.py" "$WORK/mfw")
+    java -jar "$APKTOOL" b -q -o "$WORK/mfw-rebuilt.jar" "$WORK/mfw"
+    cp "$WORK/miui-framework.jar" "$OUT/miui-framework_patched.jar"
+    for d in $DIRS; do
+        DEX="$(echo "$d" | sed 's/^smali_//; s/^smali$/classes/').dex"
+        rm -rf "$WORK/mdex" && mkdir -p "$WORK/mdex"
+        unzip -q -o "$WORK/mfw-rebuilt.jar" "$DEX" -d "$WORK/mdex"
+        (cd "$WORK/mdex" && zip -q -0 "$OUT/miui-framework_patched.jar" "$DEX")
+        echo "built $OUT/miui-framework_patched.jar (replaced $DEX)"
+    done
+    rm -rf "$WORK/mfw" "$WORK/mfw-rebuilt.jar" "$WORK/miui-framework.jar"
+    # HyperOS's Gallery asks the Xiaomi Camera for the photos still processing
+    # and aborts without it (scripts/hyperos/camera_processing_stub; A36 HyperOS
+    # Global 11-19). The Samsung Camera replaces Xiaomi's, so an empty list
+    # stands in; guest_prepare.sh puts it in /oem when the guest has no
+    # MiuiCamera.
+    if in_image /system/product/priv-app/MiuiCamera; then
+        rm -f "$OUT/OneOSCameraProcessingStub.apk"
+        echo "camera processing stub: the image has Xiaomi Camera, not built"
+    else
+        sh "$ROOT/scripts/hyperos/camera_processing_stub/build.sh" "$OUT"
+    fi
 else
     rm -f "$OUT/miui-services_patched.jar" "$OUT/apprecovery.proinstaller_patched.jar" "$OUT/framework_patched.jar" "$OUT/miui-wifi-service_patched.jar" \
           "$OUT/miui-telephony-common_patched.jar" "$OUT/xiaomi-opt-telephony_patched.jar" "$OUT/socket_exec" \
-          "$OUT/libaudiohal_aidl_patched.so"
+          "$OUT/libaudiohal_aidl_patched.so" "$OUT/miui-framework_patched.jar" "$OUT/OneOSCameraProcessingStub.apk"
     echo "miui-services.jar: not in the image, nothing to patch"
 fi
 
@@ -975,6 +1057,16 @@ rm -f "$OUT/framework_patched.jar" "$OUT/libcamera_client_patched.so" "$OUT/libc
 # ONEOS_NO_CAMERA_ABI=1: no camera bridge in this set (0.4.66, the Android 16 OxygenOS set for One UI 8
 # phones: the host tables here are One UI 9's; One UI 8's camera numbering is not on the server yet).
 # The guest's camera then does not work; everything else is built as usual.
+# 0.5.22 first assumed a One UI image (One UI 9.5 S948BXXU6ZZKN) spoke the phone's ICameraService.
+IMAGE_ONEUI=$("$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | sed -n 's/^ro.build.version.oneui=//p' | head -n 1)
+# (It is not: One UI 9.5's ICameraService has injectSessionParamsN at 9, so every later code is
+# One UI 9.0's next method. A One UI image gets the bridge like any other.)
+# One UI 9.5's software floating features for guest_prepare.sh's merge (switcher/patches/oneui95_floating_add.txt).
+rm -f "$OUT/oneui_floating_add.txt"
+[ "$IMAGE_ONEUI" = 90500 ] && cp "$ROOT/switcher/patches/oneui95_floating_add.txt" "$OUT/oneui_floating_add.txt" &&
+    echo "oneui_floating_add.txt: $(grep -c '^SEC_FLOATING_FEATURE_' "$OUT/oneui_floating_add.txt") software features of One UI 9.5"
+# Its native listener's switch is a jump table: renumber the native Bp calls, leave the listener.
+[ -n "$IMAGE_ONEUI" ] && export ONEOS_CAMERA_NATIVE_SKIP_BN=1
 if [ "${ONEOS_NO_CAMERA_ABI:-0}" = 1 ]; then
     echo "camera bridge: left out (ONEOS_NO_CAMERA_ABI=1)"
     rm -f "$WORK/framework-cam.jar"
@@ -983,7 +1075,11 @@ elif in_image /system/framework/framework.jar; then
     "$ROOT/scripts/patch-framework-camera.sh" "$WORK/framework-cam.jar" "$OUT"
     rm -f "$WORK/framework-cam.jar"
 fi
-if [ "${ONEOS_NO_CAMERA_ABI:-0}" != 1 ] && in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
+# ONEOS_NO_CAMERA_NATIVE=1: the Java bridge only (One UI 9.5 first boots: its BnCameraServiceListener
+# switch is a jump table pixel_camera_native.py does not patch yet).
+if [ "${ONEOS_NO_CAMERA_NATIVE:-0}" = 1 ]; then
+    echo "camera bridge: native client libraries left out (ONEOS_NO_CAMERA_NATIVE=1)"
+elif [ "${ONEOS_NO_CAMERA_ABI:-0}" != 1 ] && in_image /system/lib64/libcamera_client.so && in_image /system/lib64/libcameracompatbilityinfo.so; then
     "$DEBUGFS" -R "dump /system/lib64/libcamera_client.so $WORK/libcamera_client.so" "$IMG" 2>/dev/null
     "$DEBUGFS" -R "dump /system/lib64/libcameracompatbilityinfo.so $WORK/libcameracompatbilityinfo.so" "$IMG" 2>/dev/null
     "$ROOT/scripts/patch-camera-native.sh" "$WORK/libcamera_client.so" "$WORK/libcameracompatbilityinfo.so" "$OUT"
@@ -1028,6 +1124,7 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 # looks up "gvld": guest_prepare.sh binds all three or none of them.
 {
     echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)"
+    echo "# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
     # HyperOS images (miui-services_patched.jar) and Pixel images list their
     # files in the order and with the notes each set was built with.
@@ -1074,10 +1171,17 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 # Ultra IN image (CPH2841IN) has the same code 0x5b0 later (0x471178, after
 # AIBinder_getExtension, before IQtiComposer3Client::fromBinder), same bytes.
 "$DEBUGFS" -R "dump /system/bin/surfaceflinger $WORK/surfaceflinger" "$IMG" 2>/dev/null
-python3 -I - "$WORK/surfaceflinger" "$OUT/surfaceflinger_patched" <<'PYEOF'
+ONEOS_IMAGE_ONEUI="$IMAGE_ONEUI" python3 -I - "$WORK/surfaceflinger" "$OUT/surfaceflinger_patched" <<'PYEOF'
 import hashlib, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 data = bytearray(open(src, "rb").read())
+# One UI image (0.5.22): Samsung's own SurfaceFlinger on Samsung's composer, the pair One UI itself
+# runs on these phones; its QTI composer client stays.
+if os.environ.get("ONEOS_IMAGE_ONEUI"):
+    if os.path.exists(dst):
+        os.remove(dst)
+    print("surfaceflinger: One UI image, Samsung's own build runs as it is")
+    sys.exit(0)
 SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
          # Find X9 Ultra IN, newer OTA (CPH2841IN, security patch 2026-11-01): the same
          # bl AIBinder_getExtension / ldr x8 / cbz x8 / bl IQtiComposer3Client::fromBinder at 0x475d24.
@@ -1085,6 +1189,9 @@ SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
          # Nothing OS 5.0 (Metroid, SDK 37): same three instructions, at 0x452a50
          # (bl AIBinder_getExtension, ldr x8, cbz x8 -> +0x4c, bl IQtiComposer3Client::fromBinder).
          "e5a8726a6687": 0x452a50,
+         # Nothing OS 5.0 (Asteroids, the Phone (3a), SDK 37, 2611061007): the same three
+         # instructions at 0x452770 (cbz x8 -> +0x4c between getExtension and fromBinder).
+         "cd253fa4b83b": 0x452770,
          # OnePlus OxygenOS 16 (CPH2745, Android 16): a status check (tbnz) comes between the
          # load and the cbz; cbz x8 -> +0x4c at 0x5d9bb8, the same bytes (code segment 0x2a0000,
          # file offset == vaddr).
@@ -1535,7 +1642,7 @@ done
 # One UI's brightness range (switcher/overlays/samsung_brightness_range), for a
 # Nothing image for now (guest_prepare.sh installs it there).
 BR_RRO="$ROOT/switcher/overlays/samsung_brightness_range"
-rm -f "$OUT/OneOSBrightnessRange.apk"
+rm -f "$OUT/OneOSBrightnessRange.apk" "$OUT/OneOSBrightnessRange34.apk"
 if in_image /system_ext/framework/nt-telephony-common.jar || in_image /system/system_ext/framework/nt-telephony-common.jar; then
     "$BT/aapt2" compile --dir "$BR_RRO/res" -o "$WORK/br.zip"
     "$BT/aapt2" link -o "$WORK/br.apk" -I "$AJ" --manifest "$BR_RRO/AndroidManifest.xml" \
@@ -1546,6 +1653,17 @@ if in_image /system_ext/framework/nt-telephony-common.jar || in_image /system/sy
         --out "$OUT/OneOSBrightnessRange.apk" "$WORK/br-aligned.apk"
     rm -f "$OUT/OneOSBrightnessRange.apk.idsig"
     echo "built $OUT/OneOSBrightnessRange.apk (One UI's brightness range)"
+    # 0.5.15: the same for panels at brightnessMaximum about 3.4 (Galaxy A36; guest_prepare.sh picks it).
+    BR34="$ROOT/switcher/overlays/samsung_brightness_range_34"
+    "$BT/aapt2" compile --dir "$BR34/res" -o "$WORK/br34.zip"
+    "$BT/aapt2" link -o "$WORK/br34.apk" -I "$AJ" --manifest "$BR34/AndroidManifest.xml" \
+        --min-sdk-version 35 --target-sdk-version 36 --no-resource-deduping "$WORK/br34.zip"
+    "$BT/zipalign" -p -f 4 "$WORK/br34.apk" "$WORK/br34-aligned.apk"
+    "$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" \
+        --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android \
+        --out "$OUT/OneOSBrightnessRange34.apk" "$WORK/br34-aligned.apk"
+    rm -f "$OUT/OneOSBrightnessRange34.apk.idsig"
+    echo "built $OUT/OneOSBrightnessRange34.apk (One UI's brightness range, brightnessMaximum 3.4)"
 fi
 
 # Essential Space from a double press of power (switcher/overlays/
@@ -1650,8 +1768,15 @@ fi
 # Process.setProcessThreadGroup). guest_prepare.sh mounts these only when
 # staged; ColorOS's images have the platform jar, so their sets are unchanged.
 EXTRA=""
+# One UI 9.5 (S948BXXU6ZZKN) brings modules One UI 9.0 does not have at all (telephonycore,
+# npumanager, webapp): the guest's derive_classpath found no fragment for them and the zygote
+# died preloading SystemServiceRegistry (NoClassDefFoundError, A36 first run 2026-11-18).
+if "$DEBUGFS" -R "cat /system/build.prop" "$IMG" 2>/dev/null | grep -q '^ro.build.version.oneui='; then
+    EXTRA="telephonycore npumanager webapp"
+    echo "One UI image: also the image's $EXTRA (modules One UI 9.0 has none of)"
+fi
 if ! in_image /system/framework/framework-telecom.jar; then
-    EXTRA="telephonycore conscrypt profiling"
+    EXTRA="$EXTRA telephonycore conscrypt profiling"
     echo "no platform framework-telecom.jar: also the image's $EXTRA"
 fi
 for name in art i18n runtime sdkext nfcservices tethering crashrecovery cellbroadcast \

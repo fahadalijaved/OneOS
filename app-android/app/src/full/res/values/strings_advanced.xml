@@ -32,7 +32,9 @@
     <string name="advanced_heat_cap_title">Cool down when hot</string>
     <string name="advanced_heat_cap_summary">One UI\'s heat control doesn\'t run in the other system. From 45 °C, OneOS slows the processor there until the phone cools down.</string>
     <string name="advanced_full_logs_title">Full session logs</string>
-    <string name="advanced_full_logs_summary">Records everything the systems do, for bug reports. Turn off to save storage and some heat; reports then only have the short logs.</string>
+    <string name="advanced_full_logs_summary">Records everything the systems do, for bug reports. Off by default: it adds heat and uses storage. Turn it on when something goes wrong, then send a report.</string>
+    <string name="advanced_share_files_title">Share my files with other systems</string>
+    <string name="advanced_share_files_summary">Shows One UI\'s DCIM, Pictures, Download, Documents, Movies and Music inside the other system. Apps there can change and delete these files, as in One UI. Off: each system keeps its own empty storage.</string>
     <string name="advanced_card_help">Help</string>
     <string name="advanced_before_summary">What can break, backups and the screen lock</string>
     <string name="advanced_about_summary">Version, safety and credits</string>
@@ -267,6 +269,8 @@
     <string name="prepare_running_title">Setting up · %1$d%%</string>
     <string name="prepare_stop_summary">Stops after the current file. The system is then not set up, and the switch stays off until you set it up again.</string>
     <string name="prepare_done">Finished</string>
+    <string name="prepare_first_session_title">First session: apps are optimized</string>
+    <string name="prepare_first_session_summary">The first session after this update compiles every app for the new system, for about 10–20 minutes. The phone may be warm and slower until the “Apps optimized” notification appears.</string>
     <string name="prepare_not_done">Didn\'t finish</string>
     <string name="prepare_moved_title">Kept as old copies</string>
     <string name="prepare_delete_gz_summary">%1$s isn\'t needed now. If you set up again later, you\'ll need to download it once more.</string>
@@ -463,4 +467,9 @@
     <string name="bring_change_data">One UI has newer data</string>
     <string name="bring_change_app">Updated on One UI since</string>
     <string name="bring_change_gone">No longer installed on One UI</string>
+    <!-- 0.5.17 (owner): the warning before "Switch with a screen lock set" (LockRiskDialog). -->
+    <string name="lock_risk_title">Switch with a screen lock: you take the risk</string>
+    <string name="lock_risk_message">Recent Samsung firmware blocks Download Mode while a PIN, pattern, password, fingerprint or face lock is set. If a switch goes wrong with your lock on, your phone may not start and may not reach Download Mode either: then the only way back is a factory reset, which erases everything on it. This has happened to a tester.\n\nA Download Mode module (such as backdownload) lowers this risk but does not remove it. Back up first. You alone are responsible for what happens to your phone and its data.</string>
+    <string name="lock_risk_accept_wait">I understand the risk (%1$d)</string>
+    <string name="lock_risk_accept">I understand the risk</string>
 </resources>

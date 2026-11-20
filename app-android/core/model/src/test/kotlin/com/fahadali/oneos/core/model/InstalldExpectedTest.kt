@@ -18,6 +18,25 @@ class InstalldExpectedTest {
         assertEquals(lines, InstalldExpected.methodLines(InstalldTableFormat.parseLegacy(fixture.readText())))
     }
 
+    /**
+     * 0.5.28: One UI 9.5's table (host_installd_95.txt, the S26 phones updated to it) is accepted for SDK 37 images
+     * next to One UI 9.0's; the sets read the phone's codes at runtime. One UI 9.5 renumbered IInstalld.
+     */
+    @Test
+    fun oneUi95Table() {
+        val t95 = File(fixture.parentFile, "host_installd_95.txt")
+        val lines = InstalldExpected.nonCommentLines(t95.readText())
+        assertEquals(InstalldExpected.SHA256_95, Hashes.sha256(lines))
+        assertEquals(67, lines.lines().count { it.isNotEmpty() })
+        assertEquals(lines, InstalldExpected.methodLines(InstalldTableFormat.parseLegacy(t95.readText())))
+        val d = InstalldDerivation(InstalldTableFormat.parseLegacy(t95.readText()), "/system/framework/services.jar", "classes.dex", null, emptyList(), null)
+        assertEquals(emptyList<String>(), InstalldExpected.problems(d, fixture.readText(), 37))
+        assertTrue(InstalldExpected.problems(d, File(fixture.parentFile, "host_installd_a16.txt").readText(), 36).isNotEmpty())
+        // Renumbered: getAppSize is 13 on One UI 9.0 and 12 on 9.5.
+        assertEquals(13, InstalldTableFormat.parseLegacy(fixture.readText()).first { it.name == "getAppSize" }.code)
+        assertEquals(12, InstalldTableFormat.parseLegacy(t95.readText()).first { it.name == "getAppSize" }.code)
+    }
+
     /** 0.4.66: One UI 8.5's table (host_installd_a16.txt) for SDK 36 images, and One UI 8.0's accepted with it. */
     @Test
     fun android16Tables() {

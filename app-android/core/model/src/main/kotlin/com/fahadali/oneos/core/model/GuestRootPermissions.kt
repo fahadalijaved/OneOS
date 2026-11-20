@@ -14,7 +14,7 @@ object GuestRootPermissions {
     fun parse(text: String): List<Grant> = text.lineSequence().mapNotNull { line ->
         val p=line.trim().split(Regex("\\s+"));if(p.size!=3) return@mapNotNull null
         val uid=p[1].toIntOrNull() ?: return@mapNotNull null
-        if(uid<10000 || !p[0].matches(Regex("[A-Za-z][A-Za-z0-9_.]{0,254}")) || p[2] !in setOf("0","1")) return@mapNotNull null
+        if(uid<0 || !p[0].matches(Regex("[A-Za-z][A-Za-z0-9_.]{0,254}")) || p[2] !in setOf("0","1")) return@mapNotNull null
         Grant(p[0],uid,p[2]=="1")
     }.distinctBy { it.packageName }.toList()
     fun groups(apps: List<App>): List<Group> = apps.groupBy { it.uid }.map { (uid,rows) ->

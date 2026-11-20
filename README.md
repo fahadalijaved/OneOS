@@ -11,6 +11,9 @@
   <img alt="Android 17" src="https://img.shields.io/badge/Android-17-1C5FD6?style=flat-square&labelColor=2B3445">
   <img alt="One UI 9" src="https://img.shields.io/badge/One%20UI-9-1C5FD6?style=flat-square&labelColor=2B3445">
   <img alt="Root: KernelSU" src="https://img.shields.io/badge/root-KernelSU-1C5FD6?style=flat-square&labelColor=2B3445">
+  <a href="https://fahadalijaved.github.io/OneOS/" target="_blank" style="text-decoration: none;">
+    <img alt="Website: OneOS" src="https://img.shields.io/badge/Website-OneOS-10B981?style=flat-square&labelColor=2B3445">
+  </a>
 </p>
 
 OneOS runs a second Android system next to One UI on a rooted Samsung Galaxy
@@ -332,9 +335,17 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   Pocket Studio and Google fixes, and Samsung's hinge sensor for half-folded
   postures and the open/close animations in ColorOS and Pixel, which the Z Fold8
   Ultra uses too.
-- **[@vdcoolok](https://github.com/vdcoolok)**: the idea of a screen lock kept
-  inside the guest ([pull request #152](https://github.com/fahadalijaved/OneOS/pull/152)),
-  which the guest's own PIN, pattern or password of 0.4.95 follows.
+- **[@vdcoolok](https://github.com/vdcoolok)**: the screen lock kept inside the guest
+  ([pull request #152](https://github.com/fahadalijaved/OneOS/pull/152)), which the guest's own
+  PIN, pattern or password of 0.4.95 follows, and its enrolment handle (0.5.17); fingerprint and
+  face unlock with One UI's own enrolments: the guest reaching the phone's fingerprint sensor and
+  One UI's enrolment lists carried into the guest (0.5.17, Nothing OS first); and earlier the
+  guest SMS fixes (#58), faster starts and returns (#107) and live wallpapers kept (#133).
+- **[ducttape33](https://github.com/ducttape33)** and **[kett1m](https://github.com/kett1m)**:
+  [backdownload](https://github.com/kett1m/backdownload) (GPL-3.0), which keeps Samsung's Download
+  Mode reachable with a screen lock set and returns there when a switch fails.
+- **[fouadd](https://github.com/fouadd123)**: the OneOS website
+  ([pull request #237](https://github.com/fahadalijaved/OneOS/pull/237)).
 - smali/dexlib2, AndroidX, Kotlin, Guava, ZXing and others: the full list with
   licenses is in [CREDITS.md](CREDITS.md).
 

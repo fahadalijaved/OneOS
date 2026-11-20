@@ -18,17 +18,24 @@ class CompatEvaluatorTest {
         assertEquals(Verdict.COMPATIBLE, r.verdict)
         assertEquals(Level.OK, r.level("tested-model"))
         // Where it has run comes from the image table, not a fixed text.
-        assertEquals("Has run on the Z Fold (F8U): ColorOS 17 · Find N6 global build; Pixel 11 Fold; OriginOS 7.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Z Fold (F8U): ColorOS 17 · Find N6 global build; Pixel 11 Fold; Infinity-X 4.1; LineageOS 24; Nothing OS 5.0; OriginOS 7.", r.find("tested-model")!!.detail)
         // 0.4.31: the testers' reports of 2026-10-29/30 (docs/compatibility.md) add
         // Infinity-X on the S26 Ultra, S25 Ultra, S25, S24 Ultra and Z Flip5, the CN
         // ColorOS build on the Galaxy A57, and the global build on the Z Flip5.
-        assertEquals("Has run on: ColorOS 17 · Find N6 global build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U); OriginOS 7 on the Z Fold (F8U); " +
+        assertEquals("Has run on: ColorOS 17 · Find N6 global build on the Z Fold (F8U); Pixel 11 Fold on the Z Fold (F8U); Infinity-X 4.1 on the Z Fold (F8U); LineageOS 24 on the Z Fold (F8U); Nothing OS 5.0 on the Z Fold (F8U); OriginOS 7 on the Z Fold (F8U); " +
             "ColorOS 17 · global build, November update on the Galaxy S26 Ultra; Infinity-X 4.1 on the Galaxy S26 Ultra; " +
             "ColorOS 17 · global build, November update on the Galaxy S25 Ultra; Infinity-X 4.1 on the Galaxy S25 Ultra; " +
             "ColorOS 17 · global build, November update on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
-            "Pixel 11 Fold on the Galaxy Z Fold8; " +
-            "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build, November update on the Galaxy A57; " +
-            "ColorOS 17 · global build, November update on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; Infinity-X 4.1 on the Galaxy A17; Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G.",
+            "HyperOS 4 on the Galaxy S25; One UI 9.5 on the Galaxy S25; Pixel 11 Fold on the Galaxy Z Fold8; " +
+            "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build, November update on the Galaxy S23; HyperOS 4 on the Galaxy S23; One UI 9.5 on the Galaxy S23; " +
+            "HyperOS 4 on the Galaxy A56; One UI 9.5 on the Galaxy A56; ColorOS 17 · global build, November update on the Galaxy A57; " +
+            "ColorOS 17 · global build, November update on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; One UI 9.5 on the Galaxy A07; " +
+            "HyperOS 4 on the Galaxy S23 Ultra; Nothing OS 5.0 on the Galaxy S23 Ultra; One UI 9.5 on the Galaxy S24 (Exynos); " +
+            "ColorOS 17 · global build, November update on the Galaxy S24 FE; HyperOS 4 on the Galaxy S24 FE; Infinity-X 4.1 on the Galaxy A17; One UI 9.5 on the Galaxy A17; " +
+            "Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G; One UI 9.5 on the Galaxy A16 4G; HyperOS 4 on the Galaxy A15; HyperOS 4 on the Galaxy A34 5G; " +
+            "ColorOS 17 · global build, November update on the Galaxy S25 FE; HyperOS 4 on the Galaxy S25 FE; One UI 9.5 on the Galaxy S24+ (Exynos); " +
+            "HyperOS 4 on the Galaxy S23 Ultra (au); Nothing OS 5.0 on the Galaxy S23 Ultra (au); ColorOS 17 · global build, November update on the Galaxy S23 (au); " +
+            "HyperOS 4 on the Galaxy S23 (au); One UI 9.5 on the Galaxy S23 (au).",
             CompatEvaluator.TESTED_SCOPE,
         )
         assertEquals(Level.OK, r.level("soc-snapdragon"))
@@ -131,6 +138,23 @@ class CompatEvaluatorTest {
         assertEquals(Level.WARN, r.level("soc-exynos"))
     }
 
+    /** 0.5.28: an Exynos or MediaTek phone whose profile has run a system is no first run; the Probe said "Only Snapdragon has been tested" to an A16 4G. */
+    @Test
+    fun chipOfAPhoneThatHasRunIsOk() {
+        val a56 = eval(Fixtures.facts(model = "SM-A566B", device = "a56x", soc = SocProps(manufacturer = "Samsung", model = "s5e8855", platform = "s5e8855")))
+        assertEquals(Level.OK, a56.level("soc-exynos"))
+        val a15 = eval(Fixtures.facts(model = "SM-A155F", device = "a15", soc = SocProps(manufacturer = "Mediatek", model = "MT6789")))
+        assertEquals(Level.OK, a15.level("soc-mediatek"))
+        assertNull(a15.find("soc-unknown"))
+        // The A16 4G that sent it takes the A17's systems, and their runs.
+        val a16 = eval(Fixtures.facts(model = "SM-A165F", device = "a16", soc = SocProps(manufacturer = "Mediatek", model = "MT6789")))
+        assertEquals(Level.OK, a16.level("soc-mediatek"))
+        assertNull(a16.find("soc-unknown"))
+        // An Exynos profile with no run yet (the Z Flip7) stays a first run.
+        val flip7 = eval(Fixtures.facts(model = "SM-F766U", device = "b7s", soc = SocProps(manufacturer = "Samsung", model = "s5e9955", platform = "s5e9955")))
+        assertEquals(Level.WARN, flip7.level("soc-exynos"))
+    }
+
     @Test
     fun notSamsungIsBlocked() {
         val r = eval(Fixtures.facts(brand = "google", model = "Pixel 10 Pro Fold", device = "rango"))
@@ -165,7 +189,7 @@ class CompatEvaluatorTest {
         assertEquals(Verdict.WARNING, r.verdict)
         assertEquals(0, r.count(Level.BLOCK))
         assertEquals(Level.OK, r.level("tested-model"))
-        assertEquals("Has run on the Galaxy S25: ColorOS 17 · global build, November update; Infinity-X 4.1.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Galaxy S25: ColorOS 17 · global build, November update; Infinity-X 4.1; HyperOS 4; One UI 9.5.", r.find("tested-model")!!.detail)
         assertNull(r.find("untested-model"))
         assertNull(r.find(CompatEvaluator.ID_NO_PROFILE))
         assertNull(r.find("profile-form-mismatch"))
@@ -182,7 +206,8 @@ class CompatEvaluatorTest {
         // Another S-series model, and an S25 model number with another codename or chip.
         for (f in listOf(
             s25.copy(model = "SM-G991U", device = "o1q", soc = SocRules.resolve(SocProps("QTI", "SM8350", "lahaina"))), // Galaxy S21 (the S22 has a profile since 0.4.68)
-            s25.copy(model = "SM-S926B", device = "e2q", soc = SocRules.resolve(SocProps("QTI", "SM8650", "pineapple"))),
+            // 0.5.15: the Snapdragon S24+ (e2q) has a profile; its model number with the S24's codename does not.
+            s25.copy(model = "SM-S926B", device = "e1q", soc = SocRules.resolve(SocProps("QTI", "SM8650", "pineapple"))),
             s25.copy(device = "pa3q"),
             s25.copy(soc = SocRules.resolve(SocProps("QTI", "SM8850", "canoe"))),
         )) {

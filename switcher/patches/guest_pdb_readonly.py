@@ -48,6 +48,17 @@ modifier order; the path register is read from the RandomAccessFile <init> call
 rather than assumed; the log uses v0/v1 at method entry, both methods having
 .locals >= 2, inserted before any parameter is moved and before any try range.
 
+One UI 9.5 (S948BXXU6ZZKN, R8 with the helper inlined): there is no
+getBlockOutputChannelIgnoringFrp(); six call sites each open
+`new RandomAccessFile(mDataBlockFile, "rw")` themselves (computeAndWriteDigestLocked,
+doSetOemUnlockEnabledLocked, formatPartitionLocked, writeFrpMagicAndDefaultSecret,
+InternalService.writeDataBuffer, PersistentDataBlockService$1.write). When the helper
+is absent, every mDataBlockFile load in the service's classes is classified by what
+follows it (a "rw" RandomAccessFile open, a File/FileInputStream read, the block size
+query, the dump line, or inside wipe()); anything else, or a count of write opens other
+than six, stops with nothing written. Each of the six loads becomes const-string
+"/dev/null", as above. wipe() is patched as before.
+
 Usage: guest_pdb_readonly.py <smali root dir>
 Prints the smali_* directories (dex files) it changed, one per line.
 """
@@ -151,6 +162,64 @@ def patch_write_open(path):
           f"(path reg {path_reg})", file=sys.stderr)
 
 
+def patch_inlined_write_opens(pdb_dir):
+    """One UI 9.5 shape: redirect the six inlined "rw" opens of mDataBlockFile to /dev/null."""
+    load = re.compile(r"^(\s*)iget-object ([vp]\d+), ([vp]\d+), "
+                      r"L[\w/$]+;->mDataBlockFile:Ljava/lang/String;\s*$")
+    raf_init = re.compile(r"^\s*invoke-direct \{[vp]\d+, ([vp]\d+), ([vp]\d+)\}, "
+                          r"Ljava/io/RandomAccessFile;-><init>\(Ljava/lang/String;Ljava/lang/String;\)V\s*$")
+    # every RandomAccessFile open in these classes must be one of the six
+    total_raf = 0
+    edits = []  # (path, lines, index)
+    names = sorted(n for n in os.listdir(pdb_dir)
+                   if n.startswith("PersistentDataBlockService") and n.endswith(".smali"))
+    for name in names:
+        path = os.path.join(pdb_dir, name)
+        lines = open(path).read().split("\n")
+        total_raf += sum(1 for l in lines if "Ljava/io/RandomAccessFile;-><init>" in l)
+        method = ""
+        for i, l in enumerate(lines):
+            if l.startswith(".method "):
+                method = l
+            m = load.match(l)
+            if not m:
+                continue
+            nxt = [x.strip() for x in lines[i + 1:i + 12] if x.strip() and not x.strip().startswith("#")]
+            path_reg = m.group(2)
+            kind = None
+            if len(nxt) >= 2 and re.match(r'const-string(?:/jumbo)? [vp]\d+, "rw"$', nxt[0]):
+                mode_reg = nxt[0].split()[1].rstrip(",")
+                r = raf_init.match(nxt[1])
+                if r and r.group(1) == path_reg and r.group(2) == mode_reg:
+                    kind = "write"
+            elif len(nxt) >= 2 and nxt[0].startswith("invoke-direct {") and \
+                    nxt[0].endswith("Ljava/io/File;-><init>(Ljava/lang/String;)V") and \
+                    nxt[1].endswith("Ljava/io/FileInputStream;-><init>(Ljava/io/File;)V"):
+                kind = "read"
+            elif nxt and nxt[0].endswith("->nativeGetBlockDeviceSize(Ljava/lang/String;)J"):
+                kind = "size"
+            elif re.search(r" (?:public |final )*wipe\(\)V$", method) and name == STUB:
+                kind = "wipe"
+            elif re.search(r" dump\(", method) and name == STUB:
+                kind = "dump"
+            if kind is None:
+                sys.exit(f"{path}:{i + 1}: mDataBlockFile load of an unknown kind (in {method}); refusing")
+            if kind == "write":
+                edits.append((path, lines, i, path_reg))
+    if len(edits) != 6 or total_raf != 6:
+        sys.exit(f"expected six writable opens of mDataBlockFile and no other RandomAccessFile, "
+                 f"found {len(edits)} and {total_raf}")
+    for path, lines, i, reg in edits:
+        ind = re.match(r"\s*", lines[i]).group(0)
+        lines[i] = (f"{ind}# OneOS: the FRP partition is One UI's; the guest opens /dev/null instead.\n"
+                    f'{ind}const-string {reg}, "/dev/null"')
+    for path in {e[0] for e in edits}:
+        lines = next(e[1] for e in edits if e[0] == path)
+        open(path, "w").write("\n".join(lines))
+        print(f"{os.path.relpath(path)}: inlined FRP write opens redirected to /dev/null "
+              f"({sum(1 for e in edits if e[0] == path)})", file=sys.stderr)
+
+
 def patch_wipe(path):
     """Make wipe() refuse at entry: no native wipe, no truncate, host untouched."""
     lines = open(path).read().split("\n")
@@ -214,13 +283,18 @@ def main(root):
         sys.exit(f"expected one {STUB}, found {len(stub)}")
 
     check_native_wipe_only_from_wipe(root)
-    patch_write_open(svc[0])
+    with open(svc[0]) as f:
+        has_helper = any(CHANNEL_HDR.match(l) for l in f.read().split("\n"))
+    if has_helper:
+        patch_write_open(svc[0])
+    else:
+        patch_inlined_write_opens(os.path.dirname(svc[0]))
     patch_wipe(stub[0])
 
     dirs = {os.path.relpath(p, root).split(os.sep)[0] for p in (svc[0], stub[0])}
     if len(dirs) != 1:
         sys.exit(f"service and stub in different dex dirs: {sorted(dirs)}")
-    print("FRP partition: 1 write-open redirected to /dev/null, 1 wipe() refused",
+    print("FRP partition: write-open(s) redirected to /dev/null, 1 wipe() refused",
           file=sys.stderr)
     for d in sorted(dirs):
         print(d)

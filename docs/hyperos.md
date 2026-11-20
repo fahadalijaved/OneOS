@@ -516,3 +516,17 @@ others can test too"):
 - A system family of its own. HyperOS guest data (`com.miui.` packages) is
   never kept for a ColorOS or Pixel image, and theirs is never kept for
   HyperOS.
+
+## HyperOS 4 Global (0.5.27)
+
+`Images.HYPEROS_HONGKONG` (`hyperos-hongkong`, "HyperOS 4 Global") is Xiaomi's
+global build OS4.0.5.0.XFRMIXM (`CP2A.260605.016`), made with MysticGSI like the
+Xiaomi 18 Fold build and offered next to it on every phone that offers that
+one, with its own set `hyper-hk` (`out/overlays_hyperos_hk_r2`, r2). Unlike the
+Fold build it has Google apps: GmsCore is an ordinary priv-app of its product
+partition and the set also stages `gmssystem_payload.img`, so sessions present
+that GmsCore as on the Pixel and One UI 9.5 images and a launch cannot hide
+Google services. The set adds `miui-framework_patched.jar` (DisplayFeatureManager
+a no-op without Xiaomi's displayfeature service), One UI's camera kits for the
+phone's form (`samcam.tar`, `samcam_a.tar`, `samcam_bar.tar`), the fold cutout
+overlay and the cell broadcast payload. It was tested on the Galaxy A36.

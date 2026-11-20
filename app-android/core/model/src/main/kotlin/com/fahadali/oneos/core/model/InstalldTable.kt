@@ -159,11 +159,19 @@ object InstalldExpected {
      */
     const val SHA256_A16_ONEUI80 = "9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
 
+    /**
+     * One UI 9.5's table (switcher/patches/host_installd_95.txt; the S26 phones updated to One UI 9.5, S948BXXU6ZZKN
+     * and S948U1UEU6ZZKN, Probe findings of 2026-11-20): 67 methods, IInstalld renumbered (only 6 of One UI 9.0's 85
+     * kept their code). The SDK 37 sets of 0.5.28 on read the phone's codes at runtime (OneOSInstalldCodes), so it is
+     * accepted next to [SHA256]; root accepts it only with a set whose guards.txt says so (oneos_root.sh RUNTIME_CODES).
+     */
+    const val SHA256_95 = "86a30991dbd5d91aeda1726ec860b12a2d057dd7b9ca3872f32376478078a23c"
+
     /** The table the sets of an SDK [sdk] image carry (host_installd.txt's or host_installd_a16.txt's lines). */
     fun carried(sdk: Int): String? = when (sdk) { 37 -> SHA256; 36 -> SHA256_A16; else -> null }
 
     /** The phone tables an SDK [sdk] image's sets work with: the carried one, and compatible ones. */
-    fun accepted(sdk: Int): Set<String> = when (sdk) { 37 -> setOf(SHA256); 36 -> setOf(SHA256_A16, SHA256_A16_ONEUI80); else -> emptySet() }
+    fun accepted(sdk: Int): Set<String> = when (sdk) { 37 -> setOf(SHA256, SHA256_95); 36 -> setOf(SHA256_A16, SHA256_A16_ONEUI80); else -> emptySet() }
 
     /** The app asset holding the table for SDK [sdk] (staged as host_installd.txt). */
     fun assetName(sdk: Int): String = if (sdk == 36) "host_installd_a16.txt" else "host_installd.txt"

@@ -14,6 +14,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.fahadali.oneos.R
+import com.fahadali.oneos.core.model.FixAction
 import com.fahadali.oneos.core.model.ImageRef
 import com.fahadali.oneos.core.model.Images
 import com.fahadali.oneos.session.LaunchJob
@@ -87,8 +88,22 @@ class BootProgressActivity : EdgeToEdgeActivity() {
             if (state.phase == LaunchJob.Phase.IDLE) finish()
             if (state.phase == LaunchJob.Phase.FAILED && !shownFailure) {
                 shownFailure = true
-                AlertDialog.Builder(this).setTitle(state.plain?.title ?: getString(R.string.setup_failed_title))
-                    .setMessage(state.plain?.line ?: state.message).setPositiveButton(android.R.string.ok) { _, _ -> LaunchJob.clear(); finish() }.show()
+                // The refusal's fix as a button here too (owner 2026-11-15: the S24 kernel-tool warning said
+                // "Turn it off" with only OK, and OK cleared the refusal, so Home never offered it either).
+                val plain = state.plain
+                val refusal = state.message
+                val image = state.image
+                val fix = plain?.takeIf { it.actionLabel != null && it.action != FixAction.NONE && it.action != FixAction.ACKNOWLEDGE }
+                val done = { LaunchJob.clear(); finish() }
+                val b = AlertDialog.Builder(this).setTitle(plain?.title ?: getString(R.string.setup_failed_title))
+                    .setMessage(plain?.line ?: refusal).setCancelable(false)
+                if (fix != null) {
+                    b.setPositiveButton(fix.actionLabel) { _, _ -> LaunchJob.clear(); FixActions.run(this, fix.action, image, refusal, then = { finish() }) }
+                    b.setNegativeButton(android.R.string.cancel) { _, _ -> done() }
+                } else {
+                    b.setPositiveButton(android.R.string.ok) { _, _ -> done() }
+                }
+                b.show()
             }
         }
     }
