@@ -4,6 +4,7 @@ import com.fahadali.oneos.core.model.Hashes
 import com.fahadali.oneos.core.model.OneiosCheckOutcome
 import com.fahadali.oneos.core.model.OneiosChecks
 import com.fahadali.oneos.core.model.OneiosEndKind
+import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosLogs
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -125,7 +126,7 @@ class OneiosScriptTest {
             assertOk(receive("runtime", "runtime.json", "{}".toByteArray()))
             assertOk(receive("runtime", "bin/stub", ByteArray(100) { 1 }, "0755"))
             if (withXnuhost) assertOk(receive("runtime", "bin/xnuhost", ELF, "0755"))
-            return verb(OneiosRoot.Verb.FINISH, listOf("runtime", if (withXnuhost) "3" else "2", "0.1.0", abi.toString(), "bin/xnuhost", formats, if (placeholder) "1" else "0"))
+            return verb(OneiosRoot.Verb.FINISH, listOf("runtime", if (withXnuhost) "3" else "2", "0.1.0", abi.toString(), "bin/xnuhost", formats, if (placeholder) "1" else "0", "none", "none", "none"))
         }
 
         fun image(format: Int = 1): Out {
@@ -431,7 +432,7 @@ class OneiosScriptTest {
         assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("runtime")))
         assertOk(f.receive("runtime", "runtime.json", "{}".toByteArray()))
         assertOk(f.receive("runtime", "bin/xnuhost", "#!/bin/sh\n".toByteArray() + ByteArray(60), "0755"))
-        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", "2", "0.1.1", "1", "bin/xnuhost", "1", "0")))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", "2", "0.1.1", "1", "bin/xnuhost", "1", "0", "none", "none", "none")))
         assertTrue(why(), why().contains("not an arm64 program"))
         // OneiOS's stand-in for an xnuhost that is not built yet: staged, shown, and never started.
         assertOk(f.runtime(placeholder = true))
@@ -471,6 +472,121 @@ class OneiosScriptTest {
         assertRefused(f.verb(OneiosRoot.Verb.FINISH, listOf("image", "2", "1", "27.0.1", "24A446")), "manifest.json was not received")
         // Nothing is staged without a begin.
         assertRefused(f.receive("runtime", "bin/xnuhost", ELF, "0755"), "begin first")
+    }
+
+    /**
+     * Kernel updates (docs/oneios.md, "Kernel updates"): `kbinput` stages the
+     * prelink inputs, `finish kernel` activates the phone-built collection
+     * atomically (hashes, lists, manifest, configs, receipt), and the old set
+     * stays as the fallback (`restore kernel`). A swapped binary with stale
+     * hashes or configs is impossible: root rewrites every one of them before
+     * the set counts as staged, and any half-state fails the preflight.
+     */
+    @Test
+    fun kernelUpdatesSwapHashesConfigsAndKeepAFallback() = each { f ->
+        val bid = "xnu-12377.121.6-ios-27.0.1-24A446-abcdef012345"
+        val xnu = ByteArray(100) { it.toByte() }
+        val xnuSha = Hashes.sha256(xnu)
+        // A runtime that carries a kernel.
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("runtime")))
+        assertOk(f.receive("runtime", "runtime.json", "{}".toByteArray()))
+        assertOk(f.receive("runtime", "kernel/xnu.macho", xnu, "0644"))
+        assertOk(f.receive("runtime", "bin/xnuhost", ELF, "0755"))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", "3", "0.1.0", "1", "bin/xnuhost", "1", "0", bid, xnuSha, "xnu-12377.121.6")))
+        assertEquals(bid, f.verb(OneiosRoot.Verb.STATUS).status.runtimeKernel!!.buildId)
+        // An image set with a kernel collection.
+        val kc1 = ByteArray(5000) { (it % 251).toByte() }
+        val kc1Sha = Hashes.sha256(kc1)
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("image")))
+        assertOk(f.receive("image", "manifest.json", manifestWithKc(kc1.size, kc1Sha)))
+        assertOk(f.receive("image", "kernel.kc", kc1, "0644"))
+        assertOk(f.receive("image", "kernel.kc.hashes", "hashes-1".toByteArray(), "0644"))
+        assertOk(f.receive("image", "os.img", ByteArray(100)))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("image", "4", "1", "27.0.1", "24A446")))
+        // No fallback kept yet: restoring refuses and changes nothing.
+        assertRefused(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")), "no previous kernel set")
+        assertEquals("$kc1Sha  kernel.kc", shaLine(File(f.stage, "image.sha256"), "kernel.kc"))
+        // The prelink inputs, then the user's kernelcache.
+        kbInputs(f)
+        assertTrue(runCatching { f.verb(OneiosRoot.Verb.KBINPUT, listOf("xnu.macho", "10", "a".repeat(64)), ByteArray(10)) }.isFailure)
+        val kcIn = ByteArray(300) { (it * 3).toByte() }
+        val kcInSha = Hashes.sha256(kcIn)
+        assertOk(f.verb(OneiosRoot.Verb.KBINPUT, listOf("kernelcache.macho", kcIn.size.toString(), kcInSha), kcIn))
+        assertEquals(13, f.verb(OneiosRoot.Verb.STATUS).status.kb.inputs)
+        // A phone-built kernel from this xnu and this kernelcache.
+        val kc2 = ByteArray(6000) { (it % 251).toByte() }
+        val kc2Sha = Hashes.sha256(kc2)
+        makeKernelOut(f, kc2, xnuSha, kcInSha)
+        // A refused activation changes nothing and leaves no stray files behind.
+        assertRefused(f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", "0".repeat(64), bid)), "the built kernel.kc is not ${"0".repeat(64)}")
+        assertEquals(kc1Sha, Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+        assertEquals("$kc1Sha  kernel.kc", shaLine(File(f.stage, "image.sha256"), "kernel.kc"))
+        assertFalse(File(f.stage, "image").list()!!.any { it.endsWith(".new") || it.endsWith(".new2") || it.endsWith(".new3") })
+        // A collection paired from another xnu is not activated either.
+        val kc3 = ByteArray(6000) { (it % 241).toByte() }
+        makeKernelOut(f, kc3, "0".repeat(64), kcInSha)
+        assertRefused(f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", Hashes.sha256(kc3), bid)), "not from this runtime's xnu")
+        makeKernelOut(f, kc2, xnuSha, kcInSha)
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", kc2Sha, bid)))
+        // The swap: the files, every hash and list, the configs, and the receipt.
+        assertEquals(kc2Sha, Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+        assertEquals("$kc2Sha  kernel.kc", shaLine(File(f.stage, "image.sha256"), "kernel.kc"))
+        assertEquals("${Hashes.sha256(File(f.stage, "image/manifest.json").readBytes())}  manifest.json", shaLine(File(f.stage, "image.sha256"), "manifest.json"))
+        assertTrue(File(f.stage, "image/manifest.json").readText().contains("\"sha256\": \"$kc2Sha\""))
+        assertEquals(bid, File(f.stage, "image.conf").readLines().first { it.startsWith("kernel_build_id=") }.substringAfter('='))
+        assertEquals(kc2Sha, File(f.stage, "image.conf").readLines().first { it.startsWith("kernel_kc_sha256=") }.substringAfter('='))
+        val st = f.verb(OneiosRoot.Verb.STATUS).status
+        assertEquals(bid, st.imageKernel!!.buildId)
+        assertEquals(kc2Sha, st.imageKernel.kcSha256)
+        assertTrue(st.imageKernel.hasFallback)
+        val receipt = File(f.stage, "logs").list()!!.single { it.startsWith("update-") && it.endsWith(".log") }
+        assertTrue(File(f.stage, "logs/$receipt").readText().contains("from: kernel.kc $kc1Sha"))
+        // The fallback restores everything, with its own receipt.
+        assertOk(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")))
+        assertEquals(kc1Sha, Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+        assertEquals("$kc1Sha  kernel.kc", shaLine(File(f.stage, "image.sha256"), "kernel.kc"))
+        assertTrue(File(f.stage, "image/manifest.json").readText().contains("\"sha256\": \"$kc1Sha\""))
+        assertEquals(2, File(f.stage, "logs").list()!!.count { it.startsWith("update-") })
+        val st2 = f.verb(OneiosRoot.Verb.STATUS).status
+        assertEquals("unknown", st2.imageKernel!!.buildId)
+        assertEquals(kc1Sha, st2.imageKernel.kcSha256)
+        // Refused during a session: nothing changes.
+        f.control.mkdirs()
+        File(f.control, "boot").writeText("boot-1\n")
+        File(f.control, "state").writeText("running\n")
+        assertRefused(f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", kc2Sha, bid)), "session is running")
+        assertRefused(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")), "session is running")
+        assertRefused(f.verb(OneiosRoot.Verb.KBINPUT, listOf("profile.toml", "3", Hashes.sha256("a".toByteArray())), "a".toByteArray()), "session is running")
+        assertEquals(kc1Sha, Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+    }
+
+    private fun manifestWithKc(size: Int, sha: String) = """
+        { "format": 1, "name": "oneios-image", "os": "iOS", "version": "27.0.1", "build": "24A446",
+          "device": "iPhone18,2",
+          "files": [
+            { "path": "kernel.kc", "size": $size, "sha256": "$sha", "role": "kernel", "format": "kernel-collection", "read_only": true, "hashes": "kernel.kc.hashes" },
+            { "path": "kernel.kc.hashes", "size": 8, "sha256": "${Hashes.sha256("hashes-1".toByteArray())}", "role": "hashes", "format": "oneios-hash-list-1" },
+            { "path": "os.img", "size": 100, "sha256": "${Hashes.sha256(ByteArray(100))}" }
+          ] }
+    """.trimIndent().toByteArray()
+
+    private fun shaLine(list: File, path: String) =
+        list.readLines().single { it.endsWith("  $path") }
+
+    private fun kbInputs(f: Fake) {
+        for (name in OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }) {
+            val bytes = "kb-$name".toByteArray()
+            assertOk(f.verb(OneiosRoot.Verb.KBINPUT, listOf(name, bytes.size.toString(), Hashes.sha256(bytes)), bytes))
+        }
+    }
+
+    private fun makeKernelOut(f: Fake, kc: ByteArray, xnuSha: String, kcInSha: String) {
+        val out = File(f.stage, "make-kernel/out").apply { mkdirs() }
+        File(out, "kernel.kc").writeBytes(kc)
+        File(out, "kernel.kc.hashes").writeBytes("hashes".toByteArray())
+        File(out, "kernel.kc.build.json").writeText("""{"inputs": {"kernel": {"sha256": "$xnuSha"}, "kernelcache": {"sha256": "$kcInSha"}}}""")
+        File(out, "kernel.kc.prelink.json").writeText("{}")
+        File(out, "kernel.kc.binds.json").writeText("{}")
     }
 
     /**
@@ -530,9 +646,21 @@ class OneiosScriptTest {
         good(OneiosRoot.Verb.STATUS)
         good(OneiosRoot.Verb.BEGIN, "image")
         good(OneiosRoot.Verb.RECEIVE, "image", "overlay/kernel.kc", "12", h, "0644")
-        good(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1,2", "0")
-        bad(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1,2")
-        bad(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1,2", "yes")
+        good(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1,2", "0", "none", "none", "none")
+        good(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1,2", "0", "xnu-1-2-3", h, "xnu-1")
+        bad(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1,2", "0")
+        bad(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1,2", "0", "none", "none", "yes")
+        bad(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1,2", "0", "xnu-1", h, "none")
+        good(OneiosRoot.Verb.FINISH, "kernel", h, "xnu-1-2-3")
+        bad(OneiosRoot.Verb.FINISH, "kernel", h)
+        bad(OneiosRoot.Verb.FINISH, "kernel", "zz", "xnu-1")
+        good(OneiosRoot.Verb.KBINPUT, "kernelcache.macho", "12", h)
+        good(OneiosRoot.Verb.KBINPUT, "match/fixtures/fileset-24A446-symbols.json", "12", h)
+        bad(OneiosRoot.Verb.KBINPUT, "xnu.macho", "12", h)
+        bad(OneiosRoot.Verb.KBINPUT, "../kernelcache.macho", "12", h)
+        good(OneiosRoot.Verb.RESTORE, "kernel")
+        bad(OneiosRoot.Verb.RESTORE, "runtime")
+        bad(OneiosRoot.Verb.RESTORE)
         good(OneiosRoot.Verb.FINISH, "image", "3", "1", "27.0.1", "24A446")
         good(OneiosRoot.Verb.SWITCH, "100", "1")
         bad(OneiosRoot.Verb.BEGIN, "system")
@@ -1984,7 +2112,7 @@ class OneiosScriptTest {
         assertOk(f.receive("runtime", "runtime.json", "{}".toByteArray()))
         assertOk(f.receive("runtime", "bin/xnuhost", ELF, "0755"))
         for ((name, body) in tools) assertOk(f.receive("runtime", "bin/$name", "#!/bin/sh\n$body\n".toByteArray(), "0755"))
-        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", (tools.size + 2).toString(), "0.1.0", "1", "bin/xnuhost", "1", "0")))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", (tools.size + 2).toString(), "0.1.0", "1", "bin/xnuhost", "1", "0", "none", "none", "none")))
     }
 
     private fun checkRun(f: Fake, id: String, limit: Int? = null): Pair<Fake.Out, OneiosChecks.Run?> {

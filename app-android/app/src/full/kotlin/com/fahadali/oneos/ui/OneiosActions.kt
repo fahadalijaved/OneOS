@@ -24,20 +24,25 @@ import com.fahadali.oneos.session.OneiosToolJob
 internal class OneiosPicker(private val a: AppCompatActivity, saved: Bundle?) {
     private var kind: OneiosKind =
         if (saved?.getString(KEY_KIND) == OneiosKind.RUNTIME.word) OneiosKind.RUNTIME else OneiosKind.IMAGE
+    private var kernelcache: Boolean = saved?.getBoolean(KEY_KERNELCACHE) == true
 
     private val launcher: ActivityResultLauncher<Array<String>> =
         a.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
-                OneiosJob.importFile(a, kind, uri)
+                if (kernelcache) OneiosJob.importKernelcache(a, uri) else OneiosJob.importFile(a, kind, uri)
                 OneiosActions.showProgress(a)
             }
         }
 
-    fun save(out: Bundle) = out.putString(KEY_KIND, kind.word)
+    fun save(out: Bundle) {
+        out.putString(KEY_KIND, kind.word)
+        out.putBoolean(KEY_KERNELCACHE, kernelcache)
+    }
 
     fun pick(what: OneiosKind) {
         if (OneiosJob.state.busy) return
         kind = what
+        kernelcache = false
         try {
             launcher.launch(arrayOf("application/zstd", "application/octet-stream", "*/*"))
         } catch (_: android.content.ActivityNotFoundException) {
@@ -45,8 +50,20 @@ internal class OneiosPicker(private val a: AppCompatActivity, saved: Bundle?) {
         }
     }
 
+    /** Apple's decoded kernelcache for a phone-built kernel (any file: it is checked against the profile's pin). */
+    fun pickKernelcache() {
+        if (OneiosJob.state.busy) return
+        kernelcache = true
+        try {
+            launcher.launch(arrayOf("application/octet-stream", "*/*"))
+        } catch (_: android.content.ActivityNotFoundException) {
+            Toast.makeText(a, R.string.fix_no_app, Toast.LENGTH_LONG).show()
+        }
+    }
+
     private companion object {
         const val KEY_KIND = "oneios_pick_kind"
+        const val KEY_KERNELCACHE = "oneios_pick_kernelcache"
     }
 }
 
@@ -147,6 +164,13 @@ internal object OneiosActions {
             .setPositiveButton(R.string.oneios_remove_run) { _, _ -> OneiosJob.remove(a) }.show()
     }
 
+    /** The kept kernel set becomes the image's again (root's `restore kernel`, with its own receipt). */
+    fun confirmRestoreKernel(a: AppCompatActivity) {
+        AlertDialog.Builder(a).setTitle(R.string.oneios_kernel_restore).setMessage(R.string.oneios_kernel_restore_line)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.oneios_kernel_restore) { _, _ -> OneiosJob.restoreKernel(a) }.show()
+    }
+
     /** The step's name, as Set up iOS 27's checklist says it. */
     fun stepTitle(a: AppCompatActivity, step: OneiosFlow.Step): String = a.getString(
         when (step) {
@@ -179,6 +203,9 @@ internal object OneiosActions {
             OneiosFlow.Job.SWITCH -> R.string.oneios_running_switch
             OneiosFlow.Job.RETURN -> R.string.oneios_running_return
             OneiosFlow.Job.REMOVE -> R.string.oneios_running_remove
+            OneiosFlow.Job.STAGE_KB -> R.string.oneios_running_stage_kb
+            OneiosFlow.Job.FINISH_KERNEL -> R.string.oneios_running_finish_kernel
+            OneiosFlow.Job.RESTORE_KERNEL -> R.string.oneios_running_restore_kernel
         },
     )
 }

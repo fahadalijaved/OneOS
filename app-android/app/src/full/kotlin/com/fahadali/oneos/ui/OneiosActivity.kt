@@ -15,10 +15,12 @@ import androidx.core.widget.NestedScrollView
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.core.model.OneiosFix
+import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosReleases
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.root.OneiosFlow
+import com.fahadali.oneos.core.root.OneiosStatus
 import com.fahadali.oneos.session.OneiosJob
 import com.fahadali.oneos.session.OneiosToolJob
 import dev.oneuiproject.oneui.R as Icons
@@ -213,6 +215,38 @@ class OneiosActivity : EdgeToEdgeActivity() {
         }
         PrebootCards.row(image, getString(R.string.oneios_data), (flow.dataLine ?: getString(R.string.environment_unknown)) + "\n" + getString(R.string.oneios_data_line))
 
+        // The kernel: what the runtime carries, what the image boots, and the phone-built update path
+        // (docs/oneios.md, "Kernel updates"). A new kernel never means rebuilding the image set on a PC:
+        // the phone pairs the staged xnu with Apple's kernelcache and activates the collection atomically.
+        if (st?.runtime != null) {
+            val kernel = PrebootCards.section(column, getString(R.string.oneios_kernel))
+            PrebootCards.row(
+                kernel,
+                kernelTitle(st),
+                kernelDetails(st) + OneiosJob.kernelCheckLine(this)?.let { "\n$it" }.orEmpty(),
+            )
+            if (st.image != null) {
+                PrebootCards.row(kernel, getString(R.string.oneios_kernel_check), getString(R.string.oneios_kernel_check_line), chevron = true, enabled = idle) {
+                    OneiosJob.checkKernel(this)
+                }
+                PrebootCards.row(kernel, getString(R.string.oneios_kernel_stage_inputs), getString(R.string.oneios_kernel_stage_inputs_line), chevron = true, enabled = idle) {
+                    OneiosJob.stageKbInputs(this)
+                }
+                PrebootCards.row(kernel, getString(R.string.oneios_kernel_kernelcache), getString(R.string.oneios_kernel_kernelcache_line), chevron = true, enabled = idle) {
+                    picker.pickKernelcache()
+                }
+                if ((st.kb.inputs) >= OneiosKbFiles.NAMES.size) {
+                    PrebootCards.row(kernel, getString(R.string.oneios_kernel_build), getString(R.string.oneios_kernel_build_line), chevron = true,
+                        enabled = idle || OneiosToolJob.state.busy) { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) }
+                }
+                if (st.imageKernel?.hasFallback == true) {
+                    PrebootCards.row(kernel, getString(R.string.oneios_kernel_restore), getString(R.string.oneios_kernel_restore_line), chevron = true, enabled = idle) {
+                        OneiosActions.confirmRestoreKernel(this)
+                    }
+                }
+            }
+        }
+
         // The return: an open session's way back, and how the last one came back.
         val session = PrebootCards.section(column, getString(R.string.last_title))
         if (st?.sessionOpen == true) {
@@ -274,6 +308,19 @@ class OneiosActivity : EdgeToEdgeActivity() {
                 else OneiosActions.run(this@OneiosActivity, n, picker)
             }
         }
+    }
+
+    private fun kernelTitle(st: OneiosStatus): String =
+        st.runtimeKernel?.let { getString(R.string.oneios_kernel_title, it.buildId) } ?: getString(R.string.oneios_kernel_none)
+
+    private fun kernelDetails(st: OneiosStatus): String {
+        val runtime = st.runtimeKernel?.let { "${it.buildId} (${it.xnu})" } ?: getString(R.string.oneios_kernel_kc_none)
+        val image = st.imageKernel?.let {
+            it.buildId + " (" + it.kcSha256.take(12) + "…)" + if (it.hasFallback) " · ${getString(R.string.oneios_kernel_kc_fallback)}" else ""
+        } ?: getString(R.string.oneios_kernel_kc_unknown)
+        val inputs = if (st.kb.inputs == 0) getString(R.string.oneios_kernel_inputs_none)
+            else getString(R.string.oneios_kernel_inputs, st.kb.inputs)
+        return getString(R.string.oneios_kernel_details, runtime, image, inputs)
     }
 
     private fun tileValue(version: String?, check: OneiosFlow.Check, placeholder: Boolean): String = when {

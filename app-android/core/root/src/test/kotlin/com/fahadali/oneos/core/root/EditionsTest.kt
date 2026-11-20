@@ -1,5 +1,8 @@
 package com.fahadali.oneos.core.root
 
+import com.fahadali.oneos.core.model.Hashes
+import com.fahadali.oneos.core.model.OneiosKb
+import com.fahadali.oneos.core.model.OneiosKbFiles
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -30,10 +33,34 @@ class EditionsTest {
     @Test
     fun theRootScriptAndTheSessionListsAreTheFullEditions() {
         assertEquals(
-            setOf("root/oneos_root.sh", "root/oneios_root.sh", "root/status.list", "root/installd.list", "logs/collect.list", "guest-runtime/NOTICE.txt", "guest-runtime/LICENSE-NeoZygisk.txt", "guest-runtime/LICENSE-Vector.txt"),
+            setOf(
+                "root/oneos_root.sh", "root/oneios_root.sh", "root/status.list", "root/installd.list", "logs/collect.list",
+                "guest-runtime/NOTICE.txt", "guest-runtime/LICENSE-NeoZygisk.txt", "guest-runtime/LICENSE-Vector.txt",
+                "kb/kb.json", "kb/profile.toml", "kb/reviewed.json", "kb/pairs.json", "kb/stubs.json", "kb/lead.json",
+                "kb/user.json", "kb/match/fileset_match.py", "kb/match/kc_image.py", "kb/match/fileset_shape.py",
+                "kb/match/fixtures/fileset-23F84-symbols.json", "kb/match/fixtures/fileset-24A446-symbols.json",
+                "kb/match/fixtures/fileset-26C5035r-symbols.json",
+            ),
             files(Shipped.fullAssets),
         )
         assertTrue(Shipped.rootScript.isFile)
+    }
+
+    /**
+     * The kernel-build inputs the app ships (docs/oneios.md, "Kernel updates"):
+     * kb/kb.json names every file the phone's prelink needs but Apple's
+     * kernelcache, each is the pinned one, and root's `kbinput` takes exactly
+     * that set plus the kernelcache.
+     */
+    @Test
+    fun theKernelBuildInputsAreThePinnedOnes() {
+        val kb = OneiosKb.parse(File(Shipped.fullAssets, "kb/kb.json").readText()).getOrThrow()
+        assertEquals(OneiosKb.PINNED.toSet(), kb.files.keys)
+        assertEquals(OneiosKb.PINNED.toSet() + "kernelcache.macho", OneiosKbFiles.NAMES)
+        for ((name, sha) in kb.files) {
+            val bytes = File(Shipped.fullAssets, "kb/$name").takeIf { it.isFile }?.readBytes()
+            assertEquals("kb/$name is not the pinned one", sha, bytes?.let(Hashes::sha256))
+        }
     }
 
     @Test

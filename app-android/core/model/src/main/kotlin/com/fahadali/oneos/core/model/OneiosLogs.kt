@@ -58,7 +58,10 @@ object OneiosLogs {
 
     private val EARLIER_ID = Regex("^xnuhost-[0-9]{1,18}$")
 
-    fun validId(id: String): Boolean = id == SESSION || id in OTHERS || EARLIER_ID.matches(id)
+    /** Kernel-update receipts (`logs/update-<epoch>.log`, `-<n>` when two share a second), written by root's `finish kernel` and `restore kernel`. */
+    private val UPDATE_ID = Regex("^update-[0-9]{1,18}(-[0-9]{1,18})?$")
+
+    fun validId(id: String): Boolean = id == SESSION || id in OTHERS || EARLIER_ID.matches(id) || UPDATE_ID.matches(id)
 
     /** The file's name on the phone and in a shared zip. */
     fun fileName(id: String): String = when (id) {

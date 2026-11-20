@@ -193,6 +193,7 @@ class OneiosImport(
                 OneiosKind.RUNTIME -> listOf(
                     kind.word, count, manifest.version, manifest.sessionAbi.toString(), manifest.xnuhost!!,
                     manifest.imageFormats.joinToString(","), if (manifest.placeholder) "1" else "0",
+                    manifest.kernel?.buildId ?: "none", manifest.kernel?.sha256 ?: "none", manifest.kernel?.xnu ?: "none",
                 )
                 OneiosKind.IMAGE -> listOf(kind.word, count, manifest.format.toString(), manifest.version, manifest.build ?: "unknown")
             }

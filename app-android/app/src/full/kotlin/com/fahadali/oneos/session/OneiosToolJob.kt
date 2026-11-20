@@ -76,6 +76,14 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
 
         /** iOS's own log of its last boot, as text lines. */
         IOSLOG_SHOW("read", listOf(Request(OneiosTool.Cmd.IOSLOG_SHOW, mapOf("source" to "$S/data/data.img", "boot" to "last", "format" to "text")))),
+
+        /**
+         * The phone-built kernel: `prelink build` from the staged runtime's xnu, the staged kernelcache and the
+         * staged kb/ inputs into `make-kernel/out` (the audit and the stub check gate what lands there). The kernel
+         * is activated by [OneiosJob.activateKernel], never by this flow: the screen shows the build's report first.
+         * Not run on the phone yet (docs/oneios.md, "Kernel updates").
+         */
+        KERNEL("work", kernelRequests("kernel/xnu.macho", S)),
     }
 
     data class State(
@@ -102,6 +110,8 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         val results: List<String> = emptyList(),
         /** Each request that did not end with `ok`: "cmd: code: the tool's text". */
         val refusals: List<String> = emptyList(),
+        /** The last request's result object (the `ok`'s fields): the kernel build's `sha256`, `bytes`. */
+        val lastResult: Map<String, Any?> = emptyMap(),
     ) {
         val busy: Boolean get() = flow != null
     }
@@ -166,7 +176,12 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                     ))
                 }
                 if (state.canPause) watch = watchNetwork(app)
-                for ((i, r) in flow.requests.withIndex()) {
+                val requests = if (flow == Flow.KERNEL) {
+                    kernelRequests(OneiosJob.stagedKernelPath(app) ?: "kernel/xnu.macho", S)
+                } else {
+                    flow.requests
+                }
+                for ((i, r) in requests.withIndex()) {
                     if (stop) break
                     val view = one(s, i + 1, r)
                     if (view.end != OneiosToolFlow.End.OK) {
@@ -176,7 +191,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                         if (!flow.showAll || view.end == OneiosToolFlow.End.CANCELLED) return
                         continue
                     }
-                    update(state.copy(results = state.results + (view.text ?: r.cmd)))
+                    update(state.copy(results = state.results + (view.text ?: r.cmd), lastResult = view.result.orEmpty()))
                     if (r.cmd == OneiosTool.Cmd.MAKE_IMAGE) finishImage(app, view.result.orEmpty())
                 }
             } finally {
@@ -308,3 +323,10 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
 
     private const val CANCEL_WAIT_MS = 15_000L
 }
+
+/**
+ * The `prelink` request for [xnuPath] (the staged runtime's kernel, as its runtime.json names it).
+ * Keys are [OneiosTool.prelinkRequest]'s; this only wraps them for a flow.
+ */
+private fun kernelRequests(xnuPath: String, stage: String): List<OneiosToolJob.Request> =
+    listOf(OneiosTool.prelinkRequest(xnuPath, stage).let { (cmd, keys) -> OneiosToolJob.Request(cmd, keys) })

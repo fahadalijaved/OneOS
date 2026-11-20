@@ -309,6 +309,16 @@ object OneiosPlain {
             p.startsWith("failed:") -> m(
                 "Root couldn't write the files", "Check that the phone has free space, then try again.", again, part,
             )
+            // The phone-built kernel: its inputs, its build, and its activation (docs/oneios.md, "Kernel updates").
+            // Root checks every hash and list itself; these name what to do on the iOS page.
+            "no phone-built kernel" in p || "run the kernel build" in p || "staged kernelcache" in p ||
+                "kept kernel" in p || "kept set" in p || "no previous kernel set" in p ||
+                "not from this runtime" in p || "not from the staged kernelcache" in p ||
+                "stage a runtime with a kernel" in p || "import the kernelcache" in p -> m(
+                "The phone-built kernel isn't ready",
+                "Stage the inputs and Apple's kernelcache, build the kernel on this phone, then activate it.",
+                OneiosFix.CHECK_AGAIN, OneiosPart.OTHER,
+            )
             else -> m(
                 "Couldn't finish", "Something didn't check out. Check again; if it stays, open Session logs.", OneiosFix.CHECK_AGAIN, OneiosPart.OTHER,
             )
@@ -328,8 +338,15 @@ data class OneiosStaged(
     val files: Int,
     val bytes: Long,
     val atMs: Long,
+    /** Runtime: `runtime.json`'s `kernel.path` (what the phone pairs for a kernel update); null = no kernel recorded. */
+    val kernelPath: String? = null,
+    /** Runtime: `runtime.json`'s `kernel.build_id`. */
+    val kernelBuildId: String? = null,
 ) {
-    fun encode(): String = listOf(kind.word, version, build ?: "-", files.toString(), bytes.toString(), atMs.toString()).joinToString(" ")
+    fun encode(): String = listOf(
+        kind.word, version, build ?: "-", files.toString(), bytes.toString(), atMs.toString(),
+        kernelPath ?: "-", kernelBuildId ?: "-",
+    ).joinToString(" ")
 
     /** It describes what root reports as staged now. */
     fun matches(version: String?, build: String? = null): Boolean =
@@ -337,20 +354,32 @@ data class OneiosStaged(
 
     companion object {
         private val WORD = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
+        private val PATH = Regex("^[A-Za-z0-9_][A-Za-z0-9._+/-]{0,199}$")
 
         fun of(manifest: OneiosManifest, atMs: Long): OneiosStaged =
-            OneiosStaged(manifest.kind, manifest.version, manifest.build, manifest.files.size, manifest.bytes, atMs)
+            OneiosStaged(
+                manifest.kind, manifest.version, manifest.build, manifest.files.size, manifest.bytes, atMs,
+                manifest.kernel?.path, manifest.kernel?.buildId,
+            )
 
-        /** [encode]'s text again; null for anything else. */
+        /** [encode]'s text again (6 fields: before kernels were recorded); null for anything else. */
         fun decode(text: String?): OneiosStaged? {
             val w = text?.trim()?.split(' ') ?: return null
-            if (w.size != 6) return null
+            if (w.size != 6 && w.size != 8) return null
             val kind = OneiosKind.entries.firstOrNull { it.word == w[0] } ?: return null
             if (!WORD.matches(w[1]) || (w[2] != "-" && !WORD.matches(w[2]))) return null
             val files = w[3].toIntOrNull()?.takeIf { it >= 0 } ?: return null
             val bytes = w[4].toLongOrNull()?.takeIf { it >= 0 } ?: return null
             val at = w[5].toLongOrNull()?.takeIf { it >= 0 } ?: return null
-            return OneiosStaged(kind, w[1], w[2].takeIf { it != "-" }, files, bytes, at)
+            val kp = w.getOrNull(6)?.takeIf { it != "-" }?.takeIf { PATH.matches(it) } ?: run {
+                if (w.size == 8 && w[6] != "-") return null
+                null
+            }
+            val kb = w.getOrNull(7)?.takeIf { it != "-" }?.takeIf { WORD.matches(it) } ?: run {
+                if (w.size == 8 && w[7] != "-") return null
+                null
+            }
+            return OneiosStaged(kind, w[1], w[2].takeIf { it != "-" }, files, bytes, at, kp, kb)
         }
     }
 }

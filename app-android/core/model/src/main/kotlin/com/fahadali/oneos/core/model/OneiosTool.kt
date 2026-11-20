@@ -16,6 +16,7 @@ object OneiosTool {
         const val CANCEL = "cancel"
         const val PING = "ping"
         const val MAKE_IMAGE = "make-image"
+        const val PRELINK = "prelink"
         const val TWEAKS = "tweaks"
         const val FETCH = "fetch"
         const val PAUSE = "pause"
@@ -27,6 +28,23 @@ object OneiosTool {
         const val IOSLOG_BOOTS = "ioslog-boots"
         const val IOSLOG_SHOW = "ioslog-show"
     }
+
+    /**
+     * The `prelink` request that builds the phone's kernel (docs/oneios.md, "Kernel updates"): for the staged
+     * runtime's kernel at [xnuPath] (its runtime.json's `kernel.path`), every path under [stage] (the tool
+     * refuses anything outside it). No `reference` (the phone has none), no `keep_work`, no record commits.
+     */
+    fun prelinkRequest(xnuPath: String, stage: String): Pair<String, Map<String, Any?>> = Cmd.PRELINK to mapOf(
+        "kernel" to "$stage/runtime/$xnuPath",
+        "kernelcache" to "$stage/kb/kernelcache.macho",
+        "profile" to "$stage/kb/profile.toml",
+        "reviewed" to "$stage/kb/reviewed.json",
+        "more_reviewed" to listOf("$stage/kb/lead.json", "$stage/kb/user.json"),
+        "pairs" to "$stage/kb/pairs.json",
+        "stubs" to "$stage/kb/stubs.json",
+        "xnuprelink" to "$stage/kb/match",
+        "out" to "$stage/make-kernel/out",
+    )
 
     /** A step's mark, as the tool's README defines it from the `start` list and the `step` events. */
     enum class StepState { PENDING, NEXT, RUNNING, DONE, FAILED, REFUSED, CANCELLED }

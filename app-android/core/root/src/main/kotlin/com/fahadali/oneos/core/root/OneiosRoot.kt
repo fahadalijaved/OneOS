@@ -1,6 +1,7 @@
 package com.fahadali.oneos.core.root
 
 import com.fahadali.oneos.core.model.OneiosChecks
+import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosLogs
 import com.fahadali.oneos.core.model.OneiosManifests
@@ -61,11 +62,17 @@ object OneiosRoot {
         /** Read only: up to 1 MiB of one log, whole lines, ending at a byte offset (0 = the file's end). */
         LOGFILE("logfile", Stdin.NONE),
 
+        /** One kernel-build input file into the stage ([OneiosKb]). */
+        KBINPUT("kbinput", Stdin.DATA),
+
+        /** Back to the kept kernel set after a kernel update. */
+        RESTORE("restore", Stdin.NONE),
+
         /** One flow of OneiOS's Rust tools: the staged runtime's bin/oneios-tool serve on this command's pipe ([OneiosToolSession]). */
         TOOL("tool", Stdin.NONE),
 
         /** The backstop: ends every process of the staged bin/oneios-tool serve. */
-        UNTOOL("untool", Stdin.NONE),
+        UNTOOL("untool", Stdin.NONE);
     }
 
     /** What the launcher's checks look at: the phone, or a fake root in the tests. */
@@ -79,6 +86,7 @@ object OneiosRoot {
     private val DEC = Regex("^[0-9]{1,18}$")
     private val HEX64 = Regex("^[0-9a-f]{64}$")
     private val WORD = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
+    private val BID = Regex("^xnu-[A-Za-z0-9._-]{1,85}$")
     private val FORMATS = Regex("^[0-9]{1,4}(,[0-9]{1,4}){0,15}$")
     private val KINDS = OneiosKind.entries.map { it.word }.toSet()
 
@@ -123,14 +131,33 @@ object OneiosRoot {
             }
             Verb.FINISH -> when (args.getOrNull(0)) {
                 OneiosKind.RUNTIME.word -> {
-                    need(7); arg(1, DEC, "a file count"); arg(2, WORD, "a version"); arg(3, DEC, "a session ABI")
+                    need(10); arg(1, DEC, "a file count"); arg(2, WORD, "a version"); arg(3, DEC, "a session ABI")
                     path(4); arg(5, FORMATS, "a list of image formats")
                     args.getOrNull(6)?.let { if (it != "0" && it != "1") p += "finish: placeholder is 0 or 1" }
+                    args.getOrNull(7)?.let { if (it != "none" && !BID.matches(it)) p += "finish: kernel build id" }
+                    args.getOrNull(8)?.let { if (it != "none" && !HEX64.matches(it)) p += "finish: kernel SHA-256" }
+                    args.getOrNull(9)?.let { if (it != "none" && !WORD.matches(it)) p += "finish: kernel xnu" }
+                    val kb = args.drop(7).take(3)
+                    if (kb.size == 3 && (kb.any { it == "none" } && kb.any { it != "none" })) {
+                        p += "finish: the kernel facts come together or not at all"
+                    }
                 }
                 OneiosKind.IMAGE.word -> {
                     need(5); arg(1, DEC, "a file count"); arg(2, DEC, "a format"); arg(3, WORD, "a version"); arg(4, WORD, "a build")
                 }
-                else -> p += "finish: runtime or image"
+                "kernel" -> {
+                    need(3); arg(1, HEX64, "a kernel SHA-256"); arg(2, BID, "a build id")
+                }
+                else -> p += "finish: runtime, image or kernel"
+            }
+            Verb.KBINPUT -> {
+                need(3)
+                args.getOrNull(0)?.let { if (it !in OneiosKbFiles.NAMES) p += "kbinput: '${it.take(40)}' is not a kernel-build input" }
+                arg(1, DEC, "a size"); arg(2, HEX64, "a SHA-256")
+            }
+            Verb.RESTORE -> {
+                need(1)
+                args.getOrNull(0)?.let { if (it != "kernel") p += "restore: '${it.take(40)}' is not restorable" }
             }
             Verb.CHECK, Verb.UNCHECK -> {
                 need(1)
@@ -247,8 +274,14 @@ data class OneiosStatus(
     val staged: Boolean = false,
     val runtime: Runtime? = null,
     val image: Image? = null,
+    /** The staged runtime's own kernel (`runtime.json`'s `kernel`); null = none recorded. */
+    val runtimeKernel: Kernel? = null,
+    /** The staged image set's kernel.kc; null = none recorded. */
+    val imageKernel: Kernel? = null,
     val sessionOpen: Boolean = false,
     val sessionState: String? = null,
+    /** The staged kernel-build inputs. */
+    val kb: Kb = Kb(null, 0),
     /** "inplace", "failsafe" or "reboot": how the last session came back; null = none yet. */
     val lastReturn: String? = null,
     val lastReturnDetail: String? = null,
@@ -258,6 +291,12 @@ data class OneiosStatus(
     data class Runtime(val version: String, val sessionAbi: String, val xnuhost: String, val imageFormats: String, val placeholder: Boolean = false)
 
     data class Image(val format: String, val version: String, val build: String, val bytes: Long?)
+
+    /** A staged kernel: its build id, and for an image's kernel.kc its SHA-256 and whether a fallback set is kept. */
+    data class Kernel(val buildId: String, val xnu: String = "", val kcSha256: String = "", val hasFallback: Boolean = false)
+
+    /** The kernel-build inputs: Apple's kernelcache SHA-256 (or null) and how many of the 13 inputs are staged. */
+    data class Kb(val kernelcacheSha256: String?, val inputs: Int)
 
     companion object {
         fun parse(results: List<String>): OneiosStatus {
@@ -269,6 +308,15 @@ data class OneiosStatus(
                     "stage" -> s = s.copy(staged = w.getOrNull(1) == "present")
                     "runtime" -> if (w.size >= 5) s = s.copy(runtime = Runtime(w[1], w[2], w[3], w[4], w.getOrNull(5) == "1"))
                     "image" -> if (w.size >= 4 && w[1] != "none") s = s.copy(image = Image(w[1], w[2], w[3], w.getOrNull(4)?.toLongOrNull()))
+                    "kernel" -> when (w.getOrNull(1)) {
+                        "runtime" -> if (w.size >= 3 && w[2] != "none") s = s.copy(runtimeKernel = Kernel(w[2], w.getOrNull(3).orEmpty()))
+                        "image" -> if (w.size >= 4 && w[2] != "none") s = s.copy(
+                            imageKernel = Kernel(w[2], kcSha256 = w.getOrNull(3).orEmpty(), hasFallback = w.getOrNull(4) == "1"),
+                        )
+                    }
+                    "kb" -> if (w.size >= 3) s = s.copy(
+                        kb = Kb(w[1].takeIf { it != "none" }, w[2].toIntOrNull()?.coerceIn(0, 13) ?: 0),
+                    )
                     "session" -> s = s.copy(sessionOpen = w.getOrNull(1) == "open", sessionState = w.getOrNull(2))
                     "outcome" -> if (w.getOrNull(1) in setOf("inplace", "failsafe", "reboot")) {
                         s = s.copy(lastReturn = w[1], lastReturnDetail = rest(3))

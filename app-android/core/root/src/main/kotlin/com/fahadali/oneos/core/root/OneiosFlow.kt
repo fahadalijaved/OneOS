@@ -52,7 +52,16 @@ object OneiosFlow {
 
     /** What the app runs for the iOS system (one at a time). */
     enum class Job(val kind: OneiosKind? = null) {
-        CHECK, DOWNLOAD_RUNTIME(OneiosKind.RUNTIME), IMPORT_RUNTIME(OneiosKind.RUNTIME), IMPORT_IMAGE(OneiosKind.IMAGE), SWITCH, RETURN, REMOVE;
+        CHECK, DOWNLOAD_RUNTIME(OneiosKind.RUNTIME), IMPORT_RUNTIME(OneiosKind.RUNTIME), IMPORT_IMAGE(OneiosKind.IMAGE), SWITCH, RETURN, REMOVE,
+
+        /** The prelink inputs into the stage: the app's kb/ assets and the Apple kernelcache the user hands over. */
+        STAGE_KB,
+
+        /** The phone-built kernel.kc in place (root's `finish kernel`), with its hashes, lists and receipt. */
+        FINISH_KERNEL,
+
+        /** Back to the kept kernel set (root's `restore kernel`). */
+        RESTORE_KERNEL;
 
         val copies: Boolean get() = kind != null
     }

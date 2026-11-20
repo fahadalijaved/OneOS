@@ -89,7 +89,7 @@ class OneiosToolScriptTest {
             receive("runtime.json", "{}".toByteArray(), "0644")
             receive("bin/xnuhost", ByteArray(64) { 7 }, "0755")
             if (withTool) receive("bin/oneios-tool", standin, "0755")
-            ok(verb(OneiosRoot.Verb.FINISH, listOf("runtime", if (withTool) "3" else "2", "0.1.10", "1", "bin/xnuhost", "1", "0")))
+            ok(verb(OneiosRoot.Verb.FINISH, listOf("runtime", if (withTool) "3" else "2", "0.1.10", "1", "bin/xnuhost", "1", "0", "none", "none", "none")))
         }
 
         fun openSession() {

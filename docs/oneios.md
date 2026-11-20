@@ -141,6 +141,11 @@ ready" and **Continue** opens iOS 27's page. A download or an import started on 
   1`); *Download from OneiOS's releases* (the latest); *Download a release by its tag*; *I have the file*.
 - **iOS image set**: what is staged (`Image format 1 · the runtime boots format 1`); *I have the file*; *How to
   build it*; *iOS data* and what keeps or deletes it.
+- **Phone-built kernel** ("Kernel updates" below): the runtime's kernel and the image's `kernel.kc` with its
+  build id, falling back to "unknown, staged before kernel tracking"; the prelink inputs staged of 13; *Check
+  for a newer kernel*, *Stage the kernel-build inputs*, *I have the kernelcache file*, *Build the kernel on this
+  phone* (a `oneios-tool` flow, then *Activate the phone-built kernel* on its screen), *Restore the kept kernel
+  set* while a fallback is kept.
 - **Last session** (the return): *Back to One UI* while a session is still open (root's `return`, as Volume Up +
   Volume Down); how the last session came back (`outcome` of `status`: in place, by a restart, by the failsafe
   with its reason); *Session logs*.
@@ -257,6 +262,45 @@ thread 660 MB/s. Without the app's own SHA-256 the whole import was 580 MB/s (50
 spread between runs, so that hash stays as the second check. **None of
 this has been measured on the phone**: its `dd`, `head` and `sha256sum` are toybox's, its storage and cores are
 others, and the `iflag=count_bytes` branch of `copy_bytes` runs in the tests only behind a stand-in.
+
+## Kernel updates
+
+A new kernel used to mean rebuilding the whole image set on a PC. The app now rebuilds only `kernel.kc`, on the
+phone, from the staged runtime's own XNU (`runtime.json`'s `kernel`: `kernel/xnu.macho` with its build record):
+the phone's `oneios-tool prelink build` pairs it with Apple's kernelcache and the reviewed records, and the
+audit and the stub check gate what lands in `make-kernel/out` (the tool refuses an `audit` failure itself, with
+the log shown). Measured on the Linux PC (20 cores, cold): the whole build in 2.8 s wall with 678 MB peak RSS
+(sum over the tool's processes); **not measured on the phone** (no phone is attached to this box): time and RAM
+there are the open question, and the build flow is marked accordingly.
+
+Every update keeps all hashes and configs in sync, atomically (stage-verify-activate; the previous working set
+stays as the fallback; a half-updated set never activates):
+
+- **Status**: `runtime.json`'s `kernel` object (build id, xnu, SHA-256, profile) is parsed at staging and recorded
+  by root in `runtime.conf`; the iOS page shows it next to the runtime version.
+- **Update check**: the latest release's runtime package is downloaded to the cache (its `.sha256` verified
+  first, as for a runtime update), its `runtime.json` read without staging, and its kernel build id compared with
+  the staged one.
+- **On-device rebuild**: the pairing files ship with the app (`assets/kb/`: the kernel profile, reviewed, pairs,
+  stubs, lead and user records, XnuPrelink's matcher files; `kb/kb.json` pins their hashes and the Apple build
+  they pair). Apple's decoded kernelcache comes from the user's PC ("I have the kernelcache file": checked
+  against the profile's pin at import, never committed, released or downloaded). The KERNEL tool flow runs
+  `serve prelink` into `make-kernel/out`.
+- **Activation** (root's `finish kernel <kc-sha256> <build-id>`): checks first — the collection is complete, its
+  SHA-256 is the tool's, and its build record names this runtime's xnu and the staged kernelcache — then the old
+  set aside to `kernel.prev/`, the new `kernel.kc` with freshly regenerated chunk hashes in, `image.sha256`,
+  `image.ids`, `manifest.json` (the kernel entry) and `image.conf` rewritten, and a receipt in `logs/` (from/to
+  SHAs and build ids, the xnu and kernelcache SHAs, the audit marker). Any check failure changes nothing; any
+  state in between fails the switch's preflight (`check_list` hashes every small file and matches every file's
+  identity against the lists), so a half-updated set refuses to boot instead of booting wrong. `restore kernel`
+  swaps the kept set back, with its own receipt.
+- **Runtime swap**: the existing `finish runtime` stages the whole package at once — runtime.json, xnuhost, the
+  helpers and `lib/profiles/*.toml` all move together, every file hashed at `receive` and the set verified before
+  it counts. Nothing outside the package is versioned per kernel: the switch's command line is fixed (no
+  per-kernel boot-args or tunables exist in OneiOS's `oneos/interface.md`) and the bridges ship inside the
+  runtime, so a kernel from the staged runtime's xnu needs no config change; a new runtime carries its own
+  session ABI, image formats and `min_oneos_fork`, which staging already enforces — a newer one is refused with
+  the mismatch named instead of booted against an incompatible config.
 
 ## oneios-tool in the app
 
@@ -875,11 +919,19 @@ the two meet at the return's lock.
 
 - `core/model` `OneiosTest`: the S24 Ultra-only gating and the tick; manifest parsing (format version, paths,
   sizes, hashes, a runtime without xnuhost); verification against a manifest; unpacking a tar with the manifest
-  first, last or under a top folder; damaged, padded and truncated packages; the release JSON and `.sha256` file.
+  first, last or under a top folder; damaged, padded and truncated packages; the release JSON and `.sha256` file;
+  the runtime's `kernel` object (present, absent, malformed); `kb/kb.json`; the kernel activation checks and the
+  staged-vs-release kernel comparison.
 - `core/root` `OneiosScriptTest`: the launcher, `oneios_root.sh` and `oneios_switch.sh`'s stage checks run under
   the machine's shells against a fake root (`ONEIOS_TEST_ROOT`; the scripts refuse it as uid 0 and start nothing
   there): the refusal without a runtime, a runtime without xnuhost, changed files, mismatched pairs; and the
   guards on the scripts' text.
+- **Kernel updates.** The same class, against fake stages: `kbinput` stages the 13 allowlisted inputs (and
+  refuses any other name); `finish kernel` checks the phone-built collection (complete, its SHA-256, built from
+  this runtime's xnu and the staged kernelcache) and refuses a wrong one or a wrongly paired one with nothing
+  changed and no stray files; then the swap (files, hashes, lists, manifest, configs, receipt) and the fallback,
+  and `restore kernel` puts the kept set back with its own receipt; every verb refuses during a session.
+  `EditionsTest` pins the `kb/` assets (each the hash `kb.json` names, exactly the set the root script takes).
 - The same class runs **the way back** against a fake phone: the key readers, the poll, the watcher and
   `oneios_return.sh` themselves, with stand-ins for Android's tools
   (`core/root/src/test/resources/oneios/phone-tools.sh`), processes as folders, and a clock that runs faster.
@@ -1096,6 +1148,12 @@ interfere: different repositories, runs and releases.
 
 ## Not done yet
 
+- **The kernel build has not run on the phone.** `serve prelink` and the KERNEL flow are tested on the PC
+  (the tool's own 21 `serve` tests and the 24-of-24 prelink comparison) and the app's side is unit- and
+  script-tested, but no phone has built a kernel yet: time and peak RAM on the S24 Ultra are unmeasured (PC:
+  2.8 s wall, 678 MB peak RSS on 20 cores, cold). Until a phone run says otherwise the build row says so.
+  Standing by for that run: `tests/phone/serve-on-phone.sh prelink` (OneiOS) with the inputs in
+  `/data/local/tmp/oneios/work-prelink`.
 - **oneios-tool in the app has not run on the phone** (branch `app-oneios-tool`). Unknown until it does: whether
   KernelSU's `su` from the app runs the staged `bin/oneios-tool` (it runs the checks' tools the same way, also never
   tried); the times of each flow on the phone (OneiOS's `docs/building.md` section 7 has the Mac's steps to measure

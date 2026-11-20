@@ -18,10 +18,36 @@
 #   script <name> <bytes> <sha256>
 #                               stdin: oneios_switch.sh or oneios_return.sh
 #   finish runtime <files> <version> <sessionAbi> <xnuhost> <imageFormats> <placeholder>
+#                <kernelBuildId|none> <kernelSha256|none> <kernelXnu|none>
 #   finish image <files> <format> <version> <build>
 #                               <files> received files (the manifest included)
 #                               become $STAGE/<kind>; the facts the app read
 #                               from the checked manifest go to <kind>.conf
+#                               (runtime.conf also records the runtime's own
+#                               kernel, when its runtime.json has one)
+#   kbinput <name> <bytes> <sha256>
+#                               stdin: exactly <bytes> of one kernel-build input
+#                               ($STAGE/kb/<name>). <name> is one of the fixed
+#                               allowlist (the app's kb/kb.json): profile.toml,
+#                               reviewed/pairs/stubs/lead/user.json, the
+#                               matcher's files, or kernelcache.macho (Apple's
+#                               decoded kernelcache, from the PC that built the
+#                               image set: never committed, released, or
+#                               downloaded). Writable only by this verb.
+#   finish kernel <kc-sha256> <build-id>
+#                               activate the kernel the phone's oneios-tool built
+#                               ($STAGE/make-kernel/out: kernel.kc with its
+#                               hashes and records, the audit passed): checks
+#                               first (the collection is from this runtime's xnu
+#                               and the staged kernelcache), then the old set
+#                               aside to $STAGE/kernel.prev, the new files in,
+#                               image.sha256, image.ids, manifest.json and
+#                               image.conf rewritten, a receipt in logs/. The
+#                               old set stays as the fallback (restore kernel).
+#                               Refuses during a session.
+#   restore kernel              the fallback back: $STAGE/kernel.prev becomes
+#                               the image's set again, with its own receipt.
+#                               Refuses with no fallback or during a session.
 #   switch <versionCode> <ack>  the preflight, then the session, detached, in
 #                               init's mount namespace (ack 1 = the
 #                               experimental tick)
@@ -92,6 +118,8 @@ is_path() {
     [ ${#1} -le 200 ]
 }
 is_word() { case "$1" in ''|.*|*[!A-Za-z0-9._-]*) return 1 ;; esac; [ ${#1} -le 40 ]; }
+# A kernel build id (`oneios-tool kernel build-record`): xnu-<xnu>-<profile>-<12 hex>, plain and short.
+is_bid() { case "$1" in xnu-*[!A-Za-z0-9._-]*) return 1 ;; esac; [ ${#1} -ge 5 ] && [ ${#1} -le 90 ]; }
 sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 mine() {
     [ ! -L "$1" ] && [ -e "$1" ] || return 1
@@ -150,6 +178,44 @@ do_status() {
     else
         say "@@RESULT image none"
     fi
+    # The kernels: the runtime's own (its runtime.json, recorded at finish),
+    # and the image set's kernel.kc (recorded at its activation, with the
+    # fallback when one is kept). "none": staged before kernel tracking, or
+    # the runtime carries no kernel.
+    krb=$(conf "$rc" kernel_build_id 2>/dev/null)
+    case "$krb" in ''|none|-*) krb="none"; kxn="none" ;; *) kxn=$(conf "$rc" kernel_xnu) ;; esac
+    say "@@RESULT kernel runtime $krb $kxn"
+    kbb=$(conf "$ic" kernel_build_id 2>/dev/null)
+    case "$kbb" in ''|-*) kbb="unknown" ;; esac
+    if [ -f "$STAGE/image/kernel.kc" ] && mine "$STAGE/image/kernel.kc"; then
+        kcs=$(awk '$2 == "kernel.kc" { print $1 }' "$STAGE/image.sha256" 2>/dev/null | head -n 1)
+        case "$kcs" in ????????????????????????????????????????????????????????????????) ;; *) kcs="unknown" ;; esac
+        prev=0
+        [ -f "$STAGE/kernel.prev/kernel.kc" ] && prev=1
+        say "@@RESULT kernel image $kbb $kcs $prev"
+    else
+        say "@@RESULT kernel image none"
+    fi
+    # The kernel-build inputs ($STAGE/kb): Apple's kernelcache by its recorded
+    # SHA-256 (written at its import, the file itself is 78 MB), and how many
+    # of the 13 inputs are staged. Presence is integrity here: every file is
+    # root's, and only this script's kbinput (size and SHA-256 checked) writes.
+    if [ -d "$STAGE/kb" ] && mine "$STAGE/kb" && [ -f "$STAGE/kb/kernelcache.macho" ] && [ ! -L "$STAGE/kb/kernelcache.macho" ]; then
+        kcs=$(cat "$STAGE/kb/kernelcache.sha256" 2>/dev/null)
+        case "$kcs" in ????????????????????????????????????????????????????????????????) ;; *) kcs="none" ;; esac
+    else
+        kcs="none"
+    fi
+    kbn=0
+    if [ -d "$STAGE/kb" ] && mine "$STAGE/kb" ]; then
+        for kf in kernelcache.macho profile.toml reviewed.json pairs.json stubs.json lead.json user.json; do
+            [ -f "$STAGE/kb/$kf" ] && [ ! -L "$STAGE/kb/$kf" ] && kbn=$((kbn + 1))
+        done
+        for kf in match/fileset_match.py match/kc_image.py match/fileset_shape.py match/fixtures/fileset-23F84-symbols.json match/fixtures/fileset-24A446-symbols.json match/fixtures/fileset-26C5035r-symbols.json; do
+            [ -f "$STAGE/kb/$kf" ] && [ ! -L "$STAGE/kb/$kf" ] && kbn=$((kbn + 1))
+        done
+    fi
+    say "@@RESULT kb $kcs $kbn"
     st=$(cat "$STAGE/control/state" 2>/dev/null)
     if session_open; then say "@@RESULT session open ${st:-running}"; else say "@@RESULT session none ${st:-never}"; fi
     o=$(head -n 1 "$STAGE/return.outcome" 2>/dev/null | cut -c1-200)
@@ -279,16 +345,27 @@ do_script() {
 }
 
 do_finish() {
-    [ $# -ge 1 ] || usage "finish <runtime|image> ..."
+    [ $# -ge 1 ] || usage "finish <runtime|image|kernel> ..."
     kind=$1
+    if [ "$kind" = kernel ]; then
+        shift
+        do_finish_kernel "$@"
+        return
+    fi
     kind_ok "$kind"
     if [ "$kind" = runtime ]; then
-        [ $# -eq 7 ] || usage "finish runtime <files> <version> <sessionAbi> <xnuhost> <imageFormats> <placeholder>"
-        files=$2 version=$3 abi=$4 xnuhost=$5 formats=$6 placeholder=$7
+        [ $# -eq 10 ] || usage "finish runtime <files> <version> <sessionAbi> <xnuhost> <imageFormats> <placeholder> <kernelBuildId|-> <kernelSha256|-> <kernelXnu|->"
+        files=$2 version=$3 abi=$4 xnuhost=$5 formats=$6 placeholder=$7 krb=$8 ksha=$9 kxnu=${10}
         case "$placeholder" in 0|1) ;; *) usage "finish: placeholder '$placeholder'" ;; esac
         is_dec "$abi" || usage "finish: session ABI '$abi'"
         is_path "$xnuhost" || usage "finish: xnuhost '$xnuhost'"
         case "$formats" in ''|*[!0-9,]*|,*|*,|*,,*) usage "finish: image formats '$formats'" ;; esac
+        case "$krb" in none) ;; xnu-*) is_bid "$krb" || usage "finish: kernel build id" ;; *) usage "finish: kernel build id" ;; esac
+        case "$ksha" in none) ;; *) is_hex64 "$ksha" || usage "finish: kernel SHA-256" ;; esac
+        case "$kxnu" in none) ;; *) is_word "$kxnu" || usage "finish: kernel xnu" ;; esac
+        { [ "$krb" = none ] && [ "$ksha" = none ] && [ "$kxnu" = none ]; } ||
+            { [ "$krb" != none ] && [ "$ksha" != none ] && [ "$kxnu" != none ]; } ||
+            usage "finish: the kernel facts come together or not at all"
     else
         [ $# -eq 5 ] || usage "finish image <files> <format> <version> <build>"
         files=$2 format=$3 version=$4 build=$5
@@ -321,6 +398,9 @@ do_finish() {
             echo "xnuhost=$xnuhost"
             echo "image_formats=$formats"
             echo "placeholder=$placeholder"
+            echo "kernel_build_id=$krb"
+            echo "kernel_sha256=$ksha"
+            echo "kernel_xnu=$kxnu"
         else
             echo "format=$format"
             echo "build=$build"
@@ -342,6 +422,267 @@ do_finish() {
         mv -f "$c" "$STAGE/$kind.conf" || die "could not put the new $kind in place"
     rm -rf "$old"
     say "@@OK finish $kind $version"
+}
+
+# --- Kernel updates ---------------------------------------------------------
+# A new kernel without rebuilding the image set: the phone's oneios-tool pairs
+# the staged runtime's xnu.macho with Apple's kernelcache (the PC that built
+# the image set has it) and the reviewed records the app carries, and its
+# `prelink build` writes kernel.kc with its hashes and records only after the
+# audit and the stub check passed. These verbs stage those inputs and activate
+# that output, atomically: checks first, the old set aside, the new files in,
+# the lists, the manifest and the configs rewritten, a receipt where the
+# session logs live. The old set stays in $STAGE/kernel.prev as the fallback
+# (restore kernel). Any intermediate state fails the switch's preflight
+# (check_list: every file hashed or matched against the lists), so a
+# half-updated set never boots: it refuses instead.
+KB_MAX=536870912
+kb_name() { # <name>: the kb/ path, or nothing when it is not a kernel-build input
+    case "$1" in
+        kernelcache.macho|profile.toml|reviewed.json|pairs.json|stubs.json|lead.json|user.json|\
+        match/fileset_match.py|match/kc_image.py|match/fileset_shape.py|\
+        match/fixtures/fileset-23F84-symbols.json|match/fixtures/fileset-24A446-symbols.json|\
+        match/fixtures/fileset-26C5035r-symbols.json)
+            echo "$STAGE/kb/$1" ;;
+    esac
+}
+
+do_kbinput() {
+    [ $# -eq 3 ] || usage "kbinput <name> <bytes> <sha256>"
+    to=$(kb_name "$1")
+    [ -n "$to" ] || usage "kbinput: '$1' is not a kernel-build input"
+    is_dec "$2" && [ "$2" -ge 1 ] || usage "kbinput: size '$2'"
+    awk -v b="$2" -v m="$KB_MAX" 'BEGIN { exit !(b + 0 <= m + 0) }' || refuse "$1 is too large"
+    is_hex64 "$3" || usage "kbinput: SHA-256"
+    stage_ok
+    session_open && refuse "an iOS session is running: return to One UI first"
+    d="${to%/*}"
+    [ ! -L "$d" ] || refuse "$d is a link"
+    { [ -d "$d" ] || mkdir -p "$d"; } && own "$d" 0700 || die "could not make $d"
+    [ ! -L "$to" ] || refuse "$to is a link"
+    take "$to" "$2" "$3" 0600
+    if [ "$1" = kernelcache.macho ]; then
+        echo "$3" > "$STAGE/kb/kernelcache.sha256" && own "$STAGE/kb/kernelcache.sha256" 0600 || die "could not record the kernelcache"
+    fi
+    say "@@OK kbinput $1"
+}
+
+# kernel.kc's manifest entry (its size and SHA-256) rewritten from stdin to
+# stdout; only those two lines change. Exit 1 when the entry is not as
+# expected, so nothing is activated from a manifest of another shape.
+manifest_rekernel() { # <size> <sha256>
+    awk -v s="$1" -v h="$2" '
+        /"path": *"kernel\.kc",/ { kc = 1 }
+        kc == 1 && /"size": *[0-9]+,/ { sub(/"size": *[0-9]+,/, "\"size\": " s ","); kc = 2 }
+        kc == 2 && /"sha256": *"[0-9a-f]+",/ { sub(/"sha256": *"[0-9a-f]+",/, "\"sha256\": \"" h "\","); kc = 3 }
+        { print }
+        END { exit(kc == 3 ? 0 : 1) }
+    '
+}
+
+# One "<sha>  <path>" line of a sha256sum list rewritten from stdin to stdout,
+# keeping the two spaces serve's sums parses (no field splitting: the path is
+# compared whole, so dots and slashes are literal). Exit 1 when the path is
+# not in there exactly once.
+list_resha() { # <path> <sha256>
+    awk -v p="$1" -v h="$2" '
+        {
+            head = substr($0, 1, 64); mid = substr($0, 65, 2); tail = substr($0, 67)
+            if (head ~ /^[0-9a-f]{64}$/ && mid == "  " && tail == p) { print h "  " p; n++ }
+            else print
+        }
+        END { exit(n == 1 ? 0 : 1) }
+    '
+}
+
+file_id() { stat -c '%d:%i:%s:%Y' "$1" 2>/dev/null; }
+
+# What the activation switches, backed up first: the two kernel files, the
+# manifest, the two lists and the image's config.
+
+kc_check_prebuilt() { # <dir>: the collection there is complete and named by <kc-sha256>
+    out=$1
+    [ -d "$out" ] && mine "$out" || return 1
+    for f in kernel.kc kernel.kc.hashes kernel.kc.build.json kernel.kc.prelink.json kernel.kc.binds.json; do
+        [ -f "$out/$f" ] && [ ! -L "$out/$f" ] && mine "$out/$f" || return 1
+    done
+    return 0
+}
+
+kc_check_inputs() { # <dir>: the collection is from this runtime's xnu and the staged kernelcache
+    out=$1
+    xnu=$(awk '$2 == "kernel/xnu.macho" { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1)
+    [ -n "$xnu" ] || { echo "the staged runtime has no kernel/xnu.macho: stage a runtime with a kernel first"; return 1; }
+    grep -Fq "\"sha256\": \"$xnu\"" "$out/kernel.kc.build.json" ||
+        { echo "the built kernel.kc is not from this runtime's xnu.macho: run the kernel build again"; return 1; }
+    [ -f "$STAGE/kb/kernelcache.macho" ] && [ ! -L "$STAGE/kb/kernelcache.macho" ] ||
+        { echo "the Apple kernelcache is not staged: import it first"; return 1; }
+    grep -Fq "\"sha256\": \"$(sha "$STAGE/kb/kernelcache.macho")\"" "$out/kernel.kc.build.json" ||
+        { echo "the built kernel.kc is not from the staged kernelcache: run the kernel build again"; return 1; }
+    return 0
+}
+
+kc_backup() { # <dest>: the live set aside (the manifest, lists and config with the kernel files)
+    dest=$1
+    rm -rf "$dest" || return 1
+    mkdir "$dest" && own "$dest" 0700 || return 1
+    for f in kernel.kc kernel.kc.hashes manifest.json; do
+        cp -p "$STAGE/image/$f" "$dest/$f" && own "$dest/$f" 0600 || return 1
+    done
+    for f in image.sha256 image.ids image.conf; do
+        cp -p "$STAGE/$f" "$dest/$f" && own "$dest/$f" 0600 || return 1
+    done
+    return 0
+}
+
+kc_receipt() { # <kind: update|restore> <from-sha> <from-bid> <to-sha> <to-bid>: where the session logs live
+    epoch=$(date +%s)
+    name="update-$epoch"
+    n=1
+    while [ -e "$STAGE/logs/$name.log" ]; do
+        n=$((n + 1))
+        name="update-$epoch-$n"
+    done
+    {
+        echo "oneios kernel $1 $epoch"
+        echo "date: $(date '+%F %T')"
+        echo "from: kernel.kc $2 (build $3)"
+        echo "to: kernel.kc $4 (build $5)"
+        echo "xnu: $(awk '$2 == "kernel/xnu.macho" { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1) (the staged runtime's kernel/xnu.macho)"
+        echo "kernelcache: $(sha "$STAGE/kb/kernelcache.macho" 2>/dev/null) (the staged Apple kernelcache)"
+        echo "audit: passed (kernel.kc.binds.json present, $(sha "$STAGE/kernel-build/$5/kernel.kc.binds.json" 2>/dev/null))"
+        echo "records: $STAGE/kernel-build/$5/ (kernel.kc.build.json, kernel.kc.prelink.json, kernel.kc.binds.json)"
+    } > "$STAGE/logs/$name.log" && own "$STAGE/logs/$name.log" 0600 || return 1
+    echo "$name"
+    return 0
+}
+
+kc_activate() { # <dir> <kc-sha256> <build-id>: <dir>'s kernel.kc + hashes become the image's (the backup is already aside)
+    src=$1 kc=$2 bid=$3
+    [ -d "$STAGE/image" ] && mine "$STAGE/image" || { echo "no iOS image set is staged"; return 1; }
+    newbytes=$(stat -c %s "$src/kernel.kc" 2>/dev/null)
+    is_dec "$newbytes" || { echo "could not read the built kernel.kc"; return 1; }
+    # All rewrites land in a scratch folder first, checked before anything
+    # moves: nothing half-written ever sits in the image or beside its lists
+    # (a stray file there fails the switch's preflight). Every intermediate
+    # state after the moves then fails that preflight instead of booting
+    # half-updated.
+    tmp="$src/tmp"
+    rm -rf "$tmp" && mkdir "$tmp" && own "$tmp" 0700 || { echo "could not make $tmp"; return 1; }
+    manifest_rekernel "$newbytes" "$kc" < "$STAGE/image/manifest.json" > "$tmp/manifest.json" ||
+        { echo "manifest.json has no kernel.kc entry as expected: stage the image set again"; return 1; }
+    grep -Fq "\"sha256\": \"$kc\"" "$tmp/manifest.json" ||
+        { echo "the rewritten manifest.json does not name $kc"; return 1; }
+    mfsha=$(sha "$tmp/manifest.json")
+    list_resha kernel.kc "$kc" < "$STAGE/image.sha256" > "$tmp/image.sha256" ||
+        { echo "image.sha256 names kernel.kc no or twice: stage the image set again"; return 1; }
+    hsha=$(sha "$src/kernel.kc.hashes")
+    list_resha kernel.kc.hashes "$hsha" < "$tmp/image.sha256" > "$tmp/image.sha256.2" &&
+        mv -f "$tmp/image.sha256.2" "$tmp/image.sha256" ||
+        { echo "image.sha256 names kernel.kc.hashes no or twice: stage the image set again"; return 1; }
+    list_resha manifest.json "$mfsha" < "$tmp/image.sha256" > "$tmp/image.sha256.2" &&
+        mv -f "$tmp/image.sha256.2" "$tmp/image.sha256" ||
+        { echo "image.sha256 names manifest.json no or twice: stage the image set again"; return 1; }
+    mv -f "$src/kernel.kc" "$STAGE/image/kernel.kc" && mv -f "$src/kernel.kc.hashes" "$STAGE/image/kernel.kc.hashes" ||
+        { echo "could not put the new kernel.kc in place"; return 1; }
+    own "$STAGE/image/kernel.kc" 0644 && own "$STAGE/image/kernel.kc.hashes" 0644 || return 1
+    mv -f "$tmp/manifest.json" "$STAGE/image/manifest.json" &&
+        mv -f "$tmp/image.sha256" "$STAGE/image.sha256" || { echo "could not put the new lists in place"; return 1; }
+    kid=$(file_id "$STAGE/image/kernel.kc")
+    hid=$(file_id "$STAGE/image/kernel.kc.hashes")
+    mid=$(file_id "$STAGE/image/manifest.json")
+    case "$kid$hid$mid" in ''|*'
+'*) { echo "could not read the new files back"; return 1; } ;; esac
+    awk -v kid="$kid" -v hid="$hid" -v mid="$mid" '
+        $2 == "kernel.kc" { print kid " kernel.kc"; n++; next }
+        $2 == "kernel.kc.hashes" { print hid " kernel.kc.hashes"; n++; next }
+        $2 == "manifest.json" { print mid " manifest.json"; n++; next }
+        { print }
+        END { exit(n == 3 ? 0 : 1) }
+    ' "$STAGE/image.ids" > "$tmp/image.ids" || { echo "could not rewrite image.ids"; return 1; }
+    mv -f "$tmp/image.ids" "$STAGE/image.ids" || return 1
+    [ -n "$T" ] || sync
+    return 0
+}
+
+do_finish_kernel() {
+    [ $# -eq 2 ] || usage "finish kernel <kc-sha256> <build-id>"
+    kc=$1 bid=$2
+    is_hex64 "$kc" || usage "finish: kernel SHA-256"
+    is_bid "$bid" || usage "finish: kernel build id"
+    stage_ok
+    session_open && refuse "an iOS session is running: return to One UI first"
+    [ -f "$STAGE/runtime.conf" ] && mine "$STAGE/runtime.conf" || refuse "no OneiOS runtime is staged"
+    out="$STAGE/make-kernel/out"
+    kc_check_prebuilt "$out" || refuse "no phone-built kernel is staged in $out: run the kernel build first"
+    rm -rf "$out/tmp"
+    [ "$(sha "$out/kernel.kc")" = "$kc" ] || refuse "the built kernel.kc is not $kc: run the kernel build again"
+    why=$(kc_check_inputs "$out") || refuse "$why"
+    kb="$STAGE/kernel-build/$bid"
+    [ ! -L "$kb" ] || refuse "$kb is a link"
+    rm -rf "$kb" && mkdir -p "$kb" && own "$kb" 0700 || die "could not make $kb"
+    for f in kernel.kc.build.json kernel.kc.prelink.json kernel.kc.binds.json; do
+        cp -p "$out/$f" "$kb/$f" && own "$kb/$f" 0600 || die "could not keep $f"
+    done
+    oldsha=$(awk '$2 == "kernel.kc" { print $1 }' "$STAGE/image.sha256" 2>/dev/null | head -n 1)
+    oldbid=$(conf "$STAGE/image.conf" kernel_build_id 2>/dev/null)
+    case "$oldbid" in ''|-*) oldbid="unknown" ;; esac
+    kc_backup "$STAGE/kernel.prev" || die "could not set the old set aside"
+    why=$(kc_activate "$out" "$kc" "$bid") || die "$why"
+    ic="$STAGE/image.conf"
+    {
+        grep -v '^kernel_build_id=\|^kernel_kc_sha256=' "$ic"
+        echo "kernel_build_id=$bid"
+        echo "kernel_kc_sha256=$kc"
+    } > "$ic.new" && own "$ic.new" 0600 && mv -f "$ic.new" "$ic" || die "could not write image.conf"
+    { [ -d "$STAGE/logs" ] || mkdir "$STAGE/logs"; } && own "$STAGE/logs" 0700 || die "could not make $STAGE/logs"
+    name=$(kc_receipt update "${oldsha:-unknown}" "$oldbid" "$kc" "$bid") || die "could not write the receipt"
+    [ -n "$T" ] || sync
+    rm -rf "$out"
+    say "@@OK finish kernel $bid (receipt logs/$name.log)"
+}
+
+do_restore_kernel() {
+    [ $# -eq 1 ] && [ "$1" = kernel ] || usage "restore kernel"
+    stage_ok
+    session_open && refuse "an iOS session is running: return to One UI first"
+    prev="$STAGE/kernel.prev"
+    [ -d "$prev" ] && mine "$prev" || refuse "no previous kernel set is kept: nothing to restore"
+    for f in kernel.kc kernel.kc.hashes manifest.json image.sha256 image.ids image.conf; do
+        [ -f "$prev/$f" ] && [ ! -L "$prev/$f" ] && mine "$prev/$f" || refuse "the kept set lacks $f: stage the image set again"
+    done
+    kc=$(awk '$2 == "kernel.kc" { print $1 }' "$prev/image.sha256" 2>/dev/null | head -n 1)
+    is_hex64 "$kc" || refuse "the kept set names no kernel.kc: stage the image set again"
+    bid=$(awk -F= '$1 == "kernel_build_id" { print $2 }' "$prev/image.conf" 2>/dev/null | head -n 1)
+    case "$bid" in ''|-*|*[!A-Za-z0-9._-]*) bid="unknown" ;; esac
+    [ "$(sha "$prev/kernel.kc")" = "$kc" ] || refuse "the kept kernel.kc does not match its list: stage the image set again"
+    oldsha=$(awk '$2 == "kernel.kc" { print $1 }' "$STAGE/image.sha256" 2>/dev/null | head -n 1)
+    oldbid=$(conf "$STAGE/image.conf" kernel_build_id 2>/dev/null)
+    case "$oldbid" in ''|-*) oldbid="unknown" ;; esac
+    cur="$STAGE/kernel.cur-$$"
+    rm -rf "$cur" && mkdir "$cur" && own "$cur" 0700 || die "could not make $cur"
+    # The live set aside, the kept one in, the lists rewritten for the kept
+    # files; the set aside becomes the new fallback, so a restore is
+    # itself restorable.
+    for f in kernel.kc kernel.kc.hashes manifest.json; do
+        mv -f "$STAGE/image/$f" "$cur/$f" || die "could not move the live $f aside"
+    done
+    for f in image.sha256 image.ids image.conf; do
+        mv -f "$STAGE/$f" "$cur/$f" || die "could not move the live $f aside"
+    done
+    for f in kernel.kc kernel.kc.hashes manifest.json; do
+        mv -f "$prev/$f" "$STAGE/image/$f" || die "could not put the kept $f back"
+    done
+    for f in image.sha256 image.ids image.conf; do
+        mv -f "$prev/$f" "$STAGE/$f" || die "could not put the kept $f back"
+    done
+    for f in kernel.kc kernel.kc.hashes manifest.json image.sha256 image.ids image.conf; do
+        mv -f "$cur/$f" "$prev/$f" || die "could not keep the fallback"
+    done
+    rmdir "$cur" 2>/dev/null
+    name=$(kc_receipt restore "${oldsha:-unknown}" "$oldbid" "$kc" "$bid") || die "could not write the receipt"
+    [ -n "$T" ] || sync
+    say "@@OK restore kernel $bid (receipt logs/$name.log)"
 }
 
 do_switch() {
@@ -676,6 +1017,13 @@ log_path() { # <id>: F, that log's file
         xnuhost-[0-9]*)
             is_dec "${1#xnuhost-}" || usage "'$1' is not a session log"
             F="$STAGE/logs/$1.log" ;;
+        update-[0-9]*)
+            rest=${1#update-}
+            case "$rest" in
+                *-*) is_dec "${rest%-*}" && is_dec "${rest#*-}" || usage "'$1' is not an update receipt" ;;
+                *) is_dec "$rest" || usage "'$1' is not an update receipt" ;;
+            esac
+            F="$STAGE/logs/$1.log" ;;
         *) usage "'$1' is not a session log" ;;
     esac
 }
@@ -709,6 +1057,9 @@ do_logs() {
             [ $n -lt 5 ] || break
             log_row "$id"
             n=$((n + 1))
+        done
+        for id in $(ls -1 "$STAGE/logs" 2>/dev/null | sed -n 's/^\(update-[0-9][0-9]*\(-[0-9][0-9]*\)\{0,1\}\)\.log$/\1/p' | sort -r | head -n 5); do
+            log_row "$id"
         done
     fi
     for id in switch return display feeder; do log_row "$id"; done
@@ -754,7 +1105,9 @@ case "$verb" in
     begin) do_begin "$@" ;;
     receive) do_receive "$@" ;;
     script) do_script "$@" ;;
+    kbinput) do_kbinput "$@" ;;
     finish) do_finish "$@" ;;
+    restore) do_restore_kernel "$@" ;;
     switch) do_switch "$@" ;;
     return) do_return "$@" ;;
     remove) do_remove "$@" ;;
@@ -765,5 +1118,5 @@ case "$verb" in
     logfile) do_logfile "$@" ;;
     tool) do_tool "$@" ;;
     untool) do_untool "$@" ;;
-    *) usage "oneios_root.sh status|begin|receive|script|finish|switch|return|remove|check|uncheck|checkfile|logs|logfile|tool|untool" ;;
+    *) usage "oneios_root.sh status|begin|receive|script|kbinput|finish|restore|switch|return|remove|check|uncheck|checkfile|logs|logfile|tool|untool" ;;
 esac

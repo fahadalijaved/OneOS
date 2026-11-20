@@ -11,6 +11,7 @@ import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosToolFlow
 import com.fahadali.oneos.core.model.Units
+import com.fahadali.oneos.session.OneiosJob
 import com.fahadali.oneos.session.OneiosToolJob
 import dev.oneuiproject.oneui.layout.ToolbarLayout
 
@@ -66,6 +67,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             OneiosToolJob.Flow.LOG -> R.string.oneios_tool_log
             OneiosToolJob.Flow.IOSLOG_BOOTS -> R.string.oneios_tool_ioslog_boots
             OneiosToolJob.Flow.IOSLOG_SHOW -> R.string.oneios_tool_ioslog_show
+            OneiosToolJob.Flow.KERNEL -> R.string.oneios_kernel_build
         },
     )
 
@@ -158,6 +160,15 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             PrebootCards.row(actions, getString(R.string.oneios_tool_forget)) { OneiosToolJob.forget(this); render() }
         } else {
             val again = s.last ?: OneiosToolJob.Flow.MAKE_IMAGE
+            val kcSha = (s.lastResult["sha256"] as? String)?.takeIf { it.matches(Regex("^[0-9a-f]{64}$")) }
+            if (again == OneiosToolJob.Flow.KERNEL && v.end == OneiosToolFlow.End.OK && kcSha != null) {
+                // The phone built kernel.kc and the audit passed: activate it (checks first, fallback kept),
+                // then back on the iOS page, where the activation runs.
+                PrebootCards.row(actions, getString(R.string.oneios_kernel_activate), getString(R.string.oneios_kernel_activate_line)) {
+                    OneiosJob.activateKernel(this, kcSha)
+                    startActivity(OneiosActivity.intent(this).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                }
+            }
             PrebootCards.row(actions, getString(R.string.oneios_tool_run_again), enabled = OneiosToolJob.canStart()) { OneiosToolJob.run(this, again) }
         }
         scroll.post { scroll.scrollTo(0, at) }

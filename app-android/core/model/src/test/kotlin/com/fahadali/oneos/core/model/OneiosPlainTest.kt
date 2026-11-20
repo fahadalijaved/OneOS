@@ -168,8 +168,13 @@ class OneiosPlainTest {
         val image = OneiosStaged(OneiosKind.IMAGE, "27.0.1", "24A446", 21, 17_900_000_000L, 1_763_000_000_000L)
         assertEquals(image, OneiosStaged.decode(image.encode()))
         val runtime = OneiosStaged(OneiosKind.RUNTIME, "0.1.6", null, 12, 12_345_678L, 5L)
-        assertEquals("runtime 0.1.6 - 12 12345678 5", runtime.encode())
+        assertEquals("runtime 0.1.6 - 12 12345678 5 - -", runtime.encode())
         assertEquals(runtime, OneiosStaged.decode(runtime.encode()))
+        // Before kernels were recorded (6 fields): still read, with no kernel.
+        assertEquals(runtime, OneiosStaged.decode("runtime 0.1.6 - 12 12345678 5"))
+        val withKernel = OneiosStaged(OneiosKind.RUNTIME, "0.1.6", null, 12, 12_345_678L, 5L, "kernel/xnu.macho", "xnu-1-2-3")
+        assertEquals("runtime 0.1.6 - 12 12345678 5 kernel/xnu.macho xnu-1-2-3", withKernel.encode())
+        assertEquals(withKernel, OneiosStaged.decode(withKernel.encode()))
         for (bad in listOf(null, "", "runtime 0.1.6", "kernel 1 - 1 1 1", "image 27 24A 1 -1 1", "image ../x - 1 1 1", "image 27 - x 1 1")) {
             assertNull(bad, OneiosStaged.decode(bad))
         }

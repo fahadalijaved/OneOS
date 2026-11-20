@@ -489,6 +489,93 @@ class OneiosTest {
         assertNull(OneiosReleases.parseSha256("<html>Not Found</html>", name))
     }
 
+    // --- The kernel a runtime carries ---------------------------------------------
+
+    private val xnu = "xnu-bytes".toByteArray()
+
+    private fun kernelJson() =
+        """"kernel": {"path": "kernel/xnu.macho", "build_id": "xnu-12377.121.6-ios-27.0.1-24A446-abcdef012345", "sha256": "${sha(xnu)}", "xnu": "xnu-12377.121.6", "profile": "ios-27.0.1-24A446", "record": "kernel/xnu.macho.build.json"}, """
+
+    @Test
+    fun aRuntimeKernelParses() {
+        val text = runtimeJson().replace("\"files\":", kernelJson() + "\"files\":")
+        val m = OneiosManifests.parse(OneiosKind.RUNTIME, text).getOrThrow()
+        val k = m.kernel!!
+        assertEquals("kernel/xnu.macho", k.path)
+        assertEquals("xnu-12377.121.6-ios-27.0.1-24A446-abcdef012345", k.buildId)
+        assertEquals(sha(xnu), k.sha256)
+        assertEquals("xnu-12377.121.6", k.xnu)
+        assertEquals("ios-27.0.1-24A446", k.profile)
+        assertEquals("kernel/xnu.macho.build.json", k.record)
+        // None, or null: no kernel to rebuild from.
+        assertNull(OneiosManifests.parse(OneiosKind.RUNTIME, runtimeJson()).getOrThrow().kernel)
+        assertNull(OneiosManifests.parse(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", "\"kernel\": null, \"files\":"))?.getOrThrow()?.kernel)
+        // A malformed one refuses the manifest: a kernel the app cannot name must never stage as updatable.
+        refused(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", "\"kernel\": {}, \"files\":"), "kernel has no path")
+        refused(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", kernelJson().replace("kernel/xnu.macho", "../xnu") + "\"files\":"), "not a plain relative path")
+        refused(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", kernelJson().replace(sha(xnu), "zz") + "\"files\":"), "malformed")
+    }
+
+    private val kbPin = "3".repeat(64)
+
+    private fun kb(build: String = "24A446") = OneiosKb(
+        build, "iPhone18,2", kbPin,
+        OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }.associateWith { "4".repeat(64) },
+    )
+
+    @Test
+    fun kbJsonParsesAndNamesEveryPrelinkInput() {
+        val files = OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }
+            .joinToString(",") { "\"$it\": \"${"4".repeat(64)}\"" }
+        val kb = OneiosKb.parse(
+            """{"kb": 1, "build": "24A446", "device": "iPhone18,2", "kernelcache_sha256": "$kbPin", "files": {$files}, "packed_by": "ci"}""",
+        ).getOrThrow()
+        assertEquals("24A446", kb.build)
+        assertEquals(kbPin, kb.kernelcacheSha256)
+        assertEquals(OneiosKb.PINNED.toSet(), kb.files.keys)
+        for (bad in listOf("{}", """{"kb": 1}""", """{"kb": 1, "build": "24A446", "device": "x", "kernelcache_sha256": "$kbPin", "files": {}}""")) {
+            assertTrue(bad, OneiosKb.parse(bad).isFailure)
+        }
+    }
+
+    @Test
+    fun kernelProblemNamesTheMismatch() {
+        val kb = kb()
+        assertNull(OneiosManifests.kernelProblem("24A446", kb, kbPin, true))
+        assertTrue(OneiosManifests.kernelProblem(null, kb, kbPin, true)!!.contains("No iOS image set"))
+        assertTrue(OneiosManifests.kernelProblem("24A447", kb, kbPin, true)!!.contains("24A447"))
+        assertTrue(OneiosManifests.kernelProblem("24A446", kb, kbPin, false)!!.contains("no kernel"))
+        assertTrue(OneiosManifests.kernelProblem("24A446", kb, null, true)!!.contains("not staged"))
+        assertTrue(OneiosManifests.kernelProblem("24A446", kb, "5".repeat(64), true)!!.contains("not the 24A446 one"))
+    }
+
+    @Test
+    fun kernelUpdateComparesBuildIds() {
+        val latest = OneiosKernel("kernel/xnu.macho", "xnu-new", "a".repeat(64), "xnu-1", "p", "r")
+        assertTrue(OneiosManifests.kernelUpdate("xnu-new", latest) == null)
+        assertTrue(OneiosManifests.kernelUpdate("xnu-old", latest)!!.contains("xnu-new"))
+        assertTrue(OneiosManifests.kernelUpdate(null, latest)!!.contains("stage that runtime"))
+        assertTrue(OneiosManifests.kernelUpdate("xnu-old", null)!!.contains("nothing to rebuild"))
+    }
+
+    @Test
+    fun thePrelinkRequestNamesEveryInputUnderTheStage() {
+        val (cmd, keys) = OneiosTool.prelinkRequest("kernel/xnu.macho", OneiosSystem.STAGE)
+        assertEquals("prelink", cmd)
+        assertEquals("${OneiosSystem.STAGE}/runtime/kernel/xnu.macho", keys["kernel"])
+        assertEquals("${OneiosSystem.STAGE}/kb/kernelcache.macho", keys["kernelcache"])
+        assertEquals("${OneiosSystem.STAGE}/kb/profile.toml", keys["profile"])
+        assertEquals("${OneiosSystem.STAGE}/kb/reviewed.json", keys["reviewed"])
+        assertEquals(listOf("${OneiosSystem.STAGE}/kb/lead.json", "${OneiosSystem.STAGE}/kb/user.json"), keys["more_reviewed"])
+        assertEquals("${OneiosSystem.STAGE}/kb/pairs.json", keys["pairs"])
+        assertEquals("${OneiosSystem.STAGE}/kb/stubs.json", keys["stubs"])
+        assertEquals("${OneiosSystem.STAGE}/kb/match", keys["xnuprelink"])
+        assertEquals("${OneiosSystem.STAGE}/make-kernel/out", keys["out"])
+        assertEquals(9, keys.size)
+        // The request line the app writes: one JSON object, every path in it.
+        OneiosTool.request("1", cmd, keys)
+    }
+
     // --- The JSON reader -----------------------------------------------------------
 
     @Test

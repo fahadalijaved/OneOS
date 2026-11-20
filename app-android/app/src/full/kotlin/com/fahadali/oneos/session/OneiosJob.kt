@@ -10,12 +10,16 @@ import com.fahadali.oneos.core.model.Hashes
 import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.core.model.OneiosFile
 import com.fahadali.oneos.core.model.OneiosKind
+import com.fahadali.oneos.core.model.OneiosKb
+import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosManifest
 import com.fahadali.oneos.core.model.OneiosManifests
+import com.fahadali.oneos.core.model.OneiosPackage
 import com.fahadali.oneos.core.model.OneiosReleases
 import com.fahadali.oneos.core.model.OneiosStaged
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.model.Profiles
+import com.fahadali.oneos.core.model.TarReader
 import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.core.root.OneiosImport
@@ -183,9 +187,18 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     // --- What the app checked at staging (shown beside root's status) ----------------
 
     private const val PREFS = "oneios"
+    private const val KEY_KERNEL_CHECK = "kernel_check"
+
+    /** The last kernel check's answer, for the iOS page's kernel row; null = never checked. */
+    fun kernelCheckLine(ctx: Context): String? =
+        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_KERNEL_CHECK, null)
 
     private fun record(app: Context, kind: OneiosKind): OneiosStaged? =
         OneiosStaged.decode(app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(kind.word, null))
+
+    /** The staged runtime's kernel path (`runtime.json`'s `kernel.path`); null when nothing recorded. */
+    fun stagedKernelPath(ctx: Context): String? =
+        OneiosStaged.decode(ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(OneiosKind.RUNTIME.word, null))?.kernelPath
 
     private fun remember(app: Context, m: OneiosManifest) =
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(m.kind.word, OneiosStaged.of(m, System.currentTimeMillis()).encode()).apply()
@@ -272,6 +285,151 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      * warning's (OneiosSwitchConfirm's boxes); the gate and root's own preflight both have to pass,
      * and a refusal changes nothing. When it works One UI's framework stops, and this app with it.
      */
+    // --- Kernel updates (docs/oneios.md, "Kernel updates") ------------------------------
+
+    /** The staged kb/kb.json: what Apple build the prelink inputs pair and their hashes. */
+    private fun kbInputs(app: Context): OneiosKb {
+        val text = app.assets.open("kb/kb.json").use { it.readBytes().toString(Charsets.UTF_8) }
+        return OneiosKb.parse(text).getOrElse { throw Failed("the app's kernel-build inputs are not valid: ${it.message}") }
+    }
+
+    /**
+     * The newest release's runtime kernel against the staged one. Read only:
+     * downloads the new runtime package to the cache, reads its runtime.json
+     * (no staging), compares its `kernel` with the staged one.
+     */
+    fun checkKernel(ctx: Context) = job(ctx, Phase.CHECKING, OneiosFlow.Job.CHECK, "Looking for a newer OneiOS kernel…") { app ->
+        val line = try {
+            checkKernelNow(app)
+        } catch (e: Failed) {
+            if (cancelled) throw e
+            e.message ?: "the kernel check failed"
+        }
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_KERNEL_CHECK, line).apply()
+        line
+    }
+
+    private fun checkKernelNow(app: Context): String {
+        val api = http(OneiosReleases.apiUrl(null), accept = "application/vnd.github+json")
+        if (api.first != 200) throw Failed("GitHub answered ${api.first} for the latest release")
+        val release = OneiosReleases.parse(api.second.toString(Charsets.UTF_8)).getOrElse { throw Failed(it.message ?: "no runtime in the release") }
+        val shaAnswer = http(release.sha256Url)
+        if (shaAnswer.first != 200) throw Failed("${release.assetName}.sha256 could not be downloaded (${shaAnswer.first})")
+        val sha = OneiosReleases.parseSha256(shaAnswer.second.toString(Charsets.UTF_8), release.assetName)
+            ?: throw Failed("${release.assetName}.sha256 does not hold its SHA-256")
+        val dir = File(app.cacheDir, "oneios-kernel").apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() }
+        val file = File(dir, release.assetName)
+        return try {
+            download(release.assetUrl, file, release.assetBytes, sha)
+            val latest = tar(file.inputStream()).use { z ->
+                val reader = TarReader(z)
+                val found = OneiosPackage.manifestFirst(reader, OneiosKind.RUNTIME)
+                    ?: throw Failed("${release.assetName} holds no runtime.json")
+                OneiosManifests.parse(OneiosKind.RUNTIME, found.text).getOrElse { throw Failed(it.message ?: "runtime.json is not valid") }
+            }.kernel
+            val staged = readStatus(app)
+            OneiosManifests.kernelUpdate(staged.runtimeKernel?.buildId, latest)
+                ?: "The staged kernel ${staged.runtimeKernel?.buildId ?: "is unknown"} is current (release ${release.tag})."
+        } finally {
+            file.delete()
+        }
+    }
+
+    /**
+     * The prelink inputs into the stage: the app's kb/ assets (each checked
+     * against kb.json before it is sent) and, when [kernelcache] is given,
+     * Apple's kernelcache the user hands over (checked against the profile's
+     * pin). Root checks every file's size and SHA-256 again as it writes it.
+     */
+    fun stageKbInputs(ctx: Context, kernelcache: Uri? = null) =
+        job(ctx, Phase.STAGING, OneiosFlow.Job.STAGE_KB, "Staging the kernel-build inputs…") { app ->
+            val kb = kbInputs(app)
+            val assets = OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }.map { name ->
+                val bytes = app.assets.open("kb/$name").use { it.readBytes() }
+                val want = kb.files[name] ?: throw Failed("kb.json lists no $name")
+                if (Hashes.sha256(bytes) != want) throw Failed("the app's $name is not the pinned one: reinstall OneOS")
+                name to bytes
+            }
+            val total = assets.sumOf { it.second.size.toLong() }
+            var done = 0L
+            bytes(0, total, force = true)
+            for ((name, bytes) in assets) {
+                step("Staging $name…")
+                must(root(app, OneiosRoot.Verb.KBINPUT, listOf(name, bytes.size.toString(), Hashes.sha256(bytes)), RootShell.Feed { it.write(bytes) }))
+                done += bytes.size
+                bytes(done, total, force = done >= total)
+            }
+            if (kernelcache != null) importKernelcache(app, kb, kernelcache)
+            val st = readStatus(app)
+            "Kernel-build inputs staged (${st.kb.inputs} of ${OneiosKbFiles.NAMES.size})."
+        }
+
+    /** Apple's decoded kernelcache from the user's file, checked against the profile's pin, into the stage. */
+    fun importKernelcache(ctx: Context, uri: Uri) =
+        job(ctx, Phase.STAGING, OneiosFlow.Job.STAGE_KB, "Reading the kernelcache…") { app ->
+            importKernelcache(app, kbInputs(app), uri)
+            "Apple's kernelcache is staged: it pairs only with the ${kbInputs(app).build} prelink inputs."
+        }
+
+    private fun importKernelcache(app: Context, kb: OneiosKb, uri: Uri): String {
+        val dir = File(app.cacheDir, "oneios-kernel").apply { mkdirs() }
+        val file = File(dir, "kernelcache.macho")
+        try {
+            app.contentResolver.openInputStream(uri)?.use { input ->
+                file.outputStream().use { output ->
+                    val digest = java.security.MessageDigest.getInstance("SHA-256")
+                    val buf = ByteArray(1 shl 20)
+                    var total = 0L
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        output.write(buf, 0, n)
+                        digest.update(buf, 0, n)
+                        total += n
+                        bytes(total, total, force = false)
+                    }
+                    val sha = digest.digest().joinToString("") { "%02x".format(it) }
+                    if (!sha.equals(kb.kernelcacheSha256, ignoreCase = true)) {
+                        throw Failed("this kernelcache is not the ${kb.build} one the profile pins (SHA-256 differs): " +
+                            "import the kernelcache.macho your PC wrote when it built the image set.")
+                    }
+                    step("Staging kernelcache.macho…")
+                    must(root(app, OneiosRoot.Verb.KBINPUT, listOf("kernelcache.macho", total.toString(), sha),
+                        RootShell.Feed { o -> file.inputStream().use { it.copyTo(o) } }))
+                    return sha
+                }
+            } ?: throw Failed("the picked file cannot be opened")
+        } finally {
+            file.delete()
+        }
+    }
+
+    /**
+     * Activates the kernel the phone built (`tool work`, prelink): [kcSha256]
+     * is the collection's SHA-256 as the tool reported it. Checks first (the
+     * image set's build, the staged kernelcache, the staged runtime's kernel),
+     * then the old set aside, the new files in with fresh hashes, lists,
+     * manifest and configs, and a receipt where the session logs live. Refuses
+     * during a session; the kept set is the fallback (`restoreKernel`).
+     */
+    fun activateKernel(ctx: Context, kcSha256: String) =
+        job(ctx, Phase.STAGING, OneiosFlow.Job.FINISH_KERNEL, "Activating the phone-built kernel…") { app ->
+            val st = readStatus(app)
+            val kb = kbInputs(app)
+            OneiosManifests.kernelProblem(st.image?.build, kb, st.kb.kernelcacheSha256, st.runtimeKernel != null)?.let { throw Failed(it) }
+            val bid = st.runtimeKernel?.buildId ?: throw Failed("the staged runtime carries no kernel")
+            must(root(app, OneiosRoot.Verb.FINISH, listOf("kernel", kcSha256.lowercase(java.util.Locale.ROOT), bid)))
+            "kernel.kc $bid is activated for the next session; the previous set is kept as the fallback."
+        }
+
+    /** Back to the kept kernel set after a kernel update, with its own receipt. */
+    fun restoreKernel(ctx: Context) =
+        job(ctx, Phase.STAGING, OneiosFlow.Job.RESTORE_KERNEL, "Restoring the kept kernel set…") { app ->
+            must(root(app, OneiosRoot.Verb.RESTORE, listOf("kernel")))
+            "The kept kernel set is the image's again."
+        }
+
     fun switch(ctx: Context, ticked: Boolean, notThisPhoneTicked: Boolean = false) = job(ctx, Phase.SWITCHING, OneiosFlow.Job.SWITCH, "Checking before the switch…") { app ->
         val profile = Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile
         val gate = OneiosSystem.gate(profile, ticked, notThisPhoneTicked)
