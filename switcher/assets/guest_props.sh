@@ -151,6 +151,10 @@ add)
         rm -f "$OVR"
     fi
     echo "$BOOT_ID" > "$STAGE/guest_props.boot"
+    # 0.5.28: the same boot outside the stage, for oneos_switch.sh's property space check: preparing
+    # another system replaces the stage and its guest_props.boot (S25+ a957415a: "even right after a
+    # restart" two days after the last one, after sessions of another system in that boot).
+    echo "$BOOT_ID" > /data/local/tmp/oneos_props.boot 2>/dev/null
     # One getprop for the whole host set instead of one per key. An empty
     # value counts as unset (as for Android's readers), so the props an
     # earlier session of this boot blanked (remove) are the guest's again;

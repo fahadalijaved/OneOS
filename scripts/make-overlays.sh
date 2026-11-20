@@ -317,7 +317,10 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/samsung_no_knoxguard30.
 # netd's Samsung extension with One UI's codes (patches/guest_oemnetd_abi.py, host_oemnetd.txt from
 # One UI 9.0): One UI 9.5 numbers IOemNetd differently, and netd is One UI's (A36 run 8). Images
 # without IOemNetd (not Samsung's framework) are left alone.
-KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_oemnetd_abi.py" "$WORK/services" "$ROOT/switcher/patches/host_oemnetd.txt")"
+# 0.5.28: the code each IOemNetd call is sent with is chosen on the phone from these tables by its One UI
+# (OneOSOemNetdCodes), and installd's from the phone's own table (OneOSInstalldCodes), so a set works on
+# One UI 9.0 and 9.5 phones (an S26 updated to One UI 9.5 renumbered both).
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_oemnetd_abi.py" "$WORK/services" "90000=$ROOT/switcher/patches/host_oemnetd.txt" "90500=$ROOT/switcher/patches/host_oemnetd_95.txt")"
 # No kernel crash from the guest's watchdog (patches/guest_no_sysrq_crash.py).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_sysrq_crash.py" "$WORK/services")"
 # The guest never touches the phone's weaver slots, where One UI's lock
@@ -1121,6 +1124,7 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 # looks up "gvld": guest_prepare.sh binds all three or none of them.
 {
     echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)"
+    echo "# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
     # HyperOS images (miui-services_patched.jar) and Pixel images list their
     # files in the order and with the notes each set was built with.

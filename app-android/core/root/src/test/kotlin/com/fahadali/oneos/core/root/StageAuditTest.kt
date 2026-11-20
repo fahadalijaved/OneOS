@@ -220,7 +220,14 @@ class StageAuditTest {
         assertEquals(Images.ALL.filter { it.sdk == 36 }.map { it.id }, shVar("IMAGES_SDK36").split(' ').filter { it.isNotEmpty() })
         assertEquals(InstalldExpected.carried(36), shVar("INSTALLD_SHA_36"))
         assertEquals(InstalldExpected.accepted(36), shVar("INSTALLD_OK_36").split(' ').toSet())
-        assertEquals(InstalldExpected.accepted(37), setOf(shVar("INSTALLD_SHA")))
+        // 0.5.28: One UI 9.5's table too, which root accepts only with a set whose guards.txt has RUNTIME_CODES
+        // (the line make-overlays.sh and retrofit-abi-codes.sh write).
+        assertEquals(InstalldExpected.accepted(37), setOf(shVar("INSTALLD_SHA"), shVar("INSTALLD_SHA_95")))
+        assertEquals(InstalldExpected.SHA256_95, shVar("INSTALLD_SHA_95"))
+        val runtimeLine = shVar("RUNTIME_CODES")
+        for (f in listOf("scripts/make-overlays.sh", "scripts/retrofit-abi-codes.sh")) {
+            assertTrue(f, File("../../../$f").readText().contains(runtimeLine))
+        }
         // Enabled profiles only, each with its ids and form (SM- model numbers, and docomo's SC- ones;
         // 0.4.17: the Z Flip7's flip, which root runs with the phone settings; 0.4.74: au's SCG ones).
         val rows = Regex("""^\s+([a-z0-9-]+)\) echo "(S[MC]-\S+|SCG\S+) (\S+) (\S+) (fold|bar|flip)" ;;$""", RegexOption.MULTILINE)

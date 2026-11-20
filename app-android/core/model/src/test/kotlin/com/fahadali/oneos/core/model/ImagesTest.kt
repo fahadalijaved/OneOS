@@ -116,7 +116,7 @@ class ImagesTest {
         assertEquals(null, hyper.testedOn)
         assertEquals(SystemFamily.HYPEROS, hyper.family)
         assertEquals("HyperOS (Android 17)", hyper.displayName)
-        // HyperOS 4 Global (0.5.28): Xiaomi's global build, with Google apps (GmsCore presented from its gmssystem payload).
+        // HyperOS 4 Global (0.5.27): Xiaomi's global build, with Google apps (GmsCore presented from its gmssystem payload).
         val hk = Images.HYPEROS_HONGKONG
         assertEquals("hyperos-hongkong", hk.id)
         assertEquals("HyperOS 4 Global", hk.label)
@@ -301,7 +301,7 @@ class ImagesTest {
         // 0.5.06: LineageOS 24 (the OnePlus 15 build) right after Infinity-X on every phone that offers it.
         val lineage = Images.LINEAGE24
         val hyper = Images.HYPEROS_LHASA
-        val hyperHk = Images.HYPEROS_HONGKONG // 0.5.28: HyperOS 4 Global right after it, on the same phones
+        val hyperHk = Images.HYPEROS_HONGKONG // 0.5.27: HyperOS 4 Global right after it, on the same phones
         // 0.4.33: Nothing OS on the Z Fold (F8U); 0.4.35 on every SVE + SME phone.
         val nothing = Images.NOTHING_METROID
         // 0.4.73: OriginOS 7 on the Snapdragon S25/S26 series and the Z Fold7/8 phones; 0.4.82 the Snapdragon S24 and S23 phones;

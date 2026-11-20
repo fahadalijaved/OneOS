@@ -33,7 +33,7 @@ class ProfilesTest {
         val lineage = ImageChoice(Images.ID_LINEAGE, PackageSets.ID_LINEAGE, tested = false)
         // 0.4.31: HyperOS after it, on every phone, untested.
         val hyper = ImageChoice(Images.ID_HYPEROS_LHASA, PackageSets.ID_HYPER_F8U, tested = false)
-        // 0.5.28: HyperOS 4 Global right after it, on the same phones, untested here (tested on the A36 as an image).
+        // 0.5.27: HyperOS 4 Global right after it, on the same phones, untested here (tested on the A36 as an image).
         val hyperHk = ImageChoice(Images.ID_HYPEROS_HONGKONG, PackageSets.ID_HYPER_HK, tested = false)
         // 0.4.35: Nothing OS, last, on every phone whose chip has its SVE, SVE2 and SME, untested.
         val nothing = ImageChoice(Images.ID_NOTHING_METROID, PackageSets.ID_NOTHING_F8U, tested = false)
@@ -92,7 +92,8 @@ class ProfilesTest {
         assertEquals("Galaxy S25", s25Base.label)
         assertEquals(listOf("SM-S931", "pa1q", "SM8750"), listOf(s25Base.modelPrefix, s25Base.codename, s25Base.socModel))
         assertEquals(FormFactor.BAR, s25Base.form)
-        assertEquals(sUltra + pixel9 + ifxT + lineage + hyper + hyperHk + nothing + origin + oneui, s25Base.choices)
+        // 0.5.28: HyperOS 4 Global and One UI 9.5 ran on an S25 (reports of 2026-11-20).
+        assertEquals(sUltra + pixel9 + ifxT + lineage + hyper + hyperHk.copy(tested = true) + nothing + origin + oneui.copy(tested = true), s25Base.choices)
         assertTrue(s25Base.testedWithAnyImage && s25Base.enabled)
         assertEquals(s25.notes, s25Base.notes)
         assertEquals(listOf("profile-vendor-older"), s25Base.notes.map { it.id })
@@ -209,12 +210,19 @@ class ProfilesTest {
         assertEquals(listOf("a56", "Galaxy A56"), listOf(a56.id, a56.label))
         assertEquals(listOf("SM-A566", "a56x", "s5e8855"), listOf(a56.modelPrefix, a56.codename, a56.socModel))
         assertEquals(FormFactor.BAR, a56.form)
-        assertEquals(flip7.choices - oneui + ImageChoice(Images.ID_NOTHING_ASTEROIDS, PackageSets.ID_NOTHING_A, tested = false) + oneui, a56.choices)
+        // 0.5.28: HyperOS 4 Global and One UI 9.5 ran on an A56 (reports of 2026-11-19/20).
+        assertEquals(
+            (flip7.choices - oneui + ImageChoice(Images.ID_NOTHING_ASTEROIDS, PackageSets.ID_NOTHING_A, tested = false) + oneui)
+                .map { if (it.imageId == Images.ID_HYPEROS_HONGKONG || it.imageId == Images.ID_ONEUI95) it.copy(tested = true) else it },
+            a56.choices,
+        )
+        assertTrue(a56.testedWithAnyImage)
         for (p in listOf(s26PlusExynos, flip7, a56)) {
             assertEquals(listOf(Profiles.ID_NOTE_EXYNOS), p.notes.map { it.id })
             assertEquals(Level.WARN, p.notes.single().level)
-            assertFalse(p.testedWithAnyImage)
         }
+        assertFalse(s26PlusExynos.testedWithAnyImage)
+        assertFalse(flip7.testedWithAnyImage)
         // Galaxy Z Flip5 (0.4.29): the S23s' chip and vendor, a flip with their images and note.
         val flip5 = Profiles.FLIP5
         assertEquals(listOf("flip5", "Galaxy Z Flip5"), listOf(flip5.id, flip5.label))
@@ -267,12 +275,17 @@ class ProfilesTest {
             assertEquals(
                 listOf(xin, ImageChoice(Images.ID_PIXEL_KOMODO, PackageSets.ID_PIXEL9_SULTRA, tested = false), ifx, lineage, hyper, hyperHk,
                     ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false), nothing, origin, oneui), // 0.5.22: One UI 9.5; 0.5.19: Nothing OS (Metroid), owner
-                p.choices,
+                p.choices.map { it.copy(tested = false) },
             )
-            assertEquals(Profiles.S_ULTRA_8550.choices, p.choices)
+            assertEquals(Profiles.S_ULTRA_8550.choices.map { it.copy(tested = false) }, p.choices.map { it.copy(tested = false) })
             assertEquals(listOf(Profiles.ID_NOTE_EXPECT_NO_START), p.notes.map { it.id })
             assertEquals(Level.WARN, p.notes.single().level)
         }
+        // 0.5.28: what ran (reports of 2026-11-19/20): the S23 ColorOS global, HyperOS 4 Global and One UI 9.5;
+        // the S23 Ultra HyperOS 4 Global and Nothing OS; the S23+ nothing yet.
+        assertEquals(listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_HYPEROS_HONGKONG, Images.ID_ONEUI95), s23.choices.filter { it.tested }.map { it.imageId })
+        assertEquals(listOf(Images.ID_HYPEROS_HONGKONG, Images.ID_NOTHING_METROID), Profiles.S_ULTRA_8550.choices.filter { it.tested }.map { it.imageId })
+        assertFalse(s23Plus.testedWithAnyImage)
         // 0.4.82: OriginOS 7 also on the Snapdragon S24 and S23 phones (untested there), last in their lists;
         // 0.4.83 (owner: "the same supported roms as s24 ultra to plus and base too") the Exynos S24 and S24+,
         // the only Exynos phones with it. Tested on the Z Fold8 Ultra only.
@@ -309,8 +322,18 @@ class ProfilesTest {
                 Profiles.A55, Profiles.S25_FE, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP, Profiles.S_PLUS_9945,
                 Profiles.S_ULTRA_8550_JP, Profiles.S_9925, Profiles.A16_MTK, Profiles.S_8550_JP,
                 Profiles.M35, Profiles.A15_5G, Profiles.S_PLUS_8650,
+                // 0.5.28: the Galaxy S26 FE (Exynos 2500), the Z Flip7's systems on the bar settings.
+                Profiles.S26_FE,
             ),
             Profiles.BUILT_IN,
+        )
+        assertEquals(
+            listOf("s26-fe", "SM-S741", "r14s", "s5e9955", FormFactor.BAR),
+            listOf(Profiles.S26_FE.id, Profiles.S26_FE.modelPrefix, Profiles.S26_FE.codename, Profiles.S26_FE.socModel, Profiles.S26_FE.form),
+        )
+        assertEquals(Profiles.FLIP7.choices, Profiles.S26_FE.choices)
+        assertEquals(Profiles.S26_FE, Profiles.resolve("SM-S741U", "r14s", "s5e9955").profile
+
         )
         // 0.4.67: the phones still on One UI 8 take OxygenOS 16 only, untested, as bar phones.
         for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A53, Profiles.E55,
@@ -323,7 +346,8 @@ class ProfilesTest {
         // 0.4.74: so did the A15 (MT6789, the A07's chip).
         for (p in listOf(Profiles.A34, Profiles.A15)) {
             assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_HYPEROS_HONGKONG, Images.ID_OXYGEN16, Images.ID_NOTHING_ASTEROIDS, Images.ID_ONEUI95), p.choices.map { it.imageId })
-            assertTrue(p.id, p.choices.none { it.tested })
+            // 0.5.28: HyperOS 4 Global ran on both (reports of 2026-11-20: 114 min on an A34, 8 h on an A15).
+            assertEquals(p.id, listOf(Images.ID_HYPEROS_HONGKONG), p.choices.filter { it.tested }.map { it.imageId })
             assertEquals(FormFactor.BAR, p.form)
         }
         // 0.4.74: the au S22 Ultra (SCG14) by its own model number and codename.
@@ -367,22 +391,25 @@ class ProfilesTest {
         assertEquals(Profiles.S_8750.choices.map { it.imageId }, Profiles.S_EDGE_8750.choices.map { it.imageId })
         assertTrue(Profiles.S_EDGE_8750.choices.none { it.tested })
         // 0.4.83: the S24 (Exynos) went on to the S24 Ultra's systems; the FE phones keep these four.
-        assertEquals(listOf(xin, pixel9, ifx, lineage, hyper, hyperHk, oneui), Profiles.S_FE_9945.choices)
-        assertEquals(Profiles.S_FE_9945.choices, Profiles.S_9945.choices - nothing - origin)
+        // 0.5.28: ColorOS (global) and HyperOS 4 Global ran on an S24 FE (reports of 2026-11-20).
+        assertEquals(listOf(xin.copy(tested = true), pixel9, ifx, lineage, hyper, hyperHk.copy(tested = true), oneui), Profiles.S_FE_9945.choices)
+        assertEquals(Profiles.S_FE_9945.choices.map { it.copy(tested = false) }, (Profiles.S_9945.choices - nothing - origin).map { it.copy(tested = false) })
         assertEquals(listOf("SM-S721", "r12s", "s5e9945"), listOf(Profiles.S_FE_9945.modelPrefix, Profiles.S_FE_9945.codename, Profiles.S_FE_9945.socModel))
         assertEquals(listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_HYPEROS_HONGKONG, Images.ID_OXYGEN16, Images.ID_NOTHING_ASTEROIDS, Images.ID_ONEUI95), Profiles.A26.choices.map { it.imageId }) // 0.4.57: no Pixel 9 Pro XL; 0.4.66: HyperOS (owner)
         for (p in listOf(Profiles.A17, Profiles.A16, Profiles.A16_4G, Profiles.A07, Profiles.A16_S166, Profiles.A17_5G)) {
             assertEquals(p.id, listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_HYPEROS_HONGKONG, Images.ID_OXYGEN16, Images.ID_NOTHING_ASTEROIDS, Images.ID_ONEUI95), p.choices.map { it.imageId })
             // Tested only where a tester's session reached the home screen; that one is preselected.
             val ran = p !in listOf(Profiles.A16_S166, Profiles.A17_5G)
-            assertEquals(p.id, listOf(false, ran, false, false, false, false, false, false), p.choices.map { it.tested })
+            // 0.5.28: One UI 9.5 ran on an A17 and an A07 (reports of 2026-11-19/20); the A16 4G takes the A17's list.
+            val oneUi95Ran = p in listOf(Profiles.A17, Profiles.A16_4G, Profiles.A07)
+            assertEquals(p.id, listOf(false, ran, false, false, false, false, false, oneUi95Ran), p.choices.map { it.tested })
             if (ran) assertEquals(p.id, Images.ID_INFINITYX, p.recommended?.imageId)
         }
         // 0.4.60: the Galaxy A17 5G (SM-A176B, the A16 5G's Exynos 1330) and the Z Flip7 FE (SM-F761B, Exynos 2400).
         assertEquals(Profiles.A17_5G, Profiles.resolve("SM-A176B", "a17x", "s5e8535").profile)
         assertEquals(listOf(Profiles.A16.notes, Profiles.A16.form), listOf(Profiles.A17_5G.notes, Profiles.A17_5G.form))
         assertEquals(Profiles.FLIP7_FE, Profiles.resolve("SM-F761B", "b7r", "s5e9945").profile)
-        assertEquals(listOf(Profiles.S_FE_9945.choices, Profiles.S_9945.notes), listOf(Profiles.FLIP7_FE.choices, Profiles.FLIP7_FE.notes))
+        assertEquals(listOf(Profiles.S_FE_9945.choices.map { it.copy(tested = false) }, Profiles.S_9945.notes), listOf(Profiles.FLIP7_FE.choices, Profiles.FLIP7_FE.notes))
         assertEquals(FormFactor.FLIP, Profiles.FLIP7_FE.form)
         assertEquals(Profiles.A17, Profiles.resolve("SM-A175F", "a17", "MT6789").profile)
         // The A16 4G (0.4.55): the A17's chip and image under its own model number and codename.
@@ -493,6 +520,7 @@ class ProfilesTest {
                 Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945, Profiles.FLIP7_FE,
                 Profiles.S25_FE, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP, Profiles.S_8550_JP, Profiles.S_PLUS_8650,
+                Profiles.S26_FE, // 0.5.28: the Z Flip7's systems
             ),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_KOMODO) != null },
         )
@@ -586,8 +614,10 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.ID_NOTE_EXYNOS, Profiles.ID_NOTE_OLDER_VENDOR), Profiles.S_9945.notes.map { it.id })
         // 0.4.83: the Exynos S24 and S24+ take the S24 Ultra's systems (Infinity-X untested on them), with their own notes;
         // the S24+ (Exynos) from the owner's SM-S926B probe. A Snapdragon S24+ (e2q) has sent no probe: no profile.
-        assertEquals(Profiles.S_ULTRA_8650.choices.map { it.copy(tested = false) }, Profiles.S_9945.choices)
-        assertEquals(Profiles.S_8650.choices, Profiles.S_9945.choices)
+        assertEquals(Profiles.S_ULTRA_8650.choices.map { it.copy(tested = false) }, Profiles.S_9945.choices.map { it.copy(tested = false) })
+        assertEquals(Profiles.S_8650.choices.map { it.copy(tested = false) }, Profiles.S_9945.choices.map { it.copy(tested = false) })
+        // 0.5.28: One UI 9.5 ran on an Exynos S24 (report of 2026-11-19).
+        assertTrue(Profiles.S_9945.choice(Images.ID_ONEUI95)!!.tested)
         assertEquals(Profiles.S_PLUS_9945, profile("SM-S926B", "e2s", "s5e9945"))
         assertEquals(listOf("s-plus-9945", "Galaxy S24+ (Exynos)", FormFactor.BAR), listOf(Profiles.S_PLUS_9945.id, Profiles.S_PLUS_9945.label, Profiles.S_PLUS_9945.form))
         assertEquals(listOf(Profiles.S_9945.choices, Profiles.S_9945.notes), listOf(Profiles.S_PLUS_9945.choices, Profiles.S_PLUS_9945.notes))
@@ -673,13 +703,13 @@ class ProfilesTest {
         for (p in Profiles.BUILT_IN) {
             val onOneUi9 = p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
             if (onOneUi9) {
-                assertEquals(p.id, expected, p.choices.last())
-                assertEquals(p.id, expected, p.choice(Images.ID_ONEUI95))
+                assertEquals(p.id, expected, p.choices.last().copy(tested = false))
+                assertEquals(p.id, expected, p.choice(Images.ID_ONEUI95)!!.copy(tested = false))
             } else {
                 assertNull(p.id, p.choice(Images.ID_ONEUI95))
             }
         }
-        assertEquals(49, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
+        assertEquals(50, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
         assertEquals(listOf(Images.ID_OXYGEN16), Profiles.A06.choices.map { it.imageId })
     }
 }

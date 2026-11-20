@@ -28,6 +28,7 @@ import argparse
 import asyncio
 import datetime
 import fcntl
+import hashlib
 import io
 import json
 import os
@@ -37,6 +38,7 @@ import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pull  # noqa: E402  (implausible, session_app, the inbox layout)
+import notify  # noqa: E402  (findings_message: the Probe card text)
 
 from telethon import TelegramClient, events, functions, types  # noqa: E402
 from telethon.errors import UserNotParticipantError  # noqa: E402
@@ -50,8 +52,10 @@ RECORD = "oneos-report.json"
 NAME = re.compile(r"^oneos-report-[A-Za-z0-9_-]{4,80}\.zip$")
 # The session logs zip the app also shares (Logs > Share): no record of ours, its own report.json inside.
 LOGS = re.compile(r"^oneos-logs-([A-Za-z0-9-]{4,40})(?: ?\(\d+\))?\.zip$")
+# The OneOS Probe's findings zip (FindingsBundle.kt): findings-<model>-<date>.zip, report.json schema oneos.findings/1.
+FINDINGS = re.compile(r"^findings-[A-Za-z0-9_.-]{1,60}-\d{4}-\d{2}-\d{2}(?: ?\(\d+\))?\.zip$")
 HOW = ("Only OneOS report zips go here. In OneOS open the session, tap Send report, "
-       "then pick this group in Telegram. The logs zip from Share works too.")
+       "then pick this group in Telegram. The logs zip from Share and the Probe's findings zip work too.")
 ID_OK = set("abcdefghijklmnopqrstuvwxyz0123456789-")
 START = {"home": "reached the home screen", "logo": "stuck on the boot logo", "black": "black screen", "back": "came back by itself"}
 
@@ -132,6 +136,48 @@ def read_logs(data, sid):
         "note": " ".join(x for x in (s(out.get("kind")), s(b.get("bootReason"))) if x),
         "logs": {"kind": "session", "name": f"oneos-logs-{sid}.zip", "bytes": len(data)},
     }
+
+
+def read_findings(data):
+    """A record for a Probe findings zip (oneos.findings/1 report.json inside), or None.
+
+    The report id is the zip's SHA-256 (first 16), so the same zip sent again is caught as a repeat."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            names = [n for n in z.namelist() if n.endswith("/report.json") or n == "report.json"]
+            if len(names) != 1 or z.getinfo(names[0]).file_size > 2 * 1024 * 1024:
+                return None
+            b = json.loads(z.read(names[0]).decode("utf-8", "replace"))
+    except (zipfile.BadZipFile, ValueError):
+        return None
+    if not isinstance(b, dict) or b.get("schema") != "oneos.findings/1":
+        return None
+    s = lambda v: v if isinstance(v, str) and len(v) <= 200 else None
+    dev = b.get("device") if isinstance(b.get("device"), dict) else {}
+    app = b.get("app") if isinstance(b.get("app"), dict) else {}
+    return {
+        "schema": "oneos.report/1", "reportId": "findings-" + hashlib.sha256(data).hexdigest()[:16],
+        "kind": "probe-findings", "phone": {"model": s(dev.get("model")), "label": s(dev.get("device"))},
+        "app": {k: app.get(k) for k in ("id", "version", "versionCode") if isinstance(app.get(k), (str, int))},
+        "note": " ".join(x for x in ("probe verdict", s(b.get("verdictLabel")) or s(b.get("verdict"))) if x),
+        "logs": {"kind": "probe", "bytes": len(data)},
+    }
+
+
+def findings_card(data, r, who):
+    """The Phone-reports text (notify.findings_message) for a findings zip, else the plain summary."""
+    try:
+        if not os.path.isfile(os.path.join(notify.REPO, "docs", "devices.json")):
+            # Deployed as out/tgbot/: the checkout's docs/ are two levels up.
+            up = os.path.dirname(notify.REPO)
+            if os.path.isfile(os.path.join(up, "docs", "devices.json")):
+                notify.REPO = up
+        text = notify.findings_message(io.BytesIO(data), r)
+    except Exception:  # noqa: BLE001 (the card text is optional)
+        text = None
+    if not text:
+        return summary(r, who)
+    return f"{text}\nreport {r['reportId']} · {who}"
 
 
 def summary(r, who):
@@ -246,18 +292,23 @@ async def main():
         doc = msg.document
         name = next((x.file_name for x in (doc.attributes if doc else []) if isinstance(x, types.DocumentAttributeFilename)), "")
         logs = LOGS.match(name or "")
-        if not doc or not (NAME.match(name or "") or logs) or doc.size > MAX_BYTES:
+        probe = FINDINGS.match(name or "")
+        if not doc or not (NAME.match(name or "") or logs or probe) or doc.size > MAX_BYTES:
             return await drop(msg, f"not a report ({name or 'no file'})", say=HOW)
         if not await member(msg.sender_id):
             return await drop(msg, "not in the OneOS group", ban=True)
         if not counts.take(msg.sender_id):
             return await drop(msg, "daily limit", say=f"{DAILY_MAX} reports a day is the most from one account, send more tomorrow.")
         data = await client.download_media(msg, file=bytes)
-        r = read_logs(data, logs.group(1)) if logs else read_record(data)
+        r = read_logs(data, logs.group(1)) if logs else read_findings(data) if probe else read_record(data)
         if r is None:
             return await drop(msg, "no OneOS record in the zip", say="That zip has no OneOS record in it. " + HOW)
-        if logs:
-            name = f"oneos-logs-{logs.group(1)}.zip"
+        if probe:
+            name = re.sub(r" ?\(\d+\)(?=\.zip$)", "", name)
+            r["logs"]["name"] = name
+        if logs or probe:
+            if logs:
+                name = f"oneos-logs-{logs.group(1)}.zip"
             if any(os.path.isdir(os.path.join(a.dest, "inbox", d, r["reportId"])) for d in (os.listdir(os.path.join(a.dest, "inbox")) if os.path.isdir(os.path.join(a.dest, "inbox")) else [])):
                 return await drop(msg, f"already have {r['reportId']}", say="Got this one already, thanks.")
         who = f"@{sender.username}" if getattr(sender, "username", None) else f"id {msg.sender_id}"
@@ -269,7 +320,8 @@ async def main():
             return await drop(msg, f"suspect bundle ({why}) -> {folder}", ban=True)
         # One card per report: the same file (Telegram reuses it, nothing is uploaded again) with the whole
         # summary as its caption, posted by the bot; the user's own post goes.
-        card = await client.send_file(reports, msg.media, caption=summary(r, who)[:1024])
+        text = findings_card(data, r, who) if probe else summary(r, who)
+        card = await client.send_file(reports, msg.media, caption=text[:1024])
         await msg.delete()
         r["tg"] = {"id": msg.sender_id, "username": getattr(sender, "username", None), "post": f"https://t.me/c/{str(reports_id)[4:]}/{card.id}"}
         box, folder, _ = file_report(a.dest, r, data, name)

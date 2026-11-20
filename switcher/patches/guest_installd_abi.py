@@ -29,8 +29,17 @@ About crashed on the null storage size that followed.
 (StorageStatsService.isQuotaSupported itself is made to return false by
 guest_storage_guards.py, so free space comes from statfs.)
 
+0.5.28: the codes are THIS phone's, read at runtime. One UI 9.5 renumbered IInstalld (67 methods,
+85 on One UI 9.0, only 6 kept their code), so a code baked in at build time was right on one One UI
+only. Each allowed method now loads its row number and calls OneOSInstalldCodes.code(row)
+(patches/OneOSInstalldCodes.java), which answers this phone's code from
+/data/system/oneos_installd_codes (guest_prepare.sh, from the stage's verified host_installd.table)
+by name and signature, and throws RemoteException when the phone has no such method. The host table
+argument is only reported against now.
+
 Usage: guest_installd_abi.py <smali root dir> <host table>   (services.jar)
        guest_installd_abi.py --callers <smali root dir>      (oplus-services.jar)
+       guest_installd_abi.py --retrofit <smali root dir>     (a services_patched.jar built before 0.5.28)
 (the host table comes from scripts/host-installd-table.sh)
 Prints the smali_* directories it changed, one per line.
 """
@@ -57,6 +66,10 @@ TRANSACT = re.compile(r"^\s*invoke-interface \{([vp]\d+), ([vp]\d+), ([vp]\d+), 
 
 PROXY_DESC = "Landroid/os/IInstalld$Stub$Proxy;"
 OWN = "Lcom/android/server/pm/OneOSInstalldProxy;"
+CODES = "Lcom/android/server/pm/OneOSInstalldCodes;"
+CODES_SMALI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "OneOSInstalldCodes.smali")
+PLACEHOLDER = '"@@ONEOS_INSTALLD_TABLE@@"'
+BLOCK_MARK = "# OneOS: not sent to the host installd"
 AS_INTERFACE = "->asInterface(Landroid/os/IBinder;)Landroid/os/IInstalld;"
 STUB_CALL = re.compile(r"^(\s*invoke-static(?:/range)? \{[^}]*\}, )Landroid/os/IInstalld\$Stub;"
                        + re.escape(AS_INTERFACE) + r"\s*$")
@@ -162,6 +175,80 @@ def redirect_callers(root):
     return dirs, files
 
 
+def runtime_code(lines, i, end, row):
+    """The const feeding transact's code in lines[i:end] becomes OneOSInstalldCodes.code(row). Returns the line count added."""
+    t = [j for j in range(i, end) if TRANSACT.match(lines[j])]
+    if len(t) != 1:
+        sys.exit(f"{lines[i]}: {len(t)} transact calls")
+    reg = TRANSACT.match(lines[t[0]]).group(2)
+    rx = re.compile(rf"^\s*const(?:/4|/16)? {reg}, ")
+    cs = [j for j in range(t[0] - 1, i, -1) if rx.match(lines[j])]
+    if not cs or any(re.search(rf"\b{reg}\b", lines[j]) for j in range(cs[0] + 1, t[0])):
+        sys.exit(f"{lines[i]}: no single constant feeds transact's code")
+    lines[cs[0]:cs[0] + 1] = [
+        f"    const/16 {reg}, 0x{row:x}",
+        "",
+        "    # OneOS: this phone's installd code (OneOSInstalldCodes).",
+        f"    invoke-static/range {{{reg} .. {reg}}}, {CODES}->code(I)I",
+        "",
+        f"    move-result {reg}",
+    ]
+    return 5
+
+
+def write_codes(dirname, rows):
+    """OneOSInstalldCodes next to OneOSInstalldProxy, its table the proxy's rows ("name signature")."""
+    dst = os.path.join(dirname, "OneOSInstalldCodes.smali")
+    if os.path.exists(dst):
+        sys.exit(f"{dst} exists already")
+    text = open(CODES_SMALI).read()
+    if text.count(PLACEHOLDER) != 1:
+        sys.exit("OneOSInstalldCodes.smali: the table placeholder is not there once")
+    for r in rows:
+        if not re.match(r"^\w+ \([^\s()]*\)\S+$", r) or '"' in r or "\\" in r:
+            sys.exit(f"bad table row {r!r}")
+    with open(dst, "w") as f:
+        f.write(text.replace(PLACEHOLDER, '"' + "\\n".join(rows) + '"'))
+    return dst
+
+
+def retrofit(root):
+    """A services_patched.jar of an older build: its OneOSInstalldProxy's baked codes become runtime ones."""
+    path = find(root, os.path.join("com", "android", "server", "pm", "OneOSInstalldProxy.smali"))
+    lines = open(path).read().split("\n")
+    if any(CODES in l for l in lines):
+        sys.exit("OneOSInstalldProxy already reads its codes at runtime")
+    rows, blocked = [], []
+    i = 0
+    while i < len(lines):
+        m = re.match(r"^\.method public (?:final )?(\w+)(\([^)]*\)\S+)$", lines[i])
+        if not m:
+            i += 1
+            continue
+        name, sig = m.groups()
+        end = next(j for j in range(i, len(lines)) if lines[j] == ".end method")
+        body = lines[i:end]
+        if not any(TRANSACT.match(l) for l in body):
+            i = end + 1
+            continue
+        if any(f'"OneOS: installd.{name} blocked in the container"' in l for l in body):
+            blocked.append(name)
+        else:
+            if name not in ALLOWED:
+                sys.exit(f"{name}: sent by the old proxy but not allowed")
+            end += runtime_code(lines, i, end, len(rows))
+            rows.append(f"{name} {sig}")
+        i = end + 1
+    if not rows or "createAppData" not in [r.split()[0] for r in rows]:
+        sys.exit("OneOSInstalldProxy: unexpected methods")
+    with open(path, "w") as f:
+        f.write("\n".join(lines))
+    write_codes(os.path.dirname(path), rows)
+    print(f"IInstalld (retrofit): {len(rows)} methods with this phone's codes, {len(blocked)} blocked", file=sys.stderr)
+    print("  runtime: " + ", ".join(r.split()[0] for r in rows), file=sys.stderr)
+    print(top_dir(root, path))
+
+
 def main(root, table):
     host = {}
     for line in open(table):
@@ -174,7 +261,7 @@ def main(root, table):
 
     path = find(root, PROXY)
     lines = open(path).read().split("\n")
-    remapped, blocked, kept = [], [], []
+    remapped, blocked, kept, rows = [], [], [], []
     i = 0
     while i < len(lines):
         m = re.match(r"^\.method public (?:final )?(\w+)(\([^)]*\)\S+)$", lines[i])
@@ -184,17 +271,17 @@ def main(root, table):
         name, sig = m.groups()
         end = next(j for j in range(i, len(lines)) if lines[j] == ".end method")
         h = host.get(name)
-        if name in ALLOWED and h and h[1] == sig:
-            # Rewrite the code register loaded just before transact().
-            t = next(j for j in range(i, end) if TRANSACT.match(lines[j]))
-            reg = TRANSACT.match(lines[t]).group(2)
-            c = next(j for j in range(t - 1, i, -1)
-                     if re.match(rf"^\s*const(?:/4|/16)? {reg}, ", lines[j]))
-            if h[0] != guest_codes[name]:
-                lines[c] = f"    const/16 {reg}, 0x{h[0]:x}"
-                remapped.append(f"{name} 0x{guest_codes[name]:x}->0x{h[0]:x}")
+        if name in ALLOWED:
+            # The code register loaded just before transact() gets this phone's code at runtime.
+            end += runtime_code(lines, i, end, len(rows))
+            rows.append(f"{name} {sig}")
+            if h and h[1] == sig:
+                (kept if h[0] == guest_codes[name] else remapped).append(
+                    name if h[0] == guest_codes[name] else f"{name} 0x{guest_codes[name]:x}->0x{h[0]:x}")
             else:
                 kept.append(name)
+                print(f"  {name}{sig}: not in {os.path.basename(table)} with this signature (sent only where the phone has it)",
+                      file=sys.stderr)
         else:
             # Throw before any code that could reach the host.
             k = i + 1
@@ -212,7 +299,7 @@ def main(root, table):
             if locals_ < 2:
                 sys.exit(f"{name}: needs 2 locals, has {locals_}")
             lines[k:k] = [
-                "    # OneOS: not sent to the host installd (different interface or not allowed).",
+                BLOCK_MARK.join(["    ", " (different interface or not allowed)."]),
                 "    new-instance v0, Landroid/os/RemoteException;",
                 "",
                 f'    const-string v1, "OneOS: installd.{name} blocked in the container"',
@@ -240,6 +327,7 @@ def main(root, table):
         sys.exit(f"{dst} exists already")
     with open(dst, "w") as f:
         f.write(own_class(lines))
+    write_codes(os.path.dirname(dst), rows)
     dirs, files = redirect_callers(root)
     if os.path.relpath(installer, root) not in files:
         sys.exit("Installer: IInstalld.Stub.asInterface call not found")
@@ -261,6 +349,8 @@ def callers_only(root):
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--callers":
         callers_only(sys.argv[2])
+    elif len(sys.argv) == 3 and sys.argv[1] == "--retrofit":
+        retrofit(sys.argv[2])
     elif len(sys.argv) == 3:
         main(sys.argv[1], sys.argv[2])
     else:

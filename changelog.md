@@ -747,3 +747,21 @@ New in 0.5.27: **HyperOS 4 Global**, and One UI 9.5 no longer stuck in setup on 
   goes on without it (set r6).
 - **One UI 9.5 could not start on some phones** ("Unable to load SELinux MMAC policy": A07, S23, Z Fold8): a part of
   the phone's own app permissions file One UI 9.5 ignores stopped the whole system. It is now skipped (set r6).
+
+New in 0.5.28: **Galaxy S26 phones updated to One UI 9.5 can switch**, the **Galaxy S26 FE**, and the One UI 9.5 camera.
+- **S26 phones on One UI 9.5 firmware** (S948BXXU6ZZKN and its regional builds): One UI 9.5 renumbered the phone's
+  app installer service (installd) and Samsung's network service (IOemNetd), so the app refused to switch ("installd
+  interface differs"). Every system's files now read the phone's own numbers when the system starts, on One UI 9.0
+  and 9.5 alike (all sets have a new revision; only the guard jar changed). Untested on a One UI 9.5 phone.
+- **Galaxy S26 FE** (SM-S741, Exynos 2500): the Galaxy Z Flip7's systems, untested.
+- **One UI 9.5's camera**: it crashed on the Galaxy S23 ("There is no capability for : 54", the S26 Ultra's second
+  telephoto) and did not open on the Galaxy A17 (a picture size the S26 Ultra's camera app does not know). The camera
+  now gets only the phone's own lenses and sizes.
+- **"Not enough room for this system"** (Galaxy S25+): the app lost track of the sessions run since the phone last
+  started and told it to pick another system "even after a restart". It now asks for the restart that frees the room.
+- **Probe**: Exynos and MediaTek phones OneOS has already run on no longer read "Chip not recognised" or "first runs",
+  and the systems testers ran on their phones (HyperOS 4 Global, One UI 9.5, ColorOS, Nothing OS) are marked tested.
+- **Full session logs on the Galaxy S24 FE and S24+**: the log recording stopped the moment it started, so their reports
+  had no log; it now starts again on the standard logs.
+- Reports: the Probe's findings zip is accepted in the reports group again, and session logs carry the phone's video
+  encoders (for the Exynos video recording crash).

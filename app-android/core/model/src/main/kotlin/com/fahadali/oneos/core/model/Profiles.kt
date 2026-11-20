@@ -145,6 +145,7 @@ object Profiles {
     const val ID_S_8550_JP = "s-8550-jp"
     const val ID_M35 = "m35"
     const val ID_A15_5G = "a15-5g"
+    const val ID_S26_FE = "s26-fe"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -392,7 +393,7 @@ object Profiles {
         codename = "pa1q",
         socModel = "SM8750",
         form = FormFactor.BAR,
-        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + LINEAGE_CHOICE + HYPEROS_CHOICE + HYPEROS_HK_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE + ONEUI95_CHOICE,
+        choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + LINEAGE_CHOICE + HYPEROS_CHOICE + HYPEROS_HK_CHOICE.copy(tested = true) + NOTHING_CHOICE + ORIGINOS_CHOICE + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(OLDER_VENDOR),
     )
 
@@ -543,7 +544,7 @@ object Profiles {
         codename = "dm1q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE, // 0.5.19: Nothing OS (Metroid) at the owner's request, untested
+        choices = listOf(X9U_IN_1105_CHOICE.copy(tested = true), PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), OXYGEN16_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE.copy(tested = true), // 0.5.19: Nothing OS (Metroid) at the owner's request, untested
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -652,7 +653,7 @@ object Profiles {
         codename = "a56x",
         socModel = "s5e8855",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
+        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), NOTHING_A_CHOICE) + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(EXYNOS),
     )
 
@@ -720,7 +721,7 @@ object Profiles {
         codename = "a07",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -799,7 +800,7 @@ object Profiles {
         codename = "dm3q",
         socModel = "SM8550",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE, // 0.5.19: Nothing OS (Metroid) at the owner's request, untested
+        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), OXYGEN16_CHOICE, NOTHING_CHOICE.copy(tested = true), ORIGINOS_CHOICE) + ONEUI95_CHOICE, // 0.5.19: Nothing OS (Metroid) at the owner's request, untested
         notes = listOf(EXPECT_NO_START),
     )
 
@@ -837,7 +838,7 @@ object Profiles {
         codename = "e1s",
         socModel = "s5e9945",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE,
+        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -901,7 +902,7 @@ object Profiles {
         codename = "r12s",
         socModel = "s5e9945",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE) + ONEUI95_CHOICE,
+        choices = listOf(X9U_IN_1105_CHOICE.copy(tested = true), PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true)) + ONEUI95_CHOICE,
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
     )
 
@@ -942,7 +943,7 @@ object Profiles {
         codename = "a17",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -1078,7 +1079,7 @@ object Profiles {
         codename = "a15",
         socModel = "MT6789",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
     )
 
@@ -1127,7 +1128,7 @@ object Profiles {
         codename = "a34x",
         socModel = "MT6877",
         form = FormFactor.BAR,
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(MEDIATEK, olderVendor("30 (Android 11)", "6.6")),
     )
 
@@ -1307,6 +1308,24 @@ object Profiles {
      */
     val S_PLUS_8650 = S_8650.copy(id = ID_S_PLUS_8650, label = "Galaxy S24+", modelPrefix = "SM-S926", codename = "e2q")
 
+    /**
+     * Galaxy S26 FE, from 0.5.28: Probe findings of 2026-11-19 (SM-S741U, r14s, s5e9955 Exynos 2500 like the
+     * Galaxy Z Flip7, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 202404 and kernel 6.6, one
+     * 1080 x 2340 panel, Cortex-X925/A725/A520 with SVE and SVE2 but no SME, KernelSU, installd 85 methods; the
+     * Probe called it "Not a supported model"). The Z Flip7's images (its chip; no system needing SME) on the
+     * bar settings, untested, with [EXYNOS] and the older vendor note.
+     */
+    val S26_FE = PhoneProfile(
+        id = ID_S26_FE,
+        label = "Galaxy S26 FE",
+        modelPrefix = "SM-S741",
+        codename = "r14s",
+        socModel = "s5e9955",
+        form = FormFactor.BAR,
+        choices = FLIP7.choices,
+        notes = listOf(EXYNOS, olderVendor("202404 (Android 15)", "6.6")),
+    )
+
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
@@ -1314,10 +1333,11 @@ object Profiles {
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
         A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, A15_5G, S_PLUS_8650,
+        S26_FE,
     )
 
-    /** `ro.build.version.oneui` values seen on profiled phones (all One UI 9.0). */
-    val ONE_UI_SEEN: Set<Int> = setOf(90000)
+    /** `ro.build.version.oneui` values of profiled phones: One UI 9.0, and 9.5 (0.5.28: S26 phones updated to it, whose installd the sets read at runtime). */
+    val ONE_UI_SEEN: Set<Int> = setOf(90000, 90500)
 
     /** One UI versions whose installd tables the app carries for Android 16 systems (One UI 8.0 and 8.5, [InstalldExpected.accepted]). */
     val ONE_UI_SEEN_A16: Set<Int> = setOf(80000, 80500)

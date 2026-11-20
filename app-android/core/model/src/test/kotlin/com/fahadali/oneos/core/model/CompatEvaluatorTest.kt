@@ -26,9 +26,16 @@ class CompatEvaluatorTest {
             "ColorOS 17 · global build, November update on the Galaxy S26 Ultra; Infinity-X 4.1 on the Galaxy S26 Ultra; " +
             "ColorOS 17 · global build, November update on the Galaxy S25 Ultra; Infinity-X 4.1 on the Galaxy S25 Ultra; " +
             "ColorOS 17 · global build, November update on the Galaxy S25; Infinity-X 4.1 on the Galaxy S25; " +
-            "Pixel 11 Fold on the Galaxy Z Fold8; " +
-            "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build, November update on the Galaxy A57; " +
-            "ColorOS 17 · global build, November update on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; Infinity-X 4.1 on the Galaxy A17; Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G.",
+            "HyperOS 4 on the Galaxy S25; One UI 9.5 on the Galaxy S25; Pixel 11 Fold on the Galaxy Z Fold8; " +
+            "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build, November update on the Galaxy S23; HyperOS 4 on the Galaxy S23; One UI 9.5 on the Galaxy S23; " +
+            "HyperOS 4 on the Galaxy A56; One UI 9.5 on the Galaxy A56; ColorOS 17 · global build, November update on the Galaxy A57; " +
+            "ColorOS 17 · global build, November update on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; One UI 9.5 on the Galaxy A07; " +
+            "HyperOS 4 on the Galaxy S23 Ultra; Nothing OS 5.0 on the Galaxy S23 Ultra; One UI 9.5 on the Galaxy S24 (Exynos); " +
+            "ColorOS 17 · global build, November update on the Galaxy S24 FE; HyperOS 4 on the Galaxy S24 FE; Infinity-X 4.1 on the Galaxy A17; One UI 9.5 on the Galaxy A17; " +
+            "Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G; One UI 9.5 on the Galaxy A16 4G; HyperOS 4 on the Galaxy A15; HyperOS 4 on the Galaxy A34 5G; " +
+            "ColorOS 17 · global build, November update on the Galaxy S25 FE; HyperOS 4 on the Galaxy S25 FE; One UI 9.5 on the Galaxy S24+ (Exynos); " +
+            "HyperOS 4 on the Galaxy S23 Ultra (au); Nothing OS 5.0 on the Galaxy S23 Ultra (au); ColorOS 17 · global build, November update on the Galaxy S23 (au); " +
+            "HyperOS 4 on the Galaxy S23 (au); One UI 9.5 on the Galaxy S23 (au).",
             CompatEvaluator.TESTED_SCOPE,
         )
         assertEquals(Level.OK, r.level("soc-snapdragon"))
@@ -131,6 +138,23 @@ class CompatEvaluatorTest {
         assertEquals(Level.WARN, r.level("soc-exynos"))
     }
 
+    /** 0.5.28: an Exynos or MediaTek phone whose profile has run a system is no first run; the Probe said "Only Snapdragon has been tested" to an A16 4G. */
+    @Test
+    fun chipOfAPhoneThatHasRunIsOk() {
+        val a56 = eval(Fixtures.facts(model = "SM-A566B", device = "a56x", soc = SocProps(manufacturer = "Samsung", model = "s5e8855", platform = "s5e8855")))
+        assertEquals(Level.OK, a56.level("soc-exynos"))
+        val a15 = eval(Fixtures.facts(model = "SM-A155F", device = "a15", soc = SocProps(manufacturer = "Mediatek", model = "MT6789")))
+        assertEquals(Level.OK, a15.level("soc-mediatek"))
+        assertNull(a15.find("soc-unknown"))
+        // The A16 4G that sent it takes the A17's systems, and their runs.
+        val a16 = eval(Fixtures.facts(model = "SM-A165F", device = "a16", soc = SocProps(manufacturer = "Mediatek", model = "MT6789")))
+        assertEquals(Level.OK, a16.level("soc-mediatek"))
+        assertNull(a16.find("soc-unknown"))
+        // An Exynos profile with no run yet (the Z Flip7) stays a first run.
+        val flip7 = eval(Fixtures.facts(model = "SM-F766U", device = "b7s", soc = SocProps(manufacturer = "Samsung", model = "s5e9955", platform = "s5e9955")))
+        assertEquals(Level.WARN, flip7.level("soc-exynos"))
+    }
+
     @Test
     fun notSamsungIsBlocked() {
         val r = eval(Fixtures.facts(brand = "google", model = "Pixel 10 Pro Fold", device = "rango"))
@@ -165,7 +189,7 @@ class CompatEvaluatorTest {
         assertEquals(Verdict.WARNING, r.verdict)
         assertEquals(0, r.count(Level.BLOCK))
         assertEquals(Level.OK, r.level("tested-model"))
-        assertEquals("Has run on the Galaxy S25: ColorOS 17 · global build, November update; Infinity-X 4.1.", r.find("tested-model")!!.detail)
+        assertEquals("Has run on the Galaxy S25: ColorOS 17 · global build, November update; Infinity-X 4.1; HyperOS 4; One UI 9.5.", r.find("tested-model")!!.detail)
         assertNull(r.find("untested-model"))
         assertNull(r.find(CompatEvaluator.ID_NO_PROFILE))
         assertNull(r.find("profile-form-mismatch"))

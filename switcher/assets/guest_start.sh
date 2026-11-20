@@ -208,6 +208,11 @@ if [ -f /data/oneos_floating_feature.xml ] && [ -f /vendor/etc/floating_feature.
     $BB mount --bind /data/oneos_floating_feature.xml /vendor/etc/floating_feature.xml && \
         echo "[Pivoted Root] Floating features: merged list bound over /vendor/etc/floating_feature.xml"
 fi
+if [ -f /data/oneos_system_floating_feature.xml ] && [ -f /system/etc/floating_feature.xml ]; then
+    chcon u:object_r:system_file:s0 /data/oneos_system_floating_feature.xml 2>/dev/null
+    $BB mount --bind /data/oneos_system_floating_feature.xml /system/etc/floating_feature.xml && \
+        echo "[Pivoted Root] Floating features: the image's /system/etc list with the phone's camera lines bound"
+fi
 if [ -d /data/oneos_cameradata ] && [ -d /system/cameradata ]; then
     chcon -R u:object_r:system_file:s0 /data/oneos_cameradata 2>/dev/null
     $BB mount --bind /data/oneos_cameradata /system/cameradata && \

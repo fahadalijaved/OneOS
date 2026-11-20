@@ -147,6 +147,11 @@ INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
 # InstalldExpected.SHA256_A16); One UI 8.0's table works with them too (SHA256_A16_ONEUI80).
 INSTALLD_SHA_36=a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
 INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977 9cd356141db2861d0e3858b923cbd1baf9dc1473e62c9dac4e655379abd09b21"
+# 0.5.28: One UI 9.5's table (switcher/patches/host_installd_95.txt, InstalldExpected.SHA256_95; the S26
+# phones updated to One UI 9.5). Accepted only with a set whose guards.txt has RUNTIME_CODES: its
+# services_patched.jar reads the codes from this phone's table instead of carrying One UI 9.0's.
+INSTALLD_SHA_95=86a30991dbd5d91aeda1726ec860b12a2d057dd7b9ca3872f32376478078a23c
+RUNTIME_CODES="# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones"
 # Session scripts from switcher/assets plus the expected installd table.
 SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio oneos_essential_key OneOSOverlayDimen.dex host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
@@ -162,7 +167,7 @@ SET_LINEAGE="services_patched.jar framework_patched.jar vold_patched service.inc
 # The HyperOS set (docs/hyperos.md; every phone from 0.4.31): services.jar and Xiaomi's two guarded jars, the signal poll, the
 # QTI IMS backoff, the in-guest OneOS app and the image's payloads. No gvld pins yet.
 SET_HYPEROS="services_patched.jar miui-services_patched.jar apprecovery.proinstaller_patched.jar framework_patched.jar miui-wifi-service_patched.jar miui-telephony-common_patched.jar vold_patched service.incremental_patched.so libcamera_client_patched.so guards.txt oneos-telephony.jar oneos-telephony.sha256 OneOSPhoneInjection.apk ims-ext-common_patched.jar OneOSGuest.apk socket_exec libaudiohal_aidl_patched.so MiWallpaper_patched.apk art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img bt_payload.img libsurfaceflinger_patched.so telephony-common_patched.jar samcam.tar samcam_bar.tar xiaomi-opt-telephony_patched.jar"
-# HyperOS 4 Global (0.5.28): the HyperOS guards plus miui-framework, guest vold, camera kits and stub, fold cutout, apex requirements, 18 payloads incl. gmssystem (set r2); no tethering.
+# HyperOS 4 Global (0.5.27): the HyperOS guards plus miui-framework, guest vold, camera kits and stub, fold cutout, apex requirements, 18 payloads incl. gmssystem (set r2); no tethering.
 SET_HYPERHK="OneOSCameraProcessingStub.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img apprecovery.proinstaller_patched.jar appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libaudiohal_aidl_patched.so libcamera_client_patched.so libsurfaceflinger_patched.so mediaprovider_payload.img miui-framework_patched.jar miui-services_patched.jar miui-telephony-common_patched.jar miui-wifi-service_patched.jar ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar samcam_a.tar samcam_bar.tar sdkext_payload.img service.incremental_patched.so services_patched.jar socket_exec telephony-common_patched.jar vold_patched wifi_payload.img"
 # Nothing OS 5.0 (0.4.33, the Z Fold8 Ultra): its system is close to AOSP, so only
 # services.jar and framework.jar need the guards; no vendor framework, no vold
@@ -249,6 +254,7 @@ profile_info() {
         s-9965) echo "SM-S942 m1s s5e9965 bar" ;;
         a55) echo "SM-A556 a55x s5e8845 bar" ;;
         s25-fe) echo "SM-S731 r13s s5e9945 bar" ;;
+        s26-fe) echo "SM-S741 r14s s5e9955 bar" ;;
         s-8450) echo "SM-S901 r0q SM8450 bar" ;;
         m55s) echo "SM-M558 m55xq SM7450 bar" ;;
         s-plus-9945) echo "SM-S926 e2s s5e9945 bar" ;;
@@ -639,6 +645,13 @@ profile_set() {
         "s25-fe oneui95-s948b") echo oneui95 ;;
         "s25-fe hyperos-lhasa") echo hyper-f8u ;;
         "s25-fe hyperos-hongkong") echo hyper-hk ;;
+        "s26-fe coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "s26-fe pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s26-fe infinityx41-findx9u") echo infinityx ;;
+        "s26-fe lineage24-infiniti") echo lineage ;;
+        "s26-fe oneui95-s948b") echo oneui95 ;;
+        "s26-fe hyperos-lhasa") echo hyper-f8u ;;
+        "s26-fe hyperos-hongkong") echo hyper-hk ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
@@ -1061,7 +1074,8 @@ image_sdk() { # <image id>
 check_table() { # <file> <image id>
     f=$1
     if [ "$(image_sdk "$2")" = 36 ]; then carried=$INSTALLD_SHA_36 ok=$INSTALLD_OK_36
-    else carried=$INSTALLD_SHA ok=$INSTALLD_SHA; fi
+    else carried=$INSTALLD_SHA ok=$INSTALLD_SHA
+        grep -qxF "$RUNTIME_CODES" "$STAGE/guards.txt" 2>/dev/null && ok="$ok $INSTALLD_SHA_95"; fi
     [ -f "$f" ] || refuse "host_installd.table missing"
     ge 65536 "$(stat -c %s "$f")" || refuse "host_installd.table is over 64 kB"
     [ "$(grep -v '^#' "$STAGE/host_installd.txt" 2>/dev/null | sha256sum | cut -d' ' -f1)" = "$carried" ] ||

@@ -296,7 +296,14 @@ for PA_FILE in "/dev/__properties__/${PA_CTX:-u:object_r:system_prop:s0}" "/dev/
     if PA_LEFT=$(pa_free "$PA_FILE"); then
         # No OneOS session since the phone restarted: a restart cannot help, this phone's One UI leaves too
         # little room for this system (0.5.17, S25 5e098b17 restarted many times and got the same refusal).
-        if [ "$PA_LEFT" -lt "$PA_NEED" ] && [ "$(cat "$STAGE/guest_props.boot" 2>/dev/null)" != "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)" ]; then
+        # (0.5.28: also /data/local/tmp/oneos_props.boot, which a new stage does not remove.)
+        PA_BOOT=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+        if [ "$PA_LEFT" -lt "$PA_NEED" ] && [ "$(cat "$STAGE/guest_props.boot" 2>/dev/null)" != "$PA_BOOT" ] &&
+           [ "$(cat /data/local/tmp/oneos_props.boot 2>/dev/null)" != "$PA_BOOT" ]; then
+            # 0.5.28: what fills it, for the report (S25+ a957415a: 4 KB left in default_prop right after a
+            # restart): the area's property names by their first two parts, the most first (names only).
+            echo "Property area ${PA_FILE##*/}: $(getprop -Z 2>/dev/null | grep -cF "[${PA_FILE##*/}]") names; the most common prefixes:"
+            getprop -Z 2>/dev/null | grep -F "[${PA_FILE##*/}]" | sed -n 's/^\[\([^].]*\.[^].]*\).*/\1/p' | sort | uniq -c | sort -rn | head -n 20
             refuse "This phone's One UI leaves too little property space for this system, even right after a restart ($((PA_LEFT / 1024)) KB left in ${PA_FILE##*/}, it needs $((PA_NEED / 1024)) KB). Choose another system; please send a report so we can look at it"
         fi
         [ "$PA_LEFT" -ge "$PA_NEED" ] ||
@@ -864,9 +871,19 @@ elif [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
         # 0.5.20: through a small script that logs the end of the capture with its exit status (several Galaxy
         # S24+/S24 FE sessions with full logs on had no capture at all, "0 files of the boot kept": the process had
         # gone and nothing said when or why); the watcher's rounds start it again if it ended early (see there).
+        # 0.5.28: on a Galaxy S24 FE (report e15e83eb, full logs on) "logcat -b all" ended at once with exit 2,
+        # every time the watcher started it again, so the report had no logcat. Its error now goes to
+        # auto_return.log, and a capture that ends that way within 5 s runs again on the standard buffers.
         printf '%s\n' '#!/system/bin/sh' \
-            "logcat -b all -v threadtime -f $LOGS/boot.log -r 32768 -n 24" \
-            "echo \"\$(date) logcat capture ended: exit \$? (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS)\" >> $STAGE/auto_return.log" \
+            "t=\$(date +%s)" \
+            "logcat -b all -v threadtime -f $LOGS/boot.log -r 32768 -n 24 2>$STAGE/logcat_capture.err" \
+            "s=\$?" \
+            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(tail -n 2 $STAGE/logcat_capture.err 2>/dev/null | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
+            "[ \$s != 0 ] && [ \$((\$(date +%s) - t)) -lt 5 ] || exit 0" \
+            "echo \"\$(date) logcat capture: again on the main, system, crash, events and radio buffers\" >> $STAGE/auto_return.log" \
+            "logcat -b main,system,crash,events,radio -v threadtime -f $LOGS/boot.log -r 32768 -n 24 2>$STAGE/logcat_capture.err" \
+            "s=\$?" \
+            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(tail -n 2 $STAGE/logcat_capture.err 2>/dev/null | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
             > "$STAGE/logcat_capture.sh"
         $BB setsid sh "$STAGE/logcat_capture.sh" </dev/null >/dev/null 2>&1 &
         LOGCAT_HEAD=1
@@ -4043,7 +4060,11 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     rm -f $GUEST_FULLLOGS_REQ
                     if [ \"${ONEOS_LOGCAT:-1}\" = 1 ] && ! pgrep -f '^logcat .*$LOGS/boot.log' >/dev/null 2>&1; then
                         mkdir -p $LOGS
-                        $BB setsid logcat -b all -v threadtime -f $LOGS/boot.log -r 32768 -n 24 </dev/null >/dev/null 2>&1 &
+                        if [ -f $STAGE/logcat_capture.sh ]; then
+                            $BB setsid sh $STAGE/logcat_capture.sh </dev/null >/dev/null 2>&1 &
+                        else
+                            $BB setsid logcat -b all -v threadtime -f $LOGS/boot.log -r 32768 -n 24 </dev/null >/dev/null 2>&1 &
+                        fi
                         echo \"\$(date) Full session logs turned on in the guest's OneOS app\" >> $STAGE/full_logs_mid.log
                         echo \"\$(date) Full session logs turned on in the guest's OneOS app\"
                     fi
@@ -4264,6 +4285,12 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                         # 55af6cc8: compass and camera did not work, and nothing in the logs told why).
                         timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys sensorservice > \$D/sensors.txt 2>&1
                         timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys media.camera > \$D/camera.txt 2>&1
+                        # Video encoders as the guest sees them (11-20 report 193e52c2, A56 on Nothing OS: video
+                        # recording still used the guest's software AVC encoder, which crashed, with the software
+                        # ones ranked last; the phone's Codec2 store answered 'createComponent -- transaction failed').
+                        { timeout 10 $BB nsenter -t \$SFP -m /system/bin/sh -c 'service list 2>&1 | grep -iE c2\|codec; ls -lZ /vendor/etc/media_codecs*.xml; grep -hoE name=.c2[.][a-z0-9_.]*encoder. /vendor/etc/media_codecs*.xml | sort -u; grep -h encoder /vendor/etc/media_codecs_performance.xml | head -n 30; grep media_codecs /proc/self/mountinfo; ls /dev | grep -iE ^video\|mfc\|mscl'
+                          echo; ps -A -o PID,LABEL,NAME 2>/dev/null | grep -iE 'c2|codec|media'
+                        } > \$D/codecs.txt 2>&1
                         # WebView and the zygote sockets (S24 Ultra, IN build, session 77e7789e: the
                         # WebView zygote start found no zygote socket file).
                         { timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys webviewupdate

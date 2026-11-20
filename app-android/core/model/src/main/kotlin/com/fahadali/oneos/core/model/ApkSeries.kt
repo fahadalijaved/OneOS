@@ -18,6 +18,8 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
         listOf(
             Profiles.ID_S_ULTRA_8850, Profiles.ID_S_PLUS_8850, Profiles.ID_S_8850, Profiles.ID_S_8850_JP, Profiles.ID_S_PLUS_9965,
             Profiles.ID_FLIP8, Profiles.ID_S_9965,
+            // 0.5.28: the Galaxy S26 FE (Exynos 2500).
+            Profiles.ID_S26_FE,
         ),
     ),
     S25(

@@ -3943,6 +3943,30 @@ VRRDATA="$STAGE/data/system/oplus_vrr_config.json"
 # data/system is only created further down; on a fresh stage (S25U dry run,
 # session f075d93a) the write failed and the first session kept OTI on.
 mkdir -p "$STAGE/data/system" 2>/dev/null || true
+# 0.5.28: this phone's installd and IOemNetd codes for the guest's services.jar (OneOSInstalldCodes,
+# OneOSOemNetdCodes in the sets of 0.5.28 on; One UI 9.5 renumbered both): the method lines of the
+# stage's host_installd.table (the table the app derived on this phone, which root checked against
+# its fingerprint and jar) and One UI's version. Without them the guest sends no installd call and
+# no IOemNetd one (fail closed).
+ICODES="$STAGE/data/system/oneos_installd_codes"
+NHOST="$STAGE/data/system/oneos_oemnetd_host"
+rm -f "$ICODES" "$NHOST"
+if [ -f "$STAGE/host_installd.table" ]; then
+    icn=$(sed -n 's/^methods \([0-9][0-9]*\)$/\1/p' "$STAGE/host_installd.table" | head -n 1)
+    if [ -n "$icn" ] && sed -n "5,$((icn + 4))p" "$STAGE/host_installd.table" > "$ICODES" && [ "$(wc -l < "$ICODES")" -eq "$icn" ]; then
+        chown 1000:1000 "$ICODES"; chmod 644 "$ICODES"; $BB chcon u:object_r:system_data_file:s0 "$ICODES" 2>/dev/null
+        echo "installd: this phone's $icn codes for the guest (data/system/oneos_installd_codes)"
+    else
+        rm -f "$ICODES"; echo "!!! installd: host_installd.table not readable, the guest sends no installd call"
+    fi
+else
+    echo "!!! installd: no host_installd.table in the stage, the guest sends no installd call"
+fi
+OUI=$(getprop ro.build.version.oneui)
+if [ -n "$OUI" ] && printf '%s\n' "$OUI" > "$NHOST"; then
+    chown 1000:1000 "$NHOST"; chmod 644 "$NHOST"; $BB chcon u:object_r:system_data_file:s0 "$NHOST" 2>/dev/null
+    echo "IOemNetd: One UI $OUI for the guest (data/system/oneos_oemnetd_host)"
+fi
 rm -f "$VRRDATA"
 if [ "${ONEOS_GUEST_OTI:-0}" = 0 ] && [ -f "$VRRCFG" ]; then
     sed -e 's/"touch_idle": *true/"touch_idle": false/' -e 's/"version": *[0-9]*/"version": 20991231/' "$VRRCFG" > "$VRRDATA"
@@ -6508,7 +6532,7 @@ fi
 #   SEC_FLOATING_FEATURE_<KEY>=value of $STAGE/oneui_floating_add.txt (the set's, software only)
 #   set or added. ONEOS_ONEUI_FLOATING=0 keeps the phone's list as it is.
 # - $STAGE/data/oneos_cameradata: a copy of One UI's /system/cameradata.
-rm -rf "$STAGE/data/oneos_cameradata" "$STAGE/data/oneos_floating_feature.xml"
+rm -rf "$STAGE/data/oneos_cameradata" "$STAGE/data/oneos_floating_feature.xml" "$STAGE/data/oneos_system_floating_feature.xml"
 if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ -d "$STAGE/data" ]; then
     if [ -d /system/cameradata ] && cp -a /system/cameradata "$STAGE/data/oneos_cameradata" 2>/dev/null; then
         # Shooting modes the image's camera app has no table entry for (One UI 9.5's, on the A36:
@@ -6517,6 +6541,34 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
         cf="$STAGE/data/oneos_cameradata/camera-feature.xml"
         [ -f "$cf" ] && sed -i -e 's/="LIVE_FOCUS_LITE"/=""/g' \
             -e '/name="SHOOTING_MODE_MACRO"/{s/back="MACRO"/back=""/;s/enable="true"/enable="false"/}' "$cf"
+        # Picture sizes the image's camera app has no entry for (One UI 9.5's knows the 170 below, the
+        # RESOLUTION_* of its resolution table; 11-20 report 1010d28b, A17: "getResolution : argument is invalid
+        # - 3408x2556", the camera never opened) become the known size of the same shape, the largest not
+        # bigger (else the smallest bigger one). Only for the S948B image's app (ro.product.system.model).
+        if [ -f "$cf" ] && grep -q '^ro.product.system.model=SM-S948' "$ROOTFS/system/build.prop" 2>/dev/null; then
+            CAMRES="3264x2448 2560x1920 2048x1536 1600x1200 1280x960 640x480 1920x1080 1280x720 352x288 320x240 176x144 3264x1836 2560x1440 2048x1152 2592x1944 1440x1080 4128x3096 4128x2322 1024x576 3840x2160 5312x2988 3984x2988 2976x2976 1072x1072 2448x2448 4608x2592 1440x1440 1920x1440 2592x1458 3344x3344 1936x1936 1920x1920 1088x1088 2576x1932 960x960 4608x3456 4032x3024 4032x2268 2880x2160 3024x3024 2160x2160 1066x800 800x800 1616x1212 1600x900 720x720 3456x3456 1536x1536 720x540 540x540 3088x3088 4032x1960 3264x1592 2224x1080 3648x2052 3648x2736 2736x2736 4032x1908 3968x2232 3968x1880 2280x1080 4608x2184 2288x1080 3216x1528 2640x1288 3216x1808 2640x1488 2944x2208 2640x1980 2208x2208 1968x1968 4032x1800 4032x1816 3968x1784 2400x1080 3216x1448 4000x1800 4000x2252 4000x3000 2992x2992 9248x6936 7680x4320 12000x9000 7296x5472 5888x4416 3840x1644 1920x824 7680x3296 4000x1868 3968x1852 3216x1500 2320x1080 8160x6120 3968x1832 2336x1080 4000x1844 3216x1488 4000x1848 3392x1564 3392x1580 3392x1908 3392x2544 2544x2544 16320x12240 3840x1648 7936x4464 5472x5472 7936x3700 7936x3664 7936x3572 8160x4592 6112x6112 8160x3808 8160x3768 9248x5204 6928x6928 9248x4312 9248x4268 9248x4164 12000x6752 8992x8992 12000x5596 12000x5540 12000x5400 16320x9180 12240x12240 16320x7612 16320x7532 7680x3248 3840x1624 2560x1080 1712x720 7680x2784 3840x1392 2976x1080 1984x720 1920x808 1920x696 4000x1716 3968x1700 4000x1688 4000x1456 3840x2880 5712x4284 5712x3212 4272x4272 5712x2636 7680x2160 3968x1116 3328x936 2240x630 1920x540 4000x1124 3056x1412 3056x1720 3056x2296 2288x2288 1920x2160 3840x4320 4640x3480 4640x2612 3472x3472 4640x2142 4640x1988 3008x2256 3008x1692 2256x2256 3008x1388 4080x3060 960x540"
+            if $BB awk -v known="$CAMRES" '
+                BEGIN { n = split(known, k, " "); for (i = 1; i <= n; i++) ok[k[i]] = 1 }
+                function pick(w, h,    i, a, b, kw, kh, best, ba, up, ua) {
+                    best = ""; ba = 0; up = ""; ua = 0
+                    for (i = 1; i <= n; i++) { split(k[i], a, "x"); kw = a[1] + 0; kh = a[2] + 0
+                        b = kw * h - kh * w; if (b < 0) b = -b; if (b * 100 > kh * h) continue
+                        if (kw * kh <= w * h) { if (kw * kh > ba) { ba = kw * kh; best = k[i] } }
+                        else if (ua == 0 || kw * kh < ua) { ua = kw * kh; up = k[i] } }
+                    return best != "" ? best : up }
+                { line = $0; out = ""
+                  while (match(line, /value="[0-9]+x[0-9]+"/)) {
+                      v = substr(line, RSTART + 7, RLENGTH - 8); split(v, d, "x"); r = v
+                      if (!(v in ok)) { r = pick(d[1] + 0, d[2] + 0); if (r == "") r = v; else if (r != v) changed++ }
+                      out = out substr(line, 1, RSTART - 1) "value=\"" r "\""; line = substr(line, RSTART + RLENGTH) }
+                  print out line }
+                END { print changed + 0 > "/dev/stderr" }' "$cf" > "$cf.tmp" 2> "$cf.n" && [ -s "$cf.tmp" ]; then
+                mv -f "$cf.tmp" "$cf"; echo "Camera: $(cat "$cf.n") picture sizes the image's camera app does not know set to its nearest of the same shape"
+            else
+                rm -f "$cf.tmp"
+            fi
+            rm -f "$cf.n"
+        fi
         chown -R 0:0 "$STAGE/data/oneos_cameradata"; chmod -R go-w "$STAGE/data/oneos_cameradata"
         echo "Camera: One UI's /system/cameradata copied for the guest ($(ls "$STAGE/data/oneos_cameradata" | wc -l) entries)"
     fi
@@ -6536,6 +6588,34 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
         else
             rm -f "$STAGE/data/oneos_floating_feature.xml.tmp"
             echo "!!! Floating features: merge failed, the guest keeps One UI's list"
+        fi
+    fi
+    # The image's own /system/etc/floating_feature.xml (MysticGSI keeps the S26 Ultra's there, and the
+    # guest's framework reads it) names the S26 Ultra's cameras: SEC_FLOATING_FEATURE_CAMERA_CONFIG_CAMID_TELE2
+    # 54, TELE 52, WIDE 56, UW 58. A phone without one of them took the S26 Ultra's (11-19 report 911eea3a,
+    # S23: "There is no capability for : 54", the second telephoto's zoom, the camera closed). Every
+    # SEC_FLOATING_FEATURE_CAMERA_* line of that list becomes the phone's own (removed where the phone has
+    # none); the software ones of $FF_ADD stay the image's. Bound by guest_start.sh.
+    SFF="$ROOTFS/system/etc/floating_feature.xml"
+    PFF=/system/etc/floating_feature.xml
+    grep -q '<SEC_FLOATING_FEATURE_CAMERA_' "$PFF" 2>/dev/null || PFF=/vendor/etc/floating_feature.xml
+    if [ "${ONEOS_ONEUI_FLOATING:-1}" = 1 ] && [ -f "$SFF" ] && grep -q '<SEC_FLOATING_FEATURE_CAMERA_' "$PFF" 2>/dev/null; then
+        if awk -v pf="$PFF" -v addf="$FF_ADD" '
+            BEGIN { while ((getline l < pf) > 0) if (match(l, /<SEC_FLOATING_FEATURE_CAMERA_[A-Z0-9_]+>/)) {
+                        k = substr(l, RSTART + 1, RLENGTH - 2); if (!(k in cam)) order[++n] = k; cam[k] = l }
+                    while ((getline l < addf) > 0) if (l ~ /^SEC_FLOATING_FEATURE_CAMERA_[A-Z0-9_]+=/) keep[substr(l, 1, index(l, "=") - 1)] = 1 }
+            { line = $0
+              if (match(line, /<SEC_FLOATING_FEATURE_CAMERA_[A-Z0-9_]+>/)) { k = substr(line, RSTART + 1, RLENGTH - 2)
+                  if (!(k in keep)) { if (k in cam) { print cam[k]; done[k] = 1 }; next } }
+              if (line ~ /<\/SecFloatingFeatureSet>/) for (i = 1; i <= n; i++) if (!(order[i] in done) && !(order[i] in keep)) print cam[order[i]]
+              print line }' "$SFF" > "$STAGE/data/oneos_system_floating_feature.xml.tmp" &&
+           grep -q '</SecFloatingFeatureSet>' "$STAGE/data/oneos_system_floating_feature.xml.tmp"; then
+            mv -f "$STAGE/data/oneos_system_floating_feature.xml.tmp" "$STAGE/data/oneos_system_floating_feature.xml"
+            chown 0:0 "$STAGE/data/oneos_system_floating_feature.xml"; chmod 644 "$STAGE/data/oneos_system_floating_feature.xml"
+            echo "Floating features: the image's /system/etc list with the phone's $(grep -c '<SEC_FLOATING_FEATURE_CAMERA_' "$PFF") camera lines ($PFF)"
+        else
+            rm -f "$STAGE/data/oneos_system_floating_feature.xml.tmp"
+            echo "!!! Floating features: the image's /system/etc list not rewritten"
         fi
     fi
 fi
