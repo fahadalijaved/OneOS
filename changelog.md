@@ -791,6 +791,8 @@ New in 0.5.31: **the Galaxy Z Flip's cover screen.**
   guest's input reader still maps the panel's 720x748 axes, so `oneos_touch_rotate` passes the cover touchscreen
   through a uinput device with the same name and turns X/Y one quarter. `ONEOS_GUEST_COVER_ROTATION=off` and
   `ONEOS_GUEST_COVER_TOUCH=0` turn them off.
-- **Tested on the Z Flip7 FE** with HyperOS 4 Global: the cover UI is upright and touch follows it. Still open: the
-  UI's extreme edges, Samsung Camera's front camera while folded and the cover preview, and HyperOS's notification
-  panel and wallpaper backgrounds. The cover UI itself (widgets, AOD) is a later layer.
+- **Tested on the Z Flip7 FE** with HyperOS 4 Global: the cover UI is upright and touch follows it. The rear camera
+  works after setting its `facing` preference to 0; the app resets it to the front on the next launch, and the front
+  HAL never delivers frames, so it is left off for now. Still open: the UI's extreme edges, the cover preview, and
+  HyperOS's notification panel and wallpaper (the guest's `/storage/emulated/0` FUSE mount died; do not restart
+  `vold`, it panicked the phone once). The cover UI itself (widgets, AOD) is a later layer.

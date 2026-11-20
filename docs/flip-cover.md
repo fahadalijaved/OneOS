@@ -92,14 +92,24 @@ area can be stretched over the whole display with
   stretching it with `ONEOS_GUEST_COVER_CAL` did not make the UI edges respond,
   so this is a UI-layout question, not the input mapping.
 - **Samsung Camera on the cover.** The Flip still takes `samcam_bar.tar` (the
-  bar phone's set) plus the A-series resolution-lookup guards. Back camera
-  start works; the front camera while folded and the cover preview still need
-  a session log (the HAL opens camera 1 and then gets no frames).
+  bar phone's set) plus the A-series resolution-lookup guards. The rear camera
+  works after setting the camera preference `facing` to 0, but the app resets
+  it to 1 on the next launch and opens camera 1 (front). The front HAL then
+  never returns a frame (`Camera2-FrameProcessorBase: Connection timed out
+  (-110)`, `[Cam1] ... no response for 55 s`) and can wedge the guest. The
+  cover preview still needs a folded test with the rear camera; do not switch
+  to the front camera until the HAL is fixed.
 - **System UI.** The notification/control panel background and the wallpaper
-  stay black in HyperOS. The guest's `/storage/emulated/0` FUSE mount also
-  failed with "Transport endpoint is not connected" in the same session, so
-  MiWallpaper, the media provider and the storage mount are the first things
-  to check in the next run.
+  stay black in HyperOS. The guest's `/storage/emulated/0` FUSE mount read
+  "Transport endpoint is not connected" while `mediaprovider` was still
+  running; the wallpaper window stayed `isOnScreen=false mDrawState=4` and
+  the launcher's blur pass logged "nothing to draw". MiWallpaper, the media
+  provider and the storage mount are the first things to check.
+- **Do not restart the guest `vold`.** On the Z Flip7 FE, `setprop ctl.restart
+  vold` in the guest ended in `VolumeManager::shutdown()` and took the whole
+  phone down (panic/reboot). A media-provider restart or a FUSE remount is the
+  safer path; a boot-time check in the session scripts should catch the dead
+  mount without touching vold.
 - **Cover UI.** HyperOS's own cover UI is made for Xiaomi's fold; the guest
   currently gets its phone UI at the cover's density. Widgets, AOD and a
   FlexWindow-like layer are a later compatibility app, not part of this form.
