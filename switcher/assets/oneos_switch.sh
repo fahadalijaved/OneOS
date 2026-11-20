@@ -2945,7 +2945,7 @@ while true; do
                             s=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d \$d 2>/dev/null | sed -n 's/^Physical size: //p' | head -1)
                             case \"\$s\" in 720x748|748x720)
                                 if [ \"\$ROT_D\" != \"\$d\" ]; then
-                                    r=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm set-user-rotation lock 1 -d \$d 2>&1)
+                                    r=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm user-rotation -d \$d lock 1 2>&1)
                                     ROT_D=\$d
                                     echo \"[UI Activator] cover rotation: display \$d (\$s) -> user rotation 1 (\${r:-ok})\"
                                 fi ;;
@@ -3827,7 +3827,7 @@ if [ "${ONEOS_GUEST_FORM:-fold}" = flip ] && [ "${ONEOS_GUEST_COVER_ROTATION:-1}
                 for d in 0 1 2 3 4 5 6 7; do
                     Z=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d "$d" 2>/dev/null | sed -n 's/^Physical size: //p' | head -1)
                     case "$Z" in 720x748|748x720)
-                        R=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm set-user-rotation lock 1 -d "$d" 2>&1)
+                        R=$($BB nsenter -t "$P" -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm user-rotation -d "$d" lock 1 2>&1)
                         echo "$(date +%T) cover display $d ($Z), state $S: user rotation 1 (${R:-ok})" >> "$STAGE/cover_rotation.log"
                         ;;
                     esac
