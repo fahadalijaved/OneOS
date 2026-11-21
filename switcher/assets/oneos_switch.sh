@@ -4417,7 +4417,17 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     if [ \$dname != 20 ]; then
                         timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/am get-started-user-state 0 > \$D/user0.txt 2>&1
                         timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys window windows > \$D/windows.txt 2>&1
+                        # 0.5.33: the stacks only when user 0 is not unlocked (the stuck boot they are for), or with
+                        # ONEOS_DIAG_STACKS=1. In every session they froze Snapdragon 8 Elite / 8 Gen 3 Galaxy phones on
+                        # One UI 9.5 (S25 Ultra 64cf2555: whole phone stopped during diag_90's native debuggerd of
+                        # SystemUI, its file 0 bytes; S25 27022cd2, S24 Ultra 176dcdab, c156bfae the same block; the
+                        # users held the keys and got the upload-mode screen). ANR traces are still copied below.
+                        DSTACKS=0
+                        grep -q RUNNING_UNLOCKED \$D/user0.txt 2>/dev/null || DSTACKS=1
+                        [ \"${ONEOS_DIAG_STACKS:-0}\" = 1 ] && DSTACKS=1
+                        [ \$DSTACKS = 1 ] || echo \"user 0 unlocked: launcher and SystemUI stacks not taken (ONEOS_DIAG_STACKS=1 takes them)\" > \$D/stacks_skipped.txt
                         for app in com.android.launcher com.android.systemui; do
+                            [ \$DSTACKS = 1 ] || break
                             ap=\$(pidof \$app | awk '{print \$1}')
                             [ -n \"\$ap\" ] || continue
                             timeout 20 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/debuggerd -j \$ap > \$D/stack_\$app.txt 2>&1
@@ -4494,7 +4504,12 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                             [ \"\$(cat \$e/device/name 2>/dev/null)\" = sec_touchscreen ] || continue
                             dev=/dev/input/\${e##*/}
                             echo \"\$dev enabled=\$(cat \$e/device/enabled 2>/dev/null)\" > \$D/touch_holders.txt
-                            ls -l /proc/[0-9]*/fd/* 2>/dev/null | grep \" \$dev\$\" >> \$D/touch_holders.txt
+                            # 0.5.33: only the processes that can hold it (the guest's input reader in system_server,
+                            # OneOS's own keepers and getevent), not every open file of every process: that walk ran at
+                            # 100 % CPU for a minute before the One UI 9.5 freezes above.
+                            for hp in \$(pidof system_server getevent busybox sh 2>/dev/null); do
+                                ls -l /proc/\$hp/fd 2>/dev/null | grep -q \" \$dev\$\" && echo \"\$hp \$(cat /proc/\$hp/comm 2>/dev/null)\"
+                            done >> \$D/touch_holders.txt
                             timeout 15 getevent -lt \$dev > \$D/touch_events.txt 2>&1
                         done
                         # system_server's own black-screen backtraces (OplusWmBlackDetector).

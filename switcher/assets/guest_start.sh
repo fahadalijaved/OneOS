@@ -2104,6 +2104,54 @@ if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/
         done
     ' </dev/null >/dev/null 2>&1 &
 fi
+# Stereo speakers (0.5.33; S24 FE ColorOS 0.5.32, tester: "sound is not stereo"): on Galaxy phones whose second
+# speaker is the earpiece, One UI's own audioserver powers that speaker's amplifier for media
+# (libaudioflinger's AudioFlinger::DualSpkControl::setAmpPower -> the stream key
+# l_dual_speaker_amp_left_power_enable=true/false on the speaker output; it starts at false). A guest's
+# audioserver has no DualSpkControl, so the earpiece amplifier stayed off and media played from the bottom
+# speaker only (the output itself is 2-channel). Sent here to every guest output on the speaker once the
+# guest's audio is up, and again whenever the HAL opens a speaker output or someone turns the amplifier off;
+# never during a call (One UI's own rule takes the earpiece speaker out by the proximity sensor then). Only
+# where the vendor audio libraries know the key (the S24 FE's Exynos HAL does; the A36's does not).
+# ONEOS_GUEST_DUAL_SPK=0 leaves it out. Log: /data/oneos_sec_audio.log.
+if [ "${ONEOS_GUEST_DUAL_SPK:-1}" = 1 ] && [ -f /data/oneos_edm_stub.dex ]; then
+    ONEOS_BB="$BB" $BB sh -c '
+        BB=$ONEOS_BB
+        log() { echo "$(date +%T) stereo: $*" >> /data/oneos_sec_audio.log; }
+        K=l_dual_speaker_amp_left_power_enable
+        lib=$($BB grep -l -s "$K" /vendor/lib64/hw/*.so /vendor/lib64/*.so 2>/dev/null | head -n 1)
+        [ -n "$lib" ] || { log "the vendor audio libraries have no $K: not needed"; exit 0; }
+        i=0
+        while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
+        send() {
+            cs=$(dumpsys telephony.registry 2>/dev/null | $BB grep -m1 -o "mCallState=[0-9]*" | $BB grep -o "[0-9]*$")
+            [ "${cs:-0}" = 0 ] || { log "$1: in a call, left alone"; return 0; }
+            ios=$(dumpsys media.audio_flinger 2>/dev/null | $BB awk "
+                /^Output thread / { io = \"\"; if (match(\$0, /name AudioOut_[0-9A-Fa-f]+/)) io = substr(\$0, RSTART + 14, RLENGTH - 14); next }
+                /^ *Output devices:/ && io != \"\" { if (\$0 ~ /SPEAKER/) print io; io = \"\" }" | while read -r h; do echo $((0x$h)); done | $BB sort -un | $BB head -n 16 | $BB tr "\n" "," )
+            ios=${ios%,}
+            [ -n "$ios" ] || { log "$1: no speaker output yet"; return 1; }
+            r=$(/system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSAudioParam --io "$ios" "$K=true" 2>&1 | tail -n 1)
+            log "$(echo "$1: $r" | cut -c1-280)"
+        }
+        log "earpiece speaker amplifier key in ${lib##*/}"
+        i=0
+        until send start; do sleep 3; i=$((i + 1)); [ $i -lt 40 ] || break; done
+        last=0
+        logcat -v brief -T 1 -s audio_hw_primary:D audio_hw_playback:D sec_audio_hw:V AHAL:D 2>/dev/null | while IFS= read -r l; do
+            case "$l" in
+                *"$K=false"*) why="amplifier turned off" ;;
+                *open_output_stream*"devices(0x2)"*) why="speaker output opened" ;;
+                *) continue ;;
+            esac
+            now=$($BB date +%s)
+            [ $((now - last)) -ge 2 ] || continue
+            last=$now
+            sleep 1
+            send "$why"
+        done
+    ' </dev/null >/dev/null 2>&1 &
+fi
 DT2W=${ONEOS_GUEST_DT2W:-1}
 # 0.5.32: not in a One UI image. Its own input service (SemInputDeviceManagerService) already writes the panel's
 # display state through Samsung's sysinput HAL, as One UI does (S24+ One UI 9.5 report 34d6923c: enabled@1,0 and

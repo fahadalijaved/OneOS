@@ -329,7 +329,8 @@ object PackageSets {
         // 0.5.20 (r3): fingerprint from One UI (services_patched.jar: removal guard, AIDL sensor, its place,
         // Samsung's touch request) and samcam_a.tar (the Galaxy A36's camera for this image, A and M phones).
         // 0.5.32 r8: OplusGestureUI_patched.apk, raise to wake from a Galaxy's pick-up sensor (coloros_lift_wake.py).
-        sourceDir = "out/overlays_x9u_in_1105_r8", // 0.5.21 r5: video rotation in samcam_a; 0.5.20 r4: OneOSFpTouch
+        // 0.5.33 r9: samcam.tar with fix_sensor_crop_tables.py (S24 FE front camera: no sensor crop table entry).
+        sourceDir = "out/overlays_x9u_in_1105_r9", // 0.5.21 r5: video rotation in samcam_a; 0.5.20 r4: OneOSFpTouch
         // 0.5.05 (r2): oplus-framework_patched.jar right after the common files, as root's set_files lists it.
         files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size) +
             PackageFile("samcam_a.tar", FileRole.GUEST_FIX) +
@@ -908,14 +909,20 @@ object PackageSets {
      * r9 (0.5.32): samcam_a_oneui.tar, the Galaxy A36's own Samsung Camera (and the five libraries the image
      * lacks), bound by guest_prepare.sh over the image's S26 Ultra camera on Galaxy A and M phones (A17: the
      * S26 Ultra's camera died at launch in its resolution table).
+     * r10 (0.5.33): the guest vold as "gvld" (vold_patched, service.incremental_patched.so, services_patched.jar
+     * and framework_patched.jar through patches/guest_own_vold.py, --framework for Samsung's AppLockPolicy), so
+     * One UI's vold keeps its names all session: every One UI 9.5 return had rebooted ("vold is not registered
+     * now", 13 reports).
      */
     val ONEUI95 = PackageSet(
         id = ID_ONEUI95,
         imageId = Images.ID_ONEUI95,
-        sourceDir = "out/overlays_oneui95_r9",
+        sourceDir = "out/overlays_oneui95_r10",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
             PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
             PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
             PackageFile("libcameracompatbilityinfo_patched.so", FileRole.GUARD_LIBRARY),
@@ -932,7 +939,7 @@ object PackageSets {
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem", "npumanager", "telephonycore", "webapp")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
             + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
         omitted = listOf(TETHERING),
-        approxBytes = 584_720_823L + 77_086_720L,
+        approxBytes = 584_720_823L + 77_086_720L + 1_542_200L + 1_813_456L,
         hasReturnApp = true,
     )
 

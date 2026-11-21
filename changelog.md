@@ -801,6 +801,22 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.33: **stereo speakers, the S24 FE camera, the ColorOS fingerprint circle, and One UI 9.5 without
+freezes or reboots.**
+- **Stereo speakers** in every system on Galaxies whose second speaker is the earpiece (S24 FE and others): One
+  UI's own audio service powers the earpiece speaker for media; the other systems never did, so only the bottom
+  speaker played. OneOS now does it, outside calls.
+- **Samsung Camera on the S24 FE** (ColorOS): photo and video stayed black. The camera looked up the FE's 10 MP
+  selfie sensor in a crop table the S26 Ultra's camera has no entry for. ColorOS's files have a new revision.
+- **ColorOS lock screen fingerprint circle** at every wake on every phone: ColorOS waited for an Always-On Display
+  doze that never ends on a Galaxy, so the circle never showed though the sensor worked.
+- **One UI 9.5 no longer freezes** on the S25, S25 Ultra and S24 Ultra: OneOS's own session diagnostics (stack
+  dumps of the launcher and SystemUI, a scan of every open file) stopped the whole phone; users held the keys and
+  got the blue upload-mode screen. They now run only when the system is stuck before unlocking.
+- **One UI 9.5 returns to One UI without a reboot:** its storage service took One UI's own name, so every return
+  restarted the phone. One UI 9.5's files have a new revision.
+- Untested on a phone: the S24 FE camera and stereo (the A36 has neither), the One UI 9.5 return (A36 can test).
+
 New in 0.5.32: **Debloat, ColorOS raise to wake, the A-series camera in One UI 9.5, and the fingerprint circle on
 the S24+, S25+ and Ultras.**
 - **Debloat** (each system's page, under Apps): choose the system's apps to leave out at its next start. Safe to
