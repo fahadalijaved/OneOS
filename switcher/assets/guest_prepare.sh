@@ -876,7 +876,7 @@ samcam_files() {
     for j in semextendedformat.jar secimaging.jar oneos-camera-compat.jar; do
         echo "sysext framework/$j $SAMCAM_SRC/$j"
     done
-    echo "sysext etc/floating_feature.xml /system/etc/floating_feature.xml"
+    echo "sysext etc/floating_feature.xml ${SAMCAM_FF:-/system/etc/floating_feature.xml}"
     echo "sysext etc/permissions/privapp-permissions-com.sec.android.app.camera.xml /system/etc/permissions/privapp-permissions-com.sec.android.app.camera.xml"
     for x in semextendedformat secimaging worker_wrapper_compat; do
         echo "sysext etc/permissions/oneos-samcam-$x.xml $SAMCAM_SRC/oneos-samcam-$x.xml"
@@ -901,7 +901,7 @@ samcam_files() {
     for lib in $SAMCAM_JNI; do
         samcam_jni_here "$lib" && echo "sys lib64/$lib /system/lib64/$lib"
     done
-    echo "sys etc/floating_feature.xml /system/etc/floating_feature.xml"
+    echo "sys etc/floating_feature.xml ${SAMCAM_FF:-/system/etc/floating_feature.xml}"
     for f in "$SAMCAM_SRC"/public.libraries-*.txt; do
         [ -f "$f" ] && echo "sys etc/${f##*/} $f"
     done
@@ -947,7 +947,51 @@ samcam_prepare() {
         [ -s "$SAMCAM_SRC/${f##*/}" ] || rm -f "$SAMCAM_SRC/${f##*/}"
     done
     rm -f "$STAGE/samcam_libs.txt"
+    # Node features the camera cannot load on this phone (0.5.34, S24 FE report 8d036182: every zoomed photo
+    # closed the camera). The camera picks its processing nodes from One UI's
+    # SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO; the S24 FE's says ai_clear_zoom.arcsoft.v2, and the S26
+    # Ultra camera's v2 node then dlopen()s libdtsr_wrapper_v1.camera.samsung.so, which this One UI does not have
+    # ("load nativeNode(id: 4900200) fail", FATAL in the post-processing thread). Without the entry the camera
+    # takes its own dummy node for that feature, as on a phone without it. "feature:library" pairs; an entry is
+    # dropped only where its library is in neither One UI's /system/lib64 nor the staged camera.
+    # ONEOS_GUEST_SAMCAM_NODE_FILTER=0 binds One UI's list as it is.
+    SAMCAM_FF=/system/etc/floating_feature.xml
+    rm -f "$SAMCAM_SRC/oneos-samcam-floating_feature.xml"
+    ff_drop=""
+    for pair in ai_clear_zoom:libdtsr_wrapper_v1.camera.samsung.so; do
+        [ -e "/system/lib64/${pair#*:}" ] || [ -e "$SAMCAM_SRC/${pair#*:}" ] || ff_drop="$ff_drop ${pair%%:*}"
+    done
+    if [ "${ONEOS_GUEST_SAMCAM_NODE_FILTER:-1}" = 1 ] && [ -n "$ff_drop" ] &&
+       grep -q '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>' "$SAMCAM_FF" 2>/dev/null; then
+        if awk -v drop="$ff_drop" '
+            BEGIN { n = split(drop, d, " "); for (i = 1; i <= n; i++) if (d[i] != "") gone[d[i]] = 1 }
+            {
+                k = "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>"
+                if ((s = index($0, k)) > 0 && (e = index($0, "</SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>")) > s) {
+                    v = substr($0, s + length(k), e - s - length(k)); m = split(v, a, ","); out = ""; cut = ""
+                    for (i = 1; i <= m; i++) {
+                        x = a[i]; gsub(/^[ \t]+|[ \t]+$/, "", x); f = x; sub(/\..*/, "", f)
+                        if (x == "") continue
+                        if (f in gone) { cut = cut (cut == "" ? "" : ",") x; continue }
+                        out = out (out == "" ? "" : ",") x
+                    }
+                    print substr($0, 1, s + length(k) - 1) out substr($0, e)
+                    if (cut != "") printf "%s\n", cut > "/dev/stderr"
+                    next
+                }
+                print
+            }' "$SAMCAM_FF" > "$SAMCAM_SRC/oneos-samcam-floating_feature.xml" 2> "$STAGE/samcam_ff_cut.txt" &&
+           grep -q '</SecFloatingFeatureSet>' "$SAMCAM_SRC/oneos-samcam-floating_feature.xml" &&
+           [ -s "$STAGE/samcam_ff_cut.txt" ]; then
+            SAMCAM_FF="$SAMCAM_SRC/oneos-samcam-floating_feature.xml"
+            echo "Samsung Camera: node features without their library on this phone left out: $(cat "$STAGE/samcam_ff_cut.txt")"
+        else
+            rm -f "$SAMCAM_SRC/oneos-samcam-floating_feature.xml"
+        fi
+        rm -f "$STAGE/samcam_ff_cut.txt"
+    fi
     chmod 755 "$SAMCAM_SRC"; chmod 644 "$SAMCAM_SRC"/*
+    [ "$SAMCAM_FF" = /system/etc/floating_feature.xml ] || $BB chcon u:object_r:system_file:s0 "$SAMCAM_FF" 2>/dev/null || true
     if [ ! -f "$SAMCAM_SRC/.selinux" ] ||
        [ "$(cat "$SAMCAM_SRC/.selinux" 2>/dev/null)" != "$(cat "$SAMCAM_SRC/.from_tar" 2>/dev/null)" ]; then
         if $BB chcon -R u:object_r:system_file:s0 "$SAMCAM_SRC" 2>/dev/null; then
@@ -2233,16 +2277,99 @@ apm_a2dp() {
 }
 
 # apm_usb <copy>: the USB outputs, see above.
+# 0.5.33 (Galaxy A35, LineageOS: USB-C headphones silent; a tester's module fixed it with a policy file that has
+# them in the primary module): "a USB output" means a USB device or headset. The A35's
+# usb_audio_policy_configuration.xml names only AUDIO_DEVICE_OUT_USB_ACCESSORY ("USB Host Out"), which the old
+# check took for USB headphones, so it logged "USB outputs added" and the guest had none (A35 OxygenOS 5a57891c:
+# the usb module held the accessory port alone). That file is still included where it names any USB output (the
+# accessory stays as it was). Where no file names a USB device or headset after that, and One UI's own policy
+# file (_sec or _base) has them, Samsung's primary HAL plays USB audio, as on One UI: the primary module gets
+# the tester's layout - USB device and headset ports both ways (no profiles: the HAL reports them when they are
+# plugged), the hifi_playback and hifi_input mix ports, the outputs fed by every output mix port of the module
+# and hifi_playback, the inputs added to the module's capture route and to hifi_input.
 apm_usb() {
     [ "${ONEOS_GUEST_APM_USB:-1}" = 1 ] || return 0
+    apm_dev='AUDIO_DEVICE_OUT_USB_(DEVICE|HEADSET)"'
     apm_inc=$($BB grep -o 'href="/[^" ]*"' "$1" | $BB sed -e 's/^href="//' -e 's/"$//')
-    if $BB grep -qs 'AUDIO_DEVICE_OUT_USB_' "$1" $apm_inc; then return 0; fi
+    if $BB grep -qs -E "$apm_dev" "$1" $apm_inc; then return 0; fi
     apm_uf=/vendor/etc/usb_audio_policy_configuration.xml
-    if $BB grep -qs 'AUDIO_DEVICE_OUT_USB_' "$apm_uf" && apm_hw_lib usb \
+    if ! $BB grep -qs 'AUDIO_DEVICE_OUT_USB_' "$1" $apm_inc && $BB grep -qs 'AUDIO_DEVICE_OUT_USB_' "$apm_uf" && apm_hw_lib usb \
        && apm_include "$1" "$apm_uf" "USB headphones through the vendor's own usb audio module"; then
         APM_USB="USB outputs added with the vendor's usb module (${apm_uf##*/})"
         APM_ADDED=1
+        $BB grep -qs -E "$apm_dev" "$apm_uf" && return 0
+        APM_USB="the vendor's usb module (${apm_uf##*/}) included, but it has no USB device or headset"
     fi
+    $BB grep -qs -E "$apm_dev" /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml || return 0
+    rm -f "$1.usb"
+    if awk '
+        function blank(n,  s) { s = ""; while (n-- > 0) s = s " "; return s }
+        function attr(tag, name,  v, q) {
+            if (!match(tag, "[ \t\n]" name "[ \t\n]*=[ \t\n]*\"[^\"]*\"")) return ""
+            v = substr(tag, RSTART, RLENGTH); q = index(v, "\"")
+            return substr(v, q + 1, length(v) - q - 1)
+        }
+        { doc = doc $0 "\n" }
+        END {
+            w = doc
+            while ((i = index(w, "<!--")) > 0) {
+                j = index(substr(w, i), "-->"); if (!j) exit 1
+                w = substr(w, 1, i - 1) blank(j + 2) substr(w, i + j + 2)
+            }
+            if (index(w, "OneOS USB")) exit 1
+            if (!match(w, "<module[^>]*[ \t\n]name[ \t\n]*=[ \t\n]*\"primary\"[^>]*>")) exit 1
+            ms = RSTART; me = index(substr(w, ms), "</module>"); if (!me) exit 1
+            m = substr(w, ms, me - 1)
+            # Output and input mix ports of the module, in their order.
+            outs = ""; cap = ""; p = m
+            while ((i = index(p, "<mixPort")) > 0) {
+                p = substr(p, i); j = index(p, ">"); if (!j) exit 1
+                tag = substr(p, 1, j); n = attr(tag, "name"); r = attr(tag, "role")
+                if (n == "hifi_playback" || n == "hifi_input") exit 1
+                if (r == "source" && n != "") outs = outs (outs == "" ? "" : ",") n
+                if (r == "sink" && n != "" && cap == "") cap = n
+                p = substr(p, j + 1)
+            }
+            if (outs == "" || cap == "") exit 1
+            # The capture route: <route ... sink="<first input mix port>" ...>, its sources attribute.
+            p = m; cr = 0
+            while ((i = index(p, "<route")) > 0) {
+                j = index(substr(p, i), ">"); if (!j) exit 1
+                tag = substr(p, i, j)
+                if (attr(tag, "sink") == cap) { cr = (length(m) - length(p)) + i; crl = j; break }
+                p = substr(p, i + j)
+            }
+            if (!cr) exit 1
+            ctag = substr(m, cr, crl)
+            if (!match(ctag, "[ \t\n]sources[ \t\n]*=[ \t\n]*\"[^\"]*\"")) exit 1
+            sq = RSTART + RLENGTH - 1                       # the closing quote of sources, in ctag
+            mp = index(m, "</mixPorts>"); dp = index(m, "</devicePorts>"); rt = index(m, "</routes>")
+            if (!mp || !dp || !rt || !(mp < dp && dp < rt && cr < rt)) exit 1
+            ind = "            "
+            mixes = "<!-- OneOS USB: USB audio through the primary module, as in the policy file One UI itself loads -->\n" ind \
+                "<mixPort name=\"hifi_playback\" role=\"source\"/>\n" ind "<mixPort name=\"hifi_input\" role=\"sink\"/>\n" ind
+            ports = "<!-- OneOS USB devices -->\n" ind \
+                "<devicePort tagName=\"OneOS USB Device Out\" type=\"AUDIO_DEVICE_OUT_USB_DEVICE\" role=\"sink\"/>\n" ind \
+                "<devicePort tagName=\"OneOS USB Headset Out\" type=\"AUDIO_DEVICE_OUT_USB_HEADSET\" role=\"sink\"/>\n" ind \
+                "<devicePort tagName=\"OneOS USB Device In\" type=\"AUDIO_DEVICE_IN_USB_DEVICE\" role=\"source\"/>\n" ind \
+                "<devicePort tagName=\"OneOS USB Headset In\" type=\"AUDIO_DEVICE_IN_USB_HEADSET\" role=\"source\"/>\n" ind
+            src = outs ",hifi_playback"
+            routes = "<!-- OneOS USB routes -->\n" ind \
+                "<route type=\"mix\" sink=\"OneOS USB Device Out\" sources=\"" src "\"/>\n" ind \
+                "<route type=\"mix\" sink=\"OneOS USB Headset Out\" sources=\"" src "\"/>\n" ind \
+                "<route type=\"mix\" sink=\"hifi_input\" sources=\"OneOS USB Device In,OneOS USB Headset In\"/>\n" ind
+            # Absolute positions in doc (comments were blanked in place, so positions agree).
+            MP = ms + mp - 1; DP = ms + dp - 1; RT = ms + rt - 1; SQ = ms + cr - 1 + sq - 1
+            printf "%s", substr(doc, 1, MP - 1) mixes substr(doc, MP, DP - MP) ports substr(doc, DP, SQ - DP) \
+                ",OneOS USB Device In,OneOS USB Headset In" substr(doc, SQ, RT - SQ) routes substr(doc, RT)
+        }' "$1" > "$1.usb" && [ "$($BB grep -c 'tagName="OneOS USB ' "$1.usb")" = 4 ]; then
+        cat "$1.usb" > "$1"
+        APM_USB="USB outputs added on the primary module (${APM_USB:+$APM_USB; }as in One UI's own policy file)"
+        APM_ADDED=1
+    else
+        APM_USB="${APM_USB:+$APM_USB; }no USB outputs added on the primary module (its layout is not one this knows)"
+    fi
+    rm -f "$1.usb"
     return 0
 }
 

@@ -813,10 +813,19 @@ elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
     # 15 s in a row while the screen is awake and asks for light (a real
     # minimum is a wish, not a dead HAL), and give up after 600 s if the node
     # moves on its own. Healthy systems never see the takeover.
-    echo "$(date +%T) brightness bridge: watching $BL (useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read}; takes over after 15 s of a dead node)"
+    # 0.5.34: or when the HAL refuses the guest's brightness outright. HyperOS on the Galaxy A16 4G (report
+    # f036b5fa, "brightness not fixed"): Samsung's lights HAL answered every MiuiLightsService.setBrightness
+    # with UnsupportedOperationException ("Failed issuing setLightState", 50 times), the node stayed at the
+    # host's last level (not 0), and after 600 s the watch gave the panel to a HAL that never wrote it.
+    # Three such refusals take the node over too.
+    echo "$(date +%T) brightness bridge: watching $BL (useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read}; takes over after 15 s of a dead node or 3 refusals of the lights HAL)"
+    rm -f /data/oneos_bl_refused
+    ( timeout 600 logcat -v brief -T 1 -s LightsService:E 2>/dev/null | grep --line-buffered -F "Failed issuing setLightState" | head -n 3 > /data/oneos_bl_refused ) &
+    RMON=$!
     n=0; i=0
     while [ $i -lt 600 ]; do
         i=$((i + 1)); sleep 1
+        if [ "$(wc -l < /data/oneos_bl_refused 2>/dev/null)" -ge 3 ] 2>/dev/null; then n=15; refused=1; break; fi
         [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] || { n=0; continue; }
         case "$(dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)" in
             Awake) ;;
@@ -829,11 +838,16 @@ elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
         [ "$light" = 1 ] && n=$((n + 1)) || n=0
         [ $n -ge 15 ] && break
     done
+    kill $RMON 2>/dev/null
     if [ $n -lt 15 ]; then
         echo "$(date +%T) brightness bridge: the node moved on its own after $i s; leaving it to the lights HAL"
         exit 0
     fi
-    echo "$(date +%T) brightness bridge: the lights HAL does not reach the panel (node 0, awake and asking for light for 15 s); taking the node over"
+    if [ "${refused:-0}" = 1 ]; then
+        echo "$(date +%T) brightness bridge: the lights HAL refuses the guest's brightness (3x Failed issuing setLightState after $i s); taking the node over"
+    else
+        echo "$(date +%T) brightness bridge: the lights HAL does not reach the panel (node 0, awake and asking for light for 15 s); taking the node over"
+    fi
 fi
 # A level scale when the range ends above 1 (ColorOS, OxygenOS); else 0..1.
 SCALE=$(echo "${lo:-x} ${hi:-x} ${nm:-x}" | awk '{ t = $3; if (t !~ /^[0-9.]+$/) t = $2
@@ -2135,20 +2149,27 @@ if [ "${ONEOS_GUEST_DUAL_SPK:-1}" = 1 ] && [ -f /data/oneos_edm_stub.dex ]; then
             log "$(echo "$1: $r" | cut -c1-280)"
         }
         log "earpiece speaker amplifier key in ${lib##*/}"
+        n=0
         i=0
         until send start; do sleep 3; i=$((i + 1)); [ $i -lt 40 ] || break; done
         last=0
-        logcat -v brief -T 1 -s audio_hw_primary:D audio_hw_playback:D sec_audio_hw:V AHAL:D 2>/dev/null | while IFS= read -r l; do
+        # 0.5.34: also at every start of playback on the speaker. DualSpkControl in One UI sends the key to every
+        # speaker output each time sound starts (true) and stops (false) (S24 FE report 8d036182, One UI at
+        # 16:52:10 and 16:52:21); sent once at the start, stereo came and went with the state the HAL kept
+        # (tester: "sometimes stereo works"). The HAL logs the speaker route as the stream starts.
+        logcat -v brief -T 1 -s audio_hw_primary:D audio_hw_playback:D audio_hw_route:I sec_audio_hw:V AHAL:D 2>/dev/null | while IFS= read -r l; do
+            pause=1
             case "$l" in
                 *"$K=false"*) why="amplifier turned off" ;;
                 *open_output_stream*"devices(0x2)"*) why="speaker output opened" ;;
+                *"routes to device(speaker"*) why="playback on the speaker"; pause=0 ;;
                 *) continue ;;
             esac
             now=$($BB date +%s)
             [ $((now - last)) -ge 2 ] || continue
             last=$now
-            sleep 1
-            send "$why"
+            [ $pause = 0 ] || sleep 1
+            if [ "$why" = "playback on the speaker" ]; then send "$why" >/dev/null; n=$((n + 1)); [ $((n % 50)) = 1 ] && log "playback on the speaker: sent $n times so far"; else send "$why"; fi
         done
     ' </dev/null >/dev/null 2>&1 &
 fi

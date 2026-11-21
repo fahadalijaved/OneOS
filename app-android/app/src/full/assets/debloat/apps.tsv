@@ -654,8 +654,6 @@ C	com.qualcomm.qti.workloadclassifier	com.qualcomm.qti.workloadclassifier	588	no
 C	com.qualcomm.qti.workloadclassifier	com.qualcomm.qti.workloadclassifier	98	oxygenos16-cph2745	/system/system_ext/app/workloadclassifier	Qualcomm performance workload classifier	
 C	com.samsung.android.wallpaper.res	com.samsung.android.wallpaper.res	833536	oneui95-s948b	/system/priv-app/wallpaper-res	Built-in wallpapers (814 MB): the wallpaper picker loses its stock wallpapers	
 C	com.vivo.musicmixcard	com.vivo.musicmixcard	4096	originos7-pd2609ma	/system/app/VivoMusicMixCard	Home-screen widgets and kits	
-C	com.xiaomi.continuity.sdkapp	com.xiaomi.continuity.sdkapp	2048	hyperos-lhasa,hyperos-hongkong	/product/app/LyraSdkSpp	Xiaomi interconnect: PC/car/tablet continuity (HyperConnect, PC Frame, car link)	
-C	com.xiaomi.micloud.sdk	com.xiaomi.micloud.sdk	298	hyperos-lhasa,hyperos-hongkong	/system_ext/priv-app/RtMiCloudSDK	Xiaomi account	
 C	com.android.companiondevicemanager	Companion Device Manager	3072	coloros17-findn6,coloros17-findx9u-in-1105	/system/app/CompanionDeviceManager	Companion device pairing: smartwatches, earbuds companion apps	
 C	com.android.companiondevicemanager	Companion Device Manager	1024	hyperos-lhasa,hyperos-hongkong	/system/app/CompanionDeviceManager	Companion device pairing: smartwatches, earbuds companion apps	
 C	com.android.companiondevicemanager	Companion Device Manager	2048	infinityx41-findx9u,lineage24-infiniti	/system/app/CompanionDeviceManager	Companion device pairing: smartwatches, earbuds companion apps	
@@ -965,7 +963,6 @@ C	com.samsung.android.networkdiagnostic	NetworkDiagnostic	3072	oneui95-s948b	/sy
 C	com.vivo.fileobserver	New file	986	originos7-pd2609ma	/system/priv-app/VFileObserver	vivo background service, purpose partly established	
 C	com.vivo.nfcbaseapp	NFC Basic App	13312	originos7-pd2609ma	/system/app/nfcBaseApp	NFC, wallet and payments (transit cards, digital keys, fingerprint pay)	
 C	com.nothing.user.center	Nothing Account	51200	nothingos5-metroid,nothingos5-asteroids	/product/priv-app/NothingAccount	Nothing account	
-C	com.nothing.dynamiccolor	Nothing Dynamic Color	64	nothingos5-metroid,nothingos5-asteroids	/system_ext/app/NothingDynamicColor	Nothing wallpapers, wallpaper picker and dynamic colour	
 C	com.nothing.gallery	Nothing Gallery	97280	nothingos5-metroid,nothingos5-asteroids	/system_ext/priv-app/NTGallery	Nothing Gallery (the camera's photo viewer)	
 C	com.nothing.ntscreenshot	Nothing Screenshot	18432	nothingos5-metroid,nothingos5-asteroids	/system_ext/app/ScreenshotEditor	Screenshot editor	
 C	com.nothing.wallpaper	Nothing Wallpaper	27648	nothingos5-metroid,nothingos5-asteroids	/system_ext/priv-app/NothingWallpaperPicker	Nothing wallpapers, wallpaper picker and dynamic colour	

@@ -28,6 +28,12 @@ MYSTIC = {"coloros.tsv": "mysticgsi-coloros.txt"}
 # Always-On Display, which OneOS's AOD and panoramic AOD work targets and the lock screen's fingerprint circle came
 # with (A36, 11-21: hidden with MysticGSI's list, no circle on the lock screen; owner: keep it).
 NEVER = {"com.oplus.camera", "com.oplus.aod"}
+# 0.5.34: an app that provides a shared library other apps need is never offered either. Android hands an app none of
+# its shared libraries once one it requires is missing, so the dependents lose all of them: HyperOS on the Galaxy A16
+# 4G (report f036b5fa) left out com.xiaomi.micloud.sdk (micloud-sdk, needed by 22 apps), and at the next start the
+# phone app died on every launch (NoClassDefFoundError com.qti.extphone.ExtTelephonyManager, 285 times): no calls,
+# no mobile data. The research notes say "provides lib <name> needed by <n>".
+LIB_PROVIDER = re.compile(r"provides lib \S+ needed by [1-9]")
 
 
 def path_ok(p):
@@ -70,7 +76,7 @@ def main(src, out):
                 rating = RATING.get(c[col["rating"]])
                 pkg = c[col["package"]]
                 folders = [p for p in c[col["folder"]].split(";") if p]
-                if pkg in NEVER:
+                if pkg in NEVER or LIB_PROVIDER.search(line):
                     continue
                 in_mystic = any(f.rstrip("/").split("/")[-1] in mystic for f in folders)
                 reason = clean(c[col["reason"]])

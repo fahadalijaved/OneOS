@@ -801,6 +801,22 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.34: **S24 FE zoomed photos and steady stereo, A16 brightness, USB-C headphones on the A35, and a safer
+Debloat.**
+- **Samsung Camera:** zoomed photos no longer close the camera on phones whose One UI lacks the S26 Ultra camera's
+  AI Clear Zoom library (S24 FE): the camera then does without that step.
+- **Stereo speakers** stay on: the earpiece speaker is powered at every start of playback, as One UI does (0.5.33
+  powered it once, so stereo came and went).
+- **Brightness on HyperOS (Galaxy A16 4G):** Samsung's lights service refused every brightness HyperOS sent, so the
+  slider did nothing; OneOS now drives the panel itself when that happens.
+- **USB-C headphones (Galaxy A35 and others):** the systems found only the USB accessory output and played nothing
+  on wired USB headphones; they now get USB headphone outputs as One UI has them. Thanks to the tester who sent a
+  working policy file.
+- **Debloat** no longer offers apps that other apps need as a library (HyperOS's Xiaomi Cloud SDK and two more):
+  removing it broke the phone app, so calls and mobile data stopped. Anyone who removed one gets it back at the
+  next start.
+- Untested on a phone: all of the above.
+
 New in 0.5.33: **stereo speakers, the S24 FE camera, the ColorOS fingerprint circle, and One UI 9.5 without
 freezes or reboots.**
 - **Stereo speakers** in every system on Galaxies whose second speaker is the earpiece (S24 FE and others): One
