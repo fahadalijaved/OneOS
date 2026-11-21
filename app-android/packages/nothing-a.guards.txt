@@ -1,5 +1,6 @@
 # framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
 # installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
+# charger power from Samsung's charging_type in BatteryService (OneOSChargePower)
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
@@ -7,7 +8,7 @@
 # biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py); the fingerprint sensor through AIDL (patches/guest_force_aidl_fingerprint.py, from pull request #152)
 # guest lock enrolment handle: verifyGatekeeperPasswordHandle answers the guest lock's own handle with a placeholder token (patches/guest_local_lock_hat.py, from pull request #152)
 # in-display fingerprint place: FingerprintProvider.getWorkaroundSensorProps asks OneOSUdfps (/data/system/oneos_udfps, from the phone's sysfs) first (patches/guest_udfps_location.py)
-c908888e8b1ebc36f2a00212b370c765b35a2407ccffc476a7923d09277938d6  services_patched.jar
+0d53329ac46d74abead5644899d3d49dc9f6fc601720a3850ad1b9f5baad89e9  services_patched.jar
 027946a3c268cc441c875f62503c578374125ba3ab128e2ce9ad1b0f5e378aa4  vold_patched
 f37f052c577c7a2f7de5ef13fbdf070531933add94507ff2ab0713eeabcfab4a  service.incremental_patched.so
 d53f75f1f9e28d8766964d3c6e5625ad94de120ee60dfdf9555d5745cadceffc  framework_patched.jar

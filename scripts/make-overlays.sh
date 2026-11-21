@@ -376,6 +376,9 @@ KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_wipe_secrets.p
 # constructs an UpdateEngine then dies at boot (Nothing OS 5.0, first run);
 # a build that has none is left alone (Pixel).
 KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/guest_no_update_engine.py" "$WORK/services")"
+# A Samsung charger's power for the guest's BatteryService (0.5.31; patches/battery_charge_power.py): the
+# Galaxy's health HAL reports no maximum charging current or voltage, so no guest showed fast charging.
+KEY_DIRS="$KEY_DIRS $(python3 -I "$ROOT/switcher/patches/battery_charge_power.py" "$WORK/services" "$ROOT/switcher/patches/OneOSChargePower.smali")"
 # vivo OriginOS: the face HAL's extension only when it is vivo's, and AOSP's
 # AlarmManagerService instead of MediaTek's RTC power-off alarms
 # (patches/vivo_guards.py; vivo-services.jar below).
@@ -620,6 +623,10 @@ if in_image $MIUI_JAR; then
     fi
     # HAL extension casts (patches/hyperos_hal_ext.py): the vibrator's.
     NEW=$(python3 -I "$ROOT/switcher/patches/hyperos_hal_ext.py" --expect 1 "$WORK/miui" HalExtServices)
+    DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
+    # Xiaomi's quick charge type from Samsung's charger nodes (0.5.31, patches/miui_quick_charge.py): no
+    # IMiCharge service on a Galaxy, so HyperOS showed no fast or super charging.
+    NEW=$(python3 -I "$ROOT/switcher/patches/miui_quick_charge.py" "$WORK/miui" "$ROOT/switcher/patches/OneOSMiCharge.smali")
     DIRS=$(printf '%s\n' $DIRS $NEW | sort -u)
     java -jar "$APKTOOL" b -q -o "$WORK/miui-rebuilt.jar" "$WORK/miui"
     cp "$WORK/miui-services.jar" "$OUT/miui-services_patched.jar"
@@ -1125,6 +1132,7 @@ python3 -I "$ROOT/scripts/check-dex.py" $JARS
 {
     echo "# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)"
     echo "# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones"
+    echo "# charger power from Samsung's charging_type in BatteryService (OneOSChargePower)"
     [ "$VOLD_GVLD" = 1 ] && echo "# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)"
     # HyperOS images (miui-services_patched.jar) and Pixel images list their
     # files in the order and with the notes each set was built with.

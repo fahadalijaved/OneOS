@@ -89,12 +89,13 @@ export PATH=/system/bin:/system/xbin
 
 # OneOS: /mnt and /storage came in from the host, and its pass_through,
 # installer, androidwritable, runtime and user views are binds of the phone's
-# real /data/media. Drop them in this (private) namespace before anything in
+# real /data/media (and 0.5.31's read-only One UI view for Bring apps, /mnt/oneos_oneui).
+# Drop them in this (private) namespace before anything in
 # the guest runs; the guest builds its own from its staged /data/media below.
-for m in $(awk '$5 ~ "^/(mnt/(pass_through|installer|androidwritable|runtime|user)|storage)(/|$)" {print $5}' /proc/self/mountinfo | sort -r); do
+for m in $(awk '$5 ~ "^/(mnt/(pass_through|installer|androidwritable|runtime|user|oneos_oneui)|storage)(/|$)" {print $5}' /proc/self/mountinfo | sort -r); do
     $BB umount -l "$m" 2>/dev/null
 done
-left=$(awk '$5 ~ "^/(mnt/(pass_through|installer|androidwritable|runtime|user)|storage)(/|$)"' /proc/self/mountinfo | wc -l)
+left=$(awk '$5 ~ "^/(mnt/(pass_through|installer|androidwritable|runtime|user|oneos_oneui)|storage)(/|$)"' /proc/self/mountinfo | wc -l)
 if [ "$left" != 0 ]; then
     echo "[Pivoted Root] FATAL: $left host storage views still mounted. Not starting the guest."
     exit 1

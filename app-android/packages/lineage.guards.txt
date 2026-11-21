@@ -1,12 +1,13 @@
 # framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
 # installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
+# charger power from Samsung's charging_type in BatteryService (OneOSChargePower)
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py (a synthetic password Keystore refuses no longer stops system_server; S26 Ultra b5edb256)
 # 0.5.10 r5: services_patched.jar + patches/guest_local_lock.py (the guest's own screen lock; LineageOS keeps getCredentialType's answer in p0), scripts/patch-built-jar.sh on r4's jar
-4664508479629ea9a90c855ae43cd99a474a3cc4012632aea3eb555a4da3c70a  services_patched.jar
+0c63e19b1ab874d4a4a654f0fd3b100e0adf24ac2ea3edeb9b7608bbd6092e7b  services_patched.jar
 edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched
 0235d2312e659dfb00b7bab3e6b8189e36ccd2b61d1c298f01347e8d4615bc5d  service.incremental_patched.so
 8eeb43db3299c6735887582769f69d78fbd09a7f24c12b919d5c7017639da6db  telephony-common_patched.jar

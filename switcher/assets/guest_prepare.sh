@@ -4514,6 +4514,19 @@ mkdir -p "$STAGE/data/preapps-lib" 2>/dev/null
 chown 1000:1000 "$STAGE/data/preapps-lib" 2>/dev/null || true
 chmod 0771 "$STAGE/data/preapps-lib" 2>/dev/null || true
 
+# 0.5.31: HyperOS's status bar in light apps. With the Dynamic Island on (persist.sys.feature.island=1) and a
+# phone at or above Xiaomi's layered-bars level, WindowManager sends an app's bar colours to a per-app status
+# bar (BarFollowAnimationImpl.getDisplayIdWithStatusIdBit: display id | 1 << 24), and the screen's own bar kept
+# the launcher's light icons: white on white in Settings (owner's A36, HyperOS 4 Global, 11-20: Settings'
+# LIGHT_STATUS_BARS logged for display 16777216 only). debug.layered.strategy.phone is Xiaomi's own threshold
+# (BarFollowAnimationUtils.MULTIS_STATUSBAR_ENABLED: the phone's computility level must reach it; the A36 is
+# 4); 99 keeps every phone below it, so the bar colours go to the screen's bar as on any Android. The island
+# stays. The guest reads One UI's property area; return_to_oneui.sh clears it. ONEOS_HYPER_APP_BARS=1 keeps
+# Xiaomi's per-app bars.
+if [ -e "$GUEST_SYSTEM_EXT/framework/miui-services.jar" ] && [ "${ONEOS_HYPER_APP_BARS:-0}" != 1 ]; then
+    setprop debug.layered.strategy.phone 99 && echo "HyperOS status bar: app colours to the screen's bar (debug.layered.strategy.phone=99)"
+fi
+
 echo "=== 5.12 $(date +%T) HyperOS folders ==="
 # HyperOS's own /data folders. Its init rc files (system, system_ext, product)
 # make /data/system/theme, theme_magic and fonts (owner system_theme, 6101 in
@@ -5245,6 +5258,32 @@ echo "=== 5d. $(date +%T) Bridging host /data app and storage trees into the sta
 # /data/data and /data/media. Host path:stage path.
 # $BRIDGES comes from bridges.sh (sourced at the top).
 rm -f "$STAGE/share_holder.pid"
+# 0.5.31: One UI's own app, data and user_de folders, read only, for Bring apps while the session runs: the
+# bridges below cover them in One UI's namespace, so the root script's bring-add read the guest's folders and
+# refused every One UI app ("not an installed user app"; owner's A36, HyperOS, com.fahadali.xgram). Root's
+# alone (0700), outside /data, never in the guest's namespace (guest_start.sh drops it there), gone at the
+# return (return_to_oneui.sh). ONEOS_BRING_LIVE_VIEW=0 leaves it out (Bring apps then works with the guest down only).
+OUV=/mnt/oneos_oneui
+for d in app data user_de; do umount -l "$OUV/$d" 2>/dev/null; done
+if [ "${ONEOS_BRING_LIVE_VIEW:-1}" = 1 ] && mkdir -p "$OUV" && chmod 700 "$OUV"; then
+    for d in app data user_de; do
+        [ -d "/data/$d" ] && ! awk -v p="/data/$d" '$5 == p' /proc/self/mountinfo | grep -q . || continue
+        # Private before the bridges: a bind of /data/$d joins /data's peer group, so the bridge below
+        # propagated onto the view too and Bring apps read the guest's apps again (owner's A36, 11-20,
+        # 0.5.31 test: xgram "not an installed user app", mountinfo showed the bridge stacked on the view).
+        # busybox remounts a bind only with the path twice (one path: "can't find ... in /proc/mounts",
+        # and the view stayed writable).
+        mkdir -p "$OUV/$d" && $BB mount --bind "/data/$d" "$OUV/$d" || continue
+        if ! $BB mount --make-private "$OUV/$d"; then
+            umount -l "$OUV/$d" 2>/dev/null; echo "WARNING: could not make $OUV/$d private; left out (Bring apps works with the guest down only)"; continue
+        fi
+        if $BB mount -o remount,bind,ro,nosuid,nodev "$OUV/$d" "$OUV/$d"; then
+            echo "One UI's /data/$d read only at $OUV/$d (Bring apps)"
+        else
+            umount -l "$OUV/$d" 2>/dev/null; echo "WARNING: could not make $OUV/$d read only; left out (Bring apps works with the guest down only)"
+        fi
+    done
+fi
 for pair in $BRIDGES; do
     h=${pair%%:*}; s=${pair#*:}
     mkdir -p "$STAGE/data/$s" 2>/dev/null || true
@@ -6516,6 +6555,19 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
         [ -d "$d" ] && [ ! -L "$d" ] || continue
         $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
             echo "Hid guest ${d#"$ROOTFS"/} (One UI image: cannot work in a guest; ONEOS_GUEST_ONEUI_KEEP_APPS=1 keeps it)"
+    done
+fi
+# HyperOS (0.5.31): Xiaomi Find Device (com.xiaomi.finddevice, product/priv-app/MiuiFindDevice) works only with
+# Xiaomi's own servers and phone hardware; in a session its job held PARTIAL wakelocks for hours
+# (FindDeviceJobExecutorWakeLock, the owner's A36 HyperOS 4 Global, 11-20: 14 min of deep sleep in 5.6 h, 20 % lost
+# in 2 h with the screen off). Stopped, a job started it again within seconds, and HyperOS refuses to disable a
+# system package. Hidden here like the One UI apps below. ONEOS_GUEST_MIUI_FIND_DEVICE=1 keeps it.
+if [ "${ONEOS_GUEST_MIUI_FIND_DEVICE:-0}" != 1 ]; then
+    for d in "$ROOTFS"/product/priv-app/MiuiFindDevice "$ROOTFS"/system/product/priv-app/MiuiFindDevice \
+             "$ROOTFS"/system/priv-app/MiuiFindDevice "$ROOTFS"/system_ext/priv-app/MiuiFindDevice; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d" && \
+            echo "Hid guest ${d#"$ROOTFS"/} (Xiaomi Find Device held wakelocks for hours; ONEOS_GUEST_MIUI_FIND_DEVICE=1 keeps it)"
     done
 fi
 # One UI images (0.5.22): the phone's own netd client library. netd is One UI's; One UI 9.5's

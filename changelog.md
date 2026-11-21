@@ -778,3 +778,25 @@ New in 0.5.29: **Galaxy S24 phones can switch again.**
 New in 0.5.30: **the OneOS app and Back to One UI inside One UI 9.5.**
 - One UI 9.5 never installed the OneOS app (its package manager does not look where OneOS puts it), so the only way
   back was Volume Up + Volume Down. The app now goes where One UI 9.5 finds it, as on vivo's OriginOS.
+
+New in 0.5.31: **fast charging shown in every system, HyperOS's super charging, Bring apps during a session, and a
+battery drain fixed.**
+- **Fast charging** on a Galaxy's Super Fast (PPS) and Fast (AFC, QC 2.0, PD) chargers now shows as fast charging in
+  every system ("Charging rapidly" and the systems' own fast-charging screens): the Galaxy reports no charger power,
+  so every system took them for slow chargers. **HyperOS** shows its super charging (Super Fast) and quick charging.
+  Every system's files have a new revision.
+- **Faster charging while you use the phone:** with the charger in and the screen on, OneOS now holds the CPU back a
+  little when Samsung's fast charger gets hot (from 44 C), as One UI does. Without it the A36 charged at a fraction
+  of its speed in use (the charger at 47-52 C).
+- **HyperOS battery drain** with the screen off (20 % in 2 hours, almost no deep sleep): Xiaomi Find Device, which
+  works only with Xiaomi's own phones and servers, held the phone awake for hours. It is left out now.
+- **Bring apps during a session** said "not an installed user app" for every One UI app: OneOS now reads One UI's
+  apps through a read-only view the other system cannot see.
+- **Full session logs on phones where a root tool covers Android's logcat** (Galaxy S24 FE): OneOS now runs
+  Android's own logcat from underneath it.
+- **HyperOS status bar in light apps** (white icons on white, as in Settings): HyperOS sent an app's bar colours to
+  a per-app status bar only it draws; they now go to the screen's status bar, as on any Android. The Dynamic Island
+  stays.
+- **HyperOS status bar icon spacing and the rounded app open/close animations** were lost with this version's new
+  HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
+  when that happens.

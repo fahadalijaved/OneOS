@@ -44,7 +44,26 @@ for c in /system/bin/logcat $(command -v logcat 2>/dev/null); do
     if timeout 5 "$c" -d -t 1 >/dev/null 2>&1; then LOGCAT_BIN=$c; break; fi
 done
 LC_PATH=$(command -v logcat 2>/dev/null)
-if [ -z "$LOGCAT_BIN" ]; then
+# 0.5.31: S24 FE b1feb4d2: /system/bin/logcat itself was a bind mount of a root tool's file
+# (/data/local/tmp/ksud-s25u-kdp, f2fs). Android's logcat is still under it: a wrapper runs it in a mount
+# namespace of its own (a slave of One UI's, so the unmount stays in it) with that mount taken off. It execs
+# "logcat" by name, so the capture's command line still starts with "logcat " (pgrep '^logcat ...').
+LCW=/data/local/tmp/oneos_logcat_bin
+if [ -z "$LOGCAT_BIN" ] && grep -q -F ' /system/bin/logcat ' /proc/self/mountinfo 2>/dev/null; then
+    mkdir -p "$LCW" && rm -f "$LCW/logcat" &&
+        printf '%s\n' '#!/system/bin/sh' \
+            "exec /system/bin/unshare -m /system/bin/sh -c 'mount -o rslave none / || exit 1; umount -l /system/bin/logcat 2>/dev/null; PATH=/system/bin:/system/xbin; export PATH; exec logcat \"\$@\"' logcat \"\$@\"" \
+            > "$LCW/logcat.new" && chmod 755 "$LCW/logcat.new" &&
+        if timeout 5 "$LCW/logcat.new" -d -t 1 >/dev/null 2>&1; then
+            mv -f "$LCW/logcat.new" "$LCW/logcat" && LOGCAT_BIN="$LCW/logcat"
+            echo "preflight: /system/bin/logcat is covered by a mount ($(grep -F ' /system/bin/logcat ' /proc/self/mountinfo | cut -d' ' -f4 | head -n 1)); Android's own logcat runs from under it for this session"
+        else
+            rm -f "$LCW/logcat.new"
+        fi
+fi
+if [ "$LOGCAT_BIN" = "$LCW/logcat" ]; then
+    PATH="$LCW:$PATH" && export PATH
+elif [ -z "$LOGCAT_BIN" ]; then
     echo "preflight: no logcat that takes logcat's options (PATH's: ${LC_PATH:-none}; $(ls -l /system/bin/logcat 2>&1 | cut -c1-160); mounts on it: $(grep -F ' /system/bin/logcat ' /proc/self/mountinfo 2>/dev/null | cut -d' ' -f4,5,9 | tr '\n' ';')): this session's logs have no logcat"
 elif [ "$LC_PATH" != "$LOGCAT_BIN" ]; then
     mkdir -p /data/local/tmp/oneos_logcat_bin && ln -sf "$LOGCAT_BIN" /data/local/tmp/oneos_logcat_bin/logcat &&
@@ -3235,6 +3254,9 @@ while true; do
                 # fill\"); half of it looked right on the A36 (60 px).
                 HRCF=\$HRC
                 [ $GUEST_MIUI = 1 ] && case \"\$HRC\" in ''|*[!0-9]*) ;; *) HRC=\$((HRC / 2)) ;; esac
+                # Which of these overlays were already on when the guest started (an earlier session made them),
+                # for HyperOS's restart below.
+                PRE=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list 2>/dev/null | grep -F '[x] com.android.shell:OneOS')
                 OVS=''
                 if [ -n \"\$CUT\" ] && [ -n \"\$CUTR\" ] &&
                    gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string \"\$CUT\" &&
@@ -3345,6 +3367,23 @@ while true; do
                     sp=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/pidof com.android.systemui 2>/dev/null)
                     case \"\$sp\" in ''|*[!0-9\ ]*) ;; *) kill \$sp 2>/dev/null && echo \"[UI Activator] Nothing's SystemUI restarted for the power key place and status bar\" ;; esac ;;
                 esac
+                # 0.5.31 (owner's A36, HyperOS 4 Global r4, 11-20: \"the px adjustment for the status bar icons and
+                # the roundness of app open/close animations are not applied this session\"): HyperOS's SystemUI
+                # (the icons' corner padding) and launcher (the window corner radius of its open/close cards) read
+                # these once, when they start. A session that starts with them on (an earlier session made them) is
+                # right; the first one on new files enabled them at 23:30 after both started at 23:29, while
+                # WindowManager had them (status bar 101 px, corners 59 px). Overlays turned on here that were off
+                # when the guest started: both restarted once.
+                if [ $GUEST_MIUI = 1 ]; then
+                    NEWON=''
+                    for o in \$ON; do printf '%s\\n' \"\$PRE\" | grep -q -x -F \"[x] com.android.shell:\$o\" || NEWON=\"\$NEWON \$o\"; done
+                    if [ -n \"\$NEWON\" ]; then
+                        for pk in com.android.systemui com.miui.home; do
+                            sp=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/pidof \$pk 2>/dev/null)
+                            case \"\$sp\" in ''|*[!0-9\ ]*) ;; *) kill \$sp 2>/dev/null && echo \"[UI Activator] HyperOS: \$pk restarted for the overlays turned on now:\$NEWON\" ;; esac
+                        done
+                    fi
+                fi
                 echo \"[UI Activator] status bar: One UI's cutout '\${HCS:-none}', as \$CUTU: '\${CUT:-none}', rect '\${CUTR:-none}'; height \${HSB:-?} px\${SBK:+ (\$HSBG px at the \${SBK% *} px the guest runs)}, corner radius \${HRC:-?} px; overlays on:\${ON:- none}\${DIMS:+ (not made:\$DIMS)}\"
             else
                 # No host cutout this session (ONEOS_GUEST_HOST_CUTOUT=0, or a
@@ -3876,7 +3915,7 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
     F=$STAGE/heat_cap.log
     CFL=/sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit
     if [ $HEAT_CAP = 1 ]; then
-        echo \"# \$(date) OneOS heat cap: from 45, 47, 50 C skin every CPU policy at 80, 65, 50% of its top clock (2 C hysteresis)\" > \$F
+        echo \"# \$(date) OneOS heat cap: from 45, 47, 50 C skin every CPU policy at 80, 65, 50% of its top clock (2 C hysteresis); charging with the screen on, from 44, 48 C direct charger 80, 65%\" > \$F
     else
         echo \"# \$(date) OneOS heat cap off (Cool down when hot): the guest thermal status only\" > \$F
     fi
@@ -3896,7 +3935,7 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
         done
         echo \"\$(date +%T) \$1: full clock:\$c\" >> \$F
     }
-    lvl=0; first=1; tl=-1; lp=''
+    lvl=0; chl=0; first=1; tl=-1; lp=''
     while true; do
         if [ -f $STAGE/data/oneos_rec_stop ] || [ ! -s $STAGE/guest_mntns ]; then
             [ \$lvl = 0 ] || full stopped
@@ -3919,6 +3958,20 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
         fi
         if [ -n \"\$sk\" ] && [ $HEAT_CAP = 1 ]; then
             new=\$(awk -v s=\"\$sk\" -v l=\$lvl 'BEGIN { t[1] = 45; t[2] = 47; t[3] = 50; while (l < 3 && s >= t[l + 1]) l++; while (l > 0 && s < t[l] - 2) l--; print l }')
+            # 0.5.31: charging with the screen on (owner's A36, HyperOS, 45 W: 0.6-1.6 A into the battery while in use,
+            # the direct charger at 47-52 C; One UI charges much faster in use). One UI's SSRM holds the clocks back
+            # while charging; here the direct charger's temperature (battery/dchg_temp, 0.1 C) sets a level too:
+            # from 44 C 80%, from 48 C 65% (2 C hysteresis). The stricter of the two levels applies.
+            ch=0; dt=0
+            if [ \"\$(cat /sys/class/power_supply/battery/status 2>/dev/null)\" = Charging ]; then
+                dt=\$(cat /sys/class/power_supply/battery/dchg_temp 2>/dev/null)
+                case \"\$dt\" in ''|*[!0-9]*) dt=0 ;; esac
+                on=0
+                for b in /sys/class/backlight/*/brightness; do v=\$(cat \$b 2>/dev/null); case \"\$v\" in ''|0|*[!0-9]*) ;; *) on=1 ;; esac; done
+                [ \$on = 1 ] && [ \$dt -gt 0 ] && ch=\$(awk -v d=\$dt -v l=\$chl 'BEGIN { t[1] = 440; t[2] = 480; while (l < 2 && d >= t[l + 1]) l++; while (l > 0 && d < t[l] - 20) l--; print l }')
+            fi
+            chl=\$ch
+            [ \$ch -gt \$new ] && new=\$ch && sk=\"\$sk (charging, direct charger \$((dt / 10)))\"
             if [ \"\$new\" = 0 ] && [ \$first = 1 ]; then
                 capped=''
                 for p in /sys/devices/system/cpu/cpufreq/policy*; do
