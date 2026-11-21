@@ -175,7 +175,7 @@ SET_HYPERHK="OneOSCameraProcessingStub.apk OneOSFoldCutout.apk OneOSGuest.apk On
 SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_customringtone.tar nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar samcam_bar.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched vold_patched wifi_payload.img"
 SET_NOTHINGA="NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSBrightnessRange34.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam_a.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar vold_patched wifi_payload.img"
 # One UI 9.5 (0.5.22): the Galaxy S26 Ultra build's guarded jars and camera libraries, signal poll, payloads and software floating features (set r1); no vold, no tethering.
-SET_ONEUI="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar"
+SET_ONEUI="Fold8OneUI95Framework.apk Fold8OneUI95Home.apk Fold8OneUI95Services.jar Fold8OneUI95Settings.apk Fold8OneUI95SystemUI.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img samcam_a_oneui.tar sdkext_payload.img service.incremental_patched.so services_patched.jar telephony-common_patched.jar telephonycore_payload.img vold_patched webapp_payload.img wifi_payload.img"
 # OxygenOS 16 (0.4.67): ColorOS's common files and its own payloads; the guest vold as gvld from r2 (0.4.69).
 SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img conscrypt_payload.img profiling_payload.img"
 # OriginOS 7 (0.4.73): vivo's own jars, libraries, launcher and feature list, the signal poll, the fold
@@ -1442,8 +1442,8 @@ switch_verdict() {
 }
 
 do_launch() {
-    [ $# -ge 7 ] && [ $# -le 10 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot [fullLogs [shareFiles]]]"
-    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0} fulllogs=${9:-1} sharefiles=${10:-0}
+    [ $# -ge 7 ] && [ $# -le 11 ] || usage "launch <session|dry> <versionCode> <sessionId> <hideGms> <heatCap> <secIms> <edmStub> [verboseBoot [fullLogs [shareFiles [mediaChip]]]]"
+    mode=$1 code=$2 sid=$3 gms=$4 heat=$5 secims=$6 edmstub=$7 verbose=${8:-0} fulllogs=${9:-1} sharefiles=${10:-0} mediachip=${11:-1}
     case "$mode" in session|dry) ;; *) usage "launch mode $mode" ;; esac
     is_dec "$code" || usage "launch versionCode $code"
     case "$sid" in *[!0-9a-f]*|'') usage "launch session id" ;; esac
@@ -1455,6 +1455,7 @@ do_launch() {
     case "$verbose" in 0|1) ;; *) usage "launch verboseBoot $verbose" ;; esac
     case "$fulllogs" in 0|1) ;; *) usage "launch fullLogs $fulllogs" ;; esac
     case "$sharefiles" in 0|1) ;; *) usage "launch shareFiles $sharefiles" ;; esac
+    case "$mediachip" in 0|1) ;; *) usage "launch mediaChip $mediachip" ;; esac
     [ -n "$T" ] || [ "$(id -u)" = 0 ] || refuse "not root"
     step "checks"
     [ ! -e "$STAGE/.oneos_update" ] || refuse "the installed system update did not finish: retry the update"
@@ -1465,6 +1466,8 @@ do_launch() {
     [ -n "$M_SET" ] && [ "$(pair_set "$M_PROFILE" "$M_IMAGE")" = "$M_SET" ] ||
         refuse "the stage holds $M_IMAGE with ${M_SET:-no file set}, not its file set for $M_PROFILE: prepare again"
     [ "$gms" = 0 ] || in_list "$M_IMAGE" "$IMAGES_GMS" || refuse "$M_IMAGE has no Google services a session may hide"
+    [ "$mediachip" = 1 ] || [ "$M_PROFILE:$M_IMAGE" = f8:oneui95-s948b ] ||
+        refuse "the media chip option is unavailable for this system"
     set -- $pinfo
     form=$4
     model=$(getprop ro.product.model)
@@ -1554,11 +1557,13 @@ do_launch() {
     # Out of the app's cgroup: ActivityManager kills an app's whole cgroup when
     # the app dies, and the app dies when One UI's framework stops.
     echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
-    # Only session.env (and, for the dry run, ONEOS_PREPARE_ONLY) set ONEOS_*.
+    # Use only the checked session.env and choices validated by this launch.
     for v in $(env | sed -n 's/^\(ONEOS_[A-Za-z0-9_]*\)=.*/\1/p'); do unset "$v"; done
     [ "$mode" = dry ] && export ONEOS_PREPARE_ONLY=1
     "$BB" nsenter -t 1 -m -- "$BB" setsid /system/bin/sh -c \
-        'set -a; . "$1/session.env"; set +a; exec /system/bin/sh "$1/oneos_switch.sh"' oneos-session "$STAGE" \
+        'set -a; . "$1/session.env"; set +a
+         export ONEOS_ONEUI95_MEDIA_CHIP="$2"
+         exec /system/bin/sh "$1/oneos_switch.sh"' oneos-session "$STAGE" "$mediachip" \
         </dev/null >>"$STAGE/takeover_app.log" 2>&1 &
     # The switch checks once more by itself before it changes anything and can
     # still refuse there, with its reason only in takeover_app.log. Up to 0.4.95
@@ -2325,6 +2330,7 @@ bring_dirs() {
 # so the folder is only moved aside, inside the bring folder (root's alone), and
 # the next verb that runs with the guest down deletes it.
 BRING_LIVE=0
+BRING_SYSTEM=0
 bring_clearout() { # <a folder in the bring folder>
     if [ "$BRING_LIVE" = 1 ]; then bring_aside "$1"; else bring_drop "$1"; fi
 }
@@ -2359,25 +2365,93 @@ apk_of() { # <package>
     fi
 }
 
+# Only the host Package Manager can supply paths. For live requests it cannot be
+# queried after handoff, so bring-catalog saves its answers outside guest data.
+bring_system_records() {
+    pm list packages -s -f -U --user 0 "$@" </dev/null | awk '
+        /^package:\/[^ ]+ uid:[0-9]+$/ {
+            uid = $2; sub(/^uid:/, "", uid)
+            pkg = $1; sub(/^.*=/, "", pkg)
+            path = $1; sub(/^package:/, "", path); sub(/=[^=]+$/, "", path)
+            print pkg, uid, path
+        }'
+}
+
+bring_system_path() {
+    case "$1" in *[!A-Za-z0-9._~+=/-]*|*//*|*/.*|*/../*) return 1 ;; esac
+    case "$1" in
+        /data/app/*/*/*.apk) return 0 ;;
+    esac
+    _app_path=$1
+    case "$_app_path" in /system/system_ext/*|/system/product/*|/system/vendor/*|/system/odm/*) _app_path=${_app_path#/system} ;; esac
+    case "$_app_path" in
+        /system/*|/system_ext/*|/product/*|/vendor/*|/odm/*) _app_path=${_app_path#/*/} ;;
+        *) return 1 ;;
+    esac
+    case "$_app_path" in app/*.apk|priv-app/*.apk) return 0 ;; esac
+    return 1
+}
+
+system_apk_of() {
+    if [ "$BRING_LIVE" = 1 ] || [ -s "$STAGE/guest_mntns" ]; then
+        _map="$STAGE/bring-system-apps"
+        [ -f "$_map" ] && [ ! -L "$_map" ] && mine "$_map" || return 1
+        awk -v p="$1" '$1 == p {print $2, $3; exit}' "$_map"
+    else
+        bring_system_records "$1" | awk -v p="$1" '$1 == p {print $2, $3; exit}'
+    fi
+}
+
+# Resolve a system record to the host's APK, never to the bridged guest /data/app.
+bring_resolve_system_apk() {
+    _uid=${1%% *}
+    _path=${1#* }
+    is_dec "$_uid" && ge "$_uid" 10000 && ge 19999 "$_uid" && bring_system_path "$_path" || return 1
+    case "$_path" in
+        /data/app/*)
+            if [ "$BRING_LIVE" = 1 ] || [ -s "$STAGE/guest_mntns" ]; then
+                bring_view || return 1
+                printf '%s\n' "$T/mnt/oneos_oneui/${_path#/data/}"
+                return
+            fi ;;
+    esac
+    printf '%s\n' "$T$_path"
+}
+
 bring_one() { # <a name is_package accepted>
     pkg=$1
     BRING_WHY=""
     dst="$STAGE/data/oneos_bring/$pkg"
-    # Its APKs: the folder pm names under /data/app (a user app; One UI's
-    # own apps stay on One UI, and the app never offers them).
-    first=$(apk_of "$pkg")
-    apkdir=""
-    case "$first" in *..*) ;; "$DATA"/app/*/*.apk|"$T"/mnt/oneos_oneui/app/*/*.apk) apkdir=${first%/*} ;; esac
-    if [ -z "$apkdir" ] || [ ! -f "$first" ] || [ -L "$first" ]; then
+    system_record=""
+    if [ "$BRING_LIVE" != 1 ] || [ "$BRING_SYSTEM" = 1 ]; then
+        system_record=$(system_apk_of "$pkg")
+    fi
+    system=0
+    if [ -n "$system_record" ] || [ "$BRING_SYSTEM" = 1 ]; then
+        system=1
+        first=$(bring_resolve_system_apk "$system_record")
+        BRING_WHY="no portable system APK available on One UI"
+    else
+        first=$(apk_of "$pkg")
+        case "$first" in *..*) first="" ;; "$DATA"/app/*/*.apk|"$T"/mnt/oneos_oneui/app/*/*.apk) ;; *) first="" ;; esac
         BRING_WHY="not an installed user app"
+    fi
+    if [ ! -f "$first" ] || [ -L "$first" ]; then
         say "@@INFO $pkg: $BRING_WHY, skipped"
         return 1
     fi
-    bring_sources
+    apkdir=${first%/*}
+    # A flat system directory can contain independent APKs. Only a package's
+    # own directory may contribute split APKs.
+    set -- "$first"
+    case "${apkdir##*/}" in app|priv-app) ;; *) set -- "$apkdir"/*.apk ;; esac
+    BCE=""; BDE=""
+    [ "$system" = 1 ] || bring_sources
     # Room for it, and 2 GiB left for One UI afterwards.
-    kb=$(du -sk "$apkdir" "$BCE" "$BDE" 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
-    set -- $(stat -f -c '%a %S' "$DATA" 2>/dev/null)
-    if ! { is_dec "$kb" && is_dec "$1" && is_dec "$2" && awk -v f="$1" -v b="$2" -v k="$kb" 'BEGIN { exit !(f * b / 1024 >= k + 2097152) }'; }; then
+    kb=$(du -sk "$@" ${BCE:+"$BCE"} ${BDE:+"$BDE"} 2>/dev/null | awk '{total += $1} END {print total + 0}')
+    free=$(stat -f -c '%a %S' "$DATA" 2>/dev/null)
+    blocks=${free%% *}; block_size=${free#* }
+    if ! { is_dec "$kb" && is_dec "$blocks" && is_dec "$block_size" && awk -v f="$blocks" -v b="$block_size" -v k="$kb" 'BEGIN { exit !(f * b / 1024 >= k + 2097152) }'; }; then
         BRING_WHY="not enough free space on the phone"
         say "@@INFO $pkg: $BRING_WHY, skipped"
         return 1
@@ -2389,7 +2463,10 @@ bring_one() { # <a name is_package accepted>
     bring_clearout "$NEW" || true
     mkdir_mine "$NEW" && mkdir_mine "$NEW/apk" || die "could not make ${NEW#$T}"
     date +%s > "$NEW/since" || die "could not write in ${NEW#$T}"
-    for apk in "$apkdir"/*.apk; do
+    if [ "$system" = 1 ]; then
+        : > "$NEW/system" && own "$NEW/system" 0600 || die "could not mark the system app copy"
+    fi
+    for apk in "$@"; do
         [ -f "$apk" ] && [ ! -L "$apk" ] || continue
         name=${apk##*/}
         case "$name" in *[!A-Za-z0-9._-]*) continue ;; esac
@@ -2403,7 +2480,7 @@ bring_one() { # <a name is_package accepted>
             case "${BFROM##*/}" in cache|code_cache) continue ;; esac
             cp -a "$BFROM" "$NEW/ce/" 2>/dev/null || lost=$((lost + 1))
         done
-    else
+    elif [ "$system" = 0 ]; then
         lost=$((lost + 1))
     fi
     if [ -d "$BDE" ] && [ ! -L "$BDE" ]; then
@@ -2487,7 +2564,10 @@ do_bring_add() {
     [ -d "$STAGE/data/oneos_bring_catalog" ] && mine "$STAGE/data/oneos_bring_catalog" || refuse "no catalog of apps (start this system from the OneOS app)"
     catf="$STAGE/data/oneos_bring_catalog/catalog.tsv"
     [ -f "$catf" ] && [ ! -L "$catf" ] || refuse "no catalog of apps (start this system from the OneOS app)"
-    cut -f1 "$catf" | grep -q -x -F "$1" || refuse "$1 is not in the catalog"
+    mine "$catf" || refuse "the catalog is not root's"
+    app_type=$(awk -F '\t' -v p="$1" '$1 == p { if ($4 == "system") print "system"; else print "user"; exit }' "$catf")
+    [ -n "$app_type" ] || refuse "$1 is not in the catalog"
+    [ "$app_type" != system ] || BRING_SYSTEM=1
     BRING_LIVE=1
     bring_dirs
     NEW="$STAGE/data/oneos_bring/.incoming"
@@ -2497,7 +2577,8 @@ do_bring_add() {
 }
 
 # The apps One UI offers, for the guest's own screen: stdin is the catalog, one
-# "<package> TAB <label> TAB <base64 of a PNG icon>" line per app. Every line is
+# "<package> TAB <label> TAB <base64 of a PNG icon>" line per user app or
+# "<package> TAB <label> TAB - TAB system" per system app. Every line is
 # checked before anything is written (a bad line changes nothing), then the file
 # is written beside its place and renamed in. The guest reads it at
 # /data/oneos_bring_catalog/catalog.tsv (folder 0755, file 0644: not secret).
@@ -2515,9 +2596,11 @@ do_bring_catalog() {
     tab=$(printf '\t')
     list=""
     n=0
+    user_apps=0
+    system_apps=0
     while IFS= read -r line || [ -n "$line" ]; do
         n=$((n + 1))
-        [ "$n" -le 400 ] || { rm -f "$part"; refuse "the catalog has more than 400 apps"; }
+        [ "$n" -le 1600 ] || { rm -f "$part"; refuse "the catalog has more than 1600 apps"; }
         case "$line" in *"$tab"*"$tab"*) ;; *) rm -f "$part"; refuse "catalog line $n is not package, label, icon" ;; esac
         pkg=${line%%"$tab"*}
         rest=${line#*"$tab"}
@@ -2528,12 +2611,26 @@ do_bring_catalog() {
         list="$list $pkg"
         [ -n "$label" ] && [ ${#label} -le 320 ] || { rm -f "$part"; refuse "catalog line $n: label is empty or too long"; }
         case "$label" in *[[:cntrl:]]*) rm -f "$part"; refuse "catalog line $n: label has control characters" ;; esac
-        [ -n "$icon" ] && [ ${#icon} -le 262144 ] || { rm -f "$part"; refuse "catalog line $n: icon is empty or too large"; }
-        case "$icon" in *[!A-Za-z0-9+/=]*) rm -f "$part"; refuse "catalog line $n: icon is not base64" ;; esac
+        if [ "$icon" = "-${tab}system" ]; then
+            system_apps=$((system_apps + 1))
+        else
+            user_apps=$((user_apps + 1))
+            [ "$user_apps" -le 400 ] || { rm -f "$part"; refuse "the catalog has more than 400 user apps"; }
+            [ -n "$icon" ] && [ ${#icon} -le 262144 ] || { rm -f "$part"; refuse "catalog line $n: icon is empty or too large"; }
+            case "$icon" in *[!A-Za-z0-9+/=]*) rm -f "$part"; refuse "catalog line $n: icon is not base64" ;; esac
+        fi
     done < "$part"
-    if [ ! -d "$STAGE/data" ]; then
-        mkdir "$STAGE/data" && own "$STAGE/data" 0755 || die "could not make the stage's data folder"
+    if [ "$system_apps" -gt 0 ]; then
+        # mktemp gives the host-only path snapshot a fresh name and 0600 mode.
+        _map_tmp=$(mktemp "$STAGE/incoming/bring-system.XXXXXX") || die "could not create the host system app list"
+        bring_system_records > "$_map_tmp" && own "$_map_tmp" 0600 &&
+            mv -f "$_map_tmp" "$STAGE/bring-system-apps" || {
+                rm -f "$_map_tmp" "$part"
+                die "could not write the host system app list"
+            }
     fi
+    # Prepare the restore script even when the first request comes from the guest.
+    bring_dirs
     mkdir_mine "$STAGE/data/oneos_bring_catalog" || die "could not make the catalog folder"
     mv "$part" "$STAGE/data/oneos_bring_catalog/catalog.new" || die "could not write the catalog"
     own "$STAGE/data/oneos_bring_catalog/catalog.new" 0644 || die "could not write the catalog"
@@ -2606,7 +2703,13 @@ do_bring_forget() {
     idle_or_refuse
     [ ! -L "$STAGE/data" ] || refuse "${STAGE#$T}/data is a link"
     bring_dirs
-    kb=$(du -sk "$STAGE/data/oneos_bring/$1" 2>/dev/null | cut -f1)
+    copy="$STAGE/data/oneos_bring/$1"
+    forget=1
+    if [ -f "$copy/system" ] && [ ! -L "$copy/system" ]; then
+        stamp=$(bring_mark "$copy/stamp")
+        [ -n "$stamp" ] && [ "$(bring_mark "$copy/applied")" = "$stamp" ] || forget=0
+    fi
+    kb=$(du -sk "$copy" 2>/dev/null | cut -f1)
     is_dec "$kb" || kb=0
     # Its own partials only (".<pkg>" and ".<pkg>-<suffix>"; a package name has no "-"):
     # ".<pkg>"* or ".<pkg>".* would also take another package's whose name starts with
@@ -2619,7 +2722,7 @@ do_bring_forget() {
     part="$STAGE/data/oneos_bring/.forget.new"
     {
         if [ -f "$dst" ] && [ ! -L "$dst" ] && mine "$dst"; then cat "$dst"; fi
-        echo "$1"
+        [ "$forget" != 1 ] || echo "$1"
     } | while read -r line; do
         if is_package "$line"; then echo "$line"; fi
     done | sort -u > "$part"
@@ -2661,12 +2764,20 @@ do_bring_status() {
             change=same
             was=""
             if [ -f "$dst/stamp" ] && [ ! -L "$dst/stamp" ]; then was=$(sed -n 2p "$dst/stamp" 2>/dev/null); fi
-            now=$(apk_of "$pkg")
-            bring_sources
+            system=0
+            if [ -f "$dst/system" ] && [ ! -L "$dst/system" ]; then
+                system=1
+                now=$(bring_resolve_system_apk "$(system_apk_of "$pkg")")
+            else
+                now=$(apk_of "$pkg")
+                bring_sources
+            fi
             if [ -z "$now" ]; then
                 change=gone
             elif [ -n "$was" ] && [ "$now" != "$was" ]; then
                 change=app
+            elif [ "$system" = 1 ]; then
+                [ "$now" -nt "$dst/stamp" ] && change=app
             elif [ ! -f "$dst/since" ] || [ -L "$dst/since" ]; then
                 change=data
             else

@@ -101,6 +101,11 @@ class FakeRoot(
         """)
         stub("pm", """
             case "${'$'}1" in disable-user|enable) echo "${'$'}*" >> "${'$'}ONEOS_TEST_ROOT/pm_log"; exit 0 ;; esac
+            if [ "${'$'}*" = "list packages -s -f -U --user 0" ] ||
+               [ "${'$'}1 ${'$'}2 ${'$'}3 ${'$'}4 ${'$'}5 ${'$'}6 ${'$'}7" = "list packages -s -f -U --user 0" ]; then
+                [ ! -f "${'$'}ONEOS_TEST_ROOT/pm_system" ] || cat "${'$'}ONEOS_TEST_ROOT/pm_system"
+                exit 0
+            fi
             [ "${'$'}1" = path ] || exit 1
             case "${'$'}2" in
               android) echo "package:/system/framework/framework-res.apk" ;;

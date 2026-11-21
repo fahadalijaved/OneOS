@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bring_search">Search by app name or package</string>
+    <string name="bring_filter">App type</string>
+    <string name="bring_no_matches">No apps match your search or filter.</string>
+    <string name="bring_system_summary">System apps are installed as regular apps when compatible. Only their APK files are copied.</string>
+    <string name="bring_system_row">System app · %1$s</string>
+    <string-array name="bring_filters">
+        <item>User apps</item>
+        <item>System apps</item>
+        <item>All apps</item>
+    </string-array>
+    <string name="bring_select_visible_user">Select visible user apps</string>
+</resources>

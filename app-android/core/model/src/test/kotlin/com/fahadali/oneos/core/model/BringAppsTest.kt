@@ -14,15 +14,28 @@ class BringAppsTest {
     }
 
     @Test
-    fun systemAppsAndComponentsAndOursAreNot() {
-        // One UI / system apps stay on One UI.
-        assertFalse(BringApps.eligible("com.samsung.android.messaging", system = true, launchable = true))
+    fun systemAppsCanBeListedWithoutLauncherEntries() {
+        assertTrue(BringApps.eligible("com.samsung.android.messaging", system = true, launchable = true))
+        assertTrue(BringApps.eligible("org.example.component", system = true, launchable = false))
         // No launcher entry (a service/component package): not offered.
         assertFalse(BringApps.eligible("com.google.android.gms", system = false, launchable = false))
         // Our own app, the guest, and root managers are never brought.
         for (pkg in BringApps.NEVER) {
             assertFalse(pkg, BringApps.eligible(pkg, system = false, launchable = true))
         }
+    }
+
+    @Test
+    fun systemSourcesAndSearchFilters() {
+        assertTrue(BringApps.portableSystemApk("/system/priv-app/Messages/Messages.apk"))
+        assertTrue(BringApps.portableSystemApk("/data/app/~~token==/org.example.app-token==/base.apk"))
+        assertFalse(BringApps.portableSystemApk("/product/overlay/Overlay.apk"))
+        assertFalse(BringApps.portableSystemApk("/apex/com.android.wifi/app/App.apk"))
+        assertFalse(BringApps.portableSystemApk("/system/app/../framework/framework-res.apk"))
+        assertTrue(BringApps.Filter.SYSTEM.matches(true, "Messaging", "org.example.app", " MES "))
+        assertTrue(BringApps.Filter.ALL.matches(true, "Messaging", "org.example.app", "EXAMPLE"))
+        assertFalse(BringApps.Filter.USER.matches(true, "Messaging", "org.example.app", ""))
+        assertFalse(BringApps.Filter.SYSTEM.matches(false, "Messaging", "org.example.app", ""))
     }
 
     @Test

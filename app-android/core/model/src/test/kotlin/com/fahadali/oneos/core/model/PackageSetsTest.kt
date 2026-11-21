@@ -93,7 +93,7 @@ class PackageSetsTest {
         assertEquals("oneui95", oneui.id)
         assertEquals(Images.ID_ONEUI95, oneui.imageId)
         assertEquals("out/overlays_oneui95_r10", oneui.sourceDir)
-        assertEquals(39, oneui.files.size) // r9: + samcam_a_oneui.tar; r10: + vold_patched, service.incremental_patched.so
+        assertEquals(44, oneui.files.size) // Five Fold8 payloads and the r10 guest vold pair.
         assertEquals(22, oneui.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), oneui.omitted)
         assertEquals(

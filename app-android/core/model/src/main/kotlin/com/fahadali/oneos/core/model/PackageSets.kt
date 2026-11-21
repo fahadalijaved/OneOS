@@ -919,6 +919,11 @@ object PackageSets {
         imageId = Images.ID_ONEUI95,
         sourceDir = "out/overlays_oneui95_r10",
         files = listOf(
+            PackageFile("Fold8OneUI95Framework.apk", FileRole.RRO),
+            PackageFile("Fold8OneUI95SystemUI.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8OneUI95Services.jar", FileRole.GUEST_FIX),
+            PackageFile("Fold8OneUI95Settings.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8OneUI95Home.apk", FileRole.GUEST_FIX),
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
             PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
@@ -939,7 +944,7 @@ object PackageSets {
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem", "npumanager", "telephonycore", "webapp")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
             + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
         omitted = listOf(TETHERING),
-        approxBytes = 584_720_823L + 77_086_720L + 1_542_200L + 1_813_456L,
+        approxBytes = 584_720_823L + 77_086_720L + 1_542_200L + 1_813_456L + 333_304_867L,
         hasReturnApp = true,
     )
 

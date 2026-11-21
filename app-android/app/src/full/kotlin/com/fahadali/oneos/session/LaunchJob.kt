@@ -254,6 +254,7 @@ object LaunchJob : BackgroundJob<LaunchJob.State>(State(), "oneos-launch") {
                 if (SessionPrefs.heatCap(app)) "1" else "0", if (secIms) "1" else "0", if (edmStub) "1" else "0",
                 if (SessionPrefs.verboseBoot(app)) "1" else "0", if (SessionPrefs.fullLogs(app)) "1" else "0",
                 if (SessionPrefs.shareFiles(app)) "1" else "0",
+                if (GuestFeatures.optionsForLaunch(app, profile.id, image.id).mediaChip) "1" else "0",
             ),
             silenceMs = 5 * 60_000L,
         )

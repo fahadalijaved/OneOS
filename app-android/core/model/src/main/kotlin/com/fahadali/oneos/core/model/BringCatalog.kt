@@ -7,7 +7,8 @@ package com.fahadali.oneos.core.model
  * `bring-catalog` writes it to `$STAGE/data/oneos_bring_catalog/catalog.tsv`
  * (the guest reads it at `/data/oneos_bring_catalog/catalog.tsv`, not secret:
  * names and icons only). One line per app, tab separated:
- * `<package> TAB <label> TAB <base64 of a 96x96 PNG icon, no line breaks>`.
+ * `<package> TAB <label> TAB <base64 PNG icon>`. System entries use a compact
+ * `- TAB system` in place of the icon. The original format still identifies user apps.
  * The root script checks every line again before it writes anything.
  */
 object BringCatalog {
@@ -16,12 +17,13 @@ object BringCatalog {
     const val FILE = "catalog.tsv"
 
     /** At most this many lines, and this many bytes in all (the root script refuses more). */
-    const val MAX_APPS = 400
+    const val MAX_APPS = 1600
+    const val MAX_USER_APPS = 400
     const val MAX_BYTES = 4 * 1024 * 1024
     const val MAX_LABEL = 80
 
     /** One app of the catalog: [png] is its icon, 96x96. */
-    class Entry(val pkg: String, val label: String, val png: ByteArray)
+    class Entry(val pkg: String, val label: String, val png: ByteArray, val system: Boolean = false)
 
     /**
      * [raw] as one line of text: tabs, line breaks and other control characters
@@ -48,8 +50,8 @@ object BringCatalog {
 
     /** The line for [e], or null when its package is not a package name. */
     fun line(e: Entry): String? {
-        if (!BringApps.PACKAGE.matches(e.pkg) || e.png.isEmpty()) return null
-        val icon = java.util.Base64.getEncoder().encodeToString(e.png)
+        if (!BringApps.PACKAGE.matches(e.pkg) || (!e.system && e.png.isEmpty())) return null
+        val icon = if (e.system) "-\tsystem" else java.util.Base64.getEncoder().encodeToString(e.png)
         return "${e.pkg}\t${label(e.label, e.pkg)}\t$icon\n"
     }
 
@@ -61,18 +63,19 @@ object BringCatalog {
     fun text(entries: Collection<Entry>): String {
         val sb = StringBuilder()
         var bytes = 0
-        var n = 0
+        var users = 0
         val seen = HashSet<String>()
-        for (e in entries.sortedWith(compareBy({ label(it.label, it.pkg).lowercase() }, { it.pkg }))) {
-            if (n >= MAX_APPS) break
-            if (e.pkg in seen) continue
+        // Small system entries fit without consuming much of the user apps' icon budget.
+        for (e in entries.sortedWith(compareBy({ !it.system }, { label(it.label, it.pkg).lowercase() }, { it.pkg }))) {
+            if (seen.size >= MAX_APPS) break
+            if (e.pkg in seen || (!e.system && users >= MAX_USER_APPS)) continue
             val l = line(e) ?: continue
             val size = l.toByteArray().size
             if (bytes + size > MAX_BYTES) continue
             seen += e.pkg
             sb.append(l)
             bytes += size
-            n++
+            if (!e.system) users++
         }
         return sb.toString()
     }

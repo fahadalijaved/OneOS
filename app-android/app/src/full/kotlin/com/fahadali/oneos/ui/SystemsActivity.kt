@@ -35,6 +35,7 @@ import com.fahadali.oneos.core.model.Plain
 import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.RootProbe
+import com.fahadali.oneos.session.GuestFeatures
 import com.fahadali.oneos.session.LaunchJob
 import com.fahadali.oneos.session.LogJob
 import com.fahadali.oneos.session.OldStagesJob
@@ -597,6 +598,13 @@ class SystemsFragment : Fragment() {
             return v
         }
         val primary = v.findViewById<Button>(R.id.systems_primary)
+        val features = GuestFeatures.forSystem(p?.id, image.id)
+        if (features.isNotEmpty()) {
+            v.findViewById<Button>(R.id.systems_features).apply {
+                visibility = View.VISIBLE
+                setOnClickListener { showGuestFeatureFlags(ctx, image.id, features) }
+            }
+        }
         // The menu follows the card's state (0.5.09): the set-up system offers Start fresh and Remove, a saved
         // copy offers its delete, a system not set up the download and file items. A long press opens it too.
         fun showMenu(anchor: View) {
@@ -605,6 +613,12 @@ class SystemsFragment : Fragment() {
             androidx.appcompat.widget.PopupMenu(ctx, anchor, android.view.Gravity.END).apply {
                 fun details() = menu.add(R.string.catalog_details).setOnMenuItemClickListener {
                     AlertDialog.Builder(ctx).setTitle(image.displayName).setMessage(image.blurb + "\n\n" + image.variant.orEmpty() + "\n" + Units.bytes(image.gzBytes)).setPositiveButton(android.R.string.ok, null).show(); true
+                }
+                if (features.isNotEmpty()) {
+                    menu.add(R.string.system_features).setOnMenuItemClickListener {
+                        showGuestFeatureFlags(ctx, image.id, features)
+                        true
+                    }
                 }
                 when {
                     setUp && !settingUp -> {

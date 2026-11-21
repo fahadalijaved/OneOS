@@ -14,7 +14,9 @@ import android.widget.Button
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.NestedScrollView
+import com.fahadali.oneos.core.model.BringApps.Filter
 import com.fahadali.oneos.guest.BringCatalogFile.Progress
+import com.fahadali.oneos.shared.BringAppFilters
 import com.fahadali.oneos.shared.NativeCards
 import dev.oneuiproject.oneui.layout.ToolbarLayout
 import dev.oneuiproject.oneui.utils.applyEdgeToEdge
@@ -30,12 +32,16 @@ import java.io.File
  * read here every 2 seconds. No root is used here, and nothing is written to One UI.
  */
 class BringAppsActivity : AppCompatActivity() {
-    private class App(val item: BringCatalogFile.Item, val icon: android.graphics.Bitmap?)
+    private data class App(val item: BringCatalogFile.Item, val icon: android.graphics.Bitmap?)
 
     private val handler = Handler(Looper.getMainLooper())
     private var apps: List<App> = emptyList()
     private var loaded = false
     private var missing = false
+    private var installedApps = emptySet<String>()
+    private var knownSystemApps = emptySet<String>()
+    private var filter = Filter.USER
+    private var search = ""
 
     /** pkg -> when it was asked for (ms): a status file older than that is an earlier request's. */
     private val asked = LinkedHashMap<String, Long>()
@@ -68,7 +74,23 @@ class BringAppsActivity : AppCompatActivity() {
         }
         toolbar.findViewById<dev.oneuiproject.oneui.widget.RoundedFrameLayout>(dev.oneuiproject.oneui.design.R.id.tbl_main_content).apply { roundedCorners = 0; fillHorizontalPadding = false }
         toolbar.findViewById<View>(dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners).visibility = View.GONE
+        filter = Filter.entries.getOrNull(savedInstanceState?.getInt("bring_filter") ?: 0) ?: Filter.USER
+        search = savedInstanceState?.getString("bring_search").orEmpty()
+        findViewById<LinearLayout>(R.id.guest_bring_filters).addView(BringAppFilters(
+            this, getString(R.string.bring_search), getString(R.string.bring_filter),
+            resources.getStringArray(R.array.bring_filters).toList(), filter, search,
+        ) { type, query ->
+            filter = type
+            search = query
+            render()
+        })
         render()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt("bring_filter", filter.ordinal)
+        outState.putString("bring_search", search)
     }
 
     override fun onResume() {
@@ -88,11 +110,17 @@ class BringAppsActivity : AppCompatActivity() {
             val file = File(BringCatalogFile.CATALOG)
             val text = runCatching { if (file.isFile) file.readText() else null }.getOrNull()
             val list = text?.let { BringCatalogFile.parse(it) }.orEmpty().map { item ->
-                App(item, item.png.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size) }.getOrNull() })
+                App(item, item.png?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size) }.getOrNull() })
             }
+            val installed = packageManager.getInstalledApplications(0).map { it.packageName }.toSet()
+            val knownSystem = packageManager.getInstalledApplications(PackageManager.MATCH_UNINSTALLED_PACKAGES)
+                .filter { (it.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0 }
+                .map { it.packageName }.toSet()
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
                 apps = list
+                installedApps = installed
+                knownSystemApps = knownSystem
                 missing = text == null
                 loaded = true
                 render()
@@ -139,20 +167,24 @@ class BringAppsActivity : AppCompatActivity() {
             NativeCards.row(NativeCards.section(list, null, color), getString(R.string.bring_no_catalog))
             return
         }
-        val shownApps = apps.filter { !installed(it.item.pkg) || it.item.pkg in asked }
-        if (shownApps.isEmpty()) {
-            NativeCards.row(NativeCards.section(list, null, color), getString(R.string.bring_none))
-            return
+        val available = apps.filter { (item) ->
+            item.pkg in asked || (item.pkg !in installedApps && (!item.system || item.pkg !in knownSystemApps))
         }
+        val shownApps = available.filter { (item) -> filter.matches(item.system, item.label, item.pkg, search) }
         val writable = requestsWritable()
         val card = NativeCards.section(list, getString(R.string.bring_intro), color)
+        if (filter != Filter.USER) NativeCards.row(card, getString(R.string.bring_system_summary))
+        if (shownApps.isEmpty()) {
+            NativeCards.row(card, getString(if (available.isEmpty()) R.string.bring_none else R.string.bring_no_matches))
+            return
+        }
         if (!writable) NativeCards.row(card, getString(R.string.bring_not_writable))
         for (app in shownApps) {
             val pkg = app.item.pkg
             val p = progress(pkg)
             val ready = p is Progress.Done || (p != null && installed(pkg) && p !is Progress.Failed)
             val summary = when {
-                p == null -> pkg
+                p == null -> if (app.item.system) getString(R.string.bring_system_row, pkg) else pkg
                 ready -> getString(R.string.bring_ready)
                 p is Progress.Failed -> getString(R.string.bring_failed_tap, p.why)
                 p is Progress.Installing -> getString(R.string.bring_installing)
@@ -169,10 +201,11 @@ class BringAppsActivity : AppCompatActivity() {
                     visibility = View.VISIBLE
                 }
             }
-            if (ready) {
+            val launch = if (ready) packageManager.getLaunchIntentForPackage(pkg) else null
+            if (launch != null) {
                 val open = LayoutInflater.from(this).inflate(R.layout.item_bring_open, card, false) as Button
                 open.setOnClickListener {
-                    packageManager.getLaunchIntentForPackage(pkg)?.let { startActivity(it) }
+                    startActivity(launch)
                 }
                 card.addView(open, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = android.view.Gravity.END })
             }
