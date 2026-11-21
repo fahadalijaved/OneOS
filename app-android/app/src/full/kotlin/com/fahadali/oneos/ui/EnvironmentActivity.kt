@@ -366,9 +366,19 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             startActivity(Intent(this, GuestRuntimeActivity::class.java).putExtra("image", image.id))
         }
         // Bring apps lives on each system's page, like Root (owner, 11-10); its screen says so when another system is set up now.
-        PrebootCards.row(PrebootCards.section(column, getString(R.string.environment_apps)), getString(R.string.bring_title),
+        val apps = PrebootCards.section(column, getString(R.string.environment_apps))
+        PrebootCards.row(apps, getString(R.string.bring_title),
             getString(R.string.environment_bring_summary), chevron = true, enabled = !preview) {
             startActivity(BringAppsActivity.intent(this, image))
+        }
+        // Debloat (0.5.32): the apps this system starts without; only systems the research lists cover.
+        if (com.fahadali.oneos.session.Debloater.apps(this, image.id).isNotEmpty()) {
+            val left = com.fahadali.oneos.session.Debloater.hidden(this, image.id).size
+            PrebootCards.row(apps, getString(R.string.debloat_title),
+                if (left > 0) resources.getQuantityString(R.plurals.environment_debloat_summary_n, left, left)
+                else getString(R.string.environment_debloat_summary), chevron = true, enabled = !preview) {
+                startActivity(DebloatActivity.intent(this, image))
+            }
         }
         PrebootCards.row(PrebootCards.section(column), getString(R.string.environment_report), chevron = true) {
             if (preview) AlertDialog.Builder(this).setTitle(R.string.environment_report).setMessage(R.string.environment_preview).setPositiveButton(android.R.string.ok, null).show()

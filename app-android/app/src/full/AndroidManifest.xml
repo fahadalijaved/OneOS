@@ -70,6 +70,15 @@
             android:name=".ui.BringAppsActivity"
             android:exported="false"
             android:parentActivityName=".ui.AdvancedActivity" />
+        <!-- Debloat (0.5.32, each system's page): apps left out at the system's next start. -->
+        <activity
+            android:name=".ui.DebloatActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+        <activity
+            android:name=".ui.DebloatListActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.DebloatActivity" />
 
         <!-- The redesign: Choose a system (Home's "Choose a system", the fixes
              that choose a system or a file) and Setting up (Home's "Show

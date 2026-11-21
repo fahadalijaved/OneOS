@@ -1,4 +1,4 @@
-# OneOS package set oneui95: sha256sum of out/overlays_oneui95_r6 (scripts/make-overlays.sh on the Galaxy S26 Ultra build S948BXXU6ZZKN, One UI 9.5, 2026-11-18), minus tethering_payload.img.
+# OneOS package set oneui95: sha256sum of out/overlays_oneui95_r6 (scripts/make-overlays.sh on the Galaxy S26 Ultra build S948BXXU6ZZKN, One UI 9.5, 2026-11-18), minus tethering_payload.img. r9 (0.5.32): + samcam_a_oneui.tar (the Galaxy A36's Samsung Camera for A and M phones), 2026-11-21.
 # app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_oneui95_r6 differs.
 a2efd9b1170675a011ce4e667dcdd1b277c419617656dd3c1b77ff537f000afd  OneOSFoldCutout.apk
 9109053d8b15d6b3cf14c4cb2c44713e95d093780a1f5fbc5a4bdf11f66665c0  OneOSGuest.apk
@@ -36,3 +36,4 @@ cd02dba1153b2a3a2c0f87da617753d4a8e6c339246cb130e4d91f22506af51e  telephony-comm
 3d1202cfc36e5eba92b80714856ae43e460be81a5ea8aa92dbd438ba006c8007  telephonycore_payload.img
 ebf0cd3e7f36802c9b86c07d14a316031cda925f6f9a28dbd359b5b390fd25ee  webapp_payload.img
 ceb5bb5afa77a123327709db62f4c712bdbd63ba4376a5c7d718065867e86049  wifi_payload.img
+ebe75fd4c0835d95e9013d7b0af8d6526c14572c6b8e920a46efff7e294061fe  samcam_a_oneui.tar

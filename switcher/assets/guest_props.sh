@@ -318,8 +318,12 @@ add)
     # also ships oplus-services.jar but has no oplus-telephony-common.jar.
     # Memory only and in the added list, so remove blanks it again.
     # ONEOS_GUEST_ANIM_LEVEL=0 leaves it unset; 2, 3 or 4 sets that level.
-    AL=persist.sys.oplus.anim_level; ALV=${ONEOS_GUEST_ANIM_LEVEL:-1}
+    # 0.5.32: the level chosen in the guest's OneOS app (Lighter animations: 3) stays for the next starts.
+    ALS=$(head -c 4 "$STAGE/data/oneos_anim_level" 2>/dev/null | tr -dc 0-9)
+    [ -L "$STAGE/data/oneos_anim_level" ] && ALS=""
+    AL=persist.sys.oplus.anim_level; ALV=${ONEOS_GUEST_ANIM_LEVEL:-${ALS:-1}}
     case "$ALV" in 1|2|3|4) ;; *) ALV="" ;; esac
+    rm -f "$STAGE/data/oneos_bootui/anim_level"
     if [ -n "$ALV" ] && { grep -q '"image": "coloros17-findn6"' "$STAGE/.oneos_stage" ||
             { [ -f "$GSE/framework/oplus-telephony-common.jar" ] && [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; }; }; then
         # A previous return can leave an empty property name behind. Treat an
@@ -335,6 +339,9 @@ add)
             echo "$AL=$ALV" >> "$NEW"
             echo "guest_props: $AL=$ALV for the session (ColorOS launcher material blur level)"
         fi
+        # The level in effect, for the guest's OneOS app (its Lighter animations row).
+        [ -d "$STAGE/data/oneos_bootui" ] && [ ! -L "$STAGE/data/oneos_bootui" ] &&
+            echo "$ALV" > "$STAGE/data/oneos_bootui/anim_level" && chmod 644 "$STAGE/data/oneos_bootui/anim_level"
     fi
     if grep -q '"image": "coloros17-findn6"' "$STAGE/.oneos_stage"; then
         # Framework animation/Gaussian tiers use 3 for high-end; COUI's
@@ -1018,10 +1025,15 @@ add)
                 s = int(13.5 * d / 25.4 + 0.5)
                 x = int((w - s) / 2 + 0.5)
                 y = int(h - mm * d / 25.4 - s / 2 + 0.5)
-                printf "%d,%d %d,%d", x, y, s, s
+                printf "%d,%d %d,%d %dx%d", x, y, s, s, w, h
             }' "$STAGE/display_modes_host.log" 2>/dev/null)
+        # 0.5.32: MiuiGxzwUtils takes the panel's physical size from persist.sys.miui_default_resolution, and
+        # without it from the running mode: a QHD Galaxy at One UI's FHD+ (the guest runs at One UI's width, S24+
+        # 2c69348f: 1080x2340) then read these 1440 px values as 1080 px ones, the glyph far right and low of the
+        # sensor. The panel's own size, as a Xiaomi QHD phone has it.
+        FOD_RES=${FOD_PX##* }; FOD_PX=${FOD_PX% *}
         if [ -n "$FOD_PX" ]; then
-            for kv in "ro.hardware.fp.fod=1" "ro.vendor.localhbm.enable=true" \
+            for kv in "ro.hardware.fp.fod=1" "ro.vendor.localhbm.enable=true" "persist.sys.miui_default_resolution=$FOD_RES" \
                       "persist.vendor.sys.fp.fod.location.X_Y=${FOD_PX% *}" \
                       "persist.vendor.sys.fp.fod.size.width_height=${FOD_PX#* }"; do
                 k=${kv%%=*}
@@ -1036,6 +1048,29 @@ add)
         else
             echo "guest_props: FOD glyph props left unset (no sensor position or panel mode in the stage); HyperOS draws no fingerprint icon"
         fi
+    fi
+    # 0.5.32, HyperOS on a QHD Galaxy (S25 Ultra: "behaving like a foldable, everything zoomed in"): the guest
+    # runs the whole 1440 px panel at One UI's dp width (UI activator: 560 for One UI's 560 at QHD, 600 for its
+    # default FHD+), but its base density was One UI's shared ro.sf.lcd_density, Samsung's for the 1080 px mode
+    # (450). HyperOS sizes its display level and layouts against that base, so 560 or 600 over 450 was a 1.24x or
+    # 1.33x zoom. The base for the whole panel instead, for the session (One UI's back at the return): 450 x 1440
+    # / 1080 = 600. Phones run at 1080 or less and folds are left alone. ONEOS_GUEST_QHD_BASE=0 leaves it.
+    if { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; } &&
+       [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ "${ONEOS_GUEST_QHD_BASE:-1}" = 1 ]; then
+        LD=ro.sf.lcd_density
+        ld=$(getprop "$LD")
+        # The width the guest runs the panel at is One UI's (S25 Ultra at QHD: 1440; S24+ at FHD+: 1080, 2c69348f).
+        pw=$(sed -n 's/.* width=\([0-9]*\) .*/\1/p' "$STAGE/host_display" 2>/dev/null)
+        case "$ld:$pw" in
+            *[!0-9:]*|:*|*:) echo "guest_props: HyperOS base density left at One UI's (${ld:-none}; panel width ${pw:-not recorded})" ;;
+            *) if [ "$pw" -gt 1080 ] && [ "$ld" -ge 120 ] && grep -qxF "$LD" "$HOST"; then
+                   nd=$(( (ld * pw + 540) / 1080 ))
+                   if "$RP" -n "$LD" "$nd" 2>/dev/null; then
+                       echo "$LD=$ld" >> "$OVR"
+                       echo "guest_props: $LD=$nd for the session (HyperOS's base at the $pw px it runs the panel at; One UI's $ld is its 1080 px mode's)"
+                   fi
+               fi ;;
+        esac
     fi
     # HyperOS's rust runtime (its launcher among the packages): the image's
     # init.hyos_spawner.rc sets rust.runtime_version when zygote runs and
@@ -1480,6 +1515,12 @@ ro.miui.backdrop_sampling_enabled=true"
         # quarter too high, "in heaven"; the A36 runs at its physical 1080). The size, 196 px at 1080, the same way.
         UMODE=$(printf '%s\n' "$ULINE" | sed -n 's/.*[^0-9]\([0-9][0-9]*\) x [0-9][0-9]*, modeId.*/\1/p')
         UPHYS=$(printf '%s\n' "$ULINE" | sed -n 's/.*physicalDisplayWidth=\([0-9]*\).*/\1/p')
+        # 0.5.32: the panel's own density (its widest mode's dpi in One UI's SurfaceFlinger), as the HyperOS glyph
+        # and OneOSUdfps take it: the display line's dpi is the running mode's, and on a QHD panel at FHD+ (S25+:
+        # 386 for 515) the icon sat a quarter too low after the scaling below.
+        UPPI=$(awk 'match($0, /resolution=[0-9]+x[0-9]+/) { split(substr($0, RSTART + 11, RLENGTH - 11), a, "x"); if (a[1] + 0 <= w) next;
+            w = a[1] + 0; if (match($0, /dpi=[0-9.]+/)) d = substr($0, RSTART + 4, RLENGTH - 4) + 0 } END { if (w && d >= 100) print d }' "$STAGE/display_modes_host.log" 2>/dev/null)
+        [ -n "$UPPI" ] && UDPI=$UPPI
         fpl=$(echo "$UPOS $UDPI ${UMODE:-0} ${UPHYS:-0}" | awk '{ n = split($1, p, ","); dpi = $2; k = ($3 > 0 && $4 > 0) ? $3 / $4 : 1;
             if (n < 6 || dpi < 100 || p[1] <= 0) exit; printf "%d", (p[1] + p[4] / 2) * dpi / 25.4 * k + 0.5 }')
         fps=$(echo "${UMODE:-1080}" | awk '{ printf "%d", 196 * ($1 > 0 ? $1 : 1080) / 1080 + 0.5 }')

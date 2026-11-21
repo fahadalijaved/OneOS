@@ -63,6 +63,12 @@
     <string name="tile_subtitle">OneOS</string>
     <!-- 0.5.17 (owner): Record full logs from now, in the session (FullLogs). -->
     <string name="logs_title">Журналы</string>
+    <string name="anim_title">Производительность</string>
+    <string name="anim_light_title">Облегчённые анимации</string>
+    <string name="anim_light_off">Выкл.: все размытия и анимации, как на флагманах OPPO. Нажмите для облегчённых эффектов (плавнее, но без анимации открытия и закрытия приложений)</string>
+    <string name="anim_light_on">Вкл.: облегчённые эффекты среднего класса OPPO. Плавнее, но приложения открываются и закрываются без анимации. Нажмите для полных эффектов</string>
+    <string name="anim_applying">Применение… главный экран и строка состояния ненадолго перезапустятся</string>
+    <string name="anim_failed">Не удалось изменить анимации: %1$s</string>
     <string name="full_logs_title">Записывать полные журналы</string>
     <string name="full_logs_off">Что-то не так? Включите, повторите проблему, затем вернитесь в One UI и отправьте отчёт</string>
     <string name="full_logs_starting">Запуск…</string>

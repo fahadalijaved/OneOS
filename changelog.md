@@ -800,3 +800,30 @@ battery drain fixed.**
 - **HyperOS status bar icon spacing and the rounded app open/close animations** were lost with this version's new
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
+
+New in 0.5.32: **Debloat, ColorOS raise to wake, the A-series camera in One UI 9.5, and the fingerprint circle on
+the S24+, S25+ and Ultras.**
+- **Debloat** (each system's page, under Apps): choose the system's apps to leave out at its next start. Safe to
+  remove (nothing you use goes) and Remove with care (each app says what stops working, and asks once more) are
+  separate pages, the apps grouped by who made them. **Same as MysticGSI's debloat** ticks what MysticGSI's own
+  builds remove (ColorOS: Metis, UMS, AIUnit, Global Search and the rest), which made ColorOS clearly smoother on
+  the A36. Apps you updated from the Play Store go with their updates, and their code and data are deleted. Restore
+  all brings every app back at the next start, HyperOS's preinstalled apps included. The system image is never
+  changed. Always-On Display stays: the lock screen's fingerprint circle needs it.
+- **ColorOS raise to wake** works: ColorOS took every Galaxy lift for "put down" (OPPO's sensor reports a lift
+  differently). It now uses the Galaxy's own pick-up sensor (A36: confirmed). ColorOS's files have a new revision.
+- **ColorOS Lighter animations** in the OneOS app inside ColorOS (Performance): OPPO's mid-range effects instead of
+  its flagship ones. Smoother on most Galaxies, but apps open and close without their animation; off by default.
+- **One UI 9.5 camera on Galaxy A and M phones:** the S26 Ultra's camera of the image died at launch on their
+  sensors (A17). A and M phones now get the A series' own Samsung Camera. One UI 9.5's files have a new revision.
+  On the **S26 Ultra** itself the camera no longer closes at launch, and Samsung's Message Guard no longer crashes.
+- **Fingerprint circle on the S24+, S25+ and the Ultras** (QHD screens at their default FHD+): it sat a quarter too
+  low in the Pixel systems, Nothing OS, LineageOS, Infinity-X and ColorOS, and far from the sensor in HyperOS.
+- **HyperOS on the S25 Ultra and other QHD phones at QHD** no longer looks zoomed in, like a foldable.
+- **120 Hz on the S24 FE** and other Galaxies whose One UI lists its fast mode as 120.00001 Hz: the systems ran at
+  60 Hz, so swipes lagged.
+- **Galaxy A17 5G on One UI 9.5:** no more kernel panics from a second double-tap-to-wake writer.
+- **Back to One UI with Volume Up + Volume Down** now buzzes once when the 3 s hold is taken, so a frozen black
+  screen still shows it worked.
+- Pixel 11 phones' modem thermal manager and HyperOS (Lhasa) Find Device are left out like their siblings'.
+- Untested on a phone: the One UI 9.5 A-series camera, the QHD fingerprint and HyperOS fixes (A36: 1080 px).

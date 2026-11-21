@@ -328,11 +328,14 @@ object PackageSets {
         imageId = Images.ID_FIND_X9U_IN_1105,
         // 0.5.20 (r3): fingerprint from One UI (services_patched.jar: removal guard, AIDL sensor, its place,
         // Samsung's touch request) and samcam_a.tar (the Galaxy A36's camera for this image, A and M phones).
-        sourceDir = "out/overlays_x9u_in_1105_r7", // 0.5.21 r5: video rotation in samcam_a; 0.5.20 r4: OneOSFpTouch
+        // 0.5.32 r8: OplusGestureUI_patched.apk, raise to wake from a Galaxy's pick-up sensor (coloros_lift_wake.py).
+        sourceDir = "out/overlays_x9u_in_1105_r8", // 0.5.21 r5: video rotation in samcam_a; 0.5.20 r4: OneOSFpTouch
         // 0.5.05 (r2): oplus-framework_patched.jar right after the common files, as root's set_files lists it.
         files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size) +
-            PackageFile("samcam_a.tar", FileRole.GUEST_FIX),
-        approxBytes = X9U_IN_SULTRA.approxBytes + 12_546_637L + 80_261_120L,
+            PackageFile("samcam_a.tar", FileRole.GUEST_FIX) +
+            PackageFile("OplusGestureUI_patched.apk", FileRole.GUEST_FIX) +
+            PackageFile("OplusGestureUI_patched.apk.src_sha256", FileRole.GUEST_FIX),
+        approxBytes = X9U_IN_SULTRA.approxBytes + 12_546_637L + 80_261_120L + 33_762_343L,
     )
 
     /** The Pixel sets' files (root's SET_PIXEL): the same for every Pixel image. */
@@ -902,11 +905,14 @@ object PackageSets {
      * (patches/oneui_no_privacy_display.py; the S26 Ultra panel feature, on in the image at build time).
      * r4: framework_patched.jar also turns the engmode client off where the phone's VINTF lacks
      * ISehEngmode/default (patches/oneui_engmode_undeclared.py; the S23 family waited forever for it).
+     * r9 (0.5.32): samcam_a_oneui.tar, the Galaxy A36's own Samsung Camera (and the five libraries the image
+     * lacks), bound by guest_prepare.sh over the image's S26 Ultra camera on Galaxy A and M phones (A17: the
+     * S26 Ultra's camera died at launch in its resolution table).
      */
     val ONEUI95 = PackageSet(
         id = ID_ONEUI95,
         imageId = Images.ID_ONEUI95,
-        sourceDir = "out/overlays_oneui95_r8",
+        sourceDir = "out/overlays_oneui95_r9",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -922,10 +928,11 @@ object PackageSets {
             PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
             PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
             PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("samcam_a_oneui.tar", FileRole.GUEST_FIX),
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem", "npumanager", "telephonycore", "webapp")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
             + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
         omitted = listOf(TETHERING),
-        approxBytes = 584_720_823L,
+        approxBytes = 584_720_823L + 77_086_720L,
         hasReturnApp = true,
     )
 

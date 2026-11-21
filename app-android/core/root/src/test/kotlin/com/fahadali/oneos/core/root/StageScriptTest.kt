@@ -1923,6 +1923,52 @@ class StageScriptTest {
         assertTrue(File(dir, "$other/apk/base.apk").isFile)
     }
 
+    /** debloat (0.5.32): a good list is written whole (root's, 0644); an empty one removes it; a bad line writes nothing. */
+    @Test
+    fun debloatWritesTheListOrNothing() = eachShell { fr ->
+        val s = Stager(fr)
+        s.prepare()
+        val list = File(fr.stage, "debloat.list")
+        fun send(text: String) = text.toByteArray().let { fr.run(RootScript.Verb.DEBLOAT, it.size.toString(), stdin = it) }
+        val good = "org.example.ads\t/system/app/Ads\norg.example.cloud\t/my_product/apps_extension/X/SimSwitchFirstTime/app/Cloud_v1.2\n"
+        val r = send(good)
+        s.ok(r)
+        assertEquals("debloat 2", r.reply.ok)
+        assertEquals(good, list.readText())
+        assertEquals("644", fr.mode(list))
+        assertFalse(File(fr.stage, "incoming/debloat.part").exists())
+        assertFalse(File(fr.stage, "debloat.new").exists())
+        // Bad lines: nothing is replaced.
+        for (bad in listOf(
+            "org.example.ads\t/product/overlay\n",
+            "org.example.ads\t/my_product/priv-app\n",
+            "org.example.ads\t/system/app/../priv-app/X\n",
+            "org.example.ads\tsystem/app/Ads\n",
+            "notapackage\t/system/app/Ads\n",
+            "org.example.ads /system/app/Ads\n",
+            "org.example.ads\t/system/app/Ads\textra\n",
+            "org.example.ads\t/system/app/Ads\n\norg.example.b\t/system/app/B\n",
+            (1..601).joinToString("") { "org.example.a$it\t/system/app/A$it\n" },
+        )) {
+            val rb = send(bad)
+            assertEquals("expected a refusal for [$bad]:\n$rb", RootScript.EXIT_REFUSED, rb.exit)
+            assertEquals(good, list.readText())
+            assertFalse(File(fr.stage, "incoming/debloat.part").exists())
+        }
+        assertTrue(RootScript.problems(RootScript.Verb.DEBLOAT, listOf("x")).isNotEmpty())
+        assertEquals(RootScript.EXIT_USAGE, fr.run(RootScript.Verb.DEBLOAT, "262145", stdin = ByteArray(0)).exit)
+        // Restore all: an empty list removes the file.
+        val empty = send("")
+        s.ok(empty)
+        assertEquals("debloat 0", empty.reply.ok)
+        assertFalse(list.exists())
+        s.ok(send(good))
+        // A running session refuses it and keeps the list.
+        File(fr.stage, "persist_session.active").writeText("format=2\nboot_id=11111111-2222-3333-4444-555555555555\n")
+        refused(send(""), "a session is starting or running")
+        assertEquals(good, list.readText())
+    }
+
     /** bring-catalog: a good catalog is written whole; a bad line writes nothing; a session refuses it. */
     @Test
     fun bringCatalogWritesTheCatalogOrNothing() = eachShell { fr ->

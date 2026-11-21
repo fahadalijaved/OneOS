@@ -2105,6 +2105,15 @@ if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/
     ' </dev/null >/dev/null 2>&1 &
 fi
 DT2W=${ONEOS_GUEST_DT2W:-1}
+# 0.5.32: not in a One UI image. Its own input service (SemInputDeviceManagerService) already writes the panel's
+# display state through Samsung's sysinput HAL, as One UI does (S24+ One UI 9.5 report 34d6923c: enabled@1,0 and
+# @1,1 from the guest at every screen off), so the keeper was a second writer to the same node: Galaxy A17 5G
+# report cea77895, kernel panic "list_add corruption" in sec_input_enable_device from the keeper's busybox write,
+# 17 min into a One UI 9.5 session. ONEOS_GUEST_DT2W=1 still forces it.
+if [ "${ONEOS_GUEST_DT2W:-}" != 1 ] && grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+    DT2W=0
+    echo "$(date +%T) not started: a One UI image wakes on double tap itself (its input service drives the touch IC)" >> /data/dt2w.log
+fi
 if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/sec/tsp/enabled ] || [ -w /sys/class/sec/tsp1/enabled ]; }; then
     rm -f /data/oneos_dt2w_armed.* /data/oneos_dt2w_*.fifo /data/oneos_dt2w_aod* /data/oneos_dt2w_lid*
     ONEOS_BB="$BB" $BB sh -c '

@@ -30,7 +30,7 @@ class EditionsTest {
     @Test
     fun theRootScriptAndTheSessionListsAreTheFullEditions() {
         assertEquals(
-            setOf("root/oneos_root.sh", "root/status.list", "root/installd.list", "logs/collect.list", "guest-runtime/NOTICE.txt", "guest-runtime/LICENSE-NeoZygisk.txt", "guest-runtime/LICENSE-Vector.txt"),
+            setOf("root/oneos_root.sh", "root/status.list", "root/installd.list", "logs/collect.list", "debloat/apps.tsv", "guest-runtime/NOTICE.txt", "guest-runtime/LICENSE-NeoZygisk.txt", "guest-runtime/LICENSE-Vector.txt"),
             files(Shipped.fullAssets),
         )
         assertTrue(Shipped.rootScript.isFile)

@@ -485,7 +485,13 @@ GUEST_RESTART_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_resta
 # watcher below starts the session's full capture on it and says so in /data/oneos_bootui/full_logs.
 GUEST_FULLLOGS_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_full_logs"
 FULLLOGS_STATE="$STAGE/data/oneos_bootui/full_logs"
-rm -f "$GUEST_RETURN_REQ" "$GUEST_RESTART_REQ" "$GUEST_FULLLOGS_REQ"
+# 0.5.32 (owner, A36 ColorOS: level 3 "is better ... add a toggle in OneOS guest app"): Lighter animations in the
+# guest's OneOS app is a fourth request file ("1" or "3"): the watcher sets ColorOS's persist.sys.oplus.anim_level,
+# restarts its launcher and SystemUI, keeps the choice in data/oneos_anim_level for the next starts
+# (guest_props.sh) and answers in /data/oneos_bootui/anim_level.
+GUEST_ANIM_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_anim_level"
+ANIM_STATE="$STAGE/data/oneos_bootui/anim_level"
+rm -f "$GUEST_RETURN_REQ" "$GUEST_RESTART_REQ" "$GUEST_FULLLOGS_REQ" "$GUEST_ANIM_REQ"
 # An earlier session's mark (it would make this session's report look like full logs were on).
 rm -f "$STAGE/full_logs_mid.log"
 # One UI's protected state, recorded now and compared by return_to_oneui.sh:
@@ -926,16 +932,18 @@ elif [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
         # 0.5.28: on a Galaxy S24 FE (report e15e83eb, full logs on) "logcat -b all" ended at once with exit 2,
         # every time the watcher started it again, so the report had no logcat. Its error now goes to
         # auto_return.log, and a capture that ends that way within 5 s runs again on the standard buffers.
+        # 0.5.32: the error's first lines, not its last two (S24+ 1c280b57: the fallback failed the same way and
+        # the log kept only logcat's closing "For more information, try '--help'.").
         printf '%s\n' '#!/system/bin/sh' \
             "t=\$(date +%s)" \
             "logcat -b all -v threadtime -f $LOGS/boot.log -r 32768 -n 24 2>$STAGE/logcat_capture.err" \
             "s=\$?" \
-            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(tail -n 2 $STAGE/logcat_capture.err 2>/dev/null | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
+            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(grep -v '^ *\$' $STAGE/logcat_capture.err 2>/dev/null | head -n 3 | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
             "[ \$s != 0 ] && [ \$((\$(date +%s) - t)) -lt 5 ] || exit 0" \
             "echo \"\$(date) logcat capture: again on the main, system, crash, events and radio buffers\" >> $STAGE/auto_return.log" \
             "logcat -b main,system,crash,events,radio -v threadtime -f $LOGS/boot.log -r 32768 -n 24 2>$STAGE/logcat_capture.err" \
             "s=\$?" \
-            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(tail -n 2 $STAGE/logcat_capture.err 2>/dev/null | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
+            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(grep -v '^ *\$' $STAGE/logcat_capture.err 2>/dev/null | head -n 3 | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
             > "$STAGE/logcat_capture.sh"
         $BB setsid sh "$STAGE/logcat_capture.sh" </dev/null >/dev/null 2>&1 &
         LOGCAT_HEAD=1
@@ -2167,6 +2175,10 @@ GUEST_VIVO=0
 # HyperOS keeps system_ext at the image root (system/system_ext links to One UI's).
 GUEST_MIUI=0
 [ -f "$STAGE/rootfs/system_ext/framework/miui-services.jar" ] && GUEST_MIUI=1
+# One UI images (0.5.32): their own input service drives the touch ICs through Samsung's sysinput HAL, so the
+# cover touch IC handling below is left to them (a second writer to the IC's enabled node: A17 5G kernel panic).
+GUEST_ONEUI=0
+grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null && GUEST_ONEUI=1
 # A guest whose status bar is AOSP's SystemUI, laid out from the framework's
 # cutout: every non-ColorOS guest, and Infinity-X, which carries OPPO's framework
 # jars (GUEST_OPLUS) on a LineageOS base. ColorOS's own SystemUI places its icons
@@ -2195,8 +2207,10 @@ esac
 # back to 60 Hz.  Read the highest physical mode (up to OneOS's 120 Hz policy)
 # from the One UI dump captured before the switch.  Keep 120 as the conservative
 # fallback for old stages or an incomplete dump.
+# 0.5.32: rounded first. The S24 FE's One UI lists its 120 Hz mode as fps=120.00001, which the old "<= 120"
+# test dropped: the guest got 60 Hz as its top rate and every swipe ran at 60 (report 44afc238).
 GUEST_REFRESH=120.0
-R=$(awk -F'fps=' '{ for (i = 2; i <= NF; i++) { v = $i + 0; if (v >= 30 && v <= 120 && v > m) m = v } }
+R=$(awk -F'fps=' '{ for (i = 2; i <= NF; i++) { v = int($i + 0.5); if (v >= 30 && v <= 120 && v > m) m = v } }
     END { if (m) printf "%.1f", m }' "$STAGE/display_host.txt" 2>/dev/null)
 case "$R" in
     30.0|[3-9][0-9].0|1[01][0-9].0|120.0) GUEST_REFRESH=$R ;;
@@ -3092,6 +3106,62 @@ while true; do
                 mkdir $STAGE/data/oneos_samcam_perms 2>/dev/null
                 echo \"[UI Activator] Samsung Camera: granted\${GR:- nothing} (once per stage)\"
             fi
+            # Debloater (0.5.32): an app guest_prepare.sh hid that the guest had updated (its newer copy in
+            # /data/app) stays installed as an ordinary app. The owner wants it removed for real, not turned
+            # off (A36 test, 1.1 GB of updates): that copy is uninstalled here (pm uninstall: its APK, code and data go), so
+            # nothing of it is left; Restore all brings back the image's own version, which Play updates again.
+            # data/oneos_debloat_off holds apps an earlier test build only turned off; they are turned on again
+            # once no longer listed, or uninstalled while still listed.
+            DBW=''
+            [ -s $STAGE/debloat.list ] && [ ! -L $STAGE/debloat.list ] && DBW=\$(cut -f1 $STAGE/debloat.list | grep -E '^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+\$' | sort -u)
+            DBO=$STAGE/data/oneos_debloat_off
+            if [ -L \$DBO ]; then
+                echo '[UI Activator] Debloat: data/oneos_debloat_off is a link, not made by OneOS; left alone'
+            elif [ -n \"\$DBW\" ] || [ -s \$DBO ]; then
+                GONE=''; KEPT=''; ON=''
+                for p in \$DBW; do
+                    PP=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path \$p 2>/dev/null | head -n 1)
+                    case \"\$PP\" in
+                        package:/data/app/*)
+                            if timeout 60 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm uninstall \$p 2>/dev/null | grep -q Success; then
+                                GONE=\"\$GONE \$p\"
+                                [ -s \$DBO ] && { grep -v -x -F \"\$p\" \$DBO > \$DBO.new; mv \$DBO.new \$DBO; }
+                            else
+                                KEPT=\"\$KEPT \$p\"
+                            fi ;;
+                        package:*) KEPT=\"\$KEPT \$p(\${PP#package:})\" ;;
+                    esac
+                done
+                if [ -s \$DBO ]; then
+                    for p in \$(cat \$DBO); do
+                        printf '%s\\n' \"\$DBW\" | grep -q -x -F \"\$p\" && continue
+                        timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm enable --user 0 \$p >/dev/null 2>&1; ON=\"\$ON \$p\"
+                    done
+                    if [ -n \"\$ON\" ]; then
+                        for p in \$ON; do grep -v -x -F \"\$p\" \$DBO > \$DBO.new; mv \$DBO.new \$DBO; done
+                    fi
+                fi
+                [ -s \$DBO ] || rm -f \$DBO
+                # What is left of each app no longer installed: OneOS's storage guards (guest_storage_guards.py) drop
+                # installd's rmPackageDir and destroyAppData, which would act on One UI's data, so the code folder
+                # and the app's data stayed (A36, 11-21: Photos, YouTube, YouTube Music and Meet uninstalled, 620 MB
+                # of code and 290 MB of data left). They are in the stage, the guest's own /data: removed here, only
+                # for a listed app the guest's package list (read whole, 50 packages or more) does not have.
+                ALLP=\$(timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm list packages 2>/dev/null | sed -n 's/^package://p')
+                FREED=0; LEFT=''
+                if [ \"\$(printf '%s\\n' \"\$ALLP\" | grep -c .)\" -ge 50 ]; then
+                    for p in \$DBW; do
+                        printf '%s\\n' \"\$ALLP\" | grep -q -x -F \"\$p\" && continue
+                        for d in $STAGE/data/app/~~*/\$p-* $STAGE/data/user/0/\$p $STAGE/data/user_de/0/\$p $STAGE/data/misc/profiles/cur/0/\$p $STAGE/data/misc/profiles/ref/\$p; do
+                            [ -d \"\$d\" ] && [ ! -L \"\$d\" ] || continue
+                            k=\$(du -sk \"\$d\" 2>/dev/null | cut -f1)
+                            rm -rf \"\$d\" && FREED=\$((FREED + \${k:-0})) || LEFT=\"\$LEFT \$d\"
+                            case \"\$d\" in $STAGE/data/app/~~*/*) rmdir \"\${d%/*}\" 2>/dev/null ;; esac
+                        done
+                    done
+                fi
+                echo \"[UI Activator] Debloat: updated copies removed:\${GONE:- none}; could not remove:\${KEPT:- none}; turned on again:\${ON:- none}; left-out apps' code and data freed: \$((FREED / 1024)) MB\${LEFT:+ (not removed:\$LEFT)}\"
+            fi
             # Nothing's Settings shows the phone's own RAM and storage in About
             # phone only on Nothing's phones (Build.DEVICE Spacewar or Pong, or
             # its bool screen_size_for_mp); anywhere else its strings def_ram and
@@ -3256,7 +3326,11 @@ while true; do
                 [ $GUEST_MIUI = 1 ] && case \"\$HRC\" in ''|*[!0-9]*) ;; *) HRC=\$((HRC / 2)) ;; esac
                 # Which of these overlays were already on when the guest started (an earlier session made them),
                 # for HyperOS's restart below.
-                PRE=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list 2>/dev/null | grep -F '[x] com.android.shell:OneOS')
+                PREALL=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list 2>/dev/null | grep -F 'com.android.shell:OneOS')
+                PRE=\$(printf '%s\\n' \"\$PREALL\" | grep -F '[x] com.android.shell:OneOS')
+                # 0.5.32 (A36, 11-21: app open/close corners missing, and every HyperOS session found these off at
+                # start although the last one saved them on): their state as the guest started, for the next report.
+                [ $GUEST_MIUI = 1 ] && echo \"[UI Activator] HyperOS overlays at start: \$(printf '%s\\n' \"\$PREALL\" | tr '\\n' ' ' | cut -c1-400)\"
                 OVS=''
                 if [ -n \"\$CUT\" ] && [ -n \"\$CUTR\" ] &&
                    gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string \"\$CUT\" &&
@@ -3514,7 +3588,7 @@ while true; do
                         sec_touchscreen2) TS2=/dev/input/\${e##*/} ;;
                     esac
                 done
-                if [ \"${ONEOS_COVER_TSP:-1}\" = 1 ] && [ \"${ONEOS_GUEST_FORM:-fold}\" = fold ] && [ -n \"\$FLIP\" ] && [ -n \"\$TS2\" ]; then
+                if [ \"${ONEOS_COVER_TSP:-1}\" = 1 ] && [ $GUEST_ONEUI = 0 ] && [ \"${ONEOS_GUEST_FORM:-fold}\" = fold ] && [ -n \"\$FLIP\" ] && [ -n \"\$TS2\" ]; then
                     for d in /sys/class/sec/tsp*; do
                         [ \"\$(cat \$d/input/name 2>/dev/null)\" = sec_touchscreen2 ] && [ -w \$d/enabled ] && TSP2=\$d
                         [ \"\$(cat \$d/input/name 2>/dev/null)\" = sec_touchscreen ] && [ -w \$d/enabled ] && TSP1=\$d
@@ -4166,6 +4240,20 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     fi
                     if [ \"${ONEOS_LOGCAT:-1}\" = 1 ] && [ -d $STAGE/data/oneos_bootui ]; then echo 1 > $FULLLOGS_STATE && chmod 644 $FULLLOGS_STATE; fi
                 fi
+                if [ -f $GUEST_ANIM_REQ ] && [ ! -L $GUEST_ANIM_REQ ]; then
+                    al=\$(timeout 2 head -c 4 $GUEST_ANIM_REQ 2>/dev/null | tr -dc 0-9)
+                    rm -f $GUEST_ANIM_REQ
+                    case \"\$al\" in
+                        1|3)
+                            if [ -f $ANIM_STATE ] && [ ! -L $ANIM_STATE ] && [ ! -L $STAGE/data/oneos_anim_level ]; then
+                                echo \"\$al\" > $STAGE/data/oneos_anim_level
+                                setprop persist.sys.oplus.anim_level \"\$al\"
+                                kill \$(pidof com.android.launcher) \$(pidof com.android.systemui) 2>/dev/null
+                                echo \"\$al\" > $ANIM_STATE && chmod 644 $ANIM_STATE
+                                echo \"\$(date) ColorOS animation level \$al from the guest's OneOS app (launcher and SystemUI restarted)\"
+                            fi ;;
+                    esac
+                fi
                 if [ -f $GUEST_RESTART_REQ ] && [ ! -L $GUEST_RESTART_REQ ]; then
                     rm -f $GUEST_RESTART_REQ
                     setprop oneos.guest.powerctl ksud:soft-reboot
@@ -4555,6 +4643,13 @@ if [ "$RETURN_MAX" -gt 0 ]; then
         # boot matches (and the PID is still a oneos_switch.sh shell).
         cat /proc/sys/kernel/random/boot_id 2>/dev/null > "$KS/boot"
         KDEVS=$(getevent -pl 2>/dev/null | awk '/^add device/ { dev = $NF } /KEY_VOLUME(UP|DOWN)/ { print dev }' | sort -u)
+        # 0.5.32 (owner, A36: a frozen ColorOS, black screen, no sign the chord was taken): one buzz when the 3 s
+        # hold is recognized. Straight from the phone's vibrator HAL (IVibrator.on(ms, null callback), transaction
+        # 3), which serves One UI and the guest alike and keeps running whatever either framework does; a
+        # timed_output node where the kernel has one.
+        KVIB=$(service list 2>/dev/null | sed -n 's/.*\(android\.hardware\.vibrator\.IVibrator\/[A-Za-z0-9_]*\).*/\1/p' | head -n 1)
+        [ -n "$KVIB" ] || { [ -w /sys/class/timed_output/vibrator/enable ] && KVIB=timed_output; }
+        echo "$KVIB" > "$KS/vibrator"
         for kd in $KDEVS; do
             # Like the watcher: not in the app cgroup, never OOM-killed (the
             # getevent and the loop below inherit it from this subshell; the
@@ -4572,6 +4667,11 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     ( sleep 3
                       [ "$(cat "$KS/both" 2>/dev/null)" = "$tok" ] && [ "$(cat "$KS/up")" = DOWN ] && [ "$(cat "$KS/down")" = DOWN ] &&
                           echo "$(date) Volume Up + Volume Down held 3 s" >> "$STAGE/auto_return.log" &&
+                          { case "$(cat "$KS/vibrator" 2>/dev/null)" in
+                                '') ;;
+                                timed_output) echo 200 > /sys/class/timed_output/vibrator/enable 2>/dev/null ;;
+                                *) timeout 3 service call "$(cat "$KS/vibrator")" 3 i32 200 null >/dev/null 2>&1 ;;
+                            esac; true; } &&
                           setprop oneos.guest.powerctl "keys:volume-up+down" ) &
                 else
                     : > "$KS/both"

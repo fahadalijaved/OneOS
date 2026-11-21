@@ -273,7 +273,7 @@ class StageAuditTest {
         // SET_COMMON and its own files.
         assertTrue(PackageSets.X9U_IN_1105_SULTRA.names.containsAll(common))
         assertEquals(
-            setOf("oplus-framework_patched.jar", "cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI, "ColorPanoramicSystemUI.apk", "samcam_a.tar"), // 0.4.97: + wallpaper AOD SystemUI; 0.5.20 r3: + samcam_a.tar
+            setOf("oplus-framework_patched.jar", "cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI, "ColorPanoramicSystemUI.apk", "samcam_a.tar", "OplusGestureUI_patched.apk", "OplusGestureUI_patched.apk.src_sha256"), // 0.4.97: + wallpaper AOD SystemUI; 0.5.20 r3: + samcam_a.tar; 0.5.32 r8: + raise to wake
             PackageSets.X9U_IN_1105_SULTRA.names.toSet() - common.toSet(),
         )
         // 0.4.59: the bar Pixel sets add double tap to sleep (their own SystemUI and launcher) to SET_PIXEL.

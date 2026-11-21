@@ -1437,6 +1437,23 @@ else
     echo "MiWallpaper.apk: not in the image, nothing to patch"
 fi
 
+# ColorOS raise to wake on a Galaxy (0.5.32, switcher/patches/coloros_lift_wake.py with OneOSLift): its gesture
+# service took every Galaxy tilt for "put down" (OPPO's sensor sends 0 for a lift, Samsung's 1 for any tilt), so
+# the screen never woke (S24 FE, report 44afc238). guest_prepare.sh binds OplusGestureUI_patched.apk over the
+# image's only when that is the APK it was made from (OplusGestureUI_patched.apk.src_sha256).
+rm -f "$OUT/OplusGestureUI_patched.apk" "$OUT/OplusGestureUI_patched.apk.src_sha256"
+OGU=/system/system_ext/app/OplusGestureUI/OplusGestureUI.apk
+if in_image "$OGU"; then
+    "$DEBUGFS" -R "dump $OGU $WORK/OplusGestureUI.apk" "$IMG" 2>/dev/null
+    patch_apk_dex "$WORK/OplusGestureUI.apk" "$OUT/OplusGestureUI_patched.apk" coloros_lift_wake.py \
+        'Lcom/oplus/gesture/server/ScreenOffGestureService;' "raise to wake from a Galaxy's pick-up sensor"
+    [ -f "$OUT/OplusGestureUI_patched.apk" ] &&
+        sha256sum "$WORK/OplusGestureUI.apk" | cut -d' ' -f1 > "$OUT/OplusGestureUI_patched.apk.src_sha256"
+    rm -f "$WORK/OplusGestureUI.apk"
+else
+    echo "OplusGestureUI.apk: not in the image, nothing to patch"
+fi
+
 # Pixel's status bar (run 42): SystemUIGoogle's StatusBarContentInsetsProvider
 # leaves ongoing_appops_dot_min_padding (20dp, for the privacy dot) on the end
 # side and only rounded_corner_content_padding on the start side, which points to
