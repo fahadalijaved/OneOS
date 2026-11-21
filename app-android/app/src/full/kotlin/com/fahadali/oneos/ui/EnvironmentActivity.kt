@@ -216,7 +216,7 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             }
         }
         val patchProfile = currentFacts?.let { com.fahadali.oneos.core.model.Profiles.resolve(it).profile }
-        val features = GuestFeatures.forSystem(patchProfile?.id, image.id)
+        val features = GuestFeatures.forSystem(patchProfile, image.id)
         if (features.isNotEmpty()) {
             PrebootCards.row(PrebootCards.section(column), getString(R.string.system_features), chevron = true) {
                 showGuestFeatureFlags(this, image.id, features)

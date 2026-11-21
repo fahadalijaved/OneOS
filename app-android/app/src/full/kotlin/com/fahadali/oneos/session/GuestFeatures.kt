@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.StringRes
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.Images
+import com.fahadali.oneos.core.model.PhoneProfile
 
 /** Feature choices belong to a guest image and are resolved again for each launch. */
 object GuestFeatures {
@@ -13,8 +14,8 @@ object GuestFeatures {
 
     data class LaunchOptions(val mediaChip: Boolean)
 
-    fun forSystem(profileId: String?, imageId: String): List<Flag> =
-        if (profileId == "f8" && imageId == Images.ID_ONEUI95) listOf(Flag.MEDIA_CHIP) else emptyList()
+    fun forSystem(profile: PhoneProfile?, imageId: String): List<Flag> =
+        if (imageId == Images.ID_ONEUI95 && profile?.choice(imageId) != null) listOf(Flag.MEDIA_CHIP) else emptyList()
 
     fun enabled(ctx: Context, imageId: String, flag: Flag): Boolean =
         SessionPrefs.p(ctx).getBoolean(prefKey(imageId, flag), flag.defaultEnabled)
@@ -23,10 +24,10 @@ object GuestFeatures {
         SessionPrefs.p(ctx).edit().putBoolean(prefKey(imageId, flag), enabled).apply()
     }
 
-    fun optionsForLaunch(ctx: Context, profileId: String, imageId: String): LaunchOptions {
+    fun optionsForLaunch(ctx: Context, profile: PhoneProfile, imageId: String): LaunchOptions {
         val mediaChip = Flag.MEDIA_CHIP
         return LaunchOptions(
-            mediaChip = mediaChip !in forSystem(profileId, imageId) || enabled(ctx, imageId, mediaChip),
+            mediaChip = mediaChip !in forSystem(profile, imageId) || enabled(ctx, imageId, mediaChip),
         )
     }
 

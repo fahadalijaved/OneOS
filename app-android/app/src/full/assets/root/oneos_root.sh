@@ -1466,7 +1466,7 @@ do_launch() {
     [ -n "$M_SET" ] && [ "$(pair_set "$M_PROFILE" "$M_IMAGE")" = "$M_SET" ] ||
         refuse "the stage holds $M_IMAGE with ${M_SET:-no file set}, not its file set for $M_PROFILE: prepare again"
     [ "$gms" = 0 ] || in_list "$M_IMAGE" "$IMAGES_GMS" || refuse "$M_IMAGE has no Google services a session may hide"
-    [ "$mediachip" = 1 ] || [ "$M_PROFILE:$M_IMAGE" = f8:oneui95-s948b ] ||
+    [ "$mediachip" = 1 ] || [ "$M_IMAGE" = oneui95-s948b ] ||
         refuse "the media chip option is unavailable for this system"
     set -- $pinfo
     form=$4

@@ -598,7 +598,7 @@ class SystemsFragment : Fragment() {
             return v
         }
         val primary = v.findViewById<Button>(R.id.systems_primary)
-        val features = GuestFeatures.forSystem(p?.id, image.id)
+        val features = GuestFeatures.forSystem(p, image.id)
         if (features.isNotEmpty()) {
             v.findViewById<Button>(R.id.systems_features).apply {
                 visibility = View.VISIBLE

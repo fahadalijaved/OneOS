@@ -1751,7 +1751,7 @@ class StageScriptTest {
     }
 
     @Test
-    fun mediaChipChoiceIsScopedToOneUi95OnFold8() = eachShell { fr ->
+    fun mediaChipChoiceIsScopedToOneUi95() = eachShell { fr ->
         val s = Stager(fr)
         s.prepare()
         val launch = listOf("session", s.code, "0123456789abcdef", "0", "1", "0", "0", "0", "1", "0")
@@ -1759,6 +1759,10 @@ class StageScriptTest {
         assertTrue(RootScript.problems(verb, launch + "2").isNotEmpty())
         refused(fr.run(verb, *(launch + "0").toTypedArray()), "the media chip option is unavailable")
         refused(fr.run(verb, *(launch + "1").toTypedArray()), "test root: every launch check passed")
+
+        Stager(fr, Profiles.S_ULTRA_8850, Images.ID_ONEUI95).prepare("aside")
+        refused(fr.run(verb, *(launch + "0").toTypedArray()), "test root: every launch check passed")
+        refused(fr.run(verb, *launch.toTypedArray()), "test root: every launch check passed")
 
         fr.props["ro.product.model"] = "SM-F971B"
         fr.props["ro.product.device"] = "h8q"
