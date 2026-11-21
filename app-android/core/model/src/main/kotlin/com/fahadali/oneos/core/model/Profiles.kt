@@ -144,6 +144,7 @@ object Profiles {
     const val ID_A16_MTK = "a16-mtk"
     const val ID_S_8550_JP = "s-8550-jp"
     const val ID_M35 = "m35"
+    const val ID_M36 = "m36"
     const val ID_A15_5G = "a15-5g"
     const val ID_S26_FE = "s26-fe"
 
@@ -1293,6 +1294,12 @@ object Profiles {
     val M35 = A26.copy(id = ID_M35, label = "Galaxy M35 5G", modelPrefix = "SM-M356", codename = "m35x")
 
     /**
+     * Galaxy M36 5G (SM-M366B, m36x, s5e8835 Exynos 1380, One UI 9.0, Android 17, KernelSU).
+     * The [M35] and [A35]'s chip and vendor, so the [A26]'s choices and notes; untested.
+     */
+    val M36 = A26.copy(id = ID_M36, label = "Galaxy M36 5G", modelPrefix = "SM-M366", codename = "m36x")
+
+    /**
      * Galaxy A15 5G, from 0.4.95: findings of 2026-11-11 (SM-A156M, a15x, MT6835, One UI 8.5 and Android
      * 16, KernelSU). The [A07_5G]'s chip and One UI, so its choice and note: OxygenOS 16 only, untested.
      * The A15 with the Helio G99 (SM-A155, MT6789) is another phone, [A15].
@@ -1332,7 +1339,7 @@ object Profiles {
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
-        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, A15_5G, S_PLUS_8650,
+        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,
         S26_FE,
     )
 
