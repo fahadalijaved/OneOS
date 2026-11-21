@@ -26,6 +26,16 @@ of the boot screen's three files only `boot_status.sh`, by LineageOS 24's name i
 shell traps are cleared from upstream's new lines (a redirected `:` is `true`, a `/proc/PID/cmdline` is read with
 `cat` before `tr`). Not yet run on the phone.
 
+**Upstream 0.5.14 to 0.5.31** came in by two merges (2d2f26b: 0.5.14 to 0.5.30; 728db89: 0.5.31, 2026-11-21).
+None of it runs in an iOS session: `oneios_switch.sh` and `oneios_return.sh` use none of `guest_prepare.sh`,
+`guest_start.sh` or `return_to_oneui.sh`, and no oneios root verb, screen or check changed. 0.5.31's changes
+(fast charging shown in every system, the screen-on charging heat cap, Bring apps through the read-only view
+`/mnt/oneos_oneui`, Android's logcat from under a covering mount, HyperOS's status bar) are all in the Android
+guests' scripts and `oneos_root.sh`'s Bring code. The version stays the git count (`app/build.gradle.kts`): 173
+at the 0.5.31 merge, one under upstream's 174; AppUpdater installs only an APK signed with this copy's
+certificate, so upstream's builds never replace a fork build. Tested with `./gradlew test assembleFullDebug`;
+not run on the phone.
+
 **The iOS screens, redesigned** (2026-11-15, on 0.5.14): the iOS flow now has the Android systems' screens and
 step order (pick, set up, the system's page, the Switch confirm with the ways back, switching, the last session),
 every step saying what to do now, what is done (versions, sizes, checks), what is next, and a refusal in plain
