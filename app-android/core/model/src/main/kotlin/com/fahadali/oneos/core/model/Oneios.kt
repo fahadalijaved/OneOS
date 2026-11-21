@@ -337,14 +337,22 @@ object OneiosManifests {
         kernelcacheSha256: String?,
         /** The staged runtime carries a kernel (`runtime.json` had `kernel`). */
         runtimeHasKernel: Boolean,
-    ): String? = when {
+    ): String? = updateProblem(imageBuild, kb, runtimeHasKernel) ?: when {
+        kernelcacheSha256 == null -> "Apple's kernelcache is not staged: run Update the kernel, which downloads it from Apple."
+        !kernelcacheSha256.equals(kb.kernelcacheSha256, ignoreCase = true) ->
+            "The staged kernelcache is not the ${kb.build} one the profile pins: run Update the kernel, which downloads it from Apple."
+        else -> null
+    }
+
+    /**
+     * Whether Update the kernel may start ([kernelProblem] without the kernelcache: the update downloads it from
+     * Apple itself). null = yes.
+     */
+    fun updateProblem(imageBuild: String?, kb: OneiosKb, runtimeHasKernel: Boolean): String? = when {
         imageBuild == null -> "No iOS image set is staged: import the one you built with OneiOS's scripts."
         imageBuild != kb.build ->
             "The prelink inputs pair Apple's build ${kb.build}, but the staged image set is $imageBuild: a kernel built from them must never boot it."
         !runtimeHasKernel -> "The staged runtime carries no kernel (its runtime.json has no kernel): update the runtime first."
-        kernelcacheSha256 == null -> "Apple's kernelcache is not staged: import the kernelcache.macho your PC wrote when it built the image set."
-        !kernelcacheSha256.equals(kb.kernelcacheSha256, ignoreCase = true) ->
-            "The staged kernelcache is not the ${kb.build} one the profile pins: import the kernelcache.macho your PC wrote when it built the image set."
         else -> null
     }
 
@@ -371,7 +379,7 @@ data class OneiosKb(
             "lead.json", "user.json",
         )
 
-        /** What `kb/kb.json` pins (everything but the Apple kernelcache, which the user hands over). */
+        /** What `kb/kb.json` pins (everything but the Apple kernelcache, which the kernel update downloads from Apple). */
         val PINNED: List<String> = (INPUTS - "kernelcache.macho") + "match/fileset_match.py" + "match/kc_image.py" +
             "match/fileset_shape.py" + "match/fixtures/fileset-23F84-symbols.json" +
             "match/fixtures/fileset-24A446-symbols.json" + "match/fixtures/fileset-26C5035r-symbols.json"

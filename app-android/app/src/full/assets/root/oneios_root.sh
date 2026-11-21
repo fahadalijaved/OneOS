@@ -31,9 +31,24 @@
 #                               allowlist (the app's kb/kb.json): profile.toml,
 #                               reviewed/pairs/stubs/lead/user.json, the
 #                               matcher's files, or kernelcache.macho (Apple's
-#                               decoded kernelcache, from the PC that built the
-#                               image set: never committed, released, or
-#                               downloaded). Writable only by this verb.
+#                               decoded kernelcache: the optional import of a
+#                               file a PC wrote; the kernel update fetches it
+#                               itself, kbcache). Writable only by this verb
+#                               and kbcache.
+#   kbcache <bytes> <sha256>    Apple's kernelcache that the phone's
+#                               oneios-tool fetched from Apple and decoded
+#                               ($STAGE/make-kernel/kernelcache.macho, the
+#                               tool's fetch and im4p) becomes the cached
+#                               kb/kernelcache.macho, when it has <bytes> and
+#                               <sha256> (the pin of the app's kb/kb.json;
+#                               another one is deleted and refused). The
+#                               downloaded IM4P ($STAGE/make-kernel/inputs) is
+#                               removed. Never committed, released or shipped:
+#                               each phone fetches its own from Apple.
+#   kbclean                     the kernel update's work folder goes
+#                               ($STAGE/make-kernel: the download's parts, the
+#                               decode, a build not activated); kb/ and its
+#                               cached kernelcache stay
 #   finish kernel <kc-sha256> <build-id>
 #                               activate the kernel the phone's oneios-tool built
 #                               ($STAGE/make-kernel/out: kernel.kc with its
@@ -197,9 +212,9 @@ do_status() {
         say "@@RESULT kernel image none"
     fi
     # The kernel-build inputs ($STAGE/kb): Apple's kernelcache by its recorded
-    # SHA-256 (written at its import, the file itself is 78 MB), and how many
+    # SHA-256 (written by kbcache or kbinput, the file itself is 78 MB), and how many
     # of the 13 inputs are staged. Presence is integrity here: every file is
-    # root's, and only this script's kbinput (size and SHA-256 checked) writes.
+    # root's, and only this script's kbinput and kbcache (size and SHA-256 checked) write.
     if [ -d "$STAGE/kb" ] && mine "$STAGE/kb" && [ -f "$STAGE/kb/kernelcache.macho" ] && [ ! -L "$STAGE/kb/kernelcache.macho" ]; then
         kcs=$(cat "$STAGE/kb/kernelcache.sha256" 2>/dev/null)
         case "$kcs" in ????????????????????????????????????????????????????????????????) ;; *) kcs="none" ;; esac
@@ -426,8 +441,8 @@ do_finish() {
 
 # --- Kernel updates ---------------------------------------------------------
 # A new kernel without rebuilding the image set: the phone's oneios-tool pairs
-# the staged runtime's xnu.macho with Apple's kernelcache (the PC that built
-# the image set has it) and the reviewed records the app carries, and its
+# the staged runtime's xnu.macho with Apple's kernelcache (fetched from Apple by
+# the phone itself, kbcache) and the reviewed records the app carries, and its
 # `prelink build` writes kernel.kc with its hashes and records only after the
 # audit and the stub check passed. These verbs stage those inputs and activate
 # that output, atomically: checks first, the old set aside, the new files in,
@@ -465,6 +480,53 @@ do_kbinput() {
         echo "$3" > "$STAGE/kb/kernelcache.sha256" && own "$STAGE/kb/kernelcache.sha256" 0600 || die "could not record the kernelcache"
     fi
     say "@@OK kbinput $1"
+}
+
+# Apple's kernelcache as the kernel update fetched it (the tool's fetch of the
+# profile's kernelcache member from Apple, then its im4p): into kb/ only when it
+# is the pinned one; root hashes the file itself, whatever the tool said.
+do_kbcache() {
+    [ $# -eq 2 ] || usage "kbcache <bytes> <sha256>"
+    is_dec "$1" && [ "$1" -ge 1 ] || usage "kbcache: size '$1'"
+    awk -v b="$1" -v m="$KB_MAX" 'BEGIN { exit !(b + 0 <= m + 0) }' || refuse "kernelcache.macho is too large"
+    is_hex64 "$2" || usage "kbcache: SHA-256"
+    stage_ok
+    session_open && refuse "an iOS session is running: return to One UI first"
+    w="$STAGE/make-kernel"
+    from="$w/kernelcache.macho"
+    [ -d "$w" ] && mine "$w" && [ -f "$from" ] && mine "$from" ||
+        refuse "no kernelcache was fetched in $w: run the kernel update"
+    got=$(stat -c %s "$from" 2>/dev/null)
+    if [ "$got" != "$1" ]; then
+        rm -f "$from"
+        refuse "the fetched kernelcache has ${got:-no} bytes, not $1: it is not the one the profile pins, nothing was kept"
+    fi
+    if [ "$(sha "$from")" != "$2" ]; then
+        rm -f "$from"
+        refuse "the fetched kernelcache is not the one the profile pins (its SHA-256 differs): nothing was kept"
+    fi
+    d="$STAGE/kb"
+    [ ! -L "$d" ] || refuse "$d is a link"
+    { [ -d "$d" ] || mkdir -p "$d"; } && own "$d" 0700 || die "could not make $d"
+    [ ! -L "$d/kernelcache.macho" ] || refuse "$d/kernelcache.macho is a link"
+    own "$from" 0600 && mv -f "$from" "$d/kernelcache.macho" || die "could not keep the kernelcache"
+    echo "$2" > "$d/kernelcache.sha256" && own "$d/kernelcache.sha256" 0600 || die "could not record the kernelcache"
+    # The IM4P and the fetch's record: the decoded file is all a later build needs.
+    rm -rf "$w/inputs" || die "could not remove $w/inputs"
+    say "@@OK kbcache $1"
+}
+
+# The kernel update's work folder, after a cancel or a download that cannot be
+# resumed. The cached kernelcache in kb/ is not part of it.
+do_kbclean() {
+    [ $# -eq 0 ] || usage "kbclean"
+    stage_ok
+    session_open && refuse "an iOS session is running: return to One UI first"
+    w="$STAGE/make-kernel"
+    [ -e "$w" ] || [ -L "$w" ] || { say "@@OK kbclean nothing"; return; }
+    # (a link is removed itself, never followed)
+    rm -rf "$w" || die "could not remove $w"
+    say "@@OK kbclean"
 }
 
 # kernel.kc's manifest entry (its size and SHA-256) rewritten from stdin to
@@ -516,7 +578,7 @@ kc_check_inputs() { # <dir>: the collection is from this runtime's xnu and the s
     grep -Fq "\"sha256\": \"$xnu\"" "$out/kernel.kc.build.json" ||
         { echo "the built kernel.kc is not from this runtime's xnu.macho: run the kernel build again"; return 1; }
     [ -f "$STAGE/kb/kernelcache.macho" ] && [ ! -L "$STAGE/kb/kernelcache.macho" ] ||
-        { echo "the Apple kernelcache is not staged: import it first"; return 1; }
+        { echo "the Apple kernelcache is not staged: run the kernel update first"; return 1; }
     grep -Fq "\"sha256\": \"$(sha "$STAGE/kb/kernelcache.macho")\"" "$out/kernel.kc.build.json" ||
         { echo "the built kernel.kc is not from the staged kernelcache: run the kernel build again"; return 1; }
     return 0
@@ -1106,6 +1168,8 @@ case "$verb" in
     receive) do_receive "$@" ;;
     script) do_script "$@" ;;
     kbinput) do_kbinput "$@" ;;
+    kbcache) do_kbcache "$@" ;;
+    kbclean) do_kbclean "$@" ;;
     finish) do_finish "$@" ;;
     restore) do_restore_kernel "$@" ;;
     switch) do_switch "$@" ;;
@@ -1118,5 +1182,5 @@ case "$verb" in
     logfile) do_logfile "$@" ;;
     tool) do_tool "$@" ;;
     untool) do_untool "$@" ;;
-    *) usage "oneios_root.sh status|begin|receive|script|kbinput|finish|restore|switch|return|remove|check|uncheck|checkfile|logs|logfile|tool|untool" ;;
+    *) usage "oneios_root.sh status|begin|receive|script|kbinput|kbcache|kbclean|finish|restore|switch|return|remove|check|uncheck|checkfile|logs|logfile|tool|untool" ;;
 esac

@@ -576,6 +576,33 @@ class OneiosTest {
         OneiosTool.request("1", cmd, keys)
     }
 
+    /**
+     * Update the kernel's download and decode (docs/oneios.md, "Kernel updates"): the keys `oneios-tool serve`'s
+     * `fetch` and `im4p` take (OneiOS's crates/oneios-serve/src/cmds.rs: fetch reads `profile`, `indir`, `only`,
+     * `source`, `resume`, `give_up_s`, `connections`; im4p `in` and `out`), every path under the stage, and only the
+     * profile's kernelcache member.
+     */
+    @Test
+    fun theKernelcacheRequestsAreTheToolsKeys() {
+        val s = OneiosSystem.STAGE
+        val (fetch, fk) = OneiosTool.kernelcacheFetchRequest(s)
+        assertEquals("fetch", fetch)
+        assertEquals(
+            mapOf("profile" to "$s/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml", "indir" to "$s/make-kernel/inputs", "only" to listOf("kernelcache"), "resume" to true),
+            fk,
+        )
+        val (im4p, ik) = OneiosTool.kernelcacheDecodeRequest(s)
+        assertEquals("im4p", im4p)
+        assertEquals(mapOf("in" to "$s/make-kernel/inputs/kernelcache.release.v54", "out" to "$s/make-kernel/kernelcache.macho"), ik)
+        // The line the app writes: the list and the flag as JSON, not as text.
+        assertEquals(
+            """{"id":"3","cmd":"fetch","profile":"$s/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml","indir":"$s/make-kernel/inputs","only":["kernelcache"],"resume":true}""" + "\n",
+            OneiosTool.request("3", fetch, fk),
+        )
+        // The decoded file the build reads is the one kbcache puts in kb/.
+        assertEquals("$s/kb/kernelcache.macho", OneiosTool.prelinkRequest("kernel/xnu.macho", s).second["kernelcache"])
+    }
+
     // --- The JSON reader -----------------------------------------------------------
 
     @Test

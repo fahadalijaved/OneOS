@@ -49,7 +49,8 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         // Rebuild the rows only when a step, the end, the progress line or the output changes.
         unsubscribe = OneiosToolJob.observeBy({ s ->
             listOf(s.flow, s.request, s.starting, s.stopping, s.problem, s.results.size, s.view.steps, s.view.end, s.view.progressLine, s.view.paused,
-                s.view.held, s.view.netWaiting, s.view.note, s.pausedByUser, s.noNetwork, s.canPause, s.view.lines.size, s.view.rows.size)
+                s.view.held, s.view.netWaiting, s.view.note, s.pausedByUser, s.noNetwork, s.canPause, s.view.lines.size, s.view.rows.size,
+                s.kernelPhase, s.plain, s.builtKc)
         }) { render() }
     }
 
@@ -67,7 +68,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             OneiosToolJob.Flow.LOG -> R.string.oneios_tool_log
             OneiosToolJob.Flow.IOSLOG_BOOTS -> R.string.oneios_tool_ioslog_boots
             OneiosToolJob.Flow.IOSLOG_SHOW -> R.string.oneios_tool_ioslog_show
-            OneiosToolJob.Flow.KERNEL -> R.string.oneios_kernel_build
+            OneiosToolJob.Flow.KERNEL -> R.string.oneios_kernel_update
         },
     )
 
@@ -101,6 +102,8 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         when {
             s.starting -> PrebootCards.row(now, getString(R.string.oneios_tool_starting), getString(R.string.oneios_tool_starting_line))
             s.problem != null -> PrebootCards.row(now, getString(R.string.oneios_tool_not_started), s.problem)
+            // Update the kernel's stop in plain words; the tool's own words stay below (its refusals).
+            !s.busy && s.plain != null -> PrebootCards.row(now, s.plain.title, s.plain.line)
             end != null && end != OneiosToolFlow.End.OK -> PrebootCards.row(now, endTitle(end), listOfNotNull(v.code, v.text).joinToString(": "))
             s.busy -> {
                 // Held, waiting for the network or for heat: the tool's words first, then where it is.
@@ -110,7 +113,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
                     v.held -> getString(R.string.oneios_tool_paused)
                     else -> v.paused
                 }
-                PrebootCards.row(now, running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), listOfNotNull(why, v.progressLine).joinToString(" · "))
+                PrebootCards.row(now, s.kernelPhase?.words ?: running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), listOfNotNull(running?.text?.takeIf { s.kernelPhase != null }, why, v.progressLine).joinToString(" · "))
             }
             end == OneiosToolFlow.End.OK -> PrebootCards.row(now, endTitle(end), s.results.lastOrNull() ?: v.text)
             else -> PrebootCards.row(now, getString(R.string.oneios_tool_idle))
@@ -160,11 +163,12 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             PrebootCards.row(actions, getString(R.string.oneios_tool_forget)) { OneiosToolJob.forget(this); render() }
         } else {
             val again = s.last ?: OneiosToolJob.Flow.MAKE_IMAGE
-            val kcSha = (s.lastResult["sha256"] as? String)?.takeIf { it.matches(Regex("^[0-9a-f]{64}$")) }
-            if (again == OneiosToolJob.Flow.KERNEL && v.end == OneiosToolFlow.End.OK && kcSha != null) {
+            val kcSha = s.builtKc?.takeIf { it.matches(Regex("^[0-9a-f]{64}$")) }
+            if (again == OneiosToolJob.Flow.KERNEL && kcSha != null) {
                 // The phone built kernel.kc and the audit passed: activate it (checks first, fallback kept),
                 // then back on the iOS page, where the activation runs.
                 PrebootCards.row(actions, getString(R.string.oneios_kernel_activate), getString(R.string.oneios_kernel_activate_line)) {
+                    OneiosToolJob.kernelActivating()
                     OneiosJob.activateKernel(this, kcSha)
                     startActivity(OneiosActivity.intent(this).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
                 }

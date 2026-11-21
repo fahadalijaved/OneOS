@@ -187,4 +187,41 @@ class OneiosPlainTest {
         val m = OneiosManifest(OneiosKind.IMAGE, 1, "27.0.1", listOf(OneiosFile("os.img", 10, "a".repeat(64)), OneiosFile("k", 5, "b".repeat(64))), build = "24A446")
         assertEquals(OneiosStaged(OneiosKind.IMAGE, "27.0.1", "24A446", 2, 15, 9), OneiosStaged.of(m, 9))
     }
+
+    /**
+     * Update the kernel's stops (docs/oneios.md, "Kernel updates"): each in plain words within the limits, the
+     * tool's own words kept as the detail, and the line says whether the download goes on or starts over.
+     */
+    @Test
+    fun theKernelUpdatesStopsArePlainWords() {
+        val end = OneiosToolFlow.End.entries
+        val steps = listOf("kbinput", "fetch", "im4p", "kbcache", "prelink")
+        val codes = listOf(null, "space", "network", "changed", "heat", "battery", "session", "unknown", "not-ported", "mismatch", "not-found", "audit", "io", "internal")
+        for (s in steps) for (e in end) for (c in codes) assertPlain(OneiosPlain.kernelUpdate(s, e, c, "the tool's words: /data/local/tmp/oneios", cleaned = true))
+
+        fun k(step: String, e: OneiosToolFlow.End, code: String?, text: String? = null, cleaned: Boolean = false) = OneiosPlain.kernelUpdate(step, e, code, text, cleaned)
+        val net = k("fetch", OneiosToolFlow.End.FAILED, "network", "no byte for 120 s")
+        assertEquals("No connection to Apple", net.title)
+        assertTrue(net.line, "goes on from where it stopped" in net.line)
+        assertEquals("fetch: network: no byte for 120 s", net.detail)
+        assertEquals("Not enough space for the update", k("im4p", OneiosToolFlow.End.REFUSED, "space").title)
+        val pin = k("im4p", OneiosToolFlow.End.REFUSED, "mismatch", "the decoded kernelcache's SHA-256 is 00, the profile pins 34: nothing was kept", cleaned = true)
+        assertEquals("Apple's kernelcache didn't check out", pin.title)
+        assertTrue(pin.line, "nothing was kept" in pin.line)
+        assertEquals("Apple's kernelcache didn't check out", k("fetch", OneiosToolFlow.End.REFUSED, "mismatch", "kernelcache.release.v54: sha384 ab, the profile pins cd").title)
+        assertEquals("Apple's kernelcache didn't check out", k("kbcache", OneiosToolFlow.End.REFUSED, "mismatch", "the fetched kernelcache is not the one the profile pins").title)
+        assertEquals("Apple's file changed while it came", k("fetch", OneiosToolFlow.End.FAILED, "changed").title)
+        val stop = k("fetch", OneiosToolFlow.End.CANCELLED, null, "stopped", cleaned = true)
+        assertEquals("Stopped", stop.title)
+        assertTrue(stop.line, "removed" in stop.line)
+        assertTrue("interrupted" in k("prelink", OneiosToolFlow.End.LOST, null, "the tool ended").title)
+        assertEquals("The new kernel didn't pass its checks", k("prelink", OneiosToolFlow.End.REFUSED, "audit").title)
+        assertEquals("This copy of OneOS is damaged", k("kbinput", OneiosToolFlow.End.REFUSED, "mismatch", "the app's kb/pairs.json is not the pinned one: reinstall OneOS").title)
+        assertEquals("This runtime's tool is too old", k("im4p", OneiosToolFlow.End.REFUSED, "unknown").title)
+        assertEquals("An iOS session is still open", k("kbcache", OneiosToolFlow.End.REFUSED, null, "an iOS session is running: return to One UI first").title)
+        // Root's words of a kernel that is not ready point at the Update button, not at a PC.
+        val notReady = of("the Apple kernelcache is not staged: run the kernel update first")
+        assertEquals("The phone-built kernel isn't ready", notReady.title)
+        assertTrue(notReady.line, "Update the kernel" in notReady.line && "PC" !in notReady.line)
+    }
 }

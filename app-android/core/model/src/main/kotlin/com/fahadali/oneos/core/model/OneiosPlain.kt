@@ -309,19 +309,83 @@ object OneiosPlain {
             p.startsWith("failed:") -> m(
                 "Root couldn't write the files", "Check that the phone has free space, then try again.", again, part,
             )
+            // Update the kernel's download, as root's kbcache checks it (also shown by kernelUpdate below).
+            "fetched kernelcache" in p || "kernelcache was fetched" in p -> m(
+                "Apple's kernelcache didn't check out",
+                "It isn't the one this OneiOS pins, so nothing was kept. Tap Update the kernel to download it again.",
+                OneiosFix.CHECK_AGAIN, OneiosPart.OTHER,
+            )
             // The phone-built kernel: its inputs, its build, and its activation (docs/oneios.md, "Kernel updates").
             // Root checks every hash and list itself; these name what to do on the iOS page.
             "no phone-built kernel" in p || "run the kernel build" in p || "staged kernelcache" in p ||
                 "kept kernel" in p || "kept set" in p || "no previous kernel set" in p ||
                 "not from this runtime" in p || "not from the staged kernelcache" in p ||
-                "stage a runtime with a kernel" in p || "import the kernelcache" in p -> m(
+                "stage a runtime with a kernel" in p || "import the kernelcache" in p || "run the kernel update" in p ||
+                "run update the kernel" in p -> m(
                 "The phone-built kernel isn't ready",
-                "Stage the inputs and Apple's kernelcache, build the kernel on this phone, then activate it.",
+                "Tap Update the kernel: it gets Apple's kernelcache from Apple and builds the kernel. Then activate it.",
                 OneiosFix.CHECK_AGAIN, OneiosPart.OTHER,
             )
             else -> m(
                 "Couldn't finish", "Something didn't check out. Check again; if it stays, open Session logs.", OneiosFix.CHECK_AGAIN, OneiosPart.OTHER,
             )
+        }
+    }
+
+    /**
+     * Update the kernel's stop in plain words (docs/oneios.md, "Kernel updates"): [step] is the tool's command
+     * (`fetch`, `im4p`, `prelink`) or root's verb (`kbinput`, `kbcache`) that did not end with ok, [end] how it
+     * ended, [code] and [text] the tool's (or root's) own words, kept as the detail. [cleaned]: the downloaded
+     * parts were removed. The line says what to do and whether the download goes on from where it stopped.
+     */
+    fun kernelUpdate(step: String, end: OneiosToolFlow.End, code: String?, text: String?, cleaned: Boolean = false): OneiosMessage {
+        val raw = listOfNotNull(step, code, text).joinToString(": ")
+        val t = text.orEmpty().lowercase()
+        fun m(title: String, line: String, level: Level = Level.BLOCK) =
+            OneiosMessage(title, line, OneiosFix.NONE, OneiosPart.OTHER, level, raw)
+        val goesOn = "Tap Update the kernel again: the download goes on from where it stopped."
+        val download = step == OneiosTool.Cmd.FETCH || step == OneiosTool.Cmd.IM4P || step == "kbcache"
+        return when {
+            end == OneiosToolFlow.End.CANCELLED -> m(
+                "Stopped",
+                if (cleaned) "Nothing was changed, and what it downloaded is removed. Update again whenever you like."
+                else "Nothing was changed. Update again whenever you like.",
+                Level.WARN,
+            )
+            end == OneiosToolFlow.End.LOST -> m("The update was interrupted", "Nothing was changed. $goesOn", Level.WARN)
+            code == "space" -> m(
+                "Not enough space for the update",
+                "Free up space in One UI (the update's report says how much), then tap Update the kernel again.",
+            )
+            code == "network" -> m("No connection to Apple", "Connect to Wi-Fi or mobile data. $goesOn", Level.WARN)
+            code == "changed" -> m("Apple's file changed while it came", "Nothing was kept. Tap Update the kernel again to download it once more.", Level.WARN)
+            code == "heat" -> m("Your phone is too warm", "The update waits for it. Let it cool down, then tap Update the kernel again.", Level.WARN)
+            code == "battery" -> m("Charge your phone", "The update needs more battery. Plug it in, then tap Update the kernel again.", Level.WARN)
+            code == "session" || "session is running" in t -> m(
+                "An iOS session is still open", "Go back to One UI first, then tap Update the kernel again.",
+            )
+            code == "unknown" || code == "not-ported" -> m(
+                "This runtime's tool is too old", "Its oneios-tool can't do this step. Get a newer OneiOS runtime, then update again.",
+            )
+            "not the pinned one" in t -> m("This copy of OneOS is damaged", "Reinstall OneOS, then open iOS 27 again.")
+            download && (code == "mismatch" || "pins" in t) -> m(
+                "Apple's kernelcache didn't check out",
+                "It isn't the one this OneiOS pins, so nothing was kept. Tap Update the kernel to download it again.",
+            )
+            code == "not-found" && step == OneiosTool.Cmd.FETCH -> m(
+                "The runtime has no iOS profile", "Get the runtime again: its profile names Apple's files. Then update again.",
+            )
+            code == "audit" -> m(
+                "The new kernel didn't pass its checks", "Nothing was changed; the kernel in use stays. Open the update's report for details.",
+            )
+            step == OneiosTool.Cmd.IM4P -> m(
+                "Apple's kernelcache couldn't be decoded", "Nothing was kept. Tap Update the kernel to download it again.",
+            )
+            step == OneiosTool.Cmd.PRELINK -> m(
+                "The kernel couldn't be built", "Nothing was changed; the kernel in use stays. Open the update's report for details.",
+            )
+            step == "kbinput" -> m("The pairing files didn't arrive", "Root didn't take a file of the update. Check again, then update again.")
+            else -> m("The kernel update didn't finish", "Nothing was changed. Open the update's report for details.")
         }
     }
 }

@@ -5,10 +5,15 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.os.SystemClock
 import com.fahadali.oneos.BuildConfig
+import com.fahadali.oneos.core.model.OneiosManifests
+import com.fahadali.oneos.core.model.OneiosMessage
+import com.fahadali.oneos.core.model.OneiosPlain
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosToolFlow
+import com.fahadali.oneos.core.root.OneiosKernelUpdate
 import com.fahadali.oneos.core.root.OneiosRoot
+import com.fahadali.oneos.core.root.OneiosStatus
 import com.fahadali.oneos.core.root.OneiosToolPause
 import com.fahadali.oneos.core.root.OneiosToolSession
 import com.fahadali.oneos.core.root.RootReply
@@ -78,10 +83,12 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         IOSLOG_SHOW("read", listOf(Request(OneiosTool.Cmd.IOSLOG_SHOW, mapOf("source" to "$S/data/data.img", "boot" to "last", "format" to "text")))),
 
         /**
-         * The phone-built kernel: `prelink build` from the staged runtime's xnu, the staged kernelcache and the
-         * staged kb/ inputs into `make-kernel/out` (the audit and the stub check gate what lands there). The kernel
-         * is activated by [OneiosJob.activateKernel], never by this flow: the screen shows the build's report first.
-         * Not run on the phone yet (docs/oneios.md, "Kernel updates").
+         * Update the kernel, with no PC ([OneiosKernelUpdate]; docs/oneios.md, "Kernel updates"): root's `kbinput`
+         * of the app's pairing files, then, unless `kb/kernelcache.macho` is already the pinned one, the tool's
+         * `fetch` of the profile's kernelcache member from Apple and its `im4p`, the pin, root's `kbcache`; then
+         * the tool's `prelink` into `make-kernel/out` (the audit and the stub check gate what lands there). The
+         * kernel is activated by [OneiosJob.activateKernel], never by this flow: the screen shows the build's
+         * result first. [requests] is the run with no kernelcache on the phone yet. Not run on the phone yet.
          */
         KERNEL("work", kernelRequests("kernel/xnu.macho", S)),
     }
@@ -112,6 +119,12 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         val refusals: List<String> = emptyList(),
         /** The last request's result object (the `ok`'s fields): the kernel build's `sha256`, `bytes`. */
         val lastResult: Map<String, Any?> = emptyMap(),
+        /** Update the kernel: what runs now (the tool's request, or root's step of it); null for other flows. */
+        val kernelPhase: OneiosKernelUpdate.Phase? = null,
+        /** Update the kernel: why it stopped, in plain words ([OneiosPlain.kernelUpdate]); null while it runs or when it built. */
+        val plain: OneiosMessage? = null,
+        /** Update the kernel: the SHA-256 of the kernel.kc it built (in `make-kernel/out`, for root's `finish kernel`). */
+        val builtKc: String? = null,
     ) {
         val busy: Boolean get() = flow != null
     }
@@ -158,7 +171,11 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         var answered = true
         try {
             // This build's root script in the stage first (status installs it, as the checks do).
-            root(app, OneiosRoot.Verb.STATUS, emptyList(), 180_000)?.let { return problem(it) }
+            val (statusProblem, statusLines) = rootReply(app, OneiosRoot.Verb.STATUS, emptyList(), 180_000)
+            statusProblem?.let { return problem(it) }
+            // Update the kernel: what it needs before the tool starts (an image set of the pinned build, a runtime with a kernel).
+            val status = OneiosStatus.parse(statusLines)
+            val kernel = if (flow == Flow.KERNEL) kernelUpdate(app, status) ?: return else null
             if (flow == Flow.MAKE_IMAGE) root(app, OneiosRoot.Verb.BEGIN, listOf("image"), 120_000)?.let { return problem(it) }
             val s = OneiosToolSession(
                 OneiosRoot.launcher(OneiosRoot.Verb.TOOL, listOf(flow.mode), BuildConfig.ONEIOS_ROOT_SHA256, BuildConfig.ONEIOS_ROOT_BYTES),
@@ -176,12 +193,11 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                     ))
                 }
                 if (state.canPause) watch = watchNetwork(app)
-                val requests = if (flow == Flow.KERNEL) {
-                    kernelRequests(OneiosJob.stagedKernelPath(app) ?: "kernel/xnu.macho", S)
-                } else {
-                    flow.requests
+                if (kernel != null) {
+                    answered = runKernel(app, s, kernel, status)
+                    return
                 }
-                for ((i, r) in requests.withIndex()) {
+                for ((i, r) in flow.requests.withIndex()) {
                     if (stop) break
                     val view = one(s, i + 1, r)
                     if (view.end != OneiosToolFlow.End.OK) {
@@ -259,6 +275,64 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         return { runCatching { cm.unregisterNetworkCallback(cb) }; Unit }
     }
 
+    /** Update the kernel for the staged pair, or null (and the reason on the screen) when it cannot start. */
+    private fun kernelUpdate(app: Context, st: OneiosStatus): OneiosKernelUpdate? {
+        val kb = try {
+            OneiosJob.kbInputs(app)
+        } catch (e: Exception) {
+            problem(e.message ?: "the app's kernel-build inputs cannot be read: reinstall OneOS")
+            return null
+        }
+        OneiosManifests.updateProblem(st.image?.build, kb, st.runtimeKernel != null)?.let { problem(it); return null }
+        val assets = try {
+            OneiosJob.kbAssets(app)
+        } catch (e: java.io.IOException) {
+            problem("the app's kb/ files cannot be read (${e.message}): reinstall OneOS")
+            return null
+        }
+        return OneiosKernelUpdate(S, kb, OneiosJob.stagedKernelPath(app) ?: "kernel/xnu.macho", assets)
+    }
+
+    /**
+     * Update the kernel on the open tool session ([OneiosKernelUpdate] decides the steps): each tool request shown
+     * as any flow's, root's steps on their own `su`. Returns false when the tool went away in a request (the flow
+     * stays remembered, and its next run goes on from the download's parts).
+     */
+    private fun runKernel(app: Context, s: OneiosToolSession, kernel: OneiosKernelUpdate, st: OneiosStatus): Boolean {
+        var n = 0
+        val io = object : OneiosKernelUpdate.Io {
+            override fun tool(cmd: String, keys: Map<String, Any?>): OneiosToolFlow {
+                n += 1
+                val view = one(s, n, Request(cmd, keys))
+                if (view.end == OneiosToolFlow.End.OK) update(state.copy(results = state.results + (view.text ?: cmd)))
+                return view
+            }
+
+            override fun root(verb: OneiosRoot.Verb, args: List<String>, data: ByteArray?): String? =
+                rootReply(app, verb, args, 10 * 60_000L, data).first
+
+            override fun phase(phase: OneiosKernelUpdate.Phase) = update(state.copy(kernelPhase = phase))
+
+            override fun done(line: String) = update(state.copy(results = state.results + line))
+
+            override val stopped: Boolean get() = stop
+        }
+        return when (val o = kernel.run(io, st.kb.kernelcacheSha256)) {
+            is OneiosKernelUpdate.Outcome.Built -> {
+                update(state.copy(builtKc = o.sha256, lastResult = mapOf("sha256" to o.sha256, "bytes" to o.bytes), kernelPhase = null))
+                true
+            }
+            is OneiosKernelUpdate.Outcome.Stopped -> {
+                update(state.copy(
+                    refusals = state.refusals + listOfNotNull(o.step, o.code, o.text).joinToString(": "),
+                    plain = OneiosPlain.kernelUpdate(o.step, o.end, o.code, o.text, o.cleaned),
+                    lastResult = emptyMap(), kernelPhase = null,
+                ))
+                o.end != OneiosToolFlow.End.LOST
+            }
+        }
+    }
+
     /** Make iOS image's last step: root's `finish image` with what the tool's result says the set is (today's checks). */
     private fun finishImage(app: Context, result: Map<String, Any?>) {
         val args = listOf("files", "format", "version", "build").map { k -> result[k]?.toString() ?: return problem("the tool's result has no '$k' for root's finish") }
@@ -270,6 +344,11 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
 
     private fun problem(why: String) {
         update(state.copy(problem = why, starting = false))
+    }
+
+    /** Activate was tapped for the kernel the update built: the button goes (root's `finish kernel` uses `make-kernel/out` up). */
+    fun kernelActivating() {
+        if (!state.busy) update(state.copy(builtKc = null))
     }
 
     /** Pause on the screen: the tool holds the running request where it is. */
@@ -307,26 +386,32 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
     }
 
     /** One root verb of oneios_root.sh; null when it worked, else why not. */
-    private fun root(app: Context, verb: OneiosRoot.Verb, args: List<String>, limitMs: Long): String? = try {
+    private fun root(app: Context, verb: OneiosRoot.Verb, args: List<String>, limitMs: Long): String? = rootReply(app, verb, args, limitMs).first
+
+    /** [root], and the verb's `@@RESULT` lines (`status`'s). [data]: the verb's stdin (`kbinput`). */
+    private fun rootReply(app: Context, verb: OneiosRoot.Verb, args: List<String>, limitMs: Long, data: ByteArray? = null): Pair<String?, List<String>> = try {
         val command = OneiosRoot.launcher(verb, args, BuildConfig.ONEIOS_ROOT_SHA256, BuildConfig.ONEIOS_ROOT_BYTES)
-        val input = if (verb.stdin == OneiosRoot.Stdin.SCRIPT) {
-            val script = OneiosJob.rootScript(app)
-            RootShell.Feed { it.write(script) }
-        } else null
+        val input = when (verb.stdin) {
+            OneiosRoot.Stdin.SCRIPT -> OneiosJob.rootScript(app).let { script -> RootShell.Feed { it.write(script) } }
+            OneiosRoot.Stdin.DATA -> requireNotNull(data) { "${verb.word} needs its data" }.let { bytes -> RootShell.Feed { it.write(bytes) } }
+            OneiosRoot.Stdin.NONE -> null
+        }
         val reply = RootReply()
         val end = RootShell(command).run(input, { reply.accept(it) }, { limitMs }, limitMs)
-        if (end.exitCode == 0 && reply.ok != null && end.error == null) null
+        val why = if (end.exitCode == 0 && reply.ok != null && end.error == null) null
         else end.error ?: reply.problem(end.exitCode) ?: "no answer from root"
+        why to reply.results.toList()
     } catch (e: Exception) {
-        e.message ?: e.javaClass.simpleName
+        (e.message ?: e.javaClass.simpleName) to emptyList()
     }
 
     private const val CANCEL_WAIT_MS = 15_000L
 }
 
 /**
- * The `prelink` request for [xnuPath] (the staged runtime's kernel, as its runtime.json names it).
- * Keys are [OneiosTool.prelinkRequest]'s; this only wraps them for a flow.
+ * Update the kernel's tool requests with no kernelcache on the phone yet (`fetch`, `im4p`, `prelink` for [xnuPath],
+ * the staged runtime's kernel), for [OneiosToolJob.Flow.KERNEL]'s list. The run itself is [OneiosKernelUpdate]'s.
  */
 private fun kernelRequests(xnuPath: String, stage: String): List<OneiosToolJob.Request> =
-    listOf(OneiosTool.prelinkRequest(xnuPath, stage).let { (cmd, keys) -> OneiosToolJob.Request(cmd, keys) })
+    OneiosKernelUpdate.toolRequests(stage, xnuPath, cached = false)
+        .map { (cmd, keys) -> OneiosToolJob.Request(cmd, keys) }

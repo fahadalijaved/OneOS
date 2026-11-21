@@ -65,6 +65,12 @@ object OneiosRoot {
         /** One kernel-build input file into the stage ([OneiosKb]). */
         KBINPUT("kbinput", Stdin.DATA),
 
+        /** Apple's kernelcache the phone's tool fetched from Apple and decoded (`make-kernel/kernelcache.macho`) into `kb/`, when it is the pinned one. */
+        KBCACHE("kbcache", Stdin.NONE),
+
+        /** The kernel update's work folder (`make-kernel/`) removed; the cached kernelcache in `kb/` stays. */
+        KBCLEAN("kbclean", Stdin.NONE),
+
         /** Back to the kept kernel set after a kernel update. */
         RESTORE("restore", Stdin.NONE),
 
@@ -108,7 +114,7 @@ object OneiosRoot {
             args.getOrNull(i)?.let { if (!OneiosManifests.validPath(it)) p += "${verb.word}: '${it.take(40)}' is not a plain relative path" }
         }
         when (verb) {
-            Verb.STATUS, Verb.REMOVE, Verb.RETURN, Verb.LOGS, Verb.UNTOOL -> need(0)
+            Verb.STATUS, Verb.REMOVE, Verb.RETURN, Verb.LOGS, Verb.UNTOOL, Verb.KBCLEAN -> need(0)
             Verb.LOGFILE -> {
                 need(3)
                 args.getOrNull(0)?.let { if (!OneiosLogs.validId(it)) p += "logfile: '${it.take(40)}' is not a session log" }
@@ -154,6 +160,9 @@ object OneiosRoot {
                 need(3)
                 args.getOrNull(0)?.let { if (it !in OneiosKbFiles.NAMES) p += "kbinput: '${it.take(40)}' is not a kernel-build input" }
                 arg(1, DEC, "a size"); arg(2, HEX64, "a SHA-256")
+            }
+            Verb.KBCACHE -> {
+                need(2); arg(0, DEC, "a size"); arg(1, HEX64, "a SHA-256")
             }
             Verb.RESTORE -> {
                 need(1)

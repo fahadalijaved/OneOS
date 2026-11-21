@@ -152,10 +152,12 @@ ready" and **Continue** opens iOS 27's page. A download or an import started on 
 - **iOS image set**: what is staged (`Image format 1 · the runtime boots format 1`); *I have the file*; *How to
   build it*; *iOS data* and what keeps or deletes it.
 - **Phone-built kernel** ("Kernel updates" below): the runtime's kernel and the image's `kernel.kc` with its
-  build id, falling back to "unknown, staged before kernel tracking"; the prelink inputs staged of 13; *Check
-  for a newer kernel*, *Stage the kernel-build inputs*, *I have the kernelcache file*, *Build the kernel on this
-  phone* (a `oneios-tool` flow, then *Activate the phone-built kernel* on its screen), *Restore the kept kernel
-  set* while a fallback is kept.
+  build id, falling back to "unknown, staged before kernel tracking"; the prelink inputs staged of 13 and whether
+  Apple's kernelcache is on the phone; *Check for a newer kernel*; **Update the kernel** (no PC: it fetches Apple's
+  kernelcache from Apple once, then builds; while it runs the section shows its step, a pause or the wait for a
+  network, *Pause*/*Resume*, *Stop* and its progress screen; after it, why it stopped in plain words, or
+  *Activate the phone-built kernel*); *Restore the kept kernel set* while a fallback is kept; *I have the
+  kernelcache file (optional)*, only for a phone without a network.
 - **Last session** (the return): *Back to One UI* while a session is still open (root's `return`, as Volume Up +
   Volume Down); how the last session came back (`outcome` of `status`: in place, by a restart, by the failsafe
   with its reason); *Session logs*.
@@ -291,11 +293,38 @@ stays as the fallback; a half-updated set never activates):
 - **Update check**: the latest release's runtime package is downloaded to the cache (its `.sha256` verified
   first, as for a runtime update), its `runtime.json` read without staging, and its kernel build id compared with
   the staged one.
-- **On-device rebuild**: the pairing files ship with the app (`assets/kb/`: the kernel profile, reviewed, pairs,
-  stubs, lead and user records, XnuPrelink's matcher files; `kb/kb.json` pins their hashes and the Apple build
-  they pair). Apple's decoded kernelcache comes from the user's PC ("I have the kernelcache file": checked
-  against the profile's pin at import, never committed, released or downloaded). The KERNEL tool flow runs
-  `serve prelink` into `make-kernel/out`.
+- **On-device rebuild, with no PC** (*Update the kernel*, `OneiosToolJob` flow `KERNEL`, its order in
+  `OneiosKernelUpdate`, `core/root`): what cannot be shipped is fetched and built on the phone itself. The pairing
+  files ship with the app (`assets/kb/`: the kernel profile, reviewed, pairs, stubs, lead and user records,
+  XnuPrelink's matcher files; `kb/kb.json` pins their hashes, the Apple build they pair and Apple's decoded
+  kernelcache's SHA-256, `kernelcache_sha256`). Apple's kernelcache is never committed, released or put in the APK:
+  each phone downloads its own from Apple. One `tool work` session sends, in this order:
+
+  1. root's `kbinput` for each of the 12 pairing files (each checked against `kb.json` by the app first, then by
+     root as it writes it);
+  2. unless `kb/kernelcache.macho` is already the pinned one (root's `status`, the line `kb <sha256> <n>`):
+     `fetch` with `profile` `<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir`
+     `<stage>/make-kernel/inputs`, `only` `["kernelcache"]` and `resume` (the profile's member
+     `kernelcache.release.v54`, 23,390,449 bytes, which the tool checks against the profile's size, CRC-32 and
+     SHA-384); `im4p` with `in` `<stage>/make-kernel/inputs/kernelcache.release.v54` and `out`
+     `<stage>/make-kernel/kernelcache.macho`; the `ok`'s `sha256` against `kb.json`'s `kernelcache_sha256`;
+     then root's `kbcache <bytes> <sha256>`, which hashes the file itself, moves it into `kb/kernelcache.macho`
+     (with `kb/kernelcache.sha256`) and removes `make-kernel/inputs` (the IM4P and the fetch's record);
+  3. `prelink` (`OneiosTool.prelinkRequest`) into `make-kernel/out`.
+
+  The decoded kernelcache stays in `kb/` (outside `runtime/` and `image/`, so `sums` and the switch's
+  `check_list` see nothing new): a later runtime update builds again with no download. Every step of the tool
+  says the room it needs before it writes (`space`) and refuses when it is short. Pause and Resume hold the
+  download as for Make iOS image. What a stop leaves: a pause, a lost network (`failed` `network`), an ended app
+  and a refusal for room, heat, the battery or a session keep the download's parts, and the next run goes on from
+  them; *Stop*, a pin that does not match (the tool's `mismatch` of the member, the app's of the decode, root's
+  of the file), a server file that changed (`changed`), and a decode or a build that failed run root's
+  `kbclean`, which removes `make-kernel/` and never `kb/`. The stop is shown in plain words
+  (`OneiosPlain.kernelUpdate`) on the iOS page and the flow's screen, with the tool's own words below.
+  Measured on the Linux PC (2026-11-21, OneiOS's `oneios-tool serve` built that day, the exact requests above
+  against a scratch stage): `fetch` from Apple's server in 12.4 s (`space` asked 46,760,649 bytes), `im4p` in
+  0.1 s, 78,135,296 bytes, SHA-256 `349c4692…3e3`, the pin. Not run on a phone. *I have the kernelcache file*
+  stays as an optional import for a phone without a network (`kbinput kernelcache.macho`, the same pin).
 - **Activation** (root's `finish kernel <kc-sha256> <build-id>`): checks first — the collection is complete, its
   SHA-256 is the tool's, and its build record names this runtime's xnu and the staged kernelcache — then the old
   set aside to `kernel.prev/`, the new `kernel.kc` with freshly regenerated chunk hashes in, `image.sha256`,
@@ -325,6 +354,7 @@ sends requests and shows what comes back. The protocol is the tool's (OneiOS's `
 | Flow (screen, where) | Root | Requests | Shown |
 |---|---|---|---|
 | **Make iOS image** (Set up iOS 27's image step: "I have the file", "Make iOS image", "How to build it"; Tools on iOS 27's page) | `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with the tool's result | `fetch` (the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make/inputs`, `resume`), `make-image` (`out` `image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`), `tweaks` | the tool's steps, what runs and what is next, progress and time left, the space it needs and has, a heat pause, and its refusal or failure with its code |
+| **Update the kernel** (iOS 27's page, Phone-built kernel) | `status`, `kbinput` ×12, `tool work`, `kbcache <bytes> <sha256>` after the decode, `kbclean` after a stop that cannot go on; then `finish kernel <kc-sha256> <build-id>` when the user taps Activate | `fetch` (`profile` the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make-kernel/inputs`, `only` `["kernelcache"]`, `resume`) and `im4p` (`in` `.../inputs/kernelcache.release.v54`, `out` `<stage>/make-kernel/kernelcache.macho`), both only when `kb/` has no pinned kernelcache; `prelink` | on the iOS page its step, a pause, Pause/Resume and Stop, and why it stopped in plain words; on its screen the tool's steps, progress, space and words |
 | **Check every file** (Tools) | `tool read` | `sums` of `runtime/` and of `image/` against the lists root wrote at staging, `strict` | each file hashed again, all of them, on all cores; a difference is the tool's `refused` `mismatch` |
 | **CPU, clocks and threads** (Hardware checks, "With oneios-tool") | `tool read` | `cpu` | the tool's report lines and its `cpu` rows |
 | **Analyse the last session**, **iOS's own log: boots**, **last boot** (Session logs, "With oneios-tool") | `tool read` | `log-list` and `log` (`file` `xnuhost`); `ioslog-boots`; `ioslog-show` (`boot` `last`), on `<stage>/data/data.img` | the tool's lines and rows |
@@ -942,6 +972,16 @@ the two meet at the return's lock.
   changed and no stray files; then the swap (files, hashes, lists, manifest, configs, receipt) and the fallback,
   and `restore kernel` puts the kept set back with its own receipt; every verb refuses during a session.
   `EditionsTest` pins the `kb/` assets (each the hash `kb.json` names, exactly the set the root script takes).
+  `kbcache` keeps a fetched kernelcache only when root's own hash is the pin (another hash or size is deleted
+  and refused, nothing lands in `kb/`), removes the IM4P, and `status` then reports it; `kbclean` removes
+  `make-kernel/` and never `kb/`; both refuse during a session. `theKernelUpdateFetchesFromApple...` runs the
+  whole update against the real `oneios-tool serve` and Apple's server when `ONEIOS_TOOL_SERVE` and
+  `ONEIOS_PROFILE` are given (skipped otherwise; run on the Linux PC, see "Kernel updates").
+- `core/root` `OneiosKernelUpdateTest`: Update the kernel's order against stand-ins of the tool and root (the 12
+  `kbinput`s, `fetch`, `im4p`, `kbcache`, `prelink`), a kernelcache already on the phone skipping the download, a
+  decoded file that is not the pinned one refused with `kbclean` and no build, a Stop at each request (or between
+  two) cleaning up, a lost network or short room keeping the parts; `core/model` `OneiosTest` pins the two
+  requests' keys and their JSON line, `OneiosPlainTest` every stop's plain words within the limits.
 - The same class runs **the way back** against a fake phone: the key readers, the poll, the watcher and
   `oneios_return.sh` themselves, with stand-ins for Android's tools
   (`core/root/src/test/resources/oneios/phone-tools.sh`), processes as folders, and a clock that runs faster.
@@ -1164,6 +1204,10 @@ interfere: different repositories, runs and releases.
   2.8 s wall, 678 MB peak RSS on 20 cores, cold). Until a phone run says otherwise the build row says so.
   Standing by for that run: `tests/phone/serve-on-phone.sh prelink` (OneiOS) with the inputs in
   `/data/local/tmp/oneios/work-prelink`.
+- **Update the kernel has not run on the phone.** Its download and decode ran on the Linux PC with the real tool
+  and Apple's server (12.4 s, 0.1 s, the pinned SHA-256); on the phone unproven are the `fetch` over the phone's own
+  network (Wi-Fi or mobile data, KernelSU's `su` reaching Apple's CDN, a pause and resume there), the `im4p` and
+  `prelink` time and peak RAM on the S24 Ultra, and root's `kbcache` hashing 78 MB with the phone's `sha256sum`.
 - **oneios-tool in the app has not run on the phone** (branch `app-oneios-tool`). Unknown until it does: whether
   KernelSU's `su` from the app runs the staged `bin/oneios-tool` (it runs the checks' tools the same way, also never
   tried); the times of each flow on the phone (OneiOS's `docs/building.md` section 7 has the Mac's steps to measure

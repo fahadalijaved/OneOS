@@ -15,7 +15,7 @@ import androidx.core.widget.NestedScrollView
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.core.model.OneiosFix
-import com.fahadali.oneos.core.model.OneiosKbFiles
+import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosReleases
 import com.fahadali.oneos.core.model.OneiosSystem
@@ -39,6 +39,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
     private lateinit var picker: OneiosPicker
     private lateinit var actionTextColors: ColorStateList
     private var unsubscribe: (() -> Unit)? = null
+    private var toolUnsubscribe: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +105,12 @@ class OneiosActivity : EdgeToEdgeActivity() {
         super.onStart()
         // This page shows no byte count (Set up iOS 27 does): rows are built again only when something else changes.
         unsubscribe = OneiosJob.observeBy({ it.copy(done = 0, total = 0, bytesPerSecond = 0, etaSeconds = null, file = null, message = if (it.copying) null else it.message) }) { render(it) }
+        // Update the kernel's rows (kernelUpdateRows): its step, pause and end, not its bytes.
+        toolUnsubscribe = OneiosToolJob.observeBy({ s ->
+            if (s.last != OneiosToolJob.Flow.KERNEL) null
+            else listOf(s.flow, s.starting, s.stopping, s.problem, s.kernelPhase, s.view.current, s.view.held, s.view.paused, s.view.netWaiting,
+                s.pausedByUser, s.noNetwork, s.canPause, s.plain, s.builtKc)
+        }) { render(OneiosJob.state) }
     }
 
     override fun onResume() {
@@ -114,6 +121,8 @@ class OneiosActivity : EdgeToEdgeActivity() {
     override fun onStop() {
         unsubscribe?.invoke()
         unsubscribe = null
+        toolUnsubscribe?.invoke()
+        toolUnsubscribe = null
         super.onStop()
     }
 
@@ -215,9 +224,10 @@ class OneiosActivity : EdgeToEdgeActivity() {
         }
         PrebootCards.row(image, getString(R.string.oneios_data), (flow.dataLine ?: getString(R.string.environment_unknown)) + "\n" + getString(R.string.oneios_data_line))
 
-        // The kernel: what the runtime carries, what the image boots, and the phone-built update path
-        // (docs/oneios.md, "Kernel updates"). A new kernel never means rebuilding the image set on a PC:
-        // the phone pairs the staged xnu with Apple's kernelcache and activates the collection atomically.
+        // The kernel: what the runtime carries, what the image boots, and Update the kernel (docs/oneios.md,
+        // "Kernel updates"). A new kernel never means rebuilding the image set, and needs no PC: the phone fetches
+        // Apple's kernelcache from Apple itself (once; it stays cached in the stage), pairs the staged xnu with it
+        // and activates the collection atomically.
         if (st?.runtime != null) {
             val kernel = PrebootCards.section(column, getString(R.string.oneios_kernel))
             PrebootCards.row(
@@ -229,20 +239,15 @@ class OneiosActivity : EdgeToEdgeActivity() {
                 PrebootCards.row(kernel, getString(R.string.oneios_kernel_check), getString(R.string.oneios_kernel_check_line), chevron = true, enabled = idle) {
                     OneiosJob.checkKernel(this)
                 }
-                PrebootCards.row(kernel, getString(R.string.oneios_kernel_stage_inputs), getString(R.string.oneios_kernel_stage_inputs_line), chevron = true, enabled = idle) {
-                    OneiosJob.stageKbInputs(this)
-                }
-                PrebootCards.row(kernel, getString(R.string.oneios_kernel_kernelcache), getString(R.string.oneios_kernel_kernelcache_line), chevron = true, enabled = idle) {
-                    picker.pickKernelcache()
-                }
-                if ((st.kb.inputs) >= OneiosKbFiles.NAMES.size) {
-                    PrebootCards.row(kernel, getString(R.string.oneios_kernel_build), getString(R.string.oneios_kernel_build_line), chevron = true,
-                        enabled = idle || OneiosToolJob.state.busy) { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) }
-                }
+                kernelUpdateRows(kernel, st, idle)
                 if (st.imageKernel?.hasFallback == true) {
                     PrebootCards.row(kernel, getString(R.string.oneios_kernel_restore), getString(R.string.oneios_kernel_restore_line), chevron = true, enabled = idle) {
                         OneiosActions.confirmRestoreKernel(this)
                     }
+                }
+                // Optional, with no download: a kernelcache.macho a PC wrote (checked against the same pin).
+                PrebootCards.row(kernel, getString(R.string.oneios_kernel_kernelcache), getString(R.string.oneios_kernel_kernelcache_line), chevron = true, enabled = idle) {
+                    picker.pickKernelcache()
                 }
             }
         }
@@ -310,6 +315,54 @@ class OneiosActivity : EdgeToEdgeActivity() {
         }
     }
 
+    /**
+     * Update the kernel on this page (docs/oneios.md, "Kernel updates"): while it runs, what runs now (its step, a
+     * pause, the wait for a network) with Pause or Resume, Stop, and its own screen for the bytes and the time left;
+     * after it, why it stopped in plain words ([OneiosPlain.kernelUpdate]) or Activate for the kernel it built; and
+     * the Update button. This page is built again only when the step, a pause or the end changes, never for a byte
+     * count ([onStart]).
+     */
+    private fun kernelUpdateRows(kernel: LinearLayout, st: OneiosStatus, idle: Boolean) {
+        val t = OneiosToolJob.state
+        val mine = t.last == OneiosToolJob.Flow.KERNEL
+        if (mine && t.busy) {
+            val v = t.view
+            val running = v.steps.firstOrNull { it.state == OneiosTool.StepState.RUNNING }
+            val why = when {
+                t.stopping -> getString(R.string.oneios_tool_stopping)
+                v.netWaiting != null -> v.netWaiting
+                t.noNetwork -> getString(R.string.oneios_tool_no_network)
+                v.held || t.pausedByUser -> getString(R.string.oneios_tool_paused)
+                else -> v.paused
+            }
+            PrebootCards.row(
+                kernel, t.kernelPhase?.words ?: getString(R.string.oneios_tool_starting),
+                listOfNotNull(running?.text, why).joinToString(" · ").ifEmpty { getString(R.string.oneios_kernel_update_progress) }, chevron = true,
+            ) { startActivity(OneiosToolActivity.intent(this)) }
+            if (t.canPause && !t.stopping) {
+                if (t.pausedByUser) PrebootCards.row(kernel, getString(R.string.oneios_tool_resume), getString(R.string.oneios_tool_resume_line)) { OneiosToolJob.resumeByUser() }
+                else PrebootCards.row(kernel, getString(R.string.oneios_tool_pause), getString(R.string.oneios_tool_pause_line), enabled = !t.starting) { OneiosToolJob.pauseByUser() }
+            }
+            PrebootCards.row(kernel, getString(if (t.stopping) R.string.oneios_tool_stopping else R.string.oneios_tool_stop), enabled = !t.stopping) { OneiosToolJob.cancel() }
+            return
+        }
+        if (mine) {
+            t.problem?.let { PrebootCards.row(kernel, getString(R.string.oneios_tool_not_started), it, chevron = true) { startActivity(OneiosToolActivity.intent(this)) } }
+            t.plain?.let { m -> PrebootCards.row(kernel, m.title, m.line, chevron = true) { startActivity(OneiosToolActivity.intent(this)) } }
+            t.builtKc?.let { kc ->
+                PrebootCards.row(kernel, getString(R.string.oneios_kernel_activate), getString(R.string.oneios_kernel_activate_line), chevron = true, enabled = idle) {
+                    OneiosToolJob.kernelActivating()
+                    OneiosJob.activateKernel(this, kc)
+                }
+            }
+        }
+        PrebootCards.row(
+            kernel, getString(R.string.oneios_kernel_update),
+            getString(if (st.kb.kernelcacheSha256 != null) R.string.oneios_kernel_update_cached_line else R.string.oneios_kernel_update_line),
+            chevron = true, enabled = idle && OneiosToolJob.canStart(),
+        ) { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) }
+    }
+
     private fun kernelTitle(st: OneiosStatus): String =
         st.runtimeKernel?.let { getString(R.string.oneios_kernel_title, it.buildId) } ?: getString(R.string.oneios_kernel_none)
 
@@ -318,8 +371,9 @@ class OneiosActivity : EdgeToEdgeActivity() {
         val image = st.imageKernel?.let {
             it.buildId + " (" + it.kcSha256.take(12) + "…)" + if (it.hasFallback) " · ${getString(R.string.oneios_kernel_kc_fallback)}" else ""
         } ?: getString(R.string.oneios_kernel_kc_unknown)
-        val inputs = if (st.kb.inputs == 0) getString(R.string.oneios_kernel_inputs_none)
-            else getString(R.string.oneios_kernel_inputs, st.kb.inputs)
+        val inputs = (if (st.kb.inputs == 0) getString(R.string.oneios_kernel_inputs_none)
+            else getString(R.string.oneios_kernel_inputs, st.kb.inputs)) + " · " +
+            getString(if (st.kb.kernelcacheSha256 != null) R.string.oneios_kernel_cache_yes else R.string.oneios_kernel_cache_no)
         return getString(R.string.oneios_kernel_details, runtime, image, inputs)
     }
 

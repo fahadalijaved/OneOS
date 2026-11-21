@@ -560,6 +560,134 @@ class OneiosScriptTest {
         assertEquals(kc1Sha, Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
     }
 
+    /**
+     * Update the kernel's two root verbs (docs/oneios.md, "Kernel updates"): `kbcache` keeps the kernelcache the
+     * tool fetched from Apple and decoded only when root's own hash of it is the pin, removes the downloaded IM4P,
+     * and `status` then reports it (the cache a later update builds from without a download); `kbclean` removes
+     * the update's work folder and never `kb/`. Both refuse during a session.
+     */
+    @Test
+    fun theKernelUpdateKeepsOnlyThePinnedKernelcacheAndCleansItsWork() = each { f ->
+        assertOk(f.runtime())
+        val work = File(f.stage, "make-kernel")
+        val kc = ByteArray(4096) { (it % 253).toByte() }
+        val sha = Hashes.sha256(kc)
+        fun plain(file: File, mode: String) = Files.setPosixFilePermissions(file.toPath(), java.nio.file.attribute.PosixFilePermissions.fromString(mode))
+        fun fetched(bytes: ByteArray) {
+            // As the tool leaves them: the IM4P and the fetch's record in inputs/, the decode beside them.
+            File(work, "inputs").mkdirs()
+            plain(work, "rwxr-xr-x"); plain(File(work, "inputs"), "rwxr-xr-x")
+            File(work, "inputs/kernelcache.release.v54").writeBytes(ByteArray(64) { 9 })
+            File(work, "inputs/inputs.json").writeText("{}")
+            File(work, "kernelcache.macho").writeBytes(bytes)
+            plain(File(work, "kernelcache.macho"), "rw-r--r--")
+        }
+        val kbcache = OneiosRoot.Verb.KBCACHE
+        assertRefused(f.verb(kbcache, listOf("4096", sha)), "no kernelcache was fetched")
+        // Not the pinned one, by its hash or its size: refused, deleted, nothing in kb/.
+        fetched(kc)
+        assertRefused(f.verb(kbcache, listOf("4096", "0".repeat(64))), "not the one the profile pins")
+        assertFalse(File(work, "kernelcache.macho").exists())
+        assertFalse(File(f.stage, "kb/kernelcache.macho").exists())
+        fetched(kc)
+        assertRefused(f.verb(kbcache, listOf("4095", sha)), "not the one the profile pins")
+        assertFalse(File(work, "kernelcache.macho").exists())
+        assertEquals(null, f.verb(OneiosRoot.Verb.STATUS).status.kb.kernelcacheSha256)
+        // The pinned one: into kb/ and recorded, the IM4P gone; status reports it.
+        fetched(kc)
+        assertOk(f.verb(kbcache, listOf("4096", sha)))
+        assertEquals(sha, Hashes.sha256(File(f.stage, "kb/kernelcache.macho").readBytes()))
+        assertEquals(sha, File(f.stage, "kb/kernelcache.sha256").readText().trim())
+        assertFalse(File(work, "inputs").exists())
+        assertFalse(File(work, "kernelcache.macho").exists())
+        assertEquals(sha, f.verb(OneiosRoot.Verb.STATUS).status.kb.kernelcacheSha256)
+        // kbclean: a download's parts and a build that was not activated go; kb/ stays.
+        File(work, "inputs").mkdirs()
+        File(work, "inputs/kernelcache.release.v54.part").writeBytes(ByteArray(10))
+        File(work, "out").mkdirs()
+        assertOk(f.verb(OneiosRoot.Verb.KBCLEAN))
+        assertFalse(work.exists())
+        assertEquals(sha, Hashes.sha256(File(f.stage, "kb/kernelcache.macho").readBytes()))
+        assertTrue(f.verb(OneiosRoot.Verb.KBCLEAN).reply.ok!!.contains("nothing"))
+        // The runtime's list is untouched by either: the switch's check_list of runtime/ still passes.
+        assertOk(f.verb(OneiosRoot.Verb.STATUS))
+        // During a session: both refused, nothing changes.
+        f.control.mkdirs()
+        File(f.control, "boot").writeText("boot-1\n")
+        File(f.control, "state").writeText("running\n")
+        fetched(kc)
+        assertRefused(f.verb(kbcache, listOf("4096", sha)), "session is running")
+        assertRefused(f.verb(OneiosRoot.Verb.KBCLEAN), "session is running")
+        assertTrue(File(work, "kernelcache.macho").isFile)
+    }
+
+    /**
+     * Update the kernel end to end against the real `oneios-tool serve` and this root script, with the network:
+     * only when `ONEIOS_TOOL_SERVE` names a tool for this machine and `ONEIOS_PROFILE` OneiOS's
+     * `profiles/ios-27.0.1-iPhone18,2.toml` (it downloads Apple's 23 MB kernelcache member from Apple):
+     * `ONEIOS_TOOL_SERVE=.../oneios-tool ONEIOS_PROFILE=.../ios-27.0.1-iPhone18,2.toml ./gradlew :core:root:testDebugUnitTest
+     * --tests '*OneiosScriptTest.theKernelUpdateFetchesFromApple*'`. The runtime here has no kernel, so the build
+     * itself is refused (`not-found`); what is checked is everything before it: the exact requests, the decoded
+     * SHA-256 against the app's kb.json pin, kb/ holding it, the IM4P gone, and a second run not downloading again.
+     */
+    @Test
+    fun theKernelUpdateFetchesFromAppleDecodesAndCachesOnThePhone() {
+        val tool = System.getenv("ONEIOS_TOOL_SERVE")?.let(::File)
+        val profile = System.getenv("ONEIOS_PROFILE")?.let(::File)
+        assumeTrue("ONEIOS_TOOL_SERVE and ONEIOS_PROFILE name no tool and profile", tool?.canExecute() == true && profile?.isFile == true)
+        val f = Fake("/bin/sh")
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("runtime")))
+        assertOk(f.receive("runtime", "runtime.json", "{}".toByteArray()))
+        assertOk(f.receive("runtime", "bin/xnuhost", ELF, "0755"))
+        assertOk(f.receive("runtime", "lib/profiles/ios-27.0.1-iPhone18-2.toml", profile!!.readBytes()))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", "3", "0.1.0", "1", "bin/xnuhost", "1", "0", "none", "none", "none")))
+        val kb = com.fahadali.oneos.core.model.OneiosKb.parse(File(Shipped.fullAssets, "kb/kb.json").readText()).getOrThrow()
+        val assets = OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }.associateWith { File(Shipped.fullAssets, "kb/$it").readBytes() }
+        File(f.stage, "tool").mkdirs()
+        fun once(): Pair<OneiosKernelUpdate.Outcome, List<String>> {
+            val s = OneiosToolSession(
+                "exec '${tool!!.path}' serve --stage '${f.stage.path}' --idle 120", launch = listOf("sh", "-c"),
+                environment = mapOf("TMPDIR" to File(f.stage, "tool").path),
+            )
+            try {
+                assertTrue(s.start() is OneiosToolSession.Start.Ready)
+                val asked = mutableListOf<String>()
+                val io = object : OneiosKernelUpdate.Io {
+                    override fun tool(cmd: String, keys: Map<String, Any?>): com.fahadali.oneos.core.model.OneiosToolFlow {
+                        asked += cmd
+                        var v = com.fahadali.oneos.core.model.OneiosToolFlow()
+                        val end = s.call(cmd, keys) { v = v.with(it) }
+                        return if (end == null) v.lost(s.ended ?: "the tool ended") else v
+                    }
+
+                    override fun root(verb: OneiosRoot.Verb, args: List<String>, data: ByteArray?): String? {
+                        asked += verb.word
+                        val o = f.verb(verb, args, data)
+                        return if (o.exit == 0 && o.reply.ok != null) null else o.reply.refused ?: o.reply.failed ?: o.text
+                    }
+
+                    override fun phase(phase: OneiosKernelUpdate.Phase) {}
+                    override fun done(line: String) {}
+                    override val stopped = false
+                }
+                val cached = f.verb(OneiosRoot.Verb.STATUS).status.kb.kernelcacheSha256
+                return OneiosKernelUpdate(f.stage.path, kb, "kernel/xnu.macho", assets).run(io, cached) to asked.filter { it != "kbinput" }
+            } finally {
+                s.close()
+            }
+        }
+        val (first, asked) = once()
+        assertEquals(listOf("fetch", "im4p", "kbcache", "prelink", "kbclean"), asked)
+        first as OneiosKernelUpdate.Outcome.Stopped
+        assertEquals("prelink" to "not-found", first.step to first.code)
+        assertEquals(kb.kernelcacheSha256, Hashes.sha256(File(f.stage, "kb/kernelcache.macho").readBytes()))
+        assertEquals(78_135_296L, File(f.stage, "kb/kernelcache.macho").length())
+        assertFalse(File(f.stage, "make-kernel").exists())
+        // Again: the cached kernelcache is used, nothing is downloaded.
+        val (_, again) = once()
+        assertEquals(listOf("prelink", "kbclean"), again)
+    }
+
     private fun manifestWithKc(size: Int, sha: String) = """
         { "format": 1, "name": "oneios-image", "os": "iOS", "version": "27.0.1", "build": "24A446",
           "device": "iPhone18,2",
@@ -661,6 +789,12 @@ class OneiosScriptTest {
         good(OneiosRoot.Verb.RESTORE, "kernel")
         bad(OneiosRoot.Verb.RESTORE, "runtime")
         bad(OneiosRoot.Verb.RESTORE)
+        good(OneiosRoot.Verb.KBCACHE, "78135296", h)
+        bad(OneiosRoot.Verb.KBCACHE, "78135296")
+        bad(OneiosRoot.Verb.KBCACHE, "-1", h)
+        bad(OneiosRoot.Verb.KBCACHE, "1", "zz")
+        good(OneiosRoot.Verb.KBCLEAN)
+        bad(OneiosRoot.Verb.KBCLEAN, "make-kernel")
         good(OneiosRoot.Verb.FINISH, "image", "3", "1", "27.0.1", "24A446")
         good(OneiosRoot.Verb.SWITCH, "100", "1")
         bad(OneiosRoot.Verb.BEGIN, "system")

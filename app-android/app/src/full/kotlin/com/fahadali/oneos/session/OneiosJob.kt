@@ -287,8 +287,8 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      */
     // --- Kernel updates (docs/oneios.md, "Kernel updates") ------------------------------
 
-    /** The staged kb/kb.json: what Apple build the prelink inputs pair and their hashes. */
-    private fun kbInputs(app: Context): OneiosKb {
+    /** The app's kb/kb.json: what Apple build the prelink inputs pair, their hashes and the kernelcache's pin. */
+    internal fun kbInputs(app: Context): OneiosKb {
         val text = app.assets.open("kb/kb.json").use { it.readBytes().toString(Charsets.UTF_8) }
         return OneiosKb.parse(text).getOrElse { throw Failed("the app's kernel-build inputs are not valid: ${it.message}") }
     }
@@ -337,35 +337,17 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     }
 
     /**
-     * The prelink inputs into the stage: the app's kb/ assets (each checked
-     * against kb.json before it is sent) and, when [kernelcache] is given,
-     * Apple's kernelcache the user hands over (checked against the profile's
-     * pin). Root checks every file's size and SHA-256 again as it writes it.
+     * The app's kb/ files (everything Update the kernel stages but Apple's kernelcache), by name, as its assets
+     * hold them. [OneiosKernelUpdate] checks each against kb.json before root gets it; root checks it again.
      */
-    fun stageKbInputs(ctx: Context, kernelcache: Uri? = null) =
-        job(ctx, Phase.STAGING, OneiosFlow.Job.STAGE_KB, "Staging the kernel-build inputs…") { app ->
-            val kb = kbInputs(app)
-            val assets = OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }.map { name ->
-                val bytes = app.assets.open("kb/$name").use { it.readBytes() }
-                val want = kb.files[name] ?: throw Failed("kb.json lists no $name")
-                if (Hashes.sha256(bytes) != want) throw Failed("the app's $name is not the pinned one: reinstall OneOS")
-                name to bytes
-            }
-            val total = assets.sumOf { it.second.size.toLong() }
-            var done = 0L
-            bytes(0, total, force = true)
-            for ((name, bytes) in assets) {
-                step("Staging $name…")
-                must(root(app, OneiosRoot.Verb.KBINPUT, listOf(name, bytes.size.toString(), Hashes.sha256(bytes)), RootShell.Feed { it.write(bytes) }))
-                done += bytes.size
-                bytes(done, total, force = done >= total)
-            }
-            if (kernelcache != null) importKernelcache(app, kb, kernelcache)
-            val st = readStatus(app)
-            "Kernel-build inputs staged (${st.kb.inputs} of ${OneiosKbFiles.NAMES.size})."
-        }
+    internal fun kbAssets(app: Context): Map<String, ByteArray> =
+        OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }.associateWith { name -> app.assets.open("kb/$name").use { it.readBytes() } }
 
-    /** Apple's decoded kernelcache from the user's file, checked against the profile's pin, into the stage. */
+    /**
+     * Optional, with no download: Apple's decoded kernelcache from a file a PC wrote (OneiOS's image build leaves
+     * `kernelcache.macho`), checked against the profile's pin, into the stage. Update the kernel fetches it from
+     * Apple itself, so this is only for a phone without a network.
+     */
     fun importKernelcache(ctx: Context, uri: Uri) =
         job(ctx, Phase.STAGING, OneiosFlow.Job.STAGE_KB, "Reading the kernelcache…") { app ->
             importKernelcache(app, kbInputs(app), uri)

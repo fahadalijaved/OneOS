@@ -19,6 +19,7 @@ object OneiosTool {
         const val PRELINK = "prelink"
         const val TWEAKS = "tweaks"
         const val FETCH = "fetch"
+        const val IM4P = "im4p"
         const val PAUSE = "pause"
         const val RESUME = "resume"
         const val SUMS = "sums"
@@ -28,6 +29,43 @@ object OneiosTool {
         const val IOSLOG_BOOTS = "ioslog-boots"
         const val IOSLOG_SHOW = "ioslog-show"
     }
+
+    /**
+     * The IPSW profile the staged runtime carries (OneiOS's `profiles/ios-27.0.1-iPhone18,2.toml`, packed as
+     * `lib/profiles/` with the comma as a dash): the members' names, sizes and hashes the tool's `fetch` checks.
+     * Relative to the stage.
+     */
+    const val IPSW_PROFILE = "runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml"
+
+    /** The kernel update's work folder (stage-relative): the fetched IM4P, its decode, the build's `out`. */
+    const val KERNEL_WORK = "make-kernel"
+
+    /** The profile's kernelcache member: its role (`fetch`'s `only`) and its file name in `indir`. */
+    const val KERNELCACHE_ROLE = "kernelcache"
+    const val KERNELCACHE_MEMBER = "kernelcache.release.v54"
+
+    /**
+     * The kernel update's download (docs/oneios.md, "Kernel updates"): only Apple's kernelcache member of the
+     * IPSW, from Apple's server by range requests (about 23 MB; the profile pins its size, CRC-32 and SHA-384,
+     * and the tool refuses another file with `mismatch`), into `make-kernel/inputs`. `resume`: a pause, a lost
+     * network or an ended app leaves the parts, and the next run goes on from them.
+     */
+    fun kernelcacheFetchRequest(stage: String): Pair<String, Map<String, Any?>> = Cmd.FETCH to mapOf(
+        "profile" to "$stage/$IPSW_PROFILE",
+        "indir" to "$stage/$KERNEL_WORK/inputs",
+        "only" to listOf(KERNELCACHE_ROLE),
+        "resume" to true,
+    )
+
+    /**
+     * The fetched IM4P decoded by the tool's own decoder (`im4p`: `in`, `out`; its `ok` has `kind`, `bytes` and
+     * `sha256`), into the work folder: root's `kbcache` moves it into `kb/` once its SHA-256 is the pin of the
+     * app's `kb/kb.json`.
+     */
+    fun kernelcacheDecodeRequest(stage: String): Pair<String, Map<String, Any?>> = Cmd.IM4P to mapOf(
+        "in" to "$stage/$KERNEL_WORK/inputs/$KERNELCACHE_MEMBER",
+        "out" to "$stage/$KERNEL_WORK/kernelcache.macho",
+    )
 
     /**
      * The `prelink` request that builds the phone's kernel (docs/oneios.md, "Kernel updates"): for the staged
