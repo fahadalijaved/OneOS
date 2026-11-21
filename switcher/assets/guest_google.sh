@@ -75,7 +75,7 @@ copy_app() { # <package> <name>
     plain_tree "$dir" || { WHY="a link below $dir"; return 1; }
     pm path "$pkg" 2>/dev/null | sed -n 's/^package://p' > "$CACHE/.$name.paths"
     [ -s "$CACHE/.$name.paths" ] || { WHY="$pkg is not installed in One UI"; return 1; }
-    : > "$CACHE/.$name.stat"
+    true > "$CACHE/.$name.stat"
     while IFS= read -r source; do
         case "$source" in
             /data/app/*/*.apk|/product/*/*.apk|/system/*/*.apk|/system_ext/*/*.apk) ;;
@@ -112,7 +112,7 @@ copy_app() { # <package> <name>
     # APKs without embedded arm64 libraries are valid too. Keep an explicit
     # empty manifest instead of passing an unmatched glob to sha256sum.
     (cd "$new" && sha256sum ./*.apk > apk.sha256 &&
-        : > native.sha256 &&
+        true > native.sha256 &&
         for f in lib/*.so lib/arm64/*.so; do
             [ -f "$f" ] || continue
             sha256sum "$f" >> native.sha256 || exit 1
@@ -202,10 +202,10 @@ farm_dir() { # <target> <work dir> <entry>... (a name ending in / is a folder)
         fd_n=${fd_e##*/}
         if [ -L "$fd_e" ]; then cp -P "$fd_e" "$fd_f/$fd_n"
         elif [ -d "$fd_e" ]; then mkdir "$fd_f/$fd_n"
-        else : > "$fd_f/$fd_n"; fi || { "$BB" umount -l "$fd_f"; return 1; }
+        else true > "$fd_f/$fd_n"; fi || { "$BB" umount -l "$fd_f"; return 1; }
     done
     for fd_e in "$@"; do
-        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { "$BB" umount -l "$fd_f"; return 1; }
+        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) true > "$fd_f/$fd_e" ;; esac || { "$BB" umount -l "$fd_f"; return 1; }
     done
     chmod 755 "$fd_f"; chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
     "$BB" mount --bind "$fd_t" "$fd_o" || { "$BB" umount -l "$fd_f"; return 1; }
@@ -268,7 +268,7 @@ prepare_full() {
     remove_installed com.google.android.gms
     remove_installed com.android.vending
     remove_installed com.google.android.gsf
-    : > "$CACHE/active"
+    true > "$CACHE/active"
 }
 case "$1" in
 snapshot)
@@ -361,7 +361,7 @@ prepare)
     done
     [ -n "$store" ] || say "the image keeps its own Play Store"
     remove_installed com.google.android.gms
-    : > "$CACHE/active"
+    true > "$CACHE/active"
     ;;
 *) echo "guest_google.sh: expected snapshot or prepare" >&2; exit 3 ;;
 esac

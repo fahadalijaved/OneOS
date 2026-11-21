@@ -1,0 +1,772 @@
+{
+ "inputs": {
+  "kernelcache_sha256": "0f7d50ac1bfc7cdbfc3acf5ed4934b5d5abbadee243dafb8d7487ca38b445066",
+  "entry": "com.apple.kernel"
+ },
+ "functions": [
+  {
+   "original": "0xfffffe000ae41238",
+   "original_size": 560,
+   "original_sha256": "57bf7e5a402188eecf96ba4ae2564f273eb0bf336dd702c7843975c2410b6e11",
+   "native_symbol": "__ZN11OSMetaClassD2Ev",
+   "evidence": "Writes the identified OSMetaClass vtable, removes the class from sAllClassesDict and sStalled, releases its expansion allocation and poisons the vptr. Source: libkern/c++/OSMetaClass.cpp destructor."
+  },
+  {
+   "original": "0xfffffe000ae41be4",
+   "original_size": 32,
+   "original_sha256": "e70e74087d15950f6d653a8c12e0f94d6e1f52df3029a5c79731e3d28426d67d",
+   "native_symbol": "__ZNK11OSMetaClass19instanceConstructedEv",
+   "evidence": "Atomic increment of instanceCount at +0x24; on zero-to-one follows superClassLink at +0x10 and repeats. Native uses OSIncrementAtomic, original uses LDADD. Source: OSMetaClass.cpp:985."
+  },
+  {
+   "original": "0xfffffe000ae43da0",
+   "original_size": 100,
+   "original_sha256": "191b726844367309e93a9a015ea961b525818c7aeff25d7cb55dbacbf52b6fa4",
+   "native_symbol": "_OSObject_typed_operator_new",
+   "evidence": "Compares size x1 against the low 24 bits of ktv->kt_size at +0x2c, selects kalloc_type_impl_external with flags 4 or kalloc_ext, then accounts the allocation. Source: OSObject.cpp:312."
+  },
+  {
+   "original": "0xfffffe000ae43e04",
+   "original_size": 100,
+   "original_sha256": "29017371319b8c63fd7402fbd838ee5c38c41f2736d17a069587ced9a52337a3",
+   "native_symbol": "_OSObject_typed_operator_delete",
+   "evidence": "Null-checks x1, compares size x2 against ktv->kt_size at +0x2c, selects typed free or kfree_ext and subtracts size from allocation accounting. Source: OSObject.cpp:364."
+  },
+  {
+   "original": "0xfffffe000a7f62bc",
+   "original_size": 84,
+   "original_sha256": "82528f927e91d5b7d21878fcb84fc35575a7600090d90dc5fa1b92b4fbb4df8d",
+   "native_symbol": "_lck_rw_unlock_shared",
+   "evidence": "Calls lck_rw_done, requires mode 1, otherwise panics with lck_rw_unlock_shared() and lock_rw_old.c. Native development image adds owner assertions before the same operation."
+  },
+  {
+   "original": "0xfffffe000a7f6310",
+   "original_size": 84,
+   "original_sha256": "c9b2513f8451d536b3f3722b02c02cb184f52ae56e8e73eb051c2ad1dd782b67",
+   "native_symbol": "_lck_rw_unlock_exclusive",
+   "evidence": "Calls lck_rw_done, requires mode 2, otherwise panics with lck_rw_unlock_exclusive() and lock_rw_old.c. Native development image adds owner assertions before the same operation."
+  },
+  {
+   "original": "0xfffffe000a7ee7cc",
+   "original_size": 68,
+   "original_sha256": "294565626c5c2ab88491e0ac9dcd959e0e2ff0f551d5d6976e4a00a9f8f4913a",
+   "native_symbol": "_kfree_type_impl_external",
+   "evidence": "Loads ktv->zone; delegates to kfree_type_impl_internal when registered. Otherwise selects the heap from kt_flags bits 0x8000 and 8, masks kt_size to 24 bits and tail-calls kfree_ext. Distinct from the IOFreeTypeImpl wrapper."
+  },
+  {
+   "original": "0xfffffe000aeacbb4",
+   "original_size": 8,
+   "original_sha256": "32f299687ea7f122c44cbeb2c065c61d2741371252c20f39b2b8607754c87c79",
+   "native_symbol": "_IOFreeTypeImpl",
+   "evidence": "BTI plus tail branch to the separately identified kfree_type_impl_external. Source: iokit/Kernel/IOLib.cpp IOFreeTypeImpl; use the named native wrapper so its IOTRACKING behavior is retained."
+  },
+  {
+   "original": "0xfffffe000aeac9b8",
+   "original_size": 28,
+   "original_sha256": "9727e8a7fda912c6a7caf3474eb53c046477ae6f45a00ce33b72b740771f1fc9",
+   "native_symbol": "_IOMallocTypeImpl",
+   "evidence": "Tests kt_flags bit 0x10 at +0x28, selects Z_ZERO=4 with or without Z_NOFAIL=0x8000, then calls kalloc_type_impl_external. Source: IOLib.cpp IOMallocTypeImpl."
+  },
+  {
+   "original": "0xfffffe000aead078",
+   "original_size": 24,
+   "original_sha256": "bffe7519e44ec8c2161290ff86db3d7eb0b49d0ba5a3cdb9e452a7fbd7e03ff0",
+   "native_symbol": "_IOMallocTypeVarImpl",
+   "evidence": "Tags the view in x0 with bit 1 and calls kalloc_ext with size in x1, flags 0x1f1004 and null site. Source: IOLib.cpp IOMallocTypeVarImpl and kalloc_type_var_impl."
+  },
+  {
+   "original": "0xfffffe000aead090",
+   "original_size": 12,
+   "original_sha256": "2dfc8b040d3b23986d508b30459cede0d4bf6860c6543c224b6d21092e655b29",
+   "native_symbol": "_IOFreeTypeVarImpl",
+   "evidence": "Tags the view in x0 with bit 1, preserves address x1 and size x2, then branches to kfree_ext. Source: IOLib.cpp IOFreeTypeVarImpl and kfree_type_var_impl."
+  },
+  {
+   "original": "0xfffffe000aeacea8",
+   "original_size": 76,
+   "original_sha256": "6c700a134c99b6768e501cc7ffbb339de43ca7cb561126bcf1ac73dba725c728",
+   "native_symbol": "_IOMallocData_external",
+   "evidence": "Allocates from the same data heap selected by kfree_type_impl_external kt_flags bit 8, flags 0x31000, then accounts allocated bytes. Source: IOLib.cpp IOMallocData_external and IOMalloc_internal."
+  },
+  {
+   "original": "0xfffffe000aeacef4",
+   "original_size": 76,
+   "original_sha256": "949aa04e72da2e99202ebd7eb7a1039982ba58b63bc951ed409677cb3a5f578e",
+   "native_symbol": "_IOMallocZeroData_external",
+   "evidence": "Same data-heap allocation path as IOMallocData_external, adding Z_ZERO=4 (0x31004). Source: IOLib.cpp IOMallocZeroData_external."
+  },
+  {
+   "original": "0xfffffe000aeacfd8",
+   "original_size": 80,
+   "original_sha256": "0e78ea36dba48f2ecd3ee214279d07e96b022422e43d0621d8541b5358dadf62",
+   "native_symbol": "_IOFreeData",
+   "evidence": "Null-checks the allocation, frees from the identified private data heap, then subtracts its size from IOKit allocation accounting. Source: IOLib.cpp IOFreeData and IOFree_internal."
+  },
+  {
+   "original": "0xfffffe000ac91840",
+   "original_size": 36,
+   "original_sha256": "335edab32af29f070364fb6682e3f467d939e89e33157aa5ae11c4f3f92f60ba",
+   "native_symbol": "_kernel_debug",
+   "evidence": "Places current_thread()->thread_id in x5 (zero for null thread), zero in x6 and tail-calls kernel_debug_internal. Source: bsd/kern/kdebug.c kernel_debug; kernel_debug1 instead preserves caller x5."
+  },
+  {
+   "original": "0xfffffe000a969fb4",
+   "original_size": 48,
+   "original_sha256": "b0a46c7c338c8d89f1d30e7358265efb6c756bd6e9a3717f893404ba26b0dd0a",
+   "native_symbol": "_ml_get_timebase",
+   "evidence": "Reads cpu_data through the current thread, snapshots cpu_timebase at +0x58 around the hardware counter read, retries if changed, then returns counter+offset. Native uses generic CNTVCT_EL0 plus ISB instead of Apple ACNTVCT, and its generated thread->cpu_data offset. This selects the hardware-independent native timebase algorithm."
+  },
+  {
+   "original": "0xfffffe000afc10e0",
+   "original_size": 36,
+   "original_sha256": "70000e483b416e57bc45bfaa194c1122b8d66aadd1f2241cd15ccbc3cd2d0356",
+   "native_symbol": "_PE_parse_boot_argn",
+   "evidence": "Reorders caller name/buffer/length into x1/x2/x3, obtains PE_state.bootArgs->CommandLine at +0x6c and passes allow_prefix=0 to the parser. Native obtains the same buffer through PE_boot_args."
+  },
+  {
+   "original": "0xfffffe000afc36a8",
+   "original_size": 400,
+   "original_sha256": "b38f31a878a2fb463769cb80aad60fe2844e185e414d0171005f0f97e3f3952c",
+   "native_symbol": "_kprintf",
+   "evidence": "Variadic serial printer: disable_serial_output and disable_kprintf_output flags, interrupt masking, serial-output lock, console CPU tracking and a doprnt callback. Native _kprintf has the same flag/lock/callback sequence; the interrupt debug string is from an inlined helper, not the function identity."
+  },
+  {
+   "original": "0xfffffe000a80130c",
+   "original_size": 272,
+   "original_sha256": "70d43bab2665a38189dfa663d74f7ba32913801ce7dd90c6666f1ea91ab67033",
+   "native_symbol": "_printf",
+   "evidence": "Variadic console printer: stack guard, null-format check, console buffer initialized with state 3, doprnt, conditional console buffer flush, returns zero. Native _printf has the same console buffer protocol. Distinct from serial kprintf."
+  },
+  {
+   "original": "0xfffffe000a7f4e20",
+   "original_size": 172,
+   "original_sha256": "6fc74e7786e6e6e5949e58968ddc700b08c2db2f2277620d88342e28a392f27a",
+   "native_symbol": "_lck_rw_lock_exclusive",
+   "evidence": "Checks preemption/can-sleep, increments thread rwlock count, atomically sets WANT_EXCL=0x80000 when state mask 0xdffff is clear, otherwise calls exclusive slow path; finally writes owner ctid. Source: lock_rw_old.c exclusive lock path."
+  },
+  {
+   "original": "0xfffffe000a7f5598",
+   "original_size": 152,
+   "original_sha256": "74b3e24e812bc03234c6a26f66d2d18332e2839e7fa5b949d7a7bb2af538d5f4",
+   "native_symbol": "_lck_rw_lock_shared",
+   "evidence": "Checks preemption/can-sleep, increments thread rwlock count, atomically increments reader count when state mask 0xd0000 is clear; otherwise tail-calls the shared slow path. Source: lock_rw_old.c shared lock path."
+  },
+  {
+   "original": "0xfffffe000ae43ec0",
+   "original_size": 44,
+   "original_sha256": "a45d2ea49e88a2d0e805ffe755780581d71a8cc5ee65d60719742076ad17b056",
+   "native_symbol": "__ZN8OSObjectC2EPK11OSMetaClass",
+   "evidence": "Writes the class-identified OSObject vtable with PACDA and initializes retainCount at +8 to 1. The protected constructor ignores its metaclass argument, as confirmed in OSObject.cpp. Both native overloads perform these same operations."
+  },
+  {
+   "original": "0xfffffe000ae43cb4",
+   "original_size": 16,
+   "original_sha256": "36c614153927e889ba546ff5d63d9e12d41556108c9ba5f965a537c849f64fef",
+   "native_symbol": "__ZN8OSObjectD2Ev",
+   "evidence": "Poisons vptr with all ones and returns. Native OSObject base destructor delegates to OSMetaClassBaseD2, which performs the same poison operation; distinct from virtual deleting destruction and free."
+  },
+  {
+   "original": "0xfffffe000aed6e3c",
+   "original_size": 44,
+   "original_sha256": "affd650ce3296e91f1ac1d4bfee1724d15a03451cebe9a3e2bb8d17824f4d239",
+   "native_symbol": "__ZN9IOServiceC2EPK11OSMetaClass",
+   "evidence": "Protected IOService constructor writes the class-identified IOService vtable and initializes inherited retainCount=1. It does not increment instanceConstructed; therefore map to C2(const OSMetaClass*), not C2(), whose native implementation increments the class instance count."
+  },
+  {
+   "original": "0xfffffe000aed6e94",
+   "original_size": 16,
+   "original_sha256": "36c614153927e889ba546ff5d63d9e12d41556108c9ba5f965a537c849f64fef",
+   "native_symbol": "__ZN9IOServiceD2Ev",
+   "evidence": "Base IOService destructor only poisons vptr. Native delegates through IORegistryEntryD2/OSObjectD2 to OSMetaClassBaseD2. Class identity comes from IOService structor call sites and the adjacent protected constructor; not the deleting destructor."
+  },
+  {
+   "original": "0xfffffe000a9b7040",
+   "original_size": 216,
+   "original_sha256": "c8ff0772a9504278134a047b46126964f110c281efe2013aaf8cb20de2978807",
+   "native_symbol": "_vnode_put",
+   "evidence": "Locks vnode, increments its hold count with overflow checking, calls vnode_put_internal_locked(vp,0), then vnode_drop_internal(vp,1) and returns zero. Source: bsd/vfs/vfs_subr.c vnode_put, not vnode_hold (which was inlined)."
+  },
+  {
+   "original": "0xfffffe000a9e9ad4",
+   "original_size": 40,
+   "original_sha256": "f2870d72e5b1d279b0dbc96d0906f4fae80c28f6b8693a5ae036c2cf9bb37cf1",
+   "native_symbol": "_vnode_mount",
+   "evidence": "Loads vnode.v_mount at +0xd8 and authenticates with address diversity 0xd6ef; returns zero for null. Native has the same field and discriminator, adding an explicit authentication failure trap."
+  },
+  {
+   "original": "0xfffffe000aead950",
+   "original_size": 16,
+   "original_sha256": "fab5ac917b0e5205872b8c374d8bee282b1b7bc15e7737b6a5548161e4496885",
+   "native_symbol": "_IOLockAlloc",
+   "evidence": "Loads IOLockGroup then tail-calls mutex allocation; IOLocks.cpp IOLockAlloc passes LCK_ATTR_NULL, optimized away in the source RELEASE implementation."
+  },
+  {
+   "original": "0xfffffe000aead960",
+   "original_size": 60,
+   "original_sha256": "2647615d0c1ec92e3de7c58d712b176f57455ea9c200ded0a040a0b858675127",
+   "native_symbol": "_IOLockFree",
+   "evidence": "Destroys mutex with IOLockGroup then frees the typed mutex allocation. Native delegates both operations to lck_mtx_free, matching IOLocks.cpp IOLockFree."
+  },
+  {
+   "original": "0xfffffe000aeadb54",
+   "original_size": 116,
+   "original_sha256": "21b1b9ca0d237655bcb4115360c5cfc865d8fcab100e5667dc81f9c167c60fbe",
+   "native_symbol": "_IORecursiveLockLock",
+   "evidence": "Checks thread owner at +0x18, increments recursion count at +0x20 for its owner, otherwise acquires the mutex and sets owner/count. Native uses the same offsets and adds DEVELOPMENT assertions."
+  },
+  {
+   "original": "0xfffffe000aeadc20",
+   "original_size": 60,
+   "original_sha256": "c8892714574af15e5ea62e3bc0aa2851e89197e474f471ccf42c802981c7ca18",
+   "native_symbol": "_IORecursiveLockUnlock",
+   "evidence": "Decrements recursion count at +0x20; on zero clears owner at +0x18 and releases the mutex. Native checks owner then performs these same operations."
+  },
+  {
+   "original": "0xfffffe000ae4082c",
+   "original_size": 44,
+   "original_sha256": "3971e56900712fa76cce868f1185032e7962503cdd820fbef04fb9e07fec3312",
+   "native_symbol": "__ZN15OSMetaClassBase9_ptmf2ptfEPKS_MS_FvvE",
+   "evidence": "Nonzero member pointer x1 is authenticated with type discriminator 0xa83d and resigned with function discriminator 0x4a27. Native uses the same PAC keys and discriminators, plus an explicit authentication failure trap. Source: OSMetaClass.cpp feature ptrauth_member_function_pointer_type_discrimination."
+  },
+  {
+   "original": "0xfffffe000a7ad734",
+   "original_size": 52,
+   "original_sha256": "99f9488f71226a3a36d0ca689930886c31c6449f36d68ff3c056b886ccd7615e",
+   "native_symbol": "_clock_get_uptime",
+   "evidence": "Stores the current hardware timebase plus cpu_timebase into the caller-provided uint64 pointer. Native invokes mach_absolute_time then performs that store. Source: osfmk/kern/clock.c clock_get_uptime."
+  },
+  {
+   "original": "0xfffffe000a7ad5b4",
+   "original_size": 144,
+   "original_sha256": "6a723ba4b7f0371602a539641156d385c46916e4fdb3ead899530ef317e62943",
+   "native_symbol": "_clock_interval_to_deadline",
+   "evidence": "Multiplies the two uint32 arguments into nanoseconds, converts to absolute time via the timebase, adds current absolute time with saturation and writes the third argument. Native calls the corresponding conversion and mach_absolute_time then performs saturating addition."
+  },
+  {
+   "original": "0xfffffe000ad14774",
+   "original_size": 80,
+   "original_sha256": "a6c4476f06bc225c47b3f3c60e94b8b5d0409c01efef2428083a26c2555e8cbc",
+   "native_symbol": "_microuptime",
+   "evidence": "Converts hardware timebase plus cpu offset into seconds and microseconds, stores 64-bit seconds at +0 and 32-bit microseconds at +8. Native clock_get_system_microtime plus these stores implements bsd/kern/kern_time.c microuptime."
+  },
+  {
+   "original": "0xfffffe000acf39ac",
+   "original_size": 16,
+   "original_sha256": "8089e5aba03103365ada06df45098158b3b2f7b4d9bc1253d5f3dd5f8e1a96d1",
+   "native_symbol": "_wakeup",
+   "evidence": "Passes event x0, false in w1 and THREAD_AWAKENED=0 in w2 to thread_wakeup_prim. Exact native _wakeup sequence and bsd/kern/kern_synch.c wrapper."
+  },
+  {
+   "original": "0xfffffe000acf96b8",
+   "original_size": 264,
+   "original_sha256": "8264624dbe652a277e19b10995743c795cfa62370dbe54a15c92eb7f4399917b",
+   "native_symbol": "_sysctl_handle_long",
+   "evidence": "Complete 66-instruction body equals native sysctl_handle_long after address relocation: 32/64-bit sysctl output, signed truncation ERANGE check, optional new-value input. Shared body identity is ambiguous to the automatic unique-shape matcher; the reviewed sysctl handler preserves the exact behavior and ABI."
+  },
+  {
+   "original": "0xfffffe000a9e92c8",
+   "original_size": 72,
+   "original_sha256": "1b0ad185aefff0cc29a1e312ebd857bed55e148b547e4abd0acd950d59ad351c",
+   "native_symbol": "_vfs_context_proc",
+   "evidence": "Masks vfs context thread tag bit 0, obtains its BSD task when present, otherwise returns current_thread_ro()->tro_proc or kernproc. Native vfs_context_proc performs the same selection with the current_proc fallback outlined."
+  },
+  {
+   "original": "0xfffffe000a9e795c",
+   "original_size": 8,
+   "original_sha256": "2919634e9e41743ac93fc65a87eff611d2599c49cbd42cbe0462ce2453b084b9",
+   "native_symbol": "_vfs_context_current",
+   "evidence": "Tail-calls current_thread_ro, matching native vfs_context_current and bsd/vfs/vfs_subr.c current VFS context representation."
+  },
+  {
+   "original": "0xfffffe000a9e98b8",
+   "original_size": 12,
+   "original_sha256": "91fe54c083eb0b9168494a7cca1b46d068b795c7ba94ea2e14d0c8f9d165b9d5",
+   "native_symbol": "_vfs_context_ucred",
+   "evidence": "Returns context.vc_ucred at +8, matching native vfs_context_ucred and the vfs_context structure."
+  },
+  {
+   "original": "0xfffffe000a7f33d4",
+   "original_size": 88,
+   "original_sha256": "57ef6064ea9a8b1214ce02fe6c1846b2a1c1ccedbf9b702c15e754f8db3a08bf",
+   "native_symbol": "_lck_mtx_init",
+   "evidence": "Initializes the type/group header with 0x22000000, zeroes mutex state and references the lock group. Native lck_mtx_init performs the same initialization plus DEVELOPMENT-only lock-attribute checks."
+  },
+  {
+   "original": "0xfffffe000a7f4af0",
+   "original_size": 140,
+   "original_sha256": "73f6a64ba61db54dc956cdfd082e6670f03aeb1e4df4838522052fb06dc5d1b0",
+   "native_symbol": "_lck_rw_init",
+   "evidence": "Initializes the legacy RW lock layout with sleep/debug flag bits 2/0x40 and the lock-group RW count. Match the C _lck_rw_init from lock_rw_old.c, not the C++ overload that uses a different state encoding."
+  },
+  {
+   "original": "0xfffffe000acda494",
+   "original_size": 32,
+   "original_sha256": "55564d23d97f340f7ee6171b253eac69c24248ddb33196b923bc226a3eac58c4",
+   "native_symbol": "_proc_task",
+   "evidence": "Adds the proc-to-task allocation offset to proc pointer, returning it only when proc flags bit 1 is set. Native uses its own proc flag offset and proc_struct_size global with the same algorithm."
+  },
+  {
+   "original": "0xfffffe000afc3284",
+   "original_size": 44,
+   "original_sha256": "33d175a2343e608ef57e96f3731e80d41a3037f2f45c03bb571ae8e7c85ca441",
+   "native_symbol": "_PE_i_can_has_debugger",
+   "evidence": "Returns debug-enabled global, and if argument is nonnull writes the debug flags when enabled or zero otherwise. Native implements the same branch and adds an initialization assertion."
+  },
+  {
+   "original": "0xfffffe000a82b79c",
+   "original_size": 12,
+   "original_sha256": "b7f765cd93254fd1e92294a05dbb719725e963e0871729b1df6fcb086e2d6f4b",
+   "native_symbol": "_current_task",
+   "evidence": "Obtains the current thread through TPIDR_EL1 and tail-calls get_threadtask; native outlines current_act but uses the same get_threadtask API."
+  },
+  {
+   "original": "0xfffffe000af50678",
+   "original_size": 44,
+   "original_sha256": "23b113d415fb1137657b38308803439ae8b0d8c928005186cd5ee66796f90c4b",
+   "native_symbol": "__ZN12IOUserClientC2EPK11OSMetaClass",
+   "evidence": "Initializes retainCount=1 and writes the independently class-identified IOUserClient vtable. No instanceConstructed call: protected metaclass constructor. Native delegates to protected IOService constructor then writes the same class vtable."
+  },
+  {
+   "original": "0xfffffe000af51d64",
+   "original_size": 44,
+   "original_sha256": "273741feb0d3447c67e9cce0db2a109673e8918a6b948e4efabc2569be6e94bb",
+   "native_symbol": "__ZN16IOUserClient2022C2EPK11OSMetaClass",
+   "evidence": "Initializes retainCount=1 and writes the independently class-identified IOUserClient2022 vtable without instanceConstructed. Native protected metaclass constructor delegates to IOService then installs its class vtable."
+  },
+  {
+   "original": "0xfffffe000af506d0",
+   "original_size": 16,
+   "original_sha256": "36c614153927e889ba546ff5d63d9e12d41556108c9ba5f965a537c849f64fef",
+   "native_symbol": "__ZN12IOUserClientD2Ev",
+   "evidence": "Base IOUserClient destructor adjacent to its class-identified protected constructor writes all ones into vptr. Native IOUserClientD2 delegates through the base destructors to the same vptr poison operation, without deleting storage."
+  },
+  {
+   "original": "0xfffffe000aedd148",
+   "original_size": 12,
+   "original_sha256": "f0d8937b396d7f1d098e20e2ab8ee1d74809d4247b8c5572f9ba41e9a3d9cdca",
+   "native_symbol": "__ZN9IOService22waitForMatchingServiceEP12OSDictionaryy",
+   "evidence": "Preserves matching dictionary and timeout, supplies a null check-in token as third argument, and tail-calls the identified waitForMatchingServiceWithToken. Native overload has that same public signature."
+  },
+  {
+   "original": "0xfffffe000aedd3b4",
+   "original_size": 320,
+   "original_sha256": "6f2ee61b1f7df473289d5debb1e8c0f450168c7393d2798f11d7e60f9c1583ff",
+   "native_symbol": "__ZN9IOService15serviceMatchingEPKcP12OSDictionary",
+   "evidence": "Converts the char string using OSSymbol::withCString and withString, creates/updates a dictionary under IOProviderClass, and releases the temporary symbols. Uses the raw dictionary overload; native char-string overload performs the same ownership sequence."
+  },
+  {
+   "original": "0xfffffe000a7fcc50",
+   "original_size": 28,
+   "original_sha256": "1f866e13d5bb144c14941577a665234299a990b4f73bf0a99668ba3f2de676aa",
+   "native_symbol": "_lck_mtx_gate_init",
+   "evidence": "Seventh-from-last of the lck_mtx_gate_* run between gate_wait and lck_mtx_gate_wait; no calls, initializes the gate words. Source order osfmk/kern/locks.c: init, alloc_init, destroy, free, try_close, close, open, handoff, steal, wait."
+  },
+  {
+   "original": "0xfffffe000a7fcc6c",
+   "original_size": 56,
+   "original_sha256": "73586029b7c5e88378ee86f6d282db0f036798e9fb49c11cf02c26955b038ab4",
+   "native_symbol": "_lck_mtx_gate_alloc_init",
+   "evidence": "Calls kalloc_type_impl_internal then initializes; second in the lck_mtx_gate_* source order (osfmk/kern/locks.c)."
+  },
+  {
+   "original": "0xfffffe000a7fcca4",
+   "original_size": 312,
+   "original_sha256": "692d7de829e26b1467c55fcfeefb8096a73d53e95969c6e6050b0ec70a503cfa",
+   "native_symbol": "_lck_mtx_gate_destroy",
+   "evidence": "Takes the gate bit lock (hw_lock_bit_to_contended) and checks the gate is unused; third in lck_mtx_gate_* source order."
+  },
+  {
+   "original": "0xfffffe000a7fcddc",
+   "original_size": 348,
+   "original_sha256": "aebd60165a692190cd73d76a776ed75f407db6bcdc81b0fd27f7181070072a58",
+   "native_symbol": "_lck_mtx_gate_free",
+   "evidence": "Destroys the gate as destroy does, then kfree_type_impl_internal; fourth in lck_mtx_gate_* source order."
+  },
+  {
+   "original": "0xfffffe000a7fcf38",
+   "original_size": 308,
+   "original_sha256": "4dcd428267cb808b5933ffe35c6075226080b485c5c29d9ca62142a379a7ff38",
+   "native_symbol": "_lck_mtx_gate_try_close",
+   "evidence": "Gate bit lock with a non-blocking owner check; fifth in lck_mtx_gate_* source order."
+  },
+  {
+   "original": "0xfffffe000a7fd06c",
+   "original_size": 284,
+   "original_sha256": "d51de9a51b969c92f8f09d11461f85daf5b294ad47a1de5b0127ff32b103e101",
+   "native_symbol": "_lck_mtx_gate_close",
+   "evidence": "Inlined gate_close (gate bit lock, owner set); sixth in lck_mtx_gate_* source order."
+  },
+  {
+   "original": "0xfffffe000a7fd188",
+   "original_size": 12,
+   "original_sha256": "9402b1c87437c50432f104a3340aa803d3e6e8d7974a146ede566f10e306266c",
+   "native_symbol": "_lck_mtx_gate_open",
+   "evidence": "Tail call to gate_open; seventh in lck_mtx_gate_* source order."
+  },
+  {
+   "original": "0xfffffe000a7fd194",
+   "original_size": 16,
+   "original_sha256": "f68045b7c6ff259d5450c826d848dc2ef2d546c6f28cdbb8c7ead275d086e166",
+   "native_symbol": "_lck_mtx_gate_handoff",
+   "evidence": "Tail call to gate_handoff; eighth in lck_mtx_gate_* source order."
+  },
+  {
+   "original": "0xfffffe000a7fd1a4",
+   "original_size": 12,
+   "original_sha256": "58da13a6911110ea740bff1c5aba0abdd70ee92c705568c03685d35cbacf8c18",
+   "native_symbol": "_lck_mtx_gate_steal",
+   "evidence": "Tail call to gate_steal; ninth in lck_mtx_gate_* source order, directly before lck_mtx_gate_wait."
+  },
+  {
+   "original": "0xfffffe000a94f838",
+   "original_size": 12,
+   "original_sha256": "08df8e2fe088d7a74ac9e012b00241d6c8ef878f542655db02cea557c6b3e7de",
+   "native_symbol": "_pmap_in_ppl",
+   "evidence": "Body is bti; mov w0,#0; ret. Release code folding merged identical return-false functions; the native pmap_in_ppl has the same body, so every caller keeps the original result."
+  },
+  {
+   "original": "0xfffffe000a7aba64",
+   "original_size": 12,
+   "original_sha256": "08df8e2fe088d7a74ac9e012b00241d6c8ef878f542655db02cea557c6b3e7de",
+   "native_symbol": "_pmap_in_ppl",
+   "evidence": "Body is bti; mov w0,#0; ret (folded return-false). Bound to a native function with the identical body so the original result 0 is kept; the native DEVELOPMENT kern_config_is_development returns 1 and must not be used."
+  },
+  {
+   "original": "0xfffffe000a95a098",
+   "original_size": 16,
+   "original_sha256": "75a1acff48fc7dbc24b0514c29273756539b08ce377d898cc8fea805a262d69b",
+   "native_symbol": "_ml_get_wake_timebase",
+   "evidence": "Returns one 64-bit global (adrp/ldr #0x270); same shape as native ml_get_wake_timebase loading wake_abstime; sits between cpu_number and cpuid_get_cpufamily as in osfmk/arm64/machine_routines.c."
+  },
+  {
+   "original": "0xfffffe000a961f68",
+   "original_size": 72,
+   "original_sha256": "9c7f421f7221577e9fbb516e842575d64435f08b57ee8ba06bce90948a81da24",
+   "native_symbol": "_ml_stack_remaining",
+   "evidence": "Reads the current thread kernel stack bounds from TPIDR_EL1 and returns sp minus the stack base (interrupt stack when on it). Source: osfmk/arm64/machine_routines.c ml_stack_remaining."
+  },
+  {
+   "original": "0xfffffe000a83c4bc",
+   "original_size": 68,
+   "original_sha256": "3afa41210d301119d66b6087e7f907a49d889ff75ea67836be3074d63e18c257",
+   "native_symbol": "_task_deallocate",
+   "evidence": "Same calls as the reference task_deallocate: os_ref release with os_ref_panic_underflow and task_deallocate_internal; directly after task_reference."
+  },
+  {
+   "original": "0xfffffe000af6223c",
+   "original_size": 304,
+   "original_sha256": "8ea15eea3796d90de86283c121c099a2fd9284e661d85f1153eda0254559e911",
+   "native_symbol": "__ZN10IOReporter12updateReportEP19IOReportChannelListjPvS2_",
+   "evidence": "Locks the reporter (hw_lock with interrupts disabled), calls the per-channel update and unlocks; called from IOService::updateReport; same call set as the reference IOReporter::updateReport."
+  },
+  {
+   "original": "0xfffffe000acdabb4",
+   "original_size": 76,
+   "original_sha256": "2f0e701278c69c89f4d31dc99fdec1234c4c9a6c456ab689615e8155a5090d14",
+   "native_symbol": "_proc_getexecutablevnode",
+   "evidence": "Returns the process text vnode after vnode_getwithref; same call as the reference proc_getexecutablevnode."
+  },
+  {
+   "original": "0xfffffe000a7b4cc0",
+   "original_size": 100,
+   "original_sha256": "93b82c5dd47a01dbeeb8f20ca2aa4db28d2b06ad5d6604746e69c6580bea9b6e",
+   "native_symbol": "_kdp_register_callout",
+   "evidence": "Allocates a callout record with zalloc_permanent and links it onto the kdp callout list; same call as the reference kdp_register_callout."
+  },
+  {
+   "original": "0xfffffe000acf992c",
+   "original_size": 128,
+   "original_sha256": "6a60420abb167cd0490c14ac86d48fd70d4112284df11dde1489d7b4921c0078",
+   "native_symbol": "_sysctl_handle_opaque",
+   "evidence": "Calls req->oldfunc (SYSCTL_OUT of arg1/arg2), then req->newfunc when req->newptr is set (SYSCTL_IN). Source: bsd/kern/kern_newsysctl.c sysctl_handle_opaque."
+  },
+  {
+   "original": "0xfffffe000b007718",
+   "original_size": 56,
+   "original_sha256": "4c50c32cbdf0630d9c764ba4471c66778b3e5783d6b5f1aac0337e0a4a811af3",
+   "native_symbol": "_pmap_claim_reserved_ppl_page",
+   "evidence": "Panics with '%s: function not supported in this environment' naming pmap_claim_reserved_ppl_page."
+  },
+  {
+   "original": "0xfffffe000b007750",
+   "original_size": 56,
+   "original_sha256": "71e4f78e787323b06d2bfa40e722b236e5fcadaa728dc12e67b38e9cdaef2a17",
+   "native_symbol": "_pmap_free_reserved_ppl_page",
+   "evidence": "Panics with '%s: function not supported in this environment' naming pmap_free_reserved_ppl_page."
+  },
+  {
+   "original": "0xfffffe000af118c4",
+   "original_size": 40,
+   "original_sha256": "9128c527e2274be1c86889c9e538f6a2b1041517fd46c2d71a00945e22450866",
+   "native_symbol": "__ZN12IODMACommand12OutputHost32EPS_NS_9Segment64EPvj",
+   "evidence": "Stores the 32-bit address and length unswapped at segments[index] and returns true; OutputHost32 and OutputLittle32 have this body on a little-endian host (folded)."
+  },
+  {
+   "original": "0xfffffe000af14a3c",
+   "original_size": 40,
+   "original_sha256": "7b4649bc8eb8ed3ae87fb5efc6a734390f930bb9ee32b58efc1482d1265ef750",
+   "native_symbol": "__ZN12IODMACommand12OutputHost64EPS_NS_9Segment64EPvj",
+   "evidence": "Stores the 64-bit address and length unswapped at segments[index] and returns true; OutputHost64 and OutputLittle64 have this body on a little-endian host (folded)."
+  },
+  {
+   "original": "0xfffffe000ad16764",
+   "original_size": 240,
+   "original_sha256": "da58ee1336a738f60619a5813d9bc8efb158e4fc7085ea912962ecf0b16a0c87",
+   "native_symbol": "_code_signing_configuration",
+   "evidence": "Called from kernel_bootstrap and returns the code signing monitor type and configuration flags (reads the configuration globals). The native implementation reports the native configuration without a monitor, which is what the original components must see on this kernel."
+  },
+  {
+   "original": "0xfffffe000ad16920",
+   "original_size": 80,
+   "original_sha256": "c6a13f5149376ffb2bc727c038ff0c60ec890bc9c4ddce0b98f6e76879d0e58b",
+   "native_symbol": "_enable_developer_mode",
+   "evidence": "kern_codesigning.c source order between secure_channel_shared_page and developer_mode_state; TXM wrapper in original, XNU body in native"
+  },
+  {
+   "original": "0xfffffe000ad16970",
+   "original_size": 80,
+   "original_sha256": "5a5f46be87c063cbe9b5dce61e416336ff6f4022e0e6593da33a9fac4e9da8a3",
+   "native_symbol": "_disable_developer_mode",
+   "evidence": "kern_codesigning.c source order after enable_developer_mode, before developer_mode_state"
+  },
+  {
+   "original": "0xfffffe000ad16a20",
+   "original_size": 68,
+   "original_sha256": "b83ec5035c95395e7a2188954fbe57ebe4fff6c858e44e6e4f67778218727e81",
+   "native_symbol": "_extended_research_mode_state",
+   "evidence": "kern_codesigning.c source order after research_mode_state (0xfffffe000ad169dc)"
+  },
+  {
+   "original": "0xfffffe000ad16a64",
+   "original_size": 64,
+   "original_sha256": "277897a42d43c0c26ce65de1c4211fcfacf4ab15fbaeaec56b9fcd36685d794f",
+   "native_symbol": "_restricted_execution_mode_enable",
+   "evidence": "kern_codesigning.c source order after extended_research_mode_state"
+  },
+  {
+   "original": "0xfffffe000ad16aa4",
+   "original_size": 44,
+   "original_sha256": "0e2003cf49b29cba7e4bb4259ee3d6ec8c18b2998e7abbc3dac02fe1793e04a9",
+   "native_symbol": "_restricted_execution_mode_state",
+   "evidence": "kern_codesigning.c source order after restricted_execution_mode_enable"
+  },
+  {
+   "original": "0xfffffe000ad16ad0",
+   "original_size": 72,
+   "original_sha256": "083d2139ae0d8e71020d8ffda1ab03442da4fc9dc9c00da5be304998545734dd",
+   "native_symbol": "_update_csm_device_state",
+   "evidence": "kern_codesigning.c source order after restricted_execution_mode_state"
+  },
+  {
+   "original": "0xfffffe000ad16b18",
+   "original_size": 100,
+   "original_sha256": "3b865867d103c588d2b22c1a21455da4f7dcb04dda3e0044c4b179e15ae0d750",
+   "native_symbol": "_complete_security_boot_mode",
+   "evidence": "kern_codesigning.c source order after update_csm_device_state"
+  },
+  {
+   "original": "0xfffffe000a7fb84c",
+   "original_size": 312,
+   "original_sha256": "51b3e655f35b8b733465229c8a44a1ed954f9a5540e22958b4698d01159ae909",
+   "native_symbol": "_gate_destroy_internal",
+   "evidence": "Decrements gate->gt_refs, stores the GATE_DESTROYED poison, and calls gate_verify_tag_panic, gate_destroy_panic, gate_destroy_owned_panic and gate_destroy_waiter_panic; internal helper of osfmk/kern/locks.c gate_destroy_internal."
+  },
+  {
+   "original": "0xfffffe000a822190",
+   "original_size": 80,
+   "original_sha256": "b18f0c5cbe3ed1cdc7ab95b7e92fb6939833bcbc0c6a641094bb334d9fa13bc1",
+   "native_symbol": "_smr_leave",
+   "evidence": "Clears the per-CPU SMR tracker with stlr xzr at base + index * 128, then balances the preemption-disable counter; osfmk/kern/smr.c smr_leave."
+  },
+  {
+   "original": "0xfffffe000a8e93a0",
+   "original_size": 44,
+   "original_sha256": "bc74c5dddea0fba3483910e52839bb71601ab89dbf3f4b14b63eb85d28acc4c8",
+   "native_symbol": "_upl_page_present",
+   "evidence": "Returns upl[index].phys_addr != 0; osfmk/vm/vm_pageout.c upl_page_present."
+  },
+  {
+   "original": "0xfffffe000a8e93cc",
+   "original_size": 56,
+   "original_sha256": "f1af82d101a3cacbfbc14ce825902314c70e6f3d1ad52658a000d193bb6e36d3",
+   "native_symbol": "_upl_dirty_page",
+   "evidence": "Tests bit 2 (dirty) of the UPL flags word after the phys_addr check; vm_pageout.c upl_dirty_page."
+  },
+  {
+   "original": "0xfffffe000a8e9404",
+   "original_size": 60,
+   "original_sha256": "0c1008028891282d605d4c849d5df26b495a581d2026d819f28ccdf546388839",
+   "native_symbol": "_upl_valid_page",
+   "evidence": "Returns the inverse of bit 1 (absent) of the UPL flags word; vm_pageout.c upl_valid_page."
+  },
+  {
+   "original": "0xfffffe000a868a20",
+   "original_size": 60,
+   "original_sha256": "a44a7a614008f6854d2e91444bc781110452d500b980342b8541a39d342da374",
+   "native_symbol": "_mach_to_bsd_errno",
+   "evidence": "Table lookup of kern_return_t returning EIO above 56; osfmk/kern/bsd_kern.c mach_to_bsd_errno."
+  },
+  {
+   "original": "0xfffffe000a9ed508",
+   "original_size": 108,
+   "original_sha256": "4befb8b5d4ea2f8dd317de0ac86b8b4bf81cbd8afb4e5a728db9669a58dab908",
+   "native_symbol": "_VNOP_GETXATTR",
+   "evidence": "Builds vnop_getxattr_args and calls v_op[vnop_getxattr_desc.vdesc_offset]; bsd/vfs/kpi_vfs.c VNOP_GETXATTR."
+  },
+  {
+   "original": "0xfffffe000a999138",
+   "original_size": 148,
+   "original_sha256": "5b378b233442683258aa2f754969f8fc161cf8c546a8e97a341ac981814c9a41",
+   "native_symbol": "_buf_bawrite",
+   "evidence": "Inlined bawrite_internal(bp, 1): vnode_waitforwrites with VNODE_ASYNC_THROTTLE and the buf_bawrite message, sets B_ASYNC, then VNOP_BWRITE; bsd/vfs/vfs_bio.c."
+  },
+  {
+   "original": "0xfffffe000a962464",
+   "original_size": 60,
+   "original_sha256": "b2abba24172aa23b5c8b4a6573d9aa3f23a7a0a65a3328d891d0ff84d882bac8",
+   "native_symbol": "_ml_cpu_signal",
+   "evidence": "Compares the MPIDR cluster of the target with this CPU and writes S3_5_C15_C0_0 or S3_5_C15_C0_1 with the immediate IPI type; ml_cpu_signal with ml_cpu_signal_type inlined."
+  },
+  {
+   "original": "0xfffffe000a9e88a0",
+   "original_size": 88,
+   "original_sha256": "56a3a7e4e428063eeff47ab4b3b98a67df9e659d094eeada209a91c73482ed2d",
+   "native_symbol": "_vfs_vnodecovered_noblock",
+   "evidence": "Follows vp->v_mount->mnt_vnodecovered without taking the mount lock; bsd/vfs/kpi_vfs.c."
+  },
+  {
+   "original": "0xfffffe000acdac00",
+   "original_size": 76,
+   "original_sha256": "b02e293cd83e379333cf0edff74adaee2ef99730f48df35c6ccd2e88437b2287",
+   "native_symbol": "_proc_getexecutablevnode_noblock",
+   "evidence": "Returns proc->p_textvp without proc lock; bsd/kern/kern_proc.c."
+  },
+  {
+   "original": "0xfffffe000a9edb10",
+   "original_size": 76,
+   "original_sha256": "4d03fe675c11e18ddd1a30ce53838c9d926373d4317c0ec7cfed93d5dd292ed7",
+   "native_symbol": "_need_fsevent",
+   "evidence": "Rejects types outside FSE_MAX_EVENTS with no watcher and VT_DEVFS vnodes; bsd/vfs/vfs_fsevents.c need_fsevent."
+  },
+  {
+   "original": "0xfffffe000ac9eba4",
+   "original_size": 44,
+   "original_sha256": "f7c1820038aa5796edc09fd6eb392ed1a7663f7b99aeefaecf15908b0519fb3f",
+   "native_symbol": "_csblob_get_trust_level",
+   "evidence": "Returns csb_csm_trust_level when the monitor object exists, otherwise UINT32_MAX; bsd/kern/kern_cs.c."
+  },
+  {
+   "original": "0xfffffe000af5e72c",
+   "original_size": 400,
+   "original_sha256": "08010c03243104c3bedc9a446e14e46cda754007482e2b8d886a20b22c84872e",
+   "native_symbol": "_IOCircularDataQueueEnqueue",
+   "evidence": "Validates the authenticated queue magic, data and size against the ring fields and stores the entry; iokit/IOKit/IOCircularDataQueueImplementation.h."
+  },
+  {
+   "original": "0xfffffe000ad16b7c",
+   "original_size": 8,
+   "original_sha256": "224d4df0836ae187285a713f6eab38d506f106d5205135a58ab1548d5684fce9",
+   "native_symbol": "_garbage_collect_provisioning_profiles",
+   "evidence": "Entry thunk into the csm_free_provisioning_profiles walk under profiles_lock; with a monitor this frees unreferenced profiles, the software backend has none."
+  },
+  {
+   "original": "0xfffffe000a9625c0",
+   "original_size": 12,
+   "original_sha256": "aff4a75f0d212d486d017c8d97110d534bb110f461d01315abddea98305ba5e1",
+   "native_symbol": "_OSSynchronizeIO",
+   "evidence": "bti, dsb sy, ret: iokit/IOKit/IOService.cpp OSSynchronizeIO."
+  },
+  {
+   "original": "0xfffffe000a841a9c",
+   "original_size": 84,
+   "original_sha256": "4a90db44824ea3e99962fadebe998ed32f1d8f336ac71e8ff9efaa98a8e4fdf5",
+   "native_symbol": "_thread_set_allocation_name",
+   "evidence": "Authenticates the thread_ro pointer, returns thread_ro->allocation_name and stores the new value only when the field is empty; osfmk/kern/thread.c thread_set_allocation_name."
+  },
+  {
+   "original": "0xfffffe000a8a9560",
+   "original_size": 140,
+   "original_sha256": "29f8ef181fbeedf066a46607affd38853a5b43b5f1b85e1d9fc3119ec4d607e5",
+   "native_symbol": "_vm_kernel_addrhide",
+   "evidence": "Strips the PAC bits, applies the slid/permuted address ranges and returns the hidden address through the out pointer; osfmk/vm/vm_kern.c vm_kernel_addrhide."
+  },
+  {
+   "original": "0xfffffe000a95a034",
+   "original_size": 84,
+   "original_sha256": "930a5a2f6056994b6761f26ade8b4d3cccca920badcc02d325fef29b1a863d22",
+   "native_symbol": "_cpu_to_processor",
+   "evidence": "Loads CpuDataEntries[cpu].cpu_data_vaddr and applies PERCPU_GET_RELATIVE(processor, cpu_data, cpu_data); osfmk/arm/cpu_common.c cpu_to_processor."
+  },
+  {
+   "original": "0xfffffe000aff927c",
+   "original_size": 164,
+   "original_sha256": "f62f581e2fec051aba23c7d0921e0a2813198a3a006455b2908a8adb94b60684",
+   "native_symbol": "_panic_with_options",
+   "evidence": "Passes the varargs, reason, context and debugger mask to panic_trap_to_debugger; the exclaves watchdog request is compiled out in the software backend; osfmk/kern/debug.c panic_with_options."
+  },
+  {
+   "original": "0xfffffe000ace0af0",
+   "original_size": 12,
+   "original_sha256": "6093fdd3d959ebd2e704ba0b530470ceee27b3b2f81d673ccc8cdddeed17b8da",
+   "native_symbol": "_proc_pgrpid",
+   "evidence": "Returns the 32-bit process group id field at proc+0x24; bsd/kern/kern_proc.c proc_pgrpid."
+  },
+  {
+   "original": "0xfffffe000ace12d4",
+   "original_size": 252,
+   "original_sha256": "cad0c6cdf845bda53e6cfd579174ac3c3ea130f51fac4b053260ccc9cc87e82c",
+   "native_symbol": "_proc_get_syscall_filter_mask",
+   "evidence": "Copies proc->p_syscall_filter_mask into the caller buffer with the size and null checks of kern_proc.c proc_get_syscall_filter_mask."
+  },
+  {
+   "original": "0xfffffe000a9a0f44",
+   "original_size": 100,
+   "original_sha256": "eae23cfa8d529697d68067a7d5433ddf40900e905e94339a25435f067d35ecd4",
+   "native_symbol": "_cluster_max_io_size",
+   "evidence": "Switches on CL_READ/CL_WRITE, reads mnt_seg/read/write counts, clamps to the UPL size and returns the byte maximum; bsd/vfs/vfs_cluster.c cluster_max_io_size."
+  },
+  {
+   "original": "0xfffffe000a9ec078",
+   "original_size": 104,
+   "original_sha256": "2767a0c469badc1206ebfde0b90a5f09579c2009ecd53d7c0f92e7fbb1877731",
+   "native_symbol": "_VNOP_FSYNC",
+   "evidence": "Builds vnop_fsync_args with vnop_fsync_desc and calls the vnode operation; bsd/vfs/kpi_vfs.c VNOP_FSYNC."
+  },
+  {
+   "original": "0xfffffe000a9ed610",
+   "original_size": 96,
+   "original_sha256": "e66d9930cd40451ce79a47abd752beb5261898e785201ca2f5dbdbc34d901511",
+   "native_symbol": "_VNOP_STRATEGY",
+   "evidence": "Builds vnop_strategy_args with vnop_strategy_desc and calls the vnode operation; bsd/vfs/kpi_vfs.c VNOP_STRATEGY."
+  },
+  {
+   "original": "0xfffffe000a8b4520",
+   "original_size": 36,
+   "original_sha256": "1b37fa994d174e92a779ebabcaf43415410b3cc8482d574133a67e799220a973",
+   "native_symbol": "_vm_map_page_mask",
+   "evidence": "Returns ~((1 << page_shift) - 1) from map->page_shift, with PAGE_SHIFT when the map is null; osfmk/vm/vm_map.c vm_map_page_mask."
+  },
+  {
+   "original": "0xfffffe000ad757cc",
+   "original_size": 300,
+   "original_sha256": "b7c13b4981c62fad44c1f6fd8f4fea4279ab270d432bcd5018365681fe07a1a9",
+   "native_symbol": "_sock_getsockname",
+   "evidence": "Locks the socket, calls pru_sockaddr through pr_usrreqs, copies out the address; bsd/kern/kpi_socket.c sock_getsockname."
+  },
+  {
+   "original": "0xfffffe000b008ec8",
+   "original_size": 16,
+   "original_sha256": "270e3f8691f72932d5b54c15ba75782fa0a900b4afe6ad4133552961da730434",
+   "native_symbol": "_xnu_image4_storage_data",
+   "evidence": "Apple TXM stub panics unsupported; replaced by the software backend that returns the static Image4 storage area and its size (bsd/kern/code_signing/xnu.c)."
+  }
+ ],
+ "data": [
+  {
+   "original": "0xfffffe000b3773d0",
+   "native_symbol": "_gIOAllCPUInitializedKey",
+   "addend": 0,
+   "evidence": "IOService::initialize stores the OSSymbol made from \"IOAllCPUInitialized\" here (store after withCStringNoCopy at +0x880). Source: iokit/Kernel/IOService.cpp gIOAllCPUInitializedKey."
+  }
+ ]
+}

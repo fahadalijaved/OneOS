@@ -1,6 +1,12 @@
 #!/system/bin/sh
 # Optional display only: every failure leaves the original boot/return path intact.
 ONEOS_BOOT_DIR=${ONEOS_BOOT_DIR:-/data/local/tmp/oneos/data/oneos_bootui}
+# iOS 27 (OneiOS, oneios_switch.sh) keeps this script, the renderer and the
+# icon in its own stage's bin/ and names that folder in ONEOS_BOOT_HOME (with
+# ONEOS_BOOT_DIR in its control folder). Unset: the Android guests' stage.
+oneos_boot_file() {
+    if [ -n "${ONEOS_BOOT_HOME:-}" ]; then echo "$ONEOS_BOOT_HOME/${1##*/}"; else echo "$1"; fi
+}
 oneos_boot_write() {
     [ -d "$ONEOS_BOOT_DIR" ] || return 0
     oneos_boot_tmp=$(mktemp "$ONEOS_BOOT_DIR/$1.XXXXXX") || return 0
@@ -19,7 +25,9 @@ oneos_boot_ready() {
     read -r oneos_boot_pid oneos_boot_token < "$ONEOS_BOOT_DIR/ready" || return 1
     case "$oneos_boot_pid" in ''|*[!0-9]*) return 1;; esac
     [ "$oneos_boot_token" = "$(cat "$ONEOS_BOOT_DIR/generation" 2>/dev/null)" ] || return 1
-    tr '\0' ' ' 2>/dev/null < "/proc/$oneos_boot_pid/cmdline" | grep -q 'OneOSBootStatus' && kill -0 "$oneos_boot_pid" 2>/dev/null
+    # (cat, then tr: toybox's tr never ends on a failed read, and reading the
+    # cmdline of a process that just ended fails. docs/oneios.md, 0.4.81.)
+    cat "/proc/$oneos_boot_pid/cmdline" 2>/dev/null | tr '\0' ' ' | grep -q 'OneOSBootStatus' && kill -0 "$oneos_boot_pid" 2>/dev/null
 }
 # A cold renderer must post its first buffer before we choose a live handoff.
 # Never freeze its compositor while it is still initializing fonts/buffers.
@@ -66,7 +74,7 @@ oneos_boot_hold_display() {
     fi
     case "$composer_pid" in ''|*[!0-9]*) return 0;; esac
     # Refuse a stale init pid or an unrelated process.
-    case "$(tr '\0' ' ' 2>/dev/null < "/proc/$composer_pid/cmdline")" in
+    case "$(cat "/proc/$composer_pid/cmdline" 2>/dev/null | tr '\0' ' ')" in
         /vendor/bin/*composer*) ;;
         *) return 0;;
     esac
@@ -105,11 +113,21 @@ oneos_boot_begin() {
     oneos_boot_write generation "$(date +%s)-$$"
     sleep 0.2
     oneos_boot_release_display
-    rm -f "$ONEOS_BOOT_DIR/stop" "$ONEOS_BOOT_DIR/ready" "$ONEOS_BOOT_DIR/framework"
-    if [ "$1" = enter ] || [ "$1" = restart ]; then
+    rm -f "$ONEOS_BOOT_DIR/stop" "$ONEOS_BOOT_DIR/ready" "$ONEOS_BOOT_DIR/framework" "$ONEOS_BOOT_DIR/hint" "$ONEOS_BOOT_DIR/native"
+    if [ "$1" = ios ]; then
+        # No Android framework follows: the status line is always shown (the
+        # switch writes the boot stage it reads in xnuhost's log), with the
+        # way back under it. The title is plain text; the icon is OneOS's.
+        true > "$ONEOS_BOOT_DIR/events.log"
+        true > "$ONEOS_BOOT_DIR/renderer.log"
+        oneos_boot_write verbose 1
+        oneos_boot_write system_name 'iOS 27'
+        oneos_boot_write title 'Starting iOS 27'
+        oneos_boot_write hint 'Hold Volume Up + Volume Down for 3 s to go back to One UI'
+    elif [ "$1" = enter ] || [ "$1" = restart ]; then
         if [ "$1" = enter ]; then
-            : > "$ONEOS_BOOT_DIR/events.log"
-            : > "$ONEOS_BOOT_DIR/renderer.log"
+            true > "$ONEOS_BOOT_DIR/events.log"
+            true > "$ONEOS_BOOT_DIR/renderer.log"
         fi
         restart_verbose=${ONEOS_VERBOSE_BOOT:-$(cat "$ONEOS_BOOT_DIR/verbose" 2>/dev/null)}
         case "$restart_verbose" in 1) ;; *) restart_verbose=0 ;; esac
@@ -123,8 +141,13 @@ oneos_boot_begin() {
         oneos_boot_write title 'Returning to One UI'
     fi
     oneos_boot_write status 'Preparing display'
-    cp /data/local/tmp/oneos/oneos_boot_icon.png "$ONEOS_BOOT_DIR/icon.png" 2>/dev/null
+    cp "$(oneos_boot_file /data/local/tmp/oneos/oneos_boot_icon.png)" "$ONEOS_BOOT_DIR/icon.png" 2>/dev/null
     chmod 755 "$ONEOS_BOOT_DIR"; chmod 644 "$ONEOS_BOOT_DIR"/verbose "$ONEOS_BOOT_DIR"/title "$ONEOS_BOOT_DIR"/system_name "$ONEOS_BOOT_DIR"/icon.png 2>/dev/null
+    if [ "$1" = ios ]; then
+        export ONEOS_BOOT_DIR ONEOS_BOOT_HOME
+        /system/bin/sh "$ONEOS_BOOT_HOME/boot_status.sh" supervise "$(cat "$ONEOS_BOOT_DIR/generation")" ios </dev/null >> "$ONEOS_BOOT_DIR/renderer.log" 2>&1 &
+        return 0
+    fi
     /system/bin/sh /data/local/tmp/oneos/boot_status.sh supervise "$(cat "$ONEOS_BOOT_DIR/generation")" </dev/null >> "$ONEOS_BOOT_DIR/renderer.log" 2>&1 &
 }
 # Record init requests at the call site, not invented progress percentages.
@@ -159,8 +182,19 @@ if [ "${1:-}" = supervise ]; then
     echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null || true
     echo -500 > /proc/$$/oom_score_adj 2>/dev/null || true
     generation=$2
+    # "ios" (oneios_switch.sh): no Android framework starts under this screen,
+    # so there are no boot events to read and no boot animation to end it. The
+    # switch's feeder writes the status and the stop flag; the pids go to the
+    # status directory for oneios_return.sh, and ONEOS_BOOT_MAX is the bound.
+    source=${3:-android}
     current() { [ "$(cat "$ONEOS_BOOT_DIR/generation" 2>/dev/null)" = "$generation" ] && [ ! -f "$ONEOS_BOOT_DIR/stop" ]; }
     fifo="$ONEOS_BOOT_DIR/events.$generation.pipe"
+    logger=""; monitor=""; worker_max=""
+    if [ "$source" = ios ]; then
+        oneos_boot_write supervisor "$$"
+        worker_max=${ONEOS_BOOT_MAX:-600}
+        case "$worker_max" in ''|*[!0-9]*) worker_max=600 ;; esac
+    else
     mkfifo "$fifo" || exit 0
     # Keep both PIDs so a quiet log buffer cannot strand a producer on return.
     logcat -b events -v brief -T 1 > "$fifo" &
@@ -180,27 +214,30 @@ if [ "${1:-}" = supervise ]; then
         done < "$fifo"
     ) &
     monitor=$!
+    fi
     stop_worker() {
         [ -n "${worker:-}" ] || return 0
-        case "$(tr '\0' ' ' 2>/dev/null < "/proc/$worker/cmdline")" in
+        case "$(cat "/proc/$worker/cmdline" 2>/dev/null | tr '\0' ' ')" in
             *"OneOSBootStatus $ONEOS_BOOT_DIR $generation"*) kill "$worker" 2>/dev/null ;;
         esac
     }
     cleanup() {
         stop_worker
-        kill "$monitor" "$logger" 2>/dev/null
+        [ -z "$monitor$logger" ] || kill $monitor $logger 2>/dev/null
         rm -f "$fifo"
         [ "$(cat "$ONEOS_BOOT_DIR/generation" 2>/dev/null)" != "$generation" ] || oneos_boot_stop
     }
     trap cleanup EXIT
     trap 'exit 0' HUP INT TERM
-    end=$(( $(date +%s) + 600 ))
+    end=$(( $(date +%s) + ${worker_max:-600} ))
     saw_animation=0
     while current && [ "$(date +%s)" -lt "$end" ]; do
         sf=$(pidof surfaceflinger 2>/dev/null)
-        CLASSPATH=/data/local/tmp/oneos/OneOSBootStatus.dex app_process /system/bin OneOSBootStatus "$ONEOS_BOOT_DIR" "$generation" &
+        CLASSPATH=$(oneos_boot_file /data/local/tmp/oneos/OneOSBootStatus.dex) app_process /system/bin OneOSBootStatus "$ONEOS_BOOT_DIR" "$generation" $worker_max &
         worker=$!
+        [ "$source" != ios ] || oneos_boot_write worker "$worker"
         while current && kill -0 "$worker" 2>/dev/null && [ "$(date +%s)" -lt "$end" ]; do
+            [ "$source" != ios ] || { [ "$(pidof surfaceflinger 2>/dev/null)" = "$sf" ] || break; sleep 0.3; continue; }
             case "$(getprop service.bootanim.exit 2>/dev/null)" in
                 0) saw_animation=1 ;;
                 # The outgoing guest can set exit=1 during teardown. Only a

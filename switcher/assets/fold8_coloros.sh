@@ -366,7 +366,7 @@ performance-restore)
         pid=$(cat "$PSTATE/pid" 2>/dev/null || true)
         # Do not signal a stale or reused PID; process ownership is checked.
         case "$pid" in *[!0-9]*) fail 'invalid performance worker PID';; esac
-        if [ -n "$pid" ] && tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null | grep -q 'performance-'; then
+        if [ -n "$pid" ] && cat /proc/$pid/cmdline 2>/dev/null | tr '\0' ' ' | grep -q 'performance-'; then
             kill -TERM "$pid" 2>/dev/null || true
             for n in 1 2 3 4; do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
         fi

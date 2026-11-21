@@ -443,6 +443,17 @@ M2 and later.
 `CompatEvaluator` lives in `:core:model` rather than `:core:device` (DESIGN.md
 section 3) so the rules run as plain JVM tests and, later, on the server.
 
+## iOS 27 (OneiOS), this fork
+
+`docs/oneios.md`. In the app: `core/model/.../Oneios.kt` (`OneiosSystem`, the S24 Ultra-only gate and its tick;
+`OneiosManifests`, `OneiosPackage`, `TarReader`, `OneiosReleases`, `JsonRead`), `core/root/.../OneiosRoot.kt` (the
+launcher and `OneiosStatus`), `app/src/full`: `assets/root/oneios_root.sh`, `session/OneiosJob.kt`,
+`ui/OneiosActivity.kt`, the card in `SystemsActivity`. The session scripts `switcher/assets/oneios_switch.sh` and
+`oneios_return.sh` are packed as `assets/oneios/<name>` and pinned in BuildConfig (`ONEIOS_ROOT_SHA256`,
+`ONEIOS_ROOT_BYTES`, `ONEIOS_SWITCH_SHA256`, `ONEIOS_RETURN_SHA256`); they are not part of `scripts.sha256` or of
+any package set. The full edition links `com.github.luben:zstd-jni` (the `.tar.zst` packages). Tests:
+`OneiosTest` (`:core:model`), `OneiosScriptTest` (`:core:root`).
+
 ## Build
 
 Requirements: JDK 21 installed (the build uses a JDK 21 toolchain and never

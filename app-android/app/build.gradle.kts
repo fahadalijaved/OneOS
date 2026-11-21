@@ -170,6 +170,21 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "host_installd_a16.txt" to File(repoRoot, "switcher/patches/host_installd_a16.txt"),
 )
 val switcherNotShipped = setOf("oneos_tunnel.sh", "7zz")
+// The iOS 27 (OneiOS) session scripts (docs/oneios.md): shipped as assets/oneios/<name>, pinned in
+// BuildConfig, and staged by their own root script (src/full/assets/root/oneios_root.sh) into their
+// own stage. They are not part of any package set, so they stay out of scripts.sha256.
+val oneiosScripts: Map<String, File> = linkedMapOf(
+    "oneios_switch.sh" to File(repoRoot, "switcher/assets/oneios_switch.sh"),
+    "oneios_return.sh" to File(repoRoot, "switcher/assets/oneios_return.sh"),
+)
+// OneOS's boot screen for the iOS switch (docs/oneios.md, "Boot screen"): the same three files the Android
+// guests' stage gets (sessionScripts above), also shipped as assets/oneios/<name> and pinned in BuildConfig.
+val oneiosBootScreen: Map<String, File> = linkedMapOf(
+    "boot_status.sh" to sessionScripts.getValue("boot_status.sh"),
+    "OneOSBootStatus.dex" to sessionScripts.getValue("OneOSBootStatus.dex"),
+    "oneos_boot_icon.png" to sessionScripts.getValue("oneos_boot_icon.png"),
+)
+val oneiosRootScript: File = file("src/full/assets/root/oneios_root.sh")
 
 /** `<sha256>  <name>` lines (`#` comments skipped), as sha256sum writes them. */
 fun readShaList(f: File): Map<String, String> {
@@ -221,6 +236,10 @@ abstract class OneOsFilesTask : DefaultTask() {
 
     @get:Input
     abstract val notShipped: SetProperty<String>
+
+    /** The OneiOS session scripts: name -> source file, copied to oneios/<name>. */
+    @get:Input
+    abstract val oneios: MapProperty<String, String>
 
     /** True: the set files go into the APK (local test builds). False: only their sizes and Drive ids. */
     @get:Input
@@ -337,8 +356,10 @@ abstract class OneOsFilesTask : DefaultTask() {
         }
         // A new file in switcher/assets is shipped or excluded on purpose, never silently.
         val switcher = File(scripts.get().getValue("oneos_switch.sh")).parentFile
-        val unknown = switcher.listFiles()!!.filter { it.isFile }.map { it.name }.toSet() - scripts.get().keys - notShipped.get()
+        val unknown = switcher.listFiles()!!.filter { it.isFile }.map { it.name }.toSet() - scripts.get().keys - notShipped.get() - oneios.get().keys
         if (unknown.isNotEmpty()) throw GradleException("switcher/assets has $unknown: add it to sessionScripts or switcherNotShipped in app/build.gradle.kts")
+        val oneiosDir = File(out, "oneios").apply { mkdirs() }
+        for ((n, path) in oneios.get()) File(path).copyTo(File(oneiosDir, n))
         File(setsDir, "scripts.sha256").writeText(render(scriptSums))
         File(files, "index.txt").writeText(sizes.entries.joinToString("") { "${it.key} ${it.value}\n" })
         File(files, "remote.txt").writeText(remote.entries.joinToString("") { "${it.key} ${it.value}\n" })
@@ -383,6 +404,7 @@ val oneosFiles = tasks.register<OneOsFilesTask>("oneosFiles") {
     sets.set(packageSets.filterKeys { it in packedSets }.mapValues { (_, v) -> "${v.first.path}|${v.second.joinToString(",")}" })
     scripts.set(sessionScripts.mapValues { it.value.path })
     notShipped.set(switcherNotShipped)
+    oneios.set((oneiosScripts + oneiosBootScreen).mapValues { it.value.path })
     packSets.set(packSetsInApk)
     remoteIds.set(setRemoteIds)
     packages.set(packagesDir)
@@ -525,8 +547,28 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 174
-        versionName = "0.5.31"
+        // oneios channel (akshaynexus/OneOS). The version reads the git history (automated 2026-11-16; it was
+        // hand-set after every upstream merge: 0.5.14 (143) was upstream OneOS 0.5.13 (142) merged into oneios).
+        // versionCode counts the commits since OneiOS 0.1.10's fork commit (bb1ef38) on top of 143: it grows with
+        // every commit on oneios, and AppUpdate only compares codes. The name is 0.5.<14 + the same count>.
+        // In a checkout without that history (a shallow clone): the last released values, so a build is never
+        // older than what it carries.
+        val versionBase = "bb1ef384e594125fb6f79be6eace3ebfbd354c46" // OneOS #10's merge: OneiOS 0.1.10's fork commit
+        val commitsSinceBase = try {
+            val p = ProcessBuilder("git", "rev-list", "--count", "$versionBase..HEAD")
+                .redirectErrorStream(true)
+                .start()
+            val n = p.inputStream.readBytes().decodeToString().trim().toIntOrNull()
+            p.waitFor()
+            n ?: 0
+        } catch (e: Exception) {
+            0
+        }
+        versionCode = 143 + commitsSinceBase
+        versionName = "0.5." + (14 + commitsSinceBase)
+        // (upstream is at 0.5.31/174 after this merge, which counts 173 here: the fork's codes trail upstream's by
+        // one or two at a merge and pass them with the next fork commits. That is harmless: AppUpdater installs only an
+        // APK signed with this copy's own certificate, so upstream's release-signed builds never replace a fork build.)
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's
@@ -556,6 +598,14 @@ android {
             buildConfigField("long", "ROOT_SCRIPT_BYTES", "${rootBytes.size}L")
             buildConfigField("String", "SCRIPTS_SHA256", "\"${sha256(scriptsList.toByteArray())}\"")
             buildConfigField("String", "SERIES", "\"${seriesId.orEmpty()}\"")
+            // iOS 27 (OneiOS): its root script and its two session scripts, pinned the same way.
+            val oneiosRootBytes = oneiosRootScript.readBytes()
+            buildConfigField("String", "ONEIOS_ROOT_SHA256", "\"${sha256(oneiosRootBytes)}\"")
+            buildConfigField("long", "ONEIOS_ROOT_BYTES", "${oneiosRootBytes.size}L")
+            buildConfigField("String", "ONEIOS_SWITCH_SHA256", "\"${sha256(oneiosScripts.getValue("oneios_switch.sh"))}\"")
+            buildConfigField("String", "ONEIOS_RETURN_SHA256", "\"${sha256(oneiosScripts.getValue("oneios_return.sh"))}\"")
+            // "<name>=<sha256>" of each boot screen file, in OneiosRoot.BOOT_SCREEN_FILES' order.
+            buildConfigField("String", "ONEIOS_BOOT_SCREEN_SHA256", "\"${oneiosBootScreen.entries.joinToString(",") { "${it.key}=${sha256(it.value)}" }}\"")
             if (seriesId != null) versionNameSuffix = "-$seriesId"
             for ((id, _) in packageSets) {
                 val f = File(packagesDir, "$id.sha256")
@@ -665,7 +715,7 @@ abstract class ProbeApkCheckTask : DefaultTask() {
                 }
                 for (n in assets) {
                     when {
-                        n.startsWith("assets/root/") || n.startsWith("assets/logs/") || n.startsWith("assets/oneos/") ->
+                        n.startsWith("assets/root/") || n.startsWith("assets/logs/") || n.startsWith("assets/oneos/") || n.startsWith("assets/oneios/") ->
                             problems += "${apk.name}: $n is the full edition's"
                         n.startsWith("assets/probe/") && n != "assets/probe/probe.sh" && n != "assets/probe/commands.list" ->
                             problems += "${apk.name}: $n is not the probe runner or its list"
@@ -753,7 +803,7 @@ androidComponents {
                     manifest.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST))
                     // The session scripts, the root script and its lists, and every file of the package sets.
                     val setNames = packageSets.keys.flatMap { id -> File(packagesDir, "$id.sha256").takeIf { it.isFile }?.let { readShaList(it).keys }.orEmpty() }
-                    forbiddenNames.set(sessionScripts.keys + setOf("oneos_root.sh", "status.list", "installd.list", "collect.list") + setNames)
+                    forbiddenNames.set(sessionScripts.keys + oneiosScripts.keys + setOf("oneos_root.sh", "oneios_root.sh", "status.list", "installd.list", "collect.list") + setNames)
                     // SESL9 unshrunk debug libraries are ~48 MB. Release is not shrunk either (R8 off):
                     // 0.4.38's release Probe is 38 MB, all of it code (no asset beyond probe/).
                     maxBytes.set((if (variant.buildType == "debug") 60L else 50L) * 1000 * 1000)
@@ -801,4 +851,6 @@ dependencies {
         exclude(group = "com.google.mlkit", module = "barcode-scanning-common")
     }
     implementation(libs.oneui.icons)
+    // The OneiOS runtime package and the iOS image set are .tar.zst (docs/oneios.md); Android has no zstd reader.
+    "fullImplementation"(libs.zstd.jni.get().let { "${it.module}:${it.version}@aar" })
 }

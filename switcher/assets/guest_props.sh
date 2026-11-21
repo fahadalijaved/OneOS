@@ -1507,7 +1507,7 @@ ro.miui.backdrop_sampling_enabled=true"
         cut -d= -f1 "$NEW" > "$ADDED"
     else
         # Older resetprop without -f: fall back to one call per prop.
-        : > "$ADDED"
+        true > "$ADDED"
         while IFS= read -r line; do
             "$RP" -n "${line%%=*}" "${line#*=}" 2>/dev/null && echo "${line%%=*}" >> "$ADDED"
         done < "$NEW"
@@ -1751,7 +1751,7 @@ remove)
         esac
     done < "$STAGE/guest_props.plan"
     getprop > "$NOWF"
-    : > "$BLANKED.new"
+    true > "$BLANKED.new"
     awk -v nf="$NOWF" '
         BEGIN { while ((getline l < nf) > 0) { i = index(l, "]: ["); if (substr(l, 1, 1) != "[" || i < 3) continue; v = substr(l, i + 4); sub(/\]$/, "", v); val[substr(l, 2, i - 2)] = v } }
         /^B / { k = substr($0, 3); print ((k in val) && val[k] == "" ? "E " : "S ") k }' "$STAGE/guest_props.plan" |
@@ -1909,7 +1909,7 @@ restore-persist)
     # guest's; the normal return (no flag, same boot) still restores everything.
     blankf="$BLANKED"; [ -f "$blankf" ] || blankf=/dev/null
     plan="$STAGE/persist_props.plan"
-    : > "$BLANKED.persist"
+    true > "$BLANKED.persist"
     blanked_p=0
     awk -v nowf="$NOW" -v snapf="$SNAP" -v blankf="$blankf" -v keep="$keep" -v mode="$2" -v store="$STORE_SESSION" '
         function guest(k) {

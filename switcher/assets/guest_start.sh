@@ -450,7 +450,7 @@ if [ -f /data/oneos_hwc ]; then
             n=$(logcat -d -b main -s SurfaceFlinger:E -T "$HWC_T0.000" 2>/dev/null | grep -c -E 'executeCommands failed|presentOrValidate failed')
             if [ "$n" -gt 30 ]; then
                 service call SurfaceFlinger 1008 i32 1 > /data/sf_1008.log 2>&1
-                : > /data/oneos_hwc_forced
+                true > /data/oneos_hwc_forced
                 echo "[Pivoted Root] composer rejected $n frames with HW overlays: GPU composition forced: $(cat /data/sf_1008.log)"
                 exit 0
             fi
@@ -2954,7 +2954,7 @@ GO="$BRING/.go"
 if [ -f "$BRING/.pid" ]; then
     old=$(first_line "$BRING/.pid")
     if is_dec "$old" && [ "$old" != "$$" ] && grep -q oneos_bring_restore "/proc/$old/cmdline" 2>/dev/null; then
-        [ "$MODE" = early ] || : > "$GO"
+        [ "$MODE" = early ] || true > "$GO"
         exit 0
     fi
 fi

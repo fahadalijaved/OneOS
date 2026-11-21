@@ -63,7 +63,9 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
     }
     private fun frame() {
         if (artwork == 0) return
-        val header = tag?.toString()?.startsWith("heading") == true && height > 0 && width.toFloat() / height > .8f
+        // iOS 27's artwork has no header crop of its own: it is shown whole (centre crop) on its pages too.
+        val header = artwork != R.drawable.os_oneios &&
+            tag?.toString()?.startsWith("heading") == true && height > 0 && width.toFloat() / height > .8f
         val resource = if (!header) artwork else if (hyperOsGlobal) R.drawable.os_hyperos_global_header else when (family) {
             SystemFamily.HYPEROS -> R.drawable.os_hyperos_header
             SystemFamily.NOTHING -> R.drawable.os_nothing_header

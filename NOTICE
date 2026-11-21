@@ -19,5 +19,9 @@ The app uses the OneUIProject libraries (SESL, oneui-design, oneui-icons, MIT
 License) and other open-source libraries listed with their licenses in
 CREDITS.md.
 
+The full edition's app ships seven XnuPrelink matcher files for the
+phone-built iOS kernel (app-android/app/src/full/assets/kb/match/),
+Copyright (c) 2026, UniXNU contributors, BSD-2-Clause-Patent; see CREDITS.md.
+
 Galaxy and One UI are trademarks of Samsung Electronics; Android and Pixel of
 Google LLC; ColorOS of OPPO. OneOS is not affiliated with any of them.

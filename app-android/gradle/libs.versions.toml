@@ -15,6 +15,8 @@ oneui-design = { module = "io.github.tribalfs:oneui-design", version.ref = "oneu
 oneui-icons = { module = "io.github.oneuiproject:icons", version.ref = "oneui-icons" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 smali-dexlib2 = { group = "com.android.tools.smali", name = "smali-dexlib2", version.ref = "smali-dexlib2" }
+# zstd for the OneiOS runtime package and image set (.tar.zst); the @aar carries the Android native libraries.
+zstd-jni = { module = "com.github.luben:zstd-jni", version = "1.5.7-4" }
 
 sesl-appcompat = { module = "sesl.androidx.appcompat:appcompat", version = { strictly = "1.8.0+1.0.38-sesl9+rev0" } }
 sesl-coordinatorlayout = { module = "sesl.androidx.coordinatorlayout:coordinatorlayout", version = { strictly = "1.3.0+1.0.6-sesl9+rev0" } }

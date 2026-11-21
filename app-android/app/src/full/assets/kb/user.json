@@ -1,0 +1,44 @@
+{
+ "functions": [
+  {
+   "original": "0xfffffe000ab844bc",
+   "native_symbol": "_clock_absolutetime_interval_to_deadline",
+   "check": {
+    "address": "0xfffffe000ab844bc",
+    "size": 64,
+    "sha256": "179111308c135ac458a081ce0d86e8e9946341c5282023656ba379ba7906cc06"
+   },
+   "evidence": "Reads the per-CPU timebase offset consistently (cpu data at thread+440, +88, retried), adds the counter (S3_4_C15_C10_6) and x0, stores the sum to *x1: mach_absolute_time() + abstime into *result = clock_absolutetime_interval_to_deadline of osfmk/kern/clock.c. Between clock_delay_until (-292) and alarm_done (+382) as in the source. APFS calls it at 0xfffffe000aa4b5d0 with x0 = 1000 and a stack slot, on a contended read path (seen with several kernel threads reading one file)."
+  },
+  {
+   "original": "0xfffffe000ad9d794",
+   "native_symbol": "_cluster_pagein",
+   "check": {
+    "address": "0xfffffe000ad9d794",
+    "size": 40,
+    "sha256": "728f8c9471191c87a80bed2e726c8bc0c9ae13aff92f4a039fdbf4c4f0df8bc7"
+   },
+   "evidence": "A 40-byte wrapper: stores 0 as the stack argument, x7 = 0, calls the next function (cluster_pagein_ext at +10 in the map) and returns: cluster_pagein of bsd/vfs/vfs_cluster.c, which is cluster_pagein_ext(vp, upl, upl_offset, f_offset, size, filesize, flags, NULL, NULL). Between cluster_iodone_finish and cluster_pagein_ext as in the source. APFS's pagein calls it at 0xfffffe000a995c10."
+  },
+  {
+   "original": "0xfffffe000ad9ab0c",
+   "native_symbol": "_cluster_pageout",
+   "check": {
+    "address": "0xfffffe000ad9ab0c",
+    "size": 40,
+    "sha256": "728f8c9471191c87a80bed2e726c8bc0c9ae13aff92f4a039fdbf4c4f0df8bc7"
+   },
+   "evidence": "A 40-byte wrapper (0 on the stack, x7 = 0, a call, return): one of the three seven-argument wrappers of bsd/vfs/vfs_cluster.c that add two NULLs (cluster_pageout, cluster_pagein, cluster_write, in source order); this is the first by address, before cluster_io: cluster_pageout. cluster_pagein is 0xfffffe000ad9d794 (before cluster_pagein_ext)."
+  },
+  {
+   "original": "0xfffffe000ad9ddf8",
+   "native_symbol": "_cluster_write",
+   "check": {
+    "address": "0xfffffe000ad9ddf8",
+    "size": 40,
+    "sha256": "728f8c9471191c87a80bed2e726c8bc0c9ae13aff92f4a039fdbf4c4f0df8bc7"
+   },
+   "evidence": "A 40-byte wrapper (0 on the stack, x7 = 0, a call, return): the third of the seven-argument wrappers of bsd/vfs/vfs_cluster.c that add two NULLs, after cluster_pagein_ext and before cluster_write_copy: cluster_write (cluster_write_ext with NULL callback and argument)."
+  }
+ ]
+}

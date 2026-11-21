@@ -1,0 +1,22 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/preboot_page">
+    <dev.oneuiproject.oneui.layout.ToolbarLayout android:id="@+id/oneios_checks_toolbar"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        app:handleInsets="false" app:expandable="false" app:expanded="false" app:mainRoundedCorners="top" app:showNavButtonAsBack="true">
+        <androidx.core.widget.NestedScrollView android:id="@+id/oneios_checks_scroll"
+            android:layout_width="match_parent" android:layout_height="match_parent" android:clipToPadding="false" android:fillViewport="true">
+            <LinearLayout android:id="@+id/oneios_checks_list" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical"
+                android:paddingHorizontal="10dp" android:paddingTop="10dp" android:paddingBottom="20dp" />
+        </androidx.core.widget.NestedScrollView>
+    </dev.oneuiproject.oneui.layout.ToolbarLayout>
+    <FrameLayout android:id="@+id/oneios_checks_footer" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_gravity="bottom" android:paddingVertical="12dp">
+        <androidx.appcompat.widget.AppCompatButton android:id="@+id/oneios_checks_run_all"
+            style="@style/OneUI.ContainedButton" android:theme="@style/OneUI.ContainedPrimaryColorButtonTheme"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center_horizontal"
+            android:text="@string/oneios_checks_run_all" android:textSize="20sp" android:textStyle="bold" android:minHeight="60dp"
+            android:paddingHorizontal="24dp" android:paddingVertical="18dp" android:backgroundTint="@color/preboot_primary" />
+    </FrameLayout>
+</FrameLayout>

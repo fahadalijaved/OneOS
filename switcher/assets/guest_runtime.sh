@@ -84,7 +84,7 @@ control)
         for m in "$A/modules/$id" "$A/modules_update/$id"; do
             [ -d "$m" ] && [ ! -L "$m" ] || continue
             [ ! -L "$m/remove" ] || exit 1
-            if [ "$2" = remove ]; then : > "$m/remove"; else rm -f "$m/remove"; fi
+            if [ "$2" = remove ]; then true > "$m/remove"; else rm -f "$m/remove"; fi
             found=1
         done
         [ "$found" = 1 ] || exit 1
@@ -107,7 +107,7 @@ control)
             if [ -f "$m/.oneos-framework" ] && [ "$4" = on ]; then
                 [ "$id" = "$(cat "$A/oneos/framework")" ] || { echo 'Select this framework on the pre-boot page first' >&2; exit 1; }
             fi
-            if [ "$4" = on ]; then rm -f "$m/disable"; else : > "$m/disable"; fi
+            if [ "$4" = on ]; then rm -f "$m/disable"; else true > "$m/disable"; fi
             found=1
         done
         [ "$found" = 1 ] || exit 1
@@ -151,11 +151,11 @@ baseline)
             "$busy" umount /data/adb/ksu/.allowlist
             exit 1
         fi
-        : > "$B/allowlist.protected"
+        true > "$B/allowlist.protected"
     fi
-    : > "$B/host-frameworks"
+    true > "$B/host-frameworks"
     for proc in /proc/[0-9]*; do
-        name=$({ tr '\000' ' ' < "$proc/cmdline"; } 2>/dev/null || true)
+        name=$(cat "$proc/cmdline" 2>/dev/null | tr '\000' ' ' || true)
         case "$name" in vectord|vectord' '*|lspd|lspd' '*|org.lsposed.lspd|org.lsposed.lspd' '*|org.matrix.vector.daemon|org.matrix.vector.daemon' '*)
             pid=${proc##*/}
             start=$(awk '{print $22}' "$proc/stat")
@@ -170,7 +170,7 @@ baseline)
     awk '{print $1, $2, $6}' /proc/modules | sort > "$B/kernel-modules"
     if [ -f /data/adb/ksu/.allowlist ]; then sha256sum /data/adb/ksu/.allowlist > "$B/allowlist"; fi
     cat /proc/sys/kernel/random/boot_id > "$B/boot"
-    : > "$B/ready"
+    true > "$B/ready"
     ;;
 verify-return)
     [ -f "$STATE/enabled" ] || exit 0
@@ -221,7 +221,7 @@ prepare)
     chmod 755 "$A/oneos/bin/"* "$A/ksu/bin/busybox"
     chmod 711 "$A" "$A/oneos"
     chmod 755 "$A/oneos/run" "$A/oneos/run/zygisk"
-    : > "$A/oneos/run/session.log"
+    true > "$A/oneos/run/session.log"
     rm -f "$A/oneos/run/injection.pid" "$A/oneos/run/su.sock" "$A/oneos/run/zygisk/cp64.sock" "$A/oneos/run/module-props"
     if [ ! -d "$A/modules/zygisk_vector" ] && [ ! -d "$A/modules_update/zygisk_vector" ]; then
         mkdir "$A/modules_update/zygisk_vector"
@@ -363,7 +363,7 @@ pre)
         # than the whole session going back to One UI (owner's test: Oh My Keymint's sepolicy.rule).
         if [ -s "$m/sepolicy.rule" ] && [ ! -f "$m/.oneos-framework" ]; then
             echo "Guest runtime: ${m##*/} requests shared SELinux changes; disabled, not loaded"
-            : > "$m/disable"
+            true > "$m/disable"
             echo "Needs SELinux policy changes, which would also change One UI's policy (one kernel)" > "$m/.oneos-disabled-reason"
             continue
         fi

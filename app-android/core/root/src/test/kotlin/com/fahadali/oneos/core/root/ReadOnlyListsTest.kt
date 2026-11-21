@@ -1,5 +1,6 @@
 package com.fahadali.oneos.core.root
 
+import com.fahadali.oneos.core.model.OneiosLogs
 import com.fahadali.oneos.core.model.ProbeAudit
 import com.fahadali.oneos.core.model.ProbeCommandList
 import com.fahadali.oneos.core.model.ProbeKind
@@ -49,6 +50,24 @@ class ReadOnlyListsTest {
         for (bad in listOf(".mp4", "oneos_rec", ".png", "shot_", "screencap", "/sdcard", "/storage", "PreSharedKey", "psk")) {
             assertFalse("collect.list mentions $bad", code.contains(bad, ignoreCase = true))
         }
+        // The iOS 27 (OneiOS) system's logs (0.4.76): its own stage, the log files only, never through a link.
+        val ios = cmds.single { it.id == "logs.oneios" }
+        assertEquals(ProbeKind.FILES, ios.kind)
+        assertEquals("oneios", ios.target)
+        assertTrue(ios.command.contains("S=/data/local/tmp/oneios\n"))
+        val named = Regex("\"\\\$S\"/([A-Za-z0-9_.*/-]+)").findAll(ios.command).map { it.groupValues[1] }.toList()
+        assertEquals(
+            listOf("session/xnuhost.log", "logs/xnuhost-*.log", "switch.log", "return.log", "return.outcome", "control/display.log", "control/watchdog_feeder.log"),
+            named,
+        )
+        assertEquals(
+            (listOf(OneiosLogs.SESSION) + OneiosLogs.OTHERS).map(OneiosLogs::path).toSet() + "logs/xnuhost-*.log" + "return.outcome",
+            named.toSet(),
+        )
+        assertTrue(ios.command.contains("[ -f \"\$f\" ] && [ ! -L \"\$f\" ] && [ ! -L \"\${f%/*}\" ] && [ \"\$(stat -c %h \"\$f\")\" = 1 ]"))
+        for (bad in listOf("/image", "/runtime", "\"/data", "data.img", "/checks", ".kc", ".img")) assertFalse("logs.oneios mentions $bad", ios.command.contains(bad))
+        // It comes after the names to remove, so the same redaction reads it.
+        assertTrue(ids.indexOf("logs.oneios") > 1)
         // The Wi-Fi entry prints only the name elements.
         val ssid = cmds.first { it.id == "logs.ssids" }.command
         assertTrue(ssid.contains("grep -h -o -i -E \"name=\\\"[a-z]*ssid\\\".[^<]*\""))

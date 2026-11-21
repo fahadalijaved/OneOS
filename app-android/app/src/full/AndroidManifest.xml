@@ -10,7 +10,11 @@
          swiping the app away does not kill it half way; its notification shows the step. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- An import of the iOS image set (about 18 GB) goes on with the screen off; held only while it runs. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- oneios-tool flows: Android's default network is watched while a flow runs (pause on loss, resume on return). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 0.4.45: the app's own update through Android's installer when root is off
          (AppUpdater); the user confirms each install. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -31,10 +35,57 @@
             android:name=".session.PrepareService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- Holds the app while a OneiOS download or import runs (docs/oneios.md, "Importing either package"). -->
+        <service
+            android:name=".session.OneiosService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <receiver
             android:name=".session.AppUpdater$ResultReceiver"
             android:exported="false" />
         <activity android:name=".ui.GuestRuntimeActivity" android:exported="false" />
+        <!-- iOS 27 (OneiOS)'s page (docs/oneios.md, "In the app"): its state, what stops the switch, Switch to iOS 27. -->
+        <activity
+            android:name=".ui.OneiosActivity"
+            android:exported="false"
+            android:label="@string/oneios_title"
+            android:parentActivityName=".ui.SystemsActivity" />
+        <!-- Set up iOS 27: the steps (this phone, the runtime, the image set, iOS's data, the last check), as Setting up. -->
+        <activity
+            android:name=".ui.OneiosSetupActivity"
+            android:exported="false"
+            android:label="@string/oneios_setup_title"
+            android:parentActivityName=".ui.OneiosActivity" />
+        <!-- Switching to iOS 27: root's switch while it runs, the way back once more, a refusal in plain words. -->
+        <activity
+            android:name=".ui.OneiosSwitchActivity"
+            android:exported="false"
+            android:label="@string/oneios_title"
+            android:parentActivityName=".ui.OneiosActivity" />
+        <!-- Hardware checks of the iOS system: OneiOS's phone tools, run as root beside One UI. -->
+        <activity
+            android:name=".ui.OneiosChecksActivity"
+            android:exported="false"
+            android:label="@string/oneios_checks"
+            android:parentActivityName=".ui.OneiosActivity" />
+        <!-- Session logs of the iOS system: xnuhost's, the switch's and the return's, read as root (read only). -->
+        <activity
+            android:name=".ui.OneiosLogsActivity"
+            android:exported="false"
+            android:label="@string/oneios_logs"
+            android:parentActivityName=".ui.OneiosActivity" />
+        <activity
+            android:name=".ui.OneiosLogActivity"
+            android:exported="false"
+            android:label="@string/oneios_logs"
+            android:windowSoftInputMode="adjustResize|stateHidden"
+            android:parentActivityName=".ui.OneiosLogsActivity" />
+        <!-- One flow of oneios-tool on the phone (Make iOS image, Check every file, the CPU, the logs). -->
+        <activity
+            android:name=".ui.OneiosToolActivity"
+            android:exported="false"
+            android:label="@string/oneios_make_image"
+            android:parentActivityName=".ui.OneiosActivity" />
         <activity android:name=".ui.EnvironmentActivity" android:exported="false" />
         <activity android:name=".ui.BootProgressActivity" android:exported="false" />
         <activity android:name=".ui.DebugSettingsActivity" android:exported="false" />

@@ -76,6 +76,20 @@ built image (`scripts/make-overlays.sh`, `switcher/patches/`). MysticGSI
 includes work from the TrebleDroid project by Pierre-Hugues Husson (phh) and
 contributors (<https://github.com/TrebleDroid>), credited by MysticGSI's NOTICE.
 
+## XnuPrelink's matcher files, for the phone-built iOS kernel
+
+XnuPrelink (<https://github.com/UniXNU/XnuPrelink>),
+Copyright (c) 2026, UniXNU contributors, BSD-2-Clause-Patent (see its LICENSE
+in OneiOS's checkout, `external/XnuPrelink`).
+
+The iOS page's kernel rebuild pairs Apple's kernelcache with OneiOS's XNU on
+the phone (`oneios-tool prelink build`). The tool reads three matcher sources
+and the reviewed fixtures to name the pairing it follows. Those seven files
+ship with the app (`app-android/app/src/full/assets/kb/match/`, exact copies
+of the pinned checkout, hashed in `kb/kb.json`); everything else of the
+prelink inputs is OneiOS's own reviewed records. No Apple file ships with
+them: the kernelcache comes from the user's own PC.
+
 ## The app's libraries
 
 Used by `app-android/` (versions in `app-android/gradle/libs.versions.toml`):

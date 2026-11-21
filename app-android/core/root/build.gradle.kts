@@ -28,6 +28,8 @@ kotlin {
 dependencies {
     api(project(":core:model"))
     testImplementation(libs.junit)
+    // The tests import a real .tar.zst through the root script (OneiosImportTest); the jar carries the PC's natives.
+    testImplementation(libs.zstd.jni)
 }
 
 // The tests audit the root script and the read-only lists the app ships, run

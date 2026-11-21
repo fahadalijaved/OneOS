@@ -471,6 +471,9 @@ class SystemsFragment : Fragment() {
             CatalogEntry(color.name, color, R.drawable.os_coloros, available.any { it.id == color.id }),
             CatalogEntry(nothing.name, nothing, R.drawable.os_nothing, available.any { it.id == nothing.id }),
             CatalogEntry(pixel.name, pixel, R.drawable.os_pixel, available.any { it.id == pixel.id }),
+            // Its own kind of system (docs/oneios.md): no image of the table, shown only on its phone, last.
+            CatalogEntry(com.fahadali.oneos.core.model.OneiosSystem.NAME, null, R.drawable.os_oneios, true, own = true)
+                .takeIf { com.fahadali.oneos.core.model.OneiosSystem.offeredOn(p) },
         )
 
 
@@ -551,7 +554,8 @@ class SystemsFragment : Fragment() {
         }
     }
 
-    private data class CatalogEntry(val name: String, val image: ImageRef?, val art: Int, val supported: Boolean)
+    /** [own]: a system that is not an image of the table and has its own screen. */
+    private data class CatalogEntry(val name: String, val image: ImageRef?, val art: Int, val supported: Boolean, val own: Boolean = false)
 
     private class CarouselHolder(val box: android.widget.FrameLayout) : androidx.recyclerview.widget.RecyclerView.ViewHolder(box)
 
@@ -585,6 +589,30 @@ class SystemsFragment : Fragment() {
         })
         badge.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_catalog_device, 0, 0, 0)
         badge.compoundDrawablePadding = dp(8)
+        // A system with its own screens (iOS 27): always experimental here. Its button reads as an Android
+        // system's does: Show progress while a download or an import runs, Set up while root has reported
+        // no runtime or no image set, else Open, which is iOS 27's page (the switch is there).
+        if (entry.own) {
+            badge.setText(R.string.catalog_experimental)
+            val ios = com.fahadali.oneos.session.OneiosJob.state
+            val notSetUp = ios.status?.let { it.runtime == null || it.image == null } == true
+            val label = when {
+                ios.copying -> R.string.systems_show_progress
+                notSetUp -> R.string.catalog_set_up
+                else -> R.string.oneios_open
+            }
+            val open = View.OnClickListener {
+                startActivity(if (ios.copying || notSetUp) OneiosSetupActivity.intent(ctx) else OneiosActivity.intent(ctx))
+            }
+            v.findViewById<Button>(R.id.systems_primary).apply {
+                setText(label)
+                contentDescription = getString(label) + " " + entry.name
+                setOnClickListener(open)
+            }
+            v.setOnClickListener(open)
+            v.findViewById<View>(R.id.systems_more).setOnClickListener(open)
+            return v
+        }
         // Not for this phone (0.4.43, UX audit): an Unsupported card used to run the whole setup flow and send
         // people to a download of several GB. Its button now says so, and nothing else on it starts setup.
         if (image == null || !entry.supported) {
