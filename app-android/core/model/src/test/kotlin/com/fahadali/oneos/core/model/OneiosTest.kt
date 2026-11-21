@@ -528,12 +528,12 @@ class OneiosTest {
         val files = OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }
             .joinToString(",") { "\"$it\": \"${"4".repeat(64)}\"" }
         val kb = OneiosKb.parse(
-            """{"kb": 1, "build": "24A446", "device": "iPhone18,2", "kernelcache_sha256": "$kbPin", "files": {$files}, "packed_by": "ci"}""",
+            """{"kb": 2, "build": "24A446", "device": "iPhone18,2", "kernelcache_sha256": "$kbPin", "files": {$files}, "packed_by": "ci"}""",
         ).getOrThrow()
         assertEquals("24A446", kb.build)
         assertEquals(kbPin, kb.kernelcacheSha256)
         assertEquals(OneiosKb.PINNED.toSet(), kb.files.keys)
-        for (bad in listOf("{}", """{"kb": 1}""", """{"kb": 1, "build": "24A446", "device": "x", "kernelcache_sha256": "$kbPin", "files": {}}""")) {
+        for (bad in listOf("{}", """{"kb": 2}""", """{"kb": 1, "build": "24A446", "device": "iPhone18,2", "kernelcache_sha256": "$kbPin", "files": {$files}}""", """{"kb": 2, "build": "24A446", "device": "x", "kernelcache_sha256": "$kbPin", "files": {}}""")) {
             assertTrue(bad, OneiosKb.parse(bad).isFailure)
         }
     }

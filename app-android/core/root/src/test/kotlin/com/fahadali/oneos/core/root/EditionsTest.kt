@@ -37,7 +37,7 @@ class EditionsTest {
                 "root/oneos_root.sh", "root/oneios_root.sh", "root/status.list", "root/installd.list", "logs/collect.list",
                 "guest-runtime/NOTICE.txt", "guest-runtime/LICENSE-NeoZygisk.txt", "guest-runtime/LICENSE-Vector.txt",
                 "kb/kb.json", "kb/profile.toml", "kb/reviewed.json", "kb/pairs.json", "kb/stubs.json", "kb/lead.json",
-                "kb/user.json", "kb/match/fileset_match.py", "kb/match/kc_image.py", "kb/match/fileset_shape.py",
+                "kb/user.json",
                 "kb/match/fixtures/fileset-23F84-symbols.json", "kb/match/fixtures/fileset-24A446-symbols.json",
                 "kb/match/fixtures/fileset-26C5035r-symbols.json",
             ),

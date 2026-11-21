@@ -136,7 +136,10 @@ object OneiosTool {
         open val id: String? get() = null
 
         /** The first line: protocol, tool version, worker threads, nice, idle time, the commands it knows. */
-        data class Hello(val protocol: Int, val tool: String?, val pid: Long?, val jobs: Long?, val nice: Long?, val cmds: List<String>, override val raw: Map<String, Any?>) : Event()
+        data class Hello(val protocol: Int, val tool: String?, val pid: Long?, val jobs: Long?, val nice: Long?, val cmds: List<String>, override val raw: Map<String, Any?>) : Event() {
+            /** The pairing files' format the tool reads ([OneiosKb.FORMAT]; a tool without `kb` reads 1). */
+            val kb: Int get() = (raw["kb"] as? Number)?.toInt() ?: 1
+        }
 
         /** A line the tool could not take as a request. */
         /** A line the tool could not take, or a pause or resume it cannot do (`code` `not-pausable`, `not-paused`, ...; with the request's `id`). */

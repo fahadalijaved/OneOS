@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.os.SystemClock
 import com.fahadali.oneos.BuildConfig
+import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosManifests
 import com.fahadali.oneos.core.model.OneiosMessage
 import com.fahadali.oneos.core.model.OneiosPlain
@@ -188,10 +189,16 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                 when (val st = s.start()) {
                     is OneiosToolSession.Start.Refused -> return problem(st.reason)
                     is OneiosToolSession.Start.Failed -> return problem(st.reason)
-                    is OneiosToolSession.Start.Ready -> update(state.copy(
-                        starting = false, canPause = st.hello.cmds.containsAll(listOf(OneiosTool.Cmd.PAUSE, OneiosTool.Cmd.RESUME)),
-                        toolVersion = listOfNotNull(st.hello.tool, st.hello.jobs?.let { "$it threads" }).joinToString(" · "),
-                    ))
+                    is OneiosToolSession.Start.Ready -> {
+                        // Update the kernel prelinks with this app's pairing files: a tool of an older format cannot read them.
+                        if (kernel != null && st.hello.kb < OneiosKb.FORMAT) {
+                            return problem("the staged runtime's oneios-tool reads pairing files of format ${st.hello.kb}; this app's are format ${OneiosKb.FORMAT}: get the latest OneiOS runtime, then update the kernel")
+                        }
+                        update(state.copy(
+                            starting = false, canPause = st.hello.cmds.containsAll(listOf(OneiosTool.Cmd.PAUSE, OneiosTool.Cmd.RESUME)),
+                            toolVersion = listOfNotNull(st.hello.tool, st.hello.jobs?.let { "$it threads" }).joinToString(" · "),
+                        ))
+                    }
                 }
                 if (state.canPause) watch = watchNetwork(app)
                 if (kernel != null) {
@@ -391,7 +398,9 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                             toolVersion = listOfNotNull(st.hello.tool, st.hello.jobs?.let { "$it threads" }).joinToString(" · "),
                         ))
                         if (state.canPause && watch == null) watch = watchNetwork(app)
-                        Result.success(st.hello.cmds)
+                        // A tool that cannot read this app's pairing files (an older kb format) cannot make the image
+                        // either: it counts as one without make-image, so the newest runtime is staged once.
+                        Result.success(if (st.hello.kb < OneiosKb.FORMAT) st.hello.cmds - OneiosTool.Cmd.MAKE_IMAGE else st.hello.cmds)
                     }
                 }
             }

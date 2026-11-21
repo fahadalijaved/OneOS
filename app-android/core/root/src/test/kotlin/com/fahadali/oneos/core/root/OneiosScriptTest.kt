@@ -513,7 +513,7 @@ class OneiosScriptTest {
         val kcIn = ByteArray(300) { (it * 3).toByte() }
         val kcInSha = Hashes.sha256(kcIn)
         assertOk(f.verb(OneiosRoot.Verb.KBINPUT, listOf("kernelcache.macho", kcIn.size.toString(), kcInSha), kcIn))
-        assertEquals(13, f.verb(OneiosRoot.Verb.STATUS).status.kb.inputs)
+        assertEquals(10, f.verb(OneiosRoot.Verb.STATUS).status.kb.inputs)  // 9 pairing files and the kernelcache
         // A phone-built kernel from this xnu and this kernelcache.
         val kc2 = ByteArray(6000) { (it % 251).toByte() }
         val kc2Sha = Hashes.sha256(kc2)

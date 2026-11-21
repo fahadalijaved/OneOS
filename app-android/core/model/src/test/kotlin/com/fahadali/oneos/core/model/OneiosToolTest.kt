@@ -39,6 +39,10 @@ class OneiosToolTest {
         assertEquals("0.1.0", hello.tool)
         assertEquals(8L, hello.jobs)
         assertEquals(listOf("ping", "health", "cancel"), hello.cmds)
+        // a hello without kb is a tool of the first pairing-file format (runtimes up to 0.1.13)
+        assertEquals(1, hello.kb)
+        val hello2 = OneiosTool.parse("""{"ev":"hello","proto":1,"tool":"0.1.0","kb":2,"cmds":["ping"]}""") as OneiosTool.Event.Hello
+        assertEquals(OneiosKb.FORMAT, hello2.kb)
         val start = OneiosTool.parse("""{"ev":"start","id":"1","cmd":"apfs-copy","jobs":8,"steps":[{"step":"scan","text":"Reading the volume"},{"step":"copy","text":"Copying the files"},{"step":"place","text":"Putting the folder in place"}]}""") as OneiosTool.Event.Start
         assertEquals(listOf("scan", "copy", "place"), start.steps.map { it.first })
         val space = OneiosTool.parse("""{"ev":"space","id":"1","path":"/data/local/tmp/oneios/work","need":183500800,"free":52000000000,"reserve":268435456}""") as OneiosTool.Event.Space

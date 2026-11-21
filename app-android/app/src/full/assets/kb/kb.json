@@ -3,19 +3,16 @@
  "device": "iPhone18,2",
  "files": {
   "lead.json": "346d54e6eaf9f19e5cbd88c04b01a019028fa820d5a567eed1151bad485829da",
-  "match/fileset_match.py": "d87f4f10aeb306466948719f1674f26877b71bb1c60a4d8535687d2e1ff1a007",
-  "match/fileset_shape.py": "d256a5714846268554493de069f53b896d3d17e3afcd0ec343fb938734832ca1",
   "match/fixtures/fileset-23F84-symbols.json": "63ebc5b6e549baf22898a070b7c2f9ebe8aa27505cd5effd9facf2c77f9ef644",
   "match/fixtures/fileset-24A446-symbols.json": "026fb497af4d9bc3afc28b6a22be3210ba52ae0c4b5193ce9b34a4b72792b5d8",
   "match/fixtures/fileset-26C5035r-symbols.json": "90cedab8cba99c7abdef1cc2739312d3016187206656391b8c1a456e5cdb6fd3",
-  "match/kc_image.py": "2a2561308b27ace4e21dd4e45924bdeca937ee13047b7c6fd5ce580018f68747",
   "pairs.json": "4dc2901e3e20bbbe6c47993c435c35a4aaa1559a52057cf0cebddf461644b3f4",
   "profile.toml": "47393217bd4cee084f88498f18669a7da23944295b56ab83f2e33153a3996c67",
   "reviewed.json": "1bdac0dd944c9aa6f167c58d2b75e36c95bb338bb7c2c2d25994e37e2a70a2a8",
   "stubs.json": "75c78ca7dabe82a26e6cd926f314d2e9f61254728d9153493d244db6cc351d7b",
   "user.json": "910c9fc37f230d6cc8539125284a3b9a05c2f70415b5c19534c6c16c75661330"
  },
- "kb": 1,
+ "kb": 2,
  "kernelcache_sha256": "349c4692a6a85df0d396681f28d2d48dc04b95c6d60df0f94d84501e3d0c57e3",
  "profile": "profile.toml"
 }

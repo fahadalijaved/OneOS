@@ -226,7 +226,7 @@ do_status() {
         for kf in kernelcache.macho profile.toml reviewed.json pairs.json stubs.json lead.json user.json; do
             [ -f "$STAGE/kb/$kf" ] && [ ! -L "$STAGE/kb/$kf" ] && kbn=$((kbn + 1))
         done
-        for kf in match/fileset_match.py match/kc_image.py match/fileset_shape.py match/fixtures/fileset-23F84-symbols.json match/fixtures/fileset-24A446-symbols.json match/fixtures/fileset-26C5035r-symbols.json; do
+        for kf in match/fixtures/fileset-23F84-symbols.json match/fixtures/fileset-24A446-symbols.json match/fixtures/fileset-26C5035r-symbols.json; do
             [ -f "$STAGE/kb/$kf" ] && [ ! -L "$STAGE/kb/$kf" ] && kbn=$((kbn + 1))
         done
     fi
@@ -455,7 +455,6 @@ KB_MAX=536870912
 kb_name() { # <name>: the kb/ path, or nothing when it is not a kernel-build input
     case "$1" in
         kernelcache.macho|profile.toml|reviewed.json|pairs.json|stubs.json|lead.json|user.json|\
-        match/fileset_match.py|match/kc_image.py|match/fileset_shape.py|\
         match/fixtures/fileset-23F84-symbols.json|match/fixtures/fileset-24A446-symbols.json|\
         match/fixtures/fileset-26C5035r-symbols.json)
             echo "$STAGE/kb/$1" ;;

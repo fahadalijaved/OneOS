@@ -379,15 +379,21 @@ data class OneiosKb(
             "lead.json", "user.json",
         )
 
+        /**
+         * The pairing files' format (`kb.json`'s `kb`): 2 since 2026-11-22, the matcher folder `match/` with its
+         * reviewed fixtures alone (1 also had XnuPrelink's three Python sources, for the matcher signature of
+         * runtimes up to 0.1.13). A tool reads the format its `hello`'s `kb` names (absent: 1).
+         */
+        const val FORMAT = 2
+
         /** What `kb/kb.json` pins (everything but the Apple kernelcache, which the kernel update downloads from Apple). */
-        val PINNED: List<String> = (INPUTS - "kernelcache.macho") + "match/fileset_match.py" + "match/kc_image.py" +
-            "match/fileset_shape.py" + "match/fixtures/fileset-23F84-symbols.json" +
+        val PINNED: List<String> = (INPUTS - "kernelcache.macho") + "match/fixtures/fileset-23F84-symbols.json" +
             "match/fixtures/fileset-24A446-symbols.json" + "match/fixtures/fileset-26C5035r-symbols.json"
         private val HEX64 = Regex("^[0-9a-f]{64}$")
 
         fun parse(text: String): Result<OneiosKb> = runCatching {
             val root = JsonRead.parse(text) as? Map<*, *> ?: error("kb.json is not a JSON object")
-            if (root["kb"] != 1L) error("kb.json has no kb 1")
+            if (root["kb"] != FORMAT.toLong()) error("kb.json has no kb $FORMAT")
             val build = root["build"] as? String ?: error("kb.json has no build")
             if (!Regex("^[0-9A-Z]{3,20}$").matches(build)) error("kb.json build '$build' is not plain")
             val device = root["device"] as? String ?: error("kb.json has no device")
@@ -416,8 +422,7 @@ data class OneiosKb(
 object OneiosKbFiles {
     val NAMES: Set<String> = setOf(
         "kernelcache.macho", "profile.toml", "reviewed.json", "pairs.json", "stubs.json",
-        "lead.json", "user.json", "match/fileset_match.py", "match/kc_image.py",
-        "match/fileset_shape.py", "match/fixtures/fileset-23F84-symbols.json",
+        "lead.json", "user.json", "match/fixtures/fileset-23F84-symbols.json",
         "match/fixtures/fileset-24A446-symbols.json", "match/fixtures/fileset-26C5035r-symbols.json",
     )
 }
