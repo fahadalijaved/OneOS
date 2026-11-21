@@ -3634,10 +3634,10 @@ fi
 echo "=== 5. $(date +%T) Setting up Isolated Data & Bridges ==="
 mkdir -p "$STAGE/data/adb" "$STAGE/data/apex" "$STAGE/data/dalvik-cache/arm64"
 
-# Give the guest the host's authorised ADB keys. The container has no
-# AdbDebuggingManager (the guest system_server registers no "adb" service), so a
-# guest adbd or wireless-debugging session cannot answer an authorisation prompt;
-# pre-seeding the keys is the only way it can accept this machine silently.
+# Give the guest the host's authorised ADB keys, so this machine is accepted
+# silently. (ColorOS 17's guest system_server does run an AdbDebuggingManager:
+# it drives One UI's adbd over /dev/socket/adbd, which is how Wireless debugging
+# pairs in the guest; see the bind of /data/misc/adb further down.)
 # Pre-seed adb_enabled=1 into the guest's settings before its system_server runs.
 # The in-boot fix (in fix_app_dirs.sh) only lands once the framework is up, but
 # UsbDeviceManager drops the adb USB function within seconds of system_server
@@ -4399,6 +4399,24 @@ mkdir -p "$STAGE/data/data"
 
 chmod -R 777 "$STAGE/data/misc" "$STAGE/data/misc_de" "$STAGE/data/misc_ce" "$STAGE/data/system" "$STAGE/data/system_de" "$STAGE/data/system_ce" "$STAGE/data/anr" "$STAGE/data/data" 2>/dev/null || true
 chown -h -R 1000:1000 "$STAGE/data/system" "$STAGE/data/system_de" "$STAGE/data/system_ce" "$STAGE/data/misc" "$STAGE/data/misc_de" "$STAGE/data/misc_ce" 2>/dev/null || true
+# /data/misc/adb is system:shell 02750 (as init.rc makes it), so the keys the guest writes when
+# it pairs Wireless debugging stay readable by One UI's adbd, which runs as shell. The two -R
+# lines above made it system:system 0777.
+chown -R 1000:2000 "$STAGE/data/misc/adb" 2>/dev/null || true
+chmod 02750 "$STAGE/data/misc/adb" 2>/dev/null || true
+chmod 0640 "$STAGE/data/misc/adb/adb_keys" 2>/dev/null || true
+$BB chcon -R u:object_r:adb_keys_file:s0 "$STAGE/data/misc/adb" 2>/dev/null || true
+# One UI's adbd is the only adbd, and it checks Wireless debugging clients against its own
+# /data/misc/adb/adb_keys. Show it the guest's: a copy of One UI's (above) plus the devices
+# paired in the guest. Only with One UI's USB debugging on, like the copy. adbd lives in
+# init's mount namespace; return_to_oneui.sh takes the bind off again.
+if [ "$HOST_ADB" = 1 ]; then
+    if [ "$(readlink /proc/self/ns/mnt)" = "$(readlink /proc/1/ns/mnt)" ]; then
+        $BB mount --bind "$STAGE/data/misc/adb" /data/misc/adb
+    else
+        $BB nsenter -t 1 -m -- $BB mount --bind "$STAGE/data/misc/adb" /data/misc/adb
+    fi && echo "Bound the guest's /data/misc/adb over One UI's for adbd"
+fi
 echo "=== 5.9 $(date +%T) perms ==="
 # The package dirs pre-created above are root-owned until something sets an
 # owner: give them system's, as before; the realign below corrects the ones the
