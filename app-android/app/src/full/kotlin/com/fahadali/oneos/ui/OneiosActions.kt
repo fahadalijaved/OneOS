@@ -12,7 +12,8 @@ import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.OneiosFix
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosPlain
-import com.fahadali.oneos.core.model.OneiosReleases
+import com.fahadali.oneos.core.model.OneiosTool
+import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.session.OneiosJob
 import com.fahadali.oneos.session.OneiosToolJob
@@ -123,21 +124,37 @@ internal object OneiosActions {
     }
 
     /**
-     * "Have you built the image set?": I have the file (the picker); Make iOS image (oneios-tool makes it on this
-     * phone from Apple's server, [OneiosToolJob.Flow.MAKE_IMAGE]); how to build it on a PC or a Mac. OneOS never
-     * downloads the image set itself: it is made from Apple's own files, for this phone's owner.
+     * The image step (docs/oneios.md, "Make iOS image"): Make iOS image, after saying what it downloads from Apple,
+     * the room it needs at its peak and this phone's free room ([makeImage]); or, as the other button, I have the
+     * file (the picker). Nothing in it needs a PC. OneOS never ships the image set: this phone makes it from Apple's
+     * own files, for its owner.
      */
-    fun askImage(a: AppCompatActivity, picker: OneiosPicker) {
-        val items = arrayOf(a.getString(R.string.oneios_image_choose), a.getString(R.string.oneios_make_image), a.getString(R.string.oneios_image_how))
-        AlertDialog.Builder(a).setTitle(R.string.oneios_image_question)
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> picker.pick(OneiosKind.IMAGE)
-                    1 -> OneiosToolActivity.start(a, OneiosToolJob.Flow.MAKE_IMAGE)
-                    else -> SystemsNav.open(a, "https://github.com/${OneiosReleases.REPO}#readme")
-                }
+    fun askImage(a: AppCompatActivity, picker: OneiosPicker) = makeImage(a, picker)
+
+    /**
+     * Make iOS image ([OneiosToolJob.Flow.MAKE_IMAGE]), asked first: the download (about 11 GB from Apple, once),
+     * the free room it needs while it builds ([OneiosTool.MAKE_IMAGE_ROOM_BYTES]; the tool checks the exact room
+     * itself before it downloads anything) and the room this phone has now. With [picker], the dialog offers the
+     * picker for an image set the user already has. While the flow runs, its screen opens instead.
+     */
+    fun makeImage(a: AppCompatActivity, picker: OneiosPicker? = null) {
+        if (OneiosToolJob.state.busy) {
+            a.startActivity(OneiosToolActivity.intent(a))
+            return
+        }
+        val free = runCatching { android.os.StatFs(android.os.Environment.getDataDirectory().path).availableBytes }.getOrNull()
+        val text = buildString {
+            append(a.getString(R.string.oneios_make_image_confirm, Units.bytes(OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES), Units.bytes(OneiosTool.MAKE_IMAGE_ROOM_BYTES)))
+            if (free != null) {
+                append("\n\n")
+                append(a.getString(if (free < OneiosTool.MAKE_IMAGE_ROOM_BYTES) R.string.oneios_make_image_free_short else R.string.oneios_make_image_free, Units.bytes(free)))
             }
-            .setNegativeButton(android.R.string.cancel, null).show()
+        }
+        val d = AlertDialog.Builder(a).setTitle(R.string.oneios_make_image).setMessage(text)
+            .setPositiveButton(R.string.oneios_make_image_start) { _, _ -> OneiosToolActivity.start(a, OneiosToolJob.Flow.MAKE_IMAGE) }
+            .setNegativeButton(android.R.string.cancel, null)
+        if (picker != null) d.setNeutralButton(R.string.oneios_image_choose) { _, _ -> picker.pick(OneiosKind.IMAGE) }
+        d.show()
     }
 
     /** A release by its tag (empty: the latest). */

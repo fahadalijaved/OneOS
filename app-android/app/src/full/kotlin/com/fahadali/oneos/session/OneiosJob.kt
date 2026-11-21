@@ -15,6 +15,7 @@ import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosManifest
 import com.fahadali.oneos.core.model.OneiosManifests
 import com.fahadali.oneos.core.model.OneiosPackage
+import com.fahadali.oneos.core.model.OneiosRelease
 import com.fahadali.oneos.core.model.OneiosReleases
 import com.fahadali.oneos.core.model.OneiosStaged
 import com.fahadali.oneos.core.model.OneiosSystem
@@ -23,6 +24,7 @@ import com.fahadali.oneos.core.model.TarReader
 import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.core.root.OneiosImport
+import com.fahadali.oneos.core.root.OneiosMakeImage
 import com.fahadali.oneos.core.root.OneiosRoot
 import com.fahadali.oneos.core.root.OneiosStatus
 import com.fahadali.oneos.core.root.RootProbe
@@ -242,12 +244,58 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
 
     /** The runtime package of OneiOS's latest release, or of [tag]. */
     fun downloadRuntime(ctx: Context, tag: String?) = job(ctx, Phase.DOWNLOADING, OneiosFlow.Job.DOWNLOAD_RUNTIME, "Looking for the OneiOS runtime…") { app ->
+        stageRelease(app, tag, unless = null).second
+    }
+
+    /**
+     * Make iOS image's runtime step ([OneiosMakeImage.Io.latestRuntime]): the latest release's runtime downloaded and
+     * staged as [downloadRuntime] does, unless its version is [unless] (the staged one: then nothing is downloaded).
+     * Runs on the caller's thread, [OneiosToolJob]'s flow, while no other job can start; meanwhile this job's state
+     * is a download like [downloadRuntime]'s (Set up iOS 27 and the flow's screen show its bytes, Stop cancels it), and
+     * afterwards it holds root's new status, as after any job.
+     */
+    internal fun stageLatestForMakeImage(app: Context, unless: String?): OneiosMakeImage.Runtime {
+        if (state.busy) return OneiosMakeImage.Runtime.Failed("another iOS job runs")
+        cancelled = false
+        meter.reset()
+        update(state.copy(phase = Phase.DOWNLOADING, job = OneiosFlow.Job.DOWNLOAD_RUNTIME, last = null, failure = null, message = "Looking for the OneiOS runtime…",
+            failed = false, done = 0, total = 0, file = null, bytesPerSecond = 0, etaSeconds = null))
+        val result = runCatching { stageRelease(app, null, unless) }
+        val why = result.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }
+        val offered = state.offered ?: offered(app)
+        val status = runCatching { cancelled = false; readStatus(app) }.getOrNull() ?: state.status
+        val (release, line) = result.getOrNull() ?: (null to null)
+        update(
+            State(
+                Phase.IDLE, status, offered, why ?: line ?: "OneiOS runtime ${release?.version} is the newest; it is staged already.", failed = why != null,
+                last = OneiosFlow.Job.DOWNLOAD_RUNTIME, failure = why,
+                runtimeRecord = record(app, OneiosKind.RUNTIME), imageRecord = record(app, OneiosKind.IMAGE),
+            ),
+        )
+        return when {
+            why != null || release == null -> OneiosMakeImage.Runtime.Failed(why ?: "no runtime in the release")
+            line == null -> OneiosMakeImage.Runtime.Same(release.version)
+            else -> OneiosMakeImage.Runtime.Staged(release.version)
+        }
+    }
+
+    /** Root's status that another flow read (Make iOS image's last one): the iOS screens show it, when no job runs. */
+    internal fun statusRead(app: Context, st: OneiosStatus) {
+        if (!state.busy) update(state.copy(status = st, runtimeRecord = record(app, OneiosKind.RUNTIME), imageRecord = record(app, OneiosKind.IMAGE)))
+    }
+
+    /**
+     * The runtime package of OneiOS's latest release (or of [tag]) downloaded and staged: the release, and the line
+     * for the screen; that line is null when the release's version is [unless] (nothing was downloaded).
+     */
+    private fun stageRelease(app: Context, tag: String?, unless: String?): Pair<OneiosRelease, String?> {
         val t = tag?.trim()?.takeIf { it.isNotEmpty() }
         if (t != null && !OneiosReleases.validTag(t)) throw Failed("'$t' is not a release tag")
         val api = http(OneiosReleases.apiUrl(t), accept = "application/vnd.github+json")
         if (api.first == 404) throw Failed(OneiosReleases.noRelease(t))
         if (api.first != 200) throw Failed("GitHub answered ${api.first} for the release")
         val release = OneiosReleases.parse(api.second.toString(Charsets.UTF_8)).getOrElse { throw Failed(it.message ?: "no runtime in the release") }
+        if (unless != null && release.version == unless) return release to null
         val shaAnswer = http(release.sha256Url)
         if (shaAnswer.first != 200) throw Failed("${release.assetName}.sha256 could not be downloaded (${shaAnswer.first})")
         val sha = OneiosReleases.parseSha256(shaAnswer.second.toString(Charsets.UTF_8), release.assetName)
@@ -255,12 +303,12 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         val dir = File(app.cacheDir, "oneios").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
         val file = File(dir, release.assetName)
-        try {
+        return try {
             download(release.assetUrl, file, release.assetBytes, sha)
             meter.reset()
             val m = stage(app, OneiosKind.RUNTIME) { file.inputStream() }
             remember(app, m)
-            runtimeLine(m) + " (release ${release.tag})"
+            release to (runtimeLine(m) + " (release ${release.tag})")
         } finally {
             file.delete()
         }

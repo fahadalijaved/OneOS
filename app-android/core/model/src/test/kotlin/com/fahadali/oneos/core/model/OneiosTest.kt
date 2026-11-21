@@ -603,6 +603,33 @@ class OneiosTest {
         assertEquals("$s/kb/kernelcache.macho", OneiosTool.prelinkRequest("kernel/xnu.macho", s).second["kernelcache"])
     }
 
+    /**
+     * Make iOS image's one request (docs/oneios.md, "Make iOS image"): exactly the keys OneiOS's `make-image` takes
+     * from the app (oneos/interface.md section 9; crates/oneios-serve cmds.rs `make_image`: `indir`, `out`, `work`
+     * written under the stage, `sums_list` and `ids_list` optional, `resume` a flag), and nothing it would refuse
+     * (`usage` for an unknown key). The tool's defaults take the profile, the kernel and kb/ from the stage.
+     */
+    @Test
+    fun theMakeImageRequestIsTheToolsKeys() {
+        val s = OneiosSystem.STAGE
+        val (cmd, keys) = OneiosTool.makeImageRequest(s)
+        assertEquals("make-image", cmd)
+        assertEquals(
+            mapOf(
+                "indir" to "$s/make/inputs", "out" to "$s/image.new", "sums_list" to "$s/image.new.sha256", "ids_list" to "$s/image.new.ids",
+                "work" to "$s/make", "resume" to true,
+            ),
+            keys,
+        )
+        assertEquals(
+            """{"id":"m","cmd":"make-image","indir":"$s/make/inputs","out":"$s/image.new","sums_list":"$s/image.new.sha256","ids_list":"$s/image.new.ids","work":"$s/make","resume":true}""" + "\n",
+            OneiosTool.request("m", cmd, keys),
+        )
+        // The room said before it starts covers the profile's need_gib (30 GiB) and the download is the profile's members.
+        assertTrue(OneiosTool.MAKE_IMAGE_ROOM_BYTES > 30L shl 30)
+        assertTrue(OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES in 11_000_000_000L..12_000_000_000L)
+    }
+
     // --- The JSON reader -----------------------------------------------------------
 
     @Test

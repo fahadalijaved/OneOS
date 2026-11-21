@@ -1,6 +1,5 @@
 package com.fahadali.oneos.core.root
 
-import com.fahadali.oneos.core.model.Hashes
 import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosTool
@@ -73,20 +72,11 @@ class OneiosKernelUpdate(
     fun run(io: Io, cachedSha256: String?): Outcome {
         // 1. The pairing files, each the pinned one, before root is asked for anything.
         io.phase(Phase.INPUTS)
-        val files = OneiosKbFiles.NAMES.filter { it != KERNELCACHE }.sorted()
-        for (name in files) {
-            val bytes = assets[name] ?: return stopped("kbinput", OneiosToolFlow.End.REFUSED, "not-found", "the app has no kb/$name: reinstall OneOS", io, clean = false)
-            val sha = Hashes.sha256(bytes)
-            if (kb.files[name] != sha) return stopped("kbinput", OneiosToolFlow.End.REFUSED, "mismatch", "the app's kb/$name is not the pinned one: reinstall OneOS", io, clean = false)
+        OneiosKbInput.put(kb, assets, { verb, args, data -> io.root(verb, args, data) }, { io.stopped })?.let { r ->
+            if (r === OneiosKbInput.STOPPED) return cancelled("kbinput", io)
+            return stopped("kbinput", OneiosToolFlow.End.REFUSED, r.code, r.text, io, clean = false)
         }
-        for (name in files) {
-            if (io.stopped) return cancelled("kbinput", io)
-            val bytes = assets.getValue(name)
-            io.root(OneiosRoot.Verb.KBINPUT, listOf(name, bytes.size.toString(), Hashes.sha256(bytes)), bytes)?.let {
-                return stopped("kbinput", OneiosToolFlow.End.REFUSED, null, it, io, clean = false)
-            }
-        }
-        io.done("The pairing files are on this phone (${files.size}, each the pinned one).")
+        io.done("The pairing files are on this phone (${OneiosKbInput.NAMES.size}, each the pinned one).")
 
         // 2. Apple's kernelcache: the cached one, or fetched from Apple and decoded on this phone.
         val pin = kb.kernelcacheSha256.lowercase()
@@ -162,7 +152,6 @@ class OneiosKernelUpdate(
             (if (cached) emptyList() else listOf(OneiosTool.kernelcacheFetchRequest(stage), OneiosTool.kernelcacheDecodeRequest(stage))) +
                 OneiosTool.prelinkRequest(xnuPath, stage)
 
-        private const val KERNELCACHE = "kernelcache.macho"
         private val HEX64 = Regex("^[0-9a-f]{64}$")
 
         /** The refusals a later run gets past by itself or with the user's help, so the parts stay. */

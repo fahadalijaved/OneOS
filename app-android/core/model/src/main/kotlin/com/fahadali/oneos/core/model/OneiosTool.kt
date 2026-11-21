@@ -84,6 +84,50 @@ object OneiosTool {
         "out" to "$stage/make-kernel/out",
     )
 
+    /**
+     * Make iOS image's work folder (stage-relative; the tool's `make-image` `work`): `make/inputs/` holds the fetched
+     * IPSW members and `inputs.json` (kept: a later run goes on from them, and the set's images are hard links to
+     * them), `make/build/` the build's own files (removed by the tool at the end, on a stop and on a failure).
+     */
+    const val MAKE_WORK = "make"
+
+    /**
+     * Make iOS image's one request (docs/oneios.md, "Make iOS image"; OneiOS's tools/oneios-tool/README.md, "serve"
+     * `make-image` and "image build"): the whole image set on this phone, into `image.new` (made empty by root's
+     * `begin image`), the stage's two lists for it written whole (`image.new.sha256`, `image.new.ids`: the lines
+     * root's `receive` writes, so root's `finish image` takes them as an import's). The tool fetches the profile's
+     * members from Apple itself (by range requests, resumable), decrypts the AEA images (the key from Apple's key
+     * service), copies `/private/var` with its own APFS reader, runs the root tweaks, packs the seed, decodes Apple's
+     * kernelcache and prelinks the staged runtime's `kernel/xnu.macho` with the pairing files in `kb/`. The keys it
+     * takes from the stage when not sent: `profile` (the only profile in the runtime's `lib/profiles/`), `xnu` (`runtime.json`'s
+     * `kernel.path`), `kb` (`<stage>/kb`), `tweaks` (true). `resume`: a stop, a lost network or an ended app keep the
+     * fetch's parts for the next run (the tool's default too; sent so that it does not depend on one).
+     */
+    fun makeImageRequest(stage: String): Pair<String, Map<String, Any?>> = Cmd.MAKE_IMAGE to mapOf(
+        "indir" to "$stage/$MAKE_WORK/inputs",
+        "out" to "$stage/image.new",
+        "sums_list" to "$stage/image.new.sha256",
+        "ids_list" to "$stage/image.new.ids",
+        "work" to "$stage/$MAKE_WORK",
+        "resume" to true,
+    )
+
+    /**
+     * What Make iOS image downloads from Apple for iOS 27.0.1 (24A446), iPhone18,2: the members the runtime's profile
+     * pins (`ios-27.0.1-iPhone18-2.toml`, the sum of its 13 members' `size`). For the screen before it starts; the
+     * tool itself fetches only what is not there yet.
+     */
+    const val MAKE_IMAGE_DOWNLOAD_BYTES = 11_382_548_957L
+
+    /**
+     * About the free room Make iOS image needs at its peak, for the screen before it starts: the profile's
+     * `need_gib` (30 GiB: the members and their decrypted images side by side) and the set's own new files beside it
+     * (the seed's copied tree and its tar, about 2.5 GB, the kernel's work and kernel.kc, under 1 GB). The tool's
+     * `check` step asks the exact room once, before it fetches or writes anything (its `space` event), and refuses
+     * `space` when it is short; a later run that goes on from fetched parts needs less.
+     */
+    const val MAKE_IMAGE_ROOM_BYTES = 34L shl 30
+
     /** A step's mark, as the tool's README defines it from the `start` list and the `step` events. */
     enum class StepState { PENDING, NEXT, RUNNING, DONE, FAILED, REFUSED, CANCELLED }
 

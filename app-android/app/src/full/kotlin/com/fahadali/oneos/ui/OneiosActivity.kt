@@ -17,7 +17,6 @@ import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.core.model.OneiosFix
 import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosKind
-import com.fahadali.oneos.core.model.OneiosReleases
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.core.root.OneiosStatus
@@ -216,11 +215,12 @@ class OneiosActivity : EdgeToEdgeActivity() {
             st?.image?.let { getString(R.string.oneios_image_details, it.format, st?.runtime?.imageFormats ?: "?") }
                 ?: getString(R.string.oneios_image_none),
         )
+        // Made on this phone from Apple's files (Make iOS image: no PC; it gets a newer runtime first when it needs
+        // one), or a set the user already has.
+        PrebootCards.row(image, getString(R.string.oneios_make_image), getString(R.string.oneios_make_image_line), chevron = true,
+            enabled = idle || OneiosToolJob.state.busy) { OneiosActions.makeImage(this) }
         PrebootCards.row(image, getString(R.string.oneios_have_file), getString(R.string.oneios_image_file_line), chevron = true, enabled = idle) {
             picker.pick(OneiosKind.IMAGE)
-        }
-        PrebootCards.row(image, getString(R.string.oneios_image_how), getString(R.string.oneios_image_how_line), chevron = true) {
-            SystemsNav.open(this, "https://github.com/${OneiosReleases.REPO}#readme")
         }
         PrebootCards.row(image, getString(R.string.oneios_data), (flow.dataLine ?: getString(R.string.environment_unknown)) + "\n" + getString(R.string.oneios_data_line))
 
@@ -275,8 +275,6 @@ class OneiosActivity : EdgeToEdgeActivity() {
             startActivity(OneiosChecksActivity.intent(this))
         }
         if (st?.runtime != null) {
-            PrebootCards.row(tools, getString(R.string.oneios_make_image), getString(R.string.oneios_make_image_line), chevron = true,
-                enabled = idle || OneiosToolJob.state.busy) { OneiosToolActivity.start(this, OneiosToolJob.Flow.MAKE_IMAGE) }
             PrebootCards.row(tools, getString(R.string.oneios_tool_sums), getString(R.string.oneios_tool_sums_line), chevron = true,
                 enabled = idle || OneiosToolJob.state.busy) { OneiosToolActivity.start(this, OneiosToolJob.Flow.SUMS) }
         }

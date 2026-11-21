@@ -20,15 +20,29 @@ class OneiosService : KeepAliveService() {
     override fun observe(listener: (Show) -> Unit): () -> Unit {
         fun show() {
             val t = OneiosToolJob.state
+            // Make iOS image's runtime download: OneiosJob's bytes, under the flow's name.
+            if (t.busy && t.makePhase == com.fahadali.oneos.core.root.OneiosMakeImage.Phase.RUNTIME) {
+                val j = OneiosJob.state
+                listener(
+                    Show(
+                        busy = true,
+                        key = t.flow to j.message,
+                        title = getString(R.string.oneios_title),
+                        text = listOfNotNull(t.makePhase.words, j.progressLine).joinToString(" · "),
+                        fraction = if (j.total > 0) (j.done.toDouble() / j.total).toFloat().coerceIn(0f, 1f) else null,
+                    ),
+                )
+                return
+            }
             if (t.busy) {
                 val v = t.view
                 val step = v.steps.firstOrNull { it.state == OneiosTool.StepState.RUNNING }
                 listener(
                     Show(
                         busy = true,
-                        key = t.flow to step?.id,
+                        key = Triple(t.flow, step?.id, t.makePhase),
                         title = getString(R.string.oneios_title),
-                        text = listOfNotNull(step?.text ?: step?.id ?: getString(R.string.oneios_tool_starting), v.netWaiting ?: (if (v.held || t.pausedByUser) getString(R.string.oneios_tool_paused) else null) ?: v.paused ?: v.progressLine).joinToString(" · "),
+                        text = listOfNotNull(step?.text ?: step?.id ?: t.makePhase?.words ?: getString(R.string.oneios_tool_starting), v.netWaiting ?: (if (v.held || t.pausedByUser) getString(R.string.oneios_tool_paused) else null) ?: v.paused ?: v.progressLine).joinToString(" · "),
                         fraction = v.total?.takeIf { it > 0 }?.let { total -> ((v.done ?: 0).toDouble() / total).toFloat().coerceIn(0f, 1f) },
                     ),
                 )

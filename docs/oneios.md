@@ -36,6 +36,15 @@ at the 0.5.31 merge, one under upstream's 174; AppUpdater installs only an APK s
 certificate, so upstream's builds never replace a fork build. Tested with `./gradlew test assembleFullDebug`;
 not run on the phone.
 
+**Make iOS image with no PC** (2026-11-21): a phone with only this APK makes the whole iOS image set itself. The
+flow stages the latest OneiOS runtime first when the staged one carries no kernel or its `oneios-tool` has no
+`make-image`, puts the pairing files into `kb/` (root's `kbinput` ×12, as Update the kernel), then sends the tool's
+one `make-image` (fetch from Apple, decrypt, the volumes, the root tweaks, the seed, the prelink, verify, the lists)
+and root's `finish image` with its result. The `fetch` before it and the `tweaks` after it are gone. Set up iOS
+27's image step is Make iOS image now, with the download, the room and this phone's free room said first, and
+nothing on the fresh phone's path mentions a PC ("Make iOS image (no PC)"). Tested on the Linux PC, also against the
+real tool on a stand-in IPSW; not run on the phone, and no OneiOS release has a tool with `make-image` yet.
+
 **The iOS screens, redesigned** (2026-11-15, on 0.5.14): the iOS flow now has the Android systems' screens and
 step order (pick, set up, the system's page, the Switch confirm with the ways back, switching, the last session),
 every step saying what to do now, what is done (versions, sizes, checks), what is next, and a refusal in plain
@@ -124,13 +133,13 @@ the app has asked root anything in this run it says Open.
 ### 2. Set up iOS 27 (download or import, and prepare)
 
 `OneiosSetupActivity`, Setting up's layout. The title says what to do now; the footer's main button does it;
-the steps say what is done; the line under them says what comes next ("Then: Import your iOS image set").
+the steps say what is done; the line under them says what comes next ("Then: Make your iOS image").
 
 | Step | Done (its line) | Next (its line; the button) |
 |---|---|---|
 | Check this phone | `Galaxy S24 Ultra · root allowed` | a refusal of root or of the phone (Allow root access; Check again) |
 | Get the OneiOS runtime | `Version 0.1.6 · 12 files, 12 MB · every file checked` (or `placeholder, can't start iOS`, `check failed`) | "Holds xnuhost, the program that runs iOS"; **Get the runtime**: "Do you have the runtime file?" Yes: the picker; No, download it: OneiOS's latest release |
-| Import your iOS image set | `iOS 27.0.1 (24A446) · 17.9 GB · every file as staged` | "The .tar.zst you built from Apple's firmware"; **Import the image set**: "Have you built the image set?" Yes: the picker; How to build it: OneiOS's README |
+| Make your iOS image | `iOS 27.0.1 (24A446) · 17.9 GB · every file as staged` | "This phone downloads iOS 27.0.1 from Apple and builds the image itself"; **Make iOS image**: the download, the room it needs and this phone's free room, then Make it (the flow's own screen, "Make iOS image (no PC)") or I have the file (the picker) |
 | iOS's own data | `New: made at the first switch` or `Kept from earlier sessions` | |
 | Last check before the switch | `Ready to switch` | the preflight's refusal in plain words, with its fix |
 
@@ -353,22 +362,15 @@ sends requests and shows what comes back. The protocol is the tool's (OneiOS's `
 
 | Flow (screen, where) | Root | Requests | Shown |
 |---|---|---|---|
-| **Make iOS image** (Set up iOS 27's image step: "I have the file", "Make iOS image", "How to build it"; Tools on iOS 27's page) | `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with the tool's result | `fetch` (the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make/inputs`, `resume`), `make-image` (`out` `image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`), `tweaks` | the tool's steps, what runs and what is next, progress and time left, the space it needs and has, a heat pause, and its refusal or failure with its code |
+| **Make iOS image** (Set up iOS 27's image step, its main button; the image section of iOS 27's page) | `status`, the latest runtime when the staged one has no kernel or its tool no `make-image` (`begin runtime` ... `finish runtime`, as Get the runtime), `kbinput` ×12, `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with `make-image`'s result | one `make-image` (`indir` `<stage>/make/inputs`, `out` `<stage>/image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`, `resume`); no `fetch`, no `tweaks` | its phase in words, then the tool's 28 steps, progress and time left, the space it needs and has, a heat pause, Pause/Resume, Stop, and why it stopped in plain words with the tool's code ("Make iOS image (no PC)") |
 | **Update the kernel** (iOS 27's page, Phone-built kernel) | `status`, `kbinput` ×12, `tool work`, `kbcache <bytes> <sha256>` after the decode, `kbclean` after a stop that cannot go on; then `finish kernel <kc-sha256> <build-id>` when the user taps Activate | `fetch` (`profile` the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make-kernel/inputs`, `only` `["kernelcache"]`, `resume`) and `im4p` (`in` `.../inputs/kernelcache.release.v54`, `out` `<stage>/make-kernel/kernelcache.macho`), both only when `kb/` has no pinned kernelcache; `prelink` | on the iOS page its step, a pause, Pause/Resume and Stop, and why it stopped in plain words; on its screen the tool's steps, progress, space and words |
 | **Check every file** (Tools) | `tool read` | `sums` of `runtime/` and of `image/` against the lists root wrote at staging, `strict` | each file hashed again, all of them, on all cores; a difference is the tool's `refused` `mismatch` |
 | **CPU, clocks and threads** (Hardware checks, "With oneios-tool") | `tool read` | `cpu` | the tool's report lines and its `cpu` rows |
 | **Analyse the last session**, **iOS's own log: boots**, **last boot** (Session logs, "With oneios-tool") | `tool read` | `log-list` and `log` (`file` `xnuhost`); `ioslog-boots`; `ioslog-show` (`boot` `last`), on `<stage>/data/data.img` | the tool's lines and rows |
 
-A flow stops at the first request that does not end with `ok` and shows that request's text. Make iOS image first fetches
-the IPSW's members from Apple's server by range requests (the tool's `fetch`, which works today: about 10.6 GiB into
-`<stage>/make/inputs`, each member checked against the profile's pins; tried on the Linux PC with one small member,
-and again, "already complete"). **`make-image` is not in
-the tool yet**, nor are the root tweaks (still Python: the tool's `tweaks` answers `not-ported`), `scripts/image/
-build.sh`'s order and checks, and the AEA decryption. So after the fetch Make iOS image sends `make-image` and `tweaks`, shows
-both answers under "Not done, as the tool says" (`unknown`: `this tool has no command "make-image" ...`;
-`not-ported`: `The root tweaks are not in this tool yet: ...`, the tool's own words) and stages nothing. When the
-tool has `make-image`, the `tweaks` request goes (a comment in `OneiosToolJob` says so). What the app needs from it is
-in OneiOS's `oneos/interface.md` section 9.
+A flow stops at the first request that does not end with `ok` and shows that request's text. Make iOS image is a
+flow of its own order (root's steps, the runtime when it needs one, then one `make-image`): "Make iOS image (no PC)",
+below. What the app needs from the tool is in OneiOS's `oneos/interface.md` section 9.
 
 **How a flow runs** (`OneiosToolJob`, app; `OneiosToolSession`, `core/root`):
 - On the job's own thread (never the main thread), inside `OneiosService`, the foreground service of the import,
@@ -432,7 +434,8 @@ the launcher and `oneios_root.sh tool` in a fake root: only the file hashed at s
 session, `read` is not; and `untool` ends a tool that ignores the end of its input, and its child (Linux only:
 it reads `/proc`). `OneiosToolRealTest` (`core:root`, 1; skipped unless `ONEIOS_TOOL_SERVE` names a host build of
 OneiOS's `oneios-tool`) runs the same session against the real `serve`: `hello`, `ping`, `wait` with its steps and
-progress, `make-image` refused `unknown`, a cancel (`by` `request`), the end of input (`bye`, `eof`). It passed on
+progress, an unknown command refused `unknown`, `make-image` without its keys refused `usage` (`unknown` from a tool
+older than `make-image`), a cancel (`by` `request`), the end of input (`bye`, `eof`). It passed on
 the Linux PC against a host build of OneiOS `tool-app-progress` (PR #52, now in main) (`ONEIOS_TOOL_SERVE=... ./gradlew --no-daemon
 :core:root:testDebugUnitTest --tests '*OneiosToolRealTest*'`).
 `OneiosToolScreensTest` (`core:root`, 2) reads the full edition's manifest and sources: every iOS activity the code
@@ -440,6 +443,93 @@ starts is declared (`OneiosToolActivity` among them), `OneiosService` is a `data
 refuses one without a declared type), and `FOREGROUND_SERVICE_DATA_SYNC`, `POST_NOTIFICATIONS`, `ACCESS_NETWORK_STATE`
 and `WAKE_LOCK` are asked for. No emulator or Robolectric runs the screens: the build box has neither; the phone test
 plan (OneiOS's `docs/building.md` section 7) opens each one.
+
+### Make iOS image (no PC)
+
+**A phone with only this APK makes the whole image set itself** (2026-11-21, against OneiOS main at `e5fbf8d`, whose
+`oneios-tool serve` has `make-image` and, since that day, the AEA decryption). Nothing of Apple's is in the APK or in
+a release: the phone downloads Apple's IPSW members from Apple and builds the set there. `OneiosMakeImage`
+(`core/root`) decides the order, `OneiosToolJob` (app) runs it; each step only after the one before it ended well:
+
+1. root's `status`: no open session (else refused, "An iOS session is still open"), and a staged runtime that is no
+   placeholder and carries a kernel (`status`'s `kernel runtime <build-id>`, recorded from `runtime.json`'s `kernel`
+   at `finish runtime`: OneiOS v0.1.12 or newer). Without one, **the latest OneiOS release's runtime is downloaded
+   and staged first**, as Get the runtime does (`OneiosJob.stageLatestForMakeImage`: the release JSON from GitHub;
+   when its version is the staged one nothing is downloaded and the flow stops, "The runtime has no kernel yet"),
+   then `status` again;
+2. the pairing files into `kb/`: root's `kbinput <name> <bytes> <sha256>` ×12, each checked against the APK's
+   `kb/kb.json` first (`OneiosKbInput`, the code Update the kernel uses too). Without them `make-image` refuses
+   `not-found` ("the kernel's inputs are missing");
+3. root's `begin image` (an empty `image.new`, empty `image.new.sha256` and `image.new.ids`);
+4. root's `tool work`. When the tool's `hello` names no `make-image` (the v0.1.12 runtime's tool, which is older than
+   `make-image`), the app closes it, stages the latest runtime once (unless that is the staged version: then it
+   stops, "This runtime can't make the image yet") and opens the tool again;
+5. the tool's **one** request:
+   `{"cmd":"make-image","indir":"<stage>/make/inputs","out":"<stage>/image.new","sums_list":"<stage>/image.new.sha256","ids_list":"<stage>/image.new.ids","work":"<stage>/make","resume":true}`
+   (`OneiosTool.makeImageRequest`; every key checked against OneiOS's `crates/oneios-serve/src/cmds.rs`
+   `make_image`; the profile, the runtime's `kernel/xnu.macho`, `kb/` and the root tweaks are the tool's defaults
+   from the stage). Its steps, as its `start` event lists them: `check`, `directory`, `download`, `decrypt`, `place`,
+   `data`, `tweaks`, `seed`, `kernelcache`, `kernel-check` ... `kernel-place` (the prelink's sixteen, the audit and
+   the stub check among them), `manifest`, `verify`, `lists`;
+6. root's `finish image <files> <format> <version> <build>` with those four fields of `make-image`'s `ok` (checked
+   with `OneiosRoot.problems` first; an `ok` without them is never sent to root).
+
+**Gone from the flow:** the `fetch` before `make-image` (it fetches itself, resumably, and its `check` step asks the
+whole room once and refuses `space`, and anything it cannot do, before a byte is downloaded; a `fetch` first would
+have downloaded about 11 GB before that check), and the keyless `tweaks` after it (`make-image` runs the root
+tweaks in its `tweaks` step; the tool now refuses that request `usage`).
+
+**Before it starts** (`OneiosActions.makeImage`, from Set up iOS 27's image step, iOS 27's page and Run again) a
+dialog says what it downloads from Apple (`OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES`, 11,382,548,957 bytes: the profile's
+13 members), the room it needs at its peak (`MAKE_IMAGE_ROOM_BYTES`, 34 GiB: the profile's `need_gib` of 30 GiB for
+the members and their decrypted images side by side, and about 4 GiB for the seed's tree and tar and the kernel's
+work), that afterwards the image keeps about half of it (a guess: not run on a phone), and this phone's free room on
+`/data` (`StatFs`), with a warning when it is less. The tool's own `space` event (`need`, `free`, its 256 MiB
+reserve) is the exact check; a run that goes on from fetched members needs less, so the dialog does not refuse.
+
+**While it runs** the flow's screen shows the phase in words (`OneiosMakeImage.Phase`: Checking what is on this
+phone, Getting the newest OneiOS runtime with its file and bytes, Putting the pairing files on this phone, Making
+room for the new image set, Starting oneios-tool, Making the iOS image on this phone, Putting the new image set in
+place), then the tool's 28 steps with their marks, progress with the rate and time left, the `space` row, a heat
+pause, the `net` wait, **Pause/Resume** (and Android's network lost and back), and **Stop** (the tool's `cancel`; during
+the runtime download that download's Stop). The notification says the same. The app ended in the middle: "Resume:
+Make iOS image" runs the same requests, and the tool goes on from the parts in `make/inputs`.
+
+**When it stops** the screen says why in plain words (`OneiosPlain.makeImage`; the tool's or root's own words with
+the code below them): `space` with the tool's numbers ("It needs 37.1 GB free, this phone has 12.0 GB"), `network`,
+`changed`, `heat`, `battery`, `session`, `auth` (an AEA key or a byte that is not Apple's), `mismatch` (a member or
+a decrypted image that is not the pinned one), `audit` (the kernel), `not-ported` (with `step decrypt`: "This runtime
+can't decrypt iOS yet", for a tool with `make-image` but no AEA decryption), `unknown`, `not-found`, `usage`,
+`outside`, `exists`, `io`, a cancel and a lost tool. What it leaves: the tool removes `make/build/`, the set's files
+and the lists' lines; **the fetched members stay in `make/inputs`** for the next run (Remove the iOS files frees
+them). **When it ends well** the set is staged (root's checks, as an import's), the iOS screens get root's new
+status, and **Continue** opens iOS 27's page, where the last check and the switch are.
+
+**The fresh phone's path**, with no step that mentions a PC: install the APK → Set up iOS 27: Check this phone →
+Get the runtime (download it) → **Make your iOS image** (the step's button is Make iOS image; "I have the file" stays
+as the dialog's other button) → iOS's own data → Last check → Switch. The image step's words, the empty image row of
+iOS 27's page and the image refusals ("Make your iOS image", "Make iOS image again for this runtime") say Make iOS
+image now; the "How to build it" link to OneiOS's README is gone.
+
+**Tested on the Linux PC:** `OneiosMakeImageTest` (`core/root`, 7) against stand-ins of root, the release download
+and the tool: the exact order on a fresh phone (status, runtime, status, 12 `kbinput`, `begin image`, tool,
+`make-image`, `finish image 21 1 27.0.1 24A446`) and with a runtime that has a kernel (no download), no `fetch` and
+no `tweaks`, a runtime without a kernel replaced or refused, a tool without `make-image` getting the newest runtime
+once, every refusal of the tool ending the flow with root's `finish` not asked, root's refusals before the tool, a
+Stop after each step. `OneiosScriptTest.makeIOSImageRunsTheAppsRequestsAgainstTheRealTool` (skipped unless
+`ONEIOS_TOOL_SERVE` names a tool with `make-image`): this root script on a fake root, a runtime staged by root's own
+verbs with a kernel and one stand-in profile, the APK's real `assets/kb/`, a stand-in IPSW (nothing of Apple's;
+OneiOS's `tests/serve.rs` `stand_in_ipsw`) served by `oneios-tool rangeserve` on 127.0.0.1, and the flow's exact
+requests to the real `serve`: with the room short (`ONEIOS_SERVE_TEST_FREE`) refused `space` at `check` with one
+`space` event and nothing fetched; with room, the request taken whole, every member fetched from the profile's URL,
+then `failed` at `place` (the stand-in OS image is no APFS volume), `image.new` and both lists empty, no
+`make/build`, the members kept, no `finish`. Passed against a host build of OneiOS `e5fbf8d`.
+**Unproven:** a whole set made by the app (no stand-in IPSW has APFS volumes, a kernel and a kernelcache; OneiOS's
+own `image build` comparison made one from Apple's members on the PC), the AEA decryption's key from Apple's key
+service through the app, and everything on the phone: the 11 GB download over the phone's network, the decryption,
+APFS copy, tweaks and prelink time, peak RAM and heat on the S24 Ultra, the room actually used. And no OneiOS
+release has a tool with `make-image` yet (v0.1.12's has none): until one does, the flow ends at step 4 with "This
+runtime can't make the image yet".
 
 ## Hardware checks
 
@@ -583,7 +673,7 @@ and neither kind of session starts while the other's stage has anything mounted.
 | `control/` | the way back's own: the session's state, the baseline, xnuhost's pid and namespace as the switch recorded them, the watcher's and key readers' pids, the return's lock and guard; `bootui/` (the boot screen's status files and pids) and `bootui.log` (the switch's lines about it). Read-only in xnuhost's namespace, like the two session scripts and `bin/` |
 | `logs/` | the five sessions before the last: `xnuhost-<epoch>.log`, moved there by the next switch (the epoch is that switch's time; the file's own time is its session's last line) |
 | `checks/` | the hardware checks' own: each check's last output (`<id>.log`), the camera pictures (`camera.png`, `camera-hal.png`), the values to put back (`saved.backlight`, `saved.als`), the tools' temporary files |
-| `tool/`, `make/` | `TMPDIR` of `runtime/bin/oneios-tool serve` ("oneios-tool in the app"); Make iOS image's work folder, which the tool removes on a cancel or a failure |
+| `tool/`, `make/` | `TMPDIR` of `runtime/bin/oneios-tool serve` ("oneios-tool in the app"); Make iOS image's work folder: `make/inputs/` the fetched IPSW members and `inputs.json` (kept for the next run; the set's images are hard links to them), `make/build/` the build's own files, which the tool removes at the end, on a cancel and on a failure |
 | `switch.log`, `return.log`, `return.outcome` | the switch's output; the return's, the watcher's and the key readers'; how the last return ended. `control/display.log`, `control/watchdog_feeder.log` and `control/usb.log` are the display helper's, the watchdog feeder's and the USB watcher's ("USB and adb during a session") |
 
 ## Session flow
@@ -982,6 +1072,14 @@ the two meet at the return's lock.
   decoded file that is not the pinned one refused with `kbclean` and no build, a Stop at each request (or between
   two) cleaning up, a lost network or short room keeping the parts; `core/model` `OneiosTest` pins the two
   requests' keys and their JSON line, `OneiosPlainTest` every stop's plain words within the limits.
+- `core/root` `OneiosMakeImageTest` (7): Make iOS image's order against stand-ins of root, the release download and
+  the tool (a fresh phone: status, the runtime, status, 12 `kbinput`, `begin image`, the tool, `make-image`, `finish
+  image`; a runtime with a kernel downloads nothing; no `fetch`, no `tweaks`; a tool without `make-image` gets the
+  newest runtime once; the tool's refusals and root's end the flow where they come; a Stop after each step).
+  `OneiosScriptTest.makeIOSImageRunsTheAppsRequestsAgainstTheRealTool` runs the flow against the real `serve` on a
+  stand-in IPSW when `ONEIOS_TOOL_SERVE` names a tool with `make-image` ("Make iOS image (no PC)"). `core/model`
+  `OneiosTest` pins `make-image`'s keys and JSON line, `OneiosPlainTest` every stop's plain words within the limits
+  and none of them naming a PC.
 - The same class runs **the way back** against a fake phone: the key readers, the poll, the watcher and
   `oneios_return.sh` themselves, with stand-ins for Android's tools
   (`core/root/src/test/resources/oneios/phone-tools.sh`), processes as folders, and a clock that runs faster.
@@ -1211,7 +1309,9 @@ interfere: different repositories, runs and releases.
 - **oneios-tool in the app has not run on the phone** (branch `app-oneios-tool`). Unknown until it does: whether
   KernelSU's `su` from the app runs the staged `bin/oneios-tool` (it runs the checks' tools the same way, also never
   tried); the times of each flow on the phone (OneiOS's `docs/building.md` section 7 has the Mac's steps to measure
-  them). Waiting on the tool: `make-image` (Make iOS image is refused until then). **The import still goes through
+  them). **Make iOS image has not run on the phone, and no OneiOS release has a tool with `make-image` yet** (v0.1.12's
+  has none: the flow ends with "This runtime can't make the image yet" until a release has one; "Make iOS image (no
+  PC)" lists what is unproven). **The import still goes through
   root's `receive`**: the tool's `receive` (`from` a FIFO the app writes, the size and SHA-256 checked as it writes,
   the lines of `image.new.sha256` and `.ids` as root writes them) would replace that for the image set, with the
   app's own hash taken out; it needs a FIFO in the app's folder that root's tool reads (not tried under the phone's

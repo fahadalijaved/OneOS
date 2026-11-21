@@ -11,7 +11,9 @@ import com.fahadali.oneos.core.model.OneiosPlain
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosToolFlow
+import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.OneiosKernelUpdate
+import com.fahadali.oneos.core.root.OneiosMakeImage
 import com.fahadali.oneos.core.root.OneiosRoot
 import com.fahadali.oneos.core.root.OneiosStatus
 import com.fahadali.oneos.core.root.OneiosToolPause
@@ -47,22 +49,15 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
     /** What the app asks the tool for; [mode] is root's `tool` argument (read: allowed during a session). */
     enum class Flow(val mode: String, val requests: List<Request>, val showAll: Boolean = false) {
         /**
-         * docs/TODO.md "Make iOS image": the IPSW's members from Apple's server by range requests (`fetch` with the
-         * runtime's own profile; `resume`: a paused, stopped or interrupted fetch goes on from its parts), then the
-         * tool's `make-image` (the released xnu.macho, the volumes, the tweaks, prelink, the audit and the stub check)
-         * into `image.new`, which root's `begin image` made and root's `finish image` puts in place with today's checks.
+         * Make iOS image, with no PC ([OneiosMakeImage]; docs/oneios.md, "Make iOS image"): root's `status` (and the
+         * latest OneiOS runtime first when the staged one carries no kernel or its tool has no `make-image`), the
+         * pairing files into `kb/` (root's `kbinput` ×12), root's `begin image`, then the tool's one `make-image`
+         * (fetch from Apple, decrypt, the volumes, the root tweaks, the seed, the kernelcache, the prelink with its
+         * audit, the manifest, verify, the lists) into `image.new`, and root's `finish image` with its result's four
+         * fields. No `fetch` before it (make-image fetches, after its one room check) and no `tweaks` after it
+         * (make-image runs them). [requests] is the tool's part; the run itself is [OneiosMakeImage]'s.
          */
-        MAKE_IMAGE(
-            "work",
-            listOf(
-                Request(OneiosTool.Cmd.FETCH, mapOf("profile" to "$S/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml", "indir" to "$S/make/inputs", "resume" to true)),
-                Request(OneiosTool.Cmd.MAKE_IMAGE, mapOf("indir" to "$S/make/inputs", "out" to "$S/image.new", "sums_list" to "$S/image.new.sha256", "ids_list" to "$S/image.new.ids", "work" to "$S/make")),
-                // Until the tool has make-image: its `tweaks` answers why the image set cannot be made on the phone
-                // yet (`not-ported`), and the screen shows that answer beside make-image's. Drop it when make-image comes.
-                Request(OneiosTool.Cmd.TWEAKS),
-            ),
-            showAll = true,
-        ),
+        MAKE_IMAGE("work", listOf(OneiosTool.makeImageRequest(S).let { (cmd, keys) -> Request(cmd, keys) })),
 
         /** Every file of the staged runtime and image set hashed again against the lists root wrote at staging. */
         SUMS("read", listOf(
@@ -121,10 +116,12 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         val lastResult: Map<String, Any?> = emptyMap(),
         /** Update the kernel: what runs now (the tool's request, or root's step of it); null for other flows. */
         val kernelPhase: OneiosKernelUpdate.Phase? = null,
-        /** Update the kernel: why it stopped, in plain words ([OneiosPlain.kernelUpdate]); null while it runs or when it built. */
+        /** Update the kernel or Make iOS image: why it stopped, in plain words ([OneiosPlain.kernelUpdate], [OneiosPlain.makeImage]); null while it runs or when it ended well. */
         val plain: OneiosMessage? = null,
         /** Update the kernel: the SHA-256 of the kernel.kc it built (in `make-kernel/out`, for root's `finish kernel`). */
         val builtKc: String? = null,
+        /** Make iOS image: what runs now (root's step, the runtime's download, the tool's make-image); null for other flows. */
+        val makePhase: OneiosMakeImage.Phase? = null,
     ) {
         val busy: Boolean get() = flow != null
     }
@@ -176,7 +173,11 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
             // Update the kernel: what it needs before the tool starts (an image set of the pinned build, a runtime with a kernel).
             val status = OneiosStatus.parse(statusLines)
             val kernel = if (flow == Flow.KERNEL) kernelUpdate(app, status) ?: return else null
-            if (flow == Flow.MAKE_IMAGE) root(app, OneiosRoot.Verb.BEGIN, listOf("image"), 120_000)?.let { return problem(it) }
+            // Make iOS image: its own order, its tool sessions its own ([OneiosMakeImage]).
+            if (flow == Flow.MAKE_IMAGE) {
+                answered = runMake(app, status)
+                return
+            }
             val s = OneiosToolSession(
                 OneiosRoot.launcher(OneiosRoot.Verb.TOOL, listOf(flow.mode), BuildConfig.ONEIOS_ROOT_SHA256, BuildConfig.ONEIOS_ROOT_BYTES),
                 backstop = { root(app, OneiosRoot.Verb.UNTOOL, emptyList(), 60_000) },
@@ -208,7 +209,6 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                         continue
                     }
                     update(state.copy(results = state.results + (view.text ?: r.cmd), lastResult = view.result.orEmpty()))
-                    if (r.cmd == OneiosTool.Cmd.MAKE_IMAGE) finishImage(app, view.result.orEmpty())
                 }
             } finally {
                 watch?.invoke()
@@ -333,13 +333,109 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         }
     }
 
-    /** Make iOS image's last step: root's `finish image` with what the tool's result says the set is (today's checks). */
-    private fun finishImage(app: Context, result: Map<String, Any?>) {
-        val args = listOf("files", "format", "version", "build").map { k -> result[k]?.toString() ?: return problem("the tool's result has no '$k' for root's finish") }
-        val p = runCatching { OneiosRoot.problems(OneiosRoot.Verb.FINISH, listOf("image") + args) }.getOrDefault(listOf("bad"))
-        if (p.isNotEmpty()) return problem("the tool's result cannot go to root's finish: ${p.joinToString("; ")}")
-        root(app, OneiosRoot.Verb.FINISH, listOf("image") + args, 10 * 60_000L)?.let { return problem(it) }
-        update(state.copy(results = state.results + "iOS ${args[2]} (${args[3]}) is staged: ${args[0]} files"))
+    /**
+     * Make iOS image ([OneiosMakeImage] decides the order): root's steps on their own `su`, the latest runtime by
+     * [OneiosJob.stageLatestForMakeImage] (no tool session is open then), each tool request shown as any flow's.
+     * [first] is the status [work] read (it installed this build's root script). Returns false when the tool went
+     * away in a request (the flow stays remembered; its next run goes on from the fetched parts).
+     */
+    private fun runMake(app: Context, first: OneiosStatus): Boolean {
+        val kb = try {
+            OneiosJob.kbInputs(app)
+        } catch (e: Exception) {
+            problem(e.message ?: "the app's kernel-build inputs cannot be read: reinstall OneOS")
+            return true
+        }
+        val assets = try {
+            OneiosJob.kbAssets(app)
+        } catch (e: java.io.IOException) {
+            problem("the app's kb/ files cannot be read (${e.message}): reinstall OneOS")
+            return true
+        }
+        var cached: OneiosStatus? = first
+        var watch: (() -> Unit)? = null
+        var n = 0
+        fun close() {
+            watch?.invoke()
+            watch = null
+            pause = null
+            session?.close()
+            session = null
+            requestId = null
+        }
+        val io = object : OneiosMakeImage.Io {
+            override fun status(): Result<OneiosStatus> {
+                cached?.let { cached = null; return Result.success(it) }
+                val (why, lines) = rootReply(app, OneiosRoot.Verb.STATUS, emptyList(), 180_000)
+                return if (why != null) Result.failure(java.io.IOException(why)) else Result.success(OneiosStatus.parse(lines))
+            }
+
+            override fun latestRuntime(unless: String?): OneiosMakeImage.Runtime = OneiosJob.stageLatestForMakeImage(app, unless)
+
+            override fun root(verb: OneiosRoot.Verb, args: List<String>, data: ByteArray?): String? =
+                rootReply(app, verb, args, 10 * 60_000L, data).first
+
+            override fun openTool(): Result<List<String>> {
+                val s = OneiosToolSession(
+                    OneiosRoot.launcher(OneiosRoot.Verb.TOOL, listOf(Flow.MAKE_IMAGE.mode), BuildConfig.ONEIOS_ROOT_SHA256, BuildConfig.ONEIOS_ROOT_BYTES),
+                    backstop = { root(app, OneiosRoot.Verb.UNTOOL, emptyList(), 60_000) },
+                )
+                session = s
+                if (stop) return Result.failure(java.io.IOException("stopped"))
+                return when (val st = s.start()) {
+                    is OneiosToolSession.Start.Refused -> Result.failure(java.io.IOException(st.reason))
+                    is OneiosToolSession.Start.Failed -> Result.failure(java.io.IOException(st.reason))
+                    is OneiosToolSession.Start.Ready -> {
+                        update(state.copy(
+                            canPause = st.hello.cmds.containsAll(listOf(OneiosTool.Cmd.PAUSE, OneiosTool.Cmd.RESUME)),
+                            toolVersion = listOfNotNull(st.hello.tool, st.hello.jobs?.let { "$it threads" }).joinToString(" · "),
+                        ))
+                        if (state.canPause && watch == null) watch = watchNetwork(app)
+                        Result.success(st.hello.cmds)
+                    }
+                }
+            }
+
+            override fun closeTool() = close()
+
+            override fun tool(cmd: String, keys: Map<String, Any?>): OneiosToolFlow {
+                val s = session ?: return OneiosToolFlow(cmd = cmd).lost("the tool is not running")
+                n += 1
+                val view = one(s, n, Request(cmd, keys))
+                if (view.end == OneiosToolFlow.End.OK) update(state.copy(results = state.results + (view.text ?: cmd), lastResult = view.result.orEmpty()))
+                return view
+            }
+
+            override fun phase(phase: OneiosMakeImage.Phase) = update(state.copy(makePhase = phase, starting = false))
+
+            override fun done(line: String) = update(state.copy(results = state.results + line))
+
+            override val stopped: Boolean get() = stop
+        }
+        try {
+            return when (val o = OneiosMakeImage(S, kb, assets).run(io)) {
+                is OneiosMakeImage.Outcome.Staged -> {
+                    update(state.copy(
+                        results = state.results + "iOS ${o.version} (${o.build}) is staged: ${o.files} files${o.bytes?.let { ", ${Units.bytes(it)}" }.orEmpty()}.",
+                        makePhase = null,
+                    ))
+                    close()
+                    // The iOS screens: the new image set, and what is next (the switch).
+                    rootReply(app, OneiosRoot.Verb.STATUS, emptyList(), 180_000).let { (why, lines) -> if (why == null) OneiosJob.statusRead(app, OneiosStatus.parse(lines)) }
+                    true
+                }
+                is OneiosMakeImage.Outcome.Stopped -> {
+                    update(state.copy(
+                        refusals = state.refusals + listOfNotNull(o.step, o.code, o.text).joinToString(": "),
+                        plain = OneiosPlain.makeImage(o.step, o.end, o.code, o.text, o.need, o.free),
+                        makePhase = null,
+                    ))
+                    o.end != OneiosToolFlow.End.LOST
+                }
+            }
+        } finally {
+            close()
+        }
     }
 
     private fun problem(why: String) {
@@ -365,11 +461,15 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         pause?.userResume()
     }
 
-    /** Stop: the tool's cancel for the request; the session itself when the tool does not answer in time. */
+    /**
+     * Stop: the tool's cancel for the request; the session itself when the tool does not answer in time. During
+     * Make iOS image's runtime download (no tool runs then) the download's own Stop.
+     */
     fun cancel() {
         if (!state.busy) return
         stop = true
         update(state.copy(stopping = true))
+        if (state.makePhase == OneiosMakeImage.Phase.RUNTIME) OneiosJob.cancel()
         val s = session ?: return
         requestId?.let { s.cancel(it) }
         Thread({

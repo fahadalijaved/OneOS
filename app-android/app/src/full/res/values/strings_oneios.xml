@@ -20,8 +20,8 @@
     <string name="oneios_setup_title">Set up iOS 27</string>
     <string name="oneios_step_runtime">Get the OneiOS runtime</string>
     <string name="oneios_step_runtime_about">Holds xnuhost, the program that runs iOS. From OneiOS\'s releases, or your own file.</string>
-    <string name="oneios_step_image">Import your iOS image set</string>
-    <string name="oneios_step_image_about">The .tar.zst you built from Apple\'s firmware with OneiOS\'s scripts. OneOS never downloads it.</string>
+    <string name="oneios_step_image">Make your iOS image</string>
+    <string name="oneios_step_image_about">This phone downloads iOS 27.0.1 from Apple and builds the image itself. Or use an image set you already have.</string>
     <string name="oneios_step_data">iOS\'s own data</string>
     <string name="oneios_step_data_about">Made at the first switch and kept after that</string>
     <string name="oneios_step_ready">Last check before the switch</string>
@@ -37,10 +37,14 @@
     <string name="oneios_stop_summary">Stops after the current file. What was set up before stays as it was, and you can start again later.</string>
     <string name="oneios_runtime_question">Do you have the runtime file (oneios-runtime-…-arm64.tar.zst)? If not, OneOS downloads the latest release from OneiOS on GitHub.</string>
     <string name="oneios_runtime_download_it">No, download it</string>
-    <string name="oneios_image_question">Have you built the image set? It\'s the .tar.zst file OneiOS\'s scripts make from Apple\'s firmware. OneOS never downloads it.</string>
     <!-- oneios-tool in the app (OneiosToolActivity, OneiosToolJob): what the tool sends, shown as it comes. -->
     <string name="oneios_make_image">Make iOS image</string>
-    <string name="oneios_make_image_line">On this phone, from Apple\'s server: only the parts of the IPSW it needs</string>
+    <string name="oneios_make_image_line">On this phone, from Apple\'s own files (about 11 GB to download, once)</string>
+    <string name="oneios_make_image_confirm">This phone downloads iOS 27.0.1 from Apple (about %1$s, once) and builds the iOS image itself. It needs about %2$s free while it builds; afterwards the image keeps about half of that. If the OneiOS runtime here is too old for it, the newest one comes first.\n\nUse Wi-Fi and keep the phone charging. You can pause, stop and go on later: what it downloaded stays.</string>
+    <string name="oneios_make_image_free">This phone has %1$s free.</string>
+    <string name="oneios_make_image_free_short">This phone has %1$s free, less than that. Free up space in One UI first; the build checks the exact room before it downloads anything.</string>
+    <string name="oneios_make_image_start">Make it</string>
+    <string name="oneios_make_image_staged">Switch from iOS 27\'s page</string>
     <string name="oneios_image_choose">I have the file</string>
     <string name="oneios_tool_sums">Check every file</string>
     <string name="oneios_tool_sums_line">The runtime and the image set hashed again, every file, on all cores</string>
@@ -131,11 +135,9 @@
     <string name="oneios_have_file">I have the file</string>
     <string name="oneios_runtime_file_line">A oneios-runtime-…-arm64.tar.zst you built or downloaded</string>
     <string name="oneios_image_none_title">No image set on this phone yet</string>
-    <string name="oneios_image_none">You build it from Apple\'s firmware with OneiOS\'s scripts; OneOS never downloads it.</string>
+    <string name="oneios_image_none">This phone makes it from Apple\'s firmware (Make iOS image). OneOS never ships Apple\'s files.</string>
     <string name="oneios_image_details">Image format %1$s · the runtime boots format %2$s</string>
-    <string name="oneios_image_file_line">The .tar.zst image set you built. It is checked against its manifest.json.</string>
-    <string name="oneios_image_how">How to build it</string>
-    <string name="oneios_image_how_line">OneiOS on GitHub</string>
+    <string name="oneios_image_file_line">An image set (.tar.zst) you already have. It is checked against its manifest.json.</string>
     <string name="oneios_kernel">Phone-built kernel</string>
     <string name="oneios_kernel_title">Kernel %1$s</string>
     <string name="oneios_kernel_none">The staged runtime carries no kernel. With a runtime that does, this phone updates kernel.kc itself, with no PC.</string>

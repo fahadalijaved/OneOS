@@ -51,8 +51,12 @@ class OneiosToolRealTest {
         assertEquals(OneiosTool.StepState.DONE, flow.steps.single().state)
         assertEquals(1000L, flow.total)
 
-        val no = s.call("make-image") as OneiosTool.Event.Refused
+        val no = s.call("no-such-command") as OneiosTool.Event.Refused
         assertEquals("unknown", no.code)
+        // make-image: unknown to a tool from before it (OneiOS 42cf43b; the v0.1.12 runtime's), and since then a
+        // request without its keys is `usage`, which names the missing key; either way nothing runs.
+        val make = s.call(OneiosTool.Cmd.MAKE_IMAGE) as OneiosTool.Event.Refused
+        assertEquals(if (OneiosTool.Cmd.MAKE_IMAGE in hello.cmds) "usage" else "unknown", make.code)
 
         val id = java.util.concurrent.atomic.AtomicReference("")
         var last: OneiosTool.Event? = null

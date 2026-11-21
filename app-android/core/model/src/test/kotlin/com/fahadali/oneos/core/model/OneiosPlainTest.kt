@@ -219,6 +219,39 @@ class OneiosPlainTest {
         assertEquals("This copy of OneOS is damaged", k("kbinput", OneiosToolFlow.End.REFUSED, "mismatch", "the app's kb/pairs.json is not the pinned one: reinstall OneOS").title)
         assertEquals("This runtime's tool is too old", k("im4p", OneiosToolFlow.End.REFUSED, "unknown").title)
         assertEquals("An iOS session is still open", k("kbcache", OneiosToolFlow.End.REFUSED, null, "an iOS session is running: return to One UI first").title)
+        // Make iOS image's stops: every step, end and code in plain words within the limits, and none sends the user to a PC.
+        val makeSteps = listOf("status", "runtime", "kbinput", "begin", "tool", "make-image", "finish")
+        val makeCodes = codes + listOf("auth", "exists", "usage", "outside", "failed", "changed", "no-kernel", "no-make-image")
+        for (s in makeSteps) for (e in end) for (c in makeCodes) {
+            for (m in listOf(OneiosPlain.makeImage(s, e, c, "the tool's words: step decrypt", 39_000_000_000L, 12_000_000_000L), OneiosPlain.makeImage(s, e, c, null))) {
+                assertPlain(m)
+                assertTrue(m.line, "PC" !in m.line && "PC" !in m.title)
+            }
+        }
+        fun mk(step: String, e: OneiosToolFlow.End, code: String?, text: String? = null, need: Long? = null, free: Long? = null) = OneiosPlain.makeImage(step, e, code, text, need, free)
+        val room = mk("make-image", OneiosToolFlow.End.REFUSED, "space", "Not enough free space", 39_000_000_000L, 12_000_000_000L)
+        assertEquals("Not enough space", room.title)
+        assertTrue(room.line, Units.bytes(39_000_000_000L) in room.line && Units.bytes(12_000_000_000L) in room.line)
+        assertEquals("make-image: space: Not enough free space", room.detail)
+        assertEquals(
+            "This runtime can't decrypt iOS yet",
+            mk("make-image", OneiosToolFlow.End.REFUSED, "not-ported", "step decrypt: the AEA decryption is not in this tool yet (043-69487-662.dmg.aea must be decrypted)").title,
+        )
+        assertEquals("This runtime's tool is too old", mk("make-image", OneiosToolFlow.End.REFUSED, "unknown", "no such cmd: make-image").title)
+        assertEquals("Apple's iOS image didn't check out", mk("make-image", OneiosToolFlow.End.REFUSED, "auth", "does not authenticate").title)
+        assertEquals("No connection to Apple", mk("make-image", OneiosToolFlow.End.FAILED, "network").title)
+        assertTrue(mk("make-image", OneiosToolFlow.End.FAILED, "network").line.contains("goes on from what it downloaded"))
+        assertTrue(mk("make-image", OneiosToolFlow.End.CANCELLED, null, "stopped").line.contains("stays for the next run"))
+        assertTrue("interrupted" in mk("make-image", OneiosToolFlow.End.LOST, null, "the tool ended").title)
+        assertEquals("The kernel didn't pass its checks", mk("make-image", OneiosToolFlow.End.REFUSED, "audit").title)
+        assertEquals("A file of the build is missing", mk("make-image", OneiosToolFlow.End.REFUSED, "not-found", "the kernel's inputs are missing: kb/stubs.json").title)
+        assertEquals("Couldn't get the OneiOS runtime", mk("runtime", OneiosToolFlow.End.FAILED, null, "No connection to GitHub").title)
+        assertEquals(OneiosPart.IMAGE, room.part)
+        // The image step's button and its words: Make iOS image, on this phone.
+        assertEquals("Make iOS image", OneiosPlain.label(OneiosFix.IMPORT_IMAGE))
+        val noImage = of("no iOS image set is staged: import the one you built with OneiOS's scripts in the OneOS app")
+        assertTrue(noImage.line, "PC" !in noImage.line && "this phone" in noImage.line.lowercase())
+
         // Root's words of a kernel that is not ready point at the Update button, not at a PC.
         val notReady = of("the Apple kernelcache is not staged: run the kernel update first")
         assertEquals("The phone-built kernel isn't ready", notReady.title)

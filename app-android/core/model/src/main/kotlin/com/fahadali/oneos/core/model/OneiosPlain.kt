@@ -76,7 +76,7 @@ object OneiosPlain {
         OneiosFix.GET_RUNTIME -> "Get the runtime"
         OneiosFix.DOWNLOAD_RUNTIME -> "Download again"
         OneiosFix.IMPORT_RUNTIME -> "Choose the runtime file"
-        OneiosFix.IMPORT_IMAGE -> "Import the image set"
+        OneiosFix.IMPORT_IMAGE -> "Make iOS image"
         OneiosFix.BACK_TO_ONE_UI -> "Back to One UI"
         OneiosFix.REMOVE -> "Remove the iOS files"
         OneiosFix.SESSION_LOGS -> "Session logs"
@@ -162,7 +162,7 @@ object OneiosPlain {
                 OneiosFix.GET_RUNTIME, OneiosPart.RUNTIME, Level.INFO,
             )
             "no ios image set is staged" in p -> m(
-                "Import your iOS image set", "Build it from Apple's firmware with OneiOS's scripts, then choose its .tar.zst file.",
+                "Make your iOS image", "This phone downloads iOS 27.0.1 from Apple and builds it itself. Or choose an image set you have.",
                 OneiosFix.IMPORT_IMAGE, OneiosPart.IMAGE, Level.INFO,
             )
             ("oneios_switch.sh" in p || "oneios_return.sh" in p) && ("missing" in p || "not staged" in p || "not root's" in p) -> m(
@@ -185,7 +185,7 @@ object OneiosPlain {
                 OneiosFix.NONE, OneiosPart.RUNTIME,
             )
             "boots format" in p -> m(
-                "Image set and runtime don't match", "Build the image set again for this runtime, or get a runtime that boots it.",
+                "Image set and runtime don't match", "Make iOS image again for this runtime, or get a runtime that boots this set.",
                 OneiosFix.IMPORT_IMAGE, OneiosPart.IMAGE,
             )
             listCheck == "runtime" || "the staged runtime is not root's" in p -> m(
@@ -193,7 +193,7 @@ object OneiosPlain {
                 OneiosFix.GET_RUNTIME, OneiosPart.RUNTIME,
             )
             listCheck == "image" || "the staged image set is not root's" in p || "image set has no format number" in p -> m(
-                "The image set changed on this phone", "A file of it no longer matches what root checked when it was set up. Import it again.",
+                "The image set changed on this phone", "A file of it no longer matches what root checked when it was set up. Make it again.",
                 OneiosFix.IMPORT_IMAGE, OneiosPart.IMAGE,
             )
 
@@ -298,7 +298,7 @@ object OneiosPlain {
             "not a .tar.zst" in p || "is not a oneios runtime" in p || "is not a ios image set" in p || "it is not a " in p ||
                 p.startsWith("runtime.json") || p.startsWith("manifest.json") -> m(
                 if (kind == OneiosKind.IMAGE) "This isn't an iOS image set" else "This isn't a OneiOS runtime",
-                if (kind == OneiosKind.IMAGE) "Choose the .tar.zst image set you built with OneiOS's scripts."
+                if (kind == OneiosKind.IMAGE) "Choose an iOS image set (.tar.zst), or tap Make iOS image to make one on this phone."
                 else "Choose a oneios-runtime-…-arm64.tar.zst file.",
                 if (kind == OneiosKind.IMAGE) OneiosFix.IMPORT_IMAGE else OneiosFix.IMPORT_RUNTIME, part,
             )
@@ -388,6 +388,103 @@ object OneiosPlain {
             else -> m("The kernel update didn't finish", "Nothing was changed. Open the update's report for details.")
         }
     }
+
+    /**
+     * Make iOS image's stop in plain words (docs/oneios.md, "Make iOS image"): [step] is the tool's `make-image`, or
+     * the flow's own step before it (`status`, `runtime`, `kbinput`, `begin`, `tool`) or after it (`finish`), [end] how
+     * it ended, [code] and [text] the tool's (or root's, or the app's) own words, kept as the detail. [need] and [free]:
+     * the tool's `space` event, when it had one. The line says what to do, and whether the next run goes on from what
+     * was downloaded (the tool keeps the fetched members in `make/inputs`; it removes everything else it wrote).
+     */
+    fun makeImage(step: String, end: OneiosToolFlow.End, code: String?, text: String?, need: Long? = null, free: Long? = null): OneiosMessage {
+        val raw = listOfNotNull(step, code, text).joinToString(": ")
+        val t = text.orEmpty().lowercase()
+        fun m(title: String, line: String, level: Level = Level.BLOCK) =
+            OneiosMessage(title, line, OneiosFix.NONE, OneiosPart.IMAGE, level, raw)
+        val again = "Tap Make iOS image again: it goes on from what it downloaded."
+        return when {
+            end == OneiosToolFlow.End.CANCELLED -> m(
+                "Stopped",
+                "Nothing was changed. What it downloaded stays for the next run; Remove the iOS files frees it.",
+                Level.WARN,
+            )
+            end == OneiosToolFlow.End.LOST -> m("Make iOS image was interrupted", "Nothing was changed. $again", Level.WARN)
+            code == "session" || "session is running" in t -> m(
+                "An iOS session is still open", "Go back to One UI first, then tap Make iOS image again.",
+            )
+            step == OneiosMakeImageSteps.RUNTIME && code == OneiosMakeImageSteps.NO_KERNEL -> m(
+                "The runtime has no kernel yet",
+                "Make iOS image needs a OneiOS runtime with a kernel (0.1.12 or newer). Try again when OneiOS releases one.",
+            )
+            step == OneiosMakeImageSteps.RUNTIME && code == OneiosMakeImageSteps.NO_MAKE_IMAGE -> m(
+                "This runtime can't make the image yet",
+                "Its oneios-tool is older than Make iOS image. Try again when OneiOS releases a newer runtime.",
+            )
+            step == OneiosMakeImageSteps.RUNTIME -> m(
+                "Couldn't get the OneiOS runtime", "Check the connection to GitHub, then tap Make iOS image again.", Level.WARN,
+            )
+            step == OneiosMakeImageSteps.STATUS -> m("Root didn't answer", "Allow root for OneOS, then tap Make iOS image again.")
+            "not the pinned one" in t || "reinstall oneos" in t -> m("This copy of OneOS is damaged", "Reinstall OneOS, then open iOS 27 again.")
+            step == OneiosMakeImageSteps.KBINPUT -> m(
+                "The pairing files didn't arrive", "Root didn't take a file of the build. Check again, then tap Make iOS image again.",
+            )
+            step == OneiosMakeImageSteps.TOOL -> m(
+                "oneios-tool didn't start", "Get the runtime again (its tool comes with it), then tap Make iOS image again.",
+            )
+            code == "space" -> m(
+                "Not enough space",
+                if (need != null && free != null) "It needs ${Units.bytes(need)} free, this phone has ${Units.bytes(free)}. Free up space in One UI, then try again."
+                else "Free up space in One UI (the report says how much), then tap Make iOS image again.",
+            )
+            code == "network" -> m("No connection to Apple", "Connect to Wi-Fi or mobile data. $again", Level.WARN)
+            code == "changed" -> m("Apple's file changed while it came", "That part was not kept. Tap Make iOS image again to download it once more.", Level.WARN)
+            code == "heat" -> m("Your phone is too warm", "Let it cool down, then tap Make iOS image again: it goes on from where it stopped.", Level.WARN)
+            code == "battery" -> m("Charge your phone", "Plug it in, then tap Make iOS image again: it goes on from where it stopped.", Level.WARN)
+            code == "auth" -> m(
+                "Apple's iOS image didn't check out", "Its key or a byte of it was not Apple's, so it was not used. Tap Make iOS image again.",
+            )
+            code == "mismatch" -> m(
+                "Apple's files didn't check out", "One isn't the file this OneiOS pins, so it was not kept. Tap Make iOS image again.",
+            )
+            code == "audit" -> m("The kernel didn't pass its checks", "Nothing was changed. Open the report below for details.")
+            code == "not-ported" && "decrypt" in t -> m(
+                "This runtime can't decrypt iOS yet",
+                "Its oneios-tool can't decrypt Apple's images (step decrypt). Try again with a newer OneiOS runtime.",
+            )
+            code == "not-ported" || code == "unknown" -> m(
+                "This runtime's tool is too old", "Its oneios-tool can't do this step. Get a newer OneiOS runtime, then try again.",
+            )
+            code == "usage" || code == "outside" -> m(
+                "OneOS and the runtime don't agree", "Update OneOS and get the newest OneiOS runtime, then try again.",
+            )
+            code == "not-found" -> m(
+                "A file of the build is missing", "Get the runtime again, then tap Make iOS image again. The report names the file.",
+            )
+            code == "exists" -> m("An earlier image is in the way", "Tap Make iOS image again: it clears the unfinished one first.", Level.WARN)
+            code == "io" || (step == OneiosMakeImageSteps.BEGIN || step == OneiosMakeImageSteps.FINISH) && "could not" in t -> m(
+                "Couldn't write the image set", "Check that the phone has free space, then tap Make iOS image again.",
+            )
+            step == OneiosMakeImageSteps.BEGIN || step == OneiosMakeImageSteps.FINISH -> m(
+                "The image set couldn't be put in place", "Root refused it. Check again, then tap Make iOS image again.",
+            )
+            else -> m("The image couldn't be made", "Nothing was changed. Open the report below for details.")
+        }
+    }
+}
+
+/**
+ * The step names of Make iOS image's own steps (core/root's `OneiosMakeImage`) and its two codes, for
+ * [OneiosPlain.makeImage] (this module cannot see core/root; `OneiosMakeImage`'s constants are these).
+ */
+object OneiosMakeImageSteps {
+    const val STATUS = "status"
+    const val RUNTIME = "runtime"
+    const val KBINPUT = "kbinput"
+    const val BEGIN = "begin"
+    const val TOOL = "tool"
+    const val FINISH = "finish"
+    const val NO_KERNEL = "no-kernel"
+    const val NO_MAKE_IMAGE = "no-make-image"
 }
 
 /**

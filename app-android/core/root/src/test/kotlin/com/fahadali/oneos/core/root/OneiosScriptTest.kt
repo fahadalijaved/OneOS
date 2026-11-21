@@ -6,6 +6,7 @@ import com.fahadali.oneos.core.model.OneiosChecks
 import com.fahadali.oneos.core.model.OneiosEndKind
 import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosLogs
+import com.fahadali.oneos.core.model.OneiosToolFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -686,6 +687,208 @@ class OneiosScriptTest {
         // Again: the cached kernelcache is used, nothing is downloaded.
         val (_, again) = once()
         assertEquals(listOf("prelink", "kbclean"), again)
+    }
+
+    /**
+     * Make iOS image end to end against the real `oneios-tool serve` and this root script, with no network: only when
+     * `ONEIOS_TOOL_SERVE` names a tool for this machine that has `make-image` (OneiOS 42cf43b or newer):
+     * `ONEIOS_TOOL_SERVE=.../oneios-tool ./gradlew :core:root:testDebugUnitTest --tests '*OneiosScriptTest.makeIOSImage*'`.
+     * The runtime is staged by root's own verbs with a kernel and one stand-in profile in `lib/profiles/`, whose IPSW
+     * (nothing of Apple's: OneiOS's tests/serve.rs `stand_in_ipsw`) `oneios-tool rangeserve` serves on 127.0.0.1; the
+     * pairing files are this APK's own `assets/kb/`. [OneiosMakeImage] sends the app's exact requests:
+     * 1. with the room short (the tool's `ONEIOS_SERVE_TEST_FREE`): `make-image` is refused `space` at `check`, with
+     *    one `space` event, before anything is fetched or written;
+     * 2. with room: the tool takes the app's keys and its defaults (the profile, the runtime's kernel, kb/), fetches
+     *    every member from the profile's URL, and stops at `place` (the stand-in OS image is no APFS volume), so
+     *    root's `finish` is not asked; it leaves `image.new` and both lists empty and no `make/build`, and keeps the
+     *    fetched members in `make/inputs` for the next run.
+     * What it does not reach (no stand-in can): the decryption, the volumes, the tweaks, the prelink, `finish image`.
+     */
+    @Test
+    fun makeIOSImageRunsTheAppsRequestsAgainstTheRealTool() {
+        val tool = System.getenv("ONEIOS_TOOL_SERVE")?.let(::File)
+        assumeTrue("ONEIOS_TOOL_SERVE names no oneios-tool", tool?.canExecute() == true)
+        val f = Fake("/bin/sh")
+        val web = File(f.root, "web").apply { mkdirs() }
+        val port = java.net.ServerSocket(0).use { it.localPort }
+        val (profile, sizes) = standInIpsw(web, "http://127.0.0.1:$port/stand-in.ipsw", osLen = 9000)
+        val toolPath = tool!!.path
+        started += ProcessBuilder(toolPath, "rangeserve", web.path, port.toString()).redirectErrorStream(true).redirectOutput(File(f.root, "rangeserve.log")).start()
+        await("rangeserve on $port") { runCatching { java.net.Socket("127.0.0.1", port).close() }.isSuccess }
+        // A runtime with a kernel, staged as the app stages one (root's begin, receive, finish with the kernel's facts).
+        val xnu = ByteArray(4096) { (it * 7).toByte() }
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("runtime")))
+        assertOk(f.receive("runtime", "runtime.json", """{"format": 1, "kernel": {"path": "kernel/xnu.macho"}}""".toByteArray()))
+        assertOk(f.receive("runtime", "bin/xnuhost", ELF, "0755"))
+        assertOk(f.receive("runtime", "kernel/xnu.macho", xnu))
+        assertOk(f.receive("runtime", "lib/profiles/test.toml", profile.toByteArray()))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", "4", "0.1.13", "1", "bin/xnuhost", "1", "0", "xnu-12377-test-aaaaaaaaaaaa", Hashes.sha256(xnu), "12377")))
+        val kb = com.fahadali.oneos.core.model.OneiosKb.parse(File(Shipped.fullAssets, "kb/kb.json").readText()).getOrThrow()
+        val assets = OneiosKbInput.NAMES.associateWith { File(Shipped.fullAssets, "kb/$it").readBytes() }
+        File(f.stage, "tool").mkdirs()
+
+        class Run(val env: Map<String, String>) : OneiosMakeImage.Io {
+            val asked = mutableListOf<String>()
+            var view = com.fahadali.oneos.core.model.OneiosToolFlow()
+            val events = mutableListOf<com.fahadali.oneos.core.model.OneiosTool.Event>()
+            private var s: OneiosToolSession? = null
+
+            override fun status(): Result<OneiosStatus> = Result.success(f.verb(OneiosRoot.Verb.STATUS).also { asked += "status" }.status)
+            override fun latestRuntime(unless: String?): OneiosMakeImage.Runtime = error("the staged runtime carries a kernel: no download")
+            override fun root(verb: OneiosRoot.Verb, args: List<String>, data: ByteArray?): String? {
+                asked += if (verb == OneiosRoot.Verb.KBINPUT) "kbinput" else verb.word
+                val o = f.verb(verb, args, data)
+                return if (o.exit == 0 && o.reply.ok != null) null else o.reply.refused ?: o.reply.failed ?: o.text
+            }
+            override fun openTool(): Result<List<String>> {
+                asked += "tool"
+                val t = OneiosToolSession(
+                    "exec '$toolPath' serve --stage '${f.stage.path}' --idle 120 --thermal off", launch = listOf("sh", "-c"),
+                    environment = mapOf("TMPDIR" to File(f.stage, "tool").path) + env,
+                )
+                s = t
+                return when (val st = t.start()) {
+                    is OneiosToolSession.Start.Ready -> Result.success(st.hello.cmds)
+                    else -> Result.failure(IllegalStateException(st.toString()))
+                }
+            }
+            override fun closeTool() {
+                s?.close()
+                s = null
+            }
+            override fun tool(cmd: String, keys: Map<String, Any?>): com.fahadali.oneos.core.model.OneiosToolFlow {
+                asked += cmd
+                val t = s!!
+                view = com.fahadali.oneos.core.model.OneiosToolFlow()
+                val end = t.call(cmd, keys) { e -> events += e; view = view.with(e) }
+                return if (end == null) view.lost(t.ended ?: "the tool ended") else view
+            }
+            override fun phase(phase: OneiosMakeImage.Phase) {}
+            override fun done(line: String) {}
+            override val stopped = false
+        }
+        fun once(env: Map<String, String>): Pair<OneiosMakeImage.Outcome, Run> {
+            val io = Run(env)
+            try {
+                return OneiosMakeImage(f.stage.path, kb, assets).run(io) to io
+            } finally {
+                io.closeTool()
+            }
+        }
+        fun nothingLeft(what: String) {
+            assertEquals(what, emptyList<String>(), File(f.stage, "image.new").list()!!.toList())
+            assertEquals(what, 0L, File(f.stage, "image.new.sha256").length())
+            assertEquals(what, 0L, File(f.stage, "image.new.ids").length())
+            assertFalse(what, File(f.stage, "make/build").exists())
+        }
+        // A tool from before make-image (the v0.1.12 runtime's): nothing to test against.
+        val probe = OneiosToolSession(
+            "exec '$toolPath' serve --stage '${f.stage.path}' --idle 10 --thermal off", launch = listOf("sh", "-c"),
+            environment = mapOf("TMPDIR" to File(f.stage, "tool").path),
+        )
+        val cmds = try {
+            (probe.start() as? OneiosToolSession.Start.Ready)?.hello?.cmds.orEmpty()
+        } finally {
+            probe.close()
+        }
+        assumeTrue("this oneios-tool has no make-image (OneiOS 42cf43b or newer has)", com.fahadali.oneos.core.model.OneiosTool.Cmd.MAKE_IMAGE in cmds)
+
+        // 1. The room short: refused at check, nothing fetched or written; root's finish not asked.
+        val (short, a) = once(mapOf("ONEIOS_SERVE_TEST_FREE" to "1000"))
+        short as OneiosMakeImage.Outcome.Stopped
+        assertEquals("make-image" to "space", short.step to short.code)
+        assertEquals(listOf("status") + List(12) { "kbinput" } + listOf("begin", "tool", "make-image"), a.asked)
+        assertEquals(1, a.events.count { it is com.fahadali.oneos.core.model.OneiosTool.Event.Space })
+        assertEquals(1000L, short.free)
+        assertTrue("${short.need}", (short.need ?: 0) > 1000)
+        assertEquals("Not enough space", com.fahadali.oneos.core.model.OneiosPlain.makeImage(short.step, short.end, short.code, short.text, short.need, short.free).title)
+        assertFalse(File(f.stage, "make/inputs").exists())
+        nothingLeft("space")
+        // The pairing files are in kb/, each the APK's.
+        for (name in OneiosKbInput.NAMES) assertTrue(name, File(f.stage, "kb/$name").readBytes().contentEquals(assets.getValue(name)))
+
+        // 2. With room: the app's request is taken whole, every member fetched from the profile's URL, the stop at
+        // place (the stand-in OS image is no APFS volume), everything written removed but the fetched members.
+        val (failed, b) = once(emptyMap())
+        failed as OneiosMakeImage.Outcome.Stopped
+        assertEquals("make-image" to OneiosToolFlow.End.FAILED, failed.step to failed.end)
+        assertTrue(failed.text!!, "is not a raw APFS image" in failed.text!!)
+        assertFalse(b.asked.any { it == "finish" || it == "fetch" || it == "tweaks" })
+        val start = b.events.filterIsInstance<com.fahadali.oneos.core.model.OneiosTool.Event.Start>().single()
+        assertEquals(com.fahadali.oneos.core.model.OneiosTool.Cmd.MAKE_IMAGE, start.cmd)
+        assertEquals(listOf("check", "directory", "download", "decrypt", "place"), start.steps.map { it.first }.take(5))
+        assertTrue(start.steps.map { it.first }.containsAll(listOf("tweaks", "seed", "kernelcache", "kernel-audit", "kernel-stubs-check", "manifest", "verify", "lists")))
+        assertEquals(listOf("check", "directory", "download", "decrypt", "place"), b.events.filterIsInstance<com.fahadali.oneos.core.model.OneiosTool.Event.Step>().map { it.step })
+        assertEquals(1, b.events.count { it is com.fahadali.oneos.core.model.OneiosTool.Event.Space })
+        nothingLeft("failure")
+        for ((name, size) in sizes) assertEquals(name, size, File(f.stage, "make/inputs/$name").length())
+        assertTrue(File(f.stage, "make/inputs/inputs.json").isFile)
+        assertEquals("The image couldn't be made", com.fahadali.oneos.core.model.OneiosPlain.makeImage(failed.step, failed.end, failed.code, failed.text).title)
+        // The staged runtime and kb/ are as they were; no image set was staged.
+        assertEquals(null, f.verb(OneiosRoot.Verb.STATUS).status.image)
+    }
+
+    /**
+     * A stand-in IPSW in [web] (`stand-in.ipsw`) and its profile, as OneiOS's tests/serve.rs `stand_in_ipsw` makes
+     * them (no AEA): generated members, a BuildManifest with the build identity the profile asks for, every member's
+     * size and CRC-32 pinned, the profile's URL [url]. Returns the profile's text and each file `fetch` writes (by
+     * its name in INDIR) with its size.
+     */
+    private fun standInIpsw(web: File, url: String, osLen: Int): Pair<String, Map<String, Long>> {
+        fun noise(n: Int, seed: Int) = ByteArray(n) { i -> ((i * 1103515245L + seed * 12345L) ushr 7).toByte() }
+        val members = listOf(
+            Triple("os", "001-00001-001.dmg", noise(osLen, 31)),
+            Triple("systemos", "001-00002-001.dmg", noise(70_000, 32)),
+            Triple("app", "001-00003-001.dmg", noise(32_768, 33)),
+            Triple("trust-static", "Firmware/001-00001-001.dmg.trustcache", noise(100, 34)),
+            Triple("trust-system", "Firmware/001-00002-001.dmg.trustcache", noise(100, 35)),
+            Triple("trust-app", "Firmware/001-00003-001.dmg.trustcache", noise(100, 36)),
+            Triple("roothash-os", "Firmware/001-00001-001.dmg.root_hash", noise(100, 37)),
+            Triple("roothash-system", "Firmware/001-00002-001.dmg.root_hash", noise(100, 38)),
+            Triple("roothash-app", "Firmware/001-00003-001.dmg.root_hash", noise(100, 39)),
+            Triple("kernelcache", "kernelcache.release.t1", noise(4000, 40)),
+            Triple("devicetree", "Firmware/all_flash/DeviceTree.t1ap.im4p", noise(200, 41)),
+        )
+        val components = listOf(
+            "os" to "OS", "systemos" to "Cryptex1,SystemOS", "app" to "Cryptex1,AppOS", "trust-static" to "StaticTrustCache",
+            "trust-system" to "Cryptex1,SystemTrustCache", "trust-app" to "Cryptex1,AppTrustCache", "roothash-os" to "SystemVolume",
+            "roothash-system" to "Cryptex1,SystemVolume", "roothash-app" to "Cryptex1,AppVolume", "kernelcache" to "KernelCache", "devicetree" to "DeviceTree",
+        )
+        val manifest = components.joinToString("") { (role, name) ->
+            "<key>$name</key><dict><key>Info</key><dict><key>Path</key><string>${members.first { it.first == role }.second}</string></dict></dict>"
+        }
+        val plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>ProductVersion</key><string>0.0.1</string>" +
+            "<key>ProductBuildVersion</key><string>0T1</string><key>SupportedProductTypes</key><array><string>iTest1,1</string></array>" +
+            "<key>BuildIdentities</key><array><dict><key>ApChipID</key><string>0x1234</string><key>ApBoardID</key><string>0x02</string>" +
+            "<key>Info</key><dict><key>DeviceClass</key><string>t1ap</string><key>RestoreBehavior</key><string>Erase</string></dict>" +
+            "<key>Manifest</key><dict>$manifest</dict></dict></array></dict></plist>"
+        val all = members + listOf(Triple("buildmanifest", "BuildManifest.plist", plist.toByteArray()), Triple("restore", "Restore.plist", "<plist/>".toByteArray()))
+        fun crc(b: ByteArray) = java.util.zip.CRC32().apply { update(b) }.value
+        // A stored ZIP, as tests/serve.rs `zip_of` writes it.
+        val out = java.io.ByteArrayOutputStream()
+        val dir = java.io.ByteArrayOutputStream()
+        fun le(o: java.io.ByteArrayOutputStream, v: Long, width: Int) = repeat(width) { o.write(((v ushr (8 * it)) and 0xff).toInt()) }
+        for ((_, path, data) in all) {
+            val fields = java.io.ByteArrayOutputStream()
+            for ((v, w) in listOf(20L to 2, 0L to 2, 0L to 2, 0L to 2, 0x21L to 2, crc(data) to 4, data.size.toLong() to 4, data.size.toLong() to 4, path.length.toLong() to 2, 0L to 2)) le(fields, v, w)
+            val offset = out.size().toLong()
+            out.write("PK\u0003\u0004".toByteArray(Charsets.ISO_8859_1)); out.write(fields.toByteArray()); out.write(path.toByteArray()); out.write(data)
+            dir.write("PK\u0001\u0002\u0014\u0000".toByteArray(Charsets.ISO_8859_1)); dir.write(fields.toByteArray()); dir.write(ByteArray(10)); le(dir, offset, 4); dir.write(path.toByteArray())
+        }
+        val start = out.size().toLong()
+        out.write(dir.toByteArray())
+        out.write("PK\u0005\u0006\u0000\u0000\u0000\u0000".toByteArray(Charsets.ISO_8859_1))
+        le(out, all.size.toLong(), 2); le(out, all.size.toLong(), 2); le(out, dir.size().toLong(), 4); le(out, start, 4); le(out, 0, 2)
+        File(web, "stand-in.ipsw").writeBytes(out.toByteArray())
+        val pins = all.joinToString("") { (role, path, data) -> "[[member]]\nrole = \"$role\"\npath = \"$path\"\nsize = ${data.size}\ncrc32 = \"%08x\"\n".format(crc(data)) }
+        val profile = "schema = 1\n[os]\nname = \"ios-0.0.1-0T1-iTest1,1\"\nversion = \"0.0.1\"\nbuild = \"0T1\"\ndevice = \"iTest1,1\"\nboard = \"t1ap\"\n" +
+            "chip_id = 0x1234\nboard_id = 0x02\narch = \"arm64e\"\n[ipsw]\nurl = \"$url\"\nsize = 12345\nsha256 = \"${"00".repeat(32)}\"\nneed_gib = 0\n$pins" +
+            "[image]\nformat = 1\nid = \"ios-0.0.1-0T1-iTest1-1\"\nstage = \"/data/local/tmp/oneios/image\"\narchive = \"OneiOS_test.tar.zst\"\nchunk = 4096\n" +
+            "seed = \"data.seed\"\nkernel = \"kernel.kc\"\n[image.files]\nos = \"os.img\"\nsystemos = \"systemos.img\"\napp = \"app.img\"\n" +
+            "trust-static = \"trust/static.trustcache\"\ntrust-system = \"trust/system.trustcache\"\ntrust-app = \"trust/app.trustcache\"\n" +
+            "roothash-os = \"trust/os.root_hash\"\nroothash-system = \"trust/system.root_hash\"\nroothash-app = \"trust/app.root_hash\"\n" +
+            "[data]\nvolume_uuid = \"11111111-2222-3333-4444-555555555555\"\nepoch = 1700000000\n"
+        return profile to mapOf("001-00001-001.dmg" to osLen.toLong(), "001-00002-001.dmg" to 70_000L, "001-00003-001.dmg" to 32_768L)
     }
 
     private fun manifestWithKc(size: Int, sha: String) = """

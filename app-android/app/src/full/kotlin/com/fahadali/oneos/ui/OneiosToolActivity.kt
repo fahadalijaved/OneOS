@@ -11,6 +11,7 @@ import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosToolFlow
 import com.fahadali.oneos.core.model.Units
+import com.fahadali.oneos.core.root.OneiosMakeImage
 import com.fahadali.oneos.session.OneiosJob
 import com.fahadali.oneos.session.OneiosToolJob
 import dev.oneuiproject.oneui.layout.ToolbarLayout
@@ -47,11 +48,16 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
     override fun onStart() {
         super.onStart()
         // Rebuild the rows only when a step, the end, the progress line or the output changes.
-        unsubscribe = OneiosToolJob.observeBy({ s ->
+        val tool = OneiosToolJob.observeBy({ s ->
             listOf(s.flow, s.request, s.starting, s.stopping, s.problem, s.results.size, s.view.steps, s.view.end, s.view.progressLine, s.view.paused,
                 s.view.held, s.view.netWaiting, s.view.note, s.pausedByUser, s.noNetwork, s.canPause, s.view.lines.size, s.view.rows.size,
-                s.kernelPhase, s.plain, s.builtKc)
+                s.kernelPhase, s.plain, s.builtKc, s.makePhase)
         }) { render() }
+        // Make iOS image's runtime download is OneiosJob's: its file and bytes (four times a second at most).
+        val runtime = OneiosJob.observeBy({ j ->
+            if (OneiosToolJob.state.makePhase == OneiosMakeImage.Phase.RUNTIME) listOf(j.message, j.file, j.progressLine) else null
+        }) { render() }
+        unsubscribe = { tool(); runtime() }
     }
 
     override fun onStop() {
@@ -113,7 +119,14 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
                     v.held -> getString(R.string.oneios_tool_paused)
                     else -> v.paused
                 }
-                PrebootCards.row(now, s.kernelPhase?.words ?: running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), listOfNotNull(running?.text?.takeIf { s.kernelPhase != null }, why, v.progressLine).joinToString(" · "))
+                // Make iOS image: root's steps and the runtime's download have no tool request; the tool's make-image does.
+                val phase = s.kernelPhase?.words ?: s.makePhase?.words
+                val detail = when (s.makePhase) {
+                    OneiosMakeImage.Phase.RUNTIME -> OneiosJob.state.let { j -> listOfNotNull(j.file ?: j.message, j.progressLine) }
+                    null, OneiosMakeImage.Phase.BUILD -> listOfNotNull(running?.text?.takeIf { phase != null }, why, v.progressLine)
+                    else -> emptyList()
+                }
+                PrebootCards.row(now, phase ?: running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), detail.joinToString(" · "))
             }
             end == OneiosToolFlow.End.OK -> PrebootCards.row(now, endTitle(end), s.results.lastOrNull() ?: v.text)
             else -> PrebootCards.row(now, getString(R.string.oneios_tool_idle))
@@ -132,7 +145,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             for (st in v.steps) PrebootCards.row(steps, st.text ?: st.id, mark(st.state))
         }
         if (s.refusals.isNotEmpty()) {
-            // Make iOS image asks for every step's answer: what the tool cannot do on the phone yet, in its words.
+            // Why the flow stopped, in the tool's (or root's) own words with its code: the detail of the plain words above.
             val no = PrebootCards.section(list, getString(R.string.oneios_tool_not_yet))
             for (r in s.refusals) PrebootCards.row(no, r)
         }
@@ -173,7 +186,16 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
                     startActivity(OneiosActivity.intent(this).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
                 }
             }
-            PrebootCards.row(actions, getString(R.string.oneios_tool_run_again), enabled = OneiosToolJob.canStart()) { OneiosToolJob.run(this, again) }
+            if (again == OneiosToolJob.Flow.MAKE_IMAGE && end == OneiosToolFlow.End.OK && s.plain == null && s.problem == null) {
+                // The set is staged: the switch is on iOS 27's page (its last check first).
+                PrebootCards.row(actions, getString(R.string.oneios_continue), getString(R.string.oneios_make_image_staged)) {
+                    startActivity(OneiosActivity.intent(this).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                }
+            }
+            PrebootCards.row(actions, getString(R.string.oneios_tool_run_again), enabled = OneiosToolJob.canStart()) {
+                // Make iOS image says its download and room again first.
+                if (again == OneiosToolJob.Flow.MAKE_IMAGE) OneiosActions.makeImage(this) else OneiosToolJob.run(this, again)
+            }
         }
         scroll.post { scroll.scrollTo(0, at) }
     }
