@@ -10,7 +10,8 @@
 # paths only.
 #
 #   status                      read only: what is staged, the session, whether
-#                               a switch would start (oneios_switch.sh --check)
+#                               a switch would start (oneios_switch.sh --check, quick: by the
+#                               files' ids, nothing hashed; the switch hashes)
 #   begin <runtime|image>       start staging one of them into <kind>.new
 #   receive <runtime|image> <path> <bytes> <sha256> <mode>
 #                               stdin: exactly <bytes> bytes of <path>
@@ -235,14 +236,15 @@ do_status() {
     if session_open; then say "@@RESULT session open ${st:-running}"; else say "@@RESULT session none ${st:-never}"; fi
     o=$(head -n 1 "$STAGE/return.outcome" 2>/dev/null | cut -c1-200)
     case "$o" in inplace\ *|failsafe\ *|reboot\ *) say "@@RESULT outcome $o" ;; *) say "@@RESULT outcome none" ;; esac
-    # Would a switch start now? The session script's own preflight, read only.
+    # Would a switch start now? The session script's own preflight, read only, by the files' ids (ONEIOS_CHECK_QUICK:
+    # nothing hashed, an answer in a moment); the switch verb's preflight hashes every file as before.
     if [ -f "$STAGE/oneios_switch.sh" ] && mine "$STAGE/oneios_switch.sh"; then
         if [ -n "$T" ]; then
-            out=$(ONEIOS_TEST_ROOT="$T" sh "$STAGE/oneios_switch.sh" --check 2>&1)
+            out=$(ONEIOS_CHECK_QUICK=1 ONEIOS_TEST_ROOT="$T" sh "$STAGE/oneios_switch.sh" --check 2>&1)
         else
             find_bb
             if [ -n "$BB" ]; then
-                out=$(ONEIOS_APP=1 ONEIOS_ACK_EXPERIMENTAL=1 "$BB" nsenter -t 1 -m -- /system/bin/sh "$STAGE/oneios_switch.sh" --check 2>&1 </dev/null)
+                out=$(ONEIOS_CHECK_QUICK=1 ONEIOS_APP=1 ONEIOS_ACK_EXPERIMENTAL=1 "$BB" nsenter -t 1 -m -- /system/bin/sh "$STAGE/oneios_switch.sh" --check 2>&1 </dev/null)
             else
                 out="PREFLIGHT REFUSED: no busybox at the root manager's paths"
             fi
@@ -938,12 +940,27 @@ do_check() {
         check_is_tool "$pid" && kill -KILL "$pid" 2>/dev/null
     ) < /dev/null > /dev/null 2>&1 &
     dog=$!
+    # The tool's lines as they come, so the app shows them while it runs (a GPU check takes up to two minutes):
+    # once a second, whole lines only, each "| "-prefixed and cut at 2000 characters, at most 20000 of them. The
+    # loop ends with the tool (a zombie's cmdline is empty, so check_is_tool fails); the rest after the wait.
+    sent=0
+    check_flush() { # [all]: the log's lines after the first $sent; with all, the last one without its newline too
+        n=$(wc -l < "$log" 2>/dev/null)
+        [ "$1" = all ] && n=$((n + 1))
+        [ "$n" -gt "$sent" ] 2>/dev/null || return 0
+        [ "$sent" -ge 20000 ] || sed -n "$((sent + 1)),${n}p" "$log" | head -n $((20000 - sent)) | cut -c1-2000 | sed 's/^/| /'
+        sent=$n
+    }
+    while check_is_tool "$pid"; do
+        sleep 1
+        check_flush
+    done
     wait "$pid"
     rc=$?
     kill "$dog" 2>/dev/null
     timed=0
     [ ! -e "$CHECKS/timeout" ] || timed=1
-    head -c 262144 "$log" | sed 's/^/| /'
+    check_flush all
     if [ $timed = 1 ]; then
         check_restore "$id"
         say "@@RESULT check $id timeout $limit"

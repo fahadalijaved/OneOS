@@ -127,9 +127,16 @@ class OneiosChecksActivity : EdgeToEdgeActivity() {
 
         if (s.running != null) {
             val card = PrebootCards.section(list)
-            val name = OneiosChecks.byId(s.running)?.title.orEmpty()
+            val running = OneiosChecks.byId(s.running)
+            val name = running?.title.orEmpty()
+            // How long it has run of its limit, and the tool's latest line as root passes it on (once a second).
+            val seconds = if (s.startedAt > 0) ((android.os.SystemClock.elapsedRealtime() - s.startedAt) / 1000).toInt() else 0
             PrebootCards.row(card, getString(R.string.oneios_checks_running, name),
-                if (s.queued.isEmpty()) null else getString(R.string.oneios_checks_queued, s.queued.size))
+                listOfNotNull(
+                    running?.let { getString(R.string.oneios_checks_elapsed, seconds, it.limitSeconds) },
+                    s.liveLine,
+                    if (s.queued.isEmpty()) null else getString(R.string.oneios_checks_queued, s.queued.size),
+                ).joinToString("\n"))
             PrebootCards.row(card, getString(R.string.oneios_stop), getString(R.string.oneios_checks_stop_line)) { OneiosChecksJob.cancel() }
         }
 

@@ -10,6 +10,7 @@ import android.view.WindowInsets
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.Toolbar
 import androidx.core.widget.NestedScrollView
 import com.fahadali.oneos.R
@@ -26,7 +27,8 @@ import dev.oneuiproject.oneui.R as Icons
 
 /**
  * iOS 27 (OneiOS)'s page (docs/oneios.md, "In the app"), as an Android system's page is
- * (EnvironmentActivity, the same activity_environment layout): the artwork, the state of the iOS
+ * (EnvironmentActivity, the same activity_environment layout): the artwork, what runs now (its step and seconds),
+ * the setup steps while the runtime or the image set is missing ([stepper]), else the state of the iOS
  * files on this phone as check tiles (the runtime and its check, the image set and its check, iOS's
  * data, the last check before the switch), the one thing that stops the switch in plain words with
  * its fix, the runtime's and the image set's own rows, the last session and its logs, the tools, and
@@ -114,16 +116,37 @@ class OneiosActivity : EdgeToEdgeActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!OneiosJob.state.busy) OneiosJob.refresh(this)
+        // Not again when root answered moments ago (back from the picker, a flow, the logs): OneiosJob.refreshIfStale.
+        if (!OneiosJob.state.busy) OneiosJob.refreshIfStale(this)
     }
 
     override fun onStop() {
+        ticker.removeCallbacks(tick)
         unsubscribe?.invoke()
         unsubscribe = null
         toolUnsubscribe?.invoke()
         toolUnsubscribe = null
         super.onStop()
     }
+
+    /** The busy card's line, counted each second while a job runs ([render], [tick]). */
+    private var busyRow: dev.oneuiproject.oneui.widget.CardItemView? = null
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            val s = OneiosJob.state
+            val row = busyRow ?: return
+            if (!s.busy || isDestroyed) return
+            row.summary = busyLine(s)
+            ticker.postDelayed(this, 1000)
+        }
+    }
+
+    /** "Asking root for access… · 7 s": the step in words, and how long it has run. */
+    private fun busyLine(s: OneiosJob.State): String = listOfNotNull(
+        s.message,
+        s.since.takeIf { it > 0 }?.let { getString(R.string.oneios_seconds, ((android.os.SystemClock.elapsedRealtime() - it) / 1000).toInt()) },
+    ).joinToString(" · ")
 
     private fun render(s: OneiosJob.State) {
         if (isDestroyed) return
@@ -133,57 +156,36 @@ class OneiosActivity : EdgeToEdgeActivity() {
         val column = findViewById<LinearLayout>(R.id.environment_cards)
         column.removeAllViews()
 
-        // What runs now (a system page's busy card): a download or an import has its progress on Set up iOS 27.
+        // What runs now (a system page's busy card), at full size: what it is, the step in words and its seconds (the
+        // ticker counts them), Stop for a check; a download or an import has its progress on Set up iOS 27. Before
+        // 2026-11-22 this was one small caption, and a check that waited for root showed nothing else.
+        busyRow = null
         s.job?.let { job ->
             val busy = PrebootCards.section(column)
-            CardRows.text(busy, s.message ?: OneiosActions.runningTitle(this, job), R.style.OneOS_Text_Caption, inList = true).apply {
-                setPaddingRelative(paddingStart, dp(12), paddingEnd, dp(12))
+            busyRow = PrebootCards.row(busy, OneiosActions.runningTitle(this, job), busyLine(s)) as dev.oneuiproject.oneui.widget.CardItemView
+            if (job == OneiosFlow.Job.CHECK) PrebootCards.row(busy, getString(R.string.oneios_stop), getString(R.string.oneios_check_stop_line)) {
+                OneiosJob.cancel()
             }
+            ticker.removeCallbacks(tick)
+            ticker.postDelayed(tick, 1000)
             if (s.copying) PrebootCards.row(busy, getString(R.string.systems_show_progress), chevron = true) {
                 startActivity(OneiosSetupActivity.intent(this))
             }
         }
 
-        // The state of the iOS files on this phone, as a system page's check tiles.
-        val checks = PrebootCards.section(column, getString(R.string.oneios_state_title))
-        checks.setPadding(dp(10), dp(10), dp(10), dp(10))
-        Cards.tileGrid(
-            checks,
-            listOf(
-                Cards.Tile(Icons.drawable.ic_oui_download, getString(R.string.oneios_runtime), tileValue(st?.runtime?.version, flow.runtime, st?.runtime?.placeholder == true), level(flow.runtime)),
-                Cards.Tile(Icons.drawable.ic_oui_file_type_zip, getString(R.string.oneios_image), tileValue(st?.image?.let { "iOS ${it.version}" }, flow.image, false), level(flow.image)),
-                Cards.Tile(
-                    Icons.drawable.ic_oui_folder_outline, getString(R.string.oneios_data),
-                    getString(if (st == null) R.string.environment_unknown else if (OneiosFlow.dataNew(st)) R.string.oneios_data_new else R.string.oneios_data_kept),
-                    if (st == null) Level.INFO else Level.OK,
-                ),
-                Cards.Tile(
-                    Icons.drawable.ic_oui_security_outline, getString(R.string.oneios_last_check),
-                    getString(
-                        when (flow.mark(OneiosFlow.Step.READY)) {
-                            OneiosFlow.Mark.DONE -> R.string.oneios_last_check_passed
-                            OneiosFlow.Mark.FAILED -> R.string.oneios_last_check_refused
-                            OneiosFlow.Mark.RUNNING -> R.string.oneios_checking
-                            else -> R.string.oneios_last_check_not_yet
-                        },
-                    ),
-                    when (flow.mark(OneiosFlow.Step.READY)) {
-                        OneiosFlow.Mark.DONE -> Level.OK
-                        OneiosFlow.Mark.FAILED -> Level.BLOCK
-                        else -> Level.INFO
-                    },
-                ),
-            ),
-        )
+        // While the runtime or the image set is missing: the steps, numbered, with what each needs and the one to do
+        // now (tap it). Once both are here: the state of the iOS files on this phone, as a system page's check tiles.
+        if (settingUp(s)) stepper(column, s, flow, idle) else tiles(column, s, flow)
 
         // What to do now, or what stops the switch, in plain words (a system page's "what stops the switch").
         val problem = flow.problem
         when {
             s.offered == false -> PrebootCards.row(PrebootCards.section(column), getString(R.string.oneios_not_this_phone_title), getString(R.string.oneios_not_this_phone))
-            problem != null && s.job == null -> {
+            // (Only a next step, such as "not set up yet": the steps above say it already.)
+            problem != null && s.job == null && !(problem.isNextStep && settingUp(s)) -> {
                 val fix = OneiosFlow.Next.of(problem.fix)
                 PrebootCards.row(PrebootCards.section(column), problem.title, problem.line, chevron = problem.fix != OneiosFix.NONE, enabled = idle) {
-                    if (problem.isNextStep) startActivity(OneiosSetupActivity.intent(this)) else OneiosActions.run(this, fix, picker)
+                    OneiosActions.run(this, fix, picker)
                 }
             }
             flow.ready && s.job == null -> PrebootCards.row(PrebootCards.section(column), getString(R.string.oneios_ready), getString(R.string.oneios_ready_line))
@@ -200,11 +202,9 @@ class OneiosActivity : EdgeToEdgeActivity() {
         PrebootCards.row(runtime, getString(R.string.oneios_runtime_download), getString(R.string.oneios_runtime_download_line), chevron = true, enabled = idle) {
             OneiosActions.download(this, null)
         }
-        PrebootCards.row(runtime, getString(R.string.oneios_runtime_tag), getString(R.string.oneios_runtime_tag_line), chevron = true, enabled = idle) {
-            OneiosActions.askTag(this)
-        }
-        PrebootCards.row(runtime, getString(R.string.oneios_have_file), getString(R.string.oneios_runtime_file_line), chevron = true, enabled = idle) {
-            picker.pick(OneiosKind.RUNTIME)
+        // The other ways in one row: an older release by its tag, or a runtime file (OneiosActions.askRuntimeOther).
+        PrebootCards.row(runtime, getString(R.string.oneios_runtime_other), getString(R.string.oneios_runtime_other_line), chevron = true, enabled = idle) {
+            OneiosActions.askRuntimeOther(this, picker)
         }
 
         // The image set: what is staged and its check; it only ever comes from a file.
@@ -219,7 +219,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
         // one), or a set the user already has.
         PrebootCards.row(image, getString(R.string.oneios_make_image), getString(R.string.oneios_make_image_line), chevron = true,
             enabled = idle || OneiosToolJob.state.busy) { OneiosActions.makeImage(this) }
-        PrebootCards.row(image, getString(R.string.oneios_have_file), getString(R.string.oneios_image_file_line), chevron = true, enabled = idle) {
+        PrebootCards.row(image, getString(R.string.oneios_image_file), getString(R.string.oneios_image_file_line), chevron = true, enabled = idle) {
             picker.pick(OneiosKind.IMAGE)
         }
         PrebootCards.row(image, getString(R.string.oneios_data), (flow.dataLine ?: getString(R.string.environment_unknown)) + "\n" + getString(R.string.oneios_data_line))
@@ -287,17 +287,107 @@ class OneiosActivity : EdgeToEdgeActivity() {
         bindAction(s, flow)
     }
 
+    /**
+     * The runtime or the image set is not staged yet (and no session is open, and the phone takes the system): the
+     * page shows the setup steps ([stepper]) in place of the tiles, so what is missing and what comes next is the
+     * first thing on it.
+     */
+    private fun settingUp(s: OneiosJob.State): Boolean {
+        val st = s.status ?: return s.offered != false
+        return s.offered != false && !st.sessionOpen && (st.runtime == null || st.image == null)
+    }
+
+    /**
+     * The setup steps on this page ([OneiosFlow]'s rows, as Set up iOS 27 shows them): numbered, each with its mark
+     * (done, now, waiting, failed, running) and its line; the step to do now says what it needs and is the one row
+     * that can be tapped, which does it (the same action as the fixed button). A step that failed is tappable too, for
+     * its fix.
+     */
+    private fun stepper(column: LinearLayout, s: OneiosJob.State, flow: OneiosFlow.View, idle: Boolean) {
+        val card = PrebootCards.section(column, getString(R.string.oneios_steps_title))
+        for ((n, r) in flow.rows.withIndex()) {
+            val now = r.mark == OneiosFlow.Mark.NEXT && r.step == flow.current
+            val fix = r.mark == OneiosFlow.Mark.FAILED && flow.problem?.fix?.let { it != OneiosFix.NONE } == true
+            val summary = when (r.mark) {
+                // A check says its step (root's grant, the stage, the last check) as it goes.
+                OneiosFlow.Mark.RUNNING -> listOfNotNull(if (s.job == OneiosFlow.Job.CHECK) s.message ?: r.line else r.line ?: s.message, s.progressLine).joinToString("\n")
+                OneiosFlow.Mark.NEXT -> OneiosActions.stepAbout(this, r.step) + if (now && idle) "\n" + getString(R.string.oneios_step_tap) else ""
+                OneiosFlow.Mark.PENDING -> OneiosActions.stepAbout(this, r.step)
+                else -> r.line
+            }
+            val title = getString(R.string.oneios_step_numbered, n + 1, OneiosActions.stepTitle(this, r.step))
+            val tap: ((View) -> Unit)? = when {
+                !idle -> null
+                now -> { _ -> OneiosActions.run(this, flow.next, picker) }
+                fix -> { _ -> OneiosActions.run(this, OneiosFlow.Next.of(flow.problem!!.fix), picker) }
+                else -> null
+            }
+            val row = PrebootCards.row(card, title, summary, chevron = tap != null, onClick = tap) as dev.oneuiproject.oneui.widget.CardItemView
+            row.icon = when (r.mark) {
+                OneiosFlow.Mark.RUNNING -> StepRingDrawable(this, if (s.copying && s.total > 0) (s.done.toFloat() / s.total).coerceIn(0f, 1f) else null)
+                OneiosFlow.Mark.DONE -> AppCompatResources.getDrawable(this, R.drawable.ic_setup_complete)
+                OneiosFlow.Mark.FAILED -> AppCompatResources.getDrawable(this, R.drawable.oneos_badge_warn)
+                OneiosFlow.Mark.NEXT -> AppCompatResources.getDrawable(this, R.drawable.ic_oneos_step_current)
+                OneiosFlow.Mark.PENDING -> AppCompatResources.getDrawable(this, R.drawable.ic_oneos_step_pending)
+            }
+            if (tap == null) {
+                row.isClickable = false
+                row.isFocusable = false
+            }
+            row.contentDescription = title + ", " + getString(
+                when (r.mark) {
+                    OneiosFlow.Mark.DONE -> R.string.setup_state_done
+                    OneiosFlow.Mark.FAILED -> R.string.setup_state_failed
+                    OneiosFlow.Mark.RUNNING, OneiosFlow.Mark.NEXT -> R.string.setup_state_current
+                    OneiosFlow.Mark.PENDING -> R.string.setup_state_pending
+                },
+            ) + summary?.let { ", $it" }.orEmpty()
+        }
+    }
+
+    /** The state of the iOS files on this phone, as a system page's check tiles (once the runtime and the image are here). */
+    private fun tiles(column: LinearLayout, s: OneiosJob.State, flow: OneiosFlow.View) {
+        val st = s.status
+        val checks = PrebootCards.section(column, getString(R.string.oneios_state_title))
+    checks.setPadding(dp(10), dp(10), dp(10), dp(10))
+    Cards.tileGrid(
+        checks,
+        listOf(
+            Cards.Tile(Icons.drawable.ic_oui_download, getString(R.string.oneios_runtime), tileValue(st?.runtime?.version, flow.runtime, st?.runtime?.placeholder == true), level(flow.runtime)),
+            Cards.Tile(Icons.drawable.ic_oui_file_type_zip, getString(R.string.oneios_image), tileValue(st?.image?.let { "iOS ${it.version}" }, flow.image, false), level(flow.image)),
+            Cards.Tile(
+                Icons.drawable.ic_oui_folder_outline, getString(R.string.oneios_data),
+                getString(if (st == null) R.string.environment_unknown else if (OneiosFlow.dataNew(st)) R.string.oneios_data_new else R.string.oneios_data_kept),
+                if (st == null) Level.INFO else Level.OK,
+            ),
+            Cards.Tile(
+                Icons.drawable.ic_oui_security_outline, getString(R.string.oneios_last_check),
+                getString(
+                    when (flow.mark(OneiosFlow.Step.READY)) {
+                        OneiosFlow.Mark.DONE -> R.string.oneios_last_check_passed
+                        OneiosFlow.Mark.FAILED -> R.string.oneios_last_check_refused
+                        OneiosFlow.Mark.RUNNING -> R.string.oneios_checking
+                        else -> R.string.oneios_last_check_not_yet
+                    },
+                ),
+                when (flow.mark(OneiosFlow.Step.READY)) {
+                    OneiosFlow.Mark.DONE -> Level.OK
+                    OneiosFlow.Mark.FAILED -> Level.BLOCK
+                    else -> Level.INFO
+                },
+            ),
+        ),
+    )
+    }
+
     /** The fixed button: the one thing to do now, with a spinner while a job runs (as a system page's Boot). */
     private fun bindAction(s: OneiosJob.State, flow: OneiosFlow.View) {
         val waiting = s.busy || (s.status == null && s.failure == null && s.offered != false)
         findViewById<View>(R.id.environment_action_spinner).visibility = if (waiting) View.VISIBLE else View.GONE
         val next = flow.next
-        // Not set up yet: Set up iOS 27, as a system's card says Set up; the steps are on that screen.
-        val setUp = !waiting && (next == OneiosFlow.Next.GET_RUNTIME || next == OneiosFlow.Next.IMPORT_IMAGE) && flow.problem?.isNextStep != false
         findViewById<Button>(R.id.environment_boot).apply {
             text = when {
                 next == OneiosFlow.Next.NOT_THIS_PHONE -> getString(R.string.catalog_not_available)
-                setUp -> getString(R.string.oneios_set_up)
                 else -> OneiosActions.label(this@OneiosActivity, next) ?: getString(R.string.oneios_switch)
             }
             isEnabled = !waiting && next != OneiosFlow.Next.NOT_THIS_PHONE
@@ -306,9 +396,9 @@ class OneiosActivity : EdgeToEdgeActivity() {
             setOnClickListener {
                 val now = OneiosJob.state
                 if (now.busy) return@setOnClickListener
-                val n = now.flow.next
-                if (setUp) startActivity(OneiosSetupActivity.intent(this@OneiosActivity))
-                else OneiosActions.run(this@OneiosActivity, n, picker)
+                // Not set up yet: the step to do now (Get the runtime, Get the iOS image), the same as its row in the
+                // steps above; a download or an import then shows its bytes on Set up iOS 27.
+                OneiosActions.run(this@OneiosActivity, now.flow.next, picker)
             }
         }
     }

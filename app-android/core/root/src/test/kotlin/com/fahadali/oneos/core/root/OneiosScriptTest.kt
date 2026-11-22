@@ -425,10 +425,17 @@ class OneiosScriptTest {
         assertTrue(f.verb(OneiosRoot.Verb.STATUS).status.ready)
         fun why() = f.verb(OneiosRoot.Verb.STATUS).status.also { assertFalse(it.ready) }.notReady!!
 
-        // xnuhost changed after staging (same size).
+        // xnuhost changed after staging (same size). Status is quick (the files' ids, nothing hashed): with the
+        // staged id kept, it does not see the change, and the switch's own preflight, which hashes, refuses it.
         val x = File(f.stage, "runtime/bin/xnuhost")
+        val staged = x.lastModified()
         x.writeBytes(ELF.copyOf().also { it[40] = 9 })
-        assertTrue(why(), why().contains("runtime/bin/xnuhost does not match its SHA-256"))
+        assertTrue(x.setLastModified(staged))
+        assertTrue(f.verb(OneiosRoot.Verb.STATUS).status.ready)
+        assertRefused(f.verb(OneiosRoot.Verb.SWITCH, listOf("100", "1")), "runtime/bin/xnuhost does not match its SHA-256")
+        // With its time changed too, status sees it by its id.
+        assertTrue(x.setLastModified(staged + 5_000))
+        assertTrue(why(), why().contains("runtime/bin/xnuhost changed since it was staged"))
         // Not an arm64 program.
         assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("runtime")))
         assertOk(f.receive("runtime", "runtime.json", "{}".toByteArray()))

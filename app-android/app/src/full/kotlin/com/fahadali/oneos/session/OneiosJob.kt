@@ -70,6 +70,8 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         val offered: Boolean? = null,
         /** The step in words while busy; afterwards the result or the reason it failed. */
         val message: String? = null,
+        /** When [message] began ([SystemClock.elapsedRealtime]): the screens count the seconds of a step that runs. */
+        val since: Long = 0,
         val failed: Boolean = false,
         val done: Long = 0,
         val total: Long = 0,
@@ -128,7 +130,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
 
     // --- Root ---------------------------------------------------------------------
 
-    private class Reply(val reply: RootReply, val end: RootShell.End) {
+    private class Reply(val reply: RootReply, val end: RootShell.End, val answered: Boolean = true) {
         val ok: Boolean get() = end.exitCode == 0 && reply.ok != null && end.error == null
         val problem: String
             get() = when {
@@ -155,6 +157,9 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         data: RootShell.Feed? = null,
         silenceMs: Long = 120_000,
         totalMs: Long = 6 * 60 * 60_000L,
+        onLine: ((RootReply) -> Unit)? = null,
+        /** The limit until root prints its first line (su waits for the root manager's grant); null: [silenceMs]. */
+        firstLineMs: Long? = null,
     ): Reply {
         val script = rootScript(app)
         val command = OneiosRoot.launcher(verb, args, BuildConfig.ONEIOS_ROOT_SHA256, BuildConfig.ONEIOS_ROOT_BYTES)
@@ -166,13 +171,14 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         val sh = RootShell(command)
         shells += sh
         val reply = RootReply()
+        var answered = false
         val end = try {
             if (cancelled) sh.cancel()
-            sh.run(input, { line -> reply.accept(line) }, { silenceMs }, totalMs)
+            sh.run(input, { line -> answered = true; reply.accept(line); onLine?.invoke(reply) }, { if (!answered && firstLineMs != null) firstLineMs else silenceMs }, totalMs)
         } finally {
             shells -= sh
         }
-        return Reply(reply, end)
+        return Reply(reply, end, answered)
     }
 
     private fun must(r: Reply): Reply {
@@ -181,7 +187,46 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         return r
     }
 
-    private fun readStatus(app: Context): OneiosStatus = OneiosStatus.parse(must(root(app, OneiosRoot.Verb.STATUS, silenceMs = 180_000)).reply.results)
+    /**
+     * Root's `status`. With [partial], what it has said of the stage is passed on as soon as only its preflight is
+     * left ([OneiosStatus.partial]), once: the screens show the stage while the last check still runs.
+     */
+    private fun readStatus(app: Context, partial: ((OneiosStatus) -> Unit)? = null): OneiosStatus {
+        // A check says each step as it comes (the screens count its seconds): root's grant, the stage, the last check.
+        val shown = partial != null
+        if (shown) say("Asking root for access…")
+        var first = true
+        var sent = false
+        val hook: (RootReply) -> Unit = { r ->
+            if (shown && first) {
+                first = false
+                say("Root answered. Reading what is on this phone…")
+            }
+            if (partial != null && !sent) OneiosStatus.partial(r.results)?.let {
+                sent = true
+                partial(it)
+                say("Checking the staged files and the phone…")
+            }
+        }
+        // Root prints its first line at once; nothing within ROOT_FIRST_LINE_MS is su waiting for a grant that does
+        // not come (before 2026-11-22 the page said "Checking…" for the whole 3 minutes of the silence limit).
+        val r = root(app, OneiosRoot.Verb.STATUS, silenceMs = 120_000, onLine = hook, firstLineMs = ROOT_FIRST_LINE_MS)
+        if (!r.ok && !r.answered && !cancelled) throw Failed(if (r.end.killed) ROOT_SILENT else "$ROOT_REFUSED (${r.problem})")
+        val st = OneiosStatus.parse(must(r).reply.results)
+        statusAt = SystemClock.elapsedRealtime()
+        return st
+    }
+
+    /** The step in words now, its seconds counted from here. */
+    private fun say(message: String) = update(state.copy(message = message, since = SystemClock.elapsedRealtime()))
+
+    private const val ROOT_FIRST_LINE_MS = 20_000L
+    internal const val ROOT_SILENT = "Root did not answer within 20 s. Open your root manager (KernelSU, Magisk or APatch), " +
+        "allow root for OneOS, then Check again. OneOS signed with a new key counts as a new app there."
+    internal const val ROOT_REFUSED = "Root was refused. Allow root for OneOS in your root manager (KernelSU, Magisk or APatch), then Check again"
+
+    /** When root last answered a whole `status` ([SystemClock.elapsedRealtime]); 0 = never in this process. */
+    @Volatile private var statusAt = 0L
 
     private fun offered(app: Context): Boolean =
         runCatching { OneiosSystem.offeredOn(Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile) }.getOrDefault(false)
@@ -217,14 +262,18 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         val app = ctx.applicationContext
         cancelled = false
         meter.reset()
-        update(state.copy(phase = phase, job = kind, last = null, failure = null, message = first, failed = false, done = 0, total = 0, file = null, bytesPerSecond = 0, etaSeconds = null))
+        update(state.copy(phase = phase, job = kind, last = null, failure = null, message = first, since = SystemClock.elapsedRealtime(), failed = false, done = 0, total = 0, file = null, bytesPerSecond = 0, etaSeconds = null))
         // Before the work, from the screen the user tapped: Android only lets a visible app start it.
         if (state.copying) OneiosService.start(app)
+        val before = state.status
         executor.execute {
             val result = runCatching { work(app) }
             val offered = state.offered ?: offered(app)
-            val read = runCatching { cancelled = false; readStatus(app) }
-            val status = read.getOrNull() ?: state.status
+            // A check shows the stage as soon as root has said it, and the last check as it runs (OneiosStatus.partial).
+            val partial: ((OneiosStatus) -> Unit)? = if (kind == OneiosFlow.Job.CHECK) { st -> update(state.copy(status = st, offered = offered)) } else null
+            val read = runCatching { cancelled = false; readStatus(app, partial) }
+            // (Not a partial answer: a status that failed keeps the one from before the job.)
+            val status = read.getOrNull() ?: before
             fun words(e: Throwable) = e.message ?: e.javaClass.simpleName
             val why = result.exceptionOrNull()?.let(::words) ?: read.exceptionOrNull()?.takeIf { kind == OneiosFlow.Job.CHECK }?.let(::words)
             update(
@@ -241,6 +290,17 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
 
     /** Read only: what is staged and whether a switch would start. */
     fun refresh(ctx: Context) = job(ctx, Phase.CHECKING, OneiosFlow.Job.CHECK, "Checking what is on this phone…") { null }
+
+    /**
+     * [refresh], unless root answered a whole status less than [maxAgeMs] ago and the screen shows it: a screen that
+     * comes back (from the picker, Make iOS image, the logs) does not ask root again for what it just said. Every job
+     * reads the status again when it ends, and Check again always asks.
+     */
+    fun refreshIfStale(ctx: Context, maxAgeMs: Long = 30_000) {
+        val s = state
+        if (s.status != null && !s.failed && statusAt != 0L && SystemClock.elapsedRealtime() - statusAt < maxAgeMs) return
+        refresh(ctx)
+    }
 
     /** The runtime package of OneiOS's latest release, or of [tag]. */
     fun downloadRuntime(ctx: Context, tag: String?) = job(ctx, Phase.DOWNLOADING, OneiosFlow.Job.DOWNLOAD_RUNTIME, "Looking for the OneiOS runtime…") { app ->
@@ -281,6 +341,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
 
     /** Root's status that another flow read (Make iOS image's last one): the iOS screens show it, when no job runs. */
     internal fun statusRead(app: Context, st: OneiosStatus) {
+        statusAt = SystemClock.elapsedRealtime()
         if (!state.busy) update(state.copy(status = st, runtimeRecord = record(app, OneiosKind.RUNTIME), imageRecord = record(app, OneiosKind.IMAGE)))
     }
 

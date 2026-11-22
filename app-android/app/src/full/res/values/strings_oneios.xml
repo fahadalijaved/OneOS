@@ -25,7 +25,7 @@
     <string name="oneios_step_data">iOS\'s own data</string>
     <string name="oneios_step_data_about">Made at the first switch and kept after that</string>
     <string name="oneios_step_ready">Last check before the switch</string>
-    <string name="oneios_step_ready_about">Root checks every file and the phone again</string>
+    <string name="oneios_step_ready_about">Root checks the staged files and the phone; the switch hashes every file again first</string>
     <string name="oneios_steps_done">%1$d of %2$d steps done</string>
     <string name="oneios_setup_then">Then: %1$s</string>
     <string name="oneios_setup_then_switch">Then you can switch to iOS 27.</string>
@@ -35,8 +35,23 @@
     <string name="oneios_stop">Stop</string>
     <string name="oneios_stop_setup">Stop</string>
     <string name="oneios_stop_summary">Stops after the current file. What was set up before stays as it was, and you can start again later.</string>
-    <string name="oneios_runtime_question">Do you have the runtime file (oneios-runtime-…-arm64.tar.zst)? If not, OneOS downloads the latest release from OneiOS on GitHub.</string>
-    <string name="oneios_runtime_download_it">No, download it</string>
+    <!-- The runtime and image choices (OneiosActions.askRuntime, askImage): the recommended way first, each with its line. -->
+    <string name="oneios_runtime_choose_title">Where should the runtime come from?</string>
+    <string name="oneios_runtime_choice_download">Download the latest release</string>
+    <string name="oneios_runtime_choice_download_line">Recommended. From OneiOS on GitHub: only OneiOS\'s own code.</string>
+    <string name="oneios_runtime_choice_tag">Download an older release</string>
+    <string name="oneios_runtime_choice_tag_line">By its tag, such as v0.1.13</string>
+    <string name="oneios_runtime_choice_file">Use a runtime file I have</string>
+    <string name="oneios_runtime_choice_file_line">A oneios-runtime-…-arm64.tar.zst you built or downloaded</string>
+    <string name="oneios_image_choose_title">Where should the iOS image come from?</string>
+    <string name="oneios_image_choice_make">Make it on this phone</string>
+    <string name="oneios_image_choice_make_line">Recommended. Downloads iOS 27.0.1 from Apple (about 11 GB, once) and builds the image here. No PC.</string>
+    <string name="oneios_image_choice_file">Use an image set I have</string>
+    <string name="oneios_image_choice_file_line">An image set (.tar.zst) you built before. It is checked against its manifest.json.</string>
+    <!-- The steps on iOS 27's page while something is missing (OneiosActivity.stepper). -->
+    <string name="oneios_steps_title">Set up iOS 27: what is left</string>
+    <string name="oneios_step_numbered">%1$d. %2$s</string>
+    <string name="oneios_step_tap">Tap to do this step</string>
     <!-- oneios-tool in the app (OneiosToolActivity, OneiosToolJob): what the tool sends, shown as it comes. -->
     <string name="oneios_make_image">Make iOS image</string>
     <string name="oneios_make_image_line">On this phone, from Apple\'s own files (about 11 GB to download, once)</string>
@@ -45,7 +60,6 @@
     <string name="oneios_make_image_free_short">This phone has %1$s free, less than that. Free up space in One UI first; the build checks the exact room before it downloads anything.</string>
     <string name="oneios_make_image_start">Make it</string>
     <string name="oneios_make_image_staged">Switch from iOS 27\'s page</string>
-    <string name="oneios_image_choose">I have the file</string>
     <string name="oneios_tool_sums">Check every file</string>
     <string name="oneios_tool_sums_line">The runtime and the image set hashed again, every file, on all cores</string>
     <string name="oneios_tool_cpu">CPU, clocks and threads</string>
@@ -125,19 +139,25 @@
     <string name="oneios_ready">Ready to switch</string>
     <string name="oneios_ready_line">Root\'s last check passed. Before the switch you read how to get back to One UI.</string>
     <string name="oneios_checking">Checking…</string>
+    <string name="oneios_seconds">%1$d s</string>
+    <string name="oneios_check_stop_line">Stops asking root. Nothing on this phone changes.</string>
+    <string name="oneios_checks_elapsed">%1$d s of at most %2$d s</string>
     <string name="oneios_runtime_none_title">No runtime on this phone yet</string>
     <string name="oneios_runtime_none">It holds xnuhost, the program that runs iOS, and comes from OneiOS\'s releases.</string>
     <string name="oneios_runtime_details">xnuhost at %1$s · session ABI %2$s (this OneOS: %3$s) · boots image format %4$s</string>
     <string name="oneios_runtime_download">Download from OneiOS\'s releases</string>
     <string name="oneios_runtime_download_line">The latest release. Only OneiOS\'s own code.</string>
-    <string name="oneios_runtime_tag">Download a release by its tag</string>
-    <string name="oneios_runtime_tag_line">For a release other than the latest</string>
-    <string name="oneios_have_file">I have the file</string>
+    <string name="oneios_runtime_other">Other ways to get it</string>
+    <string name="oneios_runtime_other_line">An older release by its tag, or a runtime file you have</string>
+    <string name="oneios_runtime_tag">Download an older release</string>
+    <string name="oneios_runtime_tag_line">By its tag, such as v0.1.13</string>
+    <string name="oneios_runtime_file">Use a runtime file I have</string>
     <string name="oneios_runtime_file_line">A oneios-runtime-…-arm64.tar.zst you built or downloaded</string>
     <string name="oneios_image_none_title">No image set on this phone yet</string>
     <string name="oneios_image_none">This phone makes it from Apple\'s firmware (Make iOS image). OneOS never ships Apple\'s files.</string>
     <string name="oneios_image_details">Image format %1$s · the runtime boots format %2$s</string>
-    <string name="oneios_image_file_line">An image set (.tar.zst) you already have. It is checked against its manifest.json.</string>
+    <string name="oneios_image_file">Use an image set I have</string>
+    <string name="oneios_image_file_line">An image set (.tar.zst) you built before. It is checked against its manifest.json.</string>
     <string name="oneios_kernel">Phone-built kernel</string>
     <string name="oneios_kernel_title">Kernel %1$s</string>
     <string name="oneios_kernel_none">The staged runtime carries no kernel. With a runtime that does, this phone updates kernel.kc itself, with no PC.</string>

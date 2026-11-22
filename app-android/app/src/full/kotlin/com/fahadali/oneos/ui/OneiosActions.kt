@@ -114,30 +114,75 @@ internal object OneiosActions {
         showProgress(a)
     }
 
-    /** "Do you have the file?", as the Android systems' Set up asks: yes, the picker; no, OneiOS's latest release. */
-    fun askRuntime(a: AppCompatActivity, picker: OneiosPicker) {
-        AlertDialog.Builder(a).setTitle(R.string.oneios_step_runtime)
-            .setMessage(R.string.oneios_runtime_question)
-            .setPositiveButton(R.string.setup_download_yes) { _, _ -> picker.pick(OneiosKind.RUNTIME) }
-            .setNegativeButton(R.string.oneios_runtime_download_it) { _, _ -> download(a, null) }
-            .setNeutralButton(android.R.string.cancel, null).show()
+    /** One choice of a [choose] list: its name, and under it in smaller, quieter text what it does. */
+    private fun choice(a: AppCompatActivity, title: Int, line: Int): CharSequence {
+        val t = a.getString(title)
+        val l = a.getString(line)
+        return android.text.SpannableStringBuilder(t).append('\n').append(l).apply {
+            val from = t.length + 1
+            setSpan(android.text.style.RelativeSizeSpan(0.85f), from, length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(a.getColor(R.color.preboot_secondary)), from, length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    /** A list of ways, the recommended one first; each item's action runs when it is tapped. */
+    private fun choose(a: AppCompatActivity, title: Int, items: List<Pair<CharSequence, () -> Unit>>) {
+        AlertDialog.Builder(a).setTitle(title)
+            .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
+            .setNegativeButton(android.R.string.cancel, null).show()
     }
 
     /**
-     * The image step (docs/oneios.md, "Make iOS image"): Make iOS image, after saying what it downloads from Apple,
-     * the room it needs at its peak and this phone's free room ([makeImage]); or, as the other button, I have the
-     * file (the picker). Nothing in it needs a PC. OneOS never ships the image set: this phone makes it from Apple's
-     * own files, for its owner.
+     * The runtime step: where the runtime comes from, as a list with the recommended way first (OneiOS's latest
+     * release), then an older release by its tag, then a file the user has. Before 2026-11-22 this was "Do you have the
+     * file? Yes / No, download it", where the usual way was the second button.
      */
-    fun askImage(a: AppCompatActivity, picker: OneiosPicker) = makeImage(a, picker)
+    fun askRuntime(a: AppCompatActivity, picker: OneiosPicker) = choose(
+        a, R.string.oneios_runtime_choose_title,
+        listOf(
+            choice(a, R.string.oneios_runtime_choice_download, R.string.oneios_runtime_choice_download_line) to { download(a, null) },
+            choice(a, R.string.oneios_runtime_choice_tag, R.string.oneios_runtime_choice_tag_line) to { askTag(a) },
+            choice(a, R.string.oneios_runtime_choice_file, R.string.oneios_runtime_choice_file_line) to { picker.pick(OneiosKind.RUNTIME) },
+        ),
+    )
+
+    /** The runtime's other ways (an older release, a file), for the runtime section of iOS 27's page. */
+    fun askRuntimeOther(a: AppCompatActivity, picker: OneiosPicker) = choose(
+        a, R.string.oneios_runtime_choose_title,
+        listOf(
+            choice(a, R.string.oneios_runtime_choice_tag, R.string.oneios_runtime_choice_tag_line) to { askTag(a) },
+            choice(a, R.string.oneios_runtime_choice_file, R.string.oneios_runtime_choice_file_line) to { picker.pick(OneiosKind.RUNTIME) },
+        ),
+    )
+
+    /**
+     * The image step (docs/oneios.md, "Make iOS image"): where the image comes from, as a list with the recommended
+     * way first. Make it on this phone goes on to [makeImage], which says what it downloads from Apple, the room it
+     * needs at its peak and this phone's free room. Use an image set I have is the picker. Nothing in it needs a PC.
+     * OneOS never ships the image set: this phone makes it from Apple's own files, for its owner. Before 2026-11-22
+     * the picker was a third button of Make iOS image's own dialog.
+     */
+    fun askImage(a: AppCompatActivity, picker: OneiosPicker) {
+        if (OneiosToolJob.state.busy) {
+            a.startActivity(OneiosToolActivity.intent(a))
+            return
+        }
+        choose(
+            a, R.string.oneios_image_choose_title,
+            listOf(
+                choice(a, R.string.oneios_image_choice_make, R.string.oneios_image_choice_make_line) to { makeImage(a) },
+                choice(a, R.string.oneios_image_choice_file, R.string.oneios_image_choice_file_line) to { picker.pick(OneiosKind.IMAGE) },
+            ),
+        )
+    }
 
     /**
      * Make iOS image ([OneiosToolJob.Flow.MAKE_IMAGE]), asked first: the download (about 11 GB from Apple, once),
      * the free room it needs while it builds ([OneiosTool.MAKE_IMAGE_ROOM_BYTES]; the tool checks the exact room
-     * itself before it downloads anything) and the room this phone has now. With [picker], the dialog offers the
-     * picker for an image set the user already has. While the flow runs, its screen opens instead.
+     * itself before it downloads anything) and the room this phone has now. While the flow runs, its screen opens
+     * instead.
      */
-    fun makeImage(a: AppCompatActivity, picker: OneiosPicker? = null) {
+    fun makeImage(a: AppCompatActivity) {
         if (OneiosToolJob.state.busy) {
             a.startActivity(OneiosToolActivity.intent(a))
             return
@@ -153,7 +198,6 @@ internal object OneiosActions {
         val d = AlertDialog.Builder(a).setTitle(R.string.oneios_make_image).setMessage(text)
             .setPositiveButton(R.string.oneios_make_image_start) { _, _ -> OneiosToolActivity.start(a, OneiosToolJob.Flow.MAKE_IMAGE) }
             .setNegativeButton(android.R.string.cancel, null)
-        if (picker != null) d.setNeutralButton(R.string.oneios_image_choose) { _, _ -> picker.pick(OneiosKind.IMAGE) }
         d.show()
     }
 

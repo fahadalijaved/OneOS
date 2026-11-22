@@ -296,6 +296,11 @@ data class OneiosStatus(
     val lastReturnDetail: String? = null,
     val ready: Boolean = false,
     val notReady: String? = null,
+    /**
+     * Root has printed what is staged but its preflight (the `ready` line, the last) still runs: the screens show
+     * the stage and "checking" for the last check ([partial]). Never set by [parse].
+     */
+    val checking: Boolean = false,
 ) {
     data class Runtime(val version: String, val sessionAbi: String, val xnuhost: String, val imageFormats: String, val placeholder: Boolean = false)
 
@@ -334,6 +339,16 @@ data class OneiosStatus(
                 }
             }
             return s
+        }
+
+        /**
+         * What `status` has printed so far, once it has said everything but the preflight's `ready` line (its last,
+         * after `outcome`): the stage as it is, [checking] set. Null before that, and for a stage that is not there
+         * (`stage none`: the whole answer, no preflight follows).
+         */
+        fun partial(results: List<String>): OneiosStatus? {
+            if (results.none { it.startsWith("outcome") } || results.any { it.startsWith("ready") }) return null
+            return parse(results).takeIf { it.staged }?.copy(checking = true)
         }
     }
 }

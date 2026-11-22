@@ -69,6 +69,9 @@ ABI=1
 APP="${ONEIOS_APP:-0}"
 [ "$APP" = 1 ] || APP=0
 MODE="${1:-session}"
+# The app's status (root's status verb): --check by the files' ids, hashing nothing (check_list). Never the switch.
+QUICK=0
+[ "$MODE" != --check ] || [ "${ONEIOS_CHECK_QUICK:-0}" != 1 ] || QUICK=1
 OWNER=0
 [ -z "$T" ] || OWNER=$(id -u)
 
@@ -381,15 +384,19 @@ stage_checks() {
 # ids: each file is the one root hashed at staging (dev:inode:size:mtime in
 # <kind>.ids); files under 64 MiB are hashed again, and all of them with
 # ONEIOS_VERIFY_IMAGE=1 (minutes for an image of several GB).
+# quick (the app's status: --check with ONEIOS_CHECK_QUICK=1): both kinds by their
+# ids only, nothing hashed, so iOS 27's page has its answer in a moment. The
+# switch never takes it: its own preflight hashes as above before the first change.
 check_list() {
     kind=$1 how=$2
+    [ "$QUICK" != 1 ] || how=quick
     SUMS="$STAGE/$kind.sha256"
     [ -f "$SUMS" ] && root_only "$SUMS" || refuse "$kind.sha256 is missing or not root's: stage the $kind again"
     bad=$(awk 'NF != 2 || length($1) != 64 || $1 ~ /[^0-9a-f]/ || $2 !~ /^[A-Za-z0-9_][A-Za-z0-9._+\/-]*$/ || $2 ~ /\.\./ ||
                seen[$2]++ { print NR ": " $0 }' "$SUMS" | head -n 3)
     [ -z "$bad" ] || refuse "$kind.sha256 has malformed lines: $bad"
     [ -s "$SUMS" ] || refuse "$kind.sha256 is empty"
-    if [ "$how" = ids ]; then
+    if [ "$how" != full ]; then
         IDS="$STAGE/$kind.ids"
         [ -f "$IDS" ] && root_only "$IDS" || refuse "$kind.ids is missing or not root's: stage the $kind again"
     fi
@@ -398,22 +405,25 @@ check_list() {
         [ -f "$f" ] && [ ! -L "$f" ] || refuse "$kind/$name is missing or a link: stage the $kind again"
         root_only "$f" || refuse "$kind/$name is not root's or is writable by others"
         hash=1
-        if [ "$how" = ids ]; then
+        if [ "$how" != full ]; then
             want=$(awk -v n="$name" '$2 == n { print $1 }' "$IDS")
             [ -n "$want" ] && [ "$(file_id "$f")" = "$want" ] ||
                 refuse "$kind/$name changed since it was staged: stage the $kind again"
+            if [ "$how" = quick ]; then hash=0
             # (awk, not the shell: Android's sh counts in 32 bits, and an image of several GB wraps.)
-            [ "${ONEIOS_VERIFY_IMAGE:-0}" = 1 ] || awk -v b="$(stat -c %s "$f" 2>/dev/null)" 'BEGIN { exit !(b + 0 < 67108864) }' || hash=0
+            else [ "${ONEIOS_VERIFY_IMAGE:-0}" = 1 ] || awk -v b="$(stat -c %s "$f" 2>/dev/null)" 'BEGIN { exit !(b + 0 < 67108864) }' || hash=0
+            fi
         fi
         if [ $hash = 1 ]; then
             [ "$(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)" = "$sum" ] ||
                 refuse "$kind/$name does not match its SHA-256: stage the $kind again"
         fi
     done < "$SUMS"
-    # Nothing the list does not name (a leftover would be visible to xnuhost).
-    extra=$(cd "$STAGE/$kind" && find . ! -type d | sed 's|^\./||' | while read -r n; do
-        awk -v n="$n" '$2 == n { f = 1 } END { exit !f }' "$SUMS" || echo "$n"
-    done | head -n 3 | tr '\n' ' ')
+    # Nothing the list does not name (a leftover would be visible to xnuhost): one awk that reads the list once,
+    # not one awk for each file.
+    extra=$(cd "$STAGE/$kind" && find . ! -type d | sed 's|^\./||' |
+        awk -v s="$SUMS" 'BEGIN { while ((getline l < s) > 0) { split(l, w, " "); listed[w[2]] = 1 } } !($0 in listed)' |
+        head -n 3 | tr '\n' ' ')
     [ -z "$extra" ] || refuse "$kind/ holds files its list does not name ($extra): stage the $kind again"
 }
 

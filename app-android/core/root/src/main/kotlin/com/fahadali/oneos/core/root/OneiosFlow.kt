@@ -25,9 +25,10 @@ object OneiosFlow {
     enum class Mark { PENDING, NEXT, RUNNING, DONE, FAILED }
 
     /**
-     * A package's check now. The runtime: root's preflight hashed every file again; the image set:
-     * every file is the one root hashed at staging, the small ones hashed again. [NOT_CHECKED]: the
-     * preflight stopped before it got there (or has not run).
+     * A package's check now, by root's status: every file is there, root's, and the one root hashed at staging
+     * (its device, inode, size and time; status hashes nothing, so it answers at once). The switch's own preflight
+     * hashes them again before it changes anything. [NOT_CHECKED]: the preflight stopped before it got there (or
+     * has not run).
      */
     enum class Check { NOT_STAGED, PASSED, FAILED, NOT_CHECKED }
 
@@ -108,7 +109,8 @@ object OneiosFlow {
         val failure = i.failure?.takeIf { it.isNotBlank() }?.let { OneiosPlain.refused(it, i.last?.kind) }
         // No stage at all: the launcher answers `stage none` and no `ready` line; that is the first step, not a fault.
         val refusal = when {
-            st == null || st.ready -> null
+            // Root has said what is staged; its preflight still runs (OneiosStatus.partial): no answer yet.
+            st == null || st.ready || st.checking -> null
             st?.staged == false -> OneiosPlain.refused("OneiOS is not set up on this phone yet")
             else -> OneiosPlain.refused(st?.notReady.orEmpty())
         }
@@ -150,7 +152,7 @@ object OneiosFlow {
         val data = Row(Step.DATA, if (filesDone) Mark.DONE else Mark.PENDING, if (filesDone) dataLine else null)
         val lastCheck = when {
             i.running == Job.SWITCH -> Row(Step.READY, Mark.RUNNING, "Checking every file and the phone once more…")
-            i.running == Job.CHECK && filesDone -> Row(Step.READY, Mark.RUNNING, "Root checks every file and the phone…")
+            i.running == Job.CHECK && filesDone -> Row(Step.READY, Mark.RUNNING, "Root checks the staged files and the phone…")
             failedBy(Job.SWITCH) != null && filesDone -> Row(Step.READY, Mark.FAILED, failure!!.line)
             !filesDone -> Row(Step.READY, Mark.PENDING, null)
             st?.ready == true -> Row(Step.READY, Mark.DONE, "Ready to switch")
@@ -208,13 +210,13 @@ object OneiosFlow {
     }
 
     fun checkWords(check: Check, kind: OneiosKind): String = when (check) {
-        Check.PASSED -> if (kind == OneiosKind.RUNTIME) "every file checked" else "every file as staged"
+        Check.PASSED -> "every file as staged"
         Check.FAILED -> "check failed"
         Check.NOT_CHECKED -> "not checked yet"
         Check.NOT_STAGED -> "not on this phone"
     }
 
-    /** "0.1.6 · 21 files, 12 MB · every file checked" (the size only from the app's own record of this version). */
+    /** "0.1.6 · 21 files, 12 MB · every file as staged" (the size only from the app's own record of this version). */
     fun runtimeLine(r: OneiosStatus.Runtime, check: Check, record: OneiosStaged?): String = listOfNotNull(
         "Version ${r.version}",
         record?.let { "${it.files} files, ${Units.bytes(it.bytes)}" },

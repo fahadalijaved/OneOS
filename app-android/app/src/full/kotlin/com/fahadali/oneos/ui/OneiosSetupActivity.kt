@@ -82,7 +82,7 @@ class OneiosSetupActivity : EdgeToEdgeActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!OneiosJob.state.busy) OneiosJob.refresh(this)
+        if (!OneiosJob.state.busy) OneiosJob.refreshIfStale(this)
     }
 
     override fun onStop() {
@@ -150,7 +150,7 @@ class OneiosSetupActivity : EdgeToEdgeActivity() {
             val r = flow.row(step)
             val summary = when {
                 r.mark == OneiosFlow.Mark.RUNNING && s.copying -> listOfNotNull(s.file ?: s.message, s.progressLine).joinToString("\n")
-                r.mark == OneiosFlow.Mark.RUNNING -> r.line ?: s.message
+                r.mark == OneiosFlow.Mark.RUNNING -> if (s.job == OneiosFlow.Job.CHECK) s.message ?: r.line else r.line ?: s.message
                 r.mark == OneiosFlow.Mark.NEXT -> OneiosActions.stepAbout(this, step)
                 else -> r.line
             }

@@ -153,9 +153,9 @@ class OneiosFlowTest {
         // The image refusal comes after the runtime's checks: the runtime passed them.
         assertEquals(OneiosFlow.Check.PASSED, v.runtime)
         assertEquals(OneiosFlow.Check.NOT_STAGED, v.image)
-        assertEquals("Version 0.1.6 · 12 files, 12 MB · every file checked", v.runtimeLine)
+        assertEquals("Version 0.1.6 · 12 files, 12 MB · every file as staged", v.runtimeLine)
         // The app's record of another version is not shown.
-        assertEquals("Version 0.1.6 · every file checked", flow(st, runtimeRecord = record.copy(version = "0.1.5")).runtimeLine)
+        assertEquals("Version 0.1.6 · every file as staged", flow(st, runtimeRecord = record.copy(version = "0.1.5")).runtimeLine)
     }
 
     @Test
@@ -261,5 +261,31 @@ class OneiosFlowTest {
         assertEquals("Back in One UI by the failsafe", failsafe.title)
         assertTrue(failsafe.line, failsafe.line.endsWith("Gate A: vold changed"))
         assertEquals(OneiosFix.SESSION_LOGS, failsafe.fix)
+    }
+
+    /**
+     * Root's status as it comes (OneiosStatus.partial): nothing before `outcome`, the stage with `checking` once only
+     * the preflight's `ready` is left, nothing once it came; and while it checks, no refusal, the stage's steps done and
+     * the last check running.
+     */
+    @Test
+    fun theStageShowsWhileTheLastCheckStillRuns() {
+        val head = listOf("stage present", "runtime 0.1.14 1 bin/xnuhost 1 0", "image 1 27.0.1 24A446 17900000000")
+        val tail = listOf("kernel runtime none none", "kernel image none", "kb none 0", "session none never", "outcome none")
+        assertNull(OneiosStatus.partial(head))
+        val st = OneiosStatus.partial(head + tail)!!
+        assertTrue(st.checking)
+        assertEquals("0.1.14", st.runtime!!.version)
+        assertNull(OneiosStatus.partial(head + tail + "ready 1"))
+        assertFalse(OneiosStatus.parse(head + tail + "ready 1").checking)
+        assertNull(OneiosStatus.partial(listOf("stage none")))
+
+        val v = flow(st, running = OneiosFlow.Job.CHECK)
+        assertNull(v.problem)
+        assertEquals(OneiosFlow.Mark.DONE, v.mark(OneiosFlow.Step.PHONE))
+        assertEquals(OneiosFlow.Mark.DONE, v.mark(OneiosFlow.Step.RUNTIME))
+        assertEquals(OneiosFlow.Mark.DONE, v.mark(OneiosFlow.Step.IMAGE))
+        assertEquals(OneiosFlow.Mark.RUNNING, v.mark(OneiosFlow.Step.READY))
+        assertEquals(OneiosFlow.Next.WAIT, v.next)
     }
 }

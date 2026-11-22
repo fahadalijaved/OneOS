@@ -76,7 +76,7 @@ object OneiosPlain {
         OneiosFix.GET_RUNTIME -> "Get the runtime"
         OneiosFix.DOWNLOAD_RUNTIME -> "Download again"
         OneiosFix.IMPORT_RUNTIME -> "Choose the runtime file"
-        OneiosFix.IMPORT_IMAGE -> "Make iOS image"
+        OneiosFix.IMPORT_IMAGE -> "Get the iOS image"
         OneiosFix.BACK_TO_ONE_UI -> "Back to One UI"
         OneiosFix.REMOVE -> "Remove the iOS files"
         OneiosFix.SESSION_LOGS -> "Session logs"
@@ -123,6 +123,13 @@ object OneiosPlain {
             p == "stopped" -> m(
                 "Stopped", "Nothing set up before was changed. Start again whenever you like.",
                 again, part, Level.WARN,
+            )
+            // su itself: no grant within the app's first-line limit, or a refusal (OneiosJob.readStatus).
+            p.startsWith("root did not answer within") -> m(
+                "Root didn't answer", raw.substringAfter(". ").ifBlank { raw }, OneiosFix.CHECK_AGAIN, OneiosPart.PHONE,
+            )
+            p.startsWith("root was refused") -> m(
+                "Root isn't allowed for OneOS", raw.substringAfter(". ").ifBlank { raw }, OneiosFix.CHECK_AGAIN, OneiosPart.PHONE,
             )
 
             // The app itself, or its root script on the way to root.

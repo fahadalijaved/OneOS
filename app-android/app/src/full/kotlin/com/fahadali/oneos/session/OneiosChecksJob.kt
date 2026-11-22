@@ -44,6 +44,11 @@ object OneiosChecksJob : BackgroundJob<OneiosChecksJob.State>(State(), "oneos-on
         val status: OneiosStatus? = null,
         /** Why nothing could be read or run (no root, an open session). */
         val problem: String? = null,
+        /** The running check's latest output line as root passes it on (once a second), and how many came so far. */
+        val liveLine: String? = null,
+        val liveLines: Int = 0,
+        /** When the running check started ([android.os.SystemClock.elapsedRealtime]); 0 when none runs. */
+        val startedAt: Long = 0,
     ) {
         val busy: Boolean get() = checking || running != null
     }
@@ -56,7 +61,7 @@ object OneiosChecksJob : BackgroundJob<OneiosChecksJob.State>(State(), "oneos-on
         val ok: Boolean get() = end.exitCode == 0 && reply.ok != null && end.error == null
     }
 
-    private fun root(app: Context, verb: OneiosRoot.Verb, args: List<String>, limitMs: Long): Answer {
+    private fun root(app: Context, verb: OneiosRoot.Verb, args: List<String>, limitMs: Long, onLine: ((String, Int) -> Unit)? = null): Answer {
         val command = OneiosRoot.launcher(verb, args, BuildConfig.ONEIOS_ROOT_SHA256, BuildConfig.ONEIOS_ROOT_BYTES)
         val input = if (verb.stdin == OneiosRoot.Stdin.SCRIPT) {
             val script = OneiosJob.rootScript(app)
@@ -69,7 +74,10 @@ object OneiosChecksJob : BackgroundJob<OneiosChecksJob.State>(State(), "oneos-on
         val end = try {
             sh.run(input, { line ->
                 reply.accept(line)
-                if (!line.startsWith("@@") && lines.size < MAX_LINES) lines += line.take(MAX_LINE)
+                if (!line.startsWith("@@") && lines.size < MAX_LINES) {
+                    lines += line.take(MAX_LINE)
+                    if (line.startsWith("| ")) onLine?.invoke(line, lines.size)
+                }
             }, { limitMs }, limitMs)
         } finally {
             shell = null
@@ -127,7 +135,7 @@ object OneiosChecksJob : BackgroundJob<OneiosChecksJob.State>(State(), "oneos-on
             update(state.copy(status = status))
             for ((i, check) in checks.withIndex()) {
                 val rest = checks.drop(i + 1).map { it.id }
-                update(state.copy(running = check.id, queued = rest))
+                update(state.copy(running = check.id, queued = rest, liveLine = null, liveLines = 0, startedAt = android.os.SystemClock.elapsedRealtime()))
                 val row = when {
                     cancelled -> Row(OneiosChecks.skipped("Not run: stopped"))
                     skip[check.id] != null -> Row(OneiosChecks.skipped(skip.getValue(check.id)))
@@ -135,7 +143,7 @@ object OneiosChecksJob : BackgroundJob<OneiosChecksJob.State>(State(), "oneos-on
                 }
                 update(state.copy(rows = state.rows + (check.id to row)))
             }
-            update(state.copy(running = null, queued = emptyList()))
+            update(state.copy(running = null, queued = emptyList(), liveLine = null, liveLines = 0, startedAt = 0))
         }
     }
 
@@ -143,7 +151,15 @@ object OneiosChecksJob : BackgroundJob<OneiosChecksJob.State>(State(), "oneos-on
         // Root ends the tool at the check's limit, then 2 s to SIGKILL and its put-back step; this is the backstop.
         val limitMs = (check.limitSeconds + 20) * 1000L
         val a = try {
-            root(app, OneiosRoot.Verb.CHECK, listOf(check.id), limitMs)
+            // The tool's lines as root passes them on: the screen shows the latest, at most twice a second.
+            var shown = 0L
+            root(app, OneiosRoot.Verb.CHECK, listOf(check.id), limitMs) { line, n ->
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - shown >= 500) {
+                    shown = now
+                    update(state.copy(liveLine = line.removePrefix("| ").trim().take(200).ifEmpty { null } ?: state.liveLine, liveLines = n))
+                }
+            }
         } catch (e: Exception) {
             return Row(OneiosCheckResult(OneiosCheckOutcome.FAIL, e.message ?: e.javaClass.simpleName))
         }

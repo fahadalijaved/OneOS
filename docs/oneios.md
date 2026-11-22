@@ -103,9 +103,23 @@ again, Session logs; none when the fix is outside the app: charge, cool down, re
 script's own words stay under the steps ("What it said"). `OneiosFlowTest` reads both scripts and checks that
 every refusal they can print has plain words of its own.
 
-**What a package's check says.** Root's preflight checks, in this order, this phone and root, then the runtime
-(every file's SHA-256 again), then the image set (every file is the one root hashed at staging, the files under
-64 MiB hashed again), then the phone's state, and stops at the first refusal. So the screens show a package as
+**How a check shows on the screens (2026-11-22).** iOS 27's page asks root again only when its last whole answer is
+more than 30 s old (`OneiosJob.refreshIfStale`; Check again always asks, and every job reads the status when it
+ends). While it asks, a full-size row says the step and counts its seconds: *Asking root for access…*, *Root
+answered. Reading what is on this phone…*, *Checking the staged files and the phone…*, with **Stop**. The stage
+shows as soon as root has printed it (`OneiosStatus.partial`: every line but the preflight's `ready`), before the
+last check ends. When su prints nothing within 20 s (a root grant that does not come: after a reinstall with a new
+signing key KernelSU sees a new app) the check stops with *Root didn't answer* and says to allow root for OneOS in
+the root manager; a refusal says *Root isn't allowed for OneOS*. Before, the page said "Checking…" in a small line
+for up to the whole 3 minutes of root's silence limit.
+
+**What a package's check says.** Root's preflight checks, in this order, this phone and root, then the runtime,
+then the image set, then the phone's state, and stops at the first refusal. For the screens (root's `status`) it is
+quick (`ONEIOS_CHECK_QUICK=1`, since 2026-11-22): every file of both is there, root's, and the one root hashed at
+staging by its device, inode, size and time, and nothing is hashed, so the answer comes in a moment. The switch's own
+preflight is the full one ("Session flow": every runtime file and the image's files under 64 MiB hashed again)
+before it changes anything. So a file rewritten in place within the second it was staged (same size, same time)
+passes the screens' check and is refused by the switch (`OneiosScriptTest`). So the screens show a package as
 **checked** when the preflight passed or refused something later, **check failed** when the refusal is the
 package's own, and **not checked yet** when it stopped before (`OneiosFlow.check`; `OneiosFlowTest` checks the
 preflight's order on the script's text).
@@ -138,8 +152,8 @@ the steps say what is done; the line under them says what comes next ("Then: Mak
 | Step | Done (its line) | Next (its line; the button) |
 |---|---|---|
 | Check this phone | `Galaxy S24 Ultra · root allowed` | a refusal of root or of the phone (Allow root access; Check again) |
-| Get the OneiOS runtime | `Version 0.1.6 · 12 files, 12 MB · every file checked` (or `placeholder, can't start iOS`, `check failed`) | "Holds xnuhost, the program that runs iOS"; **Get the runtime**: "Do you have the runtime file?" Yes: the picker; No, download it: OneiOS's latest release |
-| Make your iOS image | `iOS 27.0.1 (24A446) · 17.9 GB · every file as staged` | "This phone downloads iOS 27.0.1 from Apple and builds the image itself"; **Make iOS image**: the download, the room it needs and this phone's free room, then Make it (the flow's own screen, "Make iOS image (no PC)") or I have the file (the picker) |
+| Get the OneiOS runtime | `Version 0.1.6 · 12 files, 12 MB · every file as staged` (or `placeholder, can't start iOS`, `check failed`) | "Holds xnuhost, the program that runs iOS"; **Get the runtime**: "Where should the runtime come from?", a list with a line under each: *Download the latest release* (recommended), *Download an older release* (by its tag), *Use a runtime file I have* (the picker) |
+| Make your iOS image | `iOS 27.0.1 (24A446) · 17.9 GB · every file as staged` | "This phone downloads iOS 27.0.1 from Apple and builds the image itself"; **Get the iOS image**: "Where should the iOS image come from?", *Make it on this phone* (recommended; then the download, the room it needs and this phone's free room, and Make it: the flow's own screen, "Make iOS image (no PC)") or *Use an image set I have* (the picker) |
 | iOS's own data | `New: made at the first switch` or `Kept from earlier sessions` | |
 | Last check before the switch | `Ready to switch` | the preflight's refusal in plain words, with its fix |
 
@@ -153,13 +167,19 @@ ready" and **Continue** opens iOS 27's page. A download or an import started on 
 
 `OneiosActivity`, a system page's layout (`activity_environment`), the artwork on top, then:
 
+- **What runs now**, while a job runs: what it is, its step and the seconds on it (counted each second), **Stop** for a
+  check, and *Show progress* for a download or an import.
+- **Set up iOS 27: what is left**, while the runtime or the image set is not staged (2026-11-22): the five steps
+  numbered with their marks (done, now, waiting, failed, running) and lines; the step to do now says what it needs
+  and is the row to tap (the same action as the fixed button, which says it: Get the runtime, Get the iOS image). A
+  failed step is tappable for its fix. Once both are staged, in its place:
 - **On this phone**: four check tiles, tinted by their state: *OneiOS runtime* (`0.1.6 · checked`), *iOS image
   set* (`iOS 27.0.1 · checked`), *iOS data* (New or Kept), *Last check* (Passed, Refused, Not run yet).
 - **What stops the switch**, one row: the plain refusal and its fix (tap it), or "Ready to switch".
 - **OneiOS runtime**: what is staged (`xnuhost at bin/xnuhost · session ABI 1 (this OneOS: 1) · boots image format
-  1`); *Download from OneiOS's releases* (the latest); *Download a release by its tag*; *I have the file*.
-- **iOS image set**: what is staged (`Image format 1 · the runtime boots format 1`); *I have the file*; *How to
-  build it*; *iOS data* and what keeps or deletes it.
+  1`); *Download the latest runtime*; *Other ways to get it* (a list: an older release by its tag, a runtime file).
+- **iOS image set**: what is staged (`Image format 1 · the runtime boots format 1`); *Make iOS image* (on this
+  phone); *Use an image set I have*; *iOS data* and what keeps or deletes it.
 - **Phone-built kernel** ("Kernel updates" below): the runtime's kernel and the image's `kernel.kc` with its
   build id, falling back to "unknown, staged before kernel tracking"; the prelink inputs staged of 13 and whether
   Apple's kernelcache is on the phone; *Check for a newer kernel*; **Update the kernel** (no PC: it fetches Apple's
@@ -511,8 +531,8 @@ them). **When it ends well** the set is staged (root's checks, as an import's), 
 status, and **Continue** opens iOS 27's page, where the last check and the switch are.
 
 **The fresh phone's path**, with no step that mentions a PC: install the APK → Set up iOS 27: Check this phone →
-Get the runtime (download it) → **Make your iOS image** (the step's button is Make iOS image; "I have the file" stays
-as the dialog's other button) → iOS's own data → Last check → Switch. The image step's words, the empty image row of
+Get the runtime (Download the latest release) → **Make your iOS image** (the step's button is Get the iOS image: Make it on
+this phone, or Use an image set I have) → iOS's own data → Last check → Switch. The image step's words, the empty image row of
 iOS 27's page and the image refusals ("Make your iOS image", "Make iOS image again for this runtime") say Make iOS
 image now; the "How to build it" link to OneiOS's README is gone.
 
@@ -579,7 +599,9 @@ release `v0.1.0` is the first that has them all), so the screen uses the staged 
 How a check runs. `oneios_root.sh check <id>` (the app's usual launcher; the id is one of the table's, nothing
 else is taken): refuses during an iOS session, without a staged runtime, and when One UI is not fully up; runs only
 the file whose SHA-256 root recorded when the runtime was staged; starts it with no stdin and `TMPDIR` in
-`<stage>/checks`; prints its output and `exit <code>`, `timeout <seconds>` or `missing <tool>`. The app
+`<stage>/checks`; prints its output as it comes (once a second, whole lines, each cut at 2000 characters, at most
+20000; before 2026-11-22 all of it after the tool ended) and `exit <code>`, `timeout <seconds>` or `missing <tool>`. The
+checks screen's running row shows the seconds of the limit (`12 s of at most 120 s`) and the tool's latest line. The app
 (`OneiosChecks.classify`, `core/model`) reads the verdict from the exit code **and** the tool's lines:
 `ok`/`failed` for bridgectl, `ok`/`FAILED at: ...` for gpuctl, `displayctl: ok`, `brightctl: ok` (plus a `panel:`
 line that names a device, a `restored` line), `back end: ndk, N cameras` with N above 0, and for a capture frames
@@ -1284,7 +1306,9 @@ akshaynexus/OneOS --ref oneios`):
 Every run signs with the OneiOS debug key: the secret `ONEIOS_DEBUG_KEYSTORE_B64` (a base64 debug keystore), set
 here and on akshaynexus/OneiOS since 2026-11-22. It is the build machine's `secrets/oneios-debug.keystore` in OneiOS, which
 OneiOS's `scripts/release/release.sh` signs with too (OneiOS's `docs/releases.md`, "The debug key"). So a build from
-either workflow or from that machine installs over the last one. APKs from before the key (OneiOS v0.1.13's 0.5.47
+either workflow or from that machine installs over the last one. Any debug build in OneiOS's checkout (`./gradlew
+assembleFullDebug`, `oneios-tool app build`) signs with it too: `app/build.gradle.kts` takes OneiOS's
+`secrets/oneios-debug.keystore` as the debug key when the file is there (2026-11-22), else Android's own. APKs from before the key (OneiOS v0.1.13's 0.5.47
 and earlier) were each signed with their run's own key, so the first build signed with it needs one uninstall.
 Without the secret, a run signs with a key of its own. The in-guest app is a
 debug build too: Android guests that already hold upstream's release-signed one cannot take it as an update.

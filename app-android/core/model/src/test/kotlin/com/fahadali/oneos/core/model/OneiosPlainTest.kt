@@ -248,7 +248,7 @@ class OneiosPlainTest {
         assertEquals("Couldn't get the OneiOS runtime", mk("runtime", OneiosToolFlow.End.FAILED, null, "No connection to GitHub").title)
         assertEquals(OneiosPart.IMAGE, room.part)
         // The image step's button and its words: Make iOS image, on this phone.
-        assertEquals("Make iOS image", OneiosPlain.label(OneiosFix.IMPORT_IMAGE))
+        assertEquals("Get the iOS image", OneiosPlain.label(OneiosFix.IMPORT_IMAGE))
         val noImage = of("no iOS image set is staged: import the one you built with OneiOS's scripts in the OneOS app")
         assertTrue(noImage.line, "PC" !in noImage.line && "this phone" in noImage.line.lowercase())
 
@@ -256,5 +256,18 @@ class OneiosPlainTest {
         val notReady = of("the Apple kernelcache is not staged: run the kernel update first")
         assertEquals("The phone-built kernel isn't ready", notReady.title)
         assertTrue(notReady.line, "Update the kernel" in notReady.line && "PC" !in notReady.line)
+    }
+
+    /** su that never answers (no grant) or refuses: the phone step, in words that say where to allow root. */
+    @Test
+    fun rootThatDoesNotAnswerOrRefusesSaysWhereToAllowIt() {
+        val silent = of("Root did not answer within 20 s. Open your root manager (KernelSU, Magisk or APatch), allow root for OneOS, then Check again.")
+        assertEquals("Root didn't answer", silent.title)
+        assertEquals(OneiosPart.PHONE, silent.part)
+        assertEquals(OneiosFix.CHECK_AGAIN, silent.fix)
+        assertTrue(silent.line, silent.line.startsWith("Open your root manager") && "KernelSU" in silent.line)
+        val refused = of("Root was refused. Allow root for OneOS in your root manager (KernelSU, Magisk or APatch), then Check again (exit 1)")
+        assertEquals("Root isn't allowed for OneOS", refused.title)
+        assertEquals(OneiosPart.PHONE, refused.part)
     }
 }

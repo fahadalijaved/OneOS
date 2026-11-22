@@ -622,6 +622,17 @@ android {
     }
 
     signingConfigs {
+        // The OneiOS debug key: OneiOS's secrets/oneios-debug.keystore when this tree is its submodule app/ (git-ignored
+        // there; the same key as CI's secret ONEIOS_DEBUG_KEYSTORE_B64, OneiOS's docs/releases.md "The debug key"), so a
+        // debug build from that machine installs over a release's APK. Elsewhere Android's own debug key, as before.
+        rootProject.file("../../secrets/oneios-debug.keystore").takeIf { it.isFile }?.let { key ->
+            getByName("debug") {
+                storeFile = key
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (releaseKeys != null) {
             create("release") {
                 storeFile = file(releaseKeys.getProperty("storeFile"))
