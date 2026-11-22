@@ -459,7 +459,16 @@ any package set. The full edition links `com.github.luben:zstd-jni` (the `.tar.z
 Requirements: JDK 21 installed (the build uses a JDK 21 toolchain and never
 downloads one; Gradle itself may run on JDK 21 or 25), Android SDK with
 platform `android-37` (`ANDROID_HOME`, or `sdk.dir` in `local.properties`),
-internet to Google Maven and Maven Central. No GitHub token is needed. Build
+internet to Google Maven, Maven Central and tribalfs's GitHub Packages. The pinned SESL9
+libraries (`sesl.androidx.*`, `sesl.com.google.android.material`) and
+`io.github.tribalfs:oneui-design` come from three GitHub Packages registries
+(`tribalfs/sesl-androidx`, `tribalfs/sesl-material-components-android`,
+`tribalfs/oneui-design`; `settings.gradle.kts`), which need a GitHub token with
+`read:packages` even for public packages: `GH_PACKAGES_USER` and
+`GH_PACKAGES_TOKEN` from the environment first (e.g.
+`GH_PACKAGES_TOKEN=$(gh auth token)`), then `ghUsername` and `ghAccessToken` in
+`~/.config/twidget/github.properties`. JitPack is never asked for those groups.
+An HTTP 401 is the token, not the toolchain. Never commit a token. Build
 2 also needs the server's overlay sets in `../out/overlays`,
 `../out/overlays_x9u` and (0.3.7) `../out/overlays_pixel_yogi` (out/ is not in
 git; 0.3.3-0.3.6 also needed `../out/overlays_x9u_in`) and `dash` or

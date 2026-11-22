@@ -1,9 +1,9 @@
 import java.io.File
 import java.util.Properties
 
-// Credentials for the tribalfs/oneui-design GitHub Packages repo. Local
-// credentials live outside the checkout under ~/.config/twidget. CI falls
-// back to environment variables.
+// Credentials for the tribalfs GitHub Packages repos (below). The environment
+// (GH_PACKAGES_USER, GH_PACKAGES_TOKEN) wins; local credentials outside the
+// checkout (~/.config/twidget/github.properties) are the fallback.
 val githubPropertiesFile = File(
     System.getProperty("user.home"),
     ".config/twidget/github.properties",
