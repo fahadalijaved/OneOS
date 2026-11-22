@@ -2051,45 +2051,76 @@ class OneiosScriptTest {
         assertEquals(1, File(d, "renderer.args").readLines().size)
     }
 
-    /** The stage line follows xnuhost's log (the Session logs screen's markers), then says why iOS stopped. */
+    /** The boot screen's bar: (the step, of how many, how far), from `progress`, or null when there is none. */
+    private fun bar(d: File): Triple<Int, Int, Double>? =
+        shown(d, "progress").split(" ").takeIf { it.size == 3 }?.let { Triple(it[0].toInt(), it[1].toInt(), it[2].toDouble()) }
+
+    /**
+     * The status line follows xnuhost's log through the boot screen's twelve steps (a first start here: the stage
+     * has no `data/data.img`), with the bar's step, how far it is and the next step's name, then says why iOS
+     * stopped. The bar never goes back within a boot.
+     */
     @Test
     fun theBootScreenShowsHowFarTheBootGotAndWhyItStopped() = each { f ->
         f.phone(scale = 20)
         val d = bootScreen(f)
-        File(f.session, "xnuhost.log").writeText("oneios inner: cgroup /sys/fs/cgroup/oneios_session\n")
+        File(f.session, "xnuhost.log").writeText("")
         val p = feeder(f, d)
-        Thread.sleep(300)
+        await("the first step's bar") { bar(d)?.first == 1 && shown(d, "next") == "Starting xnuhost" }
         assertEquals("Stopping One UI's framework", shown(d))
+        assertEquals(12, bar(d)!!.second)
+        assertEquals("Starting xnuhost", shown(d, "next"))
+        // The lines of a first start on the phone (2026-11-22), each with the step it begins and the next one's name.
         val boot = listOf(
-            "[286239.524] xnuhost I xnuhost: session ABI 1, mode takeover, pid 4146179" to "xnuhost is loading the kernel",
-            "[286239.909] xnuhost I cpu0: entering the kernel at 0x2003dcc488" to "Entering the kernel",
-            "[286240.068] guest     Darwin Kernel Version 25.5.0: Wed Nov 11 04:04:41 IST 2026; akshay:ios-obj/DEVELOPMENT_ARM64_BCM2837" to "Kernel started",
-            "[286727.194] guest     BSD root: disk8s1, major 1, minor 12" to "Root volume mounted",
-            "[286727.411] guest     OneiOS Data: first start: /sbin/newfs_apfs -e -x -v Data /dev/disk9" to "Data volume: first start (this can take a few minutes)",
-            "[286728.026] guest     load_init_program: attempting to load /sbin/launchd" to "Loading launchd",
-            "[287612.623] guest     com.apple.xpc.launchd|2026-11-10 15:05:22.422484 <Notice>: hello, launchd UUID: CA54230D" to "launchd is running",
-            "[286981.700] guest     oneios-display: framebuffer opened by backboardd[53], type 0: status 0, client IOMobileFramebufferUserClient" to "backboardd started",
-            "[288194.264] guest     SpringBoard[124] triggered unnest of range 0x1e9c00000->0x1ebe00000 of DYLD shared region" to "SpringBoard started",
+            Triple("oneios inner: cgroup /sys/fs/cgroup/oneios_session", "Starting xnuhost", "Locking iOS's RAM"),
+            Triple("[286239.524] xnuhost I xnuhost: session ABI 1, mode takeover, pid 4146179", "Starting xnuhost", "Locking iOS's RAM"),
+            Triple("[8280.900] xnuhost I memory: the guest's RAM is held for the session: 5632 MiB, prefaulted on a thread at nice 19 in 16 MiB steps, locked as it goes", "Locking iOS's RAM", "Starting the kernel"),
+            Triple("[8284.000] xnuhost I memory: the guest's RAM is held: 5632 MiB prefaulted in 3638 ms, locked (mlock: the host cannot swap it)", "Starting the kernel", "First start: making iOS's Data store (once)"),
+            Triple("[286239.909] xnuhost I cpu0: entering the kernel at 0x2003dcc488", "Starting the kernel", "First start: making iOS's Data store (once)"),
+            Triple("[286240.068] guest     Darwin Kernel Version 25.5.0: Wed Nov 11 04:04:41 IST 2026; akshay:ios-obj/DEVELOPMENT_ARM64_BCM2837", "Starting the kernel", "First start: making iOS's Data store (once)"),
+            Triple("[286727.194] guest     BSD root: disk8s1, major 1, minor 12", "Starting the kernel", "First start: making iOS's Data store (once)"),
+            Triple("[286727.411] guest     OneiOS Data: first start: /sbin/newfs_apfs -e -x -v Data /dev/disk9", "First start: making iOS's Data store (once)", "First start: unpacking iOS's data (once)"),
+            Triple("[8307.787] guest     OneiOS Data: unpacking the seed (1209 MiB on disk2) into /private/var", "First start: unpacking iOS's data (once)", "Starting launchd"),
+            Triple("[286728.026] guest     load_init_program: attempting to load /sbin/launchd", "Starting launchd", "Starting iOS's system services"),
+            Triple("[287612.623] guest     com.apple.xpc.launchd|2026-11-10 15:05:22.422484 <Notice>: hello, launchd UUID: CA54230D", "Starting iOS's system services", "Starting SpringBoard"),
+            Triple("[288194.264] guest     SpringBoard[124] triggered unnest of range 0x1e9c00000->0x1ebe00000 of DYLD shared region", "Starting SpringBoard", "Starting the display (backboardd)"),
+            Triple("[286981.700] guest     oneios-display: framebuffer opened by backboardd[53], type 0: status 0, client IOMobileFramebufferUserClient", "Starting the display (backboardd)", "Waiting for iOS's first picture"),
+            Triple("[14380.637] xnuhost I display: the guest's first frame of its own: all black; session/ready waits for one with content (up to 120 s)", "Waiting for iOS's first picture", "iOS is up: handing the screen to it"),
+            Triple("[14419.537] xnuhost I guest ready: first frame with content, 38.9 s and 1 frames after the guest's first (black) frame", "iOS is up: handing the screen to it", ""),
         )
-        for ((line, text) in boot) {
-            // (Among the console's other lines, and after a megabyte of them for one stage: nothing is skipped.)
-            if (text == "Root volume mounted") File(f.session, "xnuhost.log").appendText("[286241.714] guest     pmap_startup() init/release time: 1542521 microsec\n".repeat(20_000))
+        val steps = mapOf("Starting xnuhost" to 2, "Locking iOS's RAM" to 3, "Starting the kernel" to 4, "First start: making iOS's Data store (once)" to 5,
+            "First start: unpacking iOS's data (once)" to 6, "Starting launchd" to 7, "Starting iOS's system services" to 8, "Starting SpringBoard" to 9,
+            "Starting the display (backboardd)" to 10, "Waiting for iOS's first picture" to 11, "iOS is up: handing the screen to it" to 12)
+        var was = bar(d)!!.third
+        for ((line, text, next) in boot) {
+            // (Among the console's other lines, and after a megabyte of them for one step: nothing is skipped.)
+            if (text.startsWith("First start: making")) File(f.session, "xnuhost.log").appendText("[286241.714] guest     pmap_startup() init/release time: 1542521 microsec\n".repeat(20_000))
             xnuhostSays(f, "[286241.714] guest     pmap_startup() init/release time: 1542521 microsec", line)
-            await(text) { shown(d) == text }
+            await("$text, next $next") { shown(d) == text && bar(d)?.first == steps[text] && shown(d, "next") == next }
+            val now = bar(d)!!
+            assertEquals(12, now.second)
+            assertTrue("$text: ${now.third} after $was", now.third >= was && now.third <= 1.0)
+            was = now.third
         }
-        // A line of an earlier stage does not take the boot back; a restart of the guest in place does.
+        assertEquals(1.0, bar(d)!!.third, 0.0)
+        // A line of an earlier step does not take the boot back; a restart of the guest in place does, bar and all.
         xnuhostSays(f, "[288195.000] guest     BSD root: disk8s1, major 1, minor 12")
         Thread.sleep(300)
-        assertEquals("SpringBoard started", shown(d))
+        assertEquals("iOS is up: handing the screen to it", shown(d))
+        assertEquals(12, bar(d)!!.first)
         xnuhostSays(f, "[288300.000] xnuhost I the guest asked for a restart: starting again", "[288300.100] xnuhost I xnuhost: session ABI 1, mode takeover, pid 4146179")
-        await("the restart") { shown(d) == "xnuhost is loading the kernel" }
+        await("the restart") { shown(d) == "Starting xnuhost" && bar(d)?.first == 2 }
+        assertTrue(bar(d)!!.third < 0.5)
         // A panic, as the console has it. What is drawn is printable ASCII, whatever the guest wrote.
         xnuhostSays(f, "[287167.735] guest     panic(cpu 1 caller 0xfffffff00ad8d2c4): Console I/O \u001b[31mfrom\u0007 interrupt-disabled context @serial_console.c:175", "[287167.737] guest       frame 0xfffffff00b4aa0cc")
         val panic = "Console I/O  [31mfrom  interrupt-disabled context @serial_console.c:175"
-        await("the panic") { shown(d) == "Kernel panic: $panic" }
+        await("the panic") { shown(d) == "Kernel panic: $panic" && shown(d, "next") == "" }
+        val stopped = bar(d)
         xnuhostSays(f, "[287167.934] xnuhost I stopping: the guest halted on cpu1 (reason 2, code 0)", "[287168.353] xnuhost I exit 4")
         f.ends(XNUHOST)
-        await("why it ended") { shown(d) == "iOS stopped: kernel panic: $panic" }
+        await("why it ended") { shown(d) == "iOS stopped: kernel panic: $panic" && shown(d, "next") == "Going back to One UI" }
+        // The bar stays where the boot stopped.
+        assertEquals(stopped, bar(d))
         // It stays up with the reason until a return begins, and then leaves the screen to the return.
         Thread.sleep(300)
         assertTrue(p.isAlive)
@@ -2104,6 +2135,40 @@ class OneiosScriptTest {
         assertEquals("Starting iOS 27", shown(d, "title"))
     }
 
+    /**
+     * A later boot (the stage has its Data store): "next" after the kernel is launchd, the two first-start steps are
+     * passed over (the count goes from 4 to 7), and the bar never goes back.
+     */
+    @Test
+    fun aLaterBootPassesOverTheFirstStartSteps() = each { f ->
+        f.phone(scale = 20)
+        val d = bootScreen(f)
+        File(f.stage, "data").mkdirs()
+        File(f.stage, "data/data.img").writeText("a Data store\n")
+        File(f.session, "xnuhost.log").writeText("")
+        val p = feeder(f, d)
+        await("the first step's bar") { bar(d)?.first == 1 }
+        var was = bar(d)!!.third
+        val boot = listOf(
+            Pair("[14330.714] xnuhost I xnuhost: session ABI 1, mode takeover, pid 10317", Triple(2, "Starting xnuhost", "Locking iOS's RAM")),
+            Pair("[14335.153] xnuhost I memory: the guest's RAM is held: 5632 MiB prefaulted in 3638 ms, locked (mlock: the host cannot swap it)", Triple(4, "Starting the kernel", "Starting launchd")),
+            Pair("[14337.436] guest     OneiOS Data: /dev/disk6s3 on /dev/disk2", Triple(4, "Starting the kernel", "Starting launchd")),
+            Pair("[14337.711] guest     load_init_program: attempting to load /sbin/launchd", Triple(7, "Starting launchd", "Starting iOS's system services")),
+        )
+        for ((line, want) in boot) {
+            val (step, status, next) = want
+            xnuhostSays(f, line)
+            await("step $step") { bar(d)?.first == step && shown(d, "next") == next && shown(d) == status }
+            assertTrue("step $step: ${bar(d)} after $was", bar(d)!!.third >= was)
+            was = bar(d)!!.third
+        }
+        assertEquals("Starting launchd", shown(d))
+        // The steps a later boot has, each its typical length (a share of the bar): before launchd 24 s of 102 s.
+        assertTrue(bar(d).toString(), bar(d)!!.third in 0.2..0.45)
+        File(f.control, "state").writeText("returning\n")
+        assertTrue(p.waitFor(30, TimeUnit.SECONDS))
+    }
+
     /** The screen goes when the guest's picture is on the display helper's layer, and stays while iOS shows nothing. */
     @Test
     fun theBootScreenIsHandedToTheDisplayHelperAtTheGuestsFirstFrame() = each { f ->
@@ -2112,7 +2177,7 @@ class OneiosScriptTest {
         val p = feeder(f, d)
         // xnuhost reports ready, and no display helper runs: nothing shows iOS, so the screen stays.
         xnuhostSays(f, "[1.000] xnuhost I xnuhost: session ABI 1, mode takeover, pid 1", "[288301.000] xnuhost I guest ready: first frame")
-        await("ready") { shown(d) == "iOS is up: waiting for its first frame" }
+        await("ready") { shown(d) == "iOS is up: handing the screen to it" && bar(d) == Triple(12, 12, 1.0) }
         // A helper's log of another session, and a pid that is some other process now: still nothing.
         File(f.control, "display.log").writeText("oneios-display: layer up\noneios-display: first frame posted (1440x3120 buffer, stride 5760, format 1)\n")
         File(f.control, "display.pid").writeText("300\n")
@@ -2169,12 +2234,16 @@ class OneiosScriptTest {
     fun theReturnEndsTheBootScreenBeforeItsGates() = each { f ->
         f.phone()
         val d = bootScreen(f, processes = true)
+        File(d, "progress").writeText("9 12 0.512\n")
+        File(d, "next").writeText("Starting the display (backboardd)\n")
         val r = f.returns()
         assertEquals(r.text, 0, r.exit)
         f.assertInPlace(r.text)
         assertBootScreenEnded(f, d, r.text)
         assertEquals("Returning to One UI", shown(d, "title"))
         assertEquals("Stopping iOS", shown(d))
+        // No bar on the way back: what it counted was the boot.
+        assertFalse(File(d, "progress").exists() || File(d, "next").exists())
         assertTrue(r.text, r.text.indexOf("boot screen: ended") in r.text.indexOf("SIGTERM to xnuhost") until r.text.indexOf("Gate A"))
         assertTrue(f.kills.toString(), f.kills.indexOf("-TERM $XNUHOST") < f.kills.indexOf("-9 7003"))
         // The feeder at once; the supervisor and the renderer get a second to take the layer away themselves.

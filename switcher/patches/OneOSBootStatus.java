@@ -82,7 +82,10 @@ public final class OneOSBootStatus {
                     boolean wide = size[0] > size[1];
                     float unit = Math.min(size[0] / (wide ? 1230f : 412f), size[1] / 928f);
                     boolean verbose = read(dir, "verbose", "0").equals("1");
-                    float group = (verbose ? 327 : 274) * unit;
+                    // iOS 27 (oneios_switch.sh): "progress" is "<step> <steps> <0.000..1.000>", "next" the next
+                    // step's name. With them a bar and a "Step N of M · Next: ..." line follow the status.
+                    float[] progress = verbose ? progress(read(dir, "progress", "")) : null;
+                    float group = (verbose ? 327 + (progress != null ? 74 : 0) : 274) * unit;
                     float top = (size[1] - group) / 2f;
                     float edge = 180 * unit;
                     canvas.drawBitmap(icon, null, new RectF((size[0]-edge)/2, top, (size[0]+edge)/2, top+edge), paint);
@@ -100,15 +103,35 @@ public final class OneOSBootStatus {
                         paint.setTypeface(Typeface.create("sec", Typeface.NORMAL));
                         paint.setTextSize(24 * unit);
                         String status = read(dir, "status", "Waiting for boot events");
+                        float below;
                         if (hint.isEmpty()) {
                             if (status.length() > 120) status = status.substring(0, 117) + "…";
                             fit(paint, status, size[0] - 40*unit);
                             canvas.drawText(status, size[0]/2f, top + 320*unit, paint);
+                            below = top + 320*unit;
                         } else {
                             if (status.length() > 240) status = status.substring(0, 237) + "…";
                             paint.setTextSize(22 * unit);
                             float y = top + 320*unit;
                             for (String line : wrap(paint, status, size[0] - 48*unit, 4)) { line(canvas, paint, line, size[0], y, unit); y += 30*unit; }
+                            below = y - 30*unit;
+                        }
+                        if (progress != null) {
+                            // The bar: a track and its filled part, centred, 22 under the status's last line.
+                            float width = Math.min(size[0] - 96*unit, 300*unit), left = (size[0] - width) / 2f, barTop = below + 22*unit;
+                            paint.setColor(Color.rgb(58, 58, 64));
+                            canvas.drawRoundRect(new RectF(left, barTop, left + width, barTop + 6*unit), 3*unit, 3*unit, paint);
+                            if (progress[2] > 0) {
+                                paint.setColor(Color.WHITE);
+                                canvas.drawRoundRect(new RectF(left, barTop, left + Math.max(6*unit, width * progress[2]), barTop + 6*unit), 3*unit, 3*unit, paint);
+                            }
+                            String next = read(dir, "next", "");
+                            if (next.length() > 120) next = next.substring(0, 117) + "…";
+                            String steps = "Step " + (int) progress[0] + " of " + (int) progress[1] + (next.isEmpty() ? "" : " · Next: " + next);
+                            paint.setTextSize(18 * unit);
+                            paint.setColor(Color.rgb(170, 170, 178));
+                            float y = barTop + 6*unit + 28*unit;
+                            for (String line : wrap(paint, steps, size[0] - 48*unit, 2)) { line(canvas, paint, line, size[0], y, unit); y += 24*unit; }
                         }
                     }
                     if (!hint.isEmpty()) {
@@ -163,6 +186,17 @@ public final class OneOSBootStatus {
             out.add(last);
         }
         return out;
+    }
+    /** "<step> <steps> <fraction>" as {step, steps, fraction 0..1}, or null when it is not that. */
+    private static float[] progress(String s) {
+        String[] f = s.trim().split(" ");
+        if (f.length != 3) return null;
+        try {
+            int step = Integer.parseInt(f[0]), steps = Integer.parseInt(f[1]);
+            float done = Float.parseFloat(f[2]);
+            if (steps < 1 || steps > 99 || step < 1 || step > steps || !(done >= 0)) return null;
+            return new float[]{step, steps, Math.min(1f, done)};
+        } catch (NumberFormatException unreadable) { return null; }
     }
     private static void fit(Paint p, String s, float width) {
         float measured = p.measureText(s);

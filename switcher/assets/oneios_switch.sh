@@ -194,6 +194,8 @@ bootui_begin() {
         . "$BOOTBIN/boot_status.sh" || exit 1
         oneos_boot_begin ios
         oneos_boot_write status "Stopping One UI's framework"
+        oneos_boot_write progress "1 $BOOT_STEPS 0.000"
+        oneos_boot_write next "$(stage_name 2)"
         oneos_boot_wait_ready 3
     ) </dev/null >>"$CTL/bootui.log" 2>&1
     rc=$?
@@ -204,35 +206,38 @@ bootui_begin() {
     return 0
 }
 # xnuhost's log from byte $1 on (1 MiB at most): how far the boot got ($2 is the
-# stage so far) and what ended it. The stage markers are the Session logs
-# screen's nine (OneiosLogs.kt; docs/oneios.md, "Session logs"; OneiOS's
-# oneos/interface.md section 8), with the kernel's "OneiOS Data: first start"
-# between the root mount and launchd, where a new Data volume takes minutes.
-# Prints "S <stage>", "B" (a new boot began: xnuhost started the guest again
-# in place), "P <panic text>", "W <why xnuhost stops>", "X <exit code>",
-# "E <xnuhost's last error line>".
-log_scan() { # <first byte, from 1> <stage so far>
+# step so far) and what ended it. The steps are the boot screen's twelve
+# (stage_name below; docs/oneios.md, "Boot screen"), each begun by the first
+# line here that names it; a step is only ever raised, except by a new boot.
+# Prints "S <step>", "F" (the kernel makes a new Data store: a first start),
+# "B" (a new boot began: xnuhost started the guest again in place),
+# "P <panic text>", "W <why xnuhost stops>", "X <exit code>", "E <xnuhost's
+# last error line>".
+log_scan() { # <first byte, from 1> <step so far>
     [ -f "$SESSION/xnuhost.log" ] && [ ! -L "$SESSION/xnuhost.log" ] || return 0
     $TMO tail -c "+$1" "$SESSION/xnuhost.log" 2>/dev/null | head -c 1048576 | LC_ALL=C tr -d '\000' | LC_ALL=C awk -v st="$2" '
         function s(n) { if (n > st) st = n }
         { line = $0; sub(/^\[ *[0-9]+\.[0-9][0-9][0-9]\] /, "", line) }
+        index(line, "oneios inner: ") == 1 { s(2); next }
         line ~ /^guest / {
             t = line; sub(/^guest +/, "", t)
-            if (index(t, "Darwin Kernel Version") == 1) s(3)
-            else if (index(t, "BSD root: ") == 1) s(4)
-            else if (index(t, "OneiOS Data: first start") == 1 || index(t, "OneiOS Data: unpacking the seed") == 1) s(5)
-            else if (index(t, "load_init_program: attempting to load") == 1) s(6)
-            else if (index(t, "com.apple.xpc.launchd|") == 1) s(7)
+            if (index(t, "Darwin Kernel Version") == 1 || index(t, "BSD root: ") == 1) s(4)
+            else if (index(t, "OneiOS Data: first start") == 1) { s(5); first = 1 }
+            else if (index(t, "OneiOS Data: unpacking the seed") == 1) { s(6); first = 1 }
+            else if (index(t, "load_init_program: attempting to load") == 1) s(7)
+            else if (index(t, "com.apple.xpc.launchd|") == 1) s(8)
             else if (panic == "" && t ~ /^panic\(cpu [0-9]+ caller 0x[0-9a-f]+\): /) { panic = t; sub(/^panic\([^)]*\): /, "", panic) }
-            if (index(t, "backboardd[")) s(8)
             if (index(t, "SpringBoard[") || index(t, "crashed: SpringBoard.")) s(9)
+            if (index(t, "backboardd[")) s(10)
             next
         }
         line ~ /^xnuhost I / {
             t = substr(line, 11)
-            if (index(t, "xnuhost: session ABI ") == 1) { st = 1; boot = 1; panic = ""; why = ""; code = ""; err = "" }
-            else if (index(t, "cpu0: entering the kernel at ") == 1) s(2)
-            else if (index(t, "guest ready: first frame") == 1) s(10)
+            if (index(t, "xnuhost: session ABI ") == 1) { st = 2; boot = 1; first = 0; panic = ""; why = ""; code = ""; err = "" }
+            else if (t ~ /^memory: the guest.s RAM is held for the session/) s(3)
+            else if (t ~ /^memory: the guest.s RAM is held: / || index(t, "cpu0: entering the kernel at ") == 1) s(4)
+            else if (t ~ /^display: the guest.s first frame of its own/) s(11)
+            else if (index(t, "guest ready: first frame") == 1) s(12)
             else if (index(t, "stopping: ") == 1) { why = substr(t, 11); sub(/ \(reason [0-9]+, code [0-9]+\)$/, "", why) }
             else if (t ~ /^exit [0-9]+$/) code = substr(t, 6)
             next
@@ -240,6 +245,7 @@ log_scan() { # <first byte, from 1> <stage so far>
         line ~ /^xnuhost E / { err = substr(line, 11) }
         END {
             print "S " st
+            if (first) print "F"
             if (boot) print "B"
             if (panic != "") print "P " panic
             if (why != "") print "W " why
@@ -247,19 +253,45 @@ log_scan() { # <first byte, from 1> <stage so far>
             if (err != "") print "E " err
         }'
 }
-stage_text() { # <stage of log_scan>
+# The boot screen's steps, in order: what the status line says while each
+# runs (the "next" file names the one after it). Steps 5 and 6 run only on a
+# first start (no Data store yet); a later boot goes from 4 to 7, and the
+# count goes on past them.
+BOOT_STEPS=12
+stage_name() { # <step>
     case "$1" in
-        1) echo "xnuhost is loading the kernel" ;;
-        2) echo "Entering the kernel" ;;
-        3) echo "Kernel started" ;;
-        4) echo "Root volume mounted" ;;
-        5) echo "Data volume: first start (this can take a few minutes)" ;;
-        6) echo "Loading launchd" ;;
-        7) echo "launchd is running" ;;
-        8) echo "backboardd started" ;;
-        9) echo "SpringBoard started" ;;
-        10) echo "iOS is up: waiting for its first frame" ;;
+        1) echo "Stopping One UI's framework" ;;
+        2) echo "Starting xnuhost" ;;
+        3) echo "Locking iOS's RAM" ;;
+        4) echo "Starting the kernel" ;;
+        5) echo "First start: making iOS's Data store (once)" ;;
+        6) echo "First start: unpacking iOS's data (once)" ;;
+        7) echo "Starting launchd" ;;
+        8) echo "Starting iOS's system services" ;;
+        9) echo "Starting SpringBoard" ;;
+        10) echo "Starting the display (backboardd)" ;;
+        11) echo "Waiting for iOS's first picture" ;;
+        12) echo "iOS is up: handing the screen to it" ;;
     esac
+}
+next_name() { # <step> <first start: 1 or 0>
+    nn=$(($1 + 1))
+    [ "$2" = 1 ] || case $nn in 5|6) nn=7 ;; esac
+    [ $nn -gt $BOOT_STEPS ] || stage_name $nn
+}
+# How far the bar is, 0.000 to 1.000: the steps before this one, and the time
+# in this one up to 90% of its share, of the boot's whole time. Each step's
+# share is its typical length in seconds on the S24 Ultra (the phone's boots
+# of 2026-11-22: steps 5 and 6 from the first start, the others from later
+# boots); a later boot leaves out 5 and 6. Never less than the last value.
+progress_of() { # <step> <seconds in it> <first start: 1 or 0> <last value>
+    awk -v n="$1" -v e="$2" -v f="$3" -v last="$4" 'BEGIN {
+        split("18 1 3 2 22 10 20 12 7 4 35 0", w, " ")
+        for (i = 1; i <= 12; i++) { if (!f && (i == 5 || i == 6)) continue; all += w[i]; if (i < n) done += w[i] }
+        c = (e > 0) ? e : 0; if (c > w[n] * 0.9) c = w[n] * 0.9
+        p = (n >= 12) ? 1 : (done + c) / all
+        if (p < last + 0) p = last + 0; if (p > 1) p = 1
+        printf "%.3f\n", p }'
 }
 # One line on why xnuhost ended, from the last 64 KiB of its log.
 why_ended() {
@@ -785,7 +817,31 @@ case "$MODE" in
             screen status "$1"
             echo "$(date '+%F %T') boot screen: $(plain "$1")"
         }
-        off=0 st=0 shown="" panic="" t=0 drawn=0 native=0
+        # The bar ("progress": the step, of how many, how far 0.000..1.000)
+        # and the next step's name ("next"), each written when it changes.
+        screen_bar() { # <step> <first start: 1 or 0>
+            [ "$1" = "$step" ] || {
+                [ "$1" -ge "${step:-0}" ] || frac=0
+                step=$1 since=$t
+            }
+            frac=$(progress_of "$step" $((t - since)) "$2" "$frac")
+            screen_put progress "$step $BOOT_STEPS $frac" "$was_progress" && was_progress="$step $BOOT_STEPS $frac"
+            nx=$(next_name "$step" "$2")
+            screen_put next "$nx" "$was_next" && was_next=$nx
+        }
+        screen_put() { # <file> <text> <what it says now>: a file of the screen, whole or not at all
+            [ "$2" != "$3" ] || return 1
+            # (Not once a return began: it takes the bar away.)
+            case "$(cat "$CTL/state" 2>/dev/null)" in starting|running) ;; *) return 1 ;; esac
+            printf '%s\n' "$2" > "$BOOTUI/.$1.tmp" 2>/dev/null && mv -f "$BOOTUI/.$1.tmp" "$BOOTUI/$1" 2>/dev/null
+            return 0
+        }
+        # A first start is expected while there is no Data store yet (xnuhost
+        # makes data.img on the first start); the log's own lines decide.
+        first=0
+        [ -s "$STAGE/data/data.img" ] || first=1
+        off=0 st=0 shown="" panic="" t=0 drawn=0 native=0 step="" since=0 frac=0 was_progress="" was_next=""
+        screen_bar 1 $first
         while live; do
             state=$(cat "$CTL/state" 2>/dev/null)
             case "$state" in starting|running) ;; *) break ;; esac
@@ -825,6 +881,9 @@ case "$MODE" in
                 n=$(printf '%s\n' "$out" | sed -n 's/^S //p' | head -n 1)
                 case "$n" in ''|*[!0-9]*) ;; *) st=$n ;; esac
                 printf '%s\n' "$out" | grep -q -x B && panic=""
+                if printf '%s\n' "$out" | grep -q -x F; then first=1
+                # (Past the Data steps without one: a later boot.)
+                elif [ "$st" -ge 7 ] && [ "${step:-0}" -lt 5 ]; then first=0; fi
                 found=$(printf '%s\n' "$out" | sed -n 's/^P //p' | head -n 1)
                 [ -z "$found" ] || panic=$found
             else
@@ -835,9 +894,12 @@ case "$MODE" in
                 xp=$(cat "$CTL/xnuhost.pid" 2>/dev/null)
                 [ -n "$xp" ] && [ "$(readlink "$P/$xp/ns/mnt" 2>/dev/null)" = "$(cat "$CTL/mntns" 2>/dev/null)" ] || gone=1
             fi
-            if [ $gone = 1 ]; then show "$(why_ended)"
-            elif [ -n "$panic" ]; then show "Kernel panic: $panic"
-            elif [ "$st" -gt 0 ]; then show "$(stage_text "$st")"
+            # The bar stays where the boot stopped; the watcher takes the way
+            # back when xnuhost ends.
+            if [ $gone = 1 ]; then show "$(why_ended)"; screen_put next "Going back to One UI" "$was_next" && was_next="Going back to One UI"
+            elif [ -n "$panic" ]; then show "Kernel panic: $panic"; screen_put next "" "$was_next" && was_next=""
+            elif [ "$st" -gt 0 ]; then show "$(stage_name "$st")"; screen_bar "$st" $first
+            else screen_bar 1 $first
             fi
             sleep 1; t=$((t + 1))
         done
@@ -935,6 +997,8 @@ case "$MODE" in
             # $SCREEN) until the return ends it.
             screen title 'Returning to One UI'
             [ -z "$SCREEN" ] || screen status "$SCREEN"
+            # (No bar on the way back: what it counted was the boot.)
+            rm -f "$BOOTUI/progress" "$BOOTUI/next"
             # The guest's picture goes first: nothing of the return waits for it.
             end_display
             # Not exec: a return script that cannot be run (gone, damaged) or
