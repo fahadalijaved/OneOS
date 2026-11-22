@@ -294,9 +294,9 @@ abstract class OneOsFilesTask : DefaultTask() {
             if (!dst.exists()) src.copyTo(dst)
             sizes[sum] = src.length()
         }
-        // A set file: in the APK (packSets), else its size and Drive id only.
+        // A set file: in the APK (packSets or local build), else its size and Drive id only.
         fun putSet(src: File, sum: String, problems: MutableList<String>) {
-            if (pack) { put(src, sum); return }
+            if (pack || src.exists()) { put(src, sum); return }
             val id = ids[sum]
             if (id == null) { problems += "${src.name} ($sum) is not on Drive: run scripts/release-files.py"; return }
             sizes[sum] = src.length()
