@@ -117,6 +117,7 @@ object Profiles {
     const val ID_FLIP8 = "flip8"
     const val ID_A36 = "a36"
     const val ID_FOLD5 = "f5"
+    const val ID_FOLD4 = "f4"
     const val ID_S_ULTRA_8550 = "s-ultra-8550"
     const val ID_FLIP6 = "flip6"
     const val ID_S_9945 = "s-9945"
@@ -793,6 +794,22 @@ object Profiles {
     ))
 
     /**
+     * Galaxy Z Fold4, from 0.5.03 probe report (SM-F936B, q4q, SM8475 / Snapdragon 8+ Gen 1,
+     * One UI 8.0, Android 16, vendor API 31 and kernel 5.10, inner 1812 x 2176 and cover 904 x 2316,
+     * UDC, KernelSU, installd 73 methods). Held on One UI 8.0: OxygenOS 16 (SDK 36) only.
+     */
+    val FOLD4 = PhoneProfile(
+        id = ID_FOLD4,
+        label = "Galaxy Z Fold4",
+        modelPrefix = "SM-F936",
+        codename = "q4q",
+        socModel = "SM8475",
+        form = FormFactor.FOLD,
+        choices = listOf(OXYGEN16_CHOICE),
+        notes = listOf(olderVendor("31 (Android 12)", "5.10")),
+    )
+
+    /**
      * Galaxy S23 Ultra, from 0.4.40: probe reports of 2026-10-31 to 11-03 (SM-S918B, SM-S918U and
      * SM-S918U1, dm3q, SM8550 like the S23 and S23+, One UI 9.0, Android 17 build CP2A.260605.016,
      * vendor API 33 and kernel 5.15, no SVE or SME, installd 85 methods). The S23s' images and sets
@@ -1340,7 +1357,7 @@ object Profiles {
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
         S_8850, S_8850_JP, S_ULTRA_8650, S_8650, S_8550, S_PLUS_8550, S_PLUS_8850,
-        S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5,
+        S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5, FOLD4,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
         A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,

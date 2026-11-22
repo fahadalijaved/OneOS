@@ -1,0 +1,5 @@
+[gsm.operator.iso-country]: [vn,vn]
+[gsm.sim.operator.iso-country]: [vn,vn]
+[ro.boot.sales_code]: [XXV]
+[ro.csc.countryiso_code]: [VN]
+[ro.csc.sales_code]: [XXV]

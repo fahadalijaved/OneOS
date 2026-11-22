@@ -235,6 +235,7 @@ profile_info() {
         flip5) echo "SM-F731 b5q SM8550 flip" ;;
         f6) echo "SM-F956 q6q SM8650 fold" ;;
         f5) echo "SM-F946 q5q SM8550 fold" ;;
+        f4) echo "SM-F936 q4q SM8475 fold" ;;
         a07) echo "SM-A075 a07 MT6789 bar" ;;
         flip8) echo "SM-F776 b8s s5e9965 flip" ;;
         a36) echo "SM-A366 a36xq SM6475 bar" ;;
@@ -614,6 +615,7 @@ profile_set() {
         "s-plus-8550 originos7-pd2609ma") echo originos ;;
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
         # 0.4.91: OxygenOS 16 for the S23s still on One UI 8.0/8.5 (the owner, 2026-11-11), untested there.
+        "f4 oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
