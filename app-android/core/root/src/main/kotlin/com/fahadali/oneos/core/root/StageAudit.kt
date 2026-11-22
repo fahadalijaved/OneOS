@@ -480,6 +480,13 @@ object StageAudit {
     )
 
     /**
+     * Bring apps' system apps (0.5.35, PR #328): bring_system_records lists One UI's system packages with
+     * their APK paths and uids (`pm list packages -s -f -U --user 0 "$@"`), a read; nothing else of pm.
+     */
+    private const val BRING_SYSTEM_FUNCTION = "bring_system_records"
+    private val BRING_SYSTEM_PM = listOf("list", "packages", "-s", "-f", "-U", "--user", "0", "\"\$@\"")
+
+    /**
      * Bring apps (0.4.75): the script's reads of One UI's app data, never a
      * write. `$BCE` and `$BDE` are exactly the chosen package's two data
      * folders seen through init's root (`$pkg` is a name is_package accepted),
@@ -654,7 +661,8 @@ object StageAudit {
                     if (!purge) args.filter { it.startsWith("-") }.forEach { if (it != "-f") p += "line ${c.line}: rm $it" }
                 }
                 "pm" -> if (!(args.firstOrNull() == "path" && args.size == 2) && !(args == SELFUPDATE_PM && c.function == SELFUPDATE_FUNCTION) &&
-                    !(args in TOOL_APP_PM && c.function == TOOL_APP_FUNCTION)) {
+                    !(args in TOOL_APP_PM && c.function == TOOL_APP_FUNCTION) &&
+                    !(args == BRING_SYSTEM_PM && c.function == BRING_SYSTEM_FUNCTION)) {
                     p += "line ${c.line}: pm ${args.joinToString(" ")}"
                 }
                 "am" -> if (args != SELFUPDATE_AM || c.function != SELFUPDATE_FUNCTION) p += "line ${c.line}: am ${args.joinToString(" ")}"

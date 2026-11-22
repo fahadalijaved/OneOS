@@ -1,0 +1,16 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
+# charger power from Samsung's charging_type in BatteryService (OneOSChargePower)
+# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
+# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
+# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+750bc07712e81cee2bd0d41a0a03b616c43f4fab9d46666fbaa350950af343db  services_patched.jar
+53424d591211bb917cfe66247f4d0d89b886fb44f5a4cdc4fcac5034867862e4  vold_patched
+49c634585f6163c26bfad10155aa1e51b5fdf01df9f4de7de3e8cd8e72fc6b39  service.incremental_patched.so
+60490985a8d1ff6cc7f9762613a07dc44e24777f0cd6322b30405cb9c13d65f5  framework_patched.jar
+02f551487ab656a540140b27ae87d68044f97db4279c115358ae04d9c9f97062  telephony-common_patched.jar
+189db6959ff0ee762cf0d98c0ae89a18ec5e6093e252eefd89e96f9a54af16fc  libcamera_client_patched.so
+# biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py); PixelOS 17 reaches the phone's AIDL fingerprint HAL itself (no HIDL config_biometric_sensors), so no guest_force_aidl_fingerprint.py
+# in-display fingerprint place: FingerprintProvider.getWorkaroundSensorProps asks OneOSUdfps (/data/system/oneos_udfps, from the phone's sysfs) first (patches/guest_udfps_location.py)
+# optical sensor: FingerprintProvider.onPointerDown/onPointerUp light the panel's local HBM and send Samsung's touch request first (patches/guest_seh_touch.py, OneOSSehTouch; /data/system/oneos_fp_lhbm)

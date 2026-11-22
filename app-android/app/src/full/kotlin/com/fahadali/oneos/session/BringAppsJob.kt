@@ -47,7 +47,7 @@ import com.fahadali.oneos.probe.ProbeSession
 object BringAppsJob : BackgroundJob<BringAppsJob.State>(State(), "oneos-bring-apps") {
     enum class Phase { IDLE, LOADING, COLLECTING, CLEARING, DONE, FAILED }
 
-    data class Candidate(val pkg: String, val label: String, val version: String)
+    data class Candidate(val pkg: String, val label: String, val version: String, val system: Boolean)
 
     data class State(
         val phase: Phase = Phase.IDLE,
@@ -203,11 +203,9 @@ object BringAppsJob : BackgroundJob<BringAppsJob.State>(State(), "oneos-bring-ap
     /** Ticks or unticks one app; kept in prefs for this system until it is brought. */
     fun toggle(ctx: Context, pkg: String, on: Boolean) = retick(ctx) { if (on) it + pkg else it - pkg }
 
-    /** Select all: every app in the list, or none. */
-    fun setAll(ctx: Context, on: Boolean) {
-        val all = state.candidates?.map { it.pkg }?.toSet() ?: return
-        retick(ctx) { if (on) all else emptySet() }
-    }
+    /** Change the visible group without clearing selections hidden by search or filters. */
+    fun setVisible(ctx: Context, packages: Set<String>, on: Boolean) =
+        retick(ctx) { if (on) it + packages else it - packages }
 
     /** Ticks these as well (the brought apps that are newer on One UI). */
     fun tick(ctx: Context, pkgs: Collection<String>) = retick(ctx) { it + pkgs }
@@ -468,7 +466,10 @@ object BringAppsJob : BackgroundJob<BringAppsJob.State>(State(), "oneos-bring-ap
     fun sendCatalog(ctx: Context): Boolean = runCatching {
         val app = ctx.applicationContext
         val pm = app.packageManager
-        val entries = candidates(app).mapNotNull { c -> iconPng(pm, c.pkg)?.let { BringCatalog.Entry(c.pkg, c.label, it) } }
+        val entries = candidates(app).mapNotNull { c ->
+            val icon = if (c.system) ByteArray(0) else iconPng(pm, c.pkg)
+            icon?.let { BringCatalog.Entry(c.pkg, c.label, it, c.system) }
+        }
         val bytes = BringCatalog.text(entries).toByteArray()
         su(app)
         val reply = RootVerbs.run(
@@ -528,21 +529,19 @@ object BringAppsJob : BackgroundJob<BringAppsJob.State>(State(), "oneos-bring-ap
     private fun candidates(app: Context): List<Candidate> {
         val pm = app.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val seen = mutableSetOf<String>()
-        val out = mutableListOf<Candidate>()
-        for (ri in pm.queryIntentActivities(intent, 0)) {
-            val ai = ri.activityInfo?.applicationInfo ?: continue
+        val launchable = pm.queryIntentActivities(intent, 0).mapNotNull { it.activityInfo?.packageName }.toSet()
+        val systemFlags = ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP
+        return pm.getInstalledApplications(0).mapNotNull { ai ->
             val pkg = ai.packageName
-            if (!seen.add(pkg)) continue
-            // Runs as a system uid (a shared-uid package): not a user app, and the guest could not install it.
-            if (ai.uid < android.os.Process.FIRST_APPLICATION_UID) continue
-            val system = (ai.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0
-            if (!BringApps.eligible(pkg, system, launchable = true)) continue
+            val system = (ai.flags and systemFlags) != 0
+            if (ai.uid < android.os.Process.FIRST_APPLICATION_UID ||
+                !BringApps.eligible(pkg, system, pkg in launchable) ||
+                (system && !BringApps.portableSystemApk(ai.sourceDir.orEmpty()))
+            ) return@mapNotNull null
             val label = runCatching { ai.loadLabel(pm).toString() }.getOrDefault(pkg).ifBlank { pkg }
             val version = runCatching { pm.getPackageInfo(pkg, 0).versionName ?: "" }.getOrDefault("")
-            out += Candidate(pkg, label, version)
-        }
-        return out.sortedBy { it.label.lowercase() }
+            Candidate(pkg, label, version, system)
+        }.sortedBy { it.label.lowercase() }
     }
 
     /** The boot screen's status while a Bring started on the Apps screen is waited for. */

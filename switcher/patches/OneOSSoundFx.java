@@ -28,6 +28,12 @@ import java.util.UUID;
  * active after being idle, AudioSystem.isStreamActive, checked every 2 s), 2 s
  * after the start.
  *
+ * 0.5.35 (owner, A36 PixelOS, Galaxy Buds: "i dont feel it same as oneUI"): music that changes outputs
+ * while it plays (the buds connected, the speaker taken over) had no new start, so Dolby stayed on the
+ * speaker's output while the music went to Bluetooth's, which had no effect chain at all. It is also
+ * created again when music's output device changes while it plays (AudioSystem.getDevicesForStream(3):
+ * 2 the speaker, 128 Bluetooth A2DP); created during Buds playback it was on the A2DP output.
+ *
  * Runs inside the guest through app_process, like OneOSCameraWorker. The
  * constructor taking a type and an implementation is hidden, hence reflection.
  */
@@ -54,10 +60,13 @@ public final class OneOSSoundFx {
   // effect sat on the idle deep-buffer output for 10 minutes, 0 re-attachments).
   boolean was = false;
   int moves = 0;
+  int dev = musicDevice(), at = dev;
   while (alive(guest)) {
    Thread.sleep(2000);
    boolean now = musicActive();
-   if (now && !was) {
+   dev = musicDevice();
+   boolean moved = now && was && dev != 0 && at != 0 && dev != at;
+   if ((now && !was) || moved) {
     // Music started: create it again, so it is on the output music plays on. Not at
     // once: created right at the start it went to the primary output again (F8U test);
     // created 2 s in, with the music's output running, it is on that output.
@@ -65,9 +74,11 @@ public final class OneOSSoundFx {
     if (!alive(guest)) break;
     try { c.getMethod("release").invoke(fx); } catch (Throwable t) { }
     fx = null;
-    Object f = create(c, k, type, moves < 5 ? "music started" : null);
+    String why = moved ? "music moved to output device " + dev + " from " + at : "music started";
+    Object f = create(c, k, type, moves < 8 ? why : null);
     if (f != null) fx = f;
-    else { Thread.sleep(1000); fx = create(c, k, type, "music started (again)"); }
+    else { Thread.sleep(1000); fx = create(c, k, type, why + " (again)"); }
+    at = musicDevice();
     moves++;
    }
    was = now;
@@ -102,6 +113,16 @@ public final class OneOSSoundFx {
    return (Boolean) s.getMethod("isStreamActive", int.class, int.class).invoke(null, 3, 0);
   } catch (Throwable t) {
    return false;
+  }
+ }
+
+ /** The output devices STREAM_MUSIC plays on (AudioSystem.getDevicesForStream, hidden): a device bit mask; 0 when it cannot be asked. */
+ private static int musicDevice() {
+  try {
+   Class<?> s = Class.forName("android.media.AudioSystem");
+   return (Integer) s.getMethod("getDevicesForStream", int.class).invoke(null, 3);
+  } catch (Throwable t) {
+   return 0;
   }
  }
 

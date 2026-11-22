@@ -305,6 +305,36 @@ add)
             echo "$BLUR=1" >> "$NEW"
         fi
     fi
+    # 0.5.35, an AOSP SystemUI guest (Pixel, PixelOS, LineageOS; not ColorOS, HyperOS, Nothing OS or One UI):
+    # - Linear brightness slider. AOSP's slider is a gamma curve whose middle is 1/12 of the range (PixelOS
+    #   on the A36: about 25 nits at half way; owner: "even till the middle of bar its not too bright"), where
+    #   One UI's middle is about a third (level 92 of 255). SystemUI and Settings read
+    #   sys.brightness.disable_gamma_conversion when they start (BrightnessUtils); tested live on the A36,
+    #   owner: "brightness is way better". The property is the phone's own, so it goes through the override
+    #   list like the others: One UI's value comes back with the return (a live test without it left
+    #   One UI's slider linear too). ONEOS_GUEST_LINEAR_BRIGHTNESS=0 leaves it.
+    # - Adaptive refresh (the stage's data/oneos_adaptive, oneos_switch.sh: panels with seamless modes at or
+    #   under 120 Hz): SurfaceFlinger's content detection off, so whatever moves renders at the top rate and
+    #   only a still screen renders at the lower rate (SurfaceFlinger's idle timer; the panel stays at its top mode). With it
+    #   on, "normal" animations ran at 60 Hz (owner, A36: "OS feels kinda sluggish").
+    if [ ! -e "$ROOTFS/system/framework/oplus-services.jar" ] && [ ! -e "$ROOTFS/system/framework/miui-services.jar" ] &&
+       [ ! -e "$ROOTFS/system/system_ext/framework/nt-telephony-common.jar" ] && [ ! -e "$ROOTFS/system_ext/framework/nt-telephony-common.jar" ] &&
+       ! grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        for kv in "sys.brightness.disable_gamma_conversion=true:${ONEOS_GUEST_LINEAR_BRIGHTNESS:-1}" \
+                  "ro.surface_flinger.use_content_detection_for_refresh_rate=false:$([ -f "$STAGE/data/oneos_adaptive" ] && echo 1 || echo 0)"; do
+            [ "${kv##*:}" = 1 ] || continue
+            kv=${kv%:*}; key=${kv%%=*}; value=${kv#*=}
+            hv=$(getprop "$key")
+            if [ "$hv" = "$value" ]; then
+                echo "guest_props: $key is already $value"
+            elif "$RP" -n "$key" "$value" 2>/dev/null; then
+                echo "$key=$hv" >> "$OVR"
+                echo "guest_props: $key=$value for the session (was '${hv}')"
+            else
+                echo "guest_props: $key could not be set"
+            fi
+        done
+    fi
     # ColorOS's animation level. OPPO's launcher turns its material blur on
     # only when persist.sys.oplus.anim_level is a valid level
     # (PlatformLevelUtils ii.l.h(): 1-4): the app drawer needs level 1
@@ -1696,11 +1726,40 @@ ro.miui.backdrop_sampling_enabled=true"
                     echo "guest_props: $key=$g for the session (One UI: $h; the guest framework has no $h APIs)"
             fi ;;
     esac
+    oneui_image_model="${ONEOS_ONEUI_IMAGE_MODEL:-1}"
+    oneui_version_props="ro.build.version.oneui ro.build.version.sem ro.build.version.sem_platform_int"
+    if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+       grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        # Build.VERSION.SEM_PLATFORM_INT and One UI Home read sep, not sem.
+        # Use the guest's platform level with the Fold8's own hardware identity.
+        oneui_version_props="$oneui_version_props ro.build.version.sep"
+        oneui_image_model=0
+        echo "guest_props: keeping Fold8 model for One UI 9.5"
+        # SystemUI reads this debug override when its application starts.
+        # Use the session property journal so the host value returns with One UI.
+        if [ "${ONEOS_ONEUI_HEADLINE:-1}" = 1 ]; then
+            key=persist.debug.sysui.headline
+            h=$(getprop "$key")
+            if [ "$h" != 1 ]; then
+                if getprop | grep -qF "[$key]: ["; then
+                    printf '%s=%s\n' "$key" "$h" >> "$OVR"
+                else
+                    printf '%s\n' "$key" >> "$ADDED"
+                fi &&
+                    "$RP" -n "$key" 1 2>/dev/null
+            fi
+            if [ "$(getprop "$key")" = 1 ]; then
+                echo "guest_props: $key=1 for the One UI 9.5 session"
+            else
+                echo "guest_props: could not enable One UI 9.5 Status Bar Headline"
+            fi
+        fi
+    fi
     # One UI's own version from a One UI image (0.5.22, One UI 9.5 on One UI 9.0 phones): the guest
     # framework is the image's, so Settings, Samsung's apps and feature checks read its version,
     # not the phone's (A36 run 9 showed One UI 9.0 everywhere). The model and device stay One UI's.
     if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
-        for key in ro.build.version.oneui ro.build.version.sem ro.build.version.sem_platform_int; do
+        for key in $oneui_version_props; do
             g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
             h=$(getprop "$key")
             case "$g" in ""|*[!0-9]*) continue ;; esac
@@ -1714,8 +1773,8 @@ ro.miui.backdrop_sampling_enabled=true"
     # (One UI 9.5 S948BXXU6ZZKN: SM-S948B), so Galaxy Store offers the image's apps (Live Effect was
     # "not compatible" for the A36). Device and product names, the SoC and the carrier/CSC props stay
     # the phone's: Samsung picks carrier settings and hardware resources by those. Back at the return.
-    # ONEOS_ONEUI_IMAGE_MODEL=0 keeps the phone's model.
-    if [ "${ONEOS_ONEUI_IMAGE_MODEL:-1}" = 1 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+    # ONEOS_ONEUI_IMAGE_MODEL=0 also keeps the phone's model on other profiles.
+    if [ "$oneui_image_model" = 1 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
         g=$(sed -n 's/^ro.product.system.model=//p' "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
         case "$g" in SM-[A-Z0-9]*) ;; *) g="" ;; esac
         if [ -n "$g" ]; then

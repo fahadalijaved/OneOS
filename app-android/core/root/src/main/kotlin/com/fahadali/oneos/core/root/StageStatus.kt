@@ -48,6 +48,12 @@ enum class GuestData {
      * image nor another family's for it.
      */
     ORIGINOS,
+
+    /**
+     * PixelOS's updater, net.pixelos.ota (0.5.35): its data also has Pixel's launcher and LineageOS packages (Aperture),
+     * so this word goes first. Never kept for Google's Pixel builds, nor theirs for it.
+     */
+    PIXELOS,
     OTHER,
     ;
 
@@ -60,6 +66,7 @@ enum class GuestData {
             HYPEROS -> SystemFamily.HYPEROS
             OXYGENOS -> SystemFamily.OXYGENOS
             ORIGINOS -> SystemFamily.ORIGINOS
+            PIXELOS -> SystemFamily.PIXELOS
             else -> null
         }
 
@@ -156,7 +163,7 @@ data class StageStatus(
             ours -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             partial && guest != GuestData.LINEAGEOS -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             guest == GuestData.COLOROS || guest == GuestData.PIXEL || guest == GuestData.INFINITYX || guest == GuestData.HYPEROS ||
-                guest == GuestData.OXYGENOS || guest == GuestData.ORIGINOS ->
+                guest == GuestData.OXYGENOS || guest == GuestData.ORIGINOS || guest == GuestData.PIXELOS ->
                 listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             else -> listOf(RootScript.BeginMode.ASIDE)
         }
@@ -374,6 +381,7 @@ data class StageStatus(
             val guestLines = lines("stage.guest")
             val guest = when {
                 statuses["stage.guest"] != ProbeStatus.OK -> GuestData.NONE
+                guestLines.any { it == "packages $PIXELOS_WORD" } -> GuestData.PIXELOS
                 guestLines.any { it == "packages $INFINITYX_WORD" } -> GuestData.INFINITYX
                 guestLines.any { it == "packages $OXYGENOS_WORD" } -> GuestData.OXYGENOS
                 guestLines.any { it == "packages $ORIGINOS_WORD" } -> GuestData.ORIGINOS
@@ -425,6 +433,9 @@ data class StageStatus(
         /** The package status.list (and root's `begin keep`) takes for the Pixel guest's data: Pixel's launcher. */
         const val PIXEL_WORD = "com.google.android.apps.nexuslauncher"
         const val HYPEROS_WORD = "com.miui."
+
+        /** PixelOS's updater (its system_ext/priv-app/Updater). */
+        const val PIXELOS_WORD = "net.pixelos.ota"
 
         /** Infinity-X's updater (its system_ext/priv-app/Updater). */
         const val INFINITYX_WORD = "com.infinity.updater"

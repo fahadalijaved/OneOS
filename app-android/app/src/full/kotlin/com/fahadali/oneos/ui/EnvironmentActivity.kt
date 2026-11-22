@@ -15,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.widget.NestedScrollView
+import com.fahadali.oneos.session.GuestFeatures
 import com.fahadali.oneos.session.GuestRuntimeStore
 import com.fahadali.oneos.session.PatchChannels
 import com.fahadali.oneos.R
@@ -214,6 +215,13 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 com.fahadali.oneos.session.LogJob.skip()
             }
         }
+        val patchProfile = currentFacts?.let { com.fahadali.oneos.core.model.Profiles.resolve(it).profile }
+        val features = GuestFeatures.forSystem(patchProfile, image.id)
+        if (features.isNotEmpty()) {
+            PrebootCards.row(PrebootCards.section(column), getString(R.string.system_features), chevron = true) {
+                showGuestFeatureFlags(this, image.id, features)
+            }
+        }
         // The 20dp card gap below the busy card above (it sat glued to this one, 11-14).
         val checks = PrebootCards.section(column)
         checks.setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -300,7 +308,6 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 surface.addView(content, LinearLayout.LayoutParams(-1, -2))
             }
         }
-        val patchProfile = currentFacts?.let { com.fahadali.oneos.core.model.Profiles.resolve(it).profile }
         if (!preview && patchProfile != null) {
             val key = "${patchProfile.id}:${image.id}"
             if (patchDiscoveryKey != key) {

@@ -55,7 +55,7 @@ class ImagesTest {
         // (Nothing's are product/priv-app GmsCore, Phonesky, GooglePartnerSetup, GoogleRestore, ConfigUpdater
         // and system_ext/priv-app GoogleServicesFramework: six folders guest_prepare.sh's patterns cover).
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
             Images.ALL.filter { it.googleServices },
         )
         // 0.5.06: LineageOS 24 has none of its own: its Google apps are One UI's, laid over the guest at session time
@@ -92,12 +92,12 @@ class ImagesTest {
         assertFalse(oneui.gmsHideable)
         assertEquals(SystemFamily.ONEUI, oneui.family)
         // 0.4.73: OriginOS 7 presents the Play services of its own gmssystem payload, as the Pixel images.
-        assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_ASTEROIDS, Images.ORIGINOS7, Images.ONEUI95), Images.ALL.filter { it.presentsGms })
+        assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_ASTEROIDS, Images.ORIGINOS7, Images.ONEUI95, Images.PIXELOS_ONYX), Images.ALL.filter { it.presentsGms })
         assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
             listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16,
-                Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95),
+                Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
             Images.ALL,
         )
         // 0.4.67: OxygenOS 16 is the one SDK 36 image, of its own family; nothing past ARMv8.2 in its core binaries.
@@ -179,7 +179,7 @@ class ImagesTest {
             listOf(
                 SystemFamily.COLOROS, SystemFamily.COLOROS,
                 SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL,
-                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS, SystemFamily.LINEAGE, SystemFamily.ONEUI,
+                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS, SystemFamily.LINEAGE, SystemFamily.ONEUI, SystemFamily.PIXELOS, // 0.5.35: PixelOS its own family
             ),
             Images.ALL.map { it.family },
         )
@@ -250,7 +250,7 @@ class ImagesTest {
             "This is the Find N6 image; Galaxy S26 Ultra takes the Find X9 Ultra IN (Nov) image (OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz) " +
                 "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the OnePlus 15 image (OneOS_LineageOS24_OnePlus15.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
-                "or the HyperOS 4 Global image (OneOS_HyperOS4_Global.img.gz) or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz) or the Galaxy S26 Ultra image (OneOS_OneUI9.5_S26Ultra.img.gz).",
+                "or the HyperOS 4 Global image (OneOS_HyperOS4_Global.img.gz) or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz) or the PixelOS image (OneOS_PixelOS17_POCOF7.img.gz) or the Galaxy S26 Ultra image (OneOS_OneUI9.5_S26Ultra.img.gz).",
             n6OnS26.finding.detail,
         )
         // The Pixel image is the Fold's only (0.3.7): refused on an S Ultra and the Galaxy S25, by size alone already.
@@ -309,27 +309,27 @@ class ImagesTest {
         val origin = Images.ORIGINOS7
         val takes = mapOf(
             Profiles.F8U to listOf(n6, pixel, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
-            Profiles.S_ULTRA_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
+            Profiles.S_ULTRA_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95),
             // 0.4.22: the Pixel 9 Pro XL image on the phones without SVE.
-            Profiles.S_ULTRA_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
-            Profiles.S_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
+            Profiles.S_ULTRA_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95),
+            Profiles.S_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95),
             Profiles.FOLD7 to listOf(n6, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
-            Profiles.S_PLUS_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
+            Profiles.S_PLUS_8750 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95),
             Profiles.FOLD8 to listOf(n6, pixel, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
-            Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
-            Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95), // 0.4.82
-            Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.OXYGEN16, nothing, origin, Images.ONEUI95), // 0.4.82; 0.4.91 OxygenOS 16; 0.5.19 Nothing OS
-            Profiles.S_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95), // 0.4.83
-            Profiles.S_PLUS_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95), // 0.4.83
-            Profiles.S_FE_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.ONEUI95),
-            Profiles.S_PLUS_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, origin, Images.ONEUI95),
-            Profiles.S_PLUS_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, Images.ONEUI95),
-            Profiles.S_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, Images.ONEUI95),
+            Profiles.S_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95),
+            Profiles.S_ULTRA_8650 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95), // 0.4.82
+            Profiles.S_8550 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.OXYGEN16, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95), // 0.4.82; 0.4.91 OxygenOS 16; 0.5.19 Nothing OS
+            Profiles.S_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95), // 0.4.83
+            Profiles.S_PLUS_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95), // 0.4.83
+            Profiles.S_FE_9945 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.PIXELOS_ONYX, Images.ONEUI95),
+            Profiles.S_PLUS_8850 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, origin, Images.PIXELOS_ONYX, Images.ONEUI95),
+            Profiles.S_PLUS_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, Images.PIXELOS_ONYX, Images.ONEUI95),
+            Profiles.S_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, Images.PIXELOS_ONYX, Images.ONEUI95),
             Profiles.FLIP7 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.ONEUI95),
-            Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.NOTHING_ASTEROIDS, Images.ONEUI95),
+            Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.NOTHING_ASTEROIDS, Images.PIXELOS_ONYX, Images.ONEUI95),
             Profiles.FLIP5 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.ONEUI95),
             Profiles.FLIP8 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, Images.ONEUI95),
-            Profiles.A36 to listOf(xin, ifx, lineage, hyper, hyperHk, Images.NOTHING_ASTEROIDS, Images.ONEUI95), // 0.4.57: no Pixel 9 Pro XL on ARMv8.2; 0.5.15: Nothing OS (A series)
+            Profiles.A36 to listOf(xin, ifx, lineage, hyper, hyperHk, Images.NOTHING_ASTEROIDS, Images.PIXELOS_ONYX, Images.ONEUI95), // 0.4.57: no Pixel 9 Pro XL on ARMv8.2; 0.5.15: Nothing OS (A series); 0.5.35: PixelOS
         )
         for ((p, good) in takes) {
             assertEquals(p.id, good, p.images())
@@ -367,7 +367,7 @@ class ImagesTest {
             "Galaxy S26 Ultra takes the Find X9 Ultra IN (Nov) image (OneOS_ColorOS17_FindX9Ultra_IN_1105.img.gz) " +
                 "or the Pixel 11 Pro image (OneOS_Pixel11Pro_Full_S26U.img.gz) " +
                 "or the Infinity-X image (OneOS_InfinityX_FindX9Ultra.img.gz) or the OnePlus 15 image (OneOS_LineageOS24_OnePlus15.img.gz) or the Xiaomi 18 Fold image (OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz) " +
-                "or the HyperOS 4 Global image (OneOS_HyperOS4_Global.img.gz) or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz) or the Galaxy S26 Ultra image (OneOS_OneUI9.5_S26Ultra.img.gz)",
+                "or the HyperOS 4 Global image (OneOS_HyperOS4_Global.img.gz) or the Nothing OS image (OneOS_NothingOS5_Metroid.img.gz) or the OriginOS 7 image (OneOS_OriginOS7_PD2609MA.img.gz) or the PixelOS image (OneOS_PixelOS17_POCOF7.img.gz) or the Galaxy S26 Ultra image (OneOS_OneUI9.5_S26Ultra.img.gz)",
             ImageIdentifier.accepts(Profiles.S_ULTRA_8850),
         )
     }

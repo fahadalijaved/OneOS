@@ -70,6 +70,36 @@ def patch(root):
 
     locals_hits = re.findall(r"^    \.locals (\d+)$", body, re.M)
 
+    # PixelOS 17 (onyx, 0.5.35): the loop already walks the whole status map and asks
+    # shouldHideAuxCamera(id) per camera, which hides IDs 2 and up unless the caller is on the vendor's
+    # aux-camera allowlist (Camera.shouldExposeAuxCamera). Only that allowlist is left to take away, so every
+    # caller keeps the public IDs 0 and 1, as above: shouldHideAuxCamera no longer asks it.
+    helper_call = "invoke-static {v5}, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;->shouldHideAuxCamera(Ljava/lang/String;)Z"
+    if helper_call in body and "shouldExposeAuxCamera" not in body:
+        hm = re.search(
+            r"^\.method private static (?:\w+ )*shouldHideAuxCamera\(Ljava/lang/String;\)Z\n.*?^\.end method\n",
+            text, re.M | re.S)
+        if not hm:
+            die("shouldHideAuxCamera(String) not found next to its caller")
+        hbody = hm.group(0)
+        if MARKER in hbody:
+            return None
+        expose = re.compile(
+            r"^(    )invoke-static \{\}, Landroid/hardware/Camera;->shouldExposeAuxCamera\(\)Z\n"
+            r"((?:\s*\.line \d+\n|\s*\n)*)"
+            r"    move-result (v\d+)\n", re.M)
+        found = list(expose.finditer(hbody))
+        if len(found) != 1:
+            die(f"shouldHideAuxCamera: the allowlist call matched {len(found)} times (one expected)")
+        if not re.search(r"const/4 v\d+, 0x2\n(?:\s*\.line \d+\n|\s*\n)*\s*if-lt p0, v\d+, :cond_\d+", hbody):
+            die("shouldHideAuxCamera: not the 'ID below 2 stays visible' shape")
+        e = found[0]
+        hbody = hbody[:e.start()] + f"    {MARKER}\n    const/4 {e.group(3)}, 0x0\n" + hbody[e.end():]
+        text = text[:hm.start()] + hbody + text[hm.end():]
+        with open(path, "w", encoding="utf-8", newline="") as output:
+            output.write(text)
+        return os.path.relpath(path, root).split(os.sep, 1)[0]
+
     if "Landroid/hardware/camera2/impl/CameraExtStub;->isAuxCameraClient" in body:
         if locals_hits != ["8"]:
             die(f"HyperOS extractCameraIdListLocked locals are {locals_hits}, expected ['8']")

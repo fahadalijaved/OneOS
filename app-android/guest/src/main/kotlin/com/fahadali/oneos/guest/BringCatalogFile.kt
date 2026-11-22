@@ -5,7 +5,7 @@ import java.util.Base64
 /**
  * What the OneOS app on One UI left for this system's Bring apps screen: the
  * catalog at /data/oneos_bring_catalog/catalog.tsv (one `package TAB label TAB
- * base64 PNG icon` line per app), and the request / status files of one request
+ * base64 PNG icon` for user apps, `package TAB label TAB - TAB system` for system apps), and the request / status files of one request
  * under /data/oneos_bring_requests. Pure parsing, no Android classes.
  */
 object BringCatalogFile {
@@ -14,16 +14,18 @@ object BringCatalogFile {
 
     private val PACKAGE = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
 
-    class Item(val pkg: String, val label: String, val png: ByteArray)
+    class Item(val pkg: String, val label: String, val png: ByteArray?, val system: Boolean)
 
-    /** The apps of the catalog text; a line that is not exactly three well-formed fields is skipped. */
+    /** Reads user and system entries, including catalogs written by older hosts. */
     fun parse(text: String): List<Item> {
         val out = LinkedHashMap<String, Item>()
         for (line in text.lineSequence()) {
             val f = line.split('\t')
-            if (f.size != 3 || !PACKAGE.matches(f[0]) || f[1].isBlank()) continue
-            val png = runCatching { Base64.getDecoder().decode(f[2]) }.getOrNull() ?: continue
-            if (f[0] !in out) out[f[0]] = Item(f[0], f[1], png)
+            if (f.size < 3 || !PACKAGE.matches(f[0]) || f[1].isBlank()) continue
+            val system = f.size == 4 && f[2] == "-" && f[3] == "system"
+            if (!system && f.size != 3) continue
+            val png = if (system) null else runCatching { Base64.getDecoder().decode(f[2]) }.getOrNull() ?: continue
+            out.putIfAbsent(f[0], Item(f[0], f[1], png, system))
         }
         return out.values.sortedBy { it.label.lowercase() }
     }
