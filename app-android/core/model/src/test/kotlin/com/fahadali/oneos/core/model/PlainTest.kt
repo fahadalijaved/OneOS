@@ -54,6 +54,7 @@ class PlainTest {
         add(CpuRules.ID_APP_FEATURES, Level.WARN, CpuRules.R_APP_FEATURES)
         add(Profiles.ID_NOTE_OLDER_VENDOR, Level.WARN, Profiles.R_OLDER_VENDOR)
         add(Profiles.ID_NOTE_EXPECT_NO_START, Level.WARN, Profiles.R_EXPECT_NO_START)
+        add(Profiles.ID_NOTE_FOLD4_ISSUES, Level.WARN, Profiles.R_FOLD4_ISSUES)
         add(SwitchGates.ID_LOGS, Level.WARN, SwitchGates.R_LOGS)
         add(SwitchGates.ID_ZYGISK, Level.WARN, SwitchGates.R_ZYGISK_OLD)
     }

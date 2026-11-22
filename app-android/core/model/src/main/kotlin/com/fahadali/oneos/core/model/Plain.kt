@@ -274,6 +274,11 @@ object Plain {
                     "session logs from Settings › Last session.",
                 FixAction.ACKNOWLEDGE,
             )
+            Profiles.ID_NOTE_FOLD4_ISSUES -> m(
+                "Known issues on this phone",
+                "Camera does not work, cover screen brightness is fixed and dim, and the phone may warm up.",
+                FixAction.NONE,
+            )
             SwitchGates.ID_LOGS -> m(
                 "Last session's logs aren't read yet",
                 "OneOS reads them by itself after you come back.",
