@@ -156,6 +156,10 @@ object Profiles {
     const val ID_NOTE_EXPECT_NO_START = "profile-expect-no-start"
     const val R_EXPECT_NO_START = "expect-no-start"
 
+    /** The Galaxy Z Fold4 note: known issues on OxygenOS 16 ([PhoneProfile.notes]) and its [Finding.reason]. */
+    const val ID_NOTE_FOLD4_ISSUES = "profile-fold4-issues"
+    const val R_FOLD4_ISSUES = "fold4-issues"
+
     /**
      * Both S Ultra profiles and the Galaxy S25: the Find X9 Ultra CN build,
      * tested on all three (owner, 2026-10-25; 0.3.3-0.3.6 also took the IN build,
@@ -327,6 +331,14 @@ object Profiles {
         "MediaTek phones have not run OneOS before. The screen, brightness, phone calls, Wi-Fi or sound may not work; " +
             "if the screen stays black, OneOS returns to One UI by itself. Share the session logs afterwards.",
         R_MEDIATEK,
+    )
+
+    /** Galaxy Z Fold4: known limitations on OxygenOS 16. */
+    private val FOLD4_ISSUES = Finding(
+        ID_NOTE_FOLD4_ISSUES, Level.WARN, "Known issues on Fold4",
+        "OxygenOS 16 boots on Galaxy Z Fold4 with known limitations: camera does not work, " +
+            "cover screen is dim with fixed brightness, and the phone runs warm.",
+        R_FOLD4_ISSUES,
     )
 
     /** The Switch tick for [ID_NOTE_EXPECT_NO_START]. */
@@ -792,6 +804,10 @@ object Profiles {
      * Galaxy Z Fold4, from 0.5.03 probe report (SM-F936B, q4q, SM8475 / Snapdragon 8+ Gen 1,
      * One UI 8.0, Android 16, vendor API 31 and kernel 5.10, inner 1812 x 2176 and cover 904 x 2316,
      * UDC, KernelSU, installd 73 methods). Held on One UI 8.0: OxygenOS 16 (SDK 36) only.
+     * Tested 2026-11-22: boots into OxygenOS 16. Known issues:
+     * - Camera does not work (vendor camera provider mismatch)
+     * - Cover screen is dim with fixed brightness
+     * - Phone heats up under load
      */
     val FOLD4 = PhoneProfile(
         id = ID_FOLD4,
@@ -801,7 +817,7 @@ object Profiles {
         socModel = "SM8475",
         form = FormFactor.FOLD,
         choices = listOf(OXYGEN16_CHOICE.copy(tested = true)),
-        notes = listOf(olderVendor("31 (Android 12)", "5.10")),
+        notes = listOf(olderVendor("31 (Android 12)", "5.10"), FOLD4_ISSUES),
     )
 
     /**
