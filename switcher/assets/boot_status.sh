@@ -113,7 +113,7 @@ oneos_boot_begin() {
     oneos_boot_write generation "$(date +%s)-$$"
     sleep 0.2
     oneos_boot_release_display
-    rm -f "$ONEOS_BOOT_DIR/stop" "$ONEOS_BOOT_DIR/ready" "$ONEOS_BOOT_DIR/framework" "$ONEOS_BOOT_DIR/hint" "$ONEOS_BOOT_DIR/native"
+    rm -f "$ONEOS_BOOT_DIR/stop" "$ONEOS_BOOT_DIR/ready" "$ONEOS_BOOT_DIR/framework" "$ONEOS_BOOT_DIR/hint" "$ONEOS_BOOT_DIR/native" "$ONEOS_BOOT_DIR/progress" "$ONEOS_BOOT_DIR/next"
     if [ "$1" = ios ]; then
         # No Android framework follows: the status line is always shown (the
         # switch writes the boot stage it reads in xnuhost's log), with the

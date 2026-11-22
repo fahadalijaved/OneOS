@@ -37,7 +37,10 @@ iOS 27 (OneiOS, `docs/oneios.md`, "Boot screen") shows the same screen from its 
 `ONEOS_BOOT_DIR` set by `oneios_switch.sh`. There the status line is always on, a `hint` file is drawn near the
 bottom edge, the supervisor's `ios` mode reads no Android boot event and writes its pid and the renderer's to
 the status directory, and `ONEOS_BOOT_MAX` (seconds, also the renderer's third argument) is the upper bound.
-With `ONEOS_BOOT_HOME` unset nothing here changes for an Android guest.
+The iOS switch's feeder also writes `progress` (`<step> <steps> <fraction 0..1>`) and `next` (the next step's
+name); with a valid `progress` the renderer draws a bar and a "Step N of M · Next: ..." line under the status.
+`oneos_boot_begin` removes both files. With `ONEOS_BOOT_HOME` unset nothing here changes for an Android guest
+(it never writes `progress`, so its screen is as before).
 
 Run `python3 scripts/test-boot-status.py` for the event parser and cleanup tests.
 The owner verified both entry and return on the physical Fold8 with the

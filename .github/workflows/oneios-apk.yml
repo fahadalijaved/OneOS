@@ -107,6 +107,11 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             mkdir -p "$HOME/.android"
             printf '%s' "$KEYSTORE_B64" | base64 -d > "$HOME/.android/debug.keystore"
+            # 2026-11-23: Gradle did not take ~/.android/debug.keystore here (0.5.51 and 0.5.52 each had a key of their
+            # own), so the key also goes where app-android/app/build.gradle.kts looks first: rootProject/../../secrets
+            mkdir -p "$GITHUB_WORKSPACE/../secrets"
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/../secrets/oneios-debug.keystore"
+            echo "WANT_CERT=8b3be966893342e8ca63cbb9b2097e038cfb30c7bccb1296c2baa25654217599" >> "$GITHUB_ENV"
             echo "SIGNED_WITH=the fork's debug key (secret ONEIOS_DEBUG_KEYSTORE_B64)" >> "$GITHUB_ENV"
           else
             echo "SIGNED_WITH=a debug key made for this run: uninstall an earlier build before installing this one" >> "$GITHUB_ENV"
@@ -134,6 +139,13 @@ jobs:
         run: |
           src=app-android/app/build/outputs/apk/full/debug/app-full-debug.apk
           [ -s "$src" ] || { echo "::error::no $src"; exit 1; }
+          # the signer: with the secret it must be the shared key, or the APK cannot go over an installed one
+          signer=$("$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)" verify --print-certs "$src" \
+            | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1)
+          echo "signer certificate sha256: $signer"
+          if [ -n "${WANT_CERT:-}" ] && [ "$signer" != "$WANT_CERT" ]; then
+            echo "::error::the APK is signed with $signer, not the shared debug key $WANT_CERT"; exit 1
+          fi
           out="OneOS-oneios-${{ steps.version.outputs.name }}-debug.apk"
           cp "$src" "$out"
           sha256sum "$out" | tee "$out.sha256"

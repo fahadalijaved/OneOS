@@ -398,6 +398,8 @@ step "[1/5] Stopping the session" 90
 # wrote its reason there already.
 bootui oneos_boot_write title 'Returning to One UI'
 [ "$WHO" = watcher ] || bootui oneos_boot_write status 'Stopping iOS'
+# (No bar on the way back: what it counted was the boot.)
+rm -f "$BOOTUI/progress" "$BOOTUI/next"
 # The key readers and the watcher (unless this return is the watcher's own
 # child, or the watcher itself).
 true 2>/dev/null > "$CTL/keys/session"

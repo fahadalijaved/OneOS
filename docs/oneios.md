@@ -918,40 +918,68 @@ What is reused, not written again (`docs/boot-status.md`):
 
 | Piece | For an Android guest | For iOS |
 |---|---|---|
-| `boot_status.sh`: the status files (`title`, `status`, `verbose`, `generation`, `ready`, `stop`), the supervisor that restarts the renderer when surfaceflinger changes | `oneos_boot_begin enter` / `restart` / `return`, status directory `<Android stage>/data/oneos_bootui` | `oneos_boot_begin ios`, status directory `control/bootui`, the files from the stage's `bin/` (`ONEOS_BOOT_HOME`) |
+| `boot_status.sh`: the status files (`title`, `status`, `verbose`, `generation`, `ready`, `stop`; iOS adds `progress` and `next`, the bar), the supervisor that restarts the renderer when surfaceflinger changes | `oneos_boot_begin enter` / `restart` / `return`, status directory `<Android stage>/data/oneos_bootui` | `oneos_boot_begin ios`, status directory `control/bootui`, the files from the stage's `bin/` (`ONEOS_BOOT_HOME`) |
 | `OneOSBootStatus.dex` (`switcher/patches/OneOSBootStatus.java`): a root `app_process` that draws on a SurfaceControl BLAST layer at z 2,000,000,000 | icon, title, and the status line with Verbose boot on | the same, with the status line always on and a `hint` file drawn near the bottom edge (status and hint wrap) |
 | `oneos_boot_icon.png` | the OneOS icon | the same icon. **No Apple logo, name or mark is drawn**: the title is the text "Starting iOS 27" |
 | Where the status comes from | Android's boot events (`logcat -b events`) and the scripts' `ctl.start` / `ctl.stop` | the switch's feeder (`oneios_switch.sh --bootui`), from `session/xnuhost.log`; the supervisor's `ios` mode reads no Android event and does not wait for a boot animation |
 | How it ends | the new framework's display-ready event or its boot animation's end; at most 600 s | the stop flag: at the hand-off, at the return, or after 1800 s |
 
-**What it shows.** The OneOS icon; the title **Starting iOS 27**; one status line; and near the bottom edge
-**Hold Volume Up + Volume Down for 3 s to go back to One UI**. The status line:
+**What it shows.** The OneOS icon; the title **Starting iOS 27**; one status line; under it **a bar and a
+line "Step N of 12 · Next: ..."** (since 2026-11-22: what happens now and what comes next); and near the bottom
+edge **Hold Volume Up + Volume Down for 3 s to go back to One UI**.
 
-| When | Status |
-|---|---|
-| the screen is up, One UI's zygote is being stopped | Stopping One UI's framework |
-| step 4 begins | Starting xnuhost |
-| `xnuhost I xnuhost: session ABI` | xnuhost is loading the kernel |
-| `xnuhost I cpu0: entering the kernel at` | Entering the kernel |
-| console `Darwin Kernel Version` | Kernel started |
-| console `BSD root: ` | Root volume mounted |
-| console `OneiOS Data: first start` or `OneiOS Data: unpacking the seed` | Data volume: first start (this can take a few minutes) |
-| console `load_init_program: attempting to load` | Loading launchd |
-| console `com.apple.xpc.launchd\|` | launchd is running |
-| the first console line with `backboardd[` | backboardd started |
-| the first with `SpringBoard[` or `crashed: SpringBoard.` | SpringBoard started |
-| `xnuhost I guest ready: first frame` | iOS is up: waiting for its first frame |
-| console `panic(cpu N caller 0x...): TEXT` | Kernel panic: TEXT |
-| xnuhost ended | iOS stopped: kernel panic: TEXT; or iOS stopped: WHY (xnuhost exit N), from `stopping: WHY` and `exit N`; or xnuhost ended with exit N; or xnuhost ended: its last `xnuhost E` line |
-| xnuhost never started | xnuhost did not start: the log's last line |
-| the watcher returns | the title becomes **Returning to One UI**; the status is the reason above, or "A return to One UI was asked for", "iOS did not start within 60 s", "iOS did not come up within 600 s" |
-| a return from the app, by hand or from the key readers | **Returning to One UI**, Stopping iOS |
+**The steps.** The boot is twelve steps. Each begins at the first line of `session/xnuhost.log` that names it (or
+at the switch, for step 1); the status line is the step's name, the `next` file the next one's. The typical
+lengths are from the phone's boots of 2026-11-22 (`out/session-logs/2026-11-22` in OneiOS: `xnuhost-s3` to
+`xnuhost-s8`, five later boots and one first start, `xnuhost-s4`; the time from xnuhost's start, read with the
+same markers), and step 1 from the switch's log (`gpu-debug/switch.log`, `[3/5]` to `[4/5]`).
 
-The stage markers are the Session logs screen's nine (`OneiosLogs.kt`, above), with the kernel's two `OneiOS
-Data:` lines between the root mount and launchd (a new Data volume is made and its seed unpacked there, which
-takes minutes with nothing else to see). The furthest stage seen is shown; when xnuhost starts the guest again in
-place, the stages start again. The feeder looks once a second at what the log gained (at most 1 MiB a look). The
-log is the guest's to write, so what is drawn from it is cut to 200 characters of printable ASCII.
+| Step | Status (and the next step's name) | Begins at | Typical length |
+|---|---|---|---|
+| 1 | Stopping One UI's framework | the screen is up, One UI's zygote is being stopped (`bootui_begin`) | 18 s (2026-11-22), 17 s (2026-11-20); 44-49 s on 2026-11-16 |
+| 2 | Starting xnuhost | the first `oneios inner: ` line, or `xnuhost I xnuhost: session ABI` | 0.6-0.9 s |
+| 3 | Locking iOS's RAM | `xnuhost I memory: the guest's RAM is held for the session` | 3.0-3.6 s (the prefault) |
+| 4 | Starting the kernel | `xnuhost I memory: the guest's RAM is held: `, `cpu0: entering the kernel at`, console `Darwin Kernel Version` or `BSD root: ` | 2.2-2.7 s |
+| 5 | First start: making iOS's Data store (once) | console `OneiOS Data: first start` | 22.2 s (first start only) |
+| 6 | First start: unpacking iOS's data (once) | console `OneiOS Data: unpacking the seed` | 9.7 s (first start only) |
+| 7 | Starting launchd | console `load_init_program: attempting to load` | 20.2-21.8 s (0.5 s on the first start) |
+| 8 | Starting iOS's system services | console `com.apple.xpc.launchd\|` (launchd's first line) | 11.0-12.7 s (19.0 s when backboardd came first, s3) |
+| 9 | Starting SpringBoard | the first console line with `SpringBoard[` or `crashed: SpringBoard.` | 6.2-7.0 s |
+| 10 | Starting the display (backboardd) | the first console line with `backboardd[` (its framebuffer open) | 3.6-4.1 s (steps 9 and 10: 22.1 s on the first start) |
+| 11 | Waiting for iOS's first picture | `xnuhost I display: the guest's first frame of its own` (black: `session/ready` waits for a frame with content) | 23.0-38.9 s (s6 to s8); 120 s when iOS's frames stayed black (s3 to s5, `ready-content-wait`) |
+| 12 | iOS is up: handing the screen to it | `xnuhost I guest ready: first frame` | until the display helper's first post (the hand-off, below) |
+
+From xnuhost's start to `ready`, a later boot took 71.6-88.8 s (s6 to s8; 169-172 s with black frames), the first
+start 192.0 s (s4); step 1 comes before that. The weights add up to 102 s for a later boot and 134 s for a first
+start. SpringBoard and backboardd come in either order (backboardd first in s3 and on the boots of 2026-11-16 and
+2026-11-20); a step is only ever raised, so when backboardd comes first, step 9 is passed over.
+
+Besides the steps, the status line says:
+
+| When | Status | Next |
+|---|---|---|
+| console `panic(cpu N caller 0x...): TEXT` | Kernel panic: TEXT | (none) |
+| xnuhost ended | iOS stopped: kernel panic: TEXT; or iOS stopped: WHY (xnuhost exit N), from `stopping: WHY` and `exit N`; or xnuhost ended with exit N; or xnuhost ended: its last `xnuhost E` line | Going back to One UI |
+| xnuhost never started | xnuhost did not start: the log's last line | |
+| the watcher returns | the title becomes **Returning to One UI**; the status is the reason above, or "A return to One UI was asked for", "iOS did not start within 60 s", "iOS did not come up within 600 s"; the bar goes | |
+| a return from the app, by hand or from the key readers | **Returning to One UI**, Stopping iOS; the bar goes | |
+
+**The bar.** The feeder writes two files beside `status`, each whole (a temporary file, then `mv`) and only when
+it changes: `progress`, `<step> <steps> <fraction>` (e.g. `7 12 0.243`), and `next`, the next step's name (empty
+at step 12 and after a panic). The fraction is the share of the boot's typical time (the table's lengths, as
+the weights 18 1 3 2 22 10 20 12 7 4 35 0 s) of the steps before this one, plus the time in this one up to 90% of
+its own share; it is never less than the last value written, and it is 1.000 at step 12. Steps 5 and 6 count
+only on a first start: the feeder expects one while the stage has no `data/data.img` (xnuhost makes it on the
+first start), and the log decides (a `OneiOS Data: first start` or `unpacking the seed` line, or launchd's step
+reached without either). A later boot goes from step 4 to step 7: the count goes on past the two. When xnuhost
+starts the guest again in place (a new `session ABI` line), the steps and the bar start again at step 2. On a
+panic or when xnuhost ends, the bar stays where the boot stopped. The return (the watcher's and
+`oneios_return.sh`'s first step) removes `progress` and `next`, and the feeder writes neither once the state is
+no longer `starting` or `running`. The renderer draws the bar (300 points wide at most, white on grey) 22 points
+under the status's last line and the step line under it in the hint's grey; without a valid `progress` file it
+draws nothing more, as before (an Android guest's screen never has one). The feeder looks once a second at what
+the log gained (at most 1 MiB a look); one `awk` a second computes the fraction. The log is the guest's to
+write, so what is drawn from it is cut to 200 characters of printable ASCII.
 
 **The hand-off.** The display helper's layer is above the boot screen's (z 2,147,483,646 against 2,000,000,000)
 and opaque. So when the helper posts the guest's first frame, that picture covers the boot screen, and the
@@ -959,7 +987,7 @@ feeder then stops the boot screen under it: it sees `oneios-display: first frame
 `control/display.log` with the helper still running, or `session/ready` with the helper running and its
 `oneios-display: layer up`. This is how OneOS hands its boot screen to a guest's compositor: the new picture
 first, then the stop flag, and the renderer takes its own layer away. **While iOS shows nothing, the boot screen
-stays**: `ready` without a running helper leaves it up ("iOS is up: waiting for its first frame"), because
+stays**: `ready` without a running helper leaves it up ("iOS is up: handing the screen to it", the bar full), because
 taking it away would leave a black screen with no way back written on it. It is not brought back if the helper
 ends later. `control/display.log` is this session's only: the switch moves the last session's to
 `display.log.1` before it starts the helper. A helper started again by hand during a session appends its pid to
@@ -1171,17 +1199,22 @@ the two meet at the return's lock.
 - **The boot screen.** `OneiosScriptTest`, under each shell: root stages the three files in `bin/` and takes no
   other name; `boot_status.sh`'s `oneos_boot_begin ios` writes the title, the hint and the icon, and its
   supervisor in the `ios` mode starts the renderer with the bound, reads no Android boot event and ends on the
-  stop flag; the feeder shows each stage from real log lines (one after a megabyte of console), keeps the
-  furthest, starts again at a restart in place, shows a panic as printable ASCII and then why xnuhost ended,
-  signals nothing and asks nothing of init; the hand-off at the helper's first frame and at `ready` with its
-  layer up, and no hand-off for `ready` alone, a helper without a frame, or a stale pid; a renderer that never
-  drew is given up; the return ends the screen before Gate A in place, on a failsafe, on the reboot return, for
-  a switch that never stopped One UI and from the watcher (with the reason on the screen); a renderer that
+  stop flag; the feeder shows each of the twelve steps from real log lines of a first start (one after a
+  megabyte of console) with `progress` (the step of 12, a fraction that never goes back, 1.000 at step 12) and
+  `next`, keeps the furthest, passes over the two first-start steps on a later boot (the count goes from 4 to
+  7), starts again, bar and all, at a restart in place, shows a panic as printable ASCII with no `next` and then
+  why xnuhost ended with "Going back to One UI" and the bar where it stopped, signals nothing and asks nothing
+  of init; the hand-off at the helper's first frame and at `ready` with its layer up, and no hand-off for
+  `ready` alone, a helper without a frame, or a stale pid; a renderer that never drew is given up; the return
+  ends the screen before Gate A in place (and removes the bar), on a failsafe, on the reboot return, for a
+  switch that never stopped One UI and from the watcher (with the reason on the screen); a renderer that
   cannot be killed or a stale pid file is logged and One UI still comes back in place; and on the scripts' text:
   it starts after the way back is armed, has no key device, property, signal or reboot in it, and its end cannot
   fail the return. `scripts/test-boot-status.py` and `test-guest-restart-splash.py` (the Android guests' use of
   the same script) pass unchanged. Not covered by any test: the renderer itself (`app_process` and
-  surfaceflinger exist only on the phone), so the layout with the hint has not been seen.
+  surfaceflinger exist only on the phone), so the layout with the hint, and the bar with its step line
+  (2026-11-22), have not been seen; the dex is built from the source by `scripts/build-boot-status.sh` (the same
+  bytes again from an unchanged source).
 - **Hardware checks.** `core/model` `OneiosChecksTest`: the reading of each tool's output (bridgectl's five
   commands, gpuctl, displayctl, brightctl's three, camctl's list and capture with every failure line of its
   README), a missing tool, a tool ended at its limit, root's result lines, the shared text. `OneiosScriptTest`,
@@ -1336,7 +1369,11 @@ either workflow or from that machine installs over the last one. Any debug build
 assembleFullDebug`, `oneios-tool app build`) signs with it too: `app/build.gradle.kts` takes OneiOS's
 `secrets/oneios-debug.keystore` as the debug key when the file is there (2026-11-22), else Android's own. APKs from before the key (OneiOS v0.1.13's 0.5.47
 and earlier) were each signed with their run's own key, so the first build signed with it needs one uninstall.
-Without the secret, a run signs with a key of its own. The in-guest app is a
+Without the secret, a run signs with a key of its own. The run writes the secret to `~/.android/debug.keystore` and,
+since 2026-11-23, also to `$GITHUB_WORKSPACE/../secrets/oneios-debug.keystore`, the path `app/build.gradle.kts` reads
+first: Gradle did not take the first one on the runner, so 0.5.51 (`7920fa33…`) and 0.5.52 (`3b377b62…`) were each signed
+with a key of their own and could not go over an installed build. "Name the APK" now prints the APK's signer and fails the
+run when the secret is set and the signer is not the shared key (`8b3be966…`). The in-guest app is a
 debug build too: Android guests that already hold upstream's release-signed one cannot take it as an update.
 
 **OneiOS builds this branch too (2026-11-15).** This fork is the submodule `app/` of akshaynexus/OneiOS
