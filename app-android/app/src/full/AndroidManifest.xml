@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- The full edition (com.fahadali.oneos): the switching screens, merged
          into src/main's manifest. The image is picked in the system file
@@ -21,14 +22,8 @@
     <!-- Once OneOS installed itself this way, Android lets its later updates skip the prompt. -->
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
-    <!-- Bring apps (0.4.75): without this Android hides other apps from us and the
-         list showed two of 120 (11-10). Every app with a launcher icon, nothing more. -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-    </queries>
+    <!-- Bring Apps includes system packages with no launcher icon. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
 
     <application android:name=".ui.OneOsApplication">
         <service
@@ -121,6 +116,15 @@
             android:name=".ui.BringAppsActivity"
             android:exported="false"
             android:parentActivityName=".ui.AdvancedActivity" />
+        <!-- Debloat (0.5.32, each system's page): apps left out at the system's next start. -->
+        <activity
+            android:name=".ui.DebloatActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+        <activity
+            android:name=".ui.DebloatListActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.DebloatActivity" />
 
         <!-- The redesign: Choose a system (Home's "Choose a system", the fixes
              that choose a system or a file) and Setting up (Home's "Show

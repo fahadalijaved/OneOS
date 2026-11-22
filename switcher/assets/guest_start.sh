@@ -499,7 +499,12 @@ if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
         # the cover, 1 half open and 2 open on the inner panel (4 and 5, both
         # panels on, left out). Run 43 had only 0 and 3, so its rear display
         # state went to the inner panel. ColorOS keeps Samsung's 0 and 3.
-        if [ -e /system/framework/oplus-services.jar ]; then
+        if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+           grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
+            # Fold8's native states mark CLOSE and TENT as OUTER_PRIMARY.
+            STATES="-1:$INNER:$COVER 0:$COVER:$INNER 1:$COVER:$INNER 3:$INNER:$COVER"
+            LNOTE="Fold8 One UI 9.5: closed and tent use the cover; open uses the inner."
+        elif [ -e /system/framework/oplus-services.jar ]; then
             # Samsung's states from the phone's own device_state_configuration.xml:
             # 0 (lid closed) on the cover, every other one on the inner panel.
             # The Z Fold8 Ultra and Z Fold7 list 0 CLOSE and 3 OPEN; the Z Fold8
@@ -585,6 +590,70 @@ LAYOUT
         # The inner panel's id for the UI activator's density and fold line
         # (oneos_switch.sh, run 44).
         echo "$INNER" > /data/oneos_inner_display; chmod 644 /data/oneos_inner_display
+        # Fold8 One UI 9.5 reports 213 physical dpi for both displays even
+        # when ro.sf.lcd_density is 420. Set a guest WindowManager default
+        # for each physical panel before system_server reads its settings.
+        if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+           grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
+            f8_density=$(getprop ro.sf.lcd_density)
+            case "$f8_density" in
+                [2-6][0-9][0-9]) [ "$f8_density" -ge 240 ] && [ "$f8_density" -le 640 ] || f8_density=420 ;;
+                *) f8_density=420 ;;
+            esac
+            f8_dset=/data/system/display_settings.xml
+            if [ ! -L "$f8_dset" ] && [ ! -L /data/system ] &&
+               f8_temp=$(mktemp -d /data/system/oneos-density.XXXXXX); then
+                f8_input="$f8_temp/input"
+                f8_output="$f8_temp/output"
+                if [ ! -s "$f8_dset" ]; then
+                    printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<display-settings>' '</display-settings>' > "$f8_input"
+                elif [ "$(head -c 3 "$f8_dset")" = ABX ]; then
+                    abx2xml "$f8_dset" "$f8_input" 2>/dev/null || true > "$f8_input"
+                else
+                    cat "$f8_dset" > "$f8_input"
+                fi
+                f8_id_type=$(sed -n 's/.*<config identifier="\([0-9]*\)".*/\1/p' "$f8_input" /vendor/etc/display_settings.xml 2>/dev/null | head -n 1)
+                f8_inner="local:$INNER"; f8_cover="local:$COVER"
+                if [ "$f8_id_type" = 1 ]; then
+                    f8_inner="port:$((INNER % 256))"; f8_cover="port:$((COVER % 256))"
+                fi
+                if awk -v inner="$f8_inner" -v cover="$f8_cover" -v density="$f8_density" '
+                    BEGIN {
+                        panels[1] = inner; panels[2] = cover
+                        policy = " isHomeSupported=\"false\" shouldShowSystemDecors=\"false\""
+                    }
+                    /<display[[:space:]]/ {
+                        for (i = 1; i <= 2; i++) {
+                            key = "name=\"" panels[i] "\""
+                            if (!index($0, key)) continue
+                            seen[i] = 1
+                            # Display 0 always supports Home and system decorations.
+                            # The other internal panel must never start a DeX Home.
+                            gsub(/[[:space:]]+(isHomeSupported|shouldShowSystemDecors)="[^"]*"/, "")
+                            sub(key, key policy)
+                            if ($0 !~ /forcedDensity(Ratio)?=/)
+                                sub(key, key " forcedDensity=\"" density "\"")
+                        }
+                    }
+                    /<\/display-settings>/ {
+                        for (i = 1; i <= 2; i++)
+                            if (!seen[i]) print "    <display name=\"" panels[i] "\"" policy " forcedDensity=\"" density "\" />"
+                        closed = 1
+                    }
+                    { print }
+                    END { if (!closed) exit 1 }
+                ' "$f8_input" > "$f8_output" &&
+                   chown 1000:1000 "$f8_output" && chmod 600 "$f8_output" &&
+                   "$BB" chcon u:object_r:system_data_file:s0 "$f8_output" &&
+                   mv -f "$f8_output" "$f8_dset"; then
+                    echo "[Pivoted Root] Fold8 One UI 9.5: $f8_density dpi defaults for $f8_inner and $f8_cover"
+                else
+                    echo "[Pivoted Root] Fold8 One UI 9.5: display density defaults not written"
+                fi
+                rm -f "$f8_input" "$f8_output"
+                rmdir "$f8_temp"
+            fi
+        fi
         # vivo in fold mode 1 (ro.vivo.device.type=foldable): the inner panel as vivo's
         # main panel (patches/vivo_guards.py, OneOSVivoPrimaryDisplay). SurfaceFlinger
         # named the cover primary at boot and the inner panel's brightness never
@@ -660,8 +729,11 @@ for id in $(dumpsys SurfaceFlinger --display-id 2>/dev/null | sed -n 's/^Display
     [ $# = 4 ] || { echo "display $id: no modes in the dump, left alone"; continue; }
     # Each call waits on SurfaceFlinger's main thread: never longer than 5 s.
     [ "$3" = -1 ] || { timeout 5 service call SurfaceFlinger 1035 i32 "$3" i64 "$id" f "$4" f "$4" >/dev/null 2>&1; sleep 0.4; }
-    r=$(timeout 5 service call SurfaceFlinger 1035 i32 "$1" i64 "$id" f "$2" f "$2" 2>&1 | tr -s ' \n' ' ' | cut -c1-120)
-    echo "display $id: through mode $3 ($4 Hz) to mode $1, pinned at $2 Hz: $r"
+    # 0.5.35 adaptive (/data/oneos_adaptive, oneos_switch.sh): the panel stays at its top mode, rendering may go down
+    # to the other mode's rate on a still screen. Otherwise [top, top].
+    lo=$2; [ -f /data/oneos_adaptive ] && [ "$4" -ge 48 ] && [ "$4" -lt "$2" ] && lo=$4
+    r=$(timeout 5 service call SurfaceFlinger 1035 i32 "$1" i64 "$id" f "$lo" f "$2" 2>&1 | tr -s ' \n' ' ' | cut -c1-120)
+    echo "display $id: through mode $3 ($4 Hz) to mode $1, pinned at $2 Hz, rendering $lo-$2: $r"
     n=$((n + 1))
 done
 [ "$n" -gt 0 ] || echo "no physical displays listed yet"
@@ -813,10 +885,19 @@ elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
     # 15 s in a row while the screen is awake and asks for light (a real
     # minimum is a wish, not a dead HAL), and give up after 600 s if the node
     # moves on its own. Healthy systems never see the takeover.
-    echo "$(date +%T) brightness bridge: watching $BL (useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read}; takes over after 15 s of a dead node)"
+    # 0.5.34: or when the HAL refuses the guest's brightness outright. HyperOS on the Galaxy A16 4G (report
+    # f036b5fa, "brightness not fixed"): Samsung's lights HAL answered every MiuiLightsService.setBrightness
+    # with UnsupportedOperationException ("Failed issuing setLightState", 50 times), the node stayed at the
+    # host's last level (not 0), and after 600 s the watch gave the panel to a HAL that never wrote it.
+    # Three such refusals take the node over too.
+    echo "$(date +%T) brightness bridge: watching $BL (useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read}; takes over after 15 s of a dead node or 3 refusals of the lights HAL)"
+    rm -f /data/oneos_bl_refused
+    ( timeout 600 logcat -v brief -T 1 -s LightsService:E 2>/dev/null | grep --line-buffered -F "Failed issuing setLightState" | head -n 3 > /data/oneos_bl_refused ) &
+    RMON=$!
     n=0; i=0
     while [ $i -lt 600 ]; do
         i=$((i + 1)); sleep 1
+        if [ "$(wc -l < /data/oneos_bl_refused 2>/dev/null)" -ge 3 ] 2>/dev/null; then n=15; refused=1; break; fi
         [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] || { n=0; continue; }
         case "$(dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)" in
             Awake) ;;
@@ -829,11 +910,16 @@ elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
         [ "$light" = 1 ] && n=$((n + 1)) || n=0
         [ $n -ge 15 ] && break
     done
+    kill $RMON 2>/dev/null
     if [ $n -lt 15 ]; then
         echo "$(date +%T) brightness bridge: the node moved on its own after $i s; leaving it to the lights HAL"
         exit 0
     fi
-    echo "$(date +%T) brightness bridge: the lights HAL does not reach the panel (node 0, awake and asking for light for 15 s); taking the node over"
+    if [ "${refused:-0}" = 1 ]; then
+        echo "$(date +%T) brightness bridge: the lights HAL refuses the guest's brightness (3x Failed issuing setLightState after $i s); taking the node over"
+    else
+        echo "$(date +%T) brightness bridge: the lights HAL does not reach the panel (node 0, awake and asking for light for 15 s); taking the node over"
+    fi
 fi
 # A level scale when the range ends above 1 (ColorOS, OxygenOS); else 0..1.
 SCALE=$(echo "${lo:-x} ${hi:-x} ${nm:-x}" | awk '{ t = $3; if (t !~ /^[0-9.]+$/) t = $2
@@ -1930,35 +2016,102 @@ if [ -f /data/oneos_samcam ] && [ ! -L /data/sec ]; then
         echo "$(date +%T) no Samsung Camera data folder after 300 s: /data/sec/camera not made"
     ' </dev/null >> /data/sec_camera.log 2>&1 &
 fi
-# What folding does, set as soon as the guest's settings provider answers. The
-# UI activator sets it too, but only once the UI is up: a Fold switched while
-# folded started Pixel in state 2 (open; the hinge sensor had not reported
-# yet), the first hinge event 4 s later folded it to state 0 with "sleep on
-# fold", and the screen went off at 02:19:55, eleven seconds before the
-# activator's setting (Z Fold8 Ultra, session 9455098f). Same values and rule
-# as the activator (a stage set to sleep is kept). Only the guest's own
-# provider is asked (its mount namespace is this one), each call bounded by
-# timeout: One UI's services are not to be called during the switch.
+# The guest's settings provider can appear before the UI Activator. Read and
+# write these settings only after confirming the provider is in this namespace.
+FOLD_CONTINUE=0
+FOLD8_TASKBAR=0
+FOLD8_RESTORE_DEX_HOME=0
 if [ "$(cat /data/oneos_fold_mode 2>/dev/null)" = layout ] && [ "${ONEOS_GUEST_FOLD_CONTINUE:-1}" = 1 ]; then
-    if [ -e /system/framework/oplus-services.jar ]; then FOLDN=continue_using_apps_when_folded; FOLDV=1; else FOLDN=fold_lock_behavior_setting; FOLDV=stay_awake_on_fold_key; fi
-    $BB sh -c "
-        SELF=\$(readlink /proc/self/ns/mnt); i=0
-        while [ \$i -lt 2000 ]; do
-            p=\$(timeout 2 dumpsys --pid settings 2>/dev/null | tr -dc 0-9)
-            if [ -n \"\$p\" ] && [ \"\$(readlink /proc/\$p/ns/mnt 2>/dev/null)\" = \"\$SELF\" ]; then
-                cur=\$(timeout 5 settings get system $FOLDN 2>/dev/null)
-                case \"$FOLDN:\$cur\" in
-                    continue_using_apps_when_folded:1|continue_using_apps_when_folded:2|fold_lock_behavior_setting:stay_awake_on_fold_key|fold_lock_behavior_setting:sleep_on_fold_key) ;;
-                    *) timeout 5 settings put system $FOLDN $FOLDV 2>/dev/null ;;
-                esac
-                echo \"\$(date +%T) $FOLDN: \$cur -> \$(timeout 5 settings get system $FOLDN 2>/dev/null) (the guest's settings provider, pid \$p)\"
+    FOLD_CONTINUE=1
+fi
+if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$(getprop ro.product.model)" = SM-F971B ] &&
+   grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop &&
+   [ ! -e /data/.oneui95-fold8-taskbar ] && [ ! -L /data/.oneui95-fold8-taskbar ]; then
+    FOLD8_TASKBAR=1
+fi
+# Restore the narrow live launcher recovery once the running services JAR
+# prevents the inactive internal display from starting SecondaryLauncher.
+if [ "${ONEOS_PROFILE:-}" = f8 ] && [ -f /data/.oneui95-fold8-secondary-home-temporary ] &&
+   [ ! -L /data/.oneui95-fold8-secondary-home-temporary ] &&
+   [ "$($BB sha256sum /system/framework/services.jar | cut -d' ' -f1)" = "7f68fa1c2f4c384c2a79ceeedd76f0aebb70eff5447979b878d9fe42cbb64159" ]; then
+    FOLD8_RESTORE_DEX_HOME=1
+fi
+if [ "$FOLD_CONTINUE" = 1 ] || [ "$FOLD8_TASKBAR" = 1 ] || [ "$FOLD8_RESTORE_DEX_HOME" = 1 ]; then
+    if [ -e /system/framework/oplus-services.jar ]; then
+        FOLDN=continue_using_apps_when_folded
+        FOLDV=1
+    else
+        FOLDN=fold_lock_behavior_setting
+        FOLDV=stay_awake_on_fold_key
+    fi
+    $BB sh -c '
+        fold_continue=$1
+        fold_setting=$2
+        fold_value=$3
+        fold8_taskbar=$4
+        restore_dex_home=$5
+        self=$(readlink /proc/self/ns/mnt)
+        i=0
+        while [ "$i" -lt 2000 ]; do
+            provider=$(timeout 2 dumpsys --pid settings 2>/dev/null | tr -dc 0-9)
+            if [ -n "$self" ] && [ -n "$provider" ] && [ "$(readlink /proc/$provider/ns/mnt 2>/dev/null)" = "$self" ]; then
+                if [ "$restore_dex_home" = 1 ]; then
+                    package_manager=$(timeout 2 dumpsys --pid package 2>/dev/null | tr -dc 0-9)
+                    if [ "$package_manager" = "$provider" ] &&
+                       timeout 5 pm default-state --user 0 com.sec.android.app.launcher/com.honeyspace.dexservice.SecondaryLauncher; then
+                        rm -f /data/.oneui95-fold8-secondary-home-temporary
+                    else
+                        i=$((i + 1))
+                        sleep 0.3
+                        continue
+                    fi
+                fi
+                if [ "$fold_continue" = 1 ]; then
+                    cur=$(timeout 5 settings get system "$fold_setting" 2>/dev/null)
+                    case "$fold_setting:$cur" in
+                        continue_using_apps_when_folded:1|continue_using_apps_when_folded:2|fold_lock_behavior_setting:stay_awake_on_fold_key|fold_lock_behavior_setting:sleep_on_fold_key|fold_lock_behavior_setting:selective_stay_awake_key) ;;
+                        *) timeout 5 settings put system "$fold_setting" "$fold_value" 2>/dev/null ;;
+                    esac
+                    echo "$(date +%T) $fold_setting: $cur -> $(timeout 5 settings get system "$fold_setting" 2>/dev/null) (guest provider $provider)"
+                fi
+                # Samsung reports availability by display and posture itself.
+                # Set the user preference once; subsequent choices are kept.
+                if [ "$fold8_taskbar" = 1 ] && timeout 5 settings put global task_bar 1 &&
+                   [ "$(timeout 5 settings get global task_bar 2>/dev/null)" = 1 ]; then
+                    true > /data/.oneui95-fold8-taskbar
+                    echo "$(date +%T) Fold8 taskbar enabled for this stage"
+                fi
                 exit 0
             fi
-            i=\$((i + 1)); sleep 0.3
+            i=$((i + 1))
+            sleep 0.3
         done
-        echo \"\$(date +%T) $FOLDN: the guest's settings provider did not answer in 10 minutes; the UI activator sets it\"
-    " </dev/null >> /data/fold_setting.log 2>&1 &
-    echo "[Pivoted Root] Fold behaviour: $FOLDN=$FOLDV as soon as the guest's settings provider answers (/data/fold_setting.log)"
+        echo "$(date +%T) the guest settings provider did not answer"
+    ' oneos-fold-settings "$FOLD_CONTINUE" "$FOLDN" "$FOLDV" "$FOLD8_TASKBAR" "$FOLD8_RESTORE_DEX_HOME" </dev/null >> /data/fold_setting.log 2>&1 &
+    echo "[Pivoted Root] Fold preferences will be applied when the guest settings provider answers (/data/fold_setting.log)"
+fi
+# Samsung's Live Notifications developer setting belongs to the guest user.
+if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+   grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
+    $BB sh -c '
+        key=enable_notification_nowbar_test
+        self=$(readlink /proc/self/ns/mnt)
+        i=0
+        while [ "$i" -lt 120 ]; do
+            pid=$(timeout 2 dumpsys --pid settings 2>/dev/null | tr -dc 0-9)
+            if [ -n "$self" ] && [ -n "$pid" ] &&
+               [ "$(readlink "/proc/$pid/ns/mnt" 2>/dev/null)" = "$self" ] &&
+               { [ "$(timeout 5 settings --user 0 get secure "$key" 2>/dev/null)" = 1 ] ||
+                 timeout 5 settings --user 0 put secure "$key" 1 2>/dev/null; } &&
+               [ "$(timeout 5 settings --user 0 get secure "$key" 2>/dev/null)" = 1 ]; then
+                echo "[Pivoted Root] Now Bar notification test mode enabled for guest user 0"
+                exit 0
+            fi
+            i=$((i + 1))
+            sleep 1
+        done
+        echo "[Pivoted Root] Could not enable Now Bar test mode in the guest Settings provider"
+    ' </dev/null &
 fi
 # vivo OriginOS's glass (real-time blur): SystemUI's material SDK
 # (com.spacesystem.materialsdk.Material.resolveGlassSetting) and its plugins
@@ -2104,7 +2257,71 @@ if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/
         done
     ' </dev/null >/dev/null 2>&1 &
 fi
+# Stereo speakers (0.5.33; S24 FE ColorOS 0.5.32, tester: "sound is not stereo"): on Galaxy phones whose second
+# speaker is the earpiece, One UI's own audioserver powers that speaker's amplifier for media
+# (libaudioflinger's AudioFlinger::DualSpkControl::setAmpPower -> the stream key
+# l_dual_speaker_amp_left_power_enable=true/false on the speaker output; it starts at false). A guest's
+# audioserver has no DualSpkControl, so the earpiece amplifier stayed off and media played from the bottom
+# speaker only (the output itself is 2-channel). Sent here to every guest output on the speaker once the
+# guest's audio is up, and again whenever the HAL opens a speaker output or someone turns the amplifier off;
+# never during a call (One UI's own rule takes the earpiece speaker out by the proximity sensor then). Only
+# where the vendor audio libraries know the key (the S24 FE's Exynos HAL does; the A36's does not).
+# ONEOS_GUEST_DUAL_SPK=0 leaves it out. Log: /data/oneos_sec_audio.log.
+if [ "${ONEOS_GUEST_DUAL_SPK:-1}" = 1 ] && [ -f /data/oneos_edm_stub.dex ]; then
+    ONEOS_BB="$BB" $BB sh -c '
+        BB=$ONEOS_BB
+        log() { echo "$(date +%T) stereo: $*" >> /data/oneos_sec_audio.log; }
+        K=l_dual_speaker_amp_left_power_enable
+        lib=$($BB grep -l -s "$K" /vendor/lib64/hw/*.so /vendor/lib64/*.so 2>/dev/null | head -n 1)
+        [ -n "$lib" ] || { log "the vendor audio libraries have no $K: not needed"; exit 0; }
+        i=0
+        while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
+        send() {
+            cs=$(dumpsys telephony.registry 2>/dev/null | $BB grep -m1 -o "mCallState=[0-9]*" | $BB grep -o "[0-9]*$")
+            [ "${cs:-0}" = 0 ] || { log "$1: in a call, left alone"; return 0; }
+            ios=$(dumpsys media.audio_flinger 2>/dev/null | $BB awk "
+                /^Output thread / { io = \"\"; if (match(\$0, /name AudioOut_[0-9A-Fa-f]+/)) io = substr(\$0, RSTART + 14, RLENGTH - 14); next }
+                /^ *Output devices:/ && io != \"\" { if (\$0 ~ /SPEAKER/) print io; io = \"\" }" | while read -r h; do echo $((0x$h)); done | $BB sort -un | $BB head -n 16 | $BB tr "\n" "," )
+            ios=${ios%,}
+            [ -n "$ios" ] || { log "$1: no speaker output yet"; return 1; }
+            r=$(/system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSAudioParam --io "$ios" "$K=true" 2>&1 | tail -n 1)
+            log "$(echo "$1: $r" | cut -c1-280)"
+        }
+        log "earpiece speaker amplifier key in ${lib##*/}"
+        n=0
+        i=0
+        until send start; do sleep 3; i=$((i + 1)); [ $i -lt 40 ] || break; done
+        last=0
+        # 0.5.34: also at every start of playback on the speaker. DualSpkControl in One UI sends the key to every
+        # speaker output each time sound starts (true) and stops (false) (S24 FE report 8d036182, One UI at
+        # 16:52:10 and 16:52:21); sent once at the start, stereo came and went with the state the HAL kept
+        # (tester: "sometimes stereo works"). The HAL logs the speaker route as the stream starts.
+        logcat -v brief -T 1 -s audio_hw_primary:D audio_hw_playback:D audio_hw_route:I sec_audio_hw:V AHAL:D 2>/dev/null | while IFS= read -r l; do
+            pause=1
+            case "$l" in
+                *"$K=false"*) why="amplifier turned off" ;;
+                *open_output_stream*"devices(0x2)"*) why="speaker output opened" ;;
+                *"routes to device(speaker"*) why="playback on the speaker"; pause=0 ;;
+                *) continue ;;
+            esac
+            now=$($BB date +%s)
+            [ $((now - last)) -ge 2 ] || continue
+            last=$now
+            [ $pause = 0 ] || sleep 1
+            if [ "$why" = "playback on the speaker" ]; then send "$why" >/dev/null; n=$((n + 1)); [ $((n % 50)) = 1 ] && log "playback on the speaker: sent $n times so far"; else send "$why"; fi
+        done
+    ' </dev/null >/dev/null 2>&1 &
+fi
 DT2W=${ONEOS_GUEST_DT2W:-1}
+# 0.5.32: not in a One UI image. Its own input service (SemInputDeviceManagerService) already writes the panel's
+# display state through Samsung's sysinput HAL, as One UI does (S24+ One UI 9.5 report 34d6923c: enabled@1,0 and
+# @1,1 from the guest at every screen off), so the keeper was a second writer to the same node: Galaxy A17 5G
+# report cea77895, kernel panic "list_add corruption" in sec_input_enable_device from the keeper's busybox write,
+# 17 min into a One UI 9.5 session. ONEOS_GUEST_DT2W=1 still forces it.
+if [ "${ONEOS_GUEST_DT2W:-}" != 1 ] && grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+    DT2W=0
+    echo "$(date +%T) not started: a One UI image wakes on double tap itself (its input service drives the touch IC)" >> /data/dt2w.log
+fi
 if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/sec/tsp/enabled ] || [ -w /sys/class/sec/tsp1/enabled ]; }; then
     rm -f /data/oneos_dt2w_armed.* /data/oneos_dt2w_*.fifo /data/oneos_dt2w_aod* /data/oneos_dt2w_lid*
     ONEOS_BB="$BB" $BB sh -c '
@@ -2686,7 +2903,12 @@ fi
 # sys.boot_completed, which One UI had already set, and 102 waited for a
 # system_server in this script's mount namespace, which never comes because
 # zygote unshares its own. Neither ever installed anything.)
-if [ -d /data/oneos_bring ] && [ ! -L /data/oneos_bring ]; then
+# 0.5.35: written whether or not /data/oneos_bring exists yet. A system set up fresh has no folder at
+# its first start, and the first app brought from inside the guest (BringAppsActivity) makes it mid-session:
+# the copy came through, but its install step runs this script, which had not been written, so nothing
+# was installed (PixelOS on the A36, 11-21: com.fahadali.xgram copied, never in the guest). The watcher's
+# own runs still need the folder and a copy waiting.
+if [ ! -L /data/oneos_bring ]; then
     cat > /data/oneos_bring_restore.sh <<'BRINGEOF'
 #!/system/bin/sh
 # OneOS Bring apps, the guest's half (0.4.75 build 103). guest_start.sh writes
@@ -2826,9 +3048,14 @@ install_try() {
 # APK this system cannot run): said once, tried again only with a new copy.
 final_reason() {
     case "$1" in
-        *UPDATE_INCOMPATIBLE*|*INVALID_APK*|*NO_MATCHING_ABIS*|*OLDER_SDK*|*PARSE_FAILED*|*NO_CERTIFICATES*|*MISSING_SPLIT*) return 0 ;;
+        *UPDATE_INCOMPATIBLE*|*INVALID_APK*|*NO_MATCHING_ABIS*|*OLDER_SDK*|*PARSE_FAILED*|*NO_CERTIFICATES*|*MISSING_SPLIT*|*ALREADY_EXISTS*) return 0 ;;
     esac
     return 1
+}
+
+# Include system packages disabled or uninstalled for this guest user.
+guest_has_system_app() {
+    gpm root 20 list packages -s -u --user 0 "$1" 2>/dev/null | grep -Fxq "package:$1"
 }
 
 # Installs $pkg from $d/apk. 0: installed, or the guest keeps its own newer
@@ -2838,6 +3065,15 @@ install_app() {
     n=0
     for a in "$d/apk"/*.apk; do [ -f "$a" ] && [ ! -L "$a" ] && n=$((n + 1)); done
     [ $n -gt 0 ] || { why="the copy has no APK"; return 1; }
+    if [ "$system_copy" = 1 ]; then
+        if guest_has_system_app "$pkg"; then
+            why="the guest already has this system app (ALREADY_EXISTS)"
+            return 1
+        fi
+        # Install only if absent, with the guest's ordinary application permissions.
+        install_try root -R --user 0
+        return $?
+    fi
     vend=""
     gpm root 20 path com.android.vending >/dev/null 2>&1 && vend="-i com.android.vending"
     round=0
@@ -2917,29 +3153,34 @@ restore_one() {
     pkg=$1; stamp=$2
     d="$BRING/$pkg"
     why=""
+    system_copy=0
+    if [ -f "$d/system" ] && [ ! -L "$d/system" ]; then system_copy=1; fi
     log "$pkg: starting (copy $stamp)"
     if ! install_app; then
         echo "$stamp $why" > "$d/failed"
         log "$pkg: NOT brought: $why"
         return 1
     fi
-    uid=$(gpm root 20 list packages -U "$pkg" 2>/dev/null | sed -n "s/^package:$pkg uid:\([0-9][0-9]*\).*/\1/p" | head -n 1)
-    is_dec "$uid" || uid=$(stat -c %u "$CE/$pkg" 2>/dev/null)
-    if ! is_dec "$uid" || [ "$uid" -lt 10000 ]; then
-        why="installed, but the system gave no app uid for it"
-        echo "$stamp $why" > "$d/failed"
-        log "$pkg: NOT brought: $why"
-        return 1
-    fi
-    if ! { restore_dir "$d/ce" "$CE/$pkg" && restore_dir "$d/de" "$DE/$pkg"; }; then
-        echo "$stamp $why" > "$d/failed"
-        log "$pkg: NOT brought: $why"
-        return 1
+    if [ "$system_copy" = 0 ]; then
+        uid=$(gpm root 20 list packages -U "$pkg" 2>/dev/null | sed -n "s/^package:$pkg uid:\([0-9][0-9]*\).*/\1/p" | head -n 1)
+        is_dec "$uid" || uid=$(stat -c %u "$CE/$pkg" 2>/dev/null)
+        if ! is_dec "$uid" || [ "$uid" -lt 10000 ]; then
+            why="installed, but the system gave no app uid for it"
+            echo "$stamp $why" > "$d/failed"
+            log "$pkg: NOT brought: $why"
+            return 1
+        fi
+        if ! { restore_dir "$d/ce" "$CE/$pkg" && restore_dir "$d/de" "$DE/$pkg"; }; then
+            echo "$stamp $why" > "$d/failed"
+            log "$pkg: NOT brought: $why"
+            return 1
+        fi
     fi
     echo "$stamp" > "$d/applied.new" && mv -f "$d/applied.new" "$d/applied" || { log "$pkg: could not mark it applied"; return 1; }
     rm -f "$d/failed"
     rm -rf "$d/apk" "$d/ce" "$d/de"
-    if [ $kept = 1 ]; then log "$pkg: ready (data restored; the newer version already here was kept; uid $uid, label $ctx)"
+    if [ "$system_copy" = 1 ]; then log "$pkg: ready (installed as a regular app)"
+    elif [ $kept = 1 ]; then log "$pkg: ready (data restored; the newer version already here was kept; uid $uid, label $ctx)"
     else log "$pkg: ready (installed and data restored; uid $uid, label $ctx)"; fi
     return 0
 }
@@ -2969,6 +3210,7 @@ if [ -s "$BRING/.forget" ] && [ ! -L "$BRING/.forget" ]; then
         while read -r fp; do
             is_package "$fp" || continue
             [ -d "$BRING/$fp" ] && continue
+            guest_has_system_app "$fp" && continue
             gpm root 20 path "$fp" >/dev/null 2>&1 || continue
             out=$(gpm root 60 uninstall "$fp" 2>&1)
             log "$fp: removed (taken off the list in OneOS on One UI): $(short "$out")"

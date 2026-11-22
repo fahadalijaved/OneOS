@@ -32,7 +32,7 @@ import com.fahadali.oneos.core.model.PackageSets
  * that image's on that phone); `launch` carries this launch's
  * `ONEOS_GUEST_HIDE_GMS`, `ONEOS_HEAT_CAP`, `ONEOS_GUEST_SEC_IMS` and (0.4.32)
  * `ONEOS_GUEST_EDM_STUB`, then optionally `ONEOS_VERBOSE_BOOT`, `ONEOS_FULL_LOGS` and
- * (0.5.20) `ONEOS_SHARE_FILES` (0 or 1 each; default 0, 1 and 0).
+ * (0.5.20) `ONEOS_SHARE_FILES` and `ONEOS_ONEUI95_MEDIA_CHIP` (defaults 0, 1, 0 and 1).
  */
 object RootScript {
     const val ASSET = "root/oneos_root.sh"
@@ -161,6 +161,14 @@ object RootScript {
          * Refused when no session is running.
          */
         BRING_ADD("bring-add", Stdin.NONE),
+
+        /**
+         * Debloater (0.5.32): the apps to hide in the system set up now (its Debloat screen). stdin is
+         * `<package> TAB <folder>` per line ([com.fahadali.oneos.core.model.Debloat.listText]), written as
+         * `$STAGE/debloat.list` for guest_prepare.sh to hide at the next start; empty removes it (Restore all).
+         * Refused while a session runs; the image is never changed.
+         */
+        DEBLOAT("debloat", Stdin.DATA),
     }
 
     /**
@@ -252,7 +260,7 @@ object RootScript {
                 arg(3, DEC, "a versionCode")
             }
             Verb.LAUNCH -> {
-                if (args.size !in 7..10) need(10)
+                if (args.size !in 7..11) need(11)
                 args.getOrNull(0)?.let { if (it != "session" && it != "dry") p += "launch: mode '$it'" }
                 arg(1, DEC, "a versionCode")
                 arg(2, HEX16, "a session id")
@@ -263,9 +271,10 @@ object RootScript {
                 args.getOrNull(7)?.let { if (it != "0" && it != "1") p += "launch: verbose boot is not 0 or 1" }
                 args.getOrNull(8)?.let { if (it != "0" && it != "1") p += "launch: full session logs is not 0 or 1" }
                 args.getOrNull(9)?.let { if (it != "0" && it != "1") p += "launch: share my files is not 0 or 1" }
+                args.getOrNull(10)?.let { if (it != "0" && it != "1") p += "launch: media chip is not 0 or 1" }
             }
             Verb.RECOVER, Verb.OLD_LIST, Verb.REMOVE, Verb.REMOVE_SYSTEM, Verb.RESET_DATA, Verb.BRING_CLEAR, Verb.BRING_STATUS -> need(0)
-            Verb.BRING_COLLECT, Verb.BRING_CATALOG -> {
+            Verb.BRING_COLLECT, Verb.BRING_CATALOG, Verb.DEBLOAT -> {
                 need(1)
                 arg(0, DEC, "a size")
             }

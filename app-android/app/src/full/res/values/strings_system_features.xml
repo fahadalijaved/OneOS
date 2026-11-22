@@ -1,0 +1,4 @@
+<resources>
+    <string name="system_features">Feature flags</string>
+    <string name="system_feature_dynamic_island_player">Dynamic Island player (next boot)</string>
+</resources>

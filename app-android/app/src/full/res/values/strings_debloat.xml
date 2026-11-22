@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Debloater (0.5.32): each system's Debloat screen and its lists. -->
+    <string name="debloat_title">Debloat</string>
+    <string name="environment_debloat_summary">Leave out apps this system doesn\'t need</string>
+    <plurals name="environment_debloat_summary_n">
+        <item quantity="one">%1$d app left out at each start</item>
+        <item quantity="other">%1$d apps left out at each start</item>
+    </plurals>
+
+    <!-- Overview -->
+    <string name="debloat_next_start">Next start of %1$s</string>
+    <string name="debloat_trailing_none">Every app</string>
+    <string name="debloat_trailing_set">Lighter</string>
+    <string name="debloat_stat_apps">apps left out</string>
+    <string name="debloat_stat_space">smaller</string>
+    <string name="debloat_stat_caution">take a feature</string>
+    <string name="debloat_summary_empty">%1$s starts with every app. Choose apps below to leave out.</string>
+    <string name="debloat_summary_note">From the next start of %1$s. Play Store updates of these apps are deleted too.</string>
+    <string name="debloat_review">Review your selection</string>
+    <plurals name="debloat_review_summary">
+        <item quantity="one">%1$d app ticked, untick to keep it</item>
+        <item quantity="other">%1$d apps ticked, untick any to keep it</item>
+    </plurals>
+    <string name="debloat_restore">Restore all</string>
+    <string name="debloat_restore_summary">Every app is back at the next start</string>
+    <string name="debloat_restore_confirm">Untick every app? %1$s starts with all its apps again from its next start.</string>
+    <string name="debloat_restore_run">Restore</string>
+    <string name="debloat_card_choose">Choose apps</string>
+    <string name="debloat_safe_line">Nothing you use goes</string>
+    <string name="debloat_caution_line">Each one takes a feature with it</string>
+    <plurals name="debloat_select_safe_n">
+        <item quantity="one">%1$d app, %2$s</item>
+        <item quantity="other">%1$d apps, %2$s</item>
+    </plurals>
+    <plurals name="debloat_ticked_n">
+        <item quantity="one">%1$d ticked</item>
+        <item quantity="other">%1$d ticked</item>
+    </plurals>
+    <string name="debloat_none_ticked">none ticked</string>
+    <string name="debloat_mystic">Same as MysticGSI\'s debloat</string>
+    <plurals name="debloat_mystic_summary">
+        <item quantity="one">Tick the %1$d app MysticGSI removes from its own builds (%2$d take a feature), %3$s</item>
+        <item quantity="other">Tick the %1$d apps MysticGSI removes from its own builds (%2$d take a feature), %3$s</item>
+    </plurals>
+    <string name="debloat_card_about">How it works</string>
+    <string name="debloat_about_body">Tick the apps %1$s should start without. They are left out from its next start on: the system boots lighter, and nothing in the system image is changed.</string>
+    <string name="debloat_about_data">A left-out app\'s data is deleted. Untick it, or tap Restore all, and it is back at the next start, fresh. Apps %1$s needs to work are not in these lists.</string>
+    <string name="debloat_no_list">There is no list for %1$s yet.</string>
+
+    <!-- The lists -->
+    <string name="debloat_safe_title">Safe to remove</string>
+    <string name="debloat_caution_title">Remove with care</string>
+    <string name="debloat_selected_title">Your selection</string>
+    <string name="debloat_safe_banner">Nothing you use goes</string>
+    <string name="debloat_safe_banner_body">Ads, trackers, stores, duplicates and apps few people open. %1$s works the same without them.</string>
+    <string name="debloat_caution_banner">Each one takes a feature with it</string>
+    <string name="debloat_caution_banner_body">Each app says what stops working. Ticking one asks you once more.</string>
+    <plurals name="debloat_status_n">
+        <item quantity="one">%1$d app left out, %2$s</item>
+        <item quantity="other">%1$d apps left out, %2$s</item>
+    </plurals>
+    <string name="debloat_selected_body">From the next start of %1$s. Untick an app to keep it.</string>
+    <string name="debloat_none">No apps left out</string>
+    <string name="debloat_selected_empty">%1$s starts with every app.</string>
+    <string name="debloat_select_safe">Tick all safe apps</string>
+    <string name="debloat_group_count">%1$d of %2$d</string>
+    <plurals name="debloat_group_show">
+        <item quantity="one">Show %1$d app</item>
+        <item quantity="other">Show %1$d apps</item>
+    </plurals>
+    <string name="debloat_group_hide">Hide the apps</string>
+    <string name="debloat_group_tick_all">Tick all in this group</string>
+    <string name="debloat_group_partner">Partner and carrier apps</string>
+    <string name="debloat_group_maker">%1$s apps</string>
+    <string name="debloat_group_google">Google apps</string>
+    <string name="debloat_group_android">Android extras</string>
+    <string name="debloat_group_chip">Chip and hardware services</string>
+    <string name="debloat_row_summary">%1$s · %2$s</string>
+    <string name="debloat_row_caution">Goes: %1$s · %2$s</string>
+    <string name="debloat_caution_confirm_title">Leave out %1$s?</string>
+    <string name="debloat_caution_confirm">This goes with it: %1$s\n\nUntick it later to have it back at the next start.</string>
+    <string name="debloat_caution_confirm_run">Leave out</string>
+</resources>

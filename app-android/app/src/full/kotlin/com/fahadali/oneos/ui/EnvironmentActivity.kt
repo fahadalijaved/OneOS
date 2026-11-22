@@ -15,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.widget.NestedScrollView
+import com.fahadali.oneos.session.GuestFeatures
 import com.fahadali.oneos.session.GuestRuntimeStore
 import com.fahadali.oneos.session.PatchChannels
 import com.fahadali.oneos.R
@@ -214,6 +215,13 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 com.fahadali.oneos.session.LogJob.skip()
             }
         }
+        val patchProfile = currentFacts?.let { com.fahadali.oneos.core.model.Profiles.resolve(it).profile }
+        val features = GuestFeatures.forSystem(patchProfile, image.id)
+        if (features.isNotEmpty()) {
+            PrebootCards.row(PrebootCards.section(column), getString(R.string.system_features), chevron = true) {
+                showGuestFeatureFlags(this, image.id, features)
+            }
+        }
         // The 20dp card gap below the busy card above (it sat glued to this one, 11-14).
         val checks = PrebootCards.section(column)
         checks.setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -300,7 +308,6 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
                 surface.addView(content, LinearLayout.LayoutParams(-1, -2))
             }
         }
-        val patchProfile = currentFacts?.let { com.fahadali.oneos.core.model.Profiles.resolve(it).profile }
         if (!preview && patchProfile != null) {
             val key = "${patchProfile.id}:${image.id}"
             if (patchDiscoveryKey != key) {
@@ -366,9 +373,19 @@ class EnvironmentActivity : EdgeToEdgeActivity() {
             startActivity(Intent(this, GuestRuntimeActivity::class.java).putExtra("image", image.id))
         }
         // Bring apps lives on each system's page, like Root (owner, 11-10); its screen says so when another system is set up now.
-        PrebootCards.row(PrebootCards.section(column, getString(R.string.environment_apps)), getString(R.string.bring_title),
+        val apps = PrebootCards.section(column, getString(R.string.environment_apps))
+        PrebootCards.row(apps, getString(R.string.bring_title),
             getString(R.string.environment_bring_summary), chevron = true, enabled = !preview) {
             startActivity(BringAppsActivity.intent(this, image))
+        }
+        // Debloat (0.5.32): the apps this system starts without; only systems the research lists cover.
+        if (com.fahadali.oneos.session.Debloater.apps(this, image.id).isNotEmpty()) {
+            val left = com.fahadali.oneos.session.Debloater.hidden(this, image.id).size
+            PrebootCards.row(apps, getString(R.string.debloat_title),
+                if (left > 0) resources.getQuantityString(R.plurals.environment_debloat_summary_n, left, left)
+                else getString(R.string.environment_debloat_summary), chevron = true, enabled = !preview) {
+                startActivity(DebloatActivity.intent(this, image))
+            }
         }
         PrebootCards.row(PrebootCards.section(column), getString(R.string.environment_report), chevron = true) {
             if (preview) AlertDialog.Builder(this).setTitle(R.string.environment_report).setMessage(R.string.environment_preview).setPositiveButton(android.R.string.ok, null).show()

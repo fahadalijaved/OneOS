@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="debloat_title">Удаление лишнего</string>
+    <string name="environment_debloat_summary">Не загружать приложения, которые этой системе не нужны</string>
+    <plurals name="environment_debloat_summary_n">
+        <item quantity="one">%1$d приложение не загружается</item>
+        <item quantity="few">%1$d приложения не загружаются</item>
+        <item quantity="many">%1$d приложений не загружаются</item>
+        <item quantity="other">%1$d приложения не загружаются</item>
+    </plurals>
+
+    <string name="debloat_next_start">Следующий запуск %1$s</string>
+    <string name="debloat_trailing_none">Все приложения</string>
+    <string name="debloat_trailing_set">Легче</string>
+    <string name="debloat_stat_apps">убрано</string>
+    <string name="debloat_stat_space">меньше</string>
+    <string name="debloat_stat_caution">с функцией</string>
+    <string name="debloat_summary_empty">%1$s запускается со всеми приложениями. Выберите ниже, что убрать.</string>
+    <string name="debloat_summary_note">Со следующего запуска %1$s. Обновления этих приложений из Play Маркета тоже удаляются.</string>
+    <string name="debloat_review">Проверить выбор</string>
+    <plurals name="debloat_review_summary">
+        <item quantity="one">Отмечено %1$d приложение, снимите отметку, чтобы оставить</item>
+        <item quantity="few">Отмечено %1$d приложения, снимите отметку, чтобы оставить</item>
+        <item quantity="many">Отмечено %1$d приложений, снимите отметку, чтобы оставить</item>
+        <item quantity="other">Отмечено %1$d приложения, снимите отметку, чтобы оставить</item>
+    </plurals>
+    <string name="debloat_restore">Вернуть все</string>
+    <string name="debloat_restore_summary">Все приложения вернутся при следующем запуске</string>
+    <string name="debloat_restore_confirm">Снять все отметки? Со следующего запуска %1$s снова запускается со всеми приложениями.</string>
+    <string name="debloat_restore_run">Вернуть</string>
+    <string name="debloat_card_choose">Выбрать приложения</string>
+    <string name="debloat_safe_line">Ничего нужного не пропадёт</string>
+    <string name="debloat_caution_line">С каждым пропадает функция</string>
+    <plurals name="debloat_select_safe_n">
+        <item quantity="one">%1$d приложение, %2$s</item>
+        <item quantity="few">%1$d приложения, %2$s</item>
+        <item quantity="many">%1$d приложений, %2$s</item>
+        <item quantity="other">%1$d приложения, %2$s</item>
+    </plurals>
+    <plurals name="debloat_ticked_n">
+        <item quantity="one">отмечено %1$d</item>
+        <item quantity="few">отмечено %1$d</item>
+        <item quantity="many">отмечено %1$d</item>
+        <item quantity="other">отмечено %1$d</item>
+    </plurals>
+    <string name="debloat_none_ticked">ничего не отмечено</string>
+    <string name="debloat_mystic">Как в сборках MysticGSI</string>
+    <plurals name="debloat_mystic_summary">
+        <item quantity="one">Отметить %1$d приложение, которое MysticGSI убирает из своих сборок (с функцией: %2$d), %3$s</item>
+        <item quantity="few">Отметить %1$d приложения, которые MysticGSI убирает из своих сборок (с функцией: %2$d), %3$s</item>
+        <item quantity="many">Отметить %1$d приложений, которые MysticGSI убирает из своих сборок (с функцией: %2$d), %3$s</item>
+        <item quantity="other">Отметить %1$d приложения, которые MysticGSI убирает из своих сборок (с функцией: %2$d), %3$s</item>
+    </plurals>
+    <string name="debloat_card_about">Как это работает</string>
+    <string name="debloat_about_body">Отметьте приложения, без которых должна запускаться %1$s. Со следующего запуска их не будет: система загружается легче, а образ системы не меняется.</string>
+    <string name="debloat_about_data">Данные убранного приложения удаляются. Снимите отметку или нажмите «Вернуть все», и при следующем запуске оно вернётся, как новое. Приложений, нужных для работы %1$s, в этих списках нет.</string>
+    <string name="debloat_no_list">Для %1$s списка пока нет.</string>
+
+    <string name="debloat_safe_title">Можно убрать</string>
+    <string name="debloat_caution_title">Убирать осторожно</string>
+    <string name="debloat_selected_title">Ваш выбор</string>
+    <string name="debloat_safe_banner">Ничего нужного не пропадёт</string>
+    <string name="debloat_safe_banner_body">Реклама, трекеры, магазины, дубликаты и редко открываемые приложения. %1$s без них работает так же.</string>
+    <string name="debloat_caution_banner">С каждым пропадает функция</string>
+    <string name="debloat_caution_banner_body">У каждого приложения написано, что перестанет работать. При отметке вас спросят ещё раз.</string>
+    <plurals name="debloat_status_n">
+        <item quantity="one">%1$d приложение убрано, %2$s</item>
+        <item quantity="few">%1$d приложения убрано, %2$s</item>
+        <item quantity="many">%1$d приложений убрано, %2$s</item>
+        <item quantity="other">%1$d приложения убрано, %2$s</item>
+    </plurals>
+    <string name="debloat_selected_body">Со следующего запуска %1$s. Снимите отметку, чтобы оставить приложение.</string>
+    <string name="debloat_none">Ничего не убрано</string>
+    <string name="debloat_selected_empty">%1$s запускается со всеми приложениями.</string>
+    <string name="debloat_select_safe">Отметить все безопасные</string>
+    <string name="debloat_group_count">%1$d из %2$d</string>
+    <plurals name="debloat_group_show">
+        <item quantity="one">Показать %1$d приложение</item>
+        <item quantity="few">Показать %1$d приложения</item>
+        <item quantity="many">Показать %1$d приложений</item>
+        <item quantity="other">Показать %1$d приложения</item>
+    </plurals>
+    <string name="debloat_group_hide">Скрыть приложения</string>
+    <string name="debloat_group_tick_all">Отметить всю группу</string>
+    <string name="debloat_group_partner">Партнёры и операторы</string>
+    <string name="debloat_group_maker">Приложения %1$s</string>
+    <string name="debloat_group_google">Приложения Google</string>
+    <string name="debloat_group_android">Дополнения Android</string>
+    <string name="debloat_group_chip">Службы чипа и железа</string>
+    <string name="debloat_row_summary">%1$s · %2$s</string>
+    <string name="debloat_row_caution">Пропадёт: %1$s · %2$s</string>
+    <string name="debloat_caution_confirm_title">Убрать %1$s?</string>
+    <string name="debloat_caution_confirm">Вместе с ним пропадёт: %1$s\n\nСнимите отметку позже, и при следующем запуске оно вернётся.</string>
+    <string name="debloat_caution_confirm_run">Убрать</string>
+</resources>

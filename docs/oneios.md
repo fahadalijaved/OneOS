@@ -36,6 +36,20 @@ at the 0.5.31 merge, one under upstream's 174; AppUpdater installs only an APK s
 certificate, so upstream's builds never replace a fork build. Tested with `./gradlew test assembleFullDebug`;
 not run on the phone.
 
+**Upstream 0.5.32 to 0.5.35** came in by one merge (2026-11-22, branch `oneios-upstream-2026-11-22`; upstream is
+https://github.com/fahadalijaved/OneOS `main`, 12 commits after 0.5.31). What they bring: Debloat (each Android
+system's page, `assets/debloat/apps.tsv`, `DebloatActivity`), PixelOS 17 on the bar phones on One UI 9, the Z Fold8's
+own One UI 9.5 files and its Feature flags (#328), search and system apps in Bring apps, Wireless debugging paired
+inside a guest (#298), ColorOS raise to wake and its fingerprint circle, stereo through the earpiece speaker, USB-C
+headphones, the One UI 9.5 r24 payloads and the Galaxy M36. None of it runs in an iOS session: the changed scripts
+are the Android guests' (`guest_prepare.sh`, `guest_start.sh`, `guest_props.sh`, `oneos_switch.sh`,
+`return_to_oneui.sh`) and `oneos_root.sh`'s Android verbs; `oneios_switch.sh`, `oneios_return.sh`, `oneios_root.sh`,
+`boot_status.sh` and `OneOSBootStatus.dex` are as on `oneios`. Two conflicts: `app/build.gradle.kts` keeps the
+fork's git count for the version (upstream set 0.5.35/178 by hand; the merge counts 193, 0.5.64), and `EditionsTest`
+lists the fork's assets with upstream's new `debloat/apps.tsv`. Upstream's new lines had four redirected `:`
+(`guest_prepare.sh`'s Fold8 home layout mark, `guest_start.sh`'s Fold8 input file and taskbar mark,
+`oneos_switch.sh`'s adaptive mark): `true` now, as at the earlier merges. Not run on the phone.
+
 **Make iOS image with no PC** (2026-11-21): a phone with only this APK makes the whole iOS image set itself. The
 flow stages the latest OneiOS runtime first when the staged one carries no kernel or its `oneios-tool` has no
 `make-image`, puts the pairing files into `kb/` (root's `kbinput` ×9, as Update the kernel), then sends the tool's

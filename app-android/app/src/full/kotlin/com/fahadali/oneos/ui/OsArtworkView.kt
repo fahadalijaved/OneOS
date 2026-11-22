@@ -27,6 +27,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
     // 0.5.27: HyperOS 4 Global has its own artwork ("Global" on it), apart from the Xiaomi 18 Fold build's.
     fun bind(image: ImageRef?) = bindArtwork(if (image?.id == com.fahadali.oneos.core.model.Images.ID_HYPEROS_HONGKONG) R.drawable.os_hyperos_global else when (image?.family) {
         SystemFamily.PIXEL -> R.drawable.os_pixel
+        SystemFamily.PIXELOS -> R.drawable.os_pixelos
         SystemFamily.HYPEROS -> R.drawable.os_hyperos
         SystemFamily.NOTHING -> R.drawable.os_nothing
         SystemFamily.INFINITYX -> R.drawable.os_infinity
@@ -45,6 +46,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
             R.drawable.os_nothing -> SystemFamily.NOTHING
             R.drawable.os_infinity -> SystemFamily.INFINITYX
             R.drawable.os_pixel -> SystemFamily.PIXEL
+            R.drawable.os_pixelos -> SystemFamily.PIXELOS
             R.drawable.os_oxygenos -> SystemFamily.OXYGENOS
             R.drawable.os_originos -> SystemFamily.ORIGINOS
             R.drawable.os_lineage -> SystemFamily.LINEAGE
@@ -71,6 +73,7 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
             SystemFamily.NOTHING -> R.drawable.os_nothing_header
             SystemFamily.INFINITYX -> R.drawable.os_infinity_header
             SystemFamily.PIXEL -> R.drawable.os_pixel_header
+            SystemFamily.PIXELOS -> R.drawable.os_pixelos_header
             SystemFamily.OXYGENOS -> R.drawable.os_oxygenos_header
             SystemFamily.ORIGINOS -> R.drawable.os_originos_header
             SystemFamily.LINEAGE -> R.drawable.os_lineage_header

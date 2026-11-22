@@ -334,13 +334,19 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   the Fold8's Find N6 ColorOS set, its cover display, Quick Settings, AOD, widgets,
   Pocket Studio and Google fixes, and Samsung's hinge sensor for half-folded
   postures and the open/close animations in ColorOS and Pixel, which the Z Fold8
-  Ultra uses too.
+  Ultra uses too. Also provided base style for OneOS website.
 - **[@vdcoolok](https://github.com/vdcoolok)**: the screen lock kept inside the guest
   ([pull request #152](https://github.com/fahadalijaved/OneOS/pull/152)), which the guest's own
   PIN, pattern or password of 0.4.95 follows, and its enrolment handle (0.5.17); fingerprint and
   face unlock with One UI's own enrolments: the guest reaching the phone's fingerprint sensor and
   One UI's enrolment lists carried into the guest (0.5.17, Nothing OS first); and earlier the
   guest SMS fixes (#58), faster starts and returns (#107) and live wallpapers kept (#133).
+- **[@Sa12008s](https://github.com/Sa12008s)**: ColorOS's stable display size on QHD Galaxies left at
+  FHD+ (0.5.35), found, fixed and tested on the phone.
+- **[@syedarhamraza](https://github.com/syedarhamraza)**: Wireless debugging inside a system accepting
+  devices paired there ([pull request #298](https://github.com/fahadalijaved/OneOS/pull/298)).
+- **[@bidaighrissi1-stack](https://github.com/bidaighrissi1-stack)**: the Galaxy M36 5G profile
+  ([pull request #327](https://github.com/fahadalijaved/OneOS/pull/327)).
 - **[ducttape33](https://github.com/ducttape33)** and **[kett1m](https://github.com/kett1m)**:
   [backdownload](https://github.com/kett1m/backdownload) (GPL-3.0), which keeps Samsung's Download
   Mode reachable with a screen lock set and returns there when a switch fails.

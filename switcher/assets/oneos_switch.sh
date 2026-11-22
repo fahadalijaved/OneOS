@@ -485,7 +485,13 @@ GUEST_RESTART_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_resta
 # watcher below starts the session's full capture on it and says so in /data/oneos_bootui/full_logs.
 GUEST_FULLLOGS_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_full_logs"
 FULLLOGS_STATE="$STAGE/data/oneos_bootui/full_logs"
-rm -f "$GUEST_RETURN_REQ" "$GUEST_RESTART_REQ" "$GUEST_FULLLOGS_REQ"
+# 0.5.32 (owner, A36 ColorOS: level 3 "is better ... add a toggle in OneOS guest app"): Lighter animations in the
+# guest's OneOS app is a fourth request file ("1" or "3"): the watcher sets ColorOS's persist.sys.oplus.anim_level,
+# restarts its launcher and SystemUI, keeps the choice in data/oneos_anim_level for the next starts
+# (guest_props.sh) and answers in /data/oneos_bootui/anim_level.
+GUEST_ANIM_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_anim_level"
+ANIM_STATE="$STAGE/data/oneos_bootui/anim_level"
+rm -f "$GUEST_RETURN_REQ" "$GUEST_RESTART_REQ" "$GUEST_FULLLOGS_REQ" "$GUEST_ANIM_REQ"
 # An earlier session's mark (it would make this session's report look like full logs were on).
 rm -f "$STAGE/full_logs_mid.log"
 # One UI's protected state, recorded now and compared by return_to_oneui.sh:
@@ -567,6 +573,38 @@ grep -E 'mSupportedModes|mActiveModeId|mDefaultModeId|DisplayModeRecord|mUserPre
           if (match($0, /brightnessMaximum [0-9.]+/)) t = t " " substr($0, RSTART, RLENGTH)
           print substr($0, 1, 3000) " ..." t }' >> "$STAGE/display_modes_host.log"
 echo "preflight: display modes done $(date +%T)"
+# 0.5.35 adaptive refresh (owner, A36 PixelOS: "how do we have adaptive proper refresh rate like OneUi does";
+# 120 Hz all the time "will kill the battery for all devices"). Guests without ColorOS's own refresh logic are
+# pinned at their top rate through SurfaceFlinger's backdoor (guest_start.sh), for the VRR panels' 1 Hz
+# freezes and the panel left at 24 Hz (0.4.38-0.4.55). On a panel whose modes are separate seamless rates at
+# or under 120 Hz (the A36: 120 and 60, no VRR config) the pin keeps the panel at its top mode but lets
+# rendering go down to the lower mode's rate on a still screen (oneos_sf_kick.sh, render range), with
+# SurfaceFlinger's content detection off (guest_props.sh), so whatever moves renders at the top rate.
+# The panel itself stays at its top rate: letting DisplayManager switch the panel's modes is what the
+# A36's optical fingerprint did not take (test 9: captures rejected until the panel was pinned again).
+# Every internal display must qualify (One UI's SurfaceFlinger dump); VRR and single-mode panels keep
+# [top, top]. ONEOS_GUEST_ADAPTIVE=0 keeps [top, top] everywhere.
+ONEOS_GUEST_ADAPTIVE_PANEL=0
+if [ "${ONEOS_GUEST_ADAPTIVE:-1}" = 1 ]; then
+    ADP=$(awk '/^Display [0-9]+$/ { d = $2; ds[d] = 1; next } /^Display / { d = "" }
+        d != "" && /^ *activeMode=\{id=[0-9]+,/ { r = $0; sub(/.*resolution=/, "", r); sub(/,.*/, "", r); act[d] = r }
+        d != "" && /^ *\{id=[0-9]+, hwcId=/ { rr = $0; sub(/.*resolution=/, "", rr); sub(/,.*/, "", rr)
+            v = $0; if (!sub(/.*vsyncRate=/, "", v)) v = 0; v = int(v + 0.5)
+            vr = $0; if (sub(/.*vrrConfig=/, "", vr)) { sub(/[,}].*/, "", vr) } else vr = "N/A"
+            k++; md[k] = d; mr[k] = rr; mv[k] = v; mvr[k] = vr }
+        END { n = 0; ok = 1
+            for (d in ds) { n++; c = 0; delete seen
+                for (i = 1; i <= k; i++) if (md[i] == d && mr[i] == act[d]) {
+                    if (mv[i] > 120 || mvr[i] != "N/A") ok = 0
+                    if (mv[i] >= 48 && !(mv[i] in seen)) { seen[mv[i]] = 1; c++ } }
+                if (c < 2) ok = 0 }
+            print (n > 0 && ok) ? 1 : 0 }' "$STAGE/display_sf_host.txt" 2>/dev/null)
+    [ "$ADP" = 1 ] && ONEOS_GUEST_ADAPTIVE_PANEL=1
+fi
+export ONEOS_GUEST_ADAPTIVE_PANEL
+# The switch's later steps run in another process: the decision goes through the stage.
+echo "$ONEOS_GUEST_ADAPTIVE_PANEL" > "$STAGE/adaptive_panel" 2>/dev/null
+echo "preflight: adaptive refresh $ONEOS_GUEST_ADAPTIVE_PANEL (1: seamless modes at or under 120 Hz on every panel; ONEOS_GUEST_ADAPTIVE=${ONEOS_GUEST_ADAPTIVE:-1})"
 for p in /sys/class/lcd/panel /sys/class/lcd/panel1; do
     [ -d "$p" ] || continue
     for n in vrr vrr_lfd; do echo "$p/$n (One UI): $(cat "$p/$n" 2>&1 | tr '\n' ' ' | cut -c1-600)"; done
@@ -672,6 +710,17 @@ if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
     # on the S25 Ultra: radius 0, so SystemUI kept no clear of the curved corners).
     cut_after "$HLINE" 'RoundedCorner{position=TopLeft, radius=' ','; HRC=$R
     echo "preflight: display radius done $(date +%T)"
+    # 0.5.35: One UI's status bar window is not always there to read (A36, 13:32: "height not read", the
+    # status bar overlays then missing in PixelOS, owner: "what happened to statusbar"; every other session of
+    # the day read 101 px). The last height read at this panel width stands in.
+    if [ -n "$HSB" ] && [ -n "$HDW" ]; then
+        echo "$HDW $HSB" > "$STAGE/host_statusbar_height.last"
+    elif [ -n "$HDW" ] && [ -f "$STAGE/host_statusbar_height.last" ] && [ ! -L "$STAGE/host_statusbar_height.last" ]; then
+        set -- $(head -c 32 "$STAGE/host_statusbar_height.last")
+        if [ "${1:-}" = "$HDW" ]; then
+            case "${2:-}" in [1-9][0-9]|[1-9][0-9][0-9]) HSB=$2; echo "Host status bar: not on screen now; the height read last time at $HDW px, $HSB px" ;; esac
+        fi
+    fi
     case "$HDW:$HPW:$HSB" in
         *[!0-9:]*|:*|*::*|*:) HSB='' ;;
         *) [ "$HDW" -gt 0 ] && HSB=$(( (HSB * HPW + HDW / 2) / HDW )) || HSB='' ;;
@@ -926,16 +975,18 @@ elif [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
         # 0.5.28: on a Galaxy S24 FE (report e15e83eb, full logs on) "logcat -b all" ended at once with exit 2,
         # every time the watcher started it again, so the report had no logcat. Its error now goes to
         # auto_return.log, and a capture that ends that way within 5 s runs again on the standard buffers.
+        # 0.5.32: the error's first lines, not its last two (S24+ 1c280b57: the fallback failed the same way and
+        # the log kept only logcat's closing "For more information, try '--help'.").
         printf '%s\n' '#!/system/bin/sh' \
             "t=\$(date +%s)" \
             "logcat -b all -v threadtime -f $LOGS/boot.log -r 32768 -n 24 2>$STAGE/logcat_capture.err" \
             "s=\$?" \
-            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(tail -n 2 $STAGE/logcat_capture.err 2>/dev/null | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
+            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(grep -v '^ *\$' $STAGE/logcat_capture.err 2>/dev/null | head -n 3 | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
             "[ \$s != 0 ] && [ \$((\$(date +%s) - t)) -lt 5 ] || exit 0" \
             "echo \"\$(date) logcat capture: again on the main, system, crash, events and radio buffers\" >> $STAGE/auto_return.log" \
             "logcat -b main,system,crash,events,radio -v threadtime -f $LOGS/boot.log -r 32768 -n 24 2>$STAGE/logcat_capture.err" \
             "s=\$?" \
-            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(tail -n 2 $STAGE/logcat_capture.err 2>/dev/null | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
+            "echo \"\$(date) logcat capture ended: exit \$s (\$(ls $LOGS 2>/dev/null | wc -l) files in $LOGS) \$(grep -v '^ *\$' $STAGE/logcat_capture.err 2>/dev/null | head -n 3 | tr '\\n' ' ')\" >> $STAGE/auto_return.log" \
             > "$STAGE/logcat_capture.sh"
         $BB setsid sh "$STAGE/logcat_capture.sh" </dev/null >/dev/null 2>&1 &
         LOGCAT_HEAD=1
@@ -1749,6 +1800,20 @@ FIT
 chmod 755 "$STAGE/guest_panel_fit.sh"
 
 # The guest's own build props (ro.oplus.* etc.), now that its rootfs is mounted.
+# 0.5.35: guest_start.sh and the UI activator read the adaptive refresh decision (preflight) from the guest's /data.
+rm -f "$STAGE/data/oneos_adaptive"
+# Not on a phone with an in-display fingerprint sensor (guest_prepare.sh wrote its place to data/system/oneos_udfps):
+# the A36's optical sensor captured slowly and then not at all on back-to-back touches while rendering could drop
+# to 60 Hz on the still screen (test 10, owner: "stopped recognizing after 1st attempt"); with rendering at
+# 120 Hz it matched every time. One UI also runs the panel at its top rate for the sensor.
+if [ "$(cat "$STAGE/adaptive_panel" 2>/dev/null)" = 1 ] && [ "${ONEOS_GUEST_ADAPTIVE:-1}" = 1 ] && [ -d "$STAGE/data" ] && [ ! -L "$STAGE/data" ]; then
+    if [ -s "$STAGE/data/system/oneos_udfps" ]; then
+        echo "Adaptive refresh: off (an in-display fingerprint sensor: rendering stays at the panel's top rate)"
+    else
+        true > "$STAGE/data/oneos_adaptive"
+        echo "Adaptive refresh: on (the panel at its top rate, rendering down to the lower mode's on a still screen)"
+    fi
+fi
 /system/bin/sh "$STAGE/guest_props.sh" add "$STAGE/rootfs"
 if [ -f "$STAGE/data/oneos_root/enabled" ]; then
     # Bounded, each part timed. Galaxy S24 Ultra ColorOS report 0756b014
@@ -2167,6 +2232,10 @@ GUEST_VIVO=0
 # HyperOS keeps system_ext at the image root (system/system_ext links to One UI's).
 GUEST_MIUI=0
 [ -f "$STAGE/rootfs/system_ext/framework/miui-services.jar" ] && GUEST_MIUI=1
+# One UI images (0.5.32): their own input service drives the touch ICs through Samsung's sysinput HAL, so the
+# cover touch IC handling below is left to them (a second writer to the IC's enabled node: A17 5G kernel panic).
+GUEST_ONEUI=0
+grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null && GUEST_ONEUI=1
 # A guest whose status bar is AOSP's SystemUI, laid out from the framework's
 # cutout: every non-ColorOS guest, and Infinity-X, which carries OPPO's framework
 # jars (GUEST_OPLUS) on a LineageOS base. ColorOS's own SystemUI places its icons
@@ -2195,8 +2264,10 @@ esac
 # back to 60 Hz.  Read the highest physical mode (up to OneOS's 120 Hz policy)
 # from the One UI dump captured before the switch.  Keep 120 as the conservative
 # fallback for old stages or an incomplete dump.
+# 0.5.32: rounded first. The S24 FE's One UI lists its 120 Hz mode as fps=120.00001, which the old "<= 120"
+# test dropped: the guest got 60 Hz as its top rate and every swipe ran at 60 (report 44afc238).
 GUEST_REFRESH=120.0
-R=$(awk -F'fps=' '{ for (i = 2; i <= NF; i++) { v = $i + 0; if (v >= 30 && v <= 120 && v > m) m = v } }
+R=$(awk -F'fps=' '{ for (i = 2; i <= NF; i++) { v = int($i + 0.5); if (v >= 30 && v <= 120 && v > m) m = v } }
     END { if (m) printf "%.1f", m }' "$STAGE/display_host.txt" 2>/dev/null)
 case "$R" in
     30.0|[3-9][0-9].0|1[01][0-9].0|120.0) GUEST_REFRESH=$R ;;
@@ -2460,11 +2531,12 @@ while true; do
             [ \"\$NAVK\" = null ] && $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put secure hide_navigationbar_enable 3 2>/dev/null
             # Window blur off once on mid-range Galaxy A and M phones (0.5.14): blur is GPU-only, and on
             # the A36 it alone missed about 240 frames in 30 s. Once per guest data (marker), so a user who
-            # turns it back on (Developer options > Allow window-level blurs) keeps it.
+            # turns it back on (Developer options > Allow window-level blurs; Android 17: Accessibility > Color and
+            # motion > Reduce blur effects, its developer toggle writing nothing in PixelOS 17) keeps it.
             case \"\$(getprop ro.product.model)\" in SM-A*|SM-M*)
                 if [ ! -f $STAGE/data/oneos_blur_default ]; then
                     $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put global disable_window_blurs 1 2>/dev/null &&
-                        touch $STAGE/data/oneos_blur_default && echo \"[UI Activator] window blur off once (mid-range Galaxy; Developer options turn it back on)\"
+                        touch $STAGE/data/oneos_blur_default && echo \"[UI Activator] window blur off once (mid-range Galaxy; Developer options > Allow window-level blurs, or on Android 17 Accessibility > Color and motion > Reduce blur effects, turn it back on)\"
                 fi ;;
             esac
             # Nothing OS haptics at full strength once per guest data (0.5.15). Nothing hides Android's vibration
@@ -2954,7 +3026,7 @@ while true; do
                 if [ $GUEST_OPLUS = 1 ]; then FOLDN=continue_using_apps_when_folded; else FOLDN=fold_lock_behavior_setting; fi
                 FOLDK=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system \$FOLDN 2>/dev/null)
                 case \"${ONEOS_GUEST_FOLD_CONTINUE:-1}:\$FOLDN:\$FOLDK\" in
-                    0:*|1:continue_using_apps_when_folded:1|1:continue_using_apps_when_folded:2|1:fold_lock_behavior_setting:stay_awake_on_fold_key|1:fold_lock_behavior_setting:sleep_on_fold_key) ;;
+                    0:*|1:continue_using_apps_when_folded:1|1:continue_using_apps_when_folded:2|1:fold_lock_behavior_setting:stay_awake_on_fold_key|1:fold_lock_behavior_setting:sleep_on_fold_key|1:fold_lock_behavior_setting:selective_stay_awake_key) ;;
                     1:continue_using_apps_when_folded:*) $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system continue_using_apps_when_folded 1 2>/dev/null ;;
                     *) $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system fold_lock_behavior_setting stay_awake_on_fold_key 2>/dev/null ;;
                 esac
@@ -3091,6 +3163,62 @@ while true; do
                 done
                 mkdir $STAGE/data/oneos_samcam_perms 2>/dev/null
                 echo \"[UI Activator] Samsung Camera: granted\${GR:- nothing} (once per stage)\"
+            fi
+            # Debloater (0.5.32): an app guest_prepare.sh hid that the guest had updated (its newer copy in
+            # /data/app) stays installed as an ordinary app. The owner wants it removed for real, not turned
+            # off (A36 test, 1.1 GB of updates): that copy is uninstalled here (pm uninstall: its APK, code and data go), so
+            # nothing of it is left; Restore all brings back the image's own version, which Play updates again.
+            # data/oneos_debloat_off holds apps an earlier test build only turned off; they are turned on again
+            # once no longer listed, or uninstalled while still listed.
+            DBW=''
+            [ -s $STAGE/debloat.list ] && [ ! -L $STAGE/debloat.list ] && DBW=\$(cut -f1 $STAGE/debloat.list | grep -E '^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+\$' | sort -u)
+            DBO=$STAGE/data/oneos_debloat_off
+            if [ -L \$DBO ]; then
+                echo '[UI Activator] Debloat: data/oneos_debloat_off is a link, not made by OneOS; left alone'
+            elif [ -n \"\$DBW\" ] || [ -s \$DBO ]; then
+                GONE=''; KEPT=''; ON=''
+                for p in \$DBW; do
+                    PP=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path \$p 2>/dev/null | head -n 1)
+                    case \"\$PP\" in
+                        package:/data/app/*)
+                            if timeout 60 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm uninstall \$p 2>/dev/null | grep -q Success; then
+                                GONE=\"\$GONE \$p\"
+                                [ -s \$DBO ] && { grep -v -x -F \"\$p\" \$DBO > \$DBO.new; mv \$DBO.new \$DBO; }
+                            else
+                                KEPT=\"\$KEPT \$p\"
+                            fi ;;
+                        package:*) KEPT=\"\$KEPT \$p(\${PP#package:})\" ;;
+                    esac
+                done
+                if [ -s \$DBO ]; then
+                    for p in \$(cat \$DBO); do
+                        printf '%s\\n' \"\$DBW\" | grep -q -x -F \"\$p\" && continue
+                        timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm enable --user 0 \$p >/dev/null 2>&1; ON=\"\$ON \$p\"
+                    done
+                    if [ -n \"\$ON\" ]; then
+                        for p in \$ON; do grep -v -x -F \"\$p\" \$DBO > \$DBO.new; mv \$DBO.new \$DBO; done
+                    fi
+                fi
+                [ -s \$DBO ] || rm -f \$DBO
+                # What is left of each app no longer installed: OneOS's storage guards (guest_storage_guards.py) drop
+                # installd's rmPackageDir and destroyAppData, which would act on One UI's data, so the code folder
+                # and the app's data stayed (A36, 11-21: Photos, YouTube, YouTube Music and Meet uninstalled, 620 MB
+                # of code and 290 MB of data left). They are in the stage, the guest's own /data: removed here, only
+                # for a listed app the guest's package list (read whole, 50 packages or more) does not have.
+                ALLP=\$(timeout 30 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm list packages 2>/dev/null | sed -n 's/^package://p')
+                FREED=0; LEFT=''
+                if [ \"\$(printf '%s\\n' \"\$ALLP\" | grep -c .)\" -ge 50 ]; then
+                    for p in \$DBW; do
+                        printf '%s\\n' \"\$ALLP\" | grep -q -x -F \"\$p\" && continue
+                        for d in $STAGE/data/app/~~*/\$p-* $STAGE/data/user/0/\$p $STAGE/data/user_de/0/\$p $STAGE/data/misc/profiles/cur/0/\$p $STAGE/data/misc/profiles/ref/\$p; do
+                            [ -d \"\$d\" ] && [ ! -L \"\$d\" ] || continue
+                            k=\$(du -sk \"\$d\" 2>/dev/null | cut -f1)
+                            rm -rf \"\$d\" && FREED=\$((FREED + \${k:-0})) || LEFT=\"\$LEFT \$d\"
+                            case \"\$d\" in $STAGE/data/app/~~*/*) rmdir \"\${d%/*}\" 2>/dev/null ;; esac
+                        done
+                    done
+                fi
+                echo \"[UI Activator] Debloat: updated copies removed:\${GONE:- none}; could not remove:\${KEPT:- none}; turned on again:\${ON:- none}; left-out apps' code and data freed: \$((FREED / 1024)) MB\${LEFT:+ (not removed:\$LEFT)}\"
             fi
             # Nothing's Settings shows the phone's own RAM and storage in About
             # phone only on Nothing's phones (Build.DEVICE Spacewar or Pong, or
@@ -3256,7 +3384,11 @@ while true; do
                 [ $GUEST_MIUI = 1 ] && case \"\$HRC\" in ''|*[!0-9]*) ;; *) HRC=\$((HRC / 2)) ;; esac
                 # Which of these overlays were already on when the guest started (an earlier session made them),
                 # for HyperOS's restart below.
-                PRE=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list 2>/dev/null | grep -F '[x] com.android.shell:OneOS')
+                PREALL=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay list 2>/dev/null | grep -F 'com.android.shell:OneOS')
+                PRE=\$(printf '%s\\n' \"\$PREALL\" | grep -F '[x] com.android.shell:OneOS')
+                # 0.5.32 (A36, 11-21: app open/close corners missing, and every HyperOS session found these off at
+                # start although the last one saved them on): their state as the guest started, for the next report.
+                [ $GUEST_MIUI = 1 ] && echo \"[UI Activator] HyperOS overlays at start: \$(printf '%s\\n' \"\$PREALL\" | tr '\\n' ' ' | cut -c1-400)\"
                 OVS=''
                 if [ -n \"\$CUT\" ] && [ -n \"\$CUTR\" ] &&
                    gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string \"\$CUT\" &&
@@ -3355,9 +3487,32 @@ while true; do
                                fi
                            fi ;;
                     esac
+                    # 0.5.35, PixelOS on the A36 (owner, 11-21: \"Statusbar isnt aligned to cam cutout and on the sides
+                    # too\"): AOSP and Pixel SystemUI centre the bar's row in the height under status_bar_padding_top,
+                    # 0 here, so the clock and icons sat at y 19..81 (centre 50) where the camera hole's centre is 58
+                    # (One UI's cutout rect 24..92 in a 101 px bar). Twice that gap, as for Nothing above (its own
+                    # 15 px bias aside): with 15 px the row went to 27..89. Nothing OS keeps its own overlay.
+                    if [ $GUEST_AOSP_SYSUI = 1 ] && [ ! -e $STAGE/rootfs/system_ext/framework/nt-telephony-common.jar ] && [ ! -e $STAGE/rootfs/system/system_ext/framework/nt-telephony-common.jar ]; then
+                        SBT=\$(printf '%s\\n' \"\$HRP\" | awk -v h=\"\${HSBG:-0}\" -v k=\"\$SBK\" '{ for (i = 1; i <= NF; i++) if (split(\$i, q, \",\") == 2) { y = q[2] + 0; if (n == 0 || y < lo) lo = y; if (n == 0 || y > hi) hi = y; n++ } }
+                            END { f = 1; if (split(k, a, \" \") == 2 && a[2] > 0) f = a[1] / a[2]; t = 0; if (n > 1 && h > 0) t = int(2 * ((lo + hi) / 2 * f - h / 2) + 0.5); if (t < 0) t = 0; print t }')
+                        case \"\$SBT\" in ''|*[!0-9]*) SBT=0 ;; esac
+                        if [ \$SBT -gt 0 ]; then
+                            r=\$(gdim OneOSStatusBarTop com.android.systemui com.android.systemui:dimen/status_bar_padding_top=\$SBT)
+                            case \"\$r\" in registered*) OVS=\"\$OVS OneOSStatusBarTop\" ;; *) DIMS=\"\$DIMS status bar top \$SBT px: \$r;\" ;; esac
+                        fi
+                    fi
                 fi
                 ON=''
                 for o in \$OVS; do gxo enable --user 0 com.android.shell:\$o && ON=\"\$ON \$o\"; done
+                # SystemUI reads status_bar_padding_top only when it lays the bar out: turned on now (off when the
+                # guest started, so the first session on new files), SystemUI restarted once. Later sessions start
+                # with it on.
+                case \" \$ON \" in *\" OneOSStatusBarTop \"*)
+                    if ! printf '%s\\n' \"\$PRE\" | grep -q -x -F '[x] com.android.shell:OneOSStatusBarTop'; then
+                        sp=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/pidof com.android.systemui 2>/dev/null)
+                        case \"\$sp\" in ''|*[!0-9\ ]*) ;; *) kill \$sp 2>/dev/null && echo \"[UI Activator] SystemUI restarted for the status bar top padding (\$SBT px)\" ;; esac
+                    fi ;;
+                esac
                 # 0.5.18 (owner, A36): Nothing's SystemUI reads the power key's place (the screen-off animation) once,
                 # when it starts, and in a guest it starts before these overlays hold: the animation went to Nothing's
                 # own 620 px every session, and right only after a SystemUI restart (owner: \"power animation good\",
@@ -3393,11 +3548,87 @@ while true; do
                     case \$o in
                         OneOSCornerRadius) [ -n \"\$CRAD\" ] && continue
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
-                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSCornerPadding|OneOSNtStatusBar|OneOSNtPowerKey|OneOSIslandCenter)
+                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSStatusBarTop|OneOSCornerPadding|OneOSNtStatusBar|OneOSNtPowerKey|OneOSIslandCenter)
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
                     esac
                 done
                 [ -z \"\$OFF\" ] || echo \"[UI Activator] status bar: no host cutout this session; overlays off:\$OFF\"
+            fi
+            # 0.5.35, PixelOS on the A36 (owner, 11-22: \"fingerprint icon is soo bad\"): Pixel SystemUI sizes the
+            # in-display sensor's icon as udfps_icon_size (6000 um) / pixel_pitch, and pixel_pitch comes from a
+            # Pixel's own vendor overlay; on One UI's vendor it stayed -1, so the icon was -6000 px and its padding
+            # far wider than the 226 px sensor (a light block over a dark circle). The panel's pitch from its dpi
+            # (A36: 25400 / 386.37 = 65.74 um, icon 91 px, tested live). SystemUI reads it when it starts.
+            # 0.5.35, the same SystemUI and the phone's in-display sensor (/data/system/oneos_udfps: x y r, the panel's
+            # own pixels): the sensor sits lower on a Galaxy than on a Pixel (A36: centre at 89 % of the height, a
+            # Pixel's about 82 %), and two lock screen parts placed against it went wrong (owner, A36 PixelOS):
+            # - the indication line (\"Recognizing face...\") under the sensor circle, overlapping it: its area is
+            #   moved to just above the circle (keyguard_indication_margin_bottom = height - circle top + 10 px);
+            # - the large clock, centred between the smartspace and the circle, sat low (\"clock is also sitting
+            #   down\"): keyguard_smartspace_top_offset (read only by ClockSection's large clock and its preview)
+            #   moves that top line so the clock's centre comes to 44.57 % of the height, where the owner approved
+            #   it live (\"clock is perfect now\"; A36: -223 px). Only ever up, never down.
+            # SystemUI reads all three when it starts: one restart for whichever were turned on now.
+            SUIR=''
+            if [ $GUEST_AOSP_SYSUI = 1 ]; then
+                PPG=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay lookup com.android.systemui com.android.systemui:dimen/pixel_pitch 2>/dev/null | tr -d '\r' | head -n 1)
+                case \"\$PPG\" in
+                    -*|0|0.0)
+                        XDPI=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys display 2>/dev/null | sed -n 's/.*xDpi=\\([0-9.]*\\).*/\\1/p' | head -n 1)
+                        PPN=\$(awk -v d=\"\$XDPI\" 'BEGIN { if (d + 0 >= 200 && d + 0 <= 800) printf \"%.2f\", 25400 / d }')
+                        if [ -n \"\$PPN\" ]; then
+                            r=\$(gdim OneOSPixelPitch com.android.systemui com.android.systemui:dimen/pixel_pitch=f:\$PPN)
+                            case \"\$r\" in
+                                registered*)
+                                    if gxo enable --user 0 com.android.shell:OneOSPixelPitch; then
+                                        echo \"[UI Activator] fingerprint icon: pixel_pitch \$PPN um from the panel's \$XDPI dpi (was \$PPG)\"
+                                        SUIR=\"\$SUIR fingerprint icon size;\"
+                                    fi ;;
+                                *) echo \"[UI Activator] fingerprint icon: pixel_pitch overlay not made: \$r\" ;;
+                            esac
+                        else
+                            echo \"[UI Activator] fingerprint icon: no panel dpi ('\$XDPI'), pixel_pitch left at \$PPG\"
+                        fi ;;
+                esac
+                if [ ! -e $STAGE/rootfs/system_ext/framework/nt-telephony-common.jar ] && [ ! -e $STAGE/rootfs/system/system_ext/framework/nt-telephony-common.jar ] &&
+                   [ -f $STAGE/data/system/oneos_udfps ] && [ ! -L $STAGE/data/system/oneos_udfps ]; then
+                    set -- \$(head -c 64 $STAGE/data/system/oneos_udfps)
+                    UY=\${2:-}; UR=\${3:-}
+                    DSP=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys display 2>/dev/null)
+                    # The guest's height and the panel's (a guest run below the panel's size scales the sensor).
+                    LH=\$(printf '%s\\n' \"\$DSP\" | sed -n 's/.*mBaseDisplayInfo=.* real [0-9]* x \\([0-9]*\\),.*/\\1/p' | head -n 1)
+                    NH=\$(printf '%s\\n' \"\$DSP\" | sed -n 's/.*DisplayDeviceInfo{\"[^\"]*\": uniqueId=\"[^\"]*\", [0-9]* x \\([0-9]*\\),.*/\\1/p' | head -n 1)
+                    DEN=\$(printf '%s\\n' \"\$DSP\" | grep -m 1 'mBaseDisplayInfo=' | grep -oE 'density [0-9]+' | head -n 1 | cut -d' ' -f2)
+                    lk() { timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay lookup \"\$1\" \"\$2\" 2>/dev/null | tr -d '\r' | head -n 1; }
+                    IMB=\$(lk com.android.systemui com.android.systemui:dimen/keyguard_indication_margin_bottom)
+                    STO=\$(lk com.android.systemui com.android.systemui:dimen/keyguard_smartspace_top_offset)
+                    ESH=\$(lk com.android.systemui com.android.systemui:dimen/enhanced_smartspace_height)
+                    SBH=\$(lk android android:dimen/status_bar_height_default)
+                    set -- \$(awk -v y=\"\$UY\" -v r=\"\$UR\" -v lh=\"\$LH\" -v nh=\"\$NH\" -v den=\"\$DEN\" -v imb=\"\$IMB\" -v sto=\"\$STO\" -v esh=\"\$ESH\" -v sbh=\"\$SBH\" '
+                        function px(v) { n = v + 0; if (v ~ /di?p/) n = n * den / 160; return n }
+                        BEGIN { if (y + 0 <= 0 || r + 0 <= 0 || lh + 0 < 800 || den + 0 < 100 || esh == \"\" || sbh == \"\" || sto == \"\") { print \"-\"; exit }
+                            f = (nh + 0 > 0) ? lh / nh : 1; top = (y - r) * f
+                            if (top < lh * 0.6 || top >= lh) { print \"-\"; exit }
+                            m = int(lh - top + 10.5); m0 = px(imb)
+                            o = int(2 * 0.4457 * lh - top - px(sbh) / 2 - px(esh) + 0.5); o0 = px(sto)
+                            printf \"%s %s %d %d\\n\", (m > m0 + 0.5) ? m : \"-\", (o < o0 - 0.5) ? o : \"-\", top, lh }')
+                    if [ \"\$1\" = - ] && [ \"\${2:--}\" = - ]; then
+                        echo \"[UI Activator] lock screen: nothing to move for the sensor (\$(cat $STAGE/data/system/oneos_udfps 2>/dev/null); height \$LH/\$NH, density \$DEN; margin \$IMB, offset \$STO)\"
+                    else
+                        if [ \"\$1\" != - ]; then
+                            r=\$(gdim OneOSIndicationBottom com.android.systemui com.android.systemui:dimen/keyguard_indication_margin_bottom=\$1)
+                            case \"\$r\" in registered*) gxo enable --user 0 com.android.shell:OneOSIndicationBottom && SUIR=\"\$SUIR lock screen text;\" && echo \"[UI Activator] lock screen: indication line above the sensor circle (bottom margin \$1 px, was \$IMB; circle top \$3 of \$4)\" ;; *) echo \"[UI Activator] lock screen: indication overlay not made: \$r\" ;; esac
+                        fi
+                        if [ \"\${2:--}\" != - ]; then
+                            r=\$(gdim OneOSLargeClockRaise com.android.systemui com.android.systemui:dimen/keyguard_smartspace_top_offset=\$2)
+                            case \"\$r\" in registered*) gxo enable --user 0 com.android.shell:OneOSLargeClockRaise && SUIR=\"\$SUIR large clock;\" && echo \"[UI Activator] lock screen: large clock raised (smartspace top offset \$2 px, was \$STO)\" ;; *) echo \"[UI Activator] lock screen: clock overlay not made: \$r\" ;; esac
+                        fi
+                    fi
+                fi
+            fi
+            if [ -n \"\$SUIR\" ]; then
+                sp=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/pidof com.android.systemui 2>/dev/null)
+                case \"\$sp\" in ''|*[!0-9\ ]*) ;; *) kill \$sp 2>/dev/null && echo \"[UI Activator] SystemUI restarted for:\$SUIR\" ;; esac
             fi
             if [ -n \"\$CRAD\" ]; then
                 r=\$(gdim OneOSCornerRadius android android:dimen/rounded_corner_radius=\$CRAD android:dimen/rounded_corner_radius_top=\$CRAD android:dimen/rounded_corner_radius_bottom=\$CRAD)
@@ -3480,6 +3711,19 @@ while true; do
                             gxo enable --user 0 com.android.shell:OneOSDozeAod && DZON=\"\$DZON OneOSDozeAod\"
                         echo \"[UI Activator] AOD: no doze service named (lookup '\$DZC'); overlays on:\${DZON:- none}; now \$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay lookup android android:string/config_dozeComponent 2>/dev/null | head -n 1)\" ;;
                 esac
+                # 0.5.35, PixelOS on the A36 (owner, 11-21: \"Aod is too bright for AOD\"): SystemUI asked for the
+                # display ON while dozing (mDozeScreenStateOverrideFromDreamManager=2) because doze_display_state_supported
+                # is false: a Pixel's vendor overlay sets it, One UI's vendor does not. The panel then showed AOD at
+                # the normal screen brightness instead of its own low-power AOD mode. Read on each doze, so live.
+                # Nothing OS keeps its own (its AOD was tuned on the A36).
+                if [ ! -e $STAGE/rootfs/system_ext/framework/nt-telephony-common.jar ] && [ ! -e $STAGE/rootfs/system/system_ext/framework/nt-telephony-common.jar ]; then
+                    DDS=\$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd overlay lookup com.android.systemui com.android.systemui:bool/doze_display_state_supported 2>/dev/null | tr -d '\r' | head -n 1)
+                    if [ \"\$DDS\" = false ]; then
+                        gxo fabricate --target com.android.systemui --name OneOSDozeDisplayState com.android.systemui:bool/doze_display_state_supported 0x12 0xffffffff &&
+                            gxo enable --user 0 com.android.shell:OneOSDozeDisplayState &&
+                            echo \"[UI Activator] AOD: the panel's own doze state (doze_display_state_supported was false)\"
+                    fi
+                fi
             fi
             # Fold test (fold layout only). On every lid switch event record what
             # the guest did: device state, layout, both touch mappers and
@@ -3514,7 +3758,7 @@ while true; do
                         sec_touchscreen2) TS2=/dev/input/\${e##*/} ;;
                     esac
                 done
-                if [ \"${ONEOS_COVER_TSP:-1}\" = 1 ] && [ \"${ONEOS_GUEST_FORM:-fold}\" = fold ] && [ -n \"\$FLIP\" ] && [ -n \"\$TS2\" ]; then
+                if [ \"${ONEOS_COVER_TSP:-1}\" = 1 ] && [ $GUEST_ONEUI = 0 ] && [ \"${ONEOS_GUEST_FORM:-fold}\" = fold ] && [ -n \"\$FLIP\" ] && [ -n \"\$TS2\" ]; then
                     for d in /sys/class/sec/tsp*; do
                         [ \"\$(cat \$d/input/name 2>/dev/null)\" = sec_touchscreen2 ] && [ -w \$d/enabled ] && TSP2=\$d
                         [ \"\$(cat \$d/input/name 2>/dev/null)\" = sec_touchscreen ] && [ -w \$d/enabled ] && TSP1=\$d
@@ -4166,6 +4410,20 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     fi
                     if [ \"${ONEOS_LOGCAT:-1}\" = 1 ] && [ -d $STAGE/data/oneos_bootui ]; then echo 1 > $FULLLOGS_STATE && chmod 644 $FULLLOGS_STATE; fi
                 fi
+                if [ -f $GUEST_ANIM_REQ ] && [ ! -L $GUEST_ANIM_REQ ]; then
+                    al=\$(timeout 2 head -c 4 $GUEST_ANIM_REQ 2>/dev/null | tr -dc 0-9)
+                    rm -f $GUEST_ANIM_REQ
+                    case \"\$al\" in
+                        1|3)
+                            if [ -f $ANIM_STATE ] && [ ! -L $ANIM_STATE ] && [ ! -L $STAGE/data/oneos_anim_level ]; then
+                                echo \"\$al\" > $STAGE/data/oneos_anim_level
+                                setprop persist.sys.oplus.anim_level \"\$al\"
+                                kill \$(pidof com.android.launcher) \$(pidof com.android.systemui) 2>/dev/null
+                                echo \"\$al\" > $ANIM_STATE && chmod 644 $ANIM_STATE
+                                echo \"\$(date) ColorOS animation level \$al from the guest's OneOS app (launcher and SystemUI restarted)\"
+                            fi ;;
+                    esac
+                fi
                 if [ -f $GUEST_RESTART_REQ ] && [ ! -L $GUEST_RESTART_REQ ]; then
                     rm -f $GUEST_RESTART_REQ
                     setprop oneos.guest.powerctl ksud:soft-reboot
@@ -4329,7 +4587,17 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     if [ \$dname != 20 ]; then
                         timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/am get-started-user-state 0 > \$D/user0.txt 2>&1
                         timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys window windows > \$D/windows.txt 2>&1
+                        # 0.5.33: the stacks only when user 0 is not unlocked (the stuck boot they are for), or with
+                        # ONEOS_DIAG_STACKS=1. In every session they froze Snapdragon 8 Elite / 8 Gen 3 Galaxy phones on
+                        # One UI 9.5 (S25 Ultra 64cf2555: whole phone stopped during diag_90's native debuggerd of
+                        # SystemUI, its file 0 bytes; S25 27022cd2, S24 Ultra 176dcdab, c156bfae the same block; the
+                        # users held the keys and got the upload-mode screen). ANR traces are still copied below.
+                        DSTACKS=0
+                        grep -q RUNNING_UNLOCKED \$D/user0.txt 2>/dev/null || DSTACKS=1
+                        [ \"${ONEOS_DIAG_STACKS:-0}\" = 1 ] && DSTACKS=1
+                        [ \$DSTACKS = 1 ] || echo \"user 0 unlocked: launcher and SystemUI stacks not taken (ONEOS_DIAG_STACKS=1 takes them)\" > \$D/stacks_skipped.txt
                         for app in com.android.launcher com.android.systemui; do
+                            [ \$DSTACKS = 1 ] || break
                             ap=\$(pidof \$app | awk '{print \$1}')
                             [ -n \"\$ap\" ] || continue
                             timeout 20 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/debuggerd -j \$ap > \$D/stack_\$app.txt 2>&1
@@ -4406,7 +4674,12 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                             [ \"\$(cat \$e/device/name 2>/dev/null)\" = sec_touchscreen ] || continue
                             dev=/dev/input/\${e##*/}
                             echo \"\$dev enabled=\$(cat \$e/device/enabled 2>/dev/null)\" > \$D/touch_holders.txt
-                            ls -l /proc/[0-9]*/fd/* 2>/dev/null | grep \" \$dev\$\" >> \$D/touch_holders.txt
+                            # 0.5.33: only the processes that can hold it (the guest's input reader in system_server,
+                            # OneOS's own keepers and getevent), not every open file of every process: that walk ran at
+                            # 100 % CPU for a minute before the One UI 9.5 freezes above.
+                            for hp in \$(pidof system_server getevent busybox sh 2>/dev/null); do
+                                ls -l /proc/\$hp/fd 2>/dev/null | grep -q \" \$dev\$\" && echo \"\$hp \$(cat /proc/\$hp/comm 2>/dev/null)\"
+                            done >> \$D/touch_holders.txt
                             timeout 15 getevent -lt \$dev > \$D/touch_events.txt 2>&1
                         done
                         # system_server's own black-screen backtraces (OplusWmBlackDetector).
@@ -4555,6 +4828,13 @@ if [ "$RETURN_MAX" -gt 0 ]; then
         # boot matches (and the PID is still a oneos_switch.sh shell).
         cat /proc/sys/kernel/random/boot_id 2>/dev/null > "$KS/boot"
         KDEVS=$(getevent -pl 2>/dev/null | awk '/^add device/ { dev = $NF } /KEY_VOLUME(UP|DOWN)/ { print dev }' | sort -u)
+        # 0.5.32 (owner, A36: a frozen ColorOS, black screen, no sign the chord was taken): one buzz when the 3 s
+        # hold is recognized. Straight from the phone's vibrator HAL (IVibrator.on(ms, null callback), transaction
+        # 3), which serves One UI and the guest alike and keeps running whatever either framework does; a
+        # timed_output node where the kernel has one.
+        KVIB=$(service list 2>/dev/null | sed -n 's/.*\(android\.hardware\.vibrator\.IVibrator\/[A-Za-z0-9_]*\).*/\1/p' | head -n 1)
+        [ -n "$KVIB" ] || { [ -w /sys/class/timed_output/vibrator/enable ] && KVIB=timed_output; }
+        echo "$KVIB" > "$KS/vibrator"
         for kd in $KDEVS; do
             # Like the watcher: not in the app cgroup, never OOM-killed (the
             # getevent and the loop below inherit it from this subshell; the
@@ -4572,6 +4852,11 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     ( sleep 3
                       [ "$(cat "$KS/both" 2>/dev/null)" = "$tok" ] && [ "$(cat "$KS/up")" = DOWN ] && [ "$(cat "$KS/down")" = DOWN ] &&
                           echo "$(date) Volume Up + Volume Down held 3 s" >> "$STAGE/auto_return.log" &&
+                          { case "$(cat "$KS/vibrator" 2>/dev/null)" in
+                                '') ;;
+                                timed_output) echo 200 > /sys/class/timed_output/vibrator/enable 2>/dev/null ;;
+                                *) timeout 3 service call "$(cat "$KS/vibrator")" 3 i32 200 null >/dev/null 2>&1 ;;
+                            esac; true; } &&
                           setprop oneos.guest.powerctl "keys:volume-up+down" ) &
                 else
                     true > "$KS/both"

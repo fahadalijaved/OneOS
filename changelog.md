@@ -800,3 +800,87 @@ battery drain fixed.**
 - **HyperOS status bar icon spacing and the rounded app open/close animations** were lost with this version's new
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
+
+New in 0.5.35: **PixelOS 17 on every Galaxy on One UI 9, One UI 9.5 on the Z Fold8 with its own files, Dolby on
+Bluetooth, and contributors' fixes.**
+- **PixelOS 17** (new system, the Pixel experience built for the A series' CPUs; Google's Pixel builds cannot run on
+  them): on **every bar phone on One UI 9** (S and A series, S22 and newer), with its own card; Folds and Flips keep
+  their own Pixel builds. Tested on the A36, untested on the others: in-display fingerprint and face
+  unlock, Always-On Display in the panel's low-power mode, the large lock screen clock, a brightness range and a
+  slider that follows One UI's (the middle of the bar is no longer near the bottom), the status bar centred on
+  the camera hole, calls (also over Bluetooth) and SMS. Face unlock stays set up after a return to One UI.
+- **Dolby Atmos follows the music:** in the AOSP-based systems Samsung's Dolby stayed on the speaker's output when
+  music moved to Bluetooth earbuds; it now moves with it (A36 with Galaxy Buds: confirmed).
+- **Fingerprint and lock screen in the Pixel-style systems:** the in-display sensor's icon has the right size, and
+  the lock screen's message line sits above the sensor circle instead of on it.
+- **One UI 9.5:** the OneOS app inside it is installed again (One UI 9.5 only installs system apps on its own
+  list); MediaTek A and M phones (A17) use their own Samsung Camera instead of the A36's, whose HDR mode their
+  camera driver refused (the preview froze). The **Galaxy Z Fold8** gets its own One UI 9.5 files from Josh
+  (thatjoshguy67, pull request #328): its two screens, cover and inner Home layouts, taskbar, Settings and
+  rotation; other phones don't download them. Also from #328: **Feature flags** on the One UI 9.5 card (the
+  Dynamic Island media player, on by default) and **search and system apps in Bring apps**.
+- **ColorOS on QHD phones left at FHD+** (S+ and Ultra): ColorOS ran the full QHD screen while keeping One UI's
+  FHD+ size for its layout; both now match (Sa12008s, who found, fixed and tested it).
+- **Wireless debugging inside a system** accepts devices paired there (syedarhamraza, pull request #298).
+- **New phone:** the Galaxy M36 5G (pull request #327), untested.
+- Untested on a phone: PixelOS beyond the A36, the One UI 9.5 OneOS app and MediaTek camera, the Z Fold8's One UI
+  9.5 files, the M36.
+
+New in 0.5.34: **S24 FE zoomed photos and steady stereo, A16 brightness, USB-C headphones on the A35, and a safer
+Debloat.**
+- **Samsung Camera:** zoomed photos no longer close the camera on phones whose One UI lacks the S26 Ultra camera's
+  AI Clear Zoom library (S24 FE): the camera then does without that step.
+- **Stereo speakers** stay on: the earpiece speaker is powered at every start of playback, as One UI does (0.5.33
+  powered it once, so stereo came and went).
+- **Brightness on HyperOS (Galaxy A16 4G):** Samsung's lights service refused every brightness HyperOS sent, so the
+  slider did nothing; OneOS now drives the panel itself when that happens.
+- **USB-C headphones (Galaxy A35 and others):** the systems found only the USB accessory output and played nothing
+  on wired USB headphones; they now get USB headphone outputs as One UI has them. Thanks to the tester who sent a
+  working policy file.
+- **Debloat** no longer offers apps that other apps need as a library (HyperOS's Xiaomi Cloud SDK and two more):
+  removing it broke the phone app, so calls and mobile data stopped. Anyone who removed one gets it back at the
+  next start.
+- Untested on a phone: all of the above.
+
+New in 0.5.33: **stereo speakers, the S24 FE camera, the ColorOS fingerprint circle, and One UI 9.5 without
+freezes or reboots.**
+- **Stereo speakers** in every system on Galaxies whose second speaker is the earpiece (S24 FE and others): One
+  UI's own audio service powers the earpiece speaker for media; the other systems never did, so only the bottom
+  speaker played. OneOS now does it, outside calls.
+- **Samsung Camera on the S24 FE** (ColorOS): photo and video stayed black. The camera looked up the FE's 10 MP
+  selfie sensor in a crop table the S26 Ultra's camera has no entry for. ColorOS's files have a new revision.
+- **ColorOS lock screen fingerprint circle** at every wake on every phone: ColorOS waited for an Always-On Display
+  doze that never ends on a Galaxy, so the circle never showed though the sensor worked.
+- **One UI 9.5 no longer freezes** on the S25, S25 Ultra and S24 Ultra: OneOS's own session diagnostics (stack
+  dumps of the launcher and SystemUI, a scan of every open file) stopped the whole phone; users held the keys and
+  got the blue upload-mode screen. They now run only when the system is stuck before unlocking.
+- **One UI 9.5 returns to One UI without a reboot:** its storage service took One UI's own name, so every return
+  restarted the phone. One UI 9.5's files have a new revision.
+- Untested on a phone: the S24 FE camera and stereo (the A36 has neither), the One UI 9.5 return (A36 can test).
+
+New in 0.5.32: **Debloat, ColorOS raise to wake, the A-series camera in One UI 9.5, and the fingerprint circle on
+the S24+, S25+ and Ultras.**
+- **Debloat** (each system's page, under Apps): choose the system's apps to leave out at its next start. Safe to
+  remove (nothing you use goes) and Remove with care (each app says what stops working, and asks once more) are
+  separate pages, the apps grouped by who made them. **Same as MysticGSI's debloat** ticks what MysticGSI's own
+  builds remove (ColorOS: Metis, UMS, AIUnit, Global Search and the rest), which made ColorOS clearly smoother on
+  the A36. Apps you updated from the Play Store go with their updates, and their code and data are deleted. Restore
+  all brings every app back at the next start, HyperOS's preinstalled apps included. The system image is never
+  changed. Always-On Display stays: the lock screen's fingerprint circle needs it.
+- **ColorOS raise to wake** works: ColorOS took every Galaxy lift for "put down" (OPPO's sensor reports a lift
+  differently). It now uses the Galaxy's own pick-up sensor (A36: confirmed). ColorOS's files have a new revision.
+- **ColorOS Lighter animations** in the OneOS app inside ColorOS (Performance): OPPO's mid-range effects instead of
+  its flagship ones. Smoother on most Galaxies, but apps open and close without their animation; off by default.
+- **One UI 9.5 camera on Galaxy A and M phones:** the S26 Ultra's camera of the image died at launch on their
+  sensors (A17). A and M phones now get the A series' own Samsung Camera. One UI 9.5's files have a new revision.
+  On the **S26 Ultra** itself the camera no longer closes at launch, and Samsung's Message Guard no longer crashes.
+- **Fingerprint circle on the S24+, S25+ and the Ultras** (QHD screens at their default FHD+): it sat a quarter too
+  low in the Pixel systems, Nothing OS, LineageOS, Infinity-X and ColorOS, and far from the sensor in HyperOS.
+- **HyperOS on the S25 Ultra and other QHD phones at QHD** no longer looks zoomed in, like a foldable.
+- **120 Hz on the S24 FE** and other Galaxies whose One UI lists its fast mode as 120.00001 Hz: the systems ran at
+  60 Hz, so swipes lagged.
+- **Galaxy A17 5G on One UI 9.5:** no more kernel panics from a second double-tap-to-wake writer.
+- **Back to One UI with Volume Up + Volume Down** now buzzes once when the 3 s hold is taken, so a frozen black
+  screen still shows it worked.
+- Pixel 11 phones' modem thermal manager and HyperOS (Lhasa) Find Device are left out like their siblings'.
+- Untested on a phone: the One UI 9.5 A-series camera, the QHD fingerprint and HyperOS fixes (A36: 1080 px).

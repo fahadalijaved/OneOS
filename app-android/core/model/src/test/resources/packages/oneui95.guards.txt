@@ -5,8 +5,11 @@
 # services_patched.jar: WindowManagerService's Privacy Display calls safe without a controller (patches/oneui_privacy_display_null_safe.py, set r3); its PrivacyDisplayController always made (patches/oneui_privacy_display_controller_always.py, set r5); VaultKeeperService unsupported without a registered ISehVaultKeeper HAL (patches/oneui_vaultkeeper_unreachable.py, set r6); a vendor signer stanza emptied by ignore_mac_permissions_package dropped, not fatal (patches/oneui_mmac_empty_signer.py, set r6)
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
-6a23cb67c33f0d30e89f22e057666a91b7dcd18f68738b5b067a3f115dc135ca  services_patched.jar
-9e1cbe7efee15f19c01363783c1709c2856666db803a8c1d2f2538a7800bb350  framework_patched.jar
+# guest vold name: gvld (vold_patched, service.incremental_patched.so, services_patched.jar and framework_patched.jar: patches/guest_own_vold.py and --framework for Samsung's AppLockPolicy, set r10)
+ce59d491204e82af0e8d40fc1da07867ace9fbe116ecef2b296c261983eb80f2  services_patched.jar
+770f6ce6017d4b1432afb5f78bc021648e6fc8663761ea0fb1b93af53f6522a5  framework_patched.jar
 cd02dba1153b2a3a2c0f87da617753d4a8e6c339246cb130e4d91f22506af51e  telephony-common_patched.jar
 23d98173e40ce788bc66d4a9678d06869fe5010ade40f001128b30c17ea57e7a  libcamera_client_patched.so
 720014ae5f57472b16183a563e1761798df3369a9dabe48a834158a5e2a9ce40  libcameracompatbilityinfo_patched.so
+22c4b0b701d623fc523f3be7e852716b4db384a00783fb6aad0cca9d6c30e941  vold_patched
+1ba375398bf0735df28af2d8e6ab5cd3e5609669e11f1f6dad503bc6e1568655  service.incremental_patched.so

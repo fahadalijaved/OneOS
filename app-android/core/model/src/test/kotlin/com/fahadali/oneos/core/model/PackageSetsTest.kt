@@ -48,9 +48,19 @@ class PackageSetsTest {
         assertEquals("out/overlays_pixel_f8u_r21", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, PackageSets.X9U_IN_1105_SULTRA, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
-                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.HYPER_HK, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95),
+                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.HYPER_HK, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95, PackageSets.ONEUI95_F8, PackageSets.PIXELOS),
             PackageSets.ALL,
         )
+        // PixelOS 17 (0.5.35): the Lineage-like set for the A series, with the guest vold and its own gmssystem.
+        val pxos = PackageSets.PIXELOS
+        assertEquals(Images.ID_PIXELOS_ONYX, pxos.imageId)
+        assertEquals("out/overlays_pixelos_onyx_r4", pxos.sourceDir)
+        assertEquals(40, pxos.files.size) // r2: + OneOSPixelDoze.apk (AOD); r4: + OneOSBrightnessRange(34).apk
+        assertEquals(FileRole.RRO, pxos.file("OneOSPixelDoze.apk")?.role)
+        assertEquals(21, pxos.files.count { it.role == FileRole.APEX_PAYLOAD })
+        assertTrue(pxos.file(PackageSets.GMS_PAYLOAD) != null && pxos.hasReturnApp)
+        assertEquals(FileRole.GUARD_EXECUTABLE, pxos.file("vold_patched")?.role)
+        assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), pxos.omitted)
         // Infinity-X (0.4.27): both guard jars, the camera codes (Java and native), the guest vold, the
         // AOSP signal poll, the IMS backoff, the guest app, the guards and 21 payloads, GmsCore's among them.
         // Not its cellbroadcast module (0.4.28): One UI's stays, as tethering does.
@@ -87,22 +97,22 @@ class PackageSetsTest {
             lineage.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(lineage.hasReturnApp && lineage.file(PackageSets.GUEST_APP)?.role == FileRole.GUEST_APP)
-        // One UI 9.5 (0.5.22): the Galaxy S26 Ultra build's guard jars and camera libraries, no guest vold, no SurfaceFlinger,
+        // One UI 9.5 (0.5.22): the Galaxy S26 Ultra build's guard jars and camera libraries, the guest vold (r10), no SurfaceFlinger,
         // its gmssystem payload (presented, ImageRef.presentsGms), 22 payloads and the software floating features list.
         val oneui = PackageSets.ONEUI95
         assertEquals("oneui95", oneui.id)
         assertEquals(Images.ID_ONEUI95, oneui.imageId)
-        assertEquals("out/overlays_oneui95_r8", oneui.sourceDir)
-        assertEquals(36, oneui.files.size)
+        assertEquals("out/overlays_oneui95_r10", oneui.sourceDir)
+        assertEquals(39, oneui.files.size) // r9: + samcam_a_oneui.tar; r10: + vold_patched, service.incremental_patched.so
         assertEquals(22, oneui.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), oneui.omitted)
         assertEquals(
-            listOf("services_patched.jar", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "libcameracompatbilityinfo_patched.so"),
+            listOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so", "telephony-common_patched.jar", "libcamera_client_patched.so", "libcameracompatbilityinfo_patched.so"),
             oneui.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(oneui.file(PackageSets.GMS_PAYLOAD) != null && oneui.hasReturnApp && Images.ONEUI95.presentsGms)
         assertEquals(FileRole.GUEST_FIX, oneui.file("oneui_floating_add.txt")?.role)
-        assertTrue(oneui.file("vold_patched") == null && oneui.file("surfaceflinger_patched") == null)
+        assertTrue(oneui.file("vold_patched")?.role == FileRole.GUARD_EXECUTABLE && oneui.file("surfaceflinger_patched") == null) // r10: the guest vold as gvld
         // HyperOS (0.4.31 on every phone; made for the Z Fold8 Ultra and Z Fold8): services.jar, Xiaomi's guard jars,
         // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
         val hyper = PackageSets.HYPER_F8U

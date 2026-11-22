@@ -63,15 +63,25 @@ object BringApps {
         "com.topjohnwu.magisk",
     )
 
-    /**
-     * May this package be brought into the guest? A plain user app that is not
-     * one of ours. [system] is the app's FLAG_SYSTEM / updated-system-app state
-     * (One UI's own apps stay on One UI; the guest has its own). [launchable]
-     * is whether it has a launcher entry — the apps the owner means ("XGram
-     * etc") all do, and it keeps service-only and component packages out.
-     */
+    /** User apps need a launcher entry. System apps can also be selected by package name. */
     fun eligible(pkg: String, system: Boolean, launchable: Boolean): Boolean =
-        PACKAGE.matches(pkg) && !system && launchable && pkg !in NEVER
+        PACKAGE.matches(pkg) && (system || launchable) && pkg !in NEVER
+
+    // Keep the allowed app directories in sync with bring_system_path in oneos_root.sh.
+    private val systemApk = Regex(
+        "^/(?:data/app|(?:system(?:/system_ext|/product|/vendor|/odm)?|system_ext|product|vendor|odm)/(?:app|priv-app))/[A-Za-z0-9._~+=/-]+\\.apk$"
+    )
+
+    fun portableSystemApk(path: String): Boolean =
+        systemApk.matches(path) && path.split('/').drop(1).none { it.isEmpty() || it.startsWith('.') }
+
+    enum class Filter {
+        USER, SYSTEM, ALL;
+
+        fun matches(system: Boolean, label: String, pkg: String, query: String): Boolean =
+            (this == ALL || (this == SYSTEM) == system) &&
+                (label.contains(query.trim(), ignoreCase = true) || pkg.contains(query.trim(), ignoreCase = true))
+    }
 
     /** The `selected.list` text for a set of packages (sorted, one per line, trailing newline). */
     fun manifest(packages: Collection<String>): String =

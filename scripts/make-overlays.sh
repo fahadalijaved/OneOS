@@ -248,6 +248,35 @@ BUILDS = [
         "service.incremental.so": "e24c296c9148f71faa35267e535e65d9ed527206e25d929d371eb400cc8f2279",
         "crashrecovery-aosp.apex": "626a82dda7c6cc0dfc7ee26397466b75a3d5d12bdaf0a1cd8d9c521c6142c548",
     }, [("vold", 0xfd49, NAME), ("vold", 0x758e4, TRY_START), ("service.incremental.so", 0x4f882, NAME)]),
+    # One UI 9.5 (Galaxy S26 Ultra S948BXXU6ZZKN, 0.5.33): VoldNativeService::start() takes "vold" at 0x12f07
+    # (adrp 0x12000 + add 0xf07 at 0xa3fe0, then String16 and operator new; the binary's only "\0vold\0"; its
+    # other references: a log tag at 0xe5cfc and Samsung's process dump at 0xa17ec, which strstr()s cmdlines for
+    # "vold", zygote64, zygote and android.process.media to dump their stacks: the guest vold then skips its own).
+    # try_start's tbz w19, #0, +0xd4 is at 0xa313c, right after isDeclared("android.system.vold.IVold/default",
+    # adr 0x1f084 at 0xa30f0) through the service manager's vtable +0x48. service.incremental.so has the string
+    # at 0x665b5 with its two lookups (adr at 0xc419c, adrp + add at 0xc66dc with String16(s, 4)). Its compressed
+    # crashrecovery APEX has AOSP's RescueParty.isDisabled (persist.sys.enable_rescue, the DeviceConfig flag,
+    # eng/userdebug, persist.sys.disable_rescue), so guest_start.sh's property check holds. Without it every
+    # One UI 9.5 return rebooted ("vold is not registered now", 13 reports 0.5.27-0.5.32: S25, S25 Ultra, S26 FE,
+    # S23, A17, A17 5G).
+    ("One UI 9.5 S948BXXU6ZZKN (Galaxy S26 Ultra)", {
+        "vold": "aceec3a938ef2a0445fea8e802d2b19c5aa9f43812fc5c4ada79cc177449dd54",
+        "service.incremental.so": "9f095536c0f612ce6bdaa70cb3cffd418f59e8f010f581496f65e9d47342dd15",
+        "crashrecovery-google-compressed.apex": "42f37d0571bf61cdd2f6e3ce50f24d245db1f59f57b135223549c21944818a5d",
+    }, [("vold", 0x12f06, NAME), ("vold", 0xa313c, TRY_START), ("service.incremental.so", 0x665b4, NAME)]),
+    # PixelOS 17.0 (onyx, Redmi Turbo 4 Pro / POCO F7, CP2A.260605.016, PixelOS_onyx-17.0-20261115-0723, 0.5.35):
+    # VoldNativeService::start() takes "vold" at 0xe00c (adrp 0xe000 + add 0xc at 0x63a60, then String16 and
+    # operator new; the binary's only "\0vold\0", its other references are log tags around 0xa1154). try_start's
+    # tbz w19, #0, +0xd4 is at 0x6345c, right after isDeclared("android.system.vold.IVold/default", adr 0x13b97 at
+    # 0x63410) through the service manager's vtable +0x48. service.incremental.so has the string at 0x64541 with
+    # its two lookups (adr at 0xbfe50, adrp + add at 0xc23c0 with String16(s, 4)). Its crashrecovery capex has
+    # AOSP's RescueParty.isDisabled (persist.sys.enable_rescue, the DeviceConfig flag, eng/userdebug,
+    # persist.sys.disable_rescue).
+    ("PixelOS 17.0 CP2A.260605.016 (onyx)", {
+        "vold": "e125cb942dcd8075aeaa8fa4b1a93eba9b2883291be1577ea82aa46263278028",
+        "service.incremental.so": "65f64a5a2acceac6599c17f0c411d240df471ccb35671767db2bc6c77973c01e",
+        "crashrecovery-aosp.capex": "9c91e1be46fc23edd010f94f306e1b337dad6bc525a967c9c7ccc2aa2a75acd2",
+    }, [("vold", 0xe00b, NAME), ("vold", 0x6345c, TRY_START), ("service.incremental.so", 0x64540, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)
@@ -1435,6 +1464,23 @@ if [ -n "$MIWP" ]; then
     rm -f "$WORK/MiWallpaper.apk"
 else
     echo "MiWallpaper.apk: not in the image, nothing to patch"
+fi
+
+# ColorOS raise to wake on a Galaxy (0.5.32, switcher/patches/coloros_lift_wake.py with OneOSLift): its gesture
+# service took every Galaxy tilt for "put down" (OPPO's sensor sends 0 for a lift, Samsung's 1 for any tilt), so
+# the screen never woke (S24 FE, report 44afc238). guest_prepare.sh binds OplusGestureUI_patched.apk over the
+# image's only when that is the APK it was made from (OplusGestureUI_patched.apk.src_sha256).
+rm -f "$OUT/OplusGestureUI_patched.apk" "$OUT/OplusGestureUI_patched.apk.src_sha256"
+OGU=/system/system_ext/app/OplusGestureUI/OplusGestureUI.apk
+if in_image "$OGU"; then
+    "$DEBUGFS" -R "dump $OGU $WORK/OplusGestureUI.apk" "$IMG" 2>/dev/null
+    patch_apk_dex "$WORK/OplusGestureUI.apk" "$OUT/OplusGestureUI_patched.apk" coloros_lift_wake.py \
+        'Lcom/oplus/gesture/server/ScreenOffGestureService;' "raise to wake from a Galaxy's pick-up sensor"
+    [ -f "$OUT/OplusGestureUI_patched.apk" ] &&
+        sha256sum "$WORK/OplusGestureUI.apk" | cut -d' ' -f1 > "$OUT/OplusGestureUI_patched.apk.src_sha256"
+    rm -f "$WORK/OplusGestureUI.apk"
+else
+    echo "OplusGestureUI.apk: not in the image, nothing to patch"
 fi
 
 # Pixel's status bar (run 42): SystemUIGoogle's StatusBarContentInsetsProvider

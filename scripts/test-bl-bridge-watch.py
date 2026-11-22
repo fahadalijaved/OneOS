@@ -32,7 +32,7 @@ def posix(p: Path) -> str:
 
 
 class BlBridgeWatch(unittest.TestCase):
-    def run_bridge(self, node, brightness, wakefulness='Awake', timeout=90, env=None):
+    def run_bridge(self, node, brightness, wakefulness='Awake', timeout=90, env=None, refusals=0):
         # The production watch cap is 600 s; the same decision runs here with a
         # small cap so a "left alone" case finishes in seconds. The write loop
         # (in production: until the session ends) is bounded too — the test
@@ -43,7 +43,11 @@ class BlBridgeWatch(unittest.TestCase):
             root = Path(d)
             (root / 'bin').mkdir()
             stubs = {
-                'sleep': '#!/bin/sh\nexit 0\n',
+                # With HAL refusals in the log the watch must give the background reader time to see them.
+                'sleep': '#!/bin/sh\n' + ('exec /bin/sleep 0.05\n' if refusals else 'exit 0\n'),
+                'logcat': ('#!/bin/sh\n' + ''.join(
+                    'echo "E/LightsService( 1234): Failed issuing setLightState"\n' for _ in range(refusals))
+                    + 'exec /bin/sleep 30\n'),
                 'dumpsys': ('#!/bin/sh\n'
                             'case "$1" in\n'
                             '  display) [ -f "$WD/display" ] && cat "$WD/display" ;;\n'
@@ -74,7 +78,7 @@ class BlBridgeWatch(unittest.TestCase):
                 e[k] = v
             # The bridge logs to its stdout; a "left alone" run exits 0 on its
             # own, a takeover run is stopped by the subprocess timeout.
-            code = (body.replace("$BL/brightness", f'"{wd}/node"'))
+            code = (body.replace("$BL/brightness", f'"{wd}/node"').replace('/data/oneos_bl_refused', f'{wd}/refused'))
             try:
                 out = subprocess.run(
                     ['sh', '-c', f'cd "{wd}" && exec sh -c {repr_shell(code)} sh "'
@@ -118,6 +122,21 @@ class BlBridgeWatch(unittest.TestCase):
         self.assertTrue(finished)
         self.assertIn('leaving it to the lights HAL', log)
         self.assertNotIn('taking the node over', log)
+
+    def test_a_hal_that_refuses_the_brightness_is_taken_over(self):
+        # HyperOS on the Galaxy A16 4G (report f036b5fa): the node sits at the host's last level, not 0, and
+        # every setLightState fails in Samsung's lights HAL. Three refusals take the node over.
+        log, node, finished = self.run_bridge(node=407, brightness=0.35, refusals=3)
+        self.assertIn('the lights HAL refuses the guest', log)
+        self.assertIn('taking the node over', log)
+        self.assertNotIn('leaving it to the lights HAL', log)
+        self.assertEqual('89', node)
+
+    def test_fewer_refusals_and_a_live_node_are_left_alone(self):
+        log, node, finished = self.run_bridge(node=407, brightness=0.35, refusals=2)
+        self.assertTrue(finished)
+        self.assertIn('leaving it to the lights HAL', log)
+        self.assertEqual('407', node)
 
     def test_force_takes_a_thrashing_node_over(self):
         # A stage whose HAL thrashes the node (values jump while the slider sits

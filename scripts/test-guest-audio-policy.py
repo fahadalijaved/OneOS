@@ -154,6 +154,27 @@ SEC = '''<audioPolicyConfiguration version="1.0">
     </modules>
 </audioPolicyConfiguration>
 '''
+# The Galaxy A35's real usb module file (0.5.33, report 5a57891c): the accessory alone, no USB device or headset.
+USB_ACCESSORY_MODULE = '''<module name="usb" halVersion="2.0">
+    <mixPorts>
+        <mixPort name="usb_accessory output" role="source"/>
+    </mixPorts>
+    <devicePorts>
+        <devicePort tagName="USB Host Out" type="AUDIO_DEVICE_OUT_USB_ACCESSORY" role="sink"/>
+    </devicePorts>
+    <routes>
+        <route type="mix" sink="USB Host Out" sources="usb_accessory output"/>
+    </routes>
+</module>
+'''
+# One UI's own file with USB in its primary module, as on the A35.
+SEC_USB = SEC.replace('<devicePort tagName="Built-In 2 Mic"',
+                      '<devicePort tagName="USB Headset Out" type="AUDIO_DEVICE_OUT_USB_HEADSET" role="sink"/>\n'
+                      '                <devicePort tagName="Built-In 2 Mic"')
+USB_PORTS = ['OneOS USB Device Out', 'OneOS USB Headset Out', 'OneOS USB Device In', 'OneOS USB Headset In']
+USB_PRIMARY_SAID = ("USB outputs added on the primary module (the vendor's usb module (usb_audio_policy_configuration.xml) included, "
+                    "but it has no USB device or headset; as in One UI's own policy file)")
+
 AIDL_BT = '''<manifest version="1.0" type="device">
     <hal format="aidl">
         <name>vendor.samsung.hardware.bluetooth.audio</name>
@@ -417,6 +438,57 @@ class Copy(unittest.TestCase):
         for lib in ('lib64/hw/audio.bluetooth.default.so', 'odm/lib/hw/audio.bluetooth.default.so', 'odm/lib64/hw/audio.bluetooth.s5e8835.so'):
             line, text, etc = self.copy(includes={BT_FILE: BT_MODULE}, libs=(lib,))
             self.assertEqual(f'rc=0 note={BT_SAID}', line)
+
+    def test_usb_headphones_on_the_primary_module_where_the_usb_module_has_only_the_accessory(self):
+        """Galaxy A35 (0.5.33): the vendor's usb file names only the accessory; One UI plays USB on primary."""
+        for awk in AWKS:
+            with self.subTest(awk):
+                line, text, etc = self.copy(awk=awk, more=True, sec=SEC_USB,
+                                            includes={USB_FILE: USB_ACCESSORY_MODULE}, libs=(USB_LIB,), bt=None)
+                self.assertTrue(line.startswith('rc=0 note='), line)
+                self.assertTrue(line.endswith(f' usb={USB_PRIMARY_SAID} added=1'), line)
+                root = ET.fromstring(text)
+                mod = root.find("modules/module[@name='primary']")
+                ports = [p for p in mod.find('devicePorts') if (p.get('tagName') or '').startswith('OneOS USB')]
+                self.assertEqual(USB_PORTS, [p.get('tagName') for p in ports])
+                self.assertEqual(['AUDIO_DEVICE_OUT_USB_DEVICE', 'AUDIO_DEVICE_OUT_USB_HEADSET',
+                                  'AUDIO_DEVICE_IN_USB_DEVICE', 'AUDIO_DEVICE_IN_USB_HEADSET'], [p.get('type') for p in ports])
+                self.assertEqual(['sink', 'sink', 'source', 'source'], [p.get('role') for p in ports])
+                mixes = {m.get('name'): m.get('role') for m in mod.find('mixPorts')}
+                self.assertEqual('source', mixes['hifi_playback'])
+                self.assertEqual('sink', mixes['hifi_input'])
+                routes = {r.get('sink'): r.get('sources') for r in mod.find('routes')}
+                outs = 'primary-out,fast,deep-buffer,mmap_no_irq_out,hifi_playback'
+                self.assertEqual(outs, routes['OneOS USB Device Out'])
+                self.assertEqual(outs, routes['OneOS USB Headset Out'])
+                self.assertEqual('OneOS USB Device In,OneOS USB Headset In', routes['hifi_input'])
+                self.assertEqual('Built-In Mic,OneOS USB Device In,OneOS USB Headset In', routes['primary-in'])
+                # The commented-out route and every other route stay as they were.
+                self.assertIn('<!-- <route sink="Speaker" sources="old-out" type="mix" /> -->', text)
+                self.assertEqual(SPEAKER_ROUTE.split('sources="')[1].split('"')[0], routes['Speaker'])
+                # The accessory module is still included, after the modules.
+                self.assertIn(f'<xi:include href="{etc}/{USB_FILE}"/>', text)
+                # Every route source is a mix port or device port of the module.
+                names = set(mixes) | {p.get('tagName') for p in mod.find('devicePorts')}
+                for s in routes.values():
+                    self.assertLessEqual({x.strip() for x in s.split(',')}, names, s)
+
+    def test_no_usb_on_primary_unless_one_uis_file_has_it(self):
+        line, text, etc = self.copy(more=True, includes={USB_FILE: USB_ACCESSORY_MODULE}, libs=(USB_LIB,), bt=None)
+        self.assertTrue(line.endswith(" usb=the vendor's usb module (usb_audio_policy_configuration.xml) included, "
+                                      "but it has no USB device or headset added=1"), line)
+        self.assertNotIn('OneOS USB', text)
+        # A usb module with real USB outputs: only included, nothing on primary, even where One UI's file has USB.
+        line, text, etc = self.copy(more=True, sec=SEC_USB, bt=None, **USB_ONLY)
+        self.assertTrue(line.endswith(f' usb={USB_SAID} added=1'), line)
+        self.assertNotIn('OneOS USB', text)
+        # Nothing from the vendor at all, One UI plays USB on primary: added there.
+        line, text, etc = self.copy(more=True, sec=SEC_USB, bt=None)
+        self.assertTrue(line.endswith(' usb=USB outputs added on the primary module (as in One UI\'s own policy file) added=1'), line)
+        self.assertEqual(4, text.count('tagName="OneOS USB '))
+        # ONEOS_GUEST_APM_USB=0: left alone.
+        line, text, etc = self.copy(more=True, sec=SEC_USB, bt=None, env={'ONEOS_GUEST_APM_USB': '0'})
+        self.assertNotIn('OneOS USB', text)
 
     def test_a_7x_policy_file_gets_the_7_0_bluetooth_file(self):
         seven = PLAIN.replace('<audioPolicyConfiguration version="1.0"', '<audioPolicyConfiguration\n\tversion="7.0"')

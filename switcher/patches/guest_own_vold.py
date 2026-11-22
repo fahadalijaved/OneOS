@@ -39,7 +39,7 @@ the vendor name, and a service.incremental.so that looks up "gvld"
 make-overlays.sh runs this only when it built vold_patched (Pixel 17 and
 ColorOS 17 CP2A.260605.016); other images keep "vold".
 
-Usage: guest_own_vold.py [--oplus | --miui] <smali root dir>
+Usage: guest_own_vold.py [--oplus | --miui | --framework] <smali root dir>
 Prints the smali_* directories (dex files) it changed, one per line.
 """
 import os
@@ -61,7 +61,16 @@ WANT = {
 OPTIONAL = {
     ("com/android/server/locksettings/LockSettingsShellCommand", "handleCheckNonCeStorageKeys"),
     ("com/android/server/recoverysystem/ExtendedWipeWithoutReboot", "run"),
+    # One UI 9.5 (S948BXXU6ZZKN, 0.5.33): PackageManager's Installer and TrustManagerService connect to vold
+    # themselves, and its stats pull has pullVoldLocked in place of getIVoldService. All are the guest
+    # framework's own calls, so all take the guest vold.
+    ("com/android/server/pm/Installer", "connectVold"),
+    ("com/android/server/trust/TrustManagerService", "connectVold"),
+    ("com/android/server/stats/pull/StatsPullAtomService", "pullVoldLocked"),
 }
+# R8 names some of One UI's methods with a numbered suffix (StorageManagerService.connectVold$2): compared
+# without it.
+SUFFIX = re.compile(r"\$\d+$")
 # Android 16 (OxygenOS 16, CPH2745) has no StatsPullAtomService.getIVoldService:
 # its storage stats pull does not talk to vold at all. That lookup is required
 # wherever the method exists, and only there (not_defined below).
@@ -72,6 +81,17 @@ WANT_OPLUS = {
 WANT_MIUI = {
     ("com/android/server/ExtendMImpl", "connect"),
     ("com/android/server/appcacheopt/AppCacheOptimizer", "connectVold"),
+}
+# One UI 9.5's framework.jar (0.5.33, --framework): Samsung's AppLockPolicy connects to vold for
+# IVold.autoLockKeepStorageAppLock (App Lock's keep storage); left as it was, it would reach One UI's vold with
+# the image's transaction codes. RecoverySystem's two wipe prompts look vold up too (needsCheckpoint before the
+# wipe); they take the guest vold as well.
+WANT_FRAMEWORK = {
+    ("com/android/internal/app/AppLockPolicy", "connectVold"),
+}
+OPTIONAL_FRAMEWORK = {
+    ("android/os/RecoverySystem", "rebootPromptAndWipeUserData"),
+    ("android/os/RecoverySystem", "rebootPromptAndWipeAppData"),
 }
 WIPE = "Landroid/os/RecoverySystem;->rebootPromptAndWipeUserData("
 
@@ -86,7 +106,7 @@ def not_defined(root, cls, method):
     return True
 
 
-def main(root, want, jar, optional=frozenset()):
+def main(root, want, jar, optional=frozenset(), check_wipe=True):
     # Written only once every file has passed (a failed run leaves the tree as it was).
     pending, sites = {}, set()
     if STATS_PULL in want and not_defined(root, *STATS_PULL):
@@ -99,7 +119,7 @@ def main(root, want, jar, optional=frozenset()):
             path = os.path.join(dirpath, name)
             with open(path) as f:
                 text = f.read()
-            if '"vold"' not in text and WIPE not in text:
+            if '"vold"' not in text and (not check_wipe or WIPE not in text):
                 continue
             rel = os.path.relpath(path, root)
             cls = rel.split(os.sep, 1)[1][:-len(".smali")].replace(os.sep, "/")
@@ -112,7 +132,7 @@ def main(root, want, jar, optional=frozenset()):
                     method = s.split()[-1].split("(")[0]
                 if s.startswith("#"):
                     continue
-                if WIPE in line:
+                if check_wipe and WIPE in line:
                     sys.exit(f"{cls}.{method}: RecoverySystem.rebootPromptAndWipeUserData is still called "
                              f'(its checkService("vold") is One UI\'s vold now; guest_storage_guards.py first), not patching')
                 m = NAME.match(line)
@@ -126,9 +146,10 @@ def main(root, want, jar, optional=frozenset()):
                 lk = LOOKUP.match(nxt[0]) if nxt else None
                 if not lk or lk.group(1) != m.group(2):
                     sys.exit(f'{cls}.{method}: "vold" not used for a ServiceManager lookup, not patching')
-                if (cls, method) in sites:
+                site = (cls, SUFFIX.sub("", method))
+                if site in sites:
                     sys.exit(f'{cls}.{method}: two "vold" lookups, not patching')
-                sites.add((cls, method))
+                sites.add(site)
                 lines[i] = (f'    # OneOS: the guest vold registers "gvld" (vold_patched); "vold" stays One UI\'s\n'
                             f'{m.group(1)}"gvld"')
                 dirty = True
@@ -140,7 +161,8 @@ def main(root, want, jar, optional=frozenset()):
     for path, text in pending.items():
         with open(path, "w") as f:
             f.write(text)
-    print(f"{jar}: no RecoverySystem.rebootPromptAndWipeUserData call left", file=sys.stderr)
+    if check_wipe:
+        print(f"{jar}: no RecoverySystem.rebootPromptAndWipeUserData call left", file=sys.stderr)
     for d in sorted({os.path.relpath(path, root).split(os.sep)[0] for path in pending}):
         print(d)
 
@@ -148,6 +170,8 @@ def main(root, want, jar, optional=frozenset()):
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--oplus"]:
         main(sys.argv[2], WANT_OPLUS, "oplus-services.jar")
+    elif sys.argv[1:2] == ["--framework"]:
+        main(sys.argv[2], WANT_FRAMEWORK, "framework.jar", OPTIONAL_FRAMEWORK, check_wipe=False)
     elif sys.argv[1:2] == ["--miui"]:
         main(sys.argv[2], WANT_MIUI, "miui-services.jar")
     else:

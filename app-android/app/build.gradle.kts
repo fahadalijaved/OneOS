@@ -59,7 +59,7 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // Find X9 Ultra IN image (0.3.3-0.3.6, again from 0.4.11), the bar phones:
     // the CN set's files (shared by hash) and its cell broadcast module.
     // 0.5.02: the newer Find X9 Ultra IN build (CPH2841IN, 2026-11-01), offered next to the older one.
-    "x9u-in-1105-sultra" to (File(repoRoot, "out/overlays_x9u_in_1105_r7") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
+    "x9u-in-1105-sultra" to (File(repoRoot, "out/overlays_x9u_in_1105_r9") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk")),
     // Pixel 11 Fold image (0.3.7), Z Fold (F8U): everything a Pixel session uses,
     // OneOSGuest.apk included, and the fold hinge (scripts/make-fold8-pixel.py --variant f8u).
     "pixel-f8u" to (File(repoRoot, "out/overlays_pixel_f8u_r21") to listOf("tethering_payload.img")),
@@ -90,7 +90,10 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // cellbroadcast module is left out like Infinity-X's.
     "lineage" to (File(repoRoot, "out/overlays_lineage_r10") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // One UI 9.5 (0.5.22, untested): the Galaxy S26 Ultra build, on the phones on One UI 9. Tethering never mounts.
-    "oneui95" to (File(repoRoot, "out/overlays_oneui95_r8") to listOf("tethering_payload.img")),
+    "oneui95" to (File(repoRoot, "out/overlays_oneui95_r10") to listOf("tethering_payload.img")),
+    "oneui95-f8" to (File(repoRoot, "out/overlays_oneui95_f8_r1") to listOf("tethering_payload.img")),
+    // PixelOS 17 (0.5.35): the POCO F7 build for the ARMv8.2 Galaxy A series.
+    "pixelos" to (File(repoRoot, "out/overlays_pixelos_onyx_r4") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
 )
 // The series downloads (0.4.25): -Poneos.series=<id> packs only the sets that
 // app-android/packages/series.txt lists for it (ApkSeries keeps the same lists,
@@ -566,9 +569,10 @@ android {
         }
         versionCode = 143 + commitsSinceBase
         versionName = "0.5." + (14 + commitsSinceBase)
-        // (upstream is at 0.5.31/174 after this merge, which counts 173 here: the fork's codes trail upstream's by
-        // one or two at a merge and pass them with the next fork commits. That is harmless: AppUpdater installs only an
-        // APK signed with this copy's own certificate, so upstream's release-signed builds never replace a fork build.)
+        // (at the 0.5.31 merge upstream was at 0.5.31/174 and this counted 173: the fork's codes can trail upstream's
+        // at a merge and pass them with the next fork commits. At the 0.5.35 merge (2026-11-22) upstream is at
+        // 0.5.35/178 and this counts 193 (0.5.64). Either way is harmless: AppUpdater installs only an APK signed with
+        // this copy's own certificate, so upstream's release-signed builds never replace a fork build.)
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

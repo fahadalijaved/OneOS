@@ -77,6 +77,12 @@
     <string name="tile_subtitle">OneOS</string>
     <!-- 0.5.17 (owner): Record full logs from now, in the session (FullLogs). -->
     <string name="logs_title">Logs</string>
+    <string name="anim_title">Performance</string>
+    <string name="anim_light_title">Lighter animations</string>
+    <string name="anim_light_off">Off: every blur and animation, as on OPPO\'s flagships. Tap for lighter effects (smoother, but no app open and close animation)</string>
+    <string name="anim_light_on">On: OPPO\'s lighter mid-range effects. Smoother, but apps open and close without their animation. Tap for the full effects</string>
+    <string name="anim_applying">Applying… the home screen and status bar restart for a moment</string>
+    <string name="anim_failed">Could not change the animations: %1$s</string>
     <string name="full_logs_title">Record full logs from now</string>
     <string name="full_logs_off">Something wrong? Turn this on, make it happen again, then go back to One UI and send a report</string>
     <string name="full_logs_starting">Starting…</string>
