@@ -230,6 +230,7 @@ object Profiles {
      * (SM8450, the HIDL composer as well) run it. Before OriginOS in their lists, which stays last.
      */
     private val OXYGEN16_CHOICE = ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)
+    private val PIXEL16_CHOICE = ImageChoice(Images.ID_PIXEL16, PackageSets.ID_PIXEL16, tested = false)
 
     /**
      * Nothing OS 5.0 (0.4.33), untested, last: the Z Fold8 Ultra first, where it
@@ -816,7 +817,7 @@ object Profiles {
         codename = "q4q",
         socModel = "SM8475",
         form = FormFactor.FOLD,
-        choices = listOf(OXYGEN16_CHOICE.copy(tested = true)),
+        choices = listOf(OXYGEN16_CHOICE.copy(tested = true), PIXEL16_CHOICE),
         notes = listOf(olderVendor("31 (Android 12)", "5.10"), FOLD4_ISSUES),
     )
 

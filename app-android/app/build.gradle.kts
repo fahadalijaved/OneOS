@@ -83,6 +83,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // tethering (One UI's stays), no apex requirement list (no ColorOS set ships one).
     "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r3") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
         "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
+    // Pixel 16 (Android 16 GSI BP4A): Google GSI for phones on One UI 8 (Galaxy Z Fold4).
+    "pixel16" to (File(repoRoot, "out/overlays_pixel16") to listOf("tethering_payload.img")),
     // OriginOS 7 (0.4.73, experimental): set r17 = r14 plus the vivo fold cutout overlay (the cover's lens).
     "originos" to (File(repoRoot, "out/overlays_originos_cn_r22") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
     // LineageOS 24 (0.5.06, experimental): the OnePlus 15 nightly, on every phone that offers Infinity-X. No gmssystem

@@ -139,7 +139,7 @@ SPLASH_COMPONENT=com.fahadali.oneos/.ui.GapSplashActivity
 OLD_SWITCHER=com.wewaffles.onelineage
 IMAGE_SDK=37
 # 0.4.66: the images of SDK 36 (Android 16, for One UI 8 phones); every other image is IMAGE_SDK.
-IMAGES_SDK36="oxygenos16-cph2745"
+IMAGES_SDK36="oxygenos16-cph2745 pixel16-bp4a"
 # SHA-256 of the method lines of switcher/patches/host_installd.txt: the
 # installd codes the guard jars carry (InstalldExpected.SHA256).
 INSTALLD_SHA=791e52c441b62944f88244a2610b9433c869c9c3916a49f43d14552de82280f2
@@ -178,6 +178,8 @@ SET_NOTHINGA="NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSBrightn
 SET_ONEUI="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar"
 # OxygenOS 16 (0.4.67): ColorOS's common files and its own payloads; the guest vold as gvld from r2 (0.4.69).
 SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img conscrypt_payload.img profiling_payload.img"
+# Pixel 16 GSI (BP4A.251205.006, 0.5.34): Android 16 GSI for phones on One UI 8.0/8.5.
+SET_PIXELGSI="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSTabletQs.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img guards.txt healthfitness_payload.img i18n_payload.img libbootanimation_patched.so mediaprovider_payload.img nfcservices_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar telephonycore_payload.img wifi_payload.img"
 # OriginOS 7 (0.4.73): vivo's own jars, libraries, launcher and feature list, the signal poll, the fold
 # cutout overlay and the image's payloads (set r17).
 SET_ORIGINOS="BBKLauncher2_patched.apk BBKLauncher2_patched.apk.src_sha256 OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img framework-adapter_patched.jar framework-wifi_patched.jar framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libandroid_servers_patched.so libbluetooth_jni_patched.so libcamera_client_patched.so libcomposer_ext_patched.so libinputflinger_patched.so libinputservice_patched.so libsensorservice_patched.so mediaprovider_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneos-vivo-features.txt permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar telephonycore_payload.img tethering_payload.img vivo-framework_patched.jar vivo-service-wifi-ex-impl_patched.jar vivo-service-wifi_patched.jar vivo-services_patched.jar vivo-telephony-common-platform-ex_patched.jar vold_patched wifi_payload.img"
@@ -188,7 +190,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
 # sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 lineage24-infiniti"
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 pixel16-bp4a lineage24-infiniti"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -569,6 +571,7 @@ profile_set() {
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
         # 0.4.91: OxygenOS 16 for the S23s still on One UI 8.0/8.5 (the owner, 2026-11-11), untested there.
         "f4 oxygenos16-cph2745") echo oxygen16 ;;
+        "f4 pixel16-bp4a") echo pixel16 ;;
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
@@ -731,6 +734,7 @@ image_raw() {
         infinityx41-findx9u) echo "6677426176 899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2" ;;
         lineage24-infiniti) echo "2327068672 f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261" ;;
         oxygenos16-cph2745) echo "12273344512 dafbb026f97692b7d59b8f4ae2f46773e88e0d5bf0e1fee46b3636ff56b06e90" ;;
+        pixel16-bp4a) echo "3301928960 f84a70818343b336004c900a98194139ca210e7ad24bdd1af89b55db28b629e8" ;;
         originos7-pd2609ma) echo "15998222336 9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee" ;;
         *) return 1 ;;
     esac
@@ -753,6 +757,7 @@ set_files() {
         infinityx) echo "$SET_INFINITYX" ;;
         lineage) echo "$SET_LINEAGE" ;;
         oxygen16) echo "$SET_OXYGENOS" ;;
+        pixel16) echo "$SET_PIXELGSI" ;;
         originos) echo "$SET_ORIGINOS" ;;
         *) return 1 ;;
     esac
@@ -775,6 +780,7 @@ set_image() {
         infinityx) echo infinityx41-findx9u ;;
         lineage) echo lineage24-infiniti ;;
         oxygen16) echo oxygenos16-cph2745 ;;
+        pixel16) echo pixel16-bp4a ;;
         originos) echo originos7-pd2609ma ;;
         *) return 1 ;;
     esac
@@ -789,7 +795,7 @@ set_image() {
 image_family() {
     case "$1" in
         coloros17-findn6|coloros17-findx9u|coloros17-findx9u-in|coloros17-findx9u-in-1105) echo coloros ;;
-        pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo) echo pixel ;;
+        pixel11fold-yogi|pixel11pro-kodiak|pixel9proxl-komodo|pixel16-bp4a) echo pixel ;;
         infinityx41-findx9u) echo infinityx ;;
         lineage24-infiniti) echo lineage ;;
         hyperos-lhasa) echo hyperos ;;

@@ -1486,6 +1486,12 @@
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
           "tested": true
+        },
+        {
+          "image": "pixel16-bp4a",
+          "label": "Pixel 16, Google GSI BP4A build",
+          "set": "pixel16",
+          "tested": false
         }
       ]
     },

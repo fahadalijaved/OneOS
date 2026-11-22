@@ -133,6 +133,7 @@ object Images {
     const val ID_NOTHING_METROID = "nothingos5-metroid"
     const val ID_NOTHING_ASTEROIDS = "nothingos5-asteroids"
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
+    const val ID_PIXEL16 = "pixel16-bp4a"
     const val ID_ORIGINOS7 = "originos7-pd2609ma"
     /** Starts with "lineage": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_LINEAGE = "lineage24-infiniti"
@@ -535,6 +536,33 @@ object Images {
     )
 
     /**
+     * Google's Android 16 Generic System Image (gsi_gms_arm64 BP4A.251205.006, 14401865),
+     * for phones on One UI 8.0/8.5 (SDK 36) such as Galaxy Z Fold4.
+     * Google Play and Google apps built-in. Clean AOSP stack (GUEST_OPLUS=0).
+     */
+    val PIXEL16 = ImageRef(
+        id = ID_PIXEL16,
+        label = "Pixel 16, Google GSI BP4A build",
+        shortName = "Pixel 16",
+        name = "Pixel 16",
+        variant = null,
+        blurb = "Google's Android 16 system with Google Play and Google apps. For phones on One UI 8.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 36,
+        buildId = "BP4A.251205.006",
+        gzName = "OneOS_Pixel16_GMS_BP4A.img.gz",
+        gzBytes = 1715881267L,
+        gzSha256 = "e31e67110ada6707040dcefa6538e89c66767df535e2b194f4d8d2e48225572b",
+        rawBytes = 3301928960L,
+        rawSha256 = "f84a70818343b336004c900a98194139ca210e7ad24bdd1af89b55db28b629e8",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.PIXEL,
+    )
+
+    /**
      * OriginOS 7 (0.4.73, experimental): vivo's Android 17 system from the CN PD2609MA build
      * (CP2A.260605.016, 260919185055, security patch 2026-09-01; ro.vivo.os.build.display.id
      * "OriginOS 7"), for the Snapdragon S25/S26 series and the Z Fold7, Fold8 and Fold8 Ultra;
@@ -637,7 +665,7 @@ object Images {
      */
     val DATA_UPGRADES: Map<String, String> = mapOf(ID_FIND_X9U_IN to ID_FIND_X9U_IN_1105)
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, ORIGINOS7, LINEAGE24, ONEUI95)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, PIXEL16, ORIGINOS7, LINEAGE24, ONEUI95)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

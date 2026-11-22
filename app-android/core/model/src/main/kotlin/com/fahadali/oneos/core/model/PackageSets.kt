@@ -167,6 +167,7 @@ object PackageSets {
     const val ID_NOTHING_F8U = "nothing-f8u"
     const val ID_NOTHING_A = "nothing-a"
     const val ID_OXYGEN16 = "oxygen16"
+    const val ID_PIXEL16 = "pixel16"
     const val ID_ORIGINOS = "originos"
     const val ID_LINEAGE = "lineage"
     const val ID_ONEUI95 = "oneui95"
@@ -796,6 +797,34 @@ object PackageSets {
     )
 
     /**
+     * Google's Android 16 GSI (BP4A.251205.006) for Galaxy Z Fold4 on One UI 8.0 (0.5.34):
+     * built from out/overlays_pixel16 using make-overlays.sh with ONEOS_NO_CAMERA_ABI=1
+     * and host_installd_a16.txt.
+     */
+    val PIXEL16 = PackageSet(
+        id = ID_PIXEL16,
+        imageId = Images.ID_PIXEL16,
+        sourceDir = "out/overlays_pixel16",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("libbootanimation_patched.so", FileRole.GUEST_FIX),
+        ) + (COMMON_PAYLOADS + listOf("bt", "cellbroadcast", "conscrypt", "nfcservices", "profiling", "telephonycore"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING),
+        approxBytes = 375_171_173L,
+        hasReturnApp = true,
+    )
+
+    /**
      * OriginOS 7 (0.4.73, experimental): vivo's CN PD2609MA build on the Snapdragon S25/S26 series and the
      * Z Fold7/8 phones (0.4.82: also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+, the same set). Set r18 (out/overlays_originos_cn_r18, 0.4.95: r17 with the guest's own screen lock in services_patched.jar; r17: make-overlays.sh with the CN vendor's
      * vivo_config.ini; vivo_guards.py, vivo_brightness.py and the other vivo patches; the fold cutout overlay
@@ -943,7 +972,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE, ONEUI95)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, PIXEL16, ORIGINOS, LINEAGE, ONEUI95)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

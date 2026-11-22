@@ -1529,7 +1529,7 @@ if in_image "$SYSUI"; then
             [ -n "$sw" ] && [ "$sw" -ge 1000 ] && continue
             printf ' %s%s' "$n" "$c"
         done) || true
-        if [ "$(wc -l < "$WORK/sb_cfgs.txt")" != 4 ]; then
+        if [ "$(wc -l < "$WORK/sb_cfgs.txt" | tr -d ' ')" != 4 ]; then
             echo "pixel_statusbar overlay: unexpected resources ($(tr '\n' ' ' < "$WORK/sb_cfgs.txt")), not built" >&2
             exit 1
         elif [ -n "$SB_UNCOVERED" ]; then
