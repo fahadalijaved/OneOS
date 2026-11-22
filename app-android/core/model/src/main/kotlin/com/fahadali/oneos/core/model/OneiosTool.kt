@@ -98,12 +98,16 @@ object OneiosTool {
      * root's `receive` writes, so root's `finish image` takes them as an import's). The tool fetches the profile's
      * members from Apple itself (by range requests, resumable), decrypts the AEA images (the key from Apple's key
      * service), copies `/private/var` with its own APFS reader, runs the root tweaks, packs the seed, decodes Apple's
-     * kernelcache and prelinks the staged runtime's `kernel/xnu.macho` with the pairing files in `kb/`. The keys it
-     * takes from the stage when not sent: `profile` (the only profile in the runtime's `lib/profiles/`), `xnu` (`runtime.json`'s
-     * `kernel.path`), `kb` (`<stage>/kb`), `tweaks` (true). `resume`: a stop, a lost network or an ended app keep the
-     * fetch's parts for the next run (the tool's default too; sent so that it does not depend on one).
+     * kernelcache and prelinks the staged runtime's `kernel/xnu.macho` with the pairing files in `kb/`. `profile`: the
+     * runtime's [IPSW_PROFILE], as the kernel update's `fetch` sends it. A released runtime packs every profile of
+     * OneiOS's `profiles/` (v0.1.16: five, two of them host profiles), and a tool up to v0.1.16 refuses a request
+     * without `profile` there (`usage`, "holds 5 profiles: give \"profile\"", OneiOS issue 75: every Make iOS image
+     * stopped with "OneOS and the runtime don't agree"). The keys it takes from the stage when not sent: `xnu`
+     * (`runtime.json`'s `kernel.path`), `kb` (`<stage>/kb`), `tweaks` (true). `resume`: a stop, a lost network or an
+     * ended app keep the fetch's parts for the next run (the tool's default too; sent so that it does not depend on one).
      */
     fun makeImageRequest(stage: String): Pair<String, Map<String, Any?>> = Cmd.MAKE_IMAGE to mapOf(
+        "profile" to "$stage/$IPSW_PROFILE",
         "indir" to "$stage/$MAKE_WORK/inputs",
         "out" to "$stage/image.new",
         "sums_list" to "$stage/image.new.sha256",

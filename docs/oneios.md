@@ -64,7 +64,19 @@ one `make-image` (fetch from Apple, decrypt, the volumes, the root tweaks, the s
 and root's `finish image` with its result. The `fetch` before it and the `tweaks` after it are gone. Set up iOS
 27's image step is Make iOS image now, with the download, the room and this phone's free room said first, and
 nothing on the fresh phone's path mentions a PC ("Make iOS image (no PC)"). Tested on the Linux PC, also against the
-real tool on a stand-in IPSW; not run on the phone, and no OneiOS release has a tool with `make-image` yet.
+real tool on a stand-in IPSW; not run on the phone. OneiOS v0.1.13 and newer have a tool with `make-image`.
+
+**Make iOS image names its profile** (2026-11-23, OneiOS issue 75): every Make iOS image with a released runtime
+(v0.1.13 ... v0.1.16) stopped before its download with "OneOS and the runtime don't agree". The request named no
+`profile`, and a released runtime packs every profile of OneiOS's `profiles/` in `lib/profiles/` (v0.1.16: five);
+the tool takes a default only from a folder of one, so it refused `usage` ("holds 5 profiles: give \"profile\"").
+The request now sends `profile` `<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml` (`OneiosTool.IPSW_PROFILE`,
+which the kernel update's `fetch` already sent), so it works with the released v0.1.16 runtime as it is; OneiOS's
+tool chooses that profile itself from the next release after v0.1.16. The "0.1.0" beside oneios-tool was the tool's
+crate version, which every release up to v0.1.16 said: from the next release it is the release's. Tested:
+OneiosTest.theMakeImageRequestIsTheToolsKeys; OneiOS's serve test
+make_image_takes_the_apps_request_with_the_released_runtimes_profiles sends this request and the earlier one to the
+real tool on v0.1.16's profiles. Not run on the phone.
 
 **The iOS screens, redesigned** (2026-11-15, on 0.5.14): the iOS flow now has the Android systems' screens and
 step order (pick, set up, the system's page, the Switch confirm with the ways back, switching, the last session),
@@ -429,7 +441,7 @@ sends requests and shows what comes back. The protocol is the tool's (OneiOS's `
 
 | Flow (screen, where) | Root | Requests | Shown |
 |---|---|---|---|
-| **Make iOS image** (Set up iOS 27's image step, its main button; the image section of iOS 27's page) | `status`, the latest runtime when the staged one has no kernel or its tool no `make-image` (`begin runtime` ... `finish runtime`, as Get the runtime), `kbinput` ×9, `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with `make-image`'s result | one `make-image` (`indir` `<stage>/make/inputs`, `out` `<stage>/image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`, `resume`); no `fetch`, no `tweaks` | its phase in words, then the tool's 28 steps, progress and time left, the space it needs and has, a heat pause, Pause/Resume, Stop, and why it stopped in plain words with the tool's code ("Make iOS image (no PC)") |
+| **Make iOS image** (Set up iOS 27's image step, its main button; the image section of iOS 27's page) | `status`, the latest runtime when the staged one has no kernel or its tool no `make-image` (`begin runtime` ... `finish runtime`, as Get the runtime), `kbinput` ×9, `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with `make-image`'s result | one `make-image` (`profile` `<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make/inputs`, `out` `<stage>/image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`, `resume`); no `fetch`, no `tweaks` | its phase in words, then the tool's 28 steps, progress and time left, the space it needs and has, a heat pause, Pause/Resume, Stop, and why it stopped in plain words with the tool's code ("Make iOS image (no PC)") |
 | **Update the kernel** (iOS 27's page, Phone-built kernel) | `status`, `kbinput` ×9, `tool work`, `kbcache <bytes> <sha256>` after the decode, `kbclean` after a stop that cannot go on; then `finish kernel <kc-sha256> <build-id>` when the user taps Activate | `fetch` (`profile` the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make-kernel/inputs`, `only` `["kernelcache"]`, `resume`) and `im4p` (`in` `.../inputs/kernelcache.release.v54`, `out` `<stage>/make-kernel/kernelcache.macho`), both only when `kb/` has no pinned kernelcache; `prelink` | on the iOS page its step, a pause, Pause/Resume and Stop, and why it stopped in plain words; on its screen the tool's steps, progress, space and words |
 | **Check every file** (Tools) | `tool read` | `sums` of `runtime/` and of `image/` against the lists root wrote at staging, `strict` | each file hashed again, all of them, on all cores; a difference is the tool's `refused` `mismatch` |
 | **CPU, clocks and threads** (Hardware checks, "With oneios-tool") | `tool read` | `cpu` | the tool's report lines and its `cpu` rows |
@@ -536,10 +548,11 @@ a release: the phone downloads Apple's IPSW members from Apple and builds the se
    `make-image`), the app closes it, stages the latest runtime once (unless that is the staged version: then it
    stops, "This runtime can't make the image yet") and opens the tool again;
 5. the tool's **one** request:
-   `{"cmd":"make-image","indir":"<stage>/make/inputs","out":"<stage>/image.new","sums_list":"<stage>/image.new.sha256","ids_list":"<stage>/image.new.ids","work":"<stage>/make","resume":true}`
+   `{"cmd":"make-image","profile":"<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml","indir":"<stage>/make/inputs","out":"<stage>/image.new","sums_list":"<stage>/image.new.sha256","ids_list":"<stage>/image.new.ids","work":"<stage>/make","resume":true}`
    (`OneiosTool.makeImageRequest`; every key checked against OneiOS's `crates/oneios-serve/src/cmds.rs`
-   `make_image`; the profile, the runtime's `kernel/xnu.macho`, `kb/` and the root tweaks are the tool's defaults
-   from the stage). Its steps, as its `start` event lists them: `check`, `directory`, `download`, `decrypt`, `place`,
+   `make_image`; the runtime's `kernel/xnu.macho`, `kb/` and the root tweaks are the tool's defaults from the stage;
+   the profile is named, because a released runtime packs four or more and a tool up to v0.1.16 refuses `usage`
+   without one there, OneiOS issue 75). Its steps, as its `start` event lists them: `check`, `directory`, `download`, `decrypt`, `place`,
    `data`, `tweaks`, `seed`, `kernelcache`, `kernel-check` ... `kernel-place` (the prelink's sixteen, the audit and
    the stub check among them), `manifest`, `verify`, `lists`;
 6. root's `finish image <files> <format> <version> <build>` with those four fields of `make-image`'s `ok` (checked

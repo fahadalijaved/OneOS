@@ -668,7 +668,9 @@ class OneiosTest {
      * Make iOS image's one request (docs/oneios.md, "Make iOS image"): exactly the keys OneiOS's `make-image` takes
      * from the app (oneos/interface.md section 9; crates/oneios-serve cmds.rs `make_image`: `indir`, `out`, `work`
      * written under the stage, `sums_list` and `ids_list` optional, `resume` a flag), and nothing it would refuse
-     * (`usage` for an unknown key). The tool's defaults take the profile, the kernel and kb/ from the stage.
+     * (`usage` for an unknown key). The profile is named: a released runtime packs four or more in `lib/profiles/`,
+     * and the tool (up to v0.1.16) refuses a request without one there, `usage` (OneiOS issue 75). The tool's
+     * defaults take the kernel and kb/ from the stage.
      */
     @Test
     fun theMakeImageRequestIsTheToolsKeys() {
@@ -677,13 +679,14 @@ class OneiosTest {
         assertEquals("make-image", cmd)
         assertEquals(
             mapOf(
+                "profile" to "$s/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml",
                 "indir" to "$s/make/inputs", "out" to "$s/image.new", "sums_list" to "$s/image.new.sha256", "ids_list" to "$s/image.new.ids",
                 "work" to "$s/make", "resume" to true,
             ),
             keys,
         )
         assertEquals(
-            """{"id":"m","cmd":"make-image","indir":"$s/make/inputs","out":"$s/image.new","sums_list":"$s/image.new.sha256","ids_list":"$s/image.new.ids","work":"$s/make","resume":true}""" + "\n",
+            """{"id":"m","cmd":"make-image","profile":"$s/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml","indir":"$s/make/inputs","out":"$s/image.new","sums_list":"$s/image.new.sha256","ids_list":"$s/image.new.ids","work":"$s/make","resume":true}""" + "\n",
             OneiosTool.request("m", cmd, keys),
         )
         // The room said before it starts covers the profile's need_gib (30 GiB) and the download is the profile's members.
