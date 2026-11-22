@@ -64,9 +64,13 @@
 #   restore kernel              the fallback back: $STAGE/kernel.prev becomes
 #                               the image's set again, with its own receipt.
 #                               Refuses with no fallback or during a session.
-#   switch <versionCode> <ack>  the preflight, then the session, detached, in
+#   switch <versionCode> <ack> [hosted|takeover]
+#                               the preflight, then the session, detached, in
 #                               init's mount namespace (ack 1 = the
-#                               experimental tick)
+#                               experimental tick; takeover = the Android
+#                               takeover's toggle, passed to the switch as
+#                               ONEIOS_SESSION_MODE=takeover; hosted or none:
+#                               nothing passed, the image's xnuhost.conf decides)
 #   return                      Back to One UI: runs oneios_return.sh, detached,
 #                               in init's mount namespace. With no open session
 #                               that script does nothing
@@ -749,7 +753,13 @@ do_restore_kernel() {
 }
 
 do_switch() {
-    [ $# -eq 2 ] || usage "switch <versionCode> <ack>"
+    [ $# -eq 2 ] || [ $# -eq 3 ] || usage "switch <versionCode> <ack> [hosted|takeover]"
+    # The Android takeover's toggle (docs/oneios.md, "Android takeover"): only takeover is passed on; hosted, or no
+    # third word, passes nothing, so a session-mode= in the image's xnuhost.conf still decides.
+    SMODE=""
+    case "${3:-hosted}" in hosted) ;; takeover) SMODE=takeover ;; *) usage "switch: the session mode is hosted or takeover" ;; esac
+    # (Exported only for the takeover: a hosted switch runs with exactly the environment it always had.)
+    [ -z "$SMODE" ] || { ONEIOS_SESSION_MODE=$SMODE; export ONEIOS_SESSION_MODE; }
     is_dec "$1" || usage "switch versionCode '$1'"
     case "$2" in 1) ;; *) refuse "the experimental tick was not given" ;; esac
     stage_ok
@@ -778,6 +788,7 @@ do_switch() {
     # Out of the app's cgroup: the app dies when One UI's framework stops.
     echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
     for v in $(env | sed -n 's/^\(ONEIOS_[A-Za-z0-9_]*\)=.*/\1/p'); do unset "$v"; done
+    [ -z "$SMODE" ] || { ONEIOS_SESSION_MODE=$SMODE; export ONEIOS_SESSION_MODE; }
     ONEIOS_APP=1 ONEIOS_ACK_EXPERIMENTAL=1 "$BB" nsenter -t 1 -m -- "$BB" setsid /system/bin/sh "$STAGE/oneios_switch.sh" \
         </dev/null >>"$STAGE/switch.log" 2>&1 &
     say "@@OK switch"

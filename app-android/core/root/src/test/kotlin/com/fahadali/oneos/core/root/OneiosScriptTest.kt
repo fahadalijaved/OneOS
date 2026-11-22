@@ -395,6 +395,8 @@ class OneiosScriptTest {
         // The test root never starts a session.
         assertRefused(f.verb(OneiosRoot.Verb.SWITCH, listOf("100", "1")), "nothing was started")
         assertRefused(f.verb(OneiosRoot.Verb.SWITCH, listOf("100", "0")), "experimental tick")
+        // The Android takeover's word goes the same way (the session mode is the preflight's: --mode-check below).
+        assertRefused(f.verb(OneiosRoot.Verb.SWITCH, listOf("100", "1", "takeover")), "nothing was started")
         // Back to One UI with no open session does nothing.
         val back = f.verb(OneiosRoot.Verb.RETURN)
         assertOk(back)
@@ -1007,6 +1009,8 @@ class OneiosScriptTest {
         bad(OneiosRoot.Verb.KBCLEAN, "make-kernel")
         good(OneiosRoot.Verb.FINISH, "image", "3", "1", "27.0.1", "24A446")
         good(OneiosRoot.Verb.SWITCH, "100", "1")
+        good(OneiosRoot.Verb.SWITCH, "100", "1", "takeover")
+        good(OneiosRoot.Verb.SWITCH, "100", "1", "hosted")
         bad(OneiosRoot.Verb.BEGIN, "system")
         bad(OneiosRoot.Verb.BEGIN, "image", "x")
         bad(OneiosRoot.Verb.RECEIVE, "image", "../os.img", "12", h, "0644")
@@ -1019,6 +1023,8 @@ class OneiosScriptTest {
         bad(OneiosRoot.Verb.FINISH, "runtime", "3", "0.1.0", "1", "bin/xnuhost", "1;2", "0")
         bad(OneiosRoot.Verb.FINISH, "image", "3", "1", "27.0.1", "24A446 x")
         bad(OneiosRoot.Verb.SWITCH, "100", "yes")
+        bad(OneiosRoot.Verb.SWITCH, "100", "1", "fast")
+        bad(OneiosRoot.Verb.SWITCH, "100", "1", "takeover", "x")
         bad(OneiosRoot.Verb.REMOVE, "all")
         assertTrue(runCatching { OneiosRoot.launcher(OneiosRoot.Verb.BEGIN, listOf("image; reboot"), h, 10) }.isFailure)
         val text = OneiosRoot.launcher(OneiosRoot.Verb.RECEIVE, listOf("image", "os.img", "12", h, "0644"), h, 10)
@@ -1713,6 +1719,290 @@ class OneiosScriptTest {
         f.assertInPlace(r.text)
         assertEquals("700", cap.readText().trim())
         assertFalse(r.text, r.text.contains("clocks: "))
+    }
+
+    // --- The Android takeover (session-mode=takeover; docs/oneios.md, "Android takeover") ---------------------------
+
+    private val cpuNodes = "sys/devices/system/cpu/cpufreq"
+
+    /**
+     * A fake phone in a session whose clocks the switch saved and lifted (as [oneUisClockCapsAreLiftedForTheSessionAndPutBackAtTheReturn]):
+     * policy0 (556800..2265600, One UI's cap 1689600) and policy7 (672000..3398400, One UI's cap 2035200); the case
+     * (lrp) and the cell readable; with [takeover] the switch's mark of the Android takeover.
+     */
+    private fun capPhone(f: Fake, takeover: Boolean = true) {
+        f.phone()
+        fun node(path: String, value: String) = f.file(path).also { it.parentFile.mkdirs(); it.writeText("$value\n") }
+        for (p in listOf(listOf("0", "556800", "2265600", "556800", "1689600"), listOf("7", "672000", "3398400", "672000", "2035200"))) {
+            node("$cpuNodes/policy${p[0]}/cpuinfo_min_freq", p[1]); node("$cpuNodes/policy${p[0]}/cpuinfo_max_freq", p[2])
+            node("$cpuNodes/policy${p[0]}/scaling_min_freq", p[3]); node("$cpuNodes/policy${p[0]}/scaling_max_freq", p[4])
+        }
+        temps(f, 380, 330)
+        assertEquals(0, f.run("oneios_switch.sh", "--clocks-save").exit)
+        assertEquals(0, f.run("oneios_switch.sh", "--clocks-tops").exit)
+        assertEquals("3398400", maxOf(f, 7))
+        if (takeover) File(f.control, "base/mode").writeText("takeover\n")
+    }
+
+    /** The case (lrp) and the cell, in tenths of a degree C, as Samsung's power_supply nodes give them. */
+    private fun temps(f: Fake, case: Int, cell: Int) {
+        val bat = f.file("sys/class/power_supply/battery").apply { mkdirs() }
+        // Whole or not at all: the cap reads them while the test writes.
+        for ((name, v) in listOf("lrp" to case, "temp" to cell)) {
+            val tmp = File(bat, ".$name"); tmp.writeText("$v\n"); assertTrue(tmp.renameTo(File(bat, name)))
+        }
+    }
+
+    private fun maxOf(f: Fake, policy: Int) = f.file("$cpuNodes/policy$policy/scaling_max_freq").readText().trim()
+    private fun capLevel(f: Fake) = File(f.control, "cpu-cap.level").takeIf { it.isFile }?.readText()?.trim()
+    private fun capLog(f: Fake) = File(f.control, "cpu-cap.log").takeIf { it.isFile }?.readText().orEmpty()
+
+    private fun startCap(f: Fake): Process {
+        val p = f.start("oneios_switch.sh", "--cpu-cap", log = "data/local/tmp/oneios/control/cpu-cap.log")
+        await("the cap's level") { capLevel(f) != null }
+        return p
+    }
+
+    private fun awaitLevel(f: Fake, level: Int) = await("cpu-cap level $level\n${capLog(f)}") { capLevel(f) == "$level" && capLog(f).contains("cpu-cap: level $level ") }
+
+    /** Hosted (no mark): the cap does nothing at all, and the return is the one of every session. */
+    @Test
+    fun theCpuCapDoesNothingInAHostedSession() = each { f ->
+        capPhone(f, takeover = false)
+        temps(f, 520, 490)
+        val r = f.run("oneios_switch.sh", "--cpu-cap")
+        assertEquals(r.text, 0, r.exit)
+        assertTrue(r.text, r.text.contains("cpu-cap: not an Android takeover session: nothing to do"))
+        assertFalse(File(f.control, "cpu-cap.pid").exists() || File(f.control, "cpu-cap.level").exists())
+        assertFalse(File(f.session, "return.request").exists())
+        assertEquals("3398400", maxOf(f, 7))
+        val back = f.returns()
+        f.assertInPlace(back.text)
+        assertFalse(back.text, back.text.contains("Android takeover"))
+        assertEquals("2035200", maxOf(f, 7))
+    }
+
+    /**
+     * On: the cap leaves the hardware's top while the phone is cool, lowers each policy's scaling_max_freq as the case
+     * warms (80 %, then 60 % of its top, never under cpuinfo_min_freq), asks for the return at the case's limit, and the
+     * return in place ends it first and writes One UI's values back.
+     */
+    @Test
+    fun theCpuCapFollowsTheCaseAndTheReturnPutsOneUisClocksBack() = each { f ->
+        capPhone(f)
+        val cap = startCap(f)
+        Thread.sleep(200)
+        assertEquals("0", capLevel(f))
+        assertEquals("3398400", maxOf(f, 7))
+        temps(f, 465, 330)
+        awaitLevel(f, 1)
+        assertEquals("${3398400 / 100 * 80}", maxOf(f, 7))
+        assertEquals("${2265600 / 100 * 80}", maxOf(f, 0))
+        assertTrue(capLog(f), capLog(f).contains("cpu-cap: level 1 (80 % of each policy's top): case 46.5 C (lrp), cell 33.0 C: policy0=${2265600 / 100 * 80} policy7=${3398400 / 100 * 80}"))
+        temps(f, 470, 472)                     // the cell alone takes it further
+        awaitLevel(f, 2)
+        assertEquals("${3398400 / 100 * 60}", maxOf(f, 7))
+        assertFalse(File(f.session, "return.request").exists())
+        temps(f, 503, 400)
+        awaitLevel(f, 3)
+        await("the return request") { File(f.session, "return.request").isFile }
+        assertTrue(File(f.session, "return.request").readText().startsWith("thermal: the Android takeover's limit: case 50.3 C (lrp, limit 50.0 C), cell 40.0 C (limit 48.0 C)"))
+        assertEquals("${3398400 / 100 * 60}", maxOf(f, 7))
+        val r = f.returns()
+        assertEquals(r.text, 0, r.exit)
+        f.assertInPlace(r.text)
+        assertTrue(cap.waitFor(30, TimeUnit.SECONDS))
+        assertEquals("1689600", maxOf(f, 0))
+        assertEquals("2035200", maxOf(f, 7))
+        assertTrue(r.text, r.text.contains("Android takeover: its CPU cap ended at level 3"))
+        // Ended before One UI's clocks went back.
+        assertTrue(r.text, r.text.indexOf("Android takeover: its CPU cap ended") in 0 until r.text.indexOf("clocks: "))
+        assertTrue(capLog(f), capLog(f).contains("the cap ends at level 3"))
+    }
+
+    /** Down one step at a time: only when both readings are 2 C under the level for 3 readings in a row. */
+    @Test
+    fun theCpuCapComesBackToTheTopWhenThePhoneCools() = each { f ->
+        capPhone(f)
+        val cap = startCap(f)
+        temps(f, 482, 330)
+        awaitLevel(f, 2)
+        temps(f, 465, 330)                     // under level 2's 48 C, but not 2 C under: it stays
+        Thread.sleep(300)
+        assertEquals("2", capLevel(f))
+        temps(f, 455, 330)
+        awaitLevel(f, 1)
+        assertEquals("${3398400 / 100 * 80}", maxOf(f, 7))
+        temps(f, 430, 330)
+        awaitLevel(f, 0)
+        assertEquals("3398400", maxOf(f, 7))
+        assertEquals("2265600", maxOf(f, 0))
+        // A reading that is not a number keeps the level.
+        f.file("sys/class/power_supply/battery/lrp").writeText("busy\n")
+        await("the cap's line on the reading") { capLog(f).contains("a reading is not a number (case 'busy', cell '330'): the level stays 0") }
+        File(f.control, "cpu-cap.off").createNewFile()
+        assertTrue(cap.waitFor(30, TimeUnit.SECONDS))
+        assertTrue(capLog(f), capLog(f).contains("control/cpu-cap.off: the cap ends at level 0"))
+    }
+
+    /** xnuhost crashed with the cap in force: the watcher's return ends the cap and writes One UI's clocks back. */
+    @Test
+    fun theCpuCapIsPutBackAfterXnuhostCrashes() = each { f ->
+        capPhone(f)
+        val cap = startCap(f)
+        temps(f, 490, 330)
+        awaitLevel(f, 2)
+        val w = watcher(f)
+        f.ends(XNUHOST)
+        assertTrue(w.waitFor(60, TimeUnit.SECONDS))
+        f.assertInPlace()
+        assertTrue(cap.waitFor(30, TimeUnit.SECONDS))
+        assertEquals("1689600", maxOf(f, 0))
+        assertEquals("2035200", maxOf(f, 7))
+        assertTrue(f.returnLog, f.returnLog.contains("watcher: xnuhost $XNUHOST ended") && f.returnLog.contains("Android takeover: its CPU cap ended at level 2"))
+    }
+
+    /** A switch that failed after the stop (xnuhost never ran) with the cap in force: the same restore. */
+    @Test
+    fun theCpuCapIsPutBackAfterAnEarlyStop() = each { f ->
+        capPhone(f)
+        val cap = startCap(f)
+        temps(f, 490, 330)
+        awaitLevel(f, 2)
+        f.ends(XNUHOST)
+        File(f.control, "state").writeText("failed\n")
+        assertTrue(cap.waitFor(30, TimeUnit.SECONDS))
+        assertTrue(capLog(f), capLog(f).contains("the session is over (state 'failed'): the cap ends at level 2"))
+        val r = f.returns("switch-failed")
+        assertEquals(r.text, 0, r.exit)
+        f.assertInPlace(r.text)
+        assertEquals("1689600", maxOf(f, 0))
+        assertEquals("2035200", maxOf(f, 7))
+    }
+
+    /**
+     * The restart is the way back only where the return in place cannot put One UI back: in the Android takeover, a
+     * policy still at the cap that cannot be written back, or a cap that cannot be ended. The same unwritable node with
+     * the cap at level 0, or in a hosted session, is logged only, as before.
+     */
+    @Test
+    fun theRestartIsChosenOnlyWhenTheInPlaceReturnCannotWork() = each { f ->
+        fun lock(f: Fake) = assertTrue(f.file("$cpuNodes/policy7/scaling_max_freq").setWritable(false))
+        // A takeover whose cap holds policy7 at 60 %, and the node cannot be written any more.
+        run {
+            capPhone(f)
+            val cap = startCap(f)
+            temps(f, 490, 330)
+            awaitLevel(f, 2)
+            lock(f)
+            val r = f.returns()
+            assertTrue(cap.waitFor(30, TimeUnit.SECONDS))
+            assertTrue(r.text, r.text.contains("clocks: /$cpuNodes/policy7/scaling_max_freq could not be written back to 2035200 (it reads ${3398400 / 100 * 60}; the Android takeover's CPU cap was at level 2)"))
+            f.assertFailsafe("the Android takeover's CPU cap is still in force: /$cpuNodes/policy7/scaling_max_freq could not be written back")
+        }
+        // The cap at level 0 (nothing of it in force): logged only, in place.
+        val g = Fake(f.sh)
+        capPhone(g)
+        val cap = startCap(g)
+        Thread.sleep(200)
+        lock(g)
+        val r = g.returns()
+        assertTrue(cap.waitFor(30, TimeUnit.SECONDS))
+        g.assertInPlace(r.text)
+        assertTrue(r.text, r.text.contains("policy7/scaling_max_freq could not be written back to 2035200 (logged only)"))
+        assertTrue(r.text, r.text.contains("Android takeover: its CPU cap ended at level 0"))
+        // Hosted: the line of every session.
+        val h = Fake(f.sh)
+        capPhone(h, takeover = false)
+        lock(h)
+        val hr = h.returns()
+        h.assertInPlace(hr.text)
+        assertTrue(hr.text, hr.text.contains("policy7/scaling_max_freq could not be written back to 2035200 (logged only)"))
+        // A cap that does not end: the restart, before One UI's clocks.
+        val u = Fake(f.sh)
+        capPhone(u)
+        u.proc(7100, "sh", cmdline = "/system/bin/sh /data/local/tmp/oneios/oneios_switch.sh --cpu-cap")
+        File(u.file("proc/7100"), "unkillable").createNewFile()
+        File(u.control, "cpu-cap.pid").writeText("7100\n")
+        File(u.control, "cpu-cap.level").writeText("2\n")
+        val ur = u.returns()
+        assertTrue(ur.text, !ur.text.contains("clocks: /"))
+        u.assertFailsafe("the Android takeover's CPU cap (7100) could not be ended")
+    }
+
+    /** The session mode's choice and preflight (--mode-check), with a stand-in for xnuhost's --host-info. */
+    @Test
+    fun theSessionModeIsHostedUnlessAskedAndTakeoverOnlyWhereTheHostTableAllowsIt() = each { f ->
+        capPhone(f, takeover = false)
+        val xh = f.file("bin/xnuhost-host-info")
+        xh.writeText("#!/bin/sh\necho \"\$*\" > \"\$ONEIOS_TEST_ROOT/log/host-info-args\"\ncat \"\$ONEIOS_TEST_ROOT/host-info\" 2>/dev/null\nexit \$(cat \"\$ONEIOS_TEST_ROOT/host-info-rc\" 2>/dev/null || echo 0)\n")
+        assertTrue(xh.setExecutable(true))
+        val env = mapOf("ONEIOS_TEST_XNUHOST" to xh.path)
+        fun check(mode: String? = null): Ran = f.run("oneios_switch.sh", "--mode-check", env = env + (mode?.let { mapOf("ONEIOS_SESSION_MODE" to it) } ?: emptyMap()))
+        fun refused(r: Ran, part: String) {
+            assertEquals(r.text, 2, r.exit)
+            assertTrue(r.text, r.text.contains("PREFLIGHT REFUSED: ") && r.text.contains(part))
+        }
+        // Nothing asked: hosted, no line, xnuhost not asked.
+        var r = check()
+        assertEquals(r.text, 0, r.exit)
+        assertEquals("MODE OK hosted", r.text.trim())
+        assertFalse(f.file("log/host-info-args").exists())
+        // The app's toggle on the S24 Ultra's row.
+        f.file("host-info").writeText("host-info: device=galaxy-s24-ultra takeover=yes (matched by ro.product.model=SM-S928B)\n")
+        r = check("takeover")
+        assertEquals(r.text, 0, r.exit)
+        assertTrue(r.text, r.text.contains("Session mode: Android takeover (session-mode=takeover, from the app; device=galaxy-s24-ultra takeover=yes (matched by ro.product.model=SM-S928B))"))
+        assertTrue(r.text, r.text.trim().endsWith("MODE OK takeover"))
+        assertEquals("--host-info", f.lines("log/host-info-args").single().trim())
+        // A row that does not allow it, a runtime too old to say, a bad word.
+        f.file("host-info").writeText("host-info: device=galaxy-s25-ultra takeover=no (matched by ro.product.model=SM-S938B)\n")
+        refused(check("takeover"), "session-mode=takeover (from the app) is not supported on this phone (device=galaxy-s25-ultra takeover=no")
+        f.file("host-info").writeText("xnuhost: unknown or incomplete argument --host-info\n")
+        f.file("host-info-rc").writeText("2\n")
+        refused(check("takeover"), "does not answer --host-info (a runtime from before the Android takeover)")
+        f.file("host-info-rc").delete()
+        refused(check("fast"), "session-mode 'fast' (from the app) is not hosted or takeover")
+        // The image's xnuhost.conf, the last line of the overlay's; its files go to xnuhost as --config.
+        f.file("host-info").writeText("host-info: device=galaxy-s26-ultra takeover=yes (matched by ro.product.model=SM-S948B)\n")
+        val conf = File(f.stage, "image/overlay/userland/xnuhost.conf").apply { parentFile.mkdirs(); writeText("pen=auto\nsession-mode=hosted\n  session-mode=takeover\r\n") }
+        r = check()
+        assertEquals(r.text, 0, r.exit)
+        assertTrue(r.text, r.text.contains("from the image's xnuhost.conf; device=galaxy-s26-ultra takeover=yes"))
+        assertEquals("--host-info --config ${conf.path}", f.lines("log/host-info-args").single().trim())
+        assertEquals("MODE OK hosted", check("hosted").text.trim())          // the app's word over the image's
+        conf.writeText("session-mode=sometimes\n")
+        refused(check(), "session-mode 'sometimes' (from the image's xnuhost.conf) is not hosted or takeover")
+        conf.delete()
+        // Nothing for its cap to write, or to read.
+        f.file("sys/class/power_supply/battery/temp").delete()
+        refused(check("takeover"), "the cell's temperature, its CPU cap's input, is not readable")
+        f.file(cpuNodes).deleteRecursively()
+        refused(check("takeover"), "no CPU policy for its CPU cap")
+    }
+
+    /** The default session: the switch's xnuhost command line, its record and its lines are what they were. */
+    @Test
+    fun theHostedSessionIsTheSessionAsBefore() {
+        val sw = code(switchScript).joinToString("\n")
+        // xnuhost's command line of session ABI 1, unchanged, and the takeover's only with the switch's mark.
+        val plain = "exec \"/data/runtime/\$R_XNUHOST\" --session-abi \$ABI --mode takeover \\\n            --runtime /data/runtime --image /data/image --data /data/data --session /data/session\n"
+        assertTrue(sw.contains(plain))
+        val marked = sw.indexOf("if [ \"\$(cat /data/control/base/mode 2>/dev/null)\" = takeover ]; then")
+        assertTrue(marked in 0 until sw.indexOf("--set session-mode=takeover"))
+        // Every step of the takeover is behind its mode; base/mode is written only for it.
+        assertTrue(sw.contains("if [ \"\$SMODE\" = takeover ]; then\n    echo takeover > \"\$B/mode\""))
+        assertTrue(sw.contains("if [ \"\$SMODE\" = takeover ]; then\n    rm -f \"\$CTL/cpu-cap.pid\""))
+        assertTrue(sw.contains("[ \"\$SMODE\" = hosted ] || takeover_checks \"\$X\""))
+        // The cap writes no thermal node, no scaling_min_freq, nothing under /sys/power, and lowers no OOM score.
+        val capMode = sw.substring(sw.indexOf("    --cpu-cap)"), sw.indexOf("    --usb-watch)"))
+        for (never in listOf("/sys/class/thermal", "scaling_min_freq", "/sys/power", "oom_score_adj", "out_of_the_way", "renice", "EVIOCGRAB", "getevent")) {
+            assertFalse("the cap has '$never'", capMode.contains(never))
+        }
+        // The return keeps its order: the cap ended, then One UI's clocks, then Gate A.
+        val ret = code(returnScript).joinToString("\n")
+        assertTrue(ret.indexOf("end_helper \"\$CTL/cpu-cap.pid\" --cpu-cap") in 0 until ret.indexOf("awk '{ l[NR] = \$0 }"))
+        assertTrue(ret.indexOf("awk '{ l[NR] = \$0 }") in 0 until ret.indexOf("Gate A"))
     }
 
     /** One UI's USB gadget, as its framework set it: adb on, the UDC bound, a cable to a computer. */

@@ -122,6 +122,29 @@ class OneiosTest {
         assertFalse(OneiosSystem.gate(null, ticked = true).detail.contains("S26"))
     }
 
+    /**
+     * The Android takeover's toggle (docs/oneios.md, "Android takeover"): offered on the Galaxy S24 Ultra (every model
+     * number) and the Galaxy S26 Ultra, nowhere else; root's switch gets a third word only for it.
+     */
+    @Test
+    fun theAndroidTakeoverIsOfferedOnTheS24AndS26UltraOnly() {
+        for (m in listOf("SM-S928B", "SM-S928U", "SM-S928U1", "SM-S928W", "SM-S928N", "SM-S9280")) {
+            assertTrue(m, OneiosSystem.takeoverOfferedOn(Profiles.resolve(m, "e3q", "SM8650").profile))
+        }
+        assertTrue(OneiosSystem.takeoverOfferedOn(Profiles.resolve("SM-S948B", "m3q", "SM8850").profile))
+        assertFalse(OneiosSystem.takeoverOfferedOn(Profiles.resolve("SM-S938B", "pa3q", "SM8750").profile))
+        assertFalse(OneiosSystem.takeoverOfferedOn(Profiles.resolve("SM-S931B", "pa1q", "SM8750").profile))
+        assertFalse(OneiosSystem.takeoverOfferedOn(Profiles.F8U))
+        assertFalse(OneiosSystem.takeoverOfferedOn(null))
+        assertEquals(listOf("4100", "1"), OneiosSystem.switchArgs(4100, takeover = false))
+        assertEquals(listOf("4100", "1", "takeover"), OneiosSystem.switchArgs(4100, takeover = true))
+        // The warning says what it takes, what it writes and the way back, restart as the fallback only.
+        val w = OneiosSystem.TAKEOVER_WARNING
+        assertTrue(w, w.contains("touchscreen") && w.contains("caps the CPUs") && w.contains("put back") &&
+            w.contains("Volume Up + Volume Down") && w.contains("only when the return in place cannot put One UI back"))
+        assertEquals("Android takeover (faster, experimental)", OneiosSystem.TAKEOVER_TITLE)
+    }
+
     /** It is its own kind of system: no Android image or file set stands for it. */
     @Test
     fun itIsNotAnAndroidImage() {

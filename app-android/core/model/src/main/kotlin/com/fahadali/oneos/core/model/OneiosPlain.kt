@@ -132,6 +132,24 @@ object OneiosPlain {
                 "Root isn't allowed for OneOS", raw.substringAfter(". ").ifBlank { raw }, OneiosFix.CHECK_AGAIN, OneiosPart.PHONE,
             )
 
+            // The Android takeover (docs/oneios.md, "Android takeover"): the preflight of session-mode=takeover.
+            p.startsWith("session-mode") && "not supported on this phone" in p -> m(
+                "No Android takeover on this phone", "Switch without the Android takeover box; the image's xnuhost.conf must not ask for it either.",
+                OneiosFix.CHECK_AGAIN, OneiosPart.SWITCH,
+            )
+            p.startsWith("session-mode") && "does not answer --host-info" in p -> m(
+                "This runtime has no Android takeover", "Get the latest OneiOS runtime, or switch without the Android takeover box.",
+                OneiosFix.GET_RUNTIME, OneiosPart.RUNTIME,
+            )
+            p.startsWith("session-mode") && ("no cpu policy" in p || "temperature" in p) -> m(
+                "The takeover's CPU cap can't run here", "Its CPU or temperature files are missing on this phone. Switch without the Android takeover box.",
+                OneiosFix.CHECK_AGAIN, OneiosPart.PHONE,
+            )
+            p.startsWith("session-mode") && "is not hosted or takeover" in p -> m(
+                "The session mode is not one OneOS knows", "session-mode= in the image's xnuhost.conf is hosted or takeover. Fix the image's setting, then check again.",
+                OneiosFix.CHECK_AGAIN, OneiosPart.IMAGE,
+            )
+
             // The app itself, or its root script on the way to root.
             "not the pinned one" in p || "not the pinned ones" in p -> m(
                 "This copy of OneOS is damaged", "Reinstall OneOS, then open iOS 27 again.", OneiosFix.NONE, OneiosPart.OTHER,

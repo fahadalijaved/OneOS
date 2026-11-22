@@ -438,6 +438,10 @@ end_readers
 # gadget goes back to One UI's in step 4.
 true 2>/dev/null > "$CTL/usb-watch.off"
 end_helper "$CTL/usb-watch.pid" --usb-watch
+# The Android takeover's CPU cap (oneios_switch.sh --cpu-cap; session-mode=takeover only: control/base/mode). It also
+# ends by itself on this state; before One UI's clocks are written back below, it must be gone.
+true 2>/dev/null > "$CTL/cpu-cap.off"
+end_helper "$CTL/cpu-cap.pid" --cpu-cap
 wp=$(cat "$CTL/watcher.pid" 2>/dev/null)
 [ "$wp" = "$$" ] || [ "$wp" = "$PPID" ] || end_helper "$CTL/watcher.pid" --watch
 # The switch's inner shell, where it is still setting up xnuhost's namespace
@@ -531,11 +535,35 @@ while read -r bl lv; do
     if echo "$lv" > "$T$bl" 2>/dev/null; then say "backlight: $bl back to $lv"; else say "backlight: $bl could not be written back (logged only)"; fi
 done < "$CTL/base/backlight" 2>/dev/null
 
+# The Android takeover (session-mode=takeover: the switch's control/base/mode; a hosted session has none, and none
+# of the lines below with TAKEOVER=1 runs for it). Its CPU cap must be gone before One UI's clocks go back: a cap
+# that writes after them would leave One UI capped. It was asked to end and killed above; one that is still there
+# 2 s later cannot be stopped in place: the restart.
+TAKEOVER=0
+[ "$(cat "$BASE/mode" 2>/dev/null)" = takeover ] && TAKEOVER=1
+CAP_LEVEL=$(cat "$CTL/cpu-cap.level" 2>/dev/null)
+case "$CAP_LEVEL" in ''|*[!0-9]*) CAP_LEVEL=0 ;; esac
+if [ "$TAKEOVER" = 1 ]; then
+    cn=0 calive=0
+    while [ $cn -lt 10 ]; do
+        calive=0
+        for p in $(cat "$CTL/cpu-cap.pid" 2>/dev/null); do is_ours "$p" "oneios_switch.sh --cpu-cap" && calive=1; done
+        [ $calive = 1 ] || break
+        [ $cn -lt 5 ] || end_helper "$CTL/cpu-cap.pid" --cpu-cap
+        sleep 0.2; cn=$((cn + 1))
+    done
+    [ $calive = 0 ] || failsafe "the Android takeover's CPU cap ($(cat "$CTL/cpu-cap.pid" 2>/dev/null)) could not be ended: it could cap One UI's clocks after the return"
+    say "Android takeover: its CPU cap ended at level $CAP_LEVEL ($(tail -n 1 "$CTL/cpu-cap.log" 2>/dev/null | cut -c1-200))"
+fi
 # One UI's clock caps and floors from the switch's baseline (oneios_switch.sh,
 # clocks_save), once the switch wrote the session's (it marks that): in the
 # reverse order of the writes, before One UI's zygote starts, on every path
 # that stopped One UI, a killed xnuhost's too. Only those nodes, only numbers; a
-# node that cannot be written is logged and never stops the return.
+# node that cannot be written is logged and never stops the return, except in an
+# Android takeover whose CPU cap was in force (level 1 or more): a policy's
+# scaling_max_freq left at the cap would slow One UI until a restart, so that is
+# the restart (below).
+rm -f "$CTL/clocks.unwritten"
 if [ -e "$CTL/clocks.set" ]; then
     awk '{ l[NR] = $0 } END { for (i = NR; i > 0; i--) print l[i] }' "$CTL/base/clocks" 2>/dev/null | while read -r node old new; do
         case "$node" in /sys/devices/system/cpu/cpufreq/policy*/scaling_m??_freq|/sys/kernel/gpu/gpu_max_clock|/sys/class/kgsl/kgsl-3d0/max_gpuclk) ;;
@@ -543,9 +571,16 @@ if [ -e "$CTL/clocks.set" ]; then
         case "$node" in *..*) continue ;; esac
         case "${old#-}" in ''|*[!0-9]*) continue ;; esac
         was=$(cat "$T$node" 2>/dev/null)
-        if echo "$old" > "$T$node" 2>/dev/null; then say "clocks: $node $was -> $old (One UI's)"; else say "clocks: $node could not be written back to $old (logged only)"; fi
+        if echo "$old" > "$T$node" 2>/dev/null; then say "clocks: $node $was -> $old (One UI's)"
+        elif [ "$TAKEOVER" = 1 ] && [ "$CAP_LEVEL" != 0 ]; then
+            say "clocks: $node could not be written back to $old (it reads $was; the Android takeover's CPU cap was at level $CAP_LEVEL)"
+            echo "$node" >> "$CTL/clocks.unwritten"
+        else say "clocks: $node could not be written back to $old (logged only)"; fi
     done
     rm -f "$CTL/clocks.set"
+fi
+if [ "$TAKEOVER" = 1 ] && grep -q '/scaling_max_freq$' "$CTL/clocks.unwritten" 2>/dev/null; then
+    failsafe "the Android takeover's CPU cap is still in force: $(grep '/scaling_max_freq$' "$CTL/clocks.unwritten" | tr '\n' ' ')could not be written back to One UI's value"
 fi
 
 # The switch ended before it stopped One UI's zygote (it marks the stop):

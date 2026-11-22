@@ -66,6 +66,37 @@ object OneiosSystem {
     const val ACK = "I understand that iOS 27 (OneiOS) is experimental, has never been tested on a phone like this one, " +
         "and that One UI stops while it runs. Volume Up + Volume Down for 3 seconds brings One UI back."
 
+    /**
+     * The session modes (docs/oneios.md, "Android takeover"; OneiOS's oneos/interface.md 4a): [MODE_HOSTED], the session
+     * as it always was, and [MODE_TAKEOVER], the opt-in Android takeover. Root's switch verb takes the mode as its third
+     * word; the switch also reads `session-mode=` from the image's xnuhost.conf.
+     */
+    const val MODE_HOSTED = "hosted"
+    const val MODE_TAKEOVER = "takeover"
+
+    /**
+     * The phones whose profile offers the Android takeover's toggle: the Galaxy S24 Ultra (the owner's) and the Galaxy
+     * S26 Ultra (where YMGPwcca/OneOS's Framework-takeover experiment it comes from ran). The same two rows of OneiOS's
+     * host table allow `session-mode=takeover`; the switch asks xnuhost (`--host-info`) before it stops anything.
+     */
+    val TAKEOVER_PROFILE_IDS: Set<String> = setOf(Profiles.ID_S_ULTRA_8650, Profiles.ID_S_ULTRA_8850)
+
+    /** The toggle's title and its warning, on the Switch sheet. */
+    const val TAKEOVER_TITLE = "Android takeover (faster, experimental)"
+    const val TAKEOVER_WARNING = "iOS gets this phone's touchscreen for itself (One UI cannot read it until the session " +
+        "ends), and the switch caps the CPUs' top speed when the case or the battery gets hot (46 C and up), because " +
+        "One UI's own heat limits are not running; at 50 C (48 C for the battery) it returns to One UI. Everything it " +
+        "changes is put back when One UI comes back. The way back is the same: Volume Up + Volume Down for 3 seconds " +
+        "returns to One UI in place; only when the return in place cannot put One UI back does the phone restart into " +
+        "One UI. Not tried on a phone yet."
+
+    /** Whether the Switch sheet offers the Android takeover's toggle on this phone. */
+    fun takeoverOfferedOn(profile: PhoneProfile?): Boolean = profile != null && profile.enabled && profile.id in TAKEOVER_PROFILE_IDS
+
+    /** Root's switch verb's arguments: the versionCode, the tick, and the mode only for the takeover (hosted: two words, as before). */
+    fun switchArgs(versionCode: Int, takeover: Boolean): List<String> =
+        listOf(versionCode.toString(), "1") + if (takeover) listOf(MODE_TAKEOVER) else emptyList()
+
     fun offeredOn(profile: PhoneProfile?): Boolean = profile != null && profile.enabled && profile.id in PROFILE_IDS
 
     /** The phone itself, by the three ids a profile matches on. */

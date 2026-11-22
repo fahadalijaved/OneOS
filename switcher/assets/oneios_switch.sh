@@ -16,6 +16,15 @@
 #   oneios_switch.sh --stop-loop (internal) keeps One UI's zygote stopped
 #   oneios_switch.sh --bootui   (internal) the boot screen's stage line, from xnuhost's log
 #   oneios_switch.sh --usb-watch (internal) keeps adb on the USB gadget through the session
+#   oneios_switch.sh --cpu-cap  (internal) the Android takeover's CPU cap (session-mode=takeover only)
+#
+# The session mode (docs/oneios.md, "Android takeover"; OneiOS's oneos/interface.md 4a): session-mode=hosted, the
+# default, is the session below exactly as it was. session-mode=takeover (the app's toggle, or the image's
+# xnuhost.conf) is the opt-in Android takeover: xnuhost takes the phone's touchscreen for iOS alone (never a key
+# device), and a CPU cap of the switch's own lowers each CPU policy's scaling_max_freq when the case or the cell gets
+# hot (One UI's case policy, SSRM, is gone with system_server); the return writes One UI's values back, as for every
+# session. The way back is the same: the chord and the return in place first, a restart into One UI only when the
+# in-place return cannot put One UI back.
 #
 # What a session never touches: One UI's /data beyond $STAGE (xnuhost's mount
 # namespace has the stage bound over /data), vold, keystore2, gatekeeper,
@@ -523,6 +532,75 @@ clocks_tops() {
     [ ! -e "$k/thermal_pwrlevel" ] || echo "clocks: KGSL thermal_pwrlevel $(cat "$k/thermal_pwrlevel" 2>/dev/null), max_gpuclk $(cat "$k/max_gpuclk" 2>/dev/null)"
 }
 
+# --- THE SESSION MODE: hosted (the default) or the Android takeover ------------
+# session-mode= comes from the app (root's switch verb passes ONEIOS_SESSION_MODE when its toggle is on), else from
+# the staged image's xnuhost.conf files (the last session-mode= line, as xnuhost reads them: image/xnuhost.conf,
+# then image/overlay/userland/xnuhost.conf), else hosted. takeover is refused, before anything changes, where the
+# phone's row of OneiOS's host table does not allow it (xnuhost --host-info: takeover=yes), where the runtime's
+# xnuhost is too old to say, and where there is no CPU policy for its cap. hosted adds no line and no step.
+SMODE=hosted SMODE_FROM=default
+session_mode_pick() {
+    if [ -n "${ONEIOS_SESSION_MODE:-}" ]; then
+        SMODE=$ONEIOS_SESSION_MODE SMODE_FROM="the app"
+    else
+        v=$(cat "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf" 2>/dev/null |
+            sed -n 's/^[[:space:]]*session-mode=//p' | tail -n 1 | tr -d ' \t\r')
+        [ -z "$v" ] || SMODE=$v SMODE_FROM="the image's xnuhost.conf"
+    fi
+    case "$SMODE" in
+        hosted|takeover) ;;
+        *) refuse "session-mode '$SMODE' (from $SMODE_FROM) is not hosted or takeover" ;;
+    esac
+}
+# The cap's policies: every cpufreq policy the baseline saved (clocks_save), with a top to scale from.
+cap_policies() {
+    awk '$1 ~ /^\/sys\/devices\/system\/cpu\/cpufreq\/policy[0-9]+\/scaling_max_freq$/ && $3 ~ /^[0-9]+$/ && $3 > 0 { print $1 }' "$1" 2>/dev/null
+}
+takeover_checks() { # <xnuhost to ask>
+    info=$("$1" --host-info $(for f in "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf"; do [ -f "$f" ] && echo "--config $f"; done) 2>&1 </dev/null)
+    rc=$?
+    info=$(printf '%s\n' "$info" | grep -m1 '^host-info: ')
+    [ $rc = 0 ] && [ -n "$info" ] ||
+        refuse "session-mode=takeover (from $SMODE_FROM): the runtime ${R_VERSION:-?}'s xnuhost does not answer --host-info (a runtime from before the Android takeover): get a newer runtime, or switch without the takeover"
+    case "$info" in
+        *" takeover=yes "*) ;;
+        *) refuse "session-mode=takeover (from $SMODE_FROM) is not supported on this phone (${info#host-info: }): switch without the Android takeover" ;;
+    esac
+    n=0
+    for pol in "$T"/sys/devices/system/cpu/cpufreq/policy*; do
+        [ -f "$pol/cpuinfo_max_freq" ] && [ -f "$pol/scaling_max_freq" ] && n=$((n + 1))
+    done
+    [ $n -gt 0 ] || refuse "session-mode=takeover (from $SMODE_FROM): no CPU policy for its CPU cap (/sys/devices/system/cpu/cpufreq/policy*)"
+    [ -r "$T/sys/class/power_supply/battery/temp" ] ||
+        refuse "session-mode=takeover (from $SMODE_FROM): the cell's temperature, its CPU cap's input, is not readable"
+    echo "Session mode: Android takeover (session-mode=takeover, from $SMODE_FROM; ${info#host-info: }): iOS gets the touchscreen alone; a CPU cap from the case and the cell temperature; the way back as in every session"
+}
+
+# The Android takeover's CPU cap (--cpu-cap): levels from the case (Samsung's lrp, in tenths of a degree C; the board
+# thermistor where there is none) and the cell (power_supply/battery/temp). One UI's own case policy (SSRM) went with
+# system_server, so without this nothing acts on the case: the kernel's junction trips only (OneiOS docs/hardware.md
+# 7d). The thresholds start where OneiOS's thermal bridge already tells iOS "trapping" (the case at 46 C), so the cap
+# leaves the CPUs at the hardware's top for as long as a hosted session would have them there:
+#   level 1: the case at 46 C or the cell at 46 C: each policy's scaling_max_freq at 80 % of its top
+#   level 2: the case at 48 C or the cell at 47 C: 60 %
+#   level 3: the case at 50 C or the cell at 48 C: still 60 %, and a return to One UI is asked (in place, as every
+#            return: session/return.request)
+# A level is left one step at a time when both readings are 2 C under it for 3 readings in a row. The numbers are
+# YMGPwcca/OneOS's emergency limits (battery 48 C, lrp 50 C) and OneiOS's case levels; not measured as a policy on
+# any phone [a guess]. Only scaling_max_freq of the policies clocks_save saved is written, never above the top
+# clocks_tops wrote, never under cpuinfo_min_freq; never scaling_min_freq, a thermal node, a GPU node or /sys/power.
+CAP_EVERY=2
+cap_level() { # <case> <cell> <margin>, tenths of a degree: LV, the level those readings ask for
+    cl_c=$(($1 + $3)) cl_b=$(($2 + $3))
+    if [ $cl_c -ge 500 ] || [ $cl_b -ge 480 ]; then LV=3
+    elif [ $cl_c -ge 480 ] || [ $cl_b -ge 470 ]; then LV=2
+    elif [ $cl_c -ge 460 ] || [ $cl_b -ge 460 ]; then LV=1
+    else LV=0; fi
+}
+cap_pct() { case "$1" in 0) PCT=100 ;; 1) PCT=80 ;; *) PCT=60 ;; esac; }
+deg() { echo "$(($1 / 10)).$(($1 % 10)) C"; }
+pol_name() { pn=${1#/sys/devices/system/cpu/cpufreq/}; echo "${pn%/scaling_max_freq}"; }
+
 # --- USB AND ADB DURING A SESSION ---------------------------------------------
 # (docs/oneios.md, "USB and adb during a session"; OneiOS's oneos/interface.md.)
 # One UI's framework is what sets the USB gadget's functions: UsbDeviceManager in
@@ -583,6 +661,105 @@ case "$MODE" in
         mkdir -p "$CTL/base"
         usb_save
         exit 0 ;;
+    --mode-check)
+        # The tests' way in (against a fake phone): the session mode's choice and its preflight, with a stand-in
+        # for xnuhost's --host-info (ONEIOS_TEST_XNUHOST). Prints what the preflight prints; refuses as it refuses.
+        [ -n "$T" ] || { echo "$MODE: for the tests only"; exit 2; }
+        session_mode_pick
+        [ "$SMODE" = hosted ] || takeover_checks "${ONEIOS_TEST_XNUHOST:-$T/none}"
+        echo "MODE OK $SMODE"
+        exit 0 ;;
+    --cpu-cap)
+        # The Android takeover's CPU cap ("THE SESSION MODE" above), started by the switch once system_server is
+        # gone and the hardware's range is written (clocks_tops), in init's mount namespace, outside xnuhost's
+        # cgroup; not the way back, so not out_of_the_way: no OOM score of its own, no renice. Every CAP_EVERY
+        # seconds it reads two named files with the shell's own read (no process per reading), and writes only
+        # when its level changes. It ends with the session (a state that is not starting or running), on
+        # control/cpu-cap.off, and when the return kills it; the return writes One UI's values back after it is
+        # gone. Its lines go to control/cpu-cap.log; its level, for the return, to control/cpu-cap.level.
+        [ "$(cat "$CTL/base/mode" 2>/dev/null)" = takeover ] || { echo "$(date '+%F %T') cpu-cap: not an Android takeover session: nothing to do"; exit 0; }
+        echo $$ > "$CTL/cpu-cap.pid"
+        rm -f "$CTL/cpu-cap.ended"
+        trap 'echo "$(date +%s)" 2>/dev/null > "$CTL/cpu-cap.ended"' EXIT
+        csay() { echo "$(date '+%F %T') cpu-cap: $*"; }
+        CASE_F="$T/sys/class/power_supply/battery/lrp" CASE_N=lrp
+        [ -r "$CASE_F" ] || CASE_F="$T/sys/class/sec/sec-ap-thermistor/temperature" CASE_N=sec-ap-thermistor
+        CELL_F="$T/sys/class/power_supply/battery/temp"
+        NODES=$(cap_policies "$CTL/base/clocks")
+        [ -n "$NODES" ] || { csay "no CPU policy in $CTL/base/clocks: nothing to cap"; exit 0; }
+        TOPS="" LOS=""
+        for node in $NODES; do
+            top=$(awk -v n="$node" '$1 == n { print $3; exit }' "$CTL/base/clocks")
+            lo=$(cat "$T${node%/scaling_max_freq}/cpuinfo_min_freq" 2>/dev/null)
+            case "$lo" in ''|*[!0-9]*) lo=0 ;; esac
+            TOPS="$TOPS $top" LOS="$LOS $lo"
+        done
+        # Writes each policy's cap for level $1, unless the session is over. Its line says what each reads after.
+        cap_write() {
+            cap_pct "$1"
+            out="" i=0
+            for node in $NODES; do
+                i=$((i + 1))
+                set -- $TOPS; eval "top=\${$i}"
+                set -- $LOS; eval "lo=\${$i}"
+                want=$((top / 100 * PCT))
+                [ "$PCT" != 100 ] || want=$top
+                [ "$want" -ge "$lo" ] || want=$lo
+                read -r st < "$CTL/state" 2>/dev/null || st=""
+                case "$st" in starting|running) ;; *) return 1 ;; esac
+                [ ! -e "$CTL/cpu-cap.off" ] || return 1
+                if echo "$want" 2>/dev/null > "$T$node"; then
+                    read -r got < "$T$node" 2>/dev/null || got="?"
+                    out="$out $(pol_name "$node")=$got"
+                else
+                    out="$out $(pol_name "$node"):not-written"
+                fi
+            done
+            echo "$LEVEL" 2>/dev/null > "$CTL/cpu-cap.level"
+            csay "level $LEVEL ($PCT % of each policy's top): case $(deg "$CASE") ($CASE_N), cell $(deg "$CELL"):$out"
+            return 0
+        }
+        LEVEL=0 CASE=0 CELL=0 low=0 bad="" asked=0 t=0
+        echo 0 > "$CTL/cpu-cap.level"
+        csay "watching every $CAP_EVERY s: case $CASE_F, cell $CELL_F; policies:$(for node in $NODES; do printf " %s" "$(pol_name "$node")"; done), tops$TOPS; level 0: the hardware's top (clocks_tops)"
+        while :; do
+            read -r st < "$CTL/state" 2>/dev/null || st=""
+            case "$st" in starting|running) ;; *) csay "the session is over (state '$st'): the cap ends at level $LEVEL"; exit 0 ;; esac
+            [ ! -e "$CTL/cpu-cap.off" ] || { csay "control/cpu-cap.off: the cap ends at level $LEVEL"; exit 0; }
+            c="" b=""
+            read -r c < "$CASE_F" 2>/dev/null
+            read -r b < "$CELL_F" 2>/dev/null
+            case "${c#-}:${b#-}" in
+                *[!0-9:]*|:*|*:)
+                    [ -n "$bad" ] || csay "a reading is not a number (case '$c', cell '$b'): the level stays $LEVEL"
+                    bad=1 ;;
+                *)
+                    bad="" CASE=$c CELL=$b
+                    cap_level "$CASE" "$CELL" 0
+                    if [ "$LV" -gt "$LEVEL" ]; then
+                        # Up at once (level 3 caps as level 2 and asks for the return).
+                        LEVEL=$LV low=0
+                        cap_write "$LEVEL" || exit 0
+                    elif [ "$LV" -lt "$LEVEL" ] && [ "$LEVEL" -lt 3 ]; then
+                        # Down one step only when both are 2 C under this level for 3 readings in a row.
+                        cap_level "$CASE" "$CELL" 20
+                        if [ "$LV" -lt "$LEVEL" ]; then low=$((low + 1)); else low=0; fi
+                        if [ $low -ge 3 ]; then LEVEL=$((LEVEL - 1)) low=0; cap_write "$LEVEL" || exit 0; fi
+                    else
+                        low=0
+                    fi
+                    if [ "$LEVEL" = 3 ] && [ $asked = 0 ]; then
+                        asked=1
+                        [ -e "$SESSION/return.request" ] ||
+                            echo "thermal: the Android takeover's limit: case $(deg "$CASE") ($CASE_N, limit 50.0 C), cell $(deg "$CELL") (limit 48.0 C) at $(date '+%F %T')" > "$SESSION/return.request"
+                        csay "level 3: a return to One UI is asked (session/return.request); the cap stays at 60 % until it ends"
+                    fi ;;
+            esac
+            # One line a minute while capped, so the log shows the readings the level rests on.
+            t=$((t + CAP_EVERY))
+            [ "$LEVEL" = 0 ] || [ $((t % 60)) -ne 0 ] || csay "level $LEVEL: case $(deg "$CASE"), cell $(deg "$CELL")"
+            sleep $CAP_EVERY
+        done ;;
     --usb-watch)
         # The session's USB watcher, started once One UI's framework is stopped
         # (above, "USB AND ADB DURING A SESSION"); its lines go to control/usb.log.
@@ -755,6 +932,12 @@ case "$MODE" in
         esac
         AT="exec of /data/runtime/$R_XNUHOST"
         echo "oneios inner: $(date '+%F %T') starting /data/runtime/$R_XNUHOST (pid $$)"
+        # The Android takeover (session-mode=takeover, recorded by the switch in control/base/mode): the same command
+        # line and one setting more. The default session's command line is unchanged.
+        if [ "$(cat /data/control/base/mode 2>/dev/null)" = takeover ]; then
+            exec "/data/runtime/$R_XNUHOST" --session-abi $ABI --mode takeover \
+                --runtime /data/runtime --image /data/image --data /data/data --session /data/session --set session-mode=takeover
+        fi
         exec "/data/runtime/$R_XNUHOST" --session-abi $ABI --mode takeover \
             --runtime /data/runtime --image /data/image --data /data/data --session /data/session
         echo "oneios inner: could not exec xnuhost"
@@ -1164,6 +1347,9 @@ set -- $(stat -f -c '%a %S' /data 2>/dev/null)
 [ -w /sys/power/wake_lock ] || refuse "no /sys/power/wake_lock: the phone would sleep with One UI's framework stopped"
 # The app's experimental tick (root's switch verb passes it on).
 [ "$APP" != 1 ] || [ "${ONEIOS_ACK_EXPERIMENTAL:-0}" = 1 ] || refuse "the experimental tick was not given"
+# The session mode ("THE SESSION MODE" above): hosted adds nothing here; takeover asks the staged xnuhost.
+session_mode_pick
+[ "$SMODE" = hosted ] || takeover_checks "$X"
 
 echo "Preflight passed (runtime $R_VERSION, xnuhost $R_XNUHOST, image iOS $I_VERSION $I_BUILD format $I_FORMAT, busybox $BB, SELinux $(getenforce 2>/dev/null))"
 if [ "$MODE" = --check ]; then
@@ -1213,6 +1399,11 @@ clocks_save
 # The USB gadget and adbd as One UI has them (control/base/usb), for the
 # session's USB watcher and the return.
 usb_save
+# The Android takeover: its mark for --inner (xnuhost's session-mode=takeover), the CPU cap and the return. Only in
+# that mode: a hosted session has no such file.
+if [ "$SMODE" = takeover ]; then
+    echo takeover > "$B/mode" || refuse "could not make $B/mode (the session mode)"
+fi
 echo "Baseline: boot $(cat "$B/boot_id"), SELinux $(cat "$B/selinux"), $(tr '\n' ' ' < "$B/pids")wifi $(cat "$B/wifi_on")"
 
 echo "=== [2/5] $(date +%T) Arming the way back ==="
@@ -1259,6 +1450,7 @@ if [ -n "$armed" ]; then
 fi
 echo "Return to One UI: hold Volume Up + Volume Down for 3 s (key devices: $(echo $KDEVS)); watcher $(cat "$CTL/watcher.pid"), key readers $(tr '\n' ' ' < "$CTL/keys/pids")"
 echo "If that does nothing: hold Power + Volume Down until the phone restarts (about 7 s). It restarts into One UI."
+[ "$SMODE" = hosted ] || echo "Android takeover: the same ways back, in place first; a restart into One UI only where the in-place return cannot put One UI back (a failed check, or the takeover's CPU cap that cannot be written back)"
 
 # A return asked while the switch runs (the watcher, the key readers, the app,
 # adb) wins. The switch and the return meet at one lock, $CTL/stop.lock: the
@@ -1331,6 +1523,17 @@ kill -9 $(pidof zygote64) $(pidof zygote) 2>/dev/null
 rmdir "$CTL/stop.lock" 2>/dev/null
 # system_server is gone, so nothing of One UI writes the clock caps any more.
 clocks_tops
+# The Android takeover's CPU cap: from the hardware's top just written, lower only when the case or the cell is hot.
+# Not a condition of the session: without it the session runs as a hosted one does (the kernel's trips, xnuhost's
+# thermal step); the return writes One UI's clocks back either way.
+if [ "$SMODE" = takeover ]; then
+    rm -f "$CTL/cpu-cap.pid"
+    "$BB" setsid /system/bin/sh "$SELF" --cpu-cap </dev/null >>"$CTL/cpu-cap.log" 2>&1 &
+    n=0
+    while [ $n -lt 10 ] && [ ! -s "$CTL/cpu-cap.pid" ]; do sleep 0.2; n=$((n + 1)); done
+    if [ -s "$CTL/cpu-cap.pid" ]; then echo "CPU cap (Android takeover): pid $(cat "$CTL/cpu-cap.pid"), log $CTL/cpu-cap.log"
+    else echo "CPU cap (Android takeover): did not start within 2 s (log $CTL/cpu-cap.log): the session goes on without it"; fi
+fi
 "$BB" setsid /system/bin/sh "$SELF" --stop-loop </dev/null >/dev/null 2>&1 &
 echo $! > "$CTL/stop-loop.pid"
 # UsbDeviceManager went with system_server: from here the USB watcher keeps

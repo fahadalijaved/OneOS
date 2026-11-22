@@ -90,6 +90,9 @@ object OneiosRoot {
 
     private val TOKEN = Regex("^[A-Za-z0-9][A-Za-z0-9._+,/-]{0,199}$")
     private val DEC = Regex("^[0-9]{1,18}$")
+
+    /** The switch verb's optional third word: the session mode (oneios_switch.sh, "THE SESSION MODE"). */
+    val SESSION_MODES: Set<String> = setOf(OneiosSystem.MODE_HOSTED, OneiosSystem.MODE_TAKEOVER)
     private val HEX64 = Regex("^[0-9a-f]{64}$")
     private val WORD = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
     private val BID = Regex("^xnu-[A-Za-z0-9._-]{1,85}$")
@@ -177,8 +180,11 @@ object OneiosRoot {
                 args.getOrNull(0)?.let { if (OneiosChecks.byId(it)?.picture != true) p += "checkfile: '${it.take(40)}' has no picture" }
             }
             Verb.SWITCH -> {
-                need(2); arg(0, DEC, "a versionCode")
+                // The third word, the session mode (docs/oneios.md, "Android takeover"), is optional: hosted or takeover.
+                if (args.size != 2 && args.size != 3) p += "${verb.word} takes 2 or 3 arguments, got ${args.size}"
+                arg(0, DEC, "a versionCode")
                 args.getOrNull(1)?.let { if (it != "0" && it != "1") p += "switch: the tick is 0 or 1" }
+                args.getOrNull(2)?.let { if (it !in SESSION_MODES) p += "switch: the session mode is hosted or takeover" }
             }
         }
         return p

@@ -254,6 +254,10 @@ Two boxes, both every time: "I have read how to get back to One UI: Volume Up + 
 and the experimental tick. **Switch to iOS 27** is on only with both. The experimental tick is what root's `switch`
 gets (`switch <versionCode> 1`), as before; the other box only gates the button.
 
+On the Galaxy S24 Ultra and the Galaxy S26 Ultra (`OneiosSystem.TAKEOVER_PROFILE_IDS`) one more box, unticked every time and
+not needed for the button: **Android takeover (faster, experimental)**, with its warning (`OneiosSystem.TAKEOVER_WARNING`).
+Ticked, root's switch gets `switch <versionCode> 1 takeover` (below, "Android takeover").
+
 ### 5. Switching to iOS 27
 
 `OneiosSwitchActivity`, the boot screen's layout: what runs ("Checking before the switch…", then "Shutting down
@@ -862,6 +866,44 @@ takes the lock right after it writes `returning` (waiting up to 15 s for a stop 
 running; a state `returned` with the mark and the framework down is returned again. A switch whose xnuhost does not
 start runs `oneios_return.sh switch-failed` itself, and no longer only counts on a watcher that may have ended.
 
+## Android takeover (session-mode=takeover, 2026-11-23)
+
+An opt-in session mode, off by default: the vehicle for the speed of OneiOS's iOS-first plan (its
+`docs/plan-ios-first-session.md` 5a), ported in part from YMGPwcca/OneOS's S26 Framework-takeover experiment
+(OneiOS `docs/s26.md`, the last section, says what was taken and why the rest was not). The contract is OneiOS's
+`oneos/interface.md` 4a. **Not run on a phone yet.**
+
+- **On it:** the Switch sheet's box (root's `switch <versionCode> 1 takeover`, which passes
+  `ONEIOS_SESSION_MODE=takeover`), or `session-mode=takeover` in the staged image's `xnuhost.conf` (the last such line
+  of `image/xnuhost.conf`, then `image/overlay/userland/xnuhost.conf`). Neither: `hosted`, the session above, unchanged
+  (no file, no line, no step, the same xnuhost command line).
+- **Before anything changes** (the preflight, `PREFLIGHT REFUSED` and One UI untouched otherwise): the staged xnuhost's
+  `--host-info` must say `takeover=yes` (OneiOS's host table: the S24 Ultra and S26 Ultra rows); a runtime without
+  `--host-info` is refused; a cpufreq policy and the cell's temperature must be readable.
+- **What it changes:** xnuhost gets `--set session-mode=takeover` and grabs the native touchscreen
+  (`sec_touchscreen`) for iOS alone; the key devices are read as always and never grabbed, so the chord works. Once
+  system_server is gone and `clocks_tops` wrote the hardware's top, the switch starts its CPU cap
+  (`oneios_switch.sh --cpu-cap`, `control/cpu-cap.log`): every 2 s it reads the case (`power_supply/battery/lrp`, else
+  `sec-ap-thermistor`) and the cell (`battery/temp`) with the shell's own `read`, and writes each saved policy's
+  `scaling_max_freq` only when its level changes: level 1 (80 % of the top) from the case at 46 C or the cell at 46 C,
+  level 2 (60 %) at 48 C / 47 C, level 3 (60 % and `session/return.request`, a return in place) at 50 C / 48 C; one
+  level down when both are 2 C under it for 3 readings. Never `scaling_min_freq`, a thermal node, a GPU node or
+  `/sys/power`; no OOM score or nice of its own (it is not the way back). The thresholds are a guess on Samsung's
+  scale (YMGPwcca's emergency limits, OneiOS's case levels), not a measured policy.
+- **What is put back:** the touchscreen's grab ends with xnuhost's file (any exit, a SIGKILL). The return writes
+  `control/cpu-cap.off`, kills the cap and waits up to 2 s for it, then writes One UI's clocks back as for every session
+  (`return.log`: `Android takeover: its CPU cap ended at level N (...)`, then the `clocks:` lines), on every path that
+  stopped One UI: the chord, a crash of xnuhost (the watcher), a switch that failed after the stop.
+- **The way back** is the one below, in place first. A restart into One UI only where the in-place return cannot put
+  One UI back: any failed check (as always), the cap still running 2 s after it was killed, or a policy's
+  `scaling_max_freq` that cannot be written back while the cap was at level 1 or more. At level 0 such a node is logged
+  only, as in a hosted session.
+- **Tests** (`OneiosScriptTest`): `theCpuCapDoesNothingInAHostedSession`, `theCpuCapFollowsTheCaseAndTheReturnPutsOneUisClocksBack`,
+  `theCpuCapComesBackToTheTopWhenThePhoneCools`, `theCpuCapIsPutBackAfterXnuhostCrashes`,
+  `theCpuCapIsPutBackAfterAnEarlyStop`, `theRestartIsChosenOnlyWhenTheInPlaceReturnCannotWork`,
+  `theSessionModeIsHostedUnlessAskedAndTakeoverOnlyWhereTheHostTableAllowsIt` (`--mode-check`, a stand-in for
+  `--host-info`), `theHostedSessionIsTheSessionAsBefore`; `OneiosTest.theAndroidTakeoverIsOfferedOnTheS24AndS26UltraOnly`.
+
 ## USB and adb during a session
 
 **The rule: adb over USB works for the whole iOS session, across unplug and replug, and the return leaves the USB
@@ -1087,7 +1129,7 @@ have started at all. From the fastest to the one that cannot fail:
 | 3 | **The watcher**: returns on `session/return.request`, when xnuhost ends, when the switch never started it (60 s), when the guest never reported `ready` (600 s) | iOS crashed, never started, or asked to leave |
 | 4 | The key readers start the return themselves if the session is still not returning 5 s after their request | the watcher is gone or stuck |
 | 5 | **The return's guard**: a process of its own that reboots the phone if a step of the return has not finished within its own limit (75 s for Gate B; above), or the whole return after 600 s; the watcher reboots at once if the return script cannot run or ends with an error | a step of the return hangs or the script is damaged |
-| 6 | **The failsafe reboot** on any failed check of the return | anything about One UI's state is in doubt |
+| 6 | **The failsafe reboot** on any failed check of the return | anything about One UI's state is in doubt; in the Android takeover also its CPU cap that cannot be ended or written back ("Android takeover") |
 | 7 | **Power + Volume Down, held until the phone restarts (about 7 s)** | always |
 
 **What the guest cannot do to 1 to 6.** The watcher, the readers and the poll are One UI-side processes: started

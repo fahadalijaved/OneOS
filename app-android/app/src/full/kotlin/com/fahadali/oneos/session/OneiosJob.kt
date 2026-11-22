@@ -245,8 +245,19 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     /** When root last answered a whole `status` ([SystemClock.elapsedRealtime]); 0 = never in this process. */
     @Volatile private var statusAt = 0L
 
+    /**
+     * Whether the Switch sheet offers the Android takeover's toggle here ([OneiosSystem.takeoverOfferedOn]): read with
+     * [offered], from the same profile; null until then.
+     */
+    @Volatile var takeoverOffered: Boolean? = null
+        private set
+
     private fun offered(app: Context): Boolean =
-        runCatching { OneiosSystem.offeredOn(Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile) }.getOrDefault(false)
+        runCatching {
+            val profile = Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile
+            takeoverOffered = OneiosSystem.takeoverOfferedOn(profile)
+            OneiosSystem.offeredOn(profile)
+        }.getOrDefault(false)
 
     // --- What the app checked at staging (shown beside root's status) ----------------
 
@@ -565,10 +576,15 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
             "The kept kernel set is the image's again."
         }
 
-    fun switch(ctx: Context, ticked: Boolean, notThisPhoneTicked: Boolean = false) = job(ctx, Phase.SWITCHING, OneiosFlow.Job.SWITCH, "Checking before the switch…") { app ->
+    /**
+     * [takeover]: the Android takeover's toggle (docs/oneios.md, "Android takeover"), off by default; only on a phone
+     * whose profile offers it ([OneiosSystem.takeoverOfferedOn]). Root's switch then gets the mode as its third word.
+     */
+    fun switch(ctx: Context, ticked: Boolean, notThisPhoneTicked: Boolean = false, takeover: Boolean = false) = job(ctx, Phase.SWITCHING, OneiosFlow.Job.SWITCH, "Checking before the switch…") { app ->
         val profile = Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile
         val gate = OneiosSystem.gate(profile, ticked, notThisPhoneTicked)
         if (gate.level != Level.OK) throw Failed(if (gate.level == Level.BLOCK) gate.detail else "Tick the box first: ${gate.title}.")
+        if (takeover && !OneiosSystem.takeoverOfferedOn(profile)) throw Failed("${OneiosSystem.TAKEOVER_TITLE} is not offered on this phone.")
         // This build's session scripts and boot screen, before every switch: an app update reaches the stage
         // without a new import. A refusal here (no stage yet, an open session) is not the answer: root's
         // preflight below gives that, and a stage that keeps its earlier scripts switches as it did before.
@@ -577,8 +593,8 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
             val staged = root(app, OneiosRoot.Verb.SCRIPT, listOf(s.name, s.bytes.size.toString(), s.sha256), RootShell.Feed { it.write(s.bytes) })
             if (!staged.ok) break
         }
-        must(root(app, OneiosRoot.Verb.SWITCH, listOf(BuildConfig.VERSION_CODE.toString(), "1"), silenceMs = 180_000))
-        "Switching to ${OneiosSystem.SHORT_NAME}…"
+        must(root(app, OneiosRoot.Verb.SWITCH, OneiosSystem.switchArgs(BuildConfig.VERSION_CODE, takeover), silenceMs = 180_000))
+        if (takeover) "Switching to ${OneiosSystem.SHORT_NAME} (Android takeover)…" else "Switching to ${OneiosSystem.SHORT_NAME}…"
     }
 
     /** Back to One UI, for a session that is still open while this app runs (one that never stopped One UI, or is stuck). */
