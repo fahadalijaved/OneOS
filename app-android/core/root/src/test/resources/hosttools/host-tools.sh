@@ -79,6 +79,13 @@ if [ "$(base64 "$probe/f" 2>/dev/null)" != YQo= ]; then
     use_gnu base64 || { real=$(command -v base64) && [ "$("$real" -i "$probe/f" 2>/dev/null)" = YQo= ] &&
         wrap base64 "$real -i" "case \"\$#:\$1\" in 1:-*) ;; 1:*) exec '$real' -i \"\$1\" ;; esac; exec '$real' \"\$@\""; }
 fi
+# head -c 0: nothing, status 0 (toybox, busybox and GNU). BSD's head refuses a count of 0 ("illegal byte
+# count"), so oneos_root.sh's debloat (0.5.32) read no empty list, and Restore all ended as "could not read
+# the list" on a Mac only.
+if ! head -c 0 < "$probe/f" >/dev/null 2>&1; then
+    use_gnu head || { real=$(command -v head) &&
+        wrap head "$real, with -c 0 as nothing" "case \"\$#:\$1:\$2\" in 2:-c:0|3:-c:0) exit 0 ;; esac; exec '$real' \"\$@\""; }
+fi
 # cat /proc/PID/cmdline: oneios_root.sh's check_is_tool reads it, so that a Hardware check's time limit
 # ends only the tool it started. A machine without /proc (macOS) had nothing to read there: the limit
 # took the tool for gone, never ended it, and the hung-tool test waited for ever. ps -p PID -o command=

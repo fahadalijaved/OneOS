@@ -48,7 +48,14 @@ are the Android guests' (`guest_prepare.sh`, `guest_start.sh`, `guest_props.sh`,
 fork's git count for the version (upstream set 0.5.35/178 by hand; the merge counts 193, 0.5.64), and `EditionsTest`
 lists the fork's assets with upstream's new `debloat/apps.tsv`. Upstream's new lines had four redirected `:`
 (`guest_prepare.sh`'s Fold8 home layout mark, `guest_start.sh`'s Fold8 input file and taskbar mark,
-`oneos_switch.sh`'s adaptive mark): `true` now, as at the earlier merges. Not run on the phone.
+`oneos_switch.sh`'s adaptive mark): `true` now, as at the earlier merges. Tested on OneiOS's Mac (macOS, JDK 21,
+dash, Homebrew's GNU tools on `PATH`): `scripts/build-guest-manager.sh --debug`, then `./gradlew --max-workers=3
+test assembleFullDebug`: the APK 0.5.64 (193), "Staging integrity OK: 19 manifests, 529 payloads"; 700 tests, 1
+failure, `StageScriptTest.debloatWritesTheListOrNothing`: BSD's `head` refuses `head -c 0` ("illegal byte count"),
+so upstream's debloat read no empty list (Restore all) on a Mac only; toybox, busybox and GNU take it. The tests'
+`host-tools.sh` now gives a `head` that does (Homebrew's `ghead`, else BSD's with `-c 0` as nothing); the root
+script is unchanged. Then `:core:root:testDebugUnitTest --rerun`: 320 tests, 0 failures, 6 skipped (core:model 374,
+1 skipped; core:safety 6, 1 skipped). Not run on the phone.
 
 **Make iOS image with no PC** (2026-11-21): a phone with only this APK makes the whole iOS image set itself. The
 flow stages the latest OneiOS runtime first when the staged one carries no kernel or its `oneios-tool` has no
