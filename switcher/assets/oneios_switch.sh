@@ -1201,31 +1201,11 @@ awk '{ print $5 }' /proc/1/mountinfo | sort > "$B/mounts"
 for bl in "$T"/sys/class/backlight/*/brightness; do
     [ -f "$bl" ] && echo "${bl#"$T"} $(cat "$bl" 2>/dev/null)"
 done > "$B/backlight" 2>/dev/null
-# The shmem THP mode as One UI has it: xnuhost's 2 MiB host pages map the
-# guest's RAM with MADV_HUGEPAGE, which shmem honours only in the advise mode
-# (OneiOS 8a9caf3, docs/booter.md 2.6c). One UI never advises, so advise
-# changes nothing for it; the return writes the old value back.
-SHMEM_EN="$T/sys/kernel/mm/transparent_hugepage/shmem_enabled"
-if [ -f "$SHMEM_EN" ]; then
-    # The node prints every mode with the active one in brackets:
-    # "always within_size advise [never] deny force". Save the bare mode (the
-    # bracketed token), never the whole line: writing the line back is EINVAL
-    # and that is what failed Gate A on 2026-11-16.
-    shmem_raw=$(cat "$SHMEM_EN" 2>/dev/null)
-    shmem_mode=$(printf '%s\n' "$shmem_raw" | sed -n 's/.*\[\([a-z_]*\)\].*/\1/p')
-    [ -n "$shmem_mode" ] || shmem_mode=$(printf '%s\n' "$shmem_raw" | awk '{ print $1 }')
-    if [ -n "$shmem_mode" ]; then
-        printf '%s\n' "$shmem_mode" > "$B/shmem_enabled" 2>/dev/null
-        if [ "$shmem_mode" != advise ] && echo advise > "$SHMEM_EN" 2>/dev/null; then
-            echo "shmem_enabled: $shmem_mode -> advise"
-        fi
-    fi
-fi
 clocks_save
 # The USB gadget and adbd as One UI has them (control/base/usb), for the
 # session's USB watcher and the return.
 usb_save
-echo "Baseline: boot $(cat "$B/boot_id"), SELinux $(cat "$B/selinux"), shmem $(cat "$B/shmem_enabled" 2>/dev/null || echo -), $(tr '\n' ' ' < "$B/pids")wifi $(cat "$B/wifi_on")"
+echo "Baseline: boot $(cat "$B/boot_id"), SELinux $(cat "$B/selinux"), $(tr '\n' ' ' < "$B/pids")wifi $(cat "$B/wifi_on")"
 
 echo "=== [2/5] $(date +%T) Arming the way back ==="
 # Before the stop: the watcher returns to One UI by itself if this script
@@ -1309,6 +1289,28 @@ until mkdir "$CTL/stop.lock" 2>/dev/null; do
     sleep 0.2; n=$((n + 1))
 done
 return_asked && end_for_return "One UI's framework was stopped"
+# The shmem THP mode: xnuhost's 2 MiB host pages map the guest's RAM with
+# MADV_HUGEPAGE, which shmem honours only in the advise mode (OneiOS 8a9caf3,
+# docs/booter.md 2.6c). One UI never advises, so advise changes nothing for it.
+# Written here, under the stop lock and just before the stop mark, so that a
+# switch that ends earlier (not armed, a return asked) never changed it; the
+# bare mode is saved first (the node prints "always within_size advise [never]
+# deny force"; the whole line written back is EINVAL: Gate A, 2026-11-16), and
+# both returns, the early one too, write it back (YMGPwcca/OneOS 403d8b4).
+SHMEM_EN="$T/sys/kernel/mm/transparent_hugepage/shmem_enabled"
+if [ -f "$SHMEM_EN" ]; then
+    shmem_mode=$(awk 'NF == 1 && $1 ~ /^[a-z_]+$/ { print $1; exit }
+        { for (i = 1; i <= NF; i++) if ($i ~ /^\[[a-z_]+\]$/) { print substr($i, 2, length($i) - 2); exit } }' "$SHMEM_EN" 2>/dev/null)
+    case "$shmem_mode" in
+        always|within_size|advise|never|deny|force)
+            if printf '%s\n' "$shmem_mode" 2>/dev/null > "$B/shmem_enabled.tmp" && mv -f "$B/shmem_enabled.tmp" "$B/shmem_enabled"; then
+                [ "$shmem_mode" = advise ] || { echo advise 2>/dev/null > "$SHMEM_EN" && echo "shmem_enabled: $shmem_mode -> advise"; }
+            else
+                echo "shmem_enabled: $shmem_mode could not be saved: left as it is"
+            fi ;;
+        *) echo "shmem_enabled: no mode read: left as it is" ;;
+    esac
+fi
 # From here One UI's framework is down: the return starts it again. Without
 # this mark the return only tidies up (a switch that ended before the stop).
 echo "$(date +%s)" > "$CTL/stopped"

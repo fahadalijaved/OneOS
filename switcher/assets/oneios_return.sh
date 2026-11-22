@@ -141,6 +141,36 @@ failsafe() {
     echo "failsafe $(date +%s) $*" > "$S/return.outcome"
     do_reboot oneios-inplace-failsafe
 }
+# The shmem THP mode back to the bare mode the switch saved ($BASE/shmem_enabled;
+# the switch writes advise for xnuhost's 2 MiB host pages, under its stop lock).
+# The node lists every mode with the active one in brackets: compare and write
+# bare modes, never the whole line (2026-11-16: the line written back was EINVAL,
+# Gate A failed and the phone rebooted). Read back after the write. <on failure:
+# failsafe (One UI was stopped) or say (it never was)>. Nothing without a saved mode.
+# (Ported from YMGPwcca/OneOS 403d8b4: the early return restores it too.)
+SHMEM_EN="$T/sys/kernel/mm/transparent_hugepage/shmem_enabled"
+shmem_mode() {
+    awk 'NF == 1 && $1 ~ /^[a-z_]+$/ { print $1; exit }
+        { for (i = 1; i <= NF; i++) if ($i ~ /^\[[a-z_]+\]$/) { print substr($i, 2, length($i) - 2); exit } }' "$SHMEM_EN" 2>/dev/null
+}
+shmem_restore() {
+    [ -f "$BASE/shmem_enabled" ] || return 0
+    shmem_old=$(cat "$BASE/shmem_enabled" 2>/dev/null)
+    case "$shmem_old" in
+        always|within_size|advise|never|deny|force) ;;
+        *) "$1" "shmem_enabled: the switch's saved mode '$shmem_old' is not a mode: not written"; rm -f "$BASE/shmem_enabled"; return 0 ;;
+    esac
+    [ -f "$SHMEM_EN" ] || { rm -f "$BASE/shmem_enabled"; return 0; }
+    shmem_now=$(shmem_mode)
+    if [ "$shmem_now" != "$shmem_old" ]; then
+        if ! printf '%s\n' "$shmem_old" 2>/dev/null > "$SHMEM_EN" || [ "$(shmem_mode)" != "$shmem_old" ]; then
+            "$1" "shmem_enabled is $(shmem_mode), was $shmem_old at the switch, and the write back failed"
+            return 0
+        fi
+        say "shmem_enabled back: $shmem_old"
+    fi
+    rm -f "$BASE/shmem_enabled"
+}
 base_prop() { sed -n "s/^\[$1\]: \[\(.*\)\]\$/\1/p" "$BASE/props" 2>/dev/null | head -n 1; }
 base_has() { grep -q "^\[$1\]: " "$BASE/props" 2>/dev/null; }
 # A non-persist prop back to its value at the switch, in memory only
@@ -527,6 +557,10 @@ if [ ! -e "$CTL/stopped" ] && ! framework_down; then
     end_helper "$CTL/stop-loop.pid" --stop-loop
     end_helper "$CTL/feeder.pid" --feed
     [ -z "$CG" ] || rmdir "$CG" 2>/dev/null
+    # A switch that wrote advise and ended before its stop mark (it writes both
+    # under the stop lock, the mode first): One UI runs, so a mode that cannot
+    # be written back is logged, never a reason to restart it.
+    shmem_restore say
     echo "inplace $(date +%s) One UI was never stopped" > "$S/return.outcome"
     finished
     say "The switch ended before One UI's framework was stopped: nothing to restore."
@@ -587,26 +621,8 @@ for svc in vold keystore2 servicemanager hwservicemanager logd lmkd installd; do
     [ "$(base_prop init.svc.$svc)" = running ] || continue
     [ "$(getprop init.svc.$svc)" = running ] || failsafe "$svc is $(getprop init.svc.$svc), was running at the switch"
 done
-# The shmem THP mode back to what the switch found (the switch wrote advise
-# for the 2 MiB host pages and kept the old value in the base). Nothing when
-# the switch never saved one.
-SHMEM_EN="$T/sys/kernel/mm/transparent_hugepage/shmem_enabled"
-if [ -f "$BASE/shmem_enabled" ] && [ -f "$SHMEM_EN" ]; then
-    ORIG_SHMEM=$(cat "$BASE/shmem_enabled")
-    # The node shows its modes with the active one in brackets; compare the
-    # modes, not the whole line (2026-11-16: the switch saved that line and the
-    # write back was EINVAL, so Gate A failed and the phone rebooted).
-    shmem_raw=$(cat "$SHMEM_EN" 2>/dev/null)
-    CUR_SHMEM=$(printf '%s\n' "$shmem_raw" | sed -n 's/.*\[\([a-z_]*\)\].*/\1/p')
-    [ -n "$CUR_SHMEM" ] || CUR_SHMEM=$(printf '%s\n' "$shmem_raw" | awk '{ print $1 }')
-    if [ "$CUR_SHMEM" != "$ORIG_SHMEM" ]; then
-        echo "$ORIG_SHMEM" > "$SHMEM_EN" 2>/dev/null &&
-            say "shmem_enabled back: $ORIG_SHMEM" ||
-            failsafe "shmem_enabled is $(cat "$SHMEM_EN" 2>/dev/null), was $ORIG_SHMEM at the switch, and the write back failed"
-    fi
-    rm -f "$BASE/shmem_enabled"
-fi
-[ ! -f "$BASE/shmem_enabled" ] || failsafe "shmem_enabled is $(cat "$SHMEM_EN" 2>/dev/null), the switch's old value $(cat "$BASE/shmem_enabled" 2>/dev/null) is still in the base: not restored"
+# The shmem THP mode back to what the switch found (shmem_restore above).
+shmem_restore failsafe
 [ "$(getenforce 2>/dev/null)" = "$(cat "$BASE/selinux")" ] || failsafe "SELinux is $(getenforce 2>/dev/null), was $(cat "$BASE/selinux")"
 # The session scripts set no persist property. What differs from the switch
 # is One UI's own daemons' doing, or xnuhost's against its contract: by name

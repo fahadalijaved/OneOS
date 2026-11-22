@@ -1339,6 +1339,40 @@ class OneiosScriptTest {
         assertFalse(File(f.control, "base/shmem_enabled").exists())
     }
 
+    /** A switch that wrote advise and ended before its stop mark (YMGPwcca/OneOS 403d8b4): One UI never stopped, and
+     *  the early return writes the mode back too (it used to leave advise until the next boot). */
+    @Test
+    fun shmemComesBackAtAnEarlyReturn() = each { f ->
+        f.phone(stopped = false, state = "starting")
+        File(f.root, "sys/kernel/mm/transparent_hugepage").mkdirs()
+        File(f.root, "sys/kernel/mm/transparent_hugepage/shmem_enabled").writeText("always within_size [advise] deny force\n")
+        File(f.control, "base/shmem_enabled").writeText("never\n")
+        val r = f.returns()
+        assertEquals(r.text, 0, r.exit)
+        assertTrue(r.text, r.text.contains("shmem_enabled back: never"))
+        assertTrue(r.text, r.text.contains("The switch ended before One UI's framework was stopped: nothing to restore."))
+        assertEquals("never\n", f.file("sys/kernel/mm/transparent_hugepage/shmem_enabled").readText())
+        assertFalse(File(f.control, "base/shmem_enabled").exists())
+        assertEquals(emptyList<String>(), f.setprops)
+        assertEquals(null, f.rebooted)
+    }
+
+    /** The switch's side: the mode is saved and advise written only under the stop lock, after the last look for a
+     *  return and before the stop mark; the baseline (before the way back is armed) writes nothing to the node. */
+    @Test
+    fun theSwitchWritesShmemOnlyUnderTheStopLock() {
+        val sw = code(switchScript).joinToString("\n")
+        val arm = sw.indexOf("=== [2/5]")
+        val lock = sw.indexOf("until mkdir \"\$CTL/stop.lock\"", arm)
+        val inside = sw.indexOf("return_asked && end_for_return \"One UI's framework was stopped\"", lock)
+        val save = sw.indexOf("mv -f \"\$B/shmem_enabled.tmp\" \"\$B/shmem_enabled\"", inside)
+        val write = sw.indexOf("echo advise 2>/dev/null > \"\$SHMEM_EN\"", save)
+        val mark = sw.indexOf("echo \"\$(date +%s)\" > \"\$CTL/stopped\"", write)
+        val order = listOf(arm, lock, inside, save, write, mark)
+        assertTrue(order.toString(), order.all { it >= 0 } && order == order.sorted())
+        assertFalse(sw.substring(0, lock).contains("> \"\$SHMEM_EN\""))
+    }
+
     /** The switch never wrote (no value in the base): the return touches nothing. */
     @Test
     fun shmemLeftAloneWhenTheSwitchNeverWrote() = each { f ->
