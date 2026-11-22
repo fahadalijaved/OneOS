@@ -97,7 +97,8 @@ jobs:
           echo "name=$v" >> "$GITHUB_OUTPUT"
           echo "tag=oneios-$v" >> "$GITHUB_OUTPUT"
 
-      # Optional: one debug key for every run, so a new APK installs over the last one. Without the secret each run
+      # One debug key for every run (the secret is set since 2026-11-22: OneiOS's secrets/oneios-debug.keystore, docs/oneios.md "CI"),
+      # so a new APK installs over the last one, whoever built it. Without the secret each run
       # signs with a key of its own and the old app has to be uninstalled first.
       - name: Debug key
         env:

@@ -1281,8 +1281,12 @@ akshaynexus/OneOS --ref oneios`):
 3. Uploads `OneOS-oneios-<version>-debug.apk` as an artifact and attaches it to the prerelease `oneios-<version>`
    on the fork, recreated at the built commit each time.
 
-Each run signs with a debug key of its own unless the secret `ONEIOS_DEBUG_KEYSTORE_B64` (a base64 debug keystore)
-is set, so without it an earlier build has to be uninstalled before a new one installs. The in-guest app is a
+Every run signs with the OneiOS debug key: the secret `ONEIOS_DEBUG_KEYSTORE_B64` (a base64 debug keystore), set
+here and on akshaynexus/OneiOS since 2026-11-22. It is the build machine's `secrets/oneios-debug.keystore` in OneiOS, which
+OneiOS's `scripts/release/release.sh` signs with too (OneiOS's `docs/releases.md`, "The debug key"). So a build from
+either workflow or from that machine installs over the last one. APKs from before the key (OneiOS v0.1.13's 0.5.47
+and earlier) were each signed with their run's own key, so the first build signed with it needs one uninstall.
+Without the secret, a run signs with a key of its own. The in-guest app is a
 debug build too: Android guests that already hold upstream's release-signed one cannot take it as an update.
 
 **OneiOS builds this branch too (2026-11-15).** This fork is the submodule `app/` of akshaynexus/OneiOS
