@@ -81,6 +81,11 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         val bytesPerSecond: Long = 0,
         /** Seconds left; null = still estimating. */
         val etaSeconds: Int? = null,
+        /**
+         * A check that waits for another of the app's jobs, in words ("the hardware checks"): it starts by itself when
+         * that one ends ([refresh]). Null when none waits.
+         */
+        val waitingFor: String? = null,
         /** The job that runs now; null when idle. */
         val job: OneiosFlow.Job? = null,
         /** The job that ran last, and why it failed as root or the app said it (null: it worked). */
@@ -117,8 +122,20 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
 
     @Volatile private var connection: HttpURLConnection? = null
 
-    private fun othersBusy() = StageCheck.state.busy || PrepareJob.state.busy || LaunchJob.state.busy || LogJob.state.busy ||
-        OldStagesJob.state.busy || RemoveJob.state.busy || OneiosChecksJob.state.busy || OneiosToolJob.state.busy
+    /** The other job of the app that runs now, in words; null when none does (only one job runs at a time). */
+    private fun blocker(): String? = when {
+        StageCheck.state.busy -> "An Android system's check"
+        PrepareJob.state.busy -> "An Android system's setup"
+        LaunchJob.state.busy -> "An Android system's switch"
+        LogJob.state.busy -> "Reading the logs"
+        OldStagesJob.state.busy -> "The clean-up of old stages"
+        RemoveJob.state.busy -> "A removal"
+        OneiosChecksJob.state.busy -> "The hardware checks"
+        OneiosToolJob.state.busy -> "An oneios-tool flow (Make iOS image, Update the kernel, Check every file)"
+        else -> null
+    }
+
+    private fun othersBusy() = blocker() != null
 
     fun canStart(): Boolean = !state.busy && !othersBusy()
 
@@ -262,7 +279,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         val app = ctx.applicationContext
         cancelled = false
         meter.reset()
-        update(state.copy(phase = phase, job = kind, last = null, failure = null, message = first, since = SystemClock.elapsedRealtime(), failed = false, done = 0, total = 0, file = null, bytesPerSecond = 0, etaSeconds = null))
+        update(state.copy(phase = phase, job = kind, last = null, failure = null, message = first, since = SystemClock.elapsedRealtime(), waitingFor = null, failed = false, done = 0, total = 0, file = null, bytesPerSecond = 0, etaSeconds = null))
         // Before the work, from the screen the user tapped: Android only lets a visible app start it.
         if (state.copying) OneiosService.start(app)
         val before = state.status
@@ -289,7 +306,34 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     // --- What the screen calls --------------------------------------------------------
 
     /** Read only: what is staged and whether a switch would start. */
-    fun refresh(ctx: Context) = job(ctx, Phase.CHECKING, OneiosFlow.Job.CHECK, "Checking what is on this phone…") { null }
+    fun refresh(ctx: Context) = refresh(ctx.applicationContext, 0)
+
+    /**
+     * The check, or, while another job of the app runs ([blocker]), a wait for it that the screens show
+     * ([State.waitingFor], with its seconds): every 2 s it looks again and starts the check once that job has ended,
+     * for at most 10 minutes, then says so. Before 2026-11-22 a check that found another job running did nothing, and
+     * iOS 27's page kept its button spinning with no status and no reason until something else read the status.
+     */
+    private fun refresh(app: Context, tries: Int) {
+        if (state.busy) return
+        val other = blocker()
+        if (other == null) {
+            main.removeCallbacksAndMessages(WAIT)
+            job(app, Phase.CHECKING, OneiosFlow.Job.CHECK, "Checking what is on this phone…") { null }
+            return
+        }
+        if (tries >= 300) {
+            update(state.copy(waitingFor = null, last = OneiosFlow.Job.CHECK, failed = true,
+                failure = "$other is still running after 10 minutes: Check again when it has ended"))
+            return
+        }
+        if (state.waitingFor != other) update(state.copy(waitingFor = other, since = if (state.waitingFor == null) SystemClock.elapsedRealtime() else state.since))
+        main.removeCallbacksAndMessages(WAIT)
+        main.postAtTime({ refresh(app, tries + 1) }, WAIT, SystemClock.uptimeMillis() + 2_000)
+    }
+
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val WAIT = Any()
 
     /**
      * [refresh], unless root answered a whole status less than [maxAgeMs] ago and the screen shows it: a screen that

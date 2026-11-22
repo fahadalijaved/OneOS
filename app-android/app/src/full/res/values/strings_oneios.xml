@@ -140,6 +140,8 @@
     <string name="oneios_ready_line">Root\'s last check passed. Before the switch you read how to get back to One UI.</string>
     <string name="oneios_checking">Checking…</string>
     <string name="oneios_seconds">%1$d s</string>
+    <string name="oneios_waiting_title">Waiting to check this phone</string>
+    <string name="oneios_waiting_line">%1$s is still running. The check starts by itself when it ends.</string>
     <string name="oneios_check_stop_line">Stops asking root. Nothing on this phone changes.</string>
     <string name="oneios_checks_elapsed">%1$d s of at most %2$d s</string>
     <string name="oneios_runtime_none_title">No runtime on this phone yet</string>

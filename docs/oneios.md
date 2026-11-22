@@ -112,6 +112,11 @@ last check ends. When su prints nothing within 20 s (a root grant that does not 
 signing key KernelSU sees a new app) the check stops with *Root didn't answer* and says to allow root for OneOS in
 the root manager; a refusal says *Root isn't allowed for OneOS*. Before, the page said "Checking…" in a small line
 for up to the whole 3 minutes of root's silence limit.
+A check that finds another of the app's jobs running (an Android system's check or setup, the hardware checks, an
+oneios-tool flow) shows *Waiting to check this phone*, which job and its seconds, looks again every 2 s and starts by
+itself when that job has ended (at most 10 minutes, then it says so). The fixed button spins only while a job runs;
+with no status and nothing running it says Check again. Before, such a check did nothing and the button spun with
+no reason until another action (such as Download the latest runtime) read the status.
 
 **What a package's check says.** Root's preflight checks, in this order, this phone and root, then the runtime,
 then the image set, then the phone's state, and stops at the first refusal. For the screens (root's `status`) it is

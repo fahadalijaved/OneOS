@@ -136,7 +136,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
         override fun run() {
             val s = OneiosJob.state
             val row = busyRow ?: return
-            if (!s.busy || isDestroyed) return
+            if ((!s.busy && s.waitingFor == null) || isDestroyed) return
             row.summary = busyLine(s)
             ticker.postDelayed(this, 1000)
         }
@@ -144,7 +144,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
 
     /** "Asking root for access… · 7 s": the step in words, and how long it has run. */
     private fun busyLine(s: OneiosJob.State): String = listOfNotNull(
-        s.message,
+        if (s.job == null && s.waitingFor != null) getString(R.string.oneios_waiting_line, s.waitingFor) else s.message,
         s.since.takeIf { it > 0 }?.let { getString(R.string.oneios_seconds, ((android.os.SystemClock.elapsedRealtime() - it) / 1000).toInt()) },
     ).joinToString(" · ")
 
@@ -171,6 +171,13 @@ class OneiosActivity : EdgeToEdgeActivity() {
             if (s.copying) PrebootCards.row(busy, getString(R.string.systems_show_progress), chevron = true) {
                 startActivity(OneiosSetupActivity.intent(this))
             }
+        }
+        // A check that waits for another of the app's jobs: which one, and its seconds; it starts by itself after it.
+        if (s.job == null) s.waitingFor?.let {
+            val busy = PrebootCards.section(column)
+            busyRow = PrebootCards.row(busy, getString(R.string.oneios_waiting_title), busyLine(s)) as dev.oneuiproject.oneui.widget.CardItemView
+            ticker.removeCallbacks(tick)
+            ticker.postDelayed(tick, 1000)
         }
 
         // While the runtime or the image set is missing: the steps, numbered, with what each needs and the one to do
@@ -382,7 +389,9 @@ class OneiosActivity : EdgeToEdgeActivity() {
 
     /** The fixed button: the one thing to do now, with a spinner while a job runs (as a system page's Boot). */
     private fun bindAction(s: OneiosJob.State, flow: OneiosFlow.View) {
-        val waiting = s.busy || (s.status == null && s.failure == null && s.offered != false)
+        // Only a job that runs spins the button. No status yet and nothing running: Check again (flow.next), never a
+        // spinner with no reason (before 2026-11-22 it spun until something else read the status).
+        val waiting = s.busy
         findViewById<View>(R.id.environment_action_spinner).visibility = if (waiting) View.VISIBLE else View.GONE
         val next = flow.next
         findViewById<Button>(R.id.environment_boot).apply {
