@@ -800,7 +800,7 @@ object Profiles {
         codename = "q4q",
         socModel = "SM8475",
         form = FormFactor.FOLD,
-        choices = listOf(OXYGEN16_CHOICE),
+        choices = listOf(OXYGEN16_CHOICE.copy(tested = true)),
         notes = listOf(olderVendor("31 (Android 12)", "5.10")),
     )
 

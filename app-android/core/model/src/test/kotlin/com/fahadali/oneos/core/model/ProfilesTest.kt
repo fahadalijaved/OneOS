@@ -588,12 +588,14 @@ class ProfilesTest {
         assertEquals(FormFactor.FOLD, Profiles.FOLD5.form)
         assertEquals(listOf(Images.ID_FIND_N6, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_ONEUI95), Profiles.FOLD5.choices.map { it.imageId })
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), Profiles.FOLD5.notes.map { it.id })
-        // Galaxy Z Fold4 (SM-F936): Snapdragon 8+ Gen 1 (SM8475), One UI 8.0 stock, OxygenOS 16 only.
+        // Galaxy Z Fold4 (SM-F936): Snapdragon 8+ Gen 1 (SM8475), One UI 8.0 stock, OxygenOS 16 only (tested).
         assertEquals(Profiles.FOLD4, profile("SM-F936B", "q4q", "SM8475"))
         assertEquals(Profiles.FOLD4, profile("SM-F936N", "q4q", "SM8475"))
         assertEquals(Profiles.FOLD4, profile("SM-F936U", "q4q", "SM8475"))
         assertEquals(FormFactor.FOLD, Profiles.FOLD4.form)
         assertEquals(listOf(Images.ID_OXYGEN16), Profiles.FOLD4.choices.map { it.imageId })
+        assertTrue(Profiles.FOLD4.testedWithAnyImage)
+        assertEquals(listOf(true), Profiles.FOLD4.choices.map { it.tested })
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), Profiles.FOLD4.notes.map { it.id })
         assertTrue(Profiles.FOLD4.notes.single().detail.contains("vendor API 31 (Android 12) and kernel 5.10"))
         assertEquals(Profiles.FOLD4, Profiles.resolve(Bundles.Q4Q.facts).profile)

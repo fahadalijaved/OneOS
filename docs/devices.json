@@ -1485,7 +1485,7 @@
           "image": "oxygenos16-cph2745",
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
-          "tested": false
+          "tested": true
         }
       ]
     },
