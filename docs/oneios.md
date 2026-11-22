@@ -1348,7 +1348,11 @@ either workflow or from that machine installs over the last one. Any debug build
 assembleFullDebug`, `oneios-tool app build`) signs with it too: `app/build.gradle.kts` takes OneiOS's
 `secrets/oneios-debug.keystore` as the debug key when the file is there (2026-11-22), else Android's own. APKs from before the key (OneiOS v0.1.13's 0.5.47
 and earlier) were each signed with their run's own key, so the first build signed with it needs one uninstall.
-Without the secret, a run signs with a key of its own. The in-guest app is a
+Without the secret, a run signs with a key of its own. The run writes the secret to `~/.android/debug.keystore` and,
+since 2026-11-23, also to `$GITHUB_WORKSPACE/../secrets/oneios-debug.keystore`, the path `app/build.gradle.kts` reads
+first: Gradle did not take the first one on the runner, so 0.5.51 (`7920fa33…`) and 0.5.52 (`3b377b62…`) were each signed
+with a key of their own and could not go over an installed build. "Name the APK" now prints the APK's signer and fails the
+run when the secret is set and the signer is not the shared key (`8b3be966…`). The in-guest app is a
 debug build too: Android guests that already hold upstream's release-signed one cannot take it as an update.
 
 **OneiOS builds this branch too (2026-11-15).** This fork is the submodule `app/` of akshaynexus/OneiOS
