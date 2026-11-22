@@ -264,6 +264,19 @@ BUILDS = [
         "service.incremental.so": "9f095536c0f612ce6bdaa70cb3cffd418f59e8f010f581496f65e9d47342dd15",
         "crashrecovery-google-compressed.apex": "42f37d0571bf61cdd2f6e3ce50f24d245db1f59f57b135223549c21944818a5d",
     }, [("vold", 0x12f06, NAME), ("vold", 0xa313c, TRY_START), ("service.incremental.so", 0x665b4, NAME)]),
+    # PixelOS 17.0 (onyx, Redmi Turbo 4 Pro / POCO F7, CP2A.260605.016, PixelOS_onyx-17.0-20261115-0723, 0.5.35):
+    # VoldNativeService::start() takes "vold" at 0xe00c (adrp 0xe000 + add 0xc at 0x63a60, then String16 and
+    # operator new; the binary's only "\0vold\0", its other references are log tags around 0xa1154). try_start's
+    # tbz w19, #0, +0xd4 is at 0x6345c, right after isDeclared("android.system.vold.IVold/default", adr 0x13b97 at
+    # 0x63410) through the service manager's vtable +0x48. service.incremental.so has the string at 0x64541 with
+    # its two lookups (adr at 0xbfe50, adrp + add at 0xc23c0 with String16(s, 4)). Its crashrecovery capex has
+    # AOSP's RescueParty.isDisabled (persist.sys.enable_rescue, the DeviceConfig flag, eng/userdebug,
+    # persist.sys.disable_rescue).
+    ("PixelOS 17.0 CP2A.260605.016 (onyx)", {
+        "vold": "e125cb942dcd8075aeaa8fa4b1a93eba9b2883291be1577ea82aa46263278028",
+        "service.incremental.so": "65f64a5a2acceac6599c17f0c411d240df471ccb35671767db2bc6c77973c01e",
+        "crashrecovery-aosp.capex": "9c91e1be46fc23edd010f94f306e1b337dad6bc525a967c9c7ccc2aa2a75acd2",
+    }, [("vold", 0xe00b, NAME), ("vold", 0x6345c, TRY_START), ("service.incremental.so", 0x64540, NAME)]),
 ]
 def read(name):
     p = os.path.join(work, name)

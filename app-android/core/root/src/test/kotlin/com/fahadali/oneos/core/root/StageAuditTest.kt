@@ -259,7 +259,9 @@ class StageAuditTest {
         assertTrue(data.indexOf(StageStatus.PIXEL_WORD) < data.indexOf("\"${StageStatus.HYPEROS_WORD}\""))
         assertTrue(data.contains("com.coloros."))
         val status = File(Shipped.fullAssets, "root/status.list").readText()
-        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD} ${StageStatus.INFINITYX_WORD} ${StageStatus.HYPEROS_WORD} ${StageStatus.OXYGENOS_WORD} ${StageStatus.ORIGINOS_WORD}; do"))
+        assertTrue(status.contains("for w in com.oplus. com.coloros. org.lineageos. ${StageStatus.PIXEL_WORD} ${StageStatus.INFINITYX_WORD} ${StageStatus.HYPEROS_WORD} ${StageStatus.OXYGENOS_WORD} ${StageStatus.ORIGINOS_WORD} ${StageStatus.PIXELOS_WORD}; do"))
+        // 0.5.35: PixelOS's updater first (its data has Pixel's launcher and LineageOS packages too).
+        assertTrue(data.indexOf(StageStatus.PIXELOS_WORD) in 0 until data.indexOf(StageStatus.INFINITYX_WORD))
         // 0.4.67: OxygenOS's word right after Infinity-X's and before ColorOS's (its data has com.oplus. too).
         assertTrue(data.indexOf(StageStatus.INFINITYX_WORD) < data.indexOf(StageStatus.OXYGENOS_WORD))
         assertTrue(data.indexOf(StageStatus.OXYGENOS_WORD) in 0 until data.indexOf("com.oplus."))

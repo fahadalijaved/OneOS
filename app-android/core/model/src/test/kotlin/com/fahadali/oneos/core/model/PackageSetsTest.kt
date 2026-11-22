@@ -48,9 +48,19 @@ class PackageSetsTest {
         assertEquals("out/overlays_pixel_f8u_r21", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, PackageSets.X9U_IN_1105_SULTRA, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
-                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.HYPER_HK, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.PIXEL16, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95),
+                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.HYPER_HK, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.PIXEL16, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95, PackageSets.ONEUI95_F8, PackageSets.PIXELOS),
             PackageSets.ALL,
         )
+        // PixelOS 17 (0.5.35): the Lineage-like set for the A series, with the guest vold and its own gmssystem.
+        val pxos = PackageSets.PIXELOS
+        assertEquals(Images.ID_PIXELOS_ONYX, pxos.imageId)
+        assertEquals("out/overlays_pixelos_onyx_r4", pxos.sourceDir)
+        assertEquals(40, pxos.files.size) // r2: + OneOSPixelDoze.apk (AOD); r4: + OneOSBrightnessRange(34).apk
+        assertEquals(FileRole.RRO, pxos.file("OneOSPixelDoze.apk")?.role)
+        assertEquals(21, pxos.files.count { it.role == FileRole.APEX_PAYLOAD })
+        assertTrue(pxos.file(PackageSets.GMS_PAYLOAD) != null && pxos.hasReturnApp)
+        assertEquals(FileRole.GUARD_EXECUTABLE, pxos.file("vold_patched")?.role)
+        assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), pxos.omitted)
         // Infinity-X (0.4.27): both guard jars, the camera codes (Java and native), the guest vold, the
         // AOSP signal poll, the IMS backoff, the guest app, the guards and 21 payloads, GmsCore's among them.
         // Not its cellbroadcast module (0.4.28): One UI's stays, as tethering does.

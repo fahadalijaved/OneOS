@@ -9,7 +9,8 @@ import java.util.Locale
  * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
  * packages too, and its updater, com.infinity.updater, tells it apart.
  */
-enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS, LINEAGE, ONEUI }
+/** PIXELOS (0.5.35): the PixelOS custom ROM, its own system (card, artwork, guest data), never Google's Pixel builds. */
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS, LINEAGE, ONEUI, PIXELOS }
 
 /**
  * One OneOS OS image as friends download it (a gzip of the ext4 system
@@ -139,6 +140,7 @@ object Images {
     const val ID_LINEAGE = "lineage24-infiniti"
     /** Starts with "oneui": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_ONEUI95 = "oneui95-s948b"
+    const val ID_PIXELOS_ONYX = "pixelos17-onyx"
 
     /** Where root stages the unpacked image. */
     const val STAGE_NAME = "system.raw"
@@ -665,7 +667,41 @@ object Images {
      */
     val DATA_UPGRADES: Map<String, String> = mapOf(ID_FIND_X9U_IN to ID_FIND_X9U_IN_1105)
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, PIXEL16, ORIGINOS7, LINEAGE24, ONEUI95)
+    /**
+     * PixelOS 17 (0.5.35, untested): PixelOS's official Android 17 (SDK 37) build for the POCO F7 / Redmi Turbo 4 Pro
+     * (onyx, PixelOS_onyx-17.0-20261115-0723, CP2A.260605.016, security patch 2026-11-01), a source-built AOSP system
+     * with Google's apps and the Pixel launcher, prepared with MysticGSI (--type=custom: its build.prop keeps the
+     * onyx tree's ro.miui.ui.version.* props, which made MysticGSI take it for MIUI; OneOS tells HyperOS by
+     * miui-services.jar, which it lacks). The Pixel-style system for the ARMv8.2 Galaxy A series: Google's Pixel 9 Pro XL
+     * build has PAuth retaa and RCpc2 ldapur in its linker and stops at once there, this one has neither (llvm-objdump on
+     * linker64, libc, libutils, libbinder, libhwui, surfaceflinger, init). Google services from its own gmssystem payload,
+     * presented as on the Pixel images. Pixel data is the family's (the Pixel launcher).
+     */
+    val PIXELOS_ONYX = ImageRef(
+        id = ID_PIXELOS_ONYX,
+        label = "PixelOS 17, POCO F7 build",
+        shortName = "PixelOS",
+        name = "PixelOS",
+        variant = null,
+        blurb = "PixelOS (Android 17): the Pixel experience with Google's apps, built for the Galaxy A series' CPUs.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_PixelOS17_POCOF7.img.gz",
+        gzBytes = 2_556_059_879L,
+        gzSha256 = "4362ae40bb217d9a51934d5e48f6678d460c0152327f74db654f3c4f9930f7ca",
+        rawBytes = 5_046_312_960L,
+        rawSha256 = "7913053cc74036ad5df18d188c4b47411856e4ea1b2b94389ce567f15489cdf3",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = true,
+        // A custom ROM, not Google's Pixel software (owner, 11-21): a family, card and artwork of its own.
+        family = SystemFamily.PIXELOS,
+    )
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, PIXEL16, ORIGINOS7, LINEAGE24, ONEUI95, PIXELOS_ONYX)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

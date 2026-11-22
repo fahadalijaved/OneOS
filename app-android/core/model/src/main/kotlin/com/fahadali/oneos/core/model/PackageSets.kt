@@ -171,6 +171,8 @@ object PackageSets {
     const val ID_ORIGINOS = "originos"
     const val ID_LINEAGE = "lineage"
     const val ID_ONEUI95 = "oneui95"
+    const val ID_ONEUI95_F8 = "oneui95-f8"
+    const val ID_PIXELOS = "pixelos"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
     const val TETHERING = "tethering_payload.img"
@@ -972,7 +974,69 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, PIXEL16, ORIGINOS, LINEAGE, ONEUI95)
+    /**
+     * One UI 9.5 on the Galaxy Z Fold8 only (0.5.35, Josh's pull request #328, r24): [ONEUI95]'s files with his Fold8
+     * framework resources (Fold8OneUI95Framework.apk), SystemUI, Settings, Home and services.jar for the Fold8's two
+     * panels, his framework_patched.jar (the Fold8's PDI fallback, gated on its model) and his guest app; the other
+     * phones keep [ONEUI95] and never download these 333 MB (owner: "keep fold8 fixes fold8 only"). guest_prepare.sh
+     * uses them only on profile f8 with the pinned donor. Built from the r10 folder plus the files of release
+     * thatjoshguy67/OneOS-files fold8-oneui95-r24, each checked against the pull request's pins.
+     */
+    val ONEUI95_F8 = ONEUI95.copy(
+        id = ID_ONEUI95_F8,
+        sourceDir = "out/overlays_oneui95_f8_r1",
+        files = listOf(
+            PackageFile("Fold8OneUI95Framework.apk", FileRole.RRO),
+            PackageFile("Fold8OneUI95SystemUI.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8OneUI95Services.jar", FileRole.GUEST_FIX),
+            PackageFile("Fold8OneUI95Settings.apk", FileRole.GUEST_FIX),
+            PackageFile("Fold8OneUI95Home.apk", FileRole.GUEST_FIX),
+        ) + ONEUI95.files,
+        approxBytes = ONEUI95.approxBytes + 333_304_867L,
+    )
+
+    /**
+     * PixelOS 17 for the Galaxy A series (0.5.35, untested): [Images.PIXELOS_ONYX], the POCO F7 / Redmi Turbo 4 Pro build,
+     * a source-built AOSP system with Google's apps that the ARMv8.2 A-series CPUs can run (Google's Pixel 9 Pro XL
+     * build cannot: PAuth and RCpc2 in its linker). make-overlays.sh on that image (r1): the guard jars, the guest vold
+     * as "gvld" (vold_patched, service.incremental_patched.so), One UI's camera codes, the signal poll, OneOSGuest.apk
+     * and 21 APEX payloads, its gmssystem among them (presented, as on the Pixel images). Neither tethering nor the
+     * cellbroadcast module (source-built, as for LineageOS). No Samsung Camera tar yet.
+     */
+    val PIXELOS = PackageSet(
+        id = ID_PIXELOS,
+        imageId = Images.ID_PIXELOS_ONYX,
+        sourceDir = "out/overlays_pixelos_onyx_r4",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            // 0.5.35 r2: AOD (owner, A36, 11-21: "AOD doesnt work"; getDozeComponent()=null), as for LineageOS.
+            PackageFile("OneOSPixelDoze.apk", FileRole.RRO),
+            // 0.5.35 r4: One UI's slider range (owner, A36: "Lowest brightness is still not very low"), as for Nothing OS.
+            PackageFile("OneOSBrightnessRange.apk", FileRole.RRO),
+            PackageFile("OneOSBrightnessRange34.apk", FileRole.RRO),
+            PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling", "gmssystem"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING, CELLBROADCAST),
+        approxBytes = 515_455_466L + 3 * 8_538L,
+        hasReturnApp = true,
+    )
+
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, PIXEL16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, PIXELOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

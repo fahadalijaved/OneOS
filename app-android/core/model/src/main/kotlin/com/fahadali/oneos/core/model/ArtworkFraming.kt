@@ -20,6 +20,9 @@ object ArtworkFraming {
         // 0.5.22: One UI 9.5's own arches (the Software update app's artwork) with "One UI" / "9.5" in One UI Sans, bottom left.
         // 0.5.23: the card's heading drawn higher (it sat behind the Set up button).
         SystemFamily.ONEUI -> if (wide) Heading(.067f, .663f, .521f, .907f) else Heading(.071f, .600f, .553f, .791f)
+        // 0.5.35: Google's Pixel "Iris" wallpaper (PixelWallpapers2025 premium_iris_dark, in the PixelOS image) with "PixelOS / 17" in Google Sans Flex (from the
+        // image), in the top 40% so the Set up card never covers it.
+        SystemFamily.PIXELOS -> if (wide) Heading(.07f, .108f, .751f, .488f) else Heading(.067f, .099f, .751f, .379f)
         else -> Heading(.1f, .2f, .9f, .6f)
     }
     /**

@@ -36,6 +36,16 @@ class BringCatalogTest {
     }
 
     @Test
+    fun systemEntriesUseACompactFieldAndPreserveUserEntryFormat() {
+        val system = BringCatalog.Entry("org.example.component", "Component", ByteArray(0), system = true)
+        assertEquals("org.example.component\tComponent\t-\tsystem\n", BringCatalog.line(system))
+        val entries = (1..500).map { index ->
+            BringCatalog.Entry("org.example.system$index", "System $index", ByteArray(0), system = true)
+        } + (1..400).map { BringCatalog.Entry("org.example.user$it", "User $it", png) }
+        assertEquals(900, BringCatalog.text(entries).lineSequence().count { it.isNotEmpty() })
+    }
+
+    @Test
     fun textIsSortedDistinctAndCapped() {
         val t = BringCatalog.text(
             listOf(
@@ -47,7 +57,7 @@ class BringCatalogTest {
         )
         assertEquals(listOf("org.example.a", "org.example.b"), t.lines().filter { it.isNotEmpty() }.map { it.substringBefore('\t') })
         val many = (1..450).map { BringCatalog.Entry("org.example.app$it", "App $it", png) }
-        assertEquals(BringCatalog.MAX_APPS, BringCatalog.text(many).lines().count { it.isNotEmpty() })
+        assertEquals(BringCatalog.MAX_USER_APPS, BringCatalog.text(many).lines().count { it.isNotEmpty() })
         val big = ByteArray(1_000_000) { 7 }
         val bytes = BringCatalog.text((1..10).map { BringCatalog.Entry("org.example.big$it", "Big $it", big) }).toByteArray().size
         assertTrue(bytes <= BringCatalog.MAX_BYTES)

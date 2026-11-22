@@ -126,6 +126,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -192,6 +198,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -255,6 +267,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -384,6 +402,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -452,7 +476,7 @@
         {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
-          "set": "oneui95",
+          "set": "oneui95-f8",
           "tested": false
         }
       ]
@@ -513,6 +537,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -582,6 +612,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -648,6 +684,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -711,6 +753,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -786,6 +834,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -858,6 +912,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -924,6 +984,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -981,6 +1047,12 @@
           "image": "nothingos5-metroid",
           "label": "Nothing OS 5.0, Metroid build",
           "set": "nothing-f8u",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -1098,6 +1170,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -1155,6 +1233,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -1314,6 +1398,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -1425,6 +1515,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -1560,6 +1656,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -1668,6 +1770,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -1734,6 +1842,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -1786,6 +1900,12 @@
           "label": "HyperOS 4 Global",
           "set": "hyper-hk",
           "tested": true
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
         },
         {
           "image": "oneui95-s948b",
@@ -1845,6 +1965,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -1908,6 +2034,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -1965,6 +2097,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -2028,6 +2166,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -2085,6 +2229,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -2148,6 +2298,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -2205,6 +2361,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -2268,6 +2430,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -2319,6 +2487,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -2379,6 +2553,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -2532,6 +2712,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -2643,6 +2829,12 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -2832,6 +3024,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -2884,6 +3082,12 @@
           "label": "HyperOS 4 Global",
           "set": "hyper-hk",
           "tested": true
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
         },
         {
           "image": "oneui95-s948b",
@@ -3006,6 +3210,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -3075,6 +3285,12 @@
           "image": "originos7-pd2609ma",
           "label": "OriginOS 7, vivo PD2609MA build",
           "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -3186,6 +3402,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -3243,6 +3465,78 @@
           "image": "nothingos5-asteroids",
           "label": "Nothing OS 5.0, A series build",
           "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "m36",
+      "label": "Galaxy M36 5G",
+      "model": "SM-M366",
+      "codename": "m36x",
+      "chip": "s5e8835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": false
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "hyperos-hongkong",
+          "label": "HyperOS 4 Global",
+          "set": "hyper-hk",
+          "tested": false
+        },
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        },
+        {
+          "image": "nothingos5-asteroids",
+          "label": "Nothing OS 5.0, A series build",
+          "set": "nothing-a",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {
@@ -3330,6 +3624,12 @@
           "tested": false
         },
         {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -3381,6 +3681,12 @@
           "image": "hyperos-hongkong",
           "label": "HyperOS 4 Global",
           "set": "hyper-hk",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
           "tested": false
         },
         {

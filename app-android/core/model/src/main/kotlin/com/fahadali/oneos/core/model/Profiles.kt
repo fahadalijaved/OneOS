@@ -145,6 +145,7 @@ object Profiles {
     const val ID_A16_MTK = "a16-mtk"
     const val ID_S_8550_JP = "s-8550-jp"
     const val ID_M35 = "m35"
+    const val ID_M36 = "m36"
     const val ID_A15_5G = "a15-5g"
     const val ID_S26_FE = "s26-fe"
 
@@ -214,6 +215,8 @@ object Profiles {
      * OxygenOS 16). A phone with both kinds of system takes it only while it is on One UI 9 (the Android version gate).
      */
     private val ONEUI95_CHOICE = ImageChoice(Images.ID_ONEUI95, PackageSets.ID_ONEUI95, tested = false)
+    /** 0.5.35: the Z Fold8's own One UI 9.5 set, with Josh's Fold8 files ([PackageSets.ONEUI95_F8]). */
+    private val ONEUI95_F8_CHOICE = ImageChoice(Images.ID_ONEUI95, PackageSets.ID_ONEUI95_F8, tested = false)
 
     /**
      * HyperOS (0.4.31, owner: "Allow all users to try"), made for the Z Fold8 Ultra
@@ -346,7 +349,7 @@ object Profiles {
     fun expectNoStartAck(system: String = Images.OTHER_SYSTEM): String =
         "I understand $system will most likely not start on this phone, and I'll share the session logs after"
 
-    val F8U = PhoneProfile(
+    val F8U = withPixelOs(PhoneProfile(
         id = ID_F8U,
         label = "Z Fold (F8U)",
         modelPrefix = "SM-F976",
@@ -364,9 +367,9 @@ object Profiles {
             INFINITYX_TESTED, LINEAGE_CHOICE.copy(tested = true), HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE.copy(tested = true),
             ORIGINOS_TESTED, ONEUI95_CHOICE,
         ),
-    )
+    ))
 
-    val S_ULTRA_8850 = PhoneProfile(
+    val S_ULTRA_8850 = withPixelOs(PhoneProfile(
         id = ID_S_ULTRA_8850,
         label = "Galaxy S26 Ultra",
         modelPrefix = "SM-S948",
@@ -377,9 +380,9 @@ object Profiles {
         // Pixel's system code needs; the SM8750 phones do not.
         choices = S_ULTRA_CHOICES + ImageChoice(Images.ID_PIXEL_KODIAK, PackageSets.ID_PIXEL_SULTRA, tested = false) + INFINITYX_TESTED + LINEAGE_CHOICE + HYPEROS_CHOICE + HYPEROS_HK_CHOICE +
             NOTHING_CHOICE + ORIGINOS_CHOICE + ONEUI95_CHOICE,
-    )
+    ))
 
-    val S_ULTRA_8750 = PhoneProfile(
+    val S_ULTRA_8750 = withPixelOs(PhoneProfile(
         id = ID_S_ULTRA_8750,
         label = "Galaxy S25 Ultra",
         modelPrefix = "SM-S938",
@@ -390,7 +393,7 @@ object Profiles {
         // friend's S25 Ultra is on Android 17 and ready). Untested: ticks as the S26 Ultra.
         choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + LINEAGE_CHOICE + HYPEROS_CHOICE + HYPEROS_HK_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE + ONEUI95_CHOICE,
         notes = listOf(OLDER_VENDOR),
-    )
+    ))
 
     /**
      * Galaxy S25 (base), from 0.3.4: a friend's probe findings of 2026-10-23
@@ -400,7 +403,7 @@ object Profiles {
      * is what puts it in scope
      * ([CompatEvaluator.inScope]); it takes the S Ultra images and sets, untested.
      */
-    val S_8750 = PhoneProfile(
+    val S_8750 = withPixelOs(PhoneProfile(
         id = ID_S_8750,
         label = "Galaxy S25",
         modelPrefix = "SM-S931",
@@ -409,7 +412,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = S_ULTRA_CHOICES + PIXEL9_CHOICE + INFINITYX_TESTED + LINEAGE_CHOICE + HYPEROS_CHOICE + HYPEROS_HK_CHOICE.copy(tested = true) + NOTHING_CHOICE + ORIGINOS_CHOICE + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(OLDER_VENDOR),
-    )
+    ))
 
     /**
      * Galaxy Z Fold7, from 0.4.8: a probe report of 2026-10-25 (SM-F966B, q7q,
@@ -423,7 +426,7 @@ object Profiles {
      * code uses SVE in every process (RefBase's constructor), which SM8750
      * does not have.
      */
-    val FOLD7 = PhoneProfile(
+    val FOLD7 = withPixelOs(PhoneProfile(
         id = ID_FOLD7,
         label = "Galaxy Z Fold7",
         modelPrefix = "SM-F966",
@@ -432,7 +435,7 @@ object Profiles {
         form = FormFactor.FOLD,
         choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE) + ORIGINOS_CHOICE + ONEUI95_CHOICE,
         notes = listOf(OLDER_VENDOR),
-    )
+    ))
 
     /**
      * Galaxy S25+, from 0.4.10: a probe report of 2026-10-25 (SM-S936B, pa2q,
@@ -441,7 +444,7 @@ object Profiles {
      * switcher/patches/host_installd.txt). The Galaxy S25's images and sets,
      * untested; of the Pixel images only the Pixel 9 Pro XL's (no SVE).
      */
-    val S_PLUS_8750 = PhoneProfile(
+    val S_PLUS_8750 = withPixelOs(PhoneProfile(
         id = ID_S_PLUS_8750,
         label = "Galaxy S25+",
         modelPrefix = "SM-S936",
@@ -450,7 +453,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE) + ORIGINOS_CHOICE + ONEUI95_CHOICE,
         notes = listOf(OLDER_VENDOR),
-    )
+    ))
 
     /**
      * Galaxy Z Fold8, from 0.4.10: a probe report of 2026-10-25 (SM-F971B, h8q,
@@ -463,7 +466,7 @@ object Profiles {
      * images and sets, untested; the Pixel display configs are the Z Fold8
      * Ultra's only, so its Pixel keeps the image's own brightness.
      */
-    val FOLD8 = PhoneProfile(
+    val FOLD8 = withPixelOs(PhoneProfile(
         id = ID_FOLD8,
         label = "Galaxy Z Fold8",
         modelPrefix = "SM-F971",
@@ -476,9 +479,9 @@ object Profiles {
             ImageChoice(Images.ID_FIND_N6, PackageSets.N6_GLOBAL_F8.id, tested = false),
             ImageChoice(Images.ID_PIXEL_YOGI, PackageSets.ID_PIXEL_F8, tested = true),
             INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE,
-            ORIGINOS_CHOICE, ONEUI95_CHOICE,
+            ORIGINOS_CHOICE, ONEUI95_F8_CHOICE,
         ),
-    )
+    ))
 
     /** The Galaxy S26's images: the S Ultra's, all untested; 0.4.35 Nothing OS too. */
     private val S_8850_CHOICES = listOf(
@@ -495,7 +498,7 @@ object Profiles {
      * per model number: SM-S942 everywhere else, [S_8850_JP] for SC-51G. The
      * Exynos S26 has another chip and codename: [S_9965].
      */
-    val S_8850 = PhoneProfile(
+    val S_8850 = withPixelOs(PhoneProfile(
         id = ID_S_8850,
         label = "Galaxy S26",
         modelPrefix = "SM-S942",
@@ -503,9 +506,9 @@ object Profiles {
         socModel = "SM8850",
         form = FormFactor.BAR,
         choices = S_8850_CHOICES + ORIGINOS_CHOICE + ONEUI95_CHOICE,
-    )
+    ))
 
-    val S_8850_JP = S_8850.copy(id = ID_S_8850_JP, label = "Galaxy S26 (docomo)", modelPrefix = "SC-51G")
+    val S_8850_JP = withPixelOs(S_8850.copy(id = ID_S_8850_JP, label = "Galaxy S26 (docomo)", modelPrefix = "SC-51G"))
 
     /**
      * Galaxy S26+, from 0.4.12: a probe report of 2026-10-25 (SM-S947U, m2q,
@@ -514,7 +517,7 @@ object Profiles {
      * Android's Bluetooth audio HAL and AIDL composer like the S26 Ultra, SVE
      * and SME, installd 85 methods). The Galaxy S26's images and sets, untested.
      */
-    val S_PLUS_8850 = PhoneProfile(
+    val S_PLUS_8850 = withPixelOs(PhoneProfile(
         id = ID_S_PLUS_8850,
         label = "Galaxy S26+",
         modelPrefix = "SM-S947",
@@ -522,7 +525,7 @@ object Profiles {
         socModel = "SM8850",
         form = FormFactor.BAR,
         choices = S_8850_CHOICES + ORIGINOS_CHOICE + ONEUI95_CHOICE,
-    )
+    ))
 
     /**
      * Galaxy S24 Ultra, from 0.4.11: a probe report of 2026-10-25 (SM-S928B,
@@ -531,7 +534,7 @@ object Profiles {
      * The S Ultra's images and sets, untested; of the Pixel images only the
      * Pixel 9 Pro XL's (no SVE).
      */
-    val S_ULTRA_8650 = PhoneProfile(
+    val S_ULTRA_8650 = withPixelOs(PhoneProfile(
         id = ID_S_ULTRA_8650,
         label = "Galaxy S24 Ultra",
         modelPrefix = "SM-S928",
@@ -540,7 +543,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
-    )
+    ))
 
     /**
      * Galaxy S23 and S23+, from 0.4.11: probe reports of 2026-10-25
@@ -551,7 +554,7 @@ object Profiles {
      * Flip5: Infinity-X started on an S23 once the HIDL-only phones got the
      * hwservicemanager marker (guest_prepare.sh), which Pixel lacks as well.
      */
-    val S_8550 = PhoneProfile(
+    val S_8550 = withPixelOs(PhoneProfile(
         id = ID_S_8550,
         label = "Galaxy S23",
         modelPrefix = "SM-S911",
@@ -560,9 +563,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE.copy(tested = true), PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), OXYGEN16_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE.copy(tested = true), // 0.5.19: Nothing OS (Metroid) at the owner's request, untested
         notes = listOf(EXPECT_NO_START),
-    )
+    ))
 
-    val S_PLUS_8550 = PhoneProfile(
+    val S_PLUS_8550 = withPixelOs(PhoneProfile(
         id = ID_S_PLUS_8550,
         label = "Galaxy S23+",
         modelPrefix = "SM-S916",
@@ -571,7 +574,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE, // 0.5.19: Nothing OS (Metroid) at the owner's request, untested
         notes = listOf(EXPECT_NO_START),
-    )
+    ))
 
     /**
      * Galaxy S26+ with Exynos, from 0.4.17: a probe report of 2026-10-25
@@ -583,7 +586,7 @@ object Profiles {
      * (both Find X9 Ultra builds and the Pixel 11 Pro, whose system code needs
      * the SVE this chip has), untested, with [EXYNOS].
      */
-    val S_PLUS_9965 = PhoneProfile(
+    val S_PLUS_9965 = withPixelOs(PhoneProfile(
         id = ID_S_PLUS_9965,
         label = "Galaxy S26+ (Exynos)",
         modelPrefix = "SM-S947",
@@ -592,7 +595,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = S_8850_CHOICES + ONEUI95_CHOICE,
         notes = listOf(EXYNOS),
-    )
+    ))
 
     /**
      * Galaxy S26 with Exynos, from 0.4.52: probe reports of 2026-11-02 to 11-04
@@ -604,7 +607,7 @@ object Profiles {
      * A report naming SM-S942B with an Exynos 2100 (universal2100_r, Cortex-X1)
      * is another phone with a changed model name and is left out.
      */
-    val S_9965 = S_PLUS_9965.copy(id = ID_S_9965, label = "Galaxy S26 (Exynos)", modelPrefix = "SM-S942", codename = "m1s")
+    val S_9965 = withPixelOs(S_PLUS_9965.copy(id = ID_S_9965, label = "Galaxy S26 (Exynos)", modelPrefix = "SM-S942", codename = "m1s"))
 
     /**
      * Galaxy Z Flip7, from 0.4.17: a probe report of 2026-10-25 (SM-F766U, b7s,
@@ -617,7 +620,7 @@ object Profiles {
      * yet), with the Find X9 Ultra builds, untested, and [EXYNOS]. The ColorOS
      * images also start on the SM8750 phones, which have no SME either.
      */
-    val FLIP7 = PhoneProfile(
+    val FLIP7 = withPixelOs(PhoneProfile(
         id = ID_FLIP7,
         label = "Galaxy Z Flip7",
         modelPrefix = "SM-F766",
@@ -626,7 +629,7 @@ object Profiles {
         form = FormFactor.FLIP,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(EXYNOS),
-    )
+    ))
 
     /**
      * Galaxy A57, from 0.4.29: a probe report of 2026-10-29 (SM-A576B, a57x,
@@ -639,7 +642,7 @@ object Profiles {
      * chip: the Z Flip7's images (the Find X9 Ultra builds and Infinity-X, whose
      * system code needs neither SVE nor SME), untested, with [EXYNOS].
      */
-    val A57 = PhoneProfile(
+    val A57 = withPixelOs(PhoneProfile(
         id = ID_A57,
         label = "Galaxy A57",
         modelPrefix = "SM-A576",
@@ -648,7 +651,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_TESTED, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(EXYNOS),
-    )
+    ))
 
     /**
      * Galaxy A56, from 0.4.31: a probe report of 2026-10-30 (SM-A566B, a56x,
@@ -660,7 +663,7 @@ object Profiles {
      * in everything the switch reads, so it takes the A57's images, untested,
      * with [EXYNOS].
      */
-    val A56 = PhoneProfile(
+    val A56 = withPixelOs(PhoneProfile(
         id = ID_A56,
         label = "Galaxy A56",
         modelPrefix = "SM-A566",
@@ -669,7 +672,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), NOTHING_A_CHOICE) + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(EXYNOS),
-    )
+    ))
 
     /**
      * Galaxy Z Flip5, from 0.4.29: a probe report of 2026-10-28 (SM-F731B, b5q,
@@ -684,7 +687,7 @@ object Profiles {
      * cover layout), with their [EXPECT_NO_START] note: the same chip and
      * vendor, which no system has started on yet.
      */
-    val FLIP5 = PhoneProfile(
+    val FLIP5 = withPixelOs(PhoneProfile(
         id = ID_FLIP5,
         label = "Galaxy Z Flip5",
         modelPrefix = "SM-F731",
@@ -693,7 +696,7 @@ object Profiles {
         form = FormFactor.FLIP,
         choices = listOf(X9U_IN_1105_TESTED, PIXEL9_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(EXPECT_NO_START),
-    )
+    ))
 
     /**
      * Galaxy Z Fold6, from 0.4.33: a probe report of 2026-10-30 (SM-F956B, q6q,
@@ -704,7 +707,7 @@ object Profiles {
      * Not HyperOS: on the S24 Ultra, the same chip, its SurfaceFlinger aborts at
      * the first display (0.4.32, four sessions), so it would only show black.
      */
-    val FOLD6 = PhoneProfile(
+    val FOLD6 = withPixelOs(PhoneProfile(
         id = ID_FOLD6,
         label = "Galaxy Z Fold6",
         modelPrefix = "SM-F956",
@@ -713,7 +716,7 @@ object Profiles {
         form = FormFactor.FOLD,
         choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, LINEAGE_CHOICE, NOTHING_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
-    )
+    ))
 
     /**
      * Galaxy A07, from 0.4.33: a probe report of 2026-10-30 (SM-A075F, a07,
@@ -728,7 +731,7 @@ object Profiles {
      * by the version gate. 0.4.60: Infinity-X reached the home screen here (0.4.58 reports of
      * 2026-11-06), and ColorOS (the Find X9 Ultra IN build) is offered too, untested (owner).
      */
-    val A07 = PhoneProfile(
+    val A07 = withPixelOs(PhoneProfile(
         id = ID_A07,
         label = "Galaxy A07",
         modelPrefix = "SM-A075",
@@ -737,7 +740,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
-    )
+    ))
 
     /**
      * Galaxy Z Flip8, from 0.4.35: a probe report of 2026-11-01 (SM-F776B, b8s,
@@ -747,7 +750,7 @@ object Profiles {
      * images (its chip has the SVE and SME the Pixel 11 Pro and Nothing OS need),
      * untested, with [EXYNOS].
      */
-    val FLIP8 = PhoneProfile(
+    val FLIP8 = withPixelOs(PhoneProfile(
         id = ID_FLIP8,
         label = "Galaxy Z Flip8",
         modelPrefix = "SM-F776",
@@ -756,7 +759,7 @@ object Profiles {
         form = FormFactor.FLIP,
         choices = S_8850_CHOICES + ONEUI95_CHOICE,
         notes = listOf(EXYNOS),
-    )
+    ))
 
     /**
      * Galaxy A36, from 0.4.35: a probe report of 2026-10-31 (SM-A366B, a36xq,
@@ -768,7 +771,7 @@ object Profiles {
      * Pixel 9 Pro XL, Infinity-X and HyperOS, none of which needs SVE),
      * untested, with the S25s' older-vendor note.
      */
-    val A36 = PhoneProfile(
+    val A36 = withPixelOs(PhoneProfile(
         id = ID_A36,
         label = "Galaxy A36",
         modelPrefix = "SM-A366",
@@ -777,9 +780,11 @@ object Profiles {
         form = FormFactor.BAR,
         // 0.4.57: not the Pixel 9 Pro XL, as on the A26: the same ARMv8.2 CPU features (no ilrcpc, frint, flagm...).
         // 0.5.15: Nothing OS for the A series (the Phone (3a) build, plain ARMv8 code, its own brightness range), untested, last.
-        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
+        // 0.5.35: PixelOS 17 (the POCO F7 build), the Pixel-style system these CPUs can run, untested.
+        choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_A_CHOICE,
+            ImageChoice(Images.ID_PIXELOS_ONYX, PackageSets.ID_PIXELOS, tested = false)) + ONEUI95_CHOICE,
         notes = listOf(OLDER_VENDOR),
-    )
+    ))
 
     /**
      * Galaxy Z Fold5, from 0.4.35: a probe report of 2026-11-01 (SM-F946B, q5q,
@@ -790,7 +795,7 @@ object Profiles {
      * fold layout) and Infinity-X, which started on the Z Flip5's same platform,
      * untested, with the older-vendor note.
      */
-    val FOLD5 = PhoneProfile(
+    val FOLD5 = withPixelOs(PhoneProfile(
         id = ID_FOLD5,
         label = "Galaxy Z Fold5",
         modelPrefix = "SM-F946",
@@ -799,7 +804,7 @@ object Profiles {
         form = FormFactor.FOLD,
         choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, LINEAGE_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(olderVendor("33 (Android 13)", "5.15")),
-    )
+    ))
 
     /**
      * Galaxy Z Fold4, from 0.5.03 probe report (SM-F936B, q4q, SM8475 / Snapdragon 8+ Gen 1,
@@ -827,7 +832,7 @@ object Profiles {
      * vendor API 33 and kernel 5.15, no SVE or SME, installd 85 methods). The S23s' images and sets
      * with their [EXPECT_NO_START] note; untested on it.
      */
-    val S_ULTRA_8550 = PhoneProfile(
+    val S_ULTRA_8550 = withPixelOs(PhoneProfile(
         id = ID_S_ULTRA_8550,
         label = "Galaxy S23 Ultra",
         modelPrefix = "SM-S918",
@@ -836,7 +841,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), OXYGEN16_CHOICE, NOTHING_CHOICE.copy(tested = true), ORIGINOS_CHOICE) + ONEUI95_CHOICE, // 0.5.19: Nothing OS (Metroid) at the owner's request, untested
         notes = listOf(EXPECT_NO_START),
-    )
+    ))
 
     /**
      * Galaxy Z Flip6, from 0.4.40: a probe report of 2026-11-02 (SM-F741B, b6q, SM8650 like the
@@ -845,7 +850,7 @@ object Profiles {
      * Z Flip5 and Z Flip7, with the S24 Ultra's images except HyperOS (the Z Fold6's reason: its
      * SurfaceFlinger died on that chip; 0.4.39's fix is untested there); untested on it.
      */
-    val FLIP6 = PhoneProfile(
+    val FLIP6 = withPixelOs(PhoneProfile(
         id = ID_FLIP6,
         label = "Galaxy Z Flip6",
         modelPrefix = "SM-F741",
@@ -854,7 +859,7 @@ object Profiles {
         form = FormFactor.FLIP,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
-    )
+    ))
 
     /**
      * Galaxy S24 with Exynos, from 0.4.40: a probe report of 2026-11-03 (SM-S921N, e1s, s5e9945
@@ -865,7 +870,7 @@ object Profiles {
      * Ultra's systems, so Nothing OS and OriginOS 7 as well (both untested here; OriginOS has run on
      * no Exynos phone, [ORIGINOS_CHOICE]). The S24 FE, Z Flip7 FE and S25 FE keep their four.
      */
-    val S_9945 = PhoneProfile(
+    val S_9945 = withPixelOs(PhoneProfile(
         id = ID_S_9945,
         label = "Galaxy S24 (Exynos)",
         modelPrefix = "SM-S921",
@@ -874,7 +879,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
-    )
+    ))
 
     /**
      * Galaxy S24+ with Exynos, from 0.4.83: a probe report of 2026-11-10 from the owner (SM-S926B, e2s,
@@ -885,7 +890,7 @@ object Profiles {
      * KernelSU). The three probes of 2026-11-08 from this model were still One UI 8.5. The S24
      * (Exynos)'s systems, which from this build are the S24 Ultra's, untested, with its notes.
      */
-    val S_PLUS_9945 = S_9945.copy(id = ID_S_PLUS_9945, label = "Galaxy S24+ (Exynos)", modelPrefix = "SM-S926", codename = "e2s")
+    val S_PLUS_9945 = withPixelOs(S_9945.copy(id = ID_S_PLUS_9945, label = "Galaxy S24+ (Exynos)", modelPrefix = "SM-S926", codename = "e2s"))
 
     /**
      * Galaxy S25 Edge, from 0.4.48: a probe report of 2026-11-04 (SM-S937B, psq, SM8750 like the
@@ -894,7 +899,7 @@ object Profiles {
      * installd 85 methods). The S25's platform in a thinner body: the S25's images, untested,
      * with its older-vendor note.
      */
-    val S_EDGE_8750 = PhoneProfile(
+    val S_EDGE_8750 = withPixelOs(PhoneProfile(
         id = ID_S_EDGE_8750,
         label = "Galaxy S25 Edge",
         modelPrefix = "SM-S937",
@@ -903,7 +908,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = S_ULTRA_CHOICES.map { it.copy(tested = false) } + PIXEL9_CHOICE + INFINITYX_CHOICE + LINEAGE_CHOICE + HYPEROS_CHOICE + HYPEROS_HK_CHOICE + NOTHING_CHOICE + ORIGINOS_CHOICE + ONEUI95_CHOICE,
         notes = listOf(OLDER_VENDOR),
-    )
+    ))
 
     /**
      * Galaxy S24 with Snapdragon, from 0.4.61: a probe report of 2026-11-07 (SM-S921E, e1q, SM8650
@@ -912,7 +917,7 @@ object Profiles {
      * no SVE or SME, installd 85 methods). The S24 Ultra's images, untested. Shares SM-S921 with
      * [S_9945]: the codename and the chip tell them apart.
      */
-    val S_8650 = PhoneProfile(
+    val S_8650 = withPixelOs(PhoneProfile(
         id = ID_S_8650,
         label = "Galaxy S24",
         modelPrefix = "SM-S921",
@@ -921,7 +926,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, NOTHING_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(olderVendor("34 (Android 14)", "6.1")),
-    )
+    ))
 
     /**
      * Galaxy S24 FE, from 0.4.48: a probe report of 2026-11-04 (SM-S721B, r12s, s5e9945 Exynos
@@ -929,7 +934,7 @@ object Profiles {
      * one 1080 x 2340 panel at density 450, sec_touchscreen, composer3, SVE and SVE2 but no SME,
      * installd 85 methods). The S24 (Exynos)'s images, untested, with [EXYNOS].
      */
-    val S_FE_9945 = PhoneProfile(
+    val S_FE_9945 = withPixelOs(PhoneProfile(
         id = ID_S_FE_9945,
         label = "Galaxy S24 FE",
         modelPrefix = "SM-S721",
@@ -938,7 +943,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE.copy(tested = true), PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true)) + ONEUI95_CHOICE,
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
-    )
+    ))
 
     /**
      * Galaxy A26, from 0.4.48: a probe report of 2026-11-03 (SM-A266B, a26x, s5e8835 Exynos 1380,
@@ -948,7 +953,7 @@ object Profiles {
      * none of which needs SVE; not HyperOS (it mostly stayed black on vendor 33). Untested, with
      * [EXYNOS].
      */
-    val A26 = PhoneProfile(
+    val A26 = withPixelOs(PhoneProfile(
         id = ID_A26,
         label = "Galaxy A26",
         modelPrefix = "SM-A266",
@@ -960,7 +965,7 @@ object Profiles {
         // CPU lacks what every phone it runs on has (ilrcpc, frint, flagm, jscvt, fcma, i8mm, bf16...).
         choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
-    )
+    ))
 
     /**
      * Galaxy A17, from 0.4.48: probe reports from 2026-11-03 on (SM-A175F, a17, MediaTek MT6789
@@ -970,7 +975,7 @@ object Profiles {
      * reached the home screen on the A17 and the A16 4G (reports of 2026-11-05 to 07), and the
      * Find X9 Ultra IN ColorOS is offered too, untested (owner: "allow them to try ColorOS too").
      */
-    val A17 = PhoneProfile(
+    val A17 = withPixelOs(PhoneProfile(
         id = ID_A17,
         label = "Galaxy A17",
         modelPrefix = "SM-A175",
@@ -979,7 +984,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE.copy(tested = true),
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
-    )
+    ))
 
     /**
      * Galaxy A16 4G, from 0.4.55: a probe report of 2026-11-05 (SM-A165F, a16, MediaTek MT6789
@@ -987,7 +992,7 @@ object Profiles {
      * first API 34, kernel 6.12, no SVE or SME). The A17's Infinity-X, untested, with [MEDIATEK].
      * The A16 5G is another phone ([A16], SM-A166, Exynos 1330).
      */
-    val A16_4G = A17.copy(id = ID_A16_4G, label = "Galaxy A16 4G", modelPrefix = "SM-A165", codename = "a16")
+    val A16_4G = withPixelOs(A17.copy(id = ID_A16_4G, label = "Galaxy A16 4G", modelPrefix = "SM-A165", codename = "a16"))
 
     /**
      * Galaxy A16 5G (the US model, Exynos), from 0.4.48: a probe report of 2026-11-03 (SM-A166U,
@@ -998,7 +1003,7 @@ object Profiles {
      * (a 0.4.58 report of 2026-11-05), and the Find X9 Ultra IN ColorOS is offered too, untested:
      * the A26's ColorOS also runs on a Cortex-A78/A55 Exynos with the HIDL composer.
      */
-    val A16 = PhoneProfile(
+    val A16 = withPixelOs(PhoneProfile(
         id = ID_A16,
         label = "Galaxy A16 5G",
         modelPrefix = "SM-A166",
@@ -1007,7 +1012,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(EXYNOS, olderVendor("33 (Android 13)", "5.15")),
-    )
+    ))
 
     /**
      * Galaxy A16 5G sold by TracFone/Verizon prepaid as SM-S166V, from 0.4.59: a probe report of
@@ -1015,10 +1020,10 @@ object Profiles {
      * kernel 5.15, KernelSU): the same phone as [A16] under a carrier model number. It was still on
      * One UI 8.5 (Android 16, S166VUDS8DZG1), so the version gate holds it until One UI 9.
      */
-    val A16_S166 = A16.copy(
+    val A16_S166 = withPixelOs(A16.copy(
         id = ID_A16_S166, label = "Galaxy A16 5G (SM-S166V)", modelPrefix = "SM-S166",
         choices = A16.choices.map { it.copy(tested = false) }, // no session on this model number yet
-    )
+    ))
 
     /**
      * Galaxy A35 5G, from 0.4.59: findings of 2026-11-05 and 06 (SM-A356E and SM-A356U1, a35x, s5e8835
@@ -1026,7 +1031,7 @@ object Profiles {
      * density 450, the HIDL composer 2.4 and audio HAL, Mali, no SVE or SME, installd 85 methods): the
      * [A26]'s chip and vendor in every one of those, so its choices and notes. Untested, with [EXYNOS].
      */
-    val A35 = A26.copy(id = ID_A35, label = "Galaxy A35 5G", modelPrefix = "SM-A356", codename = "a35x")
+    val A35 = withPixelOs(A26.copy(id = ID_A35, label = "Galaxy A35 5G", modelPrefix = "SM-A356", codename = "a35x"))
 
     /**
      * Galaxy A54 5G, from 0.4.59: findings of 2026-11-05 (SM-A546E, a54x, s5e8835 Exynos 1380, One UI
@@ -1034,7 +1039,7 @@ object Profiles {
      * and audio HAL, Mali, no SVE or SME, installd 85 methods): the [A26]'s chip and vendor, so its
      * choices and notes. Untested, with [EXYNOS].
      */
-    val A54 = A26.copy(id = ID_A54, label = "Galaxy A54 5G", modelPrefix = "SM-A546", codename = "a54x")
+    val A54 = withPixelOs(A26.copy(id = ID_A54, label = "Galaxy A54 5G", modelPrefix = "SM-A546", codename = "a54x"))
 
     /**
      * Galaxy A27, from 0.4.59: findings of 2026-11-07 (SM-A276B, a27xq, Snapdragon SM6475 "parrot",
@@ -1042,7 +1047,7 @@ object Profiles {
      * installd 85 methods): the [A36]'s chip, CPU and generation, so its choices and notes.
      * Untested.
      */
-    val A27 = A36.copy(id = ID_A27, label = "Galaxy A27", modelPrefix = "SM-A276", codename = "a27xq")
+    val A27 = withPixelOs(A36.copy(id = ID_A27, label = "Galaxy A27", modelPrefix = "SM-A276", codename = "a27xq"))
 
     /**
      * Galaxy A17 5G, from 0.4.60: findings of 2026-11-07 (SM-A176B, a17x, s5e8535 Exynos 1330 like
@@ -1050,10 +1055,10 @@ object Profiles {
      * density 450, Mali, Cortex-A55/A78 with no SVE or SME, KernelSU, installd 85 methods): the
      * [A16]'s chip and vendor, so its choices and notes. Untested. The Galaxy A17 4G is [A17].
      */
-    val A17_5G = A16.copy(
+    val A17_5G = withPixelOs(A16.copy(
         id = ID_A17_5G, label = "Galaxy A17 5G", modelPrefix = "SM-A176", codename = "a17x",
         choices = A16.choices.map { it.copy(tested = false) },
-    )
+    ))
 
     /**
      * Galaxy Z Flip7 FE, from 0.4.60: findings of 2026-11-07 (SM-F761B, b7r, s5e9945 Exynos 2400 like
@@ -1062,7 +1067,7 @@ object Profiles {
      * as a phone on its main screen like the [FLIP7], with the S24 (Exynos)'s images, untested, with
      * [EXYNOS].
      */
-    val FLIP7_FE = PhoneProfile(
+    val FLIP7_FE = withPixelOs(PhoneProfile(
         id = ID_FLIP7_FE,
         label = "Galaxy Z Flip7 FE",
         modelPrefix = "SM-F761",
@@ -1071,7 +1076,7 @@ object Profiles {
         form = FormFactor.FLIP,
         choices = listOf(X9U_IN_1105_CHOICE, PIXEL9_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
-    )
+    ))
 
     /**
      * OxygenOS 16 (0.4.67, experimental): the phones still on One UI 8.0/8.5 (Android 16, SDK 36), from
@@ -1079,7 +1084,7 @@ object Profiles {
      * out: reports of custom systems (an "S24" with an Exynos 990, a "Note20 Ultra" with an S22 Ultra
      * build, an S10 on Android 16) and the tablets (their layout comes later).
      */
-    val A07_5G = PhoneProfile(
+    val A07_5G = withPixelOs(PhoneProfile(
         id = ID_A07_5G,
         label = "Galaxy A07 5G",
         modelPrefix = "SM-A076",
@@ -1088,9 +1093,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK),
-    )
+    ))
 
-    val A06 = PhoneProfile(
+    val A06 = withPixelOs(PhoneProfile(
         id = ID_A06,
         label = "Galaxy A06",
         modelPrefix = "SM-A066",
@@ -1099,14 +1104,14 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK),
-    )
+    ))
 
     /**
      * 0.4.74: One UI 9 (Android 17) reached the A15 (findings of 2026-11-09, SM-A155F,
      * CP2A.260605.016, MT6789, vendor API 31, kernel 6.12), the A07's chip: the A07's systems,
      * untested here. OxygenOS 16 stays for the A15s on One UI 8 and 8.5.
      */
-    val A15 = PhoneProfile(
+    val A15 = withPixelOs(PhoneProfile(
         id = ID_A15,
         label = "Galaxy A15",
         modelPrefix = "SM-A155",
@@ -1115,9 +1120,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(MEDIATEK, olderVendor("31 (Android 12)", "6.12")),
-    )
+    ))
 
-    val A24 = PhoneProfile(
+    val A24 = withPixelOs(PhoneProfile(
         id = ID_A24,
         label = "Galaxy A24",
         modelPrefix = "SM-A245",
@@ -1126,9 +1131,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(MEDIATEK),
-    )
+    ))
 
-    val A25 = PhoneProfile(
+    val A25 = withPixelOs(PhoneProfile(
         id = ID_A25,
         label = "Galaxy A25",
         modelPrefix = "SM-A256",
@@ -1137,9 +1142,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(EXYNOS),
-    )
+    ))
 
-    val A33 = PhoneProfile(
+    val A33 = withPixelOs(PhoneProfile(
         id = ID_A33,
         label = "Galaxy A33 5G",
         modelPrefix = "SM-A336",
@@ -1148,14 +1153,14 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(EXYNOS),
-    )
+    ))
 
     /**
      * 0.4.74: One UI 9 (Android 17) reached the A34 (findings report of 2026-11-09, SM-A346E,
      * CP2A.260605.016, vendor API 30, kernel 6.6), so it takes the A07's systems too, all untested
      * here (owner: "can try coloros and hyper etc"). OxygenOS 16 stays for the A34s on One UI 8.
      */
-    val A34 = PhoneProfile(
+    val A34 = withPixelOs(PhoneProfile(
         id = ID_A34,
         label = "Galaxy A34 5G",
         modelPrefix = "SM-A346",
@@ -1164,9 +1169,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(X9U_IN_1105_CHOICE, INFINITYX_CHOICE, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE.copy(tested = true), OXYGEN16_CHOICE, NOTHING_A_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(MEDIATEK, olderVendor("30 (Android 11)", "6.6")),
-    )
+    ))
 
-    val A53 = PhoneProfile(
+    val A53 = withPixelOs(PhoneProfile(
         id = ID_A53,
         label = "Galaxy A53 5G",
         modelPrefix = "SM-A536",
@@ -1175,9 +1180,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(EXYNOS),
-    )
+    ))
 
-    val E55 = PhoneProfile(
+    val E55 = withPixelOs(PhoneProfile(
         id = ID_E55,
         label = "Galaxy F55/E55",
         modelPrefix = "SM-E556",
@@ -1185,9 +1190,9 @@ object Profiles {
         socModel = "SM7450",
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
-    )
+    ))
 
-    val S_FE_9925 = PhoneProfile(
+    val S_FE_9925 = withPixelOs(PhoneProfile(
         id = ID_S_FE_9925,
         label = "Galaxy S23 FE",
         modelPrefix = "SM-S711",
@@ -1196,9 +1201,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(EXYNOS),
-    )
+    ))
 
-    val S_FE_8450 = PhoneProfile(
+    val S_FE_8450 = withPixelOs(PhoneProfile(
         id = ID_S_FE_8450,
         label = "Galaxy S23 FE (Snapdragon)",
         modelPrefix = "SM-S711",
@@ -1206,9 +1211,9 @@ object Profiles {
         socModel = "SM8450",
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
-    )
+    ))
 
-    val S_PLUS_9925 = PhoneProfile(
+    val S_PLUS_9925 = withPixelOs(PhoneProfile(
         id = ID_S_PLUS_9925,
         label = "Galaxy S22+",
         modelPrefix = "SM-S906",
@@ -1217,9 +1222,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(EXYNOS),
-    )
+    ))
 
-    val S_ULTRA_9925 = PhoneProfile(
+    val S_ULTRA_9925 = withPixelOs(PhoneProfile(
         id = ID_S_ULTRA_9925,
         label = "Galaxy S22 Ultra",
         modelPrefix = "SM-S908",
@@ -1228,9 +1233,9 @@ object Profiles {
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
         notes = listOf(EXYNOS),
-    )
+    ))
 
-    val S_ULTRA_8450 = PhoneProfile(
+    val S_ULTRA_8450 = withPixelOs(PhoneProfile(
         id = ID_S_ULTRA_8450,
         label = "Galaxy S22 Ultra (Snapdragon)",
         modelPrefix = "SM-S908",
@@ -1238,7 +1243,7 @@ object Profiles {
         socModel = "SM8450",
         form = FormFactor.BAR,
         choices = listOf(OXYGEN16_CHOICE),
-    )
+    ))
 
     /**
      * Galaxy A55 5G, from 0.4.68: findings of 2026-11-08 (SM-A556B, a55x, s5e8845 Exynos 1480, One UI
@@ -1249,10 +1254,10 @@ object Profiles {
      * choices; its vendor is a generation newer (vendor API 34, kernel 6.1, composer3 like the
      * [S_FE_9945]), so that older-vendor note. Untested, with [EXYNOS].
      */
-    val A55 = A35.copy(
+    val A55 = withPixelOs(A35.copy(
         id = ID_A55, label = "Galaxy A55 5G", modelPrefix = "SM-A556", codename = "a55x", socModel = "s5e8845",
         notes = listOf(EXYNOS, olderVendor("34 (Android 14)", "6.1")),
-    )
+    ))
 
     /**
      * Galaxy S25 FE, from 0.4.68: findings of 2026-11-08 (SM-S731B, r13s, s5e9945 Exynos 2400 like the
@@ -1262,7 +1267,7 @@ object Profiles {
      * chip, vendor and screen, so its choices and notes. Untested. Not the "SM-S731B" with codename a56x
      * and an s5e8855 (an A56 renamed).
      */
-    val S25_FE = S_FE_9945.copy(id = ID_S25_FE, label = "Galaxy S25 FE", modelPrefix = "SM-S731", codename = "r13s")
+    val S25_FE = withPixelOs(S_FE_9945.copy(id = ID_S25_FE, label = "Galaxy S25 FE", modelPrefix = "SM-S731", codename = "r13s"))
 
     /**
      * Galaxy S22 with Snapdragon, from 0.4.68: findings of 2026-11-08 (SM-S901U, r0q, SM8450, One UI 8.0,
@@ -1271,7 +1276,7 @@ object Profiles {
      * with no SVE or SME, KernelSU): the [S_ULTRA_8450]'s chip, vendor and One UI, so its choice, OxygenOS
      * 16 only, untested. The Exynos S22 (SM-S901B, r0s, s5e9925) is [S_9925].
      */
-    val S_8450 = S_ULTRA_8450.copy(id = ID_S_8450, label = "Galaxy S22 (Snapdragon)", modelPrefix = "SM-S901", codename = "r0q")
+    val S_8450 = withPixelOs(S_ULTRA_8450.copy(id = ID_S_8450, label = "Galaxy S22 (Snapdragon)", modelPrefix = "SM-S901", codename = "r0q"))
 
     /**
      * Galaxy M55s, from 0.4.70: findings of 2026-11-08 (SM-M558B, m55xq, Snapdragon 7 Gen 1 SM7450
@@ -1280,13 +1285,13 @@ object Profiles {
      * 4095), the HIDL composer, KernelSU): the [E55]'s codename, chip and vendor, so its choice,
      * OxygenOS 16 only, untested.
      */
-    val M55S = E55.copy(id = ID_M55S, label = "Galaxy M55s", modelPrefix = "SM-M558")
+    val M55S = withPixelOs(E55.copy(id = ID_M55S, label = "Galaxy M55s", modelPrefix = "SM-M558"))
 
     /**
      * The au Galaxy S22 Ultra, from 0.4.74: findings of 2026-11-09 (SCG14, ro.product.device SCG14,
      * vendor device b0q, SM8450, One UI 8). The S22 Ultra (Snapdragon)'s OxygenOS 16, untested.
      */
-    val S_ULTRA_8450_JP = S_ULTRA_8450.copy(id = ID_S_ULTRA_8450_JP, label = "Galaxy S22 Ultra (au)", modelPrefix = "SCG14", codename = "SCG14")
+    val S_ULTRA_8450_JP = withPixelOs(S_ULTRA_8450.copy(id = ID_S_ULTRA_8450_JP, label = "Galaxy S22 Ultra (au)", modelPrefix = "SCG14", codename = "SCG14"))
 
     /**
      * The au Galaxy S23 Ultra, from 0.4.92: findings of 2026-11-11 (SCG20, ro.product.device SCG20,
@@ -1294,7 +1299,7 @@ object Profiles {
      * 450, KernelSU; its installd table is the 85 methods of host_installd.txt). The [S_ULTRA_8550]'s
      * systems and note, untested.
      */
-    val S_ULTRA_8550_JP = S_ULTRA_8550.copy(id = ID_S_ULTRA_8550_JP, label = "Galaxy S23 Ultra (au)", modelPrefix = "SCG20", codename = "SCG20")
+    val S_ULTRA_8550_JP = withPixelOs(S_ULTRA_8550.copy(id = ID_S_ULTRA_8550_JP, label = "Galaxy S23 Ultra (au)", modelPrefix = "SCG20", codename = "SCG20"))
 
     /**
      * Galaxy S22 with Exynos, from 0.4.93: findings of 2026-11-11 (SM-S901B, r0s, s5e9925, now on One UI
@@ -1302,14 +1307,14 @@ object Profiles {
      * The [S_PLUS_9925]'s chip and One UI, so its choice and note: OxygenOS 16 only, untested. The
      * Snapdragon S22 is [S_8450] (r0q).
      */
-    val S_9925 = S_PLUS_9925.copy(id = ID_S_9925, label = "Galaxy S22 (Exynos)", modelPrefix = "SM-S901", codename = "r0s")
+    val S_9925 = withPixelOs(S_PLUS_9925.copy(id = ID_S_9925, label = "Galaxy S22 (Exynos)", modelPrefix = "SM-S901", codename = "r0s"))
 
     /**
      * Galaxy A16 5G with MediaTek, from 0.4.93: findings of 2026-11-11 (SM-A166P, a16xm, MT6835, One UI
      * 8.5 and Android 16, KernelSU). The [A07_5G]'s chip and One UI, so its choice and note: OxygenOS 16
      * only, untested. The Exynos A16 5G is [A16] (a16x).
      */
-    val A16_MTK = A07_5G.copy(id = ID_A16_MTK, label = "Galaxy A16 5G (MediaTek)", modelPrefix = "SM-A166", codename = "a16xm")
+    val A16_MTK = withPixelOs(A07_5G.copy(id = ID_A16_MTK, label = "Galaxy A16 5G (MediaTek)", modelPrefix = "SM-A166", codename = "a16xm"))
 
     /**
      * The au Galaxy S23, from 0.4.93: findings of 2026-11-11 (SCG19, ro.product.device SCG19, vendor
@@ -1317,21 +1322,27 @@ object Profiles {
      * KernelSU; its installd table is the 85 methods of host_installd.txt). The [S_8550]'s systems and
      * note, untested.
      */
-    val S_8550_JP = S_8550.copy(id = ID_S_8550_JP, label = "Galaxy S23 (au)", modelPrefix = "SCG19", codename = "SCG19")
+    val S_8550_JP = withPixelOs(S_8550.copy(id = ID_S_8550_JP, label = "Galaxy S23 (au)", modelPrefix = "SCG19", codename = "SCG19"))
 
     /**
      * Galaxy M35 5G, from 0.4.95: findings of 2026-11-11 (SM-M356B, m35x, s5e8835 Exynos 1380, One UI 9.0,
      * Android 17, KernelSU). The [A35]'s chip and vendor, so the [A26]'s choices and notes, as the A35 5G
      * has them; untested.
      */
-    val M35 = A26.copy(id = ID_M35, label = "Galaxy M35 5G", modelPrefix = "SM-M356", codename = "m35x")
+    val M35 = withPixelOs(A26.copy(id = ID_M35, label = "Galaxy M35 5G", modelPrefix = "SM-M356", codename = "m35x"))
+
+    /**
+     * Galaxy M36 5G (SM-M366B, m36x, s5e8835 Exynos 1380, One UI 9.0, Android 17, KernelSU).
+     * The [M35] and [A35]'s chip and vendor, so the [A26]'s choices and notes; untested.
+     */
+    val M36 = withPixelOs(A26.copy(id = ID_M36, label = "Galaxy M36 5G", modelPrefix = "SM-M366", codename = "m36x"))
 
     /**
      * Galaxy A15 5G, from 0.4.95: findings of 2026-11-11 (SM-A156M, a15x, MT6835, One UI 8.5 and Android
      * 16, KernelSU). The [A07_5G]'s chip and One UI, so its choice and note: OxygenOS 16 only, untested.
      * The A15 with the Helio G99 (SM-A155, MT6789) is another phone, [A15].
      */
-    val A15_5G = A07_5G.copy(id = ID_A15_5G, label = "Galaxy A15 5G", modelPrefix = "SM-A156", codename = "a15x")
+    val A15_5G = withPixelOs(A07_5G.copy(id = ID_A15_5G, label = "Galaxy A15 5G", modelPrefix = "SM-A156", codename = "a15x"))
 
     /**
      * Galaxy S24+ with Snapdragon, from 0.5.15: a probe report of 2026-11-15 (SM-S9260, e2q, SM8650 like the
@@ -1340,7 +1351,7 @@ object Profiles {
      * methods; "sm9260 won't work": the probe refused it as an unknown model). The Snapdragon S24's images and
      * note, untested. Shares SM-S926 with [S_PLUS_9945]: the codename and the chip tell them apart.
      */
-    val S_PLUS_8650 = S_8650.copy(id = ID_S_PLUS_8650, label = "Galaxy S24+", modelPrefix = "SM-S926", codename = "e2q")
+    val S_PLUS_8650 = withPixelOs(S_8650.copy(id = ID_S_PLUS_8650, label = "Galaxy S24+", modelPrefix = "SM-S926", codename = "e2q"))
 
     /**
      * Galaxy S26 FE, from 0.5.28: Probe findings of 2026-11-19 (SM-S741U, r14s, s5e9955 Exynos 2500 like the
@@ -1349,7 +1360,7 @@ object Profiles {
      * Probe called it "Not a supported model"). The Z Flip7's images (its chip; no system needing SME) on the
      * bar settings, untested, with [EXYNOS] and the older vendor note.
      */
-    val S26_FE = PhoneProfile(
+    val S26_FE = withPixelOs(PhoneProfile(
         id = ID_S26_FE,
         label = "Galaxy S26 FE",
         modelPrefix = "SM-S741",
@@ -1358,7 +1369,7 @@ object Profiles {
         form = FormFactor.BAR,
         choices = FLIP7.choices,
         notes = listOf(EXYNOS, olderVendor("202404 (Android 15)", "6.6")),
-    )
+    ))
 
     val BUILT_IN: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
@@ -1366,9 +1377,23 @@ object Profiles {
         S_PLUS_9965, FLIP7, A56, A57, FLIP5, FOLD6, A07, FLIP8, A36, FOLD5, FOLD4,
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
-        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, A15_5G, S_PLUS_8650,
+        A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,
         S26_FE,
     )
+
+    /**
+     * PixelOS 17 on every bar phone on One UI 9 (0.5.35, owner: "it would work for all devices on 9.0"): the A36's
+     * (tested) and A27's choice, untested on the others, right before One UI 9.5 like theirs. It is built for the
+     * A series' ARMv8.2 CPUs, so the newer S and A chips run it too; its fixes (fingerprint place and icon, lock
+     * screen, status bar, brightness range, Dolby) are worked out per phone. Folds and Flips keep their own Pixel
+     * builds (PixelOS has no cover screen or hinge handling). A phone offers One UI 9.5 only on One UI 9.
+     */
+    private fun withPixelOs(p: PhoneProfile): PhoneProfile {
+        val oneUi = p.choices.indexOfFirst { it.imageId == Images.ID_ONEUI95 }
+        if (p.form != FormFactor.BAR || oneUi < 0 || p.choices.any { it.imageId == Images.ID_PIXELOS_ONYX }) return p
+        return p.copy(choices = p.choices.subList(0, oneUi) + ImageChoice(Images.ID_PIXELOS_ONYX, PackageSets.ID_PIXELOS, tested = false) +
+            p.choices.subList(oneUi, p.choices.size))
+    }
 
     /** `ro.build.version.oneui` values of profiled phones: One UI 9.0, and 9.5 (0.5.28: S26 phones updated to it, whose installd the sets read at runtime). */
     val ONE_UI_SEEN: Set<Int> = setOf(90000, 90500)

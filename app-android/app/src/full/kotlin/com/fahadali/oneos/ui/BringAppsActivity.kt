@@ -12,19 +12,21 @@ import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.BringApps
 import com.fahadali.oneos.core.model.BringApps.Change
 import com.fahadali.oneos.core.model.BringApps.CopyState
+import com.fahadali.oneos.core.model.BringApps.Filter
 import com.fahadali.oneos.core.model.ImageRef
 import com.fahadali.oneos.core.model.Images
 import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.session.BringAppsJob
 import com.fahadali.oneos.session.BringAppsJob.Phase
 import com.fahadali.oneos.session.StageCheck
+import com.fahadali.oneos.shared.BringAppFilters
 import dev.oneuiproject.oneui.R as OuiIcons
 
 /**
  * Bring apps (on each system's page, next to Root, 0.4.75, owner: "a way to select our 3rd party apps we
  * want to bring over with us to guest OS with its data ... so we dont have to
  * keep logging in"). Three cards: how it works (naming the system set up now),
- * the user apps One UI has with a box to tick each, and the actions.
+ * the apps One UI has with a box to tick each, and the actions.
  *
  * Build 104 (owner: "apps list should have select all button too, and apps
  * whose data or app itself has been updated should be reminded to toggle
@@ -64,6 +66,8 @@ class BringAppsActivity : ToolbarActivity() {
 
 class BringAppsFragment : CardsFragment() {
     private val subs = mutableListOf<() -> Unit>()
+    private var filter = Filter.USER
+    private var search = ""
 
     /** Read the apps again on a fresh visit (a new install since); a rotation keeps the list and the last result. */
     private var loadOnStart = false
@@ -74,6 +78,14 @@ class BringAppsFragment : CardsFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         loadOnStart = savedInstanceState == null
+        filter = Filter.entries.getOrNull(savedInstanceState?.getInt("bring_filter") ?: 0) ?: Filter.USER
+        search = savedInstanceState?.getString("bring_search").orEmpty()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt("bring_filter", filter.ordinal)
+        outState.putString("bring_search", search)
     }
 
     override fun onStart() {
@@ -139,30 +151,17 @@ class BringAppsFragment : CardsFragment() {
             candidates.isEmpty() ->
                 CardRows.status(apps, Level.INFO, getString(R.string.bring_none), getString(R.string.bring_none_summary, system))
             else -> {
-                // Brought and installed there, and One UI's app or data changed since: one tap ticks them.
-                val newer = candidates.filter { c -> c.pkg !in st.selected && copies[c.pkg]?.let { it.state == CopyState.INSTALLED && it.newer } == true }
-                if (newer.isNotEmpty()) {
-                    val tickThem: ((View) -> Unit)? = if (st.busy) null else { _ -> BringAppsJob.tick(ctx, newer.map { it.pkg }) }
-                    CardRows.status(
-                        apps, Level.INFO,
-                        resources.getQuantityString(R.plurals.bring_newer_n, newer.size, newer.size),
-                        getString(R.string.bring_newer_summary, system), tickThem,
-                    )
-                }
-                CardRows.tick(
-                    apps, getString(R.string.bring_select_all),
-                    resources.getQuantityString(R.plurals.bring_select_all_n, candidates.size, candidates.size),
-                    checked = ticked == candidates.size,
-                    enabled = !st.busy,
-                ) { on -> BringAppsJob.setAll(ctx, on) }
-                for (c in candidates) {
-                    CardRows.tick(
-                        apps, c.label,
-                        rowSummary(c, copies[c.pkg], c.pkg in st.selected, system),
-                        checked = c.pkg in st.selected,
-                        enabled = !st.busy,
-                    ) { on -> BringAppsJob.toggle(ctx, c.pkg, on) }
-                }
+                val rows = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+                apps.addView(BringAppFilters(
+                    ctx, getString(R.string.bring_search), getString(R.string.bring_filter),
+                    resources.getStringArray(R.array.bring_filters).toList(), filter, search,
+                ) { type, query ->
+                    filter = type
+                    search = query
+                    showApps(rows, candidates, copies, BringAppsJob.state.selected, BringAppsJob.state.busy, system)
+                })
+                apps.addView(rows)
+                showApps(rows, candidates, copies, st.selected, st.busy, system)
             }
         }
 
@@ -310,6 +309,56 @@ class BringAppsFragment : CardsFragment() {
             if (st.notes.isNotEmpty()) Cards.row(card, 0, getString(R.string.bring_details_said), st.notes.joinToString("\n"))
             if (synced && st.log.isNotEmpty()) Cards.row(card, 0, getString(R.string.bring_details_log, system), st.log.joinToString("\n"))
             message?.let { Cards.row(card, 0, getString(R.string.setup_details_result), it) }
+        }
+    }
+
+    private fun showApps(
+        rows: LinearLayout,
+        candidates: List<BringAppsJob.Candidate>,
+        copies: Map<String, BringApps.Copy>,
+        selected: Set<String>,
+        busy: Boolean,
+        system: String,
+    ) {
+        val ctx = rows.context
+        val visible = candidates.filter { filter.matches(it.system, it.label, it.pkg, search) }
+        rows.removeAllViews()
+        if (filter != Filter.USER) {
+            CardRows.text(rows, getString(R.string.bring_system_summary), R.style.OneOS_Text_Caption, inList = true)
+        }
+        if (visible.isEmpty()) {
+            CardRows.status(rows, Level.INFO, getString(R.string.bring_no_matches), null)
+            return
+        }
+        // Bulk actions affect only the user apps shown by the current filter and search.
+        val userPackages = visible.filterNot { it.system }.mapTo(mutableSetOf()) { it.pkg }
+        val newer = visible.filter { c ->
+            !c.system && c.pkg !in selected && copies[c.pkg]?.let { it.state == CopyState.INSTALLED && it.newer } == true
+        }
+        if (newer.isNotEmpty()) {
+            val tickThem: ((View) -> Unit)? = if (busy) null else { _ -> BringAppsJob.tick(ctx, newer.map { it.pkg }) }
+            CardRows.status(
+                rows, Level.INFO,
+                resources.getQuantityString(R.plurals.bring_newer_n, newer.size, newer.size),
+                getString(R.string.bring_newer_summary, system), tickThem,
+            )
+        }
+        if (userPackages.isNotEmpty()) {
+            CardRows.tick(
+                rows, getString(R.string.bring_select_visible_user),
+                resources.getQuantityString(R.plurals.bring_select_all_n, userPackages.size, userPackages.size),
+                checked = selected.containsAll(userPackages),
+                enabled = !busy,
+            ) { on -> BringAppsJob.setVisible(ctx, userPackages, on) }
+        }
+        for (c in visible) {
+            val summary = rowSummary(c, copies[c.pkg], c.pkg in selected, system)
+            CardRows.tick(
+                rows, c.label,
+                if (c.system) getString(R.string.bring_system_row, summary) else summary,
+                checked = c.pkg in selected,
+                enabled = !busy,
+            ) { on -> BringAppsJob.toggle(ctx, c.pkg, on) }
         }
     }
 

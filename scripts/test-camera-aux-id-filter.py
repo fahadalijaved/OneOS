@@ -253,5 +253,71 @@ class CameraAuxIdFilterTest(unittest.TestCase):
             MODULE.patch(temp.name)
 
 
+# PixelOS 17 (onyx): the loop asks shouldHideAuxCamera(id) per camera; only its allowlist question goes.
+PIXELOS = """.class public final Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;
+.super Ljava/lang/Object;
+
+.method private blacklist extractCameraIdListLocked(II)[Ljava/lang/String;
+    .locals 6
+
+    invoke-static {v4}, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;->-$$Nest$fgetmCameraId(Landroid/hardware/camera2/CameraManager$CameraManagerGlobal$DeviceCameraInfo;)Ljava/lang/String;
+
+    move-result-object v5
+
+    invoke-static {v5}, Landroid/hardware/camera2/CameraManager$CameraManagerGlobal;->shouldHideAuxCamera(Ljava/lang/String;)Z
+
+    move-result v5
+
+    return-object p1
+.end method
+
+.method private static blacklist shouldHideAuxCamera(Ljava/lang/String;)Z
+    .locals 2
+
+    .line 2401
+    invoke-static {}, Landroid/hardware/Camera;->shouldExposeAuxCamera()Z
+
+    move-result v0
+
+    const/4 v1, 0x0
+
+    if-eqz v0, :cond_0
+
+    return v1
+
+    :cond_0
+    invoke-static {p0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I
+
+    move-result p0
+
+    const/4 v0, 0x2
+
+    if-lt p0, v0, :cond_1
+
+    const/4 v1, 0x1
+
+    :cond_1
+    return v1
+.end method
+"""
+
+
+class PixelOsShape(unittest.TestCase):
+    def test_the_allowlist_no_longer_exposes_aux_ids(self):
+        with tempfile.TemporaryDirectory() as root:
+            d = os.path.join(root, "smali_classes2", "android", "hardware", "camera2")
+            os.makedirs(d)
+            path = os.path.join(d, "CameraManager$CameraManagerGlobal.smali")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(PIXELOS)
+            self.assertEqual("smali_classes2", MODULE.patch(root))
+            text = open(path, encoding="utf-8").read()
+            helper = text.split("shouldHideAuxCamera(Ljava/lang/String;)Z\n", 2)[2]
+            self.assertNotIn("shouldExposeAuxCamera", helper)
+            self.assertIn(MODULE.MARKER + "\n    const/4 v0, 0x0\n", helper)
+            self.assertIn("if-lt p0, v0, :cond_1", helper)
+            self.assertIsNone(MODULE.patch(root))
+
+
 if __name__ == "__main__":
     unittest.main()

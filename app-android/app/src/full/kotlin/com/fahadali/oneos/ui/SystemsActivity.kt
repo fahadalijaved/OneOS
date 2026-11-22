@@ -35,6 +35,7 @@ import com.fahadali.oneos.core.model.Plain
 import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.RootProbe
+import com.fahadali.oneos.session.GuestFeatures
 import com.fahadali.oneos.session.LaunchJob
 import com.fahadali.oneos.session.LogJob
 import com.fahadali.oneos.session.OldStagesJob
@@ -455,6 +456,7 @@ class SystemsFragment : Fragment() {
         val origin = image(com.fahadali.oneos.core.model.SystemFamily.ORIGINOS, Images.ORIGINOS7)
         val lineage = image(com.fahadali.oneos.core.model.SystemFamily.LINEAGE, Images.LINEAGE24)
         val oneui = image(com.fahadali.oneos.core.model.SystemFamily.ONEUI, Images.ONEUI95)
+        val pixelOs = image(com.fahadali.oneos.core.model.SystemFamily.PIXELOS, Images.PIXELOS_ONYX)
         // OxygenOS 16 (Android 16, 0.4.67) only where the phone can take it (One UI 8), and first there.
         val entries = listOfNotNull(
             // HyperOS 4 Global (0.5.27, tested on the Galaxy A36) first, with its own artwork, on the phones that offer it.
@@ -464,6 +466,8 @@ class SystemsFragment : Fragment() {
             CatalogEntry(origin.name, origin, R.drawable.os_originos, true).takeIf { available.any { it.id == origin.id } },
             // LineageOS 24 (0.5.06, experimental) only on the phones that offer it.
             CatalogEntry(lineage.name, lineage, R.drawable.os_lineage, true).takeIf { available.any { it.id == lineage.id } },
+            // PixelOS 17 (0.5.35), a custom ROM with a card and artwork of its own (not the Pixel card), only on the phones that offer it.
+            CatalogEntry(pixelOs.name, pixelOs, R.drawable.os_pixelos, true).takeIf { available.any { it.id == pixelOs.id } },
             // One UI 9.5 (0.5.22, untested) only on the phones on One UI 9 that offer it.
             CatalogEntry(oneui.name, oneui, R.drawable.os_oneui, true).takeIf { available.any { it.id == oneui.id } },
             CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, available.any { it.id == infinity.id }),
@@ -597,6 +601,13 @@ class SystemsFragment : Fragment() {
             return v
         }
         val primary = v.findViewById<Button>(R.id.systems_primary)
+        val features = GuestFeatures.forSystem(p, image.id)
+        if (features.isNotEmpty()) {
+            v.findViewById<Button>(R.id.systems_features).apply {
+                visibility = View.VISIBLE
+                setOnClickListener { showGuestFeatureFlags(ctx, image.id, features) }
+            }
+        }
         // The menu follows the card's state (0.5.09): the set-up system offers Start fresh and Remove, a saved
         // copy offers its delete, a system not set up the download and file items. A long press opens it too.
         fun showMenu(anchor: View) {
@@ -605,6 +616,12 @@ class SystemsFragment : Fragment() {
             androidx.appcompat.widget.PopupMenu(ctx, anchor, android.view.Gravity.END).apply {
                 fun details() = menu.add(R.string.catalog_details).setOnMenuItemClickListener {
                     AlertDialog.Builder(ctx).setTitle(image.displayName).setMessage(image.blurb + "\n\n" + image.variant.orEmpty() + "\n" + Units.bytes(image.gzBytes)).setPositiveButton(android.R.string.ok, null).show(); true
+                }
+                if (features.isNotEmpty()) {
+                    menu.add(R.string.system_features).setOnMenuItemClickListener {
+                        showGuestFeatureFlags(ctx, image.id, features)
+                        true
+                    }
                 }
                 when {
                     setUp && !settingUp -> {

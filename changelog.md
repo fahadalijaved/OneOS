@@ -801,6 +801,31 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.35: **PixelOS 17 on every Galaxy on One UI 9, One UI 9.5 on the Z Fold8 with its own files, Dolby on
+Bluetooth, and contributors' fixes.**
+- **PixelOS 17** (new system, the Pixel experience built for the A series' CPUs; Google's Pixel builds cannot run on
+  them): on **every bar phone on One UI 9** (S and A series, S22 and newer), with its own card; Folds and Flips keep
+  their own Pixel builds. Tested on the A36, untested on the others: in-display fingerprint and face
+  unlock, Always-On Display in the panel's low-power mode, the large lock screen clock, a brightness range and a
+  slider that follows One UI's (the middle of the bar is no longer near the bottom), the status bar centred on
+  the camera hole, calls (also over Bluetooth) and SMS. Face unlock stays set up after a return to One UI.
+- **Dolby Atmos follows the music:** in the AOSP-based systems Samsung's Dolby stayed on the speaker's output when
+  music moved to Bluetooth earbuds; it now moves with it (A36 with Galaxy Buds: confirmed).
+- **Fingerprint and lock screen in the Pixel-style systems:** the in-display sensor's icon has the right size, and
+  the lock screen's message line sits above the sensor circle instead of on it.
+- **One UI 9.5:** the OneOS app inside it is installed again (One UI 9.5 only installs system apps on its own
+  list); MediaTek A and M phones (A17) use their own Samsung Camera instead of the A36's, whose HDR mode their
+  camera driver refused (the preview froze). The **Galaxy Z Fold8** gets its own One UI 9.5 files from Josh
+  (thatjoshguy67, pull request #328): its two screens, cover and inner Home layouts, taskbar, Settings and
+  rotation; other phones don't download them. Also from #328: **Feature flags** on the One UI 9.5 card (the
+  Dynamic Island media player, on by default) and **search and system apps in Bring apps**.
+- **ColorOS on QHD phones left at FHD+** (S+ and Ultra): ColorOS ran the full QHD screen while keeping One UI's
+  FHD+ size for its layout; both now match (Sa12008s, who found, fixed and tested it).
+- **Wireless debugging inside a system** accepts devices paired there (syedarhamraza, pull request #298).
+- **New phone:** the Galaxy M36 5G (pull request #327), untested.
+- Untested on a phone: PixelOS beyond the A36, the One UI 9.5 OneOS app and MediaTek camera, the Z Fold8's One UI
+  9.5 files, the M36.
+
 New in 0.5.34: **S24 FE zoomed photos and steady stereo, A16 brightness, USB-C headphones on the A35, and a safer
 Debloat.**
 - **Samsung Camera:** zoomed photos no longer close the camera on phones whose One UI lacks the S26 Ultra camera's
