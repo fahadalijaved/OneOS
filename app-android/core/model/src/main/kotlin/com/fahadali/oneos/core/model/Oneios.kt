@@ -35,7 +35,12 @@ object OneiosSystem {
     /** The manifest `format` of both a runtime package and an image set this build reads. */
     const val FORMAT = 1
 
-    /** The phone it is mainly tested and working on: the Galaxy S24 Ultra (SM-S928, e3q, SM8650); other phones are warned, not refused (the owner, 2026-11-16). */
+    /**
+     * The phone it is mainly tested and working on: the Galaxy S24 Ultra (SM-S928, e3q, SM8650); other phones are warned,
+     * not refused (the owner, 2026-11-16). Every S24 Ultra model number is this profile: the owner's SM-S928B, the US
+     * SM-S928U and U1, the Canadian SM-S928W (its stock firmware has the US bootloader and vendor model: [CustomRomRule]
+     * takes it), the Korean SM-S928N and the Chinese SM-S9280 (OneiosTest).
+     */
     val PROFILE_IDS: Set<String> = setOf(Profiles.ID_S_ULTRA_8650)
 
     const val R_NOT_THIS_PHONE = "oneios-not-this-phone"

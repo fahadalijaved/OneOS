@@ -64,6 +64,27 @@ class OneiosTest {
         assertFalse(OneiosSystem.offeredOn("SM-F976B", "q8q", "SM8850"))
     }
 
+    /**
+     * Every S24 Ultra model number gets the card, the gate and the switch as the owner's SM-S928B does: the US U and
+     * U1, Canada's W (stock: the US bootloader and vendor model, public issue 128), Korea's N, China's 0.
+     */
+    @Test
+    fun everyS24UltraModelGetsTheSameCardAsTheS928B() {
+        val b = OneiosSystem.gate(Profiles.resolve("SM-S928B", "e3q", "SM8650").profile, ticked = false)
+        for (model in listOf("SM-S928U", "SM-S928U1", "SM-S928W", "SM-S928N", "SM-S9280")) {
+            val p = Profiles.resolve(model, "e3q", "SM8650").profile
+            assertEquals(model, Profiles.S_ULTRA_8650, p)
+            assertTrue(model, OneiosSystem.offeredOn(model, "e3q", "SM8650"))
+            assertEquals(model, b, OneiosSystem.gate(p, ticked = false))
+            assertEquals(model, Level.OK, OneiosSystem.gate(p, ticked = true).level)
+        }
+        // The SM-S928W's stock firmware is no custom ROM, with either bootloader and with or without its vendor model.
+        for (bl in listOf("S928USQU6EZIF", "S928WVLU6EZIF")) {
+            assertNull(bl, CustomRomRule.check(CustomRomRule.Signals("SM-S928W", bl, "SM-S928U", "90000")))
+            assertNull(bl, CustomRomRule.check(CustomRomRule.Signals("SM-S928W", bl, "", "90000")))
+        }
+    }
+
     @Test
     fun aDisabledProfileIsNotOffered() {
         assertFalse(OneiosSystem.offeredOn(Profiles.S_ULTRA_8650.copy(enabled = false, disabledReason = "x")))

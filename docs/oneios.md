@@ -88,7 +88,12 @@ Both are a zstd-compressed tar with a manifest at the top: `runtime.json` or `ma
 ## Scope: mainly the Galaxy S24 Ultra
 
 `OneiosSystem.offeredOn` (`core/model/.../Oneios.kt`) is true for one profile, `s-ultra-8650` (SM-S928, e3q,
-SM8650), and `oneios_switch.sh` checks the same three properties itself before anything else. On the S24 Ultra
+SM8650), and `oneios_switch.sh` checks the same three properties itself before anything else. That is every S24
+Ultra model number, with the same card, gate and switch as the owner's SM-S928B: the US SM-S928U and U1, the
+Canadian SM-S928W (its stock firmware carries the US bootloader `S928USQU...` and vendor model `SM-S928U`, which the
+custom-ROM rule takes since 0.4.89), the Korean SM-S928N and the Chinese SM-S9280 (host-tested: `OneiosTest`,
+`ProfilesTest`, `OneiosScriptTest.theSwitchTakesEveryS24UltraModelAsTheTestedPhone`; only the B has run a session).
+The Japanese S24 Ultras (SC-52E, SCG26) are not `SM-S928`: they are warned as another phone. On the S24 Ultra
 the card is last in Choose a system, marked Experimental, and the switch needs a tick every time ("I understand
 that iOS 27 (OneiOS) is experimental..."), like an untested profile. The owner (2026-11-16): every other phone
 is **warned, not refused** — the switch prints what to expect and goes on, the setup flows as usual, and the

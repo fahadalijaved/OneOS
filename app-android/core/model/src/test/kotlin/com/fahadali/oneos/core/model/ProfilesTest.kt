@@ -564,6 +564,7 @@ class ProfilesTest {
         assertNull(profile("SM-F966B", "q8q", "SM8850")) // codename alone matched in the probe builds
         assertNull(profile("SM-F976B", "q8q", "")) // chip unknown: fail closed
         assertEquals(Profiles.S_ULTRA_8650, profile("SM-S928B", "e3q", "SM8650")) // S24 Ultra (0.4.11)
+        for (m in listOf("SM-S928U", "SM-S928U1", "SM-S928W", "SM-S928N", "SM-S9280")) assertEquals(m, Profiles.S_ULTRA_8650, profile(m, "e3q", "SM8650")) // its US, Canadian, Korean, Chinese model numbers
         assertNull(profile("SM-S928B", "e3q", "s5e9945")) // an Exynos S24 Ultra
         // Galaxy S26 (0.4.11): SM-S942 or the Japanese SC-51G, codename m1q, SM8850; not the Exynos S26.
         assertEquals(Profiles.S_8850, profile("SM-S942B", "m1q", "SM8850"))
