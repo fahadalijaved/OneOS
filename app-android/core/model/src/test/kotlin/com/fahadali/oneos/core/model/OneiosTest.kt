@@ -645,7 +645,7 @@ class OneiosTest {
      * Make iOS image's one request (docs/oneios.md, "Make iOS image"): exactly the keys OneiOS's `make-image` takes
      * from the app (oneos/interface.md section 9; crates/oneios-serve cmds.rs `make_image`: `indir`, `out`, `work`
      * written under the stage, `sums_list` and `ids_list` optional, `resume` a flag), and nothing it would refuse
-     * (`usage` for an unknown key). The profile is named: a released runtime packs five or more in `lib/profiles/`,
+     * (`usage` for an unknown key). The profile is named: a released runtime packs four or more in `lib/profiles/`,
      * and the tool (up to v0.1.16) refuses a request without one there, `usage` (OneiOS issue 75). The tool's
      * defaults take the kernel and kb/ from the stage.
      */

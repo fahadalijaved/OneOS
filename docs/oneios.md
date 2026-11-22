@@ -547,7 +547,7 @@ a release: the phone downloads Apple's IPSW members from Apple and builds the se
    `{"cmd":"make-image","profile":"<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml","indir":"<stage>/make/inputs","out":"<stage>/image.new","sums_list":"<stage>/image.new.sha256","ids_list":"<stage>/image.new.ids","work":"<stage>/make","resume":true}`
    (`OneiosTool.makeImageRequest`; every key checked against OneiOS's `crates/oneios-serve/src/cmds.rs`
    `make_image`; the runtime's `kernel/xnu.macho`, `kb/` and the root tweaks are the tool's defaults from the stage;
-   the profile is named, because a released runtime packs five or more and a tool up to v0.1.16 refuses `usage`
+   the profile is named, because a released runtime packs four or more and a tool up to v0.1.16 refuses `usage`
    without one there, OneiOS issue 75). Its steps, as its `start` event lists them: `check`, `directory`, `download`, `decrypt`, `place`,
    `data`, `tweaks`, `seed`, `kernelcache`, `kernel-check` ... `kernel-place` (the prelink's sixteen, the audit and
    the stub check among them), `manifest`, `verify`, `lists`;
