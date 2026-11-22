@@ -351,6 +351,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S23 (SM-S911, SM8550), not tested yet
   - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy A07 (SM-A075, MT6789), not tested yet
+  - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
   - Galaxy S23 Ultra (SM-S918, SM8550), not tested yet
   - Galaxy A26 (SM-A266, s5e8835), not tested yet
   - Galaxy A17 (SM-A175, MT6789), not tested yet

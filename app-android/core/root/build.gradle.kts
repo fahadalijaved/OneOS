@@ -44,6 +44,7 @@ val runLogs = rootProject.layout.projectDirectory.dir("../out/logs")
 val packagesDir = rootProject.layout.projectDirectory.dir("packages")
 
 tasks.withType<Test>().configureEach {
+    environment("PATH", "/opt/homebrew/opt/findutils/libexec/gnubin:/opt/homebrew/opt/coreutils/libexec/gnubin:" + (System.getenv("PATH") ?: "/usr/bin:/bin"))
     inputs.dir(appAssets).withPropertyName("appAssets")
     inputs.dir(fullAssets).withPropertyName("fullAssets")
     inputs.dir(appSources).withPropertyName("appSources")

@@ -1472,6 +1472,24 @@
       ]
     },
     {
+      "id": "f4",
+      "label": "Galaxy Z Fold4",
+      "model": "SM-F936",
+      "codename": "q4q",
+      "chip": "SM8475",
+      "form": "fold",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
       "id": "s-ultra-8550",
       "label": "Galaxy S23 Ultra",
       "model": "SM-S918",

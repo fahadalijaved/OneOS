@@ -62,6 +62,16 @@ class InstalldExpectedTest {
     }
 
     @Test
+    fun zFold4HasTheOneUi80Table() {
+        val oneUi80 = javaClass.getResource("/host_installd_oneui80.txt")!!.readText()
+        val a16 = File(fixture.parentFile, "host_installd_a16.txt").readText()
+        val block = InstalldExpected.methodsBlock(Bundles.Q4Q.table, Bundles.Q4Q.facts.fingerprint)
+        assertEquals(InstalldExpected.nonCommentLines(oneUi80), block)
+        assertEquals(emptyList<String>(), InstalldExpected.problems(Bundles.Q4Q.installd, a16, 36))
+        assertEquals(emptyList<String>(), InstalldExpected.problems(Bundles.Q4Q.installd, null, 36))
+    }
+
+    @Test
     fun everyBundledPhoneHasTheShippedTable() {
         val expected = fixture.readText()
         for (phone in Bundles.ALL) {
