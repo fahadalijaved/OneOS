@@ -101,6 +101,17 @@ switch's confirm has a third box ("mainly tested and working on the Galaxy S24 U
 phone it may be unstable, miss pieces, or not come back to One UI"). A Samsung device is what the code is
 written for; anything else may be unstable, half-working, or not come back.
 
+**The Galaxy S26 Ultra** (SM-S948, m3q, SM8850; profile `s-ultra-8850`; 2026-11-23, branch `sm8850-support`) is
+such another phone, with one more sentence in its warning (`OneiosSystem.NOT_THIS_PHONE_NOTES`, and four `WARNING:`
+lines in `oneios_switch.sh`'s own check): iOS ran on it only in another fork's root-only test (`YMGPwcca/OneiOS` and
+`YMGPwcca/OneOS`, 2026-11-16 to 2026-11-22), never through this switch, and its watchdog hand-off and the return to
+One UI in place are not verified there (a magic close of `/dev/watchdog` after the framework stop got `EBUSY`); a
+return that fails restarts the phone into One UI (the return's failsafe). `YMGPwcca/OneOS` refuses the switch on
+it ("hardware diagnostics only", in the app and in the root script); this fork keeps the owner's rule and warns
+(`OneiosTest.theS26UltraIsWarnedWithWhatIsKnownNotRefused`, `OneiosScriptTest.theSwitchTakesEveryS24UltraModelAsTheTestedPhone`).
+What was taken from that fork and what was not, with the reasons: OneiOS `docs/s26.md` and `docs/forks.md`. Nothing
+here was run on an S26 Ultra.
+
 It is not an `ImageRef`: it has no Android SDK, no `system.raw`, no package set and no guard jars, so none of the
 Android guests' tables, pins or tests know it.
 

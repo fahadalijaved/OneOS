@@ -51,6 +51,17 @@ object OneiosSystem {
     const val NOT_THIS_PHONE_ACK = "I understand that iOS 27 (OneiOS) is mainly tested and working on the Galaxy S24 Ultra 5G " +
         "(SM-S928B); on this phone it may be unstable, miss pieces, or not come back to One UI, and that One UI stops while it runs."
 
+    /**
+     * What is known of a phone the warning names, by profile id: facts another fork measured on it (OneiOS
+     * docs/s26.md). Still a WARN, never a refusal (the owner's 2026-11-16 rule; YMGPwcca/OneOS refuses the S26 Ultra,
+     * this fork does not: docs/oneios.md, "Scope").
+     */
+    val NOT_THIS_PHONE_NOTES: Map<String, String> = mapOf(
+        Profiles.ID_S_ULTRA_8850 to "On the Galaxy S26 Ultra iOS ran only in another fork's root-only test, never through " +
+            "this switch; its watchdog hand-off and the return to One UI in place are not verified there. A return that " +
+            "fails restarts the phone into One UI.",
+    )
+
     /** What the experimental tick says. */
     const val ACK = "I understand that iOS 27 (OneiOS) is experimental, has never been tested on a phone like this one, " +
         "and that One UI stops while it runs. Volume Up + Volume Down for 3 seconds brings One UI back."
@@ -72,7 +83,8 @@ object OneiosSystem {
             GATE_ID, Level.WARN, "$NAME is mainly for the Galaxy S24 Ultra",
             "$NAME is mainly tested and working on the Galaxy S24 Ultra 5G (SM-S928B)" +
                 (profile?.let { "; this phone is the ${it.label}" } ?: "; this phone is unknown") +
-                ": on it the code may be unstable, miss pieces, or not come back to One UI.",
+                ": on it the code may be unstable, miss pieces, or not come back to One UI." +
+                (profile?.let { NOT_THIS_PHONE_NOTES[it.id] }?.let { " $it" } ?: ""),
             R_NOT_THIS_PHONE,
         )
         !offeredOn(profile) -> Finding(GATE_ID, Level.OK, "$NAME: not the phone it is mainly tested on, acknowledged")

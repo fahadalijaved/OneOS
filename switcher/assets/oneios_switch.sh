@@ -1076,6 +1076,14 @@ if [ "$S24U" = 1 ]; then
     echo "WARNING: the SM-S928 models). This phone is ${P_MODEL:-unknown} (${P_DEVICE:-?}, ${P_SOC:-?}): on it the"
     echo "WARNING: code may be unstable, miss pieces, or not come back to One UI. Samsung devices are the"
     echo "WARNING: ones it is written for. Going on because you asked it to."
+    # What is known of a phone another fork measured (OneiOS docs/s26.md).
+    case "$P_MODEL:$P_DEVICE:$P_SOC" in
+        SM-S948*:*|*:m3q:*)
+            echo "WARNING: Galaxy S26 Ultra (SM8850): iOS ran there only in another fork's root-only test, never"
+            echo "WARNING: through this switch. Its watchdog hand-off and the return to One UI in place are not"
+            echo "WARNING: verified on it (a magic close of /dev/watchdog was refused, EBUSY). A return that fails"
+            echo "WARNING: restarts the phone into One UI." ;;
+    esac
 fi
 
 # The stage first: without a runtime that has xnuhost, that one line is the answer.

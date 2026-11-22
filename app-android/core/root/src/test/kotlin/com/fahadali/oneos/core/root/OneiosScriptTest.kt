@@ -1106,7 +1106,7 @@ class OneiosScriptTest {
         getprop.writeText("#!/bin/sh\ncase \"\$1\" in\n  ro.product.model) echo \"\$FAKE_MODEL\" ;;\n  ro.product.device) echo \"\$FAKE_DEVICE\" ;;\n" +
             "  ro.soc.model) echo \"\$FAKE_SOC\" ;;\n  ro.product.vendor.model) echo SM-S928U ;;\n  ro.bootloader) echo S928USQU6EZIF ;;\nesac\n")
         assertTrue(getprop.setExecutable(true))
-        fun warned(sh: String, model: String, device: String = "e3q", soc: String = "SM8650"): Boolean {
+        fun output(sh: String, model: String, device: String, soc: String): String {
             val pb = ProcessBuilder(sh, "-c", "$check\necho \"S24U=\$S24U\"").redirectErrorStream(true)
             pb.environment()["PATH"] = "${dir.path}:${pb.environment()["PATH"]}"
             pb.environment().putAll(mapOf("FAKE_MODEL" to model, "FAKE_DEVICE" to device, "FAKE_SOC" to soc))
@@ -1114,13 +1114,22 @@ class OneiosScriptTest {
             val out = p.inputStream.readBytes().toString(Charsets.UTF_8)
             assertTrue(p.waitFor(30, TimeUnit.SECONDS))
             assertEquals(out, 0, p.exitValue())
-            return out.contains("WARNING: OneiOS is mainly tested") && out.contains("S24U=1")
+            return out
         }
+        fun warned(sh: String, model: String, device: String = "e3q", soc: String = "SM8650"): Boolean =
+            output(sh, model, device, soc).let { it.contains("WARNING: OneiOS is mainly tested") && it.contains("S24U=1") }
+        val s26 = "WARNING: Galaxy S26 Ultra (SM8850): iOS ran there only in another fork's root-only test"
         for (sh in shells) {
             for (m in listOf("SM-S928B", "SM-S928U", "SM-S928U1", "SM-S928W", "SM-S928N", "SM-S9280")) assertFalse("$sh $m", warned(sh, m))
             assertTrue(sh, warned(sh, "SM-S928W", device = "e3s", soc = "s5e9945"))
             assertTrue(sh, warned(sh, "SM-S928W", soc = "SM8750"))
             assertTrue(sh, warned(sh, "SM-S938W", device = "pa3q", soc = "SM8750"))
+            // The S26 Ultra: warned, not refused, with what another fork measured on it (docs/oneios.md, "Scope").
+            assertTrue(sh, warned(sh, "SM-S948B", device = "m3q", soc = "SM8850"))
+            assertTrue(sh, output(sh, "SM-S948B", "m3q", "SM8850").contains(s26))
+            assertTrue(sh, output(sh, "Galaxy S26 Ultra", "m3q", "SM8850").contains(s26))
+            assertFalse(sh, output(sh, "SM-S938B", "pa3q", "SM8750").contains(s26))
+            assertFalse(sh, output(sh, "SM-S928B", "e3q", "SM8650").contains(s26))
         }
     }
 

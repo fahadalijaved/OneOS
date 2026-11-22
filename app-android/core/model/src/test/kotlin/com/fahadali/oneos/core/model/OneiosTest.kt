@@ -105,6 +105,23 @@ class OneiosTest {
         assertEquals(Level.OK, OneiosSystem.gate(Profiles.S_ULTRA_8650, ticked = true).level)
     }
 
+    /** The S26 Ultra (SM-S948, m3q, SM8850): warned, not refused (YMGPwcca/OneOS refuses it), with what another fork
+     *  measured on it; once ticked it switches like any other phone. No other phone gets the note. */
+    @Test
+    fun theS26UltraIsWarnedWithWhatIsKnownNotRefused() {
+        val r = Profiles.resolve("SM-S948B", "m3q", "SM8850")
+        assertEquals(Profiles.ID_S_ULTRA_8850, r.profile?.id)
+        assertFalse(OneiosSystem.offeredOn(r.profile))
+        val g = OneiosSystem.gate(r.profile, ticked = true)
+        assertEquals(Level.WARN, g.level)
+        assertEquals(OneiosSystem.R_NOT_THIS_PHONE, g.reason)
+        assertTrue(g.detail, g.detail.contains("this phone is the Galaxy S26 Ultra"))
+        assertTrue(g.detail, g.detail.endsWith(OneiosSystem.NOT_THIS_PHONE_NOTES.getValue(Profiles.ID_S_ULTRA_8850)))
+        assertEquals(Level.OK, OneiosSystem.gate(r.profile, ticked = true, notThisPhoneTicked = true).level)
+        assertFalse(OneiosSystem.gate(Profiles.F8U, ticked = true).detail.contains("S26"))
+        assertFalse(OneiosSystem.gate(null, ticked = true).detail.contains("S26"))
+    }
+
     /** It is its own kind of system: no Android image or file set stands for it. */
     @Test
     fun itIsNotAnAndroidImage() {
