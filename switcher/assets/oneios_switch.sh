@@ -1475,13 +1475,13 @@ echo "=== [3/5] $(date +%T) Stopping the One UI framework ==="
 # The boot screen first, so that it is up when One UI's windows go.
 bootui_begin
 # The watchdog device(s) One UI's system_server keeps open, before it stops
-# (oneos_switch.sh [4b/6]: recorded for the feeder).
+# (oneos_switch.sh [4b/6]: recorded for the feeder). One `ls -l` of the fd
+# folder, not one readlink process per fd: system_server holds about 1500 fds,
+# and the readlink loop took 48 s on the S24 Ultra (2026-11-23 18:19), so the
+# switch did not start xnuhost within the watcher's 60 s.
 for p in $(pidof system_server); do
-    for fd in /proc/$p/fd/*; do
-        t=$(readlink "$fd" 2>/dev/null)
-        case "$t" in /dev/watchdog*|/dev/softdog*) echo "$t" ;; esac
-    done
-done 2>/dev/null | sort -u > "$CTL/softdog_nodes"
+    ls -l "/proc/$p/fd/"
+done 2>/dev/null | grep -oE '/dev/(watchdog|softdog)[^ ]*' | sort -u > "$CTL/softdog_nodes"
 # The stop lock (above): 15 s at most; a return holds it for good.
 n=0
 until mkdir "$CTL/stop.lock" 2>/dev/null; do

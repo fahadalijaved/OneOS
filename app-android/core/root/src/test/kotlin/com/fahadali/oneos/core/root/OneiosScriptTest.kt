@@ -1568,6 +1568,33 @@ class OneiosScriptTest {
         assertFalse(rt.contains("rmdir \"\$CTL/stop.lock\"") || rt.contains("rm -rf \"\$CTL/stop.lock\""))
     }
 
+    /**
+     * The watchdog nodes of system_server come from one `ls -l` per process, not one readlink per fd: with about 1500
+     * fds the readlink loop took 48 s on the phone (2026-11-23 18:19) and the watcher's 60 s ran out before xnuhost.
+     * The script's own filter, run on an `ls -l` listing, keeps the watchdog and softdog nodes and nothing else.
+     */
+    @Test
+    fun theSoftdogScanIsOneListingPerProcess() {
+        val sw = code(switchScript).joinToString("\n")
+        val scan = sw.substring(sw.indexOf("for p in \$(pidof system_server); do"), sw.indexOf("> \"\$CTL/softdog_nodes\""))
+        assertTrue(scan, scan.contains("ls -l \"/proc/\$p/fd/\""))
+        assertFalse(scan, scan.contains("readlink"))
+        val filter = scan.substringAfter("done 2>/dev/null | ").trim()
+        val listing = """
+            lrwx------ 1 system system 64 2026-11-23 18:20 0 -> /dev/null
+            l-wx------ 1 system system 64 2026-11-23 18:20 412 -> /dev/watchdog
+            lr-x------ 1 system system 64 2026-11-23 18:20 413 -> socket:[123456]
+            l-wx------ 1 system system 64 2026-11-23 18:20 414 -> /dev/softdog0
+            l-wx------ 1 system system 64 2026-11-23 18:20 415 -> /dev/watchdog
+            lr-x------ 1 system system 64 2026-11-23 18:20 416 -> /system/framework/framework.jar
+        """.trimIndent() + "\n"
+        val p = ProcessBuilder("sh", "-c", filter).redirectErrorStream(true).start()
+        p.outputStream.use { it.write(listing.toByteArray()) }
+        val out = p.inputStream.bufferedReader().readText()
+        assertEquals(0, p.waitFor())
+        assertEquals("/dev/softdog0\n/dev/watchdog\n", out)
+    }
+
     /** A return script that cannot run must still end in One UI: the watcher reboots. */
     @Test
     fun theWatcherRebootsWhenTheReturnScriptCannotRun() = each { f ->

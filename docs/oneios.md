@@ -794,7 +794,10 @@ runtime with xnuhost is staged, this is where every switch ends.**
    watcher, a `getevent` reader per volume-key device, and a poll of the keys' state. A kernel wakelock
    (`oneios_session`) keeps the phone awake without One UI's power manager. **One UI is not stopped unless all
    of them run and the wakelock is held**; if not, the switch ends there.
-3. The boot screen starts (below). Under the stop lock, after its last look for a return and just before the stop mark,
+3. The boot screen starts (below). The watchdog nodes system_server holds open go to `control/softdog_nodes`, read
+   from one `ls -l /proc/PID/fd/` per process (before 2026-11-23 one `readlink` per fd: with system_server's 1522
+   fds that took 48 s on the S24 Ultra, and the switch of 18:19 did not start xnuhost within the watcher's 60 s;
+   the listing takes less than 1 s). Under the stop lock, after its last look for a return and just before the stop mark,
    the switch saves the shmem THP mode (`control/base/shmem_enabled`) and writes `advise` for xnuhost's 2 MiB host
    pages (OneiOS 8a9caf3). The file saves only the bare mode (`never`, `advise`, ...), parsed from the bracketed token
    of the node's annotated line; both sides compare bare modes, because writing the whole
