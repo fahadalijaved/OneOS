@@ -920,6 +920,8 @@ case "$MODE" in
         echo 500 > /proc/$$/oom_score_adj 2>/dev/null
         export ONEIOS_SESSION_ABI=$ABI ONEIOS_MODE=takeover ONEIOS_RUNTIME=/data/runtime ONEIOS_IMAGE=/data/image \
                ONEIOS_DATA=/data/data ONEIOS_SESSION=/data/session TMPDIR=/data/session/tmp
+        # The app's versionCode (root's switch verb sets it) for xnuhost's versions: line; a number or nothing.
+        case "${ONEIOS_APP_VERSION_CODE:-}" in ''|*[!0-9]*) unset ONEIOS_APP_VERSION_CODE ;; *) export ONEIOS_APP_VERSION_CODE ;; esac
         unset BB ONEIOS_APP ONEIOS_TEST_ROOT
         # A switch that gave up on this shell meanwhile is returning to One
         # UI: nothing starts under it. "running" is not giving up: the outer

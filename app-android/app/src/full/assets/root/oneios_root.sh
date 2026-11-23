@@ -789,6 +789,8 @@ do_switch() {
     echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
     for v in $(env | sed -n 's/^\(ONEIOS_[A-Za-z0-9_]*\)=.*/\1/p'); do unset "$v"; done
     [ -z "$SMODE" ] || { ONEIOS_SESSION_MODE=$SMODE; export ONEIOS_SESSION_MODE; }
+    # The app's versionCode (is_dec above), for xnuhost's versions: line (OneiOS docs/booter.md 2.9b).
+    ONEIOS_APP_VERSION_CODE=$1; export ONEIOS_APP_VERSION_CODE
     ONEIOS_APP=1 ONEIOS_ACK_EXPERIMENTAL=1 "$BB" nsenter -t 1 -m -- "$BB" setsid /system/bin/sh "$STAGE/oneios_switch.sh" \
         </dev/null >>"$STAGE/switch.log" 2>&1 &
     say "@@OK switch"

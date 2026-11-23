@@ -1595,6 +1595,31 @@ class OneiosScriptTest {
         assertEquals("/dev/softdog0\n/dev/watchdog\n", out)
     }
 
+    /**
+     * xnuhost's `versions:` line (OneiOS docs/booter.md 2.9b) names the app: root's switch verb sets
+     * ONEIOS_APP_VERSION_CODE to its versionCode after it clears every ONEIOS_ variable and before it starts the switch,
+     * and the switch's inner shell exports it to xnuhost only when it is a number.
+     */
+    @Test
+    fun theAppsVersionCodeReachesXnuhost() {
+        val root = code(rootScript).joinToString("\n")
+        val sw = root.substring(root.indexOf("do_switch() {"), root.indexOf("do_return() {"))
+        val set = sw.indexOf("ONEIOS_APP_VERSION_CODE=\$1; export ONEIOS_APP_VERSION_CODE")
+        assertTrue(sw, set > sw.indexOf("do unset \"\$v\"; done") && sw.indexOf("is_dec \"\$1\"") in 0 until set)
+        assertTrue(sw, set < sw.indexOf("setsid /system/bin/sh \"\$STAGE/oneios_switch.sh\""))
+        val inner = code(switchScript).joinToString("\n").let { it.substring(it.indexOf("    --inner)"), it.indexOf("    --stop-loop)")) }
+        val keep = inner.lines().single { it.contains("case \"\${ONEIOS_APP_VERSION_CODE:-}\" in") }.trim()
+        assertTrue(inner.indexOf(keep) < inner.indexOf("exec \"/data/runtime/\$R_XNUHOST\""))
+        for ((given, seen) in listOf("208" to "208", "" to "-", "20 8" to "-", "2a" to "-", "-1" to "-")) {
+            val p = ProcessBuilder("sh", "-c", "$keep\nsh -c 'echo \"\${ONEIOS_APP_VERSION_CODE--}\"'").redirectErrorStream(true)
+            p.environment()["ONEIOS_APP_VERSION_CODE"] = given
+            val run = p.start()
+            val out = run.inputStream.bufferedReader().readText()
+            assertEquals(0, run.waitFor())
+            assertEquals("'$given'", "$seen\n", out)
+        }
+    }
+
     /** A return script that cannot run must still end in One UI: the watcher reboots. */
     @Test
     fun theWatcherRebootsWhenTheReturnScriptCannotRun() = each { f ->

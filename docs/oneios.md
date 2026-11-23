@@ -765,7 +765,12 @@ and neither kind of session starts while the other's stage has anything mounted.
 ## Session flow
 
 `oneios_root.sh switch` runs the preflight (`oneios_switch.sh --check`) and returns its refusal to the app as one
-line. Only when it passes does it start `oneios_switch.sh`, detached, in init's mount namespace.
+line. Only when it passes does it start `oneios_switch.sh`, detached, in init's mount namespace. It clears every
+`ONEIOS_` variable first and then sets `ONEIOS_APP_VERSION_CODE` to the app's versionCode (the number of its
+`switch <versionCode> 1` and of switch.log's `=== OneOS app switch ... versionCode N ===` line); the switch's inner
+shell hands it to xnuhost when it is a number, and xnuhost names it in its `versions:` line (OneiOS
+`docs/booter.md` 2.9b: "app versionCode N"; "app unknown" without it: a bench run, or the scripts of 0.5.78 (207) and
+before). Test: `OneiosScriptTest.theAppsVersionCodeReachesXnuhost`.
 
 **Preflight, before any change.** Root; the S24 Ultra; the stage and both session scripts root's own; a runtime
 whose session ABI is this build's, with an xnuhost that is root's, executable and an arm64 ELF; every runtime
