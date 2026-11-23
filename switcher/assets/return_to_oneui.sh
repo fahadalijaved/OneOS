@@ -731,6 +731,33 @@ sleep 0.5
 # same with mount --make-rprivate in [2/4]. And selinuxfs is checked after.
 SEFS_BEFORE=0; [ -e /sys/fs/selinux/enforce ] && SEFS_BEFORE=1
 I_NS=$(readlink /proc/1/ns/mnt 2>/dev/null)
+# The bootstrap namespace (kernel threads, One UI's early vendor daemons): never killed in.
+B_NS=$(readlink /proc/2/ns/mnt 2>/dev/null)
+SELF_NS=$(readlink /proc/$$/ns/mnt 2>/dev/null)
+# 0.5.36 (0.5.35 report 9e91c506, A57 on ColorOS): a guest dex2oat (an app compile, hung for two hours,
+# frozen and thawed by ColorOS's HANS) in a mount namespace of its own outlived the kill loop, kept three
+# samcam binds from the stage, and the check below rebooted the phone. A namespace other than init's
+# and the bootstrap one that holds the stage was made in the session: its processes are killed (thawed
+# first: a frozen cgroup holds back the kill) and its stage mounts tried again. The alternative is the
+# failsafe reboot.
+kill_ns() { # <mnt ns>: kills every process in it, waits up to 3 s; prints what it killed
+    kl=""
+    for q in /proc/[0-9]*; do
+        [ "$(readlink "$q/ns/mnt" 2>/dev/null)" = "$1" ] || continue
+        cg=$("$BB" awk -F: '$1 == "0" { print $3; exit }' "$q/cgroup" 2>/dev/null)
+        case "$cg" in /*) [ -f "/sys/fs/cgroup$cg/cgroup.freeze" ] && echo 0 > "/sys/fs/cgroup$cg/cgroup.freeze" 2>/dev/null ;; esac
+        kl="$kl ${q##*/}:$(cat "$q/comm" 2>/dev/null)"
+        kill -9 "${q##*/}" 2>/dev/null
+    done
+    w=0
+    while [ $w -lt 15 ]; do
+        al=0
+        for q in /proc/[0-9]*; do [ "$(readlink "$q/ns/mnt" 2>/dev/null)" = "$1" ] && { al=1; break; }; done
+        [ $al = 0 ] && break
+        sleep 0.2; w=$((w + 1))
+    done
+    echo "${kl# }"
+}
 seen=" "
 for p in /proc/[0-9]*; do
     n=$(readlink "$p/ns/mnt" 2>/dev/null) || continue
@@ -749,6 +776,9 @@ for p in /proc/[0-9]*; do
     done
     if [ $pv != $t ]; then
         say "stage mounts in another mount namespace ($n, pid ${p##*/} $(cat "$p/comm" 2>/dev/null)): only $pv of $t could be made private, none unmounted there"
+        if [ -n "$B_NS" ] && [ "$n" != "$B_NS" ] && [ "$n" != "$SELF_NS" ]; then
+            say "  killed the session's processes in it: $(kill_ns "$n")"
+        fi
         continue
     fi
     err=""
@@ -759,7 +789,10 @@ for p in /proc/[0-9]*; do
     # 0.4.50: who holds what stays (owner's Fold, 2026-11-04 22:02: a long-lived sh kept rootfs, proc and
     # sys, and the failsafe below rebooted): the namespace's processes by name, parent, uid, and the
     # first unmount error. Read from /proc only (no binder, no ps).
-    if [ $u != $t ]; then
+    if [ $u != $t ] && [ -n "$B_NS" ] && [ "$n" != "$B_NS" ] && [ "$n" != "$SELF_NS" ]; then
+        say "  first unmount error there: $err"
+        say "  killed the session's processes in it: $(kill_ns "$n")"
+    elif [ $u != $t ]; then
         say "  first unmount error there: $err"
         for q in /proc/[0-9]*; do
             [ "$(readlink "$q/ns/mnt" 2>/dev/null)" = "$n" ] || continue

@@ -2894,6 +2894,9 @@ while true; do
                 HW=\$(sed -n 's/.* width=\([0-9]*\) .*/\1/p' $STAGE/host_display 2>/dev/null)
                 HP=\$(sed -n 's/.* physical=\([0-9]*\)$/\1/p' $STAGE/host_display 2>/dev/null)
                 GW=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | sed -n 's/^Physical size: \([0-9]*\)x[0-9]*$/\1/p' | head -n 1)
+                # The width the guest runs the panel at, for the next start's HyperOS base density
+                # (guest_props.sh: One UI at FHD+ on a QHD panel, whole panel or One UI's width).
+                case \"\$GW\" in ''|*[!0-9]*) ;; *) [ -L $STAGE/data/oneos_guest_width ] || echo \$GW > $STAGE/data/oneos_guest_width ;; esac
                 case \"\$HUD:\$HW:\$HP:\$GW\" in
                     *[!0-9:]*|:*|*::*|*:)
                         echo \"[UI Activator] density: One UI's scale not recorded (\${HUD:-?} at \${HW:-?} of \${HP:-?} px, guest \${GW:-?} px), left at base\" ;;
