@@ -1978,11 +1978,17 @@ class OneiosScriptTest {
         // A cell reading that is not a number keeps the level; a case that is not one is only "?" in the lines.
         f.file("sys/class/power_supply/battery/temp").writeText("busy\n")
         await("the cap's line on the reading") { capLog(f).contains("the cell's reading is not a number (cell 'busy', case '330'): the level stays 0") }
-        f.file("sys/class/power_supply/battery/lrp").writeText("busy\n")
-        temps(f, 330, 503)
+        // The case gone first, then the cell alone (temps() would write the case again). Then the line itself is awaited:
+        // awaitLevel's "level 1 " matches the line of the first level 1 above, and the cap writes its level file before
+        // its line, so the check could run between the two (the build laptop, 2026-11-23 22:01, 22:04, 22:08: three full
+        // runs failed so).
         f.file("sys/class/power_supply/battery/lrp").delete()
-        awaitLevel(f, 1)
-        assertTrue(capLog(f), capLog(f).contains("cpu-cap: level 1 (80 % of each policy's top): case ? (lrp), cell 50.3 C: "))
+        val bat = f.file("sys/class/power_supply/battery")
+        assertTrue(File(bat, ".temp").apply { writeText("503\n") }.renameTo(File(bat, "temp")))
+        await("the cap's level 1 with no case\n${capLog(f)}") {
+            capLog(f).contains("cpu-cap: level 1 (80 % of each policy's top): case ? (lrp), cell 50.3 C: ")
+        }
+        assertEquals("1", capLevel(f))
         File(f.control, "cpu-cap.off").createNewFile()
         assertTrue(cap.waitFor(30, TimeUnit.SECONDS))
         assertTrue(capLog(f), capLog(f).contains("control/cpu-cap.off: the cap ends at level 1"))
