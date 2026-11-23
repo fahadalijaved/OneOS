@@ -2301,10 +2301,12 @@ class OneiosScriptTest {
         assertEquals("--prop-wait 0 $wants", f.lines("log/prop-wait").first())
         assertTrue(stopLoopLog(f), stopLoopLog(f).contains("stop loop: keeps zygote zygote_secondary bootanim cameraserver wificond stopped: waits on their init.svc properties (${w.path} --prop-wait, 60 s a wait)"))
         // Another service's onrestart starts zygote, then cameraserver: each wait ends, and the loop stops it.
+        // Each stop is awaited by the loop's own line, then the property: cameraserver is already stopped before its
+        // start, so its property alone passed at once, before the loop saw the start (a full run on 2026-11-24 02:01).
         phoneTool(f, "setprop", "ctl.start", "zygote")
-        await("zygote stopped again\n${stopLoopLog(f)}") { prop(f, "init.svc.zygote") == "stopped" }
+        await("zygote stopped again\n${stopLoopLog(f)}") { stopLoopLog(f).contains("stop loop: zygote was running: ctl.stop zygote") && prop(f, "init.svc.zygote") == "stopped" }
         phoneTool(f, "setprop", "ctl.start", "cameraserver")
-        await("cameraserver stopped again\n${stopLoopLog(f)}") { prop(f, "init.svc.cameraserver") == "stopped" }
+        await("cameraserver stopped again\n${stopLoopLog(f)}") { stopLoopLog(f).contains("stop loop: cameraserver was running: ctl.stop cameraserver") && prop(f, "init.svc.cameraserver") == "stopped" }
         assertTrue(stopLoopLog(f), stopLoopLog(f).contains("stop loop: zygote was running: ctl.stop zygote") && stopLoopLog(f).contains("stop loop: cameraserver was running: ctl.stop cameraserver"))
         assertFalse(f.setprops.toString(), f.setprops.any { it.contains("vold") })
         // The return ends it (the off file; the waiter by its pid file) and says what it did; One UI comes back in place.
