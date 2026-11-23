@@ -163,6 +163,8 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     // only have Samsung's (switcher/native/oneos_btaudio.cpp, built by build.sh).
     // oneos_switch.sh starts it only on such a phone.
     "oneos_btaudio" to File(repoRoot, "switcher/assets/oneos_btaudio"),
+    // Device-scoped S24 Ultra A2DP policy and bridge workaround.
+    "s24u_a2dp_patch.sh" to File(repoRoot, "switcher/patches/s24u-a2dp/patch.sh"),
     // 0.5.17: Nothing OS's Essential key from a Volume Down double press, as a uinput key (switcher/native/oneos_essential_key.c).
     "oneos_essential_key" to File(repoRoot, "switcher/assets/oneos_essential_key"),
     // 0.4.33: the status bar's dimension overlays on bar phones

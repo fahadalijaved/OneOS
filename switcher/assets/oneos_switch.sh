@@ -2008,7 +2008,18 @@ else
     if grep -q "IBluetoothAudioProviderFactory/default" "$BT_COPY" && $BB mount -o bind,ro "$BT_COPY" "$BT_FRAG"; then
         echo "$BT_FRAG" > "$STAGE/bt_bridge_vintf"
         touch /apex/apex-info-list.xml
-        (umask 027; $BB nohup "$STAGE/oneos_btaudio" > "$STAGE/oneos_btaudio.log" 2>&1 </dev/null &)
+        BT_BRIDGE_MODE=""
+        BT_PROFILE=$(sed -n 's/^  "profile": "\([a-z0-9-]*\)",$/\1/p' "$STAGE/.oneos_stage" 2>/dev/null | head -n 1)
+        BT_IMAGE=$(sed -n 's/^  "image": "\([a-z0-9-]*\)",$/\1/p' "$STAGE/.oneos_stage" 2>/dev/null | head -n 1)
+        if [ -f "$STAGE/s24u_a2dp_patch.sh" ]; then
+            . "$STAGE/s24u_a2dp_patch.sh"
+            BT_BRIDGE_MODE=$(oneos_s24u_a2dp_bridge_args "$BT_PROFILE" "$BT_IMAGE" "$(getprop ro.product.model)" "$(getprop ro.soc.model)")
+        fi
+        if [ "$BT_BRIDGE_MODE" = --watch-replacements ]; then
+            (umask 027; $BB nohup "$STAGE/oneos_btaudio" "$BT_BRIDGE_MODE" > "$STAGE/oneos_btaudio.log" 2>&1 </dev/null &)
+        else
+            (umask 027; $BB nohup "$STAGE/oneos_btaudio" > "$STAGE/oneos_btaudio.log" 2>&1 </dev/null &)
+        fi
         n=0
         while [ $n -lt 25 ] && ! timeout 5 service check "$BTA_AOSP" 2>/dev/null | grep -q ": found"; do n=$((n + 1)); sleep 0.2; done
         echo "Bluetooth audio bridge: $(timeout 5 "$STAGE/oneos_btaudio" --check 2>&1) (manifest: $BT_FRAG; $(head -n 1 "$STAGE/oneos_btaudio.log" 2>/dev/null))"

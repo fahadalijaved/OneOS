@@ -2570,7 +2570,17 @@ apm_copy() {
     $BB sed -e "s#href=\"\([^/\"][^\"]*\)\"#href=\"${1%/*}/\1\"#g" "$1" > "$2" || return 1
     [ -s "$2" ] || return 1
     [ "$3" = 1 ] || return 0
-    apm_a2dp "$1" "$2"
+    # S24 Ultra AOSP-family guests use Samsung's software Bluetooth module;
+    # all other targets keep the generic A2DP policy path.
+    apm_patch_rc=2
+    if [ -f "$STAGE/s24u_a2dp_patch.sh" ]; then
+        . "$STAGE/s24u_a2dp_patch.sh" || apm_patch_rc=2
+        if command -v oneos_s24u_a2dp_apm_a2dp >/dev/null 2>&1; then
+            oneos_s24u_a2dp_apm_a2dp "$1" "$2"
+            apm_patch_rc=$?
+        fi
+    fi
+    [ "$apm_patch_rc" = 2 ] && apm_a2dp "$1" "$2"
     apm_usb "$2"
     [ -s "$2" ]
 }
