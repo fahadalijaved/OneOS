@@ -13,18 +13,20 @@
 #   oneios_switch.sh --keys D TOK        (internal) Volume Up + Volume Down, from device D's events
 #   oneios_switch.sh --keys-poll TOK D.. (internal) the same chord from the keys' state (works under a grab)
 #   oneios_switch.sh --feed     (internal) Samsung's software watchdog feeder
-#   oneios_switch.sh --stop-loop (internal) keeps One UI's zygote stopped
+#   oneios_switch.sh --stop-loop X (internal) keeps One UI's zygote (and the takeover's stops) stopped; X: xnuhost, for --prop-wait
 #   oneios_switch.sh --bootui   (internal) the boot screen's stage line, from xnuhost's log
 #   oneios_switch.sh --usb-watch (internal) keeps adb on the USB gadget through the session
 #   oneios_switch.sh --cpu-cap  (internal) the Android takeover's CPU cap (session-mode=takeover only)
+#   oneios_switch.sh --takeover-stops (tests only) the Android takeover's stops against a fake phone
 #
 # The session mode (docs/oneios.md, "Android takeover"; OneiOS's oneos/interface.md 4a): session-mode=hosted, the
 # default, is the session below exactly as it was. session-mode=takeover (the app's toggle, or the image's
 # xnuhost.conf) is the opt-in Android takeover: xnuhost takes the phone's touchscreen for iOS alone (never a key
-# device), and a CPU cap of the switch's own lowers each CPU policy's scaling_max_freq when the case or the cell gets
-# hot (One UI's case policy, SSRM, is gone with system_server); the return writes One UI's values back, as for every
-# session. The way back is the same: the chord and the return in place first, a restart into One UI only when the
-# in-place return cannot put One UI back.
+# device), the switch stops the services of zygote's restart list that no bridge uses (takeover-stops=, recorded in
+# control/base/stopped; the stop loop keeps them stopped, the return starts them again), and a CPU cap of the
+# switch's own lowers each CPU policy's scaling_max_freq when the cell gets hot (50 C up; the case is logged, never a
+# level); the return writes One UI's values back, as for every session. The way back is the same: the chord and the
+# return in place first, a restart into One UI only when the in-place return cannot put One UI back.
 #
 # What a session never touches: One UI's /data beyond $STAGE (xnuhost's mount
 # namespace has the stage bound over /data), vold, keystore2, gatekeeper,
@@ -613,7 +615,87 @@ session_mode_pick() {
 cap_policies() {
     awk '$1 ~ /^\/sys\/devices\/system\/cpu\/cpufreq\/policy[0-9]+\/scaling_max_freq$/ && $3 ~ /^[0-9]+$/ && $3 > 0 { print $1 }' "$1" 2>/dev/null
 }
+# The Android takeover's stops (OneiOS docs/plan-ios-first-session.md 4, stage 2b): services of One UI's zygote's
+# restart list that no bridge of a session uses. Every return restarts this list already (oneios_return.sh, Gate B
+# and its step 4), so a stop adds no new step to the way back. The first six are the default; netd and media only when
+# the image's xnuhost.conf names them (a Wi-Fi join and an encode without them are not yet checked on the phone).
+# takeover-stops= (the last such line of image/xnuhost.conf, then image/overlay/userland/xnuhost.conf): default, none,
+# or names of this list separated by commas. OneiOS's xnuhost checks the same word (config.rs TAKEOVER_STOPPABLE).
+TAKEOVER_STOPPABLE="cameraserver mediaextractor mediametrics media.tuner perfmond wificond netd media"
+TAKEOVER_DEFAULT="cameraserver mediaextractor mediametrics media.tuner perfmond wificond"
+# TSTOPS: the names, in order (empty for none); TSTOPS_FROM: where they come from. Refuses a word it does not know.
+takeover_stops_pick() {
+    TSTOPS=$TAKEOVER_DEFAULT TSTOPS_FROM="the default list"
+    v=$(cat "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf" 2>/dev/null |
+        sed -n 's/^[[:space:]]*takeover-stops=//p' | tail -n 1 | tr -d ' \t\r')
+    [ -n "$v" ] || return 0
+    TSTOPS_FROM="the image's xnuhost.conf (takeover-stops=$v)"
+    case "$v" in
+        default) return 0 ;;
+        none) TSTOPS=""; return 0 ;;
+    esac
+    TSTOPS=""
+    for s in $(echo "$v" | tr ',' ' '); do
+        case " $TAKEOVER_STOPPABLE " in *" $s "*) ;; *) refuse "takeover-stops: '$s' (in the image's xnuhost.conf) is not one of: $TAKEOVER_STOPPABLE" ;; esac
+        case " $TSTOPS " in *" $s "*) refuse "takeover-stops: '$s' is named twice (in the image's xnuhost.conf)" ;; esac
+        TSTOPS="${TSTOPS:+$TSTOPS }$s"
+    done
+    case ",$v," in *,,*) refuse "takeover-stops: '$v' (in the image's xnuhost.conf) has an empty name" ;; esac
+}
+# How init defines service $1, from the .rc files it reads (named folders, one awk for all): "critical" (the service
+# has the critical option: never stopped), "found", or nothing (no .rc names it: not stopped either).
+rc_kind() {
+    rk_s=$1
+    # Only files that are there: a folder with no .rc leaves its pattern as it is, and some awks end at a missing file.
+    set --
+    for rk_f in "$T"/system/etc/init/*.rc "$T"/system_ext/etc/init/*.rc "$T"/product/etc/init/*.rc \
+        "$T"/vendor/etc/init/*.rc "$T"/odm/etc/init/*.rc "$T"/apex/*/etc/*.rc; do
+        [ -f "$rk_f" ] && set -- "$@" "$rk_f"
+    done
+    [ $# -gt 0 ] || return 0
+    awk -v s="$rk_s" 'FNR == 1 { in_ = 0 }
+        $1 == "service" { in_ = ($2 == s); if (in_) f = 1; next }
+        $1 == "on" || $1 == "import" { in_ = 0 }
+        in_ && $1 == "critical" { c = 1 }
+        END { if (c) print "critical"; else if (f) print "found" }' "$@" 2>/dev/null
+}
+mem_avail() { awk '$1 == "MemAvailable:" { print int($2 / 1024); exit }' "$P/meminfo" 2>/dev/null; }
+# The stops (--takeover-stops), after zygote's stop and system_server's end, before the stop loop and xnuhost start:
+# each name that runs and is not critical is written to control/base/stopped first, then ctl.stop; then up to 5 s for
+# init to say each is no longer running, so that xnuhost's ram=auto sees the RAM they held. Nothing persistent: a
+# reboot brings every one back; the return starts each one and fails safe (the restart) if one does not come back.
+# TSTOPS and TSTOPS_FROM are the preflight's (takeover_stops_pick): nothing here refuses, One UI is already stopped.
+takeover_stops() {
+    rm -f "$CTL/base/stopped"
+    [ -n "$TSTOPS" ] || { echo "Android takeover: no service of Android stopped (takeover-stops=none)"; return 0; }
+    before=$(mem_avail)
+    done_="" kept=""
+    for s in $TSTOPS; do
+        st=$(getprop "init.svc.$s")
+        [ "$st" = running ] || { kept="$kept $s(${st:-no such service})"; continue; }
+        k=$(rc_kind "$s")
+        case "$k" in
+            critical) kept="$kept $s(critical in its .rc)"; continue ;;
+            found) ;;
+            *) kept="$kept $s(no .rc names it)"; continue ;;
+        esac
+        echo "$s" >> "$CTL/base/stopped" || { kept="$kept $s(control/base/stopped not written)"; continue; }
+        setprop ctl.stop "$s"
+        done_="$done_ $s"
+    done
+    n=0
+    while [ $n -lt 25 ]; do
+        up=""
+        for s in $done_; do [ "$(getprop "init.svc.$s")" != running ] || up="$up $s"; done
+        [ -n "$up" ] || break
+        sleep 0.2; n=$((n + 1))
+    done
+    after=$(mem_avail)
+    echo "Android takeover: stopped${done_:- nothing} (from $TSTOPS_FROM; control/base/stopped)${kept:+; not stopped:$kept}${up:+; still running after 5 s:$up}; host MemAvailable ${before:-?} -> ${after:-?} MiB"
+}
 takeover_checks() { # <xnuhost to ask>
+    # The stop list first: a word xnuhost does not know would make it refuse the conf below, with a less clear line.
+    takeover_stops_pick
     info=$("$1" --host-info $(for f in "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf"; do [ -f "$f" ] && echo "--config $f"; done) 2>&1 </dev/null)
     rc=$?
     info=$(printf '%s\n' "$info" | grep -m1 '^host-info: ')
@@ -630,32 +712,38 @@ takeover_checks() { # <xnuhost to ask>
     [ $n -gt 0 ] || refuse "session-mode=takeover (from $SMODE_FROM): no CPU policy for its CPU cap (/sys/devices/system/cpu/cpufreq/policy*)"
     [ -r "$T/sys/class/power_supply/battery/temp" ] ||
         refuse "session-mode=takeover (from $SMODE_FROM): the cell's temperature, its CPU cap's input, is not readable"
-    echo "Session mode: Android takeover (session-mode=takeover, from $SMODE_FROM; ${info#host-info: }): iOS gets the touchscreen alone; a CPU cap from the case and the cell temperature; the way back as in every session"
+    echo "Session mode: Android takeover (session-mode=takeover, from $SMODE_FROM; ${info#host-info: }): iOS gets the touchscreen alone; Android's services stopped for the session: ${TSTOPS:-none} (from $TSTOPS_FROM); a CPU cap from the cell's temperature (50 C up); the way back as in every session"
 }
 
-# The Android takeover's CPU cap (--cpu-cap): levels from the case (Samsung's lrp, in tenths of a degree C; the board
-# thermistor where there is none) and the cell (power_supply/battery/temp). One UI's own case policy (SSRM) went with
-# system_server, so without this nothing acts on the case: the kernel's junction trips only (OneiOS docs/hardware.md
-# 7d). The thresholds start where OneiOS's thermal bridge already tells iOS "trapping" (the case at 46 C), so the cap
-# leaves the CPUs at the hardware's top for as long as a hosted session would have them there:
-#   level 1: the case at 46 C or the cell at 46 C: each policy's scaling_max_freq at 80 % of its top
-#   level 2: the case at 48 C or the cell at 47 C: 60 %
-#   level 3: the case at 50 C or the cell at 48 C: still 60 %, and a return to One UI is asked (in place, as every
-#            return: session/return.request)
-# A level is left one step at a time when both readings are 2 C under it for 3 readings in a row. The numbers are
-# YMGPwcca/OneOS's emergency limits (battery 48 C, lrp 50 C) and OneiOS's case levels; not measured as a policy on
-# any phone [a guess]. Only scaling_max_freq of the policies clocks_save saved is written, never above the top
-# clocks_tops wrote, never under cpuinfo_min_freq; never scaling_min_freq, a thermal node, a GPU node or /sys/power.
+# The Android takeover's CPU cap (--cpu-cap): levels from the cell (power_supply/battery/temp, in tenths of a degree
+# C) only; the case (Samsung's lrp; the board thermistor where there is none) is read and logged, never a level.
+# Re-judged 2026-11-23 from the hosted sessions of that day (OneiOS out/session-logs/2026-11-23-mac-*): a hosted
+# session has no cap of ours either (One UI's SSRM goes with system_server in both modes) and runs on the kernel's own
+# trips (the SoC at 92-95 C), with the case at 44-50.1 C and the cell up to 43.6 C. The first cap (case 46/48/50 C,
+# cell 46/47/48 C) would have cut the clocks at once in such a session and ended it at the case's 50 C. The case is
+# the skin, not the hardware, and the kernel's junction trips already protect the SoC; what nothing in a session
+# guards is the cell while the SoC heats it (the kernel's battery driver stops charging and, far higher, shuts the
+# phone down, but caps no CPU). So the cap acts only on the cell, above anything a hosted session reached:
+#   level 1: the cell at 50 C: each policy's scaling_max_freq at 80 % of its top
+#   level 2: the cell at 52 C: 60 %
+#   level 3: the cell at 55 C: still 60 %, and a return to One UI is asked (in place, as every return:
+#            session/return.request)
+# A level is left one step at a time when the cell is 2 C under it for 3 readings in a row. 50-55 C sits under the
+# usual 60 C discharge limit of a Li-ion cell [a guess: Samsung's own battery limits were not read on the phone].
+# Only scaling_max_freq of the policies clocks_save saved is written, never above the top clocks_tops wrote, never
+# under cpuinfo_min_freq; never scaling_min_freq, a thermal node, a GPU node or /sys/power.
 CAP_EVERY=2
-cap_level() { # <case> <cell> <margin>, tenths of a degree: LV, the level those readings ask for
-    cl_c=$(($1 + $3)) cl_b=$(($2 + $3))
-    if [ $cl_c -ge 500 ] || [ $cl_b -ge 480 ]; then LV=3
-    elif [ $cl_c -ge 480 ] || [ $cl_b -ge 470 ]; then LV=2
-    elif [ $cl_c -ge 460 ] || [ $cl_b -ge 460 ]; then LV=1
+CAP_CELL_LIMIT=550
+cap_level() { # <case> <cell> <margin>, tenths of a degree: LV, the level those readings ask for (the case is not one)
+    cl_b=$(($2 + $3))
+    if [ $cl_b -ge $CAP_CELL_LIMIT ]; then LV=3
+    elif [ $cl_b -ge 520 ]; then LV=2
+    elif [ $cl_b -ge 500 ]; then LV=1
     else LV=0; fi
 }
 cap_pct() { case "$1" in 0) PCT=100 ;; 1) PCT=80 ;; *) PCT=60 ;; esac; }
 deg() { echo "$(($1 / 10)).$(($1 % 10)) C"; }
+tdeg() { case "${1#-}" in ''|*[!0-9]*) echo "?" ;; *) deg "$1" ;; esac; } # a reading that may be missing
 pol_name() { pn=${1#/sys/devices/system/cpu/cpufreq/}; echo "${pn%/scaling_max_freq}"; }
 
 # --- USB AND ADB DURING A SESSION ---------------------------------------------
@@ -773,7 +861,7 @@ case "$MODE" in
                 fi
             done
             echo "$LEVEL" 2>/dev/null > "$CTL/cpu-cap.level"
-            csay "level $LEVEL ($PCT % of each policy's top): case $(deg "$CASE") ($CASE_N), cell $(deg "$CELL"):$out"
+            csay "level $LEVEL ($PCT % of each policy's top): case $(tdeg "$CASE") ($CASE_N), cell $(deg "$CELL"):$out"
             return 0
         }
         LEVEL=0 CASE=0 CELL=0 low=0 bad="" asked=0 t=0
@@ -786,9 +874,11 @@ case "$MODE" in
             c="" b=""
             read -r c < "$CASE_F" 2>/dev/null
             read -r b < "$CELL_F" 2>/dev/null
-            case "${c#-}:${b#-}" in
-                *[!0-9:]*|:*|*:)
-                    [ -n "$bad" ] || csay "a reading is not a number (case '$c', cell '$b'): the level stays $LEVEL"
+            # The cell decides; the case is only logged (a case that cannot be read is "?").
+            case "${c#-}" in ''|*[!0-9]*) c="" ;; esac
+            case "${b#-}" in
+                ''|*[!0-9]*)
+                    [ -n "$bad" ] || csay "the cell's reading is not a number (cell '$b', case '$c'): the level stays $LEVEL"
                     bad=1 ;;
                 *)
                     bad="" CASE=$c CELL=$b
@@ -798,7 +888,7 @@ case "$MODE" in
                         LEVEL=$LV low=0
                         cap_write "$LEVEL" || exit 0
                     elif [ "$LV" -lt "$LEVEL" ] && [ "$LEVEL" -lt 3 ]; then
-                        # Down one step only when both are 2 C under this level for 3 readings in a row.
+                        # Down one step only when the cell is 2 C under this level for 3 readings in a row.
                         cap_level "$CASE" "$CELL" 20
                         if [ "$LV" -lt "$LEVEL" ]; then low=$((low + 1)); else low=0; fi
                         if [ $low -ge 3 ]; then LEVEL=$((LEVEL - 1)) low=0; cap_write "$LEVEL" || exit 0; fi
@@ -808,13 +898,13 @@ case "$MODE" in
                     if [ "$LEVEL" = 3 ] && [ $asked = 0 ]; then
                         asked=1
                         [ -e "$SESSION/return.request" ] ||
-                            echo "thermal: the Android takeover's limit: case $(deg "$CASE") ($CASE_N, limit 50.0 C), cell $(deg "$CELL") (limit 48.0 C) at $(date '+%F %T')" > "$SESSION/return.request"
+                            echo "thermal: the Android takeover's limit: cell $(deg "$CELL") (limit $(deg "$CAP_CELL_LIMIT")), case $(tdeg "$CASE") ($CASE_N, not a limit) at $(date '+%F %T')" > "$SESSION/return.request"
                         csay "level 3: a return to One UI is asked (session/return.request); the cap stays at 60 % until it ends"
                     fi ;;
             esac
             # One line a minute while capped, so the log shows the readings the level rests on.
             t=$((t + CAP_EVERY))
-            [ "$LEVEL" = 0 ] || [ $((t % 60)) -ne 0 ] || csay "level $LEVEL: case $(deg "$CASE"), cell $(deg "$CELL")"
+            [ "$LEVEL" = 0 ] || [ $((t % 60)) -ne 0 ] || csay "level $LEVEL: case $(tdeg "$CASE"), cell $(deg "$CELL")"
             sleep $CAP_EVERY
         done ;;
     --usb-watch)
@@ -1016,16 +1106,73 @@ case "$MODE" in
         # One UI's zygote must stay stopped: other services restart it
         # (onrestart), and a zygote that starts would bring system_server back
         # next to the guest. oneios_return.sh ends this loop before it starts
-        # One UI ($CTL/stop-loop.off, then the pid).
-        [ -z "$T" ] || exit 3
-        while [ ! -e "$CTL/stop-loop.off" ]; do
-            [ "$(getprop init.svc.zygote)" = running ] && setprop ctl.stop zygote
-            [ "$(getprop init.svc.zygote_secondary)" = running ] && setprop ctl.stop zygote_secondary
-            [ "$(getprop init.svc.bootanim)" = running ] && setprop ctl.stop bootanim
-            sleep 0.2
+        # One UI ($CTL/stop-loop.off, then the waiter's pid, then the loop's).
+        # It keeps zygote, zygote_secondary, the boot animation and, in the
+        # Android takeover, every service of control/base/stopped stopped.
+        # $2: the staged xnuhost, whose --prop-wait (OneiOS docs/booter.md
+        # 2.9d) sleeps on init's property area until one of their init.svc
+        # properties says running, 60 s at most: no process at all while
+        # nothing starts. Until 2026-11-23 this was three getprop every 0.2 s,
+        # 15 processes a second for the whole session (OneiOS's
+        # docs/plan-ios-first-session.md, stage 2a). A runtime without
+        # --prop-wait (it answers 2): one look a second. Each stop it makes is
+        # a line of control/stop-loop.log.
+        W="${2:-}"
+        L="$CTL/stop-loop.log"
+        lsay() { echo "$(date '+%F %T') stop loop: $*" >> "$L"; }
+        names="zygote zygote_secondary bootanim"
+        for s in $(cat "$CTL/base/stopped" 2>/dev/null); do
+            case " $TAKEOVER_STOPPABLE " in *" $s "*) names="$names $s" ;; esac
         done
+        wants=""
+        for s in $names; do wants="$wants init.svc.$s=running"; done
+        stops=0
+        stop_running() {
+            for s in $names; do
+                [ "$(getprop "init.svc.$s")" = running ] || continue
+                setprop ctl.stop "$s"
+                stops=$((stops + 1))
+                lsay "$s was running: ctl.stop $s"
+            done
+        }
+        if [ -n "$W" ] && [ -f "$W" ] && [ -x "$W" ]; then
+            "$W" --prop-wait 0 $wants >/dev/null 2>&1 </dev/null
+            rc=$?
+            [ $rc -le 1 ] || { lsay "$W --prop-wait answered $rc (a runtime from before it)"; W=""; }
+        else
+            W=""
+        fi
+        if [ -n "$W" ]; then lsay "keeps $names stopped: waits on their init.svc properties ($W --prop-wait, 60 s a wait)"
+        else lsay "keeps $names stopped: one look a second (getprop)"; fi
+        while [ ! -e "$CTL/stop-loop.off" ]; do
+            stop_running
+            if [ -n "$W" ]; then
+                "$W" --prop-wait 60 $wants >/dev/null 2>&1 </dev/null &
+                echo $! > "$CTL/stop-loop.wait.pid"
+                wait $!
+                rc=$?
+                [ ! -e "$CTL/stop-loop.off" ] || break
+                case $rc in
+                    # One started: init takes a moment to act on a stop, so one look after 0.2 s, not a busy loop.
+                    0) sleep 0.2 ;;
+                    1) ;;
+                    *) lsay "the wait ended with $rc: one look a second from here"; W="" ;;
+                esac
+            else
+                sleep 1
+            fi
+        done
+        lsay "ends: $stops stops in the session"
         exit 0
         ;;
+    --takeover-stops)
+        # The tests' way in (against a fake phone): the Android takeover's stops as the switch makes them, after its
+        # preflight's choice of the list (which refuses as the preflight refuses).
+        [ -n "$T" ] || { echo "$MODE: for the tests only"; exit 2; }
+        mkdir -p "$CTL/base"
+        takeover_stops_pick
+        takeover_stops
+        exit 0 ;;
     --feed)
         # One UI's system_server opened Samsung's software watchdog (100 s) and
         # kicked it; stopped, it leaves the timer running and the phone panics
@@ -1540,7 +1687,7 @@ if [ -n "$armed" ]; then
 fi
 echo "Return to One UI: hold Volume Up + Volume Down for 3 s (key devices: $(echo $KDEVS)); watcher $(cat "$CTL/watcher.pid"), key readers $(tr '\n' ' ' < "$CTL/keys/pids")"
 echo "If that does nothing: hold Power + Volume Down until the phone restarts (about 7 s). It restarts into One UI."
-[ "$SMODE" = hosted ] || echo "Android takeover: the same ways back, in place first; a restart into One UI only where the in-place return cannot put One UI back (a failed check, or the takeover's CPU cap that cannot be written back)"
+[ "$SMODE" = hosted ] || echo "Android takeover: the same ways back, in place first; a restart into One UI only where the in-place return cannot put One UI back (a failed check, a stopped service that does not come back, or the takeover's CPU cap that cannot be written back)"
 
 # A return asked while the switch runs (the watcher, the key readers, the app,
 # adb) wins. The switch and the return meet at one lock, $CTL/stop.lock: the
@@ -1613,7 +1760,7 @@ kill -9 $(pidof zygote64) $(pidof zygote) 2>/dev/null
 rmdir "$CTL/stop.lock" 2>/dev/null
 # system_server is gone, so nothing of One UI writes the clock caps any more.
 clocks_tops
-# The Android takeover's CPU cap: from the hardware's top just written, lower only when the case or the cell is hot.
+# The Android takeover's CPU cap: from the hardware's top just written, lower only when the cell is hot (50 C up).
 # Not a condition of the session: without it the session runs as a hosted one does (the kernel's trips, xnuhost's
 # thermal step); the return writes One UI's clocks back either way.
 if [ "$SMODE" = takeover ]; then
@@ -1623,8 +1770,11 @@ if [ "$SMODE" = takeover ]; then
     while [ $n -lt 10 ] && [ ! -s "$CTL/cpu-cap.pid" ]; do sleep 0.2; n=$((n + 1)); done
     if [ -s "$CTL/cpu-cap.pid" ]; then echo "CPU cap (Android takeover): pid $(cat "$CTL/cpu-cap.pid"), log $CTL/cpu-cap.log"
     else echo "CPU cap (Android takeover): did not start within 2 s (log $CTL/cpu-cap.log): the session goes on without it"; fi
+    # Its stops (takeover_stops): recorded in control/base/stopped before each, so the stop loop below keeps them
+    # stopped and every return starts them again; before xnuhost, so that ram=auto gives the guest what they held.
+    takeover_stops
 fi
-"$BB" setsid /system/bin/sh "$SELF" --stop-loop </dev/null >/dev/null 2>&1 &
+"$BB" setsid /system/bin/sh "$SELF" --stop-loop "$X" </dev/null >/dev/null 2>&1 &
 echo $! > "$CTL/stop-loop.pid"
 # UsbDeviceManager went with system_server: from here the USB watcher keeps
 # adb on the gadget, across unplug and replug (control/usb.log).

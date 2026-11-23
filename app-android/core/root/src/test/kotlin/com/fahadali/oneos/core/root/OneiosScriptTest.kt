@@ -170,7 +170,7 @@ class OneiosScriptTest {
             return d
         }
 
-        private fun daemon(name: String, pid: Int, service: String? = null, initName: String = name) {
+        fun daemon(name: String, pid: Int, service: String? = null, initName: String = name) {
             proc(pid, name)
             file("pids/$name").writeText("$pid\n")
             file("props").appendText("init.svc.$initName=running\n")
@@ -1916,30 +1916,35 @@ class OneiosScriptTest {
     }
 
     /**
-     * On: the cap leaves the hardware's top while the phone is cool, lowers each policy's scaling_max_freq as the case
-     * warms (80 %, then 60 % of its top, never under cpuinfo_min_freq), asks for the return at the case's limit, and the
-     * return in place ends it first and writes One UI's values back.
+     * On: the cap leaves the hardware's top while the cell is cool, whatever the case reads (a hosted session runs with
+     * the case at 50 C: OneiOS's logs of 2026-11-23), lowers each policy's scaling_max_freq as the cell warms (80 %,
+     * then 60 % of its top, never under cpuinfo_min_freq), asks for the return at the cell's limit, and the return in
+     * place ends it first and writes One UI's values back.
      */
     @Test
-    fun theCpuCapFollowsTheCaseAndTheReturnPutsOneUisClocksBack() = each { f ->
+    fun theCpuCapFollowsTheCellAndTheReturnPutsOneUisClocksBack() = each { f ->
         capPhone(f)
         val cap = startCap(f)
         Thread.sleep(200)
         assertEquals("0", capLevel(f))
         assertEquals("3398400", maxOf(f, 7))
-        temps(f, 465, 330)
+        temps(f, 503, 436)                     // a hosted session's hottest case and cell: nothing
+        Thread.sleep(300)
+        assertEquals("0", capLevel(f))
+        assertEquals("3398400", maxOf(f, 7))
+        temps(f, 470, 502)
         awaitLevel(f, 1)
         assertEquals("${3398400 / 100 * 80}", maxOf(f, 7))
         assertEquals("${2265600 / 100 * 80}", maxOf(f, 0))
-        assertTrue(capLog(f), capLog(f).contains("cpu-cap: level 1 (80 % of each policy's top): case 46.5 C (lrp), cell 33.0 C: policy0=${2265600 / 100 * 80} policy7=${3398400 / 100 * 80}"))
-        temps(f, 470, 472)                     // the cell alone takes it further
+        assertTrue(capLog(f), capLog(f).contains("cpu-cap: level 1 (80 % of each policy's top): case 47.0 C (lrp), cell 50.2 C: policy0=${2265600 / 100 * 80} policy7=${3398400 / 100 * 80}"))
+        temps(f, 470, 521)
         awaitLevel(f, 2)
         assertEquals("${3398400 / 100 * 60}", maxOf(f, 7))
         assertFalse(File(f.session, "return.request").exists())
-        temps(f, 503, 400)
+        temps(f, 520, 551)
         awaitLevel(f, 3)
         await("the return request") { File(f.session, "return.request").isFile }
-        assertTrue(File(f.session, "return.request").readText().startsWith("thermal: the Android takeover's limit: case 50.3 C (lrp, limit 50.0 C), cell 40.0 C (limit 48.0 C)"))
+        assertTrue(File(f.session, "return.request").readText().startsWith("thermal: the Android takeover's limit: cell 55.1 C (limit 55.0 C), case 52.0 C (lrp, not a limit)"))
         assertEquals("${3398400 / 100 * 60}", maxOf(f, 7))
         val r = f.returns()
         assertEquals(r.text, 0, r.exit)
@@ -1953,29 +1958,34 @@ class OneiosScriptTest {
         assertTrue(capLog(f), capLog(f).contains("the cap ends at level 3"))
     }
 
-    /** Down one step at a time: only when both readings are 2 C under the level for 3 readings in a row. */
+    /** Down one step at a time: only when the cell is 2 C under the level for 3 readings in a row. */
     @Test
     fun theCpuCapComesBackToTheTopWhenThePhoneCools() = each { f ->
         capPhone(f)
         val cap = startCap(f)
-        temps(f, 482, 330)
+        temps(f, 330, 522)
         awaitLevel(f, 2)
-        temps(f, 465, 330)                     // under level 2's 48 C, but not 2 C under: it stays
+        temps(f, 330, 505)                     // under level 2's 52 C, but not 2 C under: it stays
         Thread.sleep(300)
         assertEquals("2", capLevel(f))
-        temps(f, 455, 330)
+        temps(f, 330, 495)
         awaitLevel(f, 1)
         assertEquals("${3398400 / 100 * 80}", maxOf(f, 7))
-        temps(f, 430, 330)
+        temps(f, 330, 470)
         awaitLevel(f, 0)
         assertEquals("3398400", maxOf(f, 7))
         assertEquals("2265600", maxOf(f, 0))
-        // A reading that is not a number keeps the level.
+        // A cell reading that is not a number keeps the level; a case that is not one is only "?" in the lines.
+        f.file("sys/class/power_supply/battery/temp").writeText("busy\n")
+        await("the cap's line on the reading") { capLog(f).contains("the cell's reading is not a number (cell 'busy', case '330'): the level stays 0") }
         f.file("sys/class/power_supply/battery/lrp").writeText("busy\n")
-        await("the cap's line on the reading") { capLog(f).contains("a reading is not a number (case 'busy', cell '330'): the level stays 0") }
+        temps(f, 330, 503)
+        f.file("sys/class/power_supply/battery/lrp").delete()
+        awaitLevel(f, 1)
+        assertTrue(capLog(f), capLog(f).contains("cpu-cap: level 1 (80 % of each policy's top): case ? (lrp), cell 50.3 C: "))
         File(f.control, "cpu-cap.off").createNewFile()
         assertTrue(cap.waitFor(30, TimeUnit.SECONDS))
-        assertTrue(capLog(f), capLog(f).contains("control/cpu-cap.off: the cap ends at level 0"))
+        assertTrue(capLog(f), capLog(f).contains("control/cpu-cap.off: the cap ends at level 1"))
     }
 
     /** xnuhost crashed with the cap in force: the watcher's return ends the cap and writes One UI's clocks back. */
@@ -1983,7 +1993,7 @@ class OneiosScriptTest {
     fun theCpuCapIsPutBackAfterXnuhostCrashes() = each { f ->
         capPhone(f)
         val cap = startCap(f)
-        temps(f, 490, 330)
+        temps(f, 330, 525)
         awaitLevel(f, 2)
         val w = watcher(f)
         f.ends(XNUHOST)
@@ -2000,7 +2010,7 @@ class OneiosScriptTest {
     fun theCpuCapIsPutBackAfterAnEarlyStop() = each { f ->
         capPhone(f)
         val cap = startCap(f)
-        temps(f, 490, 330)
+        temps(f, 330, 525)
         awaitLevel(f, 2)
         f.ends(XNUHOST)
         File(f.control, "state").writeText("failed\n")
@@ -2025,7 +2035,7 @@ class OneiosScriptTest {
         run {
             capPhone(f)
             val cap = startCap(f)
-            temps(f, 490, 330)
+            temps(f, 330, 525)
             awaitLevel(f, 2)
             lock(f)
             val r = f.returns()
@@ -2087,6 +2097,7 @@ class OneiosScriptTest {
         assertEquals(r.text, 0, r.exit)
         assertTrue(r.text, r.text.contains("Session mode: Android takeover (session-mode=takeover, from the app; device=galaxy-s24-ultra takeover=yes (matched by ro.product.model=SM-S928B))"))
         assertTrue(r.text, r.text.trim().endsWith("MODE OK takeover"))
+        assertTrue(r.text, r.text.contains("; Android's services stopped for the session: cameraserver mediaextractor mediametrics media.tuner perfmond wificond (from the default list); a CPU cap from the cell's temperature (50 C up); "))
         assertEquals("--host-info", f.lines("log/host-info-args").single().trim())
         // A row that does not allow it, a runtime too old to say, a bad word.
         f.file("host-info").writeText("host-info: device=galaxy-s25-ultra takeover=no (matched by ro.product.model=SM-S938B)\n")
@@ -2106,6 +2117,11 @@ class OneiosScriptTest {
         assertEquals("MODE OK hosted", check("hosted").text.trim())          // the app's word over the image's
         conf.writeText("session-mode=sometimes\n")
         refused(check(), "session-mode 'sometimes' (from the image's xnuhost.conf) is not hosted or takeover")
+        // A stop list it does not know: refused before xnuhost is asked (it would refuse the conf, with a less clear line).
+        conf.writeText("session-mode=takeover\ntakeover-stops=zygote\n")
+        f.file("log/host-info-args").delete()
+        refused(check(), "takeover-stops: 'zygote' (in the image's xnuhost.conf) is not one of: cameraserver ")
+        assertFalse(f.file("log/host-info-args").exists())
         conf.delete()
         // Nothing for its cap to write, or to read.
         f.file("sys/class/power_supply/battery/temp").delete()
@@ -2137,6 +2153,217 @@ class OneiosScriptTest {
         val ret = code(returnScript).joinToString("\n")
         assertTrue(ret.indexOf("end_helper \"\$CTL/cpu-cap.pid\" --cpu-cap") in 0 until ret.indexOf("awk '{ l[NR] = \$0 }"))
         assertTrue(ret.indexOf("awk '{ l[NR] = \$0 }") in 0 until ret.indexOf("Gate A"))
+        // The takeover's stops only in its branch, after its cap and before the stop loop, which gets xnuhost's path.
+        assertTrue(sw.contains("    takeover_stops\nfi\n\"\$BB\" setsid /system/bin/sh \"\$SELF\" --stop-loop \"\$X\" "))
+        assertEquals(2, Regex("\n\\s*takeover_stops\n").findAll(sw).count()) // that one, and the tests' way in (--takeover-stops)
+    }
+
+    // --- The stop loop's wait and the Android takeover's stops (OneiOS docs/plan-ios-first-session.md, stages 2a, 2b) -
+
+    /**
+     * A stand-in for the staged xnuhost's `--prop-wait SECONDS NAME=VALUE...` on the fake phone: it looks at the props
+     * file every 20 ms (real time) and prints the names that hold (exit 0), else exits 1 when the time passed or the
+     * stop loop's off file is there (the return's kill of it is the fake kill, which signals nothing real). With
+     * behave/old_runtime it answers as an xnuhost from before --prop-wait (exit 2). Every call in log/prop-wait.
+     */
+    private fun waiter(f: Fake): File {
+        val sleep = listOf("/usr/bin/sleep", "/bin/sleep").first { File(it).canExecute() }
+        return f.file("bin/xnuhost-waiter").apply {
+            writeText(
+                """
+                #!/bin/sh
+                T=${'$'}ONEIOS_TEST_ROOT
+                echo "${'$'}*" >> "${'$'}T/log/prop-wait"
+                [ "${'$'}1" = --prop-wait ] || exit 2
+                [ ! -e "${'$'}T/behave/old_runtime" ] || { echo "xnuhost: unknown or incomplete argument --prop-wait"; exit 2; }
+                max=${'$'}((${'$'}2 * 50)); shift 2
+                i=0
+                while :; do
+                    hit=""
+                    for w in "${'$'}@"; do
+                        n=${'$'}{w%%=*}; v=${'$'}{w#*=}
+                        [ "${'$'}(awk -v k="${'$'}n" 'index(${'$'}0, k "=") == 1 { v = substr(${'$'}0, length(k) + 2) } END { print v }' "${'$'}T/props")" = "${'$'}v" ] && hit="${'$'}hit ${'$'}n"
+                    done
+                    if [ -n "${'$'}hit" ]; then for h in ${'$'}hit; do echo "${'$'}h"; done; exit 0; fi
+                    [ ${'$'}i -lt ${'$'}max ] || exit 1
+                    [ ! -e "${'$'}T/data/local/tmp/oneios/control/stop-loop.off" ] || exit 1
+                    $sleep 0.02; i=${'$'}((i + 1))
+                done
+                """.trimIndent() + "\n",
+            )
+            assertTrue(setExecutable(true))
+        }
+    }
+
+    /** One of the fake phone's tools (setprop, getprop, ...), as another process of the phone would run it. */
+    private fun phoneTool(f: Fake, vararg cmd: String) {
+        val pb = ProcessBuilder(listOf(f.file("bin/${cmd[0]}").path) + cmd.drop(1)).redirectErrorStream(true)
+        pb.environment()["ONEIOS_TEST_ROOT"] = f.root.path
+        HostTools.into(pb.environment())
+        val p = pb.start()
+        p.inputStream.readBytes()
+        assertTrue(p.waitFor(30, TimeUnit.SECONDS))
+    }
+
+    private fun prop(f: Fake, name: String): String? =
+        f.lines("props").lastOrNull { it.startsWith("$name=") }?.substringAfter('=')
+
+    private fun stopLoopLog(f: Fake) = File(f.control, "stop-loop.log").takeIf { it.isFile }?.readText().orEmpty()
+
+    /**
+     * Stage 2a: the stop loop sleeps on init's properties through xnuhost's --prop-wait (no process while nothing
+     * starts), stops whatever of its list runs again (zygote, and the takeover's stops of control/base/stopped; a name
+     * that is not on the takeover's list is never touched), logs each stop, and ends at the return, which says what it
+     * did.
+     */
+    @Test
+    fun theStopLoopSleepsOnThePropertiesAndKeepsItsServicesStopped() = each { f ->
+        f.phone()
+        f.file("props").appendText("init.svc.bootanim=stopped\ninit.svc.wificond=stopped\n")
+        File(f.control, "base/stopped").writeText("cameraserver\nwificond\nvold\n")
+        phoneTool(f, "setprop", "ctl.stop", "cameraserver")
+        val w = waiter(f)
+        val loop = f.start("oneios_switch.sh", "--stop-loop", w.path, log = "log/stop-loop.out")
+        val wants = "init.svc.zygote=running init.svc.zygote_secondary=running init.svc.bootanim=running init.svc.cameraserver=running init.svc.wificond=running"
+        await("the loop's wait\n${stopLoopLog(f)}") { f.lines("log/prop-wait").contains("--prop-wait 60 $wants") }
+        assertEquals("--prop-wait 0 $wants", f.lines("log/prop-wait").first())
+        assertTrue(stopLoopLog(f), stopLoopLog(f).contains("stop loop: keeps zygote zygote_secondary bootanim cameraserver wificond stopped: waits on their init.svc properties (${w.path} --prop-wait, 60 s a wait)"))
+        // Another service's onrestart starts zygote, then cameraserver: each wait ends, and the loop stops it.
+        phoneTool(f, "setprop", "ctl.start", "zygote")
+        await("zygote stopped again\n${stopLoopLog(f)}") { prop(f, "init.svc.zygote") == "stopped" }
+        phoneTool(f, "setprop", "ctl.start", "cameraserver")
+        await("cameraserver stopped again\n${stopLoopLog(f)}") { prop(f, "init.svc.cameraserver") == "stopped" }
+        assertTrue(stopLoopLog(f), stopLoopLog(f).contains("stop loop: zygote was running: ctl.stop zygote") && stopLoopLog(f).contains("stop loop: cameraserver was running: ctl.stop cameraserver"))
+        assertFalse(f.setprops.toString(), f.setprops.any { it.contains("vold") })
+        // The return ends it (the off file; the waiter by its pid file) and says what it did; One UI comes back in place.
+        val r = f.returns()
+        assertEquals(r.text, 0, r.exit)
+        f.assertInPlace(r.text)
+        assertTrue(r.text, r.text.contains("stop loop: 2 stops of a service that ran again; keeps zygote zygote_secondary bootanim cameraserver wificond stopped: waits on"))
+        assertTrue(loop.waitFor(30, TimeUnit.SECONDS))
+        assertTrue(stopLoopLog(f), stopLoopLog(f).contains("stop loop: ends: 2 stops in the session"))
+        assertTrue(r.text, r.text.contains("Android takeover: its stops run again: cameraserver wificond (control/base/stopped)"))
+    }
+
+    /** A runtime without --prop-wait (it answers 2), or none given: one look a second, as the loop did at 0.2 s before. */
+    @Test
+    fun theStopLoopLooksOnceASecondWithARuntimeFromBeforeThePropertyWait() = each { f ->
+        f.phone()
+        f.behave("old_runtime")
+        val w = waiter(f)
+        val loop = f.start("oneios_switch.sh", "--stop-loop", w.path, log = "log/stop-loop.out")
+        await("the loop's line\n${stopLoopLog(f)}") { stopLoopLog(f).contains("one look a second (getprop)") }
+        assertTrue(stopLoopLog(f), stopLoopLog(f).contains("stop loop: ${w.path} --prop-wait answered 2 (a runtime from before it)"))
+        assertEquals(1, f.lines("log/prop-wait").size)
+        phoneTool(f, "setprop", "ctl.start", "zygote")
+        await("zygote stopped again\n${stopLoopLog(f)}") { prop(f, "init.svc.zygote") == "stopped" }
+        File(f.control, "stop-loop.off").createNewFile()
+        assertTrue(loop.waitFor(30, TimeUnit.SECONDS))
+        assertTrue(stopLoopLog(f), stopLoopLog(f).contains("stop loop: ends: 1 stops in the session"))
+        // No xnuhost given (the old switch's command line): the same.
+        File(f.control, "stop-loop.off").delete()
+        val bare = f.start("oneios_switch.sh", "--stop-loop", log = "log/stop-loop-bare.out")
+        await("the bare loop's line") { stopLoopLog(f).lines().count { it.endsWith("one look a second (getprop)") } == 2 }
+        File(f.control, "stop-loop.off").createNewFile()
+        assertTrue(bare.waitFor(30, TimeUnit.SECONDS))
+    }
+
+    /** The services of zygote's restart list on the fake phone, each defined in an .rc as on One UI's /system. */
+    private fun restartList(f: Fake, critical: String? = null) {
+        fun rc(file: String, body: String) = f.file("system/etc/init/$file").apply { parentFile.mkdirs(); writeText(body) }
+        rc("cameraserver.rc", "service cameraserver /system/bin/cameraserver\n    class main\n    user cameraserver\n")
+        rc("mediaextractor.rc", "service mediaextractor /system/bin/mediaextractor\n    class main\n")
+        // A critical option of another service in the same file is not mediametrics'.
+        rc("mediametrics.rc", "service mediametrics /system/bin/mediametrics\n    class main\n\nservice other /system/bin/other\n    critical\n")
+        rc("mediatuner.rc", "on boot\n    write /dev/null 1\n\nservice media.tuner /system/bin/mediatuner\n    class main\n    oneshot\n")
+        rc("wificond.rc", "service wificond /system/bin/wificond\n    class main\n" + if (critical == "wificond") "    critical\n" else "")
+        rc("netd.rc", "service netd /system/bin/netd\n    class main\n    onrestart restart zygote\n")
+        rc("mediaserver.rc", "service media /system/bin/mediaserver\n    class main\n")
+        var pid = 320
+        for (s in listOf("mediaextractor", "mediametrics", "media.tuner", "wificond", "media")) f.daemon(s, pid++)
+        f.file("proc/meminfo").writeText("MemTotal:       11350000 kB\nMemAvailable:    8000000 kB\n")
+    }
+
+    /**
+     * Stage 2b: the switch stops the running services of its list that no .rc marks critical, each written to
+     * control/base/stopped before its ctl.stop; the return starts every one again (the restart list, then one more
+     * ctl.start for one the list does not restart: media.tuner, which did not run at the baseline) before One UI's zygote.
+     */
+    @Test
+    fun theTakeoversStopsAreRecordedAndTheReturnStartsThemAgain() = each { f ->
+        f.phone()
+        restartList(f, critical = "wificond")
+        val r = f.run("oneios_switch.sh", "--takeover-stops")
+        assertEquals(r.text, 0, r.exit)
+        assertEquals(listOf("cameraserver", "mediaextractor", "mediametrics", "media.tuner"), File(f.control, "base/stopped").readLines())
+        assertEquals(listOf("ctl.stop cameraserver", "ctl.stop mediaextractor", "ctl.stop mediametrics", "ctl.stop media.tuner"), f.setprops)
+        assertTrue(
+            r.text,
+            r.text.contains(
+                "Android takeover: stopped cameraserver mediaextractor mediametrics media.tuner (from the default list; control/base/stopped); " +
+                    "not stopped: perfmond(no such service) wificond(critical in its .rc); host MemAvailable 7812 -> 7812 MiB",
+            ),
+        )
+        for (s in listOf("cameraserver", "mediaextractor", "mediametrics", "media.tuner")) assertEquals(s, "stopped", prop(f, "init.svc.$s"))
+        assertEquals("running", prop(f, "init.svc.wificond"))
+        assertEquals("running", prop(f, "init.svc.media"))   // media and netd only when named
+        val back = f.returns()
+        assertEquals(back.text, 0, back.exit)
+        f.assertInPlace(back.text)
+        assertTrue(back.text, back.text.contains("Android takeover: its stops run again: cameraserver mediaextractor mediametrics media.tuner (control/base/stopped)"))
+        for (s in listOf("cameraserver", "mediaextractor", "mediametrics", "media.tuner")) assertEquals(s, "running", prop(f, "init.svc.$s"))
+        val log = f.setprops
+        assertTrue(log.toString(), log.indexOf("ctl.start media.tuner") in 0 until log.indexOf("ctl.restart netd"))
+    }
+
+    /** A stopped service that does not run again: the restart, before One UI's framework starts (rule 5). */
+    @Test
+    fun aStoppedServiceThatDoesNotComeBackIsTheFailsafe() = each { f ->
+        f.phone()
+        restartList(f)
+        File(f.stage, "image/overlay/userland").mkdirs()
+        File(f.stage, "image/overlay/userland/xnuhost.conf").writeText("session-mode=takeover\ntakeover-stops=mediaextractor\n")
+        assertEquals(0, f.run("oneios_switch.sh", "--takeover-stops").exit)
+        assertEquals(listOf("mediaextractor"), File(f.control, "base/stopped").readLines())
+        f.behave("no_start_mediaextractor")
+        val r = f.returns()
+        f.assertFailsafe("the Android takeover stopped mediaextractor for the session, and it does not run again (init.svc.mediaextractor 'restarting')")
+        assertTrue(r.text, f.setprops.contains("ctl.start mediaextractor"))
+    }
+
+    /**
+     * takeover-stops= of the image's xnuhost.conf: none, a list with netd and media (netd is then started, not
+     * restarted, and zygote is started at once: init runs no onrestart for it), and words the preflight refuses.
+     */
+    @Test
+    fun theTakeoversStopListComesFromTheImagesConf() = each { f ->
+        f.phone()
+        restartList(f)
+        val conf = File(f.stage, "image/overlay/userland/xnuhost.conf").apply { parentFile.mkdirs() }
+        conf.writeText("takeover-stops=none\n")
+        var r = f.run("oneios_switch.sh", "--takeover-stops")
+        assertTrue(r.text, r.exit == 0 && r.text.contains("Android takeover: no service of Android stopped (takeover-stops=none)"))
+        assertFalse(File(f.control, "base/stopped").exists())
+        assertTrue(f.setprops.toString(), f.setprops.isEmpty())
+        for ((bad, why) in listOf("vold" to "'vold' (in the image's xnuhost.conf) is not one of: ", "netd,netd" to "'netd' is named twice", "netd,,media" to "has an empty name")) {
+            conf.writeText("takeover-stops=$bad\n")
+            r = f.run("oneios_switch.sh", "--takeover-stops")
+            assertTrue(r.text, r.exit == 2 && r.text.contains("PREFLIGHT REFUSED: takeover-stops: ") && r.text.contains(why))
+        }
+        assertTrue(f.setprops.toString(), f.setprops.isEmpty())
+        conf.writeText("pen=auto\ntakeover-stops=default\n takeover-stops=netd,media\n")
+        r = f.run("oneios_switch.sh", "--takeover-stops")
+        assertTrue(r.text, r.text.contains("Android takeover: stopped netd media (from the image's xnuhost.conf (takeover-stops=netd,media); control/base/stopped); host MemAvailable"))
+        assertEquals(listOf("netd", "media"), File(f.control, "base/stopped").readLines())
+        val back = f.returns()
+        assertEquals(back.text, 0, back.exit)
+        assertEquals(back.text, "returned", f.state)
+        assertTrue(back.text, f.outcome.startsWith("inplace "))
+        val log = f.setprops
+        assertFalse(log.toString(), log.contains("ctl.restart netd"))
+        assertTrue(log.toString(), log.indexOf("ctl.start netd") in 0 until log.indexOf("ctl.start zygote"))
+        assertTrue(back.text, back.text.contains("Android takeover: its stops run again: media netd (control/base/stopped)"))
+        assertTrue(back.text, back.text.contains("One UI restored in place"))
     }
 
     /** One UI's USB gadget, as its framework set it: adb on, the UDC bound, a cable to a computer. */

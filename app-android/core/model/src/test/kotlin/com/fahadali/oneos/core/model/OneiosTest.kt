@@ -206,7 +206,8 @@ class OneiosTest {
         assertEquals(listOf("4100", "1", "takeover"), OneiosSystem.switchArgs(4100, takeover = true))
         // The warning says what it takes, what it writes and the way back, restart as the fallback only.
         val w = OneiosSystem.TAKEOVER_WARNING
-        assertTrue(w, w.contains("touchscreen") && w.contains("caps the CPUs") && w.contains("put back") &&
+        assertTrue(w, w.contains("touchscreen") && w.contains("caps the CPUs") && w.contains("put back") && w.contains("stops Android services") &&
+            w.contains("battery gets hot (50 C and up") && !w.contains("46 C") &&
             w.contains("Volume Up + Volume Down") && w.contains("only when the return in place cannot put One UI back"))
         assertEquals("Android takeover (faster, experimental)", OneiosSystem.TAKEOVER_TITLE)
     }

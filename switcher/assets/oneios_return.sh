@@ -18,7 +18,8 @@
 #      One UI's again (the composer and surfaceflinger restarted, the boot
 #      animation); audioserver and the rest of zygote's restart list; the
 #      services One UI's framework waits for are registered; the USB gadget and
-#      adbd are One UI's again (control/base/usb); zygote starts.
+#      adbd are One UI's again (control/base/usb); in the Android takeover each
+#      service it stopped (control/base/stopped) runs again; zygote starts.
 #   C  system_server keeps its pid until user 0 is unlocked and 20 s more.
 # Never ":" with a redirection in this script or in oneios_switch.sh: ":" is a
 # special builtin, and Android's sh (mksh) ends the whole script, without a
@@ -193,6 +194,21 @@ is_ours() { # <pid> <script and mode words>
 end_helper() { # <pid file> <mode word>
     for p in $(cat "$1" 2>/dev/null); do
         is_ours "$p" "oneios_switch.sh $2" && kill -9 "$p" 2>/dev/null
+    done
+}
+# The stop loop's wait (xnuhost --prop-wait, its child, which sleeps on init's properties for up to 60 s): ended at
+# once, so the loop sees control/stop-loop.off now. Only a process whose command line is that wait.
+end_waiter() {
+    for p in $(cat "$CTL/stop-loop.wait.pid" 2>/dev/null); do
+        is_ours "$p" " --prop-wait 60 init.svc.zygote=running " && kill -9 "$p" 2>/dev/null
+    done
+}
+# The services the Android takeover stopped (oneios_switch.sh takeover_stops: control/base/stopped), each a name of
+# One UI's zygote's restart list, which this return starts again with the rest of that list.
+TAKEOVER_STOPPABLE="cameraserver mediaextractor mediametrics media.tuner perfmond wificond netd media"
+takeover_stopped() {
+    for s in $(cat "$BASE/stopped" 2>/dev/null); do
+        case " $TAKEOVER_STOPPABLE " in *" $s "*) echo "$s" ;; esac
     done
 }
 # The USB gadget and adbd back to One UI's (oneios_switch.sh, "USB AND ADB
@@ -676,6 +692,7 @@ step "[3/5] Gate B: One UI's display and services" 75
 # The stop loop must be gone before anything starts (its last ctl.stop can
 # land after a start; it also stops the boot animation).
 true > "$CTL/stop-loop.off"
+end_waiter
 n=0
 while [ $n -lt 15 ]; do
     alive=0
@@ -687,6 +704,10 @@ while [ $n -lt 15 ]; do
     sleep 0.2; n=$((n + 1))
 done
 [ $alive = 0 ] || failsafe "the session's stop loop is still running"
+# What it did in the session (oneios_switch.sh --stop-loop writes a line for each stop and for how it waited).
+if [ -s "$CTL/stop-loop.log" ]; then
+    say "stop loop: $(grep -c ' was running: ctl.stop ' "$CTL/stop-loop.log" 2>/dev/null) stops of a service that ran again; $(grep -m1 ' keeps ' "$CTL/stop-loop.log" | sed 's/^.* stop loop: //' | cut -c1-200)"
+fi
 [ "$(getprop init.svc.zygote)" != running ] && ! pidof system_server >/dev/null 2>&1 ||
     failsafe "One UI's zygote or system_server started before the return was ready"
 # One UI's boot-loop check counts every system_server start in a 10 minute
@@ -802,10 +823,29 @@ timeout 10 vdc volume abort_fuse >/dev/null 2>&1
 if [ -n "$(pidof zygote_next 2>/dev/null)" ] && [ "$(base_prop init.svc.zygote_next)" = running ]; then
     setprop ctl.restart zygote_next
 fi
+# The Android takeover's stops: zygote's restart list above started each one
+# again; each must run again before One UI's framework starts, else the restart
+# (OneiOS docs/plan-ios-first-session.md 4, rule 5). One more ctl.start for one
+# that does not run (yet), 10 s at most for each. netd below, at its own step.
+running_again() { # <service>
+    [ "$(getprop "init.svc.$1")" = running ] || setprop ctl.start "$1"
+    n=0
+    while [ $n -lt 50 ] && [ "$(getprop "init.svc.$1")" != running ]; do sleep 0.2; n=$((n + 1)); done
+    st=$(getprop "init.svc.$1")
+    [ "$st" = running ] || failsafe "the Android takeover stopped $1 for the session, and it does not run again (init.svc.$1 '${st}')"
+    back="$back $1"
+}
+back=""
+for svc in $(takeover_stopped); do [ "$svc" = netd ] || running_again "$svc"; done
 # netd's restart is on zygote's list too (the new system_server needs a fresh
 # DnsResolver); where its own onrestart starts zygote, that is the start.
-setprop ctl.restart netd
-n=0
+# A netd that the Android takeover stopped is started (init runs onrestart only
+# for a service that was running), so zygote is not waited for: it is started.
+zw=0
+if takeover_stopped | grep -qx netd; then setprop ctl.start netd; running_again netd; zw=20
+else setprop ctl.restart netd; fi
+[ -z "$back" ] || say "Android takeover: its stops run again:$back (control/base/stopped)"
+n=$zw
 while [ $n -lt 20 ] && [ "$(getprop init.svc.zygote)" != running ]; do sleep 0.5; n=$((n + 1)); done
 [ "$(getprop init.svc.zygote)" = running ] || setprop ctl.start zygote
 if [ "$(base_prop init.svc.zygote_secondary)" = running ] && [ "$(getprop init.svc.zygote_secondary)" != running ]; then

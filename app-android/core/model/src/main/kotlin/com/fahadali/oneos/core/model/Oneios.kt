@@ -95,8 +95,9 @@ object OneiosSystem {
     /** The toggle's title and its warning, on the Switch sheet. */
     const val TAKEOVER_TITLE = "Android takeover (faster, experimental)"
     const val TAKEOVER_WARNING = "iOS gets this phone's touchscreen for itself (One UI cannot read it until the session " +
-        "ends), and the switch caps the CPUs' top speed when the case or the battery gets hot (46 C and up), because " +
-        "One UI's own heat limits are not running; at 50 C (48 C for the battery) it returns to One UI. Everything it " +
+        "ends), the switch stops Android services no iOS bridge uses (the camera service, media extractor and metrics, " +
+        "the TV tuner, perfmond, wificond) so iOS gets their memory, and it caps the CPUs' top speed only when the " +
+        "battery gets hot (50 C and up; at 55 C it returns to One UI). Everything it " +
         "changes is put back when One UI comes back. The way back is the same: Volume Up + Volume Down for 3 seconds " +
         "returns to One UI in place; only when the return in place cannot put One UI back does the phone restart into " +
         "One UI. Not tried on a phone yet."
