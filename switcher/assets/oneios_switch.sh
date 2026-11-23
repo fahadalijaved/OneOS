@@ -693,6 +693,72 @@ takeover_stops() {
     after=$(mem_avail)
     echo "Android takeover: stopped${done_:- nothing} (from $TSTOPS_FROM; control/base/stopped)${kept:+; not stopped:$kept}${up:+; still running after 5 s:$up}; host MemAvailable ${before:-?} -> ${after:-?} MiB"
 }
+# The Android takeover's memory steps (--takeover-memory; OneiOS docs/booter.md 2.9d, "More RAM in the takeover"; the
+# owner, 2026-11-23: "at least 10 GB of RAM for iOS"), after its stops and before xnuhost, so that ram=auto sees what
+# they give. Each is the last such line of the image's xnuhost.conf, as takeover-stops= (xnuhost checks the same words):
+# - takeover-reclaim=1 (the default; 0 off): sync, drop_caches 3 and each zram device's compact. MemAvailable counts
+#   most of the page cache already; what this adds is what it does not count: the dma-buf heaps' and KGSL's page
+#   pools and every other shrinker's (drop_caches runs them all), the slab's free objects, zsmalloc's half-empty pages,
+#   the share of the cache MemAvailable keeps back. Nothing to put back: the caches fill again as One UI reads.
+# - takeover-swappiness=N (0-200) or keep (the default): vm.swappiness for the session, One UI's value written to
+#   control/base/swappiness first; every return writes it back (oneios_return.sh swappiness_restore). Lower: the
+#   host drops page cache before it swaps out the kept services, the swap-in floor behind xnuhost's headroom.
+# A word it does not take is logged and changes nothing (xnuhost's --host-info in the preflight refuses it first).
+takeover_conf() { # <key>: its last value in the image's xnuhost.conf files, "" without one
+    cat "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf" 2>/dev/null |
+        sed -n "s/^[[:space:]]*$1=//p" | tail -n 1 | tr -d ' \t\r'
+}
+mem_mib() { # <meminfo key>: MiB, ? without it
+    mm=$(awk -v k="$1:" '$1 == k { print int($2 / 1024); exit }' "$P/meminfo" 2>/dev/null)
+    echo "${mm:-?}"
+}
+zram_ram() { # MiB of RAM that zram's pools use (mm_stat's third figure), ? without zram
+    zt=""
+    for z in "$T"/sys/block/zram*/mm_stat; do
+        [ -f "$z" ] || continue
+        zu=$(awk '{ print int($3 / 1048576) }' "$z" 2>/dev/null)
+        zt=$((${zt:-0} + ${zu:-0}))
+    done
+    echo "${zt:-?}"
+}
+heap_pools() { # MiB in the dma-buf heaps' page pools (GKI's total_pools_kb), ? without it
+    hp=$(awk '{ print int($1 / 1024); exit }' "$T/sys/kernel/dma_heap/total_pools_kb" 2>/dev/null)
+    echo "${hp:-?}"
+}
+takeover_memory() {
+    v=$(takeover_conf takeover-reclaim)
+    case "${v:-1}" in
+        0) echo "Android takeover: caches kept (takeover-reclaim=0)" ;;
+        1)
+            a0=$(mem_mib MemAvailable) f0=$(mem_mib MemFree) z0=$(zram_ram) h0=$(heap_pools)
+            sync
+            how=dropped
+            echo 3 2>/dev/null > "$P/sys/vm/drop_caches" || how="not dropped (drop_caches not written)"
+            nz=0
+            for z in "$T"/sys/block/zram*/compact; do
+                [ -f "$z" ] && echo 1 2>/dev/null > "$z" && nz=$((nz + 1))
+            done
+            echo "Android takeover: caches $how, zram compacted on $nz device(s) (takeover-reclaim=1; nothing to put back); host MemAvailable $a0 -> $(mem_mib MemAvailable) MiB, MemFree $f0 -> $(mem_mib MemFree) MiB, zram's RAM $z0 -> $(zram_ram) MiB, dma-buf heap pools $h0 -> $(heap_pools) MiB" ;;
+        *) echo "Android takeover: takeover-reclaim=$v is not 0 or 1: caches kept" ;;
+    esac
+    rm -f "$CTL/base/swappiness"
+    v=$(takeover_conf takeover-swappiness)
+    case "${v:-keep}" in
+        keep) return 0 ;;
+        *[!0-9]*) echo "Android takeover: takeover-swappiness=$v is not keep or 0-200: vm.swappiness left as it is"; return 0 ;;
+    esac
+    [ "$v" -le 200 ] || { echo "Android takeover: takeover-swappiness=$v is not keep or 0-200: vm.swappiness left as it is"; return 0; }
+    old=$(cat "$P/sys/vm/swappiness" 2>/dev/null)
+    case "$old" in ''|*[!0-9]*) echo "Android takeover: vm.swappiness not read: left as it is"; return 0 ;; esac
+    if ! { printf '%s\n' "$old" 2>/dev/null > "$CTL/base/swappiness.tmp" && mv -f "$CTL/base/swappiness.tmp" "$CTL/base/swappiness"; }; then
+        echo "Android takeover: vm.swappiness $old could not be saved: left as it is"
+    elif echo "$v" 2>/dev/null > "$P/sys/vm/swappiness"; then
+        echo "Android takeover: vm.swappiness $old -> $(cat "$P/sys/vm/swappiness" 2>/dev/null) for the session (takeover-swappiness=$v; control/base/swappiness: the return writes $old back)"
+    else
+        rm -f "$CTL/base/swappiness"
+        echo "Android takeover: vm.swappiness $old could not be written: left as it is"
+    fi
+}
 takeover_checks() { # <xnuhost to ask>
     # The stop list first: a word xnuhost does not know would make it refuse the conf below, with a less clear line.
     takeover_stops_pick
@@ -1177,6 +1243,12 @@ case "$MODE" in
         mkdir -p "$CTL/base"
         takeover_stops_pick
         takeover_stops
+        exit 0 ;;
+    --takeover-memory)
+        # The tests' way in: the Android takeover's memory steps as the switch makes them.
+        [ -n "$T" ] || { echo "$MODE: for the tests only"; exit 2; }
+        mkdir -p "$CTL/base"
+        takeover_memory
         exit 0 ;;
     --feed)
         # One UI's system_server opened Samsung's software watchdog (100 s) and
@@ -1778,6 +1850,8 @@ if [ "$SMODE" = takeover ]; then
     # Its stops (takeover_stops): recorded in control/base/stopped before each, so the stop loop below keeps them
     # stopped and every return starts them again; before xnuhost, so that ram=auto gives the guest what they held.
     takeover_stops
+    # Its memory steps (takeover_memory): the caches dropped, zram compacted, vm.swappiness if the image asks for it.
+    takeover_memory
 fi
 "$BB" setsid /system/bin/sh "$SELF" --stop-loop "$X" </dev/null >/dev/null 2>&1 &
 echo $! > "$CTL/stop-loop.pid"

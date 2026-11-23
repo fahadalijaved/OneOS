@@ -1011,6 +1011,16 @@ An opt-in session mode, off by default: the vehicle for the speed of OneiOS's iO
   name goes to `control/base/stopped` before its `setprop ctl.stop`; then up to 5 s for each to end, so that xnuhost's
   `ram=auto` sees the RAM they held. `switch.log`: `Android takeover: stopped NAMES (from ...; control/base/stopped)[;
   not stopped: NAME(why) ...]; host MemAvailable A -> B MiB`. The stop loop keeps them stopped with zygote.
+- **Its memory steps** (takeover-ram, 2026-11-23; OneiOS `docs/booter.md` 2.9d, "More RAM in the takeover"; the owner's
+  goal of at least 10 GB of RAM for iOS): right after the stops, before the stop loop and xnuhost, `takeover_memory`,
+  from the image's `xnuhost.conf` (the last line, as `takeover-stops=`). `takeover-reclaim=1` (the default; `0` off):
+  `sync`, `drop_caches` 3 and each zram device's `compact`, so that what MemAvailable did not count (the dma-buf heaps'
+  and KGSL's page pools, the slab's free objects, zram's half-empty pages) is in it when `ram=auto` reads it; nothing
+  to put back. `switch.log`: `Android takeover: caches dropped, zram compacted on N device(s) (takeover-reclaim=1;
+  nothing to put back); host MemAvailable A -> B MiB, MemFree .., zram's RAM .., dma-buf heap pools ..`.
+  `takeover-swappiness=N` (0-200; `keep`, the default, changes nothing): One UI's `vm.swappiness` saved in
+  `control/base/swappiness`, then N (`Android takeover: vm.swappiness OLD -> N for the session ...`). A word it does not
+  take is logged and changes nothing (xnuhost's `--host-info --config` in the preflight refuses it first).
 - **What is put back:** the touchscreen's grab ends with xnuhost's file (any exit, a SIGKILL). The return writes
   `control/cpu-cap.off`, kills the cap and waits up to 2 s for it, then writes One UI's clocks back as for every session
   (`return.log`: `Android takeover: its CPU cap ended at level N (...)`, then the `clocks:` lines), on every path that
@@ -1018,6 +1028,8 @@ An opt-in session mode, off by default: the vehicle for the speed of OneiOS's iO
   list starts the stopped services again; then each name of `control/base/stopped` gets one more `ctl.start` if it
   does not run and up to 10 s, before One UI's zygote (`Android takeover: its stops run again: NAMES`); a stopped
   netd is started, not restarted, and zygote then started at once (init runs no `onrestart` for a stopped service).
+  Every return (both of its ways) writes `control/base/swappiness` back and reads it back (`vm.swappiness back: OLD`;
+  a failed write is logged, never the failsafe: a restart sets One UI's own).
 - **The way back** is the one below, in place first. A restart into One UI only where the in-place return cannot put
   One UI back: any failed check (as always), a stopped service that does not run again (before One UI's framework
   starts), the cap still running 2 s after it was killed, or a policy's `scaling_max_freq` that cannot be written back
@@ -1028,7 +1040,8 @@ An opt-in session mode, off by default: the vehicle for the speed of OneiOS's iO
   `theSessionModeIsHostedUnlessAskedAndTakeoverOnlyWhereTheHostTableAllowsIt` (`--mode-check`, a stand-in for
   `--host-info`; a stop list it does not know), `theHostedSessionIsTheSessionAsBefore`,
   `theTakeoversStopsAreRecordedAndTheReturnStartsThemAgain`, `aStoppedServiceThatDoesNotComeBackIsTheFailsafe`,
-  `theTakeoversStopListComesFromTheImagesConf` (`--takeover-stops`, the tests' way in);
+  `theTakeoversStopListComesFromTheImagesConf` (`--takeover-stops`, the tests' way in),
+  `theTakeoversMemoryStepsAndTheReturnPutsSwappinessBack` (`--takeover-memory`);
   `theStopLoopSleepsOnThePropertiesAndKeepsItsServicesStopped`, `theStopLoopLooksOnceASecondWithARuntimeFromBeforeThePropertyWait`
   (a stand-in for `xnuhost --prop-wait`); `OneiosTest.theAndroidTakeoverIsOfferedOnTheS24AndS26UltraOnly`. Not run
   on a phone: bionic's wait, the `.rc` places on One UI 8, whether a kept HAL calls a stopped service.

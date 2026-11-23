@@ -2154,8 +2154,74 @@ class OneiosScriptTest {
         assertTrue(ret.indexOf("end_helper \"\$CTL/cpu-cap.pid\" --cpu-cap") in 0 until ret.indexOf("awk '{ l[NR] = \$0 }"))
         assertTrue(ret.indexOf("awk '{ l[NR] = \$0 }") in 0 until ret.indexOf("Gate A"))
         // The takeover's stops only in its branch, after its cap and before the stop loop, which gets xnuhost's path.
-        assertTrue(sw.contains("    takeover_stops\nfi\n\"\$BB\" setsid /system/bin/sh \"\$SELF\" --stop-loop \"\$X\" "))
+        // Its memory steps right after the stops, still before the stop loop and xnuhost (OneiOS docs/booter.md 2.9d).
+        assertTrue(sw.contains("    takeover_stops\n    takeover_memory\nfi\n\"\$BB\" setsid /system/bin/sh \"\$SELF\" --stop-loop \"\$X\" "))
         assertEquals(2, Regex("\n\\s*takeover_stops\n").findAll(sw).count()) // that one, and the tests' way in (--takeover-stops)
+        assertEquals(2, Regex("\n\\s*takeover_memory\n").findAll(sw).count()) // that one, and --takeover-memory
+        // The return writes vm.swappiness back on both of its ways (One UI stopped, and the switch that ended before).
+        assertEquals(2, Regex("\n\\s*swappiness_restore\n").findAll(ret).count())
+        assertTrue(ret.indexOf("shmem_restore failsafe\nswappiness_restore") in 0 until ret.indexOf("step \"[3/5] Gate B"))
+    }
+
+    /** The fake phone's vm and memory nodes the takeover's memory steps read and write. */
+    private fun memoryNodes(f: Fake) {
+        fun node(path: String, text: String) = f.file(path).apply { parentFile.mkdirs(); writeText(text) }
+        node("proc/meminfo", "MemTotal:       11350000 kB\nMemFree:          900000 kB\nMemAvailable:    8000000 kB\n")
+        node("proc/sys/vm/drop_caches", "0\n")
+        node("proc/sys/vm/swappiness", "100\n")
+        node("sys/block/zram0/mm_stat", "2317352960 760217600 789577728 0 812646400 0 0 0\n")
+        node("sys/block/zram0/compact", "")
+        node("sys/kernel/dma_heap/total_pools_kb", "65536\n")
+    }
+
+    /**
+     * The Android takeover's memory steps (OneiOS docs/booter.md 2.9d, "More RAM in the takeover", 2026-11-23): by
+     * default the caches dropped and zram compacted, with nothing to put back; takeover-swappiness=N sets vm.swappiness
+     * for the session after One UI's value is saved, and the return writes that back; words it does not take change
+     * nothing.
+     */
+    @Test
+    fun theTakeoversMemoryStepsAndTheReturnPutsSwappinessBack() = each { f ->
+        f.phone()
+        restartList(f)
+        memoryNodes(f)
+        var r = f.run("oneios_switch.sh", "--takeover-memory")
+        assertEquals(r.text, 0, r.exit)
+        assertTrue(
+            r.text,
+            r.text.contains(
+                "Android takeover: caches dropped, zram compacted on 1 device(s) (takeover-reclaim=1; nothing to put back); " +
+                    "host MemAvailable 7812 -> 7812 MiB, MemFree 878 -> 878 MiB, zram's RAM 753 -> 753 MiB, dma-buf heap pools 64 -> 64 MiB",
+            ),
+        )
+        assertEquals("3", f.file("proc/sys/vm/drop_caches").readText().trim())
+        assertEquals("1", f.file("sys/block/zram0/compact").readText().trim())
+        assertEquals("100", f.file("proc/sys/vm/swappiness").readText().trim()) // keep: not touched
+        assertFalse(File(f.control, "base/swappiness").exists())
+        val conf = File(f.stage, "image/overlay/userland/xnuhost.conf").apply { parentFile.mkdirs() }
+        conf.writeText("session-mode=takeover\ntakeover-reclaim=0\ntakeover-swappiness=20\n")
+        f.file("proc/sys/vm/drop_caches").writeText("0\n")
+        r = f.run("oneios_switch.sh", "--takeover-memory")
+        assertTrue(r.text, r.text.contains("Android takeover: caches kept (takeover-reclaim=0)"))
+        assertTrue(
+            r.text,
+            r.text.contains("Android takeover: vm.swappiness 100 -> 20 for the session (takeover-swappiness=20; control/base/swappiness: the return writes 100 back)"),
+        )
+        assertEquals("0", f.file("proc/sys/vm/drop_caches").readText().trim())
+        assertEquals("20", f.file("proc/sys/vm/swappiness").readText().trim())
+        assertEquals("100", File(f.control, "base/swappiness").readText().trim())
+        val back = f.returns()
+        assertEquals(back.text, 0, back.exit)
+        assertTrue(back.text, back.text.contains("vm.swappiness back: 100"))
+        assertEquals("100", f.file("proc/sys/vm/swappiness").readText().trim())
+        assertFalse(File(f.control, "base/swappiness").exists())
+        for (bad in listOf("low", "201")) {
+            conf.writeText("takeover-reclaim=yes\ntakeover-swappiness=$bad\n")
+            r = f.run("oneios_switch.sh", "--takeover-memory")
+            assertTrue(r.text, r.text.contains("Android takeover: takeover-reclaim=yes is not 0 or 1: caches kept"))
+            assertTrue(r.text, r.text.contains("Android takeover: takeover-swappiness=$bad is not keep or 0-200: vm.swappiness left as it is"))
+            assertEquals("100", f.file("proc/sys/vm/swappiness").readText().trim())
+        }
     }
 
     // --- The stop loop's wait and the Android takeover's stops (OneiOS docs/plan-ios-first-session.md, stages 2a, 2b) -

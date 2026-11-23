@@ -172,6 +172,23 @@ shmem_restore() {
     fi
     rm -f "$BASE/shmem_enabled"
 }
+# vm.swappiness back to One UI's: the Android takeover's takeover-swappiness= (oneios_switch.sh takeover_memory saved
+# One UI's value in $BASE/swappiness before its write). Read back after the write. Logged, never a reason for the
+# failsafe: it is no part of the way back, and a restart sets One UI's own. Nothing without a saved value.
+swappiness_restore() {
+    [ -f "$BASE/swappiness" ] || return 0
+    sw_old=$(cat "$BASE/swappiness" 2>/dev/null)
+    case "$sw_old" in
+        ''|*[!0-9]*) say "vm.swappiness: the switch's saved value '$sw_old' is not a number: not written" ;;
+        *)
+            if echo "$sw_old" 2>/dev/null > "$P/sys/vm/swappiness" && [ "$(cat "$P/sys/vm/swappiness" 2>/dev/null)" = "$sw_old" ]; then
+                say "vm.swappiness back: $sw_old"
+            else
+                say "vm.swappiness is $(cat "$P/sys/vm/swappiness" 2>/dev/null || echo -), was $sw_old at the switch, and the write back failed (logged only)"
+            fi ;;
+    esac
+    rm -f "$BASE/swappiness"
+}
 base_prop() { sed -n "s/^\[$1\]: \[\(.*\)\]\$/\1/p" "$BASE/props" 2>/dev/null | head -n 1; }
 base_has() { grep -q "^\[$1\]: " "$BASE/props" 2>/dev/null; }
 # A non-persist prop back to its value at the switch, in memory only
@@ -619,6 +636,7 @@ if [ ! -e "$CTL/stopped" ] && ! framework_down; then
     # under the stop lock, the mode first): One UI runs, so a mode that cannot
     # be written back is logged, never a reason to restart it.
     shmem_restore say
+    swappiness_restore
     echo "inplace $(date +%s) One UI was never stopped" > "$S/return.outcome"
     finished
     say "The switch ended before One UI's framework was stopped: nothing to restore."
@@ -681,6 +699,8 @@ for svc in vold keystore2 servicemanager hwservicemanager logd lmkd installd; do
 done
 # The shmem THP mode back to what the switch found (shmem_restore above).
 shmem_restore failsafe
+# vm.swappiness back to what the switch found (the takeover's takeover-swappiness=; swappiness_restore above).
+swappiness_restore
 [ "$(getenforce 2>/dev/null)" = "$(cat "$BASE/selinux")" ] || failsafe "SELinux is $(getenforce 2>/dev/null), was $(cat "$BASE/selinux")"
 # The session scripts set no persist property. What differs from the switch
 # is One UI's own daemons' doing, or xnuhost's against its contract: by name
