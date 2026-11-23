@@ -92,7 +92,7 @@ if [ "$1" = baseline ]; then
     ( for f in /dev/cpuset/cpus /dev/cpuset/*/cpus /sys/devices/system/cpu/cpu*/core_ctl/enable; do
         [ -f "$f" ] && echo "$f $(cat "$f" 2>/dev/null)"
     done > "$BASE/cpuset" ) &
-    : > "$BASE/svcpid"
+    true > "$BASE/svcpid"
     for n in $HOST_NAMES; do ( p=$(svc_pid "$n"); echo "$n ${p:-none}" >> "$BASE/svcpid" ) & done
     ( ls -lZ /dev/watchdog* > "$BASE/watchdog" 2>&1 ) &
     # One UI's linker namespaces (a tmpfs the guest's tree binds), compared at the return.
@@ -246,7 +246,7 @@ STAGE="$S" BB="$BB" /system/bin/sh "$S/fold8_coloros.sh" performance-restore || 
 KS=/data/local/tmp/oneos/return_keys
 if [ "$(cat "$KS/boot" 2>/dev/null)" = "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)" ]; then
     for p in $(cat "$KS/pids" 2>/dev/null); do
-        case "$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null)" in
+        case "$(cat "/proc/$p/cmdline" 2>/dev/null | tr '\0' ' ')" in
             *oneos_switch.sh*) kill "$p" 2>/dev/null ;;
         esac
     done
@@ -650,7 +650,7 @@ fi
 #      framework waits on registered, nothing of the guest left.
 #   C  after: system_server keeps its pid until user 0 is unlocked and 30 s more.
 IPLOG=$S/return_inplace.log
-: > "$IPLOG"
+true > "$IPLOG"
 say() {
     m="$("$BB" date +%T) $*"
     echo "$m"; echo "$m" >> "$IPLOG"

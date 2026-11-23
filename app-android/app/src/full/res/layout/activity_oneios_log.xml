@@ -1,0 +1,35 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/preboot_page">
+    <dev.oneuiproject.oneui.layout.ToolbarLayout android:id="@+id/oneios_log_toolbar"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        app:handleInsets="false" app:expandable="false" app:expanded="false" app:mainRoundedCorners="top" app:showNavButtonAsBack="true">
+        <LinearLayout android:id="@+id/oneios_log_body" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:orientation="vertical" android:background="@color/preboot_card">
+            <!-- The summary: a few lines; a tap shows all of it. -->
+            <TextView android:id="@+id/oneios_log_summary" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:paddingHorizontal="16dp" android:paddingTop="10dp" android:paddingBottom="8dp" android:textSize="13sp"
+                android:textColor="@color/oneios_check_title" android:maxLines="5" android:ellipsize="end"
+                android:background="?android:attr/selectableItemBackground" android:visibility="gone" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+                android:gravity="center_vertical" android:paddingHorizontal="12dp">
+                <EditText android:id="@+id/oneios_log_search" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:hint="@string/oneios_logs_search" android:inputType="text|textNoSuggestions" android:imeOptions="actionSearch|flagNoExtractUi"
+                    android:maxLines="1" android:textSize="15sp" android:importantForAutofill="no" />
+                <Button android:id="@+id/oneios_log_copy" style="?android:attr/borderlessButtonStyle" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:minWidth="0dp" android:text="@string/oneios_checks_copy" />
+                <Button android:id="@+id/oneios_log_share" style="?android:attr/borderlessButtonStyle" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:minWidth="0dp" android:text="@string/oneios_checks_share" />
+            </LinearLayout>
+            <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content" android:scrollbars="none">
+                <LinearLayout android:id="@+id/oneios_log_chips" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:paddingHorizontal="12dp" android:paddingVertical="4dp" />
+            </HorizontalScrollView>
+            <TextView android:id="@+id/oneios_log_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:paddingHorizontal="16dp" android:paddingVertical="4dp" android:textSize="12sp" android:textColor="@color/preboot_secondary" />
+            <ListView android:id="@+id/oneios_log_lines" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                android:divider="@null" android:dividerHeight="0dp" android:fastScrollEnabled="true" android:nestedScrollingEnabled="true"
+                android:clipToPadding="false" />
+        </LinearLayout>
+    </dev.oneuiproject.oneui.layout.ToolbarLayout>
+</FrameLayout>

@@ -517,6 +517,7 @@ and in the app before every run); root writes no file. In order:
 | `logs.host` | `ui_activator.log`, `adb_watchdog.log`, `ims_watchdog.log`, `restore_app.log` in `/data/local/tmp` | `host/` |
 | `logs.diag` | `$STAGE/diag_series.txt` (the 30 s session sampler) and `$STAGE/diag_*/*` with the endings `.txt`, `.log`, `.xml`, `.err` only | `diag/` |
 | `logs.capture` | `/data/local/tmp/oneos_logs/head/boot.log*` no longer in the capture (the boot), then `/data/local/tmp/oneos_logs/boot.log*` (the session's full capture) | `capture/` |
+| `logs.oneios` (0.4.76) | the iOS 27 (OneiOS) system's logs in its own stage `/data/local/tmp/oneios`: `session/xnuhost.log`, `logs/xnuhost-*.log`, `switch.log`, `return.log`, `return.outcome`, `control/display.log`, `control/watchdog_feeder.log`; plain files with one name in folders that are no links only (`docs/oneios.md`, Session logs) | `oneios/` |
 
 Redaction happens as the stream arrives, line by line
 (`:core:root` `RedactingOutputStream`), so no raw line ever reaches the app's

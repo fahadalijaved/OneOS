@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="oneios_check_title">#FAFAFA</color>
+    <color name="oneios_check_pass">#5BD17B</color>
+    <color name="oneios_check_fail">#FF6B60</color>
+    <color name="oneios_check_skipped">#F2B24A</color>
+    <color name="oneios_check_divider">#2A2A2E</color>
+</resources>

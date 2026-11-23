@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.SystemClock
 import com.fahadali.oneos.BuildConfig
+import com.fahadali.oneos.core.model.ByteMeter
 import com.fahadali.oneos.core.model.Finding
 import com.fahadali.oneos.core.model.GatePhase
 import com.fahadali.oneos.core.model.Hashes
@@ -118,9 +119,8 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
         if (state.busy || StageCheck.state.busy || LaunchJob.state.busy || LogJob.state.busy) return
         val app = ctx.applicationContext
         cancelled = false
-        Rate.reset()
+        meter.reset()
         update(State(Phase.RUNNING, Step.CHECK, detail = "Checking root…"))
-        lastBytesUpdateMs = 0L
         PrepareService.start(app)
         executor.execute {
             try {
@@ -176,57 +176,20 @@ object PrepareJob : BackgroundJob<PrepareJob.State>(State(), "oneos-prepare") {
 
     private fun detail(d: String) = update(state.copy(detail = d))
 
-    /** Bytes per second, a moving average; the ETA shows after [ESTIMATE_MS] of byte flow. */
-    private object Rate {
-        private const val ESTIMATE_MS = 30_000L
-        private var startMs = 0L
-        private var lastMs = 0L
-        private var lastBytes = 0L
-        private var bps = 0.0
-
-        fun reset() {
-            startMs = 0
-            lastMs = 0
-            lastBytes = 0
-            bps = 0.0
-        }
-
-        fun eta(done: Long, total: Long): Int? {
-            val now = SystemClock.elapsedRealtime()
-            if (startMs == 0L) {
-                startMs = now
-                lastMs = now
-                lastBytes = done
-                return null
-            }
-            val dt = now - lastMs
-            if (dt >= 1000) {
-                val sample = (done - lastBytes) * 1000.0 / dt
-                bps = if (bps == 0.0) sample else bps * 0.8 + sample * 0.2
-                lastMs = now
-                lastBytes = done
-            }
-            if (now - startMs < ESTIMATE_MS || bps <= 0.0) return null
-            return ((total - done).coerceAtLeast(0) / bps).toInt()
-        }
-    }
-
-    /** When the screen last got a byte count: at most [UPDATE_MS] apart (0.4.41). */
-    @Volatile private var lastBytesUpdateMs = 0L
-    private const val UPDATE_MS = 250L
+    /**
+     * The byte rate, the time left (shown after 30 s of byte flow) and how often the screen hears of
+     * the bytes: at most every 250 ms (0.4.41). [ByteMeter], shared with the OneiOS import.
+     */
+    private val meter = ByteMeter(SystemClock::elapsedRealtime, updateMs = 250, estimateMs = 30_000)
 
     /**
      * [base] bytes of the steps before this one plus [n] of this one. The screen hears of it at
-     * most every [UPDATE_MS], or when [force]: one update per network chunk kept a CPU core busy
+     * most every 250 ms, or when [force]: one update per network chunk kept a CPU core busy
      * redrawing the setup screen and slowed the 0.4.41 download to a sixth of the phone's speed.
      */
     private fun bytes(base: Long, n: Long, stepDone: Long = state.stepDone, force: Boolean = false, detail: (() -> String)? = null) {
-        val done = base + n
-        val eta = Rate.eta(done, state.bytesTotal)
-        val now = SystemClock.elapsedRealtime()
-        if (!force && now - lastBytesUpdateMs < UPDATE_MS) return
-        lastBytesUpdateMs = now
-        update(state.copy(bytesDone = done, etaSeconds = eta, stepDone = stepDone, detail = detail?.invoke() ?: state.detail))
+        val m = meter.tick(base + n, state.bytesTotal, force) ?: return
+        update(state.copy(bytesDone = m.done, etaSeconds = m.etaSeconds, stepDone = stepDone, detail = detail?.invoke() ?: state.detail))
     }
 
     private fun verb(

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hardware checks (OneiosChecksActivity): a row's title, its verdict and the line between rows. -->
+    <color name="oneios_check_title">#000000</color>
+    <color name="oneios_check_pass">#1E8E3E</color>
+    <color name="oneios_check_fail">#D93025</color>
+    <color name="oneios_check_skipped">#B06000</color>
+    <color name="oneios_check_divider">#E6E6E6</color>
+</resources>

@@ -32,6 +32,16 @@ composer restarts, or before either reboot fallback. The interval without a
 compositor is static; live events resume when One UI's compositor is available.
 The renderer cannot draw across a kernel reboot.
 
+iOS 27 (OneiOS, `docs/oneios.md`, "Boot screen") shows the same screen from its own stage:
+`oneos_boot_begin ios` with `ONEOS_BOOT_HOME` (the folder that holds this script, the dex and the icon) and
+`ONEOS_BOOT_DIR` set by `oneios_switch.sh`. There the status line is always on, a `hint` file is drawn near the
+bottom edge, the supervisor's `ios` mode reads no Android boot event and writes its pid and the renderer's to
+the status directory, and `ONEOS_BOOT_MAX` (seconds, also the renderer's third argument) is the upper bound.
+The iOS switch's feeder also writes `progress` (`<step> <steps> <fraction 0..1>`) and `next` (the next step's
+name); with a valid `progress` the renderer draws a bar and a "Step N of M · Next: ..." line under the status.
+`oneos_boot_begin` removes both files. With `ONEOS_BOOT_HOME` unset nothing here changes for an Android guest
+(it never writes `progress`, so its screen is as before).
+
 Run `python3 scripts/test-boot-status.py` for the event parser and cleanup tests.
 The owner verified both entry and return on the physical Fold8 with the
 0.4.38 debug host/stage pair, including the retained return frame. That pair

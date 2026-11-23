@@ -24,7 +24,7 @@ public final class OneOSBootStatus {
         try { run(args); } catch (Throwable failure) { failure.printStackTrace(System.err); }
     }
     private static void run(String[] args) throws Exception {
-        if (args.length != 2 || Process.myUid() != 0) throw new IllegalArgumentException("root and a status directory required");
+        if (args.length < 2 || args.length > 3 || Process.myUid() != 0) throw new IllegalArgumentException("root and a status directory required");
         long started = android.os.SystemClock.elapsedRealtime();
         boolean published = false;
         File dir = new File(args[0]);
@@ -60,10 +60,18 @@ public final class OneOSBootStatus {
         if (icon == null) throw new IllegalStateException("OneOS icon missing");
         Typeface.class.getMethod("loadPreinstalledSystemFontMap").invoke(null);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        long deadline = android.os.SystemClock.elapsedRealtime() + 600_000;
+        // The third argument (iOS 27, boot_status.sh "ios"): this layer's upper bound in seconds.
+        long bound = 600;
+        if (args.length == 3) try { bound = Math.max(10, Math.min(7200, Long.parseLong(args[2]))); } catch (NumberFormatException plain) { }
+        long deadline = android.os.SystemClock.elapsedRealtime() + bound * 1000;
         try {
             while (generation.equals(read(dir, "generation", "")) && !new File(dir, "stop").exists() && android.os.SystemClock.elapsedRealtime() < deadline) {
-                int[] current = dimensions();
+                // iOS 27: OneiOS's display helper sets the display's projection to the panel's active mode when it
+                // connects (the switch then leaves a "native" file here). The layer space is that mode's pixels
+                // from then on, not the logical size One UI's display manager last gave.
+                int[] current = null;
+                if (new File(dir, "native").exists()) try { current = mode(); } catch (Exception unreadable) { }
+                if (current == null) current = dimensions();
                 if (current[0] != size[0] || current[1] != size[1]) {
                     size = current;
                     call(queue, "update", new Class<?>[]{sc, int.class, int.class, int.class}, layer, size[0], size[1], 1);
@@ -74,7 +82,10 @@ public final class OneOSBootStatus {
                     boolean wide = size[0] > size[1];
                     float unit = Math.min(size[0] / (wide ? 1230f : 412f), size[1] / 928f);
                     boolean verbose = read(dir, "verbose", "0").equals("1");
-                    float group = (verbose ? 327 : 274) * unit;
+                    // iOS 27 (oneios_switch.sh): "progress" is "<step> <steps> <0.000..1.000>", "next" the next
+                    // step's name. With them a bar and a "Step N of M · Next: ..." line follow the status.
+                    float[] progress = verbose ? progress(read(dir, "progress", "")) : null;
+                    float group = (verbose ? 327 + (progress != null ? 74 : 0) : 274) * unit;
                     float top = (size[1] - group) / 2f;
                     float edge = 180 * unit;
                     canvas.drawBitmap(icon, null, new RectF((size[0]-edge)/2, top, (size[0]+edge)/2, top+edge), paint);
@@ -85,13 +96,52 @@ public final class OneOSBootStatus {
                     String title = read(dir, "title", "Returning to One UI");
                     fit(paint, title, size[0] - 40 * unit);
                     canvas.drawText(title, size[0]/2f, top + 267*unit, paint);
+                    // A hint (iOS 27: the way back to One UI) is drawn near the bottom edge, and the
+                    // status above it may then be a sentence: both wrap instead of shrinking.
+                    String hint = read(dir, "hint", "");
                     if (verbose) {
                         paint.setTypeface(Typeface.create("sec", Typeface.NORMAL));
                         paint.setTextSize(24 * unit);
                         String status = read(dir, "status", "Waiting for boot events");
-                        if (status.length() > 120) status = status.substring(0, 117) + "…";
-                        fit(paint, status, size[0] - 40*unit);
-                        canvas.drawText(status, size[0]/2f, top + 320*unit, paint);
+                        float below;
+                        if (hint.isEmpty()) {
+                            if (status.length() > 120) status = status.substring(0, 117) + "…";
+                            fit(paint, status, size[0] - 40*unit);
+                            canvas.drawText(status, size[0]/2f, top + 320*unit, paint);
+                            below = top + 320*unit;
+                        } else {
+                            if (status.length() > 240) status = status.substring(0, 237) + "…";
+                            paint.setTextSize(22 * unit);
+                            float y = top + 320*unit;
+                            for (String line : wrap(paint, status, size[0] - 48*unit, 4)) { line(canvas, paint, line, size[0], y, unit); y += 30*unit; }
+                            below = y - 30*unit;
+                        }
+                        if (progress != null) {
+                            // The bar: a track and its filled part, centred, 22 under the status's last line.
+                            float width = Math.min(size[0] - 96*unit, 300*unit), left = (size[0] - width) / 2f, barTop = below + 22*unit;
+                            paint.setColor(Color.rgb(58, 58, 64));
+                            canvas.drawRoundRect(new RectF(left, barTop, left + width, barTop + 6*unit), 3*unit, 3*unit, paint);
+                            if (progress[2] > 0) {
+                                paint.setColor(Color.WHITE);
+                                canvas.drawRoundRect(new RectF(left, barTop, left + Math.max(6*unit, width * progress[2]), barTop + 6*unit), 3*unit, 3*unit, paint);
+                            }
+                            String next = read(dir, "next", "");
+                            if (next.length() > 120) next = next.substring(0, 117) + "…";
+                            String steps = "Step " + (int) progress[0] + " of " + (int) progress[1] + (next.isEmpty() ? "" : " · Next: " + next);
+                            paint.setTextSize(18 * unit);
+                            paint.setColor(Color.rgb(170, 170, 178));
+                            float y = barTop + 6*unit + 28*unit;
+                            for (String line : wrap(paint, steps, size[0] - 48*unit, 2)) { line(canvas, paint, line, size[0], y, unit); y += 24*unit; }
+                        }
+                    }
+                    if (!hint.isEmpty()) {
+                        if (hint.length() > 160) hint = hint.substring(0, 157) + "…";
+                        paint.setTypeface(Typeface.create("sec", Typeface.NORMAL));
+                        paint.setTextSize(18 * unit);
+                        paint.setColor(Color.rgb(170, 170, 178));
+                        java.util.List<String> lines = wrap(paint, hint, size[0] - 48*unit, 3);
+                        float y = size[1] - 56*unit - (lines.size() - 1) * 26*unit;
+                        for (String line : lines) { line(canvas, paint, line, size[0], y, unit); y += 26*unit; }
                     }
                 } finally { surface.unlockCanvasAndPost(canvas); }
                 // Readiness is published only after posting a real frame.
@@ -112,6 +162,42 @@ public final class OneOSBootStatus {
             if (read(dir, "ready", "").equals(Process.myPid() + " " + generation)) new File(dir, "ready").delete();
         }
     }
+    /** One centred line; a single word wider than the screen is shrunk for this line only. */
+    private static void line(Canvas canvas, Paint p, String s, int width, float y, float unit) {
+        float size = p.getTextSize();
+        fit(p, s, width - 40*unit);
+        canvas.drawText(s, width/2f, y, p);
+        p.setTextSize(size);
+    }
+    /** Whole words to lines of at most width; what does not fit in max lines ends in an ellipsis. */
+    private static java.util.List<String> wrap(Paint p, String s, float width, int max) {
+        java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        String line = "";
+        for (String word : s.split(" ")) {
+            if (word.isEmpty()) continue;
+            String next = line.isEmpty() ? word : line + " " + word;
+            if (!line.isEmpty() && p.measureText(next) > width) { out.add(line); line = word; }
+            else line = next;
+        }
+        if (!line.isEmpty()) out.add(line);
+        if (out.size() > max) {
+            String last = out.get(max - 1) + "…";
+            while (out.size() >= max) out.remove(out.size() - 1);
+            out.add(last);
+        }
+        return out;
+    }
+    /** "<step> <steps> <fraction>" as {step, steps, fraction 0..1}, or null when it is not that. */
+    private static float[] progress(String s) {
+        String[] f = s.trim().split(" ");
+        if (f.length != 3) return null;
+        try {
+            int step = Integer.parseInt(f[0]), steps = Integer.parseInt(f[1]);
+            float done = Float.parseFloat(f[2]);
+            if (steps < 1 || steps > 99 || step < 1 || step > steps || !(done >= 0)) return null;
+            return new float[]{step, steps, Math.min(1f, done)};
+        } catch (NumberFormatException unreadable) { return null; }
+    }
     private static void fit(Paint p, String s, float width) {
         float measured = p.measureText(s);
         if (measured > width) p.setTextSize(p.getTextSize() * width / measured);
@@ -123,14 +209,20 @@ public final class OneOSBootStatus {
             Object info = dm.getMethod("getDisplayInfo", int.class).invoke(instance, 0);
             return new int[]{info.getClass().getField("logicalWidth").getInt(info), info.getClass().getField("logicalHeight").getInt(info)};
         } catch (Exception unavailable) {
-            Class<?> sc = Class.forName("android.view.SurfaceControl");
-            long[] ids = (long[])sc.getMethod("getPhysicalDisplayIds").invoke(null);
-            Object info = sc.getMethod("getDynamicDisplayInfo", long.class).invoke(null, ids[0]);
-            int active = info.getClass().getField("activeDisplayModeId").getInt(info);
-            Object[] modes = (Object[])info.getClass().getField("supportedDisplayModes").get(info);
-            for (Object mode : modes) if (mode.getClass().getField("id").getInt(mode) == active)
-                return new int[]{mode.getClass().getField("width").getInt(mode), mode.getClass().getField("height").getInt(mode)};
-            throw unavailable;
+            int[] mode = mode();
+            if (mode == null) throw unavailable;
+            return mode;
         }
+    }
+    /** The first physical display's active mode, or null when it names none. */
+    private static int[] mode() throws Exception {
+        Class<?> sc = Class.forName("android.view.SurfaceControl");
+        long[] ids = (long[])sc.getMethod("getPhysicalDisplayIds").invoke(null);
+        Object info = sc.getMethod("getDynamicDisplayInfo", long.class).invoke(null, ids[0]);
+        int active = info.getClass().getField("activeDisplayModeId").getInt(info);
+        Object[] modes = (Object[])info.getClass().getField("supportedDisplayModes").get(info);
+        for (Object mode : modes) if (mode.getClass().getField("id").getInt(mode) == active)
+            return new int[]{mode.getClass().getField("width").getInt(mode), mode.getClass().getField("height").getInt(mode)};
+        return null;
     }
 }

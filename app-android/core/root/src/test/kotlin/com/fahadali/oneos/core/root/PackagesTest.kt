@@ -83,8 +83,14 @@ class PackagesTest {
         // The manager is built from :guest; it is deliberately absent in a clean
         // source checkout. Full APK assembly separately requires its real bytes.
         val generated = setOf("guest_manager.apk")
-        assertEquals((names - setOf("oneos_tunnel.sh", "7zz")) + generated, shipped.toSet())
+        // The iOS 27 (OneiOS) session scripts are staged in their own stage by their own root
+        // script (OneiosRoot), not with a package set.
+        val oneios = OneiosRoot.SESSION_SCRIPTS.toSet()
+        assertEquals(setOf("oneios_switch.sh", "oneios_return.sh"), names.filter { it.startsWith("oneios") }.toSet())
+        assertEquals(oneios, names.filter { it.startsWith("oneios") }.toSet())
+        assertEquals((names - setOf("oneos_tunnel.sh", "7zz") - oneios) + generated, shipped.toSet())
         val build = File(Shipped.appAssets, "../../../build.gradle.kts").readText()
+        for (n in oneios) assertTrue("app/build.gradle.kts does not ship $n", build.contains("\"$n\" to File(repoRoot, \"switcher/assets/$n\")"))
         for (n in shipped) assertTrue("app/build.gradle.kts does not ship $n", build.contains("\"$n\" to File(repoRoot, \"switcher/assets/$n\")"))
         assertTrue(build.contains("val switcherNotShipped = setOf(\"oneos_tunnel.sh\", \"7zz\")"))
     }

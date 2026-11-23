@@ -143,3 +143,18 @@ for f in "$L"/boot.log.[0-9][0-9]; do
   c="${c}x"
 done
 true'
+
+#== iOS 27 (OneiOS)
+
+#: (0.4.76) The iOS 27 (OneiOS) system's own logs, in its stage /data/local/tmp/oneios (docs/oneios.md, Session logs):
+#: xnuhost's log of this session or the last one and of the five before it, the switch's, the return's and the
+#: watcher's, the display helper's and the watchdog feeder's, and how the last return ended. Text files only, and
+#: only plain files with one name in folders that are no links (session/ is the guest's to write): nothing of the
+#: image set, the runtime or the guest's data.
+files logs.oneios 120 oneios '
+S=/data/local/tmp/oneios
+[ -d "$S" ] && [ ! -L "$S" ] || exit 0
+for f in "$S"/session/xnuhost.log "$S"/logs/xnuhost-*.log "$S"/switch.log "$S"/return.log "$S"/return.outcome "$S"/control/display.log "$S"/control/watchdog_feeder.log; do
+  [ -f "$f" ] && [ ! -L "$f" ] && [ ! -L "${f%/*}" ] && [ "$(stat -c %h "$f")" = 1 ] && printf "%s\n" "$f"
+done
+true'

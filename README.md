@@ -130,6 +130,15 @@ Known open issues for each system are in `docs/pixel-guest.md` and
 Everything else (other Exynos phones, other models, other images, other
 Android versions) is refused by the app's compatibility checks.
 
+## iOS 27 (OneiOS), in this fork
+
+This fork (`akshaynexus/OneOS`, branch `oneios`) adds one more kind of system, for the **Galaxy S24 Ultra
+(SM-S928) only** and behind an experimental tick: **iOS 27**, run by
+[OneiOS](https://github.com/akshaynexus/OneiOS)'s xnuhost, a source-built XNU that runs as a process on One UI's
+kernel. Its runtime comes from OneiOS's releases; its image set is built by you from Apple's firmware and
+imported from a file, never downloaded and never in git. It has its own stage and its own session scripts, and
+it has not run on a phone yet. Everything about it: [docs/oneios.md](docs/oneios.md).
+
 ## Your phone is not listed?
 
 Run **OneOS Probe** on it. It is a separate read-only app: it changes nothing,

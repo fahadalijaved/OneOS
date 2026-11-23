@@ -21,7 +21,12 @@ import kotlin.concurrent.thread
  * closing the pipe, su is killed, so root never takes a short stream for a
  * whole one (its size and hash checks would refuse it anyway).
  */
-class RootShell(private val command: String) {
+class RootShell(
+    private val command: String,
+    /** What runs [command]: `su -c` on the phone; a plain shell in the tests, which run the same code against a fake root. */
+    private val launch: List<String> = listOf("su", "-c"),
+    private val environment: Map<String, String> = emptyMap(),
+) {
     /** Writes stdin; returns normally when everything is written (RootShell closes the stream). */
     fun interface Feed {
         fun write(out: OutputStream)
@@ -55,7 +60,7 @@ class RootShell(private val command: String) {
     fun run(feed: Feed?, onLine: (String) -> Unit, silenceLimitMs: () -> Long, totalLimitMs: Long): End {
         if (cancelled) return End(null, "", cancelled = true, killed = false, error = null, written = 0)
         val proc = try {
-            ProcessBuilder("su", "-c", command).start()
+            ProcessBuilder(launch + command).apply { environment().putAll(environment) }.start()
         } catch (e: IOException) {
             return End(null, "", cancelled = false, killed = false, error = "su could not be started: ${e.message}", written = 0)
         }

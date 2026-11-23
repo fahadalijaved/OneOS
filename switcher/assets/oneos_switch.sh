@@ -1039,7 +1039,7 @@ fi
 stp=$(cat "$STAGE/store_watch.pid" 2>/dev/null)
 case "$stp" in
     ""|*[!0-9]*) ;;
-    *) tr '\0' ' ' < "/proc/$stp/cmdline" 2>/dev/null | grep -q "store_watch.log" && kill "$stp" 2>/dev/null ;;
+    *) cat "/proc/$stp/cmdline" 2>/dev/null | tr '\0' ' ' | grep -q "store_watch.log" && kill "$stp" 2>/dev/null ;;
 esac
 rm -f "$STAGE/store_watch.pid"
 # Charging (charge_watch.log, collected with the other stage logs): one line a
@@ -1053,7 +1053,7 @@ if [ -r "$CHB/current_now" ]; then
     chp=$(cat "$STAGE/charge_watch.pid" 2>/dev/null)
     case "$chp" in
         ""|*[!0-9]*) ;;
-        *) tr '\0' ' ' < "/proc/$chp/cmdline" 2>/dev/null | grep -q "charge_watch" && kill "$chp" 2>/dev/null ;;
+        *) cat "/proc/$chp/cmdline" 2>/dev/null | tr '\0' ' ' | grep -q "charge_watch" && kill "$chp" 2>/dev/null ;;
     esac
     CHB="$CHB" $BB setsid $BB timeout 7200 $BB sh -c '
         echo "=== $(date "+%F %T") session (charge_watch): status charging_type direct current(mA) voltage(mV) temp"
@@ -1810,7 +1810,7 @@ if [ "$(cat "$STAGE/adaptive_panel" 2>/dev/null)" = 1 ] && [ "${ONEOS_GUEST_ADAP
     if [ -s "$STAGE/data/system/oneos_udfps" ]; then
         echo "Adaptive refresh: off (an in-display fingerprint sensor: rendering stays at the panel's top rate)"
     else
-        : > "$STAGE/data/oneos_adaptive"
+        true > "$STAGE/data/oneos_adaptive"
         echo "Adaptive refresh: on (the panel at its top rate, rendering down to the lower mode's on a still screen)"
     fi
 fi
@@ -3096,7 +3096,7 @@ while true; do
                     chmod 701 \$depth
                     for n in deep_scenery_image0 deep_scenery_image_secondaryDisplay0; do
                         [ ! -L \$depth/\$n ] || continue
-                        [ -f \$depth/\$n ] || : > \$depth/\$n
+                        [ -f \$depth/\$n ] || true > \$depth/\$n
                         $BB chown -h \$su_uid:\$su_uid \$depth/\$n && chmod 600 \$depth/\$n
                     done
                     echo \"[UI Activator] depth effect: \$depth/deep_scenery_image* for SystemUI (uid \$su_uid)\"
@@ -4151,7 +4151,7 @@ GUEST_THERMAL_MAP=0
 # animations at SEVERE (A36 11-17, charging at 43-45 C: "superrrr laggy"; status NONE live: smooth again).
 [ "${ONEOS_GUEST_THERMAL_MAP:-1}" = 1 ] && [ "$GUEST_OPLUS" = 1 ] && GUEST_THERMAL_MAP=1
 if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
-    [ $HEAT_CAP = 1 ] && : > "$STAGE/heat_cap.active"
+    [ $HEAT_CAP = 1 ] && true > "$STAGE/heat_cap.active"
     rm -f "$STAGE/cpufreq_max_limit.released"
     $BB sh -c "
     : oneos_heat_cap
@@ -4579,7 +4579,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                         case \"\$c\" in
                             libtimer*|'POSIX timer'*)
                                 p=\${tk#/proc/}; p=\${p%%/*}
-                                echo \"\$c tid=\${tk##*/} pid=\$p uid=\$(stat -c %u /proc/\$p 2>/dev/null) cmd=\$(tr '\0' ' ' < /proc/\$p/cmdline 2>/dev/null | cut -c1-200) exe=\$(readlink /proc/\$p/exe 2>/dev/null)\" ;;
+                                echo \"\$c tid=\${tk##*/} pid=\$p uid=\$(stat -c %u /proc/\$p 2>/dev/null) cmd=\$(cat /proc/\$p/cmdline 2>/dev/null | tr '\0' ' ' | cut -c1-200) exe=\$(readlink /proc/\$p/exe 2>/dev/null)\" ;;
                         esac
                     done > \$D/timer_threads.txt 2>&1
                     # Did user 0 unlock, did the launcher get a window, and if not,
@@ -4780,7 +4780,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             if [ \"\${hwcarm:-0}\" = 1 ] && [ \$new_failed -gt 30 ] && [ -f $STAGE/data/oneos_hwc ] && [ ! -e $STAGE/data/oneos_hwc_forced ]; then
                 GP=\$(pidof system_server | awk '{print \$1}'); [ -n \"\$GP\" ] || GP=\$(pidof surfaceflinger | awk '{print \$1}')
                 if [ -n \"\$GP\" ]; then
-                    : > $STAGE/data/oneos_hwc_forced
+                    true > $STAGE/data/oneos_hwc_forced
                     echo \"\$(date) composer rejected \$new_failed frames with HW overlays on: GPU composition forced: \$(timeout 10 $BB nsenter -t \$GP -m /system/bin/sh /data/oneos_genv.sh /system/bin/service call SurfaceFlinger 1008 i32 1 2>&1 | tr '\n' ' ')\"
                     new_failed=0
                 fi
@@ -4859,7 +4859,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                             esac; true; } &&
                           setprop oneos.guest.powerctl "keys:volume-up+down" ) &
                 else
-                    : > "$KS/both"
+                    true > "$KS/both"
                 fi
             done ) </dev/null >/dev/null 2>&1 &
             echo $! >> "$KS/pids"

@@ -1,0 +1,13 @@
+{
+ "inputs": {
+  "kernelcache_sha256": "d1003b5143ffd88439b4d45b6017f587171cfe6855660bed05370a2ea5db9fe9",
+  "entry": "com.apple.kernel"
+ },
+ "sites": [
+  {
+   "site": "0xfffffe00081d4630",
+   "native_symbol": "_unixnu_kernel_stack_shift",
+   "evidence": "macOS 27.3 (26C5035r) AppleMobileFileIntegrity's only GOT slot for PAGE_SHIFT_CONST. Its only reader is _CEElementIterate (0xfffffe0009854668), the CoreEntitlements DER iterator's stack check (sp & ((1 << *slot) - 1) < 0x80 takes the error exit), as in the 24A446 fixture. With the page shift (12) on the native 4 KiB kernel it fired inside a good stack: AMFI panicked \"failed to create OSDictionary copy: 14\" spawning the launchd boot task after fsck (exec_check_security_entitlement, load_machfile). Bound to unixnu_kernel_stack_shift, the stack allocation alignment shift, for which sp & mask stays at least 8 KiB inside any stack. Other components keep PAGE_SHIFT_CONST for page arithmetic."
+  }
+ ]
+}

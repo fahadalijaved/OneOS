@@ -450,7 +450,7 @@ if [ -f /data/oneos_hwc ]; then
             n=$(logcat -d -b main -s SurfaceFlinger:E -T "$HWC_T0.000" 2>/dev/null | grep -c -E 'executeCommands failed|presentOrValidate failed')
             if [ "$n" -gt 30 ]; then
                 service call SurfaceFlinger 1008 i32 1 > /data/sf_1008.log 2>&1
-                : > /data/oneos_hwc_forced
+                true > /data/oneos_hwc_forced
                 echo "[Pivoted Root] composer rejected $n frames with HW overlays: GPU composition forced: $(cat /data/sf_1008.log)"
                 exit 0
             fi
@@ -608,7 +608,7 @@ LAYOUT
                 if [ ! -s "$f8_dset" ]; then
                     printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<display-settings>' '</display-settings>' > "$f8_input"
                 elif [ "$(head -c 3 "$f8_dset")" = ABX ]; then
-                    abx2xml "$f8_dset" "$f8_input" 2>/dev/null || : > "$f8_input"
+                    abx2xml "$f8_dset" "$f8_input" 2>/dev/null || true > "$f8_input"
                 else
                     cat "$f8_dset" > "$f8_input"
                 fi
@@ -2078,7 +2078,7 @@ if [ "$FOLD_CONTINUE" = 1 ] || [ "$FOLD8_TASKBAR" = 1 ] || [ "$FOLD8_RESTORE_DEX
                 # Set the user preference once; subsequent choices are kept.
                 if [ "$fold8_taskbar" = 1 ] && timeout 5 settings put global task_bar 1 &&
                    [ "$(timeout 5 settings get global task_bar 2>/dev/null)" = 1 ]; then
-                    : > /data/.oneui95-fold8-taskbar
+                    true > /data/.oneui95-fold8-taskbar
                     echo "$(date +%T) Fold8 taskbar enabled for this stage"
                 fi
                 exit 0
@@ -3195,7 +3195,7 @@ GO="$BRING/.go"
 if [ -f "$BRING/.pid" ]; then
     old=$(first_line "$BRING/.pid")
     if is_dec "$old" && [ "$old" != "$$" ] && grep -q oneos_bring_restore "/proc/$old/cmdline" 2>/dev/null; then
-        [ "$MODE" = early ] || : > "$GO"
+        [ "$MODE" = early ] || true > "$GO"
         exit 0
     fi
 fi

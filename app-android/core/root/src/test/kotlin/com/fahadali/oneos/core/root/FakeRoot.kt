@@ -24,6 +24,56 @@ object Shipped {
 }
 
 /**
+ * The phone's tools read GNU's options (toybox, busybox: `stat -c`, `sha256sum`, `timeout`, `tac`,
+ * `sed -i`); where this machine's differ (macOS: BSD's stat refuses `-c`, so every owner check read
+ * nothing and refused the stage), `src/test/resources/hosttools/host-tools.sh` writes stand-ins into
+ * [bin], chosen by what the machine's tools do. The harnesses put [bin] on the scripts' PATH after their
+ * own stubs; on Linux with GNU coreutils it stays empty. The root scripts are not changed for it.
+ */
+object HostTools {
+    private val home: File by lazy {
+        val d = Files.createTempDirectory("oneos-hosttools").toFile()
+        for (n in listOf("host-tools.sh", "gnu-stat.sh", "listing.sh")) {
+            val bytes = HostTools::class.java.getResourceAsStream("/hosttools/$n")!!.use { it.readBytes() }
+            File(d, n).writeBytes(bytes)
+        }
+        val said = FakeRoot.exec(listOf("sh", File(d, "host-tools.sh").path, File(d, "bin").path)).trim()
+        if (said.isNotEmpty()) System.err.println("core:root tests, this machine's stand-ins:\n$said")
+        Runtime.getRuntime().addShutdownHook(Thread { d.deleteRecursively() })
+        d
+    }
+
+    /** The stand-ins' folder (empty where the machine's tools already read the phone's options). */
+    val bin: File get() = File(home, "bin")
+
+    /** [first] (stubs, applets), then [bin], then this machine's PATH. */
+    fun path(vararg first: String?): String = (first.filterNotNull() + listOfNotNull(bin.path, System.getenv("PATH"))).joinToString(":")
+
+    /**
+     * The scripts' environment: PATH as [path], and the C locale. The phone's root shell has no LANG
+     * (toybox and busybox read bytes); a Mac's Gradle has a UTF-8 one, under which BSD's cut and sed stop
+     * at a byte that is no UTF-8 ("Illegal byte sequence") where the phone's go on.
+     */
+    fun env(vararg first: String?): Map<String, String> = mapOf("PATH" to path(*first), "LC_ALL" to "C")
+
+    /** Puts [env] into a process's environment. */
+    fun into(e: MutableMap<String, String>, vararg first: String?) = e.putAll(env(*first))
+
+    /** [name]'s stand-in if there is one, else [name] (the machine's, from PATH). */
+    fun tool(name: String): String = File(bin, name).takeIf { it.canExecute() }?.path ?: name
+
+    /** `find [dir] -printf [format]` (%P %y %m %s), also where find has no -printf. */
+    fun listing(dir: File, format: String): String {
+        val p = ProcessBuilder("sh", File(home, "listing.sh").path, dir.path, format).redirectErrorStream(true)
+        into(p.environment())
+        val proc = p.start()
+        val out = proc.inputStream.bufferedReader().readText()
+        proc.waitFor()
+        return out
+    }
+}
+
+/**
  * A shell to run the root script under: dash, busybox ash with busybox's own
  * applets first on PATH, and mksh (Android's /system/bin/sh) when there is one,
  * installed or named by ONEOS_TEST_MKSH.
@@ -86,8 +136,9 @@ class FakeRoot(
         frameworkJar.writeBytes(ByteArray(4096) { (it * 7).toByte() })
         stubs.mkdirs()
         // Fake-device capacity must not depend on the developer machine's disk.
-        // All actual file identity/mode checks still use the real stat implementation.
-        val stat = exec(listOf("sh", "-c", "command -v stat")).trim()
+        // All actual file identity/mode checks still use the real stat implementation
+        // (GNU's -c; on macOS HostTools' stand-in over BSD's stat).
+        val stat = File(HostTools.bin, "stat").takeIf { it.canExecute() }?.path ?: exec(listOf("sh", "-c", "command -v stat")).trim()
         stub("stat", """
             if [ "${'$'}1" = -f ] && [ "${'$'}2" = -c ] && [ "${'$'}3" = '%a %S' ]; then
                 echo '8388608 4096'
@@ -202,7 +253,7 @@ class FakeRoot(
         val pb = ProcessBuilder(cmd)
         val e = pb.environment()
         e["ONEOS_TEST_ROOT"] = root.path
-        e["PATH"] = listOfNotNull(stubs.path, applets.path.takeIf { shell.appletsFirst }, System.getenv("PATH")).joinToString(":")
+        HostTools.into(e, stubs.path, applets.path.takeIf { shell.appletsFirst })
         e.putAll(env)
         val p = pb.start()
         val writer = Thread {
@@ -233,12 +284,12 @@ class FakeRoot(
     }
 
     /** Every file and folder under [dir], with size and mode. */
-    fun listing(dir: File): String = exec(listOf("find", dir.path, "-printf", "%P %y %m %s\\n")).lines().sorted().joinToString("\n")
+    fun listing(dir: File): String = HostTools.listing(dir, "%P %y %m %s\\n").lines().sorted().joinToString("\n")
 
     /** Every file and folder under the stage's parent, with size and mode: compared before and after a refusal. */
-    fun snapshot(): String = exec(listOf("find", File(root, "data/local/tmp").path, "-printf", "%P %y %m %s\\n")).lines().sorted().joinToString("\n")
+    fun snapshot(): String = HostTools.listing(File(root, "data/local/tmp"), "%P %y %m %s\\n").lines().sorted().joinToString("\n")
 
-    fun mode(f: File): String = exec(listOf("stat", "-c", "%a", f.path)).trim()
+    fun mode(f: File): String = exec(listOf(HostTools.tool("stat"), "-c", "%a", f.path)).trim()
 
     override fun close() {
         exec(listOf("chmod", "-R", "u+rwX", root.path))

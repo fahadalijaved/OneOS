@@ -1,0 +1,193 @@
+# Builds the OneOS app of this fork (the full edition: every Android system plus iOS 27 (OneiOS)) as a debug APK,
+# runs the unit tests, and attaches the APK to the prerelease oneios-<version>. docs/oneios.md, "CI".
+#
+# No personal token: the SESL9 and oneui-design libraries come from GitHub Packages (maven.pkg.github.com/tribalfs),
+# read with this run's GITHUB_TOKEN (permissions: packages: read), which app-android/settings.gradle.kts takes as
+# GH_PACKAGES_USER / GH_PACKAGES_TOKEN. If GitHub refuses that token for tribalfs' packages, the first step prints
+# the refusal and uses the optional repository secret GH_PACKAGES_TOKEN (a token with read:packages; with it,
+# optionally GH_PACKAGES_USER) instead.
+#
+# The APK carries no package set and no image: the Android sets are downloaded by the app, by SHA-256, and the
+# iOS image set is imported by its owner. Nothing of Apple's, Samsung's, Google's or OPPO's is built or published here.
+name: OneOS APK (oneios)
+
+on:
+  push:
+    branches: [oneios]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # the prerelease and its asset
+  packages: read    # tribalfs' Maven packages
+
+concurrency:
+  group: oneios-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PROBE_POM: https://maven.pkg.github.com/tribalfs/*/io/github/tribalfs/oneui-design/0.9.13+oneui8/oneui-design-0.9.13+oneui8.pom
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the version is the commit count since bb1ef38 (build.gradle.kts reads the same)
+
+      - name: Which token reads tribalfs' packages
+        env:
+          RUN_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SECRET_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          SECRET_USER: ${{ secrets.GH_PACKAGES_USER }}
+        run: |
+          probe() { # <user> <token>: prints the HTTP status; the answer's body goes to probe.body
+            curl -sS -g -L -o probe.body -w '%{http_code}' -u "$1:$2" "$PROBE_POM" || echo 000
+          }
+          code=$(probe "$GITHUB_ACTOR" "$RUN_TOKEN")
+          if [ "$code" = 200 ]; then
+            echo "GITHUB_TOKEN reads tribalfs' packages (HTTP 200 for oneui-design's pom)."
+            echo "GH_PACKAGES_USER=$GITHUB_ACTOR" >> "$GITHUB_ENV"
+            echo "GH_PACKAGES_TOKEN=$RUN_TOKEN" >> "$GITHUB_ENV"
+            echo "PACKAGES_TOKEN_USED=GITHUB_TOKEN" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "::warning::GitHub Packages refused GITHUB_TOKEN for tribalfs' packages: HTTP $code"
+          echo "--- the refusal, as GitHub sent it ---"
+          head -c 2000 probe.body; echo
+          echo "--------------------------------------"
+          if [ -z "$SECRET_TOKEN" ]; then
+            echo "::error::GITHUB_TOKEN was refused (HTTP $code) and the repository has no GH_PACKAGES_TOKEN secret. Add one: a token with the read:packages scope (Settings, Secrets and variables, Actions)."
+            exit 1
+          fi
+          user=${SECRET_USER:-$GITHUB_REPOSITORY_OWNER}
+          code=$(probe "$user" "$SECRET_TOKEN")
+          if [ "$code" != 200 ]; then
+            echo "::error::The GH_PACKAGES_TOKEN secret was refused too: HTTP $code"
+            head -c 2000 probe.body; echo
+            exit 1
+          fi
+          echo "The GH_PACKAGES_TOKEN secret reads tribalfs' packages (HTTP 200)."
+          echo "GH_PACKAGES_USER=$user" >> "$GITHUB_ENV"
+          echo "GH_PACKAGES_TOKEN=$SECRET_TOKEN" >> "$GITHUB_ENV"
+          echo "PACKAGES_TOKEN_USED=GH_PACKAGES_TOKEN secret" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Android SDK platform 37
+        run: |
+          sdkmanager=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -n 1)
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"
+
+      - name: Version
+        id: version
+        run: |
+          # The version is the git count now (app-android/app/build.gradle.kts reads the same history):
+          # the commits since OneiOS 0.1.10's fork commit bb1ef38 on top of 143/0.5.14.
+          base=bb1ef384e594125fb6f79be6eace3ebfbd354c46
+          count=$(git rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
+          case "$count" in ''|*[!0-9]*) count=0 ;; esac
+          v="0.5.$((14 + count))"
+          echo "name=$v" >> "$GITHUB_OUTPUT"
+          echo "tag=oneios-$v" >> "$GITHUB_OUTPUT"
+
+      # One debug key for every run (the secret is set since 2026-11-22: OneiOS's secrets/oneios-debug.keystore, docs/oneios.md "CI"),
+      # so a new APK installs over the last one, whoever built it. Without the secret each run
+      # signs with a key of its own and the old app has to be uninstalled first.
+      - name: Debug key
+        env:
+          KEYSTORE_B64: ${{ secrets.ONEIOS_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$HOME/.android/debug.keystore"
+            # 2026-11-23: Gradle did not take ~/.android/debug.keystore here (0.5.51 and 0.5.52 each had a key of their
+            # own), so the key also goes where app-android/app/build.gradle.kts looks first: rootProject/../../secrets
+            mkdir -p "$GITHUB_WORKSPACE/../secrets"
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/../secrets/oneios-debug.keystore"
+            echo "WANT_CERT=8b3be966893342e8ca63cbb9b2097e038cfb30c7bccb1296c2baa25654217599" >> "$GITHUB_ENV"
+            echo "SIGNED_WITH=the fork's debug key (secret ONEIOS_DEBUG_KEYSTORE_B64)" >> "$GITHUB_ENV"
+          else
+            echo "SIGNED_WITH=a debug key made for this run: uninstall an earlier build before installing this one" >> "$GITHUB_ENV"
+          fi
+
+      # The in-guest app is a generated file the full edition pins; a debug build of it for a debug host.
+      - name: Guest app
+        run: scripts/build-guest-manager.sh --debug
+
+      # Android's /system/bin/sh is mksh, and it counts in 32 bits. The script tests (TestShell, OneiosScriptTest) run
+      # under it too when it is installed; without it they run under dash alone.
+      - name: mksh for the script tests
+        run: sudo apt-get install -y --no-install-recommends mksh || echo "::warning::mksh could not be installed; the script tests run under dash only"
+
+      - name: Unit tests
+        working-directory: app-android
+        run: ./gradlew --max-workers=3 :core:model:test :core:safety:test :core:root:testDebugUnitTest
+
+      - name: OneOS debug APK (full edition, no packed sets)
+        working-directory: app-android
+        run: ./gradlew --max-workers=3 :app:assembleFullDebug
+
+      - name: Name the APK
+        id: apk
+        run: |
+          src=app-android/app/build/outputs/apk/full/debug/app-full-debug.apk
+          [ -s "$src" ] || { echo "::error::no $src"; exit 1; }
+          # the signer: with the secret it must be the shared key, or the APK cannot go over an installed one
+          signer=$("$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)" verify --print-certs "$src" \
+            | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1)
+          echo "signer certificate sha256: $signer"
+          if [ -n "${WANT_CERT:-}" ] && [ "$signer" != "$WANT_CERT" ]; then
+            echo "::error::the APK is signed with $signer, not the shared debug key $WANT_CERT"; exit 1
+          fi
+          out="OneOS-oneios-${{ steps.version.outputs.name }}-debug.apk"
+          cp "$src" "$out"
+          sha256sum "$out" | tee "$out.sha256"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+          {
+            echo "### OneOS APK (oneios)"
+            echo "- \`$out\`, $(stat -c %s "$out") bytes, SHA-256 \`$(cut -d' ' -f1 "$out.sha256")\`"
+            echo "- tribalfs' packages were read with: $PACKAGES_TOKEN_USED"
+            echo "- signed with $SIGNED_WITH"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.file }}
+          path: |
+            ${{ steps.apk.outputs.file }}
+            ${{ steps.apk.outputs.file }}.sha256
+          if-no-files-found: error
+
+      - name: Prerelease ${{ steps.version.outputs.tag }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          APK: ${{ steps.apk.outputs.file }}
+        run: |
+          cat > notes.md <<NOTES
+          OneOS ${{ steps.version.outputs.name }} of this fork, branch \`oneios\`, commit $GITHUB_SHA: every Android system of OneOS plus the experimental **iOS 27 (OneiOS)** system for the Galaxy S24 Ultra ([docs/oneios.md](https://github.com/$GITHUB_REPOSITORY/blob/oneios/docs/oneios.md)).
+
+          A debug build, signed with $SIGNED_WITH. It carries no system image and no package set: the Android sets are downloaded by the app, the iOS image set is one you build yourself.
+
+          The iOS system has not run on a phone yet. Its switch refuses until a OneiOS runtime with a real xnuhost and an image set are staged.
+
+          **Hardware checks** (iOS 27 (OneiOS) → Hardware checks) run OneiOS's phone tools from the staged runtime while One UI keeps running: CPU layout, GPU, display layer, haptics, audio, Bluetooth, brightness, light sensor, camera. They need OneiOS runtime 0.1.0 or newer, which the screen downloads. The GPU check has 120 s (runtime 0.1.5's gpuctl runs five steps).
+
+          **Session logs** (iOS 27 (OneiOS) → Session logs) reads what the last iOS sessions logged: the last session's xnuhost log and the five before it, the switch's and the return's, each with a summary (how far the boot got, the kernel panic, processes that died, how the session ended), a search, filters, Copy, Share as a file and Share all as a zip. Root only reads. Collect logs takes the same files, redacted. The screen has not been opened on a phone yet.
+
+          Built by [run $GITHUB_RUN_ID](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID).
+          NOTES
+          sed -i 's/^          //' notes.md
+          # One prerelease per version, always at the commit that was built.
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "OneOS ${{ steps.version.outputs.name }} with iOS 27 (OneiOS), debug build" --notes-file notes.md \
+            "$APK" "$APK.sha256"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url
