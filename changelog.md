@@ -801,6 +801,19 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.36: **HyperOS fits the screen on QHD Ultras, SMS on more phones, PixelOS corners, safer returns.**
+- **HyperOS on the S24 Ultra, S25 Ultra and other QHD phones left at FHD+:** the system ran the whole QHD screen
+  with the density meant for FHD+, and HyperOS's own scaling then made everything about a quarter too big
+  (Control Center cut off on both sides). HyperOS now gets the density for the width it really runs at; the
+  Exynos S24+ (which runs it at FHD+) keeps One UI's.
+- **Incoming SMS** on the Galaxy A56, A57 and S26 Ultra: their Samsung radio library has the same message check in
+  another form, which OneOS did not recognise, so no SMS arrived in the guest. It is found by its instructions now.
+- **PixelOS screen corners** follow the phone's own rounding: apps rounded to the display's corners no longer show
+  grey edges (confirmed on the A36).
+- **Return to One UI** no longer reboots when a guest app compile is still hanging in the background (A57 on
+  ColorOS): OneOS stops it and finishes the return in place.
+- Untested on a phone: the HyperOS density on the Ultras, SMS on the A56/A57/S26 Ultra.
+
 New in 0.5.35: **PixelOS 17 on every Galaxy on One UI 9, One UI 9.5 on the Z Fold8 with its own files, Dolby on
 Bluetooth, and contributors' fixes.**
 - **PixelOS 17** (new system, the Pixel experience built for the A series' CPUs; Google's Pixel builds cannot run on

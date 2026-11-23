@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The screen corners PixelOS's SystemUI draws over everything, at this phone's corner radius.
+     Its own corner images are AOSP's 8 dp (19 px on an A36), so apps that round their content to
+     the display's corner radius (One UI's 118 px on the A36: Wallpaper & style's preview, the app
+     open and close animations) left a grey gap that the panel's smaller real corners did not hide
+     (owner, A36 PixelOS 11-22: "that grey area is coming on my screen"). Both images take their size
+     from the framework's rounded_corner_radius_top/_bottom, which the UI activator sets to the
+     phone's own (OneOSCornerRadius), so one overlay fits every phone. The references are resource
+     IDs of the PixelOS framework it was linked against: guest_prepare.sh installs it only on that
+     framework-res.apk. Static, in the guest's /oem/overlay; scripts/build-pixel-corners-rro.sh. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.pixel.corners">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="com.android.systemui"
+        android:isStatic="true"
+        android:priority="3"/>
+</manifest>

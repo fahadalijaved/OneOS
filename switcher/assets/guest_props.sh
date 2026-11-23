@@ -894,6 +894,24 @@ add)
         echo "persist.sys.saupwk_test=1" >> "$NEW"
         echo "guest_props: persist.sys.saupwk_test=1 for the session (no 5 s HAL wait per power key press)"
     fi
+    # Android 17's libhidlbase: with hwservicemanager.always_sets_disabled=true
+    # (the image's system build.prop, loaded above) every HIDL client first
+    # waits for hwservicemanager.disabled to exist ("Waited for
+    # hwservicemanager.disabled for a second, waiting another..."), which
+    # Android 17's hwservicemanager.rc sets. One UI 8's (Android 16) never
+    # does: on the S22 (SM-S901B, One UI 9.5 on One UI 8, 7ddd73b9) the guest's
+    # vold and surfaceflinger waited forever, gvld never registered and the
+    # start stopped every time. One UI's own answer when it has none: false
+    # while its hwservicemanager runs, true when it does not. Memory only and
+    # in the added list, so remove deletes it again; a value One UI set stays.
+    HSD=hwservicemanager.disabled
+    if { grep -qx 'hwservicemanager\.always_sets_disabled=true' "$NEW" || [ "$(getprop hwservicemanager.always_sets_disabled)" = true ]; } &&
+            ! grep -qxF "$HSD" "$HOST" &&
+            [ -z "$(getprop "$HSD")" ] && ! grep -q "^$HSD=" "$NEW"; then
+        if [ "$(getprop hwservicemanager.ready)" = true ] || [ "$(getprop init.svc.hwservicemanager)" = running ]; then hsv=false; else hsv=true; fi
+        echo "$HSD=$hsv" >> "$NEW"
+        echo "guest_props: $HSD=$hsv for the session (the image's HIDL waits for it; One UI's hwservicemanager does not set it)"
+    fi
     # Inner screen status bar (Fold layout): the image brings the Find N6's
     # hole 2102,28:2176,102. OplusStatusBarUtils.isHoleType calls a hole
     # entirely right of the middle (2256/2 = 1128) HOLE_RIGHT, and
@@ -937,9 +955,14 @@ add)
     # screen on the GPU every frame at 120 Hz (1,325 GPU-missed frames, GPU pinned at 1010 MHz).
     # Without it the panel's own rounded corners are all there is to see. ONEOS_GUEST_SCREEN_DECOR=1
     # keeps it.
+    # 0.5.36: not with PixelOS's corner overlay (guest_prepare.sh, OneOSPixelCorners.apk). Without the
+    # layer, apps rounding to the display's radius showed grey corners; on the A36 PixelOS's composer
+    # takes the layer (composition DISPLAY_DECORATION, no GPU composition, live 11-22).
     case "$(getprop ro.product.model)" in
         SM-A*|SM-M*)
-            if [ "${ONEOS_GUEST_SCREEN_DECOR:-0}" != 1 ]; then
+            if [ -f "$STAGE/oem/overlay/OneOSPixelCorners.apk" ] && [ "${ONEOS_GUEST_SCREEN_DECOR:-}" != 0 ]; then
+                echo "guest_props: screen decorations kept on (PixelOS's corners at this phone's radius)"
+            elif [ "${ONEOS_GUEST_SCREEN_DECOR:-0}" != 1 ]; then
                 sed -i '/^debug\.disable_screen_decorations=/d' "$NEW"
                 echo "debug.disable_screen_decorations=true" >> "$NEW"
                 echo "guest_props: debug.disable_screen_decorations=true for the session (mid-range Galaxy: the decor layer went to the GPU every frame)"
@@ -1089,16 +1112,40 @@ add)
        [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ "${ONEOS_GUEST_QHD_BASE:-1}" = 1 ]; then
         LD=ro.sf.lcd_density
         ld=$(getprop "$LD")
-        # The width the guest runs the panel at is One UI's (S25 Ultra at QHD: 1440; S24+ at FHD+: 1080, 2c69348f).
+        # The width the guest runs the panel at. One UI's when One UI runs the whole panel. With One UI at FHD+
+        # on a QHD panel it is the composer's choice: the Snapdragon Ultras and the S25+ give the guest the
+        # whole panel (0.5.34 S25 Ultra 24fdba74/5e384902: guest at 1440 px on base 450, HyperOS's auto density
+        # took 576 to 730, a 1.27x zoom with Control Center cut off on both sides), the Exynos S24+ runs it at
+        # One UI's 1080 (2c69348f, acc35c07, 88682c35). The width the last session ran at (UI activator,
+        # data/oneos_guest_width) when it is one of the two; else the whole panel, but on Exynos One UI's.
         pw=$(sed -n 's/.* width=\([0-9]*\) .*/\1/p' "$STAGE/host_display" 2>/dev/null)
+        pp=$(sed -n 's/.* physical=\([0-9]*\)$/\1/p' "$STAGE/host_display" 2>/dev/null)
+        gw=$(head -c 8 "$STAGE/data/oneos_guest_width" 2>/dev/null | tr -dc 0-9)
+        [ -L "$STAGE/data/oneos_guest_width" ] && gw=""
+        pws="One UI's width"
+        case "$pw:$pp" in
+            *[!0-9:]*|:*|*:) ;;
+            *) if [ "$pw" != "$pp" ]; then
+                   if [ -n "$gw" ] && { [ "$gw" = "$pw" ] || [ "$gw" = "$pp" ]; }; then
+                       pw=$gw; pws="the last session's"
+                   else
+                       case "$(getprop ro.board.platform)" in
+                           s5e*|exynos*|erd*) pws="One UI's width (Exynos)" ;;
+                           *) pw=$pp; pws="the whole panel" ;;
+                       esac
+                   fi
+               fi ;;
+        esac
         case "$ld:$pw" in
             *[!0-9:]*|:*|*:) echo "guest_props: HyperOS base density left at One UI's (${ld:-none}; panel width ${pw:-not recorded})" ;;
             *) if [ "$pw" -gt 1080 ] && [ "$ld" -ge 120 ] && grep -qxF "$LD" "$HOST"; then
                    nd=$(( (ld * pw + 540) / 1080 ))
                    if "$RP" -n "$LD" "$nd" 2>/dev/null; then
                        echo "$LD=$ld" >> "$OVR"
-                       echo "guest_props: $LD=$nd for the session (HyperOS's base at the $pw px it runs the panel at; One UI's $ld is its 1080 px mode's)"
+                       echo "guest_props: $LD=$nd for the session (HyperOS's base at the $pw px it runs the panel at, $pws; One UI's $ld is its 1080 px mode's)"
                    fi
+               else
+                   echo "guest_props: HyperOS base density left at One UI's $ld (the guest at $pw px, $pws)"
                fi ;;
         esac
     fi

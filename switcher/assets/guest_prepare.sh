@@ -3458,6 +3458,26 @@ if [ -f "$STAGE/OneOSPixelDoze.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app/Syst
         echo "Pixel AOD overlay left out (ONEOS_GUEST_DOZE=0)"
     fi
 fi
+# PixelOS's screen corners at this phone's radius (0.5.36, switcher/overlays/pixel_corners): its
+# SystemUI's corner images are AOSP's 8 dp, so apps rounding to the display's radius (One UI's,
+# 118 px on the A36) left grey corners the panel did not hide (owner, A36: "that grey area is coming
+# on my screen"; live with 118 px corners: "its correct now, even the app open roundedness is
+# correct now no more double rounds"). The overlay references the PixelOS framework's own resource
+# IDs, so only on the framework-res.apk it was linked against. guest_props.sh keeps the screen
+# decorations on (A/M phones) when it is in. ONEOS_GUEST_PIXEL_CORNERS=0 leaves it out.
+PIXEL_CORNERS_FWR=e109f04ce984cf39f398669551ef9af3e9dadf953e65bb03a21ebefc931b1aab
+if [ -f "$STAGE/OneOSPixelCorners.apk" ] && [ ! -L "$STAGE/OneOSPixelCorners.apk" ] &&
+   [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk" ] && [ -f "$ROOTFS/system/framework/framework-res.apk" ]; then
+    if [ "${ONEOS_GUEST_PIXEL_CORNERS:-1}" != 1 ]; then
+        echo "PixelOS corner overlay left out (ONEOS_GUEST_PIXEL_CORNERS=0)"
+    elif [ "$($BB sha256sum "$ROOTFS/system/framework/framework-res.apk" 2>/dev/null | cut -d' ' -f1)" = "$PIXEL_CORNERS_FWR" ]; then
+        mkdir -p "$STAGE/oem/overlay" &&
+            cp "$STAGE/OneOSPixelCorners.apk" "$STAGE/oem/overlay/" &&
+            chmod 755 "$STAGE/oem" "$STAGE/oem/overlay" && chmod 644 "$STAGE/oem/overlay/OneOSPixelCorners.apk" &&
+            OEM_FILES="$OEM_FILES overlay/OneOSPixelCorners.apk" &&
+            echo "PixelOS screen corners at this phone's radius (OneOSPixelCorners.apk)"
+    fi
+fi
 # Quick settings on a tablet-width panel: the split (two column) shade in
 # portrait too, which Nothing OS's SystemUI only has a landscape value for
 # (scripts/make-overlays.sh). Under sw600dp, so the cover keeps the phone

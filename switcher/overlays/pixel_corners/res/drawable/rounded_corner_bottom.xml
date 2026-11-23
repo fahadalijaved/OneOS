@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AOSP's corner path at the framework's rounded_corner_radius_bottom (OneOSCornerRadius). A layer-list
+     item and not the vector's own size: before the UI activator has set the radius it is 0 here
+     (PixelOS's default), and a <vector> 0 wide throws when SystemUI inflates it; an item 0 wide is
+     just no corner. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="@*android:dimen/rounded_corner_radius_bottom"
+        android:height="@*android:dimen/rounded_corner_radius_bottom">
+        <vector
+            android:width="8dp"
+            android:height="8dp"
+            android:viewportWidth="8"
+            android:viewportHeight="8">
+            <path
+                android:fillColor="#FF000000"
+                android:pathData="M8,0H0v8C0,3.6,3.6,0,8,0z"/>
+        </vector>
+    </item>
+</layer-list>

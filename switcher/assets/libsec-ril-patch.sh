@@ -105,6 +105,31 @@ describe_lib() {
     echo "inbound SMS: $seen loads of 1000000 looked at, $shown with a flag check before them"
 }
 
+# 0.5.36: the same check in three more builds, neither sequence above (0.5.35 reports, 7 of them):
+#   A56 (5735448 B, 6e9abb28):  ldrb w8, [x8, #0x101]; cbz w8 (another distance); ...; cmp w28, w8
+#   A57 (5813560 B, 45f78b70):  ldrb w8, [x8, #0x101]; tbz w8, #0;                 ...; cmp w24, w8
+#   S26 Ultra (5453664 B, 6becc4b4): ldrb w8, [x8, #0xe0]; tbz w8, #0;             ...; cmp w27, w8
+# By the instruction fields instead of the bytes: a load of 1000000 into w8 (mov #0x4240; movk #0xf,
+# lsl #16) with a compare against w8 right after it, and right before it a byte load of w8 from x8
+# and a branch on w8 being zero (cbz w8, or tbz on its bit 0). Exactly one such place in the library,
+# or nothing is patched. Prints the branch's offset.
+find_flag_site() {
+    site=""; k=0
+    for c in $(LC_ALL=C /system/bin/grep -aobF "$MILLION_PAT" "$LIB" 2>/dev/null | "$BB" cut -d: -f1 | "$BB" head -n 200); do
+        case "$c" in ''|*[!0-9]*) continue ;; esac
+        c=$((c - 1))
+        [ "$c" -ge 8 ] && [ $((c % 4)) = 0 ] || continue
+        w=$(readn "$LIB" $((c - 8)) 20)
+        case "$w" in
+            08??[4-7]?39[02468ace]8????3408488852e801a072[13579bdf]f0[0-3]086b|\
+            08??[4-7]?39[02468ace]8??0[0-7]3608488852e801a072[13579bdf]f0[0-3]086b) ;;
+            *) continue ;;
+        esac
+        site=$((c - 4)); k=$((k + 1))
+    done
+    [ "$k" = 1 ] && echo "$site"
+}
+
 restart_ril() {
     /system/bin/setprop ctl.restart ril-daemon 2>/dev/null
     /system/bin/setprop ctl.restart multiclient-daemon 2>/dev/null
@@ -115,7 +140,10 @@ apply() {
     if is_mounted; then
         case "$(mount_src)" in
             *libsec-ril.session.so)
-                if /system/bin/grep -qaF "$PATCHED_PAT" "$LIB" 2>/dev/null; then
+                mnop=$("$BB" awk '{ print $3 }' "$MARKER" 2>/dev/null)
+                case "$mnop" in ''|*[!0-9]*) mnop="" ;; esac
+                if /system/bin/grep -qaF "$PATCHED_PAT" "$LIB" 2>/dev/null ||
+                   { [ -n "$mnop" ] && [ "$(read4 "$LIB" "$mnop")" = "1f2003d5" ]; }; then
                     echo "inbound SMS: $LIB is already patched for this session"
                     [ -f "$MARKER" ] || { printf 'session\n' > "$MARKER" 2>/dev/null; chmod 600 "$MARKER" 2>/dev/null; }
                     return 0
@@ -151,14 +179,21 @@ apply() {
             case "$c" in ''|*[!0-9]*) continue ;; esac
             [ "$(readn "$LIB" "$c" 20)" = "$ALT_HEX" ] && { hits=$c; m=$((m + 1)); }
         done
-        [ "$m" = 1 ] || {
-            echo "inbound SMS: found 0 matches for the rild SMS queue sequence and $m for its check from the ldrb on in $LIB; left alone"
-            describe_lib
-            return 1
-        }
-        off=$hits
-        nop=$((off + 4))
-        echo "inbound SMS: the SMS queue check found from the ldrb on at $off (another register before it)"
+        if [ "$m" = 1 ]; then
+            off=$hits
+            nop=$((off + 4))
+            echo "inbound SMS: the SMS queue check found from the ldrb on at $off (another register before it)"
+        else
+            nop=$(find_flag_site)
+            case "$nop" in
+                ''|*[!0-9]*)
+                    echo "inbound SMS: found 0 matches for the rild SMS queue sequence, $m for its check from the ldrb on and none by the instruction fields in $LIB; left alone"
+                    describe_lib
+                    return 1 ;;
+            esac
+            off=$nop
+            echo "inbound SMS: the SMS queue check found by its instruction fields at $nop ($(read4 "$LIB" $((nop - 4))) $(read4 "$LIB" $nop))"
+        fi
     else
         echo "inbound SMS: found $n matches for the rild SMS queue sequence in $LIB; left alone"
         return 1
@@ -186,7 +221,7 @@ apply() {
         rm -f "$PATCHED"
         return 1
     fi
-    printf 'session %s\n' "$off" > "$MARKER" || {
+    printf 'session %s %s\n' "$off" "$nop" > "$MARKER" || {
         echo "inbound SMS: could not write $MARKER; removing the bind"
         "$BB" umount "$LIB" 2>/dev/null
         rm -f "$PATCHED"
