@@ -779,7 +779,7 @@ if in_image $MIUI_JAR; then
     MFW_JAR=/system/system_ext/framework/miui-framework.jar
     in_image $MFW_JAR || { echo "ERROR: $MIUI_JAR without $MFW_JAR" >&2; exit 1; }
     "$DEBUGFS" -R "dump $MFW_JAR $WORK/miui-framework.jar" "$IMG" 2>/dev/null
-    decode "$WORK/mfw" "$WORK/miui-framework.jar"
+    java -jar "$APKTOOL" d -q -f -r -o "$WORK/mfw" "$WORK/miui-framework.jar"
     DIRS=$(python3 -I "$ROOT/switcher/patches/hyperos_displayfeature_stub.py" "$WORK/mfw")
     java -jar "$APKTOOL" b -q -o "$WORK/mfw-rebuilt.jar" "$WORK/mfw"
     cp "$WORK/miui-framework.jar" "$OUT/miui-framework_patched.jar"
@@ -1105,7 +1105,11 @@ rm -f "$OUT/oneui_floating_add.txt"
 [ -n "$IMAGE_ONEUI" ] && export ONEOS_CAMERA_NATIVE_SKIP_BN=1
 if [ "${ONEOS_NO_CAMERA_ABI:-0}" = 1 ]; then
     echo "camera bridge: left out (ONEOS_NO_CAMERA_ABI=1)"
-    rm -f "$WORK/framework-cam.jar"
+    if [ "${HYPEROS_FW:-0}" = 1 ] && [ -f "$WORK/framework-cam.jar" ]; then
+        mv "$WORK/framework-cam.jar" "$OUT/framework_patched.jar"
+    else
+        rm -f "$WORK/framework-cam.jar"
+    fi
 elif in_image /system/framework/framework.jar; then
     [ -f "$WORK/framework-cam.jar" ] || "$DEBUGFS" -R "dump /system/framework/framework.jar $WORK/framework-cam.jar" "$IMG" 2>/dev/null
     "$ROOT/scripts/patch-framework-camera.sh" "$WORK/framework-cam.jar" "$OUT"
@@ -1245,7 +1249,8 @@ SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
 # 0x65d2b0 -> "can't start MtkSF_ext" at 0x65d428, which rejoins the main loop at
 # 0x65d3dc where the registered path ends.
 MTK_SITES = {"f693da9ab9b2": (0x657250, "c80b00b4", "5e000014"),
-             "2b227833b558": (0x65d2b0, "c80b00b4", "5e000014")}
+             "2b227833b558": (0x65d2b0, "c80b00b4", "5e000014"),
+             "fa790e869c58": (0x57788, "a81000b4", "85000014")}
 mtk = MTK_SITES.get(hashlib.sha1(data).hexdigest()[:12])
 if mtk:
     moff, mold, mnew = mtk

@@ -5,8 +5,9 @@
 set -e
 OUT="$1"; [ -n "$OUT" ] || { echo "usage: $0 <out dir>" >&2; exit 2; }
 HERE=$(cd "$(dirname "$0")" && pwd)
-BT=$(ls -d /opt/android-sdk/build-tools/* | sort | tail -1)
-AJ=$(ls /opt/android-sdk/platforms/*/android.jar | sort | tail -1)
+SDK="${ANDROID_HOME:-/opt/android-sdk}"
+BT=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1)
+AJ=$(ls "$SDK"/platforms/*/android.jar 2>/dev/null | sort -V | tail -1)
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 mkdir -p "$W/classes" "$W/dex"
 javac -source 11 -target 11 -nowarn -bootclasspath "$AJ" -d "$W/classes" "$HERE"/src/oneos/miprocessing/*.java 2>/dev/null ||
@@ -16,7 +17,7 @@ javac -source 11 -target 11 -nowarn -bootclasspath "$AJ" -d "$W/classes" "$HERE"
     --min-sdk-version 35 --target-sdk-version 36
 (cd "$W/dex" && zip -q -j "$W/stub.apk" classes.dex)
 "$BT/zipalign" -p -f 4 "$W/stub.apk" "$W/aligned.apk"
-"$BT/apksigner" sign --ks "$HOME/.android/debug.keystore" --ks-pass pass:android --ks-key-alias androiddebugkey \
+"$BT/apksigner" sign --ks "${KEYSTORE:-$HOME/.android/debug.keystore}" --ks-pass pass:android --ks-key-alias androiddebugkey \
     --key-pass pass:android --out "$OUT/OneOSCameraProcessingStub.apk" "$W/aligned.apk"
 rm -f "$OUT/OneOSCameraProcessingStub.apk.idsig"
 echo "built $OUT/OneOSCameraProcessingStub.apk"

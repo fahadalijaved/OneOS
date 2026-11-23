@@ -168,6 +168,7 @@ object PackageSets {
     const val ID_NOTHING_A = "nothing-a"
     const val ID_OXYGEN16 = "oxygen16"
     const val ID_PIXEL16 = "pixel16"
+    const val ID_HYPER16 = "hyper16"
     const val ID_ORIGINOS = "originos"
     const val ID_LINEAGE = "lineage"
     const val ID_ONEUI95 = "oneui95"
@@ -827,6 +828,39 @@ object PackageSets {
     )
 
     /**
+     * HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM) for Galaxy Z Fold4 on One UI 8.0:
+     * built from out/overlays_hyperos16 using make-overlays.sh with ONEOS_NO_CAMERA_ABI=1
+     * and host_installd_a16.txt.
+     */
+    val HYPER16 = PackageSet(
+        id = ID_HYPER16,
+        imageId = Images.ID_HYPEROS16,
+        sourceDir = "out/overlays_hyperos16",
+        files = listOf(
+            PackageFile("OneOSCameraProcessingStub.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("apprecovery.proinstaller_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("libaudiohal_aidl_patched.so", FileRole.GUEST_FIX),
+            PackageFile("miui-framework_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-wifi-service_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("socket_exec", FileRole.GUEST_FIX),
+            PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+        ) + (COMMON_PAYLOADS + listOf("bt", "cellbroadcast", "conscrypt", "profiling"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING),
+        approxBytes = 488_225_557L,
+        hasReturnApp = true,
+    )
+
+    /**
      * OriginOS 7 (0.4.73, experimental): vivo's CN PD2609MA build on the Snapdragon S25/S26 series and the
      * Z Fold7/8 phones (0.4.82: also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+, the same set). Set r18 (out/overlays_originos_cn_r18, 0.4.95: r17 with the guest's own screen lock in services_patched.jar; r17: make-overlays.sh with the CN vendor's
      * vivo_config.ini; vivo_guards.py, vivo_brightness.py and the other vivo patches; the fold cutout overlay
@@ -1036,7 +1070,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, PIXEL16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, PIXELOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, HYPER16, NOTHING_F8U, NOTHING_A, OXYGEN16, PIXEL16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, PIXELOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

@@ -1588,6 +1588,12 @@
           "label": "PixelOS 16.2, Doze-off GSI",
           "set": "pixel16",
           "tested": false
+        },
+        {
+          "image": "hyperos16-goya",
+          "label": "HyperOS 3.0 Global",
+          "set": "hyper16",
+          "tested": false
         }
       ]
     },

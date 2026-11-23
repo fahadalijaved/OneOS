@@ -106,8 +106,8 @@ def main(root):
 
 
 def android16(path, lines, i, r):
-    """Android 16 (OnePlus's OxygenOS 16): no FLAG_PRIVATE in this branch; FLAG_PRESENTATION behind its
-    property, then the flags register ORed in unless builtin_mirroring. builtin_mirroring reads as true."""
+    """Android 16: FLAG_PRESENTATION behind its property. On OxygenOS 16 there is no FLAG_PRIVATE
+    here; on HyperOS there is a private branch (or-int/lit8 0x10). builtin_mirroring reads as true."""
     i, m = expect(lines, i, rf'if-eqz {r}, (:\w+)$', "the presentation branch")
     skip = m.group(1)
     i, m = expect(lines, i + 1, r'iget-object (v\d+), [vp]\d+, Lcom/android/server/display/LocalDisplayAdapter\$LocalDisplayDevice;->mInfo:Lcom/android/server/display/DisplayDeviceInfo;$', "mInfo")
@@ -116,7 +116,25 @@ def android16(path, lines, i, r):
     f = m.group(1)
     i, _ = expect(lines, i + 1, rf'or-int/lit8 {f}, {f}, 0x40$', "FLAG_PRESENTATION")
     i, _ = expect(lines, i + 1, rf'iput {f}, {info}, {re.escape(FLAGS)}$', "flags")
-    i, _ = expect(lines, i + 1, rf'{re.escape(skip)}$', "the label after FLAG_PRESENTATION")
+    next_i = code(lines, i + 1)
+    goto_m = re.match(r'goto (:\w+)$', lines[next_i].strip())
+    private = None
+    private_reg = None
+    if goto_m:
+        after = goto_m.group(1)
+        i = next_i
+        i, _ = expect(lines, i + 1, rf'{re.escape(skip)}$', "the FLAG_PRIVATE label")
+        i, m = expect(lines, i + 1, r'iget-object (v\d+), [vp]\d+, Lcom/android/server/display/LocalDisplayAdapter\$LocalDisplayDevice;->mInfo:Lcom/android/server/display/DisplayDeviceInfo;$', "mInfo (private)")
+        p_info = m.group(1)
+        i, m = expect(lines, i + 1, rf'iget (v\d+), {p_info}, {re.escape(FLAGS)}$', "flags (private)")
+        p_f = m.group(1)
+        i, _ = expect(lines, i + 1, rf'or-int/lit8 {p_f}, {p_f}, 0x10$', "FLAG_PRIVATE")
+        private = i
+        private_reg = p_f
+        i, _ = expect(lines, i + 1, rf'iput {p_f}, {p_info}, {re.escape(FLAGS)}$', "flags (private)")
+        i, _ = expect(lines, i + 1, rf'{re.escape(after)}$', "the label after FLAG_PRIVATE")
+    else:
+        i, _ = expect(lines, i + 1, rf'{re.escape(skip)}$', "the label after FLAG_PRESENTATION")
     i, m = expect(lines, i + 1, rf'const-string(?:/jumbo)? (v\d+), {re.escape(MIRRORING)}$', "builtin_mirroring")
     r2 = m.group(1)
     i, _ = expect(lines, i + 1, rf'invoke-static \{{{r2}, v\d+\}}, {re.escape(GETBOOL)}$', "its getBoolean")
@@ -124,6 +142,10 @@ def android16(path, lines, i, r):
     res, result = m.group(1), i
     i, _ = expect(lines, i + 1, rf'if-nez {res}, :\w+$', "the mirroring branch")
     indent = lines[result][:len(lines[result]) - len(lines[result].lstrip())]
+    if private is not None:
+        lines[private] = f"{indent}or-int/lit8 {private_reg}, {private_reg}, 0x0"
+        lines[private:private] = [f"{indent}# OneOS: no FLAG_PRIVATE for a second built-in panel (AOSP: only for config_localPrivateDisplayPorts)"]
+        result += 1
     lines[result + 1:result + 1] = [
         "",
         f"{indent}# OneOS: builtin_mirroring as true: no FLAG_OWN_CONTENT_ONLY on the cover (AOSP's default);",

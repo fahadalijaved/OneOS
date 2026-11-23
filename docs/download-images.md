@@ -400,6 +400,14 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
 - Phones:
   - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
 
+## HyperOS 3.0 Global
+
+- File: `OneOS_HyperOS3_Fold4.img.gz` (3.76 GB)
+- SHA-256: `aa7b4ce41f5769d3f26d9339f1679de6b5f1f3f5581fd26348e98cdcf7a7a403`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_HyperOS3_Fold4.img.gz/download
+- Phones:
+  - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
+
 ## OriginOS 7, vivo PD2609MA build
 
 - File: `OneOS_OriginOS7_PD2609MA.img.gz` (8.55 GB)

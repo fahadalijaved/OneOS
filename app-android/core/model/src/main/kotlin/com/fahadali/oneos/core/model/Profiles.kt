@@ -234,6 +234,7 @@ object Profiles {
      */
     private val OXYGEN16_CHOICE = ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)
     private val PIXEL16_CHOICE = ImageChoice(Images.ID_PIXEL16, PackageSets.ID_PIXEL16, tested = false)
+    private val HYPER16_CHOICE = ImageChoice(Images.ID_HYPEROS16, PackageSets.ID_HYPER16, tested = false)
 
     /**
      * Nothing OS 5.0 (0.4.33), untested, last: the Z Fold8 Ultra first, where it
@@ -822,7 +823,7 @@ object Profiles {
         codename = "q4q",
         socModel = "SM8475",
         form = FormFactor.FOLD,
-        choices = listOf(OXYGEN16_CHOICE.copy(tested = true), PIXEL16_CHOICE),
+        choices = listOf(OXYGEN16_CHOICE.copy(tested = true), PIXEL16_CHOICE, HYPER16_CHOICE),
         notes = listOf(olderVendor("31 (Android 12)", "5.10"), FOLD4_ISSUES),
     )
 

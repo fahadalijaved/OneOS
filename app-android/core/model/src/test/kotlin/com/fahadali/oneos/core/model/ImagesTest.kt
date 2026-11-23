@@ -55,7 +55,7 @@ class ImagesTest {
         // (Nothing's are product/priv-app GmsCore, Phonesky, GooglePartnerSetup, GoogleRestore, ConfigUpdater
         // and system_ext/priv-app GoogleServicesFramework: six folders guest_prepare.sh's patterns cover).
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.PIXEL16, Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.PIXEL16, Images.HYPEROS16, Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
             Images.ALL.filter { it.googleServices },
         )
         // 0.5.06: LineageOS 24 has none of its own: its Google apps are One UI's, laid over the guest at session time
@@ -93,15 +93,15 @@ class ImagesTest {
         assertEquals(SystemFamily.ONEUI, oneui.family)
         // 0.4.73: OriginOS 7 presents the Play services of its own gmssystem payload, as the Pixel images.
         assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_ASTEROIDS, Images.ORIGINOS7, Images.ONEUI95, Images.PIXELOS_ONYX), Images.ALL.filter { it.presentsGms })
-        assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16, Images.PIXEL16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
+        assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16, Images.PIXEL16, Images.HYPEROS16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.PIXEL16,
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.PIXEL16, Images.HYPEROS16,
                 Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
             Images.ALL,
         )
-        // 0.4.67: OxygenOS 16 is an SDK 36 image; 0.5.34: Pixel 16 GSI BP4A.
-        assertEquals(listOf(Images.OXYGEN16, Images.PIXEL16), Images.ALL.filter { it.sdk == 36 })
+        // 0.4.67: OxygenOS 16 is an SDK 36 image; 0.5.34: Pixel 16 GSI BP4A; HyperOS 3.0.
+        assertEquals(listOf(Images.OXYGEN16, Images.PIXEL16, Images.HYPEROS16), Images.ALL.filter { it.sdk == 36 })
         assertEquals(SystemFamily.OXYGENOS, Images.OXYGEN16.family)
         assertEquals(emptyList<String>(), Images.OXYGEN16.cpuRequired)
         // HyperOS (docs/hyperos.md): on the shared folder from 0.4.31; its own system family.
@@ -179,7 +179,7 @@ class ImagesTest {
             listOf(
                 SystemFamily.COLOROS, SystemFamily.COLOROS,
                 SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL,
-                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.PIXEL, SystemFamily.ORIGINOS, SystemFamily.LINEAGE, SystemFamily.ONEUI, SystemFamily.PIXELOS,
+                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.PIXEL, SystemFamily.HYPEROS, SystemFamily.ORIGINOS, SystemFamily.LINEAGE, SystemFamily.ONEUI, SystemFamily.PIXELOS,
             ),
             Images.ALL.map { it.family },
         )

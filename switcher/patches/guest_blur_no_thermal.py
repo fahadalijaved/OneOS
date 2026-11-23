@@ -20,7 +20,7 @@ import sys
 
 CLASS = re.compile(r"^\.class (?:public |final )*Lcom/android/server/wm/BlurController;$")
 METHOD = re.compile(r"^\.method (?:public |private |final )*updateBlurEnabled\(\)V$")
-IGET = re.compile(r"^\s*iget-boolean (v\d+|p\d+), p0, Lcom/android/server/wm/BlurController;->mDisabledByThermal:Z$")
+IGET = re.compile(r"^\s*iget-boolean (v\d+|p\d+), p0, Lcom/android/server/wm/BlurController;->(?:mDisabledByThermal|mCriticalThermalStatus):Z$")
 
 
 def main(root):

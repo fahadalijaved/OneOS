@@ -14,7 +14,7 @@ set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 [ -f "$1" ] && [ -f "$2" ] && [ -d "$3" ] || { echo "usage: $0 <libcamera_client.so> <libcameracompatbilityinfo.so> <out dir>" >&2; exit 2; }
 OUT=$(cd "$3" && pwd)
-TABLE="$ROOT/switcher/patches/host_camera.txt"
+TABLE=${HOST_CAMERA:-"$ROOT/switcher/patches/host_camera.txt"}
 for pair in "$1:libcamera_client_patched.so" "$2:libcameracompatbilityinfo_patched.so"; do
     src=${pair%%:*}; name=${pair#*:}
     rm -f "$OUT/$name"

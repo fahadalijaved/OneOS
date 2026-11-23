@@ -135,6 +135,7 @@ object Images {
     const val ID_NOTHING_ASTEROIDS = "nothingos5-asteroids"
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
     const val ID_PIXEL16 = "pixel16-bp4a"
+    const val ID_HYPEROS16 = "hyperos16-goya"
     const val ID_ORIGINOS7 = "originos7-pd2609ma"
     /** Starts with "lineage": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_LINEAGE = "lineage24-infiniti"
@@ -566,6 +567,34 @@ object Images {
     )
 
     /**
+     * HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM),
+     * for phones on One UI 8.0/8.5 such as Galaxy Z Fold4.
+     * Full HyperOS experience with built-in Google Play services and Xiaomi apps.
+     */
+    val HYPEROS16 = ImageRef(
+        id = ID_HYPEROS16,
+        label = "HyperOS 3.0 Global",
+        shortName = "HyperOS 3.0",
+        name = "HyperOS 3",
+        variant = "Global build",
+        blurb = "Xiaomi's HyperOS 3.0 (Android 16): full HyperOS experience with Google apps for One UI 8.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 36,
+        buildId = "OS3.0.5.0.WOEMIXM",
+        gzName = "OneOS_HyperOS3_Fold4.img.gz",
+        gzBytes = 3760807029L,
+        gzSha256 = "aa7b4ce41f5769d3f26d9339f1679de6b5f1f3f5581fd26348e98cdcf7a7a403",
+        rawBytes = 7620681728L,
+        rawSha256 = "4e83c72a86d2401a6255f101d1d148b4d7557327321e316b031e4e428bf00b4d",
+        testedOn = "Galaxy Z Fold4",
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = false,
+        family = SystemFamily.HYPEROS,
+    )
+
+    /**
      * OriginOS 7 (0.4.73, experimental): vivo's Android 17 system from the CN PD2609MA build
      * (CP2A.260605.016, 260919185055, security patch 2026-09-01; ro.vivo.os.build.display.id
      * "OriginOS 7"), for the Snapdragon S25/S26 series and the Z Fold7, Fold8 and Fold8 Ultra;
@@ -702,7 +731,7 @@ object Images {
         family = SystemFamily.PIXELOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, PIXEL16, ORIGINOS7, LINEAGE24, ONEUI95, PIXELOS_ONYX)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, PIXEL16, HYPEROS16, ORIGINOS7, LINEAGE24, ONEUI95, PIXELOS_ONYX)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 
