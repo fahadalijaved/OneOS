@@ -123,7 +123,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
                 val phase = s.kernelPhase?.words ?: s.makePhase?.words
                 val detail = when (s.makePhase) {
                     OneiosMakeImage.Phase.RUNTIME -> OneiosJob.state.let { j -> listOfNotNull(j.file ?: j.message, j.progressLine) }
-                    null, OneiosMakeImage.Phase.BUILD -> listOfNotNull(running?.text?.takeIf { phase != null }, why, v.progressLine)
+                    null, OneiosMakeImage.Phase.KERNELCACHE, OneiosMakeImage.Phase.BUILD -> listOfNotNull(running?.text?.takeIf { phase != null }, why, v.progressLine)
                     else -> emptyList()
                 }
                 PrebootCards.row(now, phase ?: running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), detail.joinToString(" · "))

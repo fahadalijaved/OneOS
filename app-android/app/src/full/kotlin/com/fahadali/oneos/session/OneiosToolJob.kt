@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.os.SystemClock
 import com.fahadali.oneos.BuildConfig
+import com.fahadali.oneos.core.model.OneiosImageChoice
 import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosManifests
 import com.fahadali.oneos.core.model.OneiosMessage
@@ -422,7 +423,9 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
             override val stopped: Boolean get() = stop
         }
         try {
-            return when (val o = OneiosMakeImage(S, kb, assets).run(io)) {
+            // The image this phone makes: iOS 16.5 on the Galaxy A56 (untested there), iOS 27 on every other phone.
+            val image = OneiosImageChoice.of(OneiosJob.phoneProfile(app))
+            return when (val o = OneiosMakeImage(S, kb, assets, image).run(io)) {
                 is OneiosMakeImage.Outcome.Staged -> {
                     update(state.copy(
                         results = state.results + "iOS ${o.version} (${o.build}) is staged: ${o.files} files${o.bytes?.let { ", ${Units.bytes(it)}" }.orEmpty()}.",

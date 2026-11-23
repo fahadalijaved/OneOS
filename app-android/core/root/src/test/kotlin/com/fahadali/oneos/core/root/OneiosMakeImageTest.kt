@@ -1,11 +1,13 @@
 package com.fahadali.oneos.core.root
 
 import com.fahadali.oneos.core.model.Hashes
+import com.fahadali.oneos.core.model.OneiosImageChoice
 import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosPlain
 import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosToolFlow
+import com.fahadali.oneos.core.model.Profiles
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -48,6 +50,9 @@ class OneiosMakeImageTest {
         val runtimes: List<OneiosMakeImage.Runtime> = emptyList(),
         val tools: List<List<String>> = emptyList(),
         val makeImage: OneiosToolFlow? = null,
+        /** The A56's kernelcache steps (Update the kernel's step 2): the tool's answers to `fetch` and `im4p`. */
+        val fetch: OneiosToolFlow? = null,
+        val im4p: OneiosToolFlow? = null,
         val roots: Map<OneiosRoot.Verb, String?> = emptyMap(),
         val stopAfter: String? = null,
     ) : OneiosMakeImage.Io {
@@ -96,6 +101,8 @@ class OneiosMakeImageTest {
             this.keys += keys
             return when (cmd) {
                 OneiosTool.Cmd.MAKE_IMAGE -> makeImage ?: error("no answer for $cmd")
+                OneiosTool.Cmd.FETCH -> fetch ?: error("the flow sends only make-image here, not $cmd")
+                OneiosTool.Cmd.IM4P -> im4p ?: error("the flow sends only make-image here, not $cmd")
                 else -> error("the flow sends only make-image, not $cmd")
             }
         }
@@ -267,4 +274,100 @@ class OneiosMakeImageTest {
         val io = Fake(listOf(none), runtimes = listOf(OneiosMakeImage.Runtime.Failed("stopped")), stopAfter = "runtime -")
         assertEquals(OneiosToolFlow.End.CANCELLED, (flow().run(io) as OneiosMakeImage.Outcome.Stopped).end)
     }
+
+    // --- The Galaxy A56 (OneiOS issue 73): iOS 16.5, and Apple's 24A446 kernelcache first ------------------------
+
+    private val a56 = OneiosImageChoice.of(Profiles.resolve("SM-A566B", "a56x", "s5e8855").profile)
+    private val made16 = made.copy(
+        text = "iOS 16.5 (20F66): 21 files, 9.1 GB, checked",
+        result = made.result!! + mapOf("version" to "16.5", "build" to "20F66"),
+    )
+    private val fetched = OneiosToolFlow(end = OneiosToolFlow.End.OK, text = "kernelcache.release.v54: 23 MB")
+    private fun decoded(sha: String = kb.kernelcacheSha256) =
+        OneiosToolFlow(end = OneiosToolFlow.End.OK, text = "decoded", result = mapOf("kind" to "macho", "bytes" to 78_000_000L, "sha256" to sha))
+
+    @Test
+    fun theA56FetchesThe24A446KernelcacheBeforeMakeImage() {
+        assertEquals("runtime/lib/profiles/ios-16.5-a56.toml", a56.profile)
+        val io = Fake(listOf(withKernel), tools = listOf(withMake), makeImage = made16, fetch = fetched, im4p = decoded())
+        val o = flow16().run(io)
+        assertEquals(OneiosMakeImage.Outcome.Staged(21, 1, "16.5", "20F66", 13_200_000_000L, "a".repeat(64)), o)
+        // Update the kernel's step 2 (fetch, im4p, the pin, kbcache), after the tool is up and before make-image.
+        assertEquals(
+            listOf("status") + inputs + listOf("begin image", "tool", "fetch", "im4p", "kbcache 78000000 ${kb.kernelcacheSha256}", "make-image", "finish image 21 1 16.5 20F66"),
+            io.asked,
+        )
+        assertEquals(
+            listOf(OneiosTool.kernelcacheFetchRequest(stage).second, OneiosTool.kernelcacheDecodeRequest(stage).second, OneiosTool.makeImageRequest(stage, a56.profile).second),
+            io.keys,
+        )
+        // The kernelcache is the 27.0.1 profile's (24A446); make-image gets the 16.5 profile.
+        assertEquals("$stage/${OneiosTool.IPSW_PROFILE}", io.keys[0]["profile"])
+        assertEquals("$stage/runtime/lib/profiles/ios-16.5-a56.toml", io.keys[2]["profile"])
+        assertEquals(
+            listOf(OneiosMakeImage.Phase.STATUS, OneiosMakeImage.Phase.INPUTS, OneiosMakeImage.Phase.BEGIN, OneiosMakeImage.Phase.TOOL,
+                OneiosMakeImage.Phase.KERNELCACHE, OneiosMakeImage.Phase.BUILD, OneiosMakeImage.Phase.FINISH),
+            io.phases,
+        )
+        assertTrue(io.lines.toString(), io.lines.any { "24A446 kernelcache is on this phone" in it })
+    }
+
+    @Test
+    fun theA56WithThePinnedKernelcacheCachedFetchesNothing() {
+        val cached = withKernel.copy(kb = OneiosStatus.Kb(kb.kernelcacheSha256.uppercase(), 12))
+        val io = Fake(listOf(cached), tools = listOf(withMake), makeImage = made16)
+        assertTrue(flow16().run(io) is OneiosMakeImage.Outcome.Staged)
+        assertEquals(listOf("status") + inputs + listOf("begin image", "tool", "make-image", "finish image 21 1 16.5 20F66"), io.asked)
+        assertEquals(listOf(OneiosTool.makeImageRequest(stage, a56.profile).second), io.keys)
+        assertTrue(io.lines.toString(), io.lines.any { "already on this phone" in it })
+        // Another kernelcache in kb/ (not the pin): fetched again.
+        val other = Fake(listOf(withKernel.copy(kb = OneiosStatus.Kb("5".repeat(64), 12))), tools = listOf(withMake), makeImage = made16, fetch = fetched, im4p = decoded())
+        assertTrue(flow16().run(other) is OneiosMakeImage.Outcome.Staged)
+        assertTrue(other.asked.toString(), "fetch" in other.asked)
+    }
+
+    @Test
+    fun theA56sKernelcacheStepsStopTheFlowByUpdateTheKernelsRule() {
+        // A decode that is not the pin: nothing kept, the work folder goes, make-image is not asked.
+        val bad = Fake(listOf(withKernel), tools = listOf(withMake), makeImage = made16, fetch = fetched, im4p = decoded("4".repeat(64)))
+        val o = flow16().run(bad) as OneiosMakeImage.Outcome.Stopped
+        assertEquals(Triple(OneiosTool.Cmd.IM4P, OneiosToolFlow.End.REFUSED, "mismatch"), Triple(o.step, o.end, o.code))
+        assertEquals(listOf("im4p", "kbclean"), bad.asked.takeLast(2))
+        assertFalse(OneiosTool.Cmd.MAKE_IMAGE in bad.asked)
+        assertEquals("Apple's files didn't check out", OneiosPlain.makeImage(o.step, o.end, o.code, o.text).title)
+        // A lost network keeps the download's parts for the next run (no kbclean).
+        val net = Fake(listOf(withKernel), tools = listOf(withMake), fetch = OneiosToolFlow(end = OneiosToolFlow.End.FAILED, code = "network", text = "no byte for 120 s"))
+        val n = flow16().run(net) as OneiosMakeImage.Outcome.Stopped
+        assertEquals(OneiosTool.Cmd.FETCH to "network", n.step to n.code)
+        assertEquals("fetch", net.asked.last())
+        // Root refusing kbcache: its words, the work folder goes.
+        val keep = Fake(listOf(withKernel), tools = listOf(withMake), fetch = fetched, im4p = decoded(), roots = mapOf(OneiosRoot.Verb.KBCACHE to "kb/kernelcache.macho is not the one kb.json pins"))
+        val k = flow16().run(keep) as OneiosMakeImage.Outcome.Stopped
+        assertEquals(OneiosKernelUpdate.STEP_KBCACHE to "mismatch", k.step to k.code)
+        assertEquals("kbclean", keep.asked.last())
+        // A Stop after the tool came up: the fetch is not started, the work folder goes.
+        val stop = Fake(listOf(withKernel), tools = listOf(withMake), stopAfter = "tool")
+        val s = flow16().run(stop) as OneiosMakeImage.Outcome.Stopped
+        assertEquals(OneiosTool.Cmd.FETCH to OneiosToolFlow.End.CANCELLED, s.step to s.end)
+        assertEquals(listOf("tool", "kbclean"), stop.asked.takeLast(2))
+    }
+
+    /** The S24 Ultra's choice is today's: the same requests in the same order, never a kernelcache step, cached or not. */
+    @Test
+    fun theS24UltrasChoiceSendsExactlyTodaysRequests() {
+        val s24 = OneiosImageChoice.of(Profiles.S_ULTRA_8650)
+        assertEquals(OneiosImageChoice.IOS_27, s24)
+        for (st in listOf(withKernel, withKernel.copy(kb = OneiosStatus.Kb(kb.kernelcacheSha256, 12)))) {
+            val today = Fake(listOf(st), tools = listOf(withMake), makeImage = made)
+            val chosen = Fake(listOf(st), tools = listOf(withMake), makeImage = made)
+            assertEquals(flow().run(today), OneiosMakeImage(stage, kb, assets, s24).run(chosen))
+            assertEquals(listOf("status") + tail, chosen.asked)
+            assertEquals(today.asked, chosen.asked)
+            assertEquals(listOf(OneiosTool.makeImageRequest(stage).second), chosen.keys)
+            assertEquals(today.phases, chosen.phases)
+            assertFalse(OneiosMakeImage.Phase.KERNELCACHE in chosen.phases)
+        }
+    }
+
+    private fun flow16() = OneiosMakeImage(stage, kb, assets, a56)
 }

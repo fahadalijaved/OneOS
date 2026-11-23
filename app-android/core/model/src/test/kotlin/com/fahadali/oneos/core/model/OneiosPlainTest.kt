@@ -57,6 +57,11 @@ class OneiosPlainTest {
         // This phone and root, before the stage.
         assertEquals(OneiosPart.PHONE, of("not running as root").part)
         assertEquals(OneiosPart.PHONE, of("iOS runs on the Galaxy S24 Ultra (SM-S928) only; this phone is SM-S918B").part)
+        // (an older switch's refusal) Its words name both phones it runs on now: the A56 with iOS 16.5, untested there.
+        assertEquals(
+            "It runs on the Galaxy S24 Ultra (SM-S928), and on the Galaxy A56 (SM-A566) with iOS 16.5 (untested there).",
+            of("iOS runs on the Galaxy S24 Ultra (SM-S928) only; this phone is SM-S918B").line,
+        )
         // Root's busybox line comes before the preflight could run; the preflight's own (with the paths) after the stage.
         assertEquals(OneiosPart.PHONE, of("no busybox at the root manager's paths").part)
         assertEquals(OneiosPart.SWITCH, of("no busybox at the root manager's paths (/data/adb/ksu/bin, /data/adb/ap/bin, /data/adb/magisk)").part)

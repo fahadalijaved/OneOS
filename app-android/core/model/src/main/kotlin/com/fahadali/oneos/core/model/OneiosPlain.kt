@@ -164,7 +164,9 @@ object OneiosPlain {
 
             // The phone and root (the preflight's first checks).
             "galaxy s24 ultra" in p -> m(
-                "iOS 27 isn't for this phone", "It runs on the Galaxy S24 Ultra (SM-S928) only.", OneiosFix.NONE, OneiosPart.PHONE,
+                "iOS 27 isn't for this phone",
+                "It runs on the Galaxy S24 Ultra (SM-S928), and on the Galaxy A56 (SM-A566) with iOS 16.5 (untested there).",
+                OneiosFix.NONE, OneiosPart.PHONE,
             )
             "not running as root" in p || "su could not be started" in p || p == "root did not answer in time" || p == "no answer from root" ||
                 p == "stopped before it finished" || p.startsWith("exit ") -> m(

@@ -23,7 +23,8 @@ import com.fahadali.oneos.session.OneiosJob
  * wins), One UI coming back by itself when iOS never shows, and Power + Volume Down. Three boxes:
  * "I have read how to get back" and the experimental tick (root's `switch` gets it, as before) every
  * time, and on a phone that is not the Galaxy S24 Ultra the device warning (the owner, 2026-11-16:
- * another phone may try it, told what to expect). Switch is on only with all. On a phone whose profile offers it
+ * another phone may try it, told what to expect), the Galaxy A56 too ([OneiosJob.tested]), with what is known of
+ * the phone ([OneiosJob.notThisPhoneNote]). Switch is on only with all. On a phone whose profile offers it
  * ([OneiosJob.takeoverOffered]: the Galaxy S24 Ultra, the Galaxy S26 Ultra) one more box, unticked every time and not
  * needed for Switch: the Android takeover's toggle with its warning ([OneiosSystem.TAKEOVER_WARNING]; docs/oneios.md,
  * "Android takeover"). Then [OneiosJob.switch]:
@@ -81,9 +82,9 @@ internal object OneiosSwitchConfirm {
             text = a.getString(R.string.oneios_ack)
             ackList.addView(this)
         }
-        val deviceBox = if (OneiosJob.state.offered == false) {
+        val deviceBox = if (OneiosJob.state.offered == false || OneiosJob.tested == false) {
             (inflater.inflate(R.layout.home_switch_ack, ackList, false) as CheckBox).apply {
-                text = a.getString(R.string.oneios_not_this_phone_ack)
+                text = a.getString(R.string.oneios_not_this_phone_ack) + OneiosJob.notThisPhoneNote?.let { " $it" }.orEmpty()
                 ackList.addView(this)
             }
         } else null

@@ -1136,6 +1136,87 @@ class OneiosScriptTest {
             assertTrue(sh, output(sh, "Galaxy S26 Ultra", "m3q", "SM8850").contains(s26))
             assertFalse(sh, output(sh, "SM-S938B", "pa3q", "SM8750").contains(s26))
             assertFalse(sh, output(sh, "SM-S928B", "e3q", "SM8650").contains(s26))
+            // The S24 Ultra: no line at all, as before.
+            assertEquals(sh, "S24U=0\n", output(sh, "SM-S928B", "e3q", "SM8650"))
+            // The Galaxy A56 (SM-A566, a56x, s5e8855): its own path's lines (iOS 16.5, untested on an A56), not the
+            // S24-only warning. The same model on another chip or codename is warned as any other phone.
+            for (m in listOf("SM-A566B", "SM-A566E")) {
+                val a56 = output(sh, m, "a56x", "s5e8855")
+                assertTrue(a56, a56.contains("Galaxy A56 path: this phone is $m (a56x, s5e8855): iOS 16.5 (20F66)"))
+                assertTrue(a56, a56.contains("WARNING: this path has not run on a Galaxy A56 yet (untested)"))
+                assertFalse(a56, a56.contains("WARNING: OneiOS is mainly tested"))
+                assertFalse(a56, a56.contains(s26))
+            }
+            assertTrue(sh, warned(sh, "SM-A566B", device = "a56x", soc = "s5e8865"))
+            assertTrue(sh, warned(sh, "SM-A566B", device = "a57x", soc = "s5e8855"))
+            assertFalse(sh, output(sh, "SM-A576B", "a57x", "s5e8865").contains("Galaxy A56 path"))
+            assertFalse(sh, output(sh, "SM-S928B", "e3q", "SM8650").contains("A56"))
+        }
+    }
+
+    /**
+     * On the Galaxy A56 a staged image that is not iOS 16.5 (20F66) is warned, never refused (the owner's 2026-11-16
+     * rule): iOS 27 has no GPU path there. The check runs as written in the script, after the stage checks (which
+     * read I_BUILD); on the S24 Ultra (A56=0) it prints nothing, whatever the image.
+     */
+    @Test
+    fun theA56WarnsAnImageThatIsNotIos165() {
+        val lines = switchScript.readLines()
+        val stage = lines.indexOf("stage_checks")
+        assertTrue(lines[stage - 1].startsWith("# The stage first"))
+        val from = lines.indexOfFirst { it == "if [ \"\$A56\" = 1 ] && [ \"\$I_BUILD\" != 20F66 ]; then" }
+        val to = (from until lines.size).first { lines[it] == "fi" }
+        assertTrue("$stage $from", stage > 0 && from > stage && to > from)
+        // Nothing but echo lines inside: a warning, no refuse, no exit.
+        val body = lines.subList(from + 1, to)
+        assertTrue(body.toString(), body.all { it.trimStart().startsWith("echo \"WARNING: ") })
+        val check = lines.subList(from, to + 1).joinToString("\n")
+        fun output(sh: String, a56: String, build: String): String {
+            val pb = ProcessBuilder(sh, "-c", "$check\necho done").redirectErrorStream(true)
+            pb.environment().putAll(mapOf("A56" to a56, "I_BUILD" to build, "I_VERSION" to if (build == "20F66") "16.5" else "27.0.1"))
+            val p = pb.start()
+            val out = p.inputStream.readBytes().toString(Charsets.UTF_8)
+            assertTrue(p.waitFor(30, TimeUnit.SECONDS))
+            assertEquals(out, 0, p.exitValue())
+            return out
+        }
+        for (sh in shells) {
+            val warned = output(sh, "1", "24A446")
+            assertTrue(warned, warned.contains("WARNING: the staged image is iOS 27.0.1 (24A446), not iOS 16.5 (20F66): iOS 27 has no GPU"))
+            assertTrue(warned, warned.endsWith("done\n"))
+            assertEquals(sh, "done\n", output(sh, "1", "20F66"))
+            assertEquals(sh, "done\n", output(sh, "0", "24A446"))
+            assertEquals(sh, "done\n", output(sh, "0", "20F66"))
+        }
+    }
+
+    /**
+     * The A56 path passes no xnuhost argument of its own (OneiOS's host table and the image's xnuhost.conf carry it):
+     * xnuhost's two command lines are the S24 Ultra's, and nothing after the preflight's checks reads A56.
+     */
+    @Test
+    fun theA56PathLeavesXnuhostsCommandLineAsItWas() {
+        val sw = switchScript.readText()
+        // xnuhost's command line (since fork bd4bbf2 built with set -- and run as the inner shell's waited-for child)
+        val inner = sw.substring(sw.indexOf("set -- \"/data/runtime/\$R_XNUHOST\""), sw.indexOf("exit \"\$rc\""))
+        assertTrue(inner.contains(
+            "set -- \"/data/runtime/\$R_XNUHOST\" --session-abi \$ABI --mode takeover \\\n" +
+                "            --runtime /data/runtime --image /data/image --data /data/data --session /data/session\n",
+        ))
+        assertTrue(inner.contains(
+            "        [ \"\$(cat /data/control/base/mode 2>/dev/null)\" = takeover ] && set -- \"\$@\" --set session-mode=takeover\n",
+        ))
+        assertEquals(1, Regex("""exec "\${'$'}@"""").findAll(inner).count())
+        assertFalse(inner.contains("A56") || inner.contains("a56"))
+        // A56 is read only by the device lines and the image warning, both in the preflight.
+        val code = code(switchScript)
+        val uses = code.withIndex().filter { "\$A56" in it.value }.map { it.index }
+        val session = code.indexOfFirst { it.contains("echo \"=== [1/5]") }
+        assertEquals(2, uses.size)
+        assertTrue(uses.toString(), uses.all { it < session })
+        // No A56-only xnuhost argument of the other fork (OneiOS docs/a56-oneos-fork.md section 1).
+        for (never in listOf("--display shm", "--gpu 2d", "--ram 4096M", "ONEIOS_AMDGPU_RENDER_NODE")) {
+            assertFalse(never, code.joinToString("\n").contains(never))
         }
     }
 

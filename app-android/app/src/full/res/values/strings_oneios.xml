@@ -55,7 +55,7 @@
     <!-- oneios-tool in the app (OneiosToolActivity, OneiosToolJob): what the tool sends, shown as it comes. -->
     <string name="oneios_make_image">Make iOS image</string>
     <string name="oneios_make_image_line">On this phone, from Apple\'s own files (about 11 GB to download, once)</string>
-    <string name="oneios_make_image_confirm">This phone downloads iOS 27.0.1 from Apple (about %1$s, once) and builds the iOS image itself. It needs about %2$s free while it builds; afterwards the image keeps about half of that. If the OneiOS runtime here is too old for it, the newest one comes first.\n\nUse Wi-Fi and keep the phone charging. You can pause, stop and go on later: what it downloaded stays.</string>
+    <string name="oneios_make_image_confirm">This phone downloads iOS %3$s from Apple (about %1$s, once) and builds the iOS image itself. It needs about %2$s free while it builds; afterwards the image keeps about half of that. If the OneiOS runtime here is too old for it, the newest one comes first.\n\nUse Wi-Fi and keep the phone charging. You can pause, stop and go on later: what it downloaded stays.</string>
     <string name="oneios_make_image_free">This phone has %1$s free.</string>
     <string name="oneios_make_image_free_short">This phone has %1$s free, less than that. Free up space in One UI first; the build checks the exact room before it downloads anything.</string>
     <string name="oneios_make_image_start">Make it</string>

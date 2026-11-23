@@ -1,5 +1,6 @@
 package com.fahadali.oneos.core.root
 
+import com.fahadali.oneos.core.model.OneiosImageChoice
 import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosMakeImageSteps
 import com.fahadali.oneos.core.model.OneiosTool
@@ -17,21 +18,29 @@ import com.fahadali.oneos.core.model.OneiosToolFlow
  * 3. root's `begin image` (an empty `image.new` and its two empty lists);
  * 4. the tool ([Io.openTool]); when its `hello` names no `make-image` (a runtime older than the tool's
  *    `make-image`), the latest runtime once more when that is another version, else a refusal in plain words;
- * 5. the tool's `make-image` ([OneiosTool.makeImageRequest]): fetch from Apple, decrypt, the volumes, the root
- *    tweaks, the seed, the kernelcache, the prelink with its audit, the manifest, verify, the lists. It asks its room
- *    once (`space`) before it fetches or writes anything, can be paused, and removes what it wrote when it stops; the
- *    fetched members stay in `make/inputs` for the next run;
+ * 4b. only for a profile without a kernelcache member ([OneiosImageChoice.needsKernelcache]: the Galaxy A56's
+ *    iOS 16.5): Apple's 24A446 kernelcache into `kb/`, exactly as Update the kernel's step 2 gets it
+ *    ([OneiosKernelUpdate.kernelcache]: nothing when root's `kb` line is the pin already, else `fetch`, `im4p`, the
+ *    pin check and root's `kbcache`). make-image prelinks the set's kernel.kc with those 24A446 kexts and refuses
+ *    without it. Every other phone (the S24 Ultra) skips it: its profile has the member, make-image decodes it;
+ * 5. the tool's `make-image` ([OneiosTool.makeImageRequest] with [image]'s profile): fetch from Apple, decrypt, the
+ *    volumes, the root tweaks, the seed, the kernelcache, the prelink with its audit, the manifest, verify, the
+ *    lists. It asks its room once (`space`) before it fetches or writes anything, can be paused, and removes what it
+ *    wrote when it stops; the fetched members stay in `make/inputs` for the next run;
  * 6. root's `finish image <files> <format> <version> <build>` with those four fields of `make-image`'s `ok`.
  *
  * The tool's own `tweaks` request is not sent: `make-image` runs the root tweaks itself (its `tweaks` step). Nor is
  * a `fetch` before it: `make-image` fetches, and its one room check and every refusal of its `check` step come before
- * a byte is downloaded (a `fetch` first would download 11 GB before that check).
+ * a byte is downloaded (a `fetch` first would download 11 GB before that check). The A56's step 4b fetches only the
+ * 24A446 kernelcache member (about 23 MB), which the image's own profile does not have.
  */
 class OneiosMakeImage(
     private val stage: String,
     private val kb: OneiosKb,
     /** The app's `kb/` files by name ([OneiosKbInput.NAMES]), as read from its assets. */
     private val assets: Map<String, ByteArray>,
+    /** Which image this phone makes ([OneiosImageChoice.of] of its profile); iOS 27 by default, as before. */
+    private val image: OneiosImageChoice = OneiosImageChoice.IOS_27,
 ) {
     /** What the flow needs from the app: root, the release download, the tool, the screen, the user's Stop. */
     interface Io {
@@ -79,6 +88,7 @@ class OneiosMakeImage(
         INPUTS("Putting the pairing files on this phone"),
         BEGIN("Making room for the new image set"),
         TOOL("Starting oneios-tool"),
+        KERNELCACHE("Getting Apple's 24A446 kernelcache for the kernel"),
         BUILD("Making the iOS image on this phone"),
         FINISH("Putting the new image set in place"),
     }
@@ -155,10 +165,29 @@ class OneiosMakeImage(
             if (OneiosTool.Cmd.MAKE_IMAGE !in cmds) return tooOld(st.runtime?.version)
         }
 
+        // 4b. A profile without a kernelcache member (the Galaxy A56's iOS 16.5): Apple's 24A446 kernelcache in kb/
+        // first, as Update the kernel's step 2 gets it (its rule for what a stop leaves, too). Untested on an A56.
+        if (image.needsKernelcache) {
+            io.phase(Phase.KERNELCACHE)
+            val k = OneiosKernelUpdate.kernelcache(
+                stage, kb, st.kb.kernelcacheSha256, { c, keys -> io.tool(c, keys) }, { verb, args -> io.root(verb, args) }, { io.stopped }, {},
+            )
+            when (k) {
+                OneiosKernelUpdate.Kernelcache.Cached ->
+                    io.done("Apple's 24A446 kernelcache is already on this phone (the pinned one): not downloaded again.")
+                is OneiosKernelUpdate.Kernelcache.Kept ->
+                    io.done("Apple's 24A446 kernelcache is on this phone: downloaded from Apple, decoded and the pinned one (${k.bytes / 1_000_000} MB).")
+                is OneiosKernelUpdate.Kernelcache.Stopped -> {
+                    if (k.clean) io.root(OneiosRoot.Verb.KBCLEAN, emptyList())
+                    return Outcome.Stopped(k.step, k.end, k.code, k.text)
+                }
+            }
+        }
+
         // 5. The image set, made by the tool.
         if (io.stopped) return cancelled(OneiosTool.Cmd.MAKE_IMAGE)
         io.phase(Phase.BUILD)
-        val (cmd, keys) = OneiosTool.makeImageRequest(stage)
+        val (cmd, keys) = OneiosTool.makeImageRequest(stage, image.profile)
         val made = io.tool(cmd, keys)
         if (made.end != OneiosToolFlow.End.OK) {
             return Outcome.Stopped(cmd, made.end ?: OneiosToolFlow.End.LOST, made.code, made.text, made.spaceNeed, made.spaceFree)

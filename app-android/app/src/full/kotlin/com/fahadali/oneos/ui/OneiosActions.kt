@@ -12,7 +12,6 @@ import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.OneiosFix
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosPlain
-import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.session.OneiosJob
@@ -177,9 +176,10 @@ internal object OneiosActions {
     }
 
     /**
-     * Make iOS image ([OneiosToolJob.Flow.MAKE_IMAGE]), asked first: the download (about 11 GB from Apple, once),
-     * the free room it needs while it builds ([OneiosTool.MAKE_IMAGE_ROOM_BYTES]; the tool checks the exact room
-     * itself before it downloads anything) and the room this phone has now. While the flow runs, its screen opens
+     * Make iOS image ([OneiosToolJob.Flow.MAKE_IMAGE]), asked first: the iOS it makes on this phone and its download
+     * ([OneiosJob.imageChoice]: iOS 27.0.1, about 11 GB from Apple, once; iOS 16.5, about 5.8 GB, on the Galaxy A56),
+     * the free room it needs while it builds (the choice's room; the tool checks the exact room itself before it
+     * downloads anything) and the room this phone has now. While the flow runs, its screen opens
      * instead.
      */
     fun makeImage(a: AppCompatActivity) {
@@ -188,11 +188,12 @@ internal object OneiosActions {
             return
         }
         val free = runCatching { android.os.StatFs(android.os.Environment.getDataDirectory().path).availableBytes }.getOrNull()
+        val image = OneiosJob.imageChoice()
         val text = buildString {
-            append(a.getString(R.string.oneios_make_image_confirm, Units.bytes(OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES), Units.bytes(OneiosTool.MAKE_IMAGE_ROOM_BYTES)))
+            append(a.getString(R.string.oneios_make_image_confirm, Units.bytes(image.downloadBytes), Units.bytes(image.roomBytes), image.version))
             if (free != null) {
                 append("\n\n")
-                append(a.getString(if (free < OneiosTool.MAKE_IMAGE_ROOM_BYTES) R.string.oneios_make_image_free_short else R.string.oneios_make_image_free, Units.bytes(free)))
+                append(a.getString(if (free < image.roomBytes) R.string.oneios_make_image_free_short else R.string.oneios_make_image_free, Units.bytes(free)))
             }
         }
         val d = AlertDialog.Builder(a).setTitle(R.string.oneios_make_image).setMessage(text)

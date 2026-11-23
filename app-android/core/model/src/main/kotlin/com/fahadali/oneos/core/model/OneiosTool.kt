@@ -99,15 +99,16 @@ object OneiosTool {
      * members from Apple itself (by range requests, resumable), decrypts the AEA images (the key from Apple's key
      * service), copies `/private/var` with its own APFS reader, runs the root tweaks, packs the seed, decodes Apple's
      * kernelcache and prelinks the staged runtime's `kernel/xnu.macho` with the pairing files in `kb/`. `profile`: the
-     * runtime's [IPSW_PROFILE], as the kernel update's `fetch` sends it. A released runtime packs every profile of
+     * runtime's [IPSW_PROFILE] by default, as the kernel update's `fetch` sends it; the Galaxy A56's
+     * [OneiosImageChoice.IOS_16_5_A56] names its own ([OneiosImageChoice.of]). A released runtime packs every profile of
      * OneiOS's `profiles/` (v0.1.16: five, two of them host profiles), and a tool up to v0.1.16 refuses a request
      * without `profile` there (`usage`, "holds 5 profiles: give \"profile\"", OneiOS issue 75: every Make iOS image
      * stopped with "OneOS and the runtime don't agree"). The keys it takes from the stage when not sent: `xnu`
      * (`runtime.json`'s `kernel.path`), `kb` (`<stage>/kb`), `tweaks` (true). `resume`: a stop, a lost network or an
      * ended app keep the fetch's parts for the next run (the tool's default too; sent so that it does not depend on one).
      */
-    fun makeImageRequest(stage: String): Pair<String, Map<String, Any?>> = Cmd.MAKE_IMAGE to mapOf(
-        "profile" to "$stage/$IPSW_PROFILE",
+    fun makeImageRequest(stage: String, profile: String = IPSW_PROFILE): Pair<String, Map<String, Any?>> = Cmd.MAKE_IMAGE to mapOf(
+        "profile" to "$stage/$profile",
         "indir" to "$stage/$MAKE_WORK/inputs",
         "out" to "$stage/image.new",
         "sums_list" to "$stage/image.new.sha256",
@@ -305,6 +306,48 @@ object OneiosTool {
             }
         }
         out.append('"')
+    }
+}
+
+/**
+ * Which iOS image a phone makes with Make iOS image (docs/oneios.md, "Galaxy A56"): the runtime's IPSW profile
+ * ([profile], stage-relative, as [OneiosTool.makeImageRequest] sends it), the iOS [version] and [build] it gives,
+ * what it downloads from Apple ([downloadBytes], the sum of the profile's members) and about the free room it needs
+ * at its peak ([roomBytes]), for the screen before it starts.
+ */
+data class OneiosImageChoice(
+    val profile: String,
+    val version: String,
+    val build: String,
+    val downloadBytes: Long,
+    val roomBytes: Long,
+) {
+    /**
+     * The profile has no kernelcache member (the A56's iOS 16.5 one): the set's kernel.kc is OneiOS's XNU prelinked
+     * with the iPhone18,2 24A446 kexts, so `make-image` needs Apple's 24A446 kernelcache in `kb/kernelcache.macho`
+     * first (it refuses `usage`, "no kernelcache member to decode, and no kernelcache given", without it). That is
+     * the one Update the kernel fetches ([OneiosTool.kernelcacheFetchRequest] with [OneiosTool.IPSW_PROFILE]).
+     */
+    val needsKernelcache: Boolean get() = profile != OneiosTool.IPSW_PROFILE
+
+    companion object {
+        /** iOS 27.0.1 (24A446), iPhone18,2: every phone but the A56, exactly as before ([OneiosTool.IPSW_PROFILE]). */
+        val IOS_27 = OneiosImageChoice(
+            OneiosTool.IPSW_PROFILE, "27.0.1", "24A446", OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES, OneiosTool.MAKE_IMAGE_ROOM_BYTES,
+        )
+
+        /**
+         * iOS 16.5 (20F66) from Apple's iPhone X IPSW, for the Galaxy A56 (OneiOS issue 73; the runtime's
+         * `lib/profiles/ios-16.5-a56.toml`): its 11 members are 5,825,842,914 bytes, its `need_gib` is 20 (the
+         * members and the OS image's raw APFS image), and with the seed's tree and tar, kernel.kc and the hash lists
+         * the peak is about 24 GiB. Untested on an A56.
+         */
+        val IOS_16_5_A56 = OneiosImageChoice(
+            "runtime/lib/profiles/ios-16.5-a56.toml", "16.5", "20F66", 5_825_842_914L, 24L shl 30,
+        )
+
+        /** The phone's choice: the Galaxy A56 makes iOS 16.5; every other phone (or none known) iOS 27, as before. */
+        fun of(profile: PhoneProfile?): OneiosImageChoice = if (profile?.id == Profiles.ID_A56) IOS_16_5_A56 else IOS_27
     }
 }
 

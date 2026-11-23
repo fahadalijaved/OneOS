@@ -14,7 +14,8 @@ import com.fahadali.oneos.core.model.OneiosToolFlow
  * 2. unless `kb/kernelcache.macho` is already the pinned one (root's `status`, the `kb` line): the tool's `fetch` of
  *    only the profile's kernelcache member from Apple ([OneiosTool.kernelcacheFetchRequest], `resume`), its `im4p`
  *    ([OneiosTool.kernelcacheDecodeRequest]), the decoded SHA-256 against `kb.json`'s `kernelcache_sha256`, and
- *    root's `kbcache` (root hashes the file again, moves it into `kb/` and removes the downloaded IM4P);
+ *    root's `kbcache` (root hashes the file again, moves it into `kb/` and removes the downloaded IM4P). This step
+ *    is [kernelcache], which Make iOS image runs too for the Galaxy A56's profile;
  * 3. the tool's `prelink` ([OneiosTool.prelinkRequest]) into `make-kernel/out`. The activation stays root's
  *    `finish kernel`, after the user saw the build's result ([Outcome.Built]).
  *
@@ -68,6 +69,18 @@ class OneiosKernelUpdate(
         data class Stopped(val step: String, val end: OneiosToolFlow.End, val code: String?, val text: String?, val cleaned: Boolean) : Outcome()
     }
 
+    /** Step 2's answer ([kernelcache]). */
+    sealed class Kernelcache {
+        /** `kb/kernelcache.macho` is the pinned one already: nothing was fetched. */
+        object Cached : Kernelcache()
+
+        /** Fetched from Apple, decoded, the pinned one ([bytes]), and moved into `kb/` by root's `kbcache`. */
+        data class Kept(val bytes: Long) : Kernelcache()
+
+        /** The [step] that did not end well; [clean]: the work folder goes (root's `kbclean`), by the class's rule. */
+        data class Stopped(val step: String, val end: OneiosToolFlow.End, val code: String?, val text: String?, val clean: Boolean) : Kernelcache()
+    }
+
     /** [cachedSha256]: root's `kb` line, the SHA-256 recorded for `kb/kernelcache.macho`; null = none there. */
     fun run(io: Io, cachedSha256: String?): Outcome {
         // 1. The pairing files, each the pinned one, before root is asked for anything.
@@ -79,39 +92,16 @@ class OneiosKernelUpdate(
         io.done("The pairing files are on this phone (${OneiosKbInput.NAMES.size}, each the pinned one).")
 
         // 2. Apple's kernelcache: the cached one, or fetched from Apple and decoded on this phone.
-        val pin = kb.kernelcacheSha256.lowercase()
-        val cached = cachedSha256?.lowercase() == pin
-        if (cached) {
-            io.phase(Phase.CACHED)
-            io.done("Apple's kernelcache is already on this phone (the pinned one): not downloaded again.")
-        } else {
-            if (io.stopped) return cancelled(OneiosTool.Cmd.FETCH, io)
-            io.phase(Phase.DOWNLOAD)
-            val (fetchCmd, fetchKeys) = OneiosTool.kernelcacheFetchRequest(stage)
-            val fetched = io.tool(fetchCmd, fetchKeys)
-            if (fetched.end != OneiosToolFlow.End.OK) return ended(fetchCmd, fetched, io)
-
-            if (io.stopped) return cancelled(OneiosTool.Cmd.IM4P, io)
-            io.phase(Phase.DECODE)
-            val (decodeCmd, decodeKeys) = OneiosTool.kernelcacheDecodeRequest(stage)
-            val decoded = io.tool(decodeCmd, decodeKeys)
-            if (decoded.end != OneiosToolFlow.End.OK) return ended(decodeCmd, decoded, io)
-            val got = (decoded.result?.get("sha256") as? String)?.lowercase()
-            val bytes = (decoded.result?.get("bytes") as? Number)?.toLong()
-            if (got != pin || bytes == null || bytes <= 0) {
-                return stopped(
-                    decodeCmd, OneiosToolFlow.End.REFUSED, "mismatch",
-                    "the decoded kernelcache's SHA-256 is ${got ?: "missing"}, the profile pins $pin: nothing was kept",
-                    io, clean = true,
-                )
+        val cached = when (val k = kernelcache(stage, kb, cachedSha256, { cmd, keys -> io.tool(cmd, keys) }, { verb, args -> io.root(verb, args) }, { io.stopped }, io::phase)) {
+            Kernelcache.Cached -> {
+                io.done("Apple's kernelcache is already on this phone (the pinned one): not downloaded again.")
+                true
             }
-
-            if (io.stopped) return cancelled("kbcache", io)
-            io.phase(Phase.KEEP)
-            io.root(OneiosRoot.Verb.KBCACHE, listOf(bytes.toString(), pin))?.let {
-                return stopped("kbcache", OneiosToolFlow.End.REFUSED, if ("pins" in it) "mismatch" else null, it, io, clean = true)
+            is Kernelcache.Kept -> {
+                io.done("Apple's kernelcache is on this phone: downloaded from Apple, decoded and the pinned one (${k.bytes / 1_000_000} MB).")
+                false
             }
-            io.done("Apple's kernelcache is on this phone: downloaded from Apple, decoded and the pinned one (${bytes / 1_000_000} MB).")
+            is Kernelcache.Stopped -> return stopped(k.step, k.end, k.code, k.text, io, k.clean)
         }
 
         // 3. The build.
@@ -151,6 +141,67 @@ class OneiosKernelUpdate(
         fun toolRequests(stage: String, xnuPath: String, cached: Boolean): List<Pair<String, Map<String, Any?>>> =
             (if (cached) emptyList() else listOf(OneiosTool.kernelcacheFetchRequest(stage), OneiosTool.kernelcacheDecodeRequest(stage))) +
                 OneiosTool.prelinkRequest(xnuPath, stage)
+
+        /**
+         * Step 2 on its own: Apple's kernelcache in `kb/` unless [cachedSha256] (root's `kb` line) is the pin of
+         * [kb] already. The tool's `fetch` of only the kernel profile's kernelcache member
+         * ([OneiosTool.kernelcacheFetchRequest], always [OneiosTool.IPSW_PROFILE]: the 24A446 one), its `im4p`, the
+         * decoded SHA-256 against the pin, root's `kbcache`. Update the kernel runs it, and so does Make iOS image for
+         * a profile without a kernelcache member (the Galaxy A56's iOS 16.5: [OneiosMakeImage]). [phase] gets
+         * [Phase.CACHED], or [Phase.DOWNLOAD], [Phase.DECODE] and [Phase.KEEP] as they start.
+         */
+        fun kernelcache(
+            stage: String,
+            kb: OneiosKb,
+            cachedSha256: String?,
+            tool: (String, Map<String, Any?>) -> OneiosToolFlow,
+            root: (OneiosRoot.Verb, List<String>) -> String?,
+            stopped: () -> Boolean,
+            phase: (Phase) -> Unit,
+        ): Kernelcache {
+            val pin = kb.kernelcacheSha256.lowercase()
+            if (cachedSha256?.lowercase() == pin) {
+                phase(Phase.CACHED)
+                return Kernelcache.Cached
+            }
+            fun cancelled(step: String) = Kernelcache.Stopped(step, OneiosToolFlow.End.CANCELLED, null, "stopped", clean = true)
+            // (a Stop the tool did not answer in time is still a Stop: the work goes)
+            fun ended(cmd: String, v: OneiosToolFlow): Kernelcache {
+                val end = v.end ?: OneiosToolFlow.End.LOST
+                return Kernelcache.Stopped(cmd, end, v.code, v.text, clean = stopped() || !keeps(end, v.code))
+            }
+
+            if (stopped()) return cancelled(OneiosTool.Cmd.FETCH)
+            phase(Phase.DOWNLOAD)
+            val (fetchCmd, fetchKeys) = OneiosTool.kernelcacheFetchRequest(stage)
+            val fetched = tool(fetchCmd, fetchKeys)
+            if (fetched.end != OneiosToolFlow.End.OK) return ended(fetchCmd, fetched)
+
+            if (stopped()) return cancelled(OneiosTool.Cmd.IM4P)
+            phase(Phase.DECODE)
+            val (decodeCmd, decodeKeys) = OneiosTool.kernelcacheDecodeRequest(stage)
+            val decoded = tool(decodeCmd, decodeKeys)
+            if (decoded.end != OneiosToolFlow.End.OK) return ended(decodeCmd, decoded)
+            val got = (decoded.result?.get("sha256") as? String)?.lowercase()
+            val bytes = (decoded.result?.get("bytes") as? Number)?.toLong()
+            if (got != pin || bytes == null || bytes <= 0) {
+                return Kernelcache.Stopped(
+                    decodeCmd, OneiosToolFlow.End.REFUSED, "mismatch",
+                    "the decoded kernelcache's SHA-256 is ${got ?: "missing"}, the profile pins $pin: nothing was kept",
+                    clean = true,
+                )
+            }
+
+            if (stopped()) return cancelled(STEP_KBCACHE)
+            phase(Phase.KEEP)
+            root(OneiosRoot.Verb.KBCACHE, listOf(bytes.toString(), pin))?.let {
+                return Kernelcache.Stopped(STEP_KBCACHE, OneiosToolFlow.End.REFUSED, if ("pins" in it) "mismatch" else null, it, clean = true)
+            }
+            return Kernelcache.Kept(bytes)
+        }
+
+        /** Root's `kbcache` as a step's name (OneiosPlain's download steps). */
+        const val STEP_KBCACHE = "kbcache"
 
         private val HEX64 = Regex("^[0-9a-f]{64}$")
 

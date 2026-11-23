@@ -1320,14 +1320,24 @@ command -v sha256sum >/dev/null 2>&1 || refuse "no sha256sum"
 
 # Mainly tested on: the Galaxy S24 Ultra (docs/oneios.md, "Scope"): e3q on an
 # SM8650, the SM-S928 models. The owner (2026-11-16): another phone may try it,
-# told what to expect; nothing here refuses one any more.
+# told what to expect; nothing here refuses one any more. The Galaxy A56
+# (SM-A566 models, a56x on an s5e8855; docs/oneios.md, "Galaxy A56") has a path
+# of its own: iOS 16.5 (20F66), OneiOS's galaxy-a56 host row. Untested on an A56.
 P_MODEL=$(getprop ro.product.model)
 P_DEVICE=$(getprop ro.product.device)
 P_SOC=$(getprop ro.soc.model)
 S24U=0
 case "$P_MODEL" in SM-S928*) ;; *) S24U=1 ;; esac
 [ "$P_DEVICE" = e3q ] && [ "$P_SOC" = SM8650 ] || S24U=1
-if [ "$S24U" = 1 ]; then
+A56=0
+case "$P_MODEL" in SM-A566*) A56=1 ;; esac
+[ "$P_DEVICE" = a56x ] && [ "$P_SOC" = s5e8855 ] || A56=0
+if [ "$A56" = 1 ]; then
+    echo "Galaxy A56 path: this phone is ${P_MODEL} (a56x, s5e8855): iOS 16.5 (20F66), OneiOS's galaxy-a56 host row."
+    echo "WARNING: this path has not run on a Galaxy A56 yet (untested). iOS 16.5 reached the lock screen there"
+    echo "WARNING: only in another fork, and touch did not work there. A return that fails restarts the phone"
+    echo "WARNING: into One UI. Going on because you asked it to."
+elif [ "$S24U" = 1 ]; then
     echo "WARNING: OneiOS is mainly tested and working on the Galaxy S24 Ultra 5G (an e3q on an SM8650;"
     echo "WARNING: the SM-S928 models). This phone is ${P_MODEL:-unknown} (${P_DEVICE:-?}, ${P_SOC:-?}): on it the"
     echo "WARNING: code may be unstable, miss pieces, or not come back to One UI. Samsung devices are the"
@@ -1344,6 +1354,13 @@ fi
 
 # The stage first: without a runtime that has xnuhost, that one line is the answer.
 stage_checks
+# The Galaxy A56: OneiOS has a GPU path there only for iOS 16.5 (20F66, its galaxy-a56
+# host row: gpu=2d). Another image (iOS 27, 24A446) is warned, never refused (the
+# owner's 2026-11-16 rule). Untested on an A56.
+if [ "$A56" = 1 ] && [ "$I_BUILD" != 20F66 ]; then
+    echo "WARNING: the staged image is iOS ${I_VERSION:-?} (${I_BUILD:-?}), not iOS 16.5 (20F66): iOS 27 has no GPU"
+    echo "WARNING: path on the Galaxy A56, so it may not draw. Make iOS image on this phone makes iOS 16.5."
+fi
 
 # Root tools: the root manager's own busybox and resetprop, as oneos_switch.sh.
 BB=""

@@ -49,19 +49,25 @@ class OneiosTest {
     // --- Where it is offered ---------------------------------------------------
 
     @Test
-    fun onlyTheGalaxyS24UltraIsOffered() {
+    fun theGalaxyS24UltraAndTheA56AreOfferedOnlyTheS24UltraIsTested() {
         for (p in Profiles.BUILT_IN) {
-            assertEquals(p.id, p.id == Profiles.ID_S_ULTRA_8650, OneiosSystem.offeredOn(p))
+            assertEquals(p.id, p.id == Profiles.ID_S_ULTRA_8650 || p.id == Profiles.ID_A56, OneiosSystem.offeredOn(p))
+            assertEquals(p.id, p.id == Profiles.ID_S_ULTRA_8650, OneiosSystem.testedOn(p))
         }
         assertFalse(OneiosSystem.offeredOn(null))
+        assertFalse(OneiosSystem.testedOn(null))
         assertEquals("SM-S928", Profiles.S_ULTRA_8650.modelPrefix)
         assertTrue(OneiosSystem.offeredOn("SM-S928B", "e3q", "SM8650"))
         assertTrue(OneiosSystem.offeredOn("SM-S928U1", "e3q", "SM8650"))
+        // The Galaxy A56 (OneiOS issue 73): offered, with iOS 16.5; untested on an A56.
+        assertTrue(OneiosSystem.offeredOn("SM-A566B", "a56x", "s5e8855"))
+        assertFalse(OneiosSystem.testedOn(Profiles.resolve("SM-A566B", "a56x", "s5e8855").profile))
         // The same model number on another chip or codename is not that phone.
         assertFalse(OneiosSystem.offeredOn("SM-S928B", "e3s", "s5e9945"))
         assertFalse(OneiosSystem.offeredOn("SM-S938B", "pa3q", "SM8750"))
         assertFalse(OneiosSystem.offeredOn("SM-S921B", "e1q", "SM8650"))
         assertFalse(OneiosSystem.offeredOn("SM-F976B", "q8q", "SM8850"))
+        assertFalse(OneiosSystem.offeredOn("SM-A576B", "a57x", "s5e8865"))
     }
 
     /**
@@ -120,6 +126,66 @@ class OneiosTest {
         assertEquals(Level.OK, OneiosSystem.gate(r.profile, ticked = true, notThisPhoneTicked = true).level)
         assertFalse(OneiosSystem.gate(Profiles.F8U, ticked = true).detail.contains("S26"))
         assertFalse(OneiosSystem.gate(null, ticked = true).detail.contains("S26"))
+    }
+
+    /**
+     * The Galaxy A56 (SM-A566, a56x, s5e8855; OneiOS issue 73): offered, but not the phone it is tested on, so the
+     * gate warns it with its note (iOS 16.5, not iOS 27; untested on an A56) until the not-this-phone tick, as any
+     * other phone. The S24 Ultra's gate and another phone's are as before.
+     */
+    @Test
+    fun theA56IsOfferedAndWarnedWithItsNote() {
+        val a56 = Profiles.resolve("SM-A566B", "a56x", "s5e8855").profile
+        assertEquals(Profiles.ID_A56, a56?.id)
+        val g = OneiosSystem.gate(a56, ticked = true)
+        assertEquals(Level.WARN, g.level)
+        assertEquals(OneiosSystem.R_NOT_THIS_PHONE, g.reason)
+        assertTrue(g.detail, g.detail.contains("this phone is the Galaxy A56"))
+        val note = OneiosSystem.NOT_THIS_PHONE_NOTES.getValue(Profiles.ID_A56)
+        assertTrue(g.detail, g.detail.endsWith(note))
+        for (words in listOf("iOS 16.5 (20F66), not iOS 27", "Musicalista/OneiOS-A56", "touch did not work", "has not run on an A56 yet", "restarts the phone into One UI")) {
+            assertTrue(words, note.contains(words))
+        }
+        assertEquals(Level.WARN, OneiosSystem.gate(a56, ticked = false).level)
+        assertEquals(Level.OK, OneiosSystem.gate(a56, ticked = false, notThisPhoneTicked = true).level)
+        // The S24 Ultra: the experimental tick only, as before; no phone note.
+        val s24 = OneiosSystem.gate(Profiles.S_ULTRA_8650, ticked = false)
+        assertEquals(Finding(OneiosSystem.GATE_ID, Level.WARN, "${OneiosSystem.NAME} is experimental", OneiosSystem.ACK, OneiosSystem.R_EXPERIMENTAL), s24)
+        assertEquals(Level.OK, OneiosSystem.gate(Profiles.S_ULTRA_8650, ticked = true).level)
+        // Another phone: warned as before, without the A56's note.
+        assertFalse(OneiosSystem.gate(Profiles.F8U, ticked = true).detail.contains("A56"))
+        assertFalse(OneiosSystem.gate(Profiles.S_ULTRA_8650, ticked = false).detail.contains("A56"))
+    }
+
+    /**
+     * Which image a phone makes (docs/oneios.md, "Galaxy A56"): the A56 iOS 16.5 (20F66) from the runtime's
+     * ios-16.5-a56.toml, with its download and room; every other phone, and an unknown one, exactly today's iOS 27
+     * values. Only the A56's needs Apple's 24A446 kernelcache first.
+     */
+    @Test
+    fun theA56MakesIos165AndEveryOtherPhoneIos27() {
+        val a56 = OneiosImageChoice.of(Profiles.resolve("SM-A566B", "a56x", "s5e8855").profile)
+        assertEquals(OneiosImageChoice("runtime/lib/profiles/ios-16.5-a56.toml", "16.5", "20F66", 5_825_842_914L, 24L shl 30), a56)
+        assertTrue(a56.needsKernelcache)
+        for (p in Profiles.BUILT_IN.filter { it.id != Profiles.ID_A56 } + listOf(null)) {
+            val c = OneiosImageChoice.of(p)
+            assertEquals(p?.id, OneiosImageChoice.IOS_27, c)
+            assertFalse(p?.id, c.needsKernelcache)
+        }
+        assertEquals(
+            OneiosImageChoice(OneiosTool.IPSW_PROFILE, "27.0.1", "24A446", OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES, OneiosTool.MAKE_IMAGE_ROOM_BYTES),
+            OneiosImageChoice.IOS_27,
+        )
+        // The request names the A56's profile; the S24 Ultra's is byte for byte the default one.
+        val s = OneiosSystem.STAGE
+        assertEquals("$s/runtime/lib/profiles/ios-16.5-a56.toml", OneiosTool.makeImageRequest(s, a56.profile).second["profile"])
+        assertEquals(OneiosTool.makeImageRequest(s), OneiosTool.makeImageRequest(s, OneiosImageChoice.of(Profiles.S_ULTRA_8650).profile))
+        assertEquals(
+            OneiosTool.makeImageRequest(s).second - "profile",
+            OneiosTool.makeImageRequest(s, a56.profile).second - "profile",
+        )
+        // The kernel update keeps the 27.0.1 profile on every phone (the 24A446 kernelcache).
+        assertEquals("$s/${OneiosTool.IPSW_PROFILE}", OneiosTool.kernelcacheFetchRequest(s).second["profile"])
     }
 
     /**

@@ -79,6 +79,11 @@ object OneiosFlow {
         val failure: String? = null,
         val runtimeRecord: OneiosStaged? = null,
         val imageRecord: OneiosStaged? = null,
+        /**
+         * The phone row's name for a phone that takes the system but is not the one it is mainly tested on (the
+         * Galaxy A56: "Galaxy A56, iOS 16.5, untested there"); null: the Galaxy S24 Ultra's row, as before.
+         */
+        val phone: String? = null,
     )
 
     data class Row(val step: Step, val mark: Mark, val line: String?)
@@ -127,7 +132,7 @@ object OneiosFlow {
             failedBy(Job.CHECK) != null || (st == null && failure != null) -> Row(Step.PHONE, Mark.FAILED, failure!!.line)
             st == null -> Row(Step.PHONE, Mark.PENDING, null)
             refusal?.part == OneiosPart.PHONE -> Row(Step.PHONE, Mark.FAILED, refusal.line)
-            else -> Row(Step.PHONE, Mark.DONE, "Galaxy S24 Ultra · root allowed")
+            else -> Row(Step.PHONE, Mark.DONE, "${i.phone ?: "Galaxy S24 Ultra"} · root allowed")
         }
         val phoneDone = phone.mark == Mark.DONE
 

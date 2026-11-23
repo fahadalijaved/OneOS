@@ -9,6 +9,7 @@ import com.fahadali.oneos.core.model.ByteMeter
 import com.fahadali.oneos.core.model.Hashes
 import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.core.model.OneiosFile
+import com.fahadali.oneos.core.model.OneiosImageChoice
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosKbFiles
@@ -19,6 +20,7 @@ import com.fahadali.oneos.core.model.OneiosRelease
 import com.fahadali.oneos.core.model.OneiosReleases
 import com.fahadali.oneos.core.model.OneiosStaged
 import com.fahadali.oneos.core.model.OneiosSystem
+import com.fahadali.oneos.core.model.PhoneProfile
 import com.fahadali.oneos.core.model.Profiles
 import com.fahadali.oneos.core.model.TarReader
 import com.fahadali.oneos.core.model.Units
@@ -102,7 +104,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
 
         /** The steps, the check of each package, what to do now ([OneiosFlow]). */
         val flow: OneiosFlow.View
-            get() = OneiosFlow.of(OneiosFlow.Input(status, offered, job, last, failure, runtimeRecord, imageRecord))
+            get() = OneiosFlow.of(OneiosFlow.Input(status, offered, job, last, failure, runtimeRecord, imageRecord, OneiosJob.untestedPhone))
 
         /** "3.2 GB of 17.9 GB (18%) · 412 MB/s · about 2 min left", or null without a byte count. */
         val progressLine: String?
@@ -252,10 +254,46 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     @Volatile var takeoverOffered: Boolean? = null
         private set
 
+    /**
+     * Whether this phone is the one iOS is mainly tested on ([OneiosSystem.testedOn]): false on an offered phone
+     * that is not (the Galaxy A56), so the Switch sheet shows the not-this-phone tick that [OneiosSystem.gate] asks
+     * for, with [notThisPhoneNote]. Read with [offered]; null until then.
+     */
+    @Volatile var tested: Boolean? = null
+        private set
+
+    /** What is known of this phone for the not-this-phone tick ([OneiosSystem.NOT_THIS_PHONE_NOTES]); read with [offered]. */
+    @Volatile var notThisPhoneNote: String? = null
+        private set
+
+    /** The image Make iOS image makes here ([OneiosImageChoice.of]); read with [offered], null until then. */
+    @Volatile private var choice: OneiosImageChoice? = null
+
+    /** The iOS page's phone row on an offered phone that is not the tested one ([OneiosFlow.Input.phone]); read with [offered]. */
+    @Volatile private var untestedPhone: String? = null
+
+    /** This phone's profile, as the gate resolves it (off the main thread: [FactProbe]); null when none matches. */
+    internal fun phoneProfile(app: Context): PhoneProfile? =
+        runCatching { Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile }.getOrNull()
+
+    /**
+     * The image Make iOS image makes on this phone: iOS 16.5 (20F66) on the Galaxy A56, iOS 27 everywhere else. The
+     * last [offered] read's when there is one; else from Android's own model, device and chip ids (cheap, for the
+     * confirm dialog on the main thread). Make iOS image's run resolves it again ([phoneProfile]).
+     */
+    fun imageChoice(): OneiosImageChoice = choice
+        ?: OneiosImageChoice.of(Profiles.resolve(android.os.Build.MODEL.orEmpty(), android.os.Build.DEVICE.orEmpty(), android.os.Build.SOC_MODEL.orEmpty()).profile)
+
     private fun offered(app: Context): Boolean =
         runCatching {
             val profile = Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile
             takeoverOffered = OneiosSystem.takeoverOfferedOn(profile)
+            tested = OneiosSystem.testedOn(profile)
+            notThisPhoneNote = profile?.let { OneiosSystem.NOT_THIS_PHONE_NOTES[it.id] }
+            val image = OneiosImageChoice.of(profile)
+            choice = image
+            untestedPhone = profile?.takeIf { OneiosSystem.offeredOn(it) && !OneiosSystem.testedOn(it) }
+                ?.let { "${it.label}, iOS ${image.version}, untested there" }
             OneiosSystem.offeredOn(profile)
         }.getOrDefault(false)
 

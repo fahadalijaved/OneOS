@@ -142,6 +142,19 @@ class OneiosFlowTest {
         assertEquals(OneiosFlow.Mark.DONE, flow(null, offered = false).mark(OneiosFlow.Step.PHONE))
     }
 
+    /** The phone row names the Galaxy A56 (offered, untested there); the S24 Ultra's row is as before. */
+    @Test
+    fun thePhoneRowNamesAnOfferedPhoneThatIsNotTheTestedOne() {
+        val st = status("stage none")
+        assertEquals("Galaxy S24 Ultra · root allowed", flow(st).row(OneiosFlow.Step.PHONE).line)
+        val a56 = OneiosFlow.of(OneiosFlow.Input(st, true, phone = "Galaxy A56, iOS 16.5, untested there"))
+        assertEquals("Galaxy A56, iOS 16.5, untested there · root allowed", a56.row(OneiosFlow.Step.PHONE).line)
+        assertEquals(OneiosFlow.Mark.DONE, a56.mark(OneiosFlow.Step.PHONE))
+        // Everything else of the flow is the S24 Ultra's.
+        assertEquals(flow(st).rows.drop(1), a56.rows.drop(1))
+        assertEquals(flow(st).next, a56.next)
+    }
+
     @Test
     fun aRuntimeAloneAsksForTheImageSet() {
         val st = status("stage present", runtime, "image none", "session none never", "outcome none",

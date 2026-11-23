@@ -78,6 +78,13 @@ OneiosTest.theMakeImageRequestIsTheToolsKeys; OneiOS's serve test
 make_image_takes_the_apps_request_with_the_released_runtimes_profiles sends this request and the earlier one to the
 real tool on v0.1.16's profiles. Not run on the phone.
 
+**The Galaxy A56 path** (2026-11-23, OneiOS issue 73; "The Galaxy A56 (iOS 16.5, untested)" below): a Galaxy A56
+(SM-A566, a56x, s5e8855) gets the iOS card, makes **iOS 16.5 (20F66)** with Make iOS image (not iOS 27) and can
+switch, after the not-this-phone tick with its own note. The Galaxy S24 Ultra's gate, requests and switch command
+line are unchanged. Host tests only (`./gradlew test` on the Linux build laptop: 726, 0 failures; core:model 379,
+core:root 341, core:safety 6; the shell tests under its `/bin/sh`, bash, as it has no dash or busybox): **nothing of
+it has run on an A56**.
+
 **The iOS screens, redesigned** (2026-11-15, on 0.5.14): the iOS flow now has the Android systems' screens and
 step order (pick, set up, the system's page, the Switch confirm with the ways back, switching, the last session),
 every step saying what to do now, what is done (versions, sizes, checks), what is next, and a refusal in plain
@@ -99,8 +106,9 @@ Both are a zstd-compressed tar with a manifest at the top: `runtime.json` or `ma
 
 ## Scope: mainly the Galaxy S24 Ultra
 
-`OneiosSystem.offeredOn` (`core/model/.../Oneios.kt`) is true for one profile, `s-ultra-8650` (SM-S928, e3q,
-SM8650), and `oneios_switch.sh` checks the same three properties itself before anything else. That is every S24
+`OneiosSystem.testedOn` (`core/model/.../Oneios.kt`, `TESTED_PROFILE_IDS`) is true for one profile, `s-ultra-8650`
+(SM-S928, e3q, SM8650), and `oneios_switch.sh` checks the same three properties itself before anything else
+(`OneiosSystem.offeredOn` is true for it and for the Galaxy A56: below). That is every S24
 Ultra model number, with the same card, gate and switch as the owner's SM-S928B: the US SM-S928U and U1, the
 Canadian SM-S928W (its stock firmware carries the US bootloader `S928USQU...` and vendor model `SM-S928U`, which the
 custom-ROM rule takes since 0.4.89), the Korean SM-S928N and the Chinese SM-S9280 (host-tested: `OneiosTest`,
@@ -123,6 +131,48 @@ it ("hardware diagnostics only", in the app and in the root script); this fork k
 (`OneiosTest.theS26UltraIsWarnedWithWhatIsKnownNotRefused`, `OneiosScriptTest.theSwitchTakesEveryS24UltraModelAsTheTestedPhone`).
 What was taken from that fork and what was not, with the reasons: OneiOS `docs/s26.md` and `docs/forks.md`. Nothing
 here was run on an S26 Ultra.
+
+### The Galaxy A56 (iOS 16.5, untested)
+
+The Galaxy A56 (SM-A566, a56x, s5e8855; profile `a56`; OneiOS issue 73) is **offered but not tested**:
+`OneiosSystem.PROFILE_IDS` has it (the card in Choose a system, the iOS page's setup steps), and
+`OneiosSystem.TESTED_PROFILE_IDS` does not (the S24 Ultra only), so `OneiosSystem.gate` warns it like every other
+phone until the not-this-phone tick. Its note (`NOT_THIS_PHONE_NOTES`, also on the Switch confirm's third box): on the
+Galaxy A56 this app makes and starts iOS 16.5 (20F66), not iOS 27; iOS 16.5 reached the lock screen there only in
+another fork (`Musicalista/OneiOS-A56`), and touch did not work there; this app's A56 path has not run on an A56 yet;
+a return that fails restarts the phone into One UI. The iOS page's phone row says "Galaxy A56, iOS 16.5, untested
+there · root allowed".
+
+What it makes (`OneiosImageChoice.of`, `core/model/.../OneiosTool.kt`): on the A56, `IOS_16_5_A56`, the runtime's
+`lib/profiles/ios-16.5-a56.toml` (iOS 16.5 20F66 from Apple's iPhone X IPSW; 11 members, 5,825,842,914 bytes to
+download; about 24 GiB free room at the peak: the profile's `need_gib` of 20 and the seed, kernel.kc and the lists).
+Every other phone, and a phone with no profile, `IOS_27`: exactly `IPSW_PROFILE`, `MAKE_IMAGE_DOWNLOAD_BYTES` and
+`MAKE_IMAGE_ROOM_BYTES`, as before. That profile has no kernelcache member: the set's kernel.kc is OneiOS's XNU
+prelinked with the iPhone18,2 24A446 kexts, so Make iOS image puts Apple's 24A446 kernelcache into `kb/` first
+(step 4b of "Make iOS image (no PC)"). Update the kernel keeps the 27.0.1 profile on every phone.
+
+The switch passes **no A56 argument to xnuhost**: OneiOS's xnuhost knows the A56 by its own host table (row
+`galaxy-a56`: `gpu=2d`, panel fallback 1080x2340@120) and reads the 16.5 session settings (boot-args with the 16.5
+shims, text fixups, scale) from the image's `overlay/userland/xnuhost.conf`, which OneiOS's root tweaks write for
+20F66. xnuhost finds `sec_touchscreen` by name; the key readers find Volume Up and Down by name (`getevent -pl`) and
+never grab. The other A56 fork's `--display shm --gpu 2d --width/--height`, `--ram 4096M`, ram sets,
+`ONEIOS_AMDGPU_RENDER_NODE`, renice, governor pinning and 1800 s return timer are not taken (OneiOS
+`docs/a56-oneos-fork.md` section 1). `oneios_switch.sh`'s device check prints the A56 path's lines instead of the
+S24-only warning ("Galaxy A56 path: this phone is SM-A566B (a56x, s5e8855): iOS 16.5 (20F66), OneiOS's galaxy-a56
+host row." and three `WARNING:` lines: untested, the other fork's lock screen without touch, the restart), and after
+the stage checks, on an A56 whose staged image is not 20F66, a warning that iOS 27 has no GPU path there. Both warn;
+neither refuses (the owner's 2026-11-16 rule). `oneios_return.sh`, `oneios_root.sh` and `oneos_root.sh` have no
+S24-only check that would stop an A56.
+
+**Tested** (host): `OneiosTest.theGalaxyS24UltraAndTheA56AreOfferedOnlyTheS24UltraIsTested`,
+`theA56IsOfferedAndWarnedWithItsNote`, `theA56MakesIos165AndEveryOtherPhoneIos27`; `OneiosPlainTest`;
+`OneiosFlowTest.thePhoneRowNamesAnOfferedPhoneThatIsNotTheTestedOne`; `OneiosMakeImageTest` (the kernelcache steps
+before `make-image` when it is not cached, none when it is, a decode that is not the pin, a lost network, root's
+`kbcache` refusal, a Stop; the S24 Ultra's choice sends today's requests); `OneiosScriptTest` (the A56's device
+lines, the 20F66 warning run as written, the S24 Ultra's lines and xnuhost's command lines unchanged).
+**Untested on hardware** (nobody here has an A56): the card and the gate on an A56, the whole Make iOS image of
+16.5 on the phone (the 24A446 kernelcache fetch, the 5.8 GB download, the build, the room), the switch, xnuhost's
+`galaxy-a56` row, the display, touch, the keys, the return in place and its failsafe restart.
 
 It is not an `ImageRef`: it has no Android SDK, no `system.raw`, no package set and no guard jars, so none of the
 Android guests' tables, pins or tests know it.
@@ -263,8 +313,10 @@ tiles, before One UI closes (OneiOS's `oneos/interface.md` section 6, "Getting b
 4. **Still stuck?** Hold Power + Volume Down for about 7 seconds: the phone restarts into One UI.
 
 Two boxes, both every time: "I have read how to get back to One UI: Volume Up + Volume Down, both for 3 seconds"
-and the experimental tick. **Switch to iOS 27** is on only with both. The experimental tick is what root's `switch`
-gets (`switch <versionCode> 1`), as before; the other box only gates the button.
+and the experimental tick. **Switch to iOS 27** is on only with both. On a phone that is not
+the Galaxy S24 Ultra (the A56 included: `OneiosJob.tested`) a third box, the not-this-phone tick, with the phone's
+note when it has one (`OneiosJob.notThisPhoneNote`: the S26 Ultra's, the A56's); **Switch** needs it too. The
+experimental tick is what root's `switch` gets (`switch <versionCode> 1`), as before; the other box only gates the button.
 
 On the Galaxy S24 Ultra and the Galaxy S26 Ultra (`OneiosSystem.TAKEOVER_PROFILE_IDS`) one more box, unticked every time and
 not needed for the button: **Android takeover (faster, experimental)**, with its warning (`OneiosSystem.TAKEOVER_WARNING`).
@@ -547,8 +599,16 @@ a release: the phone downloads Apple's IPSW members from Apple and builds the se
 4. root's `tool work`. When the tool's `hello` names no `make-image` (the v0.1.12 runtime's tool, which is older than
    `make-image`), the app closes it, stages the latest runtime once (unless that is the staged version: then it
    stops, "This runtime can't make the image yet") and opens the tool again;
+   4b. **only on the Galaxy A56** (`OneiosImageChoice.needsKernelcache`: its iOS 16.5 profile has no kernelcache
+   member): Apple's 24A446 kernelcache into `kb/`, by Update the kernel's own step 2
+   (`OneiosKernelUpdate.kernelcache`): nothing when root's `kb` line is the pin of `kb.json` already; else the tool's
+   `fetch` of the 27.0.1 profile's kernelcache member (about 23 MB), its `im4p`, the pin check and root's `kbcache`,
+   with that step's rule for what a stop leaves (`kbclean`). `make-image` with the 16.5 profile refuses `usage` ("no
+   kernelcache member to decode, and no kernelcache given") without it. The phase is "Getting Apple's 24A446
+   kernelcache for the kernel". The S24 Ultra skips it (its profile has the member): its requests are as before;
 5. the tool's **one** request:
    `{"cmd":"make-image","profile":"<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml","indir":"<stage>/make/inputs","out":"<stage>/image.new","sums_list":"<stage>/image.new.sha256","ids_list":"<stage>/image.new.ids","work":"<stage>/make","resume":true}`
+   (on the Galaxy A56 `profile` is `<stage>/runtime/lib/profiles/ios-16.5-a56.toml`, the other keys the same)
    (`OneiosTool.makeImageRequest`; every key checked against OneiOS's `crates/oneios-serve/src/cmds.rs`
    `make_image`; the runtime's `kernel/xnu.macho`, `kb/` and the root tweaks are the tool's defaults from the stage;
    the profile is named, because a released runtime packs four or more and a tool up to v0.1.16 refuses `usage`
@@ -568,8 +628,9 @@ dialog says what it downloads from Apple (`OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES`
 13 members), the room it needs at its peak (`MAKE_IMAGE_ROOM_BYTES`, 34 GiB: the profile's `need_gib` of 30 GiB for
 the members and their decrypted images side by side, and about 4 GiB for the seed's tree and tar and the kernel's
 work), that afterwards the image keeps about half of it (a guess: not run on a phone), and this phone's free room on
-`/data` (`StatFs`), with a warning when it is less. The tool's own `space` event (`need`, `free`, its 256 MiB
-reserve) is the exact check; a run that goes on from fetched members needs less, so the dialog does not refuse.
+`/data` (`StatFs`), with a warning when it is less. On the Galaxy A56 the dialog names iOS 16.5 and its own numbers
+(`OneiosJob.imageChoice`: 5,825,842,914 bytes, about 24 GiB); the string's iOS version is its third argument now.
+The tool's own `space` event (`need`, `free`, its 256 MiB reserve) is the exact check; a run that goes on from fetched members needs less, so the dialog does not refuse.
 
 **While it runs** the flow's screen shows the phase in words (`OneiosMakeImage.Phase`: Checking what is on this
 phone, Getting the newest OneiOS runtime with its file and bytes, Putting the pairing files on this phone, Making
@@ -595,7 +656,7 @@ this phone, or Use an image set I have) → iOS's own data → Last check → Sw
 iOS 27's page and the image refusals ("Make your iOS image", "Make iOS image again for this runtime") say Make iOS
 image now; the "How to build it" link to OneiOS's README is gone.
 
-**Tested on the Linux PC:** `OneiosMakeImageTest` (`core/root`, 7) against stand-ins of root, the release download
+**Tested on the Linux PC:** `OneiosMakeImageTest` (`core/root`, 11: 7, and 4 for the Galaxy A56 since 2026-11-23) against stand-ins of root, the release download
 and the tool: the exact order on a fresh phone (status, runtime, status, 12 `kbinput`, `begin image`, tool,
 `make-image`, `finish image 21 1 27.0.1 24A446`) and with a runtime that has a kernel (no download), no `fetch` and
 no `tweaks`, a runtime without a kernel replaced or refused, a tool without `make-image` getting the newest runtime
