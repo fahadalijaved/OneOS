@@ -2126,6 +2126,239 @@ if ! /system/bin/sh "$STAGE/libsec-ril-patch.sh" apply; then
     echo "!!! inbound SMS: libsec-ril.so was not patched; the guest will not receive SMS"
 fi
 
+# Proximity sensor on devices without IR hardware (Galaxy S24 FE ProToS / TSP Hover Proximity):
+# Expose /vendor/lib64/sensors.inputvirtual.so's Hover Proximity sensor (65599, SSENSOR perm)
+# as standard android.sensor.proximity (8, 0.0f NEAR for hover 1..4 / 5.0f FAR for hover 0,5..9,
+# maxRange=5.0f, perm=n/a) for the guest session, then restart vendor.sensors-hal-multihal.
+apply_hover_prox_patch() {
+    HPROX_LIB=/vendor/lib64/sensors.inputvirtual.so
+    HPROX_PATCHED="$STAGE/session/sensors.inputvirtual.session.so"
+    HPROX_MARKER="$STAGE/session/prox_patch.active"
+    [ -f "$HPROX_LIB" ] || return 0
+    [ ! -e /sys/class/sensors/proximity_sensor ] || return 0
+
+    hreadn() {
+        "$BB" dd if="$1" bs=1 skip="$2" count="$3" 2>/dev/null | "$BB" od -An -tx1 | "$BB" tr -d ' \n'
+    }
+    if "$BB" grep -Fq " $HPROX_LIB " /proc/1/mountinfo 2>/dev/null; then
+        msrc=$("$BB" awk -v mp="$HPROX_LIB" '$5 == mp { print $4; exit }' /proc/1/mountinfo 2>/dev/null)
+        case "$msrc" in
+            *sensors.inputvirtual.session.so)
+                echo "Proximity (Hover -> TYPE_PROXIMITY): already patched for this session"
+                return 0 ;;
+            *)
+                echo "Proximity (Hover -> TYPE_PROXIMITY): $HPROX_LIB mounted from $msrc; left alone"
+                return 0 ;;
+        esac
+    fi
+    rm -f "$HPROX_MARKER"
+
+    n_str=$(LC_ALL=C /system/bin/grep -aobF "com.samsung.sensor.hover_proximity" "$HPROX_LIB" 2>/dev/null | "$BB" wc -l)
+    [ "$n_str" = 1 ] || { echo "Proximity: hover_proximity string count=$n_str; left alone"; return 1; }
+    off_str=$(LC_ALL=C /system/bin/grep -aobF "com.samsung.sensor.hover_proximity" "$HPROX_LIB" 2>/dev/null | "$BB" cut -d: -f1)
+    [ "$(hreadn "$HPROX_LIB" $((off_str + 34)) 1)" = "00" ] || { echo "Proximity: hover_proximity string missing NUL; left alone"; return 1; }
+
+    n_perm=$(LC_ALL=C /system/bin/grep -aobF "com.samsung.permission.SSENSOR" "$HPROX_LIB" 2>/dev/null | "$BB" wc -l)
+    [ "$n_perm" = 1 ] || { echo "Proximity: SSENSOR perm string count=$n_perm; left alone"; return 1; }
+    off_perm=$(LC_ALL=C /system/bin/grep -aobF "com.samsung.permission.SSENSOR" "$HPROX_LIB" 2>/dev/null | "$BB" cut -d: -f1)
+    [ "$(hreadn "$HPROX_LIB" $((off_perm + 30)) 1)" = "00" ] || { echo "Proximity: SSENSOR perm missing NUL; left alone"; return 1; }
+
+    rng_pat=$("$BB" printf '\020\101')
+    off_rng=""; m_rng=0
+    for c in $(LC_ALL=C /system/bin/grep -aobF "$rng_pat" "$HPROX_LIB" 2>/dev/null | "$BB" cut -d: -f1); do
+        case "$c" in ''|*[!0-9]*) continue ;; esac
+        [ "$c" -ge 2 ] || continue
+        cand=$((c - 2))
+        if [ "$(hreadn "$HPROX_LIB" "$cand" 8)" = "000010410000803f" ]; then
+            off_rng=$cand; m_rng=$((m_rng + 1))
+        fi
+    done
+    [ "$m_rng" = 1 ] || { echo "Proximity: (9.0f,1.0f) range pair count=$m_rng; left alone"; return 1; }
+
+    ctor_pat=$("$BB" printf '\344\007\200\122\345\003')
+    off_ctor=""; m_ctor=0
+    for c in $(LC_ALL=C /system/bin/grep -aobF "$ctor_pat" "$HPROX_LIB" 2>/dev/null | "$BB" cut -d: -f1); do
+        case "$c" in ''|*[!0-9]*) continue ;; esac
+        if [ "$(hreadn "$HPROX_LIB" "$c" 52)" = "e4078052e50302aae303012a81fffff021781a9182fffff042901f912400a07226008052f4078052f30300aa3400a07298040094" ]; then
+            off_ctor=$c; m_ctor=$((m_ctor + 1))
+        fi
+    done
+    [ "$m_ctor" = 1 ] || { echo "Proximity: HoverProximitySensor ctor count=$m_ctor; left alone"; return 1; }
+
+    read_pat=$("$BB" printf '\011\045\100\171\077\371')
+    off_read=""; m_read=0
+    for c in $(LC_ALL=C /system/bin/grep -aobF "$read_pat" "$HPROX_LIB" 2>/dev/null | "$BB" cut -d: -f1); do
+        case "$c" in ''|*[!0-9]*) continue ;; esac
+        if [ "$(hreadn "$HPROX_LIB" "$c" 48)" = "092540793ff9007161feff54041540b99f240071ac0300542900805289030039001540bd00d8215e602a00bdeaffff17" ] &&
+           [ "$(hreadn "$HPROX_LIB" $((c + 136)) 24)" = "80008052e10315aae2031aaae30317aa8b030094ceffff17" ]; then
+            off_read=$c; m_read=$((m_read + 1))
+        fi
+    done
+    [ "$m_read" = 1 ] || { echo "Proximity: HoverProximitySensor readEvents count=$m_read; left alone"; return 1; }
+
+    "$BB" mkdir -p "$STAGE/session" || return 1
+    rm -f "$HPROX_PATCHED"
+    "$BB" cp -f "$HPROX_LIB" "$HPROX_PATCHED" || return 1
+
+    "$BB" printf 'android.sensor.proximity\000\000\000\000\000\000\000\000\000\000\000' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek="$off_str" conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+    "$BB" printf '\000' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek="$off_perm" conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+    "$BB" printf '\000\000\240\100\000\000\240\100' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek="$off_rng" conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+    "$BB" printf '\004\001\200\122' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek="$off_ctor" conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+    "$BB" printf '\037\040\003\325' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek=$((off_ctor + 28)) conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+    "$BB" printf '\024\001\200\122' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek=$((off_ctor + 36)) conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+    "$BB" printf '\037\040\003\325' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek=$((off_ctor + 44)) conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+    "$BB" printf '\010\376\377\124\034\000\000\024\051\000\200\122\211\003\000\071\354\377\377\027\037\040\003\325' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek=$((off_read + 20)) conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+    "$BB" printf '\211\004\000\121\077\015\000\161\011\024\250\122\351\223\211\032\151\052\000\271\340\377\377\027' | "$BB" dd of="$HPROX_PATCHED" bs=1 seek=$((off_read + 136)) conv=notrunc 2>/dev/null || { rm -f "$HPROX_PATCHED"; return 1; }
+
+    if [ "$(hreadn "$HPROX_PATCHED" "$off_str" 25)" != "616e64726f69642e73656e736f722e70726f78696d69747900" ] ||
+       [ "$(hreadn "$HPROX_PATCHED" "$off_ctor" 4)" != "04018052" ] ||
+       [ "$(hreadn "$HPROX_PATCHED" $((off_read + 20)) 24)" != "08feff541c0000142900805289030039ecffff171f2003d5" ] ||
+       [ "$(hreadn "$HPROX_PATCHED" $((off_read + 136)) 24)" != "890400513f0d00710914a852e993891a692a00b9e0ffff17" ]; then
+        echo "Proximity: patched verification mismatch; left alone"
+        rm -f "$HPROX_PATCHED"
+        return 1
+    fi
+
+    chmod 644 "$HPROX_PATCHED"
+    "$BB" chcon u:object_r:vendor_file:s0 "$HPROX_PATCHED" 2>/dev/null || true
+    "$BB" mount --bind "$HPROX_PATCHED" "$HPROX_LIB" || { rm -f "$HPROX_PATCHED"; return 1; }
+    if ! "$BB" grep -Fq " $HPROX_LIB " /proc/1/mountinfo 2>/dev/null; then
+        "$BB" umount "$HPROX_LIB" 2>/dev/null
+        rm -f "$HPROX_PATCHED"
+        return 1
+    fi
+    printf 'session %s %s\n' "$off_ctor" "$off_read" > "$HPROX_MARKER"
+    chmod 600 "$HPROX_MARKER"
+    SENSORS_HAL_RESTART=1
+    echo "Proximity (Hover -> TYPE_PROXIMITY): patched $HPROX_LIB for this session"
+}
+
+# Unblock Samsung Camera HAL (UID 1047) access to vendor VDIS Gyroscope, SuperSteady Gyroscope
+# (com.samsung.permission.SSENSOR), and Rear ALS (com.samsung.permission.HRM_EXT) in non-OneUI guests
+# by zeroing byte 0 of those NUL-terminated permission strings in vendor sensor subHALs for the session.
+apply_cam_sensors_patch() {
+    [ "${ONEOS_GUEST_CAM_SENSORS:-1}" = 1 ] || return 0
+    ! grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null || return 0
+
+    CS_LIST="$STAGE/session/cam_sensors_patch.list"
+    "$BB" awk '$5 ~ /^\/vendor\/lib64\// && $5 != "/vendor/lib64/sensors.inputvirtual.so" && $4 ~ /\.session\.so$/ { f = 1 } END { exit !f }' /proc/1/mountinfo 2>/dev/null || rm -f "$CS_LIST"
+
+    CS_CANDS=""
+    cs_add_cand() {
+        case " $CS_CANDS " in *" $1 "*) ;; *) CS_CANDS="${CS_CANDS:+$CS_CANDS }$1" ;; esac
+    }
+    if [ -f /vendor/etc/sensors/hals.conf ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            line=$(printf '%s' "$line" | "$BB" tr -d '\r')
+            line=${line%%#*}
+            line=$(printf '%s' "$line" | "$BB" awk '{$1=$1;print}')
+            [ -n "$line" ] || continue
+            case "$line" in
+                */*) cs_add_cand "$line" ;;
+                *)   cs_add_cand "/vendor/lib64/$line" ;;
+            esac
+        done < /vendor/etc/sensors/hals.conf
+    fi
+    for lib in /vendor/lib64/sensors.*.so; do
+        cs_add_cand "$lib"
+    done
+
+    cs_readn() {
+        "$BB" dd if="$1" bs=1 skip="$2" count="$3" 2>/dev/null | "$BB" od -An -tx1 | "$BB" tr -d ' \n'
+    }
+
+    for LIB in $CS_CANDS; do
+        [ -L "$LIB" ] && continue
+        [ -f "$LIB" ] || continue
+        [ "$LIB" = "/vendor/lib64/sensors.inputvirtual.so" ] && continue
+
+        offs=""
+        for perm in "com.samsung.permission.SSENSOR" "com.samsung.permission.HRM_EXT"; do
+            for off in $(LC_ALL=C /system/bin/grep -aobF "$perm" "$LIB" 2>/dev/null | "$BB" cut -d: -f1); do
+                case "$off" in ''|*[!0-9]*) continue ;; esac
+                if [ "$(cs_readn "$LIB" "$off" 2)" = "636f" ] && [ "$(cs_readn "$LIB" $((off + 30)) 1)" = "00" ]; then
+                    case " $offs " in *" $off "*) ;; *) offs="${offs:+$offs }$off" ;; esac
+                fi
+            done
+        done
+        [ -n "$offs" ] || continue
+
+        if "$BB" grep -Fq " $LIB " /proc/1/mountinfo 2>/dev/null; then
+            msrc=$("$BB" awk -v mp="$LIB" '$5 == mp { print $4; exit }' /proc/1/mountinfo 2>/dev/null)
+            case "$msrc" in
+                *.session.so)
+                    echo "Camera sensors (VDIS/ALS): $LIB already patched for this session"
+                    continue ;;
+                *)
+                    echo "Camera sensors (VDIS/ALS): $LIB mounted from $msrc; left alone"
+                    continue ;;
+            esac
+        fi
+
+        PATCHED="$STAGE/session/${LIB##*/}.session.so"
+        "$BB" mkdir -p "$STAGE/session" || return 0
+        rm -f "$PATCHED"
+        "$BB" cp -f "$LIB" "$PATCHED" || continue
+
+        w_ok=1
+        for off in $offs; do
+            if ! "$BB" printf '\000' | "$BB" dd of="$PATCHED" bs=1 seek="$off" conv=notrunc 2>/dev/null; then
+                w_ok=0
+                break
+            fi
+        done
+        if [ "$w_ok" != 1 ]; then
+            rm -f "$PATCHED"
+            continue
+        fi
+
+        v_ok=1
+        n_patched=0
+        for off in $offs; do
+            if [ "$(cs_readn "$PATCHED" "$off" 2)" != "006f" ] || [ "$(cs_readn "$PATCHED" $((off + 30)) 1)" != "00" ]; then
+                v_ok=0
+                break
+            fi
+            n_patched=$((n_patched + 1))
+        done
+        if [ "$v_ok" != 1 ] || [ "$n_patched" -eq 0 ]; then
+            echo "Camera sensors (VDIS/ALS): patched verification mismatch for $LIB; left alone"
+            rm -f "$PATCHED"
+            continue
+        fi
+
+        chmod 644 "$PATCHED"
+        "$BB" chcon u:object_r:vendor_file:s0 "$PATCHED" 2>/dev/null || true
+        if ! "$BB" mount --bind "$PATCHED" "$LIB"; then
+            rm -f "$PATCHED"
+            continue
+        fi
+        if ! "$BB" grep -Fq " $LIB " /proc/1/mountinfo 2>/dev/null; then
+            "$BB" umount "$LIB" 2>/dev/null
+            rm -f "$PATCHED"
+            continue
+        fi
+
+        printf '%s %s\n' "$LIB" "$PATCHED" >> "$CS_LIST"
+        chmod 600 "$CS_LIST"
+        SENSORS_HAL_RESTART=1
+        echo "Camera sensors (VDIS/ALS): patched $LIB ($n_patched permission string(s) cleared for this session)"
+    done
+    return 0
+}
+
+SENSORS_HAL_RESTART=0
+if [ "${ONEOS_GUEST_HOVER_PROX:-1}" = 1 ] && [ ! -e /sys/class/sensors/proximity_sensor ] && [ -f /vendor/lib64/sensors.inputvirtual.so ]; then
+    apply_hover_prox_patch || echo "!!! Proximity: Hover Proximity patch was not applied; calls may keep screen on"
+fi
+if [ "${ONEOS_GUEST_CAM_SENSORS:-1}" = 1 ] && ! grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null; then
+    apply_cam_sensors_patch || true
+fi
+if [ "$SENSORS_HAL_RESTART" = 1 ]; then
+    /system/bin/setprop ctl.restart vendor.sensors-hal-multihal 2>/dev/null || true
+    echo "Sensors HAL: vendor.sensors-hal-multihal restarted for session sensor patches"
+fi
+
 # Launch takeover inside isolated mount namespace
 $BB unshare -m $BB sh "$STAGE/data/guest_start.sh" </dev/null >"$STAGE/data/takeover.log" 2>&1 &
 TAKEOVER_PID=$!
@@ -2273,6 +2506,8 @@ case "$R" in
     30.0|[3-9][0-9].0|1[01][0-9].0|120.0) GUEST_REFRESH=$R ;;
 esac
 echo "Guest refresh-rate policy: ${GUEST_REFRESH} Hz (One UI physical modes)"
+GUEST_HIGH_ORR=3
+[ "$GUEST_REFRESH" = "90.0" ] && GUEST_HIGH_ORR=1
 # ONEOS_GUEST_POSTURE=live: the fold line's posture follows the guest's hinge
 # state instead of always flat.
 # Live by default with the hinge sets of pull request #1 (Fold8) and the Fold8 Ultra's.
@@ -2371,6 +2606,16 @@ while true; do
                 [ -z \"\$GSZ\" ] || /system/bin/sh $STAGE/guest_panel_fit.sh \$GSZ late 2>&1 | head -n 3 | sed 's/^/[UI Activator] /'
                 echo \"[UI Activator] guest display 0: \$(echo \"\${GSZ:-size not read}\" | tr ' ' 'x') (the whole panel: \$(cat $STAGE/host_panel_size 2>/dev/null | tr ' ' 'x')); camera hole property: '\$(getprop ro.oplus.display.screenhole.positon)'\"
             fi
+            # ColorOS wallpaper AOD (0.4.97 + S24 FE FP-icon & no-post-unlock-restart fix):
+            # AppFeatureProvider's boot init wipes custom rows before SystemUI starts, so wake
+            # the panel and run oneos_panoramic_aod.sh BEFORE dismissing bootanim; SystemUI then
+            # restarts behind the boot animation while the screen is awake (preserving FP icon)
+            # instead of restarting ~20 s after unlock and throwing the user back to lockscreen.
+            if [ -f \"$STAGE/data/oneos_panoramic_aod.sh\" ]; then
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/input keyevent 224 >/dev/null 2>&1 || true
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_panoramic_aod.sh >\"$STAGE/panoramic_aod.log\" 2>&1 || echo '[UI Activator] Wallpaper AOD setup failed; see panoramic_aod.log'
+                echo \"[UI Activator] wallpaper AOD: \$(tr '\\n' ' ' < \"$STAGE/panoramic_aod.log\" 2>/dev/null | cut -c1-200)\"
+            fi
             setprop service.bootanim.exit 1
             kill -9 \$(pidof bootanimation) 2>/dev/null
             sleep 1
@@ -2392,8 +2637,26 @@ while true; do
                 echo \"[UI Activator] screen timeout: was stay_on_while_plugged_in=\${SOP:-?} screen_off_timeout=\${SOT:-?}; the forced values reset once (0, 60000)\"
             fi
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system haptic_feedback_enabled 1
-            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate $GUEST_REFRESH
-            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate $GUEST_REFRESH
+            if [ $GUEST_OPLUS = 1 ] && grep -qF 'name=\"oplus.software.display.dynamic_fps_switch\"' $STAGE/oplus_features_config.xml 2>/dev/null; then
+                ORR=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure oplus_customize_screen_refresh_rate 2>/dev/null)
+                case \"\$ORR\" in
+                    2)
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate 60.0
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 0
+                        echo '[UI Activator] refresh rate: keeping user Standard 60 Hz (oplus_customize_screen_refresh_rate=2)' ;;
+                    1|3)
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate $GUEST_REFRESH
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 0 ;;
+                    *)
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put secure oplus_customize_screen_refresh_rate $GUEST_HIGH_ORR
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate $GUEST_REFRESH
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 0
+                        echo \"[UI Activator] refresh rate: default High set (oplus_customize_screen_refresh_rate=\${ORR:-unset} -> $GUEST_HIGH_ORR, peak $GUEST_REFRESH)\" ;;
+                esac
+            else
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate $GUEST_REFRESH
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate $GUEST_REFRESH
+            fi
             # ColorOS's touch idle (OTI) pushes SurfaceFlinger to 240/60 Hz over the
             # 120 Hz policy on this panel (run 29); also staged off by guest_prepare.sh.
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys oplus_vrr_service oti false >/dev/null 2>&1 && echo '[UI Activator] refresh rate: ColorOS touch idle off'
@@ -2736,6 +2999,12 @@ while true; do
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
                 echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"
+                if [ \"${ONEOS_GUEST_DISABLE_MUSICFX:-1}\" = 1 ] &&
+                   $BB timeout 15 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys package com.fahadali.oneos.guest 2>/dev/null | grep -q SoundEffectsActivity &&
+                   $BB timeout 15 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm list packages 2>/dev/null | grep -q '^package:com\\.android\\.musicfx\$'; then
+                    $BB timeout 15 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 com.android.musicfx >/dev/null 2>&1 &&
+                        echo \"[UI Activator] sound fx: disabled com.android.musicfx (OneOS SoundEffectsActivity handles equalizer)\"
+                fi
             fi
             # Screen watch (0.5.15), Nothing OS only: it writes no power_screen_state events after boot, so the
             # double-tap keeper never knew its AOD from awake (a double tap on the AOD did nothing, A36). This
@@ -3084,6 +3353,22 @@ while true; do
             fi
             echo \"[UI Activator] refresh: min \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system min_refresh_rate) peak \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system peak_refresh_rate); brightness \$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get system screen_brightness)\"
             echo '[UI Activator] Home activated!'
+            # Exynos native libraries (Samsung Camera MFP30IF/MFP20/SNAP, MediaCodec):
+            # guest_props.sh set ro.boot.hardware=qcom solely so ColorOS's zygote64
+            # evaluated Build.IS_QCOM_PLATFORM=true and preloaded libqti_performance.so.
+            # Now that zygote64, system_server, SystemUI and Home are up (inheriting the
+            # preloaded library and cached Java constant), restore the host's real
+            # ro.boot.hardware so Samsung Camera uses Exynos ENN NPU instead of Qualcomm
+            # SNPE (libsnpe_wrapper.so not found -> 68 s Night Mode timeout).
+            if [ \"${ONEOS_GUEST_RESTORE_BOOT_HW:-1}\" = 1 ] && [ -s $STAGE/host_boot_hardware ] && [ ! -L $STAGE/host_boot_hardware ]; then
+                HBHW=\$(head -n 1 $STAGE/host_boot_hardware 2>/dev/null)
+                case \"\$HBHW\" in
+                    ''|*[!A-Za-z0-9._-]*) echo '[UI Activator] Native hardware prop: invalid saved value, left alone' ;;
+                    *)
+                        \"$RP\" -n ro.boot.hardware \"\$HBHW\" 2>/dev/null
+                        echo \"[UI Activator] Native hardware prop restored: ro.boot.hardware=\$HBHW (now \$(getprop ro.boot.hardware); zygote64 already preloaded libqti_performance.so)\" ;;
+                esac
+            fi
             # ColorOS lock screen depth effect (0.4.60, owner; 0.4.59 A36 768c5a1d, S23
             # 77b9dfc0): SystemUI saves the cut-out subject as /data/oplus/os/deep_scenery_image*,
             # but that folder is system's and SystemUI runs as an app uid here (EACCES, \"can
@@ -3962,11 +4247,7 @@ while true; do
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_fold8/runtime.sh runtime >\"$STAGE/fold8_runtime.log\" 2>&1 || echo '[UI Activator] Fold8 runtime setup failed; see fold8_runtime.log'
             fi
 
-            # ColorOS wallpaper AOD on the bar phones (0.4.97): guest_prepare.sh wrote this script only where
-            # the set's ColorPanoramicSystemUI.apk is bound; it adds the app feature and restarts SystemUI once.
-            if [ -f \"$STAGE/data/oneos_panoramic_aod.sh\" ]; then
-                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_panoramic_aod.sh >\"$STAGE/panoramic_aod.log\" 2>&1 || echo '[UI Activator] Wallpaper AOD setup failed; see panoramic_aod.log'
-            fi
+            # ColorOS wallpaper AOD (0.4.97): now runs earlier right after wm dismiss-keyguard while awake.
 
             # Pixel Fold8 / Fold8 Ultra: start the system-UID sensor reader in the guest namespace
             # (fold8_pixel.sh prepare made runtime.sh only for those two sets).

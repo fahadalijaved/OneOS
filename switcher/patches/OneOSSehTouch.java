@@ -4,8 +4,10 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.util.Log;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.lang.reflect.Method;
 
 /**
@@ -35,17 +37,24 @@ public final class OneOSSehTouch {
 
     private static int sOn = -1;
     private static IBinder sExt;
+    private static boolean sBoosted;
 
     private OneOSSehTouch() {}
 
     public static void down() {
         if (!on()) return;
-        brightness(1f);
-        write(LHBM, "2");
-        try {
-            Thread.sleep(40);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (propTrue("persist.oneos.fp_fullscreen_boost")) {
+            brightness(1f);
+            sBoosted = true;
+        }
+        String cur = readFirst(LHBM);
+        if (!"2".equals(cur)) {
+            if (!"1".equals(cur)) {
+                write(LHBM, "1");
+                sleepQuiet(16);
+            }
+            write(LHBM, "2");
+            sleepQuiet(16);
         }
         seh(2);
     }
@@ -53,8 +62,43 @@ public final class OneOSSehTouch {
     public static void up() {
         if (!on()) return;
         seh(1);
-        write(LHBM, "0");
-        brightness(Float.NaN);
+        String cur = readFirst(LHBM);
+        if ("2".equals(cur)) write(LHBM, "1");
+        if (!"0".equals(cur)) write(LHBM, "0");
+        if (sBoosted) {
+            sBoosted = false;
+            brightness(Float.NaN);
+        }
+    }
+
+    private static boolean propTrue(String key) {
+        try {
+            String v = (String) Class.forName("android.os.SystemProperties")
+                    .getMethod("get", String.class, String.class)
+                    .invoke(null, key, "false");
+            return "1".equals(v) || "true".equalsIgnoreCase(v);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static String readFirst(String path) {
+        try (BufferedReader r = new BufferedReader(new FileReader(path))) {
+            String s = r.readLine();
+            if (s == null) return null;
+            String[] parts = s.trim().split("\\s+");
+            return parts.length > 0 && !parts[0].isEmpty() ? parts[0] : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static void sleepQuiet(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /** The default display at [value] (0..1), or back to its own brightness for NaN. */

@@ -286,12 +286,11 @@ public final class OneOSFpTouch implements Runnable {
 
     private void keep() {
         File lhbm = new File("/sys/class/lcd/panel/local_hbm");
-        int n = 0;
         while (mHold) {
             try {
                 // A match ends the scan while the finger is still down: the spot goes off then, as on One UI, not at
-                // the lift (it stayed lit on the unlocked screen while the finger rested). Checked every ~80 ms.
-                if (++n % 5 == 0 && !scanning()) {
+                // the lift (it stayed lit on the unlocked screen while the finger rested). Checked every ~16 ms.
+                if (!scanning()) {
                     mHold = false;
                     off();
                     return;
@@ -319,16 +318,17 @@ public final class OneOSFpTouch implements Runnable {
             if (cur != null && v.equals(cur[0])) return;
             if (!"1".equals(v) && (cur == null || !"1".equals(cur[0]))) {
                 write(f, "1");
-                // Into the lit state the panel needs a few frames at 1 first (it takes the change with the frames it
-                // is sent): stepped straight on, the spot still came late; with ~40 ms of frames between, at once.
+                // Into the lit state the panel needs a couple of frames at 1 first (it takes the change with the frames it
+                // is sent): stepped straight on, the spot still came late; with ~16 ms (2 frames at 120 Hz) between, fast.
                 if ("2".equals(v)) {
-                    for (int i = 0; i < 4; i++) {
+                    for (int i = 0; i < 2; i++) {
                         repaint();
-                        Thread.sleep(10);
+                        Thread.sleep(8);
                     }
                 }
             }
             write(f, v);
+            if ("2".equals(v)) repaint();
         } catch (Throwable e) {
             // No local HBM on this panel.
         }
@@ -374,12 +374,24 @@ public final class OneOSFpTouch implements Runnable {
 
     private String mSavedBacklight;
 
+    private static boolean propTrue(String key) {
+        try {
+            String v = (String) Class.forName("android.os.SystemProperties")
+                    .getMethod("get", String.class, String.class)
+                    .invoke(null, key, "false");
+            return "1".equals(v) || "true".equalsIgnoreCase(v);
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
     /**
-     * The backlight raised for the touch, as One UI freezes the panel at about 500 nits while the spot is lit
-     * (SemFpLocalHbmOpticalController.freezingBrightness): 60% of the panel's range, never lowered, and given back after.
-     * The panel's top (its outdoor level) lit the whole screen and is not used.
+     * The backlight raised for the touch, only when persist.oneos.fp_backlight_boost is enabled.
+     * On Galaxy S24 FE, One UI uses pure hardware Local HBM without slamming global panel backlight,
+     * which caused full-screen flashing/flicker when fighting HWC. Still restores saved backlight on lift.
      */
     private void backlight(boolean high) {
+        if (high && !propTrue("persist.oneos.fp_backlight_boost")) return;
         try {
             File node = null;
             int max = 0;

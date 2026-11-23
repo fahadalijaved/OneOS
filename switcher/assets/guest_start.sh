@@ -2016,6 +2016,20 @@ if [ -f /data/oneos_samcam ] && [ ! -L /data/sec ]; then
         echo "$(date +%T) no Samsung Camera data folder after 300 s: /data/sec/camera not made"
     ' </dev/null >> /data/sec_camera.log 2>&1 &
 fi
+# Grant Gallery Bridge (OneOSGalleryStub, com.sec.android.gallery3d) READ_MEDIA_* permissions
+# after boot completes so existing /data partitions receive them even without fresh XML setup.
+if [ -f /data/oneos_samcam ]; then
+    $BB sh -c '
+        i=0
+        while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
+        sleep 2
+        if timeout 10 pm path com.sec.android.gallery3d 2>/dev/null | grep -q OneOSGalleryStub; then
+            timeout 10 pm grant com.sec.android.gallery3d android.permission.READ_MEDIA_IMAGES 2>/dev/null || true
+            timeout 10 pm grant com.sec.android.gallery3d android.permission.READ_MEDIA_VIDEO 2>/dev/null || true
+            echo "$(date +%T) granted READ_MEDIA_IMAGES/VIDEO to OneOSGalleryStub (com.sec.android.gallery3d)" >> /data/sec_camera.log
+        fi
+    ' </dev/null >/dev/null 2>&1 &
+fi
 # The guest's settings provider can appear before the UI Activator. Read and
 # write these settings only after confirming the provider is in this namespace.
 FOLD_CONTINUE=0
@@ -2241,7 +2255,7 @@ if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/
         i=0
         while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
         sleep 10
-        for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=7; do log "$(param $kv)"; done
+        for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=-1; do log "$(param $kv)"; done
         last=""
         while :; do
             t=$(cat /sys/class/power_supply/battery/temp 2>/dev/null)
@@ -2311,6 +2325,428 @@ if [ "${ONEOS_GUEST_DUAL_SPK:-1}" = 1 ] && [ -f /data/oneos_edm_stub.dex ]; then
             if [ "$why" = "playback on the speaker" ]; then send "$why" >/dev/null; n=$((n + 1)); [ $((n % 50)) = 1 ] && log "playback on the speaker: sent $n times so far"; else send "$why"; fi
         done
     ' </dev/null >/dev/null 2>&1 &
+fi
+# ColorOS Charging Settings bridge (Reverse Wireless PowerShare + Bypass Charging + Wireless Quiet Charging):
+# - guest_prepare.sh declares oplus.power.onwirelesscharger.support and oplus.power.wirelesschgwhenwired.support;
+# - this daemon registers AppFeatureProvider flags on boot (com.oplus.fullscene_plc_charge.support,
+#   os.charge.settings.wirelesscharge.support, os.charge.settings.wirelesschargingcoil.position,
+#   oplus.power.onwirelesscharger.support, oplus.power.wirelesschgwhenwired.support) ONLY for nodes present on
+#   this Galaxy, and mirrors ColorOS UI switches -> Samsung sec_battery sysfs nodes via SettingsProvider logcat:
+#   * wireless_reverse_charging_state + wireless_reverse_battery_level_threshold -> wc_tx_en + wc_tx_stop_capacity
+#   * bypass_charge_state + bypass_charge_value -> pass_through (when wired & capacity >= threshold)
+#   * low_power_charging_state + slient_mode_type_state (0=Bedtime,1=Always,2=Custom) + Setting_SetTime* -> batt_hv_wireless_pad_ctrl (1=quiet,2=fast)
+# ONEOS_GUEST_REVERSE_WIRELESS=0 disables reverse wireless; ONEOS_GUEST_CHARGING_BRIDGE=0 disables bypass/quiet.
+# Log: /data/oneos_reverse_wireless.log.
+if { [ "${ONEOS_GUEST_REVERSE_WIRELESS:-1}" = 1 ] || [ "${ONEOS_GUEST_CHARGING_BRIDGE:-1}" = 1 ]; } &&
+   { [ -w /sys/class/power_supply/battery/wc_tx_en ] || [ -w /sys/class/power_supply/battery/pass_through ] || [ -w /sys/class/power_supply/battery/batt_hv_wireless_pad_ctrl ]; } &&
+   { [ -e /system/framework/oplus-services.jar ] || [ -L /system/framework/oplus-services.jar ]; }; then
+    cat > /data/oneos_charging_bridge.sh <<'CHGBR'
+#!/system/bin/sh
+BB=$ONEOS_BB
+[ -n "$BB" ] || BB=$(which busybox 2>/dev/null)
+RW_EN=${ONEOS_RW_EN:-1}
+CB_EN=${ONEOS_CB_EN:-1}
+
+TX=/sys/class/power_supply/battery/wc_tx_en
+STOP=/sys/class/power_supply/battery/wc_tx_stop_capacity
+TXID=/sys/class/power_supply/battery/wc_tx_id
+TXEV=/sys/class/power_supply/battery/batt_tx_event
+IOUT=/sys/class/power_supply/battery/wc_tx_mfc_iout
+PT=/sys/class/power_supply/battery/pass_through
+WCTRL=/sys/class/power_supply/battery/batt_hv_wireless_pad_ctrl
+WC_EN=/sys/class/power_supply/battery/wc_enable
+CAP=/sys/class/power_supply/battery/capacity
+TEMP=/sys/class/power_supply/battery/temp
+STAT=/sys/class/power_supply/battery/status
+ONL=/sys/class/power_supply/battery/online
+
+MON_PID=/data/oneos_rtx_mon.pid
+MON_BP_PID=/data/oneos_bp_mon.pid
+MON_QC_PID=/data/oneos_qc_mon.pid
+QC_LAST=/data/oneos_qc_last
+AF_URI=content://com.oplus.customize.coreapp.configmanager.configprovider.AppFeatureProvider/app_feature
+
+log() { echo "$(date +%T) $*" >> /data/oneos_reverse_wireless.log; }
+
+kill_pidfile() {
+    pf=$1
+    if [ -f "$pf" ]; then
+        mp=$(cat "$pf" 2>/dev/null)
+        case "$mp" in ""|*[!0-9]*) ;; *) kill "$mp" 2>/dev/null ;; esac
+        rm -f "$pf"
+    fi
+}
+
+apply_thresh() {
+    [ "$RW_EN" = 1 ] && [ -w "$STOP" ] || return 0
+    th=$(timeout 5 settings get system wireless_reverse_battery_level_threshold 2>/dev/null)
+    case "$th" in ""|*[!0-9]*) return 0 ;; esac
+    [ "$th" -lt 30 ] && th=30
+    [ "$th" -gt 90 ] && th=90
+    cur_th=$(cat "$STOP" 2>/dev/null)
+    [ "$cur_th" = "$th" ] || { echo "$th" > "$STOP" 2>/dev/null && log "stop_capacity -> $th"; }
+}
+
+stop_mon() { kill_pidfile "$MON_PID"; }
+
+start_mon() {
+    stop_mon
+    (
+        sec=0
+        active_sent=0
+        first=1
+        while :; do
+            if [ "$first" = 1 ]; then
+                sleep 3
+                sec=$((sec + 3))
+                first=0
+            else
+                sleep 2
+                sec=$((sec + 2))
+            fi
+            cur=$(cat "$TX" 2>/dev/null)
+            if [ "$cur" != 1 ]; then
+                txev=$(cat "$TXEV" 2>/dev/null); bs=$(cat "$STAT" 2>/dev/null)
+                on=$(cat "$ONL" 2>/dev/null); tmp=$(cat "$TEMP" 2>/dev/null)
+                cap=$(cat "$CAP" 2>/dev/null); sc=$(cat "$STOP" 2>/dev/null)
+                log "hw wc_tx_en=${cur:-?} after ${sec}s (tx_event=${txev:-?} status=${bs:-?} online=${on:-?} temp=${tmp:-?} cap=${cap:-?} stop=${sc:-?}) -> syncing UI off"
+                st=$(timeout 5 settings get system wireless_reverse_charging_state 2>/dev/null)
+                [ "$st" = 1 ] && timeout 5 settings put system wireless_reverse_charging_state 0 2>/dev/null
+                rm -f "$MON_PID"
+                exit 0
+            fi
+            if [ "$active_sent" = 0 ]; then
+                txid=$(cat "$TXID" 2>/dev/null); case "$txid" in ""|*[!0-9]*) txid=0 ;; esac
+                iout=$(cat "$IOUT" 2>/dev/null); case "$iout" in ""|*[!0-9]*) iout=0 ;; esac
+                if [ "$txid" -gt 0 ] || [ "$iout" -gt 0 ] || [ "$sec" -ge 80 ]; then
+                    cap=$(cat "$CAP" 2>/dev/null); case "$cap" in ""|*[!0-9]*) cap=50 ;; esac
+                    tmp=$(cat "$TEMP" 2>/dev/null); case "$tmp" in ""|*[!0-9-]*) tmp=300 ;; esac
+                    timeout 5 am broadcast -p com.oplus.battery -a android.intent.action.ADDITIONAL_BATTERY_CHANGED \
+                        --ei level "$cap" --ei temperature "$tmp" --ei status 3 --ei plugged 0 \
+                        --ei chargeplugged 0 --ei chargertechnology 0 --ei wireless_reverse_chg_type 1 >/dev/null 2>&1
+                    active_sent=1
+                    log "peer active (tx_id=$txid iout=$iout sec=$sec) -> notified com.oplus.battery (cap=$cap temp=$tmp)"
+                fi
+            fi
+        done
+    ) </dev/null >/dev/null 2>&1 &
+    echo $! > "$MON_PID"
+}
+
+is_wired_plugged() {
+    [ "$(cat /sys/class/power_supply/usb/online 2>/dev/null)" = 1 ] && return 0
+    [ "$(cat /sys/class/power_supply/ac/online 2>/dev/null)" = 1 ] && return 0
+    wc=$(cat /sys/class/power_supply/battery/wc_status 2>/dev/null)
+    src=$(cat /sys/class/power_supply/battery/batt_charging_source 2>/dev/null)
+    case "$src" in ""|0|1|*[!0-9]*) return 1 ;; esac
+    [ "${wc:-0}" = 0 ] && return 0
+    return 1
+}
+
+apply_bypass_once() {
+    [ "$CB_EN" = 1 ] && [ -w "$PT" ] || return 0
+    bs=$(timeout 5 settings get system bypass_charge_state 2>/dev/null)
+    bv=$(timeout 5 settings get system bypass_charge_value 2>/dev/null)
+    case "$bv" in ""|*[!0-9]*) bv=20 ;; esac
+    cap=$(cat "$CAP" 2>/dev/null)
+    case "$cap" in ""|*[!0-9]*) cap=0 ;; esac
+    want=0
+    if [ "$bs" = 1 ] && is_wired_plugged && [ "$cap" -ge "$bv" ]; then
+        want=1
+    fi
+    cur=$(cat "$PT" 2>/dev/null)
+    if [ "$cur" != "$want" ]; then
+        echo "$want" > "$PT" 2>/dev/null && log "bypass pass_through -> $want (state=${bs:-0} thresh=$bv cap=$cap)"
+    fi
+}
+
+sync_bypass() {
+    [ "$CB_EN" = 1 ] && [ -w "$PT" ] || return 0
+    apply_bypass_once
+    bs=$(timeout 5 settings get system bypass_charge_state 2>/dev/null)
+    if [ "$bs" = 1 ]; then
+        if [ ! -f "$MON_BP_PID" ]; then
+            (
+                while :; do
+                    sleep 5
+                    bs2=$(timeout 5 settings get system bypass_charge_state 2>/dev/null)
+                    if [ "$bs2" != 1 ]; then
+                        cur=$(cat "$PT" 2>/dev/null)
+                        [ "$cur" != 0 ] && echo 0 > "$PT" 2>/dev/null && log "bypass pass_through -> 0 (state off)"
+                        rm -f "$MON_BP_PID"
+                        exit 0
+                    fi
+                    apply_bypass_once
+                done
+            ) </dev/null >/dev/null 2>&1 &
+            echo $! > "$MON_BP_PID"
+        fi
+    else
+        kill_pidfile "$MON_BP_PID"
+    fi
+}
+
+apply_quiet_once() {
+    [ "$CB_EN" = 1 ] && [ -w "$WCTRL" ] || return 0
+    qs=$(timeout 5 settings get system low_power_charging_state 2>/dev/null)
+    qm=0
+    want=2
+    need_sched=0
+    if [ "$qs" = 1 ]; then
+        qm=$(timeout 5 settings get system slient_mode_type_state 2>/dev/null)
+        case "$qm" in ""|*[!0-9]*) qm=0 ;; esac
+        if [ "$qm" = 1 ]; then
+            want=1
+        elif [ "$qm" = 0 ]; then
+            need_sched=1
+            now_m=$(date +%H:%M | awk -F: '{ print ($1 + 0) * 60 + ($2 + 0) }')
+            [ "$now_m" -ge 1320 ] || [ "$now_m" -lt 420 ] && want=1
+        else
+            need_sched=1
+            now_m=$(date +%H:%M | awk -F: '{ print ($1 + 0) * 60 + ($2 + 0) }')
+            bh=$(timeout 5 settings get system Setting_SetTimeBeginHour 2>/dev/null); case "$bh" in ""|*[!0-9]*) bh=23 ;; esac
+            bm=$(timeout 5 settings get system Setting_SetTimeBeginMin 2>/dev/null); case "$bm" in ""|*[!0-9]*) bm=0 ;; esac
+            eh=$(timeout 5 settings get system Setting_SetTimeEndHour 2>/dev/null); case "$eh" in ""|*[!0-9]*) eh=7 ;; esac
+            em=$(timeout 5 settings get system Setting_SetTimeEndMin 2>/dev/null); case "$em" in ""|*[!0-9]*) em=0 ;; esac
+            in_win=$(awk -v n="$now_m" -v bh="$bh" -v bm="$bm" -v eh="$eh" -v em="$em" 'BEGIN {
+                b = (bh + 0) * 60 + (bm + 0); e = (eh + 0) * 60 + (em + 0);
+                if (b == e) print 1;
+                else if (b < e) print (n >= b && n < e) ? 1 : 0;
+                else print (n >= b || n < e) ? 1 : 0;
+            }')
+            [ "$in_win" = 1 ] && want=1
+        fi
+    fi
+    last=$(cat "$QC_LAST" 2>/dev/null)
+    if [ "$want" = 1 ] || [ "$last" = 1 ] || { [ -n "$last" ] && [ "$last" != "$want" ]; }; then
+        if [ "$last" != "$want" ]; then
+            echo "$want" > "$WCTRL" 2>/dev/null && { echo "$want" > "$QC_LAST"; log "quiet batt_hv_wireless_pad_ctrl -> $want (state=${qs:-0} mode=$qm)"; }
+        fi
+    fi
+    return "$need_sched"
+}
+
+sync_quiet() {
+    [ "$CB_EN" = 1 ] && [ -w "$WCTRL" ] || return 0
+    apply_quiet_once
+    need_sched=$?
+    if [ "$need_sched" = 1 ]; then
+        if [ ! -f "$MON_QC_PID" ]; then
+            (
+                while :; do
+                    sleep 60
+                    apply_quiet_once
+                    if [ $? != 1 ]; then
+                        rm -f "$MON_QC_PID"
+                        exit 0
+                    fi
+                done
+            ) </dev/null >/dev/null 2>&1 &
+            echo $! > "$MON_QC_PID"
+        fi
+    else
+        kill_pidfile "$MON_QC_PID"
+    fi
+}
+
+ensure_af() {
+    fname=$1; fparam=$2
+    esc=$(printf '%s' "$fparam" | sed 's/:/\\:/g')
+    k=0
+    while [ $k -lt 5 ]; do
+        q=$(timeout 5 content query --uri "$AF_URI" --where "featurename=\"$fname\"" 2>/dev/null)
+        if printf '%s\n' "$q" | grep -q "parameters=$fparam"; then
+            return 0
+        fi
+        timeout 5 content delete --uri "$AF_URI" --where "featurename=\"$fname\"" >/dev/null 2>&1 || true
+        if timeout 5 content insert --uri "$AF_URI" --bind "featurename:s:$fname" --bind "parameters:s:$esc" >/dev/null 2>&1; then
+            q=$(timeout 5 content query --uri "$AF_URI" --where "featurename=\"$fname\"" 2>/dev/null)
+            if printf '%s\n' "$q" | grep -q "parameters=$fparam"; then
+                af_changed=1
+                log "app_feature set $fname=$fparam"
+                return 0
+            fi
+        fi
+        k=$((k + 1))
+        sleep 2
+    done
+    log "app_feature failed $fname=$fparam"
+}
+
+i=0
+while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
+sleep 5
+rm -f "$MON_PID" "$MON_BP_PID" "$MON_QC_PID"
+
+# Register AppFeatureProvider features needed by com.oplus.battery Charging settings.
+j=0
+while [ $j -lt 30 ]; do
+    if timeout 5 content query --uri "$AF_URI" --where "featurename=\"com.oplus.fullscene_plc_charge.support\"" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+    j=$((j + 1))
+done
+af_changed=0
+if [ "$CB_EN" = 1 ] && [ -w "$PT" ]; then
+    ensure_af "com.oplus.fullscene_plc_charge.support" "boolean:true"
+fi
+if [ "$RW_EN" = 1 ] || [ "$CB_EN" = 1 ]; then
+    if [ -w "$TX" ] || [ -w "$WCTRL" ] || [ -e "$WC_EN" ]; then
+        ensure_af "oplus.power.onwirelesscharger.support" "boolean:true"
+        ensure_af "oplus.power.wirelesschgwhenwired.support" "boolean:true"
+        ensure_af "os.charge.settings.wirelesscharge.support" "boolean:true"
+        ensure_af "os.charge.settings.wirelesschargingcoil.position" "float:0.5"
+    fi
+fi
+if [ "$af_changed" = 1 ]; then
+    timeout 5 am force-stop com.oplus.battery >/dev/null 2>&1 || true
+    log "restarted com.oplus.battery to load charging AppFeatures"
+fi
+
+if [ "$RW_EN" = 1 ] && [ -w "$TX" ]; then
+    cur=$(cat "$TX" 2>/dev/null)
+    if [ "$cur" != 1 ]; then
+        st=$(timeout 5 settings get system wireless_reverse_charging_state 2>/dev/null)
+        [ "$st" = 1 ] && timeout 5 settings put system wireless_reverse_charging_state 0 2>/dev/null
+    fi
+    apply_thresh
+fi
+sync_bypass
+sync_quiet
+log "bridge ready (wc_tx_en=$(cat "$TX" 2>/dev/null || echo ?), pass_through=$(cat "$PT" 2>/dev/null || echo ?), wctrl=$([ -w "$WCTRL" ] && echo rw || echo no))"
+
+while :; do
+    last_on_ts=0
+    logcat -v brief -T 1 -s SettingsProvider:D WirelessChargingController:D BypassChargeController:D BatteryChargePresenter:D Battery:D 2>/dev/null | while IFS= read -r l; do
+        case "$l" in
+            *wireless_reverse_battery_level_threshold*)
+                apply_thresh ;;
+            *wireless_reverse_charging_state*|*mReverseStateObserver*)
+                [ "$RW_EN" = 1 ] && [ -w "$TX" ] || continue
+                st=$(timeout 5 settings get system wireless_reverse_charging_state 2>/dev/null)
+                if [ "$st" = 1 ]; then
+                    now=$(date +%s 2>/dev/null); case "$now" in ""|*[!0-9]*) now=0 ;; esac
+                    if [ "$now" -gt 0 ] && [ "$((now - last_on_ts))" -lt 3 ]; then
+                        [ -f "$MON_PID" ] || start_mon
+                        continue
+                    fi
+                    if [ "$(cat "$TX" 2>/dev/null)" != 1 ]; then
+                        apply_thresh
+                        cap=$(cat "$CAP" 2>/dev/null); tmp=$(cat "$TEMP" 2>/dev/null)
+                        bs=$(cat "$STAT" 2>/dev/null); on=$(cat "$ONL" 2>/dev/null)
+                        sc=$(cat "$STOP" 2>/dev/null)
+                        if echo 1 > "$TX" 2>/dev/null; then
+                            last_on_ts=$now
+                            log "UI ON -> wc_tx_en=1 (cap=${cap:-?} temp=${tmp:-?} status=${bs:-?} online=${on:-?} stop=${sc:-?})"
+                        else
+                            log "UI ON -> wc_tx_en write failed (cap=${cap:-?} temp=${tmp:-?} status=${bs:-?} online=${on:-?}); reverting UI"
+                            timeout 5 settings put system wireless_reverse_charging_state 0 2>/dev/null
+                            continue
+                        fi
+                    else
+                        last_on_ts=$now
+                    fi
+                    [ -f "$MON_PID" ] || start_mon
+                elif [ "$st" = 0 ]; then
+                    last_on_ts=0
+                    stop_mon
+                    if [ "$(cat "$TX" 2>/dev/null)" != 0 ]; then
+                        echo 0 > "$TX" 2>/dev/null && log "UI OFF -> wc_tx_en=0"
+                    fi
+                fi ;;
+            *bypass_charge_state*|*bypass_charge_value*|*BypassChargeController*)
+                sync_bypass ;;
+            *low_power_charging_state*|*slient_mode_type_state*|*Setting_SetTime*)
+                sync_quiet ;;
+        esac
+    done
+    sleep 2
+done
+CHGBR
+    chmod 755 /data/oneos_charging_bridge.sh
+    ONEOS_BB="$BB" ONEOS_RW_EN="${ONEOS_GUEST_REVERSE_WIRELESS:-1}" ONEOS_CB_EN="${ONEOS_GUEST_CHARGING_BRIDGE:-1}" \
+        $BB sh /data/oneos_charging_bridge.sh </dev/null >/dev/null 2>&1 &
+fi
+# Guest-namespace TCP adbd on port 5555 for scrcpy / app_process tools:
+# Host adbd runs in init's mount namespace so its app_process loads Samsung One UI's framework.jar
+# and hits Binder AIDL mismatches ("IDisplayManagerCallback", "TABLET_MODE") against ColorOS system_server.
+# Launching a second adbd in guest's namespace (with guest BOOTCLASSPATH and an isolated tmpfs over
+# /dev/usb-ffs/adb so host USB FFS is untouched) lets users run scrcpy over adb forward/Wi-Fi.
+# ONEOS_GUEST_ADBD=0 leaves it out. Log: /data/oneos_guest_adbd.log.
+if [ "${ONEOS_GUEST_ADBD:-1}" = 1 ] && [ -f /data/oneos_host_adb ] && [ -x /apex/com.android.adbd/bin/adbd ]; then
+    cat > /data/oneos_guest_adbd.sh <<'GADBD'
+#!/system/bin/sh
+export PATH=/system/bin:/system/xbin:/vendor/bin:/apex/com.android.adbd/bin:$PATH
+BB=$ONEOS_BB
+[ -n "$BB" ] || BB=$(which busybox 2>/dev/null)
+LOG=/data/oneos_guest_adbd.log
+PIDFILE=/data/oneos_guest_adbd.pid
+
+i=0
+while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
+sleep 2
+
+fix_adb_perms() {
+    if [ -d /data/misc/adb ]; then
+        "$BB" chown 1000:2000 /data/misc/adb 2>/dev/null || true
+        "$BB" chmod 02755 /data/misc/adb 2>/dev/null || true
+        "$BB" chcon u:object_r:adb_keys_file:s0 /data/misc/adb 2>/dev/null || true
+    fi
+    if [ -f /data/misc/adb/adb_keys ]; then
+        "$BB" chown 1000:2000 /data/misc/adb/adb_keys 2>/dev/null || true
+        "$BB" chmod 0644 /data/misc/adb/adb_keys 2>/dev/null || true
+        "$BB" chcon u:object_r:adb_keys_file:s0 /data/misc/adb/adb_keys 2>/dev/null || true
+    fi
+    mkdir -p /data/local/tmp 2>/dev/null || true
+    "$BB" chown 2000:2000 /data/local/tmp 2>/dev/null || true
+    "$BB" chmod 771 /data/local/tmp 2>/dev/null || true
+}
+fix_adb_perms
+echo "$(date +%T) adb_keys: $(ls -laZ /data/misc/adb/adb_keys 2>&1) lines=$(wc -l < /data/misc/adb/adb_keys 2>/dev/null || echo 0)" >> "$LOG"
+
+if [ -f /data/system/environ/classpath ]; then
+    while read -r kw name value; do
+        [ "$kw" = "export" ] && [ -n "$name" ] && export "$name=$value"
+    done < /data/system/environ/classpath
+fi
+
+start_adbd() {
+    # Do NOT set service.adb.tcp.port here: host init listens on that property and restarts One UI's
+    # adbd onto TCP 5555, hijacking 127.0.0.1:5555 from guest adbd. Mounting an empty tmpfs over
+    # /dev/usb-ffs/adb hides ep0 so guest adbd's !is_usb path binds tcp:5555 automatically.
+    ONEOS_BB="$BB" "$BB" unshare -m /system/bin/sh -c '
+        [ -d /dev/usb-ffs/adb ] && "$ONEOS_BB" mount -t tmpfs -o size=64k,ro tmpfs /dev/usb-ffs/adb 2>/dev/null || true
+        unset ANDROID_SOCKET_adbd
+        export PATH=/system/bin:/system/xbin:/vendor/bin:/apex/com.android.adbd/bin
+        export ANDROID_ROOT=/system ANDROID_DATA=/data TMPDIR=/data/local/tmp
+        exec /apex/com.android.adbd/bin/adbd --root_seclabel=u:r:su:s0
+    ' </dev/null >> "$LOG" 2>&1 &
+    APID=$!
+    echo "$APID" > "$PIDFILE"
+    sleep 2
+
+    alive=$(kill -0 "$APID" 2>/dev/null && echo yes || echo no)
+    prop=$(getprop service.adb.tcp.port 2>/dev/null)
+    if grep -qi ':15B3 ' /proc/net/tcp6 /proc/net/tcp 2>/dev/null; then
+        echo "$(date +%T) guest adbd listening on tcp:5555 (pid=$APID, alive=$alive, tcp.port=${prop:-empty}, BOOTCLASSPATH=${BOOTCLASSPATH:+set})" >> "$LOG"
+    else
+        echo "$(date +%T) guest adbd started (pid=$APID, alive=$alive, tcp.port=${prop:-empty}) but tcp:5555 not yet seen in /proc/net/tcp*" >> "$LOG"
+    fi
+}
+
+start_adbd
+while sleep 5; do
+    [ -f "$PIDFILE" ] || exit 0
+    if ! kill -0 "$APID" 2>/dev/null; then
+        echo "$(date +%T) guest adbd pid=$APID exited; restarting" >> "$LOG"
+        fix_adb_perms
+        start_adbd
+    fi
+done
+GADBD
+    chmod 755 /data/oneos_guest_adbd.sh
+    ONEOS_BB="$BB" $BB sh /data/oneos_guest_adbd.sh </dev/null >/dev/null 2>&1 &
 fi
 DT2W=${ONEOS_GUEST_DT2W:-1}
 # 0.5.32: not in a One UI image. Its own input service (SemInputDeviceManagerService) already writes the panel's

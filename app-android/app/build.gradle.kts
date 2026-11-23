@@ -171,6 +171,8 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     // 0.5.36: PixelOS's screen corners at the phone's radius (switcher/overlays/pixel_corners,
     // scripts/build-pixel-corners-rro.sh); guest_prepare.sh installs it only on the framework it was linked against.
     "OneOSPixelCorners.apk" to File(repoRoot, "switcher/assets/OneOSPixelCorners.apk"),
+    "OneOSGalleryStub.apk" to File(repoRoot, "switcher/assets/OneOSGalleryStub.apk"),
+    "OneOSRcdCorners.apk" to File(repoRoot, "switcher/assets/OneOSRcdCorners.apk"),
     "host_installd.txt" to File(repoRoot, "switcher/patches/host_installd.txt"),
     // 0.4.66: One UI 8.5's table, staged as host_installd.txt for SDK 36 (Android 16) images.
     "host_installd_a16.txt" to File(repoRoot, "switcher/patches/host_installd_a16.txt"),
