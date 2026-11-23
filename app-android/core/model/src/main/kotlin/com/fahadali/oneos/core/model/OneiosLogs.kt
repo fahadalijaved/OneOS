@@ -216,6 +216,10 @@ object OneiosLogs {
     private val STOPPING = Regex("""^stopping: (.*) \(reason (\d+), code (\d+)\)$""")
     private val EXIT = Regex("""^exit (\d+)$""")
     private val FAULT = Regex("""^(fault inside a host call|fault on a host thread): signal, address 0x([0-9a-f]{16})""")
+    /** xnuhost's last words (OneiOS after v0.1.19): a signal it took nowhere else, the line before it dies of it. */
+    private val FATAL = Regex("""^fatal signal (\d+) \(\w+\) on thread '([^']*)'""")
+    /** The switch's inner shell's record of how xnuhost ended (the app after 0.5.80; OneiOS oneos/interface.md 4). */
+    private val INNER_END = Regex("""^oneios inner: \S+ \S+ xnuhost \S+ ended: (?:exit (\d+)|killed by signal (\d+) \(\w+\))$""")
 
     private val SIGNALS = mapOf(
         1 to "SIGHUP", 2 to "SIGINT", 3 to "SIGQUIT", 4 to "SIGILL", 5 to "SIGTRAP", 6 to "SIGABRT", 7 to "SIGEMT", 8 to "SIGFPE",
@@ -230,6 +234,11 @@ object OneiosLogs {
         7 -> "SIGBUS"
         10 -> "SIGUSR1"
         12 -> "SIGUSR2"
+        16 -> "SIGSTKFLT"
+        23 -> "SIGURG"
+        29 -> "SIGIO"
+        30 -> "SIGPWR"
+        31 -> "SIGSYS"
         else -> signalName(signal)
     }
 
@@ -240,6 +249,12 @@ object OneiosLogs {
         var exit: Int? = null
         var fault: String? = null
         var faultSignal: Int? = null
+        /** xnuhost's `fatal signal N` line: N and the thread. */
+        var lastWords: Int? = null
+        var lastWordsThread: String? = null
+        /** The inner shell's record: the exit code, or the signal that killed xnuhost. */
+        var innerExit: Int? = null
+        var innerSignal: Int? = null
         var kernelFault = false
         var lastError: String? = null
         var gaveUp = false
@@ -331,6 +346,14 @@ object OneiosLogs {
                         boot.faultSignal = m.groupValues[2].toLongOrNull(16)?.toInt()
                     }
                     if (t.startsWith("kernel fault with no exception upcall")) boot.kernelFault = true
+                    FATAL.find(t)?.let { m ->
+                        boot.lastWords = m.groupValues[1].toIntOrNull()
+                        boot.lastWordsThread = m.groupValues[2]
+                    }
+                }
+                b.startsWith("oneios inner: ") -> INNER_END.find(b)?.let { m ->
+                    boot.innerExit = m.groupValues[1].toIntOrNull()
+                    boot.innerSignal = m.groupValues[2].toIntOrNull()
                 }
             }
         }
@@ -381,6 +404,12 @@ object OneiosLogs {
                 text = "xnuhost crashed: $name, a ${b.fault} (its own code, not the guest's)"
                 short = "xnuhost crashed ($name)"
             }
+            b.lastWords != null -> {
+                kind = OneiosEndKind.HOST_FAULT
+                val name = hostSignalName(b.lastWords!!)
+                text = "xnuhost died of $name on its thread '${b.lastWordsThread}' (its last line: fatal signal)"
+                short = "xnuhost died ($name)"
+            }
             signal != null -> {
                 kind = OneiosEndKind.STOP_SIGNAL
                 val name = hostSignalName(signal)
@@ -429,11 +458,19 @@ object OneiosLogs {
             }
             else -> {
                 kind = OneiosEndKind.UNKNOWN
-                text = "The log has no stopping or exit line: xnuhost was killed, the phone restarted, or the session still runs"
-                short = "no end line"
+                val inner = b.innerSignal
+                if (inner != null) {
+                    // The switch's inner shell saw the signal (a SIGKILL leaves no line of xnuhost's own).
+                    text = "xnuhost was killed by ${hostSignalName(inner)} and wrote nothing itself (the switch's inner shell saw it)"
+                    short = "killed by ${hostSignalName(inner)}"
+                } else {
+                    text = "The log has no stopping or exit line: xnuhost was killed, the phone restarted, or the session still runs"
+                    short = "no end line"
+                }
             }
         }
-        val exit = b.exit
+        // xnuhost's own exit line, else the inner shell's record of its exit code.
+        val exit = b.exit ?: b.innerExit
         if (exit != null) {
             text += "; xnuhost exit $exit (${exitMeaning(exit)})"
             short = "exit $exit · $short"
@@ -441,7 +478,7 @@ object OneiosLogs {
             text += "; no exit line after it (ended before it finished stopping)"
         }
         returned?.let { text += ". Return: ${it.text}" }
-        return End(kind, text, short, exit, signal ?: b.faultSignal)
+        return End(kind, text, short, exit, signal ?: b.faultSignal ?: b.lastWords ?: b.innerSignal)
     }
 
     /** OneiOS docs/booter.md, the exit code table. */
@@ -457,7 +494,7 @@ object OneiosLogs {
     /** The words of a list row for a session log: how it ended, from its last lines. */
     fun endLine(tail: List<String>): String {
         val s = summarize(tail, complete = false)
-        return if (s.end.kind == OneiosEndKind.UNKNOWN && s.end.exitCode == null) {
+        return if (s.end.kind == OneiosEndKind.UNKNOWN && s.end.exitCode == null && s.end.signal == null) {
             tail.lastOrNull { it.isNotBlank() }?.let { body(it).take(120) } ?: "empty"
         } else s.end.short
     }

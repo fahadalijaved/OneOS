@@ -204,6 +204,30 @@ class OneiosLogsTest {
         end("[1.000] guest     tx_flush:1185: disk6 tx xid 74 took 2257291 us to flush").let {
             assertEquals(OneiosEndKind.UNKNOWN, it.kind); assertEquals("no end line", it.short)
         }
+        // The same with the switch's inner shell's record (the app after 0.5.80): the phone, 2026-11-23 19:06.
+        val killed = "[1.000] guest     ONEIOS CODEC: counters: service opened 5 closed 3\n" +
+            "oneios inner: 2026-11-23 19:06:31 xnuhost 1043 ended: killed by signal 9 (SIGKILL)"
+        end(killed).let {
+            assertEquals(OneiosEndKind.UNKNOWN, it.kind); assertEquals("killed by SIGKILL", it.short); assertEquals(9, it.signal)
+            assertNull(it.exitCode)
+            assertTrue(it.text, it.text.contains("xnuhost was killed by SIGKILL and wrote nothing itself"))
+        }
+        assertEquals("killed by SIGKILL", OneiosLogs.endLine(log(killed)))
+        // xnuhost's last words (OneiOS after v0.1.19), then the inner shell's record of the same signal.
+        end(
+            """
+            xnuhost !! fatal signal 6 (SIGABRT) on thread 'gpu-3d' (tid 1050): code -6, sent by pid 1043 uid 0
+            xnuhost !!   pc, sp 0x00000055aa001234 0x0000007fff000000
+            oneios inner: 2026-11-23 19:06:31 xnuhost 1043 ended: killed by signal 6 (SIGABRT)
+            """,
+        ).let {
+            assertEquals(OneiosEndKind.HOST_FAULT, it.kind); assertEquals("xnuhost died (SIGABRT)", it.short); assertEquals(6, it.signal)
+            assertTrue(it.text, it.text.contains("xnuhost died of SIGABRT on its thread 'gpu-3d'"))
+        }
+        // Linux's numbers where Darwin's differ: SIGSYS is 31.
+        end("xnuhost !! fatal signal 31 (SIGSYS) on thread 'xnuhost' (tid 7): code 1, address 0x0").let { assertEquals("xnuhost died (SIGSYS)", it.short) }
+        // An exit the inner shell saw, where xnuhost wrote no exit line of its own.
+        end("oneios inner: 2026-11-23 19:06:31 xnuhost 1043 ended: exit 5").let { assertEquals(5, it.exitCode); assertEquals("exit 5 · no end line", it.short) }
         // Setup: xnuhost never entered the kernel (exit 2 has no line of its own).
         OneiosLogs.summarize(
             log(

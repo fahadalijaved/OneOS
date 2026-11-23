@@ -365,6 +365,63 @@ hard_reboot() { # <reason word> <why>
     echo b > "$P/sysrq-trigger" 2>/dev/null
     exit 1
 }
+# How xnuhost ended, from the status the inner shell's wait gave: "exit N", or "signal S" for a status of 128 + S
+# (xnuhost's own exit codes are below 128: docs/booter.md). how_of says a record in words.
+end_record() { # <status>
+    if [ "$1" -gt 128 ] 2>/dev/null && [ "$1" -le 192 ]; then echo "signal $(($1 - 128))"; else echo "exit $1"; fi
+}
+signame() {
+    case "$1" in
+        1) echo SIGHUP ;; 2) echo SIGINT ;; 3) echo SIGQUIT ;; 4) echo SIGILL ;; 5) echo SIGTRAP ;; 6) echo SIGABRT ;;
+        7) echo SIGBUS ;; 8) echo SIGFPE ;; 9) echo SIGKILL ;; 10) echo SIGUSR1 ;; 11) echo SIGSEGV ;; 12) echo SIGUSR2 ;;
+        13) echo SIGPIPE ;; 14) echo SIGALRM ;; 15) echo SIGTERM ;; 16) echo SIGSTKFLT ;; 24) echo SIGXCPU ;;
+        25) echo SIGXFSZ ;; 26) echo SIGVTALRM ;; 27) echo SIGPROF ;; 29) echo SIGIO ;; 30) echo SIGPWR ;; 31) echo SIGSYS ;;
+        *) echo "signal $1" ;;
+    esac
+}
+how_of() { # <exit N | signal S>
+    case "$1" in
+        "signal "*) echo "killed by signal ${1#signal } ($(signame "${1#signal }"))" ;;
+        *) echo "$1" ;;
+    esac
+}
+end_how() { how_of "$(end_record "$1")"; }
+# The watcher's view of the record: how xnuhost <pid> ended, from session/xnuhost.exit ("pid P exit N" or "pid P
+# signal S"). The inner shell writes it at once when its wait returns; while that shell still runs it is given 2 s.
+end_of() { # <xnuhost pid>
+    _ip=$(cat "$CTL/inner.pid" 2>/dev/null); _n=0
+    while [ ! -s "$SESSION/xnuhost.exit" ] && [ $_n -lt 20 ] && [ -n "$_ip" ] && [ -d "$P/$_ip" ]; do sleep 0.1; _n=$((_n + 1)); done
+    _r=$(head -n 1 "$SESSION/xnuhost.exit" 2>/dev/null)
+    _w=${_r#"pid $1 "}
+    case "$_w" in
+        "$_r") echo "how is not recorded" ;;
+        "exit "[0-9]*|"signal "[0-9]*) case "${_w#* }" in *[!0-9]*) echo "how is not recorded" ;; *) how_of "$_w" ;; esac ;;
+        *) echo "how is not recorded" ;;
+    esac
+}
+# What the host saw of xnuhost's end, read at once by the watcher (the kernel's ring and logcat's are overwritten
+# within minutes; on 2026-11-23 neither reached back to the end by the time they were read): the kernel OOM killer's
+# and lmkd's lines that name xnuhost or its pid, xnuhost's own lines in logcat (bionic's and the allocator's fatal
+# messages go there, not to its log), the host's memory pressure and memory, and the session cgroup's memory events
+# where the cgroup has the memory controller. One line each, into return.log.
+death_notes() { # <xnuhost pid>
+    _say() { echo "$(date '+%F %T') watcher: after xnuhost's end: $*"; }
+    _k=$($TMO dmesg 2>/dev/null | grep -i -E "out of memory|oom-kill|oom_reaper|killed process|lowmemorykiller|xnuhost|[^0-9]$1[^0-9]" | tail -n 6 | cut -c1-300)
+    if [ -n "$_k" ]; then echo "$_k" | while IFS= read -r _l; do _say "kernel: $_l"; done; else _say "kernel: no OOM kill and no line of xnuhost or pid $1 in dmesg"; fi
+    _l=$($TMO logcat -d -b main,system,events -s lowmemorykiller killinfo 2>/dev/null | grep -E "xnuhost|[^0-9]$1[^0-9]" | tail -n 3 | cut -c1-300)
+    if [ -n "$_l" ]; then echo "$_l" | while IFS= read -r _x; do _say "lmkd: $_x"; done; else _say "lmkd: no kill of xnuhost or pid $1 in logcat"; fi
+    _l=$($TMO logcat -d -b main,system,crash --pid="$1" 2>/dev/null | tail -n 4 | cut -c1-300)
+    [ -z "$_l" ] || echo "$_l" | while IFS= read -r _x; do _say "logcat of pid $1: $_x"; done
+    _m=$(awk '/^(MemAvailable|SwapTotal|SwapFree):/ { printf "%s%s %d MiB", s, $1, $2 / 1024; s = ", " }' "$P/meminfo" 2>/dev/null)
+    _p=$(awk '{ printf "%s%s", s, $0; s = " | " }' "$P/pressure/memory" 2>/dev/null)
+    _say "host memory now: ${_m:-meminfo not readable}; pressure: ${_p:-none (no PSI)}"
+    _c="$T/sys/fs/cgroup/oneios_session"
+    if [ -f "$_c/memory.events" ]; then
+        _say "the session cgroup's memory.events: $(awk '{ printf "%s%s %s", s, $1, $2; s = ", " }' "$_c/memory.events" 2>/dev/null)"
+    else
+        _say "the session cgroup has no memory.events (no memory controller there)"
+    fi
+}
 
 # --- THE STAGE (no root tools needed; also what the tests run) -------------
 # The runtime package and the image set as oneios_root.sh staged them. A
@@ -885,9 +942,9 @@ case "$MODE" in
         [ ! -e /data/system ] && [ ! -e /data/misc ] && [ ! -e /data/user ] && [ -f /data/runtime.conf ] ||
             die_inner "One UI's /data is still visible in the session's namespace"
         cd /data || die_inner "cd /data"
-        at "session folders and the pid"
+        at "session folders"
         mkdir -p /data/data /data/session/tmp && chmod 0700 /data/data /data/session/tmp || die_inner "could not make /data/data"
-        echo $$ > /data/session/xnuhost.pid || die_inner "could not write the pid"
+        # (xnuhost's pid file is written by the shell that becomes xnuhost, at the end: the switch waits for it.)
         # A cgroup of its own for xnuhost and everything it starts (cgroup v2,
         # no controller needed): the watcher, the key readers and the return
         # are in the root group, never in the guest's, and the return ends the
@@ -925,25 +982,35 @@ case "$MODE" in
         unset BB ONEIOS_APP ONEIOS_TEST_ROOT
         # A switch that gave up on this shell meanwhile is returning to One
         # UI: nothing starts under it. "running" is not giving up: the outer
-        # switch writes it as soon as it reads the pid this shell wrote above,
-        # which can be before this line (a race the phone hit on 2026-11-11).
+        # switch writes it as soon as it reads xnuhost's pid (up to the app 0.5.80 this
+        # shell wrote it earlier, and the phone hit that race on 2026-11-11).
         ST=$(cat /data/control/state 2>/dev/null)
         case "$ST" in
             starting|running) ;;
             *) die_inner "the switch is no longer starting (state '$ST'): xnuhost is not started" ;;
         esac
-        AT="exec of /data/runtime/$R_XNUHOST"
-        echo "oneios inner: $(date '+%F %T') starting /data/runtime/$R_XNUHOST (pid $$)"
+        set -- "/data/runtime/$R_XNUHOST" --session-abi $ABI --mode takeover \
+            --runtime /data/runtime --image /data/image --data /data/data --session /data/session
         # The Android takeover (session-mode=takeover, recorded by the switch in control/base/mode): the same command
         # line and one setting more. The default session's command line is unchanged.
-        if [ "$(cat /data/control/base/mode 2>/dev/null)" = takeover ]; then
-            exec "/data/runtime/$R_XNUHOST" --session-abi $ABI --mode takeover \
-                --runtime /data/runtime --image /data/image --data /data/data --session /data/session --set session-mode=takeover
-        fi
-        exec "/data/runtime/$R_XNUHOST" --session-abi $ABI --mode takeover \
-            --runtime /data/runtime --image /data/image --data /data/data --session /data/session
-        echo "oneios inner: could not exec xnuhost"
-        exit 71
+        [ "$(cat /data/control/base/mode 2>/dev/null)" = takeover ] && set -- "$@" --set session-mode=takeover
+        # xnuhost runs as this shell's child, and this shell waits for it: however xnuhost ends, its exit code or
+        # the signal that killed it goes to its log and to session/xnuhost.exit, which the watcher copies into
+        # return.log. (Up to the app 0.5.80 this shell exec'd xnuhost and nothing waited for it: on the phone, 2026-11-23
+        # 19:06, xnuhost ended without a line and nothing said how.) The shell that writes the pid file execs
+        # xnuhost, so the file holds xnuhost's own pid, as the switch, the watcher and the return expect. It runs in
+        # the foreground: a shell without job control starts a background (&) command with SIGINT and SIGQUIT
+        # ignored, and xnuhost takes SIGINT as a return and SIGQUIT as its dump.
+        AT="running /data/runtime/$R_XNUHOST"
+        echo "oneios inner: $(date '+%F %T') starting /data/runtime/$R_XNUHOST"
+        /system/bin/sh -c 'echo $$ > /data/session/xnuhost.pid || exit 70; exec "$@"' xnuhost "$@"
+        rc=$?
+        XP=$(cat /data/session/xnuhost.pid 2>/dev/null)
+        how=$(end_how "$rc")
+        echo "oneios inner: $(date '+%F %T') xnuhost ${XP:-?} ended: $how"
+        echo "pid ${XP:-?} $(end_record "$rc")" 2>/dev/null > /data/session/xnuhost.exit
+        AT="xnuhost ended"
+        exit "$rc"
         ;;
     --stop-loop)
         # One UI's zygote must stay stopped: other services restart it
@@ -1219,8 +1286,12 @@ case "$MODE" in
             esac
             [ -e "$SESSION/return.request" ] && SCREEN="A return to One UI was asked for" && go "return asked ($(head -c 200 "$SESSION/return.request" 2>/dev/null))"
             if ! { [ -n "$pid" ] && [ "$(readlink "$P/$pid/ns/mnt" 2>/dev/null)" = "$ns" ]; }; then
+                # How it ended (the inner shell's record) and what the host saw of it, before anything else.
+                how=$(end_of "$pid")
+                death_notes "$pid"
                 SCREEN=$(why_ended)
-                go "xnuhost $pid ended (last log lines: $(tail -n 3 "$SESSION/xnuhost.log" 2>/dev/null | tr '\n' '|' | cut -c1-300))"
+                [ "$SCREEN" != "xnuhost ended" ] || [ "$how" = "how is not recorded" ] || SCREEN="xnuhost ended: $how"
+                go "xnuhost $pid ended: $how (last log lines: $(tail -n 3 "$SESSION/xnuhost.log" 2>/dev/null | tr '\n' '|' | cut -c1-300))"
             fi
             if [ "$MAX" -gt 0 ] && [ ! -e "$SESSION/ready" ] && [ $t -ge "$MAX" ]; then
                 SCREEN="iOS did not come up within ${MAX} s"

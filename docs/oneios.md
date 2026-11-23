@@ -716,7 +716,7 @@ sessions left in the stage, read as root after the return. **Not run on the phon
 | Boot got to | the furthest of nine stages seen, in this order: `xnuhost I xnuhost: session ABI` (xnuhost started); `xnuhost I cpu0: entering the kernel at`; the console's `Darwin Kernel Version` (kernel start); `BSD root: ` (root mount); `load_init_program: attempting to load` (launchd loading); the first `com.apple.xpc.launchd\|` line (launchd running); the first console line with `backboardd[`; the first with `SpringBoard[` or `crashed: SpringBoard.`; `xnuhost I guest ready: first frame` (xnuhost writes `session/ready` with it). A stage before the furthest that was never seen is named |
 | Kernel panic | the text after `panic(cpu N caller 0x...): ` of the console, the first of the last boot that panicked |
 | Processes that died | the console's `sheng-exit: NAME[PID] status 0x.. reason ns .. code 0x..` (the signal is the status's low 7 bits), `Process[PID] crashed: NAME.` and `[NAME: killed] exiting with signal N`, counted once per process: by name, with the count and the signals |
-| Ended | xnuhost's `stopping: WHY (reason R, code C)` (`signal 15` is the return's SIGTERM; `the guest halted on cpuN` with reason 2 a panic, 0 a shutdown, 3 a return asked by the guest; `PSCI SYSTEM_OFF`; `kernel fault`), its `exit N` with the meaning of OneiOS's exit code table, `xnuhost !! fault inside a host call` or `fault on a host thread` (a crash of xnuhost itself, with the signal), a log that ends before the kernel was entered (setup; the last error line), or no end line at all (killed, a restart of the phone, or still running). Then, from `return.log`, the return that started within two minutes of the log's last line: who started it (the watcher with its reason such as `return asked (keys: Volume Up + Volume Down down for 3 s ...)`, `xnuhost N ended`, `the guest did not report ready within 600s`; the app; the key readers; by hand) and how it came out (`One UI restored in place`, `FAILSAFE: ...`) |
+| Ended | xnuhost's `stopping: WHY (reason R, code C)` (`signal 15` is the return's SIGTERM; `the guest halted on cpuN` with reason 2 a panic, 0 a shutdown, 3 a return asked by the guest; `PSCI SYSTEM_OFF`; `kernel fault`), its `exit N` with the meaning of OneiOS's exit code table, `xnuhost !! fault inside a host call` or `fault on a host thread` (a crash of xnuhost itself, with the signal), `xnuhost !! fatal signal N (NAME) on thread 'T' ...` (OneiOS after v0.1.19: an abort or another signal xnuhost took nowhere else; shown as `xnuhost died (SIGABRT)`), a log that ends before the kernel was entered (setup; the last error line), or no end line at all (killed, a restart of the phone, or still running). Where the switch's inner shell recorded the end (after 0.5.80: `oneios inner: ... xnuhost PID ended: killed by signal 9 (SIGKILL)` or `exit N`), a log with no end line of its own shows `killed by SIGKILL`, and its exit code stands in for a missing `exit N`. Then, from `return.log`, the return that started within two minutes of the log's last line: who started it (the watcher with its reason such as `return asked (keys: Volume Up + Volume Down down for 3 s ...)`, `xnuhost N ended`, `the guest did not report ready within 600s`; the app; the key readers; by hand) and how it came out (`One UI restored in place`, `FAILSAFE: ...`) |
 | Counts | lines, xnuhost error lines, lines from signal context, in-place restarts of the guest; and a note while only the end of the log has been read |
 
 The markers are the lines xnuhost's sources print (`runtime/xnuhost/src/main.c`, `log.c`, `cpu.c` in OneiOS, its
@@ -833,9 +833,27 @@ runtime with xnuhost is staged, this is where every switch ends.**
    it wrote xnuhost's pid, for as long as that shell runs (`control/inner.pid`), 30 s at most; a shell that ended
    is not waited for. A shell still setting up when a return begins is ended by its pid, and it starts nothing if
    the switch's state is no longer `starting`.
+   **How xnuhost ended, always written down (after 0.5.80, 2026-11-23).** The inner shell no longer `exec`s xnuhost:
+   it runs it in the foreground and waits for it. A shell of its own writes its pid to `session/xnuhost.pid` and
+   `exec`s xnuhost, so the file holds xnuhost's own pid as before; in the foreground, not with `&`, because a shell
+   without job control starts a `&` command with SIGINT and SIGQUIT ignored. When xnuhost ends, the shell writes
+   `oneios inner: DATE TIME xnuhost PID ended: exit N` or `... ended: killed by signal 9 (SIGKILL)` (a wait status
+   of 128 + S) as the log's last line, and `pid PID exit N` or `pid PID signal S` to `session/xnuhost.exit`. Before,
+   nothing waited for xnuhost: on the phone, 2026-11-23 19:06 (app 0.5.80, runtime 0.1.19), xnuhost ended with no
+   line at all and nothing said how (OneiOS `out/session-logs/2026-11-23-mac-s1904/`). The watcher (step 5) and the
+   return (step 1) read the record; OneiOS's `oneos/interface.md` 4 and 5 have the lines.
 5. The watcher returns to One UI when xnuhost ends, when `session/return.request` appears (the volume keys write
    it; xnuhost does when the guest asks; `adb` can), or when xnuhost has not created `session/ready` within
    600 s of its start (`ONEIOS_RETURN_MAX`; iOS never came up).
+   When xnuhost ended, its line in `return.log` says how, from the inner shell's record: `watcher: xnuhost PID ended:
+   killed by signal 9 (SIGKILL) (last log lines: ...)`, `... ended: exit 4 (...)`, or `... ended: how is not recorded
+   (...)` (a record of another pid, or none). Before it, at once (the kernel's ring and logcat's are overwritten within
+   minutes; on 2026-11-23 neither reached back to 19:06 when they were read), lines `watcher: after xnuhost's end:`
+   with dmesg's lines of the OOM killer or that name xnuhost or its pid (`kernel: ...`), logcat's `lowmemorykiller` and
+   `killinfo` lines that name it (`lmkd: ...`), xnuhost's own logcat lines (`logcat of pid PID: ...`: bionic's and the
+   allocator's fatal messages go there, not to its log), the host's `MemAvailable`, `SwapTotal`, `SwapFree` and
+   `/proc/pressure/memory`, and the session cgroup's `memory.events` (or that it has none). The boot screen says
+   `xnuhost ended: killed by signal 9 (SIGKILL)` where the log itself says nothing.
 
 **Return** (`oneios_return.sh`), five steps, each logged to `return.log`:
 
@@ -847,6 +865,8 @@ runtime with xnuhost is staged, this is where every switch ends.**
    in the reverse order of the switch's writes: `clocks: NODE NOW -> OLD (One UI's)` in `return.log`, also after
    a SIGKILL of xnuhost (the return runs on every way back but the reboot, which resets them anyway). Only those
    nodes and only numbers; a node that cannot be written is logged and does not stop the return. The USB watcher ends here too.
+   The inner shell is ended only after xnuhost's stop, so it has written how xnuhost ended; the return says it
+   (`xnuhost's end, as its inner shell recorded it: pid PID signal 15`), giving the shell 1 s for it.
 2. **Gate A.** No such process is left (a killed one that is still in the kernel gets up to 30 s of the gate's 45, killed again every second; each one is logged once with its `comm`, state and `wchan`, from its own `/proc/PID` files); the stage is mounted in no process's mount table (every namespace, not
    only init's: OneOS's run 45); nothing was mounted on One UI's partitions; the same boot; vold, keystore2 and
    servicemanager have their pids of the switch; the daemons One UI cannot restart are running; SELinux is as

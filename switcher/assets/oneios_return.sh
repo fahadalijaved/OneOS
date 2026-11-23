@@ -444,9 +444,6 @@ true 2>/dev/null > "$CTL/cpu-cap.off"
 end_helper "$CTL/cpu-cap.pid" --cpu-cap
 wp=$(cat "$CTL/watcher.pid" 2>/dev/null)
 [ "$wp" = "$$" ] || [ "$wp" = "$PPID" ] || end_helper "$CTL/watcher.pid" --watch
-# The switch's inner shell, where it is still setting up xnuhost's namespace
-# (it has not bound the stage yet, so the mount tables below do not show it).
-end_helper "$CTL/inner.pid" --inner
 XP=$(cat "$CTL/xnuhost.pid" 2>/dev/null)
 XNS=$(cat "$CTL/mntns" 2>/dev/null)
 INIT_NS=$(readlink "$P/1/ns/mnt" 2>/dev/null)
@@ -490,6 +487,16 @@ if [ -n "$XNS" ] && [ -n "$XP" ] && [ "$(readlink "$P/$XP/ns/mnt" 2>/dev/null)" 
     t0=$(now)
     while [ $(($(now) - t0)) -lt 20 ] && [ "$(readlink "$P/$XP/ns/mnt" 2>/dev/null)" = "$XNS" ]; do sleep 0.2; done
 fi
+# The switch's inner shell: where it is still setting up xnuhost's namespace (it has not bound the stage
+# yet, so the mount tables below do not show it), or where it waits for xnuhost (since 2026-11-23, after the app 0.5.80). Ended
+# after xnuhost's stop, so it has written how xnuhost ended (session/xnuhost.exit, said here): it writes that at
+# once when xnuhost is gone, and is given 1 s for it.
+if [ -n "$XP" ]; then
+    ip=$(cat "$CTL/inner.pid" 2>/dev/null); n=0
+    while [ ! -s "$S/session/xnuhost.exit" ] && [ $n -lt 5 ] && [ -n "$ip" ] && is_ours "$ip" "oneios_switch.sh --inner"; do sleep 0.2; n=$((n + 1)); done
+fi
+[ ! -s "$S/session/xnuhost.exit" ] || say "xnuhost's end, as its inner shell recorded it: $(head -n 1 "$S/session/xnuhost.exit" | head -c 80 | tr -cd "a-z0-9 ?")"
+end_helper "$CTL/inner.pid" --inner
 # Everything that is left, clean end or not: the cgroup at once (the kernel
 # ends every member, forks included), then by pid, five rounds.
 left=$(session_left)

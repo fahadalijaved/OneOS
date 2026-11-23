@@ -187,7 +187,7 @@ class OneiosScriptTest {
             scripts()
             val sleep = listOf("/usr/bin/sleep", "/bin/sleep").first { File(it).canExecute() }
             val tools = OneiosScriptTest::class.java.getResourceAsStream("/oneios/phone-tools.sh")!!.readBytes().toString(Charsets.UTF_8).replace("@SLEEP@", sleep)
-            val names = listOf("getprop", "setprop", "pidof", "service", "getenforce", "am", "vdc", "sync", "renice", "lshal", "sleep", "now", "kill", "getevent")
+            val names = listOf("getprop", "setprop", "pidof", "service", "getenforce", "am", "vdc", "sync", "renice", "lshal", "sleep", "now", "kill", "getevent", "dmesg", "logcat")
             for (f in names.map { file("bin/$it") } + listOf(busybox, File(busybox.parentFile, "resetprop"))) {
                 f.parentFile.mkdirs()
                 f.writeText(tools)
@@ -1419,7 +1419,7 @@ class OneiosScriptTest {
         f.ends(XNUHOST)
         assertTrue(w.waitFor(60, TimeUnit.SECONDS))
         assertEquals(f.returnLog, 0, w.exitValue())
-        assertTrue(f.returnLog, f.returnLog.contains("watcher: xnuhost $XNUHOST ended (last log lines: guest: launchd|); returning to One UI"))
+        assertTrue(f.returnLog, f.returnLog.contains("watcher: xnuhost $XNUHOST ended: how is not recorded (last log lines: guest: launchd|); returning to One UI"))
         assertTrue(f.returnLog, f.returnLog.contains("=== Return to One UI (watcher)"))
         // xnuhost was gone already: nothing was signalled.
         assertFalse(f.kills.toString(), f.kills.any { it.contains("$XNUHOST") })
@@ -1609,7 +1609,7 @@ class OneiosScriptTest {
         assertTrue(sw, set < sw.indexOf("setsid /system/bin/sh \"\$STAGE/oneios_switch.sh\""))
         val inner = code(switchScript).joinToString("\n").let { it.substring(it.indexOf("    --inner)"), it.indexOf("    --stop-loop)")) }
         val keep = inner.lines().single { it.contains("case \"\${ONEIOS_APP_VERSION_CODE:-}\" in") }.trim()
-        assertTrue(inner.indexOf(keep) < inner.indexOf("exec \"/data/runtime/\$R_XNUHOST\""))
+        assertTrue(inner.indexOf(keep) in 0 until inner.indexOf(LAUNCH))
         for ((given, seen) in listOf("208" to "208", "" to "-", "20 8" to "-", "2a" to "-", "-1" to "-")) {
             val p = ProcessBuilder("sh", "-c", "$keep\nsh -c 'echo \"\${ONEIOS_APP_VERSION_CODE--}\"'").redirectErrorStream(true)
             p.environment()["ONEIOS_APP_VERSION_CODE"] = given
@@ -2038,10 +2038,11 @@ class OneiosScriptTest {
     fun theHostedSessionIsTheSessionAsBefore() {
         val sw = code(switchScript).joinToString("\n")
         // xnuhost's command line of session ABI 1, unchanged, and the takeover's only with the switch's mark.
-        val plain = "exec \"/data/runtime/\$R_XNUHOST\" --session-abi \$ABI --mode takeover \\\n            --runtime /data/runtime --image /data/image --data /data/data --session /data/session\n"
+        val plain = "set -- \"/data/runtime/\$R_XNUHOST\" --session-abi \$ABI --mode takeover \\\n            --runtime /data/runtime --image /data/image --data /data/data --session /data/session\n"
         assertTrue(sw.contains(plain))
-        val marked = sw.indexOf("if [ \"\$(cat /data/control/base/mode 2>/dev/null)\" = takeover ]; then")
-        assertTrue(marked in 0 until sw.indexOf("--set session-mode=takeover"))
+        val marked = sw.indexOf("[ \"\$(cat /data/control/base/mode 2>/dev/null)\" = takeover ] && set -- \"\$@\" --set session-mode=takeover")
+        assertTrue(marked in sw.indexOf(plain) until sw.indexOf(LAUNCH))
+        assertTrue(sw.indexOf("--set session-mode=takeover") > marked)
         // Every step of the takeover is behind its mode; base/mode is written only for it.
         assertTrue(sw.contains("if [ \"\$SMODE\" = takeover ]; then\n    echo takeover > \"\$B/mode\""))
         assertTrue(sw.contains("if [ \"\$SMODE\" = takeover ]; then\n    rm -f \"\$CTL/cpu-cap.pid\""))
@@ -2348,7 +2349,7 @@ class OneiosScriptTest {
         val inner = sw.substring(sw.indexOf("    --inner)"), sw.indexOf("    --stop-loop)"))
         assertTrue(inner.contains("CG=/sys/fs/cgroup/oneios_session") && inner.contains("echo \$\$ > \"\$CG/cgroup.procs\""))
         assertTrue(inner.contains("echo 500 > /proc/\$\$/oom_score_adj"))
-        assertTrue(inner.indexOf("oom_score_adj") < inner.indexOf("exec \"/data/runtime/\$R_XNUHOST\""))
+        assertTrue(inner.indexOf("oom_score_adj") in 0 until inner.indexOf(LAUNCH))
         // The return: the guard is armed before the first step, the display comes back before One UI's zygote, and
         // the reboot has its two last resorts.
         val ret = code(returnScript).joinToString("\n")
@@ -2733,7 +2734,7 @@ class OneiosScriptTest {
         f.ends(XNUHOST)
         assertTrue(w.waitFor(60, TimeUnit.SECONDS))
         assertEquals(f.returnLog, 0, w.exitValue())
-        assertTrue(f.returnLog, f.returnLog.contains("watcher: xnuhost $XNUHOST ended (last log lines: "))
+        assertTrue(f.returnLog, f.returnLog.contains("watcher: xnuhost $XNUHOST ended: how is not recorded (last log lines: "))
         f.assertInPlace()
         assertBootScreenEnded(f, d, f.returnLog)
         assertEquals("Returning to One UI", shown(d, "title"))
@@ -2851,12 +2852,13 @@ class OneiosScriptTest {
             "at \"making /data/\$d read-only\"" to "mount -o remount,bind,ro",
             "at \"checking that /data/control is read-only\"" to "> /data/control/.w",
             "at \"checking that One UI's /data is not visible\"" to "[ ! -e /data/system ]",
-            "at \"session folders and the pid\"" to "echo \$\$ > /data/session/xnuhost.pid",
+            "at \"session folders\"" to "mkdir -p /data/data /data/session/tmp",
             "at \"the session's cgroup\"" to "CG=/sys/fs/cgroup/oneios_session",
         )
         for ((say, cmd) in steps) assertTrue("$say before $cmd", inner.indexOf(say) in 0 until inner.indexOf(cmd))
-        // Nothing starts under a switch that gave up meanwhile; the trap stays for an exec that fails.
-        val exec = inner.indexOf("exec \"/data/runtime/\$R_XNUHOST\"")
+        // Nothing starts under a switch that gave up meanwhile; the trap stays for a start that fails.
+        val exec = inner.indexOf(LAUNCH)
+        assertTrue(inner, exec > 0)
         // "running" is no reason to give up: the outer switch writes it as soon as it reads the pid (7129c37).
         val state = inner.indexOf("ST=\$(cat /data/control/state 2>/dev/null)")
         assertTrue(state in 0 until exec)
@@ -2869,6 +2871,99 @@ class OneiosScriptTest {
         assertTrue(wait.contains("while [ \$n -lt 150 ] && [ ! -s \"\$SESSION/xnuhost.pid\" ]; do"))
         assertTrue(wait.contains("[ -n \"\$ip\" ] && kill -0 \"\$ip\" 2>/dev/null || break"))
         assertTrue(session.contains("the last lines of \$SESSION/xnuhost.log"))
+    }
+
+    /**
+     * The inner shell runs xnuhost as its child and waits for it (after the app 0.5.80): its exit code, or the signal that killed
+     * it, goes to the log and to session/xnuhost.exit. The phone, 2026-11-23 19:06: xnuhost ended without a line and
+     * nothing said how. Run here on the inner shell's own lines, with a stand-in xnuhost that ends each way.
+     */
+    @Test
+    fun theInnerShellWaitsForXnuhostAndRecordsHowItEnded() {
+        val sw = code(switchScript).joinToString("\n")
+        val inner = sw.substring(sw.indexOf("    --inner)"), sw.indexOf("    --stop-loop)"))
+        val block = inner.substring(inner.indexOf("AT=\"running /data/runtime/\$R_XNUHOST\""), inner.indexOf("exit \"\$rc\"") + "exit \"\$rc\"".length)
+        // In the foreground (a shell without job control starts a background command with SIGINT and SIGQUIT ignored).
+        assertTrue(block, block.contains("$LAUNCH\n") && !block.contains("$LAUNCH &"))
+        assertTrue(block.indexOf("rc=\$?") > block.indexOf(LAUNCH))
+        val helpers = sw.substring(sw.indexOf("end_record() {"), sw.indexOf("end_of() {"))
+        val linux = File("/proc/self/status").isFile
+        for (sh in shells) {
+            for ((action, record, how) in listOf(
+                Triple("exit 4", "exit 4", "exit 4"),
+                Triple("exit 0", "exit 0", "exit 0"),
+                Triple("kill -KILL \$\$", "signal 9", "killed by signal 9 (SIGKILL)"),
+                Triple("kill -SEGV \$\$", "signal 11", "killed by signal 11 (SIGSEGV)"),
+                Triple("kill -ABRT \$\$", "signal 6", "killed by signal 6 (SIGABRT)"),
+            )) {
+                val dir = Files.createTempDirectory("oneios-inner").toFile().also { roots += it }
+                val fake = File(dir, "xnuhost").apply {
+                    writeText("#!/bin/sh\nulimit -c 0\necho \$\$ > '${dir.path}/own.pid'\n" + (if (linux) "grep SigIgn /proc/self/status > '${dir.path}/ign'\n" else "") + "$action\n")
+                    setExecutable(true)
+                }
+                val script = helpers + "\nR_XNUHOST=xnuhost\nset -- '${fake.path}' --session-abi 1\n" +
+                    block.replace("/system/bin/sh", sh).replace("/data/session", dir.path)
+                val p = ProcessBuilder(sh, "-c", script).redirectErrorStream(true).start()
+                val out = p.inputStream.bufferedReader().readText()
+                val rc = p.waitFor()
+                val pid = File(dir, "own.pid").readText().trim()
+                assertEquals("$sh $action: $out", pid, File(dir, "xnuhost.pid").readText().trim())
+                assertEquals("$sh $action: $out", "pid $pid $record\n", File(dir, "xnuhost.exit").readText())
+                assertTrue("$sh $action: $out", out.lines().any { Regex("""^oneios inner: \S+ \S+ xnuhost $pid ended: \Q$how\E$""").matches(it) })
+                assertEquals("$sh $action: $out", if (record.startsWith("signal ")) 128 + record.substringAfter(' ').toInt() else record.substringAfter(' ').toInt(), rc)
+                if (linux) {
+                    val ign = File(dir, "ign").readText().substringAfter(':').trim().toLong(16)
+                    assertEquals("$sh: SIGINT and SIGQUIT ignored in xnuhost (${File(dir, "ign").readText().trim()})", 0L, ign and 0x6L)
+                }
+            }
+        }
+    }
+
+    /** The watcher says how xnuhost ended (the inner shell's record) and what the host saw: dmesg, lmkd, logcat, the memory. */
+    @Test
+    fun theWatcherSaysHowXnuhostEndedAndWhatTheHostSaw() = each { f ->
+        f.phone()
+        val d = bootScreen(f, processes = true)
+        File(f.session, "xnuhost.exit").writeText("pid $XNUHOST signal 9\n")
+        f.file("dmesg").writeText("[86100.0] unrelated: a line of no interest\n[86175.2] Out of memory: Killed process $XNUHOST (xnuhost) total-vm:9000000kB\n")
+        f.file("logcat").writeText(
+            "11-23 19:06:30.100  1100  1100 I lowmemorykiller: Kill 'xnuhost' ($XNUHOST), uid 0, oom_score_adj 500 to free 5800000kB rss; reason: device is low on swap and thrashing\n" +
+                "11-23 19:06:29.900  $XNUHOST  $XNUHOST F scudo   : ERROR: corrupted chunk header\n" +
+                "11-23 19:06:20.000  1100  1100 I lowmemorykiller: Kill 'com.example' (77), uid 10100\n",
+        )
+        f.file("proc/meminfo").writeText("MemTotal: 11350016 kB\nMemAvailable: 1102848 kB\nSwapTotal: 12582912 kB\nSwapFree: 11657216 kB\n")
+        f.file("proc/pressure").mkdirs()
+        f.file("proc/pressure/memory").writeText("some avg10=40.00 avg60=35.00 avg300=10.00 total=1\nfull avg10=20.00 avg60=15.00 avg300=5.00 total=2\n")
+        f.file("sys/fs/cgroup/oneios_session/memory.events").writeText("low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\n")
+        val w = watcher(f)
+        f.ends(XNUHOST)
+        assertTrue(w.waitFor(60, TimeUnit.SECONDS))
+        assertEquals(f.returnLog, 0, w.exitValue())
+        val log = f.returnLog
+        assertTrue(log, log.contains("watcher: xnuhost $XNUHOST ended: killed by signal 9 (SIGKILL) (last log lines: "))
+        assertTrue(log, log.contains("watcher: after xnuhost's end: kernel: [86175.2] Out of memory: Killed process $XNUHOST (xnuhost)"))
+        assertFalse(log, log.contains("a line of no interest"))
+        assertTrue(log, log.contains("watcher: after xnuhost's end: lmkd: 11-23 19:06:30.100  1100  1100 I lowmemorykiller: Kill 'xnuhost' ($XNUHOST)"))
+        assertFalse(log, log.contains("com.example"))
+        assertTrue(log, log.contains("watcher: after xnuhost's end: logcat of pid $XNUHOST: 11-23 19:06:29.900  $XNUHOST  $XNUHOST F scudo   : ERROR: corrupted chunk header"))
+        assertTrue(log, log.contains("watcher: after xnuhost's end: host memory now: MemAvailable: 1077 MiB, SwapTotal: 12288 MiB, SwapFree: 11384 MiB; pressure: some avg10=40.00 avg60=35.00 avg300=10.00 total=1 | full avg10=20.00"))
+        assertTrue(log, log.contains("watcher: after xnuhost's end: the session cgroup's memory.events: low 0, high 0, max 0, oom 0, oom_kill 0"))
+        // The return says the record too (it does on every return that stops xnuhost, where the inner shell wrote one).
+        assertTrue(log, log.contains("xnuhost's end, as its inner shell recorded it: pid $XNUHOST signal 9"))
+        f.assertInPlace()
+        assertEquals("xnuhost ended: killed by signal 9 (SIGKILL)", shown(d))
+        // A record of another pid, or not of the form, is not taken.
+        val g = Fake(f.sh)
+        g.phone()
+        File(g.session, "xnuhost.exit").writeText("pid 1 signal 9\n")
+        val v = watcher(g)
+        g.ends(XNUHOST)
+        assertTrue(v.waitFor(60, TimeUnit.SECONDS))
+        assertTrue(g.returnLog, g.returnLog.contains("watcher: xnuhost $XNUHOST ended: how is not recorded (last log lines: "))
+        assertTrue(g.returnLog, g.returnLog.contains("after xnuhost's end: kernel: no OOM kill and no line of xnuhost or pid $XNUHOST in dmesg"))
+        assertTrue(g.returnLog, g.returnLog.contains("after xnuhost's end: lmkd: no kill of xnuhost or pid $XNUHOST in logcat"))
+        assertTrue(g.returnLog, g.returnLog.contains("the session cgroup has no memory.events (no memory controller there)"))
+        g.assertInPlace()
     }
 
     /**
@@ -3377,6 +3472,9 @@ class OneiosScriptTest {
         const val GUEST_NS = "mnt:[77]"
         const val COMPOSER = "vendor.qti.hardware.display.composer"
         const val TOKEN = "4242.1700000000"
+
+        /** The inner shell's start of xnuhost: a shell that writes its pid and execs xnuhost, waited for (after the app 0.5.80). */
+        const val LAUNCH = "/system/bin/sh -c 'echo \$\$ > /data/session/xnuhost.pid || exit 70; exec \"\$@\"' xnuhost \"\$@\""
 
         /** The S24 Ultra's USB controller (sys.usb.controller): a UDC name, as a guess until the phone's lines come. */
         const val UDC = "a600000.dwc3"

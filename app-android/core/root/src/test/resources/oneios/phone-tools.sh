@@ -9,6 +9,7 @@
 #                       unkillable are what it does with a signal
 #   behave/<flag>       what goes wrong in this test
 #   log/<tool>          what was asked of each tool, in order
+#   dmesg, logcat       what those print (the kernel's ring, the log buffers)
 # Nothing here signals, starts or stops a real process.
 T=$ONEIOS_TEST_ROOT
 [ -n "$T" ] && [ -d "$T/log" ] || { echo "phone-tools: no fake phone"; exit 99; }
@@ -158,6 +159,17 @@ case "$me" in
             done
         done
         exit $rc ;;
+    # The kernel's ring and logcat as the test wrote them (dmesg, logcat: one line each, logcat's as threadtime
+    # prints them); logcat --pid=N keeps the lines of pid N (the third field), -s TAG... those of the tags.
+    dmesg) echo "$*" >> "$T/log/dmesg"; cat "$T/dmesg" 2>/dev/null ;;
+    logcat)
+        echo "$*" >> "$T/log/logcat"
+        pid=; tags=; s=0
+        for a in "$@"; do
+            case "$a" in --pid=*) pid=${a#--pid=} ;; -s) s=1 ;; -*) s=0 ;; *) [ $s = 0 ] || tags="$tags $a" ;; esac
+        done
+        awk -v p="$pid" -v t="$tags" 'BEGIN { n = split(t, a, " "); for (i = 1; i <= n; i++) w[a[i]] = 1 }
+            { g = $6; sub(/:$/, "", g) } (p == "" || $3 == p) && (n == 0 || g in w)' "$T/logcat" 2>/dev/null ;;
     getevent)
         dev=${2##*/}
         case "$1" in
