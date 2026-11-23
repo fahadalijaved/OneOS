@@ -949,6 +949,25 @@ add)
         sed -i "s/^ro\.oplus\.display\.screenhole\.positon=.*/ro.oplus.display.screenhole.positon=$h/" "$NEW" &&
             echo "guest_props: ro.oplus.display.screenhole.positon=$h for the session ($what; the image's: $was)"
     fi
+    # Bar-phone ColorOS app-open / recents corner radius (SmoothCornerV2):
+    # OplusLauncher (vq5.e) multiplies ro.oplus.display.rc.size by 1.25f at
+    # G2 weight 2.7; without this prop, Launcher and WindowManager fall back
+    # to the guest image's 132px -> 165px, causing the corner snap ("catches up
+    # to corners"). Calibrating at 89% of host_corner_radius yields ~125px
+    # on S24 FE (113 -> 100 -> 125px), matching its 125.55px corner tangent.
+    # ONEOS_GUEST_OPLUS_RC_SIZE=0 leaves the property unset.
+    if [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ "${ONEOS_GUEST_OPLUS_RC_SIZE:-1}" = 1 ] &&
+        grep -q '^ro\.oplus\.' "$NEW" && [ -f "$STAGE/host_corner_radius" ] && [ ! -L "$STAGE/host_corner_radius" ]; then
+        rc_host=$(head -n 1 "$STAGE/host_corner_radius" 2>/dev/null)
+        case "$rc_host" in ''|*[!0-9]*) rc_host="" ;; esac
+        if [ "${rc_host:-0}" -gt 0 ] && [ "${rc_host:-0}" -le 400 ]; then
+            rc=$((rc_host * 89 / 100))
+            [ "$rc" -lt 1 ] && rc=1
+            sed -i '/^ro\.oplus\.display\.rc\.size=/d' "$NEW"
+            echo "ro.oplus.display.rc.size=$rc,$rc,$rc,$rc" >> "$NEW"
+            echo "guest_props: ro.oplus.display.rc.size=$rc,$rc,$rc,$rc for the session (host_corner_radius=${rc_host}px, 89% smooth corner calibration)"
+        fi
+    fi
     # Mid-range Galaxy A and M phones (0.5.14, owner's A36 on LineageOS: "a bit sluggish"): the
     # guest's SystemUI draws its rounded corners and cutout as one full-screen layer
     # (ScreenDecorHwcOverlay) that their composer does not take, so SurfaceFlinger composed the whole
@@ -1620,6 +1639,124 @@ ro.miui.backdrop_sampling_enabled=true"
             echo "guest_props: OPPO fingerprint: no in-display sensor known (features '${fpf}', position '${UPOS}', dpi '${UDPI}')"
         fi
     fi
+    # Hardware Codec2 components on Exynos (0.5.33+ S24 FE 97db2ff1: mediaserver64 queried
+    # samsung.hardware.media.c2@1.2-service for all 15 c2.exynos.* codecs and skipped every one of
+    # them without a "not found in xml" or "disabled" log, leaving only c2.android.* software codecs,
+    # because Codec2InfoBuilder filters out non-.avc.* vendor codecs when debug.stagefright.ccodec
+    # is 1 or 2). Explicitly set 4 when /vendor/etc declares c2.exynos codecs so hardware AVC/HEVC/
+    # VP8/VP9/AV1 encoders and decoders stay in MediaCodecList. ONEOS_GUEST_CCODEC=keep leaves as is.
+    # ColorOS/OxygenOS guests only (tested there; 0.5.37 review of pull request #355).
+    if [ "${ONEOS_GUEST_CCODEC:-4}" != keep ] && { [ -d "$ROOTFS/my_product" ] || [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; } && \
+       grep -qE 'name="c2\.exynos\.' /vendor/etc/media_codecs*.xml 2>/dev/null; then
+        key=debug.stagefright.ccodec
+        if grep -qxF "$key" "$HOST"; then
+            hv=$(getprop "$key")
+            if [ "$hv" != 4 ] && "$RP" -n "$key" 4 2>/dev/null; then
+                echo "$key=$hv" >> "$OVR"
+                echo "guest_props: $key=$hv overridden to 4 for the session (keeps Exynos Codec2 codecs)"
+            fi
+        else
+            drop_new "$key" || true
+            echo "$key=4" >> "$NEW"
+            echo "guest_props: $key=4 for the session (keeps Exynos Codec2 codecs)"
+        fi
+    fi
+    # GPU composition for SurfaceFlinger VirtualDisplays on non-Qualcomm HWC (S24 FE 97db2ff1: Exynos
+    # HWC returned getRenderIntents BAD_PARAMETER 4 on OPLUSScreenRecording, SF logged "Invalid
+    # device requested composition type change: Client (1) --> Device (2)" and "advanceFrame: no
+    # buffer, bailing out (-12)", and 0 frames reached the recorder). Set debug.sf.enable_hwc_vds=0
+    # so SurfaceFlinger uses GPU composition for VirtualDisplays. ONEOS_GUEST_HWC_VDS=1 keeps HWC VDS.
+    # ColorOS/OxygenOS guests only (their screen recorder; 0.5.37 review of pull request #355).
+    if [ "${ONEOS_GUEST_HWC_VDS:-0}" != 1 ] && [ "$(getprop ro.soc.manufacturer)" != QTI ] && { [ -d "$ROOTFS/my_product" ] || [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; }; then
+        key=debug.sf.enable_hwc_vds
+        if grep -qxF "$key" "$HOST"; then
+            hv=$(getprop "$key")
+            if [ "$hv" != 0 ] && [ "$hv" != false ] && "$RP" -n "$key" 0 2>/dev/null; then
+                echo "$key=$hv" >> "$OVR"
+                echo "guest_props: $key=$hv overridden to 0 for the session (GPU VirtualDisplay on non-QTI HWC)"
+            fi
+        else
+            drop_new "$key" || true
+            echo "$key=0" >> "$NEW"
+            echo "guest_props: $key=0 for the session (GPU VirtualDisplay on non-QTI HWC)"
+        fi
+    fi
+    # Disable ColorOS UniRender compose-uni before SurfaceFlinger boots on non-Qualcomm phones
+    # (guest_prepare.sh disables sys_global_uni_render_list.xml, which only flips persist after SF
+    # already booted with sys.unirender.composeuni.boot=1 and attached UniRenderSurface to Display 1
+    # and ScreenRecording's VirtualDisplay). ONEOS_GUEST_UNIRENDER=1 keeps it.
+    if [ "${ONEOS_GUEST_UNIRENDER:-0}" != 1 ] && [ "$(getprop ro.soc.manufacturer)" != QTI ] && [ -d "$ROOTFS/my_product" ]; then
+        for key in ro.oplus.sys.unirender.composeuni.enable persist.sys.unirender.composeuni.enable; do
+            if grep -qxF "$key" "$HOST"; then
+                hv=$(getprop "$key")
+                if { [ "$hv" = true ] || [ "$hv" = 1 ]; } && "$RP" -n "$key" false 2>/dev/null; then
+                    echo "$key=$hv" >> "$OVR"
+                    echo "guest_props: $key=$hv overridden to false for the session (UniRender compose-uni off)"
+                fi
+            else
+                drop_new "$key" || true
+                echo "$key=false" >> "$NEW"
+                echo "guest_props: $key=false for the session (UniRender compose-uni off)"
+            fi
+        done
+    fi
+    # Video thumbnail extraction on non-Qualcomm GPUs (S24 FE Exynos Xclipse 940):
+    # StagefrightMetadataRetriever -> FrameDecoder defaults to surface mode via c2.exynos.h264.decoder +
+    # renderfright (libstagefright_framecapture_utils.so) when media.stagefright.thumbnail.prefer_hw_codecs=true.
+    # Renderfright's GLSL shader compiles "uniform sampler3D tonemapper" without #version 300 es / extension
+    # ("ERROR: 0:3: 'sampler3D' : Illegal use of reserved word"), failing program link and returning a black
+    # first-frame thumbnail for ScreenRecorder MP4s in ColorOS Gallery even though frame 0 itself is valid.
+    # Setting prefer_hw_codecs=false makes FrameDecoder use CPU buffer mode (c2.android.avc.decoder) for
+    # thumbnails only (video playback still uses c2.exynos.* hardware codecs). ONEOS_GUEST_THUMB_SW=0 leaves it.
+    # ColorOS/OxygenOS guests only (their Gallery; 0.5.37 review of pull request #355).
+    if [ "${ONEOS_GUEST_THUMB_SW:-1}" = 1 ] && [ "$(getprop ro.soc.manufacturer)" != QTI ] && { [ -d "$ROOTFS/my_product" ] || [ -e "$ROOTFS/system/framework/oplus-services.jar" ]; }; then
+        key=media.stagefright.thumbnail.prefer_hw_codecs
+        if grep -qxF "$key" "$HOST"; then
+            hv=$(getprop "$key")
+            if [ "$hv" != false ] && [ "$hv" != 0 ] && "$RP" -n "$key" false 2>/dev/null; then
+                echo "$key=$hv" >> "$OVR"
+                echo "guest_props: $key=$hv overridden to false for the session (avoids renderfright sampler3D shader fail on non-QTI GPU thumbnails)"
+            fi
+        else
+            drop_new "$key" || true
+            echo "$key=false" >> "$NEW"
+            echo "guest_props: $key=false for the session (avoids renderfright sampler3D shader fail on non-QTI GPU thumbnails)"
+        fi
+    fi
+    # ColorOS Settings -> About device processor line reads ro.product.oplus.cpuinfo
+    # via DeviceProcessorConfig (/my_stock/etc/extension/config_processor_com.android.settings.xml);
+    # without a match in that XML (Samsung Exynos SoCs are absent), OplusDeviceInfoUtils logs
+    # "getCpuInfo: info from parser: null" and shows just "1 core" / core-only fallback.
+    # guest_prepare.sh adds the Exynos model entries into the bound XML; expose the SoC key here.
+    # ONEOS_GUEST_OPLUS_CPU=0 leaves it out.
+    if [ "$GUEST_OPLUS" = 1 ] && [ "${ONEOS_GUEST_OPLUS_CPU:-1}" = 1 ]; then
+        soc=$(getprop ro.soc.model)
+        mod=$(getprop ro.product.vendor.model)
+        [ -n "$mod" ] || mod=$(getprop ro.product.model)
+        ocpu=""
+        case "$soc" in
+            s5e9945)
+                case "$mod" in
+                    SM-S721*) ocpu=s5e9945e ;;
+                    *) ocpu=s5e9945 ;;
+                esac ;;
+            s5e9955|s5e9965|s5e9925|s5e8855|s5e8845|s5e8835|s5e8825) ocpu="$soc" ;;
+        esac
+        if [ -n "$ocpu" ]; then
+            key=ro.product.oplus.cpuinfo
+            if grep -qxF "$key" "$HOST"; then
+                hv=$(getprop "$key")
+                if [ "$hv" != "$ocpu" ] && "$RP" -n "$key" "$ocpu" 2>/dev/null; then
+                    echo "$key=$hv" >> "$OVR"
+                    echo "guest_props: $key=$hv overridden to $ocpu for the session (ColorOS About device processor name & core count)"
+                fi
+            else
+                drop_new "$key" || true
+                echo "$key=$ocpu" >> "$NEW"
+                echo "guest_props: $key=$ocpu for the session (ColorOS About device processor name & core count)"
+            fi
+        fi
+    fi
     echo "guest_props add: batch $(date +%T)"
     if "$RP" -n -f "$NEW" 2>/dev/null; then
         cut -d= -f1 "$NEW" > "$ADDED"
@@ -1717,6 +1854,32 @@ ro.miui.backdrop_sampling_enabled=true"
                 echo "guest_props: $key='$g' for the session (One UI: $h; the guest has no 32-bit zygote)"
         done
     fi
+    # 120 Hz low-latency SurfaceFlinger work durations for non-Qualcomm ColorOS guests (keeps panel responsive at ~12.8 ms pipeline).
+    # Non-Qualcomm phones with a 120 Hz mode only (0.5.37 review of pull request #355: as written it also ran on
+    # Snapdragon and on 60/90 Hz panels).
+    if [ "${ONEOS_GUEST_SF_LOW_LATENCY:-1}" = 1 ] && [ "$(getprop ro.soc.manufacturer)" != QTI ] &&
+       grep -qE 'fps=1(19|20)\.' "$STAGE/display_host.txt" 2>/dev/null &&
+       { [ -e "$ROOTFS/system/framework/oplus-services.jar" ] || [ -L "$ROOTFS/system/framework/oplus-services.jar" ]; }; then
+        for kv in \
+            debug.sf.use_phase_offsets_as_durations=1 \
+            debug.sf.late.app.duration=8333333 \
+            debug.sf.late.sf.duration=4500000 \
+            debug.sf.early.app.duration=8333333 \
+            debug.sf.early.sf.duration=4500000 \
+            debug.sf.earlyGl.app.duration=8333333 \
+            debug.sf.earlyGl.sf.duration=4500000; do
+            key=${kv%%=*}; val=${kv#*=}
+            h=$(getprop "$key")
+            [ "$h" != "$val" ] || continue
+            if [ -n "$h" ] && ! grep -qxF "$key" "$ADDED" 2>/dev/null; then
+                echo "$key=$h" >> "$OVR"
+            elif [ -z "$h" ] && ! grep -qxF "$key" "$ADDED" 2>/dev/null; then
+                echo "$key" >> "$ADDED"
+            fi
+            "$RP" -n "$key" "$val" 2>/dev/null
+        done
+        echo "guest_props: SurfaceFlinger 120Hz low-latency durations enabled (8.33ms app / 4.5ms sf)"
+    fi
     # Vsync phase offsets on a phone that also runs SurfaceFlinger on durations (11-19 report
     # 5d0564ae, A36 on One UI 9.5: the guest's surfaceflinger aborted at once, "debug.sf.
     # early_phase_offset_ns is set to 500000 but expecting duration", black screen, return after 30 s).
@@ -1742,12 +1905,14 @@ ro.miui.backdrop_sampling_enabled=true"
     # few seconds, then the return. QPerformance.jar is in the guest's boot image,
     # so it cannot be patched; the image's own value for the session instead,
     # whenever the guest ships that library and the phone is not Qualcomm's.
+    rm -f "$STAGE/host_boot_hardware"
     if [ -f "$ROOTFS/system/system_ext/lib64/libqti_performance.so" ]; then
         h=$(getprop ro.boot.hardware)
         case "$h" in
             qcom*) ;;
             *) echo "ro.boot.hardware=$h" >> "$OVR" && "$RP" -n ro.boot.hardware qcom 2>/dev/null &&
-                   echo "guest_props: ro.boot.hardware=qcom for the session (One UI: $h; the guest's zygote then preloads its Qualcomm perf library)" ;;
+                   printf '%s\n' "$h" > "$STAGE/host_boot_hardware" &&
+                   echo "guest_props: ro.boot.hardware=qcom for boot (One UI: $h; zygote preloads libqti_performance.so, then UI Activator restores $h)" ;;
         esac
     fi
     # The platform's minor SDK version (Build.VERSION.SDK_INT_FULL, read from

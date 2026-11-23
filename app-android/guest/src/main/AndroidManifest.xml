@@ -45,6 +45,17 @@
             android:exported="false"
             android:label="@string/checklist_title" />
 
+        <!-- Samsung Dolby Atmos & SoundAlive Equalizer panel (replaces broken AOSP MusicFX). -->
+        <activity
+            android:name=".SoundEffectsActivity"
+            android:exported="true"
+            android:label="@string/sound_title">
+            <intent-filter android:priority="100">
+                <action android:name="android.media.action.DISPLAY_AUDIO_EFFECT_CONTROL_PANEL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Quick Settings tile. Only SystemUI (BIND_QUICK_SETTINGS_TILE) binds it;
              a tap opens the confirmation above. -->
         <service

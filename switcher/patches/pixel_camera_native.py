@@ -53,6 +53,9 @@ GUEST_ONLY_VOID = {"notifySmartWindowChange", "notifyDisplayRotationChange", "on
 GUEST_ONLY_STATUS = {"addFaceListener", "removeFaceListener", "setVersionName"}
 # One UI 9.5: same signature as One UI 9.0's, contents its cameraserver crashes on (pixel_camera_abi.py).
 NOT_TO_HOST = {"notifyPkgListParamChange"}
+# A One UI 9.5 host (0.5.37, ONEOS_CAMERA_KEEP_COMPAT=1 builds) parses One UI 9.5's lists itself.
+if os.environ.get("ONEOS_CAMERA_KEEP_COMPAT") == "1":
+    NOT_TO_HOST = set()
 NOP = 0xD503201F
 # (interface, mangled namespace, Bp class, Bn class)
 AIDL = {
@@ -264,7 +267,8 @@ def main():
     if elf.find(r"^_ZN7android8hardware15BpCameraService"):
         n = patch_bp(elf, host, changed) + patch_bn(elf, host, changed)
     elif elf.find(r"^_ZNK?7android7content3res23CameraCompatibilityInfo"):
-        n = patch_compat(elf, changed)
+        # ONEOS_CAMERA_KEEP_COMPAT=1: a One UI 9.5 host reads the sixth field too (see pixel_camera_abi.py).
+        n = 0 if os.environ.get("ONEOS_CAMERA_KEEP_COMPAT") == "1" else patch_compat(elf, changed)
     else:
         die("neither libcamera_client.so nor libcameracompatbilityinfo.so")
     for c in changed:

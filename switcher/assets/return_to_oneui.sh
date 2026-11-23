@@ -140,7 +140,7 @@ fi
 # can fail the return.
 LOGS=/data/local/tmp/oneos_logs
 if [ -d "$LOGS" ] && [ ! -L "$LOGS" ]; then
-    for f in call_audio.log audio_keeper.log oneos_a2dp.log hyos_spawner.log dt2w.log; do
+    for f in call_audio.log audio_keeper.log oneos_a2dp.log hyos_spawner.log dt2w.log oneos_reverse_wireless.log oneos_guest_adbd.log; do
         [ -f "$S/data/$f" ] && [ ! -L "$S/data/$f" ] || continue
         rm -f "$LOGS/$f" 2>/dev/null
         cp "$S/data/$f" "$LOGS/$f" 2>/dev/null
@@ -275,6 +275,35 @@ kill -9 $(pidof surfaceflinger) 2>/dev/null || true
 # the pkill above may have done it already) before the CPU policies get their
 # full clock back, for One UI's SSRM to set its own.
 pkill -9 -f "oneos_heat_cap" 2>/dev/null || true
+# The ColorOS charging bridge (guest_start.sh): stopped first, then One UI's own values put back, the
+# ones guest_start.sh saved before the bridge started (oneos_charge_orig: "<node> <value>"), and only
+# where the session changed them. No saved file: the bridge never ran, nothing is written.
+pkill -9 -f oneos_charging_bridge.sh 2>/dev/null || true
+if [ -f "$S/data/oneos_charge_orig" ]; then
+    while read -r node val; do
+        case "$node" in
+            /sys/class/power_supply/battery/wc_tx_en|/sys/class/power_supply/battery/wc_tx_stop_capacity|\
+            /sys/class/power_supply/battery/pass_through|/sys/class/power_supply/battery/batt_hv_wireless_pad_ctrl) ;;
+            *) continue ;;
+        esac
+        case "$val" in ''|*[!0-9]*) continue ;; esac
+        [ -w "$node" ] && [ "$(cat "$node" 2>/dev/null)" != "$val" ] && echo "$val" > "$node" 2>/dev/null &&
+            echo "Charging: $node back to One UI's $val"
+    done < "$S/data/oneos_charge_orig"
+    rm -f "$S/data/oneos_charge_orig"
+fi
+rm -f "$S/data/oneos_qc_last"
+gpid=""
+[ -f "$S/data/oneos_guest_adbd.pid" ] && gpid=$(cat "$S/data/oneos_guest_adbd.pid" 2>/dev/null)
+rm -f "$S/data/oneos_guest_adbd.pid"
+pkill -9 -f oneos_guest_adbd.sh 2>/dev/null || true
+case "$gpid" in ""|*[!0-9]*) ;; *)
+    # Only the guest's own adbd: a reused pid could be One UI's adbd, which also matches '/adbd'.
+    if tr '\0' ' ' < "/proc/$gpid/cmdline" 2>/dev/null | grep -q '/adbd' &&
+       [ "$(readlink "/proc/$gpid/ns/mnt" 2>/dev/null)" != "$(readlink /proc/1/ns/mnt 2>/dev/null)" ]; then
+        kill -9 "$gpid" 2>/dev/null || true
+    fi ;;
+esac
 if [ -f $S/heat_cap.active ]; then
     hc=""
     # Samsung's CPU ceiling vote, if the heat cap released it (power saving was
@@ -715,6 +744,74 @@ done
 # which would otherwise see /local/tmp/oneos/ in field 4 and reboot.
 /system/bin/sh "$S/libsec-ril-patch.sh" restore >>"$IPLOG" 2>&1 || \
     say "!!! inbound SMS: the vendor RIL patch was not removed; see return_inplace.log"
+SENSORS_HAL_RESTORED=0
+restore_hover_prox_patch() {
+    HPROX_LIB=/vendor/lib64/sensors.inputvirtual.so
+    HPROX_SRC=$("$BB" awk -v mp="$HPROX_LIB" '$5 == mp { print $4; exit }' /proc/1/mountinfo 2>/dev/null)
+    if [ -n "$HPROX_SRC" ]; then
+        case "$HPROX_SRC" in
+            *sensors.inputvirtual.session.so)
+                "$BB" umount "$HPROX_LIB" 2>/dev/null || "$BB" umount -l "$HPROX_LIB" 2>/dev/null
+                if "$BB" grep -Fq " $HPROX_LIB " /proc/1/mountinfo 2>/dev/null; then
+                    say "!!! Proximity: $HPROX_LIB is still bind-mounted; leaving for next return"
+                    return 1
+                fi
+                SENSORS_HAL_RESTORED=1
+                say "Proximity: removed $HPROX_LIB patch"
+                ;;
+        esac
+    fi
+    # The touch panel's ear detection only if this session's proximity patch was in place (it turns it on).
+    if [ -f "$S/session/prox_patch.active" ]; then
+        [ -w /sys/class/sec/tsp/cmd ] && echo "ear_detect_enable,0" > /sys/class/sec/tsp/cmd 2>/dev/null || true
+    fi
+    rm -f "$S/session/sensors.inputvirtual.session.so" "$S/session/prox_patch.active"
+}
+restore_cam_sensors_patch() {
+    CS_LIST="$S/session/cam_sensors_patch.list"
+    CS_MPS=""
+    cs_add_mp() {
+        case " $CS_MPS " in *" $1 "*) ;; *) CS_MPS="${CS_MPS:+$CS_MPS }$1" ;; esac
+    }
+    if [ -f "$CS_LIST" ]; then
+        while read -r mp patched || [ -n "$mp" ]; do
+            [ -n "$mp" ] && [ "$mp" != "/vendor/lib64/sensors.inputvirtual.so" ] && cs_add_mp "$mp"
+        done < "$CS_LIST"
+    fi
+    for mp in $("$BB" awk '$5 ~ /^\/vendor\/lib64\// && $5 != "/vendor/lib64/sensors.inputvirtual.so" && $4 ~ /\.session\.so$/ { print $5 }' /proc/1/mountinfo 2>/dev/null); do
+        [ -n "$mp" ] && cs_add_mp "$mp"
+    done
+    for mp in $CS_MPS; do
+        src=$("$BB" awk -v mp="$mp" '$5 == mp { print $4; exit }' /proc/1/mountinfo 2>/dev/null)
+        case "$src" in
+            *.session.so)
+                "$BB" umount "$mp" 2>/dev/null || "$BB" umount -l "$mp" 2>/dev/null
+                if "$BB" grep -Fq " $mp " /proc/1/mountinfo 2>/dev/null; then
+                    say "!!! Camera sensors: $mp is still bind-mounted; leaving for next return"
+                else
+                    SENSORS_HAL_RESTORED=1
+                    say "Camera sensors: removed $mp patch"
+                fi
+                ;;
+        esac
+    done
+    # Only this patch's own copies, and only those nothing has bound any more: a mounted copy deleted here would
+    # show as "//deleted" and no longer be recognised; the inbound SMS (libsec-ril.session.so) and proximity
+    # (sensors.inputvirtual.session.so) copies are their own restores' business.
+    for cf in "$S/session/"*.session.so; do
+        [ -f "$cf" ] || continue
+        case "${cf##*/}" in libsec-ril.session.so|sensors.inputvirtual.session.so) continue ;; esac
+        "$BB" awk -v n="/${cf##*/}" 'substr($4, length($4) - length(n) + 1) == n { f = 1 } END { exit !f }' /proc/1/mountinfo 2>/dev/null && continue
+        rm -f "$cf"
+    done
+    rm -f "$CS_LIST"
+}
+restore_hover_prox_patch >>"$IPLOG" 2>&1 || true
+restore_cam_sensors_patch >>"$IPLOG" 2>&1 || true
+if [ "$SENSORS_HAL_RESTORED" = 1 ]; then
+    /system/bin/setprop ctl.restart vendor.sensors-hal-multihal 2>/dev/null || true
+    say "Sensors HAL: vendor.sensors-hal-multihal restarted after removing session sensor patches" >>"$IPLOG" 2>&1
+fi
 sleep 0.5
 # Stage mounts another mount namespace still holds (run 45): Android's bootstrap
 # namespace (early vendor daemons, kernel threads) gets its own copy of what the

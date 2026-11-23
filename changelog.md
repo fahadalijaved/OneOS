@@ -801,6 +801,26 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.37: **Camera on One UI 9.5 phones, the Galaxy S24 FE on ColorOS, ColorOS's equalizer, and the screen
+compositor on the fast CPU cores.**
+- **Camera on phones with One UI 9.5** (the Galaxy S26 series): One UI 9.5 numbers its camera service calls
+  differently. PixelOS, Pixel, Infinity-X, Nothing OS, HyperOS, ColorOS, LineageOS, OriginOS and One UI 9.5 now
+  pick the matching camera files on those phones. LineageOS on the S26 Ultra stopped 40 s after the start for this
+  reason (its system crashed at the camera); it should start now.
+- **Galaxy S24 FE and Exynos phones on ColorOS** (pull request #355 by Energobro, brought in with safety changes):
+  screen recording, hardware screen corners and an anti-aliased camera cutout, proximity during calls, the camera
+  sensors, reverse wireless and bypass charging from ColorOS's own switches (One UI's charging settings are put
+  back on the return), Dolby levels, and no loud burst or click when audio is paused.
+- **ColorOS's Equalizer** (Settings, Sound) opens OneOS's sound effects page instead of an empty screen.
+- **Screen compositor on the fast cores:** the other system's compositor stayed on the phone's slow CPU cores for the whole
+  session (seen on the A36: up to 24 ms a frame, slow first touches). It now runs where One UI's own runs.
+- **Lighter animations** (OneOS app in ColorOS): switching it on or off now restarts ColorOS for a moment, so
+  turning it off really brings the app open and close animations back.
+- **PixelOS screen corners** on phones that run PixelOS at FHD+ on a QHD screen (Galaxy S24+): the corners were
+  rounder than the screen.
+- Untested on a phone: the One UI 9.5 camera (needs an S26 on One UI 9.5), the S24 FE fixes beyond the
+  contributor's own phone. Known: changing HyperOS's region restarts the other system; a fix is in the works.
+
 New in 0.5.36: **HyperOS fits the screen on QHD Ultras, SMS on more phones, PixelOS corners, safer returns.**
 - **HyperOS on the S24 Ultra, S25 Ultra and other QHD phones left at FHD+:** the system ran the whole QHD screen
   with the density meant for FHD+, and HyperOS's own scaling then made everything about a quarter too big

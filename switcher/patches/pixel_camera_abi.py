@@ -50,6 +50,9 @@ UNUSED_CODE = 200
 # 9.5's notifyPkgListParamChange string lists crashed One UI 9.0's cameraserver in
 # PackagePolicyList::applyPkgListParamChange (A36 run 9, 5 times). Void; sent to UNUSED_CODE.
 NOT_TO_HOST = {"notifyPkgListParamChange"}
+# A One UI 9.5 host (0.5.37, ONEOS_CAMERA_KEEP_COMPAT=1 builds) parses One UI 9.5's lists itself.
+if os.environ.get("ONEOS_CAMERA_KEEP_COMPAT") == "1":
+    NOT_TO_HOST = set()
 COMPAT = "android/content/res/CameraCompatibilityInfo.smali"
 TRANSACT = "Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z"
 # v registers in R8 builds (Pixel, ColorOS); p registers too in a build with
@@ -309,7 +312,9 @@ def main(root, table_path):
             if n:
                 open(stub, "w").write(text)
                 dirs.add(os.path.relpath(stub, root).split(os.sep)[0])
-    p = patch_compat(root, changed)
+    # One UI 9.5 hosts (0.5.37) read and write the sixth field themselves (libcameracompatbilityinfo.so has
+    # shouldOverrideLensFacingFrontToBack): ONEOS_CAMERA_KEEP_COMPAT=1 leaves the guest's class as it is.
+    p = None if os.environ.get("ONEOS_CAMERA_KEEP_COMPAT") == "1" else patch_compat(root, changed)
     if p:
         dirs.add(os.path.relpath(p, root).split(os.sep)[0])
     for c in changed:

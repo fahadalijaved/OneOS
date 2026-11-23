@@ -23,3 +23,6 @@ b97cd4d84be630d80a7ea4ad10a4cf0d8b4b9b99ba0e697f0799c5dab769ca91  framework_patc
 28a82c4e120fc22b1e0546cca875f79973781b42398f361373d9d685b29fb7d0  miui-framework_patched.jar
 04c35b486f838198034e9cf92cff23985a027cedb3eb80cb4a31927fa39f4af8  vold_patched
 f786400efceda164e04bb85c2ebe9477b6f688aeb06b724af06e95b57de2ebd5  service.incremental_patched.so
+# 0.5.37 (hyperos_hk_r5): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar libcamera_client_patched_oneui95.so
+f8b431af42bd9b49b81d1e006d0967a43b879c4431a8c1d2c13a1d72e1d15fd1  framework_patched_oneui95.jar
+06b96b773037f25518c2c3be13af72bf09e8633b4df9c29cbefa50783a6e04e7  libcamera_client_patched_oneui95.so

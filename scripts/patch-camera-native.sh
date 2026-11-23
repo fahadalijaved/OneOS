@@ -14,7 +14,8 @@ set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 [ -f "$1" ] && [ -f "$2" ] && [ -d "$3" ] || { echo "usage: $0 <libcamera_client.so> <libcameracompatbilityinfo.so> <out dir>" >&2; exit 2; }
 OUT=$(cd "$3" && pwd)
-TABLE="$ROOT/switcher/patches/host_camera.txt"
+# CAMERA_TABLE: another host table (0.5.37: switcher/patches/host_camera_oneui95.txt for One UI 9.5 phones).
+TABLE="${CAMERA_TABLE:-$ROOT/switcher/patches/host_camera.txt}"
 for pair in "$1:libcamera_client_patched.so" "$2:libcameracompatbilityinfo_patched.so"; do
     src=${pair%%:*}; name=${pair#*:}
     rm -f "$OUT/$name"
