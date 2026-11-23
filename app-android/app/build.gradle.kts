@@ -76,6 +76,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r30") to listOf("tethering_payload.img")),
     // HyperOS 4 Global (0.5.27): Xiaomi's global build OS4.0.5.0.XFRMIXM with Google apps (gmssystem payload). Tethering never mounts.
     "hyper-hk" to (File(repoRoot, "out/overlays_hyperos_hk_r4") to listOf("tethering_payload.img")),
+    // HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM) on Galaxy Z Fold4.
+    "hyper16" to (File(repoRoot, "out/overlays_hyperos16") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
     "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r40") to listOf("tethering_payload.img")),
     "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r8") to listOf("tethering_payload.img")),
