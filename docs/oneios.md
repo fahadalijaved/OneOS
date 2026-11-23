@@ -875,7 +875,9 @@ runtime with xnuhost is staged, this is where every switch ends.**
    `theSwitchWritesShmemOnlyUnderTheStopLock`). Then One UI's zygote and zygote_secondary are stopped, so
    system_server and every app end; a loop keeps them stopped (`--stop-loop`: since takeover-stages, 2026-11-23, one
    wait on init's properties through the staged `xnuhost --prop-wait`, no process while nothing starts; one look a
-   second with a runtime that has no `--prop-wait`; each stop a line of `control/stop-loop.log`; until then three
+   second with a runtime that has no `--prop-wait`, or with `stop-loop=poll` in the image's `xnuhost.conf` (the switch
+   of OneiOS docs/switches.md, 2026-11-23; line `stop loop: stop-loop=poll ...: no --prop-wait`); each stop a line of
+   `control/stop-loop.log`; until then three
    `getprop` every 0.2 s, 15 processes a second). surfaceflinger, the vendor composer, audioserver, netd, vold, keystore2 and the radio keep running.
    Once system_server is gone the switch marks `control/clocks.set`, releases `cpufreq_limit` (`-1`, first), and
    writes the hardware's range into the other nodes (`cpuinfo_min_freq`, `cpuinfo_max_freq`, the top of `gpu_freq_table` and `gpu_available_frequencies`),

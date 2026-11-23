@@ -1135,6 +1135,11 @@ case "$MODE" in
                 lsay "$s was running: ctl.stop $s"
             done
         }
+        # stop-loop=poll (OneiOS docs/switches.md: the last such line of image/xnuhost.conf, then
+        # image/overlay/userland/xnuhost.conf): no --prop-wait, one look a second; wait (the default) as above.
+        sl=$(cat "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf" 2>/dev/null |
+            sed -n 's/^[[:space:]]*stop-loop=//p' | tail -n 1 | tr -d ' \t\r')
+        if [ "$sl" = poll ]; then lsay "stop-loop=poll (the image's xnuhost.conf): no --prop-wait"; W=""; fi
         if [ -n "$W" ] && [ -f "$W" ] && [ -x "$W" ]; then
             "$W" --prop-wait 0 $wants >/dev/null 2>&1 </dev/null
             rc=$?

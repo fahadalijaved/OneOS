@@ -2266,6 +2266,17 @@ class OneiosScriptTest {
         await("the bare loop's line") { stopLoopLog(f).lines().count { it.endsWith("one look a second (getprop)") } == 2 }
         File(f.control, "stop-loop.off").createNewFile()
         assertTrue(bare.waitFor(30, TimeUnit.SECONDS))
+        // stop-loop=poll in the image's xnuhost.conf (OneiOS docs/switches.md): a runtime with --prop-wait is not asked.
+        f.file("behave/old_runtime").delete()
+        File(f.stage, "image/overlay/userland/xnuhost.conf").apply { parentFile.mkdirs() }.writeText("pen=auto\nstop-loop=poll\n")
+        File(f.control, "stop-loop.off").delete()
+        val calls = f.lines("log/prop-wait").size
+        val poll = f.start("oneios_switch.sh", "--stop-loop", w.path, log = "log/stop-loop-poll.out")
+        await("the poll loop's line") { stopLoopLog(f).lines().count { it.endsWith("one look a second (getprop)") } == 3 }
+        assertTrue(stopLoopLog(f), stopLoopLog(f).contains("stop loop: stop-loop=poll (the image's xnuhost.conf): no --prop-wait"))
+        assertEquals(calls, f.lines("log/prop-wait").size)
+        File(f.control, "stop-loop.off").createNewFile()
+        assertTrue(poll.waitFor(30, TimeUnit.SECONDS))
     }
 
     /** The services of zygote's restart list on the fake phone, each defined in an .rc as on One UI's /system. */
