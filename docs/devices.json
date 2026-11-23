@@ -1585,7 +1585,7 @@
         },
         {
           "image": "pixel16-bp4a",
-          "label": "Pixel 16, Google GSI BP4A build",
+          "label": "PixelOS 16.2, Doze-off GSI",
           "set": "pixel16",
           "tested": false
         }

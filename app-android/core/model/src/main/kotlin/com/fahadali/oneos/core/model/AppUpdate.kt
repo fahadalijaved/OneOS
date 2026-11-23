@@ -35,6 +35,7 @@ data class AppUpdate(
     companion object {
         const val URL = "https://github.com/fahadalijaved/OneOS/releases/latest/download/update.json"
         const val APK_PREFIX = "https://github.com/fahadalijaved/OneOS/releases/download/"
+        val ALLOWED_REPOS = listOf("fahadalijaved/OneOS", "jinkun1998/OneOS")
 
         /**
          * The team's test channel (Debug settings): an update.json in the owner's own Drive, outside
@@ -57,9 +58,9 @@ data class AppUpdate(
         /** Larger than any OneOS APK without its package set files (0.4.41 is about 60 MB). */
         const val MAX_BYTES = 256L * 1024 * 1024
 
-        private val NAME = Regex("^[0-9]{1,3}(\\.[0-9]{1,3}){1,3}$")
+        private val NAME = Regex("^[0-9]{1,3}(\\.[0-9]{1,3}){1,3}(-[a-z0-9]+)?$")
         private val HEX64 = Regex("^[0-9a-f]{64}$")
-        private val APK_PATH = Regex("^v[0-9.]{3,15}/OneOS-[0-9.]{3,15}\\.apk$")
+        private val APK_PATH = Regex("^v[0-9a-zA-Z._-]{3,30}/OneOS-[0-9a-zA-Z._-]{3,30}\\.apk$")
 
         /** Notes are shown on one line: a longer text is cut to this many characters, ending in an ellipsis (issue 210). */
         const val NOTES_SHOWN = 140
@@ -92,7 +93,8 @@ data class AppUpdate(
             val sha = str("sha256")
             if (code !in 1..Int.MAX_VALUE.toLong()) error("versionCode $code")
             if (!NAME.matches(name)) error("versionName '$name'")
-            val release = apk.startsWith(APK_PREFIX) && APK_PATH.matches(apk.removePrefix(APK_PREFIX))
+            val matchingPrefix = ALLOWED_REPOS.map { "https://github.com/$it/releases/download/" }.firstOrNull { apk.startsWith(it) }
+            val release = matchingPrefix != null && APK_PATH.matches(apk.removePrefix(matchingPrefix))
             if (!release && !(test && DRIVE_APK.matches(apk))) error("the APK is not a OneOS release file: $apk")
             if (bytes !in 1..MAX_BYTES) error("APK size $bytes")
             if (!HEX64.matches(sha)) error("sha256 '$sha'")

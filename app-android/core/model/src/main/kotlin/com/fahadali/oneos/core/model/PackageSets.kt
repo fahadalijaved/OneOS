@@ -799,7 +799,7 @@ object PackageSets {
     )
 
     /**
-     * Google's Android 16 GSI (BP4A.251205.006) for Galaxy Z Fold4 on One UI 8.0 (0.5.34):
+     * PixelOS 16.2 (Android 16 QPR2 Treble GSI by Doze-off) for Galaxy Z Fold4 on One UI 8.0 (0.5.35):
      * built from out/overlays_pixel16 using make-overlays.sh with ONEOS_NO_CAMERA_ABI=1
      * and host_installd_a16.txt.
      */
@@ -822,7 +822,7 @@ object PackageSets {
         ) + (COMMON_PAYLOADS + listOf("bt", "cellbroadcast", "conscrypt", "nfcservices", "profiling", "telephonycore"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
         omitted = listOf(TETHERING),
-        approxBytes = 375_171_173L,
+        approxBytes = 395_669_088L,
         hasReturnApp = true,
     )
 

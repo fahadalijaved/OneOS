@@ -538,25 +538,26 @@ object Images {
     )
 
     /**
-     * Google's Android 16 Generic System Image (gsi_gms_arm64 BP4A.251205.006, 14401865),
+     * PixelOS 16.2 (Android 16 QPR2 Treble GSI by Doze-off, BP4A.251205.006),
      * for phones on One UI 8.0/8.5 (SDK 36) such as Galaxy Z Fold4.
-     * Google Play and Google apps built-in. Clean AOSP stack (GUEST_OPLUS=0).
+     * Full Google Pixel Launcher, Pixel UI, Monet theming, Pixel wallpapers, Pixel sounds,
+     * and built-in Google Play services. Clean AOSP stack (GUEST_OPLUS=0).
      */
     val PIXEL16 = ImageRef(
         id = ID_PIXEL16,
-        label = "Pixel 16, Google GSI BP4A build",
-        shortName = "Pixel 16",
-        name = "Pixel 16",
-        variant = null,
-        blurb = "Google's Android 16 system with Google Play and Google apps. For phones on One UI 8.",
+        label = "PixelOS 16.2, Doze-off GSI",
+        shortName = "PixelOS 16",
+        name = "PixelOS 16",
+        variant = "PixelOS custom GSI",
+        blurb = "PixelOS 16 (Android 16 QPR2): the full Pixel UI, launcher, Monet theming and Google apps on Android 16 for One UI 8.",
         downloadUrl = SHARED_FOLDER_URL,
         sdk = 36,
         buildId = "BP4A.251205.006",
-        gzName = "OneOS_Pixel16_GMS_BP4A.img.gz",
-        gzBytes = 1715881267L,
-        gzSha256 = "e31e67110ada6707040dcefa6538e89c66767df535e2b194f4d8d2e48225572b",
-        rawBytes = 3301928960L,
-        rawSha256 = "f84a70818343b336004c900a98194139ca210e7ad24bdd1af89b55db28b629e8",
+        gzName = "OneOS_PixelOS16_Fold4.img.gz",
+        gzBytes = 1857746505L,
+        gzSha256 = "848f93afe5b3d97127d359a9326a57032099440010b55986e2252deceb7a3c86",
+        rawBytes = 3577262080L,
+        rawSha256 = "cd2d8025c28a46b9131832676e9619fabf261b34e21abc0b2756cff675145faf",
         testedOn = null,
         cpuRequired = emptyList(),
         cpuUsedByApps = emptyList(),

@@ -791,7 +791,7 @@ image_raw() {
         lineage24-infiniti) echo "2327068672 f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261" ;;
         pixelos17-onyx) echo "5046312960 7913053cc74036ad5df18d188c4b47411856e4ea1b2b94389ce567f15489cdf3" ;;
         oxygenos16-cph2745) echo "12273344512 dafbb026f97692b7d59b8f4ae2f46773e88e0d5bf0e1fee46b3636ff56b06e90" ;;
-        pixel16-bp4a) echo "3301928960 f84a70818343b336004c900a98194139ca210e7ad24bdd1af89b55db28b629e8" ;;
+        pixel16-bp4a) echo "3577262080 cd2d8025c28a46b9131832676e9619fabf261b34e21abc0b2756cff675145faf" ;;
         originos7-pd2609ma) echo "15998222336 9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee" ;;
         *) return 1 ;;
     esac

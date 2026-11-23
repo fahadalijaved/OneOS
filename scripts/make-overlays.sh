@@ -15,7 +15,7 @@ APKTOOL=${APKTOOL:-$(ls "$ROOT"/mysticgsi/tools/apktool/*.jar 2>/dev/null | head
 SDK="${ANDROID_HOME:-/opt/android-sdk}"
 BT=$(ls -d "$SDK"/build-tools/* | sort -V | tail -1)
 AJ=$(ls "$SDK"/platforms/android-*/android.jar | sort -V | tail -1)
-DEBUGFS=$(command -v debugfs || echo /usr/sbin/debugfs)
+DEBUGFS=${DEBUGFS:-$(command -v debugfs || echo /usr/sbin/debugfs)}
 # A file the image has (ColorOS's own jars are not in a Pixel image).
 in_image() { "$DEBUGFS" -R "stat $1" "$IMG" 2>&1 | grep -q '^Inode:'; }
 [ -f "$IMG" ] || { echo "usage: $0 <system.img> [outdir]" >&2; exit 2; }

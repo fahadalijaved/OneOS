@@ -296,7 +296,7 @@ abstract class OneOsFilesTask : DefaultTask() {
         }
         // A set file: in the APK (packSets or local build), else its size and Drive id only.
         fun putSet(src: File, sum: String, problems: MutableList<String>) {
-            if (pack || src.exists()) { put(src, sum); return }
+            if (pack) { put(src, sum); return }
             val id = ids[sum]
             if (id == null) { problems += "${src.name} ($sum) is not on Drive: run scripts/release-files.py"; return }
             sizes[sum] = src.length()
@@ -561,6 +561,9 @@ android {
             buildConfigField("long", "ROOT_SCRIPT_BYTES", "${rootBytes.size}L")
             buildConfigField("String", "SCRIPTS_SHA256", "\"${sha256(scriptsList.toByteArray())}\"")
             buildConfigField("String", "SERIES", "\"${seriesId.orEmpty()}\"")
+            val updateRepo: String = (findProperty("oneos.updateRepo") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: (if (seriesId == "fold") "jinkun1998/OneOS" else "fahadalijaved/OneOS")
+            buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
             if (seriesId != null) versionNameSuffix = "-$seriesId"
             for ((id, _) in packageSets) {
                 val f = File(packagesDir, "$id.sha256")

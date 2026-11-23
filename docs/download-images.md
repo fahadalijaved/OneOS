@@ -392,11 +392,11 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy A15 5G (SM-A156, MT6835), not tested yet
 
-## Pixel 16, Google GSI BP4A build
+## PixelOS 16.2, Doze-off GSI
 
-- File: `OneOS_Pixel16_GMS_BP4A.img.gz` (1.72 GB)
-- SHA-256: `e31e67110ada6707040dcefa6538e89c66767df535e2b194f4d8d2e48225572b`
-- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_Pixel16_GMS_BP4A.img.gz/download
+- File: `OneOS_PixelOS16_Fold4.img.gz` (1.86 GB)
+- SHA-256: `848f93afe5b3d97127d359a9326a57032099440010b55986e2252deceb7a3c86`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_PixelOS16_Fold4.img.gz/download
 - Phones:
   - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
 
