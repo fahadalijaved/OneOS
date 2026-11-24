@@ -75,7 +75,7 @@ object SessionEnv {
         "ONEOS_WALLPAPER_PROBE" to Regex("0"),
         "ONEOS_RECORD" to Regex("0"),
         "ONEOS_LOGCAT" to Regex("1"),
-        "ONEOS_GUEST_FORM" to Regex("fold|phone"),
+        "ONEOS_GUEST_FORM" to Regex("fold|phone|tablet"),
         "ONEOS_GUEST_FOLD" to Regex("layout|off"),
         "ONEOS_COVER_TSP" to Regex("[01]"),
         "ONEOS_GUEST_FOLD_CONTINUE" to Regex("[01]"),
@@ -134,10 +134,18 @@ object SessionEnv {
      * tests and display). Google services stay on ([HIDE_GMS]=0): owner, once a
      * run with them works they stay on; a launch may turn them off for itself.
      */
+    /**
+     * Galaxy Tabs (0.5.44): the bar values with ONEOS_GUEST_FORM=tablet, so guest_prepare.sh declares
+     * ColorOS's oplus.hardware.type.tablet (the Pad image's own my_product feature files are not read in a
+     * guest) and ColorOS lays itself out as a tablet; with phone the Pad build showed the phone lock screen,
+     * launcher and dock (owner, Tab S9 FE+ 94fc39dd).
+     */
+    val TABLET_FORM: Map<String, String> = LinkedHashMap(BAR_FORM).apply { put("ONEOS_GUEST_FORM", "tablet") }
+
     fun values(profile: PhoneProfile): LinkedHashMap<String, String> {
         val form = when (profile.form) {
             FormFactor.FOLD -> FOLD_FORM
-            FormFactor.BAR -> BAR_FORM
+            FormFactor.BAR -> if (profile.id in Profiles.TABLETS.map { it.id }) TABLET_FORM else BAR_FORM
             // 0.4.17, Galaxy Z Flip7: a phone on the main panel; no cover layout yet.
             FormFactor.FLIP -> BAR_FORM
         }

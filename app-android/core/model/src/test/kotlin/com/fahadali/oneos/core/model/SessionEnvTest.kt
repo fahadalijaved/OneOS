@@ -89,6 +89,18 @@ class SessionEnvTest {
     }
 
     @Test
+    fun galaxyTabsGetTheTabletForm() {
+        // 0.5.44: ColorOS for tablets needs oplus.hardware.type.tablet (guest_prepare.sh, form tablet).
+        for (p in Profiles.TABLETS) {
+            val v = SessionEnv.values(p)
+            assertEquals(p.id, "tablet", v["ONEOS_GUEST_FORM"])
+            assertEquals(SessionEnv.TABLET_FORM, v.filterKeys { it in SessionEnv.TABLET_FORM })
+            assertEquals(emptyList<String>(), SessionEnv.validate(SessionEnv.generate(p)))
+        }
+        assertEquals("phone", SessionEnv.values(Profiles.S_8750)["ONEOS_GUEST_FORM"])
+    }
+
+    @Test
     fun forbiddenKeysAreNeverEmitted() {
         for (p in Profiles.BUILT_IN.filter { it.enabled }) {
             val text = SessionEnv.generate(p)
@@ -112,7 +124,9 @@ class SessionEnvTest {
         assertFalse(allowed.containsKey("ONEOS_RETURN_KEYS"))
         assertFalse(allowed.getValue("ONEOS_RETURN_MODE").matches("reboot"))
         assertFalse(allowed.getValue("ONEOS_LOGCAT").matches("0"))
-        assertFalse(allowed.getValue("ONEOS_GUEST_FORM").matches("tablet"))
+        // 0.5.44: tablet is allowed for the Galaxy Tabs only (oneos_root.sh env_value checks the exact value per
+        // profile; a tablet form on the Find N6 fold put OPPO's pad grid off screen, run 29).
+        assertTrue(Profiles.STABLE.filter { it !in Profiles.TABLETS }.none { SessionEnv.values(it)["ONEOS_GUEST_FORM"] == "tablet" })
         assertFalse(allowed.getValue("ONEOS_SPLASH_COMPONENT").matches("com.wewaffles.onelineage/.SplashActivity"))
         assertTrue(SessionEnv.FORBIDDEN.keys.none { it in allowed })
     }

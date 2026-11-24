@@ -1127,7 +1127,8 @@ env_value() {
         ONEOS_PROFILE) echo "$3" ;;
         ONEOS_SPLASH_COMPONENT) echo "$SPLASH_COMPONENT" ;;
         ONEOS_WALLPAPER_PROBE|ONEOS_RECORD) echo 0 ;;
-        ONEOS_GUEST_FORM) if [ "$2" = fold ]; then echo fold; else echo phone; fi ;;
+        # 0.5.44: Galaxy Tabs (profiles tab-*) run ColorOS as a tablet (oplus.hardware.type.tablet).
+        ONEOS_GUEST_FORM) if [ "$2" = fold ]; then echo fold; else case "$3" in tab-*) echo tablet ;; *) echo phone ;; esac; fi ;;
         ONEOS_GUEST_FOLD) if [ "$2" = fold ]; then echo layout; else echo off; fi ;;
         ONEOS_COVER_TSP|ONEOS_GUEST_FOLD_CONTINUE|ONEOS_GUEST_UNFOLD_PORTRAIT|ONEOS_GUEST_COMPACT_WINDOW|ONEOS_GUEST_WALLPAPER_GRID)
             if [ "$2" = fold ]; then echo 1; else echo 0; fi ;;

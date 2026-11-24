@@ -7577,6 +7577,26 @@ if [ "$A17_ON_A16" = 1 ]; then
         echo "!!! netd socket-ops program: could not pin $SOP; the guest's netd will abort and system_server wait for it"
     fi
 fi
+# 0.5.44 (S22 on One UI 8, 0.5.43 494048ab): One UI 8's tethering module under Android 17 opens the L4S
+# switch map in BpfNetMaps.initBpfMaps; One UI 8's loader never pinned it, and NetworkStatsService died on
+# "Cannot open l4s_accecn_ map" (nativeBpfFdGet ENOENT) 10 s into the guest's boot. An empty one (an array,
+# 4-byte key, 1-byte value, 1 entry, as One UI 9 pins it; zero = L4S off) for the session;
+# return_to_oneui.sh removes the one made here. Pinned whether or not this module asks for it: an unused map
+# does nothing.
+rm -f "$STAGE/bpf_l4s.created"
+if [ "$A17_ON_A16" = 1 ]; then
+    L4S=/sys/fs/bpf/netd_shared/map_netd_l4s_accecn_enabled_map
+    if [ -e "$L4S" ]; then
+        echo "L4S map: One UI pinned its own; left alone"
+    elif [ ! -d /sys/fs/bpf/netd_shared ] || [ ! -x "$STAGE/oneos_bpf_ringbuf" ]; then
+        echo "!!! L4S map: no /sys/fs/bpf/netd_shared or no oneos_bpf_ringbuf; the guest's NetworkStatsService may die on 'Cannot open l4s_accecn_ map'"
+    elif "$STAGE/oneos_bpf_ringbuf" array-create "$L4S" 4 1 1 && [ -e "$L4S" ]; then
+        echo "$L4S" > "$STAGE/bpf_l4s.created"
+        echo "L4S map: an empty one (L4S off) pinned at $L4S for the session"
+    else
+        echo "!!! L4S map: could not pin $L4S; the guest's NetworkStatsService may die on 'Cannot open l4s_accecn_ map'"
+    fi
+fi
 # oneui8test13: Bluetooth stuck turning on (S22 Ultra test11 8ba80911: State BLE_TURNING_ON all session,
 # "Waited one second for vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default" every second
 # from the Bluetooth stack's main thread). The image's Bluetooth module reads its key storage through

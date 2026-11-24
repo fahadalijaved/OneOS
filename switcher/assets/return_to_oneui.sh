@@ -772,6 +772,14 @@ if [ -f "$S/bpf_sockops.created" ]; then
     esac
     rm -f "$S/bpf_sockops.created"
 fi
+# 0.5.44: the empty L4S map guest_prepare.sh pinned (only that one).
+if [ -f "$S/bpf_l4s.created" ]; then
+    L4S=$(head -n 1 "$S/bpf_l4s.created")
+    case "$L4S" in
+        /sys/fs/bpf/netd_shared/map_netd_l4s_accecn_enabled_map) "$S/oneos_bpf_ringbuf" remove "$L4S" >>"$IPLOG" 2>&1 || rm -f "$L4S" ;;
+    esac
+    rm -f "$S/bpf_l4s.created"
+fi
 /system/bin/sh "$S/libsec-ril-patch.sh" restore >>"$IPLOG" 2>&1 || \
     say "!!! inbound SMS: the vendor RIL patch was not removed; see return_inplace.log"
 SENSORS_HAL_RESTORED=0

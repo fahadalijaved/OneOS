@@ -31,6 +31,16 @@
  *                                                    detaches it from the cgroup (default /sys/fs/cgroup)
  *                                                    only if the program attached there is this one, then
  *                                                    unlinks the pin
+ *
+ * 0.5.44, S22 on One UI 8 (0.5.43 494048ab): One UI 8's tethering module, under Android 17, opens
+ * /sys/fs/bpf/netd_shared/map_netd_l4s_accecn_enabled_map (an array, 4-byte key, 1-byte value, 1 entry;
+ * read on the A36's One UI 9) in BpfNetMaps.initBpfMaps, which One UI 8's loader never pinned:
+ * NetworkStatsService died on "Cannot open l4s_accecn_ map" 10 s into the guest's boot. An empty one (all
+ * zero: L4S off) pinned there for the session.
+ *
+ *   oneos_bpf_ringbuf array-create <pinned path> <key bytes> <value bytes> <entries>
+ *                                                    pins an empty array map; exit 0 also when the path
+ *                                                    already exists (left alone); removed with remove
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -214,7 +224,36 @@ static int ringbuf_alias(const char *src, const char *path) {
     return 0;
 }
 
+static int array_create(const char *path, unsigned long key, unsigned long value, unsigned long entries) {
+    if (key == 0 || value == 0 || entries == 0 || key > 512 || value > 65536 || entries > 65536) {
+        fprintf(stderr, "bad array sizes\n");
+        return 2;
+    }
+    struct stat st;
+    if (stat(path, &st) == 0) { printf("exists %s\n", path); return 0; }
+    union bpf_attr a;
+    memset(&a, 0, sizeof(a));
+    a.map_type = BPF_MAP_TYPE_ARRAY;
+    a.key_size = (uint32_t)key;
+    a.value_size = (uint32_t)value;
+    a.max_entries = (uint32_t)entries;
+    long fd = sys_bpf(BPF_MAP_CREATE, &a);
+    if (fd < 0) { perror("BPF_MAP_CREATE"); return 1; }
+    memset(&a, 0, sizeof(a));
+    a.pathname = (uint64_t)(uintptr_t)path;
+    a.bpf_fd = (uint32_t)fd;
+    if (sys_bpf(BPF_OBJ_PIN, &a) != 0) { perror("BPF_OBJ_PIN"); close((int)fd); return 1; }
+    close((int)fd);
+    if (chown(path, 0, 1000) != 0) perror("chown");
+    if (chmod(path, 0660) != 0) perror("chmod");
+    if (copy_label(path) != 0) fprintf(stderr, "no SELinux label copied for %s\n", path);
+    printf("created %s (array, key %lu, value %lu, %lu entries)\n", path, key, value, entries);
+    return 0;
+}
+
 int main(int argc, char **argv) {
+    if (argc >= 6 && strcmp(argv[1], "array-create") == 0)
+        return array_create(argv[2], strtoul(argv[3], NULL, 0), strtoul(argv[4], NULL, 0), strtoul(argv[5], NULL, 0));
     if (argc >= 4 && strcmp(argv[1], "alias") == 0) return ringbuf_alias(argv[2], argv[3]);
     if (argc >= 3 && strcmp(argv[1], "sockops-create") == 0) return sockops_create(argv[2]);
     if (argc >= 3 && strcmp(argv[1], "sockops-remove") == 0)
@@ -225,7 +264,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     if (argc < 3 || strcmp(argv[1], "create") != 0) {
-        fprintf(stderr, "usage: %s create <pinned path> [bytes] | alias <ring buffer pin> <pinned path> | remove <pinned path> | sockops-create <pinned path> | sockops-remove <pinned path> [cgroup]\n", argv[0]);
+        fprintf(stderr, "usage: %s create <pinned path> [bytes] | alias <ring buffer pin> <pinned path> | remove <pinned path> | sockops-create <pinned path> | sockops-remove <pinned path> [cgroup] | array-create <pinned path> <key> <value> <entries>\n", argv[0]);
         return 2;
     }
     const char *path = argv[2];
