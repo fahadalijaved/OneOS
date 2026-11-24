@@ -21,7 +21,7 @@
     <string name="oneios_step_runtime">Get the OneiOS runtime</string>
     <string name="oneios_step_runtime_about">Holds xnuhost, the program that runs iOS. From OneiOS\'s releases, or your own file.</string>
     <string name="oneios_step_image">Make your iOS image</string>
-    <string name="oneios_step_image_about">This phone downloads iOS 27.0.1 from Apple and builds the image itself. Or use an image set you already have.</string>
+    <string name="oneios_step_image_about">This phone downloads iOS from Apple (iOS 27.0.1, tested, or iOS 27.2.1, not booted yet) and builds the image itself. Or use an image set you already have.</string>
     <string name="oneios_step_data">iOS\'s own data</string>
     <string name="oneios_step_data_about">Made at the first switch and kept after that</string>
     <string name="oneios_step_ready">Last check before the switch</string>
@@ -45,7 +45,7 @@
     <string name="oneios_runtime_choice_file_line">A oneios-runtime-…-arm64.tar.zst you built or downloaded</string>
     <string name="oneios_image_choose_title">Where should the iOS image come from?</string>
     <string name="oneios_image_choice_make">Make it on this phone</string>
-    <string name="oneios_image_choice_make_line">Recommended. Downloads iOS 27.0.1 from Apple (about 11 GB, once) and builds the image here. No PC.</string>
+    <string name="oneios_image_choice_make_line">Recommended. Downloads iOS from Apple (about 11 GB, once: iOS 27.0.1 or 27.2.1, your pick) and builds the image here. No PC.</string>
     <string name="oneios_image_choice_file">Use an image set I have</string>
     <string name="oneios_image_choice_file_line">An image set (.tar.zst) you built before. It is checked against its manifest.json.</string>
     <!-- The steps on iOS 27's page while something is missing (OneiosActivity.stepper). -->
@@ -59,6 +59,10 @@
     <string name="oneios_make_image_free">This phone has %1$s free.</string>
     <string name="oneios_make_image_free_short">This phone has %1$s free, less than that. Free up space in One UI first; the build checks the exact room before it downloads anything.</string>
     <string name="oneios_make_image_start">Make it</string>
+    <string name="oneios_make_image_pick_title">Which iOS should this phone make?</string>
+    <string name="oneios_make_image_pick_line">About %1$s to download, once · needs about %2$s free</string>
+    <string name="oneios_make_image_not_booted">This build has not been booted on a phone yet: iOS 27.0.1 (24A446) is the tested one. If it does not start, make iOS 27.0.1 instead.</string>
+    <string name="oneios_make_image_of">Make iOS %1$s</string>
     <string name="oneios_make_image_staged">Switch from iOS 27\'s page</string>
     <string name="oneios_tool_sums">Check every file</string>
     <string name="oneios_tool_sums_line">The runtime and the image set hashed again, every file, on all cores</string>

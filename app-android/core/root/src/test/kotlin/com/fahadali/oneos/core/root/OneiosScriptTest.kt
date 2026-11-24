@@ -632,6 +632,85 @@ class OneiosScriptTest {
     }
 
     /**
+     * iOS 27.2.1 (24B156) beside 24A446 (docs/oneios.md, "iOS 27.2.1"): the pairing files go to `kb-24B156/` (root's
+     * `kbinput ... kb-24B156`, a fixture name of its own), `status` reports them on a `kbset` line and leaves `kb/`'s
+     * line as it was, `kbcache ... kb-24B156` keeps the fetched kernelcache there, and `finish kernel` with
+     * `kb-24B156 kernel/24B156/xnu.macho` activates a kernel built from the runtime's 24B156 xnu and that kernelcache,
+     * only over a 24B156 image set; without the two words it checks `kernel/xnu.macho` and `kb/`, as before.
+     */
+    @Test
+    fun aSecondBuildsKernelUsesItsOwnKbAndXnu() = each { f ->
+        val bid = "xnu-12377.121.6-ios-27.0.1-24A446-abcdef012345"
+        val bid2 = "xnu-13432.42.3-ios-27.2.1-24B156-0123456789ab"
+        val xnu = ByteArray(100) { it.toByte() }
+        val xnu2 = ByteArray(120) { (it * 7).toByte() }
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("runtime")))
+        assertOk(f.receive("runtime", "runtime.json", "{}".toByteArray()))
+        assertOk(f.receive("runtime", "kernel/xnu.macho", xnu, "0644"))
+        assertOk(f.receive("runtime", "kernel/24B156/xnu.macho", xnu2, "0644"))
+        assertOk(f.receive("runtime", "bin/xnuhost", ELF, "0755"))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", "4", "0.1.26", "1", "bin/xnuhost", "1", "0", bid, Hashes.sha256(xnu), "xnu-12377.121.6")))
+        // A 24A446 set first: a 24B156 kernel must never be activated over it.
+        val kc1 = ByteArray(5000) { (it % 251).toByte() }
+        fun image(version: String, build: String) {
+            assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("image")))
+            assertOk(f.receive("image", "manifest.json", manifestWithKc(kc1.size, Hashes.sha256(kc1))))
+            assertOk(f.receive("image", "kernel.kc", kc1, "0644"))
+            assertOk(f.receive("image", "kernel.kc.hashes", "hashes-1".toByteArray(), "0644"))
+            assertOk(f.receive("image", "os.img", ByteArray(100)))
+            assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("image", "4", "1", version, build)))
+        }
+        image("27.0.1", "24A446")
+        // The 24B156 pairing files, one fixture of its own among them.
+        val names = (OneiosKbFiles.NAMES - "kernelcache.macho" - "match/fixtures/fileset-24A446-symbols.json") + "match/fixtures/fileset-24B156-symbols.json"
+        for (name in names.sorted()) {
+            val bytes = "kb2-$name".toByteArray()
+            assertOk(f.verb(OneiosRoot.Verb.KBINPUT, listOf(name, bytes.size.toString(), Hashes.sha256(bytes), "kb-24B156"), bytes))
+        }
+        assertTrue(File(f.stage, "kb-24B156/match/fixtures/fileset-24B156-symbols.json").isFile)
+        assertFalse(File(f.stage, "kb").exists())
+        var st = f.verb(OneiosRoot.Verb.STATUS).status
+        assertEquals(OneiosStatus.Kb(null, 0), st.kb)
+        assertEquals(OneiosStatus.Kb(null, names.size), st.kbOf("24B156"))
+        // Apple's 24B156 kernelcache as Update the kernel fetches and decodes it, kept in kb-24B156/ by kbcache.
+        val work = File(f.stage, "make-kernel")
+        File(work, "inputs").mkdirs()
+        Files.setPosixFilePermissions(work.toPath(), java.nio.file.attribute.PosixFilePermissions.fromString("rwxr-xr-x"))
+        val kcIn = ByteArray(300) { (it * 5).toByte() }
+        val kcInSha = Hashes.sha256(kcIn)
+        File(work, "kernelcache.macho").writeBytes(kcIn)
+        Files.setPosixFilePermissions(File(work, "kernelcache.macho").toPath(), java.nio.file.attribute.PosixFilePermissions.fromString("rw-r--r--"))
+        assertOk(f.verb(OneiosRoot.Verb.KBCACHE, listOf(kcIn.size.toString(), kcInSha, "kb-24B156")))
+        assertEquals(kcInSha, Hashes.sha256(File(f.stage, "kb-24B156/kernelcache.macho").readBytes()))
+        assertFalse(File(f.stage, "kb/kernelcache.macho").exists())
+        st = f.verb(OneiosRoot.Verb.STATUS).status
+        assertEquals(null, st.kb.kernelcacheSha256)
+        assertEquals(OneiosStatus.Kb(kcInSha, names.size + 1), st.kbOf("24B156"))
+        // A kernel built from the 24B156 xnu and that kernelcache.
+        val kc2 = ByteArray(6000) { (it % 239).toByte() }
+        val kc2Sha = Hashes.sha256(kc2)
+        makeKernelOut(f, kc2, Hashes.sha256(xnu2), kcInSha)
+        assertRefused(
+            f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", kc2Sha, bid2, "kb-24B156", "kernel/24B156/xnu.macho")),
+            "the staged image set is 24A446, not 24B156",
+        )
+        image("27.2.1", "24B156")
+        // Without the two words: kernel/xnu.macho (24A446's) and kb/, which it was not built from.
+        assertRefused(f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", kc2Sha, bid2)), "not from this runtime's xnu.macho")
+        // Another runtime path than the one it was built from is refused too.
+        assertRefused(f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", kc2Sha, bid2, "kb-24B156", "kernel/24B157/xnu.macho")), "no kernel/24B157/xnu.macho")
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", kc2Sha, bid2, "kb-24B156", "kernel/24B156/xnu.macho")))
+        assertEquals(kc2Sha, Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+        assertEquals(bid2, File(f.stage, "image.conf").readLines().first { it.startsWith("kernel_build_id=") }.substringAfter('='))
+        val receipt = File(f.stage, "logs").list()!!.single { it.startsWith("update-") && it.endsWith(".log") }
+        val text = File(f.stage, "logs/$receipt").readText()
+        assertTrue(text, text.contains("xnu: ${Hashes.sha256(xnu2)} (the staged runtime's kernel/24B156/xnu.macho)"))
+        assertTrue(text, text.contains("kernelcache: $kcInSha (the staged Apple kernelcache, kb-24B156)"))
+        // The 24A446 inputs are untouched by all of it.
+        assertEquals(OneiosStatus.Kb(null, 0), f.verb(OneiosRoot.Verb.STATUS).status.kb)
+    }
+
+    /**
      * Update the kernel end to end against the real `oneios-tool serve` and this root script, with the network:
      * only when `ONEIOS_TOOL_SERVE` names a tool for this machine and `ONEIOS_PROFILE` OneiOS's
      * `profiles/ios-27.0.1-iPhone18,2.toml` (it downloads Apple's 23 MB kernelcache member from Apple):
@@ -1005,6 +1084,21 @@ class OneiosScriptTest {
         bad(OneiosRoot.Verb.KBCACHE, "78135296")
         bad(OneiosRoot.Verb.KBCACHE, "-1", h)
         bad(OneiosRoot.Verb.KBCACHE, "1", "zz")
+        // Another Apple build's pairing files and kernel (iOS 27.2.1): kb-<BUILD> as the last word, and finish kernel's
+        // two more words (the folder and the runtime's xnu path for that build); 24A446's lines stay the ones above.
+        good(OneiosRoot.Verb.KBINPUT, "profile.toml", "12", h, "kb-24B156")
+        good(OneiosRoot.Verb.KBINPUT, "match/fixtures/fileset-24B156-symbols.json", "12", h, "kb-24B156")
+        bad(OneiosRoot.Verb.KBINPUT, "profile.toml", "12", h, "kb")
+        bad(OneiosRoot.Verb.KBINPUT, "profile.toml", "12", h, "kb-24b156")
+        bad(OneiosRoot.Verb.KBINPUT, "profile.toml", "12", h, "kb-24B156", "x")
+        bad(OneiosRoot.Verb.KBINPUT, "match/fixtures/fileset-24.B156-symbols.json", "12", h, "kb-24B156")
+        good(OneiosRoot.Verb.KBCACHE, "78135296", h, "kb-24B156")
+        bad(OneiosRoot.Verb.KBCACHE, "78135296", h, "kb-../x")
+        good(OneiosRoot.Verb.FINISH, "kernel", h, "xnu-1-2-3", "kb-24B156", "kernel/24B156/xnu.macho")
+        bad(OneiosRoot.Verb.FINISH, "kernel", h, "xnu-1-2-3", "kb-24B156")
+        bad(OneiosRoot.Verb.FINISH, "kernel", h, "xnu-1-2-3", "kb-24B156", "kernel/xnu.macho")
+        bad(OneiosRoot.Verb.FINISH, "kernel", h, "xnu-1-2-3", "kb-24B156", "kernel/../xnu.macho")
+        bad(OneiosRoot.Verb.FINISH, "kernel", h, "xnu-1-2-3", "kb", "kernel/24B156/xnu.macho")
         good(OneiosRoot.Verb.KBCLEAN)
         bad(OneiosRoot.Verb.KBCLEAN, "make-kernel")
         good(OneiosRoot.Verb.FINISH, "image", "3", "1", "27.0.1", "24A446")
@@ -1053,6 +1147,14 @@ class OneiosScriptTest {
         assertEquals(null, none.image)
         assertTrue(none.ready)
         assertEquals(null, none.notReady)
+        // Another build's pairing files (root's kbset lines), each build once; a word that is not one is skipped.
+        val kbs = OneiosStatus.parse(listOf("stage present", "kb none 0", "kbset 24B156 ${"b".repeat(64)} 11", "kbset x none 3", "kbset 24C1 none 2"))
+        assertEquals(OneiosStatus.Kb(null, 0), kbs.kb)
+        assertEquals(OneiosStatus.Kb("b".repeat(64), 11), kbs.kbOf("24B156"))
+        assertEquals(OneiosStatus.Kb(null, 2), kbs.kbOf("24C1"))
+        assertEquals(kbs.kb, kbs.kbOf("24A446"))
+        assertEquals(OneiosStatus.Kb(null, 0), kbs.kbOf("25A1"))
+        assertEquals(setOf("24B156", "24C1"), kbs.kbs.keys)
     }
 
     // --- The session scripts' guards, on their text --------------------------------

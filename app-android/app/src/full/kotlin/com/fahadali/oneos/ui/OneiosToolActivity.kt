@@ -66,17 +66,28 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         super.onStop()
     }
 
-    private fun title(flow: OneiosToolJob.Flow?): String = getString(
-        when (flow) {
-            OneiosToolJob.Flow.MAKE_IMAGE, null -> R.string.oneios_make_image
-            OneiosToolJob.Flow.SUMS -> R.string.oneios_tool_sums
-            OneiosToolJob.Flow.CPU -> R.string.oneios_tool_cpu
-            OneiosToolJob.Flow.LOG -> R.string.oneios_tool_log
-            OneiosToolJob.Flow.IOSLOG_BOOTS -> R.string.oneios_tool_ioslog_boots
-            OneiosToolJob.Flow.IOSLOG_SHOW -> R.string.oneios_tool_ioslog_show
-            OneiosToolJob.Flow.KERNEL -> R.string.oneios_kernel_update
-        },
-    )
+    private fun title(flow: OneiosToolJob.Flow?): String {
+        // Make iOS image names the build it makes when the phone offers more than one ("Make iOS 27.2.1 (24B156)").
+        if (flow == OneiosToolJob.Flow.MAKE_IMAGE || flow == null) {
+            val build = (if (OneiosToolJob.state.last == OneiosToolJob.Flow.MAKE_IMAGE) OneiosToolJob.state.makeBuild else null)
+                ?: OneiosToolJob.interruptedBuild(this)
+            val choices = OneiosJob.imageChoices()
+            if (choices.size > 1) {
+                choices.firstOrNull { it.build == build }?.let { return getString(R.string.oneios_make_image_of, "${it.version} (${it.build})") }
+            }
+        }
+        return getString(
+            when (flow) {
+                OneiosToolJob.Flow.MAKE_IMAGE, null -> R.string.oneios_make_image
+                OneiosToolJob.Flow.SUMS -> R.string.oneios_tool_sums
+                OneiosToolJob.Flow.CPU -> R.string.oneios_tool_cpu
+                OneiosToolJob.Flow.LOG -> R.string.oneios_tool_log
+                OneiosToolJob.Flow.IOSLOG_BOOTS -> R.string.oneios_tool_ioslog_boots
+                OneiosToolJob.Flow.IOSLOG_SHOW -> R.string.oneios_tool_ioslog_show
+                OneiosToolJob.Flow.KERNEL -> R.string.oneios_kernel_update
+            },
+        )
+    }
 
     private fun mark(state: OneiosTool.StepState): String = getString(
         when (state) {
@@ -228,9 +239,9 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             }
         }
 
-        /** Starts [flow] (unless a flow runs) and opens this screen. */
-        fun start(ctx: Context, flow: OneiosToolJob.Flow) {
-            if (!OneiosToolJob.state.busy) OneiosToolJob.run(ctx, flow)
+        /** Starts [flow] (unless a flow runs) and opens this screen; [build]: Make iOS image's pick ([OneiosToolJob.run]). */
+        fun start(ctx: Context, flow: OneiosToolJob.Flow, build: String? = null) {
+            if (!OneiosToolJob.state.busy) OneiosToolJob.run(ctx, flow, build)
             ctx.startActivity(intent(ctx))
         }
     }

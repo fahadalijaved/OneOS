@@ -1,6 +1,7 @@
 package com.fahadali.oneos.core.root
 
 import com.fahadali.oneos.core.model.Hashes
+import com.fahadali.oneos.core.model.OneiosImageChoice
 import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosKbFiles
 import org.junit.Assert.assertEquals
@@ -42,7 +43,8 @@ class EditionsTest {
                 "kb/match/fixtures/fileset-23F84-symbols.json", "kb/match/fixtures/fileset-24A446-symbols.json",
                 "kb/match/fixtures/fileset-26C5035r-symbols.json",
             ),
-            files(Shipped.fullAssets),
+            // (another build's pairing files, kb-<BUILD>/, are checked below)
+            files(Shipped.fullAssets).filterNot { it.startsWith("kb-") }.toSet(),
         )
         assertTrue(Shipped.rootScript.isFile)
     }
@@ -51,16 +53,25 @@ class EditionsTest {
      * The kernel-build inputs the app ships (docs/oneios.md, "Kernel updates"):
      * kb/kb.json names every file the phone's prelink needs but Apple's
      * kernelcache, each is the pinned one, and root's `kbinput` takes exactly
-     * that set plus the kernelcache.
+     * that set plus the kernelcache. Another build's folder (`kb-24B156/`, iOS
+     * 27.2.1), once OneiOS's files are in the app: its kb.json is that build's,
+     * every file it lists is there and the pinned one, and nothing else is.
      */
     @Test
     fun theKernelBuildInputsAreThePinnedOnes() {
         val kb = OneiosKb.parse(File(Shipped.fullAssets, "kb/kb.json").readText()).getOrThrow()
+        assertEquals("24A446", kb.build)
         assertEquals(OneiosKb.PINNED.toSet(), kb.files.keys)
         assertEquals(OneiosKb.PINNED.toSet() + "kernelcache.macho", OneiosKbFiles.NAMES)
         for ((name, sha) in kb.files) {
             val bytes = File(Shipped.fullAssets, "kb/$name").takeIf { it.isFile }?.readBytes()
             assertEquals("kb/$name is not the pinned one", sha, bytes?.let(Hashes::sha256))
+        }
+        for (dir in Shipped.fullAssets.listFiles().orEmpty().filter { it.isDirectory && it.name.startsWith("kb-") }) {
+            val other = OneiosKb.parse(File(dir, "kb.json").readText()).getOrThrow()
+            assertEquals(dir.name, OneiosImageChoice.kbDirOf(other.build))
+            assertEquals(dir.name, files(dir) - "kb.json", other.files.keys)
+            for ((name, sha) in other.files) assertEquals("${dir.name}/$name is not the pinned one", sha, Hashes.sha256(File(dir, name).readBytes()))
         }
     }
 

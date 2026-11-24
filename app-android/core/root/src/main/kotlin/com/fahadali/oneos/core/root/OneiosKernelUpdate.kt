@@ -1,5 +1,6 @@
 package com.fahadali.oneos.core.root
 
+import com.fahadali.oneos.core.model.OneiosImageChoice
 import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosTool
@@ -23,16 +24,28 @@ import com.fahadali.oneos.core.model.OneiosToolFlow
  * What a step that did not end well leaves: a pause, a lost network, an ended app and a refusal for room, heat, the
  * battery or a session keep the download's parts (the next run goes on from them); a Stop, a pin that does not
  * match, a server file that changed, a decode or a build that failed remove the work folder (root's `kbclean`).
- * The cached kernelcache in `kb/` is never part of it.
+ * The cached kernelcache in `kb/` (or `kb-<BUILD>/`) is never part of it.
+ *
+ * The build it pairs is the staged image set's kernel build (OneiOS 2026-11-25): 24A446 (iOS 27.0.1, and the Galaxy
+ * A56's 16.5) with the app's `assets/kb/` into `kb/`, exactly as before; 24B156 (iOS 27.2.1) with `assets/kb-24B156/`
+ * into `kb-24B156/` ([kbDir]), the runtime's 24B156 kernel ([xnuPath], its `kernels[]` path) and the kernelcache
+ * member of the 24B156 profile ([ipswProfile]), whose decoded SHA-256 must be that kb.json's `kernelcache_sha256`.
  */
 class OneiosKernelUpdate(
     private val stage: String,
     private val kb: OneiosKb,
-    /** The staged runtime's kernel (`runtime.json`'s `kernel.path`, e.g. `kernel/xnu.macho`). */
+    /** The staged runtime's kernel (`runtime.json`'s `kernel.path`, e.g. `kernel/xnu.macho`, or the `kernels[]` path of [kb]'s build). */
     private val xnuPath: String,
-    /** The app's `kb/` files by name ([OneiosKbFiles.NAMES] but `kernelcache.macho`), as read from its assets. */
+    /** The app's pairing files of [kb]'s build by name ([OneiosKb.names]), as read from its assets. */
     private val assets: Map<String, ByteArray>,
+    /** The stage's pairing-files folder of [kb]'s build ([OneiosImageChoice.kbDirOf]): `kb`, or `kb-24B156`. */
+    private val kbDir: String = OneiosTool.KB,
+    /** The IPSW profile whose kernelcache member step 2 fetches ([OneiosImageChoice.ipswProfileOf] of [kb]'s build). */
+    private val ipswProfile: String = OneiosTool.IPSW_PROFILE,
 ) {
+    /** The Apple build this update pairs: the staged set's kernel build. */
+    val build: String get() = kb.build
+
     /** What the update needs from the app: the tool's requests, root's verbs, the screen, the user's Stop. */
     interface Io {
         /** One request of the tool; its lines go to the screen as they come. Returns the request's view at its end. */
@@ -85,14 +98,14 @@ class OneiosKernelUpdate(
     fun run(io: Io, cachedSha256: String?): Outcome {
         // 1. The pairing files, each the pinned one, before root is asked for anything.
         io.phase(Phase.INPUTS)
-        OneiosKbInput.put(kb, assets, { verb, args, data -> io.root(verb, args, data) }, { io.stopped })?.let { r ->
+        OneiosKbInput.put(kb, assets, { verb, args, data -> io.root(verb, args, data) }, { io.stopped }, kbDir)?.let { r ->
             if (r === OneiosKbInput.STOPPED) return cancelled("kbinput", io)
             return stopped("kbinput", OneiosToolFlow.End.REFUSED, r.code, r.text, io, clean = false)
         }
-        io.done("The pairing files are on this phone (${OneiosKbInput.NAMES.size}, each the pinned one).")
+        io.done("The pairing files are on this phone (${kb.names.size}, each the pinned one).")
 
         // 2. Apple's kernelcache: the cached one, or fetched from Apple and decoded on this phone.
-        val cached = when (val k = kernelcache(stage, kb, cachedSha256, { cmd, keys -> io.tool(cmd, keys) }, { verb, args -> io.root(verb, args) }, { io.stopped }, io::phase)) {
+        val cached = when (val k = kernelcache(stage, kb, cachedSha256, { cmd, keys -> io.tool(cmd, keys) }, { verb, args -> io.root(verb, args) }, { io.stopped }, io::phase, ipswProfile, kbDir)) {
             Kernelcache.Cached -> {
                 io.done("Apple's kernelcache is already on this phone (the pinned one): not downloaded again.")
                 true
@@ -107,7 +120,7 @@ class OneiosKernelUpdate(
         // 3. The build.
         if (io.stopped) return cancelled(OneiosTool.Cmd.PRELINK, io)
         io.phase(Phase.BUILD)
-        val (buildCmd, buildKeys) = OneiosTool.prelinkRequest(xnuPath, stage)
+        val (buildCmd, buildKeys) = OneiosTool.prelinkRequest(xnuPath, stage, kbDir)
         val built = io.tool(buildCmd, buildKeys)
         if (built.end != OneiosToolFlow.End.OK) return ended(buildCmd, built, io)
         val kc = (built.result?.get("sha256") as? String)?.lowercase()
@@ -138,14 +151,14 @@ class OneiosKernelUpdate(
 
     companion object {
         /** The tool's requests of a run, in order, when the kernelcache is (`cached`) or is not on the phone yet. */
-        fun toolRequests(stage: String, xnuPath: String, cached: Boolean): List<Pair<String, Map<String, Any?>>> =
-            (if (cached) emptyList() else listOf(OneiosTool.kernelcacheFetchRequest(stage), OneiosTool.kernelcacheDecodeRequest(stage))) +
-                OneiosTool.prelinkRequest(xnuPath, stage)
+        fun toolRequests(stage: String, xnuPath: String, cached: Boolean, kbDir: String = OneiosTool.KB, ipswProfile: String = OneiosTool.IPSW_PROFILE): List<Pair<String, Map<String, Any?>>> =
+            (if (cached) emptyList() else listOf(OneiosTool.kernelcacheFetchRequest(stage, ipswProfile), OneiosTool.kernelcacheDecodeRequest(stage))) +
+                OneiosTool.prelinkRequest(xnuPath, stage, kbDir)
 
         /**
          * Step 2 on its own: Apple's kernelcache in `kb/` unless [cachedSha256] (root's `kb` line) is the pin of
          * [kb] already. The tool's `fetch` of only the kernel profile's kernelcache member
-         * ([OneiosTool.kernelcacheFetchRequest], always [OneiosTool.IPSW_PROFILE]: the 24A446 one), its `im4p`, the
+         * ([OneiosTool.kernelcacheFetchRequest], [ipswProfile]: the 24A446 one by default, 24B156's for an iOS 27.2.1 set), its `im4p`, the
          * decoded SHA-256 against the pin, root's `kbcache`. Update the kernel runs it, and so does Make iOS image for
          * a profile without a kernelcache member (the Galaxy A56's iOS 16.5: [OneiosMakeImage]). [phase] gets
          * [Phase.CACHED], or [Phase.DOWNLOAD], [Phase.DECODE] and [Phase.KEEP] as they start.
@@ -158,6 +171,10 @@ class OneiosKernelUpdate(
             root: (OneiosRoot.Verb, List<String>) -> String?,
             stopped: () -> Boolean,
             phase: (Phase) -> Unit,
+            /** The IPSW profile whose kernelcache member is fetched: 24A446's by default (the A56 too), 24B156's for iOS 27.2.1. */
+            ipswProfile: String = OneiosTool.IPSW_PROFILE,
+            /** Where root's `kbcache` keeps it: `kb`, or `kb-<BUILD>`. */
+            kbDir: String = OneiosTool.KB,
         ): Kernelcache {
             val pin = kb.kernelcacheSha256.lowercase()
             if (cachedSha256?.lowercase() == pin) {
@@ -173,7 +190,7 @@ class OneiosKernelUpdate(
 
             if (stopped()) return cancelled(OneiosTool.Cmd.FETCH)
             phase(Phase.DOWNLOAD)
-            val (fetchCmd, fetchKeys) = OneiosTool.kernelcacheFetchRequest(stage)
+            val (fetchCmd, fetchKeys) = OneiosTool.kernelcacheFetchRequest(stage, ipswProfile)
             val fetched = tool(fetchCmd, fetchKeys)
             if (fetched.end != OneiosToolFlow.End.OK) return ended(fetchCmd, fetched)
 
@@ -194,7 +211,7 @@ class OneiosKernelUpdate(
 
             if (stopped()) return cancelled(STEP_KBCACHE)
             phase(Phase.KEEP)
-            root(OneiosRoot.Verb.KBCACHE, listOf(bytes.toString(), pin))?.let {
+            root(OneiosRoot.Verb.KBCACHE, listOf(bytes.toString(), pin) + if (kbDir == OneiosTool.KB) emptyList() else listOf(kbDir))?.let {
                 return Kernelcache.Stopped(STEP_KBCACHE, OneiosToolFlow.End.REFUSED, if ("pins" in it) "mismatch" else null, it, clean = true)
             }
             return Kernelcache.Kept(bytes)

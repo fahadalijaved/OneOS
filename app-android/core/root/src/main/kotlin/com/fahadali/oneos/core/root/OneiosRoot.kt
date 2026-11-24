@@ -97,6 +97,10 @@ object OneiosRoot {
     private val WORD = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
     private val BID = Regex("^xnu-[A-Za-z0-9._-]{1,85}$")
     private val FORMATS = Regex("^[0-9]{1,4}(,[0-9]{1,4}){0,15}$")
+
+    /** The pairing files of another Apple build than 24A446 (`kb-24B156`): `kbinput`'s, `kbcache`'s and `finish kernel`'s last word. */
+    private val KBDIR = Regex("^kb-[0-9A-Z]{3,20}$")
+    private val XNU = Regex("^kernel/[A-Za-z0-9._-]{1,40}/xnu\\.macho$")
     private val KINDS = OneiosKind.entries.map { it.word }.toSet()
 
     /** Problems with these arguments for [verb]; empty = the launcher may carry them. */
@@ -155,17 +159,22 @@ object OneiosRoot {
                     need(5); arg(1, DEC, "a file count"); arg(2, DEC, "a format"); arg(3, WORD, "a version"); arg(4, WORD, "a build")
                 }
                 "kernel" -> {
-                    need(3); arg(1, HEX64, "a kernel SHA-256"); arg(2, BID, "a build id")
+                    // Another Apple build's kernel (iOS 27.2.1): its kb-<BUILD> and the runtime's xnu path for it.
+                    if (args.size != 3 && args.size != 5) p += "finish kernel takes 3 or 5 arguments, got ${args.size}"
+                    arg(1, HEX64, "a kernel SHA-256"); arg(2, BID, "a build id")
+                    arg(3, KBDIR, "kb-<BUILD>")
+                    args.getOrNull(4)?.let { if (!OneiosManifests.validPath(it) || !XNU.matches(it)) p += "finish: '${it.take(40)}' is not a kernel/<dir>/xnu.macho path" }
                 }
                 else -> p += "finish: runtime, image or kernel"
             }
             Verb.KBINPUT -> {
-                need(3)
-                args.getOrNull(0)?.let { if (it !in OneiosKbFiles.NAMES) p += "kbinput: '${it.take(40)}' is not a kernel-build input" }
-                arg(1, DEC, "a size"); arg(2, HEX64, "a SHA-256")
+                if (args.size != 3 && args.size != 4) p += "kbinput takes 3 or 4 arguments, got ${args.size}"
+                args.getOrNull(0)?.let { if (!OneiosKbFiles.allowed(it)) p += "kbinput: '${it.take(40)}' is not a kernel-build input" }
+                arg(1, DEC, "a size"); arg(2, HEX64, "a SHA-256"); arg(3, KBDIR, "kb-<BUILD>")
             }
             Verb.KBCACHE -> {
-                need(2); arg(0, DEC, "a size"); arg(1, HEX64, "a SHA-256")
+                if (args.size != 2 && args.size != 3) p += "kbcache takes 2 or 3 arguments, got ${args.size}"
+                arg(0, DEC, "a size"); arg(1, HEX64, "a SHA-256"); arg(2, KBDIR, "kb-<BUILD>")
             }
             Verb.RESTORE -> {
                 need(1)
@@ -295,8 +304,10 @@ data class OneiosStatus(
     val imageKernel: Kernel? = null,
     val sessionOpen: Boolean = false,
     val sessionState: String? = null,
-    /** The staged kernel-build inputs. */
+    /** The staged kernel-build inputs of 24A446 (`kb/`). */
     val kb: Kb = Kb(null, 0),
+    /** The staged kernel-build inputs of other Apple builds (`kb-<BUILD>/`, root's `kbset` lines), by build. */
+    val kbs: Map<String, Kb> = emptyMap(),
     /** "inplace", "failsafe" or "reboot": how the last session came back; null = none yet. */
     val lastReturn: String? = null,
     val lastReturnDetail: String? = null,
@@ -318,6 +329,13 @@ data class OneiosStatus(
     /** The kernel-build inputs: Apple's kernelcache SHA-256 (or null) and how many of the 13 inputs are staged. */
     data class Kb(val kernelcacheSha256: String?, val inputs: Int)
 
+    /**
+     * The inputs of a set of [kernelBuild]'s kexts ([com.fahadali.oneos.core.model.OneiosImageChoice.kernelBuildOf]):
+     * [kb] for 24A446 (and the A56's 20F66), [kbs]' entry for another build (none staged: no kernelcache, 0 inputs).
+     */
+    fun kbOf(kernelBuild: String): Kb =
+        if (kernelBuild == com.fahadali.oneos.core.model.OneiosImageChoice.IOS_27.build) kb else kbs[kernelBuild] ?: Kb(null, 0)
+
     companion object {
         fun parse(results: List<String>): OneiosStatus {
             var s = OneiosStatus()
@@ -336,6 +354,9 @@ data class OneiosStatus(
                     }
                     "kb" -> if (w.size >= 3) s = s.copy(
                         kb = Kb(w[1].takeIf { it != "none" }, w[2].toIntOrNull()?.coerceIn(0, 13) ?: 0),
+                    )
+                    "kbset" -> if (w.size >= 4 && Regex("^[0-9A-Z]{3,20}$").matches(w[1])) s = s.copy(
+                        kbs = s.kbs + (w[1] to Kb(w[2].takeIf { it != "none" }, w[3].toIntOrNull()?.coerceIn(0, 999) ?: 0)),
                     )
                     "session" -> s = s.copy(sessionOpen = w.getOrNull(1) == "open", sessionState = w.getOrNull(2))
                     "outcome" -> if (w.getOrNull(1) in setOf("inplace", "failsafe", "reboot")) {

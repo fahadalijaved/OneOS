@@ -146,7 +146,7 @@ there · root allowed".
 What it makes (`OneiosImageChoice.of`, `core/model/.../OneiosTool.kt`): on the A56, `IOS_16_5_A56`, the runtime's
 `lib/profiles/ios-16.5-a56.toml` (iOS 16.5 20F66 from Apple's iPhone X IPSW; 11 members, 5,825,842,914 bytes to
 download; about 24 GiB free room at the peak: the profile's `need_gib` of 20 and the seed, kernel.kc and the lists).
-Every other phone, and a phone with no profile, `IOS_27`: exactly `IPSW_PROFILE`, `MAKE_IMAGE_DOWNLOAD_BYTES` and
+Every other phone, and a phone with no profile, `IOS_27` by default (or `IOS_27_2` by the user's pick: "iOS 27.2.1 (24B156)" below): exactly `IPSW_PROFILE`, `MAKE_IMAGE_DOWNLOAD_BYTES` and
 `MAKE_IMAGE_ROOM_BYTES`, as before. That profile has no kernelcache member: the set's kernel.kc is OneiOS's XNU
 prelinked with the iPhone18,2 24A446 kexts, so Make iOS image puts Apple's 24A446 kernelcache into `kb/` first
 (step 4b of "Make iOS image (no PC)"). Update the kernel keeps the 27.0.1 profile on every phone.
@@ -202,6 +202,89 @@ system's card and its id stay "iOS 27 (OneiOS)". Tested: `OneiosTest.theA56s165S
 
 It is not an `ImageRef`: it has no Android SDK, no `system.raw`, no package set and no guard jars, so none of the
 Android guests' tables, pins or tests know it.
+
+### iOS 27.2.1 (24B156): a second build to choose (new, not booted yet)
+
+**Make iOS image offers two iOS 27 builds** (the owner, 2026-11-25) on every phone it offers iOS 27 on (the S24 Ultra
+and every other profile but the Galaxy A56, which stays iOS 16.5 only; `OneiosSystem.PROFILE_IDS` itself is
+unchanged: today the S24 Ultra and the A56): **"iOS 27.0.1 (24A446), tested"**, first and recommended, and **"iOS
+27.2.1 (24B156), new: not booted yet"**, the build Apple signs now. `OneiosImageChoice.choicesOf(profile)`
+(`core/model/.../OneiosTool.kt`) lists them; `IOS_27_2` is the runtime's `lib/profiles/ios-27.2.1-iPhone18-2.toml`
+(OneiOS's `profiles/ios-27.2.1-iPhone18,2.toml`, on OneiOS branch `ios272/base` until it merges), 11,718,249,424
+bytes to download (its 13 members, 10.91 GiB) and about 36 GiB of room at the peak (its `need_gib` of 32 and the same
+4 GiB beside it as 24A446's 30 + 4). 27.0.1 stays first until a phone boot of 27.2.1 passes
+(`OneiosImageChoice.NOT_BOOTED`, the label's note): that is only the order and the words, not a block.
+
+- **The pick** (`OneiosActions.makeImage`): with more than one choice, a list first, "Which iOS should this phone
+  make?", each item its label and "About 11.7 GB to download, once · needs about 38.7 GB free" (decimal, the app's
+  `Units.bytes`, like Android's storage screen: 10.91 and 36 GiB; 24A446's "11.4 GB" and "36.5 GB"); then the confirm of that build, titled with it ("iOS 27.2.1 (24B156)"), with its download, room and
+  this phone's free room, and for 27.2.1 a line that it has not been booted on a phone yet. *Make it* starts
+  `OneiosToolJob.run(MAKE_IMAGE, build)`; the pick is kept with the running flow (`oneios-tool` prefs, `build`), so
+  the Resume of an interrupted run makes the same build, and the flow's screen says "Make iOS 27.2.1 (24B156)". The
+  A56's single choice skips the list, as before.
+- **What make-image gets** (OneiOS's contract, 2026-11-25): for 24A446 exactly the request of before (no `xnu`, no
+  `kb`: the tool's defaults, `runtime.json`'s `kernel.path` and `<stage>/kb`); for 24B156 `profile`
+  `<stage>/runtime/lib/profiles/ios-27.2.1-iPhone18-2.toml`, `xnu` `<stage>/runtime/` + that build's
+  `runtime.json` `kernels[].path` (`kernel/24B156/xnu.macho` in the contract) and `kb` `<stage>/kb-24B156`
+  (`OneiosTool.makeImageRequest(stage, profile, xnu, kb)`). The pairing files go to `kb-24B156/` first (root's
+  `kbinput <name> <bytes> <sha256> kb-24B156`, every file of the app's `assets/kb-24B156/kb.json`).
+- **The runtime's kernels** (`OneiosManifests.parse`, `OneiosManifest.kernels`/`kernelFor`): `runtime.json`'s
+  `"kernel"` stays the 24A446 kernel and is what a 24A446 (and the A56's 20F66) set uses, as before; the new
+  `"kernels"` array holds one object per build, each shaped like `"kernel"` plus `"build"`; a malformed entry or a
+  build named twice refuses the runtime, as a malformed `kernel` does. The app records each build's path and build id
+  with the staged runtime (`OneiosStaged`, a ninth field `24B156:kernel/24B156/xnu.macho:<build id>`) and uses them
+  only while root's status names that same runtime (its version and its 24A446 kernel's build id:
+  `OneiosJob.stagedKernel`); root's `runtime.conf` records only `kernel`, so a runtime staged without this app (a
+  PC's `oneios-tool phone stage runtime`) counts as one without 24B156 until the app stages one itself. **A runtime
+  without `kernels`, or without 24B156 in it** (every release up to v0.1.25),
+  cannot make or update a 24B156 set: Make iOS image first stages the newest runtime (as for a runtime with no
+  kernel) and, when that has none either, stops before anything is written with "This runtime has no kernel for this
+  iOS: Get the latest OneiOS runtime..." (`OneiosMakeImage.CODE_NO_BUILD_KERNEL`); Update the kernel refuses "The
+  staged OneiOS runtime has no kernel for iOS 27.2.1 (24B156) (its runtime.json has no kernels entry for it): get the
+  latest OneiOS runtime." (`OneiosManifests.noBuildKernel`).
+- **The pairing files by build**: `assets/kb/` stays 24A446's (format 2, unchanged); another build's are in
+  `assets/kb-<BUILD>/` (`OneiosImageChoice.kbDirOf`: `kb-24B156`), the same layout, with its own `kb.json`
+  (`"build": "24B156"`, `kernelcache_sha256` `f6f31ac427bed2cdcf1353a6d84e3c2897354a86b2cc708f0e330a99be9a5939`, the
+  six inputs and its matcher fixtures). **This app does not carry `assets/kb-24B156/` yet**: OneiOS makes those
+  files; until they are in the app, Make iOS image of 27.2.1 stops with "This OneOS can't make this iOS yet" (`no-kb`)
+  and Update the kernel over a 24B156 set with the same words. `EditionsTest.theKernelBuildInputsAreThePinnedOnes`
+  checks any `kb-<BUILD>/` the app ships (its kb.json is that build's, every listed file there and the pinned one,
+  nothing else). On the phone they are staged beside 24A446's, at `<stage>/kb-24B156/`.
+- **Update the kernel pairs the staged set's build** (`OneiosToolJob.kernelUpdate`, `OneiosKernelUpdate(stage, kb,
+  xnuPath, assets, kbDir, ipswProfile)`): `OneiosImageChoice.kernelBuildOf(image build)` picks the kb (24A446 for
+  24A446 and 20F66, as before; `kb-24B156` for 24B156), the runtime's kernel for it, the IPSW profile whose
+  kernelcache member it fetches (`OneiosImageChoice.ipswProfileOf`: the 27.2.1 profile for 24B156), the decoded
+  SHA-256 against that kb's `kernelcache_sha256`, root's `kbcache <bytes> <sha256> kb-24B156`, and `prelink` with
+  `kernel` `<stage>/runtime/kernel/24B156/xnu.macho` and every input under `<stage>/kb-24B156/`. Root's `status`
+  reports each `kb-<BUILD>/` on its own line, `kbset <BUILD> <kernelcache sha256|none> <files>`
+  (`OneiosStatus.kbs`/`kbOf`); the `kb` line stays 24A446's. The activation is `finish kernel <kc> <build id>
+  kb-24B156 kernel/24B156/xnu.macho`: root checks that the staged set's build is 24B156 ("... must never boot it"
+  otherwise, in plain words "This kernel is for another iOS"), that the collection's build record names that xnu
+  and `kb-24B156/kernelcache.macho`, and writes both into the receipt. Without the two words every check is the
+  24A446 one, as before. `make-kernel/` stays one work folder for both builds: a download's parts of one build left
+  there when the other is updated are refused by the tool's pin (`mismatch`) and removed, and the next run starts clean.
+- **The name**: the page title, the Switch button and the switching line name the staged set's whole iOS 27 version,
+  "iOS 27.0.1 (OneiOS)", "Switch to iOS 27.2.1" (`OneiosSystem.shortName`; "iOS 27" with no set staged, "iOS 16.5" on
+  the A56, as before); the iOS 27 artwork shows over either iOS 27 set (`OneiosSystem.isIos27`). The switching line
+  reads the last status's image version (the phone's recommended choice before any status).
+- **A fix found on the way**: `OneiosStaged.decode` took a kernel build id of at most 40 characters, but a real one
+  has 46 (`xnu-12377.121.6-ios-27.0.1-24A446-16bd44f9d737`), so every runtime record with a kernel decoded to nothing
+  (up to 0.5.89): the runtime row's size and the kernel path the app recorded were never read back (the kernel path
+  fell back to `kernel/xnu.macho`, which is what every runtime has). It takes up to 120 now.
+
+**Tested** (host, Linux build laptop, 2026-11-25: `./gradlew test :app:compileFullDebugKotlin`, 750 tests, 0 failures, 80
+skipped): `OneiosTest` (`everyIos27PhoneOffersBothBuildsTheTestedOneFirst`,
+`theKbAndTheKernelcacheFollowTheBuild`, `theMakeImageRequestOf2721NamesItsKernelAndKb`,
+`aRuntimesKernelsArrayNamesEachBuildsKernel`, `aKbJsonOfAnotherBuildParses` (a fixture: the profile's 24B156 pin,
+stand-in file hashes, no pairing data), `aTooOldRuntimeFor2721SaysGetTheLatest`, `theNameFollowsTheStagedSet`),
+`OneiosPlainTest` (`aRuntimeRecordKeepsItsRealBuildIdAndItsKernels`, `iOs272sRefusalsArePlain`),
+`OneiosMakeImageTest` (`iOs2721MakesItsSetWithItsOwnKernelAndKb`,
+`aRuntimeWithoutThe24B156KernelGetsTheNewestOrSaysGetTheLatest`), `OneiosKernelUpdateTest`
+(`a2721SetPairsItsOwnKbKernelAndKernelcache`), `OneiosScriptTest` (`aSecondBuildsKernelUsesItsOwnKbAndXnu`: this
+root script's `kbinput`/`kbcache`/`status`/`finish kernel` with `kb-24B156` on a fake root, under each shell;
+`theLauncherCarriesOnlyPlainArguments`, `statusLinesParse`). **Not tested**: anything on a phone; a runtime with
+`kernels` (none is released yet); the real `assets/kb-24B156/` (not made yet); make-image of 24B156 against the real
+tool.
 
 ## In the app
 
@@ -464,7 +547,9 @@ stays as the fallback; a half-updated set never activates):
   XnuPrelink's reviewed fixtures (`match/fixtures/`, the only matcher files the prelink reads; until 2026-11-22
   also XnuPrelink's three Python sources, for the old matcher signature); `kb/kb.json` pins their hashes, the Apple
   build they pair and Apple's decoded kernelcache's SHA-256, `kernelcache_sha256`). Apple's kernelcache is never
-  committed, released or put in the APK: each phone downloads its own from Apple. One `tool work` session sends, in this order:
+  committed, released or put in the APK: each phone downloads its own from Apple. Over an iOS 27.2.1 set every step
+  below uses that build's files instead: `assets/kb-24B156/` into `kb-24B156/`, the 27.2.1 profile's kernelcache, the
+  runtime's `kernels[]` 24B156 kernel ("iOS 27.2.1 (24B156)" above). One `tool work` session sends, in this order:
 
   1. root's `kbinput` for each of the 12 pairing files (each checked against `kb.json` by the app first, then by
      root as it writes it);
@@ -491,7 +576,7 @@ stays as the fallback; a half-updated set never activates):
   against a scratch stage): `fetch` from Apple's server in 12.4 s (`space` asked 46,760,649 bytes), `im4p` in
   0.1 s, 78,135,296 bytes, SHA-256 `349c4692…3e3`, the pin. Not run on a phone. *I have the kernelcache file*
   stays as an optional import for a phone without a network (`kbinput kernelcache.macho`, the same pin).
-- **Activation** (root's `finish kernel <kc-sha256> <build-id>`): checks first — the collection is complete, its
+- **Activation** (root's `finish kernel <kc-sha256> <build-id>`, and for an iOS 27.2.1 set `kb-24B156 <xnu path>` after them: "iOS 27.2.1 (24B156)" above): checks first — the collection is complete, its
   SHA-256 is the tool's, and its build record names this runtime's xnu and the staged kernelcache — then the old
   set aside to `kernel.prev/`, the new `kernel.kc` with freshly regenerated chunk hashes in, `image.sha256`,
   `image.ids`, `manifest.json` (the kernel entry) and `image.conf` rewritten, and a receipt in `logs/` (from/to
@@ -649,7 +734,8 @@ whole room once and refuses `space`, and anything it cannot do, before a byte is
 have downloaded about 11 GB before that check), and the keyless `tweaks` after it (`make-image` runs the root
 tweaks in its `tweaks` step; the tool now refuses that request `usage`).
 
-**Before it starts** (`OneiosActions.makeImage`, from Set up iOS 27's image step, iOS 27's page and Run again) a
+**Before it starts** (`OneiosActions.makeImage`, from Set up iOS 27's image step, iOS 27's page and Run again) the
+user picks the build where the phone offers more than one (iOS 27.0.1 or 27.2.1: "iOS 27.2.1 (24B156)" above), then a
 dialog says what it downloads from Apple (`OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES`, 11,382,548,957 bytes: the profile's
 13 members), the room it needs at its peak (`MAKE_IMAGE_ROOM_BYTES`, 34 GiB: the profile's `need_gib` of 30 GiB for
 the members and their decrypted images side by side, and about 4 GiB for the seed's tree and tar and the kernel's

@@ -25,13 +25,20 @@ object OneiosSystem {
     const val SHORT_NAME = "iOS 27"
 
     /**
-     * The name of what the staged image set starts: "iOS 16.5" for the A56's 20F66 set, [SHORT_NAME] for iOS 27 or
-     * when no set is staged. The page title, the Switch button and the switching line use it: on the A56 they all
-     * said "iOS 27" over an iOS 16.5 set (OneiOS issue 73, 2026-11-24).
+     * The name of what the staged image set starts: "iOS 16.5" for the A56's 20F66 set, the whole version of an iOS 27
+     * set ("iOS 27.0.1", "iOS 27.2.1": two builds can be staged, OneOS 2026-11-25), [SHORT_NAME] when no set is
+     * staged. The page title, the Switch button and the switching line use it: on the A56 they all said "iOS 27" over
+     * an iOS 16.5 set (OneiOS issue 73, 2026-11-24).
      */
-    fun shortName(imageVersion: String?): String =
-        imageVersion?.trim()?.takeIf { it.isNotEmpty() && it.substringBefore('.') != "27" }
-            ?.let { "iOS " + it.split('.').take(2).joinToString(".") } ?: SHORT_NAME
+    fun shortName(imageVersion: String?): String {
+        val v = imageVersion?.trim()?.takeIf { it.isNotEmpty() } ?: return SHORT_NAME
+        if (!Regex("^[0-9]{1,3}(\\.[0-9]{1,3}){0,3}$").matches(v)) return SHORT_NAME
+        return if (isIos27(v)) "iOS " + v.split('.').take(3).joinToString(".") else "iOS " + v.split('.').take(2).joinToString(".")
+    }
+
+    /** The set is iOS 27 (or none is staged): the iOS 27 artwork shows over it. */
+    fun isIos27(imageVersion: String?): Boolean =
+        imageVersion?.trim()?.takeIf { it.isNotEmpty() }?.substringBefore('.')?.let { it == "27" } ?: true
 
     /** [shortName] with "(OneiOS)", as [NAME]. */
     fun name(imageVersion: String?): String = "${shortName(imageVersion)} (OneiOS)"
@@ -175,6 +182,8 @@ data class OneiosKernel(
     val profile: String,
     /** `kernel/xnu.macho.build.json` in the package. */
     val record: String,
+    /** `runtime.json`'s `kernels[]` entry: the Apple build it pairs ("24A446", "24B156"); null for `kernel` itself. */
+    val build: String? = null,
 )
 
 /**
@@ -196,6 +205,11 @@ data class OneiosManifest(
     val minOneosFork: String? = null,
     /** Runtime: the kernel it carries ([OneiosKernel]); null = `runtime.json` has no `kernel` (nothing to rebuild from). */
     val kernel: OneiosKernel? = null,
+    /**
+     * Runtime: one kernel per Apple build it pairs (`runtime.json`'s `kernels`, OneiOS 2026-11-25: 24A446 at
+     * `kernel/xnu.macho`, as [kernel], and 24B156 at `kernel/24B156/xnu.macho`); empty for a runtime before it.
+     */
+    val kernels: List<OneiosKernel> = emptyList(),
     /** Image set: Apple's build ("24A..."), the device it is of ("iPhone18,2"), "iOS". */
     val build: String? = null,
     val device: String? = null,
@@ -203,6 +217,14 @@ data class OneiosManifest(
 ) {
     val bytes: Long get() = files.sumOf { it.size }
     fun file(path: String): OneiosFile? = files.firstOrNull { it.path == path }
+
+    /**
+     * Runtime: its kernel for a set whose kexts are [kernelBuild]'s ([OneiosImageChoice.kernelBuildOf]): [kernel] for
+     * 24A446, exactly as before (a runtime without `kernels` too); the `kernels[]` entry of that build for another
+     * one, null when it has none (a runtime too old for that build: "get the latest OneiOS runtime").
+     */
+    fun kernelFor(kernelBuild: String): OneiosKernel? =
+        if (kernelBuild == OneiosImageChoice.IOS_27.build) kernel else kernels.firstOrNull { it.build == kernelBuild }
 }
 
 /** What was really there for one path: what the app read, or what root wrote. */
@@ -299,7 +321,7 @@ object OneiosManifests {
                 OneiosManifest(
                     kind, format, version, files, sessionAbi = abi, xnuhost = x, imageFormats = formats.distinct(),
                     placeholder = placeholder, minOneosFork = word("min_oneos_fork", required = false),
-                    kernel = kernelOf(root, name),
+                    kernel = kernelOf(root, name), kernels = kernelsOf(root, name),
                 )
             }
             OneiosKind.IMAGE -> OneiosManifest(
@@ -355,23 +377,42 @@ object OneiosManifests {
      * on is checked. A present but malformed object refuses the manifest: a
      * kernel the app cannot name must never be staged as updatable.
      */
-    private fun kernelOf(root: Map<*, *>, name: String): OneiosKernel? {
-        val o = root["kernel"] ?: return null
-        o as? Map<*, *> ?: error("$name: kernel is not an object")
+    private fun kernelOf(root: Map<*, *>, name: String): OneiosKernel? =
+        root["kernel"]?.let { kernelObject(it, name, "kernel", build = false) }
+
+    /**
+     * `runtime.json`'s `kernels` array (OneiOS 2026-11-25): one object per Apple build, each shaped like `kernel`
+     * plus its `build` ("24A446", "24B156"), each build once. Empty when there is none (every runtime before it);
+     * malformed refuses the manifest, as a malformed `kernel` does.
+     */
+    private fun kernelsOf(root: Map<*, *>, name: String): List<OneiosKernel> {
+        val list = root["kernels"] ?: return emptyList()
+        list as? List<*> ?: error("$name: kernels is not a list")
+        if (list.size > 16) error("$name: kernels holds ${list.size} kernels (at most 16)")
+        val got = list.mapIndexed { i, o -> kernelObject(o, name, "kernels[$i]", build = true) }
+        got.groupBy { it.build }.filterValues { it.size > 1 }.keys.firstOrNull()?.let { error("$name: kernels names $it twice") }
+        return got
+    }
+
+    private val BUILD = Regex("^[0-9A-Z]{3,20}$")
+
+    private fun kernelObject(v: Any?, name: String, what: String, build: Boolean): OneiosKernel {
+        val o = v as? Map<*, *> ?: error("$name: $what is not an object")
         fun text(key: String, max: Int = 120): String {
-            val v = o[key] as? String ?: error("$name: kernel has no $key")
-            if (v.length !in 1..max || v.any { it !in 'A'..'Z' && it !in 'a'..'z' && it !in '0'..'9' && it !in "._-/+" }) {
-                error("$name: kernel $key '${v.take(40)}' is not plain")
+            val s = o[key] as? String ?: error("$name: $what has no $key")
+            if (s.length !in 1..max || s.any { it !in 'A'..'Z' && it !in 'a'..'z' && it !in '0'..'9' && it !in "._-/+" }) {
+                error("$name: $what $key '${s.take(40)}' is not plain")
             }
-            return v
+            return s
         }
         return OneiosKernel(
-            path = text("path").also { if (!validPath(it)) error("$name: kernel path '$it' is not a plain relative path") },
+            path = text("path").also { if (!validPath(it)) error("$name: $what path '$it' is not a plain relative path") },
             buildId = text("build_id"),
-            sha256 = text("sha256", 64).lowercase(Locale.ROOT).also { if (!HEX64.matches(it)) error("$name: kernel sha256 is malformed") },
+            sha256 = text("sha256", 64).lowercase(Locale.ROOT).also { if (!HEX64.matches(it)) error("$name: $what sha256 is malformed") },
             xnu = text("xnu"),
             profile = text("profile"),
-            record = text("record").also { if (!validPath(it)) error("$name: kernel record '$it' is not a plain relative path") },
+            record = text("record").also { if (!validPath(it)) error("$name: $what record '$it' is not a plain relative path") },
+            build = if (build) text("build", 20).also { if (!BUILD.matches(it)) error("$name: $what build '$it' is not an Apple build") } else null,
         )
     }
 
@@ -408,11 +449,11 @@ object OneiosManifests {
     fun kernelProblem(
         /** Apple's build of the staged image set (`manifest.json`'s `build`), e.g. "24A446"; null = none staged. */
         imageBuild: String?,
-        /** The prelink inputs the app carries (`kb/kb.json`): the Apple build they pair. */
+        /** The prelink inputs the app carries for the set's kernel build (`kb/kb.json`, `kb-24B156/kb.json`): the Apple build they pair. */
         kb: OneiosKb,
-        /** SHA-256 of the staged `kb/kernelcache.macho`; null = not staged. */
+        /** SHA-256 of the staged `kb/kernelcache.macho` (or `kb-<BUILD>/`'s, root's `kbset` line); null = not staged. */
         kernelcacheSha256: String?,
-        /** The staged runtime carries a kernel (`runtime.json` had `kernel`). */
+        /** The staged runtime carries a kernel for that build (`kernel`, or its `kernels[]` entry). */
         runtimeHasKernel: Boolean,
     ): String? = updateProblem(imageBuild, kb, runtimeHasKernel) ?: when {
         kernelcacheSha256 == null -> "Apple's kernelcache is not staged: run Update the kernel, which downloads it from Apple."
@@ -423,14 +464,28 @@ object OneiosManifests {
 
     /**
      * Whether Update the kernel may start ([kernelProblem] without the kernelcache: the update downloads it from
-     * Apple itself). null = yes.
+     * Apple itself). null = yes. [kb] is the app's pairing files of the staged set's kernel build
+     * ([OneiosImageChoice.kernelBuildOf]: `kb/` for 24A446 and the A56's 20F66, `kb-24B156/` for iOS 27.2.1);
+     * [runtimeHasKernel]: the staged runtime carries a kernel for that build (`kernel` for 24A446, its `kernels[]`
+     * entry for another one).
      */
     fun updateProblem(imageBuild: String?, kb: OneiosKb, runtimeHasKernel: Boolean): String? = when {
         imageBuild == null -> "No iOS image set is staged: import the one you built with OneiOS's scripts."
         OneiosImageChoice.kernelBuildOf(imageBuild) != kb.build ->
             "The prelink inputs pair Apple's build ${kb.build}, but the staged image set is $imageBuild: a kernel built from them must never boot it."
-        !runtimeHasKernel -> "The staged runtime carries no kernel (its runtime.json has no kernel): update the runtime first."
+        !runtimeHasKernel && kb.build == OneiosImageChoice.IOS_27.build ->
+            "The staged runtime carries no kernel (its runtime.json has no kernel): update the runtime first."
+        !runtimeHasKernel -> noBuildKernel(imageBuild)
         else -> null
+    }
+
+    /**
+     * A staged runtime with no kernel for a set of [imageBuild] (one before `runtime.json`'s `kernels`, or one whose
+     * `kernels` has no entry of it), in the words the app has for a runtime too old for something.
+     */
+    fun noBuildKernel(imageBuild: String): String {
+        val name = OneiosImageChoice.ofBuild(imageBuild)?.title ?: imageBuild
+        return "The staged OneiOS runtime has no kernel for $name (its runtime.json has no kernels entry for it): get the latest OneiOS runtime."
     }
 
     /** The staged runtime's kernel build id against a release's: null when nothing newer is offered, else the one line what it carries. */
@@ -442,13 +497,19 @@ object OneiosManifests {
     }
 }
 
-/** The prelink inputs the app carries for a phone-built kernel (`assets/kb/kb.json`): what they pair and their hashes. */
+/**
+ * The prelink inputs the app carries for a phone-built kernel, of one Apple build (`assets/kb/kb.json` for 24A446,
+ * `assets/kb-24B156/kb.json` for iOS 27.2.1: [OneiosImageChoice.kbDirOf]): what they pair and their hashes.
+ */
 data class OneiosKb(
     val build: String,
     val device: String,
     val kernelcacheSha256: String,
     val files: Map<String, String>,
 ) {
+    /** The files `kbinput` gets, in the order it gets them: every file kb.json lists, sorted by name. */
+    val names: List<String> get() = files.keys.sorted()
+
     companion object {
         /** The input files the stage needs, in the order `serve prelink` takes shape from them. */
         val INPUTS: List<String> = listOf(
@@ -463,9 +524,15 @@ data class OneiosKb(
          */
         const val FORMAT = 2
 
-        /** What `kb/kb.json` pins (everything but the Apple kernelcache, which the kernel update downloads from Apple). */
+        /** What `kb/kb.json` (24A446) pins (everything but the Apple kernelcache, which the kernel update downloads from Apple). */
         val PINNED: List<String> = (INPUTS - "kernelcache.macho") + "match/fixtures/fileset-23F84-symbols.json" +
             "match/fixtures/fileset-24A446-symbols.json" + "match/fixtures/fileset-26C5035r-symbols.json"
+
+        /**
+         * What every build's kb.json pins at least: the six inputs beside the kernelcache; the matcher's fixtures
+         * are each build's own (at least one), 24A446's exactly [PINNED].
+         */
+        val CORE: List<String> = INPUTS - "kernelcache.macho"
         private val HEX64 = Regex("^[0-9a-f]{64}$")
 
         fun parse(text: String): Result<OneiosKb> = runCatching {
@@ -483,25 +550,35 @@ data class OneiosKb(
             val got = files.entries.associate { (k, v) ->
                 val name = k as? String ?: error("kb.json names a file that is not a string")
                 if (!OneiosManifests.validPath(name)) error("kb.json file '$name' is not a plain relative path")
+                if (name == "kernelcache.macho" || !OneiosKbFiles.allowed(name)) error("kb.json file '$name' is not one root's kbinput takes")
                 val sha = (v as? String)?.lowercase(java.util.Locale.ROOT) ?: error("kb.json file '$name' has no SHA-256")
                 if (!HEX64.matches(sha)) error("kb.json file '$name' has a malformed SHA-256")
                 name to sha
             }
-            for (need in PINNED) {
+            for (need in if (build == OneiosImageChoice.IOS_27.build) PINNED else CORE) {
                 if (need !in got) error("kb.json lists no $need (the phone's prelink needs it)")
             }
+            if (got.keys.none { it.startsWith("match/") }) error("kb.json lists no matcher file (match/)")
             OneiosKb(build, device, pin, got)
         }
     }
 }
 
-/** The kernel-build input files `kbinput` takes (assets/kb/, the root script's allowlist); a test matches them with kb.json. */
+/**
+ * The kernel-build input files `kbinput` takes (assets/kb/, the root script's allowlist); a test matches them with
+ * kb.json. [NAMES] is 24A446's set; another build's kb (`kb-24B156`) may name other matcher fixtures ([allowed]).
+ */
 object OneiosKbFiles {
     val NAMES: Set<String> = setOf(
         "kernelcache.macho", "profile.toml", "reviewed.json", "pairs.json", "stubs.json",
         "lead.json", "user.json", "match/fixtures/fileset-23F84-symbols.json",
         "match/fixtures/fileset-24A446-symbols.json", "match/fixtures/fileset-26C5035r-symbols.json",
     )
+
+    /** Root's `kb_name`: the seven inputs, or a matcher fixture `match/fixtures/fileset-<id>-symbols.json` (id: 1 to 20 letters and digits). */
+    private val FIXTURE = Regex("^match/fixtures/fileset-[0-9A-Za-z]{1,20}-symbols\\.json$")
+
+    fun allowed(name: String): Boolean = name in OneiosKb.INPUTS || FIXTURE.matches(name)
 }
 /** The runtime package of one OneiOS release: the asset to download and the file holding its SHA-256. */
 data class OneiosRelease(

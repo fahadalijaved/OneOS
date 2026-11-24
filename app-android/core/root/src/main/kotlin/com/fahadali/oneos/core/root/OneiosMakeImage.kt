@@ -13,8 +13,12 @@ import com.fahadali.oneos.core.model.OneiosToolFlow
  *
  * 1. root's `status`: no open session, and a staged runtime that carries a kernel (`runtime.json`'s `kernel`,
  *    OneiOS v0.1.12 or newer: the set's `kernel.kc` is prelinked from it). Without one, the latest OneiOS release's
- *    runtime is downloaded and staged first ([Io.latestRuntime], as Get the runtime does), and `status` asked again;
- * 2. the pairing files into `kb/` ([OneiosKbInput]: root's `kbinput` ×12, as Update the kernel does);
+ *    runtime is downloaded and staged first ([Io.latestRuntime], as Get the runtime does), and `status` asked again.
+ *    For iOS 27.2.1 (24B156) the runtime must also carry its 24B156 kernel (`runtime.json`'s `kernels[]`,
+ *    [Io.kernelPath]); a runtime without it gets the newest one too, and the flow refuses [CODE_NO_BUILD_KERNEL]
+ *    ("get the latest OneiOS runtime") when that has none either;
+ * 2. the pairing files into `kb/`, or `kb-24B156/` for iOS 27.2.1 ([OneiosKbInput]: root's `kbinput`, one a file, as
+ *    Update the kernel does);
  * 3. root's `begin image` (an empty `image.new` and its two empty lists);
  * 4. the tool ([Io.openTool]); when its `hello` names no `make-image` (a runtime older than the tool's
  *    `make-image`), the latest runtime once more when that is another version, else a refusal in plain words;
@@ -39,13 +43,23 @@ class OneiosMakeImage(
     private val kb: OneiosKb,
     /** The app's `kb/` files by name ([OneiosKbInput.NAMES]), as read from its assets. */
     private val assets: Map<String, ByteArray>,
-    /** Which image this phone makes ([OneiosImageChoice.of] of its profile); iOS 27 by default, as before. */
+    /**
+     * Which image this phone makes (the user's pick of [OneiosImageChoice.choicesOf] its profile); iOS 27.0.1 by default, as
+     * before. iOS 27.2.1 sends make-image its kernel ([Io.kernelPath]) and `kb-24B156` ([OneiosImageChoice.kb]).
+     */
     private val image: OneiosImageChoice = OneiosImageChoice.IOS_27,
 ) {
     /** What the flow needs from the app: root, the release download, the tool, the screen, the user's Stop. */
     interface Io {
         /** Root's `status` (parsed), or the reason it did not answer. */
         fun status(): Result<OneiosStatus>
+
+        /**
+         * The staged runtime's kernel path for a set of [kernelBuild]'s kexts (its `runtime.json`'s `kernels[]` entry,
+         * as the app recorded it when it staged that runtime, [st] being root's status of it); null when it has none.
+         * Asked only for a build that is not 24A446 (iOS 27.2.1): 24A446's is the tool's default, `kernel.path`.
+         */
+        fun kernelPath(st: OneiosStatus, kernelBuild: String): String? = null
 
         /** The latest OneiOS release's runtime downloaded and staged, unless its version is [unless] (the staged one). */
         fun latestRuntime(unless: String?): Runtime
@@ -108,34 +122,34 @@ class OneiosMakeImage(
     }
 
     fun run(io: Io): Outcome {
-        // 1. No session, and a runtime with a kernel (else the newest one first).
+        // 1. No session, and a runtime with a kernel, for iOS 27.2.1 one with its 24B156 kernel (else the newest one first).
         io.phase(Phase.STATUS)
         var st = io.status().getOrElse { return refused(STEP_STATUS, null, it.message ?: "root did not answer") }
         if (st.sessionOpen) return refused(STEP_STATUS, "session", "an iOS session is running: return to One UI first")
         var newRuntime = false
-        if (!canBuild(st)) {
+        if (missing(io, st) != null) {
             if (io.stopped) return cancelled(STEP_RUNTIME)
             io.phase(Phase.RUNTIME)
             when (val r = io.latestRuntime(st.runtime?.version)) {
                 is Runtime.Failed -> return Outcome.Stopped(STEP_RUNTIME, if (io.stopped) OneiosToolFlow.End.CANCELLED else OneiosToolFlow.End.FAILED, null, r.why)
-                is Runtime.Same -> return noKernel(r.version)
+                is Runtime.Same -> return missing(io, st) ?: noKernel(r.version)
                 is Runtime.Staged -> {
                     newRuntime = true
                     io.done("OneiOS runtime ${r.version} is staged: it carries the kernel the image needs.")
                 }
             }
             st = io.status().getOrElse { return refused(STEP_STATUS, null, it.message ?: "root did not answer") }
-            if (!canBuild(st)) return noKernel(st.runtime?.version)
+            missing(io, st)?.let { return it }
         }
 
         // 2. The pairing files (the prelink's inputs besides Apple's kernelcache, which make-image decodes itself).
         if (io.stopped) return cancelled(STEP_KBINPUT)
         io.phase(Phase.INPUTS)
-        OneiosKbInput.put(kb, assets, { verb, args, data -> io.root(verb, args, data) }, { io.stopped })?.let { r ->
+        OneiosKbInput.put(kb, assets, { verb, args, data -> io.root(verb, args, data) }, { io.stopped }, image.kb)?.let { r ->
             if (r === OneiosKbInput.STOPPED) return cancelled(STEP_KBINPUT)
             return refused(STEP_KBINPUT, r.code, r.text)
         }
-        io.done("The pairing files are on this phone (${OneiosKbInput.NAMES.size}, each the pinned one).")
+        io.done("The pairing files are on this phone (${kb.names.size}, each the pinned one).")
 
         // 3. An empty image.new and its lists.
         if (io.stopped) return cancelled(STEP_BEGIN)
@@ -158,7 +172,7 @@ class OneiosMakeImage(
                 is Runtime.Staged -> io.done("OneiOS runtime ${r.version} is staged: its oneios-tool makes the image.")
             }
             st = io.status().getOrElse { return refused(STEP_STATUS, null, it.message ?: "root did not answer") }
-            if (!canBuild(st)) return noKernel(st.runtime?.version)
+            missing(io, st)?.let { return it }
             if (io.stopped) return cancelled(STEP_TOOL)
             io.phase(Phase.TOOL)
             cmds = io.openTool().getOrElse { return refused(STEP_TOOL, null, it.message ?: "oneios-tool did not start") }
@@ -187,7 +201,9 @@ class OneiosMakeImage(
         // 5. The image set, made by the tool.
         if (io.stopped) return cancelled(OneiosTool.Cmd.MAKE_IMAGE)
         io.phase(Phase.BUILD)
-        val (cmd, keys) = OneiosTool.makeImageRequest(stage, image.profile)
+        // iOS 27.0.1 and the A56: the tool's defaults for the kernel and kb/, as before; iOS 27.2.1 names its own.
+        val xnu = if (image.usesDefaultKernel) null else io.kernelPath(st, image.kernelBuild) ?: return noBuildKernel(st.runtime?.version)
+        val (cmd, keys) = OneiosTool.makeImageRequest(stage, image.profile, xnu, if (image.usesDefaultKernel) null else image.kb)
         val made = io.tool(cmd, keys)
         if (made.end != OneiosToolFlow.End.OK) {
             return Outcome.Stopped(cmd, made.end ?: OneiosToolFlow.End.LOST, made.code, made.text, made.spaceNeed, made.spaceFree)
@@ -226,6 +242,20 @@ class OneiosMakeImage(
         "the newest OneiOS runtime${version?.let { " ($it)" }.orEmpty()} has an oneios-tool without make-image",
     )
 
+    /** A runtime with a kernel but none for [image]'s build (no `kernels[]` entry of 24B156): "get the latest OneiOS runtime". */
+    private fun noBuildKernel(version: String?) = refused(
+        STEP_RUNTIME, CODE_NO_BUILD_KERNEL,
+        "the OneiOS runtime${version?.let { " ($it)" }.orEmpty()} carries no kernel for ${image.title} (runtime.json has no kernels entry for " +
+            "${image.kernelBuild}): get the latest OneiOS runtime",
+    )
+
+    /** Why the staged runtime cannot make [image] ([noKernel], [noBuildKernel]); null when it can. */
+    private fun missing(io: Io, st: OneiosStatus): Outcome.Stopped? = when {
+        !canBuild(st) -> noKernel(st.runtime?.version)
+        !image.usesDefaultKernel && io.kernelPath(st, image.kernelBuild) == null -> noBuildKernel(st.runtime?.version)
+        else -> null
+    }
+
     companion object {
         const val STEP_STATUS = OneiosMakeImageSteps.STATUS
         const val STEP_RUNTIME = OneiosMakeImageSteps.RUNTIME
@@ -237,6 +267,12 @@ class OneiosMakeImage(
         /** The app's own codes for [Outcome.Stopped] at [STEP_RUNTIME]: no runtime with a kernel, or no tool with make-image. */
         const val CODE_NO_KERNEL = OneiosMakeImageSteps.NO_KERNEL
         const val CODE_NO_MAKE_IMAGE = OneiosMakeImageSteps.NO_MAKE_IMAGE
+
+        /** The runtime has no kernel for the chosen build (iOS 27.2.1's 24B156, `runtime.json`'s `kernels`). */
+        const val CODE_NO_BUILD_KERNEL = OneiosMakeImageSteps.NO_BUILD_KERNEL
+
+        /** This app has no pairing files for the chosen build (`assets/kb-<BUILD>/`): the app's own refusal at [STEP_KBINPUT]. */
+        const val CODE_NO_KB = OneiosMakeImageSteps.NO_KB
 
         /** A staged runtime the tool can make the image with: there, not a placeholder, and carrying a kernel. */
         fun canBuild(st: OneiosStatus): Boolean = st.runtime != null && !st.runtime.placeholder && st.runtimeKernel != null

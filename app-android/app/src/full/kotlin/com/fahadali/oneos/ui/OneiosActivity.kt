@@ -400,7 +400,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
         findViewById<TextView>(R.id.environment_title)?.text = name
         findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout)?.setTitle(name)
         findViewById<View>(R.id.environment_artwork)?.visibility =
-            if (OneiosSystem.shortName(version) == OneiosSystem.SHORT_NAME) View.VISIBLE else View.GONE
+            if (OneiosSystem.isIos27(version)) View.VISIBLE else View.GONE
         val next = flow.next
         findViewById<Button>(R.id.environment_boot).apply {
             text = when {

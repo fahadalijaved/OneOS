@@ -37,6 +37,18 @@ object OneiosTool {
      */
     const val IPSW_PROFILE = "runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml"
 
+    /**
+     * iOS 27.2.1 (24B156)'s IPSW profile, beside [IPSW_PROFILE] in the runtime's `lib/profiles/` (OneiOS's
+     * `profiles/ios-27.2.1-iPhone18,2.toml`; a runtime packs every profile of OneiOS's `profiles/`). Relative to the stage.
+     */
+    const val IPSW_PROFILE_27_2 = "runtime/lib/profiles/ios-27.2.1-iPhone18-2.toml"
+
+    /**
+     * The pairing files' folder of the 24A446 kexts (stage-relative; the app's `assets/kb/`): the tool's defaults for
+     * `kb`. Another Apple build's are in `kb-<BUILD>` ([OneiosImageChoice.kbDirOf]: `kb-24B156`).
+     */
+    const val KB = "kb"
+
     /** The kernel update's work folder (stage-relative): the fetched IM4P, its decode, the build's `out`. */
     const val KERNEL_WORK = "make-kernel"
 
@@ -48,10 +60,11 @@ object OneiosTool {
      * The kernel update's download (docs/oneios.md, "Kernel updates"): only Apple's kernelcache member of the
      * IPSW, from Apple's server by range requests (about 23 MB; the profile pins its size, CRC-32 and SHA-384,
      * and the tool refuses another file with `mismatch`), into `make-kernel/inputs`. `resume`: a pause, a lost
-     * network or an ended app leaves the parts, and the next run goes on from them.
+     * network or an ended app leaves the parts, and the next run goes on from them. [profile]: the IPSW profile of
+     * the staged set's kernel build ([OneiosImageChoice.ipswProfileOf]; 24A446's by default).
      */
-    fun kernelcacheFetchRequest(stage: String): Pair<String, Map<String, Any?>> = Cmd.FETCH to mapOf(
-        "profile" to "$stage/$IPSW_PROFILE",
+    fun kernelcacheFetchRequest(stage: String, profile: String = IPSW_PROFILE): Pair<String, Map<String, Any?>> = Cmd.FETCH to mapOf(
+        "profile" to "$stage/$profile",
         "indir" to "$stage/$KERNEL_WORK/inputs",
         "only" to listOf(KERNELCACHE_ROLE),
         "resume" to true,
@@ -59,8 +72,8 @@ object OneiosTool {
 
     /**
      * The fetched IM4P decoded by the tool's own decoder (`im4p`: `in`, `out`; its `ok` has `kind`, `bytes` and
-     * `sha256`), into the work folder: root's `kbcache` moves it into `kb/` once its SHA-256 is the pin of the
-     * app's `kb/kb.json`.
+     * `sha256`), into the work folder: root's `kbcache` moves it into `kb/` (or `kb-<BUILD>/`) once its SHA-256 is
+     * the pin of the app's `kb.json` of that build.
      */
     fun kernelcacheDecodeRequest(stage: String): Pair<String, Map<String, Any?>> = Cmd.IM4P to mapOf(
         "in" to "$stage/$KERNEL_WORK/inputs/$KERNELCACHE_MEMBER",
@@ -69,18 +82,19 @@ object OneiosTool {
 
     /**
      * The `prelink` request that builds the phone's kernel (docs/oneios.md, "Kernel updates"): for the staged
-     * runtime's kernel at [xnuPath] (its runtime.json's `kernel.path`), every path under [stage] (the tool
-     * refuses anything outside it). No `reference` (the phone has none), no `keep_work`, no record commits.
+     * runtime's kernel at [xnuPath] (its runtime.json's `kernel.path`, or the `kernels[]` entry's of the staged set's
+     * build), with the pairing files of [kb] (`kb`, or `kb-24B156` for iOS 27.2.1), every path under [stage] (the
+     * tool refuses anything outside it). No `reference` (the phone has none), no `keep_work`, no record commits.
      */
-    fun prelinkRequest(xnuPath: String, stage: String): Pair<String, Map<String, Any?>> = Cmd.PRELINK to mapOf(
+    fun prelinkRequest(xnuPath: String, stage: String, kb: String = KB): Pair<String, Map<String, Any?>> = Cmd.PRELINK to mapOf(
         "kernel" to "$stage/runtime/$xnuPath",
-        "kernelcache" to "$stage/kb/kernelcache.macho",
-        "profile" to "$stage/kb/profile.toml",
-        "reviewed" to "$stage/kb/reviewed.json",
-        "more_reviewed" to listOf("$stage/kb/lead.json", "$stage/kb/user.json"),
-        "pairs" to "$stage/kb/pairs.json",
-        "stubs" to "$stage/kb/stubs.json",
-        "xnuprelink" to "$stage/kb/match",
+        "kernelcache" to "$stage/$kb/kernelcache.macho",
+        "profile" to "$stage/$kb/profile.toml",
+        "reviewed" to "$stage/$kb/reviewed.json",
+        "more_reviewed" to listOf("$stage/$kb/lead.json", "$stage/$kb/user.json"),
+        "pairs" to "$stage/$kb/pairs.json",
+        "stubs" to "$stage/$kb/stubs.json",
+        "xnuprelink" to "$stage/$kb/match",
         "out" to "$stage/make-kernel/out",
     )
 
@@ -100,22 +114,27 @@ object OneiosTool {
      * service), copies `/private/var` with its own APFS reader, runs the root tweaks, packs the seed, decodes Apple's
      * kernelcache and prelinks the staged runtime's `kernel/xnu.macho` with the pairing files in `kb/`. `profile`: the
      * runtime's [IPSW_PROFILE] by default, as the kernel update's `fetch` sends it; the Galaxy A56's
-     * [OneiosImageChoice.IOS_16_5_A56] names its own ([OneiosImageChoice.of]). A released runtime packs every profile of
-     * OneiOS's `profiles/` (v0.1.16: five, two of them host profiles), and a tool up to v0.1.16 refuses a request
-     * without `profile` there (`usage`, "holds 5 profiles: give \"profile\"", OneiOS issue 75: every Make iOS image
-     * stopped with "OneOS and the runtime don't agree"). The keys it takes from the stage when not sent: `xnu`
-     * (`runtime.json`'s `kernel.path`), `kb` (`<stage>/kb`), `tweaks` (true). `resume`: a stop, a lost network or an
-     * ended app keep the fetch's parts for the next run (the tool's default too; sent so that it does not depend on one).
+     * [OneiosImageChoice.IOS_16_5_A56] and iOS 27.2.1's [OneiosImageChoice.IOS_27_2] name their own. A released runtime
+     * packs every profile of OneiOS's `profiles/` (v0.1.16: five, two of them host profiles), and a tool up to v0.1.16
+     * refuses a request without `profile` there (`usage`, "holds 5 profiles: give \"profile\"", OneiOS issue 75: every
+     * Make iOS image stopped with "OneOS and the runtime don't agree"). The keys it takes from the stage when not sent:
+     * `xnu` (`runtime.json`'s `kernel.path`), `kb` (`<stage>/kb`), `tweaks` (true): iOS 27.0.1 and the A56 send none
+     * of them, as before; iOS 27.2.1 sends [xnu] (the runtime's `kernels[]` path of 24B156, stage-relative under
+     * `runtime/`) and [kb] (`kb-24B156`). `resume`: a stop, a lost network or an ended app keep the fetch's parts for
+     * the next run (the tool's default too; sent so that it does not depend on one).
      */
-    fun makeImageRequest(stage: String, profile: String = IPSW_PROFILE): Pair<String, Map<String, Any?>> = Cmd.MAKE_IMAGE to mapOf(
-        "profile" to "$stage/$profile",
-        "indir" to "$stage/$MAKE_WORK/inputs",
-        "out" to "$stage/image.new",
-        "sums_list" to "$stage/image.new.sha256",
-        "ids_list" to "$stage/image.new.ids",
-        "work" to "$stage/$MAKE_WORK",
-        "resume" to true,
-    )
+    fun makeImageRequest(stage: String, profile: String = IPSW_PROFILE, xnu: String? = null, kb: String? = null): Pair<String, Map<String, Any?>> =
+        Cmd.MAKE_IMAGE to (
+            mapOf(
+                "profile" to "$stage/$profile",
+                "indir" to "$stage/$MAKE_WORK/inputs",
+                "out" to "$stage/image.new",
+                "sums_list" to "$stage/image.new.sha256",
+                "ids_list" to "$stage/image.new.ids",
+                "work" to "$stage/$MAKE_WORK",
+                "resume" to true,
+            ) + listOfNotNull(xnu?.let { "xnu" to "$stage/runtime/$it" }, kb?.let { "kb" to "$stage/$it" })
+        )
 
     /**
      * What Make iOS image downloads from Apple for iOS 27.0.1 (24A446), iPhone18,2: the members the runtime's profile
@@ -310,10 +329,11 @@ object OneiosTool {
 }
 
 /**
- * Which iOS image a phone makes with Make iOS image (docs/oneios.md, "Galaxy A56"): the runtime's IPSW profile
- * ([profile], stage-relative, as [OneiosTool.makeImageRequest] sends it), the iOS [version] and [build] it gives,
- * what it downloads from Apple ([downloadBytes], the sum of the profile's members) and about the free room it needs
- * at its peak ([roomBytes]), for the screen before it starts.
+ * Which iOS image a phone makes with Make iOS image (docs/oneios.md, "Make iOS image" and "Galaxy A56"): the runtime's
+ * IPSW profile ([profile], stage-relative, as [OneiosTool.makeImageRequest] sends it), the iOS [version] and [build]
+ * it gives, what it downloads from Apple ([downloadBytes], the sum of the profile's members) and about the free room
+ * it needs at its peak ([roomBytes]), for the screen before it starts. A phone offers one or more ([choicesOf]): the
+ * user's pick is what make-image builds.
  */
 data class OneiosImageChoice(
     val profile: String,
@@ -322,18 +342,49 @@ data class OneiosImageChoice(
     val downloadBytes: Long,
     val roomBytes: Long,
 ) {
+    /** The Apple build whose kexts this set's kernel.kc is prelinked with ([kernelBuildOf]): 24A446 for the A56's 20F66. */
+    val kernelBuild: String get() = kernelBuildOf(build)
+
     /**
      * The profile has no kernelcache member (the A56's iOS 16.5 one): the set's kernel.kc is OneiOS's XNU prelinked
      * with the iPhone18,2 24A446 kexts, so `make-image` needs Apple's 24A446 kernelcache in `kb/kernelcache.macho`
      * first (it refuses `usage`, "no kernelcache member to decode, and no kernelcache given", without it). That is
-     * the one Update the kernel fetches ([OneiosTool.kernelcacheFetchRequest] with [OneiosTool.IPSW_PROFILE]).
+     * the one Update the kernel fetches ([OneiosTool.kernelcacheFetchRequest] with [OneiosTool.IPSW_PROFILE]). iOS
+     * 27.0.1 and 27.2.1 have their own member: make-image decodes it.
      */
-    val needsKernelcache: Boolean get() = profile != OneiosTool.IPSW_PROFILE
+    val needsKernelcache: Boolean get() = kernelBuild != build
+
+    /** The stage's pairing-files folder for this set's kernel ([kbDirOf]): `kb`, or `kb-24B156` for iOS 27.2.1. */
+    val kb: String get() = kbDirOf(kernelBuild)
+
+    /**
+     * The tool's own defaults make this set (`xnu` = `runtime.json`'s `kernel.path`, `kb` = `<stage>/kb`): iOS 27.0.1
+     * and the A56's 16.5 (both the 24A446 kexts). iOS 27.2.1 names its kernel and its `kb-24B156` in the request.
+     */
+    val usesDefaultKernel: Boolean get() = kernelBuild == IOS_27.build
+
+    /** "iOS 27.2.1 (24B156)". */
+    val title: String get() = "iOS $version ($build)"
+
+    /** The list's line: [title] and what is known of it, "iOS 27.0.1 (24A446), tested" first. */
+    val label: String get() = NOTES[build]?.let { "$title, $it" } ?: title
 
     companion object {
         /** iOS 27.0.1 (24A446), iPhone18,2: every phone but the A56, exactly as before ([OneiosTool.IPSW_PROFILE]). */
         val IOS_27 = OneiosImageChoice(
             OneiosTool.IPSW_PROFILE, "27.0.1", "24A446", OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES, OneiosTool.MAKE_IMAGE_ROOM_BYTES,
+        )
+
+        /**
+         * iOS 27.2.1 (24B156), iPhone18,2, the build Apple signs now (OneiOS's `profiles/ios-27.2.1-iPhone18,2.toml`,
+         * in the runtime as `lib/profiles/ios-27.2.1-iPhone18-2.toml`): its 13 members are 11,718,249,424 bytes (10.91
+         * GiB), its `need_gib` is 32 (both AEA files beside their decrypted images); with the seed's tree and tar, the
+         * kernel's work and kernel.kc beside it, as for [IOS_27] (30 + 4 GiB), about 36 GiB. Its kernel.kc is the
+         * runtime's 24B156 kernel (`runtime.json`'s `kernels[]`) with the app's `kb-24B156` pairing files. Not booted
+         * on a phone yet: offered second, after [IOS_27], until a phone boot of it passes.
+         */
+        val IOS_27_2 = OneiosImageChoice(
+            OneiosTool.IPSW_PROFILE_27_2, "27.2.1", "24B156", 11_718_249_424L, 36L shl 30,
         )
 
         /**
@@ -346,8 +397,35 @@ data class OneiosImageChoice(
             "runtime/lib/profiles/ios-16.5-a56.toml", "16.5", "20F66", 5_825_842_914L, 24L shl 30,
         )
 
-        /** The phone's choice: the Galaxy A56 makes iOS 16.5; every other phone (or none known) iOS 27, as before. */
-        fun of(profile: PhoneProfile?): OneiosImageChoice = if (profile?.id == Profiles.ID_A56) IOS_16_5_A56 else IOS_27
+        /**
+         * The iOS 27 builds not booted on a phone yet: offered after the tested one, with "new: not booted yet" and a
+         * line in the confirm. Moves out once a phone boot of it passes (then the order and the notes change; nothing
+         * else blocks it).
+         */
+        val NOT_BOOTED: Set<String> = setOf(IOS_27_2.build)
+
+        /** What the list says of each build beside its name ([label]): 27.0.1 stays the tested one until 27.2.1 boots. */
+        val NOTES: Map<String, String> = mapOf(
+            IOS_27.build to "tested",
+            IOS_27_2.build to "new: not booted yet",
+        )
+
+        /** The iOS 27 builds of iPhone18,2 a set can be made of, the recommended (tested) one first. */
+        val IOS_27_BUILDS: List<OneiosImageChoice> = listOf(IOS_27, IOS_27_2)
+
+        /**
+         * What Make iOS image offers on a phone, the recommended one first: the Galaxy A56 only iOS 16.5; every other
+         * phone (or none known) iOS 27.0.1 (24A446), tested, then iOS 27.2.1 (24B156), not booted yet.
+         */
+        fun choicesOf(profile: PhoneProfile?): List<OneiosImageChoice> =
+            if (profile?.id == Profiles.ID_A56) listOf(IOS_16_5_A56) else IOS_27_BUILDS
+
+        /** The phone's recommended choice ([choicesOf]'s first): iOS 16.5 on the A56, iOS 27.0.1 everywhere else, as before. */
+        fun of(profile: PhoneProfile?): OneiosImageChoice = choicesOf(profile).first()
+
+        /** The phone's choice of [build] (the user's pick); the recommended one when it offers no such build. */
+        fun of(profile: PhoneProfile?, build: String?): OneiosImageChoice =
+            choicesOf(profile).firstOrNull { it.build == build } ?: of(profile)
 
         /**
          * The Apple build whose kexts a staged image set's kernel.kc is prelinked with: the image's own build, except
@@ -356,6 +434,22 @@ data class OneiosImageChoice(
          * prelink inputs' build: on the A56 it refused "the staged image set is 20F66" (OneiOS issue 73, 2026-11-24).
          */
         fun kernelBuildOf(imageBuild: String): String = if (imageBuild == IOS_16_5_A56.build) IOS_27.build else imageBuild
+
+        private val BUILD = Regex("^[0-9A-Z]{3,20}$")
+
+        /**
+         * The stage's pairing-files folder of a kernel build, and the app's assets folder of the same name: `kb` for
+         * 24A446 (as always), `kb-<BUILD>` for another one (`kb-24B156`; root's `kbinput`, `kbcache` and `finish
+         * kernel` take it as their last word). A word that is not a build is refused (IllegalArgumentException).
+         */
+        fun kbDirOf(kernelBuild: String): String =
+            if (kernelBuild == IOS_27.build) OneiosTool.KB else { require(BUILD.matches(kernelBuild)) { "'$kernelBuild' is not a build" }; "kb-$kernelBuild" }
+
+        /** The stage-relative IPSW profile whose kernelcache member a kernel build's Update the kernel fetches; null when the app knows none. */
+        fun ipswProfileOf(kernelBuild: String): String? = IOS_27_BUILDS.firstOrNull { it.build == kernelBuild }?.profile
+
+        /** The choice that makes [build] ("iOS 27.2.1 (24B156)" for 24B156); null for a build the app does not make. */
+        fun ofBuild(build: String?): OneiosImageChoice? = (IOS_27_BUILDS + IOS_16_5_A56).firstOrNull { it.build == build }
     }
 }
 

@@ -342,6 +342,12 @@ object OneiosPlain {
                 "It isn't the one this OneiOS pins, so nothing was kept. Tap Update the kernel to download it again.",
                 OneiosFix.CHECK_AGAIN, OneiosPart.OTHER,
             )
+            // Root's finish kernel for another build's kernel (iOS 27.2.1's kb-24B156) over a set of another build.
+            "must never boot it" in p -> m(
+                "This kernel is for another iOS",
+                "It was built for another image set than the one staged here. Tap Update the kernel again, then activate it.",
+                OneiosFix.CHECK_AGAIN, OneiosPart.OTHER,
+            )
             // The phone-built kernel: its inputs, its build, and its activation (docs/oneios.md, "Kernel updates").
             // Root checks every hash and list itself; these name what to do on the iOS page.
             "no phone-built kernel" in p || "run the kernel build" in p || "staged kernelcache" in p ||
@@ -443,6 +449,14 @@ object OneiosPlain {
                 "The runtime has no kernel yet",
                 "Make iOS image needs a OneiOS runtime with a kernel (0.1.12 or newer). Try again when OneiOS releases one.",
             )
+            step == OneiosMakeImageSteps.RUNTIME && code == OneiosMakeImageSteps.NO_BUILD_KERNEL -> m(
+                "This runtime has no kernel for this iOS",
+                "Get the latest OneiOS runtime: this iOS needs one that carries its kernel. Until OneiOS releases one, make iOS 27.0.1 (24A446).",
+            )
+            step == OneiosMakeImageSteps.KBINPUT && code == OneiosMakeImageSteps.NO_KB -> m(
+                "This OneOS can't make this iOS yet",
+                "It has no pairing files for this iOS build. Update OneOS, or make iOS 27.0.1 (24A446).",
+            )
             step == OneiosMakeImageSteps.RUNTIME && code == OneiosMakeImageSteps.NO_MAKE_IMAGE -> m(
                 "This runtime can't make the image yet",
                 "Its oneios-tool is older than Make iOS image. Try again when OneiOS releases a newer runtime.",
@@ -512,6 +526,12 @@ object OneiosMakeImageSteps {
     const val FINISH = "finish"
     const val NO_KERNEL = "no-kernel"
     const val NO_MAKE_IMAGE = "no-make-image"
+
+    /** The staged (and the newest) runtime has no `kernels[]` entry for the chosen build (iOS 27.2.1, 24B156). */
+    const val NO_BUILD_KERNEL = "no-build-kernel"
+
+    /** This app has no pairing files (`assets/kb-<BUILD>/`) for the chosen build. */
+    const val NO_KB = "no-kb"
 }
 
 /**
@@ -530,44 +550,69 @@ data class OneiosStaged(
     val kernelPath: String? = null,
     /** Runtime: `runtime.json`'s `kernel.build_id`. */
     val kernelBuildId: String? = null,
+    /** Runtime: `runtime.json`'s `kernels[]` (OneiOS 2026-11-25), each build's path and build id; empty = none recorded. */
+    val kernels: List<Kernel> = emptyList(),
 ) {
-    fun encode(): String = listOf(
-        kind.word, version, build ?: "-", files.toString(), bytes.toString(), atMs.toString(),
-        kernelPath ?: "-", kernelBuildId ?: "-",
-    ).joinToString(" ")
+    /** One `kernels[]` entry: the Apple build it pairs, its path in the runtime and its build id. */
+    data class Kernel(val build: String, val path: String, val buildId: String)
+
+    fun encode(): String = (
+        listOf(
+            kind.word, version, build ?: "-", files.toString(), bytes.toString(), atMs.toString(),
+            kernelPath ?: "-", kernelBuildId ?: "-",
+        ) + if (kernels.isEmpty()) emptyList() else listOf(kernels.joinToString(",") { "${it.build}:${it.path}:${it.buildId}" })
+        ).joinToString(" ")
 
     /** It describes what root reports as staged now. */
     fun matches(version: String?, build: String? = null): Boolean =
         version == this.version && (kind == OneiosKind.RUNTIME || build == null || build == "unknown" || build == this.build)
 
+    /**
+     * Runtime: its kernel for a set of [kernelBuild]'s kexts ([OneiosManifest.kernelFor]): `kernel` for 24A446, the
+     * `kernels[]` entry for another build; null when this runtime has none.
+     */
+    fun kernelFor(kernelBuild: String): Kernel? =
+        if (kernelBuild == OneiosImageChoice.IOS_27.build) kernelPath?.let { p -> kernelBuildId?.let { Kernel(kernelBuild, p, it) } }
+        else kernels.firstOrNull { it.build == kernelBuild }
+
     companion object {
         private val WORD = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
         private val PATH = Regex("^[A-Za-z0-9_][A-Za-z0-9._+/-]{0,199}$")
+        private val BUILD = Regex("^[0-9A-Z]{3,20}$")
+        private val BID = Regex("^[A-Za-z0-9][A-Za-z0-9._+-]{0,119}$")
 
         fun of(manifest: OneiosManifest, atMs: Long): OneiosStaged =
             OneiosStaged(
                 manifest.kind, manifest.version, manifest.build, manifest.files.size, manifest.bytes, atMs,
                 manifest.kernel?.path, manifest.kernel?.buildId,
+                manifest.kernels.mapNotNull { k -> k.build?.let { Kernel(it, k.path, k.buildId) } },
             )
 
-        /** [encode]'s text again (6 fields: before kernels were recorded); null for anything else. */
+        /** [encode]'s text again (6 fields: before kernels were recorded; 9: with `kernels[]`); null for anything else. */
         fun decode(text: String?): OneiosStaged? {
             val w = text?.trim()?.split(' ') ?: return null
-            if (w.size != 6 && w.size != 8) return null
+            if (w.size != 6 && w.size != 8 && w.size != 9) return null
             val kind = OneiosKind.entries.firstOrNull { it.word == w[0] } ?: return null
             if (!WORD.matches(w[1]) || (w[2] != "-" && !WORD.matches(w[2]))) return null
             val files = w[3].toIntOrNull()?.takeIf { it >= 0 } ?: return null
             val bytes = w[4].toLongOrNull()?.takeIf { it >= 0 } ?: return null
             val at = w[5].toLongOrNull()?.takeIf { it >= 0 } ?: return null
             val kp = w.getOrNull(6)?.takeIf { it != "-" }?.takeIf { PATH.matches(it) } ?: run {
-                if (w.size == 8 && w[6] != "-") return null
+                if (w.size >= 8 && w[6] != "-") return null
                 null
             }
-            val kb = w.getOrNull(7)?.takeIf { it != "-" }?.takeIf { WORD.matches(it) } ?: run {
-                if (w.size == 8 && w[7] != "-") return null
+            // (a build id is longer than a WORD: xnu-12377.121.6-ios-27.0.1-24A446-16bd44f9d737 is 46; up to 0.5.89 every
+            // record with a kernel failed here and was dropped)
+            val kb = w.getOrNull(7)?.takeIf { it != "-" }?.takeIf { BID.matches(it) } ?: run {
+                if (w.size >= 8 && w[7] != "-") return null
                 null
             }
-            return OneiosStaged(kind, w[1], w[2].takeIf { it != "-" }, files, bytes, at, kp, kb)
+            val ks = w.getOrNull(8)?.split(',')?.map { e ->
+                val p = e.split(':')
+                if (p.size != 3 || !BUILD.matches(p[0]) || !PATH.matches(p[1]) || !BID.matches(p[2])) return null
+                Kernel(p[0], p[1], p[2])
+            }.orEmpty()
+            return OneiosStaged(kind, w[1], w[2].takeIf { it != "-" }, files, bytes, at, kp, kb, ks)
         }
     }
 }

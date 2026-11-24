@@ -44,6 +44,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
     private const val S = OneiosSystem.STAGE
     private const val PREFS = "oneios-tool"
     private const val KEY_RUNNING = "running"
+    private const val KEY_BUILD = "build"
 
     /** One request of a flow: the tool's command and its keys (the tool's README). */
     data class Request(val cmd: String, val keys: Map<String, Any?> = emptyMap())
@@ -52,8 +53,9 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
     enum class Flow(val mode: String, val requests: List<Request>, val showAll: Boolean = false) {
         /**
          * Make iOS image, with no PC ([OneiosMakeImage]; docs/oneios.md, "Make iOS image"): root's `status` (and the
-         * latest OneiOS runtime first when the staged one carries no kernel or its tool has no `make-image`), the
-         * pairing files into `kb/` (root's `kbinput` ×12), root's `begin image`, then the tool's one `make-image`
+         * latest OneiOS runtime first when the staged one carries no kernel, none for the picked build, or a tool
+         * without `make-image`), the pairing files into `kb/` (`kb-24B156/` for iOS 27.2.1; root's `kbinput`, one a
+         * file), root's `begin image`, then the tool's one `make-image`
          * (fetch from Apple, decrypt, the volumes, the root tweaks, the seed, the kernelcache, the prelink with its
          * audit, the manifest, verify, the lists) into `image.new`, and root's `finish image` with its result's four
          * fields. No `fetch` before it (make-image fetches, after its one room check) and no `tweaks` after it
@@ -122,6 +124,8 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         val plain: OneiosMessage? = null,
         /** Update the kernel: the SHA-256 of the kernel.kc it built (in `make-kernel/out`, for root's `finish kernel`). */
         val builtKc: String? = null,
+        /** Make iOS image: the build it makes (the user's pick); null for other flows and for the recommended one by default. */
+        val makeBuild: String? = null,
         /** Make iOS image: what runs now (root's step, the runtime's download, the tool's make-image); null for other flows. */
         val makePhase: OneiosMakeImage.Phase? = null,
     ) {
@@ -143,28 +147,38 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_RUNNING, null)
             ?.let { name -> Flow.entries.firstOrNull { it.name == name } }
 
-    /** Forget an interrupted flow without starting it again. */
-    fun forget(ctx: Context) = remember(ctx.applicationContext, null)
+    /** The build an interrupted Make iOS image was making (the user's pick), for its Resume; null: the recommended one. */
+    fun interruptedBuild(ctx: Context): String? =
+        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_BUILD, null)
 
-    private fun remember(app: Context, flow: Flow?) {
+    /** Forget an interrupted flow without starting it again. */
+    fun forget(ctx: Context) = remember(ctx.applicationContext, null, null)
+
+    private fun remember(app: Context, flow: Flow?, build: String?) {
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().apply {
             if (flow == null) remove(KEY_RUNNING) else putString(KEY_RUNNING, flow.name)
+            if (build == null) remove(KEY_BUILD) else putString(KEY_BUILD, build)
         }.commit()
     }
 
-    fun run(ctx: Context, flow: Flow) {
+    /**
+     * Starts [flow]. [build]: Make iOS image's pick ([OneiosImageChoice.build], "24A446" or "24B156"); null for every
+     * other flow, and for the Resume of an interrupted Make iOS image, which makes the build it was making.
+     */
+    fun run(ctx: Context, flow: Flow, build: String? = null) {
         if (!canStart()) return
         val app = ctx.applicationContext
         stop = false
         requestId = null
-        remember(app, flow)
-        update(State(flow = flow, last = flow, starting = true))
+        val pick = if (flow == Flow.MAKE_IMAGE) build ?: interruptedBuild(app) else null
+        remember(app, flow, pick)
+        update(State(flow = flow, last = flow, starting = true, makeBuild = pick))
         // From the screen the user tapped: Android lets only a visible app start the service.
         OneiosService.start(app)
-        executor.execute { work(app, flow) }
+        executor.execute { work(app, flow, pick) }
     }
 
-    private fun work(app: Context, flow: Flow) {
+    private fun work(app: Context, flow: Flow, build: String?) {
         var watch: (() -> Unit)? = null
         // False only when the tool went away in the middle of a request: then the flow stays remembered for a Resume.
         var answered = true
@@ -177,7 +191,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
             val kernel = if (flow == Flow.KERNEL) kernelUpdate(app, status) ?: return else null
             // Make iOS image: its own order, its tool sessions its own ([OneiosMakeImage]).
             if (flow == Flow.MAKE_IMAGE) {
-                answered = runMake(app, status)
+                answered = runMake(app, status, build)
                 return
             }
             val s = OneiosToolSession(
@@ -226,7 +240,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                 requestId = null
             }
         } finally {
-            if (answered) remember(app, null)
+            if (answered) remember(app, null, null)
             update(state.copy(flow = null, starting = false, stopping = false, pausedByUser = false))
         }
     }
@@ -283,22 +297,33 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         return { runCatching { cm.unregisterNetworkCallback(cb) }; Unit }
     }
 
-    /** Update the kernel for the staged pair, or null (and the reason on the screen) when it cannot start. */
+    /**
+     * Update the kernel for the staged pair, or null (and the reason on the screen) when it cannot start. It pairs the
+     * staged set's kernel build ([OneiosImageChoice.kernelBuildOf]): 24A446 with `assets/kb/`, the runtime's `kernel`
+     * and the 27.0.1 profile's kernelcache, exactly as before; 24B156 (an iOS 27.2.1 set) with `assets/kb-24B156/`,
+     * the runtime's `kernels[]` 24B156 path and the 27.2.1 profile's kernelcache, into the stage's `kb-24B156/`.
+     */
     private fun kernelUpdate(app: Context, st: OneiosStatus): OneiosKernelUpdate? {
+        val build = OneiosImageChoice.kernelBuildOf(st.image?.build ?: OneiosImageChoice.IOS_27.build)
         val kb = try {
-            OneiosJob.kbInputs(app)
+            OneiosJob.kbInputs(app, build)
         } catch (e: Exception) {
             problem(e.message ?: "the app's kernel-build inputs cannot be read: reinstall OneOS")
             return null
         }
-        OneiosManifests.updateProblem(st.image?.build, kb, st.runtimeKernel != null)?.let { problem(it); return null }
-        val assets = try {
-            OneiosJob.kbAssets(app)
-        } catch (e: java.io.IOException) {
-            problem("the app's kb/ files cannot be read (${e.message}): reinstall OneOS")
+        val kernel = OneiosJob.stagedKernel(app, st, build)
+        OneiosManifests.updateProblem(st.image?.build, kb, kernel != null)?.let { problem(it); return null }
+        val profile = OneiosImageChoice.ipswProfileOf(build) ?: run {
+            problem("this OneOS knows no IPSW profile for $build, whose kernelcache the update fetches: update OneOS")
             return null
         }
-        return OneiosKernelUpdate(S, kb, OneiosJob.stagedKernelPath(app) ?: "kernel/xnu.macho", assets)
+        val assets = try {
+            OneiosJob.kbAssets(app, kb)
+        } catch (e: java.io.IOException) {
+            problem("the app's ${OneiosImageChoice.kbDirOf(build)}/ files cannot be read (${e.message}): reinstall OneOS")
+            return null
+        }
+        return OneiosKernelUpdate(S, kb, kernel!!.path, assets, OneiosImageChoice.kbDirOf(build), profile)
     }
 
     /**
@@ -325,7 +350,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
 
             override val stopped: Boolean get() = stop
         }
-        return when (val o = kernel.run(io, st.kb.kernelcacheSha256)) {
+        return when (val o = kernel.run(io, st.kbOf(kernel.build).kernelcacheSha256)) {
             is OneiosKernelUpdate.Outcome.Built -> {
                 update(state.copy(builtKc = o.sha256, lastResult = mapOf("sha256" to o.sha256, "bytes" to o.bytes), kernelPhase = null))
                 true
@@ -344,20 +369,32 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
     /**
      * Make iOS image ([OneiosMakeImage] decides the order): root's steps on their own `su`, the latest runtime by
      * [OneiosJob.stageLatestForMakeImage] (no tool session is open then), each tool request shown as any flow's.
-     * [first] is the status [work] read (it installed this build's root script). Returns false when the tool went
+     * [first] is the status [work] read (it installed this build's root script); [build] the user's pick
+     * ([OneiosImageChoice.of] the phone's profile and it: iOS 27.0.1 when none). Returns false when the tool went
      * away in a request (the flow stays remembered; its next run goes on from the fetched parts).
      */
-    private fun runMake(app: Context, first: OneiosStatus): Boolean {
+    private fun runMake(app: Context, first: OneiosStatus, build: String?): Boolean {
+        // The image this phone makes: the user's pick of the phone's choices (iOS 27.0.1 or 27.2.1; iOS 16.5 on the
+        // Galaxy A56, untested there).
+        val image = OneiosImageChoice.of(OneiosJob.phoneProfile(app), build)
         val kb = try {
-            OneiosJob.kbInputs(app)
+            OneiosJob.kbInputs(app, image.kernelBuild)
+        } catch (e: OneiosJob.NoKb) {
+            val text = e.message ?: OneiosJob.noKbFor(image.kernelBuild)
+            update(state.copy(
+                refusals = state.refusals + listOf(OneiosMakeImage.STEP_KBINPUT, OneiosMakeImage.CODE_NO_KB, text).joinToString(": "),
+                plain = OneiosPlain.makeImage(OneiosMakeImage.STEP_KBINPUT, OneiosToolFlow.End.REFUSED, OneiosMakeImage.CODE_NO_KB, text),
+                starting = false,
+            ))
+            return true
         } catch (e: Exception) {
             problem(e.message ?: "the app's kernel-build inputs cannot be read: reinstall OneOS")
             return true
         }
         val assets = try {
-            OneiosJob.kbAssets(app)
+            OneiosJob.kbAssets(app, kb)
         } catch (e: java.io.IOException) {
-            problem("the app's kb/ files cannot be read (${e.message}): reinstall OneOS")
+            problem("the app's ${image.kb}/ files cannot be read (${e.message}): reinstall OneOS")
             return true
         }
         var cached: OneiosStatus? = first
@@ -379,6 +416,8 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
             }
 
             override fun latestRuntime(unless: String?): OneiosMakeImage.Runtime = OneiosJob.stageLatestForMakeImage(app, unless)
+
+            override fun kernelPath(st: OneiosStatus, kernelBuild: String): String? = OneiosJob.stagedKernel(app, st, kernelBuild)?.path
 
             override fun root(verb: OneiosRoot.Verb, args: List<String>, data: ByteArray?): String? =
                 rootReply(app, verb, args, 10 * 60_000L, data).first
@@ -423,8 +462,6 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
             override val stopped: Boolean get() = stop
         }
         try {
-            // The image this phone makes: iOS 16.5 on the Galaxy A56 (untested there), iOS 27 on every other phone.
-            val image = OneiosImageChoice.of(OneiosJob.phoneProfile(app))
             return when (val o = OneiosMakeImage(S, kb, assets, image).run(io)) {
                 is OneiosMakeImage.Outcome.Staged -> {
                     update(state.copy(

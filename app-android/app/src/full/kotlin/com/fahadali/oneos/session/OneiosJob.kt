@@ -266,8 +266,8 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     @Volatile var notThisPhoneNote: String? = null
         private set
 
-    /** The image Make iOS image makes here ([OneiosImageChoice.of]); read with [offered], null until then. */
-    @Volatile private var choice: OneiosImageChoice? = null
+    /** This phone's profile as [offered] read it ([OneiosImageChoice.choicesOf]); null until then. */
+    @Volatile private var choiceProfile: PhoneProfile? = null
 
     /** The iOS page's phone row on an offered phone that is not the tested one ([OneiosFlow.Input.phone]); read with [offered]. */
     @Volatile private var untestedPhone: String? = null
@@ -277,12 +277,19 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         runCatching { Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile }.getOrNull()
 
     /**
-     * The image Make iOS image makes on this phone: iOS 16.5 (20F66) on the Galaxy A56, iOS 27 everywhere else. The
-     * last [offered] read's when there is one; else from Android's own model, device and chip ids (cheap, for the
-     * confirm dialog on the main thread). Make iOS image's run resolves it again ([phoneProfile]).
+     * The image Make iOS image makes on this phone by default (the recommended one): iOS 16.5 (20F66) on the Galaxy
+     * A56, iOS 27.0.1 everywhere else. The last [offered] read's when there is one; else from Android's own model,
+     * device and chip ids (cheap, for the confirm dialog on the main thread). Make iOS image's run resolves it again
+     * ([phoneProfile]).
      */
-    fun imageChoice(): OneiosImageChoice = choice
-        ?: OneiosImageChoice.of(Profiles.resolve(android.os.Build.MODEL.orEmpty(), android.os.Build.DEVICE.orEmpty(), android.os.Build.SOC_MODEL.orEmpty()).profile)
+    fun imageChoice(): OneiosImageChoice = imageChoices().first()
+
+    /**
+     * Every image Make iOS image offers on this phone, the recommended one first ([OneiosImageChoice.choicesOf]): iOS
+     * 27.0.1 (24A446), tested, and iOS 27.2.1 (24B156), not booted yet, on every phone but the A56; iOS 16.5 there.
+     */
+    fun imageChoices(): List<OneiosImageChoice> =
+        OneiosImageChoice.choicesOf(choiceProfile ?: Profiles.resolve(android.os.Build.MODEL.orEmpty(), android.os.Build.DEVICE.orEmpty(), android.os.Build.SOC_MODEL.orEmpty()).profile)
 
     private fun offered(app: Context): Boolean =
         runCatching {
@@ -291,7 +298,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
             tested = OneiosSystem.testedOn(profile)
             notThisPhoneNote = profile?.let { OneiosSystem.NOT_THIS_PHONE_NOTES[it.id] }
             val image = OneiosImageChoice.of(profile)
-            choice = image
+            choiceProfile = profile
             untestedPhone = profile?.takeIf { OneiosSystem.offeredOn(it) && !OneiosSystem.testedOn(it) }
                 ?.let { "${it.label}, iOS ${image.version}, untested there" }
             OneiosSystem.offeredOn(profile)
@@ -312,6 +319,21 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     /** The staged runtime's kernel path (`runtime.json`'s `kernel.path`); null when nothing recorded. */
     fun stagedKernelPath(ctx: Context): String? =
         OneiosStaged.decode(ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(OneiosKind.RUNTIME.word, null))?.kernelPath
+
+    /**
+     * The staged runtime's kernel for a set of [kernelBuild]'s kexts, with its build id: for 24A446 exactly as before
+     * (`kernel.path` as recorded, else `kernel/xnu.macho`, and root's own `kernel runtime` build id); for another build
+     * (iOS 27.2.1's 24B156) the `kernels[]` entry the app recorded when it staged that runtime, only while root's
+     * status names the same runtime (its version and its 24A446 kernel). Null when the runtime carries none: a
+     * runtime before `kernels`, or one staged by a PC ("get the latest OneiOS runtime").
+     */
+    fun stagedKernel(ctx: Context, st: OneiosStatus, kernelBuild: String): OneiosStaged.Kernel? {
+        val runtimeKernel = st.runtimeKernel ?: return null
+        val rec = OneiosStaged.decode(ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(OneiosKind.RUNTIME.word, null))
+        if (kernelBuild == OneiosImageChoice.IOS_27.build) return OneiosStaged.Kernel(kernelBuild, rec?.kernelPath ?: "kernel/xnu.macho", runtimeKernel.buildId)
+        if (rec == null || !rec.matches(st.runtime?.version) || rec.kernelBuildId != runtimeKernel.buildId) return null
+        return rec.kernelFor(kernelBuild)
+    }
 
     private fun remember(app: Context, m: OneiosManifest) =
         app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(m.kind.word, OneiosStaged.of(m, System.currentTimeMillis()).encode()).apply()
@@ -489,16 +511,38 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      */
     // --- Kernel updates (docs/oneios.md, "Kernel updates") ------------------------------
 
-    /** The app's kb/kb.json: what Apple build the prelink inputs pair, their hashes and the kernelcache's pin. */
-    internal fun kbInputs(app: Context): OneiosKb {
-        val text = app.assets.open("kb/kb.json").use { it.readBytes().toString(Charsets.UTF_8) }
-        return OneiosKb.parse(text).getOrElse { throw Failed("the app's kernel-build inputs are not valid: ${it.message}") }
+    /**
+     * The app's `kb.json` of [kernelBuild] ([OneiosImageChoice.kbDirOf]: `kb/kb.json` for 24A446, as before;
+     * `kb-24B156/kb.json` for iOS 27.2.1): what Apple build the prelink inputs pair, their hashes and the
+     * kernelcache's pin. An app without that build's folder says so ([noKbFor]).
+     */
+    internal fun kbInputs(app: Context, kernelBuild: String = OneiosImageChoice.IOS_27.build): OneiosKb {
+        val dir = OneiosImageChoice.kbDirOf(kernelBuild)
+        val text = try {
+            app.assets.open("$dir/kb.json").use { it.readBytes().toString(Charsets.UTF_8) }
+        } catch (e: java.io.FileNotFoundException) {
+            if (kernelBuild == OneiosImageChoice.IOS_27.build) throw e
+            throw NoKb(noKbFor(kernelBuild))
+        }
+        val kb = OneiosKb.parse(text).getOrElse { throw Failed("the app's kernel-build inputs are not valid: ${it.message}") }
+        if (kb.build != kernelBuild) throw Failed("the app's $dir/kb.json pairs ${kb.build}, not $kernelBuild: reinstall OneOS")
+        return kb
+    }
+
+    /** This app carries no pairing files for a build ([kbInputs]): Make iOS image says it in plain words (OneiosPlain, `no-kb`). */
+    internal class NoKb(message: String) : IOException(message)
+
+    /** The words for an app without `assets/kb-<BUILD>/`. */
+    internal fun noKbFor(kernelBuild: String): String {
+        val name = OneiosImageChoice.ofBuild(kernelBuild)?.title ?: kernelBuild
+        return "this OneOS has no pairing files for $name (${OneiosImageChoice.kbDirOf(kernelBuild)}): update OneOS, or make iOS 27.0.1 (24A446)"
     }
 
     /**
      * The newest release's runtime kernel against the staged one. Read only:
      * downloads the new runtime package to the cache, reads its runtime.json
-     * (no staging), compares its `kernel` with the staged one.
+     * (no staging), compares its kernel for the staged set's build (`kernel`,
+     * or its `kernels[]` entry for iOS 27.2.1) with the staged one.
      */
     fun checkKernel(ctx: Context) = job(ctx, Phase.CHECKING, OneiosFlow.Job.CHECK, "Looking for a newer OneiOS kernel…") { app ->
         val line = try {
@@ -524,36 +568,51 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         val file = File(dir, release.assetName)
         return try {
             download(release.assetUrl, file, release.assetBytes, sha)
-            val latest = tar(file.inputStream()).use { z ->
+            val manifest = tar(file.inputStream()).use { z ->
                 val reader = TarReader(z)
                 val found = OneiosPackage.manifestFirst(reader, OneiosKind.RUNTIME)
                     ?: throw Failed("${release.assetName} holds no runtime.json")
                 OneiosManifests.parse(OneiosKind.RUNTIME, found.text).getOrElse { throw Failed(it.message ?: "runtime.json is not valid") }
-            }.kernel
+            }
             val staged = readStatus(app)
-            OneiosManifests.kernelUpdate(staged.runtimeKernel?.buildId, latest)
-                ?: "The staged kernel ${staged.runtimeKernel?.buildId ?: "is unknown"} is current (release ${release.tag})."
+            // The staged set's kernel build: 24A446 as before (and with no set), 24B156 for an iOS 27.2.1 set.
+            val build = OneiosImageChoice.kernelBuildOf(staged.image?.build ?: OneiosImageChoice.IOS_27.build)
+            val latest = manifest.kernelFor(build)
+            val have = if (build == OneiosImageChoice.IOS_27.build) staged.runtimeKernel?.buildId else stagedKernel(app, staged, build)?.buildId
+            if (latest == null && build != OneiosImageChoice.IOS_27.build) {
+                "The release's runtime carries no kernel for ${OneiosImageChoice.ofBuild(build)?.title ?: build} (release ${release.tag})."
+            } else {
+                OneiosManifests.kernelUpdate(have, latest)
+                    ?: "The staged kernel ${have ?: "is unknown"} is current (release ${release.tag})."
+            }
         } finally {
             file.delete()
         }
     }
 
     /**
-     * The app's kb/ files (everything Update the kernel stages but Apple's kernelcache), by name, as its assets
-     * hold them. [OneiosKernelUpdate] checks each against kb.json before root gets it; root checks it again.
+     * The app's pairing files of [kb]'s build (everything Update the kernel stages but Apple's kernelcache: every file
+     * its kb.json lists, 24A446's the nine of [OneiosKbFiles.NAMES]), by name, as its assets hold them
+     * (`kb/`, `kb-24B156/`). [OneiosKernelUpdate] checks each against kb.json before root gets it; root checks it again.
      */
-    internal fun kbAssets(app: Context): Map<String, ByteArray> =
-        OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" }.associateWith { name -> app.assets.open("kb/$name").use { it.readBytes() } }
+    internal fun kbAssets(app: Context, kb: OneiosKb): Map<String, ByteArray> {
+        val dir = OneiosImageChoice.kbDirOf(kb.build)
+        val names = if (kb.build == OneiosImageChoice.IOS_27.build) OneiosKbFiles.NAMES.filter { it != "kernelcache.macho" } else kb.names
+        return names.associateWith { name -> app.assets.open("$dir/$name").use { it.readBytes() } }
+    }
 
     /**
      * Optional, with no download: Apple's decoded kernelcache from a file a PC wrote (OneiOS's image build leaves
-     * `kernelcache.macho`), checked against the profile's pin, into the stage. Update the kernel fetches it from
-     * Apple itself, so this is only for a phone without a network.
+     * `kernelcache.macho`), checked against the profile's pin of the staged set's build (the last status read), into
+     * the stage's `kb/` (or `kb-24B156/`). Update the kernel fetches it from Apple itself, so this is only for a phone
+     * without a network.
      */
     fun importKernelcache(ctx: Context, uri: Uri) =
         job(ctx, Phase.STAGING, OneiosFlow.Job.STAGE_KB, "Reading the kernelcache…") { app ->
-            importKernelcache(app, kbInputs(app), uri)
-            "Apple's kernelcache is staged: it pairs only with the ${kbInputs(app).build} prelink inputs."
+            val build = OneiosImageChoice.kernelBuildOf(state.status?.image?.build ?: OneiosImageChoice.IOS_27.build)
+            val kb = kbInputs(app, build)
+            importKernelcache(app, kb, uri)
+            "Apple's kernelcache is staged: it pairs only with the ${kb.build} prelink inputs."
         }
 
     private fun importKernelcache(app: Context, kb: OneiosKb, uri: Uri): String {
@@ -579,7 +638,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
                             "import the kernelcache.macho your PC wrote when it built the image set.")
                     }
                     step("Staging kernelcache.macho…")
-                    must(root(app, OneiosRoot.Verb.KBINPUT, listOf("kernelcache.macho", total.toString(), sha),
+                    must(root(app, OneiosRoot.Verb.KBINPUT, listOf("kernelcache.macho", total.toString(), sha) + kbDirArg(kb.build),
                         RootShell.Feed { o -> file.inputStream().use { it.copyTo(o) } }))
                     return sha
                 }
@@ -592,20 +651,29 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
     /**
      * Activates the kernel the phone built (`tool work`, prelink): [kcSha256]
      * is the collection's SHA-256 as the tool reported it. Checks first (the
-     * image set's build, the staged kernelcache, the staged runtime's kernel),
-     * then the old set aside, the new files in with fresh hashes, lists,
-     * manifest and configs, and a receipt where the session logs live. Refuses
-     * during a session; the kept set is the fallback (`restoreKernel`).
+     * image set's build, the staged kernelcache of that build, the staged
+     * runtime's kernel for it), then the old set aside, the new files in with
+     * fresh hashes, lists, manifest and configs, and a receipt where the session
+     * logs live. Refuses during a session; the kept set is the fallback
+     * (`restoreKernel`). For an iOS 27.2.1 set root's `finish kernel` also gets
+     * `kb-24B156` and the runtime's 24B156 xnu path, and checks the set is 24B156.
      */
     fun activateKernel(ctx: Context, kcSha256: String) =
         job(ctx, Phase.STAGING, OneiosFlow.Job.FINISH_KERNEL, "Activating the phone-built kernel…") { app ->
             val st = readStatus(app)
-            val kb = kbInputs(app)
-            OneiosManifests.kernelProblem(st.image?.build, kb, st.kb.kernelcacheSha256, st.runtimeKernel != null)?.let { throw Failed(it) }
-            val bid = st.runtimeKernel?.buildId ?: throw Failed("the staged runtime carries no kernel")
-            must(root(app, OneiosRoot.Verb.FINISH, listOf("kernel", kcSha256.lowercase(java.util.Locale.ROOT), bid)))
+            val build = OneiosImageChoice.kernelBuildOf(st.image?.build ?: OneiosImageChoice.IOS_27.build)
+            val kb = kbInputs(app, build)
+            val kernel = stagedKernel(app, st, build)
+            OneiosManifests.kernelProblem(st.image?.build, kb, st.kbOf(build).kernelcacheSha256, kernel != null)?.let { throw Failed(it) }
+            val bid = kernel?.buildId ?: throw Failed("the staged runtime carries no kernel")
+            val more = if (build == OneiosImageChoice.IOS_27.build) emptyList() else listOf(OneiosImageChoice.kbDirOf(build), kernel.path)
+            must(root(app, OneiosRoot.Verb.FINISH, listOf("kernel", kcSha256.lowercase(java.util.Locale.ROOT), bid) + more))
             "kernel.kc $bid is activated for the next session; the previous set is kept as the fallback."
         }
+
+    /** Root's last word for another build's pairing files (`kb-24B156`); none for 24A446's `kb/`, as before. */
+    private fun kbDirArg(kernelBuild: String): List<String> =
+        if (kernelBuild == OneiosImageChoice.IOS_27.build) emptyList() else listOf(OneiosImageChoice.kbDirOf(kernelBuild))
 
     /** Back to the kept kernel set after a kernel update, with its own receipt. */
     fun restoreKernel(ctx: Context) =
@@ -632,8 +700,9 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
             if (!staged.ok) break
         }
         must(root(app, OneiosRoot.Verb.SWITCH, OneiosSystem.switchArgs(BuildConfig.VERSION_CODE, takeover), silenceMs = 180_000))
-        // The phone's own iOS: "iOS 16.5" on the A56 (issue 73), "iOS 27" on every other phone.
-        val name = OneiosSystem.shortName(OneiosImageChoice.of(profile).version)
+        // The staged set's own iOS: "iOS 16.5" on the A56 (issue 73), "iOS 27.0.1" or "iOS 27.2.1" (the last status
+        // read); the phone's recommended choice when none was read.
+        val name = OneiosSystem.shortName(state.status?.image?.version ?: OneiosImageChoice.of(profile).version)
         if (takeover) "Switching to $name (Android takeover)…" else "Switching to $name…"
     }
 

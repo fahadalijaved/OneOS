@@ -194,6 +194,47 @@ class OneiosPlainTest {
     }
 
     /**
+     * A real runtime's record: its build id is 46 characters (xnu-12377.121.6-ios-27.0.1-24A446-16bd44f9d737), more
+     * than a word; up to 0.5.89 such a record did not decode, so the app forgot every runtime it staged with a kernel.
+     * With `kernels[]` (iOS 27.2.1's 24B156 kernel) a ninth field holds each build's path and build id.
+     */
+    @Test
+    fun aRuntimeRecordKeepsItsRealBuildIdAndItsKernels() {
+        val bid = "xnu-12377.121.6-ios-27.0.1-24A446-16bd44f9d737"
+        val bid2 = "xnu-13432.42.3-ios-27.2.1-24B156-0123456789ab"
+        val old = OneiosStaged(OneiosKind.RUNTIME, "0.1.25", null, 40, 99L, 5L, "kernel/xnu.macho", bid)
+        assertEquals("runtime 0.1.25 - 40 99 5 kernel/xnu.macho $bid", old.encode())
+        assertEquals(old, OneiosStaged.decode(old.encode()))
+        assertEquals(OneiosStaged.Kernel("24A446", "kernel/xnu.macho", bid), old.kernelFor("24A446"))
+        assertNull(old.kernelFor("24B156"))
+        val both = old.copy(kernels = listOf(OneiosStaged.Kernel("24A446", "kernel/xnu.macho", bid), OneiosStaged.Kernel("24B156", "kernel/24B156/xnu.macho", bid2)))
+        assertEquals("runtime 0.1.25 - 40 99 5 kernel/xnu.macho $bid 24A446:kernel/xnu.macho:$bid,24B156:kernel/24B156/xnu.macho:$bid2", both.encode())
+        assertEquals(both, OneiosStaged.decode(both.encode()))
+        assertEquals(OneiosStaged.Kernel("24B156", "kernel/24B156/xnu.macho", bid2), both.kernelFor("24B156"))
+        for (bad in listOf("runtime 0.1.25 - 40 99 5 kernel/xnu.macho $bid 24B156:kernel/24B156/xnu.macho", "runtime 0.1.25 - 40 99 5 kernel/xnu.macho $bid x:a:b", "runtime 0.1.25 - 40 99 5 kernel/xnu.macho $bid 24B156:../x:$bid2")) {
+            assertNull(bad, OneiosStaged.decode(bad))
+        }
+        // From a runtime.json with kernels: each entry with its build.
+        val m = OneiosManifest(
+            OneiosKind.RUNTIME, 1, "0.1.26", listOf(OneiosFile("bin/xnuhost", 1, "a".repeat(64))),
+            kernel = OneiosKernel("kernel/xnu.macho", bid, "a".repeat(64), "xnu-12377.121.6", "ios-27.0.1-24A446", "kernel/xnu.macho.build.json"),
+            kernels = listOf(OneiosKernel("kernel/24B156/xnu.macho", bid2, "b".repeat(64), "xnu-13432.42.3", "ios-27.2.1-24B156", "kernel/24B156/xnu.macho.build.json", build = "24B156")),
+        )
+        assertEquals(listOf(OneiosStaged.Kernel("24B156", "kernel/24B156/xnu.macho", bid2)), OneiosStaged.of(m, 1).kernels)
+    }
+
+    /** Make iOS image's own refusals for iOS 27.2.1 in plain words: a runtime without its kernel, an app without its kb. */
+    @Test
+    fun iOs272sRefusalsArePlain() {
+        val noKernel = OneiosPlain.makeImage(OneiosMakeImageSteps.RUNTIME, OneiosToolFlow.End.REFUSED, OneiosMakeImageSteps.NO_BUILD_KERNEL, "x")
+        assertEquals("This runtime has no kernel for this iOS", noKernel.title)
+        assertTrue(noKernel.line, noKernel.line.startsWith("Get the latest OneiOS runtime"))
+        val noKb = OneiosPlain.makeImage(OneiosMakeImageSteps.KBINPUT, OneiosToolFlow.End.REFUSED, OneiosMakeImageSteps.NO_KB, "x")
+        assertEquals("This OneOS can't make this iOS yet", noKb.title)
+        assertTrue(noKb.line, noKb.line.contains("Update OneOS"))
+    }
+
+    /**
      * Update the kernel's stops (docs/oneios.md, "Kernel updates"): each in plain words within the limits, the
      * tool's own words kept as the detail, and the line says whether the download goes on or starts over.
      */

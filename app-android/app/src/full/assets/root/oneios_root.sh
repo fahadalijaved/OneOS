@@ -26,21 +26,28 @@
 #                               from the checked manifest go to <kind>.conf
 #                               (runtime.conf also records the runtime's own
 #                               kernel, when its runtime.json has one)
-#   kbinput <name> <bytes> <sha256>
+#   kbinput <name> <bytes> <sha256> [kb-<BUILD>]
 #                               stdin: exactly <bytes> of one kernel-build input
-#                               ($STAGE/kb/<name>). <name> is one of the fixed
-#                               allowlist (the app's kb/kb.json): profile.toml,
+#                               ($STAGE/kb/<name>, or $STAGE/kb-<BUILD>/<name>
+#                               for the inputs of another Apple build than
+#                               24A446: kb-24B156 for iOS 27.2.1). <name> is
+#                               one of the fixed allowlist (the app's
+#                               kb/kb.json): profile.toml,
 #                               reviewed/pairs/stubs/lead/user.json, the
-#                               matcher's files, or kernelcache.macho (Apple's
+#                               matcher's files
+#                               (match/fixtures/fileset-<id>-symbols.json), or
+#                               kernelcache.macho (Apple's
 #                               decoded kernelcache: the optional import of a
 #                               file a PC wrote; the kernel update fetches it
 #                               itself, kbcache). Writable only by this verb
 #                               and kbcache.
-#   kbcache <bytes> <sha256>    Apple's kernelcache that the phone's
+#   kbcache <bytes> <sha256> [kb-<BUILD>]
+#                               Apple's kernelcache that the phone's
 #                               oneios-tool fetched from Apple and decoded
 #                               ($STAGE/make-kernel/kernelcache.macho, the
 #                               tool's fetch and im4p) becomes the cached
-#                               kb/kernelcache.macho, when it has <bytes> and
+#                               kb/kernelcache.macho (or kb-<BUILD>/'s), when
+#                               it has <bytes> and
 #                               <sha256> (the pin of the app's kb/kb.json;
 #                               another one is deleted and refused). The
 #                               downloaded IM4P ($STAGE/make-kernel/inputs) is
@@ -48,14 +55,18 @@
 #                               each phone fetches its own from Apple.
 #   kbclean                     the kernel update's work folder goes
 #                               ($STAGE/make-kernel: the download's parts, the
-#                               decode, a build not activated); kb/ and its
-#                               cached kernelcache stay
-#   finish kernel <kc-sha256> <build-id>
+#                               decode, a build not activated); kb/, kb-*/ and
+#                               their cached kernelcaches stay
+#   finish kernel <kc-sha256> <build-id> [kb-<BUILD> <xnu path>]
 #                               activate the kernel the phone's oneios-tool built
 #                               ($STAGE/make-kernel/out: kernel.kc with its
 #                               hashes and records, the audit passed): checks
 #                               first (the collection is from this runtime's xnu
-#                               and the staged kernelcache), then the old set
+#                               and the staged kernelcache: kernel/xnu.macho and
+#                               kb/, or for an image set of another build
+#                               <xnu path> of the runtime, e.g.
+#                               kernel/24B156/xnu.macho, and kb-<BUILD>/, which
+#                               must be the staged set's build), then the old set
 #                               aside to $STAGE/kernel.prev, the new files in,
 #                               image.sha256, image.ids, manifest.json and
 #                               image.conf rewritten, a receipt in logs/. The
@@ -236,6 +247,22 @@ do_status() {
         done
     fi
     say "@@RESULT kb $kcs $kbn"
+    # The inputs of another Apple build ($STAGE/kb-<BUILD>, e.g. kb-24B156 for
+    # iOS 27.2.1), one line each: the build, the kernelcache's SHA-256 (or
+    # none) and how many input files are there (the kernelcache counted).
+    for d in "$STAGE"/kb-*; do
+        [ -d "$d" ] && mine "$d" || continue
+        kbd_ok "${d##*/}" >/dev/null || continue
+        if [ -f "$d/kernelcache.macho" ] && [ ! -L "$d/kernelcache.macho" ]; then
+            kcs=$(cat "$d/kernelcache.sha256" 2>/dev/null)
+            case "$kcs" in ????????????????????????????????????????????????????????????????) ;; *) kcs="none" ;; esac
+        else
+            kcs="none"
+        fi
+        kbn=$(find "$d" -type f ! -name kernelcache.sha256 2>/dev/null | wc -l | tr -d ' ')
+        is_dec "$kbn" || kbn=0
+        say "@@RESULT kbset ${d##*/kb-} $kcs $kbn"
+    done
     st=$(cat "$STAGE/control/state" 2>/dev/null)
     if session_open; then say "@@RESULT session open ${st:-running}"; else say "@@RESULT session none ${st:-never}"; fi
     o=$(head -n 1 "$STAGE/return.outcome" 2>/dev/null | cut -c1-200)
@@ -458,40 +485,65 @@ do_finish() {
 # (check_list: every file hashed or matched against the lists), so a
 # half-updated set never boots: it refuses instead.
 KB_MAX=536870912
-kb_name() { # <name>: the kb/ path, or nothing when it is not a kernel-build input
+# The inputs' folder: kb/ (24A446, and the Galaxy A56's 20F66, whose kernel.kc
+# has the 24A446 kexts) unless [kb-<BUILD>] names another Apple build's
+# (kb-24B156 for iOS 27.2.1). Fails when the word is not one.
+kbd_ok() { # [kb-<BUILD>]
     case "$1" in
-        kernelcache.macho|profile.toml|reviewed.json|pairs.json|stubs.json|lead.json|user.json|\
-        match/fixtures/fileset-23F84-symbols.json|match/fixtures/fileset-24A446-symbols.json|\
-        match/fixtures/fileset-26C5035r-symbols.json)
-            echo "$STAGE/kb/$1" ;;
+        '') echo "$STAGE/kb" ;;
+        kb-*)
+            b=${1#kb-}
+            case "$b" in ''|*[!0-9A-Z]*) return 1 ;; esac
+            [ ${#b} -ge 3 ] && [ ${#b} -le 20 ] || return 1
+            echo "$STAGE/$1" ;;
+        *) return 1 ;;
     esac
+}
+kb_name() { # <name> [kb-<BUILD>]: the input's path, or nothing when it is not a kernel-build input
+    d=$(kbd_ok "$2") || return 0
+    case "$1" in
+        kernelcache.macho|profile.toml|reviewed.json|pairs.json|stubs.json|lead.json|user.json)
+            echo "$d/$1" ;;
+        match/fixtures/fileset-*-symbols.json)
+            id=${1#match/fixtures/fileset-}
+            id=${id%-symbols.json}
+            case "$id" in ''|*[!0-9A-Za-z]*) return 0 ;; esac
+            [ ${#id} -le 20 ] && echo "$d/$1" ;;
+    esac
+    return 0
 }
 
 do_kbinput() {
-    [ $# -eq 3 ] || usage "kbinput <name> <bytes> <sha256>"
-    to=$(kb_name "$1")
+    [ $# -eq 3 ] || [ $# -eq 4 ] || usage "kbinput <name> <bytes> <sha256> [kb-<BUILD>]"
+    [ $# -eq 3 ] || [ -n "$4" ] || usage "kbinput: the folder is kb-<BUILD>"
+    kbd=$(kbd_ok "${4:-}") || usage "kbinput: '$4' is not kb-<BUILD>"
+    to=$(kb_name "$1" "${4:-}")
     [ -n "$to" ] || usage "kbinput: '$1' is not a kernel-build input"
     is_dec "$2" && [ "$2" -ge 1 ] || usage "kbinput: size '$2'"
     awk -v b="$2" -v m="$KB_MAX" 'BEGIN { exit !(b + 0 <= m + 0) }' || refuse "$1 is too large"
     is_hex64 "$3" || usage "kbinput: SHA-256"
     stage_ok
     session_open && refuse "an iOS session is running: return to One UI first"
+    [ ! -L "$kbd" ] || refuse "$kbd is a link"
     d="${to%/*}"
     [ ! -L "$d" ] || refuse "$d is a link"
     { [ -d "$d" ] || mkdir -p "$d"; } && own "$d" 0700 || die "could not make $d"
     [ ! -L "$to" ] || refuse "$to is a link"
     take "$to" "$2" "$3" 0600
     if [ "$1" = kernelcache.macho ]; then
-        echo "$3" > "$STAGE/kb/kernelcache.sha256" && own "$STAGE/kb/kernelcache.sha256" 0600 || die "could not record the kernelcache"
+        echo "$3" > "$kbd/kernelcache.sha256" && own "$kbd/kernelcache.sha256" 0600 || die "could not record the kernelcache"
     fi
     say "@@OK kbinput $1"
 }
 
 # Apple's kernelcache as the kernel update fetched it (the tool's fetch of the
-# profile's kernelcache member from Apple, then its im4p): into kb/ only when it
-# is the pinned one; root hashes the file itself, whatever the tool said.
+# profile's kernelcache member from Apple, then its im4p): into kb/ (or the
+# kb-<BUILD>/ named) only when it is the pinned one; root hashes the file
+# itself, whatever the tool said.
 do_kbcache() {
-    [ $# -eq 2 ] || usage "kbcache <bytes> <sha256>"
+    [ $# -eq 2 ] || [ $# -eq 3 ] || usage "kbcache <bytes> <sha256> [kb-<BUILD>]"
+    [ $# -eq 2 ] || [ -n "$3" ] || usage "kbcache: the folder is kb-<BUILD>"
+    d=$(kbd_ok "${3:-}") || usage "kbcache: '$3' is not kb-<BUILD>"
     is_dec "$1" && [ "$1" -ge 1 ] || usage "kbcache: size '$1'"
     awk -v b="$1" -v m="$KB_MAX" 'BEGIN { exit !(b + 0 <= m + 0) }' || refuse "kernelcache.macho is too large"
     is_hex64 "$2" || usage "kbcache: SHA-256"
@@ -510,7 +562,6 @@ do_kbcache() {
         rm -f "$from"
         refuse "the fetched kernelcache is not the one the profile pins (its SHA-256 differs): nothing was kept"
     fi
-    d="$STAGE/kb"
     [ ! -L "$d" ] || refuse "$d is a link"
     { [ -d "$d" ] || mkdir -p "$d"; } && own "$d" 0700 || die "could not make $d"
     [ ! -L "$d/kernelcache.macho" ] || refuse "$d/kernelcache.macho is a link"
@@ -522,7 +573,7 @@ do_kbcache() {
 }
 
 # The kernel update's work folder, after a cancel or a download that cannot be
-# resumed. The cached kernelcache in kb/ is not part of it.
+# resumed. The cached kernelcaches in kb/ and kb-*/ are not part of it.
 do_kbclean() {
     [ $# -eq 0 ] || usage "kbclean"
     stage_ok
@@ -576,15 +627,21 @@ kc_check_prebuilt() { # <dir>: the collection there is complete and named by <kc
     return 0
 }
 
+# The inputs a kernel is checked against: the runtime's kernel/xnu.macho and
+# kb/ (24A446), unless finish kernel names another build's kb-<BUILD>/ and
+# the runtime's xnu path for it. restore kernel's receipt uses the defaults.
+KB_XNU=kernel/xnu.macho
+KB_DIR=
 kc_check_inputs() { # <dir>: the collection is from this runtime's xnu and the staged kernelcache
     out=$1
-    xnu=$(awk '$2 == "kernel/xnu.macho" { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1)
-    [ -n "$xnu" ] || { echo "the staged runtime has no kernel/xnu.macho: stage a runtime with a kernel first"; return 1; }
+    xnu=$(awk -v p="$KB_XNU" '$2 == p { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1)
+    [ -n "$xnu" ] || { echo "the staged runtime has no $KB_XNU: stage a runtime with a kernel first"; return 1; }
     grep -Fq "\"sha256\": \"$xnu\"" "$out/kernel.kc.build.json" ||
-        { echo "the built kernel.kc is not from this runtime's xnu.macho: run the kernel build again"; return 1; }
-    [ -f "$STAGE/kb/kernelcache.macho" ] && [ ! -L "$STAGE/kb/kernelcache.macho" ] ||
+        { echo "the built kernel.kc is not from this runtime's ${KB_XNU#kernel/}: run the kernel build again"; return 1; }
+    kd=$(kbd_ok "$KB_DIR") || { echo "'$KB_DIR' is not kb-<BUILD>"; return 1; }
+    [ -f "$kd/kernelcache.macho" ] && [ ! -L "$kd/kernelcache.macho" ] ||
         { echo "the Apple kernelcache is not staged: run the kernel update first"; return 1; }
-    grep -Fq "\"sha256\": \"$(sha "$STAGE/kb/kernelcache.macho")\"" "$out/kernel.kc.build.json" ||
+    grep -Fq "\"sha256\": \"$(sha "$kd/kernelcache.macho")\"" "$out/kernel.kc.build.json" ||
         { echo "the built kernel.kc is not from the staged kernelcache: run the kernel build again"; return 1; }
     return 0
 }
@@ -615,8 +672,8 @@ kc_receipt() { # <kind: update|restore> <from-sha> <from-bid> <to-sha> <to-bid>:
         echo "date: $(date '+%F %T')"
         echo "from: kernel.kc $2 (build $3)"
         echo "to: kernel.kc $4 (build $5)"
-        echo "xnu: $(awk '$2 == "kernel/xnu.macho" { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1) (the staged runtime's kernel/xnu.macho)"
-        echo "kernelcache: $(sha "$STAGE/kb/kernelcache.macho" 2>/dev/null) (the staged Apple kernelcache)"
+        echo "xnu: $(awk -v p="$KB_XNU" '$2 == p { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1) (the staged runtime's $KB_XNU)"
+        echo "kernelcache: $(sha "$(kbd_ok "$KB_DIR")/kernelcache.macho" 2>/dev/null) (the staged Apple kernelcache${KB_DIR:+, $KB_DIR})"
         echo "audit: passed (kernel.kc.binds.json present, $(sha "$STAGE/kernel-build/$5/kernel.kc.binds.json" 2>/dev/null))"
         echo "records: $STAGE/kernel-build/$5/ (kernel.kc.build.json, kernel.kc.prelink.json, kernel.kc.binds.json)"
     } > "$STAGE/logs/$name.log" && own "$STAGE/logs/$name.log" 0600 || return 1
@@ -673,13 +730,26 @@ kc_activate() { # <dir> <kc-sha256> <build-id>: <dir>'s kernel.kc + hashes becom
 }
 
 do_finish_kernel() {
-    [ $# -eq 2 ] || usage "finish kernel <kc-sha256> <build-id>"
+    [ $# -eq 2 ] || [ $# -eq 4 ] || usage "finish kernel <kc-sha256> <build-id> [kb-<BUILD> <xnu path>]"
     kc=$1 bid=$2
     is_hex64 "$kc" || usage "finish: kernel SHA-256"
     is_bid "$bid" || usage "finish: kernel build id"
+    if [ $# -eq 4 ]; then
+        # Another Apple build's kernel (iOS 27.2.1, 24B156): its inputs folder
+        # and the runtime's xnu for it; only for an image set of that build.
+        case "$3" in kb-*) ;; *) usage "finish: '$3' is not kb-<BUILD>" ;; esac
+        kbd_ok "$3" >/dev/null || usage "finish: '$3' is not kb-<BUILD>"
+        case "$4" in kernel/*/xnu.macho) ;; *) usage "finish: '$4' is not a kernel/<dir>/xnu.macho path" ;; esac
+        is_path "$4" || usage "finish: xnu path '$4'"
+        KB_DIR=$3 KB_XNU=$4
+    fi
     stage_ok
     session_open && refuse "an iOS session is running: return to One UI first"
     [ -f "$STAGE/runtime.conf" ] && mine "$STAGE/runtime.conf" || refuse "no OneiOS runtime is staged"
+    if [ -n "$KB_DIR" ]; then
+        ib=$(conf "$STAGE/image.conf" build 2>/dev/null)
+        [ "$ib" = "${KB_DIR#kb-}" ] || refuse "the staged image set is ${ib:-unknown}, not ${KB_DIR#kb-}: a kernel built from $KB_DIR must never boot it"
+    fi
     out="$STAGE/make-kernel/out"
     kc_check_prebuilt "$out" || refuse "no phone-built kernel is staged in $out: run the kernel build first"
     rm -rf "$out/tmp"

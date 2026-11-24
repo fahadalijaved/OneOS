@@ -693,15 +693,194 @@ class OneiosTest {
         assertTrue(OneiosManifests.updateProblem("20F66", kb("22A100"), true)!!.contains("20F66"))
     }
 
-    /** The page, the Switch button and the switching line name the staged set's iOS: "iOS 16.5" on the A56 (issue 73). */
+    /** The page, the Switch button and the switching line name the staged set's iOS: "iOS 16.5" on the A56 (issue 73), the whole iOS 27 version. */
     @Test
     fun theNameFollowsTheStagedSet() {
         assertEquals("iOS 27", OneiosSystem.shortName(null))
-        assertEquals("iOS 27", OneiosSystem.shortName("27.0.1"))
+        assertEquals("iOS 27", OneiosSystem.shortName(""))
+        assertEquals("iOS 27.0.1", OneiosSystem.shortName("27.0.1"))
+        assertEquals("iOS 27.2.1", OneiosSystem.shortName("27.2.1"))
         assertEquals("iOS 16.5", OneiosSystem.shortName("16.5"))
         assertEquals("iOS 16.5", OneiosSystem.shortName("16.5.1"))
         assertEquals("iOS 16.5 (OneiOS)", OneiosSystem.name(OneiosImageChoice.IOS_16_5_A56.version))
-        assertEquals(OneiosSystem.NAME, OneiosSystem.name(OneiosImageChoice.IOS_27.version))
+        assertEquals("iOS 27.0.1 (OneiOS)", OneiosSystem.name(OneiosImageChoice.IOS_27.version))
+        assertEquals("iOS 27.2.1 (OneiOS)", OneiosSystem.name(OneiosImageChoice.IOS_27_2.version))
+        assertEquals(OneiosSystem.NAME, OneiosSystem.name(null))
+        // The iOS 27 artwork: over either iOS 27 set, or none; not over the A56's 16.5.
+        assertTrue(OneiosSystem.isIos27(null))
+        assertTrue(OneiosSystem.isIos27("27.0.1"))
+        assertTrue(OneiosSystem.isIos27("27.2.1"))
+        assertFalse(OneiosSystem.isIos27("16.5"))
+    }
+
+    /**
+     * Make iOS image offers both iOS 27 builds on every phone but the A56 (OneOS, 2026-11-25): iOS 27.0.1 (24A446),
+     * tested, first and the default; iOS 27.2.1 (24B156), not booted yet, second; each with the download and room its
+     * profile gives (profiles/ios-27.2.1-iPhone18,2.toml: 13 members, 11,718,249,424 bytes = 10.91 GiB, need_gib 32;
+     * 24A446's 10.59 GiB and need_gib 30). The A56 makes only iOS 16.5. The pick is what make-image builds.
+     */
+    @Test
+    fun everyIos27PhoneOffersBothBuildsTheTestedOneFirst() {
+        for (p in Profiles.BUILT_IN.filter { it.id != Profiles.ID_A56 } + listOf(null)) {
+            assertEquals(p?.id, listOf(OneiosImageChoice.IOS_27, OneiosImageChoice.IOS_27_2), OneiosImageChoice.choicesOf(p))
+            assertEquals(p?.id, OneiosImageChoice.IOS_27, OneiosImageChoice.of(p))
+            assertEquals(p?.id, OneiosImageChoice.IOS_27_2, OneiosImageChoice.of(p, "24B156"))
+            assertEquals(p?.id, OneiosImageChoice.IOS_27, OneiosImageChoice.of(p, null))
+            assertEquals(p?.id, OneiosImageChoice.IOS_27, OneiosImageChoice.of(p, "20F66"))
+        }
+        val a56 = Profiles.resolve("SM-A566B", "a56x", "s5e8855").profile
+        assertEquals(listOf(OneiosImageChoice.IOS_16_5_A56), OneiosImageChoice.choicesOf(a56))
+        assertEquals(OneiosImageChoice.IOS_16_5_A56, OneiosImageChoice.of(a56, "24B156"))
+        assertEquals("iOS 27.0.1 (24A446), tested", OneiosImageChoice.IOS_27.label)
+        assertEquals("iOS 27.2.1 (24B156), new: not booted yet", OneiosImageChoice.IOS_27_2.label)
+        assertEquals("iOS 16.5 (20F66)", OneiosImageChoice.IOS_16_5_A56.label)
+        assertEquals(setOf("24B156"), OneiosImageChoice.NOT_BOOTED)
+        val r = OneiosImageChoice.IOS_27_2
+        assertEquals("runtime/lib/profiles/ios-27.2.1-iPhone18-2.toml", r.profile)
+        assertEquals("27.2.1" to "24B156", r.version to r.build)
+        assertEquals(11_718_249_424L, r.downloadBytes)
+        assertEquals("10.91", "%.2f".format(java.util.Locale.ROOT, r.downloadBytes / (1L shl 30).toDouble()))
+        // The room said before it starts: need_gib and the same 4 GiB beside it as 24A446's (30 + 4).
+        assertEquals((32L + 4) shl 30, r.roomBytes)
+        assertEquals((30L + 4) shl 30, OneiosImageChoice.IOS_27.roomBytes)
+        assertFalse(r.needsKernelcache)
+        assertFalse(r.usesDefaultKernel)
+        assertTrue(OneiosImageChoice.IOS_27.usesDefaultKernel)
+        assertTrue(OneiosImageChoice.IOS_16_5_A56.usesDefaultKernel)
+    }
+
+    /**
+     * The pairing files by build: `kb` for 24A446 (and the A56's 20F66, whose kernel.kc has the 24A446 kexts), as
+     * before; `kb-24B156` for iOS 27.2.1, and the 27.2.1 profile's kernelcache for its Update the kernel.
+     */
+    @Test
+    fun theKbAndTheKernelcacheFollowTheBuild() {
+        assertEquals("kb", OneiosImageChoice.kbDirOf("24A446"))
+        assertEquals("kb-24B156", OneiosImageChoice.kbDirOf("24B156"))
+        assertTrue(runCatching { OneiosImageChoice.kbDirOf("../x") }.isFailure)
+        assertEquals("kb", OneiosImageChoice.IOS_27.kb)
+        assertEquals("kb", OneiosImageChoice.IOS_16_5_A56.kb)
+        assertEquals("kb-24B156", OneiosImageChoice.IOS_27_2.kb)
+        assertEquals("24B156", OneiosImageChoice.kernelBuildOf("24B156"))
+        assertEquals(OneiosTool.IPSW_PROFILE, OneiosImageChoice.ipswProfileOf("24A446"))
+        assertEquals("runtime/lib/profiles/ios-27.2.1-iPhone18-2.toml", OneiosImageChoice.ipswProfileOf("24B156"))
+        assertNull(OneiosImageChoice.ipswProfileOf("20F66"))
+        val s = OneiosSystem.STAGE
+        // 24A446: byte for byte the requests of before.
+        assertEquals(OneiosTool.prelinkRequest("kernel/xnu.macho", s), OneiosTool.prelinkRequest("kernel/xnu.macho", s, "kb"))
+        assertEquals(OneiosTool.kernelcacheFetchRequest(s), OneiosTool.kernelcacheFetchRequest(s, OneiosTool.IPSW_PROFILE))
+        // 24B156: its own kernel, kb-24B156 and the 27.2.1 profile.
+        val (cmd, keys) = OneiosTool.prelinkRequest("kernel/24B156/xnu.macho", s, "kb-24B156")
+        assertEquals("prelink", cmd)
+        assertEquals("$s/runtime/kernel/24B156/xnu.macho", keys["kernel"])
+        assertEquals("$s/kb-24B156/kernelcache.macho", keys["kernelcache"])
+        assertEquals("$s/kb-24B156/profile.toml", keys["profile"])
+        assertEquals("$s/kb-24B156/reviewed.json", keys["reviewed"])
+        assertEquals(listOf("$s/kb-24B156/lead.json", "$s/kb-24B156/user.json"), keys["more_reviewed"])
+        assertEquals("$s/kb-24B156/pairs.json", keys["pairs"])
+        assertEquals("$s/kb-24B156/stubs.json", keys["stubs"])
+        assertEquals("$s/kb-24B156/match", keys["xnuprelink"])
+        assertEquals("$s/make-kernel/out", keys["out"])
+        assertEquals("$s/runtime/lib/profiles/ios-27.2.1-iPhone18-2.toml", OneiosTool.kernelcacheFetchRequest(s, OneiosImageChoice.ipswProfileOf("24B156")!!).second["profile"])
+    }
+
+    /**
+     * iOS 27.2.1's make-image request (the contract with OneiOS, 2026-11-25): its profile, `xnu` the runtime's
+     * `kernels[]` 24B156 path under `<stage>/runtime/`, and `kb` `<stage>/kb-24B156`. iOS 27.0.1 sends neither, as before.
+     */
+    @Test
+    fun theMakeImageRequestOf2721NamesItsKernelAndKb() {
+        val s = OneiosSystem.STAGE
+        val c = OneiosImageChoice.IOS_27_2
+        val (cmd, keys) = OneiosTool.makeImageRequest(s, c.profile, "kernel/24B156/xnu.macho", c.kb)
+        assertEquals("make-image", cmd)
+        assertEquals("$s/runtime/lib/profiles/ios-27.2.1-iPhone18-2.toml", keys["profile"])
+        assertEquals("$s/runtime/kernel/24B156/xnu.macho", keys["xnu"])
+        assertEquals("$s/kb-24B156", keys["kb"])
+        assertEquals(OneiosTool.makeImageRequest(s).second - "profile", keys - "profile" - "xnu" - "kb")
+        assertFalse("xnu" in OneiosTool.makeImageRequest(s).second)
+        assertFalse("kb" in OneiosTool.makeImageRequest(s).second)
+        assertEquals(OneiosTool.makeImageRequest(s), OneiosTool.makeImageRequest(s, OneiosImageChoice.IOS_27.profile, null, null))
+    }
+
+    /**
+     * `runtime.json`'s `kernels` (OneiOS 2026-11-25): one object per build, each shaped like `kernel` plus `build`.
+     * `kernel` stays the 24A446 one and is what a 24A446 set uses; a runtime without `kernels`, or without the build
+     * in it, has no kernel for 24B156. A malformed entry refuses the manifest, as a malformed `kernel` does.
+     */
+    @Test
+    fun aRuntimesKernelsArrayNamesEachBuildsKernel() {
+        val k2 = """{"build": "24B156", "path": "kernel/24B156/xnu.macho", "build_id": "xnu-13432.42.3-ios-27.2.1-24B156-0123456789ab", "sha256": "${"b".repeat(64)}", "xnu": "xnu-13432.42.3", "profile": "ios-27.2.1-24B156", "record": "kernel/24B156/xnu.macho.build.json"}"""
+        val k1 = kernelJson().removePrefix("\"kernel\": ").removeSuffix(", ").removeSuffix("}") + """, "build": "24A446"}"""
+        val text = runtimeJson().replace("\"files\":", kernelJson() + "\"kernels\": [$k1, $k2], \"files\":")
+        val m = OneiosManifests.parse(OneiosKind.RUNTIME, text).getOrThrow()
+        assertEquals("kernel/xnu.macho", m.kernelFor("24A446")!!.path)
+        assertNull(m.kernelFor("24A446")!!.build)
+        val b = m.kernelFor("24B156")!!
+        assertEquals("kernel/24B156/xnu.macho", b.path)
+        assertEquals("xnu-13432.42.3-ios-27.2.1-24B156-0123456789ab", b.buildId)
+        assertEquals("ios-27.2.1-24B156", b.profile)
+        assertEquals("24B156", b.build)
+        assertEquals(listOf("24A446", "24B156"), m.kernels.map { it.build })
+        // Today's released runtimes: no kernels.
+        val old = OneiosManifests.parse(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", kernelJson() + "\"files\":")).getOrThrow()
+        assertEquals(emptyList<OneiosKernel>(), old.kernels)
+        assertNotNull(old.kernelFor("24A446"))
+        assertNull(old.kernelFor("24B156"))
+        refused(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", "\"kernels\": {}, \"files\":"), "kernels is not a list")
+        refused(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", "\"kernels\": [$k2, $k2], \"files\":"), "names 24B156 twice")
+        refused(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", "\"kernels\": [${k2.replace("\"build\": \"24B156\", ", "")}], \"files\":"), "kernels[0] has no build")
+        refused(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", "\"kernels\": [${k2.replace("\"24B156\"", "\"x/y\"")}], \"files\":"), "is not")
+        refused(OneiosKind.RUNTIME, runtimeJson().replace("\"files\":", "\"kernels\": [${k2.replace("kernel/24B156/xnu.macho\"", "../xnu\"")}], \"files\":"), "not a plain relative path")
+    }
+
+    /**
+     * A kb.json of another build (a test fixture: the 24B156 pin is the one OneiOS's profile commit 9abcce7 decoded,
+     * f6f31ac4...e9a5939; the file hashes are stand-ins, not pairing data): its six inputs and its own matcher
+     * fixture, every name one root's `kbinput` takes. 24A446's must still list exactly [OneiosKb.PINNED].
+     */
+    @Test
+    fun aKbJsonOfAnotherBuildParses() {
+        val pin = "f6f31ac427bed2cdcf1353a6d84e3c2897354a86b2cc708f0e330a99be9a5939"
+        val names = OneiosKb.CORE + "match/fixtures/fileset-24B156-symbols.json"
+        fun json(build: String, list: List<String>) = """{"kb": 2, "build": "$build", "device": "iPhone18,2", "kernelcache_sha256": "$pin", "files": {${list.joinToString(",") { "\"$it\": \"${"4".repeat(64)}\"" }}}}"""
+        val kb = OneiosKb.parse(json("24B156", names)).getOrThrow()
+        assertEquals("24B156", kb.build)
+        assertEquals(pin, kb.kernelcacheSha256)
+        assertEquals(names.sorted(), kb.names)
+        // No matcher file, a missing input, a name root does not take: refused.
+        assertTrue(OneiosKb.parse(json("24B156", OneiosKb.CORE)).isFailure)
+        assertTrue(OneiosKb.parse(json("24B156", names - "pairs.json")).isFailure)
+        assertTrue(OneiosKb.parse(json("24B156", names + "xnu.macho")).isFailure)
+        assertTrue(OneiosKb.parse(json("24B156", names + "kernelcache.macho")).isFailure)
+        assertTrue(OneiosKb.parse(json("24B156", names + "match/fixtures/fileset-a.b-symbols.json")).isFailure)
+        // 24A446's: exactly PINNED, as before (its own fixtures, not 24B156's).
+        assertTrue(OneiosKb.parse(json("24A446", names)).isFailure)
+        assertTrue(OneiosKb.parse(json("24A446", OneiosKb.PINNED)).isSuccess)
+        for (n in names) assertTrue(n, OneiosKbFiles.allowed(n))
+        assertFalse(OneiosKbFiles.allowed("match/xnuprelink.py"))
+    }
+
+    /**
+     * Update the kernel over an iOS 27.2.1 set pairs kb-24B156 and needs the runtime's 24B156 kernel: a runtime
+     * without it (today's releases, no `kernels`) says "get the latest OneiOS runtime", as the app says for other
+     * too-old runtimes; the 24A446 kb never pairs a 24B156 set, nor the other way round.
+     */
+    @Test
+    fun aTooOldRuntimeFor2721SaysGetTheLatest() {
+        val kb2 = kb("24B156")
+        assertNull(OneiosManifests.updateProblem("24B156", kb2, true))
+        val why = OneiosManifests.updateProblem("24B156", kb2, false)!!
+        assertTrue(why, why.contains("get the latest OneiOS runtime"))
+        assertTrue(why, why.contains("iOS 27.2.1 (24B156)"))
+        assertTrue(OneiosManifests.updateProblem("24B156", kb(), true)!!.contains("24B156"))
+        assertTrue(OneiosManifests.updateProblem("24A446", kb2, true)!!.contains("24A446"))
+        assertTrue(OneiosManifests.updateProblem("20F66", kb2, true)!!.contains("20F66"))
+        // 24A446 keeps its words.
+        assertTrue(OneiosManifests.updateProblem("24A446", kb(), false)!!.contains("update the runtime first"))
+        assertNull(OneiosManifests.kernelProblem("24B156", kb2, kbPin, true))
+        assertTrue(OneiosManifests.kernelProblem("24B156", kb2, null, true)!!.contains("not staged"))
+        assertTrue(OneiosManifests.kernelProblem("24B156", kb2, "5".repeat(64), true)!!.contains("not the 24B156 one"))
     }
 
     @Test

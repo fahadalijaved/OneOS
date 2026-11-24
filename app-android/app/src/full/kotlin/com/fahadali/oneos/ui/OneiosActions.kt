@@ -10,6 +10,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.OneiosFix
+import com.fahadali.oneos.core.model.OneiosImageChoice
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosPlain
 import com.fahadali.oneos.core.model.Units
@@ -176,31 +177,56 @@ internal object OneiosActions {
     }
 
     /**
-     * Make iOS image ([OneiosToolJob.Flow.MAKE_IMAGE]), asked first: the iOS it makes on this phone and its download
-     * ([OneiosJob.imageChoice]: iOS 27.0.1, about 11 GB from Apple, once; iOS 16.5, about 5.8 GB, on the Galaxy A56),
-     * the free room it needs while it builds (the choice's room; the tool checks the exact room itself before it
-     * downloads anything) and the room this phone has now. While the flow runs, its screen opens
-     * instead.
+     * Make iOS image ([OneiosToolJob.Flow.MAKE_IMAGE]), asked first: which iOS this phone makes when it offers more
+     * than one ([OneiosJob.imageChoices]: "iOS 27.0.1 (24A446), tested" first and recommended, then "iOS 27.2.1
+     * (24B156), new: not booted yet", each with its download and the room it needs; the Galaxy A56 only iOS 16.5),
+     * then the pick's download (about 11 GB from Apple, once; iOS 16.5 about 5.8 GB), the free room it needs while it
+     * builds (the choice's room; the tool checks the exact room itself before it downloads anything) and the room this
+     * phone has now. The pick is what make-image builds. While the flow runs, its screen opens instead.
      */
     fun makeImage(a: AppCompatActivity) {
         if (OneiosToolJob.state.busy) {
             a.startActivity(OneiosToolActivity.intent(a))
             return
         }
+        val choices = OneiosJob.imageChoices()
+        if (choices.size == 1) return confirmMakeImage(a, choices.first())
+        val items = choices.map { c ->
+            val line = a.getString(R.string.oneios_make_image_pick_line, Units.bytes(c.downloadBytes), Units.bytes(c.roomBytes))
+            pair(a, c.label, line) to { confirmMakeImage(a, c) }
+        }
+        AlertDialog.Builder(a).setTitle(R.string.oneios_make_image_pick_title)
+            .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
+            .setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    /** Make iOS image's confirm for [image]: its download, its room and this phone's free room; Make it starts that build. */
+    private fun confirmMakeImage(a: AppCompatActivity, image: OneiosImageChoice) {
         val free = runCatching { android.os.StatFs(android.os.Environment.getDataDirectory().path).availableBytes }.getOrNull()
-        val image = OneiosJob.imageChoice()
         val text = buildString {
-            append(a.getString(R.string.oneios_make_image_confirm, Units.bytes(image.downloadBytes), Units.bytes(image.roomBytes), image.version))
+            append(a.getString(R.string.oneios_make_image_confirm, Units.bytes(image.downloadBytes), Units.bytes(image.roomBytes), "${image.version} (${image.build})"))
+            if (image.build in OneiosImageChoice.NOT_BOOTED) {
+                append("\n\n")
+                append(a.getString(R.string.oneios_make_image_not_booted))
+            }
             if (free != null) {
                 append("\n\n")
                 append(a.getString(if (free < image.roomBytes) R.string.oneios_make_image_free_short else R.string.oneios_make_image_free, Units.bytes(free)))
             }
         }
-        val d = AlertDialog.Builder(a).setTitle(R.string.oneios_make_image).setMessage(text)
-            .setPositiveButton(R.string.oneios_make_image_start) { _, _ -> OneiosToolActivity.start(a, OneiosToolJob.Flow.MAKE_IMAGE) }
+        val d = AlertDialog.Builder(a).setTitle(image.title).setMessage(text)
+            .setPositiveButton(R.string.oneios_make_image_start) { _, _ -> OneiosToolActivity.start(a, OneiosToolJob.Flow.MAKE_IMAGE, image.build) }
             .setNegativeButton(android.R.string.cancel, null)
         d.show()
     }
+
+    /** A list item of two lines: [title] and a smaller, dimmer [line] (as [choice]'s). */
+    private fun pair(a: AppCompatActivity, title: String, line: String): CharSequence =
+        android.text.SpannableStringBuilder(title).append('\n').append(line).apply {
+            val from = title.length + 1
+            setSpan(android.text.style.RelativeSizeSpan(0.85f), from, length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(a.getColor(R.color.preboot_secondary)), from, length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
 
     /** A release by its tag (empty: the latest). */
     fun askTag(a: AppCompatActivity) {

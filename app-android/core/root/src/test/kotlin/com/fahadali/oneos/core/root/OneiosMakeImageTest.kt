@@ -55,6 +55,8 @@ class OneiosMakeImageTest {
         val im4p: OneiosToolFlow? = null,
         val roots: Map<OneiosRoot.Verb, String?> = emptyMap(),
         val stopAfter: String? = null,
+        /** The staged runtime's kernels[] path of 24B156, by runtime version (the app's record of it). */
+        val kernel2: Map<String, String> = emptyMap(),
     ) : OneiosMakeImage.Io {
         private val statuses = ArrayDeque(statuses)
         private val runtimeAnswers = ArrayDeque(runtimes)
@@ -81,7 +83,7 @@ class OneiosMakeImageTest {
         }
 
         override fun root(verb: OneiosRoot.Verb, args: List<String>, data: ByteArray?): String? {
-            ask(if (verb == OneiosRoot.Verb.KBINPUT) "kbinput ${args[0]}" else (listOf(verb.word) + args).joinToString(" "))
+            ask(if (verb == OneiosRoot.Verb.KBINPUT) "kbinput ${args[0]}" + args.drop(3).joinToString("") { " $it" } else (listOf(verb.word) + args).joinToString(" "))
             if (verb == OneiosRoot.Verb.KBINPUT) {
                 assertEquals(args[1], data!!.size.toString())
                 assertEquals(args[2], Hashes.sha256(data))
@@ -95,6 +97,11 @@ class OneiosMakeImageTest {
         }
 
         override fun closeTool() = ask("close")
+
+        override fun kernelPath(st: OneiosStatus, kernelBuild: String): String? {
+            assertEquals("24B156", kernelBuild)
+            return kernel2[st.runtime?.version]
+        }
 
         override fun tool(cmd: String, keys: Map<String, Any?>): OneiosToolFlow {
             ask(cmd)
@@ -370,4 +377,68 @@ class OneiosMakeImageTest {
     }
 
     private fun flow16() = OneiosMakeImage(stage, kb, assets, a56)
+
+    // --- iOS 27.2.1 (24B156), the user's second choice -----------------------------------------------------------
+
+    /** The 24B156 pairing files (a stand-in kb: the profile's kernelcache pin, stand-in file hashes; not pairing data). */
+    private val names2 = OneiosKb.CORE + "match/fixtures/fileset-24B156-symbols.json"
+    private val assets2 = names2.associateWith { "kb2-$it".toByteArray() }
+    private val kb2 = OneiosKb("24B156", "iPhone18,2", "f6f31ac427bed2cdcf1353a6d84e3c2897354a86b2cc708f0e330a99be9a5939", assets2.mapValues { Hashes.sha256(it.value) })
+    private val made2 = made.copy(result = made.result!! + mapOf("version" to "27.2.1", "build" to "24B156"))
+    private val path2 = "kernel/24B156/xnu.macho"
+
+    private fun flow2() = OneiosMakeImage(stage, kb2, assets2, OneiosImageChoice.IOS_27_2)
+
+    /**
+     * iOS 27.2.1 (the contract with OneiOS, 2026-11-25): its pairing files into `kb-24B156/` (root's `kbinput ...
+     * kb-24B156`), then the one make-image with its profile, `xnu` the runtime's 24B156 kernel and `kb` `kb-24B156`,
+     * and root's finish with its 27.2.1 result. No kernelcache step (its profile has the member).
+     */
+    @Test
+    fun iOs2721MakesItsSetWithItsOwnKernelAndKb() {
+        val io = Fake(listOf(withKernel), tools = listOf(withMake), makeImage = made2, kernel2 = mapOf("0.1.12" to path2))
+        val o = flow2().run(io)
+        assertEquals(OneiosMakeImage.Outcome.Staged(21, 1, "27.2.1", "24B156", 13_200_000_000L, "a".repeat(64)), o)
+        assertEquals(
+            listOf("status") + names2.sorted().map { "kbinput $it kb-24B156" } + listOf("begin image", "tool", "make-image", "finish image 21 1 27.2.1 24B156"),
+            io.asked,
+        )
+        assertEquals(listOf(OneiosTool.makeImageRequest(stage, OneiosTool.IPSW_PROFILE_27_2, path2, "kb-24B156").second), io.keys)
+        assertEquals("$stage/runtime/lib/profiles/ios-27.2.1-iPhone18-2.toml", io.keys.single()["profile"])
+        assertEquals("$stage/runtime/$path2", io.keys.single()["xnu"])
+        assertEquals("$stage/kb-24B156", io.keys.single()["kb"])
+        assertFalse(OneiosMakeImage.Phase.KERNELCACHE in io.phases)
+        assertTrue(io.lines.toString(), io.lines.any { "pairing files are on this phone (${names2.size}" in it })
+    }
+
+    /**
+     * A runtime without the 24B156 kernel (today's releases have no `kernels`): the newest runtime first, as for a
+     * runtime without any kernel; when that has none either, a refusal that says "get the latest OneiOS runtime"
+     * ([OneiosMakeImage.CODE_NO_BUILD_KERNEL]) before anything is written.
+     */
+    @Test
+    fun aRuntimeWithoutThe24B156KernelGetsTheNewestOrSaysGetTheLatest() {
+        // The newest one has it: staged, then the set is made with it.
+        val got = Fake(listOf(withKernel, newer), runtimes = listOf(OneiosMakeImage.Runtime.Staged("0.1.13")), tools = listOf(withMake), makeImage = made2, kernel2 = mapOf("0.1.13" to path2))
+        assertTrue(flow2().run(got) is OneiosMakeImage.Outcome.Staged)
+        assertEquals(listOf("status", "runtime 0.1.12", "status"), got.asked.take(3))
+        // The newest is the staged one: refused, nothing written.
+        val same = Fake(listOf(withKernel), runtimes = listOf(OneiosMakeImage.Runtime.Same("0.1.12")))
+        val s = flow2().run(same) as OneiosMakeImage.Outcome.Stopped
+        assertEquals(OneiosMakeImage.STEP_RUNTIME to OneiosMakeImage.CODE_NO_BUILD_KERNEL, s.step to s.code)
+        assertTrue(s.text, s.text!!.contains("get the latest OneiOS runtime"))
+        assertTrue(s.text, s.text!!.contains("iOS 27.2.1 (24B156)"))
+        assertEquals(listOf("status", "runtime 0.1.12"), same.asked)
+        // A newer one without it either: refused after its status.
+        val newerToo = Fake(listOf(withKernel, newer), runtimes = listOf(OneiosMakeImage.Runtime.Staged("0.1.13")))
+        val n = flow2().run(newerToo) as OneiosMakeImage.Outcome.Stopped
+        assertEquals(OneiosMakeImage.CODE_NO_BUILD_KERNEL, n.code)
+        assertEquals(listOf("status", "runtime 0.1.12", "status"), newerToo.asked)
+        // In plain words, with the runtime as the fix.
+        val m = com.fahadali.oneos.core.model.OneiosPlain.makeImage(s.step, s.end, s.code, s.text)
+        assertTrue(m.line, m.line.startsWith("Get the latest OneiOS runtime"))
+        // iOS 27.0.1 never asks for it: the same runtime makes it as before.
+        val today = Fake(listOf(withKernel), tools = listOf(withMake), makeImage = made)
+        assertTrue(flow().run(today) is OneiosMakeImage.Outcome.Staged)
+    }
 }

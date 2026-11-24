@@ -1,6 +1,7 @@
 package com.fahadali.oneos.core.root
 
 import com.fahadali.oneos.core.model.Hashes
+import com.fahadali.oneos.core.model.OneiosImageChoice
 import com.fahadali.oneos.core.model.OneiosKb
 import com.fahadali.oneos.core.model.OneiosKbFiles
 import com.fahadali.oneos.core.model.OneiosTool
@@ -48,7 +49,7 @@ class OneiosKernelUpdateTest {
         }
 
         override fun root(verb: OneiosRoot.Verb, args: List<String>, data: ByteArray?): String? {
-            asked += if (verb == OneiosRoot.Verb.KBINPUT) "kbinput ${args[0]}" else (listOf(verb.word) + args).joinToString(" ")
+            asked += if (verb == OneiosRoot.Verb.KBINPUT) "kbinput ${args[0]}" + args.drop(3).joinToString("") { " $it" } else (listOf(verb.word) + args).joinToString(" ")
             if (verb == OneiosRoot.Verb.KBINPUT) {
                 assertEquals(args[1], data!!.size.toString())
                 assertEquals(args[2], Hashes.sha256(data))
@@ -79,6 +80,51 @@ class OneiosKernelUpdateTest {
     private fun update() = OneiosKernelUpdate(stage, kb, "kernel/xnu.macho", assets)
 
     private val inputs = names.sorted().map { "kbinput $it" }
+
+    /**
+     * Update the kernel over an iOS 27.2.1 (24B156) set: the app's `kb-24B156` files into the stage's `kb-24B156/`,
+     * the 27.2.1 profile's kernelcache member, its decoded SHA-256 against that kb.json's pin
+     * (f6f31ac4...e9a5939), root's `kbcache ... kb-24B156`, and the prelink of the runtime's 24B156 kernel with the
+     * `kb-24B156` inputs. A stand-in kb: the profile's pin, stand-in file hashes, not pairing data.
+     */
+    @Test
+    fun a2721SetPairsItsOwnKbKernelAndKernelcache() {
+        val pin2 = "f6f31ac427bed2cdcf1353a6d84e3c2897354a86b2cc708f0e330a99be9a5939"
+        val names2 = OneiosKb.CORE + "match/fixtures/fileset-24B156-symbols.json"
+        val assets2 = names2.associateWith { "kb2-$it".toByteArray() }
+        val kb2 = OneiosKb("24B156", "iPhone18,2", pin2, assets2.mapValues { Hashes.sha256(it.value) })
+        val profile2 = OneiosImageChoice.ipswProfileOf("24B156")!!
+        val update2 = OneiosKernelUpdate(stage, kb2, "kernel/24B156/xnu.macho", assets2, "kb-24B156", profile2)
+        assertEquals("24B156", update2.build)
+        val io = Fake(good + (OneiosTool.Cmd.IM4P to ok("kind" to "krnl", "bytes" to 78_500_000L, "sha256" to pin2)))
+        val o = update2.run(io, cachedSha256 = null)
+        assertEquals(OneiosKernelUpdate.Outcome.Built(kc, 100L, downloaded = true), o)
+        assertEquals(names2.sorted().map { "kbinput $it kb-24B156" } + listOf("fetch", "im4p", "kbcache 78500000 $pin2 kb-24B156", "prelink"), io.asked)
+        assertEquals(
+            listOf(
+                OneiosTool.kernelcacheFetchRequest(stage, profile2).second, OneiosTool.kernelcacheDecodeRequest(stage).second,
+                OneiosTool.prelinkRequest("kernel/24B156/xnu.macho", stage, "kb-24B156").second,
+            ),
+            io.keys,
+        )
+        assertEquals("$stage/runtime/lib/profiles/ios-27.2.1-iPhone18-2.toml", io.keys[0]["profile"])
+        assertEquals("$stage/kb-24B156/kernelcache.macho", io.keys[2]["kernelcache"])
+        assertTrue(io.lines.toString(), io.lines.any { "pairing files are on this phone (${names2.size}" in it })
+        // The 24A446 kernelcache is not the 24B156 one: refused, nothing kept, the work removed.
+        val wrong = Fake(good)
+        val w = update2.run(wrong, null) as OneiosKernelUpdate.Outcome.Stopped
+        assertEquals(OneiosTool.Cmd.IM4P to "mismatch", w.step to w.code)
+        assertFalse(wrong.asked.any { it.startsWith("kbcache") })
+        assertEquals("kbclean", wrong.asked.last())
+        // Cached in kb-24B156/ already (root's kbset line): nothing fetched.
+        val cached = Fake(good)
+        update2.run(cached, pin2)
+        assertEquals(names2.sorted().map { "kbinput $it kb-24B156" } + "prelink", cached.asked)
+        assertEquals(
+            listOf("prelink"),
+            OneiosKernelUpdate.toolRequests(stage, "kernel/24B156/xnu.macho", cached = true, kbDir = "kb-24B156", ipswProfile = profile2).map { it.first },
+        )
+    }
 
     @Test
     fun withNoKernelcacheTheUpdateFetchesDecodesKeepsAndBuilds() {
