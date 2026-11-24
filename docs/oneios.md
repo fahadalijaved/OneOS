@@ -245,9 +245,11 @@ bytes to download (its 13 members, 10.91 GiB) and about 36 GiB of room at the pe
 - **The pairing files by build**: `assets/kb/` stays 24A446's (format 2, unchanged); another build's are in
   `assets/kb-<BUILD>/` (`OneiosImageChoice.kbDirOf`: `kb-24B156`), the same layout, with its own `kb.json`
   (`"build": "24B156"`, `kernelcache_sha256` `f6f31ac427bed2cdcf1353a6d84e3c2897354a86b2cc708f0e330a99be9a5939`, the
-  six inputs and its matcher fixtures). **This app does not carry `assets/kb-24B156/` yet**: OneiOS makes those
-  files; until they are in the app, Make iOS image of 27.2.1 stops with "This OneOS can't make this iOS yet" (`no-kb`)
-  and Update the kernel over a 24B156 set with the same words. `EditionsTest.theKernelBuildInputsAreThePinnedOnes`
+  six inputs and its matcher fixtures). They are written by OneiOS's `oneios-tool app kb 24B156` from its records
+  (OneiOS `ios272/base`, 2026-11-25; `app kb 24A446 --check` says `assets/kb/` is the records' too); on the build
+  laptop the phone's own `prelink build` from these files alone made the same `kernel.kc` as OneiOS's
+  `kernel/prelink/build.sh` (`09df2833...`, audit 0 failures). An app without them stops Make iOS image of 27.2.1 with
+  "This OneOS can't make this iOS yet" (`no-kb`) and Update the kernel over a 24B156 set with the same words. `EditionsTest.theKernelBuildInputsAreThePinnedOnes`
   checks any `kb-<BUILD>/` the app ships (its kb.json is that build's, every listed file there and the pinned one,
   nothing else). On the phone they are staged beside 24A446's, at `<stage>/kb-24B156/`.
 - **Update the kernel pairs the staged set's build** (`OneiosToolJob.kernelUpdate`, `OneiosKernelUpdate(stage, kb,

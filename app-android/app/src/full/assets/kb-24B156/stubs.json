@@ -1,0 +1,1146 @@
+{
+ "about": "Kext imports of the 24A446 kernelcache that kernel.kc leaves on the panic stub (functions) or unpaired (data), each with its reason. kernel/prelink/audit.py fails the build for an import on the stub or unpaired that is not here, and for an entry here that is bound. A pair for one of these goes into pairs-24A446.json (or a reviewed record) and leaves this list. callers: the call sites in the kexts that load the slot or branch to its stub (data: the loads).",
+ "kernelcache_sha256": "f6f31ac427bed2cdcf1353a6d84e3c2897354a86b2cc708f0e330a99be9a5939",
+ "functions": [
+  {
+   "original": "0xfffffe000abdc5c8",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _current_task and _kernel_debug",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleARMPlatform"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000abe46f8",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _current_thread and _ipc_port_release_send",
+   "callers": 4,
+   "kexts": [
+    "driver.AppleEmbeddedAudioLibs",
+    "driver.AppleH16ANEInterface",
+    "driver.AppleProxDriver"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ac2fd80",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _ml_io_write16 and _ml_io_write8",
+   "callers": 8,
+   "kexts": [
+    "driver.AppleEmbeddedPCIE",
+    "driver.AppleUSBXDCI",
+    "driver.usb.AppleUSBXHCI",
+    "iokit.IOUSBHostFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ac2fd8c",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _ml_io_read64 and _ml_set_interrupts_enabled",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleUSBXDCI",
+    "driver.usb.AppleUSBXHCI"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ac35460",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _printf and _socd_client_trace",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleARMWatchdogTimer"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ace2d54",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _vfs_shutdown_in_progress and _vsnprintf",
+   "callers": 10,
+   "kexts": [
+    "driver.AppleARMWatchdogTimer",
+    "driver.AppleM2ScalerCSCDriver"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ace2e08",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _thread_call_free and the table end",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOGameControllerFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000acffe4c",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _vfs_context_pid and _vnode_getfromfd",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleDiskImages2"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ad97e6c",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _panic and _printf",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleH16ANEInterface"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it",
+   "port": "review: 0xfffffe000ad44ec4 -> 0xfffffe000ad97e6c: order, shape changed"
+  },
+  {
+   "original": "0xfffffe000ada1d50",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _cpu_threadtype and _cpu_xcall",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleARMWatchdogTimer"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ada1db4",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _ml_get_max_cpu_number and _random_cpu_init",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleARMPlatform",
+    "driver.AppleEmbeddedPCIE"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ada9ed8",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _microtime and _panic",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOCryptoAcceleratorFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ada9f40",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _ml_set_interrupts_enabled and _nanoseconds_to_absolutetime",
+   "callers": 1,
+   "kexts": [
+    "driver.ApplePMGR"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it",
+   "port": "review: 0xfffffe000ad56f44 -> 0xfffffe000ada9f40: order"
+  },
+  {
+   "original": "0xfffffe000adac660",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): driver.AppleSEPManager, driver.RTBuddy",
+   "between": "its import slot sorts between _ml_static_mfree and _os_log_coprocessor_register_with_type",
+   "callers": 3,
+   "kexts": [
+    "driver.AppleSEPManager",
+    "driver.RTBuddy"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000ae49884",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _vfs_context_ucred and _vm_kernel_addrhash",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleH16ANEInterface"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000aee4874",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _ifnet_enable_cellular_thread_group and _ifnet_event",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOSkywalkFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b14b864",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between the table start and the table end",
+   "callers": 1,
+   "kexts": [
+    "driver.DiskImages"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b1884ec",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _image4_v2_interface_register and _kernel_image4_roll_nonce",
+   "callers": 1,
+   "kexts": [
+    "security.Image4"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b18850c",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _image4_v2_interface_register and _kernel_image4_roll_nonce",
+   "callers": 1,
+   "kexts": [
+    "security.Image4"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b2afc6c",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _kern_packet_is_high_priority and _kern_packet_set_headroom",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOSkywalkFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b2afc88",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _kern_packet_is_high_priority and _kern_packet_set_headroom",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOSkywalkFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b2afca8",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _kern_packet_is_high_priority and _kern_packet_set_headroom",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOSkywalkFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b2c7c74",
+   "why": "The lead's record (dictEntry::compare) is contradicted by the code: the original is 100 bytes with a call and a string, dictEntry::compare is a 28-byte comparator; and by the order: its slot comes after OSDictionary C1 (0xfffffe000b271bd4, the constructor by its code: retain count 1, the vtable, the instance count). The importer, AppleEmbeddedAudio, is code-only (its personalities are dropped, it never starts). Left on the stub until the code names it",
+   "kexts": [
+    "driver.AppleEmbeddedAudio"
+   ],
+   "evidence": "bound to dictEntry::compare in both collections; the importer never starts"
+  },
+  {
+   "original": "0xfffffe000b2ff9e0",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between __Block_object_dispose and __Z16OSUnserializeXMLPKcmPP8OSString",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleHIDTransport",
+    "driver.DiskImages.UDIFDiskImage"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b3061c4",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between the table start and the table end",
+   "callers": 2,
+   "kexts": [
+    "iokit.IOAccessoryManager"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b3061e8",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _microtime and _panic",
+   "callers": 4,
+   "kexts": [
+    "driver.AppleInputDeviceSupport",
+    "iokit.IOAccessoryManager"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b3071c4",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): driver.RTBuddy",
+   "between": "its import slot sorts between _ml_static_mfree and _os_log_coprocessor_register_with_type",
+   "callers": 1,
+   "kexts": [
+    "driver.RTBuddy"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b3073f8",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): driver.RTBuddy",
+   "between": "its import slot sorts between _os_log_coprocessor_register_with_type and _os_log_create",
+   "callers": 1,
+   "kexts": [
+    "driver.RTBuddy"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b3099d4",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): driver.RTBuddy",
+   "between": "its import slot sorts between _os_log_create and _panic",
+   "callers": 1,
+   "kexts": [
+    "driver.RTBuddy"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b31c880",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between __ZN9IOService19getMatchingServicesEP12OSDictionary and __ZN9IOService21temporaryPowerClampOnEv",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleARMPlatform"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b3c6c1c",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): driver.ApplePTD",
+   "between": "its import slot sorts between __ZN21IOInterruptController30timeStampInterruptHandlerStartEiP17IOInterruptVector and __ZN21IOInterruptControllerC2EPK11OSMetaClass",
+   "callers": 1,
+   "kexts": [
+    "driver.ApplePTD"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4182f4",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between __ZN9IOService24registerInterestedDriverEPS_ and __ZN9IOServiceC2EPK11OSMetaClass",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleH16ANEInterface"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4188fc",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between __ZN9IOService24registerInterestedDriverEPS_ and __ZN9IOServiceC2EPK11OSMetaClass",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleH16ANEInterface"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4767c8",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 11,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b476898",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 11,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4768d4",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b476930",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 13,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b476970",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 10,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4769dc",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 23,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b476a18",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 3,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b476a20",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 49,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b476e70",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 49,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b476e8c",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 102,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477268",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 36,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477714",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 42,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477a38",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleFirmwareKit"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477b88",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 3,
+   "kexts": [
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477bfc",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 3,
+   "kexts": [
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477ca0",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 34,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477cd8",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477d00",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleFirmwareKit"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477d68",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 42,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477db8",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 117,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477e14",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 39,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477e30",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 22,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477e90",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 5,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b477efc",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 5,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4780bc",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 4,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4795ac",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 73,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4795f8",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 28,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479644",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 4,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4797f0",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 3,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479854",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 12,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4798d0",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 16,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479930",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 3,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b4799c0",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 55,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479a24",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 25,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479a4c",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 4,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479aa0",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 44,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479afc",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 11,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479b20",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479bec",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 14,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479c7c",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479cd8",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 10,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479d78",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 4,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479ddc",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 84,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479e70",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 25,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479ecc",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 48,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479f70",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 24,
+   "kexts": [
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b479fd4",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 82,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47a068",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strnlen and _thread_call_allocate",
+   "callers": 53,
+   "kexts": [
+    "driver.AppleALSColorSensor",
+    "driver.AppleFirmwareKit",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47a0c4",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _task_reference_external and _thread_block",
+   "callers": 12,
+   "kexts": [
+    "driver.AppleH16ANEInterface",
+    "driver.ExclavesAudioKext"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47a394",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 4,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47a480",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 3,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47a584",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 6,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47a674",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 4,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47a9e0",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 32,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47aac4",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 5,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b47ab80",
+   "why": "Tightbeam, the exclaves IPC (its slots sort in the tb_* names, between _task_reference_external and _thread_block, after _strnlen or _strcmp): this kernel has no tb_* function and no exclaves. The callers are the exclave paths of AppleALSColorSensor, AppleFirmwareKit, AppleH16ANEInterface and ExclavesAudioKext, taken when an exclave service is found",
+   "between": "its import slot sorts between _strcmp and the table end",
+   "callers": 14,
+   "kexts": [
+    "driver.AppleALSColorSensor"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b48b734",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between the table start and the table end",
+   "callers": 1,
+   "kexts": [
+    "kec.corecrypto"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it",
+   "port": "review: 0xfffffe000b4344e4 -> 0xfffffe000b48b734: order, shape changed"
+  },
+  {
+   "original": "0xfffffe000b48b76c",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between the table start and the table end",
+   "callers": 1,
+   "kexts": [
+    "kec.corecrypto"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b48d970",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "its import slot sorts between _kernel_image4_monitor_trap and _kernel_thread_start",
+   "callers": 1,
+   "kexts": [
+    "security.AppleImage4"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  }
+ ],
+ "data": [
+  {
+   "original": "0xfffffe000b77fe14",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): iokit.IOSerialFamily",
+   "between": "",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOSerialFamily"
+   ],
+   "evidence": "ios272 2026-11-25: 24A446's stub 0xfffffe000b727e14 (the same reason), which prelink port did not carry; the 24B156 audit names this one IOSerialFamily data import, unpaired, 1 call site"
+  },
+  {
+   "original": "0xfffffe000b809168",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): iokit.IOSerialFamily",
+   "between": "",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOSerialFamily"
+   ],
+   "evidence": "ios272 2026-11-25: in 24A446 IOSerialFamily's data import 0xfffffe000b7b1028 was paired with gIOKitDebugKey by its import order (pairs-24A446.json); 24B156's matcher pairs nothing here and prelink port did not carry it. Its only importer never starts, so it goes on the stub rather than a name chosen by order alone"
+  },
+  {
+   "original": "0xfffffe0007044788",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleARMWatchdogTimer"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it",
+   "port": "review: 0xfffffe00070446b8 -> 0xfffffe0007044788: data, 8 bytes before the pair 0xfffffe00070446c0 -> 0xfffffe0007044790, the words between the same"
+  },
+  {
+   "original": "0xfffffe0007ed8038",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "",
+   "callers": 10,
+   "kexts": [
+    "driver.AppleARMPlatform",
+    "driver.AppleEmbeddedPCIE",
+    "driver.AppleFirmwareKit",
+    "iokit.IOStreamFamily",
+    "iokit.IOUSBHostFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe0007f055d0",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "",
+   "callers": 34,
+   "kexts": [
+    "driver.AppleFirmwareKit",
+    "driver.DiskImages",
+    "driver.DiskImages.RAMBackingStore",
+    "filesystems.lifs",
+    "iokit.IOBiometricFamily",
+    "iokit.IOHIDFamily",
+    "iokit.IOPCIFamily",
+    "iokit.IOReportFamily",
+    "iokit.IOSkywalkFamily",
+    "iokit.IOStorageFamily",
+    "iokit.IOSurface",
+    "iokit.IOUSBHostFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b793ce8",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "",
+   "callers": 81,
+   "kexts": [
+    "iokit.IOHIDFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b7ccd58",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): driver.AppleSMC",
+   "between": "",
+   "callers": 1,
+   "kexts": [
+    "driver.AppleSMC"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it",
+   "port": "review: 0xfffffe000b774c98 -> 0xfffffe000b7ccd58: data, 8 bytes before the pair 0xfffffe000b774ca0 -> 0xfffffe000b7ccd60, the words between the same"
+  },
+  {
+   "original": "0xfffffe000b7f4458",
+   "why": "every importer is code-only (its personalities are dropped, so it never starts): iokit.IOSerialFamily",
+   "between": "",
+   "callers": 1,
+   "kexts": [
+    "iokit.IOSerialFamily"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b7f4460",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "",
+   "callers": 2,
+   "kexts": [
+    "iokit.IOSerialFamily",
+    "nke.ppp"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it"
+  },
+  {
+   "original": "0xfffffe000b80b140",
+   "why": "no counterpart chosen: the candidates between its neighbours are not told apart by the code yet",
+   "between": "",
+   "callers": 2,
+   "kexts": [
+    "driver.AppleARMPlatform",
+    "driver.AppleARMWatchdogTimer"
+   ],
+   "evidence": "on the stub (data: unpaired) in the Linux collection of 2026-11-11 too, which booted to the Home Screen on the phone without calling it",
+   "port": "review: 0xfffffe000b7b3000 -> 0xfffffe000b80b140: data, 8 bytes before the pair 0xfffffe000b7b3008 -> 0xfffffe000b80b148, the words between the same"
+  }
+ ],
+ "ported": {
+  "from_kernelcache_sha256": "349c4692a6a85df0d396681f28d2d48dc04b95c6d60df0f94d84501e3d0c57e3",
+  "by": "oneios-tool prelink port (kernel/prelink/README.md, \"Another build\")",
+  "kept": 100,
+  "left_out": 1,
+  "review": 6
+ }
+}

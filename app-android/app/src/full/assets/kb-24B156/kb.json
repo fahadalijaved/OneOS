@@ -1,0 +1,18 @@
+{
+ "build": "24B156",
+ "device": "iPhone18,2",
+ "files": {
+  "lead.json": "28fa380b7963a717adc6c65adc887bef0fc1b6ce97180e24ff3175a28dd50af9",
+  "match/fixtures/fileset-23F84-symbols.json": "63ebc5b6e549baf22898a070b7c2f9ebe8aa27505cd5effd9facf2c77f9ef644",
+  "match/fixtures/fileset-24A446-symbols.json": "026fb497af4d9bc3afc28b6a22be3210ba52ae0c4b5193ce9b34a4b72792b5d8",
+  "match/fixtures/fileset-26C5035r-symbols.json": "90cedab8cba99c7abdef1cc2739312d3016187206656391b8c1a456e5cdb6fd3",
+  "pairs.json": "4c13855a837ca0fc2570ad4b79f85b60df2b0c9b364dcebd59fb5c90fc087c1c",
+  "profile.toml": "7979875de660b0a876618f01e9bd669f1df46cef9add2bf79354ba77509257a1",
+  "reviewed.json": "c5c4f4d5271a66685e80a4c4d03c55e5f9c78f2650285f61b7419c8258d803c4",
+  "stubs.json": "cc7e7eaada1d2788ec6a596b12d87d137a025619700c6bdc43e186ff5179b4b7",
+  "user.json": "33143f7e34271c5878ad7bc0a4ebfb2b716dc768434e58085c1468c24b0a7704"
+ },
+ "kb": 2,
+ "kernelcache_sha256": "f6f31ac427bed2cdcf1353a6d84e3c2897354a86b2cc708f0e330a99be9a5939",
+ "profile": "profile.toml"
+}
