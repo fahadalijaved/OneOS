@@ -70,14 +70,15 @@ class ExperimentalA17OnA16Test {
                     if (it.imageId == Images.ID_ONEUI95 && it.packageSetId == PackageSets.ID_ONEUI95) it.copy(packageSetId = PackageSets.ID_ONEUI95_A16) else it
                 }, test.choices)
                 assertEquals(stable.id, stable.copy(choices = test.choices), test)
-            } else if (!stable.enabled || stable.choice(Images.ID_ONEUI95) != null) {
+            } else if (!stable.enabled || stable.choice(Images.ID_ONEUI95) != null || stable in Profiles.TABLETS) {
+                // 0.5.41: a Galaxy Tab keeps its one tablet system.
                 assertSame(stable.id, stable, test)
             } else {
                 assertEquals(stable.id, stable.choices + ImageChoice(Images.ID_ONEUI95, PackageSets.ID_ONEUI95_A16, tested = false), test.choices)
             }
         }
-        assertTrue(tester.filter { it.enabled }.all { it.choice(Images.ID_ONEUI95) != null })
-        val added = tester.filter { Profiles.byId(it.id, Profiles.STABLE)!!.choice(Images.ID_ONEUI95) == null }.map { it.id }.toSet()
+        assertTrue(tester.filter { it.enabled && it.id !in Profiles.TABLETS.map { t -> t.id } }.all { it.choice(Images.ID_ONEUI95) != null })
+        val added = tester.filter { it !in Profiles.TABLETS && Profiles.byId(it.id, Profiles.STABLE)!!.choice(Images.ID_ONEUI95) == null }.map { it.id }.toSet()
         assertEquals(PackageSets.ID_ONEUI95_A16, tester.first { it.id == Profiles.A35.id }.choice(Images.ID_ONEUI95)!!.packageSetId)
         assertTrue(added.containsAll(setOf(Profiles.S_ULTRA_8450.id, Profiles.S_ULTRA_9925.id, Profiles.A06.id, Profiles.A07_5G.id)))
         // Exactly the phones whose only system is OxygenOS 16 (One UI 8 only).

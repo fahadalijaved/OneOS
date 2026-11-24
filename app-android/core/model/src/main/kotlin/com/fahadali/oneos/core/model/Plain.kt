@@ -92,8 +92,9 @@ object Plain {
             else -> "the Galaxy " + names.dropLast(1).joinToString(", ") + " and " + names.last()
         }
         if ("OneOS works on $list.".length <= PlainMessage.MAX_LINE) return list
-        val families = names.map { n -> listOf("Z Fold", "Z Flip").firstOrNull { n.startsWith(it) } ?: n.take(1) }.distinct()
-        return "${names.size} Galaxy phones so far: ${families.dropLast(1).joinToString(", ")} and ${families.last()} models; the README lists them"
+        val families = names.map { n -> listOf("Z Fold", "Z Flip", "Tab").firstOrNull { n.startsWith(it) } ?: n.take(1) }.distinct()
+        val kind = if ("Tab" in families) "phones and tablets" else "phones"
+        return "${names.size} Galaxy $kind so far: ${families.dropLast(1).joinToString(", ")} and ${families.last()} models; the README lists them"
     }
 
     /** [of] with the facts read from [report] and the phone's [facts]. */
@@ -276,6 +277,12 @@ object Plain {
                 "Its software is too old. If the screen stays black, One UI comes back by itself. Then share the " +
                     "session logs from Settings › Last session.",
                 FixAction.ACKNOWLEDGE,
+            )
+            Profiles.ID_NOTE_TABLET -> m(
+                "First runs on a Galaxy Tab",
+                "OxygenOS 17 for tablets is new (testing). If the screen stays black, One UI comes back by itself. " +
+                    "Then share the session logs.",
+                FixAction.NONE,
             )
             Profiles.ID_NOTE_FOLD4_ISSUES -> m(
                 "Known issues on this phone",

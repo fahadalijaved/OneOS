@@ -122,6 +122,15 @@ BUILDS = [
         "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
         "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
     }, [("vold", 0x104e2, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
+    # OxygenOS 17 for the OnePlus Pad 4 (OPD2514, OP657AL1, CP2A.260605.016, 2026-10-22; 0.5.41 tablets):
+    # vold has the Find X9 Ultra IN layout (the only "\0vold\0" at 0x104e6, try_start's tbz w19, #0, +0xd4
+    # at 0x7ab64, each the binary's only one); service.incremental.so and the compressed crashrecovery APEX
+    # are that build's, byte for byte.
+    ("OxygenOS 17 CP2A.260605.016 (OnePlus Pad 4)", {
+        "vold": "092559c64563dff054aee3dbdef02cef34b08694e3af792229f25b0c90ef551b",
+        "service.incremental.so": "25979ef93ee4b1a781c16adc783febdba2462563e5a7e69f4ba24d011d4b8427",
+        "crashrecovery-google-compressed.apex": "304784481c167b3d196c9ba8ce8d45ea7b59b04b2c061d0b19ed0a4e93574f50",
+    }, [("vold", 0x104e6, NAME), ("vold", 0x7ab64, TRY_START), ("service.incremental.so", 0x6536b, NAME)]),
     # Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse, CP2A.260605.016),
     # built from source: its own layout. start() takes the string at 0xe164
     # (adrp 0xe000 + add 0x164), try_start's tbz w19 is at 0x64d8c (+0xd4, as
@@ -1232,7 +1241,11 @@ SITES = {"9896c0cba131": 0x470bc8, "a09087821954": 0x471178,
          # OnePlus OxygenOS 16 (CPH2745, Android 16): a status check (tbnz) comes between the
          # load and the cbz; cbz x8 -> +0x4c at 0x5d9bb8, the same bytes (code segment 0x2a0000,
          # file offset == vaddr).
-         "b8dc0a4def28": 0x5d9bb8}
+         "b8dc0a4def28": 0x5d9bb8,
+         # OnePlus OxygenOS 17 for the Pad 4 (OPD2514, CP2A.260605.016, 0.5.41 tablets): bl
+         # AIBinder_getExtension at 0x470a50, ldr x8, cbz x8 -> +0x4c at 0x470a58, then bl
+         # IQtiComposer3Client::fromBinder (code segment 0x1d0000, file offset == vaddr).
+         "57239975c39b": 0x470a58}
 # vivo OriginOS 17 (MediaTek, X500 Pro Max CP2A.260605.016): after init, main()
 # registers MediaTek's MtkSF_ext as vendor.mediatek.framework.mtksf_ext.IMtkSF_ext/
 # default, a VINTF-stable binder only the guest's own manifest declares. One UI's

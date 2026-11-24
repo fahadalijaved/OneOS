@@ -2388,7 +2388,12 @@ SENSORS_HAL_RESTART=0
 SENS_DEF=0
 case "$(getprop ro.product.model)" in SM-S721*) SENS_DEF=1 ;; esac
 grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null && SENS_DEF=0
-if [ "${ONEOS_GUEST_HOVER_PROX:-$SENS_DEF}" = 1 ] && [ ! -e /sys/class/sensors/proximity_sensor ] && [ -f /vendor/lib64/sensors.inputvirtual.so ]; then
+# 0.5.41: the hover proximity sensor on the Galaxy S24 Ultra too (owner: "Proximity sensor doesnt work in s24u
+# during calls"; the S24 Ultra has no proximity sensor of its own, One UI uses the touch IC's ear detect). The patch
+# checks every byte it changes and leaves a library it does not recognise alone.
+PROX_DEF=$SENS_DEF
+case "$(getprop ro.product.model)" in SM-S928*) grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null || PROX_DEF=1 ;; esac
+if [ "${ONEOS_GUEST_HOVER_PROX:-$PROX_DEF}" = 1 ] && [ ! -e /sys/class/sensors/proximity_sensor ] && [ -f /vendor/lib64/sensors.inputvirtual.so ]; then
     apply_hover_prox_patch || echo "!!! Proximity: Hover Proximity patch was not applied; calls may keep screen on"
 fi
 if [ "${ONEOS_GUEST_CAM_SENSORS:-$SENS_DEF}" = 1 ] && ! grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null; then

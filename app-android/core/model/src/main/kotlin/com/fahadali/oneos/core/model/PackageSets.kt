@@ -179,6 +179,7 @@ object PackageSets {
     const val ID_ONEUI95 = "oneui95"
     const val ID_ONEUI95_F8 = "oneui95-f8"
     const val ID_ONEUI95_A16 = "oneui95-a16"
+    const val ID_OXYGEN17_PAD = "oxygen17pad"
     const val ID_PIXELOS = "pixelos"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
@@ -806,6 +807,38 @@ object PackageSets {
     )
 
     /**
+     * OxygenOS 17 for tablets (0.5.41, testing; [Images.OXYGEN17_PAD], the Galaxy Tab profiles only): make-overlays.sh on
+     * the OnePlus Pad 4 image (out/overlays_oxygen17pad_r1: the guard jars, the guest vold as gvld (the Find X9 Ultra IN
+     * layout), SurfaceFlinger without the QTI composer client, One UI's camera codes, the SMS centre, OPPO's IMS
+     * provisioning, raise to wake from a Galaxy's pick-up sensor, the OneOS app and 16 APEX payloads).
+     */
+    val OXYGEN17_PAD = PackageSet(
+        id = ID_OXYGEN17_PAD,
+        imageId = Images.ID_OXYGEN17_PAD,
+        sourceDir = "out/overlays_oxygen17pad_r1",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("vold_patched", FileRole.GUARD_EXECUTABLE),
+            PackageFile("service.incremental_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("ims-ext-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("oplus-telephony-common_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            OPLUS_FRAMEWORK_IMS,
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("libcamera_client_patched.so", FileRole.GUARD_LIBRARY),
+            PackageFile("OplusGestureUI_patched.apk", FileRole.GUEST_FIX),
+            PackageFile("OplusGestureUI_patched.apk.src_sha256", FileRole.GUEST_FIX),
+        ) + (COMMON_PAYLOADS + listOf("cellbroadcast")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING, WALLPAPER_GRID_RRO, "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt"),
+        approxBytes = 442_258_204L,
+        hasReturnApp = true,
+    )
+
+    /**
      * OriginOS 7 (0.4.73, experimental): vivo's CN PD2609MA build on the Snapdragon S25/S26 series and the
      * Z Fold7/8 phones (0.4.82: also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+, the same set). Set r18 (out/overlays_originos_cn_r18, 0.4.95: r17 with the guest's own screen lock in services_patched.jar; r17: make-overlays.sh with the CN vendor's
      * vivo_config.ini; vivo_guards.py, vivo_brightness.py and the other vivo patches; the fold cutout overlay
@@ -1073,7 +1106,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, ONEUI95_A16, PIXELOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, OXYGEN17_PAD, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, ONEUI95_A16, PIXELOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

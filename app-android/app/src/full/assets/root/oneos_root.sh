@@ -191,6 +191,7 @@ SET_FOLDONEUI="Fold8OneUI95Framework.apk Fold8OneUI95Home.apk Fold8OneUI95Servic
 SET_ONEUIEIGHT="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar conscrypt_payload.img profiling_payload.img os.statsd_payload.img media_payload.img media.swcodec_payload.img resolv_payload.img ipsec_payload.img uwb_payload.img devicelock_payload.img scheduling_payload.img neuralnetworks_payload.img tzdata_payload.img uprobestats_payload.img samsung.lifeguard_payload.img samsung.shell_payload.img samsung.media.imagecodec.system_payload.img samsung.spqr_payload.img samsung.media.extractor_payload.img samsung.media.swcodec.system_payload.img samsung.mediacontextanalyzer_payload.img tethering_connectivity_native_a17.so framework_patched_oneui8.jar"
 # OxygenOS 16 (0.4.67): ColorOS's common files and its own payloads; the guest vold as gvld from r2 (0.4.69).
 SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img conscrypt_payload.img profiling_payload.img"
+SET_OXYGENPAD="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt oplus-framework_patched.jar framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so OplusGestureUI_patched.apk OplusGestureUI_patched.apk.src_sha256 art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img"
 # OriginOS 7 (0.4.73): vivo's own jars, libraries, launcher and feature list, the signal poll, the fold
 # cutout overlay and the image's payloads (set r17).
 SET_ORIGINOS="BBKLauncher2_patched.apk BBKLauncher2_patched.apk.src_sha256 OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img framework-adapter_patched.jar framework-wifi_patched.jar framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libandroid_servers_patched.so libbluetooth_jni_patched.so libcamera_client_patched.so libcomposer_ext_patched.so libinputflinger_patched.so libinputservice_patched.so libsensorservice_patched.so mediaprovider_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneos-vivo-features.txt permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar telephonycore_payload.img tethering_payload.img vivo-framework_patched.jar vivo-service-wifi-ex-impl_patched.jar vivo-service-wifi_patched.jar vivo-services_patched.jar vivo-telephony-common-platform-ex_patched.jar vold_patched wifi_payload.img"
@@ -201,7 +202,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
 # sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 lineage24-infiniti"
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 oxygenos17-opd2514 lineage24-infiniti"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -245,6 +246,10 @@ profile_info() {
         f6) echo "SM-F956 q6q SM8650 fold" ;;
         f5) echo "SM-F946 q5q SM8550 fold" ;;
         f4) echo "SM-F936 q4q SM8475 fold" ;;
+        tab-s9) echo "SM-X710 gts9wifi SM8550 bar" ;;
+        tab-s10-fe) echo "SM-X526 gts10fe s5e8855 bar" ;;
+        tab-s10-fe-wifi) echo "SM-X520 gts10fewifi s5e8855 bar" ;;
+        tab-s12-ultra) echo "SM-X940 gts12uwifi MT6993 bar" ;;
         a07) echo "SM-A075 a07 MT6789 bar" ;;
         flip8) echo "SM-F776 b8s s5e9965 flip" ;;
         a36) echo "SM-A366 a36xq SM6475 bar" ;;
@@ -626,6 +631,11 @@ profile_set() {
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
         # 0.4.91: OxygenOS 16 for the S23s still on One UI 8.0/8.5 (the owner, 2026-11-11), untested there.
         "f4 oxygenos16-cph2745") echo oxygen16 ;;
+        # 0.5.41: Galaxy Tabs, OxygenOS 17 for tablets only (testing).
+        "tab-s9 oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s10-fe oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s10-fe-wifi oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s12-ultra oxygenos17-opd2514") echo oxygen17pad ;;
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
@@ -809,6 +819,7 @@ image_raw() {
         lineage24-infiniti) echo "2327068672 f1ce7c1add2dae73c681b29ccb86068864d5f42886bc1c22d249891f3bdf6261" ;;
         pixelos17-onyx) echo "5046312960 7913053cc74036ad5df18d188c4b47411856e4ea1b2b94389ce567f15489cdf3" ;;
         oxygenos16-cph2745) echo "12273344512 dafbb026f97692b7d59b8f4ae2f46773e88e0d5bf0e1fee46b3636ff56b06e90" ;;
+        oxygenos17-opd2514) echo "11920068608 3fd6ea6021333e942c985067e8d2fdf4ce6f28494cdfb182b07a76b07233c81c" ;;
         originos7-pd2609ma) echo "15998222336 9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee" ;;
         *) return 1 ;;
     esac
@@ -834,6 +845,7 @@ set_files() {
         lineage) echo "$SET_LINEAGE framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         pixelos) echo "$SET_PIXELOS framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         oxygen16) echo "$SET_OXYGENOS" ;;
+        oxygen17pad) echo "$SET_OXYGENPAD" ;;
         originos) echo "$SET_ORIGINOS framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         *) return 1 ;;
     esac
@@ -859,6 +871,7 @@ set_image() {
         lineage) echo lineage24-infiniti ;;
         pixelos) echo pixelos17-onyx ;;
         oxygen16) echo oxygenos16-cph2745 ;;
+        oxygen17pad) echo oxygenos17-opd2514 ;;
         originos) echo originos7-pd2609ma ;;
         *) return 1 ;;
     esac
@@ -880,7 +893,7 @@ image_family() {
         hyperos-lhasa) echo hyperos ;;
         hyperos-hongkong) echo hyperos ;;
         nothingos5-metroid|nothingos5-asteroids) echo nothing ;;
-        oxygenos16-cph2745) echo oxygenos ;;
+        oxygenos16-cph2745|oxygenos17-opd2514) echo oxygenos ;;
         originos7-pd2609ma) echo originos ;;
         oneui95-s948b) echo oneui ;;
         *) return 1 ;;

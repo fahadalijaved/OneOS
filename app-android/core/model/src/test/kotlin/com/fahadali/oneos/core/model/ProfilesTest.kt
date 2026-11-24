@@ -330,6 +330,8 @@ class ProfilesTest {
                 Profiles.M35, Profiles.M36, Profiles.A15_5G, Profiles.S_PLUS_8650,
                 // 0.5.28: the Galaxy S26 FE (Exynos 2500), the Z Flip7's systems on the bar settings.
                 Profiles.S26_FE,
+                // 0.5.41: the Galaxy Tabs, OxygenOS 17 for tablets only (testing).
+                Profiles.TAB_S9, Profiles.TAB_S10_FE, Profiles.TAB_S10_FE_WIFI, Profiles.TAB_S12_ULTRA,
             ),
             Profiles.BUILT_IN,
         )
@@ -726,7 +728,8 @@ class ProfilesTest {
         for (p in Profiles.BUILT_IN) {
             // 0.5.35: the Z Fold8 takes its own set with Josh's Fold8 files (PackageSets.ONEUI95_F8).
             val expected = ImageChoice(Images.ID_ONEUI95, if (p.id == Profiles.ID_FOLD8) PackageSets.ID_ONEUI95_F8 else PackageSets.ID_ONEUI95, tested = false)
-            val onOneUi9 = p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
+            // 0.5.41: a Galaxy Tab has only its tablet system (owner: "Hide all other Heros").
+            val onOneUi9 = p !in Profiles.TABLETS && p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
             if (onOneUi9) {
                 assertEquals(p.id, expected, p.choices.last().copy(tested = false))
                 assertEquals(p.id, expected, p.choice(Images.ID_ONEUI95)!!.copy(tested = false))

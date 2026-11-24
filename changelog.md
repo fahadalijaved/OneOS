@@ -801,6 +801,16 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.41: **Galaxy Tabs (testing), choose your download mirror, proximity in S24 Ultra calls.**
+- **Galaxy Tabs on One UI 9** (testing): OxygenOS 17 built from the OnePlus Pad 4, the one system offered on the Galaxy
+  Tab S9 (SM-X710), Tab S10 FE and Tab S10 FE 5G (SM-X520, SM-X526) and Tab S12 Ultra (SM-X940). Not tried on a
+  tablet yet: the screen, sound, S Pen or keyboard cover may not work; share the session logs.
+- **Pick where to download a system:** every Download button now asks SourceForge, Google Drive or gofile, and
+  offers your last choice first (SourceForge is slow for many users).
+- **Proximity during calls on the Galaxy S24 Ultra** (ColorOS, PixelOS and the others): the screen turns off at your
+  ear. The S24 Ultra has no proximity sensor of its own; the touchscreen's ear detection now stands in, as on the
+  S24 FE. Untested on an S24 Ultra.
+
 New in 0.5.40: **Calls on SIM 2 with sound on the Galaxy S24 Ultra, and Screen resolution in One UI 9.5 no longer
 sticks.**
 - **Calls on the second SIM** (Galaxy S24 Ultra and other Snapdragon Galaxies with Qualcomm's newer audio driver, in

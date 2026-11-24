@@ -118,6 +118,11 @@ object Profiles {
     const val ID_A36 = "a36"
     const val ID_FOLD5 = "f5"
     const val ID_FOLD4 = "f4"
+    // 0.5.41 tablets (testing): only OxygenOS 17 for tablets ([Images.OXYGEN17_PAD]).
+    const val ID_TAB_S9 = "tab-s9"
+    const val ID_TAB_S10_FE = "tab-s10-fe"
+    const val ID_TAB_S10_FE_WIFI = "tab-s10-fe-wifi"
+    const val ID_TAB_S12_ULTRA = "tab-s12-ultra"
     const val ID_S_ULTRA_8550 = "s-ultra-8550"
     const val ID_FLIP6 = "flip6"
     const val ID_S_9945 = "s-9945"
@@ -235,6 +240,8 @@ object Profiles {
      * (SM8450, the HIDL composer as well) run it. Before OriginOS in their lists, which stays last.
      */
     private val OXYGEN16_CHOICE = ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)
+    /** Galaxy Tabs (0.5.41, owner: "we will build an OS for them as testing"; only this one on a tablet). */
+    private val OXYGEN17_PAD_CHOICE = ImageChoice(Images.ID_OXYGEN17_PAD, PackageSets.ID_OXYGEN17_PAD, tested = false)
 
     /**
      * Nothing OS 5.0 (0.4.33), untested, last: the Z Fold8 Ultra first, where it
@@ -1372,6 +1379,41 @@ object Profiles {
         notes = listOf(EXYNOS, olderVendor("202404 (Android 15)", "6.6")),
     ))
 
+    /** The tablets' note (0.5.41): the first tablet sessions, on a tablet system. */
+    const val ID_NOTE_TABLET = "profile-tablet"
+    const val R_TABLET = "tablet"
+    private val TABLET = Finding(
+        ID_NOTE_TABLET, Level.WARN, "First runs on a Galaxy Tab",
+        "Galaxy Tabs are new to OneOS (testing): OxygenOS 17 for tablets has not run on one yet. The screen, sound, " +
+            "S Pen or keyboard cover may not work; if the screen stays black, OneOS returns to One UI by itself. " +
+            "Share the session logs afterwards.",
+        R_TABLET,
+    )
+
+    /** Galaxy Tab S9 (Wi-Fi), from a probe report of 2026-11-22 (SM-X710, gts9wifi, Snapdragon 8 Gen 2, One UI 9.0). */
+    val TAB_S9 = PhoneProfile(
+        id = ID_TAB_S9, label = "Galaxy Tab S9", modelPrefix = "SM-X710", codename = "gts9wifi", socModel = "SM8550",
+        form = FormFactor.BAR, choices = listOf(OXYGEN17_PAD_CHOICE), notes = listOf(TABLET),
+    )
+
+    /** Galaxy Tab S10 FE 5G, from a probe report of 2026-11-18 (SM-X526B, gts10fe, Exynos 1580, One UI 9.0). */
+    val TAB_S10_FE = PhoneProfile(
+        id = ID_TAB_S10_FE, label = "Galaxy Tab S10 FE 5G", modelPrefix = "SM-X526", codename = "gts10fe", socModel = "s5e8855",
+        form = FormFactor.BAR, choices = listOf(OXYGEN17_PAD_CHOICE), notes = listOf(TABLET, EXYNOS),
+    )
+
+    /** Galaxy Tab S10 FE (Wi-Fi, SM-X520, gts10fewifi): the 5G model's chip and system. */
+    val TAB_S10_FE_WIFI = TAB_S10_FE.copy(id = ID_TAB_S10_FE_WIFI, label = "Galaxy Tab S10 FE", modelPrefix = "SM-X520", codename = "gts10fewifi")
+
+    /** SM-X940 (gts12uwifi), from a probe report of 2026-11-23: MediaTek MT6993, One UI 9.0. */
+    val TAB_S12_ULTRA = PhoneProfile(
+        id = ID_TAB_S12_ULTRA, label = "Galaxy Tab S12 Ultra", modelPrefix = "SM-X940", codename = "gts12uwifi", socModel = "MT6993",
+        form = FormFactor.BAR, choices = listOf(OXYGEN17_PAD_CHOICE), notes = listOf(TABLET, MEDIATEK),
+    )
+
+    /** The Galaxy Tab profiles: tablet systems only, never One UI 9.5 on One UI 8 ([withOneUi95OnA16]). */
+    val TABLETS: List<PhoneProfile> = listOf(TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA)
+
     /** Every profile with the choices of a normal build ([BUILT_IN] unless this is a tester build). */
     val STABLE: List<PhoneProfile> = listOf(
         F8U, S_ULTRA_8850, S_ULTRA_8750, S_8750, FOLD7, S_PLUS_8750, FOLD8,
@@ -1380,7 +1422,7 @@ object Profiles {
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
         A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,
-        S26_FE,
+        S26_FE, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA,
     )
 
     /**
@@ -1395,6 +1437,7 @@ object Profiles {
     fun withOneUi95OnA16(profiles: List<PhoneProfile>): List<PhoneProfile> = profiles.map { p ->
         when {
             !p.enabled -> p
+            p.choices.all { it.imageId == Images.ID_OXYGEN17_PAD } -> p
             p.choices.any { it.imageId == Images.ID_ONEUI95 && it.packageSetId == PackageSets.ID_ONEUI95 } -> p.copy(choices = p.choices.map {
                 if (it.imageId == Images.ID_ONEUI95 && it.packageSetId == PackageSets.ID_ONEUI95) it.copy(packageSetId = PackageSets.ID_ONEUI95_A16) else it
             })

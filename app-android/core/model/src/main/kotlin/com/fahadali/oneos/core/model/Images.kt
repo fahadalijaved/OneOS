@@ -134,6 +134,7 @@ object Images {
     const val ID_NOTHING_METROID = "nothingos5-metroid"
     const val ID_NOTHING_ASTEROIDS = "nothingos5-asteroids"
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
+    const val ID_OXYGEN17_PAD = "oxygenos17-opd2514"
     const val ID_ORIGINOS7 = "originos7-pd2609ma"
     /** Starts with "lineage": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_LINEAGE = "lineage24-infiniti"
@@ -537,6 +538,35 @@ object Images {
     )
 
     /**
+     * OxygenOS 17 for tablets (0.5.41, testing): OnePlus's Android 17 system from the OnePlus Pad 4 OTA
+     * (OPD2514 / OP657AL1, OPD2514_11.C.08_1080_202610220019, CP2A.260605.016, security patch 2026-09-01),
+     * the only system Galaxy Tabs on One UI 9 are offered (owner, 2026-11-24). MysticGSI --no-debloat
+     * --type=oxygenos from system, system_ext, product, odm and the eight my_* partitions. The bionic
+     * linker's MOPS/SME/SVE2 routines run only when the CPU reports them.
+     */
+    val OXYGEN17_PAD = ImageRef(
+        id = ID_OXYGEN17_PAD,
+        label = "OxygenOS 17, OnePlus Pad 4 build",
+        shortName = "OxygenOS 17",
+        name = "OxygenOS 17",
+        variant = "tablet",
+        blurb = "OnePlus's Android 17 tablet system, for Galaxy Tabs on One UI 9. Testing. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_OxygenOS17_Pad4.img.gz",
+        gzBytes = 5_823_156_363L,
+        gzSha256 = "015852af3c161867f764b47a18008de1d581681e300fac8f358a4e4ed8717183",
+        rawBytes = 11_920_068_608L,
+        rawSha256 = "3fd6ea6021333e942c985067e8d2fdf4ce6f28494cdfb182b07a76b07233c81c",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.OXYGENOS,
+    )
+
+    /**
      * OriginOS 7 (0.4.73, experimental): vivo's Android 17 system from the CN PD2609MA build
      * (CP2A.260605.016, 260919185055, security patch 2026-09-01; ro.vivo.os.build.display.id
      * "OriginOS 7"), for the Snapdragon S25/S26 series and the Z Fold7, Fold8 and Fold8 Ultra;
@@ -673,7 +703,7 @@ object Images {
         family = SystemFamily.PIXELOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, ORIGINOS7, LINEAGE24, ONEUI95, PIXELOS_ONYX)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, OXYGEN17_PAD, ORIGINOS7, LINEAGE24, ONEUI95, PIXELOS_ONYX)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

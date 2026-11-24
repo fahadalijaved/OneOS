@@ -55,7 +55,7 @@ class ImagesTest {
         // (Nothing's are product/priv-app GmsCore, Phonesky, GooglePartnerSetup, GoogleRestore, ConfigUpdater
         // and system_ext/priv-app GoogleServicesFramework: six folders guest_prepare.sh's patterns cover).
         assertEquals(
-            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
+            listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16, Images.OXYGEN17_PAD, Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
             Images.ALL.filter { it.googleServices },
         )
         // 0.5.06: LineageOS 24 has none of its own: its Google apps are One UI's, laid over the guest at session time
@@ -93,11 +93,11 @@ class ImagesTest {
         assertEquals(SystemFamily.ONEUI, oneui.family)
         // 0.4.73: OriginOS 7 presents the Play services of its own gmssystem payload, as the Pixel images.
         assertEquals(listOf(pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_HONGKONG, Images.NOTHING_ASTEROIDS, Images.ORIGINOS7, Images.ONEUI95, Images.PIXELOS_ONYX), Images.ALL.filter { it.presentsGms })
-        assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
+        assertEquals(listOf(n6, xin, Images.NOTHING_METROID, Images.OXYGEN16, Images.OXYGEN17_PAD, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
         assertTrue(pixel.copy(presentsGms = false).gmsHideable)
         assertEquals(
             listOf(n6, xin, pixel, Images.PIXEL_KODIAK, Images.PIXEL_KOMODO, Images.INFINITYX, Images.HYPEROS_LHASA, Images.HYPEROS_HONGKONG, Images.NOTHING_METROID, Images.NOTHING_ASTEROIDS, Images.OXYGEN16,
-                Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
+                Images.OXYGEN17_PAD, Images.ORIGINOS7, Images.LINEAGE24, Images.ONEUI95, Images.PIXELOS_ONYX),
             Images.ALL,
         )
         // 0.4.67: OxygenOS 16 is the one SDK 36 image, of its own family; nothing past ARMv8.2 in its core binaries.
@@ -179,7 +179,7 @@ class ImagesTest {
             listOf(
                 SystemFamily.COLOROS, SystemFamily.COLOROS,
                 SystemFamily.PIXEL, SystemFamily.PIXEL, SystemFamily.PIXEL,
-                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS, SystemFamily.LINEAGE, SystemFamily.ONEUI, SystemFamily.PIXELOS, // 0.5.35: PixelOS its own family
+                SystemFamily.INFINITYX, SystemFamily.HYPEROS, SystemFamily.HYPEROS, SystemFamily.NOTHING, SystemFamily.NOTHING, SystemFamily.OXYGENOS, SystemFamily.OXYGENOS, SystemFamily.ORIGINOS, SystemFamily.LINEAGE, SystemFamily.ONEUI, SystemFamily.PIXELOS, // 0.5.35: PixelOS its own family
             ),
             Images.ALL.map { it.family },
         )
@@ -189,8 +189,8 @@ class ImagesTest {
         for (i in Images.ALL) assertEquals(i.id, i.id.startsWith("coloros17-"), i.family == SystemFamily.COLOROS)
 
         for (i in Images.ALL) {
-            // 0.4.67: SDK 37 (One UI 9) for all but OxygenOS 16 (SDK 36, One UI 8).
-            assertEquals(i.id, if (i.family == SystemFamily.OXYGENOS) 36 else 37, i.sdk)
+            // 0.4.67: SDK 37 (One UI 9) for all but OxygenOS 16 (SDK 36, One UI 8); 0.5.41 OxygenOS 17 for tablets is SDK 37.
+            assertEquals(i.id, if (i.id == Images.ID_OXYGEN16) 36 else 37, i.sdk)
             for (h in listOf(i.gzSha256, i.rawSha256)) assertTrue(h.matches(Regex("[0-9a-f]{64}")))
         }
         // Sizes tell the images apart (the picker identifies by size first).

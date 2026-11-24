@@ -21,7 +21,6 @@
     <string name="systems_badge_setting_up">Setting up</string>
     <string name="systems_use">Use this one</string>
     <string name="systems_download">Download</string>
-    <string name="systems_download_drive">Download from Google Drive</string>
     <string name="systems_have_file">I have the file</string>
     <string name="systems_set_up">Set up %1$s</string>
     <string name="systems_show_progress">Show progress</string>
@@ -94,4 +93,8 @@
     <string name="setup_details_moved">Kept as old copies</string>
     <string name="setup_expanded">Expanded</string>
     <string name="setup_collapsed">Collapsed</string>
+    <string name="systems_mirror_title">Download %1$s from</string>
+    <string name="systems_mirror_sourceforge">SourceForge: the nearest mirror, resumable</string>
+    <string name="systems_mirror_drive">Google Drive: the OneOS folder (often faster)</string>
+    <string name="systems_mirror_gofile">gofile: the OneOS folder</string>
 </resources>
