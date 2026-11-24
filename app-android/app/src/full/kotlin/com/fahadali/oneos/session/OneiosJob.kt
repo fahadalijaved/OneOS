@@ -26,6 +26,7 @@ import com.fahadali.oneos.core.model.TarReader
 import com.fahadali.oneos.core.model.Units
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.core.root.OneiosImport
+import com.fahadali.oneos.core.root.OneiosKernelUpdate
 import com.fahadali.oneos.core.root.OneiosMakeImage
 import com.fahadali.oneos.core.root.OneiosRoot
 import com.fahadali.oneos.core.root.OneiosStatus
@@ -603,8 +604,9 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
             val kb = kbInputs(app)
             OneiosManifests.kernelProblem(st.image?.build, kb, st.kb.kernelcacheSha256, st.runtimeKernel != null)?.let { throw Failed(it) }
             val bid = st.runtimeKernel?.buildId ?: throw Failed("the staged runtime carries no kernel")
-            must(root(app, OneiosRoot.Verb.FINISH, listOf("kernel", kcSha256.lowercase(java.util.Locale.ROOT), bid)))
-            "kernel.kc $bid is activated for the next session; the previous set is kept as the fallback."
+            val done = must(root(app, OneiosRoot.Verb.FINISH, listOf("kernel", kcSha256.lowercase(java.util.Locale.ROOT), bid)))
+            // An iOS 16.5 set: what root did with the A56's GPU addon too (its a56-gpu line).
+            OneiosKernelUpdate.activatedText(bid, done.reply.results)
         }
 
     /** Back to the kept kernel set after a kernel update, with its own receipt. */

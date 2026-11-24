@@ -208,4 +208,22 @@ class OneiosKernelUpdateTest {
         val o = update().run(io, pin) as OneiosKernelUpdate.Outcome.Stopped
         assertEquals("prelink" to "internal", o.step to o.code)
     }
+
+    /** The message after Activate names what root did with the A56's GPU addon, and only for a set whose finish said. */
+    @Test
+    fun theActivationTextSaysWhatHappenedToTheA56GpuAddon() {
+        val bid = "xnu-12377.121.6-ios-27.0.1-24A446-abcdef012345"
+        val plain = "kernel.kc $bid is activated for the next session; the previous set is kept as the fallback."
+        assertEquals(plain, OneiosKernelUpdate.activatedText(bid, emptyList()))
+        assertEquals(plain, OneiosKernelUpdate.activatedText(bid, listOf("a56-gpu maybe something")))
+        val placed = OneiosKernelUpdate.gpuAddon(listOf("a56-gpu placed kernel.kc.gpuaddon ab (9 bytes), owner-trust.json cd"))!!
+        assertEquals(OneiosKernelUpdate.GpuAddon.State.PLACED, placed.state)
+        assertEquals("kernel.kc.gpuaddon ab (9 bytes), owner-trust.json cd", placed.words)
+        val text = OneiosKernelUpdate.activatedText(bid, listOf("a56-gpu placed kernel.kc.gpuaddon ab (9 bytes), owner-trust.json cd"))
+        assertTrue(text, text.startsWith(plain) && text.contains("GPU addon (Metal and OpenGL ES for iOS 16.5) is in place too: kernel.kc.gpuaddon ab"))
+        val none = OneiosKernelUpdate.activatedText(bid, listOf("a56-gpu none the runtime carries no A56 plug-ins"))
+        assertTrue(none, none.contains("No GPU addon was placed: the runtime carries no A56 plug-ins."))
+        val skipped = OneiosKernelUpdate.activatedText(bid, listOf("a56-gpu skipped oneios-tool image a56-gpu-place ended with status 101"))
+        assertTrue(skipped, skipped.contains("was not placed: oneios-tool image a56-gpu-place ended with status 101.") && skipped.contains("2D"))
+    }
 }

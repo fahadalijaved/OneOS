@@ -571,6 +571,122 @@ class OneiosScriptTest {
     }
 
     /**
+     * The Galaxy A56's GPU addon in Update the kernel (docs/oneios.md, "Kernel updates"): for an iOS 16.5 (20F66)
+     * set, `finish kernel` runs the staged runtime's `oneios-tool image a56-gpu-place` after the kernel is
+     * activated, and moves its kernel.kc.gpuaddon, owner-trust.json and manifest.json in with image.sha256 and
+     * image.ids rewritten; the set then passes the switch's own preflight (every file listed, each id and sum
+     * right). `restore kernel` puts owner-trust.json and the addon (or its absence) back, and a second update
+     * replaces the addon. The tool is a stand-in (`resources/oneios/a56gpu-tool.sh`).
+     */
+    @Test
+    fun anA56SetGetsTheRuntimesGpuAddonWithTheKernelAndRestoreTakesItBack() = each { f ->
+        val (kc1, bid) = a56Stage(f, "20F66")
+        val trust1 = File(f.stage, "image/overlay/userland/owner-trust.json").readBytes()
+        val kc2 = ByteArray(6000) { (it % 239).toByte() }
+        val addon1 = gpuMode(f, "placed", 1)
+        makeKernelOut(f, kc2, xnuShaOf(f), kcInShaOf(f))
+        val o = f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", Hashes.sha256(kc2), bid))
+        assertOk(o)
+        val asha = Hashes.sha256(addon1)
+        val tsha = Hashes.sha256(File(f.file("a56gpu/trust").path).readBytes())
+        assertEquals(o.text, listOf("a56-gpu placed kernel.kc.gpuaddon $asha (${addon1.size} bytes), owner-trust.json $tsha"), o.reply.results)
+        assertTrue(o.text, o.text.lines().last { it.isNotBlank() }.startsWith("@@OK finish kernel $bid"))
+        assertEquals(listOf("image a56-gpu-place --stage ${f.stage.path} --out ${f.stage.path}/make-kernel/out/a56gpu"), f.lines("a56gpu/calls"))
+        // The kernel, the addon, owner-trust.json and the manifest that names both; the lists hold.
+        assertEquals(Hashes.sha256(kc2), Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+        assertEquals(asha, Hashes.sha256(File(f.stage, "image/kernel.kc.gpuaddon").readBytes()))
+        assertEquals(tsha, Hashes.sha256(File(f.stage, "image/overlay/userland/owner-trust.json").readBytes()))
+        val manifest = File(f.stage, "image/manifest.json").readText()
+        assertTrue(manifest, manifest.contains("\"sha256\": \"${Hashes.sha256(kc2)}\"") && manifest.contains("\"sha256\": \"$tsha\""))
+        assertSetHolds(f)
+        assertFalse(File(f.stage, "make-kernel/out").exists())
+        val receipt = File(f.stage, "logs").listFiles()!!.single { it.name.startsWith("update-") }
+        assertTrue(receipt.readText(), receipt.readText().contains("a56 gpu: placed: kernel.kc.gpuaddon $asha"))
+        // Restore: the kernel, owner-trust.json and no addon, as before the update.
+        assertOk(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")))
+        assertEquals(Hashes.sha256(kc1), Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+        assertEquals(Hashes.sha256(trust1), Hashes.sha256(File(f.stage, "image/overlay/userland/owner-trust.json").readBytes()))
+        assertFalse(File(f.stage, "image/kernel.kc.gpuaddon").exists())
+        assertSetHolds(f)
+        // A restore is restorable: the placed set comes back whole.
+        assertOk(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")))
+        assertEquals(asha, Hashes.sha256(File(f.stage, "image/kernel.kc.gpuaddon").readBytes()))
+        assertEquals(tsha, Hashes.sha256(File(f.stage, "image/overlay/userland/owner-trust.json").readBytes()))
+        assertSetHolds(f)
+        // A second update replaces the addon; its restore puts the first one back.
+        val kc3 = ByteArray(6100) { (it % 233).toByte() }
+        val addon2 = gpuMode(f, "placed", 2)
+        makeKernelOut(f, kc3, xnuShaOf(f), kcInShaOf(f))
+        val o2 = f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", Hashes.sha256(kc3), bid))
+        assertOk(o2)
+        assertTrue(o2.text, o2.reply.results.single().startsWith("a56-gpu placed kernel.kc.gpuaddon ${Hashes.sha256(addon2)} "))
+        assertEquals(Hashes.sha256(addon2), Hashes.sha256(File(f.stage, "image/kernel.kc.gpuaddon").readBytes()))
+        assertEquals(1, File(f.stage, "image.sha256").readLines().count { it.endsWith("  kernel.kc.gpuaddon") })
+        assertSetHolds(f)
+        assertOk(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")))
+        assertEquals(asha, Hashes.sha256(File(f.stage, "image/kernel.kc.gpuaddon").readBytes()))
+        assertEquals(Hashes.sha256(kc2), Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+        assertSetHolds(f)
+    }
+
+    /**
+     * When the tool has nothing to place (`none`), is a runtime's from before the command, fails, or writes
+     * something else, the kernel is activated as today and the set keeps its owner-trust.json and its addon (one
+     * staged by `oneios-tool phone addon` here): the finish says why in its `a56-gpu` line, and the set holds.
+     */
+    @Test
+    fun anA56SetWithNothingToPlaceOrAFailingToolKeepsItsAddonAndGetsTheKernel() = each { f ->
+        val staged = "NGPUADD2".toByteArray() + ByteArray(500) { 7 }
+        val (_, bid) = a56Stage(f, "20F66", addon = staged)
+        val trust = Hashes.sha256(File(f.stage, "image/overlay/userland/owner-trust.json").readBytes())
+        val said = mapOf(
+            "none" to "a56-gpu none the runtime carries no A56 plug-ins",
+            "old" to "a56-gpu none this runtime's oneios-tool has no image a56-gpu-place (an older runtime): the session stays 2D",
+            "error" to "a56-gpu skipped the plug-ins are for iPhone10,3 20F65, the set is 20F66",
+            "crash" to "a56-gpu skipped oneios-tool image a56-gpu-place ended with status 101: thread 'main' panicked at crates/oneios-image/src/a56gpu.rs:1:1 (a56-gpu-place)",
+            "stray" to "a56-gpu skipped oneios-tool left other files than kernel.kc.gpuaddon, owner-trust.json and manifest.json",
+        )
+        for ((i, mode) in said.keys.withIndex()) {
+            val kc = ByteArray(6000 + i) { (it % 229).toByte() }
+            gpuMode(f, mode, 3)
+            makeKernelOut(f, kc, xnuShaOf(f), kcInShaOf(f))
+            val o = f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", Hashes.sha256(kc), bid))
+            assertOk(o)
+            assertEquals(mode, listOf(said[mode]), o.reply.results)
+            assertEquals(mode, Hashes.sha256(kc), Hashes.sha256(File(f.stage, "image/kernel.kc").readBytes()))
+            assertEquals(mode, Hashes.sha256(staged), Hashes.sha256(File(f.stage, "image/kernel.kc.gpuaddon").readBytes()))
+            assertEquals(mode, trust, Hashes.sha256(File(f.stage, "image/overlay/userland/owner-trust.json").readBytes()))
+            assertSetHolds(f)
+        }
+        assertEquals(said.size, f.lines("a56gpu/calls").size)
+        // The restore of the last one keeps the staged addon (the kept set had it).
+        assertOk(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")))
+        assertEquals(Hashes.sha256(staged), Hashes.sha256(File(f.stage, "image/kernel.kc.gpuaddon").readBytes()))
+        assertSetHolds(f)
+    }
+
+    /** An iOS 27 (24A446) set never runs the tool: the finish is today's, with no `a56-gpu` line. */
+    @Test
+    fun anIos27SetNeverRunsTheGpuPlaceStep() = each { f ->
+        val (_, bid) = a56Stage(f, "24A446")
+        val before = File(f.stage, "image/overlay/userland/owner-trust.json").readBytes()
+        val kc = ByteArray(6000) { (it % 227).toByte() }
+        gpuMode(f, "placed", 4)
+        makeKernelOut(f, kc, xnuShaOf(f), kcInShaOf(f))
+        val o = f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", Hashes.sha256(kc), bid))
+        assertOk(o)
+        assertEquals(o.text, emptyList<String>(), o.reply.results)
+        assertTrue(o.text, o.text.lines().none { it.contains("a56") || it.contains("A56") })
+        assertFalse(f.file("a56gpu/calls").exists())
+        assertFalse(File(f.stage, "image/kernel.kc.gpuaddon").exists())
+        assertTrue(before.contentEquals(File(f.stage, "image/overlay/userland/owner-trust.json").readBytes()))
+        assertFalse(File(f.stage, "logs").listFiles()!!.single().readText().contains("a56 gpu"))
+        assertSetHolds(f)
+        assertOk(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")))
+        assertSetHolds(f)
+    }
+
+    /**
      * Update the kernel's two root verbs (docs/oneios.md, "Kernel updates"): `kbcache` keeps the kernelcache the
      * tool fetched from Apple and decoded only when root's own hash of it is the pin, removes the downloaded IM4P,
      * and `status` then reports it (the cache a later update builds from without a download); `kbclean` removes
@@ -898,6 +1014,84 @@ class OneiosScriptTest {
             "roothash-os = \"trust/os.root_hash\"\nroothash-system = \"trust/system.root_hash\"\nroothash-app = \"trust/app.root_hash\"\n" +
             "[data]\nvolume_uuid = \"11111111-2222-3333-4444-555555555555\"\nepoch = 1700000000\n"
         return profile to mapOf("001-00001-001.dmg" to osLen.toLong(), "001-00002-001.dmg" to 70_000L, "001-00003-001.dmg" to 32_768L)
+    }
+
+    /**
+     * A runtime with a kernel and the stand-in oneios-tool (`resources/oneios/a56gpu-tool.sh`), an image set of
+     * [build] with a kernel.kc, overlay/userland/owner-trust.json in its manifest and (with [addon]) a
+     * kernel.kc.gpuaddon as `oneios-tool phone addon` stages one, the pairing inputs and a kernelcache. Returns the
+     * set's kernel.kc and the runtime's kernel build id.
+     */
+    private fun a56Stage(f: Fake, build: String, addon: ByteArray? = null): Pair<ByteArray, String> {
+        val bid = "xnu-12377.121.6-ios-27.0.1-24A446-abcdef012345"
+        val xnu = ByteArray(100) { it.toByte() }
+        val tool = OneiosScriptTest::class.java.getResourceAsStream("/oneios/a56gpu-tool.sh")!!.readBytes()
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("runtime")))
+        assertOk(f.receive("runtime", "runtime.json", "{}".toByteArray()))
+        assertOk(f.receive("runtime", "kernel/xnu.macho", xnu, "0644"))
+        assertOk(f.receive("runtime", "bin/xnuhost", ELF, "0755"))
+        assertOk(f.receive("runtime", "bin/oneios-tool", tool, "0755"))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", "4", "0.1.0", "1", "bin/xnuhost", "1", "0", bid, Hashes.sha256(xnu), "xnu-12377.121.6")))
+        val kc = ByteArray(5000) { (it % 251).toByte() }
+        val trust = "{\n  \"cdhashes\": []\n}\n".toByteArray()
+        val version = if (build == "20F66") "16.5" else "27.0.1"
+        val manifest = """
+            { "format": 1, "name": "oneios-image", "os": "iOS", "version": "$version", "build": "$build",
+              "files": [
+                { "path": "kernel.kc", "size": ${kc.size}, "sha256": "${Hashes.sha256(kc)}", "role": "kernel", "read_only": true, "hashes": "kernel.kc.hashes" },
+                { "path": "kernel.kc.hashes", "size": 8, "sha256": "${Hashes.sha256("hashes-1".toByteArray())}", "role": "hashes" },
+                { "path": "overlay/userland/owner-trust.json", "size": ${trust.size}, "sha256": "${Hashes.sha256(trust)}", "role": "overlay" },
+                { "path": "os.img", "size": 100, "sha256": "${Hashes.sha256(ByteArray(100))}" }
+              ] }
+        """.trimIndent().toByteArray()
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("image")))
+        assertOk(f.receive("image", "manifest.json", manifest))
+        assertOk(f.receive("image", "kernel.kc", kc, "0644"))
+        assertOk(f.receive("image", "kernel.kc.hashes", "hashes-1".toByteArray(), "0644"))
+        assertOk(f.receive("image", "overlay/userland/owner-trust.json", trust, "0644"))
+        assertOk(f.receive("image", "os.img", ByteArray(100)))
+        addon?.let { assertOk(f.receive("image", "kernel.kc.gpuaddon", it, "0644")) }
+        val files = if (addon != null) "6" else "5"
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("image", files, "1", version, build)))
+        kbInputs(f)
+        val kcIn = ByteArray(300) { (it * 3).toByte() }
+        assertOk(f.verb(OneiosRoot.Verb.KBINPUT, listOf("kernelcache.macho", kcIn.size.toString(), Hashes.sha256(kcIn)), kcIn))
+        f.scripts()
+        assertSetHolds(f)
+        return kc to bid
+    }
+
+    private fun xnuShaOf(f: Fake) = shaLine(File(f.stage, "runtime.sha256"), "kernel/xnu.macho").substringBefore("  ")
+    private fun kcInShaOf(f: Fake) = File(f.stage, "kb/kernelcache.sha256").readText().trim()
+
+    /** The stand-in tool's [mode] for the next finish, with an addon and an owner-trust.json of their own ([n]). Returns the addon. */
+    private fun gpuMode(f: Fake, mode: String, n: Int): ByteArray {
+        val addon = "NGPUADD2".toByteArray() + ByteArray(1000 + n) { (it * n % 256).toByte() }
+        f.file("a56gpu").mkdirs()
+        f.file("a56gpu/mode").writeText("$mode\n")
+        f.file("a56gpu/addon").writeBytes(addon)
+        f.file("a56gpu/trust").writeText("{\n  \"cdhashes\": [\n    \"${"%040x".format(n)}\"\n  ]\n}\n")
+        return addon
+    }
+
+    /**
+     * The staged image set as the switch's check_list needs it: image.sha256 names exactly the files of image/,
+     * each with its SHA-256, image.ids names each once; then the switch's preflight itself, by the ids (status)
+     * and hashing every file (the test root's switch, which starts nothing).
+     */
+    private fun assertSetHolds(f: Fake) {
+        val image = File(f.stage, "image")
+        val files = image.walkTopDown().filter { it.isFile }.map { it.relativeTo(image).path }.toSet()
+        val sums = File(f.stage, "image.sha256").readLines()
+        assertEquals(sums.joinToString("\n"), files, sums.map { it.substringAfter("  ") }.toSet())
+        assertEquals(sums.size, files.size)
+        for (l in sums) assertEquals(l, l.substringBefore("  "), Hashes.sha256(File(image, l.substringAfter("  ")).readBytes()))
+        val ids = File(f.stage, "image.ids").readLines().map { it.substringAfter(' ') }
+        assertEquals(ids.joinToString("\n"), files, ids.toSet())
+        assertEquals(ids.size, files.size)
+        val st = f.verb(OneiosRoot.Verb.STATUS).status
+        assertTrue(st.notReady.orEmpty(), st.ready)
+        assertRefused(f.verb(OneiosRoot.Verb.SWITCH, listOf("100", "1")), "nothing was started")
     }
 
     private fun manifestWithKc(size: Int, sha: String) = """
