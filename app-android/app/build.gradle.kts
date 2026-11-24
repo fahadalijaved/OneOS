@@ -178,6 +178,10 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "OneOSPixelCorners.apk" to File(repoRoot, "switcher/assets/OneOSPixelCorners.apk"),
     "OneOSGalleryStub.apk" to File(repoRoot, "switcher/assets/OneOSGalleryStub.apk"),
     "OneOSRcdCorners.apk" to File(repoRoot, "switcher/assets/OneOSRcdCorners.apk"),
+    // Tab S9 FE (SM-X510) One UI 9.5 LCD brightness floor (switcher/overlays/tab_s9_fe_brightness).
+    "OneOSTabS9FeBrightness.apk" to File(repoRoot, "switcher/assets/OneOSTabS9FeBrightness.apk"),
+    // Tab S9 FE (SM-X510) One UI 9.5 host SamsungCamera OneUiVersion compat shim (switcher/overlays/tab_s9_fe_cam_compat).
+    "OneOSTabS9FeCamCompat.jar" to File(repoRoot, "switcher/assets/OneOSTabS9FeCamCompat.jar"),
     "host_installd.txt" to File(repoRoot, "switcher/patches/host_installd.txt"),
     // 0.4.66: One UI 8.5's table, staged as host_installd.txt for SDK 36 (Android 16) images.
     "host_installd_a16.txt" to File(repoRoot, "switcher/patches/host_installd_a16.txt"),

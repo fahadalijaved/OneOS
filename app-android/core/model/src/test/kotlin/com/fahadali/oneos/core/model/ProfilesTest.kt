@@ -332,6 +332,7 @@ class ProfilesTest {
                 Profiles.S26_FE,
                 // 0.5.41: the Galaxy Tabs, OxygenOS 17 for tablets only (testing).
                 Profiles.TAB_S9, Profiles.TAB_S10_FE, Profiles.TAB_S10_FE_WIFI, Profiles.TAB_S12_ULTRA,
+                Profiles.TAB_S9_FE,
             ),
             Profiles.BUILT_IN,
         )
@@ -444,12 +445,29 @@ class ProfilesTest {
         assertEquals(Profiles.M36, Profiles.resolve("SM-M366B", "m36x", "s5e8835").profile)
         assertEquals(listOf("m36", "Galaxy M36 5G", FormFactor.BAR), listOf(Profiles.M36.id, Profiles.M36.label, Profiles.M36.form))
         assertNull(Profiles.resolve("SM-M366B", "m35x", "s5e8835").profile)
+        // Galaxy Tab S9 FE Wi-Fi (SM-X510, gts9fewifi, s5e8835): the A26's Exynos 1380 systems and notes.
+        assertEquals(Profiles.TAB_S9_FE, Profiles.resolve("SM-X510", "gts9fewifi", "s5e8835").profile)
+        assertEquals(listOf("tab-s9-fe", "Galaxy Tab S9 FE", FormFactor.BAR), listOf(Profiles.TAB_S9_FE.id, Profiles.TAB_S9_FE.label, Profiles.TAB_S9_FE.form))
+        assertNull(Profiles.resolve("SM-X510", "gts9fe", "s5e8835").profile)
+        assertNull(Profiles.resolve("SM-X510", "gts9fewifi", "SM8450").profile)
+        assertNull(Profiles.resolve("SM-X516B", "gts9fewifi", "s5e8835").profile)
         // 0.4.59: the Galaxy A27 (SM-A276B), the A36's SM6475 and generation, so its choices and notes.
         assertEquals(Profiles.A27, Profiles.resolve("SM-A276B", "a27xq", "SM6475").profile)
         assertEquals(listOf(Profiles.A36.choices, Profiles.A36.notes), listOf(Profiles.A27.choices, Profiles.A27.notes))
         for (p in listOf(Profiles.A35, Profiles.A54, Profiles.M35, Profiles.M36)) {
             assertEquals(listOf(Profiles.A26.choices, Profiles.A26.notes, Profiles.A26.form), listOf(p.choices, p.notes, p.form))
         }
+        assertEquals(
+            listOf(
+                Profiles.A26.choices.flatMap {
+                    if (it.imageId == Images.ID_OXYGEN16) listOf(it, ImageChoice(Images.ID_OXYGEN17_PAD, PackageSets.ID_OXYGEN17_PAD, tested = false))
+                    else listOf(it)
+                },
+                Profiles.A26.notes,
+                Profiles.A26.form,
+            ),
+            listOf(Profiles.TAB_S9_FE.choices, Profiles.TAB_S9_FE.notes, Profiles.TAB_S9_FE.form),
+        )
         // 0.4.68, findings of 2026-11-08: the Galaxy A55 5G (Exynos 1480, the A35's Cortex-A78/A55, so its choices; vendor
         // API 34 and kernel 6.1, so that older-vendor note), the S25 FE (the S24 FE's Exynos 2400, vendor and screen), and
         // the Galaxy S22 with Snapdragon (One UI 8, the S22 Ultra's SM8450: OxygenOS 16 only).
@@ -737,7 +755,7 @@ class ProfilesTest {
                 assertNull(p.id, p.choice(Images.ID_ONEUI95))
             }
         }
-        assertEquals(51, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
+        assertEquals(52, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
         assertEquals(listOf(Images.ID_OXYGEN16), Profiles.A06.choices.map { it.imageId })
     }
 }

@@ -153,6 +153,7 @@ object Profiles {
     const val ID_M36 = "m36"
     const val ID_A15_5G = "a15-5g"
     const val ID_S26_FE = "s26-fe"
+    const val ID_TAB_S9_FE = "tab-s9-fe"
 
     /** The SM8750 and SM8650 phones' note ([PhoneProfile.notes]) and its [Finding.reason]. */
     const val ID_NOTE_OLDER_VENDOR = "profile-vendor-older"
@@ -1411,6 +1412,23 @@ object Profiles {
         form = FormFactor.BAR, choices = listOf(OXYGEN17_PAD_CHOICE), notes = listOf(TABLET, MEDIATEK),
     )
 
+    /**
+     * Galaxy Tab S9 FE (Wi-Fi): live device inspection (SM-X510, gts9fewifi, s5e8835 Exynos 1380 like
+     * the Galaxy A26/A35/A54/M35/M36, vendor API 33 and kernel 5.15, one 1440 x 2304 90 Hz LCD panel
+     * on port 123 at density 280 with brightnessMaximum 1.1764706 and backlight max 300, Himax TDDI
+     * touch and sec_e-pen, HIDL composer 2.4 and HIDL audio HAL, Mali-G68, Cortex-A78/A55 with no SVE
+     * or SME, Wi-Fi only with ro.radio.noril=yes, KernelSU). Takes OxygenOS 17 for tablets plus the
+     * [A26]'s Exynos 1380 choices (including PixelOS 17 and One UI 9.5 on One UI 9, OxygenOS 16 on
+     * One UI 8) and notes.
+     */
+    val TAB_S9_FE = withPixelOs(A26.copy(
+        id = ID_TAB_S9_FE,
+        label = "Galaxy Tab S9 FE",
+        modelPrefix = "SM-X510",
+        codename = "gts9fewifi",
+        choices = A26.choices.flatMap { if (it.imageId == Images.ID_OXYGEN16) listOf(it, OXYGEN17_PAD_CHOICE) else listOf(it) },
+    ))
+
     /** The Galaxy Tab profiles: tablet systems only, never One UI 9.5 on One UI 8 ([withOneUi95OnA16]). */
     val TABLETS: List<PhoneProfile> = listOf(TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA)
 
@@ -1422,7 +1440,7 @@ object Profiles {
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
         A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,
-        S26_FE, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA,
+        S26_FE, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE,
     )
 
     /**

@@ -700,7 +700,7 @@ fi
 # (the statusBars inset at One UI's resolution, scaled to the panel's like the
 # hole), from a phone with one default-capable internal display only (a fold's
 # two panels are left alone).
-rm -f "$STAGE/host_statusbar"
+rm -f "$STAGE/host_statusbar" "$STAGE/host_no_cutout"
 if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
     cut_after "$HLINE" 'cutoutSpec={' '}'; HCS=$R
     HSB=$(timeout 10 dumpsys window 2>/dev/null | sed -n "s/.*type=statusBars frame=\[0,0\]\[$HDW,\([0-9]*\)\].*/\1/p" | head -n 1)
@@ -743,6 +743,8 @@ if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
           [ -n "$HMP" ] && printf '%s\n' "$HMP" | awk -F'|' '{ split($1, f, " "); print "hole=" f[4]; print "rect_px=" $2; print "hole_px=" $3 }'
         } > "$STAGE/host_statusbar"
         echo "Host status bar: cutout '${HCS:-none}', height ${HSB:-not read} px, corner radius ${HRC:-not read} px on the $HPW px panel; $(grep -E '^(hole|rect_px|hole_px)=' "$STAGE/host_statusbar" | tr '\n' ' ')"
+    elif [ -z "$HOLES" ] && [ -z "$HCS" ]; then
+        : > "$STAGE/host_no_cutout"
     fi
 fi
 echo "preflight: display statusbar block done $(date +%T)"
@@ -2596,6 +2598,11 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "infinityx41-findx9u",$
 fi
 GUEST_POSTURE_LIVE=0; [ "${ONEOS_GUEST_POSTURE:-$POSTURE_DEFAULT}" = live ] && GUEST_POSTURE_LIVE=1
 GUEST_FOLD_FORM=0; [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && GUEST_FOLD_FORM=1
+HOST_WIFI_ONLY=0
+if [ "$(getprop ro.radio.noril)" = yes ] || [ "$(getprop ro.radio.noril)" = true ] || [ "$(getprop ro.radio.noril)" = 1 ] || \
+   [ "$(getprop ro.carrier)" = wifi-only ]; then
+    HOST_WIFI_ONLY=1
+fi
 # An OxygenOS image (its stable display size resource, see "stable display size"
 # in the UI activator).
 GUEST_OXYGEN=0; grep -q '^  "image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null && GUEST_OXYGEN=1
@@ -2857,7 +2864,7 @@ while true; do
             # the A36 it alone missed about 240 frames in 30 s. Once per guest data (marker), so a user who
             # turns it back on (Developer options > Allow window-level blurs; Android 17: Accessibility > Color and
             # motion > Reduce blur effects, its developer toggle writing nothing in PixelOS 17) keeps it.
-            case \"\$(getprop ro.product.model)\" in SM-A*|SM-M*)
+            case \"\$(getprop ro.product.model)\" in SM-A*|SM-M*|SM-X51*)
                 if [ ! -f $STAGE/data/oneos_blur_default ]; then
                     $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put global disable_window_blurs 1 2>/dev/null &&
                         touch $STAGE/data/oneos_blur_default && echo \"[UI Activator] window blur off once (mid-range Galaxy; Developer options > Allow window-level blurs, or on Android 17 Accessibility > Color and motion > Reduce blur effects, turn it back on)\"
@@ -2891,7 +2898,7 @@ while true; do
             for kv in 'global device_provisioned' 'secure user_setup_complete'; do
                 [ \"\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get \$kv 2>/dev/null)\" = 1 ] || $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put \$kv 1
             done
-            for p in com.google.android.setupwizard com.google.android.pixel.setupwizard; do
+            for p in com.google.android.setupwizard com.google.android.pixel.setupwizard org.lineageos.setupwizard; do
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 \$p >/dev/null 2>&1 && echo \"[UI Activator] \$p disabled (setup is done in the container)\"
             done
             fi
@@ -3053,10 +3060,10 @@ while true; do
             # same dex, puts the vendor effect HAL's Dolby on the guest's output mix
             # and holds it until the guest's system_server is gone, created again 2 s
             # after music starts so it is on the output music plays on (0.4.65).
-            # On by default since 0.4.65 (F8U InfinityX run: Dolby on the music
-            # output, sound much better); ONEOS_GUEST_DOLBY=0: off. Phones
-            # whose effect HAL has no Dolby: it gives up after a minute, logged.
-            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
+            # On by default for non-One UI guests since 0.4.65; One UI guests already
+            # run SoundAlive + Dolby_FX natively, so avoid stacking a second output-mix
+            # DAX3 effect there unless ONEOS_GUEST_DOLBY=1 is forced.
+            if { [ \"${ONEOS_GUEST_DOLBY:-}\" = 1 ] || { [ -z \"${ONEOS_GUEST_DOLBY:-}\" ] && [ $GUEST_ONEUI = 0 ]; }; } && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
                 echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"
@@ -3686,6 +3693,23 @@ while true; do
                     *) echo \"[UI Activator] Nothing brightness overlay not made: \$r\" ;;
                 esac
             fi
+            # Wi-Fi-only Galaxy (Tab S9 FE SM-X510: ro.radio.noril=yes, ro.carrier=wifi-only): vendor ships
+            # DisableVoiceCapableOverlay (config_voice_capable=false) but phone images keep config_sms_capable
+            # and config_mobile_data_capable true, so TelephonyManager.getActiveModemCount() returns 1 while
+            # PhoneGlobals skips PhoneFactory.makeDefaultPhones() (no android.hardware.telephony feature).
+            # OplusPhoneGlobals.onCreate() then calls PhoneFactory.getPhone(0) and crash-loops com.android.phone
+            # every ~600 ms (burning CPU and triggering heat_cap throttling). Setting all three capability booleans
+            # false makes getActiveModemCount() return 0 so com.android.phone starts cleanly.
+            if [ $HOST_WIFI_ONLY = 1 ]; then
+                WOON=''
+                gxo fabricate --target android --name OneOSWifiOnlyVoice android:bool/config_voice_capable 0x12 0x0 &&
+                    gxo enable --user 0 com.android.shell:OneOSWifiOnlyVoice && WOON=\"\$WOON OneOSWifiOnlyVoice\"
+                gxo fabricate --target android --name OneOSWifiOnlySms android:bool/config_sms_capable 0x12 0x0 &&
+                    gxo enable --user 0 com.android.shell:OneOSWifiOnlySms && WOON=\"\$WOON OneOSWifiOnlySms\"
+                gxo fabricate --target android --name OneOSWifiOnlyData android:bool/config_mobile_data_capable 0x12 0x0 &&
+                    gxo enable --user 0 com.android.shell:OneOSWifiOnlyData && WOON=\"\$WOON OneOSWifiOnlyData\"
+                echo \"[UI Activator] Wi-Fi-only device: telephony capability overlays on:\${WOON:- none}\"
+            fi
             # The corner radius for the guests the block below leaves out (0.4.76,
             # host_corner_radius; see where the switch saves it): ColorOS on any
             # phone, every guest on a Fold. Made after the block.
@@ -3898,6 +3922,17 @@ while true; do
                     fi
                 fi
                 echo \"[UI Activator] status bar: One UI's cutout '\${HCS:-none}', as \$CUTU: '\${CUT:-none}', rect '\${CUTR:-none}'; height \${HSB:-?} px\${SBK:+ (\$HSBG px at the \${SBK% *} px the guest runs)}, corner radius \${HRCG:-?} px (One UI \${HRC:-?} px on the panel); overlays on:\${ON:- none}\${DIMS:+ (not made:\$DIMS)}\"
+            elif [ \"${ONEOS_GUEST_HOST_CUTOUT:-1}\" = 1 ] && [ -f $STAGE/host_no_cutout ] && [ ! -L $STAGE/host_no_cutout ]; then
+                # Single internal panel with no cutout (e.g. Tab S9 FE, camera in the bezel): override the
+                # phone image's display cutout so it does not reserve a phantom notch at the top of the screen.
+                NCON=''
+                gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string ' ' &&
+                    gxo enable --user 0 com.android.shell:OneOSCutout && NCON=\"\$NCON OneOSCutout\"
+                gxo fabricate --target android --name OneOSCutoutRect android:string/config_mainBuiltInDisplayCutoutRectApproximation string ' ' &&
+                    gxo enable --user 0 com.android.shell:OneOSCutoutRect && NCON=\"\$NCON OneOSCutoutRect\"
+                gxo fabricate --target android --name OneOSCutoutFill android:bool/config_fillMainBuiltInDisplayCutout 0x12 0x0 &&
+                    gxo enable --user 0 com.android.shell:OneOSCutoutFill && NCON=\"\$NCON OneOSCutoutFill\"
+                echo \"[UI Activator] status bar: host panel has no cutout; cleared guest cutout overlays on:\${NCON:- none}\"
             else
                 # No host cutout this session (ONEOS_GUEST_HOST_CUTOUT=0, or a
                 # phone with two panels): an earlier session's overlays go off.
@@ -3906,7 +3941,7 @@ while true; do
                     case \$o in
                         OneOSCornerRadius) [ -n \"\$CRAD\" ] && continue
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
-                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSStatusBarTop|OneOSCornerPadding|OneOSNtStatusBar|OneOSNtPowerKey|OneOSIslandCenter)
+                        OneOSCutout|OneOSCutoutRect|OneOSCutoutFill|OneOSStatusBarHeight|OneOSStatusBarTop|OneOSCornerPadding|OneOSNtStatusBar|OneOSNtPowerKey|OneOSIslandCenter)
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
                     esac
                 done

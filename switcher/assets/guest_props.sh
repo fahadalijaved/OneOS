@@ -885,7 +885,7 @@ add)
     # display, captured by the switch; the same scale guest_prepare.sh gives
     # the display configs of the other systems). 1000 = the Fold's own.
     bm=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
-    sc=$(awk -v m="$bm" 'BEGIN { if (m + 0 >= 1.5 && m + 0 <= 8) printf "%d", 5298.0394 / m + 0.5; else print 1000 }')
+    sc=$(awk -v m="$bm" 'BEGIN { if (m + 0 >= 1.0 && m + 0 <= 8) printf "%d", 5298.0394 / m + 0.5; else print 1000 }')
     sed -i '/^ro\.oneos\.panel_scale_milli=/d' "$NEW"
     echo "ro.oneos.panel_scale_milli=$sc" >> "$NEW"
     echo "guest_props: panel brightness scale $sc/1000 (One UI's brightnessMaximum ${bm:-unknown})"
@@ -978,7 +978,7 @@ add)
     # layer, apps rounding to the display's radius showed grey corners; on the A36 PixelOS's composer
     # takes the layer (composition DISPLAY_DECORATION, no GPU composition, live 11-22).
     case "$(getprop ro.product.model)" in
-        SM-A*|SM-M*)
+        SM-A*|SM-M*|SM-X51*)
             if [ -f "$STAGE/oem/overlay/OneOSPixelCorners.apk" ] && [ "${ONEOS_GUEST_SCREEN_DECOR:-}" != 0 ]; then
                 echo "guest_props: screen decorations kept on (PixelOS's corners at this phone's radius)"
             elif [ "${ONEOS_GUEST_SCREEN_DECOR:-0}" != 1 ]; then
@@ -987,6 +987,16 @@ add)
                 echo "guest_props: debug.disable_screen_decorations=true for the session (mid-range Galaxy: the decor layer went to the GPU every frame)"
             fi ;;
     esac
+    # Wi-Fi-only Galaxy (Tab S9 FE SM-X510: ro.radio.noril=yes, ro.carrier=wifi-only): phone images ship
+    # ro.telephony.sim_slots.count=2 (OxygenOS 16); clear it to 0 for the session so telephony queries do not
+    # assume active SIM slots on a device with no modem.
+    if [ "$(getprop ro.radio.noril)" = yes ] || [ "$(getprop ro.radio.noril)" = true ] || [ "$(getprop ro.radio.noril)" = 1 ] || \
+       [ "$(getprop ro.carrier)" = wifi-only ]; then
+        if grep -q '^ro\.telephony\.sim_slots\.count=' "$NEW"; then
+            sed -i 's/^ro\.telephony\.sim_slots\.count=.*/ro.telephony.sim_slots.count=0/' "$NEW" &&
+                echo "guest_props: ro.telephony.sim_slots.count=0 for the session (Wi-Fi-only device)"
+        fi
+    fi
     # AppSearch isolated storage: Pixel sets ro.appsearch.feature.enable_isolated_storage=true,
     # and system_server's AppSearch then starts a protected VM through the
     # virtualization APEX, which is One UI's here (run 41: UnsatisfiedLinkError in
@@ -1128,7 +1138,8 @@ add)
     # 1.33x zoom. The base for the whole panel instead, for the session (One UI's back at the return): 450 x 1440
     # / 1080 = 600. Phones run at 1080 or less and folds are left alone. ONEOS_GUEST_QHD_BASE=0 leaves it.
     if { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; } &&
-       [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ "${ONEOS_GUEST_QHD_BASE:-1}" = 1 ]; then
+       [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ "${ONEOS_GUEST_QHD_BASE:-1}" = 1 ] &&
+       case ",$(getprop ro.build.characteristics)," in *,tablet,*) false ;; *) true ;; esac; then
         LD=ro.sf.lcd_density
         ld=$(getprop "$LD")
         # The width the guest runs the panel at. One UI's when One UI runs the whole panel. With One UI at FHD+
@@ -2017,24 +2028,20 @@ ro.miui.backdrop_sampling_enabled=true"
     esac
     oneui_image_model="${ONEOS_ONEUI_IMAGE_MODEL:-1}"
     oneui_version_props="ro.build.version.oneui ro.build.version.sem ro.build.version.sem_platform_int"
-    # One UI 9.5 on a One UI 8 phone (S22 oneui8test7 b58434c4, A35 oneui8test3 6435d4fd): SystemUI's
-    # QpRune.QUICK_PANEL_COMPOSE is Build.VERSION.SEM_PLATFORM_INT > 170000, read from ro.build.version.sep
-    # (One UI 8: 170000). Off, Dependency left out SecQSPanelComposeAdapter while SecShadeControllerImpl
-    # still asks for it: "Unsupported dependency class ...SecQSPanelComposeAdapter", SystemUI died at every
-    # start (no navigation bar, setup stuck at the fingerprint page). The image's sep (180500) for the
-    # session when the phone's is below One UI 9's 180000; One UI 9 phones keep theirs.
     hsep=$(getprop ro.build.version.sep)
     case "$hsep" in
         ""|*[!0-9]*) ;;
         *) [ "$hsep" -lt 180000 ] && oneui_version_props="$oneui_version_props ro.build.version.sep" ;;
     esac
-    if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+    if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
+         [ "${ONEOS_PROFILE:-}" = tab-s9-fe ]; } &&
        grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
         # Build.VERSION.SEM_PLATFORM_INT and One UI Home read sep, not sem.
-        # Use the guest's platform level with the Fold8's own hardware identity.
+        # Use the guest's platform level with the device's own hardware identity
+        # (prevents phone-only HoneyBoard / layout scaling on Fold8 and Tab S9 FE).
         oneui_version_props="$oneui_version_props ro.build.version.sep"
         oneui_image_model=0
-        echo "guest_props: keeping Fold8 model for One UI 9.5"
+        echo "guest_props: keeping ${ONEOS_PROFILE} model for One UI 9.5"
         # SystemUI reads this debug override when its application starts.
         # Use the session property journal so the host value returns with One UI.
         if [ "${ONEOS_ONEUI_HEADLINE:-1}" = 1 ]; then

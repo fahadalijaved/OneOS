@@ -68,6 +68,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## Pixel 11 Fold, yogi build
 
@@ -179,6 +180,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## HyperOS, Xiaomi 18 Fold build
 
@@ -234,6 +236,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## HyperOS 4 Global
 
@@ -289,6 +292,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## Nothing OS 5.0, Metroid build
 
@@ -346,6 +350,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
   - Galaxy M35 5G (SM-M356, s5e8835), not tested yet
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## OxygenOS 16, OnePlus CPH2745 build
 
@@ -391,6 +396,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M35 5G (SM-M356, s5e8835), not tested yet
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy A15 5G (SM-A156, MT6835), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## OxygenOS 17, OnePlus Pad 4 build
 
@@ -402,6 +408,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy Tab S10 FE 5G (SM-X526, s5e8855), not tested yet
   - Galaxy Tab S10 FE (SM-X520, s5e8855), not tested yet
   - Galaxy Tab S12 Ultra (SM-X940, MT6993), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## OriginOS 7, vivo PD2609MA build
 
@@ -488,6 +495,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## One UI 9.5, Galaxy S26 Ultra build
 
@@ -546,6 +554,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## PixelOS 17, POCO F7 build
 
@@ -594,3 +603,4 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet

@@ -53,6 +53,8 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
             Profiles.ID_M35, Profiles.ID_M36, Profiles.ID_A15_5G,
             // 0.5.41: the Galaxy Tabs (OxygenOS 17 for tablets, testing).
             Profiles.ID_TAB_S9, Profiles.ID_TAB_S10_FE, Profiles.ID_TAB_S10_FE_WIFI, Profiles.ID_TAB_S12_ULTRA,
+            // Galaxy Tab S9 FE Wi-Fi (Exynos 1380, One UI 8.x & 9.x & OxygenOS 17 Pad).
+            Profiles.ID_TAB_S9_FE,
         ),
     ),
     ;

@@ -5,7 +5,6 @@
     {"name": "Galaxy A05", "variant": "SM-A055, 4G", "models": ["SM-A055"], "oneui": "7.0"},
     {"name": "Galaxy A05s", "variant": "SM-A057, 4G", "models": ["SM-A057"], "oneui": "7.0"},
     {"name": "Galaxy Tab A9", "models": ["SM-X110"], "oneui": "8.0", "tablet": true},
-    {"name": "Galaxy Tab S9 FE", "models": ["SM-X510"], "oneui": "8.5", "tablet": true},
     {"name": "Galaxy Tab S9 FE+", "models": ["SM-X610"], "oneui": "8.5", "tablet": true},
     {"name": "Galaxy Tab S10 Lite", "models": ["SM-X400"], "oneui": null, "tablet": true},
     {"name": "Galaxy Tab S11", "models": ["SM-X730"], "oneui": null, "tablet": true}

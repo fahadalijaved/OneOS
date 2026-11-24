@@ -951,13 +951,22 @@ NORM=$MAX
 [ "$LED" = 1 ] || [ "$MAX" -le 255 ] || NORM=255
 NORM2=$MAX2
 case "$NORM2" in ''|*[!0-9]*) NORM2=$NORM ;; *) [ "$NORM2" -gt 255 ] && NORM2=255 ;; esac
-echo "$(date +%T) brightness bridge: inner $BL (max $MAX, slider $NORM, take $TAKE_BL); cover ${BL2:-none} (max ${MAX2:-?}, slider $NORM2); scale $SCALE ${lo:-?}..${nm:-?}..${hi:-?}"
-last=""; last2=""; pw=""
+echo "$(date +%T) brightness bridge: inner $BL (max $MAX, slider $NORM, take $TAKE_BL); cover ${BL2:-none} (max ${MAX2:-?}, slider $NORM2); scale $SCALE ${lo:-?}..${nm:-?}..${hi:-?}; useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read}"
+DPMS=/sys/class/drm/card0-DSI-1/dpms
+last=""; last2=""; pw=""; pdp=""; tick=5
 prev_folded=0
 if [ "$DUAL" = 1 ]; then
     [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] && [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ] && prev_folded=1
 fi
 while :; do
+    dp=""; [ -r "$DPMS" ] && read -r dp < "$DPMS" 2>/dev/null
+    if [ "$dp" != "$pdp" ]; then
+        pdp=$dp; last=""; tick=5
+    fi
+    if [ $tick -lt 5 ]; then
+        tick=$((tick + 1)); sleep 0.2; continue
+    fi
+    tick=0
     w=$(timeout 3 dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)
     [ "$w" = "$pw" ] || { last=""; last2=""; }
     pw=$w
@@ -1001,7 +1010,7 @@ while :; do
     fi
     case "$w" in
         Asleep)
-            if [ "$LED" = 1 ]; then v=0; else v=""; fi
+            if [ "$LED" = 1 ] || [ "$dp" = Off ]; then v=0; else v=""; fi
             v2=0
             ;;
         Dozing)
@@ -1083,7 +1092,7 @@ while :; do
             last2=$v2
         fi
     fi
-    sleep 1
+    sleep 0.2
 done
 BLEOF
     $BB sh /data/oneos_bl_bridge.sh "$BL" "$BLMAX" "$BLON" "$LEDBL" "$BLCOVER" "$BL2MAX" </dev/null >> /data/backlight.log 2>&1 &
@@ -1505,7 +1514,7 @@ if [ -f /data/guest_audio.flag ]; then
             done' oneos_a2dp_watch "$BB" >> /data/oneos_a2dp.log 2>&1 &
         echo "[Pivoted Root] A2DP: Bluetooth stream watch on (the HAL has a bluetooth module; /data/oneos_a2dp.log)"
     fi
-    /system/bin/audioserver > /dev/null 2>&1 &
+    (ulimit -r 99 2>/dev/null; exec /system/bin/audioserver) > /dev/null 2>&1 &
     AS_PID=$!
     echo "[Pivoted Root] guest audioserver PID: $AS_PID (registers once the guest framework is up)"
     echo "=== $(date '+%F %T') session: guest audioserver $AS_PID" >> /data/audio_keeper.log
@@ -1538,7 +1547,7 @@ if [ -f /data/guest_audio.flag ]; then
             if ! kill -0 $as 2>/dev/null; then
                 [ $d -lt 3 ] || break
                 d=$((d + 1)); sleep 2; t=$((t + 2))
-                /system/bin/audioserver > /dev/null 2>&1 & as=$!
+                (ulimit -r 99 2>/dev/null; exec /system/bin/audioserver) > /dev/null 2>&1 & as=$!
                 echo "$(date +%T) guest audioserver died before it registered (${t}s); started again as $as ($d of 3)"
                 continue
             fi
@@ -1615,7 +1624,7 @@ if [ -f /data/guest_audio.flag ]; then
                 sleep 1
                 echo "$(date +%T) audio HAL services restarted for the new audioserver: $hs"
             fi
-            /system/bin/audioserver > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
+            (ulimit -r 99 2>/dev/null; exec /system/bin/audioserver) > /dev/null 2>&1 & as=$!; miss=0; r=$((r + 1))
             echo "$(date +%T) guest audioserver $why, restarted as $as"
             ( n=0; while [ $n -lt 30 ] && [ "$(owner)" != "$as" ]; do sleep 2; n=$((n + 1)); done; unsusp ) &
         done' sh "$AS_PID" </dev/null >> /data/audio_keeper.log 2>&1 &
@@ -2190,7 +2199,8 @@ FOLD8_RESTORE_DEX_HOME=0
 if [ "$(cat /data/oneos_fold_mode 2>/dev/null)" = layout ] && [ "${ONEOS_GUEST_FOLD_CONTINUE:-1}" = 1 ]; then
     FOLD_CONTINUE=1
 fi
-if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$(getprop ro.product.model)" = SM-F971B ] &&
+if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$(getprop ro.product.model)" = SM-F971B ] ||
+     [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "$(getprop ro.product.model)" = SM-X510 ]; } &&
    grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop &&
    [ ! -e /data/.oneui95-fold8-taskbar ] && [ ! -L /data/.oneui95-fold8-taskbar ]; then
     FOLD8_TASKBAR=1
@@ -2257,7 +2267,8 @@ if [ "$FOLD_CONTINUE" = 1 ] || [ "$FOLD8_TASKBAR" = 1 ] || [ "$FOLD8_RESTORE_DEX
     echo "[Pivoted Root] Fold preferences will be applied when the guest settings provider answers (/data/fold_setting.log)"
 fi
 # Samsung's Live Notifications developer setting belongs to the guest user.
-if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
+     [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "$(getprop ro.product.model)" = SM-X510 ]; } &&
    grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
     $BB sh -c '
         key=enable_notification_nowbar_test
@@ -2407,7 +2418,11 @@ if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/
         i=0
         while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
         sleep 10
-        for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=7; do log "$(param $kv)"; done
+        if grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+            log "One UI guest: leaving Dolby and volume leveler to SoundAlive"
+        else
+            for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=7; do log "$(param $kv)"; done
+        fi
         last=""
         while :; do
             t=$(cat /sys/class/power_supply/battery/temp 2>/dev/null)
@@ -2919,7 +2934,7 @@ if [ "${ONEOS_GUEST_DT2W:-}" != 1 ] && grep -q '^ro.build.version.oneui=' /syste
     echo "$(date +%T) not started: a One UI image wakes on double tap itself (its input service drives the touch IC)" >> /data/dt2w.log
 fi
 if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/sec/tsp/enabled ] || [ -w /sys/class/sec/tsp1/enabled ]; }; then
-    rm -f /data/oneos_dt2w_armed.* /data/oneos_dt2w_*.fifo /data/oneos_dt2w_aod* /data/oneos_dt2w_lid*
+    rm -f /data/oneos_dt2w_armed.* /data/oneos_dt2w_*.fifo /data/oneos_dt2w_aod* /data/oneos_dt2w_lid* /data/oneos_himax_aot.*
     ONEOS_BB="$BB" $BB sh -c '
         BB=$ONEOS_BB
         log() { echo "$(date +%T) $*"; }
@@ -2956,6 +2971,19 @@ if [ "$DT2W" = 1 ] && command -v getevent >/dev/null 2>&1 && { [ -w /sys/class/s
                     1:0|2:1) power=2; eon=2 ;;
                     *) log "$t: unmeasured STM power state; double tap left to the guest"; continue ;;
                 esac
+            fi
+            # Himax in-cell TDDI (Galaxy Tab S9 FE SM-X510, himax_tp / HX83102J): with aot_enable=1
+            # (One UI double-tap LPM), writing 1,0 on sleep makes himax_tp hold lcd_regulators and
+            # lcd_reset_regulator (lcd_rst) HIGH. One UI releases lcd_rst with 2,0 *before*
+            # SurfaceFlinger.setPowerMode(2), whereas a non-One-UI guest runs panel_reset_lp11 while
+            # lcd_rst is still held HIGH, so the TDDI DDI never resets and the screen stays dead black.
+            # Turning aot_enable off for the session puts 1,0 into clean HIMAX_STATE_POWER_OFF without
+            # holding lcd_rst, while keeping 1,0/2,1 active so wake still reloads the zero-flash FW.
+            if [ "$(readlink -f $I/device/driver 2>/dev/null)" = /sys/bus/spi/drivers/himax_tp ] && [ -w $T/cmd ]; then
+                if echo aot_enable,0 > $T/cmd 2>/dev/null; then
+                    : > /data/oneos_himax_aot.$t
+                    log "$t: Himax TDDI (himax_tp): aot_enable,0 for the session (LPM holds lcd_rst high across panel_reset_lp11); keeper still runs 1,0/2,1 for zero-flash FW reload on wake"
+                fi
             fi
             # KEY_WAKEUP (143) among its keys: bit 15 of the third word from the end.
             set -- $(cat $I/capabilities/key 2>/dev/null)
