@@ -1033,7 +1033,7 @@ add)
     # build; not $NEW, which skips it: One UI defines ro.config.fold_disp too
     # (Samsung's "2256,2504,1080,2520"), so the run 6 check never matched.
     MDT=persist.sys.muiltdisplay_type
-    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && grep -q '^ro\.config\.fold_disp=' "$ROOTFS"/system/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null &&
+    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && grep -q '^ro\.config\.fold_disp=' "$ROOTFS"/system/build.prop "$ROOTFS"/product/etc/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null &&
         { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; }; then
         if grep -qxF "$MDT" "$HOST"; then
             echo "guest_props: $MDT is One UI's ($(getprop "$MDT")), left alone"

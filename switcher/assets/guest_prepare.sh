@@ -5706,6 +5706,23 @@ if [ -e "$GUEST_SYSTEM_EXT/framework/miui-services.jar" ] && [ -f "$HDSC" ] && [
     fi
 fi
 
+# HyperOS 3.0: bind Xiaomi MIX Fold 4 foldable apps if staged
+if [ -f "$STAGE/MISettingsFold.apk" ] && [ -d "$GUEST_PRODUCT/priv-app" ]; then
+    mkdir -p "$STAGE/oem/priv-app/MISettingsFold" &&
+        cp -f "$STAGE/MISettingsFold.apk" "$STAGE/oem/priv-app/MISettingsFold/MISettingsFold.apk" &&
+        chmod 755 "$STAGE/oem/priv-app/MISettingsFold" && chmod 644 "$STAGE/oem/priv-app/MISettingsFold/MISettingsFold.apk"
+    mkdir -p "$GUEST_PRODUCT/priv-app/MISettingsFold" 2>/dev/null || true
+    $BB mount --bind "$STAGE/oem/priv-app/MISettingsFold/MISettingsFold.apk" "$GUEST_PRODUCT/priv-app/MISettingsFold/MISettingsFold.apk" 2>/dev/null &&
+        echo "Bound guest foldable settings: MISettingsFold.apk"
+fi
+if [ -f "$STAGE/MiuiHome_Fold.apk" ] && [ -d "$GUEST_PRODUCT/priv-app/MiuiHome" ]; then
+    mkdir -p "$STAGE/oem/priv-app/MiuiHome" &&
+        cp -f "$STAGE/MiuiHome_Fold.apk" "$STAGE/oem/priv-app/MiuiHome/MiuiHome.apk" &&
+        chmod 755 "$STAGE/oem/priv-app/MiuiHome" && chmod 644 "$STAGE/oem/priv-app/MiuiHome/MiuiHome.apk"
+    $BB mount --bind "$STAGE/oem/priv-app/MiuiHome/MiuiHome.apk" "$GUEST_PRODUCT/priv-app/MiuiHome/MiuiHome.apk" 2>/dev/null &&
+        echo "Bound guest foldable launcher: MiuiHome.apk (MIX Fold 4)"
+fi
+
 # SELinux labels matter just as much as modes here. Every directory below lives
 # under /data/local/tmp, so it is created as u:object_r:shell_data_file:s0. The
 # guest's system_server runs in u:r:system_server:s0 (Samsung policy) and is

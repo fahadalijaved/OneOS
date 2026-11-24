@@ -846,6 +846,8 @@ object PackageSets {
         files = listOf(
             PackageFile("OneOSCameraProcessingStub.apk", FileRole.RRO),
             PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("MISettingsFold.apk", FileRole.GUEST_FIX),
+            PackageFile("MiuiHome_Fold.apk", FileRole.GUEST_FIX),
             PackageFile(GUEST_APP, FileRole.GUEST_APP),
             PackageFile("apprecovery.proinstaller_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
