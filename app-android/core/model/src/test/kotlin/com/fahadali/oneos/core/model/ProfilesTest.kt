@@ -330,8 +330,10 @@ class ProfilesTest {
                 Profiles.M35, Profiles.M36, Profiles.A15_5G, Profiles.S_PLUS_8650,
                 // 0.5.28: the Galaxy S26 FE (Exynos 2500), the Z Flip7's systems on the bar settings.
                 Profiles.S26_FE,
+                // 0.5.42: the Galaxy S22+ with Snapdragon.
+                Profiles.S_PLUS_8450,
                 // 0.5.41: the Galaxy Tabs, OxygenOS 17 for tablets only (testing).
-                Profiles.TAB_S9, Profiles.TAB_S10_FE, Profiles.TAB_S10_FE_WIFI, Profiles.TAB_S12_ULTRA,
+                Profiles.TAB_S9, Profiles.TAB_S10_FE, Profiles.TAB_S10_FE_WIFI, Profiles.TAB_S12_ULTRA, Profiles.TAB_S9_FE_PLUS, Profiles.TAB_S9_FE,
             ),
             Profiles.BUILT_IN,
         )

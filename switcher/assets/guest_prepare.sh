@@ -4163,8 +4163,12 @@ fi
 # scalars (make-overlays.sh; system_server aborted on the first one).
 for pair in $CAM_CL:libcamera_client.so ${CAM_CI:+$CAM_CI:libcameracompatbilityinfo.so} \
             libsensorservice_patched.so:libsensorservice.so; do
-    # Experimental One UI 9.5 on One UI 8: these carry One UI 9.0's camera codes, never sent to One UI 8's cameraserver.
-    if [ "$A17_ON_A16" = 1 ]; then
+    # Experimental One UI 9.5 on One UI 8: these carry One UI 9.0's camera codes, never sent to One UI 8's cameraserver
+    # while the camera is off. 0.5.42: with the camera on (A16_CAMERA, framework_patched_oneui8.jar) they are bound:
+    # the native client's getCameraVendorTagDescriptor (11) and getCameraVendorTagCache (12) are One UI 8's numbers
+    # as well, and without them Samsung's CameraServiceWorker took system_server down at boot phase 600 ("Failure
+    # to set up global vendor tags", S22 Ultra a00336a3, 0.5.40: the image's library sent 9.5's 12 and 13).
+    if [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 0 ]; then
         case "${pair%%:*}" in libcamera*)
             [ -f "$STAGE/${pair%%:*}" ] && echo "Experimental One UI 9.5 on One UI 8: ${pair%%:*} not bound (One UI 9.0's camera codes; the camera is off)"
             continue ;;

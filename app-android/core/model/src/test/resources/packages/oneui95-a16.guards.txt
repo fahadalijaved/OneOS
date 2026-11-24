@@ -9,7 +9,7 @@
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # guest vold name: gvld (vold_patched, service.incremental_patched.so, services_patched.jar and framework_patched.jar: patches/guest_own_vold.py and --framework for Samsung's AppLockPolicy, set r10)
 # oneui95-a16 r4 (oneui8test7): services_patched.jar, framework_patched.jar and telephony-common_patched.jar also call the connectivity members One UI 8's Android 16 tethering module does not have only in a try block with the Android 16 fallback (patches/a16_connectivity_compat.py)
-1132d4a43f6360a12a2b4cfe2bb112e13d005eaaba46b89fa6064461eef23e03  services_patched.jar
+3b52be633261a02ffb915fa397841cbdfd8f76f2b1d5fb8c8bb5e30b2574f8ed  services_patched.jar
 1720f00ef2c84bb0c0d8c7eecaacde7501907a7c9d632feccb0d77a84701163c  framework_patched.jar
 b4e084d4d0412f80b60ec3c25d3c68d61c37356409526451189af96b1124565c  telephony-common_patched.jar
 23d98173e40ce788bc66d4a9678d06869fe5010ade40f001128b30c17ea57e7a  libcamera_client_patched.so
@@ -18,3 +18,4 @@ b4e084d4d0412f80b60ec3c25d3c68d61c37356409526451189af96b1124565c  telephony-comm
 1ba375398bf0735df28af2d8e6ab5cd3e5609669e11f1f6dad503bc6e1568655  service.incremental_patched.so
 # r7 (0.5.39): framework_patched_oneui8.jar, framework_patched.jar with One UI 8's camera codes (switcher/patches/a16_camera.py, host_camera_oneui8.txt; guest_prepare.sh binds it on a One UI 8 phone and turns the camera on)
 8048477f623e812581e6080feb68d53f3b093d2abf57bf0b853ebbab89272704  framework_patched_oneui8.jar
+# 0.5.42 (oneui95_a16_r8): services_patched.jar with the guest's own screen lock (patches/guest_local_lock.py, adapted to One UI 9.5's R8 build); OneOSGuest.apk = the current OneOS app (0.15) without the Knox provider authority (scripts/build-guest-manager.sh oneui95)

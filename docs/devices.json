@@ -3692,6 +3692,24 @@
       ]
     },
     {
+      "id": "s-plus-8450",
+      "label": "Galaxy S22+ (Snapdragon)",
+      "model": "SM-S906",
+      "codename": "g0q",
+      "chip": "SM8450",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
       "id": "tab-s9",
       "label": "Galaxy Tab S9",
       "model": "SM-X710",
@@ -3703,7 +3721,7 @@
       "systems": [
         {
           "image": "oxygenos17-opd2514",
-          "label": "OxygenOS 17, OnePlus Pad 4 build",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
           "tested": false
         }
@@ -3721,7 +3739,7 @@
       "systems": [
         {
           "image": "oxygenos17-opd2514",
-          "label": "OxygenOS 17, OnePlus Pad 4 build",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
           "tested": false
         }
@@ -3739,7 +3757,7 @@
       "systems": [
         {
           "image": "oxygenos17-opd2514",
-          "label": "OxygenOS 17, OnePlus Pad 4 build",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
           "tested": false
         }
@@ -3757,7 +3775,43 @@
       "systems": [
         {
           "image": "oxygenos17-opd2514",
-          "label": "OxygenOS 17, OnePlus Pad 4 build",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s9-fe-plus",
+      "label": "Galaxy Tab S9 FE+",
+      "model": "SM-X610",
+      "codename": "gts9fepwifi",
+      "chip": "s5e8835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s9-fe",
+      "label": "Galaxy Tab S9 FE",
+      "model": "SM-X510",
+      "codename": "gts9fewifi",
+      "chip": "s5e8835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
           "tested": false
         }

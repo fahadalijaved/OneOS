@@ -280,7 +280,7 @@ object Plain {
             )
             Profiles.ID_NOTE_TABLET -> m(
                 "First runs on a Galaxy Tab",
-                "OxygenOS 17 for tablets is new (testing). If the screen stays black, One UI comes back by itself. " +
+                "ColorOS 17 for tablets is new (testing). If the screen stays black, One UI comes back by itself. " +
                     "Then share the session logs.",
                 FixAction.NONE,
             )

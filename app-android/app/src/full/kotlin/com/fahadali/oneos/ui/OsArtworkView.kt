@@ -25,7 +25,9 @@ class OsArtworkView @JvmOverloads constructor(context: Context, attrs: Attribute
         clipToOutline = true
     }
     // 0.5.27: HyperOS 4 Global has its own artwork ("Global" on it), apart from the Xiaomi 18 Fold build's.
-    fun bind(image: ImageRef?) = bindArtwork(if (image?.id == com.fahadali.oneos.core.model.Images.ID_HYPEROS_HONGKONG) R.drawable.os_hyperos_global else when (image?.family) {
+    // 0.5.42: ColorOS 17 for tablets is in the OxygenOS family (its data) but shows ColorOS's artwork and header.
+    fun bind(image: ImageRef?) = bindArtwork(if (image?.id == com.fahadali.oneos.core.model.Images.ID_HYPEROS_HONGKONG) R.drawable.os_hyperos_global
+        else if (image?.id == com.fahadali.oneos.core.model.Images.ID_OXYGEN17_PAD) R.drawable.os_coloros else when (image?.family) {
         SystemFamily.PIXEL -> R.drawable.os_pixel
         SystemFamily.PIXELOS -> R.drawable.os_pixelos
         SystemFamily.HYPEROS -> R.drawable.os_hyperos

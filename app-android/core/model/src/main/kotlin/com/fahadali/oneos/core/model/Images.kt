@@ -538,7 +538,8 @@ object Images {
     )
 
     /**
-     * OxygenOS 17 for tablets (0.5.41, testing): OnePlus's Android 17 system from the OnePlus Pad 4 OTA
+     * ColorOS 17 for tablets (0.5.41, testing; called OxygenOS 17 until 0.5.42: OnePlus ships no OxygenOS 17,
+     * the build is oplusrom 17.0, owner 2026-11-24): OnePlus's Android 17 system from the OnePlus Pad 4 OTA
      * (OPD2514 / OP657AL1, OPD2514_11.C.08_1080_202610220019, CP2A.260605.016, security patch 2026-09-01),
      * the only system Galaxy Tabs on One UI 9 are offered (owner, 2026-11-24). MysticGSI --no-debloat
      * --type=oxygenos from system, system_ext, product, odm and the eight my_* partitions. The bionic
@@ -546,9 +547,9 @@ object Images {
      */
     val OXYGEN17_PAD = ImageRef(
         id = ID_OXYGEN17_PAD,
-        label = "OxygenOS 17, OnePlus Pad 4 build",
-        shortName = "OxygenOS 17",
-        name = "OxygenOS 17",
+        label = "ColorOS 17, OnePlus Pad 4 build",
+        shortName = "ColorOS 17",
+        name = "ColorOS 17",
         variant = "tablet",
         blurb = "OnePlus's Android 17 tablet system, for Galaxy Tabs on One UI 9. Testing. With Google apps.",
         downloadUrl = SHARED_FOLDER_URL,
@@ -563,6 +564,9 @@ object Images {
         cpuRequired = emptyList(),
         cpuUsedByApps = emptyList(),
         googleServices = true,
+        // Still the OxygenOS family: its data has OnePlus's membership app (StageStatus.OXYGENOS_WORD,
+        // oneos_root.sh data_family), and the ids and file names stay as hosted. Only the name and the
+        // artwork (OsArtworkView, SystemsActivity) are ColorOS's.
         family = SystemFamily.OXYGENOS,
     )
 

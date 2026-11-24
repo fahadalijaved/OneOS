@@ -6,7 +6,7 @@
 # telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # guest vold name: gvld (vold_patched, service.incremental_patched.so, services_patched.jar and framework_patched.jar: patches/guest_own_vold.py and --framework for Samsung's AppLockPolicy, set r10)
-ce59d491204e82af0e8d40fc1da07867ace9fbe116ecef2b296c261983eb80f2  services_patched.jar
+1de5b5598178363bf32f9942a20d33b45893992d764bf30108952f119673ea0f  services_patched.jar
 770f6ce6017d4b1432afb5f78bc021648e6fc8663761ea0fb1b93af53f6522a5  framework_patched.jar
 cd02dba1153b2a3a2c0f87da617753d4a8e6c339246cb130e4d91f22506af51e  telephony-common_patched.jar
 23d98173e40ce788bc66d4a9678d06869fe5010ade40f001128b30c17ea57e7a  libcamera_client_patched.so
@@ -15,3 +15,4 @@ cd02dba1153b2a3a2c0f87da617753d4a8e6c339246cb130e4d91f22506af51e  telephony-comm
 1ba375398bf0735df28af2d8e6ab5cd3e5609669e11f1f6dad503bc6e1568655  service.incremental_patched.so
 # 0.5.37 (oneui95_r11): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar
 dcb2381a704e7a150d9b4413b23fbb4d495cb17e2724f2ca6459e109bf8616fe  framework_patched_oneui95.jar
+# 0.5.42 (oneui95_r12): services_patched.jar with the guest's own screen lock (patches/guest_local_lock.py, adapted to One UI 9.5's R8 build); OneOSGuest.apk = the current OneOS app (0.15) without the Knox provider authority (scripts/build-guest-manager.sh oneui95)
