@@ -801,6 +801,15 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.40: **Calls on SIM 2 with sound on the Galaxy S24 Ultra, and Screen resolution in One UI 9.5 no longer
+sticks.**
+- **Calls on the second SIM** (Galaxy S24 Ultra and other Snapdragon Galaxies with Qualcomm's newer audio driver, in
+  ColorOS, PixelOS and the other systems): a call on SIM 2 started on SIM 1's voice channel and had no sound either
+  way. OneOS now moves the call to SIM 2's channel as soon as it starts. Untested on a phone.
+- **Screen resolution in One UI 9.5:** switching from QHD to FHD or HD made everything too small and switching back
+  did not help. A bad switch no longer sticks: every new session starts at the panel's own resolution (Screen zoom
+  is kept). Switching inside a session can still look wrong; leave it until the next start.
+
 New in 0.5.39: **Camera in One UI 9.5 on the Galaxy S22 series and other One UI 8 phones, and the crackling fix on
 more phones.**
 - **Camera on One UI 8 phones** (experimental, untested on a phone): One UI 9.5 now talks to One UI 8's camera service

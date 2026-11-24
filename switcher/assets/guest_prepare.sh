@@ -4898,6 +4898,34 @@ else
         rm -f "$DTXT" "$DTXT.new"
     fi
 fi
+# 0.5.40, One UI 9.5 (owner, S22 Ultra test13 and S24 Ultra 8224e3b4): Screen resolution QHD -> FHD/HD in the
+# guest's settings left the screen zoomed out, and switching back did not undo it; only a reset did. The switch
+# is a forced size (and density) in the guest's display_settings.xml, which WindowManager reapplies at every
+# boot. A new session starts without it: an entry with forcedWidth loses forcedWidth, forcedHeight and its
+# forcedDensity (the resolution switch sets them together); a density chosen alone (Screen zoom) stays.
+# ONEOS_GUEST_KEEP_FORCED_SIZE=1 leaves the file alone.
+if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ -s "$DSET" ] && [ "${ONEOS_GUEST_KEEP_FORCED_SIZE:-0}" != 1 ]; then
+    DTXT="$STAGE/display_settings.txt"
+    rm -f "$DTXT" "$DTXT.new"
+    if [ "$(head -c 3 "$DSET")" = ABX ]; then
+        abx2xml "$DSET" "$DTXT" 2>/dev/null || rm -f "$DTXT"
+    else
+        cp "$DSET" "$DTXT"
+    fi
+    if [ -s "$DTXT" ] && grep -q 'forcedWidth=' "$DTXT"; then
+        FS_WAS=$(grep -o 'forcedWidth="[0-9]*" forcedHeight="[0-9]*"\|forcedHeight="[0-9]*" forcedWidth="[0-9]*"' "$DTXT" | head -n 1)
+        awk '/<display / && /forcedWidth=/ { gsub(/ forced(Width|Height|Density)="[0-9]*"/, "") } { print }' "$DTXT" > "$DTXT.new"
+        CTX=$(ls -Z "$DSET" 2>/dev/null | awk '{ print $1 }')
+        case "$CTX" in u:object_r:*) ;; *) CTX=u:object_r:system_data_file:s0 ;; esac
+        if grep -q '</display-settings>' "$DTXT.new" && ! grep -q 'forcedWidth=' "$DTXT.new" && mv -f "$DTXT.new" "$DSET"; then
+            chown 1000:1000 "$DSET"; chmod 600 "$DSET"; $BB chcon "$CTX" "$DSET" 2>/dev/null
+            echo "Screen resolution: the guest's forced size (${FS_WAS:-?}) cleared for this session (One UI 9.5's resolution switch does not undo itself here)"
+        else
+            echo "!!! Screen resolution: could not clear the guest's forced size in display_settings.xml"
+        fi
+    fi
+    rm -f "$DTXT" "$DTXT.new"
+fi
 
 echo "=== 5.3 $(date +%T) cover density ==="
 # OxygenOS's status bar on another phone's panel (0.4.81). The image carries its
