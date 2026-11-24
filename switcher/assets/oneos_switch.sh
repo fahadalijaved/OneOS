@@ -5171,6 +5171,32 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # builtin echo writes as the subshell, and 0 means the writer).
             ( echo 0 > /sys/fs/cgroup/cgroup.procs 2>/dev/null
               echo -1000 > /proc/self/oom_score_adj 2>/dev/null
+              # When the device goes away (a keyboard cover detached: Galaxy Tab
+              # S10 Lite's Book Cover Keyboard lists KEY_VOLUMEUP/DOWN), Android's
+              # getevent keeps its fd on the deleted node and spins on it at a
+              # full core, forever: the loop below never gets a line, so the
+              # session check never runs (two of them held two cores for 3 hours
+              # across sessions and One UI). A sidecar ends getevent once its
+              # node is gone or a later switch took over, every 5 s. It signals
+              # the one getevent that holds this device and is its sibling, a
+              # child of this subshell ($$ is the script's in a subshell: the
+              # shell's own /proc/self/stat gives the PPID), never a walk by name
+              # (see the comment above).
+              ( sleep 1
+                read -r st < /proc/self/stat; set -- $st; me=$4
+                g=''
+                for p in $(pidof getevent 2>/dev/null); do
+                    read -r st < "/proc/$p/stat" 2>/dev/null || continue; set -- $st
+                    [ "$4" = "$me" ] && [ "$(readlink "/proc/$p/fd/4" 2>/dev/null)" = "$kd" ] && { g=$p; break; }
+                done
+                [ -n "$g" ] || exit 0
+                while kill -0 "$g" 2>/dev/null; do
+                    sleep 5
+                    [ "$(cat "$KS/session" 2>/dev/null)" = "$KTOK" ] && [ -c "$kd" ] &&
+                        ! readlink "/proc/$g/fd/4" 2>/dev/null | grep -q ' (deleted)$' && continue
+                    kill "$g" 2>/dev/null
+                    exit 0
+                done ) &
               getevent -lq "$kd" 2>/dev/null | while read -r typ code val rest; do
                 # A later switch (or none: the stage's file gone) ends this
                 # reader; getevent then ends on its next write.
