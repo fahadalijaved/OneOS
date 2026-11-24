@@ -23,6 +23,19 @@ object OneiosSystem {
     /** The system's name on its card and in every text about it. */
     const val NAME = "iOS 27 (OneiOS)"
     const val SHORT_NAME = "iOS 27"
+
+    /**
+     * The name of what the staged image set starts: "iOS 16.5" for the A56's 20F66 set, [SHORT_NAME] for iOS 27 or
+     * when no set is staged. The page title, the Switch button and the switching line use it: on the A56 they all
+     * said "iOS 27" over an iOS 16.5 set (OneiOS issue 73, 2026-11-24).
+     */
+    fun shortName(imageVersion: String?): String =
+        imageVersion?.trim()?.takeIf { it.isNotEmpty() && it.substringBefore('.') != "27" }
+            ?.let { "iOS " + it.split('.').take(2).joinToString(".") } ?: SHORT_NAME
+
+    /** [shortName] with "(OneiOS)", as [NAME]. */
+    fun name(imageVersion: String?): String = "${shortName(imageVersion)} (OneiOS)"
+
     const val BLURB = "Apple's iOS 27 on this phone's own kernel, run by OneiOS's xnuhost. " +
         "You build the image yourself from Apple's firmware; OneOS never downloads it."
 
@@ -414,7 +427,7 @@ object OneiosManifests {
      */
     fun updateProblem(imageBuild: String?, kb: OneiosKb, runtimeHasKernel: Boolean): String? = when {
         imageBuild == null -> "No iOS image set is staged: import the one you built with OneiOS's scripts."
-        imageBuild != kb.build ->
+        OneiosImageChoice.kernelBuildOf(imageBuild) != kb.build ->
             "The prelink inputs pair Apple's build ${kb.build}, but the staged image set is $imageBuild: a kernel built from them must never boot it."
         !runtimeHasKernel -> "The staged runtime carries no kernel (its runtime.json has no kernel): update the runtime first."
         else -> null

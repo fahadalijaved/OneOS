@@ -677,6 +677,33 @@ class OneiosTest {
         assertTrue(OneiosManifests.kernelProblem("24A446", kb, "5".repeat(64), true)!!.contains("not the 24A446 one"))
     }
 
+    /**
+     * The A56's iOS 16.5 (20F66) set has the 24A446 kernel (its kernel.kc is OneiOS's XNU with the 24A446 kexts):
+     * Update the kernel refused it "the staged image set is 20F66" (OneiOS issue 73, 2026-11-24). Any other build that
+     * is not the inputs' is still refused.
+     */
+    @Test
+    fun theA56s165SetTakesThe24A446Kernel() {
+        val kb = kb()
+        assertEquals("24A446", OneiosImageChoice.kernelBuildOf("20F66"))
+        assertEquals("21A329", OneiosImageChoice.kernelBuildOf("21A329"))
+        assertNull(OneiosManifests.updateProblem("20F66", kb, true))
+        assertNull(OneiosManifests.kernelProblem("20F66", kb, kbPin, true))
+        assertTrue(OneiosManifests.updateProblem("21A329", kb, true)!!.contains("21A329"))
+        assertTrue(OneiosManifests.updateProblem("20F66", kb("22A100"), true)!!.contains("20F66"))
+    }
+
+    /** The page, the Switch button and the switching line name the staged set's iOS: "iOS 16.5" on the A56 (issue 73). */
+    @Test
+    fun theNameFollowsTheStagedSet() {
+        assertEquals("iOS 27", OneiosSystem.shortName(null))
+        assertEquals("iOS 27", OneiosSystem.shortName("27.0.1"))
+        assertEquals("iOS 16.5", OneiosSystem.shortName("16.5"))
+        assertEquals("iOS 16.5", OneiosSystem.shortName("16.5.1"))
+        assertEquals("iOS 16.5 (OneiOS)", OneiosSystem.name(OneiosImageChoice.IOS_16_5_A56.version))
+        assertEquals(OneiosSystem.NAME, OneiosSystem.name(OneiosImageChoice.IOS_27.version))
+    }
+
     @Test
     fun kernelUpdateComparesBuildIds() {
         val latest = OneiosKernel("kernel/xnu.macho", "xnu-new", "a".repeat(64), "xnu-1", "p", "r")

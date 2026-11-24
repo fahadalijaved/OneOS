@@ -189,6 +189,17 @@ before the `<` now: on the A56 (no KGSL) "can't open .../kgsl-3d0/gpu_available_
 `switch.log`. Tested: `OneiosScriptTest.theReadOnlyRemountNamesBothPathsAndTheScriptsAreChecked`,
 `aMissingClockNodeSaysNothing`; not yet on an A56.
 
+**Update the kernel and the name on the A56** (issue 73, 2026-11-24, runtime 0.1.22): Update the kernel refused
+"The prelink inputs pair Apple's build 24A446, but the staged image set is 20F66: a kernel built from them must never
+boot it." The A56's 20F66 set has the 24A446 kernel by design (`ios-16.5-a56.toml`: its kernel.kc is OneiOS's XNU with
+the iPhone18,2 24A446 kexts, and Make iOS image prelinks it from the same inputs), so
+`OneiosManifests.updateProblem` and `kernelProblem` now compare `OneiosImageChoice.kernelBuildOf(image build)`
+(24A446 for 20F66, else the build itself) with the inputs' build. The page also said "iOS 27" over the 16.5 set: the
+title, the Switch button and the switching line now name the staged set's iOS (`OneiosSystem.shortName`/`name`:
+"iOS 16.5 (OneiOS)", "Switch to iOS 16.5"), and the iOS 27 artwork shows only over an iOS 27 set or none. The
+system's card and its id stay "iOS 27 (OneiOS)". Tested: `OneiosTest.theA56s165SetTakesThe24A446Kernel`,
+`theNameFollowsTheStagedSet`; not run on an A56.
+
 It is not an `ImageRef`: it has no Android SDK, no `system.raw`, no package set and no guard jars, so none of the
 Android guests' tables, pins or tests know it.
 

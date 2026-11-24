@@ -632,7 +632,9 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
             if (!staged.ok) break
         }
         must(root(app, OneiosRoot.Verb.SWITCH, OneiosSystem.switchArgs(BuildConfig.VERSION_CODE, takeover), silenceMs = 180_000))
-        if (takeover) "Switching to ${OneiosSystem.SHORT_NAME} (Android takeover)…" else "Switching to ${OneiosSystem.SHORT_NAME}…"
+        // The phone's own iOS: "iOS 16.5" on the A56 (issue 73), "iOS 27" on every other phone.
+        val name = OneiosSystem.shortName(OneiosImageChoice.of(profile).version)
+        if (takeover) "Switching to $name (Android takeover)…" else "Switching to $name…"
     }
 
     /** Back to One UI, for a session that is still open while this app runs (one that never stopped One UI, or is stuck). */

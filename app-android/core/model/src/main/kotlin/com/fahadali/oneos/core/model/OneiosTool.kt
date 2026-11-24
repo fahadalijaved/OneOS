@@ -348,6 +348,14 @@ data class OneiosImageChoice(
 
         /** The phone's choice: the Galaxy A56 makes iOS 16.5; every other phone (or none known) iOS 27, as before. */
         fun of(profile: PhoneProfile?): OneiosImageChoice = if (profile?.id == Profiles.ID_A56) IOS_16_5_A56 else IOS_27
+
+        /**
+         * The Apple build whose kexts a staged image set's kernel.kc is prelinked with: the image's own build, except
+         * the A56's iOS 16.5 (20F66), whose kernel.kc is OneiOS's XNU with the iPhone18,2 24A446 kexts
+         * (`ios-16.5-a56.toml`; [needsKernelcache]). Update the kernel compares this, not the image's build, with the
+         * prelink inputs' build: on the A56 it refused "the staged image set is 20F66" (OneiOS issue 73, 2026-11-24).
+         */
+        fun kernelBuildOf(imageBuild: String): String = if (imageBuild == IOS_16_5_A56.build) IOS_27.build else imageBuild
     }
 }
 

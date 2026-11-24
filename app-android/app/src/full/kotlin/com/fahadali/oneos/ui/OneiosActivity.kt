@@ -393,11 +393,19 @@ class OneiosActivity : EdgeToEdgeActivity() {
         // spinner with no reason (before 2026-11-22 it spun until something else read the status).
         val waiting = s.busy
         findViewById<View>(R.id.environment_action_spinner).visibility = if (waiting) View.VISIBLE else View.GONE
+        // The staged set's own iOS: the A56's iOS 16.5 set is not "iOS 27" (issue 73). The artwork says iOS 27, so it
+        // shows only over an iOS 27 set (or none yet).
+        val version = s.status?.image?.version
+        val name = OneiosSystem.name(version)
+        findViewById<TextView>(R.id.environment_title)?.text = name
+        findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout)?.setTitle(name)
+        findViewById<View>(R.id.environment_artwork)?.visibility =
+            if (OneiosSystem.shortName(version) == OneiosSystem.SHORT_NAME) View.VISIBLE else View.GONE
         val next = flow.next
         findViewById<Button>(R.id.environment_boot).apply {
             text = when {
                 next == OneiosFlow.Next.NOT_THIS_PHONE -> getString(R.string.catalog_not_available)
-                else -> OneiosActions.label(this@OneiosActivity, next) ?: getString(R.string.oneios_switch)
+                else -> OneiosActions.label(this@OneiosActivity, next) ?: "Switch to ${OneiosSystem.shortName(version)}"
             }
             isEnabled = !waiting && next != OneiosFlow.Next.NOT_THIS_PHONE
             setTextColor(if (waiting) ColorStateList.valueOf(Color.TRANSPARENT) else actionTextColors)
