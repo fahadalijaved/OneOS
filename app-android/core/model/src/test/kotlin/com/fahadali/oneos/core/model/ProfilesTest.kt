@@ -333,7 +333,7 @@ class ProfilesTest {
                 // 0.5.42: the Galaxy S22+ with Snapdragon.
                 Profiles.S_PLUS_8450,
                 // 0.5.41: the Galaxy Tabs, OxygenOS 17 for tablets only (testing).
-                Profiles.TAB_S9, Profiles.TAB_S10_FE, Profiles.TAB_S10_FE_WIFI, Profiles.TAB_S12_ULTRA, Profiles.TAB_S9_FE_PLUS, Profiles.TAB_S9_FE,
+                Profiles.TAB_S9, Profiles.TAB_S10_FE, Profiles.TAB_S10_FE_WIFI, Profiles.TAB_S12_ULTRA, Profiles.TAB_S9_FE_PLUS, Profiles.TAB_S9_FE, Profiles.TAB_S9_ULTRA, Profiles.TAB_S11,
             ),
             Profiles.BUILT_IN,
         )

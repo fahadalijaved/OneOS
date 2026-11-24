@@ -125,6 +125,8 @@ object Profiles {
     const val ID_TAB_S12_ULTRA = "tab-s12-ultra"
     const val ID_TAB_S9_FE_PLUS = "tab-s9-fe-plus"
     const val ID_TAB_S9_FE = "tab-s9-fe"
+    const val ID_TAB_S9_ULTRA = "tab-s9-ultra"
+    const val ID_TAB_S11 = "tab-s11"
     const val ID_S_ULTRA_8550 = "s-ultra-8550"
     const val ID_FLIP6 = "flip6"
     const val ID_S_9945 = "s-9945"
@@ -1426,8 +1428,17 @@ object Profiles {
     /** Galaxy Tab S9 FE (Wi-Fi, SM-X510, gts9fewifi): the FE+'s chip and system (findings of 2026-11-08). */
     val TAB_S9_FE = TAB_S9_FE_PLUS.copy(id = ID_TAB_S9_FE, label = "Galaxy Tab S9 FE", modelPrefix = "SM-X510", codename = "gts9fewifi")
 
+    /** Galaxy Tab S9 Ultra (Wi-Fi, SM-X910, gts9uwifi): the Tab S9's chip (findings of 2026-11-11 and 11-12; 0.5.43, testing). */
+    val TAB_S9_ULTRA = TAB_S9.copy(id = ID_TAB_S9_ULTRA, label = "Galaxy Tab S9 Ultra", modelPrefix = "SM-X910", codename = "gts9uwifi")
+
+    /** Galaxy Tab S11 (Wi-Fi), from a probe report of 2026-11-24 (SM-X730, gts11wifi, Dimensity 9400+ MT6991, One UI 9.0; 0.5.43, testing). */
+    val TAB_S11 = PhoneProfile(
+        id = ID_TAB_S11, label = "Galaxy Tab S11", modelPrefix = "SM-X730", codename = "gts11wifi", socModel = "MT6991",
+        form = FormFactor.BAR, choices = listOf(OXYGEN17_PAD_CHOICE), notes = listOf(TABLET, MEDIATEK),
+    )
+
     /** The Galaxy Tab profiles: tablet systems only, never One UI 9.5 on One UI 8 ([withOneUi95OnA16]). */
-    val TABLETS: List<PhoneProfile> = listOf(TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE)
+    val TABLETS: List<PhoneProfile> = listOf(TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE, TAB_S9_ULTRA, TAB_S11)
 
     /** Every profile with the choices of a normal build ([BUILT_IN] unless this is a tester build). */
     val STABLE: List<PhoneProfile> = listOf(
@@ -1437,7 +1448,7 @@ object Profiles {
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
         A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,
-        S26_FE, S_PLUS_8450, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE,
+        S26_FE, S_PLUS_8450, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE, TAB_S9_ULTRA, TAB_S11,
     )
 
     /**

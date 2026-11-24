@@ -4550,6 +4550,10 @@ fi
 # 2ba7dba7: 1280): crackling sound. The session binds a copy without the division (one instruction,
 # lsr #3 at 0x15bd18 -> nop), made here from the image's file only (sha256 pinned before and after); a
 # phone already on One UI 9.5 keeps the image's. ONEOS_GUEST_AUDIO_BUFFER_SCALING=1 leaves it alone.
+# 0.5.43: never `service list` here (0.5.39-0.5.42 did): it asks every service for its interface, One UI's
+# surfaceflinger is frozen behind the gap splash at this point, so it never returned and the switch hung on
+# the OneOS logo before the guest started (S22 Exynos ee0596c2, S23 FE 6110a679: the log ends at the
+# renderfright line; the same hang as 0.4.11, guest_props.sh). Only a servicemanager lookup, with a timeout.
 AHL="$ROOTFS/system/lib64/libaudiohal@aidl.so"
 AHS="$STAGE/libaudiohal_aidl.session.so"
 rm -f "$AHS"
@@ -4558,8 +4562,7 @@ if [ -f "$AHL" ] && [ ! -L "$AHL" ] && [ "${ONEOS_GUEST_AUDIO_BUFFER_SCALING:-0}
    grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
    [ "$HOST_ONEUI" -lt 90500 ] &&
    { $BB grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/ /odm/etc/vintf/ /apex/*/etc/vintf/ 2>/dev/null ||
-     service list 2>/dev/null | grep -q 'android.hardware.audio.core.IModule/default' ||
-     service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ': found'; }; then
+     $BB timeout 5 service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ': found'; }; then
     if $BB awk -v m="$AHL" '$5 == m { f = 1 } END { exit !f }' /proc/self/mountinfo 2>/dev/null; then
         $BB umount -l "$AHL" 2>/dev/null || true
     fi
@@ -7594,7 +7597,7 @@ if [ -f "$VKM" ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.pro
     # manifest but runs none: test13 68d44d68 left the library alone on the declaration, and Bluetooth stayed at
     # BLE_TURNING_ON (450 "Waited one second for ...ISehVaultKeeper/default" from com.android.bluetooth). One UI 9
     # phones keep the declaration rule (the HAL may start on demand there).
-    if service check vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default 2>/dev/null | grep -q ': found' ||
+    if $BB timeout 5 service check vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default 2>/dev/null | grep -q ': found' ||
        { [ "$A17_ON_A16" != 1 ] && grep -rqs ISehVaultKeeper /vendor/etc/vintf /odm/etc/vintf /system/etc/vintf 2>/dev/null; }; then
         echo "VaultKeeper: One UI has ISehVaultKeeper; the image's libvkmanager.so is left as it is"
     elif [ "$(sha256sum "$VKM" 2>/dev/null | cut -c1-64)" != 0c10e01a989baf6fff73421789105fb85c10e3dd80f337f2b677d248b39d9928 ]; then

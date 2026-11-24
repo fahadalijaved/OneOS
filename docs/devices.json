@@ -3816,6 +3816,42 @@
           "tested": false
         }
       ]
+    },
+    {
+      "id": "tab-s9-ultra",
+      "label": "Galaxy Tab S9 Ultra",
+      "model": "SM-X910",
+      "codename": "gts9uwifi",
+      "chip": "SM8550",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s11",
+      "label": "Galaxy Tab S11",
+      "model": "SM-X730",
+      "codename": "gts11wifi",
+      "chip": "MT6991",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        }
+      ]
     }
   ]
 }

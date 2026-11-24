@@ -252,6 +252,8 @@ profile_info() {
         tab-s12-ultra) echo "SM-X940 gts12uwifi MT6993 bar" ;;
         tab-s9-fe-plus) echo "SM-X610 gts9fepwifi s5e8835 bar" ;;
         tab-s9-fe) echo "SM-X510 gts9fewifi s5e8835 bar" ;;
+        tab-s9-ultra) echo "SM-X910 gts9uwifi SM8550 bar" ;;
+        tab-s11) echo "SM-X730 gts11wifi MT6991 bar" ;;
         a07) echo "SM-A075 a07 MT6789 bar" ;;
         flip8) echo "SM-F776 b8s s5e9965 flip" ;;
         a36) echo "SM-A366 a36xq SM6475 bar" ;;
@@ -641,6 +643,8 @@ profile_set() {
         "tab-s12-ultra oxygenos17-opd2514") echo oxygen17pad ;;
         "tab-s9-fe-plus oxygenos17-opd2514") echo oxygen17pad ;;
         "tab-s9-fe oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s9-ultra oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s11 oxygenos17-opd2514") echo oxygen17pad ;;
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;

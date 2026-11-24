@@ -801,6 +801,12 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.43: **One UI 9.5 starts again on One UI 8 phones (S22 series and others), Tab S9 Ultra and Tab S11.**
+- **One UI 9.5 stuck on the OneOS logo** (0.5.39 to 0.5.42, the S22 series, S23 FE and other phones whose sound driver
+  is the older kind): a sound check OneOS made before starting One UI 9.5 waited forever. It now asks only what
+  answers at once, so the system starts.
+- **Galaxy Tab S9 Ultra (SM-X910) and Galaxy Tab S11 (SM-X730):** ColorOS 17 for tablets, testing.
+
 New in 0.5.42: **One UI 9.5 boots again on the Galaxy S22 series, its own screen lock, and more Galaxies.**
 - **One UI 9.5 on the Galaxy S22 series and other One UI 8 phones** stopped at the One UI logo since 0.5.39's camera
   change: the camera's native part still spoke One UI 8's numbering and stopped the system as it started. It now

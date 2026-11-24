@@ -5201,7 +5201,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
         # hold is recognized. Straight from the phone's vibrator HAL (IVibrator.on(ms, null callback), transaction
         # 3), which serves One UI and the guest alike and keeps running whatever either framework does; a
         # timed_output node where the kernel has one.
-        KVIB=$(service list 2>/dev/null | sed -n 's/.*\(android\.hardware\.vibrator\.IVibrator\/[A-Za-z0-9_]*\).*/\1/p' | head -n 1)
+        KVIB=$(timeout 5 service list 2>/dev/null | sed -n 's/.*\(android\.hardware\.vibrator\.IVibrator\/[A-Za-z0-9_]*\).*/\1/p' | head -n 1)
         [ -n "$KVIB" ] || { [ -w /sys/class/timed_output/vibrator/enable ] && KVIB=timed_output; }
         echo "$KVIB" > "$KS/vibrator"
         for kd in $KDEVS; do
