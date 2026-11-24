@@ -1230,6 +1230,11 @@ ro.miui.backdrop_sampling_enabled=true"
             sed -i '/^ro\.vendor\.radio\.modem\.provider=/d' "$NEW"
             echo "ro.vendor.radio.modem.provider=qcom" >> "$NEW"
             echo "guest_props: ro.vendor.radio.modem.provider=qcom for the session (HyperOS data calls through IRadioData, not Xiaomi's XRING extension)"
+            # Ensure multi-SIM and dual telephony configs are explicitly defined for HyperOS
+            for rp in "persist.radio.multisim.config=dsds" "telephony.active_modems.max=2" "ro.telephony.default_network=26,26"; do
+                sed -i "/^${rp%%=*}=/d" "$NEW"
+                echo "$rp" >> "$NEW"
+            done
         else
             echo "guest_props: ro.vendor.radio.modem.provider left unset: $(getprop ro.soc.manufacturer) is not a Qualcomm SoC"
         fi
@@ -1809,8 +1814,9 @@ ro.miui.backdrop_sampling_enabled=true"
     for key in ro.audio.ihaladaptervendorextension_enabled; do
         g=$(cat "$ROOTFS"/system/build.prop "$GSE"/etc/build.prop \
             "$GPR"/etc/build.prop "$ROOTFS"/my_*/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
+        [ -n "$g" ] || g=false
         h=$(getprop "$key")
-        [ -n "$g" ] && [ -n "$h" ] && [ "$g" != "$h" ] || continue
+        [ -n "$h" ] && [ "$g" != "$h" ] || continue
         echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
             echo "guest_props: $key=$g for the session (One UI: $h)"
     done

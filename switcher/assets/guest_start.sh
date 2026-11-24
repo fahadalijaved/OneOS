@@ -590,11 +590,9 @@ LAYOUT
         # The inner panel's id for the UI activator's density and fold line
         # (oneos_switch.sh, run 44).
         echo "$INNER" > /data/oneos_inner_display; chmod 644 /data/oneos_inner_display
-        # Fold8 One UI 9.5 reports 213 physical dpi for both displays even
-        # when ro.sf.lcd_density is 420. Set a guest WindowManager default
+        # Fold8 and Fold4: set guest WindowManager default density
         # for each physical panel before system_server reads its settings.
-        if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
-           grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
+        if { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "${ONEOS_GUEST_FORM:-}" = fold ]; then
             f8_density=$(getprop ro.sf.lcd_density)
             case "$f8_density" in
                 [2-6][0-9][0-9]) [ "$f8_density" -ge 240 ] && [ "$f8_density" -le 640 ] || f8_density=420 ;;
@@ -646,9 +644,9 @@ LAYOUT
                    chown 1000:1000 "$f8_output" && chmod 600 "$f8_output" &&
                    "$BB" chcon u:object_r:system_data_file:s0 "$f8_output" &&
                    mv -f "$f8_output" "$f8_dset"; then
-                    echo "[Pivoted Root] Fold8 One UI 9.5: $f8_density dpi defaults for $f8_inner and $f8_cover"
+                    echo "[Pivoted Root] Fold display density: $f8_density dpi defaults for $f8_inner and $f8_cover"
                 else
-                    echo "[Pivoted Root] Fold8 One UI 9.5: display density defaults not written"
+                    echo "[Pivoted Root] Fold display density: defaults not written"
                 fi
                 rm -f "$f8_input" "$f8_output"
                 rmdir "$f8_temp"
@@ -1062,7 +1060,19 @@ while :; do
             echo 0 > $BL/brightness 2>/dev/null
             last=0
         fi
-    elif [ "$TAKE_BL" = 1 ] && [ -n "$v" ] && [ "$v" != "$last" ]; then
+        if [ "$prev_folded" = 0 ]; then
+            # Just folded: immediately sync cover brightness to inner panel's last level
+            ib=$(cat $BL/brightness 2>/dev/null || echo 0)
+            [ "$ib" != 0 ] && echo "$ib" > $BL2/brightness 2>/dev/null && last2=$ib
+        fi
+    else
+        if [ "$prev_folded" = 1 ] && [ -w "$BL/brightness" ]; then
+            # Just unfolded: immediately sync inner panel brightness to cover panel's last level
+            cb=$(cat $BL2/brightness 2>/dev/null || echo 0)
+            [ "$cb" != 0 ] && echo "$cb" > $BL/brightness 2>/dev/null && last=$cb
+        fi
+    fi
+    if [ "$is_folded" != 1 ] && [ "$TAKE_BL" = 1 ] && [ -n "$v" ] && [ "$v" != "$last" ]; then
         echo $v > $BL/brightness && echo "$(date +%T) inner $w: $v"
         last=$v
     fi
@@ -1072,7 +1082,7 @@ while :; do
             last2=$v2
         fi
     fi
-    sleep 1
+    sleep 0.2
 done
 BLEOF
     $BB sh /data/oneos_bl_bridge.sh "$BL" "$BLMAX" "$BLON" "$LEDBL" "$BL2" "$BL2MAX" </dev/null >> /data/backlight.log 2>&1 &
