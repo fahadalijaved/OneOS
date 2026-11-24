@@ -317,11 +317,11 @@ add)
     #   under 120 Hz): SurfaceFlinger's content detection off, so whatever moves renders at the top rate and
     #   only a still screen renders at the lower rate (SurfaceFlinger's idle timer; the panel stays at its top mode). With it
     #   on, "normal" animations ran at 60 Hz (owner, A36: "OS feels kinda sluggish").
-    if [ ! -e "$ROOTFS/system/framework/oplus-services.jar" ] && [ ! -e "$ROOTFS/system/framework/miui-services.jar" ] &&
+    if [ ! -e "$ROOTFS/system/framework/oplus-services.jar" ] &&
        [ ! -e "$ROOTFS/system/system_ext/framework/nt-telephony-common.jar" ] && [ ! -e "$ROOTFS/system_ext/framework/nt-telephony-common.jar" ] &&
        ! grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
         for kv in "sys.brightness.disable_gamma_conversion=true:${ONEOS_GUEST_LINEAR_BRIGHTNESS:-1}" \
-                  "ro.surface_flinger.use_content_detection_for_refresh_rate=false:$([ -f "$STAGE/data/oneos_adaptive" ] && echo 1 || echo 0)"; do
+                  "ro.surface_flinger.use_content_detection_for_refresh_rate=false:$([ -f "$STAGE/data/oneos_adaptive" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] && echo 1 || echo 0)"; do
             [ "${kv##*:}" = 1 ] || continue
             kv=${kv%:*}; key=${kv%%=*}; value=${kv#*=}
             hv=$(getprop "$key")
@@ -1253,13 +1253,18 @@ ro.miui.backdrop_sampling_enabled=true"
     # (Qualcomm's Vulkan driver: "Unknown struct ... provided to
     # vkCmdBeginRenderPass" on every frame HyperOS draws, 16,600 a file).
     if [ -f "$ROOTFS/system/lib64/libxqos.so" ]; then
-        for tl in XQos:S perfflinger_client:S DolbyRenderer:S RadioProxyEx:S com.xiaomi.type:S AdrenoVK-0:W; do
+        for tl in XQos:S perfflinger_client:S DolbyRenderer:S RadioProxyEx:S com.xiaomi.type:S AdrenoVK-0:S Adreno-VK:S; do
             k=log.tag.${tl%:*}
             grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
             sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
             echo "$k=${tl##*:}" >> "$NEW"
         done
-        echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type = S and AdrenoVK-0 = W for the session (failures and dumps on every frame or call)"
+        echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type, AdrenoVK-0 = S for the session"
+        # Disable XRING / XQos background thrasher on foreign vendor
+        for xp in persist.sys.perf.xring=0 persist.sys.hyperos.xqos=0 persist.sys.power.xring=0; do
+            sed -i "/^${xp%%=*}=/d" "$NEW"
+            echo "$xp" >> "$NEW"
+        done
         # HyperOS Global (11-19, A36, "slightly sluggish"): logd at 35-106 % of a core. Its own debug and info
         # chatter, per 200,000 lines: MI-SF 27,000, backgroundBlur 13,400, AllInOneBase 7,900, hyper_launcher_app
         # 7,500, AllInOneConvertDataDebug 6,200, MiuiBlurUtils 5,700, hyos_spawner 4,800, flutter 4,700,
