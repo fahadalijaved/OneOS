@@ -585,7 +585,34 @@ stays as the fallback; a half-updated set never activates):
   SHAs and build ids, the xnu and kernelcache SHAs, the audit marker). Any check failure changes nothing; any
   state in between fails the switch's preflight (`check_list` hashes every small file and matches every file's
   identity against the lists), so a half-updated set refuses to boot instead of booting wrong. `restore kernel`
-  swaps the kept set back, with its own receipt.
+  swaps the kept set back, with its own receipt, and sets `image.ids` again for every file it moved back
+  (kc_backup's copies are other inodes; before 2026-11-25 a restored set failed the preflight's `changed since it
+  was staged` on `kernel.kc`).
+- **The Galaxy A56's GPU addon** (2026-11-25, in the same `finish kernel`): for an iOS 16.5 set only (`build=20F66`
+  in `image.conf`; an iOS 27 set, 24A446, never runs it and its finish is unchanged), after the kernel is
+  activated, root runs the staged runtime's `bin/oneios-tool` (only when its SHA-256 is the one in
+  `runtime.sha256`) as `image a56-gpu-place --stage <stage> --out <stage>/make-kernel/out/a56gpu` (an empty
+  folder, root's, 0700; the tool reads `image/manifest.json` and `runtime/runtime.json` and writes only there). Its
+  last stdout line decides: `@@A56GPU placed: kernel.kc.gpuaddon SHA BYTES; owner-trust.json SHA; manifest.json
+  SHA` — root checks that the folder holds exactly those three plain files with those SHA-256s, the addon starts
+  `NGPUADD2` and is 64 MiB at most, the manifest names the new `kernel.kc` and the new owner-trust.json, and that
+  the set already lists `overlay/userland/owner-trust.json`; writes the new `image.sha256` in a scratch folder
+  (`kernel.kc.gpuaddon` added or replaced, owner-trust.json and manifest.json re-hashed) and checks it; then moves
+  `image/kernel.kc.gpuaddon`, `image/overlay/userland/owner-trust.json`, `image/manifest.json` (0644) and the list
+  in, and rewrites `image.ids` with the three files' new ids. `@@A56GPU none: WHY`, or a runtime whose tool
+  predates the command (exit 1, nothing on stdout, `image`'s usage on stderr without `a56-gpu-place`), or no
+  `bin/oneios-tool`: nothing changes (an addon staged by OneiOS's `oneios-tool phone addon` stays). `@@A56GPU
+  error: WHY`, any other ending, or files that are not as the line says: nothing changes either ("skipped"); the
+  kernel stays activated and the session is the 2D one. Only a failed move (after the checks) fails the finish,
+  with "Restore the kept kernel set". The finish prints `@@RESULT a56-gpu placed|none|skipped <words>` before its
+  `@@OK finish kernel` line, and the receipt gets `a56 gpu: <state>: <words>`. The activation's message on the
+  page adds a sentence (`OneiosKernelUpdate.activatedText`): "The A56's GPU addon (Metal and OpenGL ES for iOS
+  16.5) is in place too: ...", "No GPU addon was placed: ...", or "The A56's GPU addon was not placed: ...".
+  `kernel.prev/` keeps the old `owner-trust.json` and `kernel.kc.gpuaddon` (or `gpu.kept` records them as absent),
+  and `restore kernel` puts them back, removing an addon the kept set did not have, so the restored set passes the
+  switch's `check_list`; a kept set from an app before this has no `gpu.kept`, and its restore leaves both files
+  as they are, as before. Host-tested (`OneiosScriptTest`, a stand-in tool, `src/test/resources/oneios/a56gpu-tool.sh`);
+  not run on a phone, and OneiOS's runtime with the command is not released yet.
 - **Runtime swap**: the existing `finish runtime` stages the whole package at once — runtime.json, xnuhost, the
   helpers and `lib/profiles/*.toml` all move together, every file hashed at `receive` and the set verified before
   it counts. Nothing outside the package is versioned per kernel: the switch's command line is fixed (no
@@ -1461,6 +1488,12 @@ the two meet at the return's lock.
   this runtime's xnu and the staged kernelcache) and refuses a wrong one or a wrongly paired one with nothing
   changed and no stray files; then the swap (files, hashes, lists, manifest, configs, receipt) and the fallback,
   and `restore kernel` puts the kept set back with its own receipt; every verb refuses during a session.
+  The A56's GPU addon (`anA56SetGetsTheRuntimesGpuAddonWithTheKernelAndRestoreTakesItBack`,
+  `anA56SetWithNothingToPlaceOrAFailingToolKeepsItsAddonAndGetsTheKernel`, `anIos27SetNeverRunsTheGpuPlaceStep`):
+  a 20F66 set placed (the three files, both lists, the switch's preflight by ids and by hashing), restored, restored
+  again, and replaced by a second update; `none`, an older tool, `error`, a crash and a stray file each leave the
+  set's own addon and owner-trust.json with the kernel activated; a 24A446 set never calls the tool.
+  `OneiosKernelUpdateTest.theActivationTextSaysWhatHappenedToTheA56GpuAddon`: the page's message.
   `EditionsTest` pins the `kb/` assets (each the hash `kb.json` names, exactly the set the root script takes).
   `kbcache` keeps a fetched kernelcache only when root's own hash is the pin (another hash or size is deleted
   and refused, nothing lands in `kb/`), removes the IM4P, and `status` then reports it; `kbclean` removes

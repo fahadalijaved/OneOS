@@ -82,6 +82,17 @@ class OneiosKernelUpdate(
         data class Stopped(val step: String, val end: OneiosToolFlow.End, val code: String?, val text: String?, val cleaned: Boolean) : Outcome()
     }
 
+    /**
+     * What root's `finish kernel` did with the Galaxy A56's GPU addon (its `@@RESULT a56-gpu <state> <words>` line,
+     * docs/oneios.md "Kernel updates"): [State.PLACED] (the staged runtime's kernel.kc.gpuaddon and its CDHashes in
+     * owner-trust.json are the set's now), [State.NONE] (nothing to place: no A56 plug-ins in the runtime, an older
+     * runtime, another build) or [State.SKIPPED] (the tool failed or wrote something else). In both of the last two
+     * the set keeps the addon it had, if any. Only an iOS 16.5 (20F66) set has the line.
+     */
+    data class GpuAddon(val state: State, val words: String) {
+        enum class State(val word: String) { PLACED("placed"), NONE("none"), SKIPPED("skipped") }
+    }
+
     /** Step 2's answer ([kernelcache]). */
     sealed class Kernelcache {
         /** `kb/kernelcache.macho` is the pinned one already: nothing was fetched. */
@@ -215,6 +226,26 @@ class OneiosKernelUpdate(
                 return Kernelcache.Stopped(STEP_KBCACHE, OneiosToolFlow.End.REFUSED, if ("pins" in it) "mismatch" else null, it, clean = true)
             }
             return Kernelcache.Kept(bytes)
+        }
+
+        /** The `a56-gpu` line of a `finish kernel` reply's results, or null (an iOS 27 set, an older root script). */
+        fun gpuAddon(results: List<String>): GpuAddon? {
+            val words = results.lastOrNull { it.startsWith("a56-gpu ") }?.removePrefix("a56-gpu ") ?: return null
+            val state = GpuAddon.State.values().firstOrNull { words == it.word || words.startsWith(it.word + " ") } ?: return null
+            return GpuAddon(state, words.removePrefix(state.word).trim())
+        }
+
+        /** The message after Activate: the kernel, then (an iOS 16.5 set) what happened to the A56's GPU addon. */
+        fun activatedText(buildId: String, results: List<String>): String {
+            val kernel = "kernel.kc $buildId is activated for the next session; the previous set is kept as the fallback."
+            val gpu = gpuAddon(results) ?: return kernel
+            return kernel + " " + when (gpu.state) {
+                GpuAddon.State.PLACED -> "The A56's GPU addon (Metal and OpenGL ES for iOS 16.5) is in place too: ${gpu.words}. " +
+                    "Restore the kept kernel set takes it out again."
+                GpuAddon.State.NONE -> "No GPU addon was placed: ${gpu.words}. A GPU addon the set already had stays."
+                GpuAddon.State.SKIPPED -> "The A56's GPU addon was not placed: ${gpu.words}. The set keeps the GPU addon it had, " +
+                    "if any; without one iOS 16.5 starts with 2D graphics."
+            }
         }
 
         /** Root's `kbcache` as a step's name (OneiosPlain's download steps). */

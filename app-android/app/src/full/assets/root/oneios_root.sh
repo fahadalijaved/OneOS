@@ -71,9 +71,15 @@
 #                               image.sha256, image.ids, manifest.json and
 #                               image.conf rewritten, a receipt in logs/. The
 #                               old set stays as the fallback (restore kernel).
+#                               An iOS 16.5 (20F66) set then gets the runtime's
+#                               A56 GPU addon (a56_gpu_place: bin/oneios-tool
+#                               image a56-gpu-place, kernel.kc.gpuaddon and
+#                               owner-trust.json in, the lists rewritten; its
+#                               line @@RESULT a56-gpu placed|none|skipped ...).
 #                               Refuses during a session.
 #   restore kernel              the fallback back: $STAGE/kernel.prev becomes
-#                               the image's set again, with its own receipt.
+#                               the image's set again (owner-trust.json and the
+#                               GPU addon as it kept them), with its own receipt.
 #                               Refuses with no fallback or during a session.
 #   switch <versionCode> <ack> [hosted|takeover]
 #                               the preflight, then the session, detached, in
@@ -656,6 +662,17 @@ kc_backup() { # <dest>: the live set aside (the manifest, lists and config with 
     for f in image.sha256 image.ids image.conf; do
         cp -p "$STAGE/$f" "$dest/$f" && own "$dest/$f" 0600 || return 1
     done
+    # The A56's GPU addon and owner-trust.json (a56_gpu_place may replace both): kept, or recorded as absent, so
+    # a restore leaves the set its lists name (gpu.kept: "kept <path>" or "none <path>").
+    printf '' > "$dest/gpu.kept" && own "$dest/gpu.kept" 0600 || return 1
+    for g_p in "$GPU_TRUST" "$GPU_ADDON"; do
+        if [ -f "$STAGE/image/$g_p" ] && [ ! -L "$STAGE/image/$g_p" ]; then
+            cp -p "$STAGE/image/$g_p" "$dest/${g_p##*/}" && own "$dest/${g_p##*/}" 0600 || return 1
+            echo "kept $g_p" >> "$dest/gpu.kept" || return 1
+        else
+            echo "none $g_p" >> "$dest/gpu.kept" || return 1
+        fi
+    done
     return 0
 }
 
@@ -729,6 +746,170 @@ kc_activate() { # <dir> <kc-sha256> <build-id>: <dir>'s kernel.kc + hashes becom
     return 0
 }
 
+# --- The Galaxy A56's GPU addon (docs/oneios.md, "Kernel updates") ---------
+# An iOS 16.5 (20F66) set gets the staged runtime's A56 gpuaddon (the Metal and
+# OpenGL ES plug-ins) as image/kernel.kc.gpuaddon, with its CDHashes in
+# overlay/userland/owner-trust.json, in the same finish kernel, after the
+# kernel is activated: the runtime's oneios-tool (`image a56-gpu-place`, the
+# file root hashed when the runtime was staged) writes the three files into a
+# scratch folder, root checks them and moves them in, and rewrites
+# image.sha256 and image.ids. Any other build (iOS 27, 24A446) never runs the
+# tool. A runtime without the command, or with nothing for this set, leaves the
+# set as it is ("none"); a tool that fails or writes something else leaves it
+# too ("skipped"): the kernel stays activated and the session is the 2D one.
+A56_GPU_BUILD=20F66
+GPU_TRUST=overlay/userland/owner-trust.json
+GPU_ADDON=kernel.kc.gpuaddon
+# xnuhost's limit for the sidecar (docs/booter.md).
+GPU_ADDON_MAX=67108864
+
+# A sha256sum list (<list>) with the changes of <changes> made, to stdout: a
+# "<sha256> <path>" line replaces <path>'s line (or is added at the end when
+# the list has none), "- <path>" removes it. The two spaces are kept, and the
+# path is compared whole (as list_resha).
+sums_set() { # <list> <changes>
+    awk -v c="$2" '
+        BEGIN { while ((getline l < c) > 0) { split(l, w, " "); want[w[2]] = w[1]; order[++n] = w[2] } }
+        {
+            head = substr($0, 1, 64); mid = substr($0, 65, 2); tail = substr($0, 67)
+            if (head ~ /^[0-9a-f]+$/ && length(head) == 64 && mid == "  " && (tail in want)) {
+                if (!(tail in done) && want[tail] != "-") print want[tail] "  " tail
+                done[tail] = 1
+                next
+            }
+            print
+        }
+        END { for (i = 1; i <= n; i++) if (!(order[i] in done) && want[order[i]] != "-") print want[order[i]] "  " order[i] }
+    ' "$1"
+}
+
+# The same for an ids list ("<dev:inode:size:mtime> <path>").
+ids_set() { # <list> <changes>
+    awk -v c="$2" '
+        BEGIN { while ((getline l < c) > 0) { split(l, w, " "); want[w[2]] = w[1]; order[++n] = w[2] } }
+        NF == 2 && ($2 in want) {
+            if (!($2 in done) && want[$2] != "-") print want[$2] " " $2
+            done[$2] = 1
+            next
+        }
+        { print }
+        END { for (i = 1; i <= n; i++) if (!(order[i] in done) && want[order[i]] != "-") print want[order[i]] " " order[i] }
+    ' "$1"
+}
+
+# How often <path> is in a list (its second field).
+list_count() { awk -v p="$2" '$2 == p { n++ } END { print n + 0 }' "$1" 2>/dev/null; }
+
+gpu_say() { # <placed|none|skipped> <words>: the finish's line (the app shows it), and the receipt's
+    GPU_LINE="$1: $2"
+    say "@@RESULT a56-gpu $1 $2"
+}
+
+# After kc_activate and image.conf: never refuses the finish. Dies only when a
+# move into the image fails (the kernel is activated then; Restore puts the set
+# back). Its variables are g_*: the finish's own (out, kc, bid, name) stay.
+a56_gpu_place() {
+    GPU_LINE=""
+    [ "$(conf "$STAGE/image.conf" build)" = "$A56_GPU_BUILD" ] || return 0
+    if [ ! -f "$TOOL_BIN" ] || [ -L "$TOOL_BIN" ] || [ ! -x "$TOOL_BIN" ]; then
+        gpu_say none "this runtime has no bin/oneios-tool: the session stays 2D"
+        return 0
+    fi
+    g_want=$(awk '$2 == "bin/oneios-tool" { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1)
+    [ -n "$g_want" ] && [ "$(sha "$TOOL_BIN")" = "$g_want" ] ||
+        { gpu_say skipped "bin/oneios-tool is not the file that was staged: stage the runtime again"; return 0; }
+    [ -f "$STAGE/image/$GPU_TRUST" ] && [ ! -L "$STAGE/image/$GPU_TRUST" ] &&
+        [ "$(list_count "$STAGE/image.sha256" "$GPU_TRUST")" = 1 ] && [ "$(list_count "$STAGE/image.ids" "$GPU_TRUST")" = 1 ] ||
+        { gpu_say skipped "the image set has no listed $GPU_TRUST: the addon's code would not be trusted"; return 0; }
+    # The tool's --out (empty, root's, 0700), its TMPDIR, and root's own work (its output, the lists).
+    g_w="$out/a56gpu"
+    g_x="$out/a56gpu.root"
+    rm -rf "$g_w" "$g_w.tmp" "$g_x" && mkdir "$g_w" "$g_w.tmp" "$g_x" &&
+        own "$g_w" 0700 && own "$g_w.tmp" 0700 && own "$g_x" 0700 ||
+        { gpu_say skipped "could not make $g_w"; return 0; }
+    TMPDIR="$g_w.tmp" nice -n 10 "$TOOL_BIN" image a56-gpu-place --stage "$STAGE" --out "$g_w" \
+        </dev/null >"$g_x/out" 2>"$g_x/err"
+    g_rc=$?
+    g_last=$(tail -n 1 "$g_x/out" 2>/dev/null)
+    g_err=$(grep -v '^ *$' "$g_x/err" 2>/dev/null | tail -n 1 | cut -c1-200)
+    case "$g_last" in
+        "@@A56GPU none: "*)
+            if [ $g_rc = 0 ]; then
+                gpu_say none "${g_last#@@A56GPU none: }"
+            else
+                gpu_say skipped "oneios-tool image a56-gpu-place said none with status $g_rc"
+            fi
+            return 0 ;;
+        "@@A56GPU error: "*)
+            gpu_say skipped "${g_last#@@A56GPU error: }"
+            return 0 ;;
+        "@@A56GPU placed: "*) ;;
+        *)
+            # An older runtime's tool: `image` with a command it does not know prints its usage (which does not
+            # name a56-gpu-place) and exits 1, with nothing on stdout.
+            if [ $g_rc = 1 ] && ! grep -q '^@@A56GPU' "$g_x/out" && ! grep -q 'a56-gpu-place' "$g_x/err"; then
+                gpu_say none "this runtime's oneios-tool has no image a56-gpu-place (an older runtime): the session stays 2D"
+            else
+                gpu_say skipped "oneios-tool image a56-gpu-place ended with status $g_rc${g_err:+: $g_err}"
+            fi
+            return 0 ;;
+    esac
+    [ $g_rc = 0 ] || { gpu_say skipped "oneios-tool image a56-gpu-place said placed but ended with status $g_rc"; return 0; }
+    # kernel.kc.gpuaddon SHA BYTES; owner-trust.json SHA; manifest.json SHA
+    read -r g_n1 g_asha g_abytes g_n2 g_tsha g_n3 g_msha g_more <<EOF
+${g_last#@@A56GPU placed: }
+EOF
+    g_abytes=${g_abytes%;}
+    g_tsha=${g_tsha%;}
+    [ "$g_n1" = kernel.kc.gpuaddon ] && [ "$g_n2" = owner-trust.json ] && [ "$g_n3" = manifest.json ] && [ -z "$g_more" ] &&
+        is_hex64 "$g_asha" && is_dec "$g_abytes" && is_hex64 "$g_tsha" && is_hex64 "$g_msha" ||
+        { gpu_say skipped "oneios-tool's placed line is not as expected: $(echo "$g_last" | cut -c1-200)"; return 0; }
+    # Exactly the three files, as the line says; the manifest is this finish's (it names the new kernel.kc).
+    [ "$(cd "$g_w" && find . | LC_ALL=C sort | tr '\n' ' ')" = ". ./kernel.kc.gpuaddon ./manifest.json ./owner-trust.json " ] ||
+        { gpu_say skipped "oneios-tool left other files than kernel.kc.gpuaddon, owner-trust.json and manifest.json"; return 0; }
+    for g_f in kernel.kc.gpuaddon owner-trust.json manifest.json; do
+        [ -f "$g_w/$g_f" ] && [ ! -L "$g_w/$g_f" ] || { gpu_say skipped "$g_f is not a plain file"; return 0; }
+    done
+    [ "$(stat -c %s "$g_w/kernel.kc.gpuaddon" 2>/dev/null)" = "$g_abytes" ] && [ "$g_abytes" -le $GPU_ADDON_MAX ] &&
+        [ "$(head -c 8 "$g_w/kernel.kc.gpuaddon")" = NGPUADD2 ] &&
+        [ "$(sha "$g_w/kernel.kc.gpuaddon")" = "$g_asha" ] ||
+        { gpu_say skipped "the gpuaddon the tool wrote is not the one it named (NGPUADD2, $g_abytes bytes, 64 MiB at most)"; return 0; }
+    [ "$(sha "$g_w/owner-trust.json")" = "$g_tsha" ] && [ "$(sha "$g_w/manifest.json")" = "$g_msha" ] ||
+        { gpu_say skipped "owner-trust.json or manifest.json is not the one the tool named"; return 0; }
+    grep -Fq "\"sha256\": \"$kc\"" "$g_w/manifest.json" && grep -Fq "\"sha256\": \"$g_tsha\"" "$g_w/manifest.json" ||
+        { gpu_say skipped "the tool's manifest.json does not name the new kernel.kc and owner-trust.json"; return 0; }
+    # The new image.sha256 first, checked, before anything moves.
+    {
+        echo "$g_asha $GPU_ADDON"
+        echo "$g_tsha $GPU_TRUST"
+        echo "$g_msha manifest.json"
+    } > "$g_x/sums.changes" && sums_set "$STAGE/image.sha256" "$g_x/sums.changes" > "$g_x/image.sha256" ||
+        { gpu_say skipped "could not rewrite image.sha256"; return 0; }
+    for g_l in "$g_asha  $GPU_ADDON" "$g_tsha  $GPU_TRUST" "$g_msha  manifest.json"; do
+        [ "$(grep -Fxc -- "$g_l" "$g_x/image.sha256")" = 1 ] || { gpu_say skipped "the rewritten image.sha256 lacks '$g_l'"; return 0; }
+    done
+    # The moves: every state between them fails the switch's preflight (a file its list does not name, or
+    # whose id or sum differs) rather than booting half-placed.
+    g_fail="the kernel is activated, but the GPU addon is half in place: Restore the kept kernel set, or Update the kernel again"
+    mv -f "$g_w/kernel.kc.gpuaddon" "$STAGE/image/$GPU_ADDON" && own "$STAGE/image/$GPU_ADDON" 0644 &&
+        mv -f "$g_w/owner-trust.json" "$STAGE/image/$GPU_TRUST" && own "$STAGE/image/$GPU_TRUST" 0644 &&
+        mv -f "$g_w/manifest.json" "$STAGE/image/manifest.json" && own "$STAGE/image/manifest.json" 0644 &&
+        mv -f "$g_x/image.sha256" "$STAGE/image.sha256" || die "could not move the GPU addon in: $g_fail"
+    g_aid=$(file_id "$STAGE/image/$GPU_ADDON")
+    g_tid=$(file_id "$STAGE/image/$GPU_TRUST")
+    g_mid=$(file_id "$STAGE/image/manifest.json")
+    [ -n "$g_aid" ] && [ -n "$g_tid" ] && [ -n "$g_mid" ] || die "could not read the GPU addon's files back: $g_fail"
+    {
+        echo "$g_aid $GPU_ADDON"
+        echo "$g_tid $GPU_TRUST"
+        echo "$g_mid manifest.json"
+    } > "$g_x/ids.changes" && ids_set "$STAGE/image.ids" "$g_x/ids.changes" > "$g_x/image.ids" &&
+        mv -f "$g_x/image.ids" "$STAGE/image.ids" || die "could not rewrite image.ids: $g_fail"
+    [ -n "$T" ] || sync
+    rm -rf "$g_w" "$g_w.tmp" "$g_x"
+    gpu_say placed "kernel.kc.gpuaddon $g_asha ($g_abytes bytes), owner-trust.json $g_tsha"
+}
+
 do_finish_kernel() {
     [ $# -eq 2 ] || [ $# -eq 4 ] || usage "finish kernel <kc-sha256> <build-id> [kb-<BUILD> <xnu path>]"
     kc=$1 bid=$2
@@ -772,8 +953,11 @@ do_finish_kernel() {
         echo "kernel_build_id=$bid"
         echo "kernel_kc_sha256=$kc"
     } > "$ic.new" && own "$ic.new" 0600 && mv -f "$ic.new" "$ic" || die "could not write image.conf"
+    # The A56's GPU addon, for an iOS 16.5 set only (its @@RESULT a56-gpu line; nothing for iOS 27).
+    a56_gpu_place
     { [ -d "$STAGE/logs" ] || mkdir "$STAGE/logs"; } && own "$STAGE/logs" 0700 || die "could not make $STAGE/logs"
     name=$(kc_receipt update "${oldsha:-unknown}" "$oldbid" "$kc" "$bid") || die "could not write the receipt"
+    [ -z "$GPU_LINE" ] || echo "a56 gpu: $GPU_LINE" >> "$STAGE/logs/$name.log" || die "could not write the receipt"
     [ -n "$T" ] || sync
     rm -rf "$out"
     say "@@OK finish kernel $bid (receipt logs/$name.log)"
@@ -793,6 +977,29 @@ do_restore_kernel() {
     bid=$(awk -F= '$1 == "kernel_build_id" { print $2 }' "$prev/image.conf" 2>/dev/null | head -n 1)
     case "$bid" in ''|-*|*[!A-Za-z0-9._-]*) bid="unknown" ;; esac
     [ "$(sha "$prev/kernel.kc")" = "$kc" ] || refuse "the kept kernel.kc does not match its list: stage the image set again"
+    for f in kernel.kc.hashes manifest.json; do
+        [ "$(sha "$prev/$f")" = "$(awk -v p="$f" '$2 == p { print $1 }' "$prev/image.sha256" | head -n 1)" ] ||
+            refuse "the kept set's $f does not match its list: stage the image set again"
+    done
+    # The GPU addon and owner-trust.json as the kept set had them (gpu.kept; a set kept by an app before it
+    # has none, and then both stay as they are, as before).
+    gpu=0
+    if [ -f "$prev/gpu.kept" ]; then
+        mine "$prev/gpu.kept" || refuse "the kept set's gpu.kept is not root's: stage the image set again"
+        gpu=1
+        while read -r g_how g_p || [ -n "$g_how" ]; do
+            case "$g_how $g_p" in
+                "kept $GPU_TRUST"|"kept $GPU_ADDON")
+                    g_b="$prev/${g_p##*/}"
+                    [ -f "$g_b" ] && [ ! -L "$g_b" ] && mine "$g_b" || refuse "the kept set lacks ${g_p##*/}: stage the image set again"
+                    [ "$(sha "$g_b")" = "$(awk -v p="$g_p" '$2 == p { print $1 }' "$prev/image.sha256" | head -n 1)" ] ||
+                        refuse "the kept set's ${g_p##*/} does not match its list: stage the image set again" ;;
+                "none $GPU_TRUST"|"none $GPU_ADDON")
+                    [ "$(list_count "$prev/image.sha256" "$g_p")" = 0 ] || refuse "the kept set lists $g_p but did not keep it: stage the image set again" ;;
+                *) refuse "the kept set's gpu.kept is not as expected: stage the image set again" ;;
+            esac
+        done < "$prev/gpu.kept"
+    fi
     oldsha=$(awk '$2 == "kernel.kc" { print $1 }' "$STAGE/image.sha256" 2>/dev/null | head -n 1)
     oldbid=$(conf "$STAGE/image.conf" kernel_build_id 2>/dev/null)
     case "$oldbid" in ''|-*) oldbid="unknown" ;; esac
@@ -816,6 +1023,37 @@ do_restore_kernel() {
     for f in kernel.kc kernel.kc.hashes manifest.json image.sha256 image.ids image.conf; do
         mv -f "$cur/$f" "$prev/$f" || die "could not keep the fallback"
     done
+    if [ $gpu = 1 ]; then
+        # The live GPU files aside (recorded, so the new fallback has them too), the kept ones in.
+        printf '' > "$cur/gpu.kept" || die "could not keep the fallback"
+        for g_p in "$GPU_TRUST" "$GPU_ADDON"; do
+            if [ -f "$STAGE/image/$g_p" ] && [ ! -L "$STAGE/image/$g_p" ]; then
+                mv -f "$STAGE/image/$g_p" "$cur/${g_p##*/}" || die "could not move the live ${g_p##*/} aside"
+                echo "kept $g_p" >> "$cur/gpu.kept"
+            else
+                echo "none $g_p" >> "$cur/gpu.kept"
+            fi
+        done
+        while read -r g_how g_p || [ -n "$g_how" ]; do
+            [ "$g_how" = kept ] || continue
+            g_d="$STAGE/image/$g_p"
+            { [ -d "${g_d%/*}" ] || mkdir -p "${g_d%/*}"; } && mv -f "$prev/${g_p##*/}" "$g_d" && own "$g_d" 0644 ||
+                die "could not put the kept ${g_p##*/} back"
+            echo "$(file_id "$g_d") $g_p" >> "$cur/ids.changes"
+        done < "$prev/gpu.kept"
+        for g_p in "$GPU_TRUST" "$GPU_ADDON"; do
+            [ ! -f "$cur/${g_p##*/}" ] || mv -f "$cur/${g_p##*/}" "$prev/${g_p##*/}" || die "could not keep the fallback"
+        done
+        own "$cur/gpu.kept" 0600 && mv -f "$cur/gpu.kept" "$prev/gpu.kept" || die "could not keep the fallback"
+    fi
+    # The kept list's ids are those of the files before kc_backup copied them: the files now in the image are
+    # the copies (other inodes), so their ids are set again (their sums were checked above).
+    for f in kernel.kc kernel.kc.hashes manifest.json; do
+        echo "$(file_id "$STAGE/image/$f") $f" >> "$cur/ids.changes"
+    done
+    ids_set "$STAGE/image.ids" "$cur/ids.changes" > "$cur/image.ids" && mv -f "$cur/image.ids" "$STAGE/image.ids" ||
+        die "could not rewrite image.ids"
+    rm -f "$cur/ids.changes"
     rmdir "$cur" 2>/dev/null
     name=$(kc_receipt restore "${oldsha:-unknown}" "$oldbid" "$kc" "$bid") || die "could not write the receipt"
     [ -n "$T" ] || sync
