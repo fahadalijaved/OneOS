@@ -396,7 +396,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
 
 - File: `OneOS_PixelOS16_Fold4.img.gz` (1.86 GB)
 - SHA-256: `848f93afe5b3d97127d359a9326a57032099440010b55986e2252deceb7a3c86`
-- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_PixelOS16_Fold4.img.gz/download
+- Download: https://drive.google.com/file/d/1O6N0YagTUfHcV7cOu41Z60UspJ2OiQLV/view?usp=drivesdk
 - Phones:
   - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
 
@@ -404,7 +404,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
 
 - File: `OneOS_HyperOS3_Fold4.img.gz` (3.76 GB)
 - SHA-256: `aa7b4ce41f5769d3f26d9339f1679de6b5f1f3f5581fd26348e98cdcf7a7a403`
-- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_HyperOS3_Fold4.img.gz/download
+- Download: https://drive.google.com/file/d/1Au8daoLBcw2zl8yCtrmd3SwZCkvgHL0r/view?usp=drivesdk
 - Phones:
   - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
 

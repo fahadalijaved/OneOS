@@ -72,9 +72,9 @@ data class ImageRef(
     /**
      * The image's own download on the SourceForge mirror (0.4.59, project oneos-mirror, folder
      * images/): one file, resumable, from a mirror near the user. [downloadUrl] (the Drive
-     * folder) stays the fallback.
+     * folder or file) stays the fallback.
      */
-    val mirrorUrl: String get() = "${Images.MIRROR_FILES_URL}$gzName/download"
+    val mirrorUrl: String get() = if (downloadUrl != null && downloadUrl != Images.SHARED_FOLDER_URL) downloadUrl else "${Images.MIRROR_FILES_URL}$gzName/download"
 
     /**
      * A launch may hide Google services (`ONEOS_GUEST_HIDE_GMS=1`, [SessionEnv],
@@ -551,7 +551,7 @@ object Images {
         name = "PixelOS 16",
         variant = "PixelOS custom GSI",
         blurb = "PixelOS 16 (Android 16 QPR2): the full Pixel UI, launcher, Monet theming and Google apps on Android 16 for One UI 8.",
-        downloadUrl = SHARED_FOLDER_URL,
+        downloadUrl = "https://drive.google.com/file/d/1O6N0YagTUfHcV7cOu41Z60UspJ2OiQLV/view?usp=drivesdk",
         sdk = 36,
         buildId = "BP4A.251205.006",
         gzName = "OneOS_PixelOS16_Fold4.img.gz",
@@ -578,7 +578,7 @@ object Images {
         name = "HyperOS 3",
         variant = "Global build",
         blurb = "Xiaomi's HyperOS 3.0 (Android 16): full HyperOS experience with Google apps for One UI 8.",
-        downloadUrl = SHARED_FOLDER_URL,
+        downloadUrl = "https://drive.google.com/file/d/1Au8daoLBcw2zl8yCtrmd3SwZCkvgHL0r/view?usp=drivesdk",
         sdk = 36,
         buildId = "OS3.0.5.0.WOEMIXM",
         gzName = "OneOS_HyperOS3_Fold4.img.gz",
