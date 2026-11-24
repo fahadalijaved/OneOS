@@ -851,6 +851,7 @@ object PackageSets {
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
             PackageFile("guards.txt", FileRole.GUARDS),
             PackageFile("libaudiohal_aidl_patched.so", FileRole.GUEST_FIX),
+            PackageFile("libsurfaceflinger_patched.so", FileRole.GUEST_FIX),
             PackageFile("miui-framework_patched.jar", FileRole.FRAMEWORK_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-telephony-common_patched.jar", FileRole.GUARD_JAR),

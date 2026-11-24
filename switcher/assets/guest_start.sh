@@ -251,9 +251,9 @@ rm -f /data/oneos_fold_mode /data/oneos_inner_display
 if [ -f "$DISPLAYCONFIG/display_layout_configuration.xml" ] && [ "${ONEOS_KEEP_FOLD_LAYOUT:-0}" != "1" ]; then
     rm -rf /data/oneos_displayconfig && mkdir -p /data/oneos_displayconfig
     for f in "$DISPLAYCONFIG"/*; do
-        [ "$(basename "$f")" = display_layout_configuration.xml ] || cp -p "$f" /data/oneos_displayconfig/
+        [ "$(basename "$f")" = display_layout_configuration.xml ] || cp -pr "$f" /data/oneos_displayconfig/
     done
-    chmod 755 /data/oneos_displayconfig && chmod 644 /data/oneos_displayconfig/*
+    chmod -R 755 /data/oneos_displayconfig
     $BB mount --bind /data/oneos_displayconfig "$DISPLAYCONFIG" && LAYOUT_HIDDEN=1 && \
         echo "[Pivoted Root] Fold layout config hidden from the guest ($(ls /data/oneos_displayconfig | wc -l) display configs kept)"
 fi
@@ -899,15 +899,24 @@ elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
     rm -f /data/oneos_bl_refused
     ( timeout 600 logcat -v brief -T 1 -s LightsService:E 2>/dev/null | grep --line-buffered -F "Failed issuing setLightState" | head -n 3 > /data/oneos_bl_refused ) &
     RMON=$!
-    n=0; i=0
+    n=0; alive=0; i=0
     while [ $i -lt 600 ]; do
         i=$((i + 1)); sleep 1
         if [ "$(wc -l < /data/oneos_bl_refused 2>/dev/null)" -ge 3 ] 2>/dev/null; then n=15; refused=1; break; fi
-        [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] || { n=0; continue; }
+        cur_bl=$(cat $BL/brightness 2>/dev/null || echo 0)
+        cur_bl2=0; [ -w "$BL2/brightness" ] && cur_bl2=$(cat $BL2/brightness 2>/dev/null || echo 0)
         case "$(dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)" in
-            Awake) ;;
-            *) n=0; continue ;;
+            Awake)
+                if [ "$cur_bl" != 0 ] || [ "$cur_bl2" != 0 ]; then
+                    alive=$((alive + 1))
+                    [ $alive -ge 3 ] && break
+                else
+                    alive=0
+                fi
+                ;;
+            *) alive=0; n=0; continue ;;
         esac
+        [ "$cur_bl" = 0 ] || { n=0; continue; }
         f=$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
         light=$(echo "$f" | awk -v lo="${lo:-0}" -v hi="${hi:-1}" '{
             for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?$/) {

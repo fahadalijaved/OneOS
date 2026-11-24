@@ -3441,6 +3441,17 @@ while true; do
                     DST=\"pm grant BLUETOOTH_CONNECT failed: \$(echo \"\$DR\" | tr '\n' ' ' | cut -c1-200)\"
                 fi
                 echo \"[UI Activator] dialer: \$DST; now \$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys package com.google.android.dialer 2>/dev/null | grep -m 1 -o 'android.permission.BLUETOOTH_CONNECT: granted=[a-z]*' || echo 'BLUETOOTH_CONNECT state not read')\"
+                # Ensure an installed dialer is set as the default dialer in Telecom (fixes missing InCallUI when overlay points to Google Dialer on AOSP dialer GSIs)
+                for dialer_pkg in com.google.android.dialer com.android.dialer; do
+                    if timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path \"\$dialer_pkg\" >/dev/null 2>&1; then
+                        def_d=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd telecom get-default-dialer 2>/dev/null | tr -d '\r\n')
+                        if [ \"\$def_d\" != \"\$dialer_pkg\" ]; then
+                            timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd telecom set-default-dialer \"\$dialer_pkg\" >/dev/null 2>&1
+                            echo \"[UI Activator] default dialer set to \$dialer_pkg (was '\$def_d')\"
+                        fi
+                        break
+                    fi
+                done
             fi
             # Nothing's Gallery (com.nothing.gallery) opens only with read-media
             # and media management (MANAGE_MEDIA app-op) granted, which a Nothing
