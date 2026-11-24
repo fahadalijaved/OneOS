@@ -546,11 +546,11 @@ object Images {
      */
     val PIXEL16 = ImageRef(
         id = ID_PIXEL16,
-        label = "PixelOS 16.2, Doze-off GSI",
+        label = "PixelOS 16.2, Doze-off GSI (Unoptimized)",
         shortName = "PixelOS 16",
         name = "PixelOS 16",
-        variant = "PixelOS custom GSI",
-        blurb = "PixelOS 16 (Android 16 QPR2): the full Pixel UI, launcher, Monet theming and Google apps on Android 16 for One UI 8.",
+        variant = "Unoptimized · Experimental",
+        blurb = "Boots on Fold4, but unoptimized and unstable: camera, audio and dual SIM limitations exist. For testing only.",
         downloadUrl = "https://drive.google.com/file/d/1O6N0YagTUfHcV7cOu41Z60UspJ2OiQLV/view?usp=drivesdk",
         sdk = 36,
         buildId = "BP4A.251205.006",
@@ -573,11 +573,11 @@ object Images {
      */
     val HYPEROS16 = ImageRef(
         id = ID_HYPEROS16,
-        label = "HyperOS 3.0 Global",
+        label = "HyperOS 3.0 Global (Unoptimized)",
         shortName = "HyperOS 3.0",
         name = "HyperOS 3",
-        variant = "Global build",
-        blurb = "Xiaomi's HyperOS 3.0 (Android 16): full HyperOS experience with Google apps for One UI 8.",
+        variant = "Unoptimized · Experimental",
+        blurb = "Boots on Fold4, but unoptimized and unstable: camera, audio and dual SIM limitations exist. For testing only.",
         downloadUrl = "https://drive.google.com/file/d/1Au8daoLBcw2zl8yCtrmd3SwZCkvgHL0r/view?usp=drivesdk",
         sdk = 36,
         buildId = "OS3.0.5.0.WOEMIXM",

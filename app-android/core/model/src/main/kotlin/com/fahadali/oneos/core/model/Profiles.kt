@@ -338,11 +338,11 @@ object Profiles {
         R_MEDIATEK,
     )
 
-    /** Galaxy Z Fold4: known limitations on OxygenOS 16. */
+    /** Galaxy Z Fold4: known limitations on cross-OEM Android 16 images. */
     private val FOLD4_ISSUES = Finding(
         ID_NOTE_FOLD4_ISSUES, Level.WARN, "Known issues on Fold4",
-        "OxygenOS 16 boots on Galaxy Z Fold4 with known limitations: camera does not work, " +
-            "cover screen is dim with fixed brightness, and the phone runs warm.",
+        "Third-party OS images (OxygenOS 16, PixelOS 16, HyperOS 3.0) boot on Galaxy Z Fold4 but are unoptimized and unstable: " +
+            "camera does not work, dual SIM connectivity is limited, audio HAL issues exist, and displays may lag. For experimental testing only.",
         R_FOLD4_ISSUES,
     )
 
