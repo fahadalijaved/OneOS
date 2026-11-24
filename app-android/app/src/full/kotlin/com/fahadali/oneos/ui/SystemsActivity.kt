@@ -470,11 +470,11 @@ class SystemsFragment : Fragment() {
             CatalogEntry(pixelOs.name, pixelOs, R.drawable.os_pixelos, true).takeIf { available.any { it.id == pixelOs.id } },
             // One UI 9.5 (0.5.22, untested) only on the phones on One UI 9 that offer it.
             CatalogEntry(oneui.name, oneui, R.drawable.os_oneui, true).takeIf { available.any { it.id == oneui.id } },
-            CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, available.any { it.id == infinity.id }),
-            CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, available.any { it.id == hyper.id }),
-            CatalogEntry(color.name, color, R.drawable.os_coloros, available.any { it.id == color.id }),
-            CatalogEntry(nothing.name, nothing, R.drawable.os_nothing, available.any { it.id == nothing.id }),
-            CatalogEntry(pixel.name, pixel, R.drawable.os_pixel, available.any { it.id == pixel.id }),
+            CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, true).takeIf { available.any { it.id == infinity.id } },
+            CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, true).takeIf { available.any { it.id == hyper.id } },
+            CatalogEntry(color.name, color, R.drawable.os_coloros, true).takeIf { available.any { it.id == color.id } },
+            CatalogEntry(nothing.name, nothing, R.drawable.os_nothing, true).takeIf { available.any { it.id == nothing.id } },
+            CatalogEntry(pixel.name, pixel, R.drawable.os_pixel, true).takeIf { available.any { it.id == pixel.id } },
         )
 
 
