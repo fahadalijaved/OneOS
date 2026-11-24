@@ -92,6 +92,7 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
                                         $2 == "framework_patched_oneui95.jar" || $2 == "libcamera_client_patched_oneui95.so" ||
+                                        $2 == "framework_patched_oneui8.jar" ||
                                         $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" ||
                                         $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" ||
                                         $2 == "oplus-framework_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
@@ -488,10 +489,24 @@ fi
 # Camera hidden, the A series' camera not bound, the native camera client patches not bound; guest_props.sh
 # sets config.disable_cameraservice so the guest's CameraManager never connects to One UI's cameraserver).
 A17_ON_A16=0
+A16_CAMERA=0
+rm -f "$STAGE/a16_camera_on"
 if [ "$(getprop ro.build.version.sdk)" = 36 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
    [ "$(sed -n 's/^ro.build.version.sdk=//p' "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)" = 37 ]; then
     A17_ON_A16=1
-    echo "Experimental One UI 9.5 on One UI 8 (SDK 36): camera off"
+    # 0.5.39: a set with framework_patched_oneui8.jar (patches/a16_camera.py: the same jar with One UI 8's
+    # camera codes, switcher/patches/host_camera_oneui8.txt, read on the S22 Ultra) turns the camera on:
+    # bound in place of framework_patched.jar, the image's Samsung Camera kept, config.disable_cameraservice
+    # not set (guest_props.sh reads $STAGE/a16_camera_on). ONEOS_A16_CAMERA=0 keeps it off.
+    if [ -f "$STAGE/framework_patched_oneui8.jar" ] && [ "${ONEOS_A16_CAMERA:-1}" = 1 ] &&
+       awk '$2 == "framework_patched_oneui8.jar" { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
+        A16_CAMERA=1
+        CAM_FW=framework_patched_oneui8.jar
+        : > "$STAGE/a16_camera_on"
+        echo "Experimental One UI 9.5 on One UI 8 (SDK 36): camera on, One UI 8's camera codes (framework_patched_oneui8.jar)"
+    else
+        echo "Experimental One UI 9.5 on One UI 8 (SDK 36): camera off"
+    fi
 fi
 # The boot splash (OneOSBootStatus) runs on One UI 8's runtime while the session's SDK prop says 37: it
 # draws the icon only when this marker is there (oneui8test13; its font map load aborts on Android 16).
@@ -4129,7 +4144,7 @@ if [ -f "$STAGE/$CAM_FW" ]; then
     # Display and engmode off, guards.txt); its camera codes are One UI 9.0's, and nothing opens the camera
     # with them in this session: the camera app is hidden below and guest_props.sh turns the guest's
     # camera service off (config.disable_cameraservice).
-    [ "$A17_ON_A16" = 1 ] && echo "Experimental One UI 9.5 on One UI 8: framework_patched.jar bound for its vold, Privacy Display and engmode patches; its One UI 9.0 camera codes stay unused (camera off)"
+    [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 0 ] && echo "Experimental One UI 9.5 on One UI 8: framework_patched.jar bound for its vold, Privacy Display and engmode patches; its One UI 9.0 camera codes stay unused (camera off)"
 fi
 # telephony-common_patched.jar: the SMS service centre as an international
 # number (patches/guest_smsc_international.py; Samsung's radio answers it in
@@ -4537,7 +4552,10 @@ rm -f "$AHS"
 HOST_ONEUI=$(getprop ro.build.version.oneui); case "$HOST_ONEUI" in ''|*[!0-9]*) HOST_ONEUI=0 ;; esac
 if [ -f "$AHL" ] && [ ! -L "$AHL" ] && [ "${ONEOS_GUEST_AUDIO_BUFFER_SCALING:-0}" != 1 ] &&
    grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
-   [ "$HOST_ONEUI" -lt 90500 ] && $BB grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/; then
+   [ "$HOST_ONEUI" -lt 90500 ] &&
+   { $BB grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/ /odm/etc/vintf/ /apex/*/etc/vintf/ 2>/dev/null ||
+     service list 2>/dev/null | grep -q 'android.hardware.audio.core.IModule/default' ||
+     service check android.hardware.audio.core.IModule/default 2>/dev/null | grep -q ': found'; }; then
     if $BB awk -v m="$AHL" '$5 == m { f = 1 } END { exit !f }' /proc/self/mountinfo 2>/dev/null; then
         $BB umount -l "$AHL" 2>/dev/null || true
     fi
@@ -4554,6 +4572,8 @@ if [ -f "$AHL" ] && [ ! -L "$AHL" ] && [ "${ONEOS_GUEST_AUDIO_BUFFER_SCALING:-0}
         rm -f "$AHS"
         echo "!!! Audio buffers: could not make or bind libaudiohal@aidl.so without the 1/8 buffers; sound may crackle"
     fi
+elif [ -f "$AHL" ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+    echo "Audio buffers: the image's libaudiohal@aidl.so left as it is (One UI ${HOST_ONEUI}; ONEOS_GUEST_AUDIO_BUFFER_SCALING=${ONEOS_GUEST_AUDIO_BUFFER_SCALING:-0}; no AIDL audio HAL found)"
 fi
 # libcomposer_ext_patched.so (vivo OriginOS, MediaTek): its ComposerExt client
 # asked 21 times, 100 ms apart, for MediaTek's IComposerExt (no such service on
@@ -7923,7 +7943,7 @@ ONEUI_A_CAMERA=0
 OAC_TAR="$STAGE/samcam_a_oneui.tar"
 OAC_DIR="$STAGE/samcam_a_oneui"
 OAC_DST="$ROOTFS/system/priv-app/SamsungCamera"
-if [ "$A17_ON_A16" = 1 ]; then
+if [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 0 ]; then
     # Experimental One UI 9.5 on One UI 8 (A17_ON_A16 above): no Samsung Camera at all, neither the A series' nor
     # the image's. An empty read-only tmpfs over the image's folder, as for the One UI apps hidden above, so
     # the package manager never installs it and nothing starts the camera with One UI 9.0's codes.

@@ -16,3 +16,5 @@ b4e084d4d0412f80b60ec3c25d3c68d61c37356409526451189af96b1124565c  telephony-comm
 720014ae5f57472b16183a563e1761798df3369a9dabe48a834158a5e2a9ce40  libcameracompatbilityinfo_patched.so
 22c4b0b701d623fc523f3be7e852716b4db384a00783fb6aad0cca9d6c30e941  vold_patched
 1ba375398bf0735df28af2d8e6ab5cd3e5609669e11f1f6dad503bc6e1568655  service.incremental_patched.so
+# r7 (0.5.39): framework_patched_oneui8.jar, framework_patched.jar with One UI 8's camera codes (switcher/patches/a16_camera.py, host_camera_oneui8.txt; guest_prepare.sh binds it on a One UI 8 phone and turns the camera on)
+8048477f623e812581e6080feb68d53f3b093d2abf57bf0b853ebbab89272704  framework_patched_oneui8.jar

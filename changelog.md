@@ -801,6 +801,14 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.39: **Camera in One UI 9.5 on the Galaxy S22 series and other One UI 8 phones, and the crackling fix on
+more phones.**
+- **Camera on One UI 8 phones** (experimental, untested on a phone): One UI 9.5 now talks to One UI 8's camera service
+  in its own numbering (read from the S22 Ultra), sends the rotation setting the way One UI 8 expects, and configures
+  camera streams with the calls One UI 8 has. Samsung Camera and the torch are back there.
+- **No more crackling sound in One UI 9.5**, now on every phone it affects: 0.5.38's fix looked for the newer audio
+  driver in one place only and missed it on the Galaxy A56 (still 0.5 ms buffers and hundreds of breaks).
+
 New in 0.5.38: **One UI 9.5 on the Galaxy S22 series and other phones still on One UI 8, the OneOS app and clean
 sound in One UI 9.5, the Galaxy Z Fold4, and S24 Ultra Bluetooth audio.**
 - **One UI 9.5 on phones still on One UI 8.0/8.5** (experimental): the Galaxy S22, S22+ and S22 Ultra (Snapdragon

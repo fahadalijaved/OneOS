@@ -93,7 +93,7 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "oneui95" to (File(repoRoot, "out/overlays_oneui95_r11") to listOf("tethering_payload.img")),
     "oneui95-f8" to (File(repoRoot, "out/overlays_oneui95_f8_r1") to listOf("tethering_payload.img")),
     // Tester builds (oneui8test3): One UI 9.5 on One UI 8, the r10 files plus the image's own modules One UI 8 cannot lend (tethering among them).
-    "oneui95-a16" to (File(repoRoot, "out/overlays_oneui95_a16_r6") to listOf("tethering_payload.img")),
+    "oneui95-a16" to (File(repoRoot, "out/overlays_oneui95_a16_r7") to listOf("tethering_payload.img")),
     // PixelOS 17 (0.5.35): the POCO F7 build for the ARMv8.2 Galaxy A series.
     "pixelos" to (File(repoRoot, "out/overlays_pixelos_onyx_r5") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
 )
@@ -560,8 +560,8 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 181
-        versionName = "0.5.38"
+        versionCode = 182
+        versionName = "0.5.39"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's
