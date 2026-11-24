@@ -1,4 +1,6 @@
 # framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
+# charger power from Samsung's charging_type in BatteryService (OneOSChargePower)
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
 # framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
@@ -10,10 +12,16 @@
 # 0.4.59: samcam with fix_recorder_progress.py and fix_secmedia_insert.py (recording timer; videos saved without secmedia)
 # 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
 # 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
-8acd5e4a1a2f4230f9f5a836dbba4ecd3a4f8053a517a9e9d39be5610e3175d7  services_patched.jar
+# 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
+# 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
+# 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
+67436937b7a55f46d4bebeea887d0ea745f40d664235ceb475731dec29e5650c  services_patched.jar
 efeff31c080f7d92c2713fe7d7df79b95c149c9db47426a702f212e86fb28389  oplus-services_patched.jar
 654dcfa788bcfde4fc539935ffbcb707a3b0c2001e31b6de27edec5afe5de404  vold_patched
 d853cfa2f60c477a5c5224cf9972665f09a733fa66e659d71f43d521589fceb7  service.incremental_patched.so
-664e9705b3fc1d9370ad1d18ba403cd3df3bc36f76829f6f40fdb80108437aa7  framework_patched.jar
+3fe63b68a43dbf62af8b2afd5244f97622e929c89d5e244f0f7dea89afcf8e66  framework_patched.jar
 1ba6a3b21d5321b225e93d93d024332936e339e5002a082f98e6e7a51c9449bd  libcamera_client_patched.so
 f91a0e15d5d21c7476258b058264b24cf5dc1788b555a43c64629f50bcfd0038  telephony-common_patched.jar
+# 0.5.37 (infinityx_r19): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar libcamera_client_patched_oneui95.so
+80c744b173c837b8e1de32c671295cb8c13002b9be0520223994b11e671a7377  framework_patched_oneui95.jar
+1b96df2d432dbe5a6030345a150f299e717c06f394821e0307dd3374e6d61bf0  libcamera_client_patched_oneui95.so

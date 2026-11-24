@@ -54,8 +54,8 @@ class PackageSetsTest {
         // PixelOS 17 (0.5.35): the Lineage-like set for the A series, with the guest vold and its own gmssystem.
         val pxos = PackageSets.PIXELOS
         assertEquals(Images.ID_PIXELOS_ONYX, pxos.imageId)
-        assertEquals("out/overlays_pixelos_onyx_r4", pxos.sourceDir)
-        assertEquals(40, pxos.files.size) // r2: + OneOSPixelDoze.apk (AOD); r4: + OneOSBrightnessRange(34).apk
+        assertEquals("out/overlays_pixelos_onyx_r5", pxos.sourceDir)
+        assertEquals(42, pxos.files.size) // r5: + the One UI 9.5 camera variants; r2: + OneOSPixelDoze.apk (AOD); r4: + OneOSBrightnessRange(34).apk
         assertEquals(FileRole.RRO, pxos.file("OneOSPixelDoze.apk")?.role)
         assertEquals(21, pxos.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertTrue(pxos.file(PackageSets.GMS_PAYLOAD) != null && pxos.hasReturnApp)
@@ -66,9 +66,9 @@ class PackageSetsTest {
         // Not its cellbroadcast module (0.4.28): One UI's stays, as tethering does.
         val ifx = PackageSets.INFINITYX
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
-        assertEquals("out/overlays_infinityx_r18", ifx.sourceDir)
+        assertEquals("out/overlays_infinityx_r19", ifx.sourceDir)
         // 0.4.55 (r4): telephony-common_patched.jar (the SMS centre) and samcam.tar (the S26 Ultra's camera).
-        assertEquals(36, ifx.files.size)
+        assertEquals(38, ifx.files.size) // r19: + the One UI 9.5 camera variants
         // 0.4.33: the status bar's corner padding, as on the Pixel images.
         assertTrue(ifx.file("OneOSPixelStatusBar.apk")?.role == FileRole.RRO)
         assertEquals(21, ifx.files.count { it.role == FileRole.APEX_PAYLOAD })
@@ -76,7 +76,7 @@ class PackageSetsTest {
         assertTrue(ifx.file(PackageSets.CELLBROADCAST) == null)
         assertEquals(
             listOf("services_patched.jar", "oplus-services_patched.jar", "framework_patched.jar", "vold_patched",
-                "service.incremental_patched.so", "libcamera_client_patched.so", "telephony-common_patched.jar"),
+                "service.incremental_patched.so", "libcamera_client_patched.so", "telephony-common_patched.jar", "framework_patched_oneui95.jar", "libcamera_client_patched_oneui95.so"),
             ifx.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(ifx.file(PackageSets.GMS_PAYLOAD) != null && ifx.hasReturnApp)
@@ -86,14 +86,14 @@ class PackageSetsTest {
         val lineage = PackageSets.LINEAGE
         assertEquals("lineage", lineage.id)
         assertEquals(Images.ID_LINEAGE, lineage.imageId)
-        assertEquals("out/overlays_lineage_r10", lineage.sourceDir)
-        assertEquals(40, lineage.files.size) // 0.5.14 r6: + samcam_a.tar, samcam_bar.tar; 0.5.07 r3: + libbootanimation_preapex_patched.so; 0.5.06 r2: + OneOSPixelDoze.apk (AOD)
+        assertEquals("out/overlays_lineage_r11", lineage.sourceDir)
+        assertEquals(42, lineage.files.size) // r11: + the One UI 9.5 camera variants; 0.5.14 r6: + samcam_a.tar, samcam_bar.tar; 0.5.07 r3: + libbootanimation_preapex_patched.so; 0.5.06 r2: + OneOSPixelDoze.apk (AOD)
         assertEquals(20, lineage.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING, PackageSets.CELLBROADCAST), lineage.omitted)
         assertTrue(lineage.file(PackageSets.GMS_PAYLOAD) == null && lineage.file("oplus-services_patched.jar") == null && lineage.file("samcam.tar") == null)
         assertEquals(
             listOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so",
-                "libcamera_client_patched.so", "telephony-common_patched.jar"),
+                "libcamera_client_patched.so", "telephony-common_patched.jar", "framework_patched_oneui95.jar", "libcamera_client_patched_oneui95.so"),
             lineage.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(lineage.hasReturnApp && lineage.file(PackageSets.GUEST_APP)?.role == FileRole.GUEST_APP)
@@ -102,12 +102,12 @@ class PackageSetsTest {
         val oneui = PackageSets.ONEUI95
         assertEquals("oneui95", oneui.id)
         assertEquals(Images.ID_ONEUI95, oneui.imageId)
-        assertEquals("out/overlays_oneui95_r10", oneui.sourceDir)
-        assertEquals(39, oneui.files.size) // r9: + samcam_a_oneui.tar; r10: + vold_patched, service.incremental_patched.so
+        assertEquals("out/overlays_oneui95_r11", oneui.sourceDir)
+        assertEquals(40, oneui.files.size) // r11: + framework_patched_oneui95.jar; r9: + samcam_a_oneui.tar; r10: + vold_patched, service.incremental_patched.so
         assertEquals(22, oneui.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), oneui.omitted)
         assertEquals(
-            listOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so", "telephony-common_patched.jar", "libcamera_client_patched.so", "libcameracompatbilityinfo_patched.so"),
+            listOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so", "telephony-common_patched.jar", "libcamera_client_patched.so", "libcameracompatbilityinfo_patched.so", "framework_patched_oneui95.jar"),
             oneui.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(oneui.file(PackageSets.GMS_PAYLOAD) != null && oneui.hasReturnApp && Images.ONEUI95.presentsGms)
@@ -117,14 +117,14 @@ class PackageSetsTest {
         // framework.jar and the guest vold (r7), the native camera client (r10), the 15 common payloads and bt.
         val hyper = PackageSets.HYPER_F8U
         assertEquals(Images.ID_HYPEROS_LHASA, hyper.imageId)
-        assertEquals("out/overlays_hyperos_r30", hyper.sourceDir)
-        assertEquals(39, hyper.files.size) // 0.4.38: + libsurfaceflinger_patched.so; 0.4.59: + telephony, two cameras; 0.4.70: + xiaomi-opt-telephony_patched.jar
+        assertEquals("out/overlays_hyperos_r31", hyper.sourceDir)
+        assertEquals(41, hyper.files.size) // r31: + the One UI 9.5 camera variants; 0.4.38: + libsurfaceflinger_patched.so; 0.4.59: + telephony, two cameras; 0.4.70: + xiaomi-opt-telephony_patched.jar
         assertEquals(listOf("socket_exec", "libaudiohal_aidl_patched.so", "MiWallpaper_patched.apk", "samcam.tar", "samcam_bar.tar"),
             hyper.files.filter { it.role == FileRole.GUEST_FIX }.map { it.name })
         assertEquals(
             listOf("services_patched.jar", "miui-services_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
                 "miui-wifi-service_patched.jar", "miui-telephony-common_patched.jar", "vold_patched", "service.incremental_patched.so",
-                "libcamera_client_patched.so", "libsurfaceflinger_patched.so", "telephony-common_patched.jar"),
+                "libcamera_client_patched.so", "libsurfaceflinger_patched.so", "telephony-common_patched.jar", "framework_patched_oneui95.jar", "libcamera_client_patched_oneui95.so"),
             hyper.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(hyper.hasReturnApp && "vold_patched" in hyper.names)
@@ -132,14 +132,14 @@ class PackageSetsTest {
         // the 18 payloads with the GmsCore one (presented, as on One UI 9.5).
         val hk = PackageSets.HYPER_HK
         assertEquals(Images.ID_HYPEROS_HONGKONG, hk.imageId)
-        assertEquals("out/overlays_hyperos_hk_r4", hk.sourceDir)
-        assertEquals(44, hk.files.size)
+        assertEquals("out/overlays_hyperos_hk_r5", hk.sourceDir)
+        assertEquals(46, hk.files.size) // r5: + the One UI 9.5 camera variants
         assertEquals(18, hk.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), hk.omitted)
         assertEquals(
             listOf("services_patched.jar", "miui-services_patched.jar", "apprecovery.proinstaller_patched.jar", "framework_patched.jar",
                 "miui-wifi-service_patched.jar", "miui-telephony-common_patched.jar", "telephony-common_patched.jar", "miui-framework_patched.jar",
-                "vold_patched", "service.incremental_patched.so", "libcamera_client_patched.so", "libsurfaceflinger_patched.so"),
+                "vold_patched", "service.incremental_patched.so", "libcamera_client_patched.so", "libsurfaceflinger_patched.so", "framework_patched_oneui95.jar", "libcamera_client_patched_oneui95.so"),
             hk.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         assertTrue(hk.file(PackageSets.GMS_PAYLOAD) != null && hk.hasReturnApp && Images.HYPEROS_HONGKONG.presentsGms)
@@ -149,8 +149,8 @@ class PackageSetsTest {
         // TelephonyResCommon_Sys.apk in this guest's overlay order (run 10).
         val nothing = PackageSets.NOTHING_F8U
         assertEquals(Images.ID_NOTHING_METROID, nothing.imageId)
-        assertEquals("out/overlays_nothing_r40", nothing.sourceDir)
-        assertEquals(48, nothing.files.size) // 0.4.55: samcam_bar.tar, the S26 Ultra's camera for the phones
+        assertEquals("out/overlays_nothing_r41", nothing.sourceDir)
+        assertEquals(50, nothing.files.size) // r41: + the One UI 9.5 camera variants; 0.4.55: samcam_bar.tar, the S26 Ultra's camera for the phones
         // r12: Nothing's SystemUI with its quick settings at the screen's own density on the inner panel;
         // r13: its launcher with the drawer's category boxes per row from the width; r17: the ringtone kits
         // the boot animation on both panels and the ringtone generator's device check; 0.4.35: One UI's camera.
@@ -163,7 +163,7 @@ class PackageSetsTest {
         // r2: the guest vold, so the guest registers "gvld" and the return needs no reboot.
         assertEquals(
             listOf("services_patched.jar", "framework_patched.jar", "vold_patched", "service.incremental_patched.so",
-                "libcamera_client_patched.so"),
+                "libcamera_client_patched.so", "framework_patched_oneui95.jar", "libcamera_client_patched_oneui95.so"),
             nothing.files.filter { it.role in PackageFile.GUARDED }.map { it.name },
         )
         // The first non-ColorOS set to carry the SurfaceFlinger patch (the QTI composer skip).
@@ -189,12 +189,12 @@ class PackageSetsTest {
         // 0.4.59: the F8U's also has Nothing OS's per-panel cutout RRO (the cover's camera hole); both
         // Fold sets (r11) the device state policy without tent mode.
         val tent = PackageFile("yogi-services_patched.jar", FileRole.FRAMEWORK_JAR)
-        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX } + tent + PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX && !it.name.contains("_oneui95.") } + tent + PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
             pixel.files.filter { it.role != FileRole.GUEST_FIX })
-        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX } + tent, PackageSets.PIXEL_F8.files.filter { it.role != FileRole.GUEST_FIX })
+        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { it.role != FileRole.GUEST_FIX && !it.name.contains("_oneui95.") } + tent, PackageSets.PIXEL_F8.files.filter { it.role != FileRole.GUEST_FIX })
         // The Pixel 9 Pro XL's set (0.4.22): the same files, from its own image; 0.4.47 its
         // libcameracompatbilityinfo.so needs One UI's codes too.
-        assertEquals(PackageSets.PIXEL_SULTRA.files + PackageFile("libcameracompatbilityinfo_patched.so", FileRole.GUARD_LIBRARY), PackageSets.PIXEL9_SULTRA.files)
+        assertEquals(PackageSets.PIXEL_SULTRA.files.filter { !it.name.contains("_oneui95.") } + PackageFile("libcameracompatbilityinfo_patched.so", FileRole.GUARD_LIBRARY), PackageSets.PIXEL9_SULTRA.files)
         assertEquals(Images.ID_PIXEL_KOMODO, PackageSets.PIXEL9_SULTRA.imageId)
         // One SystemUI build and one relay for both: the APK packs each once.
         val f8uSums = ShaList.parse(shas(pixel)).entries

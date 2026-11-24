@@ -1,7 +1,7 @@
-# OneOS package set lineage: sha256sum of out/overlays_lineage_r6 (LineageOS 24.0, OnePlus 15 infiniti nightly of 2026-11-11, CP2A.260605.016; r1 of 2026-11-13 from scripts/make-overlays.sh with the gvld pins for its vold and service.incremental.so), minus tethering_payload.img and cellbroadcast_payload.img (One UI's modules stay, as for Infinity-X). No gmssystem payload: One UI's Google apps are laid over the guest's product partition at session time (guest_google.sh FULL mode). 0.5.06 r2: r1 plus OneOSPixelDoze.apk (AOD), 2026-11-14. 0.5.07 r3: r2 plus libbootanimation_preapex_patched.so (boot animation on every panel), 2026-11-14. 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py, 2026-11-14.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_lineage_r6 differs.
-# 0.5.14 r6: r5 with the current OneOSGuest.apk and Samsung Camera (samcam_a.tar for A/M phones, samcam_bar.tar for bar phones).
-# 0.5.15 r7: framework_patched.jar with Samsung slow motion's three-output high-speed session; samcam_a.tar without libmediaresourcehelper (A-series video).
+#  OneOS package set lineage: sha256sum of out/overlays_lineage_r6 (LineageOS 24.0, OnePlus 15 infiniti nightly of 2026-11-11, CP2A.260605.016; r1 of 2026-11-13 from scripts/make-overlays.sh with the gvld pins for its vold and service.incremental.so), minus tethering_payload.img and cellbroadcast_payload.img (One UI's modules stay, as for Infinity-X). No gmssystem payload: One UI's Google apps are laid over the guest's product partition at session time (guest_google.sh FULL mode). 0.5.06 r2: r1 plus OneOSPixelDoze.apk (AOD), 2026-11-14. 0.5.07 r3: r2 plus libbootanimation_preapex_patched.so (boot animation on every panel), 2026-11-14. 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py, 2026-11-14.
+#  app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_lineage_r6 differs.
+#  0.5.14 r6: r5 with the current OneOSGuest.apk and Samsung Camera (samcam_a.tar for A/M phones, samcam_bar.tar for bar phones).
+#  0.5.15 r7: framework_patched.jar with Samsung slow motion's three-output high-speed session; samcam_a.tar without libmediaresourcehelper (A-series video).
 a2efd9b1170675a011ce4e667dcdd1b277c419617656dd3c1b77ff537f000afd  OneOSFoldCutout.apk
 fab32e6817804b30f982d93a96e3a33f13ff2c16f0e84ef3f05fe59eff8e8229  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
@@ -16,7 +16,7 @@ b13193e04f1d0cdd4a56050f407ba3c7462f3a67ed4afacdee621b19ac569779  conscrypt_payl
 9fa45636eda370af4330b21c0152d9911ac187a77cae974d3a542f282cc07dc5  crashrecovery_payload.img
 bfaf436768693e7c70062d19a2b61657f1392b8962dc924d8a665c626a0cb912  extservices_payload.img
 7d8a358c209adedab8d5c29ce78f8229a0c1d6ffa8932f9b86390343435d0670  framework_patched.jar
-08739022103aeea5a5670feed531d5c95d631fdfbd59741bb48e241da844d6e1  guards.txt
+f7e1a6a262aa977fd00777ccc409f03675a604a55b612de8f212b262c5687eb1  guards.txt
 28622e1658232edfbc3c05dd90be6d44e140593a7c06343268b2791fc6aa0102  healthfitness_payload.img
 adcf96e676fa1307eceea2f6c069a4c4a52f4fedf3713293d145a0cd12f25613  i18n_payload.img
 67dd101873bafdf90336fcf07e4576655cbd0c404f076a4f41608a40fc9cef50  ims-ext-common_patched.jar
@@ -42,3 +42,5 @@ edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched
 11191f7bb7c3597250a150bda7ebb1e6a87d1ce25a92c3d396fc12d4d88fff07  libbootanimation_preapex_patched.so
 bf80b005ea633d41b71117213d231cf6a867dd45bb6da92b35749879dffa2f73  samcam_a.tar
 4aa119a92b8c9409b2b9ed9fca636613d369d57e8a72abcf2aed3de511c2fe6c  samcam_bar.tar
+46f37d51bb97defa01fea27c07e10a2f9d571f17cc728e945214fa007ccff86d  framework_patched_oneui95.jar
+7db5428181d4ea708e0ff8524afb8148bd92f54072a59507916806a2bd846734  libcamera_client_patched_oneui95.so

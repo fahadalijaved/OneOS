@@ -28,8 +28,8 @@ android {
         minSdk = 31
         targetSdk = 36
         // 0.2 (OneOS 0.4.30): How's it going?, the checklist for Send to the OneOS team.
-        versionCode = 14
-        versionName = "0.14"
+        versionCode = 15
+        versionName = "0.15"
     }
 
     signingConfigs {

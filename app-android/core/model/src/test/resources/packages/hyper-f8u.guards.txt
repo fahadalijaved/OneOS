@@ -1,4 +1,6 @@
 # framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
+# charger power from Samsung's charging_type in BatteryService (OneOSChargePower)
 # guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
 # HyperOS: miui-services_patched.jar and apprecovery.proinstaller_patched.jar (patches/miui_guards.py)
 # HyperOS: framework_patched.jar (patches/hyperos_framework.py, CameraStatus as One UI's cameraserver writes it; 0.4.31: and One UI's camera transaction codes, patches/pixel_camera_abi.py)
@@ -15,10 +17,13 @@
 # 0.4.59: samcam with the timer started by a 0 report and stopped with the recorder, secmedia queries on MediaStore, gallery fallback for secmedia uris
 # 0.4.59: samcam with the video rotation written after the stop (fix_video_rotation.py)
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
-0757469240a71b402aea1210da3311d19f282dc8a7f1bd286a4231ea8f45d7c5  services_patched.jar
-bc275abc635c71d88df70be48e6fbe89d413b2685a88d6967f2ce26cd224086e  miui-services_patched.jar
+# 0.4.95: services_patched.jar + guest_local_lock.py (the guest's own screen lock: a PIN, pattern or password kept and checked in the guest; nothing reaches the phone's gatekeeper, weaver or keystore)
+# 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
+# 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
+c268cf92195bfca7792cbe4562217eaf99beba5c2b24fe1a77bed04005b3ccb8  services_patched.jar
+91125ea164592719c871fb9f290641c6a5070e5d7f1ae66a9b5967a4e1e075b3  miui-services_patched.jar
 5e70dbe022ca34bca76c5da686d20263f527edea54e433ba0758d46462b8679b  apprecovery.proinstaller_patched.jar
-35e1b05262dc0ebc18c59f88e7fcf8ca8cae40b43852ad079a32b66b4292d725  framework_patched.jar
+039050a9c018cc98dd515c82e8d7f2a8731d0fc4b8c96a19d3f7c893036aeef9  framework_patched.jar
 bac456c6633daf8405146588aa2d283bdf964e011ee123282f20edbc5386fc19  miui-wifi-service_patched.jar
 d75caf178a99009cc8a206adf533297cc6400fce3948617d457056d03c05b81e  miui-telephony-common_patched.jar
 dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
@@ -26,3 +31,6 @@ dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
 977059f2193c2d04987e4fd96be604a2a042aa207841ce3f31e63a3ac9b33e59  libcamera_client_patched.so
 469233dd74dd3083900d42c385c497f8db9e7c3756a191cb28ab8ca583583d29  libsurfaceflinger_patched.so
 5c6ab0096ec94cdbb20c40aec9b3fef91dd7c26e81537db7f8e540294656285c  telephony-common_patched.jar
+# 0.5.37 (hyperos_r31): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar libcamera_client_patched_oneui95.so
+de1ede9379f46d18601884dd612450680bcb180d4fa96b2967fe804c0912e1b4  framework_patched_oneui95.jar
+a83c2a593ab6fd300775b28b6a8ebb3440c16846a5e9b14f110fe0a7c14ab7b1  libcamera_client_patched_oneui95.so

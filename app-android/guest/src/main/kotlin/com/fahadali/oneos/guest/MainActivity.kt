@@ -122,6 +122,7 @@ class MainActivity : AppCompatActivity() {
         cards.row(apps, getString(R.string.bring_entry_title), getString(R.string.bring_entry_summary)) {
             startActivity(Intent(this, BringAppsActivity::class.java))
         }
+        soundEffectsCard(list)
         animLevelCard(list)
         fullLogsCard(list)
         val root = cards.section(list, "Root", getColor(R.color.preboot_card))
@@ -141,6 +142,22 @@ class MainActivity : AppCompatActivity() {
                     .setMessage(next.error).setPositiveButton(android.R.string.ok,null).show()
             }
         }.isEnabled = state.active
+    }
+
+    /** Dolby Atmos, SoundBoosterPlus speaker balance & SoundAlive EQ settings card. */
+    private fun soundEffectsCard(list: android.widget.LinearLayout) {
+        val cfg = SoundEffectsConfig.read(this)
+        val dolbyLabel = if (cfg.dolbyEnable) {
+            getString(SoundEffectsConfig.dolbyProfileLabelRes(cfg.dolbyProfile))
+        } else {
+            getString(R.string.sound_off)
+        }
+        val eqLabel = getString(SoundEffectsConfig.presetLabelRes(cfg.eqPreset))
+        val cards = com.fahadali.oneos.shared.NativeCards
+        val sound = cards.section(list, getString(R.string.sound_section_title), getColor(R.color.preboot_card))
+        cards.row(sound, getString(R.string.sound_title), getString(R.string.sound_card_summary, dolbyLabel, eqLabel)) {
+            startActivity(Intent(this, SoundEffectsActivity::class.java))
+        }
     }
 
     /** ColorOS's lighter animation level (0.5.32): only where the session says which level is in effect. */

@@ -153,7 +153,7 @@ INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
 INSTALLD_SHA_95=86a30991dbd5d91aeda1726ec860b12a2d057dd7b9ca3872f32376478078a23c
 RUNTIME_CODES="# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones"
 # Session scripts from switcher/assets plus the expected installd table.
-SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio oneos_essential_key OneOSOverlayDimen.dex OneOSPixelCorners.apk host_installd.txt"
+SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio oneos_essential_key OneOSOverlayDimen.dex OneOSPixelCorners.apk OneOSGalleryStub.apk OneOSRcdCorners.apk host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
@@ -805,24 +805,24 @@ set_files() {
     case "$1" in
         n6-global-f8) echo "$SET_COMMON oplus-framework_patched.jar OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar GlobalVerifiedAddons.tar ColorPanoramicSystemUI.apk" ;;
         n6-f8u) echo "$SET_COMMON oplus-framework_patched.jar OneOSWallpapersFoldGrid.apk cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar Fold8SystemUI.apk Fold8AngleRelay.dex KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk" ;;
-        x9u-in-1105-sultra) echo "$SET_COMMON oplus-framework_patched.jar cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk samcam_a.tar OplusGestureUI_patched.apk OplusGestureUI_patched.apk.src_sha256" ;;
+        x9u-in-1105-sultra) echo "$SET_COMMON oplus-framework_patched.jar cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk samcam_a.tar OplusGestureUI_patched.apk OplusGestureUI_patched.apk.src_sha256 framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         pixel-f8u) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex OneOSPixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk OneOSFoldCutout.apk" ;;
         pixel-f8) echo "$SET_PIXEL Fold8PixelSystemUI.apk Fold8AngleRelay.dex Fold8PixelUnfold.apk yogi-services_patched.jar libbootanimation_preapex_patched.so OneOSPixelLauncher.apk" ;;
-        pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk" ;;
-        hyper-f8u) echo "$SET_HYPEROS" ;;
-        hyper-hk) echo "$SET_HYPERHK" ;;
-        nothing-f8u) echo "$SET_NOTHING" ;;
+        pixel-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
+        hyper-f8u) echo "$SET_HYPEROS framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
+        hyper-hk) echo "$SET_HYPERHK framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
+        nothing-f8u) echo "$SET_NOTHING framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         nothing-a) echo "$SET_NOTHINGA" ;;
-        oneui95) echo "$SET_ONEUI" ;;
+        oneui95) echo "$SET_ONEUI framework_patched_oneui95.jar" ;;
         oneui95-f8) echo "$SET_FOLDONEUI" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
-        infinityx) echo "$SET_INFINITYX" ;;
-        lineage) echo "$SET_LINEAGE" ;;
-        pixelos) echo "$SET_PIXELOS" ;;
+        infinityx) echo "$SET_INFINITYX framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
+        lineage) echo "$SET_LINEAGE framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
+        pixelos) echo "$SET_PIXELOS framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         oxygen16) echo "$SET_OXYGENOS" ;;
         pixel16) echo "$SET_PIXELGSI" ;;
         hyper16) echo "$SET_HYPERGOYA" ;;
-        originos) echo "$SET_ORIGINOS" ;;
+        originos) echo "$SET_ORIGINOS framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         *) return 1 ;;
     esac
 }
