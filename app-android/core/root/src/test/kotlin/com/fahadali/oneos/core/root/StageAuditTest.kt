@@ -21,6 +21,28 @@ class StageAuditTest {
         assertTrue("audit problems:\n${p.joinToString("\n")}", p.isEmpty())
     }
 
+    /**
+     * Tester builds (-Poneos.a17OnA16=true): app/build.gradle.kts ships a copy with the one line ONEOS_A17_ON_A16=1.
+     * That copy passes the same audit, and its extra pairs are exactly the ones Profiles.withOneUi95OnA16 adds.
+     */
+    @Test
+    fun testerCopyPassesTheAuditAndOffersTheTesterProfiles() {
+        assertEquals(1, Regex("""(?m)^ONEOS_A17_ON_A16=0$""").findAll(script).count())
+        assertEquals(0, Regex("""(?m)^ONEOS_A17_ON_A16=1$""").findAll(script).count())
+        val tester = script.replace("\nONEOS_A17_ON_A16=0\n", "\nONEOS_A17_ON_A16=1\n")
+        val p = StageAudit.audit(tester)
+        assertTrue("audit problems:\n${p.joinToString("\n")}", p.isEmpty())
+        val listed = Regex("""(?m)^A17_ON_A16_PROFILES="([^"]*)"$""").find(script)!!.groupValues[1].split(' ').toSet()
+        val stable = Profiles.STABLE.associateBy { it.id }
+        val added = Profiles.withOneUi95OnA16(Profiles.STABLE).flatMap { pr ->
+            pr.choices.filter { c -> stable.getValue(pr.id).choices.none { it == c } }.map { Triple(pr.id, it.imageId, it.packageSetId) }
+        }
+        assertEquals(added.map { it.first }.toSet(), listed)
+        assertTrue(added.all { it.second == Images.ID_ONEUI95 && it.third == PackageSets.ID_ONEUI95_A16 })
+        assertTrue(script.contains("        *) a17_on_a16_set \"\$1\" \"\$2\" ;;\n"))
+        assertTrue(script.contains("    [ \"\$ONEOS_A17_ON_A16\" = 1 ] && [ \"\$2\" = oneui95-s948b ] && in_list \"\$1\" \"\$A17_ON_A16_PROFILES\" || return 1\n    echo oneui95-a16\n"))
+    }
+
     @Test
     fun selfUpdateGetsNoMoreThanItsOwnInstall() {
         fun bad(from: String, to: String) {

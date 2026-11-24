@@ -791,6 +791,13 @@ LEDBL=0
 # 928: about 135 nits on a Fold's inner panel (max/4 was ~660 nits); 40% of a smaller range.
 BLMAX=$(cat $BL/max_brightness 2>/dev/null); BLON=928
 case "$BLMAX" in ''|*[!0-9]*) [ $LEDBL = 1 ] && { BLMAX=255; BLON=102; } ;; *) [ "$BLMAX" -lt 928 ] && BLON=$((BLMAX * 2 / 5)) ;; esac
+# The cover panel's own bridge: the Galaxy Z Fold4 as a fold only (pull request
+# #361, jinkun1998: OxygenOS 16 left the cover at one dim level). Every other
+# phone passes no cover node, and its bridge is the one described below.
+BL2MAX=$(cat $BL2/max_brightness 2>/dev/null)
+case "$BL2MAX" in ''|*[!0-9]*) BL2MAX=$BLMAX ;; esac
+BLCOVER=""
+[ "${ONEOS_PROFILE:-}" = f4 ] && [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && [ $LEDBL = 0 ] && [ -w "$BL2/brightness" ] && BLCOVER=$BL2
 echo "[Pivoted Root] Backlight: inner=$(cat $BL/brightness 2>/dev/null) cover=$(cat $BL2/brightness 2>/dev/null)$([ $LEDBL = 1 ] && echo " (LED $BL, max ${BLMAX:-?})")"
 # A Fold switched while folded has the inner panel at 0 and the cover lit:
 # the cover is the one kept lit then (guest_props.sh puts the boot animation
@@ -841,16 +848,25 @@ fi
 # its sunlight boost, so the guest's normal range ends at 255 and only its own
 # boost goes above. Asleep: 0 on the LED (it has no other off switch), nothing on
 # a panel node; dozing: 1/20. Ends with the guest.
+# The Galaxy Z Fold4 (profile f4, as a fold; 0.5.38, pull request #361) also
+# gets the cover panel: the same watch on the inner node (a folded phone, cover
+# lit, never counts as a dead one), and when the lights HAL drives the inner
+# panel the bridge stays for the cover alone, copying the guest's brightness to
+# whichever panel is in use.
 # ONEOS_GUEST_LED_BRIDGE=0 / ONEOS_GUEST_BL_BRIDGE=0: off.
 BRIDGE=0
 case "${ONEOS_GUEST_BL_BRIDGE:-1}" in force) BLFORCE=1 ;; *) BLFORCE=0 ;; esac
 if [ $LEDBL = 1 ]; then [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ] && BRIDGE=1
-elif [ "${ONEOS_GUEST_BL_BRIDGE:-1}" != 0 ] && [ "$BL" = /sys/class/backlight/panel ] && [ -w "$BL/brightness" ]; then
-    case "$BLMAX" in ''|*[!0-9]*) ;; *) BRIDGE=1 ;; esac
+elif [ "${ONEOS_GUEST_BL_BRIDGE:-1}" != 0 ] && [ -w "$BL/brightness" ]; then
+    if [ "$BL" = /sys/class/backlight/panel ] || [ -n "$BLCOVER" ]; then
+        case "$BLMAX" in ''|*[!0-9]*) ;; *) BRIDGE=1 ;; esac
+    fi
 fi
 if [ $BRIDGE = 1 ]; then
     cat > /data/oneos_bl_bridge.sh <<'BLEOF'
-BL=$1; MAX=$2; ON=$3; LED=$4
+BL=$1; MAX=$2; ON=$3; LED=$4; BL2=$5; MAX2=$6
+# DUAL: a cover panel node passed (the Galaxy Z Fold4 only, see guest_start.sh).
+DUAL=0; [ -n "$BL2" ] && [ -w "$BL2/brightness" ] && DUAL=1
 case "${ONEOS_GUEST_BL_BRIDGE:-1}" in force) BLFORCE=1 ;; *) BLFORCE=0 ;; esac
 i=0
 while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
@@ -869,6 +885,7 @@ force=$(echo "$D" | sed -n 's/^useSurfaceControl=[a-z]* (force_anyway? \([a-z]*\
 lo=$(echo "$D" | sed -n 's/^mScreenBrightnessRangeMinimum=//p' | head -n 1)
 hi=$(echo "$D" | sed -n 's/^mScreenBrightnessRangeMaximum=//p' | head -n 1)
 nm=$(echo "$D" | sed -n 's/^mScreenBrightnessNormalMaximum=//p' | head -n 1)
+TAKE_BL=1
 if [ "$LED" != 1 ] && [ "${BLFORCE:-0}" = 1 ]; then
     # ONEOS_GUEST_BL_BRIDGE=force skips the watch entirely: for a stage whose
     # HAL thrashes the node instead of sticking at 0 (HyperOS on the A15,
@@ -899,6 +916,8 @@ elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
         i=$((i + 1)); sleep 1
         if [ "$(wc -l < /data/oneos_bl_refused 2>/dev/null)" -ge 3 ] 2>/dev/null; then n=15; refused=1; break; fi
         [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] || { n=0; continue; }
+        # Folded (the cover lit): the inner panel is meant to be dark.
+        [ "$DUAL" = 1 ] && [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ] && { n=0; continue; }
         case "$(dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)" in
             Awake) ;;
             *) n=0; continue ;;
@@ -912,13 +931,16 @@ elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
     done
     kill $RMON 2>/dev/null
     if [ $n -lt 15 ]; then
-        echo "$(date +%T) brightness bridge: the node moved on its own after $i s; leaving it to the lights HAL"
-        exit 0
-    fi
-    if [ "${refused:-0}" = 1 ]; then
-        echo "$(date +%T) brightness bridge: the lights HAL refuses the guest's brightness (3x Failed issuing setLightState after $i s); taking the node over"
+        echo "$(date +%T) brightness bridge: inner node moved on its own after $i s; leaving it to the lights HAL"
+        TAKE_BL=0
+        [ "$DUAL" = 1 ] || exit 0
     else
-        echo "$(date +%T) brightness bridge: the lights HAL does not reach the panel (node 0, awake and asking for light for 15 s); taking the node over"
+        if [ "${refused:-0}" = 1 ]; then
+            echo "$(date +%T) brightness bridge: the lights HAL refuses the guest's brightness (3x Failed issuing setLightState after $i s); taking the node over"
+        else
+            echo "$(date +%T) brightness bridge: the lights HAL does not reach the panel (node 0, awake and asking for light for 15 s); taking the node over"
+        fi
+        TAKE_BL=1
     fi
 fi
 # A level scale when the range ends above 1 (ColorOS, OxygenOS); else 0..1.
@@ -927,44 +949,146 @@ SCALE=$(echo "${lo:-x} ${hi:-x} ${nm:-x}" | awk '{ t = $3; if (t !~ /^[0-9.]+$/)
 case "$nm" in ''|*[!0-9.]*) nm=$hi ;; esac
 NORM=$MAX
 [ "$LED" = 1 ] || [ "$MAX" -le 255 ] || NORM=255
-echo "$(date +%T) brightness bridge: $BL (max $MAX, the guest's full slider = $NORM; scale $SCALE ${lo:-?}..${nm:-?}..${hi:-?}; useSurfaceControl=${usc:-not read}, force_anyway=${force:-not read})"
-last=""; pw=""
+NORM2=$MAX2
+case "$NORM2" in ''|*[!0-9]*) NORM2=$NORM ;; *) [ "$NORM2" -gt 255 ] && NORM2=255 ;; esac
+echo "$(date +%T) brightness bridge: inner $BL (max $MAX, slider $NORM, take $TAKE_BL); cover ${BL2:-none} (max ${MAX2:-?}, slider $NORM2); scale $SCALE ${lo:-?}..${nm:-?}..${hi:-?}"
+last=""; last2=""; pw=""
+prev_folded=0
+if [ "$DUAL" = 1 ]; then
+    [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] && [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ] && prev_folded=1
+fi
 while :; do
     w=$(timeout 3 dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)
-    [ "$w" = "$pw" ] || last=""
+    [ "$w" = "$pw" ] || { last=""; last2=""; }
     pw=$w
+    is_folded=0
+    if [ "$DUAL" = 1 ]; then
+        d2=""
+        [ -r /sys/class/drm/card0-DSI-2/dpms ] && read -r d2 < /sys/class/drm/card0-DSI-2/dpms
+        d1=""
+        [ -r /sys/class/drm/card0-DSI-1/dpms ] && read -r d1 < /sys/class/drm/card0-DSI-1/dpms
+        case "$d2" in
+            On|on) is_folded=1 ;;
+            Off|off)
+                case "$d1" in
+                    On|on) is_folded=0 ;;
+                    *)
+                        if [ -r /data/oneos_dt2w_lid ]; then
+                            read -r lid < /data/oneos_dt2w_lid
+                            [ "$lid" = 1 ] && is_folded=1
+                        elif [ -r /sys/class/sec/tsp2/enabled ]; then
+                            read -r t2 < /sys/class/sec/tsp2/enabled
+                            [ "$t2" = 1 ] && is_folded=1
+                        else
+                            is_folded=$prev_folded
+                        fi
+                        ;;
+                esac
+                ;;
+            *)
+                if [ -r /data/oneos_dt2w_lid ]; then
+                    read -r lid < /data/oneos_dt2w_lid
+                    [ "$lid" = 1 ] && is_folded=1
+                elif [ -r /sys/class/sec/tsp2/enabled ]; then
+                    read -r t2 < /sys/class/sec/tsp2/enabled
+                    [ "$t2" = 1 ] && is_folded=1
+                else
+                    is_folded=$prev_folded
+                fi
+                ;;
+        esac
+        prev_folded=$is_folded
+    fi
     case "$w" in
-        Asleep) if [ "$LED" = 1 ]; then v=0; else v=""; fi ;;
-        Dozing) v=$((NORM / 20 + 1)) ;;
+        Asleep)
+            if [ "$LED" = 1 ]; then v=0; else v=""; fi
+            v2=0
+            ;;
+        Dozing)
+            v=$((NORM / 20 + 1))
+            v2=$((NORM2 / 20 + 1))
+            ;;
         Awake)
-            f=$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
-            v=$(echo "$f" | awk -v m="$MAX" -v n="$NORM" -v lo="$lo" -v nm="$nm" -v hi="$hi" -v s="$SCALE" '
-                {
-                    # The first field that is a number (AOSP prints the bare value).
-                    x = -1
-                    for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?$/) { x = $i + 0; break }
-                    if (x <= 0) exit
-                    if (s == "level") {
-                        if (x <= nm) { p = (x - lo) / (nm - lo); if (p < 0) p = 0; y = 1 + p * (n - 1) }
-                        else { p = (hi > nm) ? (x - nm) / (hi - nm) : 1; if (p > 1) p = 1; y = n + p * (m - n) }
-                    } else {
-                        if (x > 1) exit
-                        y = x * n
-                    }
-                    y = int(y + 0.5); if (y < 1) y = 1; if (y > m) y = m; print y; exit
-                }')
-            if [ -z "$v" ] && [ "$LED" = 1 ]; then v=$ON; fi ;;
-        *) v="" ;;
+            if [ "$is_folded" = 1 ] && [ "$DUAL" = 1 ]; then
+                f2=$(timeout 3 cmd display get-brightness 1 2>/dev/null | head -n 1)
+                case "$f2" in
+                    ''|*'-1'*|*[!0-9.eE+-]*)
+                        f2=$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
+                        ;;
+                esac
+                case "$f2" in
+                    ''|*'-1'*|*[!0-9.eE+-]*)
+                        # The setting is 0..255, or a level already where it is larger;
+                        # on a level scale 0..255 becomes the guest's own lo..normal range
+                        # (as a fraction it read as below lo there: the cover stuck at 1).
+                        sb=$(settings get system screen_brightness 2>/dev/null)
+                        case "$sb" in
+                            ''|*[!0-9]*) ;;
+                            *) f2=$(awk -v s="$sb" -v sc="$SCALE" -v lo="$lo" -v nm="$nm" 'BEGIN {
+                                   if (sc != "level") printf "%.4f", s / 255.0
+                                   else if (s > 255) print s
+                                   else printf "%.4f", lo + s / 255.0 * (nm - lo) }') ;;
+                        esac
+                        ;;
+                esac
+                v2=$(echo "$f2" | awk -v m="$MAX2" -v n="$NORM2" -v lo="$lo" -v nm="$nm" -v hi="$hi" -v s="$SCALE" '
+                    {
+                        x = -1
+                        for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?$/) { x = $i + 0; break }
+                        if (x <= 0) exit
+                        if (s == "level") {
+                            if (x <= nm) { p = (x - lo) / (nm - lo); if (p < 0) p = 0; y = 1 + p * (n - 1) }
+                            else { p = (hi > nm) ? (x - nm) / (hi - nm) : 1; if (p > 1) p = 1; y = n + p * (m - n) }
+                        } else {
+                            if (x > 1) exit
+                            y = x * n
+                        }
+                        y = int(y + 0.5); if (y < 1) y = 1; if (y > m) y = m; print y; exit
+                    }')
+                v=0
+            else
+                v2=0
+                f=$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
+                v=$(echo "$f" | awk -v m="$MAX" -v n="$NORM" -v lo="$lo" -v nm="$nm" -v hi="$hi" -v s="$SCALE" '
+                    {
+                        x = -1
+                        for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?$/) { x = $i + 0; break }
+                        if (x <= 0) exit
+                        if (s == "level") {
+                            if (x <= nm) { p = (x - lo) / (nm - lo); if (p < 0) p = 0; y = 1 + p * (n - 1) }
+                            else { p = (hi > nm) ? (x - nm) / (hi - nm) : 1; if (p > 1) p = 1; y = n + p * (m - n) }
+                        } else {
+                            if (x > 1) exit
+                            y = x * n
+                        }
+                        y = int(y + 0.5); if (y < 1) y = 1; if (y > m) y = m; print y; exit
+                    }')
+                if [ -z "$v" ] && [ "$LED" = 1 ]; then v=$ON; fi
+            fi
+            ;;
+        *) v=""; v2="" ;;
     esac
-    if [ -n "$v" ] && [ "$v" != "$last" ]; then
-        echo $v > $BL/brightness && echo "$(date +%T) $w: $v"
+    if [ "$is_folded" = 1 ] && [ "$DUAL" = 1 ]; then
+        if [ "$last" != 0 ] && [ "$TAKE_BL" = 1 ]; then
+            echo 0 > $BL/brightness 2>/dev/null
+            last=0
+        fi
+    elif [ "$TAKE_BL" = 1 ] && [ -n "$v" ] && [ "$v" != "$last" ]; then
+        echo $v > $BL/brightness && echo "$(date +%T) inner $w: $v"
         last=$v
+    fi
+    if [ "$DUAL" = 1 ]; then
+        if [ -n "$v2" ] && [ "$v2" != "$last2" ]; then
+            echo $v2 > $BL2/brightness && echo "$(date +%T) cover $w: $v2"
+            last2=$v2
+        fi
     fi
     sleep 1
 done
 BLEOF
-    $BB sh /data/oneos_bl_bridge.sh "$BL" "$BLMAX" "$BLON" "$LEDBL" </dev/null >> /data/backlight.log 2>&1 &
+    $BB sh /data/oneos_bl_bridge.sh "$BL" "$BLMAX" "$BLON" "$LEDBL" "$BLCOVER" "$BL2MAX" </dev/null >> /data/backlight.log 2>&1 &
     if [ $LEDBL = 1 ]; then echo "[Pivoted Root] Backlight: LED bridge started for $BL"
+    elif [ -n "$BLCOVER" ]; then echo "[Pivoted Root] Backlight: dual-panel brightness bridge started for inner $BL and cover $BL2; see backlight.log"
     else echo "[Pivoted Root] Backlight: brightness bridge started for $BL (it runs only if the composer refuses brightness and the system does not use the lights HAL; see backlight.log)"; fi
 fi
 

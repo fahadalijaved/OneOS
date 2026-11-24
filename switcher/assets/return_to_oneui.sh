@@ -640,25 +640,38 @@ if [ "$MODE" != inplace ]; then
     # backdownload) sent every later boot to Download Mode.
     echo "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null) $(date +%s)" > $S/return_inplace.done
     sync
+    # oneui8test13 (S22 3d35a984): this shell's /system went away during the return ("/system/bin/setprop: No
+    # such file or directory" for setprop, sleep, reboot and sync, then "reboot: applet not found"), and the
+    # phone stayed on the return screen until the user forced a restart. Each step then runs in init's mount
+    # namespace, with busybox's sleep and sync; the kernel's reboot is the last resort.
+    sysrun() { # <tool> <args...>
+        if [ -x "/system/bin/$1" ]; then "/system/bin/$@"
+        else in_init_ns "/system/bin/$@"; fi
+    }
+    zz() { if [ -x /system/bin/sleep ]; then sleep "$1"; elif [ -n "$BB" ]; then "$BB" sleep "$1"; fi; }
     # A guest shutdown request (low battery, thermal, power off), recorded by the
     # guarded ShutdownThread, becomes a real host shutdown; anything else reboots.
-    req=$(getprop oneos.guest.powerctl)
-    setprop oneos.guest.powerctl "" 2>/dev/null
+    req=$(sysrun getprop oneos.guest.powerctl)
+    sysrun setprop oneos.guest.powerctl "" 2>/dev/null
     case "$req" in
         shutdown*)
             echo "Guest asked to shut down ($req): powering off."
-            setprop sys.powerctl shutdown,oneos-guest-shutdown ;;
+            sysrun setprop sys.powerctl shutdown,oneos-guest-shutdown ;;
         *)
             echo "Rebooting into One UI (ONEOS_RETURN_MODE=inplace restarts it in place instead)."
-            setprop sys.powerctl reboot,oneos-return ;;
+            sysrun setprop sys.powerctl reboot,oneos-return ;;
     esac
-    sleep 30
-    reboot
+    zz 30
+    sysrun reboot
     # Neither request rebooted (run 46 showed both refused under Enforcing):
     # the kernel's reboot after a sync.
-    sleep 10
-    sync
-    "$BB" reboot -f
+    zz 10
+    if [ -x /system/bin/sync ]; then sync; elif [ -n "$BB" ]; then "$BB" sync; fi
+    [ -n "$BB" ] && "$BB" reboot -f
+    zz 5
+    echo "Return: no reboot took; the kernel's reboot (sysrq)"
+    echo s > /proc/sysrq-trigger 2>/dev/null; zz 2
+    echo b > /proc/sysrq-trigger 2>/dev/null
     exit 0
 fi
 
@@ -742,6 +755,23 @@ done
 # Inbound SMS (0.4.61): the session NOPs Samsung rild's queue branch and
 # bind-mounts the vendor library. Remove it before the stage-mount check below,
 # which would otherwise see /local/tmp/oneos/ in field 4 and reboot.
+# One UI 9.5 on One UI 8: the empty loopback ring buffer guest_prepare.sh pinned (only that one).
+if [ -f "$S/bpf_ringbuf.created" ]; then
+    RB=$(head -n 1 "$S/bpf_ringbuf.created")
+    case "$RB" in
+        /sys/fs/bpf/netd_shared/map_netd_loopback_access_ringbuf) "$S/oneos_bpf_ringbuf" remove "$RB" >>"$IPLOG" 2>&1 || rm -f "$RB" ;;
+    esac
+    rm -f "$S/bpf_ringbuf.created"
+fi
+# oneui8test13: the do-nothing netd socket-ops program guest_prepare.sh pinned (only that one): detached from
+# the cgroup root if it is still the program attached there, then its pin removed.
+if [ -f "$S/bpf_sockops.created" ]; then
+    SOP=$(head -n 1 "$S/bpf_sockops.created")
+    case "$SOP" in
+        /sys/fs/bpf/netd_shared/prog_netd_sockops_prog) "$S/oneos_bpf_ringbuf" sockops-remove "$SOP" >>"$IPLOG" 2>&1 || rm -f "$SOP" ;;
+    esac
+    rm -f "$S/bpf_sockops.created"
+fi
 /system/bin/sh "$S/libsec-ril-patch.sh" restore >>"$IPLOG" 2>&1 || \
     say "!!! inbound SMS: the vendor RIL patch was not removed; see return_inplace.log"
 SENSORS_HAL_RESTORED=0

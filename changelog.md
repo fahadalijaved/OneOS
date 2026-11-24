@@ -801,6 +801,32 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.38: **One UI 9.5 on the Galaxy S22 series and other phones still on One UI 8, the OneOS app and clean
+sound in One UI 9.5, the Galaxy Z Fold4, and S24 Ultra Bluetooth audio.**
+- **One UI 9.5 on phones still on One UI 8.0/8.5** (experimental): the Galaxy S22, S22+ and S22 Ultra (Snapdragon
+  and Exynos), S23 FE, Z Fold4 and the Galaxy A, M and F phones held on One UI 8 can now start One UI 9.5.
+  Thirteen test rounds with S22 testers fixed what Android 16 cannot give an Android 17 system: its own system
+  modules, networking (no stop at boot or on calls), Bluetooth, the screen's size and sharpness, SELinux for new
+  apps, NFC, the quick panel and the setup screens. The camera stays off on these phones for now, and you confirm a
+  short warning before the switch.
+- **OneOS app in One UI 9.5:** One UI 9.5 only installs system apps on its own allow list, so the OneOS app (and
+  with it Back to One UI) was missing on phones on One UI 9. It is now on that list for the session.
+- **No more crackling sound in One UI 9.5** on the Galaxy A56, A57, S26 FE and other phones whose audio driver is
+  older than One UI 9.5: One UI 9.5 cut the speaker's audio buffer to an eighth there (0.5 ms), and the sound broke
+  up thousands of times a session. It now keeps the full buffer.
+- **Galaxy Z Fold4 (SM-F936)** with OxygenOS 16 (pull request #361 by jinkun1998): tested by the contributor; the
+  cover screen's brightness now follows the slider. Known: the camera does not work, and the phone runs warm.
+- **Galaxy S24 Ultra Bluetooth audio** in Pixel, PixelOS, LineageOS and Infinity-X (pull request #358 by
+  ankaserdev): music plays through Samsung's software Bluetooth route instead of staying on the speaker.
+- **Keyboard covers** (pull request #362 by crisazas): detaching a keyboard cover no longer leaves a key reader
+  using a full CPU core until the next restart.
+- **Also fixed:** a black screen on OxygenOS and ColorOS on some Exynos phones with a 120 Hz screen (Galaxy A25,
+  since 0.5.37); Bluetooth stuck at "turning on" in One UI 9.5 on the S22 Ultra; One UI 9.5 stopping at boot on the
+  S22 Ultra (Exynos).
+- Known: changing Screen resolution in One UI 9.5's settings makes the screen too small and does not switch back;
+  leave it as it is for now. Untested on a phone: the One UI 9.5 app and sound fixes, the Fold4 brightness changes,
+  and One UI 9.5 on One UI 8 beyond the S22 series.
+
 New in 0.5.37: **Camera on One UI 9.5 phones, the Galaxy S24 FE on ColorOS, ColorOS's equalizer, and the screen
 compositor on the fast CPU cores.**
 - **Camera on phones with One UI 9.5** (the Galaxy S26 series): One UI 9.5 numbers its camera service calls

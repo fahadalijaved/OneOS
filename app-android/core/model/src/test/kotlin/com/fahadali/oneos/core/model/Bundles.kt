@@ -130,5 +130,17 @@ object Bundles {
         )
     }
 
+    /** Galaxy Z Fold4 (SM-F936B, q4q): cover 904 x 2316, main 1812 x 2176, KernelSU. */
+    val Q4Q: Phone by lazy {
+        load(
+            "q4q",
+            listOf(
+                Panel(0, "Màn hình tích hợp", 904, 2316, 402.835f, 402.92f),
+                Panel(1, "Màn hình tích hợp", 1812, 2176, 377.252f, 375.989f),
+            ),
+            hinge = true, screenLock = true, freeKib = 106_316_460, totalKib = 231_930_844, managerPackage = "me.weishu.kernelsu",
+        )
+    }
+
     val ALL: List<Phone> get() = listOf(F8U, S26U, S25U, S25)
 }

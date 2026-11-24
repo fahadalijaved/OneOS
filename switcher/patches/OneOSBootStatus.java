@@ -58,7 +58,15 @@ public final class OneOSBootStatus {
         Surface surface = (Surface) call(queue, "createSurface", new Class<?>[]{});
         Bitmap icon = BitmapFactory.decodeFile(new File(dir, "icon.png").getPath());
         if (icon == null) throw new IllegalStateException("OneOS icon missing");
-        Typeface.class.getMethod("loadPreinstalledSystemFontMap").invoke(null);
+        // Android 16 (One UI 8 phones, oneui8test11 S22 Ultra 6fcc905a): ART aborts the font map's
+        // final-field write outside the zygote (79 aborts a minute), which no catch stops. There the
+        // splash shows the icon only.
+        // oneui8test13: in a One UI 9.5 session on One UI 8 the phone-wide SDK prop already says 37 while this
+        // runs on One UI 8's runtime (S22 Ultra 6f2c8bba: 32 aborts, A35 f764711d: 39): guest_prepare.sh
+        // leaves data/oneos_a17_on_a16 for such a session.
+        boolean text = android.os.Build.VERSION.SDK_INT >= 37
+                && !new File("/data/local/tmp/oneos/data/oneos_a17_on_a16").exists();
+        if (text) Typeface.class.getMethod("loadPreinstalledSystemFontMap").invoke(null);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         long deadline = android.os.SystemClock.elapsedRealtime() + 600_000;
         try {
@@ -78,6 +86,7 @@ public final class OneOSBootStatus {
                     float top = (size[1] - group) / 2f;
                     float edge = 180 * unit;
                     canvas.drawBitmap(icon, null, new RectF((size[0]-edge)/2, top, (size[0]+edge)/2, top+edge), paint);
+                    if (text) {
                     paint.setColor(Color.WHITE);
                     paint.setTextAlign(Paint.Align.CENTER);
                     paint.setTypeface(Typeface.create("sec", Typeface.BOLD));
@@ -92,6 +101,7 @@ public final class OneOSBootStatus {
                         if (status.length() > 120) status = status.substring(0, 117) + "…";
                         fit(paint, status, size[0] - 40*unit);
                         canvas.drawText(status, size[0]/2f, top + 320*unit, paint);
+                    }
                     }
                 } finally { surface.unlockCanvasAndPost(canvas); }
                 // Readiness is published only after posting a real frame.

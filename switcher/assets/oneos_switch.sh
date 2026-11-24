@@ -1648,6 +1648,31 @@ ls -l /vendor/etc/displayconfig /vendor/odm/etc/displayconfig /vendor/odm/etc/de
       echo "== $b"; strings -a "$b" 2>/dev/null | grep -E '^/sys/|enabled|fold_state' | head -40
   done
 } > "$STAGE/diag_host/touch_nodes.txt" 2>&1
+# oneui8test13: One UI 8's camera binder numbering, for the logs. The other systems' camera patches carry One
+# UI 9.0's and 9.5's (switcher/patches/host_camera*.txt, from firmware); One UI 8's was never read, so the
+# camera stays off for One UI 9.5 on a One UI 8 phone. The Stub and Proxy classes of the four camera
+# interfaces from One UI's own framework.jar (ART's dexdump, in the background; scripts/aidl-table.py reads
+# the file). Only on Android 16 phones and once per phone build (kept in data/ across sessions).
+CTD="$STAGE/data/oneos_host_camera_dexdump.txt"
+if [ "$(getprop ro.build.version.sdk)" = 36 ] && [ -x /apex/com.android.art/bin/dexdump ] &&
+   [ "$(head -n 1 "$CTD" 2>/dev/null)" != "# $(getprop ro.build.fingerprint)" ]; then
+    ( t="$STAGE/camdex.tmp"; rm -rf "$t"; mkdir -p "$t" "$STAGE/data" || exit 0
+      echo "# $(getprop ro.build.fingerprint)" > "$CTD.new"
+      for e in $(unzip -l /system/framework/framework.jar 2>/dev/null | awk '$NF ~ /^classes[0-9]*\.dex$/ {print $NF}'); do
+          unzip -p /system/framework/framework.jar "$e" > "$t/x.dex" 2>/dev/null || continue
+          grep -a -q -F 'Landroid/hardware/ICameraService$Stub;' "$t/x.dex" 2>/dev/null || continue
+          echo "# $e" >> "$CTD.new"
+          nice -n 10 /apex/com.android.art/bin/dexdump "$t/x.dex" 2>/dev/null | awk '
+              /^Class #[0-9]+/ { if (keep) printf "%s", buf; buf = ""; keep = 0 }
+              { buf = buf $0 "\n" }
+              /Class descriptor  : .Landroid\/hardware\/(ICameraService|ICameraServiceListener|camera2\/ICameraDeviceCallbacks|camera2\/ICameraDeviceUser)\$Stub(\$Proxy)?;/ { keep = 1 }
+              END { if (keep) printf "%s", buf }' >> "$CTD.new"
+      done
+      rm -rf "$t"
+      grep -q "TRANSACTION_" "$CTD.new" && mv -f "$CTD.new" "$CTD" && cp -f "$CTD" "$STAGE/diag_host/camera_dexdump.txt" ||
+          rm -f "$CTD.new" ) </dev/null >/dev/null 2>&1 &
+fi
+[ -f "$CTD" ] && cp -f "$CTD" "$STAGE/diag_host/camera_dexdump.txt" 2>/dev/null
 # The panel's local HBM (in-house optical fingerprint spot, Galaxy A/S with an optical sensor): One UI's fingerprint
 # service leaves it at 1 (on, source off) while its keyguard waits for a finger, and the panel then draws its own
 # glowing circle over whatever is shown (A36, fresh Nothing OS, 0.5.18: from the guest's boot animation on, owner:
@@ -2008,7 +2033,16 @@ else
     if grep -q "IBluetoothAudioProviderFactory/default" "$BT_COPY" && $BB mount -o bind,ro "$BT_COPY" "$BT_FRAG"; then
         echo "$BT_FRAG" > "$STAGE/bt_bridge_vintf"
         touch /apex/apex-info-list.xml
-        (umask 027; $BB nohup "$STAGE/oneos_btaudio" > "$STAGE/oneos_btaudio.log" 2>&1 </dev/null &)
+        # The S24 Ultra with the images that play through the vendor's Bluetooth
+        # module (guest_prepare.sh, apm_s24u_module) takes the name back only when
+        # servicemanager says another process registered it (pull request #358).
+        BT_WATCH=""
+        case "$(getprop ro.product.model):$(getprop ro.soc.model)" in
+            SM-S928*:SM8650)
+                grep -q -E '^  "image": "(pixel9proxl-komodo|pixelos17-onyx|lineage24-infiniti|infinityx41-findx9u)",$' "$STAGE/.oneos_stage" 2>/dev/null &&
+                    BT_WATCH=--watch-replacements ;;
+        esac
+        (umask 027; $BB nohup "$STAGE/oneos_btaudio" $BT_WATCH > "$STAGE/oneos_btaudio.log" 2>&1 </dev/null &)
         n=0
         while [ $n -lt 25 ] && ! timeout 5 service check "$BTA_AOSP" 2>/dev/null | grep -q ": found"; do n=$((n + 1)); sleep 0.2; done
         echo "Bluetooth audio bridge: $(timeout 5 "$STAGE/oneos_btaudio" --check 2>&1) (manifest: $BT_FRAG; $(head -n 1 "$STAGE/oneos_btaudio.log" 2>/dev/null))"
@@ -5171,6 +5205,32 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # builtin echo writes as the subshell, and 0 means the writer).
             ( echo 0 > /sys/fs/cgroup/cgroup.procs 2>/dev/null
               echo -1000 > /proc/self/oom_score_adj 2>/dev/null
+              # When the device goes away (a keyboard cover detached: Galaxy Tab
+              # S10 Lite's Book Cover Keyboard lists KEY_VOLUMEUP/DOWN), Android's
+              # getevent keeps its fd on the deleted node and spins on it at a
+              # full core, forever: the loop below never gets a line, so the
+              # session check never runs (two of them held two cores for 3 hours
+              # across sessions and One UI). A sidecar ends getevent once its
+              # node is gone or a later switch took over, every 5 s. It signals
+              # the one getevent that holds this device and is its sibling, a
+              # child of this subshell ($$ is the script's in a subshell: the
+              # shell's own /proc/self/stat gives the PPID), never a walk by name
+              # (see the comment above).
+              ( sleep 1
+                read -r st < /proc/self/stat; set -- $st; me=$4
+                g=''
+                for p in $(pidof getevent 2>/dev/null); do
+                    read -r st < "/proc/$p/stat" 2>/dev/null || continue; set -- $st
+                    [ "$4" = "$me" ] && [ "$(readlink "/proc/$p/fd/4" 2>/dev/null)" = "$kd" ] && { g=$p; break; }
+                done
+                [ -n "$g" ] || exit 0
+                while kill -0 "$g" 2>/dev/null; do
+                    sleep 5
+                    [ "$(cat "$KS/session" 2>/dev/null)" = "$KTOK" ] && [ -c "$kd" ] &&
+                        ! readlink "/proc/$g/fd/4" 2>/dev/null | grep -q ' (deleted)$' && continue
+                    kill "$g" 2>/dev/null
+                    exit 0
+                done ) &
               getevent -lq "$kd" 2>/dev/null | while read -r typ code val rest; do
                 # A later switch (or none: the stage's file gone) ends this
                 # reader; getevent then ends on its next write.

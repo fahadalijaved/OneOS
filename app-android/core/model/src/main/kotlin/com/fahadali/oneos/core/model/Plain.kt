@@ -155,7 +155,10 @@ object Plain {
                 )
                 else -> m("This phone isn't supported yet", "OneOS works on ${phoneList(profiles)}.", FixAction.SEND_PHONE_DETAILS)
             }
-            SwitchGates.ID_ANDROID -> if (r == SwitchGates.R_ANDROID_OLDER) {
+            // Tester build only (Experimental.a17OnA16): One UI 9.5 next to One UI 8, ticked at Switch.
+            SwitchGates.ID_ANDROID -> if (r == SwitchGates.R_ANDROID_EXPERIMENTAL) {
+                m("Experimental test build", SwitchGates.A17_ON_A16_ACK, FixAction.ACKNOWLEDGE)
+            } else if (r == SwitchGates.R_ANDROID_OLDER) {
                 // Every system of this phone is for a newer Android than its One UI: nothing to choose.
                 val want = (image?.sdk ?: phone?.choices?.mapNotNull { Images.byId(it.imageId)?.sdk }?.minOrNull())
                     ?.let { "Android ${AndroidRelease.name(it)}" } ?: "a newer Android"
@@ -273,6 +276,11 @@ object Plain {
                 "Its software is too old. If the screen stays black, One UI comes back by itself. Then share the " +
                     "session logs from Settings › Last session.",
                 FixAction.ACKNOWLEDGE,
+            )
+            Profiles.ID_NOTE_FOLD4_ISSUES -> m(
+                "Known issues on this phone",
+                "Camera does not work, cover screen brightness is fixed and dim, and the phone may warm up.",
+                FixAction.NONE,
             )
             SwitchGates.ID_LOGS -> m(
                 "Last session's logs aren't read yet",

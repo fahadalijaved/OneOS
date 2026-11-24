@@ -480,6 +480,23 @@ ONEUI95_FOLD8=0
 if [ "$ONEUI95_IMAGE" = 1 ] && [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-fold}" = fold ]; then
     ONEUI95_FOLD8=1
 fi
+# Experimental tester builds only (0.5.35-oneui8test1; root starts this pair only with ONEOS_A17_ON_A16=1):
+# a One UI image of Android 17 (SDK 37, One UI 9.5) on a phone still on One UI 8.0/8.5 (SDK 36). Read here,
+# before guest_props.sh add gives the session the image's Android version. The set's camera ABI patches carry
+# One UI 9.0's camera transaction codes, and One UI 8's cameraserver numbers ICameraService its own way: a
+# call would land on another method. So the camera is off in such a session (below: the image's Samsung
+# Camera hidden, the A series' camera not bound, the native camera client patches not bound; guest_props.sh
+# sets config.disable_cameraservice so the guest's CameraManager never connects to One UI's cameraserver).
+A17_ON_A16=0
+if [ "$(getprop ro.build.version.sdk)" = 36 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
+   [ "$(sed -n 's/^ro.build.version.sdk=//p' "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)" = 37 ]; then
+    A17_ON_A16=1
+    echo "Experimental One UI 9.5 on One UI 8 (SDK 36): camera off"
+fi
+# The boot splash (OneOSBootStatus) runs on One UI 8's runtime while the session's SDK prop says 37: it
+# draws the icon only when this marker is there (oneui8test13; its font map load aborts on Android 16).
+rm -f "$STAGE/data/oneos_a17_on_a16"
+[ "$A17_ON_A16" = 1 ] && mkdir -p "$STAGE/data" && : > "$STAGE/data/oneos_a17_on_a16"
 for d in "$GUEST_SYSTEM_EXT" "$GUEST_PRODUCT"; do
     if [ -L "$d" ] || [ ! -d "$d" ]; then
         echo "ERROR: ${d#$ROOTFS/} in the guest image is a link or missing (system_ext and product: one real folder each); not starting the guest"
@@ -1338,13 +1355,14 @@ farm_dir() {
         case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
     done
     chmod 755 "$fd_f"; $BB chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
-    $BB mount --bind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }
+    # Recursive (oneui8test9): what is already mounted inside an entry comes along with it.
+    $BB mount --rbind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }
     # Private before the farm goes over the target: a shared bind would show the farm here too.
-    $BB mount --make-private "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    $BB mount --make-rprivate "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
     $BB mount --bind "$fd_f" "$fd_t" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
     for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
         [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
-        $BB mount --bind "$fd_e" "$fd_t/${fd_e##*/}" || {
+        $BB mount --rbind "$fd_e" "$fd_t/${fd_e##*/}" || {
             awk -v r="$fd_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
             $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
         }
@@ -1549,15 +1567,24 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             # 0.5.35: One UI 9.5 installs a system package for a user only when its user-type allow list names it
             # (A17 0d249e83, 0.5.34: "PackageManager: Package is not in allowed list : com.fahadali.oneos.guest", the
             # OneOS app missing although bound in /system_ext/app/OneOSGuest). Its entry, beside it in system_ext.
+            # 0.5.38: that message is not the user-type list. One UI 9.5's InstallPackageHelper.processParseResult
+            # (PMRune.PM_ALLOWED_SYSTEM_PRELOAD_APPS) drops every system package SystemConfig's
+            # <allowed-system-preload package=.../> entries do not name (the image's list:
+            # /system/etc/sysconfig/allowed-system-preload-apps.xml, 1065 packages); 0.5.36 sessions still logged it with
+            # the user-type entry in place (A57 2ba7dba7, One UI 9 -> 9.5). The OneOS app and the /oem overlays get
+            # that entry too.
             if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ -d "$OV/up/app/OneOSGuest" ]; then
                 mkdir -p "$OV/up/etc/sysconfig" &&
                     printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<config>' \
+                        '    <allowed-system-preload package="com.fahadali.oneos.guest" />' \
+                        '    <allowed-system-preload package="oneos.overlay.pixel.statusbar" />' \
+                        '    <allowed-system-preload package="oneos.overlay.phone.injection" />' \
                         '    <install-in-user-type package="com.fahadali.oneos.guest">' \
                         '        <install-in user-type="FULL" />' '        <install-in user-type="SYSTEM" />' \
                         '    </install-in-user-type>' '</config>' > "$OV/up/etc/sysconfig/oneos-guest-user-types.xml" &&
                     chmod 755 "$OV/up/etc" "$OV/up/etc/sysconfig" && chmod 644 "$OV/up/etc/sysconfig/oneos-guest-user-types.xml" &&
                     $BB chcon -R u:object_r:system_file:s0 "$OV/up/etc" 2>/dev/null &&
-                    echo "OneOS app: in One UI's user-type allow list (system_ext/etc/sysconfig)"
+                    echo "OneOS app: in One UI 9.5's allowed system preloads and user-type allow list (system_ext/etc/sysconfig)"
             fi
         fi
         # Features my_product declares (0.4.38): the container does not load
@@ -1691,6 +1718,35 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             fi
             if [ $fok = 1 ] && [ -d "$GUEST_SYSTEM_EXT/apex" ]; then
                 echo "system_ext without overlayfs: $fn entries of the image bound into a copy of its top level, with the apex mount point"
+                # oneui8test13: the folders made in the overlay's layer above for the /oem step (One UI 9.5's
+                # app/OneOSGuest) and the OneOS app's user-type entry were only in that layer, so on these
+                # kernels the OneOS app was never installed (S22 / S22 Ultra on One UI 8, test11 e7d51e44,
+                # 8ba80911: "OneOSGuest.apk not placed in /system_ext/app/OneOSGuest", "Package is not in
+                # allowed list : com.fahadali.oneos.guest"). Each one gets its mount point in a bound copy of
+                # its parent folder, and the entry file is bound into etc/sysconfig the same way.
+                for d in $VIVO_SE; do
+                    case "$d" in */*) ;; *) continue ;; esac
+                    sp=${d%/*}; sn=${d##*/}
+                    [ -d "$GUEST_SYSTEM_EXT/$sp" ] && [ ! -e "$GUEST_SYSTEM_EXT/$d" ] || continue
+                    if farm_dir "$GUEST_SYSTEM_EXT/$sp" "$STAGE/sysext_${sp}_farm" "$sn/" && [ -d "$GUEST_SYSTEM_EXT/$d" ]; then
+                        echo "system_ext without overlayfs: mount point $d added (a bound copy of $sp)"
+                    else
+                        echo "!!! system_ext without overlayfs: no mount point for $d; what goes there is left out"
+                    fi
+                done
+                UTX="$OV/up/etc/sysconfig/oneos-guest-user-types.xml"
+                if [ -f "$UTX" ] && [ -d "$GUEST_SYSTEM_EXT/etc" ]; then
+                    utok=0
+                    if [ -d "$GUEST_SYSTEM_EXT/etc/sysconfig" ]; then
+                        farm_dir "$GUEST_SYSTEM_EXT/etc/sysconfig" "$STAGE/sysext_sysconfig_farm" oneos-guest-user-types.xml &&
+                            $BB mount --bind "$UTX" "$GUEST_SYSTEM_EXT/etc/sysconfig/oneos-guest-user-types.xml" && utok=1
+                    else
+                        farm_dir "$GUEST_SYSTEM_EXT/etc" "$STAGE/sysext_etc_farm" sysconfig/ &&
+                            $BB mount --bind "$OV/up/etc/sysconfig" "$GUEST_SYSTEM_EXT/etc/sysconfig" && utok=1
+                    fi
+                    [ $utok = 1 ] && echo "OneOS app: user-type entry bound into system_ext/etc/sysconfig (no overlayfs)" ||
+                        echo "!!! OneOS app: could not bind its user-type entry; One UI's package manager may leave it out"
+                fi
             else
                 awk -v r="$GUEST_SYSTEM_EXT/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
                 grep -q " $GUEST_SYSTEM_EXT tmpfs " /proc/mounts && $BB umount -l "$GUEST_SYSTEM_EXT"
@@ -2393,10 +2449,16 @@ fi
 #     ("has NO port state observer") and every start failed ("Rx device start
 #     failed with status -38", ColorOS reports 7eeafc87 and 5528e31a; Pixel
 #     e353ca45 played on the speaker), while One UI on the same phone plays
-#     through a software A2DP session and this module. The S24 (SM8650) plays
-#     on the primary module (Nothing OS 32b35f59, ColorOS and Pixel reports),
-#     so it keeps that way. guest_props.sh then turns A2DP offload off in the
-#     guest (the marker $STAGE/guest_bt_sw), so it opens the software session.
+#     through a software A2DP session and this module. The S24 and S24+
+#     (SM8650) play on the primary module (Nothing OS 32b35f59, ColorOS and
+#     Pixel reports), so they keep that way. The S24 Ultra (SM-S928*) with the
+#     Pixel, PixelOS, LineageOS and Infinity-X images takes the module (pull
+#     request #358, ankaserdev: on the primary module those played on the
+#     speaker), and where the vendor lacks it gets no A2DP outputs rather than
+#     the primary module's; the Bluetooth audio bridge then watches for the
+#     name being taken (oneos_switch.sh, --watch-replacements). guest_props.sh
+#     then turns A2DP offload off in the guest (the marker $STAGE/guest_bt_sw),
+#     so it opens the software session.
 #   - Otherwise, where One UI's _sec or _base file has an A2DP output, three
 #     A2DP devices in the primary module as that file has them (16-bit PCM,
 #     48 kHz stereo), fed by the speaker's own mix ports except the mmap ones
@@ -2460,6 +2522,13 @@ apm_include() {
     return 1
 }
 
+# apm_s24u_module: a Galaxy S24 Ultra (SM-S928*, SM8650) with one of the
+# images that play A2DP only through the vendor's Bluetooth module (see above).
+apm_s24u_module() {
+    case "$(getprop ro.product.model):$(getprop ro.soc.model)" in SM-S928*:SM8650) ;; *) return 1 ;; esac
+    $BB grep -qs -E '^  "image": "(pixel9proxl-komodo|pixelos17-onyx|lineage24-infiniti|infinityx41-findx9u)",$' "$STAGE/.oneos_stage"
+}
+
 # apm_a2dp <vendor file> <copy>: the Bluetooth A2DP outputs, see above.
 apm_a2dp() {
     if [ "${ONEOS_GUEST_APM_A2DP:-1}" != 1 ]; then
@@ -2469,11 +2538,13 @@ apm_a2dp() {
     if $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP' "$2" $apm_inc; then
         APM_NOTE="it has A2DP outputs of its own"; return 0
     fi
+    apm_s24u=0
     case "${ONEOS_GUEST_APM_BT_MODULE:-auto}" in
         0) apm_mod=0 ;;
         1) apm_mod=1 ;;
         *) apm_mod=1
-           if [ "$(getprop ro.soc.manufacturer)" = QTI ] && [ "$(getprop ro.soc.model)" != SM8550 ]; then apm_mod=0; fi ;;
+           if [ "$(getprop ro.soc.manufacturer)" = QTI ] && [ "$(getprop ro.soc.model)" != SM8550 ]; then apm_mod=0; fi
+           if apm_s24u_module; then apm_mod=1; apm_s24u=1; fi ;;
     esac
     if [ "$apm_mod" = 1 ]; then
         apm_bt=/vendor/etc/bluetooth_audio_policy_configuration.xml
@@ -2486,6 +2557,9 @@ apm_a2dp() {
             APM_NOTE="Bluetooth A2DP outputs added with the vendor's Bluetooth module (${apm_bt##*/})"
             APM_ADDED=1
             return 0
+        fi
+        if [ "$apm_s24u" = 1 ]; then
+            APM_NOTE="no A2DP outputs added (S24 Ultra: the vendor's Bluetooth module is missing, and the primary module's play on the speaker)"; return 0
         fi
     fi
     if ! $BB grep -qs 'AUDIO_DEVICE_OUT_BLUETOOTH_A2DP"' /vendor/etc/audio_policy_configuration_sec.xml /vendor/etc/audio_policy_configuration_base.xml; then
@@ -3989,6 +4063,14 @@ done
 # host) is left alone. The host's types come from its CIL files, so this
 # follows whatever policy the phone has. ONEOS_GUEST_SEAPP=0 keeps ColorOS's files.
 SEAPP_FILES="$GUEST_SYSTEM_EXT/etc/selinux/system_ext_seapp_contexts $GUEST_PRODUCT/etc/selinux/product_seapp_contexts"
+# One UI 9.5 on One UI 8 (oneui8test8 S22 cb7ed806): Android 17's plat_seapp_contexts puts apps that target
+# SDK 36 in new domains, platform_app_36 and priv_app_36 (minTargetSdkVersion=37 keeps platform_app and
+# priv_app). One UI 8's Android 16 policy has neither: every SDK 36 system app (live wallpaper, Samsung's
+# services, Google's verifier and partner setup, 93 aborts in 8 minutes) died in zygote's
+# selinux_android_setcontext ("Invalid argument") and setup could not go on. So with A17_ON_A16 the plat
+# file is rewritten too, and in every file a missing <type>_<number> becomes <type> when the policy has
+# that (commenting the rule out would drop those apps to the untrusted_app rules below it).
+[ "$A17_ON_A16" = 1 ] && SEAPP_FILES="$ROOTFS/system/etc/selinux/plat_seapp_contexts $SEAPP_FILES"
 for f in $SEAPP_FILES; do $BB umount -l "$f" 2>/dev/null; done
 if [ "${ONEOS_GUEST_SEAPP:-1}" = 1 ]; then
     HOST_TYPES="$STAGE/host_sepolicy_types.txt"
@@ -4011,20 +4093,26 @@ if [ "${ONEOS_GUEST_SEAPP:-1}" = 1 ]; then
                 BEGIN { while ((getline t < types) > 0) known[t] = 1 }
                 /^[ \t]*#/ || NF == 0 { print; next }
                 {
-                    bad = ""
-                    for (i = 1; i <= NF; i++)
+                    bad = ""; mapped = ""; line = ""
+                    for (i = 1; i <= NF; i++) {
                         if ($i ~ /^(domain|type)=/) {
-                            v = $i; sub(/^[a-z]*=/, "", v)
-                            if (!(v in known)) bad = bad " " v
+                            k = $i; sub(/=.*$/, "", k); v = $i; sub(/^[a-z]*=/, "", v)
+                            if (!(v in known)) {
+                                b = v; sub(/_[0-9]+$/, "", b)
+                                if (b != v && (b in known)) { $i = k "=" b; mapped = mapped " " v "->" b }
+                                else bad = bad " " v
+                            }
                         }
+                    }
                     if (bad != "") print "# OneOS: host policy lacks" bad ": " $0
+                    else if (mapped != "") { print "# OneOS: mapped" mapped; print }
                     else print
                 }' "$f" > "$out" || { echo "WARNING: could not rewrite $f; left as is"; continue; }
             chmod 644 "$out"
             $BB chcon u:object_r:seapp_contexts_file:s0 "$out" 2>/dev/null ||
                 $BB chcon u:object_r:system_file:s0 "$out" 2>/dev/null || true
             $BB mount --bind "$out" "$f" &&
-                echo "Bound $(basename "$f"): $(grep -c '^# OneOS: host policy lacks' "$out") rule(s) with types the host policy lacks commented out"
+                echo "Bound $(basename "$f"): $(grep -c '^# OneOS: host policy lacks' "$out") rule(s) with types the host policy lacks commented out, $(grep -c '^# OneOS: mapped' "$out") mapped to their base type"
             echo "    types missing: $(grep '^# OneOS: host policy lacks' "$out" | cut -d: -f2 | sed 's/^ host policy lacks //' | tr ' ' '\n' | sort -u | tr '\n' ' ')"
         done
     fi
@@ -4037,6 +4125,11 @@ if [ -f "$STAGE/$CAM_FW" ]; then
     $BB umount -l "$ROOTFS/system/framework/framework.jar" 2>/dev/null || true
     $BB mount --bind "$STAGE/$CAM_FW" "$ROOTFS/system/framework/framework.jar"
     echo "Bound $CAM_FW -> $ROOTFS/system/framework/framework.jar"
+    # Experimental One UI 9.5 on One UI 8: the jar stays for its other patches (guest vold name gvld, Privacy
+    # Display and engmode off, guards.txt); its camera codes are One UI 9.0's, and nothing opens the camera
+    # with them in this session: the camera app is hidden below and guest_props.sh turns the guest's
+    # camera service off (config.disable_cameraservice).
+    [ "$A17_ON_A16" = 1 ] && echo "Experimental One UI 9.5 on One UI 8: framework_patched.jar bound for its vold, Privacy Display and engmode patches; its One UI 9.0 camera codes stay unused (camera off)"
 fi
 # telephony-common_patched.jar: the SMS service centre as an international
 # number (patches/guest_smsc_international.py; Samsung's radio answers it in
@@ -4055,6 +4148,13 @@ fi
 # scalars (make-overlays.sh; system_server aborted on the first one).
 for pair in $CAM_CL:libcamera_client.so ${CAM_CI:+$CAM_CI:libcameracompatbilityinfo.so} \
             libsensorservice_patched.so:libsensorservice.so; do
+    # Experimental One UI 9.5 on One UI 8: these carry One UI 9.0's camera codes, never sent to One UI 8's cameraserver.
+    if [ "$A17_ON_A16" = 1 ]; then
+        case "${pair%%:*}" in libcamera*)
+            [ -f "$STAGE/${pair%%:*}" ] && echo "Experimental One UI 9.5 on One UI 8: ${pair%%:*} not bound (One UI 9.0's camera codes; the camera is off)"
+            continue ;;
+        esac
+    fi
     if [ -f "$STAGE/${pair%%:*}" ]; then
         $BB umount -l "$ROOTFS/system/lib64/${pair#*:}" 2>/dev/null || true
         $BB mount --bind "$STAGE/${pair%%:*}" "$ROOTFS/system/lib64/${pair#*:}"
@@ -4420,6 +4520,39 @@ if [ "${ONEOS_GUEST_SOUNDBOOSTER_PATCH:-1}" = 1 ] && [ -f /vendor/lib64/soundfx/
             $BB chcon u:object_r:system_lib_file:s0 "$AFP" 2>/dev/null || true
             $BB mount --bind "$AFP" "$AFJ" && echo "Bound libaudioflinger_sb_patched.so -> $AFJ (SoundBoosterPlus ENOSYS + OneUI pipeline + multi-output)"
         fi
+    fi
+fi
+# One UI 9.5's audio HAL client (libaudiohal@aidl.so, StreamHalAidl::getBufferSize) divides the primary
+# module's stream buffer by 8 unless the HAL answers its l_uhq_buffer_scaling parameter with 0, an answer
+# only One UI 9.5's own audio HALs give. On a phone whose AIDL audio HAL is older every output got an
+# eighth of the HAL's buffer: Exynos A56, A57 and S26 FE sessions had a 120-frame primary and a 24-frame
+# fast output (0.5 ms mix periods) where every other system on the same phones has 960 and 192, and the
+# fast mixer underran thousands of times (S26 FE 4bb06b8c: 10799 underruns, 38579 overruns; A57
+# 2ba7dba7: 1280): crackling sound. The session binds a copy without the division (one instruction,
+# lsr #3 at 0x15bd18 -> nop), made here from the image's file only (sha256 pinned before and after); a
+# phone already on One UI 9.5 keeps the image's. ONEOS_GUEST_AUDIO_BUFFER_SCALING=1 leaves it alone.
+AHL="$ROOTFS/system/lib64/libaudiohal@aidl.so"
+AHS="$STAGE/libaudiohal_aidl.session.so"
+rm -f "$AHS"
+HOST_ONEUI=$(getprop ro.build.version.oneui); case "$HOST_ONEUI" in ''|*[!0-9]*) HOST_ONEUI=0 ;; esac
+if [ -f "$AHL" ] && [ ! -L "$AHL" ] && [ "${ONEOS_GUEST_AUDIO_BUFFER_SCALING:-0}" != 1 ] &&
+   grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
+   [ "$HOST_ONEUI" -lt 90500 ] && $BB grep -rqs 'android.hardware.audio.core' /vendor/etc/vintf/; then
+    if $BB awk -v m="$AHL" '$5 == m { f = 1 } END { exit !f }' /proc/self/mountinfo 2>/dev/null; then
+        $BB umount -l "$AHL" 2>/dev/null || true
+    fi
+    if [ "$($BB sha256sum "$AHL" 2>/dev/null | $BB cut -c1-64)" != 81df53b19c28a84ecbd204735a52ad436e3f93113473eca52fa3a79d00c226a3 ]; then
+        echo "Audio buffers: the image's libaudiohal@aidl.so is not the known One UI 9.5 one; left as it is"
+    elif cp "$AHL" "$AHS" &&
+         $BB printf '\037\040\003\325' | $BB dd of="$AHS" bs=1 seek=1424664 count=4 conv=notrunc 2>/dev/null &&
+         [ "$($BB sha256sum "$AHS" 2>/dev/null | $BB cut -c1-64)" = 63d55b95e12f3bfec30930e5a26e4824653df60347b41906d149e7e9bbfe01c9 ] &&
+         chmod 644 "$AHS" && chown 0:0 "$AHS" &&
+         { $BB chcon u:object_r:system_lib_file:s0 "$AHS" 2>/dev/null || true; } &&
+         $BB mount --bind "$AHS" "$AHL"; then
+        echo "Audio buffers: One UI 9.5's audio client keeps the HAL's whole stream buffer (One UI ${HOST_ONEUI} audio HAL; no 1/8 buffers, no crackling)"
+    else
+        rm -f "$AHS"
+        echo "!!! Audio buffers: could not make or bind libaudiohal@aidl.so without the 1/8 buffers; sound may crackle"
     fi
 fi
 # libcomposer_ext_patched.so (vivo OriginOS, MediaTek): its ComposerExt client
@@ -7120,6 +7253,35 @@ mount_payload "bt" "com.android.bt"
 for m in telephonycore conscrypt profiling npumanager webapp; do
     [ -f "$STAGE/${m}_payload.img" ] && mount_payload "$m" "com.android.$m"
 done
+# Experimental One UI 9.5 on One UI 8 (A17_ON_A16, set oneui95-a16): One UI 8's modules are Android 16
+# builds, and the image's Android 17 platform needs their newer APIs. The S22 (SM-S901B, 0827ba2a): the
+# guest zygote died preloading libandroid.so ("cannot locate symbol AConnectivityNative_getNetworkBlockedReason",
+# One UI 8's tethering). So the image's own, tethering among them against the rule above (its BPF maps are
+# One UI's loader's: the experiment). oneui8test4 (bff57950): the zygote then died in SystemServiceRegistry's
+# static block, the image's framework calling UprobestatsFrameworkInitializer, which only the image's
+# uprobestats module puts on the boot class path (its statsd also needs that module's
+# libuprobestats_client.so). So uprobestats too, and Samsung's own system modules of the image
+# (samsung.<name>_payload.img on com.samsung.android.<name>): lifeguard and shell put One UI's jars on the
+# boot and system server class paths, imagecodec, spqr and the media ones are native libraries built against
+# the image's system. One UI's adbd, virt (its initializer runs on One UI 8's; no hypervisor) and VNDK stay.
+# oneui8test5: tethering is One UI's again, by the rule above. With the image's, system_server died creating
+# NetworkStatsService on both S22s (21540664, efae874f: "Cannot open ingress discard map", nativeBpfFdGet
+# ValueSize): One UI 8's module loaded the BPF maps at boot and One UI's netd runs on them, and the image's
+# Android 17 train reads another layout (its ingress discard value is one interface, not two). Only the image's
+# libcom.android.tethering.connectivity_native.so goes over One UI's in the guest's view (the set's
+# tethering_connectivity_native_a17.so): the image's libandroid.so needs AConnectivityNative_getNetworkBlockedReason,
+# which One UI 8's library does not have (0827ba2a). Private first, as for the hidden apps below: these binds
+# are still shared peers of One UI's /apex, and a file bound inside one would reach One UI's own module.
+if [ "$A17_ON_A16" = 1 ]; then
+    A16M=""
+    for m in os.statsd media media.swcodec resolv ipsec uwb devicelock scheduling neuralnetworks tzdata uprobestats; do
+        [ -f "$STAGE/${m}_payload.img" ] && mount_payload "$m" "com.android.$m" && A16M="$A16M $m"
+    done
+    for m in lifeguard shell media.imagecodec.system spqr media.extractor media.swcodec.system mediacontextanalyzer; do
+        [ -f "$STAGE/samsung.${m}_payload.img" ] && mount_payload "samsung.$m" "com.samsung.android.$m" && A16M="$A16M samsung.$m"
+    done
+    echo "Experimental One UI 9.5 on One UI 8: the image's own modules:${A16M:- none staged} (and conscrypt, profiling above when staged)"
+fi
 # The guest's apps compiled by the guest's own artd (guest_start.sh runs it for
 # the session, again each time the lazy service exits). Without it the guest's
 # ArtService (the image's ART module) got One UI's artd, which init starts when
@@ -7153,6 +7315,13 @@ if [ "${ONEOS_GUEST_ARTD:-1}" = 1 ] && [ -x "$ROOTFS/apex/com.android.art/bin/ar
     fi
 else
     echo "artd: One UI's (ONEOS_GUEST_ARTD=${ONEOS_GUEST_ARTD:-1}; the guest's ART payload $(grep -q '^com.android.art ' "$STAGE/payload_loops" 2>/dev/null && echo mounted || echo 'not mounted'), $([ -x "$ROOTFS/apex/com.android.art/bin/artd" ] && echo 'its artd is there' || echo 'no artd in it'))"
+    # Experimental One UI 9.5 on One UI 8: One UI 8's artd is Android 16's ART, which cannot compile the
+    # Android 17 guest's dex for its runtime (another ART module version, as above), so such a session
+    # never starts without the guest's own.
+    if [ "$A17_ON_A16" = 1 ]; then
+        echo "ERROR: experimental One UI 9.5 on One UI 8 needs the guest's own artd (Android 17's ART); not starting the guest"
+        exit 3
+    fi
 fi
 # The image's boot image accepted. guest_start.sh's zygote uses the image's AOT
 # boot image (or the one its odrefresh step builds), which ART checks against the versions
@@ -7270,6 +7439,126 @@ if [ -f "$STAGE/payload_loops" ]; then
             $BB mount -t "${FSTYPE:-ext4}" -o ro "$LOOP" "$vdir" && echo "Guest payload $TARGET on $LOOP -> $vdir"
         done
     done < "$STAGE/payload_loops"
+fi
+
+# Experimental One UI 9.5 on One UI 8 (A17_ON_A16): the image's connectivity_native over One UI's in the guest's view
+# of One UI's tethering module (see the A17_ON_A16 block above). Here, after One UI's modules are bound onto the
+# guest's /apex: oneui8test5 ran it before, on empty directories ("bound nowhere", S22 Ultra 58c05b45).
+if [ "$A17_ON_A16" = 1 ]; then
+    CNA="$STAGE/tethering_connectivity_native_a17.so"
+    if [ -f "$CNA" ]; then
+        chmod 644 "$CNA"
+        CNN=0
+        for d in "$ROOTFS/apex/com.android.tethering" "$ROOTFS/apex/com.android.tethering"@*; do
+            CNL="$d/lib64/libcom.android.tethering.connectivity_native.so"
+            [ -f "$CNL" ] && [ ! -L "$CNL" ] || continue
+            $BB mount --make-private "$d" 2>/dev/null || { echo "!!! could not make $d private, leaving its connectivity_native alone"; continue; }
+            $BB umount -l "$CNL" 2>/dev/null || true
+            $BB mount --bind "$CNA" "$CNL" && CNN=$((CNN + 1)) &&
+                echo "Bound tethering_connectivity_native_a17.so -> $CNL (the image's, for its libandroid.so)"
+        done
+        [ "$CNN" -gt 0 ] || echo "!!! WARNING: the image's connectivity_native was bound nowhere: the image's libandroid.so will not load (AConnectivityNative_getNetworkBlockedReason)"
+    else
+        echo "!!! WARNING: tethering_connectivity_native_a17.so is not staged: the image's libandroid.so will not load on One UI 8's tethering module"
+    fi
+fi
+# One UI 8's tethering module train 372038420 (S22 Ultra 6fcc905a, oneui8test10) starts ConnectivityService's
+# loopback event poller only on Android 17: under One UI 8 the boot-time BPF loader never pinned its ring buffer,
+# and the guest's system_server aborted in LoopbackEventHandler::Start ("BpfRingbuf init failed ...
+# map_netd_loopback_access_ringbuf: No such file or directory"). An empty ring buffer for the session
+# (switcher/native/oneos_bpf_ringbuf.c); return_to_oneui.sh removes the one made here.
+rm -f "$STAGE/bpf_ringbuf.created"
+if [ "$A17_ON_A16" = 1 ]; then
+    RB=/sys/fs/bpf/netd_shared/map_netd_loopback_access_ringbuf
+    LSC="$ROOTFS/apex/com.android.tethering/lib64/libservice-connectivity.so"
+    if [ -e "$RB" ]; then
+        echo "Loopback ring buffer: One UI pinned its own; left alone"
+    elif ! $BB grep -q map_netd_loopback_access_ringbuf "$LSC" 2>/dev/null; then
+        echo "Loopback ring buffer: One UI's tethering module has no loopback poller; none needed"
+    elif [ ! -d /sys/fs/bpf/netd_shared ] || [ ! -x "$STAGE/oneos_bpf_ringbuf" ]; then
+        echo "!!! Loopback ring buffer: no /sys/fs/bpf/netd_shared or no oneos_bpf_ringbuf; the guest's system_server will abort in LoopbackEventHandler"
+    elif "$STAGE/oneos_bpf_ringbuf" create "$RB" && [ -e "$RB" ]; then
+        echo "$RB" > "$STAGE/bpf_ringbuf.created"
+        echo "Loopback ring buffer: an empty one pinned at $RB for the session (One UI's module starts its poller on Android 17)"
+    else
+        # 0.5.38: the S22 Ultra (Exynos) 91c4fef5 refused to make one ("BPF_MAP_CREATE: Operation not
+        # permitted") and system_server aborted 50 s in. A ring buffer One UI's own loader pinned (no program
+        # of the guest's writes the loopback events into it) pinned at the path instead: no map is created.
+        RBA=""
+        for x in /sys/fs/bpf/netd_shared/map_netd_local_net_note_op_ringbuf /sys/fs/bpf/netd_shared/map_*ringbuf /sys/fs/bpf/net_shared/map_*ringbuf /sys/fs/bpf/map_*ringbuf; do
+            [ -e "$x" ] && [ "$x" != "$RB" ] || continue
+            if "$STAGE/oneos_bpf_ringbuf" alias "$x" "$RB" && [ -e "$RB" ]; then RBA=$x; break; fi
+        done
+        if [ -n "$RBA" ]; then
+            echo "$RB" > "$STAGE/bpf_ringbuf.created"
+            echo "Loopback ring buffer: no new map allowed on this phone; One UI's $RBA pinned at $RB for the session"
+        else
+            echo "!!! Loopback ring buffer: could not pin $RB; the guest's system_server will abort in LoopbackEventHandler"
+        fi
+    fi
+fi
+# oneui8test13: the guest's netd (Android 17) asks One UI 8's tethering module (train 374205010 on the S22)
+# for the socket-ops program prog_netd_sockops_prog. Some boots of that phone had no such pin (test11
+# 3d35a984, e7d51e44: "libnetd_updatable_init: Failed: Failed to get program from
+# /sys/fs/bpf/netd_shared/prog_netd_sockops_prog", netd aborted every 5 s, system_server waited for it in
+# NetworkManagementService.create and the watchdog killed it after 68 s). Then a socket-ops program that
+# does nothing is pinned there for the session (switcher/native/oneos_bpf_ringbuf.c); the return detaches
+# it if it is still the one attached and removes the pin. One UI's own pin is left alone.
+rm -f "$STAGE/bpf_sockops.created"
+if [ "$A17_ON_A16" = 1 ]; then
+    SOP=/sys/fs/bpf/netd_shared/prog_netd_sockops_prog
+    LNU="$ROOTFS/apex/com.android.tethering/lib64/libnetd_updatable.so"
+    mkdir -p "$STAGE/diag_host" && ls -l /sys/fs/bpf/netd_shared > "$STAGE/diag_host/bpf_netd_shared.txt" 2>&1
+    if [ -e "$SOP" ]; then
+        echo "netd socket-ops program: One UI pinned its own; left alone"
+    elif ! $BB grep -q prog_netd_sockops_prog "$LNU" 2>/dev/null; then
+        echo "netd socket-ops program: One UI's tethering module does not ask for one"
+    elif [ ! -d /sys/fs/bpf/netd_shared ] || [ ! -x "$STAGE/oneos_bpf_ringbuf" ]; then
+        echo "!!! netd socket-ops program: no /sys/fs/bpf/netd_shared or no oneos_bpf_ringbuf; the guest's netd will abort"
+    elif "$STAGE/oneos_bpf_ringbuf" sockops-create "$SOP" && [ -e "$SOP" ]; then
+        echo "$SOP" > "$STAGE/bpf_sockops.created"
+        echo "netd socket-ops program: none pinned on this boot; one that does nothing pinned at $SOP for the session"
+    else
+        echo "!!! netd socket-ops program: could not pin $SOP; the guest's netd will abort and system_server wait for it"
+    fi
+fi
+# oneui8test13: Bluetooth stuck turning on (S22 Ultra test11 8ba80911: State BLE_TURNING_ON all session,
+# "Waited one second for vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default" every second
+# from the Bluetooth stack's main thread). The image's Bluetooth module reads its key storage through
+# libvkmanager.so (get_secure_storage_key: vkSupport is always true there), whose every call waits for
+# Samsung's VaultKeeper AIDL HAL with AServiceManager_waitForService, with no time limit; One UI 8 on the
+# S22 series has no such HAL. Where One UI neither declares nor runs it, the session binds a copy of the
+# image's library whose import is AServiceManager_checkService instead (the same argument and result; with
+# no service each call fails at once and logs "Failed to get service of ISehVaultKeeper", as when the HAL
+# is not there): the dynamic string and that symbol's version (LIBBINDER_NDK31 -> LIBBINDER_NDK), 15 bytes,
+# made here from the image's file only when it is the One UI 9.5 image's (sha256 pinned before and after).
+# System_server's VaultKeeperService was handled the same way in set r6 (oneui_vaultkeeper_unreachable.py).
+# ONEOS_GUEST_VK_NOWAIT=0 leaves the library alone.
+VKM="$ROOTFS/system/lib64/libvkmanager.so"
+VKS="$STAGE/libvkmanager.session.so"
+rm -f "$VKS"
+if [ -f "$VKM" ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_GUEST_VK_NOWAIT:-1}" = 1 ]; then
+    # 0.5.38: on One UI 8 only a running one counts. The S22 Ultra (Snapdragon) declares it in its vendor
+    # manifest but runs none: test13 68d44d68 left the library alone on the declaration, and Bluetooth stayed at
+    # BLE_TURNING_ON (450 "Waited one second for ...ISehVaultKeeper/default" from com.android.bluetooth). One UI 9
+    # phones keep the declaration rule (the HAL may start on demand there).
+    if service check vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default 2>/dev/null | grep -q ': found' ||
+       { [ "$A17_ON_A16" != 1 ] && grep -rqs ISehVaultKeeper /vendor/etc/vintf /odm/etc/vintf /system/etc/vintf 2>/dev/null; }; then
+        echo "VaultKeeper: One UI has ISehVaultKeeper; the image's libvkmanager.so is left as it is"
+    elif [ "$(sha256sum "$VKM" 2>/dev/null | cut -c1-64)" != 0c10e01a989baf6fff73421789105fb85c10e3dd80f337f2b677d248b39d9928 ]; then
+        echo "!!! VaultKeeper: no ISehVaultKeeper on this phone and the image's libvkmanager.so is not the known one; Bluetooth may wait for it"
+    elif cp "$VKM" "$VKS" &&
+         $BB printf 'checkService\000\000\000' | $BB dd of="$VKS" bs=1 seek=4154 conv=notrunc 2>/dev/null &&
+         $BB printf '\005' | $BB dd of="$VKS" bs=1 seek=2230 conv=notrunc 2>/dev/null &&
+         [ "$(sha256sum "$VKS" 2>/dev/null | cut -c1-64)" = 33c26c4af7b0020a4599db97f4cddace2b7057e94fda67d6ff531771c1368772 ] &&
+         chmod 644 "$VKS" && chown 0:0 "$VKS" &&
+         { $BB chcon u:object_r:system_lib_file:s0 "$VKS" 2>/dev/null || true; } &&
+         $BB mount --bind "$VKS" "$VKM"; then
+        echo "VaultKeeper: no ISehVaultKeeper on this phone; the image's libvkmanager.so looks for it without waiting (Bluetooth starts without it)"
+    else
+        rm -f "$VKS"
+        echo "!!! VaultKeeper: could not make or bind the no-wait libvkmanager.so; Bluetooth may wait for ISehVaultKeeper"
+    fi
 fi
 
 # vivo's Wi-Fi code on One UI's connectivity module (OriginOS 6 CN): vivo's wifi
@@ -7634,6 +7923,17 @@ ONEUI_A_CAMERA=0
 OAC_TAR="$STAGE/samcam_a_oneui.tar"
 OAC_DIR="$STAGE/samcam_a_oneui"
 OAC_DST="$ROOTFS/system/priv-app/SamsungCamera"
+if [ "$A17_ON_A16" = 1 ]; then
+    # Experimental One UI 9.5 on One UI 8 (A17_ON_A16 above): no Samsung Camera at all, neither the A series' nor
+    # the image's. An empty read-only tmpfs over the image's folder, as for the One UI apps hidden above, so
+    # the package manager never installs it and nothing starts the camera with One UI 9.0's codes.
+    if [ -d "$OAC_DST" ] && [ ! -L "$OAC_DST" ]; then
+        $BB umount -l "$OAC_DST" 2>/dev/null || true
+        $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$OAC_DST" &&
+            echo "Hid guest ${OAC_DST#"$ROOTFS"/} (experimental One UI 9.5 on One UI 8: camera off)" ||
+            echo "!!! Experimental One UI 9.5 on One UI 8: could not hide ${OAC_DST#"$ROOTFS"/}"
+    fi
+fi
 # 0.5.35, MediaTek A and M phones: the phone's own Samsung Camera from its One UI, not the A36's. The A36's (a
 # Snapdragon phone's) asks the sensor for its staggered HDR, which MediaTek's camera driver refuses (A17 0d249e83,
 # 0.5.34: "MtkCam/HalSensor: SENSOR_CMD_SET_SWITCH_TG_FOR_STAGGER error", then every preview frame dropped as a
@@ -7641,7 +7941,7 @@ OAC_DST="$ROOTFS/system/priv-app/SamsungCamera"
 # read-only over the image's; its data cleared once when the camera changes, as below.
 # ONEOS_ONEUI_HOST_CAMERA=0 keeps the A36's on these phones too.
 HCAM_DIR=/system/priv-app/SamsungCamera
-if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_ONEUI_A_CAMERA:-1}" = 1 ] &&
+if [ "$A17_ON_A16" != 1 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_ONEUI_A_CAMERA:-1}" = 1 ] &&
    [ "${ONEOS_ONEUI_HOST_CAMERA:-1}" = 1 ] && [ -d "$OAC_DST" ] && [ ! -L "$OAC_DST" ] &&
    [ -f "$HCAM_DIR/SamsungCamera.apk" ] && [ ! -L "$HCAM_DIR" ] && [ ! -L "$HCAM_DIR/SamsungCamera.apk" ]; then
     case "$(getprop ro.product.model):$(getprop ro.soc.manufacturer):$(getprop ro.board.platform)" in
@@ -7666,7 +7966,7 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
 fi
 # 0.5.35: a One UI image on an A or M phone that skips the A series' camera says why (an A17 on 0.5.34,
 # report b23c750d, had the set's samcam_a_oneui.tar and no camera line at all).
-if [ $ONEUI_A_CAMERA = 0 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+if [ "$A17_ON_A16" != 1 ] && [ $ONEUI_A_CAMERA = 0 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
     case "$(getprop ro.product.model)" in
         SM-A*|SM-M*)
             if [ "${ONEOS_ONEUI_A_CAMERA:-1}" != 1 ]; then echo "Camera: the A series' camera not used (ONEOS_ONEUI_A_CAMERA=0)"
@@ -7676,7 +7976,7 @@ if [ $ONEUI_A_CAMERA = 0 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system
             fi ;;
     esac
 fi
-if [ $ONEUI_A_CAMERA = 0 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_ONEUI_A_CAMERA:-1}" = 1 ] &&
+if [ "$A17_ON_A16" != 1 ] && [ $ONEUI_A_CAMERA = 0 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_ONEUI_A_CAMERA:-1}" = 1 ] &&
    [ -f "$OAC_TAR" ] && [ ! -L "$OAC_TAR" ] && [ -d "$OAC_DST" ] && [ ! -L "$OAC_DST" ] && [ ! -L "$OAC_DIR" ]; then
     case "$(getprop ro.product.model)" in
         SM-A*|SM-M*)
@@ -8321,6 +8621,65 @@ if [ "$GMS_APK" = 0 ]; then
         done
     done
     [ "$n" = 0 ] && echo "No GmsCore in the guest; no gms split permissions to drop"
+fi
+# NFC on a One UI 8 phone (oneui8test8 S22 b58434c4: com.samsung.android.nfc's SecNfcApplication died
+# 2,700 times, "could not retrieve NFC service"). The service is AOSP's NfcService in com.android.nfc,
+# the app inside the image's com.android.nfcservices (NfcNciApex). The guest's package manager registers
+# apps in APEXes from the list One UI's apexd keeps active, and One UI 8 on the S22 has no nfcservices
+# module: com.android.nfc was never installed (on One UI 9 phones: "Registering com.android.nfc as
+# apk-in-apex of com.android.nfcservices"). Here it is a privileged app on the guest's product
+# partition instead: the module's APK (system/priv-app/NfcNci), its JNI libraries (and those of their libraries the image's
+# /system lacks) in lib/arm64, and the module's own privapp-permissions and preinstalled-packages
+# files. Only when One UI has no nfcservices of its own. ONEOS_GUEST_NFC_APP=0 leaves it out.
+# After the Google services step (oneui8test9 S22 5bcb40c9: made before it, the farm turned the image's
+# product/priv-app/GmsCore into a bind and that step refused to start the guest); farm_dir binds the
+# entries back recursively, so GmsCore keeps the APK bound over it.
+if [ "$A17_ON_A16" = 1 ] && [ "${ONEOS_GUEST_NFC_APP:-1}" = 1 ] && [ ! -e /apex/com.android.nfcservices ]; then
+    NM="$ROOTFS/apex/com.android.nfcservices"
+    # On the system partition (oneui8test10 S22 40176409: from product/priv-app its JNI library could not load
+    # libaconfig_storage_read_api_cc.so, a system library a product app's namespace does not reach).
+    NSYS="$ROOTFS/system"
+    NA=$(ls "$NM"/priv-app/NfcNciApex*/NfcNciApex.apk 2>/dev/null | head -n 1)
+    NP="$NM/etc/permissions/com.android.nfc.xml"; NS="$NM/etc/sysconfig/preinstalled-packages-com.android.nfc.xml"
+    if [ -z "$NA" ] || [ ! -f "$NM/lib64/libnfc_nci_jni.so" ] || [ ! -f "$NP" ]; then
+        echo "!!! NFC: the image's nfcservices module has no NfcNciApex, JNI library or permissions file; NFC stays off"
+    elif [ -e "$NSYS/priv-app/NfcNci" ] || [ ! -d "$NSYS/priv-app" ] || [ ! -d "$NSYS/etc/permissions" ]; then
+        echo "!!! NFC: ${NSYS#$ROOTFS/}/priv-app/NfcNci exists or the system has no priv-app/etc/permissions; NFC stays off"
+    else
+        NAD="$STAGE/nfc_app/NfcNci"; nok=1
+        rm -rf "$STAGE/nfc_app" && mkdir -p "$NAD/lib/arm64" && cp "$NA" "$NAD/NfcNci.apk" || nok=0
+        nl=""
+        for l in "$NM"/lib64/*.so; do
+            [ $nok = 1 ] && [ -f "$l" ] || continue
+            b=${l##*/}
+            case "$b" in libnfc_*jni.so) ;; *) [ -e "$ROOTFS/system/lib64/$b" ] && continue ;; esac
+            cp "$l" "$NAD/lib/arm64/$b" && nl="$nl $b" || nok=0
+        done
+        cp "$NP" "$STAGE/nfc_app/com.android.nfc.xml" || nok=0
+        [ -f "$NS" ] && { cp "$NS" "$STAGE/nfc_app/preinstalled-packages-com.android.nfc.xml" || nok=0; }
+        if [ $nok = 1 ]; then
+            chmod 755 "$STAGE/nfc_app" "$NAD" "$NAD/lib" "$NAD/lib/arm64"; chmod 644 "$NAD/NfcNci.apk" "$NAD"/lib/arm64/*.so "$STAGE"/nfc_app/*.xml
+            $BB chcon -R u:object_r:system_file:s0 "$STAGE/nfc_app" 2>/dev/null
+            if farm_dir "$NSYS/priv-app" "$STAGE/nfc_privapp_farm" NfcNci/ &&
+               $BB mount --bind "$NAD" "$NSYS/priv-app/NfcNci" &&
+               farm_dir "$NSYS/etc/permissions" "$STAGE/nfc_perm_farm" com.android.nfc.xml &&
+               $BB mount --bind "$STAGE/nfc_app/com.android.nfc.xml" "$NSYS/etc/permissions/com.android.nfc.xml"; then
+                echo "NFC: the image's NfcNciApex as ${NSYS#$ROOTFS/}/priv-app/NfcNci (One UI 8 has no nfcservices module), libraries:$nl"
+                if [ -f "$STAGE/nfc_app/preinstalled-packages-com.android.nfc.xml" ] && [ -d "$NSYS/etc/sysconfig" ]; then
+                    if farm_dir "$NSYS/etc/sysconfig" "$STAGE/nfc_sysconfig_farm" preinstalled-packages-com.android.nfc.xml &&
+                       $BB mount --bind "$STAGE/nfc_app/preinstalled-packages-com.android.nfc.xml" "$NSYS/etc/sysconfig/preinstalled-packages-com.android.nfc.xml"; then
+                        echo "NFC: its preinstalled-packages file in ${NSYS#$ROOTFS/}/etc/sysconfig"
+                    else
+                        echo "!!! NFC: its preinstalled-packages file not added (com.android.nfc may not be installed for the user)"
+                    fi
+                fi
+            else
+                echo "!!! NFC: could not add NfcNci to ${NSYS#$ROOTFS/}; NFC stays off"
+            fi
+        else
+            echo "!!! NFC: could not copy the image's NfcNciApex to the stage; NFC stays off"
+        fi
+    fi
 fi
 # OPPO region overlays in a global image (the Find X9 Ultra IN keeps them in
 # my_product/cust/<region>/overlay, one folder per region). OPPO's own first

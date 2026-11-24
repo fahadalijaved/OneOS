@@ -176,6 +176,11 @@ data class GateInput(
      * the tests keep working. An unreadable lock state blocks whatever this says.
      */
     val allowScreenLock: Boolean = false,
+    /**
+     * The experimental tester build ([Experimental.a17OnA16]): One UI 9.5 may run on a One UI 8 phone (SDK 36), with a
+     * WARN and a tick at the Android version gate, and the installd gate takes One UI 8's tables for it.
+     */
+    val a17OnA16: Boolean = Experimental.a17OnA16,
 )
 
 /**
@@ -237,6 +242,12 @@ object SwitchGates {
 
     /** One UI is older than every system the phone is offered (One UI 8.5 where all are Android 17): update One UI. */
     const val R_ANDROID_OLDER = "older"
+
+    /** Tester build only ([Experimental.a17OnA16]): One UI 9.5 on a One UI 8 phone, a WARN with a tick. */
+    const val R_ANDROID_EXPERIMENTAL = "experimental-a17-on-a16"
+
+    /** The tick of [R_ANDROID_EXPERIMENTAL] at Switch. */
+    const val A17_ON_A16_ACK = "I understand this is an experimental test: One UI 9.5 on One UI 8, with the camera off"
     const val R_FORM_MISMATCH = "mismatch"
     const val R_IMAGE_NOT_IN_BUILD = "not-in-build"
     const val R_IMAGE_OTHER_SERIES = "other-series"
@@ -319,7 +330,8 @@ object SwitchGates {
         f.customRom?.let { out += Gate(it) }
         out += Gate(root(f))
         out += profileGate(f, resolution, profiles, switching, choice, image, images)
-        out += Gate(android(f, image, profile, images))
+        val android = android(f, image, profile, images, input.a17OnA16)
+        out += Gate(android, if (switching && android.reason == R_ANDROID_EXPERIMENTAL) A17_ON_A16_ACK else null)
         if (profile != null) {
             out += Gate(form(f, profile))
             out += Gate(
@@ -485,12 +497,32 @@ object SwitchGates {
      * is offered (0.4.85: every image of the build counted before, so a One UI 8.5 phone whose systems are
      * all Android 17 passed here and was refused by the installd gate as "One UI was updated").
      */
-    private fun android(f: DeviceFacts, image: ImageRef?, profile: PhoneProfile?, images: List<ImageRef>): Finding {
+    private fun android(f: DeviceFacts, image: ImageRef?, profile: PhoneProfile?, images: List<ImageRef>, a17OnA16: Boolean = false): Finding {
         val offered = profile?.choices?.mapNotNull { Images.byId(it.imageId, images) }?.map { it.sdk }?.distinct()?.sorted().orEmpty()
         val sdks = image?.let { listOf(it.sdk) } ?: offered.ifEmpty { images.map { it.sdk }.distinct().sorted() }
         val have = f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }
+        // Tester build: One UI 9.5 on One UI 8 (Experimental). Chosen, or with nothing chosen yet the only system
+        // this phone's One UI can run.
+        val experimental = Experimental.a17OnA16Pair(f.sdk, image, a17OnA16) ||
+            (image == null && f.sdk !in sdks && Experimental.a17OnA16Offered(f.sdk, profile, a17OnA16, images))
         return if (f.sdk in sdks) {
             Finding(ID_ANDROID, Level.OK, "Android ${AndroidRelease.name(f.sdk)}", "SDK ${f.sdk}, the same as the image.")
+        } else if (experimental) {
+            Finding(
+                ID_ANDROID, Level.WARN, "Experimental: One UI 9.5 on Android $have",
+                "This phone runs Android $have (SDK ${f.sdk}); One UI 9.5 is Android 17 (SDK 37). This test build lets it " +
+                    "start next to One UI 8 anyway: the camera is off in it, and parts of One UI 9.5 may not work.",
+                R_ANDROID_EXPERIMENTAL,
+            )
+        } else if (image != null && Experimental.a17OnA16Offered(f.sdk, profile, a17OnA16, images)) {
+            // Another system of this phone in the tester build: it needs One UI's own Android version.
+            block(
+                ID_ANDROID, "Android version differs from the image",
+                "This phone runs Android $have (SDK ${f.sdk}); the image is Android ${AndroidRelease.name(image.sdk)} " +
+                    "(SDK ${image.sdk}). This test build runs only One UI 9.5 next to One UI 8; choose it, or another " +
+                    "system made for Android $have.",
+                R_ANDROID_DIFFERS,
+            )
         } else if (profile != null && offered.isNotEmpty() && f.sdk < offered.first()) {
             // No system of this phone runs next to its One UI: nothing to choose, One UI has to be updated.
             block(
@@ -558,7 +590,9 @@ object SwitchGates {
         // With no system chosen yet, the phone's own (0.4.85: Android 17's table was used, so every
         // One UI 8.5 phone with nothing set up, or with a stage of another file set, read "One UI was updated").
         val sdk = image?.sdk ?: input.facts.sdk.takeIf { InstalldExpected.carried(it) != null } ?: 37
-        val p = InstalldExpected.problems(input.installd, if (sdk == 36) input.expectedInstalldA16 else input.expectedInstalld, sdk)
+        // Tester build: One UI 9.5 (SDK 37, codes read at runtime) on One UI 8 takes One UI 8's tables too.
+        val a17 = Experimental.a17OnA16Pair(input.facts.sdk, image, input.a17OnA16)
+        val p = InstalldExpected.problems(input.installd, if (sdk == 36) input.expectedInstalldA16 else input.expectedInstalld, sdk, a17)
         return if (p.isEmpty()) {
             Finding(
                 ID_INSTALLD, Level.OK, "installd interface matches the OneOS files",

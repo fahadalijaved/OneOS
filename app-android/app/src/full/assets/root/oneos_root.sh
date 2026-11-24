@@ -138,6 +138,13 @@ APP_PACKAGE=com.fahadali.oneos
 SPLASH_COMPONENT=com.fahadali.oneos/.ui.GapSplashActivity
 OLD_SWITCHER=com.wewaffles.onelineage
 IMAGE_SDK=37
+# Experimental tester builds only (0.5.35-oneui8test1): One UI 9.5 (oneui95-s948b, SDK 37) on a phone still on
+# One UI 8.0/8.5 (SDK 36). The app's Gradle build writes a copy of this script with this line set to 1 when it is
+# made with -Poneos.a17OnA16=true (app/build.gradle.kts), and pins that copy; every other build ships it as 0 and
+# refuses the pair as before. Why the pair is tried at all: the One UI 9.5 set reads the phone's installd codes at
+# runtime by name and signature (RUNTIME_CODES), and IGateKeeperService codes 1-6 are the same in AOSP Android 16
+# and One UI 9.5; its camera codes are One UI 9.0's, so guest_prepare.sh keeps the camera off there.
+ONEOS_A17_ON_A16=0
 # 0.4.66: the images of SDK 36 (Android 16, for One UI 8 phones); every other image is IMAGE_SDK.
 IMAGES_SDK36="oxygenos16-cph2745"
 # SHA-256 of the method lines of switcher/patches/host_installd.txt: the
@@ -153,7 +160,7 @@ INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
 INSTALLD_SHA_95=86a30991dbd5d91aeda1726ec860b12a2d057dd7b9ca3872f32376478078a23c
 RUNTIME_CODES="# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones"
 # Session scripts from switcher/assets plus the expected installd table.
-SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio oneos_essential_key OneOSOverlayDimen.dex OneOSPixelCorners.apk OneOSGalleryStub.apk OneOSRcdCorners.apk host_installd.txt"
+SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio oneos_essential_key oneos_bpf_ringbuf OneOSOverlayDimen.dex OneOSPixelCorners.apk OneOSGalleryStub.apk OneOSRcdCorners.apk host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
@@ -180,6 +187,8 @@ SET_NOTHINGA="NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSBrightn
 SET_ONEUI="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar"
 # One UI 9.5 on the Z Fold8 (0.5.35, pull request #328): the same plus Josh's Fold8 files.
 SET_FOLDONEUI="Fold8OneUI95Framework.apk Fold8OneUI95Home.apk Fold8OneUI95Services.jar Fold8OneUI95Settings.apk Fold8OneUI95SystemUI.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar"
+# Tester builds: One UI 9.5 on One UI 8 (oneui95-a16): the oneui95 set and the image's own modules One UI 8 cannot lend.
+SET_ONEUIEIGHT="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar conscrypt_payload.img profiling_payload.img os.statsd_payload.img media_payload.img media.swcodec_payload.img resolv_payload.img ipsec_payload.img uwb_payload.img devicelock_payload.img scheduling_payload.img neuralnetworks_payload.img tzdata_payload.img uprobestats_payload.img samsung.lifeguard_payload.img samsung.shell_payload.img samsung.media.imagecodec.system_payload.img samsung.spqr_payload.img samsung.media.extractor_payload.img samsung.media.swcodec.system_payload.img samsung.mediacontextanalyzer_payload.img tethering_connectivity_native_a17.so"
 # OxygenOS 16 (0.4.67): ColorOS's common files and its own payloads; the guest vold as gvld from r2 (0.4.69).
 SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img conscrypt_payload.img profiling_payload.img"
 # OriginOS 7 (0.4.73): vivo's own jars, libraries, launcher and feature list, the signal poll, the fold
@@ -235,6 +244,7 @@ profile_info() {
         flip5) echo "SM-F731 b5q SM8550 flip" ;;
         f6) echo "SM-F956 q6q SM8650 fold" ;;
         f5) echo "SM-F946 q5q SM8550 fold" ;;
+        f4) echo "SM-F936 q4q SM8475 fold" ;;
         a07) echo "SM-A075 a07 MT6789 bar" ;;
         flip8) echo "SM-F776 b8s s5e9965 flip" ;;
         a36) echo "SM-A366 a36xq SM6475 bar" ;;
@@ -277,6 +287,7 @@ profile_info() {
 # (Profiles: PhoneProfile.choices). From 0.3.3 a phone may take more than one
 # image; the staged image decides the set.
 profile_set() {
+    a17_on_a16_set "$1" "$2" && return 0
     case "$1 $2" in
         "f8u coloros17-findn6") echo n6-f8u ;;
         "f8u pixel11fold-yogi") echo pixel-f8u ;;
@@ -614,6 +625,7 @@ profile_set() {
         "s-plus-8550 originos7-pd2609ma") echo originos ;;
         "s-ultra-8550 originos7-pd2609ma") echo originos ;;
         # 0.4.91: OxygenOS 16 for the S23s still on One UI 8.0/8.5 (the owner, 2026-11-11), untested there.
+        "f4 oxygenos16-cph2745") echo oxygen16 ;;
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
@@ -759,8 +771,19 @@ profile_set() {
         "m36 hyperos-hongkong") echo hyper-hk ;;
         "m36 nothingos5-asteroids") echo nothing-a ;;
         "a15-5g oxygenos16-cph2745") echo oxygen16 ;;
-        *) return 1 ;;
+        *) a17_on_a16_set "$1" "$2" ;;
     esac
+}
+
+# Tester builds (ONEOS_A17_ON_A16=1): One UI 9.5 with its One UI 8 set (oneui95-a16) on the phones whose rows above do not offer it
+# (the ones held on One UI 8.0/8.5: OxygenOS 16 only), and in place of the plain oneui95 set on the phones whose rows do
+# (oneui8test5: the A35 34c9856c on One UI 8 got the plain set; profile_set asks this list first), as
+# Profiles.withOneUi95OnA16 offers it. A list, not rows of the table, so the table stays exactly what a normal build's
+# app offers (StageAuditTest checks both).
+A17_ON_A16_PROFILES="a06 a07-5g a24 a25 a33 a53 e55 s-fe-9925 s-fe-8450 s-plus-9925 s-ultra-9925 s-ultra-8450 s-ultra-8450-jp s-8450 m55s s-9925 a16-mtk a15-5g flip8 a36 a27 s-8650 s-plus-8650 f8u f7 s-ultra-8850 s-plus-8850 s-8850 s-8850-jp s-plus-9965 s-9965 s-ultra-8750 s-plus-8750 s-8750 s-ultra-8650 s-8550 s-plus-8550 flip7 a56 a57 s-ultra-8550 flip6 s-9945 flip5 f6 f5 f4 a07 s-edge-8750 s-fe-9945 a26 a35 a54 a16-4g a16-s166 a17 a16 a17-5g a34 a15 flip7-fe a55 s25-fe s26-fe s-plus-9945 s-ultra-8550-jp s-8550-jp m35 m36"
+a17_on_a16_set() { # <profile> <image>
+    [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$2" = oneui95-s948b ] && in_list "$1" "$A17_ON_A16_PROFILES" || return 1
+    echo oneui95-a16
 }
 
 # <image id>: <unpacked bytes> <unpacked SHA-256>, as staged in system.raw.
@@ -805,6 +828,7 @@ set_files() {
         nothing-a) echo "$SET_NOTHINGA" ;;
         oneui95) echo "$SET_ONEUI framework_patched_oneui95.jar" ;;
         oneui95-f8) echo "$SET_FOLDONEUI" ;;
+        oneui95-a16) echo "$SET_ONEUIEIGHT" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         lineage) echo "$SET_LINEAGE framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
@@ -829,6 +853,7 @@ set_image() {
         nothing-a) echo nothingos5-asteroids ;;
         oneui95) echo oneui95-s948b ;;
         oneui95-f8) echo oneui95-s948b ;;
+        oneui95-a16) echo oneui95-s948b ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
         lineage) echo lineage24-infiniti ;;
@@ -899,7 +924,7 @@ pair_set() { # <profile> <image>
 # Executables 0755 (as scripts/deploy-phone.sh pushes them; PackageFile.mode).
 file_mode() {
     case "$1" in
-        *.sh|guest_root|guest_zygiskd|guest_zygisk_ptrace|zygote_exec|oneos_btaudio|oneos_essential_key|surfaceflinger_patched|vold_patched) echo 0755 ;;
+        *.sh|guest_root|guest_zygiskd|guest_zygisk_ptrace|zygote_exec|oneos_btaudio|oneos_essential_key|oneos_bpf_ringbuf|surfaceflinger_patched|vold_patched) echo 0755 ;;
         *) echo 0644 ;;
     esac
 }
@@ -1136,11 +1161,22 @@ check_env() { # <file> <form> <profile> <image>
 image_sdk() { # <image id>
     if in_list "$1" "$IMAGES_SDK36"; then echo 36; else echo "$IMAGE_SDK"; fi
 }
+# a17_on_a16 <image id>: the tester build's one pair, One UI 9.5 (SDK 37) on this phone's One UI 8 (SDK 36).
+a17_on_a16() {
+    [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$1" = oneui95-s948b ] && [ "$(image_sdk "$1")" = 37 ] &&
+        [ "$(getprop ro.build.version.sdk)" = 36 ]
+}
 check_table() { # <file> <image id>
     f=$1
     if [ "$(image_sdk "$2")" = 36 ]; then carried=$INSTALLD_SHA_36 ok=$INSTALLD_OK_36
     else carried=$INSTALLD_SHA ok=$INSTALLD_SHA
-        grep -qxF "$RUNTIME_CODES" "$STAGE/guards.txt" 2>/dev/null && ok="$ok $INSTALLD_SHA_95"; fi
+        if grep -qxF "$RUNTIME_CODES" "$STAGE/guards.txt" 2>/dev/null; then
+            ok="$ok $INSTALLD_SHA_95"
+            # Tester build: a set that reads the codes at runtime maps each call to One UI 8.5's or 8.0's
+            # code by name and signature and refuses one the phone lacks, as it does for One UI 9.5's table.
+            a17_on_a16 "$2" && ok="$ok $INSTALLD_OK_36"
+        fi
+    fi
     [ -f "$f" ] || refuse "host_installd.table missing"
     ge 65536 "$(stat -c %s "$f")" || refuse "host_installd.table is over 64 kB"
     [ "$(grep -v '^#' "$STAGE/host_installd.txt" 2>/dev/null | sha256sum | cut -d' ' -f1)" = "$carried" ] ||
@@ -1540,7 +1576,9 @@ do_launch() {
     [ "$(getprop ro.product.device)" = "$2" ] || refuse "codename $(getprop ro.product.device), profile $M_PROFILE is $2"
     [ "$(getprop ro.soc.model)" = "$3" ] || refuse "chip $(getprop ro.soc.model), profile $M_PROFILE is $3"
     isdk=$(image_sdk "$M_IMAGE")
-    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || refuse "Android SDK $(getprop ro.build.version.sdk), the image is $isdk"
+    # The tester build's One UI 9.5 on One UI 8 is the only other Android version that starts (a17_on_a16).
+    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || a17_on_a16 "$M_IMAGE" ||
+        refuse "Android SDK $(getprop ro.build.version.sdk), the image is $isdk"
     idle_or_refuse launch
     if [ -f "$STAGE/persist_session.active" ]; then
         refuse "the last session never returned: restore One UI's settings first (Last session)"

@@ -2386,4 +2386,76 @@ class StageScriptTest {
         assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.TOOL_APP, listOf("off", pkg)))
         assertEquals(emptyList<String>(), RootScript.problems(RootScript.Verb.TOOL_APP, listOf("list")))
     }
+
+    /**
+     * Tester builds (-Poneos.a17OnA16=true: app/build.gradle.kts ships this script with ONEOS_A17_ON_A16=1): One UI 9.5
+     * on a phone still on One UI 8 (SDK 36), whose set reads the installd codes at runtime (RUNTIME_CODES). The
+     * shipped script refuses the pair; the tester copy prepares and launches it with One UI 8.0's and 8.5's tables,
+     * and still refuses another Android 17 system on that phone.
+     */
+    @Test
+    fun oneUi95OnOneUi8OnlyInTheTesterScript() {
+        val shipped = Shipped.rootScript.readBytes()
+        val testerScript = Shipped.rootScriptText.replace("\nONEOS_A17_ON_A16=0\n", "\nONEOS_A17_ON_A16=1\n").toByteArray()
+        assertFalse(shipped.contentEquals(testerScript))
+        val tester = Profiles.withOneUi95OnA16(Profiles.STABLE)
+        val patches = Shipped.installdFixture.parentFile
+        val a85 = File(patches, "host_installd_a16.txt").readText()
+        val runtimeCodes = Regex("""(?m)^RUNTIME_CODES="([^"]*)"$""").find(Shipped.rootScriptText)!!.groupValues[1]
+        fun phone(fr: FakeRoot, model: String, device: String, soc: String) {
+            fr.props["ro.product.model"] = model
+            fr.props["ro.product.device"] = device
+            fr.props["ro.soc.model"] = soc
+            fr.props["ro.build.version.sdk"] = "36"
+            fr.writeProps()
+        }
+        /** Stages [s] with a guards.txt that has RUNTIME_CODES and the phone table [installd]; the verb results. */
+        fun stage(fr: FakeRoot, s: Stager, installd: String): List<FakeRoot.Run> {
+            val out = mutableListOf(s.begin())
+            for (n in s.files.keys) {
+                out += if (n == "guards.txt") s.receive(n, "# a set's guards\n$runtimeCodes\n".toByteArray()) else s.receive(n)
+            }
+            out += s.receiveRaw()
+            val t = InstalldTableFormat.write(
+                fr.props.getValue("ro.build.fingerprint"), "/system/framework/framework.jar", Hashes.sha256(fr.frameworkJar),
+                InstalldTableFormat.parseLegacy(installd),
+            ).toByteArray()
+            out += fr.run(RootScript.Verb.TABLE, t.size.toString(), stdin = t)
+            out += s.env()
+            out += s.finish()
+            return out
+        }
+        val s22u = tester.first { it.id == Profiles.S_ULTRA_8450.id }
+        // The shipped script: the S22 Ultra does not run One UI 9.5.
+        eachShell(shipped) { fr ->
+            phone(fr, "SM-S908B", "b0q", "SM8450")
+            refused(Stager(fr, s22u, Images.ID_ONEUI95).begin(), "does not run")
+        }
+        // One UI 8.0's table (S22 Ultra, BP2A), core/model's test fixture.
+        val a80 = File("../model/src/test/resources/host_installd_oneui80.txt").readText()
+        for (installd in listOf(a85, a80)) eachShell(testerScript) { fr ->
+            phone(fr, "SM-S908B", "b0q", "SM8450")
+            val s = Stager(fr, s22u, Images.ID_ONEUI95)
+            for (r in stage(fr, s, installd)) s.ok(r)
+            refused(s.launch(), "test root: every launch check passed")
+            // On a One UI 9 phone (SDK 37) its table is not One UI 8's: refused as in every build.
+            fr.props["ro.build.version.sdk"] = "37"
+            fr.writeProps()
+            refused(s.launch(), "installd table differs")
+        }
+        // The Galaxy A56 on One UI 8.5 in the tester build: One UI 9.5 launches, its usual Android 17 system does not.
+        eachShell(testerScript) { fr ->
+            phone(fr, "SM-A566B", "a56x", "s5e8855")
+            val color = Stager(fr, Profiles.A56)
+            val runs = stage(fr, color, a85)
+            for (r in runs.dropLast(3)) color.ok(r)
+            refused(runs[runs.size - 3], "installd table differs")
+        }
+        eachShell(testerScript) { fr ->
+            phone(fr, "SM-A566B", "a56x", "s5e8855")
+            val color = Stager(fr, Profiles.A56)
+            for (r in stage(fr, color, File(patches, "host_installd.txt").readText())) color.ok(r)
+            refused(color.launch(), "Android SDK 36, the image is 37")
+        }
+    }
 }

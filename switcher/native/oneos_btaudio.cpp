@@ -46,6 +46,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -67,6 +68,7 @@ const char* kSehPort = "vendor.samsung.hardware.bluetooth.audio.ISehBluetoothAud
 // Android's own factory, codec tags are left as they are, and the bridge
 // registers as .../oneostest, which nothing but --client uses.
 bool gLoop = false;
+bool gWatchReplacements = false;
 const char* kLoopName = "android.hardware.bluetooth.audio.IBluetoothAudioProviderFactory/oneostest";
 
 // android.hardware.bluetooth.audio version 2 (aidl_api/.../2/.hash): Samsung's
@@ -96,6 +98,7 @@ struct Platform {
     AIBinder* (*checkService)(const char*) = nullptr;
     binder_exception_t (*addService)(AIBinder*, const char*) = nullptr;
     bool (*isDeclared)(const char*) = nullptr;
+    void* (*registerForServiceNotifications)(const char*, void (*)(const char*, AIBinder*, void*), void*) = nullptr;
     void (*markVintf)(AIBinder*) = nullptr;
     bool (*setThreads)(uint32_t) = nullptr;
     void (*startPool)() = nullptr;
@@ -106,6 +109,8 @@ struct Platform {
         checkService = reinterpret_cast<decltype(checkService)>(dlsym(h, "AServiceManager_checkService"));
         addService = reinterpret_cast<decltype(addService)>(dlsym(h, "AServiceManager_addService"));
         isDeclared = reinterpret_cast<decltype(isDeclared)>(dlsym(h, "AServiceManager_isDeclared"));
+        registerForServiceNotifications = reinterpret_cast<decltype(registerForServiceNotifications)>(
+                dlsym(h, "AServiceManager_registerForServiceNotifications"));
         markVintf = reinterpret_cast<decltype(markVintf)>(dlsym(h, "AIBinder_markVintfStability"));
         setThreads = reinterpret_cast<decltype(setThreads)>(dlsym(h, "ABinderProcess_setThreadPoolMaxThreadCount"));
         startPool = reinterpret_cast<decltype(startPool)>(dlsym(h, "ABinderProcess_startThreadPool"));
@@ -113,6 +118,27 @@ struct Platform {
         return checkService && addService && isDeclared && markVintf && setThreads && startPool && joinPool;
     }
 } P;
+
+struct FactoryWatch {
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool replaced = false;
+};
+
+void onFactoryRegistration(const char*, AIBinder* registered, void* cookie) {
+    auto* watch = static_cast<FactoryWatch*>(cookie);
+    // The bridge is local. A remote binder means another process took the name.
+    // Do not call servicemanager here: its notification lock is held in callback.
+    const bool remote = AIBinder_isRemote(registered);
+    AIBinder_decStrong(registered);  // the callback transfers ownership
+    if (remote) {
+        {
+            std::lock_guard<std::mutex> lock(watch->mutex);
+            watch->replaced = true;
+        }
+        watch->changed.notify_one();
+    }
+}
 
 AIBinder_Class* gAospFactoryCls;
 AIBinder_Class* gAospProviderCls;
@@ -596,6 +622,9 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (argc == 3 && !strcmp(argv[1], "--client")) return client(argv[2]);
+    for (int i = 1; i < argc; ++i) {
+        if (!strcmp(argv[i], "--watch-replacements")) gWatchReplacements = true;
+    }
     if (argc == 2 && !strcmp(argv[1], "--loop")) {
         gLoop = true;
         kSehFactoryName = kAospFactoryName;
@@ -632,6 +661,33 @@ int main(int argc, char** argv) {
         return 1;
     }
     logf("serving %s for Samsung's factory (declared: %d)", kAospFactoryName, P.isDeclared(kAospFactoryName) ? 1 : 0);
+    if (gWatchReplacements) {
+        // Galaxy S24 Ultra with the Pixel, PixelOS, LineageOS and Infinity-X
+        // images (oneos_switch.sh passes the flag there only; pull request
+        // #358, ankaserdev): servicemanager tells this process when another
+        // one registers the name, and only then does the bridge take it back,
+        // instead of registering again every second. Where the phone's
+        // libbinder_ndk lacks the notification call, or the watch is refused,
+        // the once-a-second loop below runs as everywhere else.
+        FactoryWatch* watch = new FactoryWatch;  // lives as long as the process
+        void* notification = P.registerForServiceNotifications
+                ? P.registerForServiceNotifications(kAospFactoryName, onFactoryRegistration, watch) : nullptr;
+        if (notification) {
+            logf("watching %s for registrations by other processes", kAospFactoryName);
+            int restorations = 0;
+            while (true) {
+                {
+                    std::unique_lock<std::mutex> lock(watch->mutex);
+                    watch->changed.wait(lock, [watch] { return watch->replaced; });
+                    watch->replaced = false;
+                }
+                ex = P.addService(factory, kAospFactoryName);
+                logf("%s taken by another process: registered again (%d): exception %d", kAospFactoryName,
+                     ++restorations, ex);
+            }
+        }
+        logf("no registration notifications for %s: registering again every second", kAospFactoryName);
+    }
     // Keep the name. Samsung's audio HAL also carries Qualcomm's provider for
     // Android's factory and registers it under the same name once the guest's
     // Bluetooth opens (it can, now that the session declares the name). That

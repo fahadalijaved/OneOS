@@ -30,6 +30,7 @@ class CompatEvaluatorTest {
             "Infinity-X 4.1 on the Galaxy S24 Ultra; ColorOS 17 · global build, November update on the Galaxy S23; HyperOS 4 on the Galaxy S23; One UI 9.5 on the Galaxy S23; " +
             "HyperOS 4 on the Galaxy A56; One UI 9.5 on the Galaxy A56; ColorOS 17 · global build, November update on the Galaxy A57; " +
             "ColorOS 17 · global build, November update on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy Z Flip5; Infinity-X 4.1 on the Galaxy A07; One UI 9.5 on the Galaxy A07; " +
+            "OxygenOS 16 on the Galaxy Z Fold4; " +
             "HyperOS 4 on the Galaxy S23 Ultra; Nothing OS 5.0 on the Galaxy S23 Ultra; One UI 9.5 on the Galaxy S24 (Exynos); " +
             "ColorOS 17 · global build, November update on the Galaxy S24 FE; HyperOS 4 on the Galaxy S24 FE; Infinity-X 4.1 on the Galaxy A17; One UI 9.5 on the Galaxy A17; " +
             "Infinity-X 4.1 on the Galaxy A16 5G; Infinity-X 4.1 on the Galaxy A16 4G; One UI 9.5 on the Galaxy A16 4G; HyperOS 4 on the Galaxy A15; HyperOS 4 on the Galaxy A34 5G; " +

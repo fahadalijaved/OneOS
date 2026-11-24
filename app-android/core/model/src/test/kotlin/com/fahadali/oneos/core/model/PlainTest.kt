@@ -29,6 +29,7 @@ class PlainTest {
         add(SwitchGates.ID_PROFILE, Level.BLOCK, SwitchGates.R_PROFILE_NONE, SwitchGates.R_PROFILE_DISABLED)
         add(SwitchGates.ID_PROFILE, Level.WARN, SwitchGates.R_PROFILE_UNTESTED)
         add(SwitchGates.ID_ANDROID, Level.BLOCK, SwitchGates.R_ANDROID_DIFFERS, SwitchGates.R_ANDROID_OLDER)
+        add(SwitchGates.ID_ANDROID, Level.WARN, SwitchGates.R_ANDROID_EXPERIMENTAL) // tester build only
         add(SwitchGates.ID_FORM, Level.BLOCK, SwitchGates.R_FORM_MISMATCH)
         add(
             SwitchGates.ID_IMAGE, Level.BLOCK,
@@ -54,6 +55,7 @@ class PlainTest {
         add(CpuRules.ID_APP_FEATURES, Level.WARN, CpuRules.R_APP_FEATURES)
         add(Profiles.ID_NOTE_OLDER_VENDOR, Level.WARN, Profiles.R_OLDER_VENDOR)
         add(Profiles.ID_NOTE_EXPECT_NO_START, Level.WARN, Profiles.R_EXPECT_NO_START)
+        add(Profiles.ID_NOTE_FOLD4_ISSUES, Level.WARN, Profiles.R_FOLD4_ISSUES)
         add(SwitchGates.ID_LOGS, Level.WARN, SwitchGates.R_LOGS)
         add(SwitchGates.ID_ZYGISK, Level.WARN, SwitchGates.R_ZYGISK_OLD)
     }
@@ -133,7 +135,7 @@ class PlainTest {
         // The phone list comes from the profiles: every name while they fit one line (0.4.28),
         // the families once they do not (0.4.29, with the A57 and Z Flip5).
         assertEquals(
-            "OneOS works on 57 Galaxy phones so far: Z Fold, S, Z Flip, A, F and M models; the README lists them.",
+            "OneOS works on 58 Galaxy phones so far: Z Fold, S, Z Flip, A, F and M models; the README lists them.",
             of(SwitchGates.ID_PROFILE, SwitchGates.R_PROFILE_NONE).line,
         )
         assertEquals("the Galaxy Z Fold (F8U), S26 Ultra and S25", Plain.phoneList(listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_8750)))

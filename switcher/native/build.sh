@@ -23,6 +23,11 @@ ls -la "$DIR/bin/socket_exec"
 "$STRIP" "$DIR/../assets/oneos_essential_key"
 ls -la "$DIR/../assets/oneos_essential_key"
 
+"$CC" --target=aarch64-linux-android29 -static -O2 -Wall -Wextra \
+    -o "$DIR/../assets/oneos_bpf_ringbuf" "$DIR/oneos_bpf_ringbuf.c"
+"$STRIP" "$DIR/../assets/oneos_bpf_ringbuf"
+ls -la "$DIR/../assets/oneos_bpf_ringbuf"
+
 # Bluetooth audio bridge (oneos_btaudio.cpp): dynamic, it needs the phone's
 # libbinder_ndk.so; API 31 for AParcel_appendFrom.
 "${CC}++" --target=aarch64-linux-android31 -O2 -Wall -Wextra -std=c++17 -static-libstdc++ \

@@ -170,8 +170,17 @@ object InstalldExpected {
     /** The table the sets of an SDK [sdk] image carry (host_installd.txt's or host_installd_a16.txt's lines). */
     fun carried(sdk: Int): String? = when (sdk) { 37 -> SHA256; 36 -> SHA256_A16; else -> null }
 
-    /** The phone tables an SDK [sdk] image's sets work with: the carried one, and compatible ones. */
-    fun accepted(sdk: Int): Set<String> = when (sdk) { 37 -> setOf(SHA256, SHA256_95); 36 -> setOf(SHA256_A16, SHA256_A16_ONEUI80); else -> emptySet() }
+    /**
+     * The phone tables an SDK [sdk] image's sets work with: the carried one, and compatible ones. [a17OnA16]: the
+     * tester build's One UI 9.5 image on a One UI 8 phone ([Experimental.a17OnA16Pair]); its set reads the phone's
+     * codes at runtime by name and signature, so One UI 8.5's and 8.0's tables are accepted for it as One UI 9.5's
+     * is (root: oneos_root.sh check_table, with the same set's RUNTIME_CODES line).
+     */
+    fun accepted(sdk: Int, a17OnA16: Boolean = false): Set<String> = when (sdk) {
+        37 -> if (a17OnA16) setOf(SHA256, SHA256_95, SHA256_A16, SHA256_A16_ONEUI80) else setOf(SHA256, SHA256_95)
+        36 -> setOf(SHA256_A16, SHA256_A16_ONEUI80)
+        else -> emptySet()
+    }
 
     /** The app asset holding the table for SDK [sdk] (staged as host_installd.txt). */
     fun assetName(sdk: Int): String = if (sdk == 36) "host_installd_a16.txt" else "host_installd.txt"
@@ -199,14 +208,14 @@ object InstalldExpected {
      * hash to [SHA256] (a wrong asset fails closed). Null compares with the
      * pinned hash only.
      */
-    fun problems(derived: InstalldDerivation?, expectedText: String? = null, sdk: Int = 37): List<String> {
+    fun problems(derived: InstalldDerivation?, expectedText: String? = null, sdk: Int = 37, a17OnA16: Boolean = false): List<String> {
         if (derived == null) return listOf("installd table not derived on this phone")
         if (!derived.ok) return listOf("installd table not derived: ${derived.error ?: "no methods"}")
         val p = mutableListOf<String>()
         val expected = expectedText?.let(::nonCommentLines)
         if (expected != null && Hashes.sha256(expected) != carried(sdk)) p += "the app's host_installd.txt is not the pinned table"
         val got = methodLines(derived.methods)
-        val compatible = Hashes.sha256(got) in accepted(sdk)
+        val compatible = Hashes.sha256(got) in accepted(sdk, a17OnA16)
         if (!compatible) p += "this phone's installd table differs from the one the OneOS files carry"
         if (expected != null && got != expected && !compatible) {
             val want = expected.removeSuffix("\n").split('\n').toSet()

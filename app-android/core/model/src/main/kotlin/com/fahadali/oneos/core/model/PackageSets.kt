@@ -178,6 +178,7 @@ object PackageSets {
     const val ID_LINEAGE = "lineage"
     const val ID_ONEUI95 = "oneui95"
     const val ID_ONEUI95_F8 = "oneui95-f8"
+    const val ID_ONEUI95_A16 = "oneui95-a16"
     const val ID_PIXELOS = "pixelos"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
@@ -974,6 +975,64 @@ object PackageSets {
     )
 
     /**
+     * The image's own modules a One UI 8 phone (Android 16) cannot lend an Android 17 guest ([ONEUI95_A16]):
+     * the S22's guest zygote died preloading libandroid.so on One UI 8's tethering module
+     * ("cannot locate symbol AConnectivityNative_getNetworkBlockedReason", 0827ba2a), and the framework calls
+     * the newer APIs of the others. oneui8test4: uprobestats too (bff57950: the zygote died in
+     * SystemServiceRegistry on UprobestatsFrameworkInitializer, which only the image's module has on the boot class
+     * path; the image's statsd needs its libuprobestats_client.so). One UI's adbd, virt and VNDK stay.
+     * oneui8test5: not tethering. Its BPF maps are One UI's (One UI 8's module loaded them at boot; netd runs on
+     * them), and the image's Android 17 train reads another layout: system_server died creating NetworkStatsService
+     * on both S22s ("Cannot open ingress discard map", ValueSize, 21540664 and efae874f). One UI's module stays, with
+     * [A17_CONNECTIVITY_NATIVE] for the one symbol the image's libandroid.so needs from it.
+     */
+    val A16_EXTRA_PAYLOADS: List<String> = listOf(
+        "conscrypt", "profiling", "os.statsd", "media", "media.swcodec", "resolv", "ipsec", "uwb",
+        "devicelock", "scheduling", "neuralnetworks", "tzdata", "uprobestats",
+    )
+
+    /**
+     * Samsung's own system modules of the image for [ONEUI95_A16] (oneui8test4), staged as
+     * samsung.<name>_payload.img and mounted on com.samsung.android.<name>: lifeguard and shell put One UI's jars on
+     * the boot and system server class paths, the others are native libraries and linker configs built against
+     * the image's system (imagecodec, spqr: the image's ART libraries). One UI 8's are One UI 8 builds.
+     */
+    /**
+     * The image's libcom.android.tethering.connectivity_native.so for [ONEUI95_A16] (oneui8test5), bound over One UI's
+     * in the guest's view of One UI's tethering module: the image's libandroid.so needs
+     * AConnectivityNative_getNetworkBlockedReason, which One UI 8's module (360743340 on the S22s) does not have
+     * (0827ba2a, and the A35 34c9856c). It needs only libc, libm, libdl, libbinder_ndk and the module's libc++.
+     */
+    const val A17_CONNECTIVITY_NATIVE = "tethering_connectivity_native_a17.so"
+
+    val A16_SAMSUNG_PAYLOADS: List<String> = listOf(
+        "lifeguard", "shell", "media.imagecodec.system", "spqr", "media.extractor", "media.swcodec.system",
+        "mediacontextanalyzer",
+    )
+
+    /**
+     * Tester builds only (-Poneos.a17OnA16=true, oneui8test3, r2 in oneui8test4, r3 in oneui8test5, r4 in oneui8test7: the image's
+     * services, framework and telephony-common guard jars also patched by a16_connectivity_compat.py): One UI 9.5 on the phones held on One UI 8.0/8.5
+     * ([Profiles.withOneUi95OnA16]). [ONEUI95]'s files plus the image's own [A16_EXTRA_PAYLOADS], which
+     * guest_prepare.sh mounts only in such a session (A17_ON_A16): One UI 8's are Android 16 builds. Tethering
+     * too, against the One UI 9 rule (its BPF maps are One UI's loader's), as the experiment.
+     */
+    /** Sets only a tester build's profiles offer (no APK series packs them; a tester build packs every set). */
+    val TESTER_ONLY: Set<String> = setOf(ID_ONEUI95_A16)
+
+    val ONEUI95_A16 = ONEUI95.copy(
+        id = ID_ONEUI95_A16,
+        sourceDir = "out/overlays_oneui95_a16_r6",
+        // No One UI 9.5 camera codes (0.5.37's CAM95_FW): they are for One UI 9.5 phones, and the camera is off
+        // on a One UI 8 phone until its own table is read (oneui8test13).
+        files = (ONEUI95.files - CAM95_FW.toSet()) + A16_EXTRA_PAYLOADS.map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) } +
+            A16_SAMSUNG_PAYLOADS.map { PackageFile("samsung.${it}_payload.img", FileRole.APEX_PAYLOAD) } +
+            PackageFile(A17_CONNECTIVITY_NATIVE, FileRole.GUEST_FIX),
+        omitted = listOf(TETHERING),
+        approxBytes = ONEUI95.approxBytes - 58981151L + 98672640L - 29175808L + 20684800L + 68848L,
+    )
+
+    /**
      * PixelOS 17 for the Galaxy A series (0.5.35, untested): [Images.PIXELOS_ONYX], the POCO F7 / Redmi Turbo 4 Pro build,
      * a source-built AOSP system with Google's apps that the ARMv8.2 A-series CPUs can run (Google's Pixel 9 Pro XL
      * build cannot: PAuth and RCpc2 in its linker). make-overlays.sh on that image (r1): the guard jars, the guest vold
@@ -1014,7 +1073,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, PIXELOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, ONEUI95_A16, PIXELOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

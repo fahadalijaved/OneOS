@@ -320,7 +320,7 @@ class ProfilesTest {
                 Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750, Profiles.FOLD8,
                 Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_8550, Profiles.S_PLUS_8550, Profiles.S_PLUS_8850,
                 Profiles.S_PLUS_9965, Profiles.FLIP7, Profiles.A56, Profiles.A57, Profiles.FLIP5,
-                Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5,
+                Profiles.FOLD6, Profiles.A07, Profiles.FLIP8, Profiles.A36, Profiles.FOLD5, Profiles.FOLD4,
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945,
                 Profiles.A26, Profiles.A17, Profiles.A16, Profiles.S_9965, Profiles.A16_4G, Profiles.A16_S166, Profiles.A35, Profiles.A54, Profiles.A27, Profiles.A17_5G, Profiles.FLIP7_FE,
                 Profiles.A06, Profiles.A07_5G, Profiles.A15, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A34, Profiles.A53, Profiles.E55,
@@ -511,7 +511,7 @@ class ProfilesTest {
         assertNull(Profiles.F8U.choice(Images.ID_FIND_X9U_IN_1105))
         // The owner does not want the X9U (CN) image on the Fold: only the N6 and Pixel images there.
         // The Fold7 (0.4.8) takes the N6 image only; the Fold6 (0.4.33) the same.
-        assertEquals(listOf(Profiles.F8U, Profiles.FOLD7, Profiles.FOLD8, Profiles.FOLD6, Profiles.FOLD5), Profiles.BUILT_IN.filter { it.form == FormFactor.FOLD })
+        assertEquals(listOf(Profiles.F8U, Profiles.FOLD7, Profiles.FOLD8, Profiles.FOLD6, Profiles.FOLD5, Profiles.FOLD4), Profiles.BUILT_IN.filter { it.form == FormFactor.FOLD })
         // The Find X9 Ultra builds run as a phone: the bar phones and (0.4.17) the Z Flip7 on its main screen.
         assertTrue(Profiles.BUILT_IN.filter { it.choice(Images.ID_FIND_X9U_IN_1105) != null }.all { it.form == FormFactor.BAR || it.form == FormFactor.FLIP })
         assertEquals(listOf(Profiles.FLIP7, Profiles.FLIP5, Profiles.FLIP8, Profiles.FLIP6, Profiles.FLIP7_FE), Profiles.BUILT_IN.filter { it.form == FormFactor.FLIP })
@@ -599,6 +599,19 @@ class ProfilesTest {
         assertEquals(FormFactor.FOLD, Profiles.FOLD5.form)
         assertEquals(listOf(Images.ID_FIND_N6, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_ONEUI95), Profiles.FOLD5.choices.map { it.imageId })
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), Profiles.FOLD5.notes.map { it.id })
+        // Galaxy Z Fold4 (SM-F936): Snapdragon 8+ Gen 1 (SM8475), One UI 8.0 stock, OxygenOS 16 only (tested).
+        assertEquals(Profiles.FOLD4, profile("SM-F936B", "q4q", "SM8475"))
+        assertEquals(Profiles.FOLD4, profile("SM-F936N", "q4q", "SM8475"))
+        assertEquals(Profiles.FOLD4, profile("SM-F936U", "q4q", "SM8475"))
+        assertEquals(FormFactor.FOLD, Profiles.FOLD4.form)
+        assertEquals(listOf(Images.ID_OXYGEN16), Profiles.FOLD4.choices.map { it.imageId })
+        assertTrue(Profiles.FOLD4.testedWithAnyImage)
+        assertEquals(listOf(true), Profiles.FOLD4.choices.map { it.tested })
+        assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR, Profiles.ID_NOTE_FOLD4_ISSUES), Profiles.FOLD4.notes.map { it.id })
+        assertTrue(Profiles.FOLD4.notes.first().detail.contains("vendor API 31 (Android 12) and kernel 5.10"))
+        assertTrue(Profiles.FOLD4.notes.last().detail.contains("camera does not work"))
+        assertEquals(Profiles.FOLD4, Profiles.resolve(Bundles.Q4Q.facts).profile)
+        assertEquals(FormFactor.FOLD, Bundles.Q4Q.facts.form.form)
         assertEquals(Profiles.A07, profile("SM-A075F", "a07", "MT6789"))
         assertNull(profile("SM-A075F", "a07", "s5e8855"))
         assertEquals(listOf(Images.ID_FIND_X9U_IN_1105, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_HYPEROS_LHASA, Images.ID_HYPEROS_HONGKONG, Images.ID_OXYGEN16, Images.ID_NOTHING_ASTEROIDS, Images.ID_PIXELOS_ONYX, Images.ID_ONEUI95), Profiles.A07.choices.map { it.imageId })
