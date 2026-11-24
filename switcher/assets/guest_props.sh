@@ -1033,15 +1033,21 @@ add)
     # build; not $NEW, which skips it: One UI defines ro.config.fold_disp too
     # (Samsung's "2256,2504,1080,2520"), so the run 6 check never matched.
     MDT=persist.sys.muiltdisplay_type
-    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && grep -q '^ro\.config\.fold_disp=' "$ROOTFS"/system/build.prop "$ROOTFS"/product/etc/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null &&
+    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] &&
         { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; }; then
         if grep -qxF "$MDT" "$HOST"; then
             echo "guest_props: $MDT is One UI's ($(getprop "$MDT")), left alone"
         else
             sed -i '/^persist\.sys\.muiltdisplay_type=/d' "$NEW"
             echo "$MDT=2" >> "$NEW"
-            echo "guest_props: $MDT=2 for the session (HyperOS fold: cover screen wallpapers)"
+            echo "guest_props: $MDT=2 for the session (HyperOS fold: cover screen wallpapers & fold layout)"
         fi
+        sed -i '/^persist\.sys\.multi_display_type=/d' "$NEW"
+        echo "persist.sys.multi_display_type=2" >> "$NEW"
+        sed -i '/^ro\.build\.characteristics=/d' "$NEW"
+        echo "ro.build.characteristics=tablet" >> "$NEW"
+        sed -i '/^ro\.config\.miui_magic_window_enable=/d' "$NEW"
+        echo "ro.config.miui_magic_window_enable=true" >> "$NEW"
     fi
     # (from vdcoolok's feat/guest-local-pin, ported 11-19)
     # HyperOS hides the whole fingerprint UI unless a vendor is named:
