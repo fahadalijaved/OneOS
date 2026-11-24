@@ -801,6 +801,18 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.42: **One UI 9.5 boots again on the Galaxy S22 series, its own screen lock, and more Galaxies.**
+- **One UI 9.5 on the Galaxy S22 series and other One UI 8 phones** stopped at the One UI logo since 0.5.39's camera
+  change: the camera's native part still spoke One UI 8's numbering and stopped the system as it started. It now
+  speaks One UI 9's, so the system starts with the camera on. Untested on a phone.
+- **Screen lock in One UI 9.5** (testing): One UI 9.5 now has its own lock screen with your PIN, pattern or password,
+  as the other systems do.
+- **The OneOS app inside One UI 9.5** shows One UI's artwork and the root page again (it showed ColorOS's header and
+  no root items).
+- **Galaxy Tabs: the tablet system is ColorOS 17** (it was called OxygenOS 17), now with ColorOS artwork. Also for the
+  Galaxy Tab S9 FE+ (SM-X610) and Tab S9 FE (SM-X510), testing.
+- **Galaxy S22+ with Snapdragon** (SM-S906E): OxygenOS 16 and One UI 9.5, as on the other Snapdragon S22s. Untested.
+
 New in 0.5.41: **Galaxy Tabs (testing), choose your download mirror, proximity in S24 Ultra calls.**
 - **Galaxy Tabs on One UI 9** (testing): OxygenOS 17 built from the OnePlus Pad 4, the one system offered on the Galaxy
   Tab S9 (SM-X710), Tab S10 FE and Tab S10 FE 5G (SM-X520, SM-X526) and Tab S12 Ultra (SM-X940). Not tried on a

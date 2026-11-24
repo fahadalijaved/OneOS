@@ -102,8 +102,8 @@ class PackageSetsTest {
         val oneui = PackageSets.ONEUI95
         assertEquals("oneui95", oneui.id)
         assertEquals(Images.ID_ONEUI95, oneui.imageId)
-        assertEquals("out/overlays_oneui95_r11", oneui.sourceDir)
-        assertEquals(40, oneui.files.size) // r11: + framework_patched_oneui95.jar; r9: + samcam_a_oneui.tar; r10: + vold_patched, service.incremental_patched.so
+        assertEquals("out/overlays_oneui95_r12", oneui.sourceDir)
+        assertEquals(40, oneui.files.size) // r12: the guest screen lock (services, OneOSGuest noknox); r11: + framework_patched_oneui95.jar; r9: + samcam_a_oneui.tar; r10: + vold_patched, service.incremental_patched.so
         assertEquals(22, oneui.files.count { it.role == FileRole.APEX_PAYLOAD })
         assertEquals(listOf(PackageSets.TETHERING), oneui.omitted)
         assertEquals(

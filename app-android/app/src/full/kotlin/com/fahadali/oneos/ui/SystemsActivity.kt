@@ -483,7 +483,9 @@ class SystemsFragment : Fragment() {
         val entries = listOfNotNull(
             // HyperOS 4 Global (0.5.27, tested on the Galaxy A36) first, with its own artwork, on the phones that offer it.
             CatalogEntry(hyperGlobal.shortName, hyperGlobal, R.drawable.os_hyperos_global, true).takeIf { available.any { it.id == hyperGlobal.id } },
-            CatalogEntry(oxygen.name, oxygen, R.drawable.os_oxygenos, true).takeIf { available.any { it.id == oxygen.id } },
+            // 0.5.42: on the tablets this is ColorOS 17 (the Pad 4 build), with ColorOS's artwork.
+            CatalogEntry(oxygen.name, oxygen, if (oxygen.id == Images.ID_OXYGEN17_PAD) R.drawable.os_coloros else R.drawable.os_oxygenos, true)
+                .takeIf { available.any { it.id == oxygen.id } },
             // OriginOS 7 (0.4.73, experimental) only on its phones (the Snapdragon S23 to S26 series, the Exynos S24 and S24+, and Z Fold7/8).
             CatalogEntry(origin.name, origin, R.drawable.os_originos, true).takeIf { available.any { it.id == origin.id } },
             // LineageOS 24 (0.5.06, experimental) only on the phones that offer it.

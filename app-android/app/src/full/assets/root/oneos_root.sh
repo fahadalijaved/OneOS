@@ -250,6 +250,8 @@ profile_info() {
         tab-s10-fe) echo "SM-X526 gts10fe s5e8855 bar" ;;
         tab-s10-fe-wifi) echo "SM-X520 gts10fewifi s5e8855 bar" ;;
         tab-s12-ultra) echo "SM-X940 gts12uwifi MT6993 bar" ;;
+        tab-s9-fe-plus) echo "SM-X610 gts9fepwifi s5e8835 bar" ;;
+        tab-s9-fe) echo "SM-X510 gts9fewifi s5e8835 bar" ;;
         a07) echo "SM-A075 a07 MT6789 bar" ;;
         flip8) echo "SM-F776 b8s s5e9965 flip" ;;
         a36) echo "SM-A366 a36xq SM6475 bar" ;;
@@ -275,6 +277,7 @@ profile_info() {
         s25-fe) echo "SM-S731 r13s s5e9945 bar" ;;
         s26-fe) echo "SM-S741 r14s s5e9955 bar" ;;
         s-8450) echo "SM-S901 r0q SM8450 bar" ;;
+        s-plus-8450) echo "SM-S906 g0q SM8450 bar" ;;
         m55s) echo "SM-M558 m55xq SM7450 bar" ;;
         s-plus-9945) echo "SM-S926 e2s s5e9945 bar" ;;
         s-ultra-8550-jp) echo "SCG20 SCG20 SM8550 bar" ;;
@@ -638,6 +641,8 @@ profile_set() {
         "tab-s10-fe oxygenos17-opd2514") echo oxygen17pad ;;
         "tab-s10-fe-wifi oxygenos17-opd2514") echo oxygen17pad ;;
         "tab-s12-ultra oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s9-fe-plus oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s9-fe oxygenos17-opd2514") echo oxygen17pad ;;
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
@@ -724,6 +729,7 @@ profile_set() {
         "s26-fe hyperos-lhasa") echo hyper-f8u ;;
         "s26-fe hyperos-hongkong") echo hyper-hk ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-9945 originos7-pd2609ma") echo originos ;;
@@ -802,7 +808,7 @@ profile_set() {
 # (oneui8test5: the A35 34c9856c on One UI 8 got the plain set; profile_set asks this list first), as
 # Profiles.withOneUi95OnA16 offers it. A list, not rows of the table, so the table stays exactly what a normal build's
 # app offers (StageAuditTest checks both).
-A17_ON_A16_PROFILES="a06 a07-5g a24 a25 a33 a53 e55 s-fe-9925 s-fe-8450 s-plus-9925 s-ultra-9925 s-ultra-8450 s-ultra-8450-jp s-8450 m55s s-9925 a16-mtk a15-5g flip8 a36 a27 s-8650 s-plus-8650 f8u f7 s-ultra-8850 s-plus-8850 s-8850 s-8850-jp s-plus-9965 s-9965 s-ultra-8750 s-plus-8750 s-8750 s-ultra-8650 s-8550 s-plus-8550 flip7 a56 a57 s-ultra-8550 flip6 s-9945 flip5 f6 f5 f4 a07 s-edge-8750 s-fe-9945 a26 a35 a54 a16-4g a16-s166 a17 a16 a17-5g a34 a15 flip7-fe a55 s25-fe s26-fe s-plus-9945 s-ultra-8550-jp s-8550-jp m35 m36 tab-s9-fe"
+A17_ON_A16_PROFILES="a06 a07-5g a24 a25 a33 a53 e55 s-fe-9925 s-fe-8450 s-plus-9925 s-ultra-9925 s-ultra-8450 s-ultra-8450-jp s-8450 m55s s-9925 a16-mtk a15-5g flip8 a36 a27 s-8650 s-plus-8650 f8u f7 s-ultra-8850 s-plus-8850 s-8850 s-8850-jp s-plus-9965 s-9965 s-ultra-8750 s-plus-8750 s-8750 s-ultra-8650 s-8550 s-plus-8550 flip7 a56 a57 s-ultra-8550 flip6 s-9945 flip5 f6 f5 f4 a07 s-edge-8750 s-fe-9945 a26 a35 a54 a16-4g a16-s166 a17 a16 a17-5g a34 a15 flip7-fe a55 s25-fe s26-fe s-plus-9945 s-ultra-8550-jp s-8550-jp m35 m36 s-plus-8450 tab-s9-fe"
 a17_on_a16_set() { # <profile> <image>
     [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$2" = oneui95-s948b ] && in_list "$1" "$A17_ON_A16_PROFILES" || return 1
     echo oneui95-a16

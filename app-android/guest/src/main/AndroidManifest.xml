@@ -72,7 +72,7 @@
              off here, turned on by the session in an OxygenOS guest only. -->
         <provider
             android:name=".KnoxProviderStub"
-            android:authorities="com.sec.knox.provider2"
+            android:authorities="${knoxAuthority}"
             android:enabled="false"
             android:exported="true" />
     </application>

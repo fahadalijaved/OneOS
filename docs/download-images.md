@@ -396,9 +396,9 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M35 5G (SM-M356, s5e8835), not tested yet
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy A15 5G (SM-A156, MT6835), not tested yet
-  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
+  - Galaxy S22+ (Snapdragon) (SM-S906, SM8450), not tested yet
 
-## OxygenOS 17, OnePlus Pad 4 build
+## ColorOS 17, OnePlus Pad 4 build
 
 - File: `OneOS_OxygenOS17_Pad4.img.gz` (5.82 GB)
 - SHA-256: `015852af3c161867f764b47a18008de1d581681e300fac8f358a4e4ed8717183`
@@ -408,6 +408,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy Tab S10 FE 5G (SM-X526, s5e8855), not tested yet
   - Galaxy Tab S10 FE (SM-X520, s5e8855), not tested yet
   - Galaxy Tab S12 Ultra (SM-X940, MT6993), not tested yet
+  - Galaxy Tab S9 FE+ (SM-X610, s5e8835), not tested yet
   - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## OriginOS 7, vivo PD2609MA build

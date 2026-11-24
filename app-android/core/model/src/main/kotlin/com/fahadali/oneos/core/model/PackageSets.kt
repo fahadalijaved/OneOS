@@ -960,7 +960,7 @@ object PackageSets {
     val ONEUI95 = PackageSet(
         id = ID_ONEUI95,
         imageId = Images.ID_ONEUI95,
-        sourceDir = "out/overlays_oneui95_r11",
+        sourceDir = "out/overlays_oneui95_r12",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -996,7 +996,7 @@ object PackageSets {
      */
     val ONEUI95_F8 = ONEUI95.copy(
         id = ID_ONEUI95_F8,
-        sourceDir = "out/overlays_oneui95_f8_r1",
+        sourceDir = "out/overlays_oneui95_f8_r2",
         files = listOf(
             PackageFile("Fold8OneUI95Framework.apk", FileRole.RRO),
             PackageFile("Fold8OneUI95SystemUI.apk", FileRole.GUEST_FIX),
@@ -1055,7 +1055,7 @@ object PackageSets {
 
     val ONEUI95_A16 = ONEUI95.copy(
         id = ID_ONEUI95_A16,
-        sourceDir = "out/overlays_oneui95_a16_r7",
+        sourceDir = "out/overlays_oneui95_a16_r8",
         // No One UI 9.5 camera codes (0.5.37's CAM95_FW): they are for One UI 9.5 phones. r7 (0.5.39): One UI 8's,
         // read on the S22 Ultra (host_camera_oneui8.txt, patches/a16_camera.py), which turn the camera on there.
         files = (ONEUI95.files - CAM95_FW.toSet()) + A16_EXTRA_PAYLOADS.map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) } +

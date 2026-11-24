@@ -123,6 +123,8 @@ object Profiles {
     const val ID_TAB_S10_FE = "tab-s10-fe"
     const val ID_TAB_S10_FE_WIFI = "tab-s10-fe-wifi"
     const val ID_TAB_S12_ULTRA = "tab-s12-ultra"
+    const val ID_TAB_S9_FE_PLUS = "tab-s9-fe-plus"
+    const val ID_TAB_S9_FE = "tab-s9-fe"
     const val ID_S_ULTRA_8550 = "s-ultra-8550"
     const val ID_FLIP6 = "flip6"
     const val ID_S_9945 = "s-9945"
@@ -142,6 +144,7 @@ object Profiles {
     const val ID_A55 = "a55"
     const val ID_S25_FE = "s25-fe"
     const val ID_S_8450 = "s-8450"
+    const val ID_S_PLUS_8450 = "s-plus-8450"
     const val ID_M55S = "m55s"
     const val ID_S_PLUS_9945 = "s-plus-9945"
     const val ID_S_PLUS_8650 = "s-plus-8650"
@@ -1287,6 +1290,9 @@ object Profiles {
      */
     val S_8450 = withPixelOs(S_ULTRA_8450.copy(id = ID_S_8450, label = "Galaxy S22 (Snapdragon)", modelPrefix = "SM-S901", codename = "r0q"))
 
+    /** Galaxy S22+ with Snapdragon (0.5.42): findings of 2026-11-20 (SM-S906E, g0q, SM8450, One UI 8.0); the S22's systems. */
+    val S_PLUS_8450 = withPixelOs(S_ULTRA_8450.copy(id = ID_S_PLUS_8450, label = "Galaxy S22+ (Snapdragon)", modelPrefix = "SM-S906", codename = "g0q"))
+
     /**
      * Galaxy M55s, from 0.4.70: findings of 2026-11-08 (SM-M558B, m55xq, Snapdragon 7 Gen 1 SM7450
      * "taro", One UI 8.5, Android 16 build BP4A.251205.006, vendor and board API 31, kernel 5.10
@@ -1385,7 +1391,7 @@ object Profiles {
     const val R_TABLET = "tablet"
     private val TABLET = Finding(
         ID_NOTE_TABLET, Level.WARN, "First runs on a Galaxy Tab",
-        "Galaxy Tabs are new to OneOS (testing): OxygenOS 17 for tablets has not run on one yet. The screen, sound, " +
+        "Galaxy Tabs are new to OneOS (testing): ColorOS 17 for tablets has not run on one yet. The screen, sound, " +
             "S Pen or keyboard cover may not work; if the screen stays black, OneOS returns to One UI by itself. " +
             "Share the session logs afterwards.",
         R_TABLET,
@@ -1429,6 +1435,14 @@ object Profiles {
         choices = A26.choices.flatMap { if (it.imageId == Images.ID_OXYGEN16) listOf(it, OXYGEN17_PAD_CHOICE) else listOf(it) },
     ))
 
+    /** Galaxy Tab S9 FE+ (Wi-Fi), from a probe report of 2026-11-24 (SM-X610, gts9fepwifi, Exynos 1380, One UI 9.0): the Tab S9 FE's chip and systems. */
+    val TAB_S9_FE_PLUS = TAB_S9_FE.copy(
+        id = ID_TAB_S9_FE_PLUS,
+        label = "Galaxy Tab S9 FE+",
+        modelPrefix = "SM-X610",
+        codename = "gts9fepwifi",
+    )
+
     /** The Galaxy Tab profiles: tablet systems only, never One UI 9.5 on One UI 8 ([withOneUi95OnA16]). */
     val TABLETS: List<PhoneProfile> = listOf(TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA)
 
@@ -1440,7 +1454,7 @@ object Profiles {
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
         A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,
-        S26_FE, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE,
+        S26_FE, S_PLUS_8450, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE,
     )
 
     /**
