@@ -3832,6 +3832,45 @@ class OneiosScriptTest {
         assertFalse("busybox from /data/adb after the bind: $between", between.contains("\"\$BB\""))
     }
 
+    /**
+     * Galaxy A56, issue 73 (2026-11-24): "mount: can't find /data/oneios_switch.sh in /proc/mounts", status 70, and
+     * xnuhost never started. A remount that names only the target makes busybox look it up in /proc/mounts, and the
+     * bind of the single file was not listed there. The remount names both paths; the scripts' read-only state is
+     * checked after, as control/'s is; a failed step prints the path's mountinfo line.
+     */
+    @Test
+    fun theReadOnlyRemountNamesBothPathsAndTheScriptsAreChecked() {
+        val sw = switchScript.readText()
+        val inner = sw.substringAfter("    --inner)\n").substringBefore("\n        ;;\n")
+        assertTrue(inner.contains("\"\$BB\" mount -o remount,bind,ro \"/data/\$d\" \"/data/\$d\""))
+        // No remount anywhere in the switch or the return with one path only.
+        val one = Regex("""mount -o remount,bind,ro "[^"]+"\s*(\|\||&&|;|$|\))""")
+        for (s in listOf(switchScript, returnScript)) {
+            val bad = code(s).filter { one.containsMatchIn(it) }
+            assertTrue("${s.name} remounts with one path: $bad", bad.isEmpty())
+        }
+        val loop = inner.indexOf("for d in runtime image control bin oneios_switch.sh oneios_return.sh; do")
+        val check = inner.indexOf("at \"checking that the two session scripts are read-only\"")
+        val write = inner.indexOf("if true 2>/dev/null >> \"/data/\$f\"; then")
+        val control = inner.indexOf("at \"checking that /data/control is read-only\"")
+        assertTrue("loop $loop, check $check, write $write, control $control", loop in 0 until check && check < write && write < control)
+        assertTrue(inner.contains("die_inner \"/data/\$f is writable in the session's namespace\""))
+        assertTrue(inner.contains("\"\$BB\" grep -F \" /data/\$d \" /proc/self/mountinfo"))
+    }
+
+    /** A node the phone does not have (no KGSL on the A56) stays out of switch.log: 2>/dev/null before the <. */
+    @Test
+    fun aMissingClockNodeSaysNothing() = each { f ->
+        val bad = code(switchScript).filter { Regex("""<\s*"[^"]+"\s*2>/dev/null\)""").containsMatchIn(it) }
+        assertTrue("redirects in the wrong order: $bad", bad.isEmpty())
+        val missing = File(f.root, "no-such-node").path
+        val p = ProcessBuilder(f.sh, "-c", "x() { cat; }; t=\$(x 2>/dev/null < \"$missing\"); echo \"went-on '\$t'\"")
+            .redirectErrorStream(true).start()
+        val out = p.inputStream.readBytes().toString(Charsets.UTF_8)
+        p.waitFor()
+        assertEquals("went-on ''", out.trim())
+    }
+
     /** What the return and the watcher write to return.log is what the summary's "Return:" reads. */
     @Test
     fun theReturnsLogSaysWhoReturnedAndHow() = each { f ->

@@ -174,6 +174,21 @@ lines, the 20F66 warning run as written, the S24 Ultra's lines and xnuhost's com
 16.5 on the phone (the 24A446 kernelcache fetch, the 5.8 GB download, the build, the room), the switch, xnuhost's
 `galaxy-a56` row, the display, touch, the keys, the return in place and its failsafe restart.
 
+**The first A56 runs** (issue 73, 2026-11-24, SM-A566E, OneOS 0.5.82 and runtime 0.1.20; three runs, the user's
+session-logs zip and two screenshots): each stopped in the session's namespace before xnuhost started, with
+"`mount: can't find /data/oneios_switch.sh in /proc/mounts`", "could not make /data/oneios_switch.sh read-only",
+status 70 and "xnuhost did not start after 2 s"; the return restored One UI in place each time. The remount named
+only the target, so busybox looked it up in `/proc/mounts`, and there the bind of that single file was not listed
+(why is not known; the four folders' binds were). Now the remount names the source and the target (`mount -o
+remount,bind,ro /data/X /data/X`), as every other script here does, and busybox does not read `/proc/mounts`; then
+the inner shell checks that the two session scripts are read-only ("checking that the two session scripts are
+read-only", the same write test as `control/`'s), and a remount that fails prints the path's
+`/proc/self/mountinfo` line (`oneios inner: mountinfo: ...`) before "could not make ...". The other A56 fork's
+script had the same remount and hid its failure with `|| true`. The switch's GPU clock reads also have `2>/dev/null`
+before the `<` now: on the A56 (no KGSL) "can't open .../kgsl-3d0/gpu_available_frequencies" was in every
+`switch.log`. Tested: `OneiosScriptTest.theReadOnlyRemountNamesBothPathsAndTheScriptsAreChecked`,
+`aMissingClockNodeSaysNothing`; not yet on an A56.
+
 It is not an `ImageRef`: it has no Android SDK, no `system.raw`, no package set and no guard jars, so none of the
 Android guests' tables, pins or tests know it.
 
@@ -892,7 +907,7 @@ runtime with xnuhost is staged, this is where every switch ends.**
    `oneios inner: cpuset ...` in `session/xnuhost.log`) and `oom_score_adj` 500, so that it, not One UI's daemons or the way back,
    is what the kernel ends when memory runs out:
    `/data/runtime/<xnuhost> --session-abi 1 --mode takeover --runtime /data/runtime --image /data/image --data /data/data --session /data/session`.
-   If One UI's `/data` is still visible there, or `control` is writable there, it does not start.
+   If One UI's `/data` is still visible there, or `control` or a session script is writable there, it does not start.
    From 0.4.81 the shell that sets this namespace up writes a line to `session/xnuhost.log` before each step
    (`oneios inner: 08:12:21 making /data/runtime read-only`), and however it ends before xnuhost starts, its last
    line is `oneios inner: ... ended with status N in step: ...`. The switch waits for it by its progress: until

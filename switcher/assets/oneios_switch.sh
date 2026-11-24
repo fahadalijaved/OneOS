@@ -562,11 +562,13 @@ clocks_save() {
         echo "${pol#"$T"}/scaling_min_freq $mn $lo" >> "$out"
         echo "${pol#"$T"}/scaling_max_freq $mx $hi" >> "$out"
     done
+    # 2>/dev/null before the <: the shell opens the redirections in order, and a node the phone does not have
+    # (no KGSL on the Galaxy A56, issue 73) printed "can't open ..." into switch.log on every switch.
     g="$T/sys/kernel/gpu"
-    v=$(cat "$g/gpu_max_clock" 2>/dev/null); top=$(clock_top < "$g/gpu_freq_table" 2>/dev/null)
+    v=$(cat "$g/gpu_max_clock" 2>/dev/null); top=$(clock_top 2>/dev/null < "$g/gpu_freq_table")
     case "$v" in ''|*[!0-9]*) ;; *) [ -z "$top" ] || echo "/sys/kernel/gpu/gpu_max_clock $v $top" >> "$out" ;; esac
     k="$T/sys/class/kgsl/kgsl-3d0"
-    v=$(cat "$k/max_gpuclk" 2>/dev/null); top=$(clock_top < "$k/gpu_available_frequencies" 2>/dev/null)
+    v=$(cat "$k/max_gpuclk" 2>/dev/null); top=$(clock_top 2>/dev/null < "$k/gpu_available_frequencies")
     case "$v" in ''|*[!0-9]*) ;; *) [ -z "$top" ] || echo "/sys/class/kgsl/kgsl-3d0/max_gpuclk $v $top" >> "$out" ;; esac
     pl=""
     [ ! -e "$k/thermal_pwrlevel" ] || pl="; KGSL thermal_pwrlevel $(cat "$k/thermal_pwrlevel" 2>/dev/null)"
@@ -1082,11 +1084,24 @@ case "$MODE" in
         "$BB" true 2>/dev/null || die_inner "busybox does not run from the stage ($BB)"
         # Read-only in here: the runtime and the image (as staged), and what
         # the way back runs and reads (its scripts, its control folder).
+        # The remount names the source and the target: with the target alone busybox looks it up in
+        # /proc/mounts, and on the Galaxy A56 (issue 73, 2026-11-24) the bind of the single file
+        # oneios_switch.sh was not listed there ("mount: can't find /data/oneios_switch.sh in
+        # /proc/mounts", status 70, xnuhost never started). The kernel needs only the target.
         for d in runtime image control bin oneios_switch.sh oneios_return.sh; do
             [ -e "/data/$d" ] || continue
             at "making /data/$d read-only"
-            "$BB" mount --bind "/data/$d" "/data/$d" && "$BB" mount -o remount,bind,ro "/data/$d" ||
+            "$BB" mount --bind "/data/$d" "/data/$d" && "$BB" mount -o remount,bind,ro "/data/$d" "/data/$d" || {
+                "$BB" grep -F " /data/$d " /proc/self/mountinfo 2>/dev/null | "$BB" sed 's/^/oneios inner: mountinfo: /'
                 die_inner "could not make /data/$d read-only"
+            }
+        done
+        at "checking that the two session scripts are read-only"
+        for f in oneios_switch.sh oneios_return.sh; do
+            [ -e "/data/$f" ] || continue
+            if true 2>/dev/null >> "/data/$f"; then
+                die_inner "/data/$f is writable in the session's namespace"
+            fi
         done
         at "checking that /data/control is read-only"
         if true 2>/dev/null > /data/control/.w; then
