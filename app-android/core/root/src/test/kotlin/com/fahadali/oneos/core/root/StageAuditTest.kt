@@ -275,11 +275,12 @@ class StageAuditTest {
         // SET_COMMON and its own files.
         assertTrue(PackageSets.X9U_IN_1105_SULTRA.names.containsAll(common))
         assertEquals(
-            setOf("oplus-framework_patched.jar", "cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI, "ColorPanoramicSystemUI.apk", "samcam_a.tar", "OplusGestureUI_patched.apk", "OplusGestureUI_patched.apk.src_sha256"), // 0.4.97: + wallpaper AOD SystemUI; 0.5.20 r3: + samcam_a.tar; 0.5.32 r8: + raise to wake
+            setOf("framework_patched_oneui95.jar", "libcamera_client_patched_oneui95.so", "oplus-framework_patched.jar", "cellbroadcast_payload.img", "framework_patched.jar", "telephony-common_patched.jar", "libcamera_client_patched.so", "samcam.tar", PackageSets.THEME_STORE_APK, PackageSets.ODM_AI, "ColorPanoramicSystemUI.apk", "samcam_a.tar", "OplusGestureUI_patched.apk", "OplusGestureUI_patched.apk.src_sha256"), // 0.4.97: + wallpaper AOD SystemUI; 0.5.20 r3: + samcam_a.tar; 0.5.32 r8: + raise to wake
             PackageSets.X9U_IN_1105_SULTRA.names.toSet() - common.toSet(),
         )
         // 0.4.59: the bar Pixel sets add double tap to sleep (their own SystemUI and launcher) to SET_PIXEL.
-        assertEquals(PackageSets.PIXEL_SULTRA.names.toSet() - setOf("OneOSPixelSystemUI.apk", "OneOSPixelLauncher.apk"),
+        assertEquals(PackageSets.PIXEL_SULTRA.names.toSet() - setOf("OneOSPixelSystemUI.apk", "OneOSPixelLauncher.apk",
+                "framework_patched_oneui95.jar", "libcamera_client_patched_oneui95.so"),
             shVar("SET_PIXEL").split(' ').toSet())
         val setFiles = Regex("""^\s+([a-z0-9-]+)\) echo "\${'$'}(SET_[A-Z]+)([^"]*)" ;;$""", RegexOption.MULTILINE)
             .findAll(script).associate { it.groupValues[1] to (shVar(it.groupValues[2]).split(' ') + it.groupValues[3].split(' ').filter { n -> n.isNotEmpty() }) }
@@ -292,7 +293,7 @@ class StageAuditTest {
         val exec = Regex("""^\s+(\S+)\) echo 0755 ;;$""", RegexOption.MULTILINE).find(function("file_mode"))!!.groupValues[1].split('|')
         fun mode(n: String) = if (exec.any { glob(it, n) }) "0755" else "0644"
         for (set in PackageSets.ALL) for (f in set.files) assertEquals("${set.id} ${f.name}", f.mode, mode(f.name))
-        val notExecutable = setOf("guest_zygisk.so", "guest_vector.bundle", "guest_manager.apk", "oneos_boot_icon.png", "OneOSBootStatus.dex", "host_installd.txt", "OneOSEdmStub.dex", "OneOSOverlayDimen.dex", "OneOSPixelCorners.apk", "OneOSFold8Geometry.dex")
+        val notExecutable = setOf("guest_zygisk.so", "guest_vector.bundle", "guest_manager.apk", "oneos_boot_icon.png", "OneOSBootStatus.dex", "host_installd.txt", "OneOSEdmStub.dex", "OneOSOverlayDimen.dex", "OneOSPixelCorners.apk", "OneOSFold8Geometry.dex", "OneOSGalleryStub.apk", "OneOSRcdCorners.apk")
         for (n in RootScript.SCRIPTS) assertEquals(n, if (n in notExecutable) "0644" else "0755", mode(n))
         // session.env values: what root accepts is what the app generates (StageScriptTest runs it).
         for (p in enabled) SessionEnv.generate(p)

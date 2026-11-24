@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stand-in for Samsung Gallery (com.sec.android.gallery3d) in guests without Samsung Gallery.
+     1. Exposes com.sec.android.gallery3d.provider2 so Samsung Camera's PostSavingModuleNotifyingComplete
+        completes cleanly instead of falling into DRAFT->RECOVERY and keeping unprocessed draft photos.
+     2. Exposes Samsung Gallery's quick-view / main activities (hidden from the app launcher) and forwards
+        them to the guest's gallery app (ColorOS Gallery or CATEGORY_APP_GALLERY), including when no
+        photos exist yet in DCIM/Camera. Never declares generic ACTION_VIEW so it cannot hijack viewers
+        or trigger an app chooser. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.sec.android.gallery3d">
+
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <queries>
+        <package android:name="com.coloros.gallery3d" />
+        <package android:name="com.oneplus.gallery" />
+        <package android:name="com.oplus.gallery" />
+        <package android:name="com.google.android.apps.photos" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_GALLERY" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="image/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+    </queries>
+
+    <application
+        android:hasCode="true"
+        android:label="Gallery Bridge">
+
+        <provider
+            android:name="oneos.samgallery.GalleryStubProvider"
+            android:authorities="com.sec.android.gallery3d.provider2"
+            android:exported="true" />
+
+        <activity
+            android:name="com.samsung.android.gallery.app.activity.GalleryActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="com.sec.android.gallery3d.action.QUICK_VIEW" />
+                <action android:name="com.android.camera.action.REVIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.sec.android.gallery3d.action.QUICK_VIEW" />
+                <action android:name="com.android.camera.action.REVIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name="com.samsung.android.gallery.app.activity.external.GalleryExternalActivity"
+            android:exported="true"
+            android:targetActivity="com.samsung.android.gallery.app.activity.GalleryActivity" />
+
+        <activity-alias
+            android:name="com.samsung.android.gallery.app.activity.ImageQuickViewActivity"
+            android:exported="true"
+            android:targetActivity="com.samsung.android.gallery.app.activity.GalleryActivity" />
+
+        <activity-alias
+            android:name="com.samsung.android.gallery.app.activity.SinglePhotoActivity"
+            android:exported="true"
+            android:targetActivity="com.samsung.android.gallery.app.activity.GalleryActivity" />
+
+        <activity-alias
+            android:name="com.samsung.android.gallery.app.activity.QuickViewActivity"
+            android:exported="true"
+            android:targetActivity="com.samsung.android.gallery.app.activity.GalleryActivity" />
+
+        <activity-alias
+            android:name="com.sec.android.gallery3d.app.GalleryActivity"
+            android:exported="true"
+            android:targetActivity="com.samsung.android.gallery.app.activity.GalleryActivity" />
+
+        <activity-alias
+            android:name="com.sec.android.gallery3d.app.ImageQuickViewActivity"
+            android:exported="true"
+            android:targetActivity="com.samsung.android.gallery.app.activity.GalleryActivity" />
+
+        <activity-alias
+            android:name="com.sec.android.gallery3d.app.QuickViewActivity"
+            android:exported="true"
+            android:targetActivity="com.samsung.android.gallery.app.activity.GalleryActivity" />
+    </application>
+</manifest>

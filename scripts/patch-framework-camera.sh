@@ -17,7 +17,8 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # Absolute paths: the zip step runs inside a temp dir.
 JAR=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); OUT=$(cd "$2" && pwd)
 APKTOOL=${APKTOOL:-$(ls "$ROOT"/mysticgsi/tools/apktool/*.jar | head -1)}
-TABLE="$ROOT/switcher/patches/host_camera.txt"
+# CAMERA_TABLE: another host table (0.5.37: switcher/patches/host_camera_oneui95.txt for One UI 9.5 phones).
+TABLE="${CAMERA_TABLE:-$ROOT/switcher/patches/host_camera.txt}"
 [ -f "$TABLE" ] || { echo "$TABLE missing (scripts/aidl-table.py on One UI's framework.jar)" >&2; exit 1; }
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -59,7 +60,8 @@ done
 # select a vendor ID (A15 Infinity-X chose 23) for the torch. Frameworks without
 # that vendor path need no such patch.
 ACM=$(find "$WORK/fw" -path '*/android/hardware/camera2/CameraManager$CameraManagerGlobal.smali' | head -1)
-if [ -n "$ACM" ] && grep -Eq 'shouldExposeAuxCamera\(\)Z|CameraExtStub;->isAuxCameraClient' "$ACM"; then
+# ONEOS_CAMERA_NO_AUX_FILTER=1 leaves it out (0.5.37: a set built before it, LineageOS r10, rebuilt as it was).
+if [ "${ONEOS_CAMERA_NO_AUX_FILTER:-0}" != 1 ] && [ -n "$ACM" ] && grep -Eq 'shouldExposeAuxCamera\(\)Z|CameraExtStub;->isAuxCameraClient' "$ACM"; then
     AD=$(python3 -I "$ROOT/switcher/patches/camera_aux_id_filter.py" "$WORK/fw")
     for d in $AD; do
         case " $DIRS " in *" $d "*) ;; *) DIRS="$DIRS $d" ;; esac

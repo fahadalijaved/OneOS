@@ -1,5 +1,5 @@
-# OneOS package set oneui95: sha256sum of out/overlays_oneui95_r6 (scripts/make-overlays.sh on the Galaxy S26 Ultra build S948BXXU6ZZKN, One UI 9.5, 2026-11-18), minus tethering_payload.img. r9 (0.5.32): + samcam_a_oneui.tar (the Galaxy A36's Samsung Camera for A and M phones), 2026-11-21. r10 (0.5.33): the guest vold as gvld (vold_patched, service.incremental_patched.so from make-overlays.sh's One UI 9.5 entry; services_patched.jar and framework_patched.jar through patches/guest_own_vold.py, --framework), 2026-11-21.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_oneui95_r6 differs.
+#  OneOS package set oneui95: sha256sum of out/overlays_oneui95_r6 (scripts/make-overlays.sh on the Galaxy S26 Ultra build S948BXXU6ZZKN, One UI 9.5, 2026-11-18), minus tethering_payload.img. r9 (0.5.32): + samcam_a_oneui.tar (the Galaxy A36's Samsung Camera for A and M phones), 2026-11-21. r10 (0.5.33): the guest vold as gvld (vold_patched, service.incremental_patched.so from make-overlays.sh's One UI 9.5 entry; services_patched.jar and framework_patched.jar through patches/guest_own_vold.py, --framework), 2026-11-21.
+#  app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_oneui95_r6 differs.
 a2efd9b1170675a011ce4e667dcdd1b277c419617656dd3c1b77ff537f000afd  OneOSFoldCutout.apk
 9109053d8b15d6b3cf14c4cb2c44713e95d093780a1f5fbc5a4bdf11f66665c0  OneOSGuest.apk
 f6e6cc651468f33182f9190c89c3432c8063d06040376672110fef62a320df52  OneOSPhoneInjection.apk
@@ -14,7 +14,7 @@ d887bd13e6d7bda3202e08cc743cd652cbe0e72fa92c4414cd97b11527071b5c  art_payload.im
 07651b8f951c09d94c6cd85f38ce304682bae5e1f5bec09dcef619d58a61b304  extservices_payload.img
 770f6ce6017d4b1432afb5f78bc021648e6fc8663761ea0fb1b93af53f6522a5  framework_patched.jar
 77784c941f64b86292d73fb4eae1897dd43217274976b2df22155a05b05a2b2e  gmssystem_payload.img
-2acffa4bff2a12ea15a64f127b923393582b80ce56cda3cb6f3932114fb80626  guards.txt
+8755f1c9397bc6819c36c36afb438aa67837bb35654e28a3c9da8f57e6493795  guards.txt
 9cb0459d57433f6c64a71d9d43e810b98108fefc5db3f1df6c66215b494e2c18  healthfitness_payload.img
 65df6ffda49d4f7c1c4225f25d0a641941257fc15555c41e6d14181b2c32609c  i18n_payload.img
 23d98173e40ce788bc66d4a9678d06869fe5010ade40f001128b30c17ea57e7a  libcamera_client_patched.so
@@ -39,3 +39,4 @@ ceb5bb5afa77a123327709db62f4c712bdbd63ba4376a5c7d718065867e86049  wifi_payload.i
 ebe75fd4c0835d95e9013d7b0af8d6526c14572c6b8e920a46efff7e294061fe  samcam_a_oneui.tar
 22c4b0b701d623fc523f3be7e852716b4db384a00783fb6aad0cca9d6c30e941  vold_patched
 1ba375398bf0735df28af2d8e6ab5cd3e5609669e11f1f6dad503bc6e1568655  service.incremental_patched.so
+dcb2381a704e7a150d9b4413b23fbb4d495cb17e2724f2ca6459e109bf8616fe  framework_patched_oneui95.jar

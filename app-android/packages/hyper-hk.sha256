@@ -1,5 +1,5 @@
-# OneOS package set hyper-hk: sha256sum of out/overlays_hyperos_hk_r2 (scripts/make-overlays.sh on HyperOS 4 Global OS4.0.5.0.XFRMIXM, 2026-11-19; r2: miui-framework_patched.jar with DisplayFeatureManager a no-op, SurfaceFlinger mode group read whole, fingerprint through AIDL), minus tethering_payload.img.
-# app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_hk_r2 differs.
+#  OneOS package set hyper-hk: sha256sum of out/overlays_hyperos_hk_r2 (scripts/make-overlays.sh on HyperOS 4 Global OS4.0.5.0.XFRMIXM, 2026-11-19; r2: miui-framework_patched.jar with DisplayFeatureManager a no-op, SurfaceFlinger mode group read whole, fingerprint through AIDL), minus tethering_payload.img.
+#  app/build.gradle.kts packs exactly these files into the APK and fails the build when out/overlays_hyperos_hk_r2 differs.
 f4a19079be7c4674402369cd74cf828e51c2f2b76f105f641984811e0d867c7d  OneOSCameraProcessingStub.apk
 a2efd9b1170675a011ce4e667dcdd1b277c419617656dd3c1b77ff537f000afd  OneOSFoldCutout.apk
 0b2d8f4c3186789f82b4db3f6e12c09d69796b67f9a2bfe3f595e75942462313  OneOSGuest.apk
@@ -15,7 +15,7 @@ f8fc69250f59bd83b0d11399c17a4bfa4e63030d7297b2108eb84d9bc7dc94fd  configinfrastr
 f9598b6d72dd8572375523c7c1b5b19f3b3a7af3b6db140f889ed1ba3df8fd0b  extservices_payload.img
 b97cd4d84be630d80a7ea4ad10a4cf0d8b4b9b99ba0e697f0799c5dab769ca91  framework_patched.jar
 1a5cd6ad67122bb9c249e03f6629aa0eb80be4c2e71848cda211bd53c65d629b  gmssystem_payload.img
-0f96ace1f841c7a65977c76aaf7486b7ad3648f07a798a070a81edf02cade2ba  guards.txt
+53efda6f03168306beaf002602f9c0f000e761b43fbab62d30f7ac7614d8f6bc  guards.txt
 94ac78af4c6ed718e8c709165f809d3ec3bd13645f88f74b7a025c8d333e798b  healthfitness_payload.img
 9c59c058c96891cf30f8a81d6a05083d13b27711446aa6c8b1d12c4ade8c2010  i18n_payload.img
 5af071fcdf06b4d7f38f0ac2f0d01c14359c4e269bd59f5e70d15fb6b4ed44a7  ims-ext-common_patched.jar
@@ -44,3 +44,5 @@ ca212255fcba050baef50249cafd996882630e5889b5b6c13f7d96ea0909a8c1  services_patch
 728899fa4aad11e3bae3b268ed0ef123ec2d70d6b123b39ee0659c7d7cb5de18  telephony-common_patched.jar
 04c35b486f838198034e9cf92cff23985a027cedb3eb80cb4a31927fa39f4af8  vold_patched
 fc83393d211a9b686231b087ffd07746940c3897965aee6d9cbe14b3a30d47ad  wifi_payload.img
+f8b431af42bd9b49b81d1e006d0967a43b879c4431a8c1d2c13a1d72e1d15fd1  framework_patched_oneui95.jar
+06b96b773037f25518c2c3be13af72bf09e8633b4df9c29cbefa50783a6e04e7  libcamera_client_patched_oneui95.so

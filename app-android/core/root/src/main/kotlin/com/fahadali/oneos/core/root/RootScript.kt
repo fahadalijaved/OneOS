@@ -186,7 +186,7 @@ object RootScript {
     val SCRIPTS: List<String> = listOf(
         "guest_runtime.sh", "guest_root", "guest_zygiskd", "guest_zygisk_ptrace", "guest_zygisk.so", "guest_vector.bundle", "guest_manager.apk",
         "oneos_switch.sh", "boot_status.sh", "OneOSBootStatus.dex", "oneos_boot_icon.png", "guest_prepare.sh", "guest_start.sh", "guest_props.sh", "return_to_oneui.sh", "libsec-ril-patch.sh",
-        "check_host_apex.sh", "bridges.sh", "fold8_coloros.sh", "OneOSFold8Geometry.dex", "fold8_pixel.sh", "guest_google.sh", "zygote_exec", "OneOSEdmStub.dex", "oneos_btaudio", "s24u_a2dp_patch.sh", "oneos_essential_key", "OneOSOverlayDimen.dex", "OneOSPixelCorners.apk", "host_installd.txt",
+        "check_host_apex.sh", "bridges.sh", "fold8_coloros.sh", "OneOSFold8Geometry.dex", "fold8_pixel.sh", "guest_google.sh", "zygote_exec", "OneOSEdmStub.dex", "oneos_btaudio", "s24u_a2dp_patch.sh", "oneos_essential_key", "OneOSOverlayDimen.dex", "OneOSPixelCorners.apk", "OneOSGalleryStub.apk", "OneOSRcdCorners.apk", "host_installd.txt",
     )
 
     const val RAW_NAME = "system.raw"

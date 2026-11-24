@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.oplus.rcd"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <application android:hasCode="false"
+        android:allowBackup="false"
+        android:extractNativeLibs="false" />
+    <overlay android:targetPackage="oplus"
+        android:isStatic="true"
+        android:priority="999" />
+</manifest>

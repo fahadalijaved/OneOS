@@ -31,3 +31,6 @@ dc60d42c1b880ea079a55f17e994bbc58c5c12beb23985be97d0811d615b4b49  vold_patched
 977059f2193c2d04987e4fd96be604a2a042aa207841ce3f31e63a3ac9b33e59  libcamera_client_patched.so
 469233dd74dd3083900d42c385c497f8db9e7c3756a191cb28ab8ca583583d29  libsurfaceflinger_patched.so
 5c6ab0096ec94cdbb20c40aec9b3fef91dd7c26e81537db7f8e540294656285c  telephony-common_patched.jar
+# 0.5.37 (hyperos_r31): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar libcamera_client_patched_oneui95.so
+de1ede9379f46d18601884dd612450680bcb180d4fa96b2967fe804c0912e1b4  framework_patched_oneui95.jar
+a83c2a593ab6fd300775b28b6a8ebb3440c16846a5e9b14f110fe0a7c14ab7b1  libcamera_client_patched_oneui95.so

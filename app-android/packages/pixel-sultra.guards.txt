@@ -25,3 +25,6 @@ f4addc726653b0c1b39ff84c874d61ff96f98eecdae12d76ea6391bb7b20fad0  service.increm
 965e2815cd0917e50a4e59d9dc1398d141eca1d624dfdbd192b57b1eb8862664  framework_patched.jar
 d866a4fa828d99d9964390d41a27147cc506069e3ccea0125792656f318e5d05  telephony-common_patched.jar
 a8572e8cbeca52394f66765a44d6e295a99e1313550048809bb01ccbe08526f3  libcamera_client_patched.so
+# 0.5.37 (pixel_kodiak_r21): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar libcamera_client_patched_oneui95.so
+03dec3f4cb8688f14c19f79a48ba9a62614cbb62e76794eeab3b2619d86c0017  framework_patched_oneui95.jar
+d2aa4d907c0f93d4e48aa7157884bbe08fc9dbba57422c5009da702539452ddc  libcamera_client_patched_oneui95.so
