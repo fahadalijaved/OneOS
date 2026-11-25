@@ -43,7 +43,7 @@ class OneiosStepsTest {
     @Test
     fun theStepNamesAreTheDocs() {
         assertEquals(
-            listOf("Get the runtime", "Make iOS image", "Update the kernel", "Activate", "Switch", "Return", "Logs"),
+            listOf("Get the runtime", "Make iOS image", "Update the kernel"),
             OneiosSteps.Id.entries.map { it.title },
         )
         // docs/oneios.md (the fork's) names each of them in its UI section, as the screens do.
@@ -133,72 +133,120 @@ class OneiosStepsTest {
             "session none never", "outcome none", "ready 1")
         val again = steps(staged, tool = OneiosSteps.Tool(last = OneiosSteps.ToolFlow.MAKE_IMAGE, view = view, failure = why))
         assertEquals(OneiosSteps.State.FAILED, again.step(OneiosSteps.Id.IMAGE).state)
-        assertEquals(OneiosSteps.State.TODO, again.step(OneiosSteps.Id.SWITCH).state)
-        assertEquals(OneiosSteps.Id.SWITCH, again.next)
+        // No step left for the user: the page's button is the flow's Switch to iOS 27.
+        assertNull(again.next)
+        assertEquals(OneiosFlow.Next.SWITCH, OneiosFlow.of(OneiosFlow.Input(staged, true)).next)
+    }
+
+    private val ready = status("stage present", runtime, "kernel runtime $bid xnu-12377.121.6", image, "kernel image $bid ${"a".repeat(64)} 0",
+        "session none never", "outcome none", "ready 1")
+
+    /** The other runtime's kernel in the image, as after a runtime update: Update the kernel is due. */
+    private val stale = status("stage present", runtime, "kernel runtime $bid xnu-12377.121.6", image, "kernel image $old ${"a".repeat(64)} 1",
+        "session none never", "outcome none", "ready 1")
+
+    @Test
+    fun readyToSwitchHasEveryStepDoneAndTheSwitchIsTheButton() {
+        // The switch is a button, no step (the owner, 2026-11-25): three steps, all done, and the flow's next is Switch.
+        val v = steps(ready)
+        assertEquals(listOf(S['D'], S['D'], S['D']), states(v))
+        assertNull(v.next)
+        assertEquals(0, v.todo)
+        assertEquals(OneiosFlow.Next.SWITCH, OneiosFlow.of(OneiosFlow.Input(ready, true)).next)
+        // A refused preflight is no step either: On this phone shows it with its fix (the flow's problem), the button is the fix.
+        val refused = status("stage present", runtime, "kernel runtime $bid xnu-12377.121.6", image, "kernel image $bid ${"a".repeat(64)} 0",
+            "session none never", "outcome none", "ready 0 battery at 12% and not charging")
+        assertNull(steps(refused).next)
+        assertTrue(OneiosFlow.of(OneiosFlow.Input(refused, true)).problem!!.line.contains("12%"))
     }
 
     @Test
-    fun readyToSwitchWithTheRuntimesKernel() {
-        val st = status("stage present", runtime, "kernel runtime $bid xnu-12377.121.6", image, "kernel image $bid ${"a".repeat(64)} 0",
-            "session none never", "outcome none", "ready 1")
-        val v = steps(st)
-        assertEquals(listOf(S['D'], S['D'], S['D'], S['D'], S['T'], S['W'], S['W']), states(v))
-        assertEquals(OneiosSteps.Id.SWITCH, v.next)
-        assertEquals(1, v.todo)
-    }
-
-    @Test
-    fun anotherRuntimesKernelComesBeforeTheSwitchAndThenActivate() {
-        val st = status("stage present", runtime, "kernel runtime $bid xnu-12377.121.6", image, "kernel image $old ${"a".repeat(64)} 1",
-            "session none never", "outcome none", "ready 1")
-        val v = steps(st)
+    fun updateTheKernelBuildsThenPutsItInAsOneStep() {
+        val v = steps(stale)
         assertEquals(OneiosSteps.State.TODO, v.step(OneiosSteps.Id.KERNEL).state)
-        assertEquals(OneiosSteps.State.WAITING, v.step(OneiosSteps.Id.ACTIVATE).state)
-        assertEquals(OneiosSteps.Id.KERNEL, v.next)
-        // Running: the tool's progress, Cancel.
-        val running = steps(st, tool = OneiosSteps.Tool(running = OneiosSteps.ToolFlow.KERNEL, last = OneiosSteps.ToolFlow.KERNEL, phase = "Building the kernel"))
-        assertEquals(OneiosSteps.State.RUNNING, running.step(OneiosSteps.Id.KERNEL).state)
-        assertEquals(OneiosSteps.Cancel.TOOL, running.step(OneiosSteps.Id.KERNEL).cancel)
-        // Built: Activate is next.
-        val built = steps(st, tool = OneiosSteps.Tool(last = OneiosSteps.ToolFlow.KERNEL, builtKc = "b".repeat(64)))
-        assertEquals(OneiosSteps.State.DONE, built.step(OneiosSteps.Id.KERNEL).state)
-        assertEquals(OneiosSteps.State.TODO, built.step(OneiosSteps.Id.ACTIVATE).state)
-        assertEquals(OneiosSteps.Id.ACTIVATE, built.next)
-        // A kernel staged before kernel tracking does not hold the switch back.
+        // Building: the tool's progress and Cancel.
+        val building = steps(stale, tool = OneiosSteps.Tool(running = OneiosSteps.ToolFlow.KERNEL, last = OneiosSteps.ToolFlow.KERNEL, phase = "Building the kernel"))
+        assertEquals(OneiosSteps.State.RUNNING, building.step(OneiosSteps.Id.KERNEL).state)
+        assertEquals(OneiosSteps.Cancel.TOOL, building.step(OneiosSteps.Id.KERNEL).cancel)
+        // Built: still to do (it is put in next), then root's finish kernel runs as the same step, with no Cancel.
+        val built = OneiosSteps.Tool(last = OneiosSteps.ToolFlow.KERNEL, builtKc = "b".repeat(64))
+        assertEquals(OneiosSteps.State.TODO, steps(stale, tool = built).step(OneiosSteps.Id.KERNEL).state)
+        val putting = steps(stale, OneiosSteps.Job(OneiosFlow.Job.FINISH_KERNEL, "Activating the phone-built kernel…"), built)
+        assertEquals(OneiosSteps.State.RUNNING, putting.step(OneiosSteps.Id.KERNEL).state)
+        assertEquals("Activating the phone-built kernel…", putting.step(OneiosSteps.Id.KERNEL).progress!!.phase)
+        assertNull(putting.step(OneiosSteps.Id.KERNEL).cancel)
+        // A kernel staged before kernel tracking is to do; a runtime without a kernel has nothing to build.
         val unknown = status("stage present", runtime, "kernel runtime $bid xnu-12377.121.6", image, "session none never", "outcome none", "ready 1")
         assertEquals(OneiosSteps.State.TODO, steps(unknown).step(OneiosSteps.Id.KERNEL).state)
-        assertEquals(OneiosSteps.Id.SWITCH, steps(unknown).next)
-        // A runtime without a kernel: nothing to build.
         val noKernel = status("stage present", runtime, image, "session none never", "outcome none", "ready 1")
         assertEquals(OneiosSteps.State.WAITING, steps(noKernel).step(OneiosSteps.Id.KERNEL).state)
     }
 
+    /**
+     * The phone's report (2026-11-25): Update the kernel, then Activate, and the page showed Update the kernel again.
+     * Activate cleared the built kernel before root ran; a refused activation, or one that did not start because another
+     * job ran, lost it. Now the built kernel stays until root's finish kernel put it in: refused, the step is failed with
+     * root's reason and Show log, and the build is still there to put in; done, the step is done.
+     */
     @Test
-    fun aRefusedPreflightIsTheSwitchsFailureWithItsReason() {
-        val st = status("stage present", runtime, image, "session none never", "outcome none", "ready 0 battery at 12% and not charging")
-        val s = steps(st).step(OneiosSteps.Id.SWITCH)
-        assertEquals(OneiosSteps.State.FAILED, s.state)
-        assertTrue(s.reason!!, s.reason!!.contains("12%"))
+    fun aRefusedActivationKeepsTheBuiltKernelAndADoneOneIsDone() {
+        val built = OneiosSteps.Tool(last = OneiosSteps.ToolFlow.KERNEL, builtKc = "b".repeat(64))
+        val refused = steps(stale, OneiosSteps.Job(last = OneiosFlow.Job.FINISH_KERNEL, failure = "the built kernel.kc is not ${"b".repeat(64)}: run the kernel build again"), built)
+        val k = refused.step(OneiosSteps.Id.KERNEL)
+        assertEquals(OneiosSteps.State.FAILED, k.state)
+        assertTrue(k.reason!!.isNotBlank())
+        assertEquals(OneiosSteps.Log.ROOT, k.log)
+        // Root put it in: the status names the runtime's kernel, the built one is gone (OneiosToolJob.kernelActivated).
+        val after = status("stage present", runtime, "kernel runtime $bid xnu-12377.121.6", image, "kernel image $bid ${"b".repeat(64)} 1",
+            "session none never", "outcome none", "ready 1")
+        val done = steps(after, OneiosSteps.Job(last = OneiosFlow.Job.FINISH_KERNEL), OneiosSteps.Tool(last = OneiosSteps.ToolFlow.KERNEL))
+        assertEquals(OneiosSteps.State.DONE, done.step(OneiosSteps.Id.KERNEL).state)
+        assertEquals(OneiosFlow.Next.SWITCH, OneiosFlow.of(OneiosFlow.Input(after, true)).next)
+    }
+
+    private fun auto(st: OneiosStatus, latest: String? = null, due: Boolean = false, tried: Set<String> = emptySet(), idle: Boolean = true,
+        tool: OneiosSteps.Tool = OneiosSteps.Tool(), job: OneiosSteps.Job = OneiosSteps.Job()): OneiosSteps.Auto {
+        val flow = OneiosFlow.of(OneiosFlow.Input(st, true, job.running, job.last, job.failure))
+        val input = OneiosSteps.Input(flow, st, job, tool, st.runtimeKernel?.buildId)
+        return OneiosSteps.auto(OneiosSteps.AutoInput(input, idle, latest, due, tried))
+    }
+
+    /** Updates by themselves (the owner, 2026-11-25): runtime and kernel, once each, never during a session or a job. */
+    @Test
+    fun theRuntimeAndTheKernelUpdateByThemselves() {
+        // A newer release: its runtime is staged; the same or an older one: nothing; a look every 6 h.
+        assertEquals(OneiosSteps.Auto.UPDATE_RUNTIME, auto(ready, latest = "0.1.33"))
+        assertEquals(OneiosSteps.Auto.NONE, auto(ready, latest = "0.1.31"))
+        assertEquals(OneiosSteps.Auto.NONE, auto(ready, latest = "0.1.30"))
+        assertEquals(OneiosSteps.Auto.CHECK_RUNTIME, auto(ready, latest = "0.1.31", due = true))
+        // The image's kernel is another runtime's: Update the kernel; then the built kernel is put in.
+        assertEquals(OneiosSteps.Auto.UPDATE_KERNEL, auto(stale))
+        val built = OneiosSteps.Tool(last = OneiosSteps.ToolFlow.KERNEL, builtKc = "b".repeat(64))
+        assertEquals(OneiosSteps.Auto.ACTIVATE, auto(stale, tool = built))
+        // Each once: a failure stays on its step (the user's tap tries again).
+        val flow = OneiosFlow.of(OneiosFlow.Input(stale, true))
+        val key = OneiosSteps.autoKey(OneiosSteps.Auto.UPDATE_KERNEL, OneiosSteps.Input(flow, stale, expectedKernel = bid), null)
+        assertEquals(OneiosSteps.Auto.NONE, auto(stale, tried = setOf(key)))
+        assertEquals(OneiosSteps.Auto.NONE, auto(stale, tool = built, tried = setOf("activate ${"b".repeat(64)}")))
+        assertEquals(OneiosSteps.Auto.NONE, auto(ready, latest = "0.1.33", tried = setOf("runtime 0.1.33")))
+        // Never while something runs, during a session, before root answered, or before the user staged a runtime.
+        assertEquals(OneiosSteps.Auto.NONE, auto(stale, idle = false))
+        val open = status("stage present", runtime, "kernel runtime $bid xnu-12377.121.6", image, "kernel image $old ${"a".repeat(64)} 1",
+            "session open running", "outcome none", "ready 0 an iOS session is running")
+        assertEquals(OneiosSteps.Auto.NONE, auto(open, latest = "0.1.33", due = true))
+        assertEquals(OneiosSteps.Auto.NONE, auto(status("stage none"), latest = "0.1.33", due = true))
+        // A current kernel and the newest runtime: nothing.
+        assertEquals(OneiosSteps.Auto.NONE, auto(ready, latest = "0.1.31"))
     }
 
     @Test
-    fun anOpenSessionIsReturnThenLogs() {
+    fun anOpenSessionHasNoStepsLeftAndBackToOneUiIsTheFlowsButton() {
+        // Back to One UI and the logs are no steps (the owner, 2026-11-25): the page's button is the flow's own next.
         val st = status("stage present", runtime, image, "session open running", "outcome none", "ready 0 an iOS session is running")
         val v = steps(st)
-        assertEquals(OneiosSteps.State.DONE, v.step(OneiosSteps.Id.SWITCH).state)
-        assertEquals(OneiosSteps.State.TODO, v.step(OneiosSteps.Id.RETURN).state)
-        assertEquals(OneiosSteps.Id.RETURN, v.next)
-        assertEquals(OneiosSteps.State.TODO, v.step(OneiosSteps.Id.LOGS).state)
-        val back = steps(st, OneiosSteps.Job(OneiosFlow.Job.RETURN, "Returning to One UI…"))
-        assertEquals(OneiosSteps.State.RUNNING, back.step(OneiosSteps.Id.RETURN).state)
-        assertNull(back.step(OneiosSteps.Id.RETURN).progress!!.fraction)
-        assertNull(back.step(OneiosSteps.Id.RETURN).cancel)
-        // Back in place: done; by the failsafe: failed, with the session logs behind Show log.
-        val inplace = steps(status("stage present", runtime, image, "session none returned", "outcome inplace 1763000000", "ready 1"))
-        assertEquals(OneiosSteps.State.DONE, inplace.step(OneiosSteps.Id.RETURN).state)
-        assertEquals("Back in One UI without a restart", inplace.step(OneiosSteps.Id.RETURN).line)
-        val failsafe = steps(status("stage present", runtime, image, "session none returned", "outcome failsafe 1763000000 the display did not come back", "ready 1"))
-        assertEquals(OneiosSteps.State.FAILED, failsafe.step(OneiosSteps.Id.RETURN).state)
-        assertEquals(OneiosSteps.Log.SESSION, failsafe.step(OneiosSteps.Id.RETURN).log)
+        assertNull(v.next)
+        assertEquals(OneiosFlow.Next.BACK_TO_ONE_UI, OneiosFlow.of(OneiosFlow.Input(st, true)).next)
+        // While root returns, no step runs either: the button spins with the job's words.
+        assertNull(steps(st, OneiosSteps.Job(OneiosFlow.Job.RETURN, "Returning to One UI…")).running)
     }
 }

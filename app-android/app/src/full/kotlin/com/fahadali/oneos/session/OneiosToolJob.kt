@@ -491,9 +491,13 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         update(state.copy(problem = why, starting = false))
     }
 
-    /** Activate was tapped for the kernel the update built: the button goes (root's `finish kernel` uses `make-kernel/out` up). */
-    fun kernelActivating() {
-        if (!state.busy) update(state.copy(builtKc = null))
+    /**
+     * Root's `finish kernel` put the built kernel in (OneiosJob, once it succeeded): Activate goes. Until 2026-11-25 Activate
+     * cleared it when tapped, before root ran: a refused activation, or one that did not start because another job of
+     * the app ran (OneiosJob.job returns then), forgot the built kernel and the page showed Update the kernel again.
+     */
+    fun kernelActivated(kcSha256: String) {
+        if (!state.busy && state.builtKc == kcSha256) update(state.copy(builtKc = null))
     }
 
     /** Pause on the screen: the tool holds the running request where it is. */

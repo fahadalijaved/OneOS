@@ -8,7 +8,7 @@ import com.fahadali.oneos.core.model.OneiosToolFlow
 
 /**
  * The one checklist of iOS 27's page (docs/oneios.md, "UI (2026-11-25)"): Get the runtime, Make iOS image, Update the
- * kernel, Activate, Switch, Return, Logs. Each step is done, to do, running or failed (to do is [State.WAITING] while
+ * kernel (Activate is its last part; the switch, Back to One UI and the logs are no steps). Each step is done, to do, running or failed (to do is [State.WAITING] while
  * an earlier step it needs is not done), says what it does in one sentence, and while it runs how far it is: the
  * phase in words, a bar ([Progress.fraction]; null: a moving bar) and the amount. Read from what is known already:
  * root's status and the flow ([OneiosFlow]), the job of the app that runs or ran ([Job]) and oneios-tool's flow
@@ -17,13 +17,9 @@ import com.fahadali.oneos.core.model.OneiosToolFlow
 object OneiosSteps {
     /** The steps, by the docs' names; [about] is the one sentence a step shows while it is not done. */
     enum class Id(val title: String, val about: String) {
-        RUNTIME("Get the runtime", "Downloads OneiOS's runtime: xnuhost, the program that runs iOS, with its tools and kernel."),
+        RUNTIME("Get the runtime", "Downloads OneiOS's runtime: xnuhost and its tools. A newer release is staged by itself."),
         IMAGE("Make iOS image", "This phone downloads iOS from Apple and builds the iOS image set itself."),
-        KERNEL("Update the kernel", "Builds the image's kernel.kc again from this runtime's XNU and Apple's kernelcache."),
-        ACTIVATE("Activate", "Puts the kernel this phone built in the image set; the one before is kept to restore."),
-        SWITCH("Switch", "One UI closes and iOS starts. Volume Up + Volume Down for 3 seconds brings One UI back."),
-        RETURN("Return", "Back to One UI from the open iOS session, as Volume Up + Volume Down does."),
-        LOGS("Logs", "What xnuhost, the switch and the return wrote, with a summary."),
+        KERNEL("Update the kernel", "Builds kernel.kc from this runtime's XNU and puts it in the image; it runs by itself when one is due."),
     }
 
     enum class State { WAITING, TODO, RUNNING, DONE, FAILED }
@@ -60,7 +56,7 @@ object OneiosSteps {
     data class View(val steps: List<Step>, val next: Id?) {
         fun step(id: Id): Step = steps.first { it.id == id }
         val running: Step? get() = steps.firstOrNull { it.state == State.RUNNING }
-        val todo: Int get() = steps.count { it.id != Id.LOGS && (it.state == State.TODO || it.state == State.FAILED) }
+        val todo: Int get() = steps.count { it.state == State.TODO || it.state == State.FAILED }
     }
 
     /** The app's root job ([OneiosFlow.Job]) as it runs or ran: its words, its bytes, its failure. */
@@ -141,14 +137,20 @@ object OneiosSteps {
         }
         val imageDone = st?.image != null && i.flow.image != OneiosFlow.Check.FAILED
 
-        // The kernel: the image's kernel.kc against the runtime's kernel build.
+        // Update the kernel: the image's kernel.kc against the runtime's kernel build; it builds (oneios-tool), then
+        // puts the build in (root's finish kernel). Both run by themselves when a newer kernel is there ([auto]).
         val imageKernel = st?.imageKernel?.buildId?.takeIf { it.isNotBlank() && it != "unknown" }
         val current = imageKernel != null && imageKernel == i.expectedKernel
         val built = tool.builtKc != null && tool.running == null
         val kernel = when {
             tool.running == ToolFlow.KERNEL -> Step(Id.KERNEL, State.RUNNING, null, toolStepProgress(tool), cancel = Cancel.TOOL)
+            job.running == OneiosFlow.Job.FINISH_KERNEL || job.running == OneiosFlow.Job.RESTORE_KERNEL ->
+                Step(Id.KERNEL, State.RUNNING, null, jobProgress(job))
             !runtimeDone || !imageDone -> Step(Id.KERNEL, State.WAITING, after(if (!runtimeDone) Id.RUNTIME else Id.IMAGE))
-            built -> Step(Id.KERNEL, State.DONE, "Built; Activate puts it in the image set")
+            // Root refused to put the build in: its reason; the build is kept, so a tap tries again without building.
+            ran(OneiosFlow.Job.FINISH_KERNEL, OneiosFlow.Job.RESTORE_KERNEL) ->
+                plain(null).let { Step(Id.KERNEL, State.FAILED, it.title, reason = it.line, log = Log.ROOT) }
+            built -> Step(Id.KERNEL, State.TODO, "Built; putting it in the image set")
             toolFailed(ToolFlow.KERNEL) -> Step(Id.KERNEL, State.FAILED, tool.failure!!.title, reason = tool.failure.line, log = Log.TOOL)
             current -> Step(Id.KERNEL, State.DONE, "kernel.kc is this runtime's ($imageKernel)")
             st?.runtimeKernel == null -> Step(Id.KERNEL, State.WAITING, "This runtime carries no kernel: get a newer one")
@@ -156,66 +158,74 @@ object OneiosSteps {
             else -> Step(Id.KERNEL, State.TODO, "kernel.kc is $imageKernel; this runtime's is ${i.expectedKernel ?: "another"}")
         }
 
-        val activate = when {
-            job.running == OneiosFlow.Job.FINISH_KERNEL || job.running == OneiosFlow.Job.RESTORE_KERNEL ->
-                Step(Id.ACTIVATE, State.RUNNING, null, jobProgress(job))
-            ran(OneiosFlow.Job.FINISH_KERNEL, OneiosFlow.Job.RESTORE_KERNEL) ->
-                plain(null).let { Step(Id.ACTIVATE, State.FAILED, it.title, reason = it.line, log = Log.ROOT) }
-            built -> Step(Id.ACTIVATE, State.TODO, Id.ACTIVATE.about)
-            kernel.state == State.DONE && current -> Step(Id.ACTIVATE, State.DONE, "The image boots this runtime's kernel")
-            else -> Step(Id.ACTIVATE, State.WAITING, after(Id.KERNEL))
-        }
-
-        // Switch: root's last check of every file and the phone, then the switch.
-        val ready = i.flow.ready
-        val readyMark = i.flow.mark(OneiosFlow.Step.READY)
-        val switch = when {
-            job.running == OneiosFlow.Job.SWITCH -> Step(Id.SWITCH, State.RUNNING, null, jobProgress(job))
-            st?.sessionOpen == true -> Step(Id.SWITCH, State.DONE, "An iOS session is open")
-            ran(OneiosFlow.Job.SWITCH) -> plain(null).let { Step(Id.SWITCH, State.FAILED, it.title, reason = it.line, log = Log.ROOT) }
-            !runtimeDone || !imageDone -> Step(Id.SWITCH, State.WAITING, after(if (!runtimeDone) Id.RUNTIME else Id.IMAGE))
-            ready -> Step(Id.SWITCH, State.TODO, Id.SWITCH.about)
-            job.running == OneiosFlow.Job.CHECK -> Step(Id.SWITCH, State.WAITING, "Root checks the staged files and the phone…")
-            readyMark == OneiosFlow.Mark.FAILED -> i.flow.problem.let { p ->
-                Step(Id.SWITCH, State.FAILED, p?.title ?: "Not ready to switch", reason = p?.line, log = Log.ROOT)
-            }
-            else -> Step(Id.SWITCH, State.WAITING, "Not checked yet: Check again")
-        }
-
-        val last = OneiosFlow.lastReturn(st)
-        val back = when {
-            job.running == OneiosFlow.Job.RETURN -> Step(Id.RETURN, State.RUNNING, null, jobProgress(job))
-            ran(OneiosFlow.Job.RETURN) -> plain(null).let { Step(Id.RETURN, State.FAILED, it.title, reason = it.line, log = Log.SESSION) }
-            st?.sessionOpen == true -> Step(Id.RETURN, State.TODO, Id.RETURN.about)
-            last != null -> Step(Id.RETURN, if (last.level == com.fahadali.oneos.core.model.Level.WARN) State.FAILED else State.DONE, last.title,
-                reason = if (last.level == com.fahadali.oneos.core.model.Level.WARN) last.line else null,
-                log = if (last.level == com.fahadali.oneos.core.model.Level.WARN) Log.SESSION else null)
-            else -> Step(Id.RETURN, State.WAITING, after(Id.SWITCH))
-        }
-
-        val sessionRan = st?.sessionOpen == true || last != null || OneiosFlow.dataNew(st) == false
-        val logs = Step(Id.LOGS, if (sessionRan) State.TODO else State.WAITING, if (sessionRan) Id.LOGS.about else after(Id.SWITCH))
-
-        val steps = listOf(runtime, image, kernel, activate, switch, back, logs)
-        return View(steps, next(i, steps, current))
+        // Back to One UI, the session logs and the switch are no steps (the owner, 2026-11-25): the page's primary
+        // button is Switch to iOS 27 when root's last check passed, Back to One UI with a session open (OneiosFlow's
+        // next), and the logs are the overflow's and the Last session row's.
+        val steps = listOf(runtime, image, kernel)
+        return View(steps, next(i, steps))
     }
 
-    /** The primary button's step; null while something runs, or when the flow's own fix is the next thing (Check again). */
-    private fun next(i: Input, steps: List<Step>, kernelCurrent: Boolean): Id? {
+    /** The primary button's step; null while something runs, or when the flow's own next is it (Switch, Back, a fix). */
+    private fun next(i: Input, steps: List<Step>): Id? {
         if (steps.any { it.state == State.RUNNING } || i.job.running != null || i.tool.running != null) return null
-        fun s(id: Id) = steps.first { it.id == id }
         return when {
-            i.status?.sessionOpen == true -> Id.RETURN
+            i.status?.sessionOpen == true -> null
             i.status == null || i.flow.mark(OneiosFlow.Step.PHONE) == OneiosFlow.Mark.FAILED -> null
             // Not staged, or not usable; a failed later run with a usable package staged does not hold the switch back.
             i.status.runtime == null || i.status.runtime.placeholder || i.flow.runtime == OneiosFlow.Check.FAILED -> Id.RUNTIME
             i.status.image == null || i.flow.image == OneiosFlow.Check.FAILED -> Id.IMAGE
-            s(Id.ACTIVATE).state == State.TODO -> Id.ACTIVATE
-            // A kernel known to be another runtime's: the update comes before the switch (unknown ones do not block).
-            s(Id.KERNEL).state == State.TODO && !kernelCurrent && i.status.imageKernel?.buildId.let { it != null && it != "unknown" } &&
-                i.expectedKernel != null -> Id.KERNEL
-            s(Id.SWITCH).state == State.TODO -> Id.SWITCH
             else -> null
+        }
+    }
+
+    // --- Updates by themselves --------------------------------------------------------------------------------
+
+    /** What the page starts by itself, so nobody has to know that a runtime or a kernel update is there. */
+    enum class Auto { NONE, CHECK_RUNTIME, UPDATE_RUNTIME, UPDATE_KERNEL, ACTIVATE }
+
+    data class AutoInput(
+        val steps: Input,
+        /** Nothing else of the app runs (OneiosJob and OneiosToolJob could start one now). */
+        val idle: Boolean,
+        /** The newest release's runtime version, when the last look found one; null: not looked or not answered. */
+        val latest: String?,
+        /** The last look for the newest release is old enough ([CHECK_EVERY_MS]). */
+        val checkDue: Boolean,
+        /** What was started by itself in this run of the app ([autoKey]): each is tried once, a failure is the user's. */
+        val tried: Set<String>,
+    )
+
+    const val CHECK_EVERY_MS = 6L * 60 * 60 * 1000
+
+    /** The key of an automatic start, so the same one never runs twice by itself (a failure stays on its step). */
+    fun autoKey(a: Auto, i: Input, latest: String?): String = when (a) {
+        Auto.UPDATE_RUNTIME -> "runtime $latest"
+        Auto.UPDATE_KERNEL -> "kernel ${i.expectedKernel} ${i.status?.imageKernel?.buildId}"
+        Auto.ACTIVATE -> "activate ${i.tool.builtKc}"
+        else -> a.name
+    }
+
+    /**
+     * The next automatic start, in this order: put in a kernel that was built; stage a newer release's runtime; build
+     * the kernel when the image's is not the staged runtime's; look for a newer release (every 6 h). Never while
+     * anything runs, an iOS session is open, root has not answered or refused this phone, nothing is staged yet (the
+     * first runtime and the image are the user's choices), or this one was tried already in this run.
+     */
+    fun auto(a: AutoInput): Auto {
+        val i = a.steps
+        val st = i.status ?: return Auto.NONE
+        if (!a.idle || st.sessionOpen || i.flow.mark(OneiosFlow.Step.PHONE) == OneiosFlow.Mark.FAILED) return Auto.NONE
+        val runtime = st.runtime ?: return Auto.NONE
+        fun fresh(x: Auto) = autoKey(x, i, a.latest) !in a.tried
+        val imageKernel = st.imageKernel?.buildId?.takeIf { it.isNotBlank() && it != "unknown" }
+        return when {
+            i.tool.builtKc != null && st.image != null && fresh(Auto.ACTIVATE) -> Auto.ACTIVATE
+            a.latest != null && a.latest != runtime.version &&
+                com.fahadali.oneos.core.model.OneiosManifests.versionAtLeast(a.latest, runtime.version) && fresh(Auto.UPDATE_RUNTIME) -> Auto.UPDATE_RUNTIME
+            st.image != null && i.flow.image != OneiosFlow.Check.FAILED && st.runtimeKernel != null && i.expectedKernel != null &&
+                imageKernel != i.expectedKernel && i.tool.builtKc == null && fresh(Auto.UPDATE_KERNEL) -> Auto.UPDATE_KERNEL
+            a.checkDue -> Auto.CHECK_RUNTIME
+            else -> Auto.NONE
         }
     }
 

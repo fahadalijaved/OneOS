@@ -349,25 +349,47 @@ rows, 10 dp page gutter).
 
 | Screen | Now |
 |---|---|
-| **iOS 27's page** (`OneiosActivity`, `activity_oneios.xml`) | the large title (the staged system's name) with one line under it (*Ready to switch*, *2 steps to do*, *Make iOS image · 42%*); **On this phone**, the one place that shows the phone's iOS state: the runtime, the iOS image, the kernel, iOS's data, the last session, and what stops the switch with its fix; **Steps**, the one checklist below; one primary button at the bottom (the next step's action); everything else in the app bar's overflow menu |
+| **iOS 27's page** (`OneiosActivity`, `activity_oneios_screen.xml`) | the large title (the staged system's name) with one line under it (*Ready to switch*, *2 steps to do*, *Make iOS image · 42%*); **On this phone**, the one place that shows the phone's iOS state: the runtime, the iOS image, the kernel, iOS's data, the last session, and what stops the switch with its fix; **Steps**, the one checklist below; one primary button at the bottom (the next step's action); everything else in the app bar's overflow menu |
 | **Set up iOS 27** (`OneiosSetupActivity`) | no screen of its own any more: it opens iOS 27's page (the systems' carousel, the notification and old back stacks still name it) |
 | **An oneios-tool flow** (`OneiosToolActivity`, `activity_oneios_tool.xml`) | the flow's details: a progress card (the phase in words, a real bar, "Step 5 of 28 · 3.2 GB of 11.4 GB (28%) · 40 MB/s · about 5 min left", the room it needs, a pause or a wait for the network), the tool's steps with state icons, the failure in one line with the tool's code, the last output lines; one button at the bottom (Cancel while it runs, else Activate, Continue or Run again); Pause, Resume, Run again and Forget in the overflow |
 | **Switches** (new, `OneiosSwitchesActivity`) | below |
 | **Edit file** (new, `OneiosConfEditActivity`) | below |
 | Hardware checks, Session logs, a log, the Switch confirm, Switching | unchanged (the way back's tiles and ticks too) |
 
-**The steps** (`OneiosSteps`, `core/root`): seven, named as the docs name them, each with a state of four (done, to
+**The steps** (`OneiosSteps`, `core/root`): three, named as the docs name them, each with a state of four (done, to
 do, running, failed; "to do" is dimmed and says what comes first while an earlier step is not done) and one sentence:
 
 | Step | Done when | What it runs | Cancel |
 |---|---|---|---|
-| Get the runtime | root reports a runtime (not a placeholder) | the runtime choices (the latest release, an older one by its tag, a file) | yes: a download or an import keeps what was staged before |
+| Get the runtime | root reports a runtime (not a placeholder) | the runtime choices (the latest release, an older one by its tag, a file); a newer release by itself (below) | yes: a download or an import keeps what was staged before |
 | Make iOS image | root reports an image set | the image choices (make it on this phone, a set I have) | yes: the tool's `cancel` removes what it wrote, the fetched members stay |
-| Update the kernel | the image's `kernel.kc` is the runtime's kernel build (or one is built and waits for Activate) | the tool's Update the kernel | yes, as Make iOS image |
-| Activate | the image's kernel is the runtime's and nothing waits | root's `finish kernel` | no (root's atomic swap; seconds) |
-| Switch | a session is open | the Switch confirm, then root's `switch` | no: once root starts it, One UI's framework stops (as before) |
-| Return | the last session came back (how it did is the line) | root's `return` (Back to One UI) | no |
-| Logs | (always there once a session ran) | Session logs | |
+| Update the kernel | the image's `kernel.kc` is the runtime's kernel build | the tool's Update the kernel, then root's `finish kernel` with what it built (Activate, its last part); both by themselves when due (below) | building: yes, as Make iOS image; putting it in: no (root's atomic swap, seconds) |
+
+The switch, Back to One UI and the session logs are no steps (the owner, 2026-11-25; 0.5.94 had seven: Activate,
+Switch, Return and Logs as well). The primary button is **Switch to iOS 27** once root's last check passed (the Switch
+confirm with the way back, then root's `switch`, as before), the fix of what stops it otherwise (On this phone says it),
+and **Back to One UI** while a session is open (root's `return`, as Volume Up + Volume Down); the logs are the
+overflow's *Session logs* and the *Last session* row of On this phone.
+
+**Activate keeps the built kernel** (fixed 2026-11-25, the phone's report: "Update the kernel, then Activate, I think
+it activated, then it goes back to Update the kernel"). Until then Activate cleared the built kernel when tapped, before
+root's `finish kernel` ran: a refusal, or an activation that did not start at all because another job of the app ran
+(`OneiosJob.job` returns then without a word), lost the build, and the step was Update the kernel again. Now the built
+kernel stays until root put it in (`OneiosToolJob.kernelActivated`, after `finish kernel` succeeded); Activate is
+offered only when the job can start (the tool screen's button is off meanwhile); a refusal shows root's reason with
+Show log on Update the kernel, and a tap puts the same build in again, with no second build.
+
+**Updates by themselves** (`OneiosAuto`, the decision `OneiosSteps.auto`; the owner, 2026-11-25: "auto update the
+kernel and runtime when an update is there, so users don't get confused"). While iOS 27's page is in front and nothing
+of the app runs, the page starts, in this order: the activation of a built kernel; the newest release's runtime when it
+is newer than the staged one (Get the runtime's own download, with its bytes on the step); Update the kernel when the
+image's `kernel.kc` is not the staged runtime's kernel build (or was staged before kernel tracking); a look at the
+newest release (GitHub's latest release, one small request, at most every 6 hours, again 10 minutes after a look that
+got no answer). Each is the same job a tap starts, shown on its step with its progress and Cancel, and each is started
+once per app run: a failure stays on its step with its reason, and a tap tries again. Nothing starts during an iOS
+session, before root answered, on a phone root refused, or before the user staged a first runtime (the first runtime
+and the image are the user's choices). A Make iOS image builds its kernel from the runtime it uses, so after it nothing
+is due.
 
 A step that runs shows a progress bar, the phase in words and the amount: the bytes of a download or an import
 (`OneiosJob`), the tool's own numbers for Make iOS image and Update the kernel (its `progress` events: `percent`, else
@@ -422,7 +444,7 @@ FILE) on its copy, so `FILE.bak` lives in `$STAGE/conf/`, outside the image. **N
 needed** for this branch.
 
 **Tested** on the Linux PC: `OneiosStepsTest` (the steps' states and the next step for every stage of a fresh phone,
-a running and a failed Make iOS image, a kernel to update and to activate, an open session; the progress from the
+a running and a failed Make iOS image, a kernel to update and put in, the updates by themselves; the progress from the
 tool's own event lines), `OneiosConfTest` (the catalog and `conf show` JSON, the rows' controls, values and marks, the
 change a toggle or a reset makes, root's reply parts), and `OneiosScriptTest`'s `conf*` tests (the root script's `conf`
 verb under every shell the machine has, against a stand-in tool and, with `ONEIOS_TOOL_CONF`, against a host build of
@@ -535,14 +557,14 @@ session is open*), then:
   A56) or one root refused; *Runtime* and *iOS image* (their lines as above); *Kernel*: the image's `kernel.kc`
   build id and the runtime's ("unknown" for a set staged before kernel tracking), the kept one before it, the last
   *Check for a newer kernel*; *iOS data* (New: made at the first switch, or Kept); *Last session* (`outcome` of
-  `status`: in place, by a restart, by the failsafe with its reason).
+  `status`: in place, by a restart, by the failsafe with its reason; it opens Session logs).
 - **Steps**, the one checklist ("UI (2026-11-25)" has the table): Get the runtime, Make iOS image, Update the
-  kernel, Activate, Switch (*Switch to iOS 27*), Return (*Back to One UI*, root's `return`, as Volume Up + Volume
-  Down), Logs (Session logs). A step that is to do is the row to tap; a done step taps to run again where that makes
+  kernel (the switch is the primary button, no step). A step that is to do is the row to tap; a done step taps to run again where that makes
   sense (Get the runtime, Make iOS image and Update the kernel, the latter two asked first); a running tool step taps
   to the flow's details.
 - The primary button at the bottom: the next step (the steps' own words), *Show details* while an oneios-tool flow
-  runs, a spinner with the job's words while root works, or the flow's fix (*Check again*, *Download again*, ...).
+  runs, a spinner with the job's words while root works, **Back to One UI** while a session is open, or the flow's fix
+  (*Check again*, *Download again*, ...).
 - The overflow menu: *Switches*, *Check again*, *Check every file*, *Hardware checks*, *Session logs*, *Check for a
   newer kernel*, *Restore the kept kernel set* (while a fallback is kept), *Other ways to get the runtime*, *Use an
   image set I have*, *I have the kernelcache file (optional)*, *Remove the iOS files* (asked first).
@@ -773,7 +795,7 @@ sends requests and shows what comes back. The protocol is the tool's (OneiOS's `
 | Flow (screen, where) | Root | Requests | Shown |
 |---|---|---|---|
 | **Make iOS image** (the Make iOS image step of iOS 27's page and its primary button) | `status`, the latest runtime when the staged one has no kernel or its tool no `make-image` (`begin runtime` ... `finish runtime`, as Get the runtime), `kbinput` ×9, `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with `make-image`'s result | one `make-image` (`profile` `<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make/inputs`, `out` `<stage>/image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`, `resume`); no `fetch`, no `tweaks` | its phase in words, then the tool's 28 steps, progress and time left, the space it needs and has, a heat pause, Pause/Resume, Stop, and why it stopped in plain words with the tool's code ("Make iOS image (no PC)") |
-| **Update the kernel** (the Update the kernel step of iOS 27's page; Activate is the next step) | `status`, `kbinput` ×9, `tool work`, `kbcache <bytes> <sha256>` after the decode, `kbclean` after a stop that cannot go on; then `finish kernel <kc-sha256> <build-id>` when the user taps Activate | `fetch` (`profile` the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make-kernel/inputs`, `only` `["kernelcache"]`, `resume`) and `im4p` (`in` `.../inputs/kernelcache.release.v54`, `out` `<stage>/make-kernel/kernelcache.macho`), both only when `kb/` has no pinned kernelcache; `prelink` | on the iOS page its step with the phase, a bar from the tool's `progress` and Cancel, or why it stopped in plain words with Show log; on its screen the tool's steps with their state icons, progress, space, Pause/Resume (overflow) and words |
+| **Update the kernel** (the Update the kernel step of iOS 27's page, by itself when due; root's `finish kernel` is its last part) | `status`, `kbinput` ×9, `tool work`, `kbcache <bytes> <sha256>` after the decode, `kbclean` after a stop that cannot go on; then `finish kernel <kc-sha256> <build-id>` when the user taps Activate | `fetch` (`profile` the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make-kernel/inputs`, `only` `["kernelcache"]`, `resume`) and `im4p` (`in` `.../inputs/kernelcache.release.v54`, `out` `<stage>/make-kernel/kernelcache.macho`), both only when `kb/` has no pinned kernelcache; `prelink` | on the iOS page its step with the phase, a bar from the tool's `progress` and Cancel, or why it stopped in plain words with Show log; on its screen the tool's steps with their state icons, progress, space, Pause/Resume (overflow) and words |
 | **Check every file** (Tools) | `tool read` | `sums` of `runtime/` and of `image/` against the lists root wrote at staging, `strict` | each file hashed again, all of them, on all cores; a difference is the tool's `refused` `mismatch` |
 | **CPU, clocks and threads** (Hardware checks, "With oneios-tool") | `tool read` | `cpu` | the tool's report lines and its `cpu` rows |
 | **Analyse the last session**, **iOS's own log: boots**, **last boot** (Session logs, "With oneios-tool") | `tool read` | `log-list` and `log` (`file` `xnuhost`); `ioslog-boots`; `ioslog-show` (`boot` `last`), on `<stage>/data/data.img` | the tool's lines and rows |
@@ -932,7 +954,7 @@ status, and **Continue** opens iOS 27's page, where the last check and the switc
 
 **The fresh phone's path**, with no step that mentions a PC: install the APK → iOS 27's page (root's check is On this
 phone) → Get the runtime (Download the latest release) → **Make iOS image** (Make it on this phone, or Use an image set
-I have) → Switch (the preflight is the Switch step's state) → Return → Logs. Before 2026-11-25 the steps were Check this
+I have) → **Switch to iOS 27** (the primary button; root's check is On this phone) → Back to One UI (the button while a session is open). Newer runtimes and kernels then come by themselves ("Updates by themselves"). Before 2026-11-25 the steps were Check this
 phone, Get the OneiOS runtime, Make your iOS image (button: Get the iOS image), iOS's own data and Last check. The image step's words, the empty image row of
 iOS 27's page and the image refusals ("Make your iOS image", "Make iOS image again for this runtime") say Make iOS
 image now; the "How to build it" link to OneiOS's README is gone.
@@ -1643,7 +1665,10 @@ the two meet at the return's lock.
   change a toggle, a picker or Reset sends, root's reply parts, the flag words). `core/root` `OneiosStepsTest` (the
   checklist from a fresh phone to a session and back: each step's state, the next step, a download's bytes, Make
   iOS image's progress from the tool's own `start`/`step`/`progress` lines, a failure's reason and Show log, a kernel
-  to update and to activate, a refused preflight, an open session, the failsafe; the step names are this file's).
+  built then put in as one step, an activation refused with the built kernel kept, the switch and a refused preflight
+  as the button and On this phone, an open session with no step left, the updates by themselves (a newer runtime, a
+  kernel due, a built one put in, the look every 6 h; each once; none while a job runs, in a session or before the
+  first runtime); the step names are this file's).
 - **Kernel updates.** The same class, against fake stages: `kbinput` stages the 13 allowlisted inputs (and
   refuses any other name); `finish kernel` checks the phone-built collection (complete, its SHA-256, built from
   this runtime's xnu and the staged kernelcache) and refuses a wrong one or a wrongly paired one with nothing

@@ -143,6 +143,9 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
 
     fun canStart(): Boolean = !state.busy && !othersBusy()
 
+    /** The screens hear the state again (OneiosAuto: a newer release was found, which is no state of this job). */
+    fun nudge() = update(state)
+
     fun cancel() {
         cancelled = true
         shells.forEach { it.cancel() }
@@ -347,7 +350,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      * its failure. A check ([OneiosFlow.Job.CHECK]) whose `status` itself fails keeps that failure, so
      * the screen can say why (before, it stayed on "Checking…").
      */
-    private fun job(ctx: Context, phase: Phase, kind: OneiosFlow.Job, first: String, work: (Context) -> String?) {
+    private fun job(ctx: Context, phase: Phase, kind: OneiosFlow.Job, first: String, onOk: (() -> Unit)? = null, work: (Context) -> String?) {
         if (!canStart()) return
         val app = ctx.applicationContext
         cancelled = false
@@ -373,6 +376,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
                     runtimeRecord = record(app, OneiosKind.RUNTIME), imageRecord = record(app, OneiosKind.IMAGE),
                 ),
             )
+            if (why == null) onOk?.invoke()
         }
     }
 
@@ -661,7 +665,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      * `kb-24B156` and the runtime's 24B156 xnu path, and checks the set is 24B156.
      */
     fun activateKernel(ctx: Context, kcSha256: String) =
-        job(ctx, Phase.STAGING, OneiosFlow.Job.FINISH_KERNEL, "Activating the phone-built kernel…") { app ->
+        job(ctx, Phase.STAGING, OneiosFlow.Job.FINISH_KERNEL, "Activating the phone-built kernel…", onOk = { OneiosToolJob.kernelActivated(kcSha256) }) { app ->
             val st = readStatus(app)
             val build = OneiosImageChoice.kernelBuildOf(st.image?.build ?: OneiosImageChoice.IOS_27.build)
             val kb = kbInputs(app, build)

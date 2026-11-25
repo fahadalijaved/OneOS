@@ -18,6 +18,7 @@ import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.core.root.OneiosSteps
+import com.fahadali.oneos.session.OneiosAuto
 import com.fahadali.oneos.session.OneiosConfJob
 import com.fahadali.oneos.session.OneiosJob
 import com.fahadali.oneos.session.OneiosToolJob
@@ -38,6 +39,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
     private lateinit var toolbar: ToolbarLayout
     private lateinit var primaryColors: ColorStateList
     private var unsubscribe: (() -> Unit)? = null
+    private var started = false
 
     /** The checklist's rows by step, rebound in place for a byte count (rebuilt only when the page's shape changes). */
     private val rows = HashMap<OneiosSteps.Id, View>()
@@ -72,6 +74,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
 
     override fun onStart() {
         super.onStart()
+        started = true
         shape = null
         val a = OneiosJob.observe { render() }
         val b = OneiosToolJob.observe { render() }
@@ -86,6 +89,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
     }
 
     override fun onStop() {
+        started = false
         ticker.removeCallbacks(tick)
         unsubscribe?.invoke()
         unsubscribe = null
@@ -123,6 +127,9 @@ class OneiosActivity : EdgeToEdgeActivity() {
             for (step in steps.steps) rows[step.id]?.let { bindStep(it, step) }
         }
         bindPrimary(s, t, steps)
+        // Updates by themselves (OneiosAuto): after this frame, only while the page is in front (Android lets only a
+        // visible app start the foreground service a download or a tool flow needs).
+        if (started) window.decorView.post { if (started && !isDestroyed) OneiosAuto.tick(this) }
     }
 
     private fun subtitle(s: OneiosJob.State, steps: OneiosSteps.View): String = steps.running?.let { r ->
@@ -178,7 +185,8 @@ class OneiosActivity : EdgeToEdgeActivity() {
             PrebootCards.row(state, getString(R.string.oneios_page_kernel), line)
         }
         if (st?.image != null) PrebootCards.row(state, getString(R.string.oneios_page_data), flow.dataLine ?: getString(R.string.environment_unknown))
-        OneiosFlow.lastReturn(st)?.let { PrebootCards.row(state, getString(R.string.oneios_page_last), it.title + "\n" + it.line) }
+        // Last session: how it came back; it opens the session logs (no step of their own).
+        OneiosFlow.lastReturn(st)?.let { PrebootCards.row(state, getString(R.string.oneios_page_last), it.title + "\n" + it.line, chevron = true) { startActivity(OneiosLogsActivity.intent(this)) } }
 
         // Steps: the one checklist.
         val card = PrebootCards.section(column, getString(R.string.oneios_page_steps))
@@ -188,12 +196,12 @@ class OneiosActivity : EdgeToEdgeActivity() {
     private fun bindStep(v: View, step: OneiosSteps.Step) =
         OneiosStepRow.bind(v, step, title(step.id, OneiosJob.state.status?.image?.version), tap(step, !OneiosJob.state.busy), cancel(step), log(step))
 
-    /** A step's name on the page and on the button: the docs' words (Switch names the staged system: "Switch to iOS 27"). */
-    private fun title(id: OneiosSteps.Id, version: String?): String = when (id) {
-        OneiosSteps.Id.SWITCH -> if (version == null || OneiosSystem.isIos27(version)) getString(R.string.oneios_switch) else "Switch to ${OneiosSystem.shortName(version)}"
-        OneiosSteps.Id.RETURN -> getString(R.string.oneios_back)
-        else -> id.title
-    }
+    /** A step's name on the page and on the button: the docs' words. */
+    private fun title(id: OneiosSteps.Id, @Suppress("UNUSED_PARAMETER") version: String?): String = id.title
+
+    /** Switch to the staged system ("Switch to iOS 27", "Switch to iOS 16.5" on the Galaxy A56): the primary button. */
+    private fun switchLabel(version: String?): String =
+        if (version == null || OneiosSystem.isIos27(version)) getString(R.string.oneios_switch) else "Switch to ${OneiosSystem.shortName(version)}"
 
     /** What pressing a step does; null when it cannot be pressed now. */
     private fun tap(step: OneiosSteps.Step, idle: Boolean): (() -> Unit)? {
@@ -201,7 +209,6 @@ class OneiosActivity : EdgeToEdgeActivity() {
         if (step.state == OneiosSteps.State.RUNNING) {
             return if (step.cancel == OneiosSteps.Cancel.TOOL || (toolBusy && step.id == OneiosSteps.Id.IMAGE)) { { startActivity(OneiosToolActivity.intent(this)) } } else null
         }
-        if (step.id == OneiosSteps.Id.LOGS) return { startActivity(OneiosLogsActivity.intent(this)) }
         if (!idle || toolBusy || step.state == OneiosSteps.State.WAITING) return null
         return action(step.id, step.state)
     }
@@ -213,24 +220,18 @@ class OneiosActivity : EdgeToEdgeActivity() {
             OneiosSteps.Id.IMAGE ->
                 if (state == OneiosSteps.State.DONE) { { again(id, R.string.oneios_step_again_image) { OneiosActions.askImage(this, picker) } } }
                 else { { OneiosActions.askImage(this, picker) } }
-            OneiosSteps.Id.KERNEL -> when {
-                st?.image == null || !OneiosToolJob.canStart() -> null
-                state == OneiosSteps.State.DONE -> { { again(id, R.string.oneios_step_again_kernel) { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) } } }
-                else -> { { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) } }
-            }
-            OneiosSteps.Id.ACTIVATE -> OneiosToolJob.state.builtKc?.takeIf { it.matches(Regex("^[0-9a-f]{64}$")) && state == OneiosSteps.State.TODO }?.let { kc ->
-                {
-                    OneiosToolJob.kernelActivating()
-                    OneiosJob.activateKernel(this, kc)
+            OneiosSteps.Id.KERNEL -> {
+                // A kernel that is built (and not yet in, or refused by root) is put in again: no second build. The built
+                // kernel stays until root's finish kernel put it in (OneiosToolJob.kernelActivated).
+                val built = OneiosToolJob.state.builtKc?.takeIf { it.matches(Regex("^[0-9a-f]{64}$")) }
+                when {
+                    st?.image == null -> null
+                    built != null -> if (OneiosJob.canStart()) { { OneiosJob.activateKernel(this, built) } } else null
+                    !OneiosToolJob.canStart() -> null
+                    state == OneiosSteps.State.DONE -> { { again(id, R.string.oneios_step_again_kernel) { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) } } }
+                    else -> { { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) } }
                 }
             }
-            OneiosSteps.Id.SWITCH -> when (state) {
-                OneiosSteps.State.TODO -> { { OneiosSwitchConfirm.show(this) } }
-                OneiosSteps.State.FAILED -> { { OneiosActions.run(this, OneiosFlow.Next.of(OneiosJob.state.flow.problem?.fix ?: OneiosFix.CHECK_AGAIN), picker) } }
-                else -> null
-            }
-            OneiosSteps.Id.RETURN -> if (state == OneiosSteps.State.TODO) { { OneiosJob.backToOneUi(this) } } else { { startActivity(OneiosLogsActivity.intent(this)) } }
-            OneiosSteps.Id.LOGS -> { { startActivity(OneiosLogsActivity.intent(this)) } }
         }
     }
 
@@ -281,12 +282,18 @@ class OneiosActivity : EdgeToEdgeActivity() {
                 spin = true
                 set(b, s.job?.let { OneiosActions.runningTitle(this, it) } ?: getString(R.string.oneios_page_working), enabled = false)
             }
-            next != null -> set(b, title(next, s.status?.image?.version)) {
+            next != null -> {
                 // The runtime takes the flow's own fix when it names one (Download again, Choose the runtime file).
-                if (next == OneiosSteps.Id.RUNTIME && flowNext in setOf(OneiosFlow.Next.DOWNLOAD_RUNTIME, OneiosFlow.Next.IMPORT_RUNTIME)) OneiosActions.run(this, flowNext, picker)
-                else action(next, steps.step(next).state.let { if (it == OneiosSteps.State.FAILED) OneiosSteps.State.TODO else it })?.invoke()
+                val fix = next == OneiosSteps.Id.RUNTIME && flowNext in setOf(OneiosFlow.Next.DOWNLOAD_RUNTIME, OneiosFlow.Next.IMPORT_RUNTIME)
+                val act = if (fix) { { OneiosActions.run(this, flowNext, picker) } }
+                    else action(next, steps.step(next).state.let { if (it == OneiosSteps.State.FAILED) OneiosSteps.State.TODO else it })
+                // Off while the step cannot run now, never a button that does nothing.
+                set(b, title(next, s.status?.image?.version), enabled = act != null) { act?.invoke() }
             }
             flowNext == OneiosFlow.Next.NOT_THIS_PHONE -> set(b, getString(R.string.catalog_not_available), enabled = false)
+            // The switch is a button, no step (the owner, 2026-11-25): root's last check passed. It asks first and shows
+            // the way back before One UI closes (OneiosSwitchConfirm), as before.
+            flowNext == OneiosFlow.Next.SWITCH -> set(b, switchLabel(s.status?.image?.version)) { OneiosSwitchConfirm.show(this) }
             else -> {
                 val go = if (OneiosActions.label(this, flowNext) == null) OneiosFlow.Next.CHECK_AGAIN else flowNext
                 set(b, OneiosActions.label(this, go).orEmpty()) { OneiosActions.run(this, go, picker) }

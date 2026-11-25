@@ -58,7 +58,8 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         }) { render() }
         // Make iOS image's runtime download is OneiosJob's: its file and bytes (four times a second at most).
         val runtime = OneiosJob.observeBy({ j ->
-            if (OneiosToolJob.state.makePhase == OneiosMakeImage.Phase.RUNTIME) listOf(j.message, j.file, j.progressLine) else null
+            // Also whether root's job can start: Activate is offered only then.
+            listOf(j.busy, if (OneiosToolJob.state.makePhase == OneiosMakeImage.Phase.RUNTIME) listOf(j.message, j.file, j.progressLine) else null)
         }) { render() }
         unsubscribe = { tool(); runtime() }
     }
@@ -203,10 +204,10 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
                 // The app was ended while this flow ran: started again, the tool goes on from what it kept.
                 OneiosToolJob.run(this, interrupted)
             }
-            again == OneiosToolJob.Flow.KERNEL && kcSha != null -> set(getString(R.string.oneios_kernel_activate)) {
+            again == OneiosToolJob.Flow.KERNEL && kcSha != null -> set(getString(R.string.oneios_kernel_activate), enabled = OneiosJob.canStart()) {
                 // The phone built kernel.kc and the audit passed: activate it (checks first, fallback kept), then back
-                // on the iOS page, where the activation runs as the Activate step.
-                OneiosToolJob.kernelActivating()
+                // on the iOS page, where the activation runs as the Activate step. Offered only when root's job can
+                // start (OneiosJob.canStart); the built kernel stays until root put it in (OneiosToolJob.kernelActivated).
                 OneiosJob.activateKernel(this, kcSha)
                 startActivity(OneiosActivity.intent(this).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
             }
