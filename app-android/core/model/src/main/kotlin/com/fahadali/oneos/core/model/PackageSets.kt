@@ -1060,9 +1060,9 @@ object PackageSets {
             PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
             PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
-        ) + (COMMON_PAYLOADS + listOf("bt", "cellbroadcast", "conscrypt", "profiling", "telephonycore"))
+        ) + ((COMMON_PAYLOADS - "crashrecovery") + listOf("bt", "cellbroadcast", "conscrypt", "profiling", "telephonycore"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
-        omitted = listOf(TETHERING),
+        omitted = listOf(TETHERING, "crashrecovery_payload.img"),
         approxBytes = 353_874_762L,
         hasReturnApp = true,
     )
