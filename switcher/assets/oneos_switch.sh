@@ -2483,6 +2483,7 @@ grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null
 GUEST_AOSP_SYSUI=1
 [ $GUEST_OPLUS = 1 ] && [ ! -f "$STAGE/rootfs/system/framework/org.lineageos.platform.jar" ] && GUEST_AOSP_SYSUI=0
 [ $GUEST_MIUI = 1 ] && GUEST_AOSP_SYSUI=0
+[ $GUEST_ONEUI = 1 ] && GUEST_AOSP_SYSUI=0
 # Window-level blur default for a new stage (UI activator below); only 0 or 1
 # reaches the root shell.
 GUEST_BLUR=1; [ "${ONEOS_GUEST_BLUR:-1}" = 1 ] || GUEST_BLUR=0

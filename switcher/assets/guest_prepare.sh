@@ -1721,7 +1721,11 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                             for sube in "$e"/*; do
                                 [ -e "$sube" ] || continue
                                 subn=${sube##*/}
-                                mkdir -p "$GUEST_SYSTEM_EXT/$en/$subn" 2>/dev/null || : > "$GUEST_SYSTEM_EXT/$en/$subn"
+                                if [ -d "$sube" ]; then
+                                    mkdir -p "$GUEST_SYSTEM_EXT/$en/$subn" 2>/dev/null
+                                else
+                                    : > "$GUEST_SYSTEM_EXT/$en/$subn" 2>/dev/null
+                                fi
                                 $BB mount --bind "$sube" "$GUEST_SYSTEM_EXT/$en/$subn" || true
                             done
                             fn=$((fn + 1))
@@ -5543,16 +5547,12 @@ if grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" &&
           { [ "${ONEOS_PROFILE:-}" = f8u ] && grep -q '^  "set": "n6-f8u",$' "$STAGE/.oneos_stage"; }; }; then
     DS_DEFAULT=fold8-hinge
     FOLD8_HINGE=1
-elif [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
-        grep -q -e '^  "set": "oneui95",$' -e '^  "set": "oneui95-f8",$' "$STAGE/.oneos_stage" &&
-        grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
-    # The 9.5 donor uses Android's DeviceStateProviderImpl. Read the Fold8's
-    # continuous sensor directly and keep the lid switch authoritative for
-    # closed. Use the Flex Restore module's entry range for tabletop.
-    DS_DEFAULT=fold8-hinge
-    FOLD8_HINGE=1
-    FOLD8_HINGE_MIN=50
-    FOLD8_HINGE_MAX=135
+elif { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "$FORM" = fold ] &&
+        grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+    # Modern One UI (8.5/9.5) foldables require AOSP/Samsung device-state properties
+    # (PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_* and PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_*).
+    # On Fold4 (f4) or Fold8 (f8), provide the clean 0 (CLOSE) and 3 (OPEN) mapping with wake trigger.
+    DS_DEFAULT=oneos
 fi
 # vivo OriginOS on a Fold (ro.vivo.device.type=foldable, guest_props.sh): vivo's
 # framework, SystemUI and launcher count 1 as OPEN and 0 as CLOSE (Samsung's 3
@@ -7934,6 +7934,8 @@ if { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "$FO
                 call_audio = "SEC_FLOATING_FEATURE_AUDIO_CONFIG_AUDIO_ERASER"
                 set_feature(call_audio, "VOICE")
                 set_feature(ai, "20271")
+                set_feature(fold, "TRUE")
+                set_feature(wide, "TRUE")
             }
             FILENAME != ARGV[3] {
                 key = read_feature($0)

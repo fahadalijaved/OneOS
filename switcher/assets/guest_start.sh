@@ -499,11 +499,11 @@ if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
         # the cover, 1 half open and 2 open on the inner panel (4 and 5, both
         # panels on, left out). Run 43 had only 0 and 3, so its rear display
         # state went to the inner panel. ColorOS keeps Samsung's 0 and 3.
-        if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
-           grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
-            # Fold8's native states mark CLOSE and TENT as OUTER_PRIMARY.
+        if { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+           grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+            # One UI 8.5/9.5 fold states: closed (0) on cover, open (3) on inner panel.
             STATES="-1:$INNER:$COVER 0:$COVER:$INNER 1:$COVER:$INNER 3:$INNER:$COVER"
-            LNOTE="Fold8 One UI 9.5: closed and tent use the cover; open uses the inner."
+            LNOTE="One UI Fold: closed and tent use the cover; open uses the inner."
         elif [ -e /system/framework/oplus-services.jar ]; then
             # Samsung's states from the phone's own device_state_configuration.xml:
             # 0 (lid closed) on the cover, every other one on the inner panel.

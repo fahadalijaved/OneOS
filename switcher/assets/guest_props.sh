@@ -1957,7 +1957,11 @@ ro.miui.backdrop_sampling_enabled=true"
     esac
     oneui_image_model="${ONEOS_ONEUI_IMAGE_MODEL:-1}"
     oneui_version_props="ro.build.version.oneui ro.build.version.sem ro.build.version.sem_platform_int"
-    if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+    if [ "${ONEOS_PROFILE:-}" = f4 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ]; then
+        oneui_version_props="$oneui_version_props ro.build.version.sep"
+        oneui_image_model=0
+        echo "guest_props: keeping Fold4 model for One UI session"
+    elif [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
        grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
         # Build.VERSION.SEM_PLATFORM_INT and One UI Home read sep, not sem.
         # Use the guest's platform level with the Fold8's own hardware identity.
