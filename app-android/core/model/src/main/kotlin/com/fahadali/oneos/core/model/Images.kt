@@ -706,7 +706,7 @@ object Images {
         downloadUrl = SHARED_FOLDER_URL,
         sdk = 36,
         buildId = "F956BXXS4DZI1",
-        gzName = "OneOS_OneUI8.5_Fold6.img.gz",
+        gzName = "OneOS_OneUI8.5_Fold4.img.gz",
         gzBytes = 7_946_922_526L,
         gzSha256 = "93fd578ffd41e3d303af380af96f675e55d2085135286e7bbdaccd2fe43688d5",
         rawBytes = 14_155_776_000L,
