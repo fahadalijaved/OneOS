@@ -479,6 +479,10 @@ class SystemsFragment : Fragment() {
 
 
         currentEntries = entries
+        if (entries.isEmpty()) {
+            carousel.adapter = null
+            return
+        }
         val state = if (revealed) carousel.layoutManager?.onSaveInstanceState() else null
         carousel.adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<CarouselHolder>() {
             override fun getItemCount() = Int.MAX_VALUE
