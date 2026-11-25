@@ -598,6 +598,12 @@ LAYOUT
                 [2-6][0-9][0-9]) [ "$f8_density" -ge 240 ] && [ "$f8_density" -le 640 ] || f8_density=420 ;;
                 *) f8_density=420 ;;
             esac
+            f8_inner_density="$f8_density"
+            f8_cover_density="$f8_density"
+            if [ "${ONEOS_PROFILE:-}" = f4 ]; then
+                f8_inner_density=420
+                f8_cover_density=420
+            fi
             f8_dset=/data/system/display_settings.xml
             if [ ! -L "$f8_dset" ] && [ ! -L /data/system ] &&
                f8_temp=$(mktemp -d /data/system/oneos-density.XXXXXX); then
@@ -615,9 +621,10 @@ LAYOUT
                 if [ "$f8_id_type" = 1 ]; then
                     f8_inner="port:$((INNER % 256))"; f8_cover="port:$((COVER % 256))"
                 fi
-                if awk -v inner="$f8_inner" -v cover="$f8_cover" -v density="$f8_density" '
+                if awk -v inner="$f8_inner" -v cover="$f8_cover" -v d_in="$f8_inner_density" -v d_cv="$f8_cover_density" '
                     BEGIN {
                         panels[1] = inner; panels[2] = cover
+                        pdensity[1] = d_in; pdensity[2] = d_cv
                         policy = " isHomeSupported=\"false\" shouldShowSystemDecors=\"false\""
                     }
                     /<display[[:space:]]/ {
@@ -629,13 +636,13 @@ LAYOUT
                             # The other internal panel must never start a DeX Home.
                             gsub(/[[:space:]]+(isHomeSupported|shouldShowSystemDecors)="[^"]*"/, "")
                             sub(key, key policy)
-                            if ($0 !~ /forcedDensity(Ratio)?=/)
-                                sub(key, key " forcedDensity=\"" density "\"")
+                            gsub(/[[:space:]]+forcedDensity(Ratio)?="[^"]*"/, "")
+                            sub(key, key " forcedDensity=\"" pdensity[i] "\"")
                         }
                     }
                     /<\/display-settings>/ {
                         for (i = 1; i <= 2; i++)
-                            if (!seen[i]) print "    <display name=\"" panels[i] "\"" policy " forcedDensity=\"" density "\" />"
+                            if (!seen[i]) print "    <display name=\"" panels[i] "\"" policy " forcedDensity=\"" pdensity[i] "\" />"
                         closed = 1
                     }
                     { print }
@@ -644,7 +651,7 @@ LAYOUT
                    chown 1000:1000 "$f8_output" && chmod 600 "$f8_output" &&
                    "$BB" chcon u:object_r:system_data_file:s0 "$f8_output" &&
                    mv -f "$f8_output" "$f8_dset"; then
-                    echo "[Pivoted Root] Fold display density: $f8_density dpi defaults for $f8_inner and $f8_cover"
+                    echo "[Pivoted Root] Fold display density: inner $f8_inner_density dpi, cover $f8_cover_density dpi for $f8_inner and $f8_cover"
                 else
                     echo "[Pivoted Root] Fold display density: defaults not written"
                 fi
@@ -844,7 +851,10 @@ fi
 # ONEOS_GUEST_LED_BRIDGE=0 / ONEOS_GUEST_BL_BRIDGE=0: off.
 BRIDGE=0
 case "${ONEOS_GUEST_BL_BRIDGE:-1}" in force) BLFORCE=1 ;; *) BLFORCE=0 ;; esac
-if [ $LEDBL = 1 ]; then [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ] && BRIDGE=1
+if [ "${ONEOS_GUEST_BL_BRIDGE:-1}" != force ] && grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+    BRIDGE=0
+    echo "[Pivoted Root] Backlight: bridge off (One UI guest controls Samsung display power and brightness natively)"
+elif [ $LEDBL = 1 ]; then [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ] && BRIDGE=1
 elif [ "${ONEOS_GUEST_BL_BRIDGE:-1}" != 0 ] && [ -w "$BL/brightness" ]; then
     if [ "$BL" = /sys/class/backlight/panel ] || [ -w "$BL2/brightness" ] || [ $BLFORCE = 1 ]; then
         case "$BLMAX" in ''|*[!0-9]*) ;; *) BRIDGE=1 ;; esac

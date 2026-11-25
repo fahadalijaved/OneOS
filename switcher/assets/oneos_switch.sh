@@ -3108,6 +3108,8 @@ while true; do
             # seen there.
             if [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ] && [ $GUEST_OPLUS = 1 ]; then
                 echo '[UI Activator] density and fold line: left to ColorOS'
+            elif [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ] && [ $GUEST_ONEUI = 1 ]; then
+                echo '[UI Activator] density and fold line: left to One UI'
             elif [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ]; then
                 IN=\$(cat $STAGE/data/oneos_inner_display 2>/dev/null)
                 case \"\$IN\" in ''|*[!0-9]*) IN=none ;; esac

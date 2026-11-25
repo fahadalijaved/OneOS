@@ -1510,12 +1510,16 @@ vndk_fragment() {
 }
 SECIMS_BOUND=0
 VIVO_SE=""
-if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
+ONEUI_SEXT_WANT=0
+if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_GUEST_VIVO_SYSEXT:-1}" = 1 ]; then
+    ONEUI_SEXT_WANT=1
+fi
+if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $ONEUI_SEXT_WANT = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
         echo "Overlay on $GUEST_SYSTEM_EXT already there (an earlier prepare), left as it is"
         [ $SEC_IMS = 1 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (that overlay has no secims layer)"; }
         [ $SAMCAM = 1 ] && { SAMCAM=0; echo "Samsung Camera in the guest: off (that overlay has no mount points for it)"; }
-    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
+    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $ONEUI_SEXT_WANT = 1 ]; then
         OV="$STAGE/system_ext_ov"
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
@@ -1628,7 +1632,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "Signal poll: off (read-only overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
-        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; }; then
+        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $ONEUI_SEXT_WANT = 1 ]; }; then
             mkdir -p "$OV/work"
             if $BB mount -t overlay overlay \
                 -o "lowerdir=$GUEST_SYSTEM_EXT,upperdir=$OV/up,workdir=$OV/work" \
@@ -7770,7 +7774,7 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
         # RESOLUTION_* of its resolution table; 11-20 report 1010d28b, A17: "getResolution : argument is invalid
         # - 3408x2556", the camera never opened) become the known size of the same shape, the largest not
         # bigger (else the smallest bigger one). Only for the S948B image's app (ro.product.system.model).
-        if [ -f "$cf" ] && [ "$ONEUI_A_CAMERA" = 0 ] && grep -q '^ro.product.system.model=SM-S948' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        if [ -f "$cf" ] && [ "$ONEUI_A_CAMERA" = 0 ] && grep -q -E '^ro.product.system.model=SM-(S948|F956)' "$ROOTFS/system/build.prop" 2>/dev/null; then
             CAMRES="3264x2448 2560x1920 2048x1536 1600x1200 1280x960 640x480 1920x1080 1280x720 352x288 320x240 176x144 3264x1836 2560x1440 2048x1152 2592x1944 1440x1080 4128x3096 4128x2322 1024x576 3840x2160 5312x2988 3984x2988 2976x2976 1072x1072 2448x2448 4608x2592 1440x1440 1920x1440 2592x1458 3344x3344 1936x1936 1920x1920 1088x1088 2576x1932 960x960 4608x3456 4032x3024 4032x2268 2880x2160 3024x3024 2160x2160 1066x800 800x800 1616x1212 1600x900 720x720 3456x3456 1536x1536 720x540 540x540 3088x3088 4032x1960 3264x1592 2224x1080 3648x2052 3648x2736 2736x2736 4032x1908 3968x2232 3968x1880 2280x1080 4608x2184 2288x1080 3216x1528 2640x1288 3216x1808 2640x1488 2944x2208 2640x1980 2208x2208 1968x1968 4032x1800 4032x1816 3968x1784 2400x1080 3216x1448 4000x1800 4000x2252 4000x3000 2992x2992 9248x6936 7680x4320 12000x9000 7296x5472 5888x4416 3840x1644 1920x824 7680x3296 4000x1868 3968x1852 3216x1500 2320x1080 8160x6120 3968x1832 2336x1080 4000x1844 3216x1488 4000x1848 3392x1564 3392x1580 3392x1908 3392x2544 2544x2544 16320x12240 3840x1648 7936x4464 5472x5472 7936x3700 7936x3664 7936x3572 8160x4592 6112x6112 8160x3808 8160x3768 9248x5204 6928x6928 9248x4312 9248x4268 9248x4164 12000x6752 8992x8992 12000x5596 12000x5540 12000x5400 16320x9180 12240x12240 16320x7612 16320x7532 7680x3248 3840x1624 2560x1080 1712x720 7680x2784 3840x1392 2976x1080 1984x720 1920x808 1920x696 4000x1716 3968x1700 4000x1688 4000x1456 3840x2880 5712x4284 5712x3212 4272x4272 5712x2636 7680x2160 3968x1116 3328x936 2240x630 1920x540 4000x1124 3056x1412 3056x1720 3056x2296 2288x2288 1920x2160 3840x4320 4640x3480 4640x2612 3472x3472 4640x2142 4640x1988 3008x2256 3008x1692 2256x2256 3008x1388 4080x3060 960x540"
             if $BB awk -v known="$CAMRES" '
                 BEGIN { n = split(known, k, " "); for (i = 1; i <= n; i++) ok[k[i]] = 1 }

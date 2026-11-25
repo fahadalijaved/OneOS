@@ -469,7 +469,7 @@ class SystemsFragment : Fragment() {
             // PixelOS 17 (0.5.35), a custom ROM with a card and artwork of its own (not the Pixel card), only on the phones that offer it.
             CatalogEntry(pixelOs.name, pixelOs, R.drawable.os_pixelos, true).takeIf { available.any { it.id == pixelOs.id } },
             // One UI 9.5 (0.5.22, untested) only on the phones on One UI 9 that offer it.
-            CatalogEntry(oneui.name, oneui, R.drawable.os_oneui, true).takeIf { available.any { it.id == oneui.id } },
+            CatalogEntry(oneui.name, oneui, if (oneui.id == Images.ID_ONEUI85_F6) R.drawable.os_oneui85 else R.drawable.os_oneui, true).takeIf { available.any { it.id == oneui.id } },
             CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, true).takeIf { available.any { it.id == infinity.id } },
             CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, true).takeIf { available.any { it.id == hyper.id } },
             CatalogEntry(color.name, color, R.drawable.os_coloros, true).takeIf { available.any { it.id == color.id } },
