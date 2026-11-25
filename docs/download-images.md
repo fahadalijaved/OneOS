@@ -428,6 +428,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S23 (SM-S911, SM8550), not tested yet
   - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy S26+ (SM-S947, SM8850), not tested yet
+  - Galaxy Z Flip5 (SM-F731, SM8550), not tested yet
   - Galaxy S23 Ultra (SM-S918, SM8550), not tested yet
   - Galaxy S24 (Exynos) (SM-S921, s5e9945), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
@@ -551,6 +552,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
 
 ## PixelOS 17, POCO F7 build
 

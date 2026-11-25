@@ -85,7 +85,7 @@ class FindingsActivity : ToolbarActivity() {
         setExpandedSubtitle(zip.name)
         findViewById<Button>(R.id.findings_share).setOnClickListener { share(zip) }
         // 0.4.29: straight to the team when this build has the report service; Share and Save stay.
-        if (ReportSender.offered) {
+        if (ReportSender.telegramSendOffered) {
             findViewById<Button>(R.id.findings_send).apply {
                 visibility = View.VISIBLE
                 setOnClickListener { startActivity(SendReportActivity.intent(this@FindingsActivity, zip)) }
@@ -154,9 +154,12 @@ class FindingsFragment : PreferenceFragmentCompat() {
         val folder = ProbeSession.folderOf(zip)
 
         val bundle = category(getString(if (logs) R.string.logs_cat_bundle else R.string.findings_cat_bundle))
+        // 0.5.46: this row looked like a greyed-out button; it opens Send to the OneOS team now.
+        val canSend = ReportSender.telegramSendOffered
         bundle.row(
             getString(if (logs) R.string.logs_send_title else R.string.findings_send_title),
             getString(if (logs) R.string.logs_send_summary else R.string.findings_send_summary),
+            onClick = if (canSend) ({ startActivity(SendReportActivity.intent(requireContext(), zip)) }) else null,
         )
         bundle.row(zip.name, Units.bytes(zip.length()))
 

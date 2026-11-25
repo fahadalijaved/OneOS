@@ -187,6 +187,24 @@ class SetupPlanTest {
     }
 
     @Test
+    fun thePadImagesOwnColorOsLookingDataIsKept() {
+        // 0.5.46 (Tab S9 FE+): the ColorOS 17 Pad build is the OxygenOS family, but its data has no OnePlus membership
+        // app, so it reads as ColorOS's. With OneOS's marker naming this image it is kept; for another image it is not.
+        val tab = Profiles.TAB_S9_FE_PLUS
+        val pad = Images.OXYGEN17_PAD
+        val st = status(prepared(tab, pad, PackageSets.OXYGEN17_PAD, guest = "packages com.oplus."))
+        assertEquals(GuestData.COLOROS, st.guest)
+        assertTrue(st.ownOplusData(pad))
+        assertEquals(listOf(BeginMode.KEEP, BeginMode.ASIDE), st.beginModes(pad.id))
+        assertEquals(BeginMode.KEEP, SetupPlan.decide(st, pad, tab, app, hasDownload = true)!!.mode)
+        // ColorOS data with no marker of ours is still never kept for the Pad image.
+        val foreign = status(prepared(tab, pad, PackageSets.OXYGEN17_PAD, guest = "packages com.oplus.",
+            extra = mapOf("stage.list" to "f 0 644 10 x.log\nd 0 755 4096 data\n")), missing = setOf("stage.marker"))
+        assertFalse(foreign.ownOplusData(pad))
+        assertEquals(listOf(BeginMode.ASIDE), foreign.beginModes(pad.id))
+    }
+
+    @Test
     fun aSetupThatStoppedIsKeptOnlyWhenItCanBeThisSystem() {
         // Stopped before any data: kept.
         val half = status(prepared(fold, n6, PackageSets.N6_F8U, guest = "packages none"), missing = setOf("stage.marker"))

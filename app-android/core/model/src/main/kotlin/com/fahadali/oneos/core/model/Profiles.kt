@@ -707,7 +707,8 @@ object Profiles {
         codename = "b5q",
         socModel = "SM8550",
         form = FormFactor.FLIP,
-        choices = listOf(X9U_IN_1105_TESTED, PIXEL9_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE) + ONEUI95_CHOICE,
+        // 0.5.46 (owner): OriginOS too, as on the S23s of the same chip (untested; the main screen only, as a bar phone).
+        choices = listOf(X9U_IN_1105_TESTED, PIXEL9_CHOICE, INFINITYX_TESTED, LINEAGE_CHOICE, HYPEROS_CHOICE, HYPEROS_HK_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(EXPECT_NO_START),
     ))
 
@@ -1425,8 +1426,22 @@ object Profiles {
         form = FormFactor.BAR, choices = listOf(OXYGEN17_PAD_CHOICE), notes = listOf(TABLET, EXYNOS),
     )
 
-    /** Galaxy Tab S9 FE (Wi-Fi, SM-X510, gts9fewifi): the FE+'s chip and system (findings of 2026-11-08). */
-    val TAB_S9_FE = TAB_S9_FE_PLUS.copy(id = ID_TAB_S9_FE, label = "Galaxy Tab S9 FE", modelPrefix = "SM-X510", codename = "gts9fewifi")
+    /**
+     * Galaxy Tab S9 FE (Wi-Fi, SM-X510, gts9fewifi; pull request #371, asarr22): live device inspection (s5e8835
+     * Exynos 1380 like the Galaxy A26/A35/A54/M35/M36, vendor API 33 and kernel 5.15, one 1440 x 2304 90 Hz LCD
+     * panel at density 280 with brightnessMaximum 1.1764706 and backlight max 300, Himax TDDI touch and sec_e-pen,
+     * HIDL composer 2.4 and HIDL audio HAL, Mali-G68, no SVE or SME, Wi-Fi only with ro.radio.noril=yes, KernelSU).
+     * Takes OxygenOS 17 for tablets and One UI 9.5 (owner, 2026-11-25), the tablet note and the A26's notes.
+     */
+    val TAB_S9_FE = A26.copy(
+        id = ID_TAB_S9_FE,
+        label = "Galaxy Tab S9 FE",
+        modelPrefix = "SM-X510",
+        codename = "gts9fewifi",
+        // Owner (2026-11-25): the tablet system and One UI 9.5 (what pull request #371 was for), none of the A26's phone systems.
+        choices = listOf(OXYGEN17_PAD_CHOICE, ONEUI95_CHOICE),
+        notes = listOf(TABLET) + A26.notes,
+    )
 
     /** Galaxy Tab S9 Ultra (Wi-Fi, SM-X910, gts9uwifi): the Tab S9's chip (findings of 2026-11-11 and 11-12; 0.5.43, testing). */
     val TAB_S9_ULTRA = TAB_S9.copy(id = ID_TAB_S9_ULTRA, label = "Galaxy Tab S9 Ultra", modelPrefix = "SM-X910", codename = "gts9uwifi")

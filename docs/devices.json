@@ -1296,6 +1296,12 @@
           "tested": false
         },
         {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -3813,6 +3819,12 @@
           "image": "oxygenos17-opd2514",
           "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]

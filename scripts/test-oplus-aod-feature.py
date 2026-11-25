@@ -78,6 +78,14 @@ class OplusAod(unittest.TestCase):
                 lines, added = self.run_block(floating=floating)
                 self.assertEqual(['x.first'], added)
                 self.assertEqual(['ColorOS Always-On Display: left off (One UI has no AOD on this phone)'], lines)
+        # An LCD device (e.g. Galaxy Tab S9 FE) whose floating_feature.xml omits AOD_ITEM
+        # even though its panel_drv kernel driver exposes /sys/class/lcd/panel/alpm = 0.
+        # Only on the Tab S9 FE (ONEUI95_TAB_S9_FE=1): every other phone keeps the panel's low-power node.
+        lines, added = self.run_block(floating='', alpm=True, env={'ONEUI95_TAB_S9_FE': '1'})
+        self.assertEqual(['x.first'], added)
+        self.assertEqual(['ColorOS Always-On Display: left off (One UI has no AOD on this phone)'], lines)
+        lines, added = self.run_block(floating='', alpm=True)
+        self.assertIn(FEATURE, added)
 
     def test_an_image_without_the_aod_app_is_left_alone(self):
         lines, added = self.run_block(listed=False)

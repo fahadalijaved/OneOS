@@ -327,7 +327,7 @@ class ImagesTest {
             Profiles.S_9965 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, Images.PIXELOS_ONYX, Images.ONEUI95),
             Profiles.FLIP7 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.ONEUI95),
             Profiles.A57 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.NOTHING_ASTEROIDS, Images.PIXELOS_ONYX, Images.ONEUI95),
-            Profiles.FLIP5 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, Images.ONEUI95),
+            Profiles.FLIP5 to listOf(xin, Images.PIXEL_KOMODO, ifx, lineage, hyper, hyperHk, origin, Images.ONEUI95), // 0.5.46 OriginOS
             Profiles.FLIP8 to listOf(xin, Images.PIXEL_KODIAK, ifx, lineage, hyper, hyperHk, nothing, Images.ONEUI95),
             Profiles.A36 to listOf(xin, ifx, lineage, hyper, hyperHk, Images.NOTHING_ASTEROIDS, Images.PIXELOS_ONYX, Images.ONEUI95), // 0.4.57: no Pixel 9 Pro XL on ARMv8.2; 0.5.15: Nothing OS (A series); 0.5.35: PixelOS
         )

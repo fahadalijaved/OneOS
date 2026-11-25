@@ -801,6 +801,16 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.46: **Send to the OneOS team is back, Galaxy Tab fixes, Galaxy Tab S9 FE, OriginOS on the Z Flip5.**
+- **Send to the OneOS team** shows again in Last session and Session logs. It was hidden in every build since 0.5.24,
+  so only Share and Save were there. On Session logs, the "Send the logs to the OneOS team" line now opens it too.
+- **Galaxy Tabs: ColorOS no longer powers the tablet off** after 13-30 minutes. ColorOS's setup app has an alarm
+  that powers the device off while its pages wait; OneOS turns that alarm off (testing).
+- **Galaxy Tabs: "The data in the stage is another system's"** after the first session is fixed. ColorOS 17 on
+  tablets skips one OnePlus app, so OneOS took its own data for another system's and refused every update.
+- **Galaxy Tab S9 FE (SM-X510)** with OxygenOS 17 Pad and One UI 9.5, from pull request #371 by asarr22 (testing).
+- **Galaxy Z Flip5: OriginOS 7** too, as on the S23s with the same chip (testing).
+
 New in 0.5.45: **Camera for One UI 9.5 on One UI 8.5 phones, the Z Fold8 starts One UI 9.5 again, S22 fixes, clearer broken downloads.**
 - **Camera in One UI 9.5 on One UI 8.5 phones** (S23 FE, A35, S22s updated to One UI 8.5; testing): One UI 8.5 asks for
   the camera in a newer way than One UI 8, so every camera call failed and Samsung's video call service crashed again

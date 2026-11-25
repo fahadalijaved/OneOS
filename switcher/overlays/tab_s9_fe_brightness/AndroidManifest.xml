@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tab S9 FE (SM-X510) LCD brightness limits for One UI 9.5.
+     S26 Ultra's product RRO sets config_screenBrightnessSettingMinimum=0 (0.0) and
+     config_screenBrightnessExtendedMaximum=1275 (5.0). On Tab S9 FE's LCD SehLight
+     (0..300), values below ~5 (0.016) write 0 to /sys/class/backlight/panel/brightness,
+     turning the backlight completely off. Setting min=8 (0.03137255 -> sysfs 7), dim=8,
+     and extendedMax=300 fixes the low-brightness blackout without touching
+     config_screenBrightnessNits or config_screenBrightnessNitsPrivacy. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="oneos.overlay.tabs9fe.brightness">
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="android"
+        android:isStatic="true"
+        android:priority="100"/>
+</manifest>

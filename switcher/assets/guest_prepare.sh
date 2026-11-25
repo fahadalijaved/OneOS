@@ -519,6 +519,14 @@ fi
 # draws the icon only when this marker is there (oneui8test13; its font map load aborts on Android 16).
 rm -f "$STAGE/data/oneos_a17_on_a16"
 [ "$A17_ON_A16" = 1 ] && mkdir -p "$STAGE/data" && : > "$STAGE/data/oneos_a17_on_a16"
+# The Galaxy Tab S9 FE (pull request #371): everything its support adds runs only here. TAB_S9_FE_HOST is the
+# tablet with any system; ONEUI95_TAB_S9_FE the tablet on a One UI 9.5 image.
+TAB_S9_FE_HOST=0
+case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in
+    tab-s9-fe:*|*:SM-X51*) TAB_S9_FE_HOST=1 ;;
+esac
+ONEUI95_TAB_S9_FE=0
+[ "$ONEUI95_IMAGE" = 1 ] && [ "$TAB_S9_FE_HOST" = 1 ] && ONEUI95_TAB_S9_FE=1
 for d in "$GUEST_SYSTEM_EXT" "$GUEST_PRODUCT"; do
     if [ -L "$d" ] || [ ! -d "$d" ]; then
         echo "ERROR: ${d#$ROOTFS/} in the guest image is a link or missing (system_ext and product: one real folder each); not starting the guest"
@@ -789,6 +797,12 @@ if [ "${ONEOS_GUEST_SEC_IMS:-0}" = 1 ]; then
     # 260 crashes in 10 minutes with a dump each, three cores busy, the phone throttling).
     elif grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
         sec_ims_off "this system is a One UI image with its own Samsung IMS"
+    # A Wi-Fi-only Galaxy (Tab S9 FE SM-X510: ro.radio.noril=yes, ro.carrier=wifi-only, no rild or
+    # libsec-ril.so) has no modem for IMS to reach; the guest's com.sec.imsservice still bound and died in
+    # a loop (NoSuchFieldError Build$VERSION.SEM_INT under OxygenOS 16, about one crash a second).
+    elif [ "$(getprop ro.radio.noril)" = yes ] || [ "$(getprop ro.radio.noril)" = true ] || [ "$(getprop ro.radio.noril)" = 1 ] || \
+         [ "$(getprop ro.carrier)" = wifi-only ]; then
+        sec_ims_off "this device is Wi-Fi only (ro.radio.noril=$(getprop ro.radio.noril), ro.carrier=$(getprop ro.carrier)): no modem for IMS"
     elif [ -L "$SECIMS" ]; then echo "ERROR: $SECIMS is a symlink; not starting the guest"; exit 3
     # Only the sets whose services.jar carries the carve-out can keep the
     # Samsung-signed package in android.uid.system; on the others the guest's
@@ -849,7 +863,7 @@ fi
 # A36's One UI 9) where the set has one: the flagship's camera on an A phone's sensors needed the crop,
 # mode and resolution fixes (fix_a_series_*.py) and still failed in 7 of 14 A36 ColorOS reports.
 case "$(getprop ro.product.model)" in
-    SM-A*|SM-M*)
+    SM-A*|SM-M*|SM-X51*)
         if [ -f "$STAGE/samcam_a.tar" ] && [ ! -L "$STAGE/samcam_a.tar" ]; then SAMCAM_TAR="$STAGE/samcam_a.tar"; fi ;;
 esac
 SAMCAM_IMAGE=0
@@ -1343,6 +1357,72 @@ if [ "$BIO_FEATURES" = 1 ] && [ ! -e "$ROOTFS/system/etc/permissions/android.har
 elif [ "$BIO_FEATURES" = 1 ]; then
     echo "Biometric features: fingerprint and face declared"
 fi
+# 1) One UI images on HIDL VaultKeeper hosts (e.g. Tab S9 FE, vendor API 33): the host only runs
+#    HIDL vendor.samsung.hardware.security.vaultkeeper@2.0::ISehVaultKeeper/default, whereas One UI
+#    9.5's libvkmanager.so blocks forever in AServiceManager_waitForService on AIDL
+#    vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default — deadlocking
+#    com.android.bluetooth in BLE_TURNING_ON.
+# 2) One UI images whose SoundBooster engine (e.g. v2090) rejects the host's SoundBoosterParam.txt
+#    format (v1.13: "SoundBooster_v20 Param mismatch" -> bypass): supply the host's matching
+#    libsamsungSoundbooster_plus_legacy.so + lib_SoundBooster_ver*.so, and whiteout guest-only
+#    libsoundboostereq_legacy.so when absent on the host so speaker DSP runs cleanly.
+# Supply via a single private read-only overlay on $ROOTFS/system/lib64 before any later lib64 submounts.
+VK_HIDL_OV=0
+NEED_VK=0
+NEED_SB=0
+SB_HIDE_EQ=0
+HSB_VER=""
+if [ "$TAB_S9_FE_HOST" = 1 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+    if [ "${ONEOS_ONEUI_HOST_VKMANAGER:-1}" = 1 ] &&
+       [ -f "$ROOTFS/system/lib64/libvkmanager.so" ] && [ -f /system/lib64/libvkmanager.so ] &&
+       [ -f /system/lib64/vendor.samsung.hardware.security.vaultkeeper@2.0.so ] &&
+       grep -q 'ISehVaultKeeper/default' "$ROOTFS/system/lib64/libvkmanager.so" 2>/dev/null &&
+       grep -q 'vaultkeeper@2\.0' /system/lib64/libvkmanager.so 2>/dev/null; then
+        NEED_VK=1
+    fi
+    if [ "${ONEOS_ONEUI_HOST_SOUNDBOOSTER:-1}" = 1 ] &&
+       [ -f "$ROOTFS/system/lib64/libsamsungSoundbooster_plus_legacy.so" ] &&
+       [ -f /system/lib64/libsamsungSoundbooster_plus_legacy.so ]; then
+        for f in /system/lib64/lib_SoundBooster_ver*.so; do
+            [ -f "$f" ] && { HSB_VER="$f"; break; }
+        done
+        GSB_VER=""
+        for f in "$ROOTFS"/system/lib64/lib_SoundBooster_ver*.so; do
+            [ -f "$f" ] && { GSB_VER="$f"; break; }
+        done
+        if [ -n "$HSB_VER" ] && [ "${HSB_VER##*/}" != "${GSB_VER##*/}" ]; then
+            NEED_SB=1
+            if [ ! -e /system/lib64/libsoundboostereq_legacy.so ] && [ -e "$ROOTFS/system/lib64/libsoundboostereq_legacy.so" ]; then
+                SB_HIDE_EQ=1
+            fi
+        fi
+    fi
+fi
+if [ "$NEED_VK" = 1 ] || [ "$NEED_SB" = 1 ]; then
+    VKO="$STAGE/vk_lib64_ov"
+    if [ ! -L "$VKO" ]; then
+        mkdir -p "$VKO"
+        mount | grep -q " $VKO " || { $BB mount -t tmpfs -o size=4m,mode=755 tmpfs "$VKO" && $BB mount --make-private "$VKO" 2>/dev/null; }
+        if rm -rf "$VKO/up" && mkdir -p "$VKO/up" &&
+           { [ "$NEED_VK" = 0 ] || cp /system/lib64/libvkmanager.so /system/lib64/vendor.samsung.hardware.security.vaultkeeper@2.0.so "$VKO/up/"; } &&
+           { [ "$NEED_SB" = 0 ] || cp /system/lib64/libsamsungSoundbooster_plus_legacy.so "$HSB_VER" "$VKO/up/"; } &&
+           chown 0:0 "$VKO/up/"*.so && chmod 644 "$VKO/up/"*.so; then
+            $BB chcon -R u:object_r:system_lib_file:s0 "$VKO/up" 2>/dev/null || true
+            if [ "$SB_HIDE_EQ" = 1 ]; then
+                $BB mknod "$VKO/up/libsoundboostereq_legacy.so" c 0 0 2>/dev/null || true
+                $BB chcon u:object_r:system_lib_file:s0 "$VKO/up/libsoundboostereq_legacy.so" 2>/dev/null || true
+            fi
+            if $BB mount -t overlay overlay -o "ro,lowerdir=$VKO/up:$ROOTFS/system/lib64" "$ROOTFS/system/lib64"; then
+                [ "$NEED_VK" = 1 ] && VK_HIDL_OV=1 &&
+                    echo "VaultKeeper: supplied One UI's HIDL libvkmanager.so + vaultkeeper@2.0.so in /system/lib64 (avoids Bluetooth AIDL deadlock)"
+                [ "$NEED_SB" = 1 ] &&
+                    echo "Audio: supplied One UI's libsamsungSoundbooster_plus_legacy.so + ${HSB_VER##*/} in /system/lib64$([ "$SB_HIDE_EQ" = 1 ] && echo ' (hid guest libsoundboostereq_legacy.so)')"
+            else
+                echo "!!! /system/lib64 overlay refused; keeping guest libraries"
+            fi
+        fi
+    fi
+fi
 # One UI's product APEXes: host apexd reports Google's Play system module as
 # /product/apex/com.google.android.gmssystem.prodvic.apex, and the guest's package
 # manager parses that path (the APEX scan, as for system/apex and system_ext/apex
@@ -1653,6 +1733,20 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             $BB chcon u:object_r:system_file:s0 "$OV/up/bin" 2>/dev/null || true
             $BB chcon u:object_r:hwservicemanager_exec:s0 "$OV/up/bin/hwservicemanager" 2>/dev/null || true
         fi
+        TAB_CAM_COMPAT=0
+        if [ "$ONEUI95_TAB_S9_FE" = 1 ] && [ "${ONEOS_ONEUI_HOST_CAMERA:-1}" = 1 ] &&
+           [ -f "$STAGE/OneOSTabS9FeCamCompat.jar" ] && [ ! -L "$STAGE/OneOSTabS9FeCamCompat.jar" ] &&
+           [ -f /system/priv-app/SamsungCamera/SamsungCamera.apk ] &&
+           grep -aq 'Lc5/m;' /system/priv-app/SamsungCamera/SamsungCamera.apk 2>/dev/null; then
+            if mkdir -p "$OV/up/framework" &&
+               cp "$STAGE/OneOSTabS9FeCamCompat.jar" "$OV/up/framework/OneOSTabS9FeCamCompat.jar" &&
+               chmod 755 "$OV/up" "$OV/up/framework" &&
+               chmod 644 "$OV/up/framework/OneOSTabS9FeCamCompat.jar"; then
+                $BB chcon u:object_r:system_file:s0 "$OV/up/framework" "$OV/up/framework/OneOSTabS9FeCamCompat.jar" 2>/dev/null || true
+                TAB_CAM_COMPAT=1
+                echo "Camera: staged OneOSTabS9FeCamCompat.jar in $GUEST_SYSTEM_EXT/framework (OneUiVersion 90500 shim)"
+            fi
+        fi
         if [ $INJ = 1 ]; then
             mkdir -p "$OV/up/framework" && cp "$STAGE/oneos-telephony.jar" "$OV/up/framework/" &&
                 chmod 755 "$OV/up" "$OV/up/framework" && chmod 644 "$OV/up/framework/oneos-telephony.jar"
@@ -1673,11 +1767,11 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             else
                 # The apex mount point matters more: today's rw form then.
                 INJ=0
-                rm -rf "$OV/up/framework"
+                rm -f "$OV/up/framework/oneos-telephony.jar"
                 echo "Signal poll: off (read-only overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
-        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; }; then
+        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $TAB_CAM_COMPAT = 1 ]; }; then
             mkdir -p "$OV/work"
             if $BB mount -t overlay overlay \
                 -o "lowerdir=$GUEST_SYSTEM_EXT,upperdir=$OV/up,workdir=$OV/work" \
@@ -1875,9 +1969,10 @@ ddc_xml() {
 <displayConfiguration>
     <screenBrightnessMap>
 DDCEOF
-    awk -v wide="$1" -v m="${2:-}" 'BEGIN {
+    # Only the Tab S9 FE's LCD (brightnessMaximum 1.176) scales from 1.0; every other phone from 1.5.
+    awk -v wide="$1" -v m="${2:-}" -v lo="$([ "${TAB_S9_FE_HOST:-0}" = 1 ] && echo 1.0 || echo 1.5)" 'BEGIN {
         ref = 5.2980394; k = 1
-        if (m + 0 >= 1.5 && m + 0 <= 8) k = ref / m
+        if (m + 0 >= lo + 0 && m + 0 <= 8) k = ref / m
         n = split("0.0026:2.21 0.00333:3.0 0.005015:5.0 0.00694:7.5 0.008891:10.4 0.012079:15.0 0.015279:20.0 0.021151:30.0 0.026566:40.0 0.03701:60.0 0.045723:80.0 0.054391:100.0 0.068653:135.0 0.082069:170.0 0.093062:200.0 0.110574:250.0 0.127287:300.0 0.158918:400.0 0.188764:500.0 0.196299:520.0", pt, " ")
         if (wide == "wide") printf "        <point><value>0.0</value><nits>0.05</nits></point>\n        <point><value>0.000366255</value><nits>0.3</nits></point>\n"
         for (i = 1; i <= n; i++) {
@@ -1973,6 +2068,9 @@ else
                 "$STAGE/display_modes_host.log" 2>/dev/null | head -n 1)
             case "$*" in '2448 1848 420'|'1248 1972 420') ;; *) set -- ;; esac
             [ "$#" != 3 ] || echo "One UI 9.5: port $port stock panel $1 x $2 at $3 dpi"
+        elif [ "$ONEUI95_TAB_S9_FE" = 1 ]; then
+            set -- 1440 2304 280
+            echo "One UI 9.5: port $port Tab S9 FE stock panel $1 x $2 at $3 dpi"
         fi
         if [ $DDC_PROX = 1 ]; then ddc_xml $DDC_RANGE "$m" "$@"
         else ddc_xml $DDC_RANGE "$m" "$@" | sed '/<proxSensor>/,/<\/proxSensor>/d'
@@ -2075,6 +2173,30 @@ if [ "$ONEUI95_FOLD8" = 1 ]; then
             echo "!!! One UI 9.5: Fold8 framework RRO could not be mounted"
         fi
     fi
+fi
+# Tab S9 FE (SM-X510) One UI 9.5 LCD brightness floor: applied via an immutable product RRO
+# before zygote (matching Fold8's product/overlay pattern), overriding only the 5 scalar limits
+# (min=8 / 0.03137255, dim=8, extendedMax=300) while leaving S26 Ultra's nits/privacy arrays intact.
+if [ "$ONEUI95_TAB_S9_FE" = 1 ] && [ "${ONEOS_GUEST_TAB_S9_FE_BRIGHTNESS:-1}" = 1 ]; then
+    product_overlay="$GUEST_PRODUCT/overlay"
+    t9_rro="$STAGE/OneOSTabS9FeBrightness.apk"
+    t9_overlay="$STAGE/oneui95-tabs9fe-product-overlay"
+    if [ -s "$t9_rro" ] && [ ! -L "$t9_rro" ] && [ -d "$product_overlay" ] && [ ! -L "$product_overlay" ] &&
+       [ ! -e "$product_overlay/config/config.xml" ]; then
+        if mkdir -p "$t9_overlay" &&
+           $BB mount -t tmpfs -o size=64k,mode=755 tmpfs "$t9_overlay" &&
+           $BB mount --make-private "$t9_overlay" &&
+           cp "$t9_rro" "$t9_overlay/OneOSTabS9FeBrightness.apk" &&
+           chmod 755 "$t9_overlay" && chmod 644 "$t9_overlay/OneOSTabS9FeBrightness.apk" &&
+           $BB chcon -R u:object_r:system_file:s0 "$t9_overlay" &&
+           $BB mount -t overlay overlay -o "ro,lowerdir=$t9_overlay:$product_overlay" "$product_overlay"; then
+            echo "One UI 9.5: mounted Tab S9 FE LCD brightness RRO in product/overlay (OneOSTabS9FeBrightness.apk)"
+        else
+            echo "!!! One UI 9.5: Tab S9 FE LCD brightness RRO could not be mounted"
+        fi
+    fi
+fi
+if [ "$ONEUI95_FOLD8" = 1 ]; then
     fold8_settings="$STAGE/Fold8OneUI95Settings.apk"
     donor_settings="$ROOTFS/system/priv-app/SecSettings/SecSettings.apk"
     if [ -s "$fold8_settings" ] && [ -f "$donor_settings" ] && [ ! -L "$donor_settings" ] &&
@@ -3522,7 +3644,7 @@ if [ -f "$FEAT" ]; then
             HAOD=""
             if grep -q '<SEC_FLOATING_FEATURE_FRAMEWORK_CONFIG_AOD_ITEM>[^<]' /system/etc/floating_feature.xml 2>/dev/null; then
                 HAOD="One UI has AOD here"
-            elif [ -e /sys/class/lcd/panel/alpm ]; then
+            elif { [ "$TAB_S9_FE_HOST" != 1 ] || [ ! -f /system/etc/floating_feature.xml ]; } && [ -e /sys/class/lcd/panel/alpm ]; then
                 HAOD="the panel has a low-power mode"
             fi
             AODAPP=""
@@ -3830,7 +3952,7 @@ fi
 # Infinity-X's AOSP SystemUI takes it too (0.4.33); never ColorOS's (it has
 # oplus-telephony-common.jar, and make-overlays.sh builds the RRO for its sets
 # only from SystemUIGoogle or an AOSP SystemUI).
-if [ "$ONEUI95_FOLD8" != 1 ] && [ -f "$STAGE/OneOSPixelStatusBar.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ] ||
+if [ "$ONEUI95_FOLD8" != 1 ] && [ "$ONEUI95_TAB_S9_FE" != 1 ] && [ -f "$STAGE/OneOSPixelStatusBar.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ] ||
      { [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk" ] && [ ! -f "$GUEST_SYSTEM_EXT/framework/oplus-telephony-common.jar" ]; }; }; then
     if [ "${ONEOS_GUEST_STATUSBAR_PADDING:-1}" = 1 ]; then
         mkdir -p "$STAGE/oem/overlay" &&
@@ -3924,14 +4046,18 @@ fi
 # the same points scaled to its panel (the Fold's put the slider's top at two thirds of its normal maximum).
 BR_APK=OneOSBrightnessRange.apk
 BR_BM=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
-if [ -f "$STAGE/OneOSBrightnessRange34.apk" ] && awk -v m="$BR_BM" 'BEGIN { exit !(m + 0 >= 1.5 && m + 0 < 4.2) }'; then
+if [ "$TAB_S9_FE_HOST" = 1 ] && awk -v m="$BR_BM" 'BEGIN { exit !(m + 0 > 0 && m + 0 < 1.5) }'; then
+    # LCD panels (e.g. Galaxy Tab S9 FE: brightnessMaximum 1.176, max 300) map 0..1 across
+    # their full range already; the OLED range overlays would cap them to 19-30% brightness.
+    BR_APK=""
+elif [ -f "$STAGE/OneOSBrightnessRange34.apk" ] && awk -v m="$BR_BM" 'BEGIN { exit !(m + 0 >= 1.5 && m + 0 < 4.2) }'; then
     BR_APK=OneOSBrightnessRange34.apk
 fi
 # 0.5.35, PixelOS too (owner, A36, 11-21: "Lowest brightness is still not very low"): it sets no float range, so the
 # framework took the old integer minimum 10/255 = 0.0354, about 33 nits on the A36 where One UI goes to 2.
 BR_PIXELOS=0
 grep -q '^ro.custom.version=PixelOS_' "$GUEST_PRODUCT/etc/build.prop" 2>/dev/null && BR_PIXELOS=1
-if [ -f "$STAGE/$BR_APK" ] && { [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] || [ $BR_PIXELOS = 1 ]; } &&
+if [ -n "$BR_APK" ] && [ -f "$STAGE/$BR_APK" ] && { [ -f "$GUEST_SYSTEM_EXT/framework/nt-telephony-common.jar" ] || [ $BR_PIXELOS = 1 ]; } &&
    [ "${ONEOS_GUEST_BRIGHTNESS_RANGE:-1}" = 1 ]; then
     rm -f "$STAGE/oem/overlay/OneOSBrightnessRange.apk" "$STAGE/oem/overlay/OneOSBrightnessRange34.apk"
     mkdir -p "$STAGE/oem/overlay" &&
@@ -7825,6 +7951,26 @@ pass == 2 {
         echo "!!! WARNING: guest linker config not made ($(head -c 300 "$STAGE/ld.config.guest.log" 2>/dev/null)); One UI's stays"
     fi
 fi
+# When HIDL VaultKeeper (libvkmanager.so + vendor.samsung.hardware.security.vaultkeeper@2.0.so)
+# was supplied in /system/lib64, allow com_android_bt (isolated APEX linker namespace for
+# com.android.bluetooth) to resolve vaultkeeper@2.0.so and its HIDL deps from the default namespace.
+if [ "$VK_HIDL_OV" = 1 ] && [ -f "$GLD" ]; then
+    VK_BT_LIBS="vendor.samsung.hardware.security.vaultkeeper@2.0.so:libhidlbase.so:libutils.so:libcutils.so:libc++.so"
+    if [ ! -f "$STAGE/ld.config.guest.txt" ]; then
+        cp "$GLD" "$STAGE/ld.config.guest.txt"
+    fi
+    if ! grep -q 'vendor\.samsung\.hardware\.security\.vaultkeeper@2\.0\.so' "$STAGE/ld.config.guest.txt" 2>/dev/null; then
+        $BB umount -l "$GLD" 2>/dev/null || true
+        $BB sed -i "/^namespace\.com_android_bt\.link\.default\.shared_libs *=/ s/\$/:$VK_BT_LIBS/" "$STAGE/ld.config.guest.txt" &&
+        chmod 644 "$STAGE/ld.config.guest.txt" &&
+        $BB chcon "$(ls -Z "$GLD" | $BB awk '{print $1}')" "$STAGE/ld.config.guest.txt" 2>/dev/null || true
+        if $BB mount --bind "$STAGE/ld.config.guest.txt" "$GLD"; then
+            echo "Guest linker config: added HIDL VaultKeeper libs to com_android_bt namespace"
+        else
+            echo "!!! WARNING: could not bind VaultKeeper-patched ld.config.guest.txt onto $GLD"
+        fi
+    fi
+fi
 
 # Wi-Fi (run 41): Pixel's wifi module uses the mainline supplicant when its RRO
 # sets config_wifiMainlineSupplicantEnabled, the SDK is 37+ and
@@ -7868,12 +8014,12 @@ done
 # google_apps/active): hide One UI's own GmsCore in the gmssystem APEX bind, so
 # the guest's package manager finds Play services once, where the image's
 # privapp-permissions-google-product.xml grants it. Private first, as above.
-if [ -f "$STAGE/google_apps/active" ]; then
+if [ -f "$STAGE/google_apps/active" ] || { [ "$TAB_S9_FE_HOST" = 1 ] && [ "$GMS_WANT" != 1 ] && [ -f "$GUEST_PRODUCT/priv-app/GmsCore/GmsCore.apk" ]; }; then
     for d in "$ROOTFS/apex/com.google.android.gmssystem" "$ROOTFS/apex/com.google.android.gmssystem"@*; do
         [ -d "$d/priv-app" ] || continue
         $BB mount --make-private "$d" 2>/dev/null || { echo "!!! could not make $d private, leaving it alone"; continue; }
         $BB mount -t tmpfs -o ro,size=4k,mode=755 tmpfs "$d/priv-app" &&
-            echo "Hid host com.google.android.gmssystem/priv-app in $(basename "$d") (Play services from One UI's copy in my_product)"
+            echo "Hid host com.google.android.gmssystem/priv-app in $(basename "$d") (Play services from product/my_product)"
     done
 fi
 
@@ -8056,7 +8202,169 @@ fi
 # read-only over the image's; its data cleared once when the camera changes, as below.
 # ONEOS_ONEUI_HOST_CAMERA=0 keeps the A36's on these phones too.
 HCAM_DIR=/system/priv-app/SamsungCamera
-if [ "$A17_ON_A16" != 1 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_ONEUI_A_CAMERA:-1}" = 1 ] &&
+if [ "$A17_ON_A16" != 1 ] && [ "$ONEUI95_TAB_S9_FE" = 1 ] && [ "${TAB_CAM_COMPAT:-0}" = 1 ] && [ "${ONEOS_ONEUI_HOST_CAMERA:-1}" = 1 ] &&
+   [ -d "$OAC_DST" ] && [ ! -L "$OAC_DST" ] && [ -f "$HCAM_DIR/SamsungCamera.apk" ] && [ ! -L "$HCAM_DIR/SamsungCamera.apk" ] &&
+   [ -f "$GUEST_SYSTEM_EXT/framework/OneOSTabS9FeCamCompat.jar" ] &&
+   [ -f "$ROOTFS/system/etc/permissions/worker_wrapper_compat.xml" ] && [ ! -L "$ROOTFS/system/etc/permissions/worker_wrapper_compat.xml" ]; then
+    TFC_DIR="$STAGE/tab_s9_fe_cam/SamsungCamera"
+    # Keep the APK and its native dependency set in sync. The camera's isolated
+    # classloader checks this package's lib/arm64 directory before the guest's
+    # /system/lib64, including for the Samsung public libraries in uses-native-library.
+    # Stage the host's Samsung camera stacks even when the donor has a same-named
+    # library: several donor One UI 9.5 builds contain Armv8.4+ code that SIGILLs on
+    # this Armv8.2 tablet. Do not put these replacements in the system lib64 overlay.
+    TFC_LIBS_ST="$(for hlib in /system/lib64/*vexfwk*.so /system/lib64/*arcsoft*.so \
+        /system/lib64/*camera*.so /system/lib64/*polarr*.so /system/lib64/*quram*.so \
+        /system/lib64/*spenocr*.so /system/lib64/*media.samsung.so /system/lib64/*snap.samsung.so \
+        /system/lib64/libheifcapture.so /system/lib64/libimage_io.so /system/lib64/libmpbase.so \
+        /system/lib64/libpadm.so /system/lib64/libppvdis_wrapper.so /system/lib64/libsccore.so \
+        /system/lib64/libsembitmapcolorspace.so /system/lib64/libsemimagecrop.so \
+        /system/lib64/libsecultrahdr.so /system/lib64/libsheif.so /system/lib64/libfloatingfeature.so \
+        /system/lib64/libexif.so /system/lib64/libmotionphoto_utils.so /system/lib64/libnativecfms.so \
+        /system/lib64/libsavsvc.so \
+        /system/lib64/libsum*.so /system/lib64/libsume*.so /system/lib64/xmp_toolkit_sdk.so \
+        /system/lib64/vexfwk_service_aidl-ndk.so \
+        /system/lib64/vendor.samsung.hardware.snap-V3-ndk.so \
+        /apex/com.samsung.android.media.imagecodec.system/lib64/libimagecodec.media.quram.so \
+        /apex/com.samsung.android.media.imagecodec.system/lib64/libsavscmn.so; do
+        [ -f "$hlib" ] || continue
+        stat -c '%n:%s:%Y' "$hlib" 2>/dev/null
+    done | sort -u | sha256sum | cut -c1-16)"
+    TFC_ST="$(stat -c %s:%Y "$HCAM_DIR/SamsungCamera.apk" 2>/dev/null):$TFC_LIBS_ST:host-camera-libs-v3"
+    tab_cam_stage_host_libs() {
+        for hlib in /system/lib64/*.camera.samsung.so /system/lib64/*.arcsoft.so \
+            /system/lib64/*.vexfwk.samsung.so /system/lib64/*.polarr.so /system/lib64/*.quram.so \
+            /system/lib64/*.spenocr.samsung.so /system/lib64/*.media.samsung.so \
+            /system/lib64/*.snap.samsung.so /system/lib64/libheifcapture.so \
+            /system/lib64/libimage_io.so /system/lib64/libmpbase.so /system/lib64/libpadm.so \
+            /system/lib64/libppvdis_wrapper.so /system/lib64/libsccore.so \
+            /system/lib64/libsembitmapcolorspace.so /system/lib64/libsemimagecrop.so \
+            /system/lib64/libsecultrahdr.so /system/lib64/libsheif.so /system/lib64/libfloatingfeature.so \
+            /system/lib64/libexif.so /system/lib64/libmotionphoto_utils.so /system/lib64/libnativecfms.so \
+            /system/lib64/libsavsvc.so \
+            /system/lib64/libsum*.so /system/lib64/libsume*.so /system/lib64/xmp_toolkit_sdk.so \
+            /system/lib64/vexfwk_service_aidl-ndk.so \
+            /system/lib64/vendor.samsung.hardware.snap-V3-ndk.so \
+            /apex/com.samsung.android.media.imagecodec.system/lib64/libimagecodec.media.quram.so \
+            /apex/com.samsung.android.media.imagecodec.system/lib64/libsavscmn.so; do
+            [ -f "$hlib" ] || continue
+            b="${hlib##*/}"
+            [ -e "$TFC_DIR/lib/arm64/$b" ] && continue
+            cp "$hlib" "$TFC_DIR/lib/arm64/$b" 2>/dev/null || return 1
+        done
+        # Preserve the previous missing-only fallback for unsuffixed camera helpers
+        # such as libtensorflowLite2_11_0_dynamic_camera.so. This deliberately
+        # leaves guest core libraries (libcamera_client, graphics, OpenCL, etc.) alone.
+        for hlib in /system/lib64/*vexfwk*.so /system/lib64/*arcsoft*.so \
+            /system/lib64/*camera*.so /system/lib64/*polarr*.so; do
+            [ -f "$hlib" ] || continue
+            b="${hlib##*/}"
+            [ -e "$TFC_DIR/lib/arm64/$b" ] && continue
+            [ -e "$ROOTFS/system/lib64/$b" ] && continue
+            cp "$hlib" "$TFC_DIR/lib/arm64/$b" 2>/dev/null || return 1
+        done
+        # Never override guest /system/lib64 libraries that link Android/One UI
+        # platform C++ ABIs: host One UI 9.0 builds reference removed/changed
+        # One UI 9.5 symbols (e.g. android::Rect::EMPTY_RECT in
+        # libcore2nativeutil.camera.samsung.so -> black preview). Verified clean
+        # of Armv8.4+ instructions in guest One UI 9.5 builds.
+        # Exception: keep host libsnap_aidl.snap.samsung.so (uses only NDK
+        # libbinder_ndk + vendor.samsung.hardware.snap-V3-ndk, no C++ libbinder
+        # imports); donor S26U's 9.5 libsnap_aidl redirects Portrait /LFS_11_3
+        # to nonexistent /system/lib64/libenn_wrapper_system.so -> SIGSEGV.
+        if command -v readelf >/dev/null 2>&1; then
+            for b in $(readelf -d "$TFC_DIR/lib/arm64"/*.so 2>/dev/null | $BB awk '
+                /^File: / { cur = $2; sub(".*/", "", cur); next }
+                cur == "libsnap_aidl.snap.samsung.so" { next }
+                /\(NEEDED\)/ && /\[(libgui|libui|libhwui|libstagefright|libstagefright_foundation|libmedia|libmedia_omx|libandroid_runtime|libbinder)\.so\]/ {
+                    if (!seen[cur]++) print cur
+                }
+            '); do
+                [ -e "$ROOTFS/system/lib64/$b" ] && rm -f "$TFC_DIR/lib/arm64/$b"
+            done
+        else
+            for p in \
+                "$TFC_DIR/lib/arm64/libcore2nativeutil.camera.samsung.so" \
+                "$TFC_DIR/lib/arm64/libsurfaceutil.camera.samsung.so" \
+                "$TFC_DIR/lib/arm64/libsecimaging.camera.samsung.so" \
+                "$TFC_DIR/lib/arm64/libsecimaging_pdk.camera.samsung.so" \
+                "$TFC_DIR/lib/arm64/libsecjpeginterface.camera.samsung.so" \
+                "$TFC_DIR/lib/arm64/libmotionphoto_jni.media.samsung.so" \
+                "$TFC_DIR/lib/arm64/libmotionphoto_utils.so" \
+                "$TFC_DIR/lib/arm64/libmotionphoto_utils_jni.media.samsung.so" \
+                "$TFC_DIR/lib/arm64/libapex_motionphoto_utils_jni.media.samsung.so" \
+                "$TFC_DIR/lib/arm64/libheifcapture.so" \
+                "$TFC_DIR/lib/arm64/libheifcapture_jni.media.samsung.so" \
+                "$TFC_DIR/lib/arm64/libsemimagecrop.so" \
+                "$TFC_DIR/lib/arm64/libsemimagecrop_jni.media.samsung.so" \
+                "$TFC_DIR/lib/arm64/libsimba.media.samsung.so" \
+                "$TFC_DIR/lib/arm64/libsimba.decoder.media.samsung.so" \
+                "$TFC_DIR/lib/arm64/libnativecfms.so" \
+                "$TFC_DIR/lib/arm64"/libsum*.so \
+                "$TFC_DIR/lib/arm64"/libsume*.so; do
+                [ -e "$p" ] || continue
+                b="${p##*/}"
+                [ -e "$ROOTFS/system/lib64/$b" ] && rm -f "$p"
+            done
+        fi
+        return 0
+    }
+    if [ "$(cat "$STAGE/tab_s9_fe_cam/.from_host" 2>/dev/null)" != "$TFC_ST" ] || [ ! -f "$TFC_DIR/SamsungCamera.apk" ]; then
+        rm -rf "$STAGE/tab_s9_fe_cam" && mkdir -p "$TFC_DIR/lib/arm64" &&
+            cp "$HCAM_DIR/SamsungCamera.apk" "$TFC_DIR/SamsungCamera.apk" &&
+            tab_cam_stage_host_libs && echo "$TFC_ST" > "$STAGE/tab_s9_fe_cam/.from_host" ||
+            echo "!!! Camera: failed to stage host Tab S9 FE SamsungCamera.apk/native libraries"
+    fi
+    if [ -f "$TFC_DIR/SamsungCamera.apk" ]; then
+        chown -R 0:0 "$TFC_DIR"
+        chmod 755 "$TFC_DIR" "$TFC_DIR/lib" "$TFC_DIR/lib/arm64" 2>/dev/null
+        chmod 644 "$TFC_DIR/SamsungCamera.apk" "$TFC_DIR"/lib/arm64/*.so 2>/dev/null
+        $BB chcon -R u:object_r:system_file:s0 "$TFC_DIR" 2>/dev/null || true
+        $BB umount -l "$OAC_DST" 2>/dev/null || true
+        $BB umount -l "$ROOTFS/system/etc/permissions/worker_wrapper_compat.xml" 2>/dev/null || true
+        WWC_XML="$STAGE/data/oneos_worker_wrapper_compat.xml"
+        printf '<?xml version="1.0" encoding="utf-8"?>\n<permissions>\n    <library name="oneos_tab_s9_fe_cam_compat" file="/system_ext/framework/OneOSTabS9FeCamCompat.jar" />\n    <library name="worker_wrapper_compat" file="/system/framework/worker_wrapper_compat.jar" dependency="oneos_tab_s9_fe_cam_compat" />\n    <feature name="com.samsung.android.camera.cameraserviceworker" version="2" />\n</permissions>\n' > "$WWC_XML"
+        chown 0:0 "$WWC_XML"; chmod 644 "$WWC_XML"
+        $BB chcon u:object_r:system_file:s0 "$WWC_XML" 2>/dev/null || true
+        if $BB mount --bind "$TFC_DIR" "$OAC_DST" &&
+           $BB mount --bind "$WWC_XML" "$ROOTFS/system/etc/permissions/worker_wrapper_compat.xml"; then
+            $BB mount -o remount,bind,ro "$OAC_DST" 2>/dev/null || true
+            $BB mount -o remount,bind,ro "$ROOTFS/system/etc/permissions/worker_wrapper_compat.xml" 2>/dev/null || true
+            # SamsungCamera opens its camera features and ML models by absolute
+            # /system/cameradata and /system/saiv paths. Keep those in sync with
+            # this tablet's host camera, rather than the S26 donor's sensor/model set.
+            for d in cameradata saiv; do
+                host_cam_data="/system/$d"
+                guest_cam_data="$ROOTFS/system/$d"
+                [ -d "$host_cam_data" ] && [ ! -L "$host_cam_data" ] &&
+                    [ -d "$guest_cam_data" ] && [ ! -L "$guest_cam_data" ] || continue
+                $BB umount -l "$guest_cam_data" 2>/dev/null || true
+                if $BB mount --bind "$host_cam_data" "$guest_cam_data"; then
+                    $BB mount --make-rslave "$guest_cam_data" 2>/dev/null || true
+                    $BB mount -o remount,bind,ro "$guest_cam_data" 2>/dev/null || true
+                    echo "Camera: Tab S9 FE host /system/$d model data bound over donor's"
+                else
+                    echo "!!! Camera: Tab S9 FE host /system/$d data could not be bound"
+                fi
+            done
+            ONEUI_A_CAMERA=1
+            OAC_ID="tab-host:$(sha256sum "$TFC_DIR/SamsungCamera.apk" | cut -c1-16)"
+            if [ "$(cat "$STAGE/data/oneos_camera_variant" 2>/dev/null)" != "$OAC_ID" ]; then
+                for d in "$STAGE/data/user/0/com.sec.android.app.camera" "$STAGE/data/user_de/0/com.sec.android.app.camera"; do
+                    [ -d "$d" ] && [ ! -L "$d" ] && rm -rf "${d:?}"/shared_prefs "${d:?}"/databases "${d:?}"/files "${d:?}"/cache 2>/dev/null
+                done
+                echo "$OAC_ID" > "$STAGE/data/oneos_camera_variant"
+                echo "Camera: the camera's data cleared (another camera than last session)"
+            fi
+            echo "Camera: Tab S9 FE host SamsungCamera.apk + OneOSTabS9FeCamCompat.jar bound ($(ls "$TFC_DIR/lib/arm64" 2>/dev/null | wc -l) extra host libs)"
+        else
+            $BB umount -l "$OAC_DST" 2>/dev/null
+            $BB umount -l "$ROOTFS/system/etc/permissions/worker_wrapper_compat.xml" 2>/dev/null
+            echo "!!! Camera: Tab S9 FE host camera bind failed; falling back to image camera"
+        fi
+    fi
+fi
+if [ "$A17_ON_A16" != 1 ] && [ $ONEUI_A_CAMERA = 0 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_ONEUI_A_CAMERA:-1}" = 1 ] &&
    [ "${ONEOS_ONEUI_HOST_CAMERA:-1}" = 1 ] && [ -d "$OAC_DST" ] && [ ! -L "$OAC_DST" ] &&
    [ -f "$HCAM_DIR/SamsungCamera.apk" ] && [ ! -L "$HCAM_DIR" ] && [ ! -L "$HCAM_DIR/SamsungCamera.apk" ]; then
     case "$(getprop ro.product.model):$(getprop ro.soc.manufacturer):$(getprop ro.board.platform)" in
@@ -8350,6 +8658,113 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
         echo "!!! Floating features: could not apply the Fold8 profile to both files"
     fi
     rm -f "$f8_vendor.f8" "$f8_system.f8"
+fi
+# Tab S9 FE (SM-X510) on One UI 9.5:
+# Preserve the Tab S9 FE's tablet floating features (Taskbar, brand name, navbar theme, LCD
+# panel flags, and tablet/S-Pen HoneyBoard SIP flags) in both floating feature files, plus the
+# 20271 AI version floor (like Fold8).
+# Note: Do NOT bind host framework-res__gts9fewifixx__auto_generated_rro_product.apk over
+# S26 Ultra's m3qxxx product RRO: One UI 9.5's BrightnessMappingStrategy.create() requires
+# config_screenBrightnessNitsPrivacy (size 257), which One UI 9.0's Tab S9 FE RRO lacks.
+if [ "$ONEUI95_TAB_S9_FE" = 1 ]; then
+    # Declare com.samsung.feature.device_category_tablet instead of phone: HoneyBoard (and
+    # other One UI 9.5 Samsung apps) gate tablet layouts/keyboard proportions on
+    # PackageManager.hasSystemFeature("com.samsung.feature.device_category_tablet").
+    T9_CAT_H=/system/etc/permissions/com.samsung.feature.device_category_tablet.xml
+    T9_CAT_G="$ROOTFS/system/etc/permissions/com.samsung.feature.device_category_phone.xml"
+    if [ -f "$T9_CAT_H" ] && [ ! -L "$T9_CAT_H" ] && [ -f "$T9_CAT_G" ] && [ ! -L "$T9_CAT_G" ]; then
+        $BB umount -l "$T9_CAT_G" 2>/dev/null || true
+        if $BB mount --bind "$T9_CAT_H" "$T9_CAT_G"; then
+            $BB mount -o remount,bind,ro "$T9_CAT_G" 2>/dev/null || true
+            echo "One UI 9.5: bound com.samsung.feature.device_category_tablet.xml over phone feature XML"
+        else
+            $BB umount -l "$T9_CAT_G" 2>/dev/null || true
+            echo "!!! One UI 9.5: could not bind tablet device_category feature XML"
+        fi
+    fi
+    # Clear HoneyBoard data once when switching back from host HoneyBoard (or switching into tablet
+    # category for the first time) so Room DB and cached phone dimensions reset cleanly.
+    HB_MARKER="tablet-cat-v1"
+    if [ -f "$STAGE/data/oneos_honeyboard_variant" ] &&
+       [ "$(cat "$STAGE/data/oneos_honeyboard_variant" 2>/dev/null)" != "$HB_MARKER" ] ||
+       [ ! -f "$STAGE/data/oneos_honeyboard_variant" ]; then
+        for d in "$STAGE/data/user/0/com.samsung.android.honeyboard" "$STAGE/data/user_de/0/com.samsung.android.honeyboard"; do
+            [ -d "$d" ] && [ ! -L "$d" ] && rm -rf "${d:?}"/shared_prefs "${d:?}"/databases "${d:?}"/cache "${d:?}"/files 2>/dev/null
+        done
+        echo "$HB_MARKER" > "$STAGE/data/oneos_honeyboard_variant"
+        echo "Keyboard: cleared HoneyBoard data for One UI 9.5 tablet category"
+    fi
+    if [ "${ONEOS_ONEUI_FLOATING:-1}" = 1 ]; then
+        oneui95_tab_s9_fe_features() {
+            local input="$1" output="$2"
+            awk '
+                function set_feature(key, value) {
+                    if (!(key in values)) order[++count] = key
+                    values[key] = value
+                }
+                function read_feature(line,    tag) {
+                    if (!match(line, /<SEC_FLOATING_FEATURE_[A-Z0-9_]+>/)) return ""
+                    tag = substr(line, RSTART + 1, RLENGTH - 2)
+                    content = substr(line, RSTART + RLENGTH)
+                    sub(/<.*/, "", content)
+                    return tag
+                }
+                function print_feature(key) {
+                    print "    <" key ">" values[key] "</" key ">"
+                }
+                BEGIN {
+                    taskbar = "SEC_FLOATING_FEATURE_LAUNCHER_SUPPORT_TASKBAR"
+                    brand = "SEC_FLOATING_FEATURE_SETTINGS_CONFIG_BRAND_NAME"
+                    navigation = "SEC_FLOATING_FEATURE_FRAMEWORK_CONFIG_NAVIGATION_BAR_THEME"
+                    ai = "SEC_FLOATING_FEATURE_COMMON_CONFIG_AI_VERSION"
+                    set_feature(ai, "20271")
+                }
+                FILENAME != ARGV[3] {
+                    key = read_feature($0)
+                    if (key == "") next
+                    if (key == taskbar && content == "TRUE")
+                        set_feature(key, content)
+                    else if (key == brand && content ~ /^Galaxy Tab S9 FE/)
+                        set_feature(key, content)
+                    else if (key == navigation && content ~ /^[A-Za-z0-9_|]+$/)
+                        set_feature(key, content)
+                    else if (key ~ /^SEC_FLOATING_FEATURE_LCD_CONFIG_/ || key ~ /^SEC_FLOATING_FEATURE_SIP_/)
+                        set_feature(key, content)
+                    next
+                }
+                {
+                    key = read_feature($0)
+                    if (key == ai && content ~ /^[0-9]+$/ && content + 0 > values[ai] + 0)
+                        set_feature(key, content)
+                    if (key in values) {
+                        if (!(key in written)) print_feature(key)
+                        written[key] = 1
+                        next
+                    }
+                    if ($0 ~ /<\/SecFloatingFeatureSet>/) {
+                        for (i = 1; i <= count; i++)
+                            if (!(order[i] in written)) print_feature(order[i])
+                        closed = 1
+                    }
+                    print
+                }
+                END { if (!closed) exit 1 }
+            ' /vendor/etc/floating_feature.xml /system/etc/floating_feature.xml "$input" > "$output"
+        }
+        t9_vendor="$STAGE/data/oneos_floating_feature.xml"
+        t9_system="$STAGE/data/oneos_system_floating_feature.xml"
+        if [ -s "$t9_vendor" ] && [ -s "$t9_system" ] &&
+           oneui95_tab_s9_fe_features "$t9_vendor" "$t9_vendor.t9" &&
+           oneui95_tab_s9_fe_features "$t9_system" "$t9_system.t9" &&
+           chown 0:0 "$t9_vendor.t9" "$t9_system.t9" &&
+           chmod 644 "$t9_vendor.t9" "$t9_system.t9"; then
+            mv -f "$t9_vendor.t9" "$t9_vendor" && mv -f "$t9_system.t9" "$t9_system" &&
+                echo "Floating features: Tab S9 FE tablet, LCD, HoneyBoard SIP and AI 20271 floor applied"
+        else
+            echo "!!! Floating features: could not apply the Tab S9 FE profile to both files"
+        fi
+        rm -f "$t9_vendor.t9" "$t9_system.t9"
+    fi
 fi
 # The phone's eSIM chip is shared hardware, and an eSIM manager (LPA) in the
 # guest drives it directly: Pixel's EuiccGoogle opens the chip's ISD-R channel

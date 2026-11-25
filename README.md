@@ -347,6 +347,8 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   backlight bridge ([pull request #361](https://github.com/fahadalijaved/OneOS/pull/361), 0.5.38).
 - **[@crisazas](https://github.com/crisazas)**: the return keys no longer keep a core busy after a keyboard
   cover is detached ([pull request #362](https://github.com/fahadalijaved/OneOS/pull/362), 0.5.38).
+- **[@asarr22](https://github.com/asarr22)**: Galaxy Tab S9 FE support with One UI 9.5
+  ([pull request #371](https://github.com/fahadalijaved/OneOS/pull/371)).
 - **[ducttape33](https://github.com/ducttape33)** and **[kett1m](https://github.com/kett1m)**:
   [backdownload](https://github.com/kett1m/backdownload) (GPL-3.0), which keeps Samsung's Download
   Mode reachable with a screen lock set and returns there when a switch fails.

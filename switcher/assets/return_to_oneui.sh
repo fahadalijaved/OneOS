@@ -529,6 +529,13 @@ for t in tsp tsp1 tsp2; do
     fi
     rm -f "$f"
 done
+for t in tsp tsp1 tsp2; do
+    f=$S/data/oneos_himax_aot.$t
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    [ -w /sys/class/sec/$t/cmd ] && echo aot_enable,1 > /sys/class/sec/$t/cmd 2>/dev/null &&
+        echo "Touchscreen $t: restored Himax TDDI aot_enable,1 for One UI"
+    rm -f "$f"
+done
 rm -f /dev/oneos_dt2w_event* 2>/dev/null
 
 # One UI's protected state against the record the switch made (see
