@@ -412,7 +412,16 @@ def main(root, table_path):
                 dirs.add(os.path.relpath(stub, root).split(os.sep)[0])
     # One UI 9.5 hosts (0.5.37) read and write the sixth field themselves (libcameracompatbilityinfo.so has
     # shouldOverrideLensFacingFrontToBack): ONEOS_CAMERA_KEEP_COMPAT=1 leaves the guest's class as it is.
+    # ONEOS_CAMERA_COMPAT_FROM_JAR=1 (a16_camera.py for One UI 8.5 hosts, 0.5.45): the jar patched is a set's
+    # framework_patched.jar whose class make-overlays.sh already wrote without the sixth field; checked, kept.
     if COMPAT_AS_INT:
+        p = None
+    elif os.environ.get("ONEOS_CAMERA_COMPAT_FROM_JAR") == "1":
+        text = open(find_smali(root, COMPAT)).read()
+        bodies = [text[a:b] for a, b, h in method_bodies(text) if " writeToParcel(" in h]
+        if len(bodies) != 1 or "->writeInt(" not in bodies[0] or "mShouldOverrideLensFacingFrontToBack" in bodies[0]:
+            die("CameraCompatibilityInfo: ONEOS_CAMERA_COMPAT_FROM_JAR but writeToParcel still writes the sixth field (or was not found)")
+        changed.append("CameraCompatibilityInfo: the jar's own (sixth field already not written)")
         p = None
     else:
         p = None if os.environ.get("ONEOS_CAMERA_KEEP_COMPAT") == "1" else patch_compat(root, changed)

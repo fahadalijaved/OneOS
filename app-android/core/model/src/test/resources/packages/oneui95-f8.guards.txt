@@ -15,3 +15,4 @@ cd02dba1153b2a3a2c0f87da617753d4a8e6c339246cb130e4d91f22506af51e  telephony-comm
 1ba375398bf0735df28af2d8e6ab5cd3e5609669e11f1f6dad503bc6e1568655  service.incremental_patched.so
 # Fold8 framework: guest-private PDI storage, native panel configuration and physical-display wallpaper routing.
 # 0.5.42 (oneui95_f8_r2): services_patched.jar with the guest's own screen lock (patches/guest_local_lock.py, adapted to One UI 9.5's R8 build); OneOSGuest.apk = the current OneOS app (0.15) without the Knox provider authority (scripts/build-guest-manager.sh oneui95)
+# 0.5.45 (oneui95_f8_r3): Fold8OneUI95Services.jar = his r24 jar with the same screen-lock patch (scripts/patch-built-jar.sh ... patches/guest_local_lock.py); guest_prepare.sh had stopped using it once services_patched.jar changed in r2 (Z Fold8 F971U 486f3ee7: system_server NPE in setWallpaperPhysicalDisplayId, the S26 Ultra build has that fold path stripped)

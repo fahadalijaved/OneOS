@@ -1946,9 +1946,10 @@ ro.miui.backdrop_sampling_enabled=true"
         # CameraManager, which then never connects to media.camera; both read it in the One UI 9.5 image's
         # services.jar and framework.jar) keeps the guest's Java camera stack away from it. Set for the session
         # and removed on return. ONEOS_A17_CAMERA_SERVICE=1 leaves it unset (a manual start's test only).
-        # 0.5.39: not when guest_prepare.sh bound framework_patched_oneui8.jar (One UI 8's camera codes).
+        # 0.5.39: not when guest_prepare.sh bound framework_patched_oneui8.jar (One UI 8's camera codes); 0.5.45: or
+        # framework_patched_oneui85.jar on One UI 8.5.
         if [ -f "$STAGE/a16_camera_on" ]; then
-            echo "guest_props: experimental One UI 9.5 on One UI 8: camera on (One UI 8's camera codes)"
+            echo "guest_props: experimental One UI 9.5 on One UI 8: camera on (the phone's own camera codes, guest_prepare.sh)"
         elif [ "${ONEOS_A17_CAMERA_SERVICE:-0}" != 1 ]; then
             key=config.disable_cameraservice
             h=$(getprop "$key")

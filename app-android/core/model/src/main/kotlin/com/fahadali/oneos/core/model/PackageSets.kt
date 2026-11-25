@@ -996,7 +996,7 @@ object PackageSets {
      */
     val ONEUI95_F8 = ONEUI95.copy(
         id = ID_ONEUI95_F8,
-        sourceDir = "out/overlays_oneui95_f8_r2",
+        sourceDir = "out/overlays_oneui95_f8_r3",
         files = listOf(
             PackageFile("Fold8OneUI95Framework.apk", FileRole.RRO),
             PackageFile("Fold8OneUI95SystemUI.apk", FileRole.GUEST_FIX),
@@ -1055,14 +1055,17 @@ object PackageSets {
 
     val ONEUI95_A16 = ONEUI95.copy(
         id = ID_ONEUI95_A16,
-        sourceDir = "out/overlays_oneui95_a16_r8",
+        sourceDir = "out/overlays_oneui95_a16_r9",
         // No One UI 9.5 camera codes (0.5.37's CAM95_FW): they are for One UI 9.5 phones. r7 (0.5.39): One UI 8's,
         // read on the S22 Ultra (host_camera_oneui8.txt, patches/a16_camera.py), which turn the camera on there.
+        // r9 (0.5.45): One UI 8.5's (host_camera_oneui85.txt, read on the S23 FE): its cameraserver takes One UI 9.0's
+        // CameraCompatibilityInfo where One UI 8 has an int; the One UI 8 jar's calls all failed there.
         files = (ONEUI95.files - CAM95_FW.toSet()) + A16_EXTRA_PAYLOADS.map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) } +
             A16_SAMSUNG_PAYLOADS.map { PackageFile("samsung.${it}_payload.img", FileRole.APEX_PAYLOAD) } +
-            PackageFile(A17_CONNECTIVITY_NATIVE, FileRole.GUEST_FIX) + PackageFile("framework_patched_oneui8.jar", FileRole.GUARD_JAR),
+            PackageFile(A17_CONNECTIVITY_NATIVE, FileRole.GUEST_FIX) + PackageFile("framework_patched_oneui8.jar", FileRole.GUARD_JAR) +
+            PackageFile("framework_patched_oneui85.jar", FileRole.GUARD_JAR),
         omitted = listOf(TETHERING),
-        approxBytes = ONEUI95.approxBytes - 58981151L + 98672640L - 29175808L + 20684800L + 68848L + 58981599L,
+        approxBytes = ONEUI95.approxBytes - 58981151L + 98672640L - 29175808L + 20684800L + 68848L + 58981599L + 58981391L,
     )
 
     /**

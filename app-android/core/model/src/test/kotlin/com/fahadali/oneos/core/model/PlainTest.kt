@@ -251,6 +251,11 @@ class PlainTest {
         assertEquals("Pixel 11 Fold isn't ready. Set it up again whenever you like.", s("x", stopped = true).line)
         assertEquals("The download is damaged", s("The image: the .gz SHA-256 differs").title)
         assertEquals("The download is damaged", s("The image: unpacked to 5 bytes, not 10").title)
+        // 0.5.45: the line says what to do with the broken file, and names a download manager for Chrome's broken downloads.
+        s("The image: the .gz SHA-256 differs").line.let {
+            assertTrue(it, "Delete it, download Pixel 11 Fold again" in it && "ADM" in it)
+        }
+        assertEquals(FixAction.DOWNLOAD_AGAIN, s("The image: the .gz SHA-256 differs").action)
         assertEquals("This copy of OneOS is damaged", s("art_payload.img in the app is damaged").title)
         assertEquals("One UI changed during setup", s("installd table: host_installd.table: services.jar is not the jar the table was derived from (One UI updated?)").title)
         assertEquals("Couldn't read the download", s("IOException: cannot open the picked file").title)

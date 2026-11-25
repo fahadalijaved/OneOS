@@ -801,6 +801,23 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.45: **Camera for One UI 9.5 on One UI 8.5 phones, the Z Fold8 starts One UI 9.5 again, S22 fixes, clearer broken downloads.**
+- **Camera in One UI 9.5 on One UI 8.5 phones** (S23 FE, A35, S22s updated to One UI 8.5; testing): One UI 8.5 asks for
+  the camera in a newer way than One UI 8, so every camera call failed and Samsung's video call service crashed again
+  and again. These phones now get their own camera file.
+- **Z Fold8: One UI 9.5 starts again** (since 0.5.42 it stopped at startup).
+- **One UI 9.5 on the S22 and other One UI 8 phones** (testing): it stopped about 50 seconds in on a second network
+  log One UI 8 never set up. OneOS now sets that up for the session too.
+- **No sound on some Exynos phones** (S23 FE; testing): the "Hey Google" voice model was too big for the phone's voice
+  wake-up chip, which crashed the sound service every minute. OneOS now turns off Hey Google's always-on listening
+  in the other system when that happens.
+- **S Pen on Galaxy Tabs** (ColorOS; testing): the pen worked as a mouse pointer. It now writes and taps like a pen.
+- **"The download is damaged"** now says what to do: delete the file, download it again (use ADM from the Play Store
+  if Chrome keeps breaking it), then choose the new file. The button is Download again instead of Retry update,
+  which only checked the same broken file again.
+- Reports now say which root setting changed when the return to One UI fell back to a restart, and which app asked
+  the other system to power off.
+
 New in 0.5.44: **One UI 9.5 on the Galaxy S22 (Snapdragon) gets past its first minute, ColorOS on Galaxy Tabs as a tablet.**
 - 0.5.43 got One UI 9.5 starting on these phones, but on the S22 it stopped after about a minute: One UI 8's network
   module asked for a newer network setting (L4S) that One UI 8 never set up. OneOS now sets it up, switched off,

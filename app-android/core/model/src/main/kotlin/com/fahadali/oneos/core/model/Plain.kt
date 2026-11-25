@@ -325,7 +325,7 @@ object Plain {
         return when (f.reason) {
             // Setting up: the picked file.
             SwitchGates.R_IMAGE_NONE -> m("Choose a system first", "Pick the system you want to set up.", FixAction.CHOOSE_SYSTEM)
-            ImageIdentifier.R_DAMAGED -> m("The download is damaged", "It may not have finished. Download $system again.", FixAction.DOWNLOAD_AGAIN)
+            ImageIdentifier.R_DAMAGED -> m("The download is damaged", damagedDownload(system), FixAction.DOWNLOAD_AGAIN)
             ImageIdentifier.R_WRONG_PHONE -> m("That file is for another phone", "Choose the file you downloaded for $yourPhone.", FixAction.CHOOSE_FILE)
             ImageIdentifier.R_UNCOMPRESSED, ImageIdentifier.R_NOT_OURS, ImageIdentifier.R_SIZE_UNKNOWN ->
                 m("That isn't a OneOS system file", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
@@ -484,6 +484,13 @@ object Plain {
      * download, the app's own files, One UI changing underneath, a file that
      * could not be read, or anything else. [stopped]: the user tapped Stop.
      */
+    /**
+     * 0.5.45 (owner: testers did not see that the file itself is broken and kept asking the group): what to do with a
+     * damaged download, in words. The browser download stopped early or broke (Chrome on a slow connection, often).
+     */
+    fun damagedDownload(system: String): String =
+        "The file is incomplete. Delete it, download $system again (Chrome failing? Use ADM from the Play Store), then choose it."
+
     fun setupFailed(message: String, stopped: Boolean, image: ImageRef?): PlainMessage {
         val system = image?.name ?: Images.OTHER_SYSTEM
         val sys = Sentence.start(system)
@@ -498,7 +505,7 @@ object Plain {
             )
             "sha-256 differs" in p || "the .gz has" in p || "unpacked to" in p || "unpacks to more" in p ||
                 "not an ext4 image" in p || "corrupt" in p || "crc" in p || "unexpected end" in p ->
-                PlainMessage("The download is damaged", "It may not have finished. Download $system again.", FixAction.DOWNLOAD_AGAIN, defaultLabel(FixAction.DOWNLOAD_AGAIN))
+                PlainMessage("The download is damaged", damagedDownload(system), FixAction.DOWNLOAD_AGAIN, defaultLabel(FixAction.DOWNLOAD_AGAIN))
             "ioexception" in p || "could not read" in p || "cannot open the picked file" in p -> PlainMessage(
                 "Couldn't read the download", "Choose the file again.", FixAction.CHOOSE_FILE, defaultLabel(FixAction.CHOOSE_FILE),
             )

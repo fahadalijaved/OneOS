@@ -4828,14 +4828,20 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 # 0.4.87: the system buffer on its own. Read together with main, a busy
                 # camera filled the 4000 lines within the second and nothing was printed
                 # (S24 Ultra e99b8eae: 'shutdown' with the camera at full zoom, asker unknown).
-                timeout 5 logcat -d -b system -t 3000 2>/dev/null | grep -E ' OneOS|ShutdownThread|ShutdownActivity|GlobalActions|RescueParty|PowerManagerService.*[Rr]eboot|[Ss]hut ?down|[Oo]verheat|[Hh]igh ?[Tt]emp' | tail -15
+                # 0.5.45: printed nothing on the Tab S9 FE+ (0dbe56e0, ColorOS 'shutdown' 30 min in, twice): the
+                # guest's own logcat (its logd, in its mount namespace) first, the system and main buffers.
+                WHO='ShutdownThread|ShutdownActivity|GlobalActions|RescueParty|PowerManagerService.*([Rr]eboot|[Ss]hutdown|goToSleep)|[Ss]hut ?down|[Pp]ower ?[Oo]ff|[Oo]verheat|[Hh]igh ?[Tt]emp|[Ll]ow ?[Bb]att'
+                SFP=\$(pidof surfaceflinger | awk '{print \$1}')
+                a=''
+                [ -n \"\$SFP\" ] && a=\$(timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/logcat -d -b system,main -t 6000 2>/dev/null | grep -E \" OneOS|\$WHO\" | tail -n 20)
+                [ -n \"\$a\" ] || a=\$(timeout 5 logcat -d -b system -t 3000 2>/dev/null | grep -E \" OneOS|\$WHO\" | tail -n 15)
+                echo \"\${a:-who asked: no line in the guest's or One UI's log}\"
                 # The guest's thermal and battery services can ask for a shutdown
                 # without a line in the log: what they hold now, 5 s each at most.
                 # Not after the user's own return (app, keys) or a soft reboot.
                 case \"\$req\" in
                     app:*|keys:*|ksud:*) ;;
                     *)
-                        SFP=\$(pidof surfaceflinger | awk '{print \$1}')
                         if [ -n \"\$SFP\" ]; then
                             a=\$(timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys thermalservice 2>/dev/null | grep -o -E 'Thermal Status: [0-9]+|Temperature[{][^}]*mStatus=[1-6][}]' | head -n 12 | tr '\n' ' ')
                             echo \"guest thermal service: \${a:-no answer}\"

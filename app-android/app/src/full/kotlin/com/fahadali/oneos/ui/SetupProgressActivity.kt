@@ -456,7 +456,11 @@ class SetupProgressFragment : Fragment() {
                 // A session that ended with a force restart blocks every update until One UI's
                 // settings are restored: "Restore now", never "Retry update", which only met
                 // the same block again (owner's F8U and user reports, 11-08).
-                if (s.plan?.keepsData == true && fix?.action != FixAction.RESTORE) {
+                // 0.5.45: nor for a damaged download: Retry update read the same broken file again and failed the
+                // same way; Download again (then the new file) keeps the data too (SetupPlan.decide reads the stage).
+                if (s.plan?.keepsData == true && fix?.action != FixAction.RESTORE &&
+                    fix?.action != FixAction.DOWNLOAD_AGAIN && fix?.action != FixAction.CHOOSE_FILE
+                ) {
                     show(primary, getString(R.string.retry_update)) { FixActions.run(a, FixAction.UPDATE, s.image) }
                 } else show(primary, fix?.actionLabel) { if (fix != null) FixActions.run(a, fix.action, s.image) }
                 show(secondary, getString(R.string.setup_close)) { SystemsNav.home(a) }

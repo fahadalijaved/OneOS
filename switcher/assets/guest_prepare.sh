@@ -92,7 +92,7 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
                                         $2 == "framework_patched_oneui95.jar" || $2 == "libcamera_client_patched_oneui95.so" ||
-                                        $2 == "framework_patched_oneui8.jar" ||
+                                        $2 == "framework_patched_oneui8.jar" || $2 == "framework_patched_oneui85.jar" ||
                                         $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" ||
                                         $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" ||
                                         $2 == "oplus-framework_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
@@ -498,14 +498,21 @@ if [ "$(getprop ro.build.version.sdk)" = 36 ] && grep -q '^ro.build.version.oneu
     # camera codes, switcher/patches/host_camera_oneui8.txt, read on the S22 Ultra) turns the camera on:
     # bound in place of framework_patched.jar, the image's Samsung Camera kept, config.disable_cameraservice
     # not set (guest_props.sh reads $STAGE/a16_camera_on). ONEOS_A16_CAMERA=0 keeps it off.
-    if [ -f "$STAGE/framework_patched_oneui8.jar" ] && [ "${ONEOS_A16_CAMERA:-1}" = 1 ] &&
-       awk '$2 == "framework_patched_oneui8.jar" { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
+    # 0.5.45: One UI 8.5 (S23 FE 8a093c12, A35 5434447d) is Android 16 QPR2: its cameraserver takes One UI 9.0's
+    # CameraCompatibilityInfo where One UI 8 has the int, so the One UI 8 jar's calls failed there (a
+    # NullPointerException on every getCameraCharacteristics; Samsung's video call engine restarted ~2,000 times).
+    # framework_patched_oneui85.jar (host_camera_oneui85.txt) on such a phone; without it the camera stays off.
+    A16_OUI=$(getprop ro.build.version.oneui); case "$A16_OUI" in ''|*[!0-9]*) A16_OUI=0 ;; esac
+    A16_JAR=framework_patched_oneui8.jar; A16_NAME="One UI 8"
+    [ "$A16_OUI" -ge 80500 ] && A16_JAR=framework_patched_oneui85.jar && A16_NAME="One UI 8.5"
+    if [ -f "$STAGE/$A16_JAR" ] && [ "${ONEOS_A16_CAMERA:-1}" = 1 ] &&
+       awk -v j="$A16_JAR" '$2 == j { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
         A16_CAMERA=1
-        CAM_FW=framework_patched_oneui8.jar
+        CAM_FW=$A16_JAR
         : > "$STAGE/a16_camera_on"
-        echo "Experimental One UI 9.5 on One UI 8 (SDK 36): camera on, One UI 8's camera codes (framework_patched_oneui8.jar)"
+        echo "Experimental One UI 9.5 on One UI 8 (SDK 36, One UI $A16_OUI): camera on, $A16_NAME's camera codes ($A16_JAR)"
     else
-        echo "Experimental One UI 9.5 on One UI 8 (SDK 36): camera off"
+        echo "Experimental One UI 9.5 on One UI 8 (SDK 36, One UI $A16_OUI): camera off (no $A16_JAR in this set)"
     fi
 fi
 # The boot splash (OneOSBootStatus) runs on One UI 8's runtime while the session's SDK prop says 37: it
@@ -2193,10 +2200,16 @@ elif $BB mount --rbind /mnt "$ROOTFS/mnt"; then
 fi
 guarded_services="$STAGE/services_patched.jar"
 fold8_services="$STAGE/Fold8OneUI95Services.jar"
-if [ "$ONEUI95_FOLD8" = 1 ] && [ -s "$fold8_services" ] &&
-   [ "$($BB sha256sum "$guarded_services" | cut -d' ' -f1)" = "ce59d491204e82af0e8d40fc1da07867ace9fbe116ecef2b296c261983eb80f2" ]; then
-    guarded_services="$fold8_services"
-fi
+# Josh's Fold8 jar is the set's services_patched.jar plus the Fold8 paths (the
+# S26 Ultra build's fold wallpaper routing is R8-stripped to `throw null`).
+# 0.5.42-0.5.44 checked only r1's hash: set r2 changed services_patched.jar (screen
+# lock) and the Fold8 got the plain jar, system_server NPE in
+# setWallpaperPhysicalDisplayId at the first wallpaper (F971U 486f3ee7).
+case "$($BB sha256sum "$guarded_services" 2>/dev/null | cut -d' ' -f1)" in
+    ce59d491204e82af0e8d40fc1da07867ace9fbe116ecef2b296c261983eb80f2|90ab78f0a3fbb175c4607883f7359ed7ab305257e816ae27dabf3af527a88d6a)
+        [ "$ONEUI95_FOLD8" = 1 ] && [ -s "$fold8_services" ] && guarded_services="$fold8_services" ;;
+    *) [ "$ONEUI95_FOLD8" = 1 ] && echo "!!! Fold8 services.jar: services_patched.jar is not one the Fold8 jar was built on; the plain one" ;;
+esac
 if [ -f "$guarded_services" ]; then
     $BB umount -l "$ROOTFS/system/framework/services.jar" 2>/dev/null || true
     $BB mount --bind "$guarded_services" "$ROOTFS/system/framework/services.jar"
@@ -4180,6 +4193,20 @@ for pair in $CAM_CL:libcamera_client.so ${CAM_CI:+$CAM_CI:libcameracompatbilityi
         echo "Bound ${pair%%:*} -> $ROOTFS/system/lib64/${pair#*:}"
     fi
 done
+# 0.5.45 (Tab S9 FE+ 0dbe56e0, ColorOS 17): the S Pen was a mouse pointer. Samsung's digitizer (sec_e-pen)
+# has no INPUT_PROP_DIRECT and One UI ships no .idc for it (One UI's own InputReader knows it); AOSP's
+# InputReader then makes it an indirect pointer (Touch Input Mapper mode POINTER, sources MOUSE | STYLUS).
+# An input device configuration in the guest's /data/system/devices/idc (searched after /system, /odm and
+# /vendor) makes it a direct pen on the built-in panel. One UI images keep Samsung's handling.
+PIDC=$STAGE/data/system/devices/idc/sec_e-pen.idc
+rm -f "$PIDC"
+if [ "$ONEUI95_IMAGE" != 1 ] && grep -q '^N: Name="sec_e-pen"$' /proc/bus/input/devices 2>/dev/null; then
+    mkdir -p "${PIDC%/*}" && chown 1000:1000 "$STAGE/data/system/devices" "${PIDC%/*}" &&
+        printf '# OneOS: the S Pen as a direct stylus on the built-in panel\ndevice.internal = 1\ntouch.deviceType = touchScreen\ntouch.orientationAware = 1\n' > "$PIDC" &&
+        chown 1000:1000 "$PIDC" && chmod 644 "$PIDC" &&
+        $BB chcon -R u:object_r:system_data_file:s0 "$STAGE/data/system/devices" 2>/dev/null
+    [ -f "$PIDC" ] && echo "S Pen: sec_e-pen.idc in the guest's /data/system/devices/idc (a direct pen, not a mouse pointer)"
+fi
 # Fingerprint and face unlock from One UI's own enrolments (0.5.18, owner: "if we cant give alternate fix for
 # fp/face we have to take from OneUI"; from vdcoolok's pull request #152 branch). Only the lists (names and ids)
 # are copied; the templates stay in the phone's secure hardware. The guest's services.jar never removes a
@@ -7522,35 +7549,48 @@ fi
 # and the guest's system_server aborted in LoopbackEventHandler::Start ("BpfRingbuf init failed ...
 # map_netd_loopback_access_ringbuf: No such file or directory"). An empty ring buffer for the session
 # (switcher/native/oneos_bpf_ringbuf.c); return_to_oneui.sh removes the one made here.
+# 0.5.45 (S22 EU 208f35b9 on 0.5.44): the same for TcpMetricsLogger's ring buffer: One UI 8's module under
+# Android 17 opens map_netd_tcp_metrics_ringbuf in ConnectivityService's constructor ("Failed to create
+# BpfRingbuf ... ENOENT", system_server died 50 s in). Each ring buffer the module names (its .so or its
+# service-connectivity.jar) and One UI did not pin gets an empty one; every path made is listed in
+# bpf_ringbuf.created, one per line. Where no new map is allowed, a One UI ring buffer that nothing writes
+# during the session is preferred as the alias (packet trace, test) before the others.
 rm -f "$STAGE/bpf_ringbuf.created"
 if [ "$A17_ON_A16" = 1 ]; then
-    RB=/sys/fs/bpf/netd_shared/map_netd_loopback_access_ringbuf
     LSC="$ROOTFS/apex/com.android.tethering/lib64/libservice-connectivity.so"
-    if [ -e "$RB" ]; then
-        echo "Loopback ring buffer: One UI pinned its own; left alone"
-    elif ! $BB grep -q map_netd_loopback_access_ringbuf "$LSC" 2>/dev/null; then
-        echo "Loopback ring buffer: One UI's tethering module has no loopback poller; none needed"
-    elif [ ! -d /sys/fs/bpf/netd_shared ] || [ ! -x "$STAGE/oneos_bpf_ringbuf" ]; then
-        echo "!!! Loopback ring buffer: no /sys/fs/bpf/netd_shared or no oneos_bpf_ringbuf; the guest's system_server will abort in LoopbackEventHandler"
-    elif "$STAGE/oneos_bpf_ringbuf" create "$RB" && [ -e "$RB" ]; then
-        echo "$RB" > "$STAGE/bpf_ringbuf.created"
-        echo "Loopback ring buffer: an empty one pinned at $RB for the session (One UI's module starts its poller on Android 17)"
-    else
-        # 0.5.38: the S22 Ultra (Exynos) 91c4fef5 refused to make one ("BPF_MAP_CREATE: Operation not
-        # permitted") and system_server aborted 50 s in. A ring buffer One UI's own loader pinned (no program
-        # of the guest's writes the loopback events into it) pinned at the path instead: no map is created.
-        RBA=""
-        for x in /sys/fs/bpf/netd_shared/map_netd_local_net_note_op_ringbuf /sys/fs/bpf/netd_shared/map_*ringbuf /sys/fs/bpf/net_shared/map_*ringbuf /sys/fs/bpf/map_*ringbuf; do
-            [ -e "$x" ] && [ "$x" != "$RB" ] || continue
-            if "$STAGE/oneos_bpf_ringbuf" alias "$x" "$RB" && [ -e "$RB" ]; then RBA=$x; break; fi
-        done
-        if [ -n "$RBA" ]; then
-            echo "$RB" > "$STAGE/bpf_ringbuf.created"
-            echo "Loopback ring buffer: no new map allowed on this phone; One UI's $RBA pinned at $RB for the session"
+    LSJ="$ROOTFS/apex/com.android.tethering/javalib/service-connectivity.jar"
+    for RBN in loopback_access tcp_metrics; do
+        RB=/sys/fs/bpf/netd_shared/map_netd_${RBN}_ringbuf
+        if [ -e "$RB" ]; then
+            echo "Ring buffer $RBN: One UI pinned its own; left alone"
+        elif ! $BB grep -q "map_netd_${RBN}_ringbuf" "$LSC" 2>/dev/null &&
+             ! { $BB unzip -p "$LSJ" 2>/dev/null | $BB grep -q "map_netd_${RBN}_ringbuf"; }; then
+            echo "Ring buffer $RBN: One UI's tethering module does not use it; none needed"
+        elif [ ! -d /sys/fs/bpf/netd_shared ] || [ ! -x "$STAGE/oneos_bpf_ringbuf" ]; then
+            echo "!!! Ring buffer $RBN: no /sys/fs/bpf/netd_shared or no oneos_bpf_ringbuf; the guest's system_server will abort"
+        elif "$STAGE/oneos_bpf_ringbuf" create "$RB" && [ -e "$RB" ]; then
+            echo "$RB" >> "$STAGE/bpf_ringbuf.created"
+            echo "Ring buffer $RBN: an empty one pinned at $RB for the session (One UI's module uses it on Android 17)"
         else
-            echo "!!! Loopback ring buffer: could not pin $RB; the guest's system_server will abort in LoopbackEventHandler"
+            # 0.5.38: the S22 Ultra (Exynos) 91c4fef5 refused to make one ("BPF_MAP_CREATE: Operation not
+            # permitted") and system_server aborted 50 s in. A ring buffer One UI's own loader pinned (no program
+            # of the guest's writes these events into it) pinned at the path instead: no map is created.
+            RBA=""
+            for x in /sys/fs/bpf/netd_shared/map_netd_packet_trace_ringbuf /sys/fs/bpf/net_shared/map_netd_test_ringbuf \
+                     /sys/fs/bpf/netd_shared/map_netd_test_ringbuf /sys/fs/bpf/netd_shared/map_netd_local_net_note_op_ringbuf \
+                     /sys/fs/bpf/netd_shared/map_*ringbuf /sys/fs/bpf/net_shared/map_*ringbuf /sys/fs/bpf/map_*ringbuf; do
+                [ -e "$x" ] && [ "$x" != "$RB" ] || continue
+                $BB grep -qxF "$x" "$STAGE/bpf_ringbuf.created" 2>/dev/null && continue
+                if "$STAGE/oneos_bpf_ringbuf" alias "$x" "$RB" && [ -e "$RB" ]; then RBA=$x; break; fi
+            done
+            if [ -n "$RBA" ]; then
+                echo "$RB" >> "$STAGE/bpf_ringbuf.created"
+                echo "Ring buffer $RBN: no new map allowed on this phone; One UI's $RBA pinned at $RB for the session"
+            else
+                echo "!!! Ring buffer $RBN: could not pin $RB; the guest's system_server will abort"
+            fi
         fi
-    fi
+    done
 fi
 # oneui8test13: the guest's netd (Android 17) asks One UI 8's tethering module (train 374205010 on the S22)
 # for the socket-ops program prog_netd_sockops_prog. Some boots of that phone had no such pin (test11

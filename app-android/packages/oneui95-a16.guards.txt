@@ -19,3 +19,5 @@ b4e084d4d0412f80b60ec3c25d3c68d61c37356409526451189af96b1124565c  telephony-comm
 # r7 (0.5.39): framework_patched_oneui8.jar, framework_patched.jar with One UI 8's camera codes (switcher/patches/a16_camera.py, host_camera_oneui8.txt; guest_prepare.sh binds it on a One UI 8 phone and turns the camera on)
 8048477f623e812581e6080feb68d53f3b093d2abf57bf0b853ebbab89272704  framework_patched_oneui8.jar
 # 0.5.42 (oneui95_a16_r8): services_patched.jar with the guest's own screen lock (patches/guest_local_lock.py, adapted to One UI 9.5's R8 build); OneOSGuest.apk = the current OneOS app (0.15) without the Knox provider authority (scripts/build-guest-manager.sh oneui95)
+# 0.5.45 (oneui95_a16_r9): framework_patched_oneui85.jar, framework_patched.jar with One UI 8.5's camera codes (switcher/patches/a16_camera.py with ONEOS_A16_CAMERA_HOST=oneui85, host_camera_oneui85.txt: One UI 8's numbering, CameraCompatibilityInfo as One UI 9.0 writes it; guest_prepare.sh binds it on a One UI 8.5 phone, where the One UI 8 jar left cameraserver a NullPointerException on every call)
+13686c81469ffbba8bcb05c80b655e91fad202262423a75f06053a5e5798d969  framework_patched_oneui85.jar

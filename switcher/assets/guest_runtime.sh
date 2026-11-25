@@ -179,7 +179,9 @@ verify-return)
     [ "$(cat "$B/boot")" = "$(cat /proc/sys/kernel/random/boot_id)" ] || exit 1
     "$S/guest_root" --host-audit > "$B/return.unsorted" || exit 1
     sort "$B/return.unsorted" > "$B/return.root"
-    cmp -s "$B/root" "$B/return.root" || { echo 'Guest runtime: host root grants or manager changed'; exit 1; }
+    # 0.5.45: which entry changed (4 of 6 phone returns on 0.5.44 fell back to a reboot here with no detail).
+    cmp -s "$B/root" "$B/return.root" || { echo 'Guest runtime: host root grants or manager changed:';
+        { diff "$B/root" "$B/return.root" 2>/dev/null || true; } | grep '^[-+<>] *[a-z]' | head -n 20 | sed 's/^/    /'; exit 1; }
     sha256sum -c "$B/selinux" || { echo 'Guest runtime: shared SELinux policy changed'; exit 1; }
     [ ! -f "$B/allowlist" ] || sha256sum -c "$B/allowlist" || exit 1
     awk '{print $1, $2, $6}' /proc/modules | sort > "$B/return.kernel-modules"

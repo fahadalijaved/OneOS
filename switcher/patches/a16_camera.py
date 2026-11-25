@@ -7,7 +7,14 @@ carry One UI 9.0's numbering), then pixel_camera_abi.py renumbers them to switch
 host_camera_oneui8.txt with ONEOS_CAMERA_COMPAT_AS_INT=1, and a16_camera_batch_off.py keeps stream
 configuration on the calls One UI 8 has.
 
-Usage: ONEOS_CAMERA_ORIG_DECODED=<dir> a16_camera.py <decoded jar dir>
+ONEOS_A16_CAMERA_HOST=oneui85 (framework_patched_oneui85.jar, 0.5.45): a One UI 8.5 cameraserver instead
+(switcher/patches/host_camera_oneui85.txt, read on the S23 FE): One UI 8's numbering but One UI 9.0's
+CameraCompatibilityInfo parcelable, so the parcelable is written as it is (no ONEOS_CAMERA_COMPAT_AS_INT;
+ONEOS_CAMERA_COMPAT_FROM_JAR: the set's jar already writes it without the sixth field, as for One UI 9.0). The One UI 8 jar on such a phone sent an int there and
+cameraserver answered every getCameraCharacteristics with a NullPointerException (S23 FE 8a093c12, A35
+5434447d: no camera; Samsung's video call engine com.sec.sve restarted about 2,000 times a session).
+
+Usage: [ONEOS_A16_CAMERA_HOST=oneui85] ONEOS_CAMERA_ORIG_DECODED=<dir> a16_camera.py <decoded jar dir>
 """
 import os
 import shutil
@@ -41,9 +48,17 @@ def main(root):
             sys.exit(f"a16_camera: {cls} in {d} here, {o} in the image")
         shutil.copyfile(os.path.join(orig, o, cls), os.path.join(root, d, cls))
         dirs.add(d)
-    env = dict(os.environ, ONEOS_CAMERA_COMPAT_AS_INT="1")
+    host = os.environ.get("ONEOS_A16_CAMERA_HOST", "oneui8")
+    if host not in ("oneui8", "oneui85"):
+        sys.exit(f"a16_camera: ONEOS_A16_CAMERA_HOST={host} (oneui8 or oneui85)")
+    env = dict(os.environ)
     env.pop("ONEOS_CAMERA_KEEP_COMPAT", None)
-    for cmd in (["python3", "-I", os.path.join(HERE, "pixel_camera_abi.py"), root, os.path.join(HERE, "host_camera_oneui8.txt")],
+    env.pop("ONEOS_CAMERA_COMPAT_AS_INT", None)
+    if host == "oneui8":
+        env["ONEOS_CAMERA_COMPAT_AS_INT"] = "1"
+    else:
+        env["ONEOS_CAMERA_COMPAT_FROM_JAR"] = "1"
+    for cmd in (["python3", "-I", os.path.join(HERE, "pixel_camera_abi.py"), root, os.path.join(HERE, f"host_camera_{host}.txt")],
                 ["python3", "-I", os.path.join(HERE, "a16_camera_batch_off.py"), root]):
         r = subprocess.run(cmd, capture_output=True, text=True, env=env)
         sys.stderr.write(r.stderr)

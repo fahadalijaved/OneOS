@@ -755,12 +755,14 @@ done
 # Inbound SMS (0.4.61): the session NOPs Samsung rild's queue branch and
 # bind-mounts the vendor library. Remove it before the stage-mount check below,
 # which would otherwise see /local/tmp/oneos/ in field 4 and reboot.
-# One UI 9.5 on One UI 8: the empty loopback ring buffer guest_prepare.sh pinned (only that one).
+# One UI 9.5 on One UI 8: the ring buffers guest_prepare.sh pinned (one per line; only these paths).
 if [ -f "$S/bpf_ringbuf.created" ]; then
-    RB=$(head -n 1 "$S/bpf_ringbuf.created")
-    case "$RB" in
-        /sys/fs/bpf/netd_shared/map_netd_loopback_access_ringbuf) "$S/oneos_bpf_ringbuf" remove "$RB" >>"$IPLOG" 2>&1 || rm -f "$RB" ;;
-    esac
+    while IFS= read -r RB; do
+        case "$RB" in
+            /sys/fs/bpf/netd_shared/map_netd_loopback_access_ringbuf|/sys/fs/bpf/netd_shared/map_netd_tcp_metrics_ringbuf)
+                "$S/oneos_bpf_ringbuf" remove "$RB" >>"$IPLOG" 2>&1 || rm -f "$RB" ;;
+        esac
+    done < "$S/bpf_ringbuf.created"
     rm -f "$S/bpf_ringbuf.created"
 fi
 # oneui8test13: the do-nothing netd socket-ops program guest_prepare.sh pinned (only that one): detached from

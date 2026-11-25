@@ -1590,6 +1590,18 @@ if [ -f /data/guest_audio.flag ]; then
             miss=$((miss + 1)); [ $miss -lt 2 ] && continue
             kill -9 $as 2>/dev/null
             now=$(date +%s); [ $((now - last)) -gt 120 ] && r=0; last=$now
+            # 0.5.45 (S23 FE One UI 8.5 8a093c12, d6be5a01): the Google app voice match model (110628 bytes) is
+            # larger than the VTS buffer of the Exynos sound trigger HAL (0x16800), which then died in
+            # vts_load_sound_model at every start of recognition, the audio HAL with it, every 75 s (17 deaths,
+            # no sound for most of the session). Once that is in the crash log: no DSP hotword for the Google app
+            # in this guest (RECORD_AUDIO_HOTWORD ignore, kept in its app ops; SoundTriggerHelper then starts no
+            # recognition) and the app stopped so it attaches again under that rule.
+            if [ ! -f /data/oneos_hotword_off.log ] && logcat -d -b crash 2>/dev/null | grep -q "(vts_load_sound_model+"; then
+                g=com.google.android.googlequicksearchbox
+                o=$(/system/bin/sh /data/oneos_genv.sh /system/bin/cmd appops set $g RECORD_AUDIO_HOTWORD ignore 2>&1 | tr -s " \n" " " | head -c 80)
+                /system/bin/sh /data/oneos_genv.sh /system/bin/am force-stop $g >/dev/null 2>&1
+                echo "$(date +%T) audio HAL died loading a voice wake-up model (vts_load_sound_model): Hey Google DSP hotword off for $g ($o)" | tee /data/oneos_hotword_off.log
+            fi
             # 0.4.60: no hand-over after registration. Every guest framework is not
             # Samsung, and Samsung audioserver killed it (Invalid usage 1005; 0.4.59
             # Pixel reports 2c9c6419, 630e5625, 7fe453b5: a sound model Samsung sound
