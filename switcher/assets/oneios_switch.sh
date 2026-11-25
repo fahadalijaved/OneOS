@@ -193,6 +193,7 @@ screen() { # <title|status> <text>
 # Starts the screen (the session only). The renderer gets 3 s for its first
 # frame; with or without one the switch goes on.
 bootui_begin() {
+    [ "$SMODE" = takeover ] && [ "$DISPLAY_BACK" = drm ] && { echo "Boot screen: off (display=drm in takeover)"; return 0; }
     [ "${ONEIOS_BOOTUI:-1}" != 0 ] || { echo "Boot screen: off (ONEIOS_BOOTUI=0)"; return 0; }
     for f in boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png; do
         [ -f "$BOOTBIN/$f" ] && root_only "$BOOTBIN/$f" ||
@@ -625,8 +626,21 @@ cap_policies() {
 # or names of this list separated by commas. OneiOS's xnuhost checks the same word (config.rs TAKEOVER_STOPPABLE).
 TAKEOVER_STOPPABLE="cameraserver mediaextractor mediametrics media.tuner perfmond wificond netd media"
 TAKEOVER_DEFAULT="cameraserver mediaextractor mediametrics media.tuner perfmond wificond"
+DISPLAY_BACK=shm
+display_back_pick() {
+    v=$(cat "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf" 2>/dev/null |
+        sed -n 's/^[[:space:]]*display=//p' | tail -n 1 | tr -d ' \t\r')
+    [ -z "$v" ] || DISPLAY_BACK=$v
+}
+composer_svc_find() {
+    for c in vendor.qti.hardware.display.composer vendor.hwcomposer-3; do
+        [ -n "$(getprop init.svc.$c)" ] && { echo "$c"; return 0; }
+    done
+    getprop | sed -n 's/^\[init\.svc\.\([^]]*\)\]: \[running\]$/\1/p' | grep -m1 -E 'hwcomposer|display\.composer|graphics\.composer'
+}
 # TSTOPS: the names, in order (empty for none); TSTOPS_FROM: where they come from. Refuses a word it does not know.
 takeover_stops_pick() {
+    display_back_pick
     TSTOPS=$TAKEOVER_DEFAULT TSTOPS_FROM="the default list"
     v=$(cat "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf" 2>/dev/null |
         sed -n 's/^[[:space:]]*takeover-stops=//p' | tail -n 1 | tr -d ' \t\r')
@@ -669,10 +683,16 @@ mem_avail() { awk '$1 == "MemAvailable:" { print int($2 / 1024); exit }' "$P/mem
 # TSTOPS and TSTOPS_FROM are the preflight's (takeover_stops_pick): nothing here refuses, One UI is already stopped.
 takeover_stops() {
     rm -f "$CTL/base/stopped"
-    [ -n "$TSTOPS" ] || { echo "Android takeover: no service of Android stopped (takeover-stops=none)"; return 0; }
+    stops=$TSTOPS
+    if [ "$SMODE" = takeover ] && [ "$DISPLAY_BACK" = drm ]; then
+        stops="${stops:+$stops }surfaceflinger"
+        _csvc=$(composer_svc_find)
+        [ -z "$_csvc" ] || stops="$stops $_csvc"
+    fi
+    [ -n "$stops" ] || { echo "Android takeover: no service of Android stopped (takeover-stops=none)"; return 0; }
     before=$(mem_avail)
     done_="" kept=""
-    for s in $TSTOPS; do
+    for s in $stops; do
         st=$(getprop "init.svc.$s")
         [ "$st" = running ] || { kept="$kept $s(${st:-no such service})"; continue; }
         k=$(rc_kind "$s")
@@ -1934,7 +1954,9 @@ echo "xnuhost: pid $XP in mount namespace $XNS, log $SESSION/xnuhost.log"
 # (control/, where the guest cannot write; its log is there too). Nothing
 # waits for it: without it the session runs with a dark screen.
 DH="$STAGE/runtime/bin/oneios-display"
-if [ -f "$DH" ] && [ ! -L "$DH" ] && [ -x "$DH" ] && root_only "$DH"; then
+if [ "$SMODE" = takeover ] && [ "$DISPLAY_BACK" = drm ]; then
+    echo "Display helper: skipped (display=drm in takeover; xnuhost is DRM master)"
+elif [ -f "$DH" ] && [ ! -L "$DH" ] && [ -x "$DH" ] && root_only "$DH"; then
     # This session's log only: the boot screen's hand-off (display_up) reads its markers, and a
     # "first frame posted" of an earlier session must not end this session's boot screen early.
     [ -f "$CTL/display.log" ] && mv -f "$CTL/display.log" "$CTL/display.log.1" 2>/dev/null
