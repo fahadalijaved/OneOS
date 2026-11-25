@@ -339,6 +339,8 @@ class ProfilesTest {
                 // 0.5.47: the Galaxy Tab S9 FE 5G (owner).
                 Profiles.TAB_S9_FE_5G,
                 Profiles.TAB_S9_ULTRA, Profiles.TAB_S11,
+                // 0.5.48: the Galaxy Tab S11 Ultra (owner).
+                Profiles.TAB_S11_ULTRA,
             ),
             Profiles.BUILT_IN,
         )
@@ -465,6 +467,11 @@ class ProfilesTest {
         assertEquals(listOf(Profiles.TAB_S9_FE.choices, Profiles.TAB_S9_FE.notes, Profiles.TAB_S9_FE.form),
             listOf(Profiles.TAB_S9_FE_5G.choices, Profiles.TAB_S9_FE_5G.notes, Profiles.TAB_S9_FE_5G.form))
         assertTrue(Profiles.TAB_S9_FE_5G in Profiles.TABLETS)
+        // 0.5.48 (owner): the Tab S11 Ultra (SM-X930, gts11uwifi, MT6991; findings-37123bcf), the Tab S11's choices; and
+        // One UI 9.5 next to the tablet system on every Tab.
+        assertEquals(Profiles.TAB_S11_ULTRA, Profiles.resolve("SM-X930", "gts11uwifi", "MT6991").profile)
+        assertEquals(listOf(Profiles.TAB_S11.choices, Profiles.TAB_S11.notes), listOf(Profiles.TAB_S11_ULTRA.choices, Profiles.TAB_S11_ULTRA.notes))
+        for (t in Profiles.TABLETS) assertEquals(t.id, listOf(Images.ID_OXYGEN17_PAD, Images.ID_ONEUI95), t.choices.map { it.imageId })
         // Owner (2026-11-25): the tablet system and One UI 9.5 only.
         assertEquals(
             listOf(
@@ -760,7 +767,7 @@ class ProfilesTest {
             val expected = ImageChoice(Images.ID_ONEUI95, if (p.id == Profiles.ID_FOLD8) PackageSets.ID_ONEUI95_F8 else PackageSets.ID_ONEUI95, tested = false)
             // 0.5.41: a Galaxy Tab has only its tablet system (owner: "Hide all other Heros").
             // Pull request #371: except the Tab S9 FE, which also takes One UI 9.5 (owner, 2026-11-25).
-            val onOneUi9 = (p !in Profiles.TABLETS || p == Profiles.TAB_S9_FE || p == Profiles.TAB_S9_FE_5G) && p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
+            val onOneUi9 = true && p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
             if (onOneUi9) {
                 assertEquals(p.id, expected, p.choices.last().copy(tested = false))
                 assertEquals(p.id, expected, p.choice(Images.ID_ONEUI95)!!.copy(tested = false))
@@ -768,7 +775,7 @@ class ProfilesTest {
                 assertNull(p.id, p.choice(Images.ID_ONEUI95))
             }
         }
-        assertEquals(53, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
+        assertEquals(61, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
         assertEquals(listOf(Images.ID_OXYGEN16), Profiles.A06.choices.map { it.imageId })
     }
 }

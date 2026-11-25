@@ -801,6 +801,17 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.48: **One UI 9.5 on every Galaxy Tab, the Galaxy Tab S11 Ultra, Z Fold8 (US) first setup, S25 Ultra restarts.**
+- **One UI 9.5 on every Galaxy Tab** we support (Tab S9, S9 Ultra, S9 FE+, S10 FE 5G and Wi-Fi, S11, S12 Ultra), next
+  to the tablet ColorOS/OxygenOS 17, each keeping its own tablet model (testing; the LCD and camera fixes are the
+  Tab S9 FE's only so far).
+- **Galaxy Tab S11 Ultra (SM-X930)** with the tablet ColorOS/OxygenOS 17 and One UI 9.5 (testing).
+- **One UI 9.5 first setup on US carrier phones** (Z Fold8 SM-F971U and others): Samsung's setup went on to a US
+  carrier activation step the image does not have and stopped there ("Settings has stopped"). OneOS now finishes the
+  setup at the home screen when that happens; add your accounts afterwards in Settings › Accounts (testing).
+- **Galaxy S25 Ultra with One UI 9.5: Bixby is turned off** for now. Setting up Bixby voice wake-up froze the whole
+  phone and the chip's watchdog restarted it (testing).
+
 New in 0.5.47: **S22 Ultra (Exynos) restart loop, Galaxy A17 freezes, Galaxy Tab S9 FE 5G, OriginOS on the Z Fold5.**
 - **Galaxy S22 Ultra (Exynos) with One UI 9.5 no longer restarts the phone again and again** (testing). Its kernel
   refused a small network program One UI 9.5 needs, so the system never finished starting and Samsung's boot checker

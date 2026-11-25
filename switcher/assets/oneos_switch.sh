@@ -2896,6 +2896,15 @@ while true; do
                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable 'com.coloros.bootreg/com.coloros.bootreg.settings.activity.GuidePage\$AlarmReceiver' >/dev/null 2>&1; then
                 echo \"[UI Activator] ColorOS setup: its power-off alarm (GuidePage\\\$AlarmReceiver) disabled\"
             fi
+            # 0.5.48 (owner, S25 Ultra d55b55c3 on 0.5.44): One UI 9.5 froze the whole phone seconds after its setup's
+            # Bixby step (Bixby voice wake-up being set up); the chip's watchdog restarted it (TZBSP_ERR_FATAL_NON_SECURE_WDT).
+            # Bixby and its voice wake-up are turned off in the guest on the S25 Ultra (Snapdragon); ONEOS_GUEST_BIXBY=1 keeps them.
+            if [ \"${ONEOS_PROFILE:-}\" = s-ultra-8750 ] && [ \"${ONEOS_GUEST_BIXBY:-0}\" != 1 ]; then
+                for bx in com.samsung.android.bixby.wakeup com.samsung.android.bixby.agent; do
+                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 \$bx >/dev/null 2>&1 &&
+                        echo \"[UI Activator] S25 Ultra: \$bx turned off (Bixby voice wake-up froze this phone)\"
+                done
+            fi
             # Fallback for a staged /data that had no settings files to seed, before
             # HOME: a fresh stage has none. Pixel's two setup wizards (ColorOS has
             # none) would take that first boot and wait for Google services.

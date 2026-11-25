@@ -2043,14 +2043,15 @@ ro.miui.backdrop_sampling_enabled=true"
         *) [ "$hsep" -lt 180000 ] && oneui_version_props="$oneui_version_props ro.build.version.sep" ;;
     esac
     if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
-         [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "${ONEOS_PROFILE:-}" = tab-s9-fe-5g ]; } &&
+         case "${ONEOS_PROFILE:-}" in tab-*) true ;; *) false ;; esac; } &&
        grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
         # Build.VERSION.SEM_PLATFORM_INT and One UI Home read sep, not sem.
         # Use the guest's platform level with the device's own hardware identity
         # (prevents phone-only HoneyBoard / layout scaling on Fold8 and Tab S9 FE).
         oneui_version_props="$oneui_version_props ro.build.version.sep"
         oneui_image_model=0
-        if [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "${ONEOS_PROFILE:-}" = tab-s9-fe-5g ]; then echo "guest_props: keeping Tab S9 FE model for One UI 9.5"
+        # 0.5.48 (owner): One UI 9.5 on every Galaxy Tab keeps the tablet's own model like the Tab S9 FE.
+        if case "${ONEOS_PROFILE:-}" in tab-*) true ;; *) false ;; esac; then echo "guest_props: keeping the Galaxy Tab's model (${ONEOS_PROFILE}) for One UI 9.5"
         else echo "guest_props: keeping Fold8 model for One UI 9.5"; fi
         # SystemUI reads this debug override when its application starts.
         # Use the session property journal so the host value returns with One UI.

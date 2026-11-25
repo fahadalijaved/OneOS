@@ -2230,8 +2230,7 @@ if [ "$(cat /data/oneos_fold_mode 2>/dev/null)" = layout ] && [ "${ONEOS_GUEST_F
     FOLD_CONTINUE=1
 fi
 if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$(getprop ro.product.model)" = SM-F971B ] ||
-     [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "${ONEOS_PROFILE:-}" = tab-s9-fe-5g ] ||
-     case "$(getprop ro.product.model)" in SM-X510|SM-X516*) true ;; *) false ;; esac; } &&
+     case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-*:*|*:SM-X510|*:SM-X516*) true ;; *) false ;; esac; } &&
    grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop &&
    [ ! -e /data/.oneui95-fold8-taskbar ] && [ ! -L /data/.oneui95-fold8-taskbar ]; then
     FOLD8_TASKBAR=1
@@ -2299,8 +2298,7 @@ if [ "$FOLD_CONTINUE" = 1 ] || [ "$FOLD8_TASKBAR" = 1 ] || [ "$FOLD8_RESTORE_DEX
 fi
 # Samsung's Live Notifications developer setting belongs to the guest user.
 if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
-     [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "${ONEOS_PROFILE:-}" = tab-s9-fe-5g ] ||
-     case "$(getprop ro.product.model)" in SM-X510|SM-X516*) true ;; *) false ;; esac; } &&
+     case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-*:*|*:SM-X510|*:SM-X516*) true ;; *) false ;; esac; } &&
    grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
     $BB sh -c '
         key=enable_notification_nowbar_test
@@ -2395,6 +2393,35 @@ if [ -e /system/framework/vivo-services.jar ] && [ "${ONEOS_GUEST_VIVO_SETUP:-0}
         echo \"\$(date +%T) the guest's settings service did not answer in 10 minutes\"
     " </dev/null >> /data/vivo_setup.log 2>&1 &
     echo "[Pivoted Root] vivo setup: device_provisioned, user_setup_complete, setup_wizard_has_run = 1 where not, once the guest's settings provider answers (/data/vivo_setup.log)"
+fi
+# 0.5.48 (Z Fold8 F971U 7ec32f30, One UI 9.5 on 0.5.46): on a US carrier phone Samsung's setup wizard goes on
+# from its terms page to the US activation flow, a script in com.sec.android.app.setupwizard, which the image
+# (S948B, global) does not have: Google's WizardManager logged "Cannot find file: android.resource://
+# com.sec.android.app.setupwizard/raw/wizard_script_usa_activation_flow", crashed (NPE in its script loader)
+# seven times and the setup never went on ("Settings has stopped"). When that line shows while the guest is
+# not set up yet, setup is marked done, both wizards are turned off for this system and HOME is started;
+# Google and Samsung accounts are added later in Settings. ONEOS_GUEST_SUW_KEEP=1 leaves it as it is.
+if grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null && [ "${ONEOS_GUEST_SUW_KEEP:-0}" != 1 ]; then
+    $BB sh -c "
+        i=0
+        while [ \$i -lt 240 ]; do
+            sleep 5; i=\$((i + 1))
+            p=\$(timeout 5 settings get global device_provisioned 2>/dev/null); u=\$(timeout 5 settings get secure user_setup_complete 2>/dev/null)
+            [ \"\$p:\$u\" = 1:1 ] && exit 0
+            logcat -d -b main -s WizardManager:E 2>/dev/null | grep -q 'Cannot find file: android.resource://com.sec.android.app.setupwizard/' || continue
+            for kv in 'global device_provisioned' 'secure user_setup_complete' 'secure setup_wizard_has_run'; do
+                set -- \$kv
+                timeout 5 settings put \$1 \$2 1 2>/dev/null
+            done
+            for pk in com.google.android.setupwizard com.sec.android.app.SecSetupWizard; do
+                timeout 10 pm disable-user --user 0 \$pk >/dev/null 2>&1 && echo \"\$(date +%T) \$pk turned off\"
+            done
+            timeout 10 am start -a android.intent.action.MAIN -c android.intent.category.HOME >/dev/null 2>&1
+            echo \"\$(date +%T) US activation flow missing from this image: setup marked done (device_provisioned=\$(timeout 5 settings get global device_provisioned 2>/dev/null)), home started\"
+            exit 0
+        done
+    " </dev/null >> /data/oneos_suw.log 2>&1 &
+    echo "[Pivoted Root] One UI setup watch: a missing US activation flow ends the setup at home (/data/oneos_suw.log)"
 fi
 # Test build 8 had an event-driven keeper (inotifyd on the guest's opens and
 # closes, the touchscreens held all session): the guest never showed a close

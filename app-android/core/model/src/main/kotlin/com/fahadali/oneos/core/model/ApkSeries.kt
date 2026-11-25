@@ -54,7 +54,7 @@ enum class ApkSeries(val id: String, val label: String, val profileIds: List<Str
             // 0.5.42: the Galaxy S22+ with Snapdragon (One UI 8).
             Profiles.ID_S_PLUS_8450,
             // 0.5.41: the Galaxy Tabs (OxygenOS 17 for tablets, testing).
-            Profiles.ID_TAB_S9, Profiles.ID_TAB_S10_FE, Profiles.ID_TAB_S10_FE_WIFI, Profiles.ID_TAB_S12_ULTRA, Profiles.ID_TAB_S9_FE_PLUS, Profiles.ID_TAB_S9_FE, Profiles.ID_TAB_S9_FE_5G, Profiles.ID_TAB_S9_ULTRA, Profiles.ID_TAB_S11,
+            Profiles.ID_TAB_S9, Profiles.ID_TAB_S10_FE, Profiles.ID_TAB_S10_FE_WIFI, Profiles.ID_TAB_S12_ULTRA, Profiles.ID_TAB_S9_FE_PLUS, Profiles.ID_TAB_S9_FE, Profiles.ID_TAB_S9_FE_5G, Profiles.ID_TAB_S9_ULTRA, Profiles.ID_TAB_S11, Profiles.ID_TAB_S11_ULTRA,
         ),
     ),
     ;

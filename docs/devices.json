@@ -3736,6 +3736,12 @@
           "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -3753,6 +3759,12 @@
           "image": "oxygenos17-opd2514",
           "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -3772,6 +3784,12 @@
           "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -3790,6 +3808,12 @@
           "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -3807,6 +3831,12 @@
           "image": "oxygenos17-opd2514",
           "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
@@ -3874,6 +3904,12 @@
           "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
           "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
         }
       ]
     },
@@ -3891,6 +3927,36 @@
           "image": "oxygenos17-opd2514",
           "label": "ColorOS 17, OnePlus Pad 4 build",
           "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s11-ultra",
+      "label": "Galaxy Tab S11 Ultra",
+      "model": "SM-X930",
+      "codename": "gts11uwifi",
+      "chip": "MT6991",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
           "tested": false
         }
       ]
