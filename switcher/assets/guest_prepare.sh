@@ -1670,7 +1670,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         # (folders, empty files, links), each entry bound from the image, plus the apex mount
         # point. The overlay's other additions (bin/hwservicemanager, etc/permissions features,
         # Samsung IMS and camera mount points) are not in it; those are off as on a refusal.
-        if [ ! -d "$GUEST_SYSTEM_EXT/apex" ] && [ -d /system_ext/apex ] && ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
+        if ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
             FARM="$OV/farm"; FORIG="$OV/orig"; fok=1; fn=0
             rm -rf "$FARM" && mkdir -p "$FARM/apex" "$FORIG" || fok=0
             for e in "$GUEST_SYSTEM_EXT"/* "$GUEST_SYSTEM_EXT"/.[!.]*; do
@@ -1681,13 +1681,55 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 elif [ -d "$e" ]; then mkdir -p "$FARM/$n" || fok=0
                 else : > "$FARM/$n" || fok=0; fi
             done
+            # Ensure custom folders (app, etc) from $OV/up exist in $FARM so bind-mounts work
+            if [ -d "$OV/up" ]; then
+                for u in "$OV/up"/*; do
+                    [ -e "$u" ] || continue
+                    un=${u##*/}
+                    if [ ! -e "$FARM/$un" ]; then
+                        if [ -d "$u" ]; then mkdir -p "$FARM/$un"; else : > "$FARM/$un"; fi
+                    fi
+                done
+                # Merge subdirectories from $OV/up (e.g. app/OneOSGuest, etc/sysconfig)
+                if [ -d "$OV/up/app" ]; then
+                    mkdir -p "$FARM/app"
+                    for a in "$OV/up/app"/*; do
+                        [ -e "$a" ] || continue
+                        an=${a##*/}
+                        mkdir -p "$FARM/app/$an"
+                    done
+                fi
+                if [ -d "$OV/up/etc" ]; then
+                    mkdir -p "$FARM/etc/sysconfig" "$FARM/etc/vintf/manifest" 2>/dev/null || true
+                    for ef in "$OV/up/etc/sysconfig"/*; do
+                        [ -f "$ef" ] && cp -f "$ef" "$FARM/etc/sysconfig/" 2>/dev/null || true
+                    done
+                    for ef in "$OV/up/etc/vintf/manifest"/*; do
+                        [ -f "$ef" ] && cp -f "$ef" "$FARM/etc/vintf/manifest/" 2>/dev/null || true
+                    done
+                fi
+            fi
             if [ $fok = 1 ]; then
                 chmod 755 "$FARM" "$FARM/apex"
                 $BB chcon -R u:object_r:system_file:s0 "$FARM" 2>/dev/null || true
                 if $BB mount --bind "$GUEST_SYSTEM_EXT" "$FORIG" && $BB mount --bind "$FARM" "$GUEST_SYSTEM_EXT"; then
                     for e in "$FORIG"/* "$FORIG"/.[!.]*; do
                         [ -e "$e" ] && [ ! -L "$e" ] || continue
-                        if $BB mount --bind "$e" "$GUEST_SYSTEM_EXT/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
+                        en=${e##*/}
+                        if [ -d "$e" ] && [ -d "$OV/up/$en" ]; then
+                            # Merged directory (like app or etc): bind existing entries from original
+                            for sube in "$e"/*; do
+                                [ -e "$sube" ] || continue
+                                subn=${sube##*/}
+                                mkdir -p "$GUEST_SYSTEM_EXT/$en/$subn" 2>/dev/null || : > "$GUEST_SYSTEM_EXT/$en/$subn"
+                                $BB mount --bind "$sube" "$GUEST_SYSTEM_EXT/$en/$subn" || true
+                            done
+                            fn=$((fn + 1))
+                        elif $BB mount --bind "$e" "$GUEST_SYSTEM_EXT/$en"; then
+                            fn=$((fn + 1))
+                        else
+                            fok=0; break
+                        fi
                     done
                 else
                     fok=0
@@ -7594,7 +7636,7 @@ fi
 # ONEOS_GUEST_ONEUI_KEEP_APPS=1 keeps them.
 if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_GUEST_ONEUI_KEEP_APPS:-0}" != 1 ]; then
     for d in "$ROOTFS"/system/priv-app/KnoxGuard "$ROOTFS"/system/priv-app/SamsungDeviceHealthManagerService \
-             "$ROOTFS"/system/priv-app/SamsungSmartSuggestions; do
+             "$ROOTFS"/system/priv-app/SamsungSmartSuggestions "$ROOTFS"/system/app/sveservice; do
         [ -d "$d" ] && [ ! -L "$d" ] || continue
         if [ "$ONEUI95_FOLD8" = 1 ] && [ "${d##*/}" = SamsungSmartSuggestions ] &&
            [ "$(sha256sum "$ROOTFS/system/framework/framework.jar" | cut -d' ' -f1)" = "3a3e65e4a58655f3f77ddf99c7bcc44a0d45c661a245c48024f49e22d7614e86" ] &&
@@ -7671,7 +7713,7 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
    [ "${ONEOS_ONEUI_HOST_CAMERA:-1}" = 1 ] && [ -d "$OAC_DST" ] && [ ! -L "$OAC_DST" ] &&
    [ -f "$HCAM_DIR/SamsungCamera.apk" ] && [ ! -L "$HCAM_DIR" ] && [ ! -L "$HCAM_DIR/SamsungCamera.apk" ]; then
     case "$(getprop ro.product.model):$(getprop ro.soc.manufacturer):$(getprop ro.board.platform)" in
-        SM-[AM]*:[Mm]ediatek:*|SM-[AM]*:MediaTek:*|SM-[AM]*:MEDIATEK:*|SM-[AM]*:*:mt[0-9]*)
+        SM-F936*:*|SM-[AM]*:[Mm]ediatek:*|SM-[AM]*:MediaTek:*|SM-[AM]*:MEDIATEK:*|SM-[AM]*:*:mt[0-9]*)
             $BB umount -l "$OAC_DST" 2>/dev/null || true
             if $BB mount --bind "$HCAM_DIR" "$OAC_DST" && $BB mount -o remount,bind,ro "$OAC_DST" 2>/dev/null; [ -f "$OAC_DST/SamsungCamera.apk" ]; then
                 ONEUI_A_CAMERA=1
@@ -7854,9 +7896,9 @@ fi
 # Both floating feature files can supply defaults, so give them the same values
 # derived from the Fold8. The 20271 floor and the optional ProScan capability
 # apply to this guest only and preserve the donor's other scanner solutions.
-if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
+if { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "$FORM" = fold ] &&
    [ "${ONEOS_ONEUI_FLOATING:-1}" = 1 ] &&
-   grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
+   grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
     oneui95_fold8_features() {
         local input="$1" output="$2" scanner="$3"
         awk -v scanner="$scanner" '
@@ -7901,7 +7943,7 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
                     set_feature(key, content)
                 if (key == wallpaper && content ~ /^[A-Z0-9_,]+$/ && content ~ /(^|,)LID(,|$)/)
                     set_feature(key, content)
-                if (key == brand && content ~ /^Galaxy Z Fold8( [A-Za-z0-9 ]+)?$/)
+                if (key == brand && content ~ /^Galaxy Z Fold[0-9]( [A-Za-z0-9 ]+)?$/)
                     set_feature(key, content)
                 if ((key == statusbar || key == subdisplay) && content ~ /^[A-Za-z0-9_,]+$/)
                     set_feature(key, content)

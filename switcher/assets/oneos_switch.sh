@@ -3109,7 +3109,26 @@ while true; do
             if [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ] && [ $GUEST_OPLUS = 1 ]; then
                 echo '[UI Activator] density and fold line: left to ColorOS'
             elif [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ] && [ $GUEST_ONEUI = 1 ]; then
-                echo '[UI Activator] density and fold line: left to One UI'
+                IN=\$(cat $STAGE/data/oneos_inner_display 2>/dev/null)
+                case \"\$IN\" in ''|*[!0-9]*) IN=none ;; esac
+                L=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys display 2>/dev/null | grep -m1 \"DisplayDeviceInfo.*uniqueId=.local:\$IN.,\")
+                W=\$(echo \"\$L\" | sed -n 's/.*uniqueId=.local:[0-9]*., \([0-9]*\) x \([0-9]*\), .*/\1/p')
+                H=\$(echo \"\$L\" | sed -n 's/.*uniqueId=.local:[0-9]*., \([0-9]*\) x \([0-9]*\), .*/\2/p')
+                if [ -n \"\$W\" ] && [ -n \"\$H\" ] && { [ \"$ONEOS_PROFILE\" = f4 ] || [ \"$ONEOS_PROFILE\" = f8 ]; }; then
+                    # Apply 420 dpi forced density on inner display so elements are not miniature
+                    ( i=0
+                      while [ \$i -lt 300 ]; do
+                          sleep 2; i=\$((i + 1))
+                          if $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | grep -q -x \"Physical size: \${W}x\${H}\"; then
+                              $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density 420 -d 0 >/dev/null 2>&1
+                              echo \"[UI Activator] One UI fold density: forced 420 dpi on inner panel (\${W}x\${H})\"
+                              break
+                          fi
+                      done ) &
+                    echo '[UI Activator] density and fold line: One UI fold density worker started (420 dpi)'
+                else
+                    echo '[UI Activator] density and fold line: left to One UI'
+                fi
             elif [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ]; then
                 IN=\$(cat $STAGE/data/oneos_inner_display 2>/dev/null)
                 case \"\$IN\" in ''|*[!0-9]*) IN=none ;; esac
