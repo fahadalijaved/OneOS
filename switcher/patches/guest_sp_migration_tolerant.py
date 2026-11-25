@@ -25,7 +25,7 @@ SIG = ".method public final migrateUserToSpWithBoundKeysLocked(I)V"
 CALL = re.compile(
     r"^(    invoke-virtual \{(p0|v\d+), (p1|v\d+)\}, Lcom/android/server/locksettings/LockSettingsService;"
     r"->initializeSyntheticPassword\(I\)Lcom/android/server/locksettings/(?:SyntheticPasswordManager\$)?SyntheticPassword;\n)"
-    r"(\n)?"
+    r"((?:\s*\.line \d+\n|[ \t]*\n)*)"
     r"(    return-void\n)", re.M)
 
 

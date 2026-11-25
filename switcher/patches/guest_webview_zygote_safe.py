@@ -20,6 +20,7 @@ Usage: guest_webview_zygote_safe.py <smali root dir>
 Prints the smali_* directory (dex file) it changed.
 """
 import os
+import re
 import sys
 
 HEADER = ".method public ensureZygoteStarted()V"
@@ -125,8 +126,9 @@ def patch_lambda(root):
     smali = open(path).read()
     for call in CALLS:
         old = LAMBDA_RUN.replace("{call}", call)
-        if smali.count(old) == 1:
-            open(path, "w").write(smali.replace(old, LAMBDA_PATCHED.replace("{call}", call)))
+        pat = re.compile(r"(?:\n|\s*\.line \d+\n)+".join(re.escape(l) for l in old.splitlines() if l.strip()))
+        if len(pat.findall(smali)) == 1:
+            open(path, "w").write(pat.sub(lambda m: LAMBDA_PATCHED.replace("{call}", call), smali, count=1))
             print("WebViewUpdateServiceImpl2 zygote Runnable: a failed WebView zygote start is logged, not fatal (One UI 9.5 shape)", file=sys.stderr)
             print(os.path.relpath(path, root).split(os.sep)[0])
             return True

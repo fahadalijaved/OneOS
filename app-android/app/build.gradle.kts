@@ -78,6 +78,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "hyper-hk" to (File(repoRoot, "out/overlays_hyperos_hk_r5") to listOf("tethering_payload.img")),
     // HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM) on Galaxy Z Fold4.
     "hyper16" to (File(repoRoot, "out/overlays_hyperos16") to listOf("tethering_payload.img")),
+    // One UI 8.5 (Android 16, SDK 36, F956BXXS4DZI1 from Galaxy Z Fold6) on Galaxy Z Fold4.
+    "oneui85-f6" to (File(repoRoot, "out/overlays_oneui85_fold6") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
     "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r41") to listOf("tethering_payload.img")),
     "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r8") to listOf("tethering_payload.img")),
@@ -305,7 +307,7 @@ abstract class OneOsFilesTask : DefaultTask() {
         fun putSet(src: File, sum: String, problems: MutableList<String>) {
             if (pack) { put(src, sum); return }
             val id = ids[sum]
-            if (id == null) { problems += "${src.name} ($sum) is not on Drive: run scripts/release-files.py"; return }
+            if (id == null) { if (src.isFile) { put(src, sum); return }; problems += "${src.name} ($sum) is not on Drive: run scripts/release-files.py"; return }
             sizes[sum] = src.length()
             remote[sum] = id
         }
@@ -537,8 +539,8 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 186
-        versionName = "0.5.37.7"
+        versionCode = 187
+        versionName = "0.5.37.8"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's

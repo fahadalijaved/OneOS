@@ -217,6 +217,8 @@ object Profiles {
     private val ONEUI95_CHOICE = ImageChoice(Images.ID_ONEUI95, PackageSets.ID_ONEUI95, tested = false)
     /** 0.5.35: the Z Fold8's own One UI 9.5 set, with Josh's Fold8 files ([PackageSets.ONEUI95_F8]). */
     private val ONEUI95_F8_CHOICE = ImageChoice(Images.ID_ONEUI95, PackageSets.ID_ONEUI95_F8, tested = false)
+    /** Fold6 One UI 8.5 (Android 16, SDK 36) for Galaxy Z Fold4. */
+    private val ONEUI85_F6_CHOICE = ImageChoice(Images.ID_ONEUI85_F6, PackageSets.ID_ONEUI85_F6, tested = false)
 
     /**
      * HyperOS (0.4.31, owner: "Allow all users to try"), made for the Z Fold8 Ultra
@@ -823,7 +825,7 @@ object Profiles {
         codename = "q4q",
         socModel = "SM8475",
         form = FormFactor.FOLD,
-        choices = listOf(OXYGEN16_CHOICE.copy(tested = true), PIXEL16_CHOICE, HYPER16_CHOICE),
+        choices = listOf(OXYGEN16_CHOICE.copy(tested = true), PIXEL16_CHOICE, HYPER16_CHOICE, ONEUI85_F6_CHOICE),
         notes = listOf(olderVendor("31 (Android 12)", "5.10"), FOLD4_ISSUES),
     )
 

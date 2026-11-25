@@ -41,17 +41,15 @@ NEEDED = (
 # specs = v8; v0 must stay as it is (read after the check); v6 and v9 are overwritten right
 # after the check, so they are the scratch registers. Samsung's Slog wrapper logs the message.
 SAMSUNG_OLD = re.compile(r"""    const-string v0, "Desired display mode specs from SurfaceFlinger are null"
-
-    invoke-static \{v6, v0\}, Lcom/android/server/power/Slog;->w\(Ljava/lang/String;Ljava/lang/String;\)I
-
-    return-void
+(?:\n|    \.line \d+\n)*    invoke-static \{v6, v0\}, Lcom/android/server/power/Slog;->w\(Ljava/lang/String;Ljava/lang/String;\)I
+(?:\n|    \.line \d+\n)*    return-void
 """)
 SAMSUNG_NEEDED = (
     re.compile(r"    invoke-static \{v2\}, Landroid/view/SurfaceControl;->getDesiredDisplayModeSpecs\(Landroid/os/IBinder;\)"
-               + re.escape(DS) + r"\n\n    move-result-object v8\n\n    if-nez v8, :cond_6\n\n"),
+               + re.escape(DS) + r"(?:\n|    \.line \d+\n)*    move-result-object v8(?:\n|    \.line \d+\n)*    if-nez v8, :cond_6(?:\n|    \.line \d+\n)*"),
     re.compile(r"iget v8, v7, Landroid/view/SurfaceControl\$DynamicDisplayInfo;->activeColorMode:I"),
     re.compile(r"    :cond_6\n    iget-object v6, v1, Lcom/android/server/display/LocalDisplayAdapter;->mDevices:"
-               r"Landroid/util/LongSparseArray;\n\n    invoke-virtual \{v6, v3, v4\}"),
+               r"Landroid/util/LongSparseArray;(?:\n|    \.line \d+\n)*    invoke-virtual \{v6, v3, v4\}"),
 )
 
 

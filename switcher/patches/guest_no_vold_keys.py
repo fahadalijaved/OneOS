@@ -74,10 +74,12 @@ def main(root):
     # IVold.lockCeStorage itself, a sixth call (it would lock One UI's user CE key);
     # the other five are as before, plus Samsung's four keep-storage key calls
     # (KEEP_CALLS). Any other count stops.
+    ONEUI85 = {"createUserStorageKeys": 1, "destroyUserStorageKeys": 1,
+               "setCeStorageProtection": 2, "unlockCeStorage": 1, "lockCeStorage": 1}
     ONEUI95 = {"createUserStorageKeys": 1, "destroyUserStorageKeys": 1,
                "setCeStorageProtection": 2, "unlockCeStorage": 1, "lockCeStorage": 1,
                "lockKeepKeyStorage": 2, "setKeepKeyStorageProtection": 1, "unlockKeepKeyStorage": 1}
-    if removed != 5 and names != ONEUI95:
+    if removed != 5 and names not in (ONEUI85, ONEUI95):
         sys.exit(f"expected 5 IVold key calls, found {removed}")
     for d in sorted(changed_dirs):
         print(d)

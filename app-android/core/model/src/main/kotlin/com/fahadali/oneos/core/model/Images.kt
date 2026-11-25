@@ -141,6 +141,7 @@ object Images {
     const val ID_LINEAGE = "lineage24-infiniti"
     /** Starts with "oneui": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_ONEUI95 = "oneui95-s948b"
+    const val ID_ONEUI85_F6 = "oneui85-f956b"
     const val ID_PIXELOS_ONYX = "pixelos17-onyx"
 
     /** Where root stages the unpacked image. */
@@ -691,6 +692,34 @@ object Images {
     )
 
     /**
+     * One UI 8.5 (Android 16, SDK 36, F956BXXS4DZI1 from Galaxy Z Fold6),
+     * for Galaxy Z Fold4 on One UI 8.0/8.5. Built with OneOS Fold overlays
+     * and native foldable layout support.
+     */
+    val ONEUI85_F6 = ImageRef(
+        id = ID_ONEUI85_F6,
+        label = "One UI 8.5, Galaxy Z Fold6 build",
+        shortName = "One UI 8.5",
+        name = "One UI 8.5",
+        variant = "Fold6 Port · Experimental",
+        blurb = "Samsung One UI 8.5 (Android 16) from Galaxy Z Fold6, for Galaxy Z Fold4. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 36,
+        buildId = "F956BXXS4DZI1",
+        gzName = "OneOS_OneUI8.5_Fold6.img.gz",
+        gzBytes = 7_946_922_526L,
+        gzSha256 = "93fd578ffd41e3d303af380af96f675e55d2085135286e7bbdaccd2fe43688d5",
+        rawBytes = 14_155_776_000L,
+        rawSha256 = "21e4aa0f52a73276582b7ebbe95eedbf58653a4d1357490206f3c1a59b6229a7",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = false,
+        family = SystemFamily.ONEUI,
+    )
+
+    /**
      * 0.5.10: a stage whose guest data an image (key) made may keep it when its phone is set up with the
      * newer build of the same system (value), as an over-the-air update would: the first Find X9 Ultra IN
      * build is retired for the 1105 build (owner), and nothing else moves. Never the other way.
@@ -731,7 +760,7 @@ object Images {
         family = SystemFamily.PIXELOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, PIXEL16, HYPEROS16, ORIGINOS7, LINEAGE24, ONEUI95, PIXELOS_ONYX)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, PIXEL16, HYPEROS16, ORIGINOS7, LINEAGE24, ONEUI95, ONEUI85_F6, PIXELOS_ONYX)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

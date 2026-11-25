@@ -44,7 +44,7 @@ def main(root):
         if not m:
             continue
         j = k + 1
-        while lines[j].strip() == "":
+        while lines[j].strip() == "" or lines[j].strip().startswith(".line"):
             j += 1
         if re.match(rf"^\s*if-nez {m.group(1)}, :cond_\w+$", lines[j]):
             hits.append((k, j))

@@ -180,6 +180,7 @@ object PackageSets {
     const val ID_LINEAGE = "lineage"
     const val ID_ONEUI95 = "oneui95"
     const val ID_ONEUI95_F8 = "oneui95-f8"
+    const val ID_ONEUI85_F6 = "oneui85-f6"
     const val ID_PIXELOS = "pixelos"
 
     /** Never mounted (guest_prepare.sh only keeps the host module); left out of every set. */
@@ -1040,6 +1041,33 @@ object PackageSets {
     )
 
     /**
+     * One UI 8.5 (Android 16, SDK 36, F956BXXS4DZI1 from Galaxy Z Fold6) for Galaxy Z Fold4:
+     * built from out/overlays_oneui85_fold6 using make-overlays.sh with ONEOS_NO_CAMERA_ABI=1
+     * and host_installd_a16.txt.
+     */
+    val ONEUI85_F6 = PackageSet(
+        id = ID_ONEUI85_F6,
+        imageId = Images.ID_ONEUI85_F6,
+        sourceDir = "out/overlays_oneui85_fold6",
+        files = listOf(
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+        ) + (COMMON_PAYLOADS + listOf("bt", "cellbroadcast", "conscrypt", "profiling", "telephonycore"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING),
+        approxBytes = 353_874_762L,
+        hasReturnApp = true,
+    )
+
+    /**
      * PixelOS 17 for the Galaxy A series (0.5.35, untested): [Images.PIXELOS_ONYX], the POCO F7 / Redmi Turbo 4 Pro build,
      * a source-built AOSP system with Google's apps that the ARMv8.2 A-series CPUs can run (Google's Pixel 9 Pro XL
      * build cannot: PAuth and RCpc2 in its linker). make-overlays.sh on that image (r1): the guard jars, the guest vold
@@ -1080,7 +1108,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, HYPER16, NOTHING_F8U, NOTHING_A, OXYGEN16, PIXEL16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, PIXELOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, HYPER16, NOTHING_F8U, NOTHING_A, OXYGEN16, PIXEL16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, ONEUI85_F6, PIXELOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

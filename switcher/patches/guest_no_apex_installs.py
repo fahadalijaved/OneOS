@@ -126,7 +126,7 @@ SAMSUNG_SITES = {
     ("RecoverySystemService.smali", "reserveSpaceForCompressedApex"): "drop",
     ("RollbackManagerServiceImpl.smali", "destroyDeSnapshots"): "drop",
     ("RollbackManagerServiceImpl.smali", "destroyCeSnapshots"): "drop",
-    ("RollbackManagerServiceImpl$$ExternalSyntheticLambda1.smali", "destroyCeSnapshotsNotSpecified"): "drop",
+    ("RollbackManagerServiceImpl$$ExternalSyntheticLambda", "destroyCeSnapshotsNotSpecified"): "drop",
     ("AppDataRollbackHelper.smali", "restoreCeData"): "drop",
     ("AppDataRollbackHelper.smali", "snapshotCeData"): "drop",
     ("InstallingSession.smali", "installAndActivatePackage"): "throw",
@@ -235,7 +235,10 @@ def samsung_sites(root, foreign_at):
                         + re.escape(APEXD) + r"->(\w+)\(([^)]*)\)(\S+)\s*$")
     seen = {}
     for path, name in foreign_at:
-        key = (os.path.basename(path), name)
+        b = os.path.basename(path)
+        if b.startswith("RollbackManagerServiceImpl$$ExternalSyntheticLambda"):
+            b = "RollbackManagerServiceImpl$$ExternalSyntheticLambda"
+        key = (b, name)
         if key not in SAMSUNG_SITES:
             sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} is not a known inlined call")
         seen.setdefault(key, []).append(path)
@@ -259,12 +262,12 @@ def samsung_sites(root, foreign_at):
                 sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} is not void")
         else:
             # installAndActivatePackage(String, Z) -> ApexInfo, then move-result-object
-            nxt = next(l.strip() for l in lines[idx[0] + 1:] if l.strip())
+            nxt = next(l.strip() for l in lines[idx[0] + 1:] if l.strip() and not l.strip().startswith(".line"))
             if m.group(6) != "Landroid/apex/ApexInfo;" or not re.match(r"move-result-object [vp]\d+$", nxt) \
                     or not m.group(3) or not m.group(2).startswith("v") or not m.group(3).startswith("v"):
                 sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} call not as expected")
             if not any(re.match(r"^\s*\.catch Ljava/lang/Exception; \{:try_start_\d+ \.\. :try_end_\d+\} :catch_\d+$", l)
-                       for l in lines[idx[0]:idx[0] + 8]):
+                       for l in lines[idx[0]:idx[0] + 20]):
                 sys.exit(f"{os.path.relpath(path, root)}: IApexService.{name} is not covered by a catch of Exception")
 
     def apply():
@@ -276,7 +279,7 @@ def samsung_sites(root, foreign_at):
                             f"{ind}nop")
             else:
                 svc, arg = m.group(2), m.group(3)
-                j = next(k for k in range(i + 1, len(lines)) if lines[k].strip())
+                j = next(k for k in range(i + 1, len(lines)) if lines[k].strip() and not lines[k].strip().startswith(".line"))
                 lines[j] = f"{ind}nop"
                 lines[i] = (f"{ind}# OneOS: no rebootless APEX install from the guest (apexd is the phone's, One UI's);\n"
                             f"{ind}# the call's own handler turns this into PackageManagerException(-110, message).\n"
