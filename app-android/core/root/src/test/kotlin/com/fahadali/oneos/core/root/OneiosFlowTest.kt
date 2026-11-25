@@ -75,8 +75,9 @@ class OneiosFlowTest {
     fun everyRefusalOfTheSwitchAndRootScriptsHasPlainWords() {
         val switch = File(Shipped.switcherAssets, "oneios_switch.sh").readText()
         val root = File(Shipped.fullAssets, OneiosRoot.ASSET).readText()
-        // The hardware checks' refusals are their own screen's (OneiosChecks), not this flow's.
-        val rootFlow = root.substringBefore("# --- Hardware checks")
+        // The hardware checks' refusals are their own screen's (OneiosChecks), not this flow's; so are the switches' (conf,
+        // just before them: the Switches screen shows root's words as they are).
+        val rootFlow = root.substringBefore("# --- xnuhost's switches").also { assertTrue(it.length < root.substringBefore("# --- Hardware checks").length) }
         val launcher = Regex("""@@REFUSED ([^"]*)"""").findAll(OneiosRoot.TEMPLATE).map { it.groupValues[1].replace("\$S", "/data/local/tmp/oneios").replace("\$m", "/proc/1/mountinfo") }.toList()
         val all = refusals(switch) + refusals(rootFlow) + launcher
         assertTrue("found only ${all.size} refusals", all.size > 60)

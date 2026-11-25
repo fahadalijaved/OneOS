@@ -3,7 +3,7 @@ package com.fahadali.oneos.session
 import android.content.Context
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.OneiosTool
-import com.fahadali.oneos.ui.OneiosSetupActivity
+import com.fahadali.oneos.ui.OneiosActivity
 import com.fahadali.oneos.ui.OneiosToolActivity
 
 /**
@@ -65,7 +65,7 @@ class OneiosService : KeepAliveService() {
     }
 
     // Set up iOS 27 shows the download or import with its bytes; a tool flow has its own screen.
-    override fun screen() = if (OneiosToolJob.state.busy) OneiosToolActivity.intent(this) else OneiosSetupActivity.intent(this)
+    override fun screen() = if (OneiosToolJob.state.busy) OneiosToolActivity.intent(this) else OneiosActivity.intent(this)
 
     override fun onDestroy() {
         OneiosToolJob.serviceStopped()

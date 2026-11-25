@@ -119,6 +119,19 @@
 #   untool                      the backstop: ends every process of the
 #                               staged bin/oneios-tool serve (SIGTERM, 2 s,
 #                               SIGKILL)
+#   conf <load|show|check|set|unset|write|write-force|restore>
+#                               xnuhost's switches: the staged image's
+#                               overlay/userland/xnuhost.conf through the
+#                               staged bin/oneios-tool (switches --json, conf
+#                               show|check|set|unset|write|restore) on root's
+#                               copy in $STAGE/conf; a change goes in with its
+#                               lines of image.sha256, image.ids and
+#                               manifest.json rewritten (and kernel.prev's).
+#                               stdin: set's NAME=VALUE lines, unset's names,
+#                               write's and check's text (64 KiB at most).
+#                               load, show and check only read; the others
+#                               never during a session. A tool without conf:
+#                               the plain file, no checks
 #
 # Writes: only under $STAGE (/data/local/tmp/oneios), which is root's, mode
 # 0700, and separate from OneOS's Android stage. Nothing of One UI's data, no
@@ -1133,6 +1146,274 @@ do_remove() {
     say "@@OK remove"
 }
 
+# --- xnuhost's switches (docs/oneios.md, "UI (2026-11-25)") ------------------
+# The staged image's overlay/userland/xnuhost.conf, for the app's Switches and
+# Edit file screens. The image's files are listed in image.sha256, image.ids
+# and manifest.json, and the switch's preflight refuses a file that is not the
+# listed one, or one the lists do not name: so the tool never writes in
+# image/. Root keeps a copy in $STAGE/conf (made again whenever the live file
+# differs from it), runs the staged bin/oneios-tool conf on that copy (only
+# the file root hashed at staging, as tool does), and when the copy changed
+# moves it in and rewrites its lines in image.sha256, image.ids and
+# manifest.json, and those of a kept kernel set (kernel.prev), so restoring
+# the kernel keeps the file listed. Every call names the staged runtime's
+# catalog (--runtime, its lib/switches.json); a tool that has conf but cannot
+# read that catalog checks with its own. A runtime whose tool has no conf
+# (older than v0.1.33: its answer is usage, exit 2) gets the plain file: shown
+# as it is, written as given, no checks. The tool keeps FILE.bak beside the
+# copy (its Restore previous). Writes are refused during a session. The
+# answer: @@RESULT conf tool|plain, then parts (@@RESULT part <name>, each line
+# "| <text>"): catalog (load), show (the tool's conf show), text (the plain
+# file), answer (the tool's answer to check, set, unset, write, restore).
+CONF_REL=overlay/userland/xnuhost.conf
+CONF_MAX=65536
+CONF_NAMES_MAX=64
+CONF_LIMIT=30
+# The first OneiOS runtime whose oneios-tool has switches and conf.
+CONF_FIRST=0.1.33
+conf_cmd() { # <out> <stdin> <op> <args...>: oneios-tool conf <op> --json [--runtime DIR] <args...>
+    c_o=$1 c_i=$2 c_op=$3
+    shift 3
+    if [ -n "$CONF_RT" ]; then
+        conf_run "$c_o" "$c_i" conf "$c_op" --json --runtime "$CONF_RT" "$@"
+    else
+        conf_run "$c_o" "$c_i" conf "$c_op" --json "$@"
+    fi
+}
+conf_tool_ok() { # the staged bin/oneios-tool can run: the runtime is root's, the tool the file hashed at staging
+    [ -f "$STAGE/runtime.conf" ] && mine "$STAGE/runtime.conf" && [ -d "$STAGE/runtime" ] || return 1
+    [ -f "$TOOL_BIN" ] && [ ! -L "$TOOL_BIN" ] && [ -x "$TOOL_BIN" ] || return 1
+    c_want=$(awk '$2 == "bin/oneios-tool" { print $1 }' "$STAGE/runtime.sha256" 2>/dev/null | head -n 1)
+    [ -n "$c_want" ] && [ "$(sha "$TOOL_BIN")" = "$c_want" ]
+}
+conf_run() { # <out> <stdin> <args...>: the tool's standard output into <out>; returns its exit code
+    c_out=$1 c_in=$2
+    shift 2
+    TMPDIR="$CONF_W" timeout "$CONF_LIMIT" "$TOOL_BIN" "$@" < "$c_in" > "$c_out" 2> "$CONF_W/err"
+}
+conf_err() { head -c 300 "$CONF_W/err" 2>/dev/null | tr '\n' ' '; }
+conf_part() { # <name> <file>: one part of the answer
+    say "@@RESULT part $1"
+    awk '{ print "| " $0 }' "$2"
+}
+conf_take() { # <file>: stdin into <file>, CONF_MAX bytes at most
+    head -c $((CONF_MAX + 1)) > "$1" || die "could not read the text"
+    c_n=$(wc -c < "$1" | tr -d ' ')
+    is_dec "$c_n" && [ "$c_n" -le "$CONF_MAX" ] || refuse "the text is over $CONF_MAX bytes"
+}
+# <path> <size> <sha256>: that manifest entry's size and SHA-256, stdin to
+# stdout (as manifest_rekernel, for any path; the entry on one line or on
+# several). Exit 1 unless the path is there once with both, before the next.
+manifest_refile() {
+    awk -v p="\"path\": \"$1\"" -v s="$2" -v h="$3" '
+        index($0, p) { n++; if (st == 0) st = 1 }
+        st == 1 && NR > at && /"path": *"/ && !index($0, p) { bad = 1 }
+        st == 1 && /"size": *[0-9]+/ { sub(/"size": *[0-9]+/, "\"size\": " s); st = 2; at = NR }
+        st == 2 && NR > at && /"path": *"/ { bad = 1 }
+        st == 2 && /"sha256": *"[0-9a-f]+"/ { sub(/"sha256": *"[0-9a-f]+"/, "\"sha256\": \"" h "\""); st = 3 }
+        { print }
+        END { exit(st == 3 && n == 1 && !bad ? 0 : 1) }
+    '
+}
+conf_lists() { # <lists dir> <manifest.json> <out>: the new manifest.json and image.sha256 for the new file, checked
+    l_d=$1 l_m=$2 l_o=$3
+    mkdir "$l_o" && own "$l_o" 0700 || return 1
+    [ "$(list_count "$l_d/image.sha256" "$CONF_REL")" = 1 ] && [ "$(list_count "$l_d/image.ids" "$CONF_REL")" = 1 ] &&
+        [ "$(list_count "$l_d/image.sha256" manifest.json)" = 1 ] || return 1
+    manifest_refile "$CONF_REL" "$c_bytes" "$c_sha" < "$l_m" > "$l_o/manifest.json" || return 1
+    l_msha=$(sha "$l_o/manifest.json")
+    { echo "$c_sha $CONF_REL"; echo "$l_msha manifest.json"; } > "$l_o/sums.changes" &&
+        sums_set "$l_d/image.sha256" "$l_o/sums.changes" > "$l_o/image.sha256" || return 1
+    [ "$(grep -Fxc -- "$c_sha  $CONF_REL" "$l_o/image.sha256")" = 1 ] &&
+        [ "$(grep -Fxc -- "$l_msha  manifest.json" "$l_o/image.sha256")" = 1 ] || return 1
+}
+conf_install() { # <file>: becomes the image's xnuhost.conf; its lists and manifests follow (and kernel.prev's)
+    c_new=$1
+    c_sha=$(sha "$c_new")
+    if [ "$c_sha" = "$(sha "$CONF_LIVE")" ]; then
+        say "@@RESULT conf unchanged"
+        return 0
+    fi
+    c_bytes=$(wc -c < "$c_new" | tr -d ' ')
+    is_dec "$c_bytes" && is_hex64 "$c_sha" || die "could not read the new xnuhost.conf"
+    c_x="$CONF_W/tx"
+    rm -rf "$c_x" && mkdir "$c_x" && own "$c_x" 0700 || die "could not make $c_x"
+    # Every rewrite first, checked, before anything moves (as the kernel's activation).
+    conf_lists "$STAGE" "$STAGE/image/manifest.json" "$c_x/live" ||
+        refuse "the image's lists or manifest.json do not name $CONF_REL once: stage the image set again"
+    c_prev=
+    if [ -d "$STAGE/kernel.prev" ] && mine "$STAGE/kernel.prev"; then
+        conf_lists "$STAGE/kernel.prev" "$STAGE/kernel.prev/manifest.json" "$c_x/prev" ||
+            refuse "the kept kernel set's lists do not name $CONF_REL once: restore or update the kernel first"
+        c_prev=1
+    fi
+    cp "$c_new" "$c_x/xnuhost.conf" && own "$c_x/xnuhost.conf" 0644 || die "could not copy the new xnuhost.conf"
+    mv -f "$c_x/xnuhost.conf" "$CONF_LIVE" || die "could not put the new xnuhost.conf in place"
+    mv -f "$c_x/live/manifest.json" "$STAGE/image/manifest.json" && own "$STAGE/image/manifest.json" 0644 &&
+        own "$c_x/live/image.sha256" 0600 && mv -f "$c_x/live/image.sha256" "$STAGE/image.sha256" ||
+        die "could not put the new lists in place"
+    c_cid=$(file_id "$CONF_LIVE")
+    c_mid=$(file_id "$STAGE/image/manifest.json")
+    case "$c_cid$c_mid" in ''|*'
+'*) die "could not read the new files back" ;; esac
+    { echo "$c_cid $CONF_REL"; echo "$c_mid manifest.json"; } > "$c_x/live/ids.changes" &&
+        ids_set "$STAGE/image.ids" "$c_x/live/ids.changes" > "$c_x/live/image.ids" && own "$c_x/live/image.ids" 0600 &&
+        mv -f "$c_x/live/image.ids" "$STAGE/image.ids" || die "could not rewrite image.ids"
+    if [ -n "$c_prev" ]; then
+        # The kept set names the live file too (a restore of the kernel moves its lists in, not this file); its
+        # manifest.json's id is set again by the restore itself.
+        echo "$c_cid $CONF_REL" > "$c_x/prev/ids.changes" &&
+            ids_set "$STAGE/kernel.prev/image.ids" "$c_x/prev/ids.changes" > "$c_x/prev/image.ids" ||
+            die "could not rewrite the kept kernel set's image.ids"
+        for c_f in manifest.json image.sha256 image.ids; do
+            own "$c_x/prev/$c_f" 0600 && mv -f "$c_x/prev/$c_f" "$STAGE/kernel.prev/$c_f" ||
+                die "could not rewrite the kept kernel set's $c_f"
+        done
+    fi
+    cp "$CONF_LIVE" "$CONF_W/xnuhost.conf" && own "$CONF_W/xnuhost.conf" 0600 || die "could not keep the copy"
+    rm -rf "$c_x"
+    [ -n "$T" ] || sync
+    SHOW_FRESH=
+    say "@@RESULT conf installed $c_sha $c_bytes"
+}
+conf_work() { # CONF_W: root's folder with a copy of the live file, made again when the live one differs
+    CONF_W="$STAGE/conf"
+    [ ! -L "$CONF_W" ] || refuse "$CONF_W is a link"
+    if [ -d "$CONF_W" ] && mine "$CONF_W" && [ -f "$CONF_W/xnuhost.conf" ] &&
+        [ "$(sha "$CONF_W/xnuhost.conf")" = "$(sha "$CONF_LIVE")" ]; then
+        return 0
+    fi
+    rm -rf "$CONF_W" && mkdir "$CONF_W" && own "$CONF_W" 0700 || die "could not make $CONF_W"
+    cp "$CONF_LIVE" "$CONF_W/xnuhost.conf" && own "$CONF_W/xnuhost.conf" 0600 || die "could not copy xnuhost.conf"
+}
+conf_show_part() { # the file now: the tool's conf show (again after a change), or the plain text
+    if [ "$CONF_MODE" = tool ]; then
+        if [ -z "$SHOW_FRESH" ]; then
+            conf_cmd "$CONF_W/show.json" /dev/null show "$CONF_W/xnuhost.conf"
+            c_rc=$?
+            [ $c_rc -le 1 ] || die "oneios-tool conf show failed (exit $c_rc): $(conf_err)"
+        fi
+        conf_part show "$CONF_W/show.json"
+    else
+        conf_part text "$CONF_LIVE"
+    fi
+}
+conf_answer() { # <rc> <op>: the tool's answer to a change; 0 puts the copy in, a refusal leaves everything as it was
+    a_rc=$1 a_err=$(conf_err)
+    [ "$a_rc" -le 2 ] || die "oneios-tool conf $2 failed (exit $a_rc): $a_err"
+    conf_part answer "$CONF_W/answer.json"
+    if [ "$a_rc" = 0 ]; then
+        conf_install "$CONF_W/xnuhost.conf"
+        conf_show_part
+        return 0
+    fi
+    cp "$CONF_LIVE" "$CONF_W/xnuhost.conf" || die "could not copy xnuhost.conf"
+    SHOW_FRESH=
+    conf_show_part
+    [ "$a_rc" = 1 ] && refuse "oneios-tool refused conf $2 (its answer above)"
+    refuse "oneios-tool: usage: conf $2: $a_err"
+}
+do_conf() {
+    [ $# -eq 1 ] || usage "conf <load|show|check|set|unset|write|write-force|restore>"
+    op=$1
+    case "$op" in
+        load|show|check|set|unset|write|write-force|restore) ;;
+        *) usage "conf: '$op' is not load, show, check, set, unset, write, write-force or restore" ;;
+    esac
+    stage_ok
+    [ -f "$STAGE/image.conf" ] && mine "$STAGE/image.conf" && [ -d "$STAGE/image" ] && [ ! -L "$STAGE/image" ] ||
+        refuse "no iOS image set is staged: xnuhost.conf comes with it"
+    CONF_LIVE="$STAGE/image/$CONF_REL"
+    [ ! -L "$STAGE/image/overlay" ] && [ ! -L "$STAGE/image/overlay/userland" ] && [ -f "$CONF_LIVE" ] && mine "$CONF_LIVE" ||
+        refuse "the staged image set has no $CONF_REL: make the iOS image again"
+    case "$op" in load|show|check) ;; *) session_open && refuse "an iOS session is running: return to One UI first" ;; esac
+    conf_work
+    CONF_MODE=plain SHOW_FRESH= CONF_RT="$STAGE/runtime"
+    if conf_tool_ok; then
+        conf_cmd "$CONF_W/show.json" /dev/null show "$CONF_W/xnuhost.conf"
+        c_rc=$?
+        if [ $c_rc = 1 ]; then
+            # The runtime's catalog could not be read: the tool's own one.
+            CONF_RT=
+            conf_cmd "$CONF_W/show.json" /dev/null show "$CONF_W/xnuhost.conf"
+            c_rc=$?
+        fi
+        case $c_rc in
+            0) CONF_MODE=tool SHOW_FRESH=1 ;;
+            1|2) ;;
+            *) die "oneios-tool conf show failed (exit $c_rc): $(conf_err)" ;;
+        esac
+    fi
+    say "@@RESULT conf $CONF_MODE"
+    case "$op" in
+        load)
+            if [ "$CONF_MODE" = tool ] && conf_run "$CONF_W/catalog.json" /dev/null switches --json --runtime "$STAGE/runtime"; then
+                conf_part catalog "$CONF_W/catalog.json"
+            else
+                say "@@RESULT catalog none"
+            fi
+            conf_show_part ;;
+        show) conf_show_part ;;
+        check)
+            [ "$CONF_MODE" = tool ] || refuse "this runtime's oneios-tool cannot check xnuhost.conf: get the runtime (v$CONF_FIRST or newer)"
+            conf_take "$CONF_W/check.conf"
+            conf_cmd "$CONF_W/answer.json" /dev/null check "$CONF_W/check.conf"
+            c_rc=$?
+            [ $c_rc -le 1 ] || die "oneios-tool conf check failed (exit $c_rc): $(conf_err)"
+            conf_part answer "$CONF_W/answer.json" ;;
+        set|unset)
+            [ "$CONF_MODE" = tool ] || refuse "this runtime's oneios-tool cannot change switches: get the runtime (v$CONF_FIRST or newer)"
+            conf_take "$CONF_W/in"
+            set --
+            c_n=0
+            while IFS= read -r c_l || [ -n "$c_l" ]; do
+                [ -n "$c_l" ] || continue
+                c_n=$((c_n + 1))
+                [ $c_n -le $CONF_NAMES_MAX ] || refuse "conf $op: more than $CONF_NAMES_MAX switches at once"
+                c_k=${c_l%%=*}
+                case "$c_k" in ''|[!A-Za-z0-9]*|*[!A-Za-z0-9._-]*) refuse "conf $op: '$c_k' is not a switch name" ;; esac
+                [ ${#c_k} -le 64 ] || refuse "conf $op: '$c_k' is not a switch name"
+                if [ "$op" = unset ]; then
+                    [ "$c_l" = "$c_k" ] || refuse "conf unset takes names, one a line"
+                else
+                    [ "$c_l" != "$c_k" ] || refuse "conf set takes NAME=VALUE, one a line"
+                fi
+                set -- "$@" "$c_l"
+            done < "$CONF_W/in"
+            [ $# -gt 0 ] || refuse "conf $op: no switch named"
+            conf_cmd "$CONF_W/answer.json" /dev/null "$op" "$CONF_W/xnuhost.conf" "$@"
+            conf_answer $? "$op" ;;
+        write|write-force)
+            conf_take "$CONF_W/in"
+            if [ "$CONF_MODE" = tool ]; then
+                if [ "$op" = write-force ]; then
+                    conf_cmd "$CONF_W/answer.json" "$CONF_W/in" write --force "$CONF_W/xnuhost.conf"
+                else
+                    conf_cmd "$CONF_W/answer.json" "$CONF_W/in" write "$CONF_W/xnuhost.conf"
+                fi
+                conf_answer $? "$op"
+            else
+                # The plain file: the one before kept for Restore previous.
+                cp "$CONF_LIVE" "$CONF_W/plain.new-prev" || die "could not keep the file before"
+                conf_install "$CONF_W/in"
+                mv -f "$CONF_W/plain.new-prev" "$CONF_W/plain.prev" || die "could not keep the file before"
+                conf_show_part
+            fi ;;
+        restore)
+            if [ "$CONF_MODE" = tool ]; then
+                conf_cmd "$CONF_W/answer.json" /dev/null restore "$CONF_W/xnuhost.conf"
+                conf_answer $? "$op"
+            else
+                [ -f "$CONF_W/plain.prev" ] || refuse "no earlier xnuhost.conf is kept: nothing to restore"
+                cp "$CONF_LIVE" "$CONF_W/plain.new-prev" || die "could not keep the file before"
+                conf_install "$CONF_W/plain.prev"
+                mv -f "$CONF_W/plain.new-prev" "$CONF_W/plain.prev" || die "could not keep the file before"
+                conf_show_part
+            fi ;;
+    esac
+    say "@@OK conf $op"
+}
+
 # --- Hardware checks ----------------------------------------------------------
 # OneiOS's phone tools (its runtime's bin/), each alone, as root, beside a
 # running One UI. Nothing here stops or starts a service, a session or a
@@ -1519,5 +1800,6 @@ case "$verb" in
     logfile) do_logfile "$@" ;;
     tool) do_tool "$@" ;;
     untool) do_untool "$@" ;;
-    *) usage "oneios_root.sh status|begin|receive|script|kbinput|kbcache|kbclean|finish|restore|switch|return|remove|check|uncheck|checkfile|logs|logfile|tool|untool" ;;
+    conf) do_conf "$@" ;;
+    *) usage "oneios_root.sh status|begin|receive|script|kbinput|kbcache|kbclean|finish|restore|switch|return|remove|check|uncheck|checkfile|logs|logfile|tool|untool|conf" ;;
 esac

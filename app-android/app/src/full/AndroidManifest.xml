@@ -45,7 +45,20 @@
             android:exported="false"
             android:label="@string/oneios_title"
             android:parentActivityName=".ui.SystemsActivity" />
-        <!-- Set up iOS 27: the steps (this phone, the runtime, the image set, iOS's data, the last check), as Setting up. -->
+        <!-- Switches: xnuhost's settings in the staged image's xnuhost.conf, from the runtime's catalog (docs/oneios.md, "UI (2026-11-25)"). -->
+        <activity
+            android:name=".ui.OneiosSwitchesActivity"
+            android:exported="false"
+            android:label="@string/oneios_switches"
+            android:parentActivityName=".ui.OneiosActivity" />
+        <!-- Edit file: the staged image's xnuhost.conf as text, saved by root through the staged oneios-tool. -->
+        <activity
+            android:name=".ui.OneiosConfEditActivity"
+            android:exported="false"
+            android:label="@string/oneios_switches_edit"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.OneiosSwitchesActivity" />
+        <!-- Set up iOS 27: since the redesign of 2026-11-25 it opens iOS 27's page, whose checklist is the setup. -->
         <activity
             android:name=".ui.OneiosSetupActivity"
             android:exported="false"

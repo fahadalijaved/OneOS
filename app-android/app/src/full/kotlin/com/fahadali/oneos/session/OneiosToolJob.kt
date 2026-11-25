@@ -140,7 +140,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
 
     @Volatile private var pause: OneiosToolPause? = null
 
-    fun canStart(): Boolean = !state.busy && OneiosJob.canStart() && !OneiosChecksJob.state.busy
+    fun canStart(): Boolean = !state.busy && OneiosJob.canStart() && !OneiosChecksJob.state.busy && !OneiosConfJob.state.writing
 
     /** The flow that was running when the app was last ended (by Android, a crash, a swipe); null when none. */
     fun interrupted(ctx: Context): Flow? = if (state.busy) null else

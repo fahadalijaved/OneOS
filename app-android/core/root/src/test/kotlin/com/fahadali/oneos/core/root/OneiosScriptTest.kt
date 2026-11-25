@@ -1173,6 +1173,288 @@ class OneiosScriptTest {
         assertRefused(f.verb(OneiosRoot.Verb.SWITCH, listOf("100", "1")), "nothing was started")
     }
 
+    // --- xnuhost's switches: conf (docs/oneios.md, "UI (2026-11-25)") ------------------------------------------
+
+    private val confText = "# the image's switches\npen=auto\nboot-args-add=oneios-ubt=1\n"
+
+    /**
+     * A runtime with the conf stand-in as bin/oneios-tool (`resources/oneios/conf-tool.sh`; with [kernelBid] also a
+     * kernel), the session scripts, and an image set whose manifest lists overlay/userland/xnuhost.conf (its entry
+     * over several lines, as serde writes it) beside kernel.kc ([kc]) and os.img.
+     */
+    /** A runtime package's lib/switches.json (OneiOS's catalog, as `switches --json` prints it), three of its rows. */
+    private val confCatalog = """
+        {
+          "version": 1,
+          "switches": [
+            { "name": "sensors", "where": "conf", "kind": "choice", "values": ["off", "auto", "ssc"], "min": null, "max": null,
+              "default": "auto", "off": "off", "group": "Sensors", "title": "Sensor hub", "help": "Motion and light from the hub",
+              "phone": "not booted", "warning": null, "restart": "session" },
+            { "name": "sensors-hz", "where": "conf", "kind": "int", "values": null, "min": 5, "max": 200, "default": "50", "off": null,
+              "group": "Sensors", "title": "Sensor rate", "help": "Hz", "phone": "tested", "warning": null, "restart": "session" },
+            { "name": "oneios-pool-cut", "where": "boot-arg", "kind": "bool", "values": null, "min": null, "max": null, "default": "1",
+              "off": "0", "group": "GPU", "title": "Pool cut", "help": "spare command pools go back", "phone": "not booted",
+              "warning": null, "restart": "session" }
+          ],
+          "keys": ["pen", "sensors", "sensors-hz", "boot-args-add"],
+          "key_prefixes": []
+        }
+    """.trimIndent()
+
+    private fun confStage(
+        f: Fake, kc: ByteArray = ByteArray(500) { (it % 13).toByte() }, kernelBid: String? = null, xnu: ByteArray = ByteArray(100) { it.toByte() },
+        catalog: String? = confCatalog, toolBytes: ByteArray? = null,
+    ) {
+        val tool = toolBytes ?: OneiosScriptTest::class.java.getResourceAsStream("/oneios/conf-tool.sh")!!.readBytes()
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("runtime")))
+        assertOk(f.receive("runtime", "runtime.json", "{}".toByteArray()))
+        assertOk(f.receive("runtime", "bin/xnuhost", ELF, "0755"))
+        assertOk(f.receive("runtime", "bin/oneios-tool", tool, "0755"))
+        if (catalog != null) assertOk(f.receive("runtime", "lib/switches.json", catalog.toByteArray(), "0644"))
+        val files = 3 + (if (catalog != null) 1 else 0)
+        if (kernelBid != null) {
+            assertOk(f.receive("runtime", "kernel/xnu.macho", xnu, "0644"))
+            assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", (files + 1).toString(), "0.1.33", "1", "bin/xnuhost", "1", "0", kernelBid, Hashes.sha256(xnu), "xnu-12377.121.6")))
+        } else {
+            assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("runtime", files.toString(), "0.1.33", "1", "bin/xnuhost", "1", "0", "none", "none", "none")))
+        }
+        f.scripts()
+        val conf = confText.toByteArray()
+        val manifest = """
+            {
+              "format": 1,
+              "name": "oneios-image",
+              "os": "iOS",
+              "version": "27.0.1",
+              "build": "24A446",
+              "files": [
+                { "path": "kernel.kc", "size": ${kc.size}, "sha256": "${Hashes.sha256(kc)}", "role": "kernel", "read_only": true, "hashes": "kernel.kc.hashes" },
+                { "path": "kernel.kc.hashes", "size": 8, "sha256": "${Hashes.sha256("hashes-1".toByteArray())}", "role": "hashes" },
+                { "path": "os.img", "size": 100, "sha256": "${Hashes.sha256(ByteArray(100))}" },
+                {
+                  "path": "overlay/userland/xnuhost.conf",
+                  "size": ${conf.size},
+                  "sha256": "${Hashes.sha256(conf)}",
+                  "role": "overlay"
+                }
+              ]
+            }
+        """.trimIndent().toByteArray()
+        assertOk(f.verb(OneiosRoot.Verb.BEGIN, listOf("image")))
+        assertOk(f.receive("image", "manifest.json", manifest))
+        assertOk(f.receive("image", "kernel.kc", kc))
+        assertOk(f.receive("image", "kernel.kc.hashes", "hashes-1".toByteArray()))
+        assertOk(f.receive("image", "os.img", ByteArray(100)))
+        assertOk(f.receive("image", "overlay/userland/xnuhost.conf", conf))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("image", "5", "1", "27.0.1", "24A446")))
+    }
+
+    private fun conf(f: Fake, op: String, stdin: String = ""): Fake.Out = f.verb(OneiosRoot.Verb.CONF, listOf(op), stdin.toByteArray())
+
+    private fun confReply(o: Fake.Out) = com.fahadali.oneos.core.model.OneiosConf.Reply.parse(o.text.lines())
+
+    /** The live file is the one the image's lists and manifest name, and the preflight passes (it hashes small files). */
+    private fun confListed(f: Fake, lists: File = f.stage, manifest: File = File(f.stage, "image/manifest.json")) {
+        val live = File(f.stage, "image/overlay/userland/xnuhost.conf")
+        val sha = Hashes.sha256(live.readBytes())
+        assertEquals("$sha  overlay/userland/xnuhost.conf", shaLine(File(lists, "image.sha256"), "overlay/userland/xnuhost.conf"))
+        assertEquals("${Hashes.sha256(manifest.readBytes())}  manifest.json", shaLine(File(lists, "image.sha256"), "manifest.json"))
+        val m = manifest.readText()
+        assertTrue(m, m.contains("\"sha256\": \"$sha\"") && m.contains("\"size\": ${live.length()},"))
+        // Nothing of the tool's lands in image/: the preflight lists exactly its files.
+        assertFalse(File(f.stage, "image/overlay/userland").list()!!.any { it != "xnuhost.conf" })
+    }
+
+    @Test
+    fun confChangesTheImagesXnuhostConfWithItsListsAndTheSwitchStillPasses() = each { f ->
+        confStage(f)
+        val live = File(f.stage, "image/overlay/userland/xnuhost.conf")
+        assertTrue(f.verb(OneiosRoot.Verb.STATUS).status.ready)
+        // load: the runtime's catalog and the file as the tool reads it.
+        val load = conf(f, "load")
+        assertOk(load)
+        val r = confReply(load)
+        assertTrue(r.tool)
+        assertEquals(listOf("sensors", "sensors-hz", "oneios-pool-cut"), r.catalog!!.switches.map { it.name })
+        assertEquals(confText, r.show!!.text)
+        assertEquals("auto", r.show!!.set["pen"])
+        assertEquals("1", r.show!!.bootArgsAdd["oneios-ubt"])
+        // set: the file changes in place with its lists, the answer has the file again.
+        val set = conf(f, "set", "sensors=off\nsensors-hz=100\n")
+        assertOk(set)
+        assertTrue(live.readText(), live.readText().endsWith("sensors=off\nsensors-hz=100\n"))
+        assertEquals("off", confReply(set).show!!.set["sensors"])
+        // Every call names the staged runtime's catalog; the tool kept the file before as FILE.bak (Restore previous).
+        val calls = File(f.root, "conftool/calls").readLines()
+        assertTrue(calls.toString(), calls.any { it.startsWith("conf set --json --runtime ${f.stage.path}/runtime ") } && calls.contains("switches --json --runtime ${f.stage.path}/runtime"))
+        assertEquals(true, confReply(set).show!!.backup)
+        confListed(f)
+        assertTrue(f.verb(OneiosRoot.Verb.STATUS).status.notReady.orEmpty(), f.verb(OneiosRoot.Verb.STATUS).status.ready)
+        // unset
+        assertOk(conf(f, "unset", "sensors-hz\n"))
+        assertFalse(live.readText().contains("sensors-hz"))
+        confListed(f)
+        val before = live.readText()
+        // The tool's refusal: its answer is passed on and nothing changes.
+        val no = conf(f, "set", "refuseme=1\n")
+        assertRefused(no, "refused conf set")
+        assertEquals("refused: refuseme=1", confReply(no).answer!!.error)
+        assertEquals(before, live.readText())
+        // Root's own checks of the names, before the tool.
+        assertRefused(conf(f, "set", "-x=1\n"), "is not a switch name")
+        assertRefused(conf(f, "set", "a b=1\n"), "is not a switch name")
+        assertRefused(conf(f, "set", "sensors\n"), "NAME=VALUE")
+        assertRefused(conf(f, "unset", "sensors=1\n"), "takes names")
+        assertRefused(conf(f, "set", ""), "no switch named")
+        assertRefused(conf(f, "write", "x".repeat(70_000)), "over 65536 bytes")
+        // write: an error at its line refuses; Save anyway writes it.
+        val bad = "pen=auto\nbad line\n"
+        val w = conf(f, "write", bad)
+        assertRefused(w, "refused conf write")
+        assertEquals(listOf(com.fahadali.oneos.core.model.OneiosConf.LineError(2, "not KEY=VALUE")), confReply(w).answer!!.errors)
+        assertEquals(before, live.readText())
+        assertOk(conf(f, "write-force", bad))
+        assertEquals(bad, live.readText())
+        confListed(f)
+        // check reads only.
+        val c = conf(f, "check", "pen=auto\n")
+        assertOk(c)
+        assertTrue(confReply(c).answer!!.ok)
+        assertEquals(bad, live.readText())
+        // Restore previous: the file before the last write.
+        assertOk(conf(f, "restore"))
+        assertEquals(before, live.readText())
+        confListed(f)
+        assertTrue(f.verb(OneiosRoot.Verb.STATUS).status.ready)
+        // A session: reads answer, writes are refused.
+        File(f.control, "boot").also { it.parentFile.mkdirs() }.writeText("boot-1\n")
+        File(f.control, "state").writeText("running\n")
+        assertOk(conf(f, "show"))
+        for (op in listOf("set", "unset", "write", "write-force", "restore")) assertRefused(conf(f, op, "pen=auto\n"), "session is running")
+        assertEquals(before, live.readText())
+    }
+
+    @Test
+    fun confKeepsTheKeptKernelSetListingTheFile() = each { f ->
+        val bid = "xnu-12377.121.6-ios-27.0.1-24A446-abcdef012345"
+        val xnu = ByteArray(100) { it.toByte() }
+        confStage(f, kernelBid = bid, xnu = xnu)
+        kbInputs(f)
+        val kcIn = ByteArray(300) { (it * 3).toByte() }
+        assertOk(f.verb(OneiosRoot.Verb.KBINPUT, listOf("kernelcache.macho", kcIn.size.toString(), Hashes.sha256(kcIn)), kcIn))
+        val kc2 = ByteArray(6000) { (it % 251).toByte() }
+        makeKernelOut(f, kc2, Hashes.sha256(xnu), Hashes.sha256(kcIn))
+        assertOk(f.verb(OneiosRoot.Verb.FINISH, listOf("kernel", Hashes.sha256(kc2), bid)))
+        val prev = File(f.stage, "kernel.prev")
+        assertTrue(prev.isDirectory)
+        assertOk(conf(f, "set", "sensors=off\n"))
+        confListed(f)
+        confListed(f, prev, File(prev, "manifest.json"))
+        // Restoring the kernel keeps the new file listed: the switch still passes.
+        assertOk(f.verb(OneiosRoot.Verb.RESTORE, listOf("kernel")))
+        confListed(f)
+        val st = f.verb(OneiosRoot.Verb.STATUS).status
+        assertTrue(st.notReady.orEmpty(), st.ready)
+        assertTrue(File(f.stage, "image/overlay/userland/xnuhost.conf").readText().contains("sensors=off"))
+    }
+
+    @Test
+    fun confWithoutTheRuntimesCatalogChecksWithTheToolsOwn() = each { f ->
+        confStage(f, catalog = null)
+        val load = conf(f, "load")
+        assertOk(load)
+        val r = confReply(load)
+        // The tool reads the file (its own catalog), but there is no list of switches: Edit file only, with checks.
+        assertTrue(r.tool)
+        assertTrue(r.noCatalog)
+        assertEquals(confText, r.show!!.text)
+        assertOk(conf(f, "set", "sensors=off\n"))
+        confListed(f)
+        assertTrue(File(f.root, "conftool/calls").readLines().any { it.startsWith("conf set --json /") })
+    }
+
+    /**
+     * Root's `conf` against OneiOS's real oneios-tool (skipped unless `ONEIOS_TOOL_CONF` names a host build with
+     * `switches` and `conf`, OneiOS `aa8cfa4` or newer): the build staged as the runtime's bin/oneios-tool with its own
+     * catalog as lib/switches.json, then the app's calls: load, a toggle of the catalog's first conf bool, a bad value
+     * refused with the file as it was, a write with an error refused at its line, Save anyway, Check, Restore
+     * previous; the image's lists and manifest follow every change and the preflight still passes.
+     */
+    @Test
+    fun confAgainstTheRealTool() {
+        val bin = System.getenv("ONEIOS_TOOL_CONF")?.let(::File)
+        assumeTrue("ONEIOS_TOOL_CONF names no oneios-tool", bin != null && bin.canExecute())
+        val p = ProcessBuilder(bin!!.path, "switches", "--json").start()
+        val catalogJson = p.inputStream.readBytes().toString(Charsets.UTF_8)
+        assertEquals(catalogJson, 0, p.waitFor())
+        val catalog = com.fahadali.oneos.core.model.OneiosConf.parseCatalog(catalogJson).getOrThrow()
+        val bool = catalog.switches.first { it.where == com.fahadali.oneos.core.model.OneiosConf.Where.CONF && it.kind == com.fahadali.oneos.core.model.OneiosConf.Kind.BOOL }
+        val tool = bin.readBytes()
+        each { f ->
+            confStage(f, catalog = catalogJson, toolBytes = tool)
+            val live = File(f.stage, "image/overlay/userland/xnuhost.conf")
+            val load = confReply(conf(f, "load").also { assertOk(it) })
+            assertTrue(load.tool)
+            assertEquals(catalog.switches.map { it.name }, load.catalog!!.switches.map { it.name })
+            assertEquals(confText, load.show!!.text)
+            assertEquals(false, load.show!!.backup)
+            // The toggle the screen sends: the off value.
+            val row = com.fahadali.oneos.core.model.OneiosConf.Row(bool, load.show!!.valueOf(bool))
+            val off = com.fahadali.oneos.core.model.OneiosConf.toggle(row, false) as com.fahadali.oneos.core.model.OneiosConf.Change.Put
+            val set = conf(f, "set", com.fahadali.oneos.core.model.OneiosConf.stdin(listOf(off)))
+            assertOk(set)
+            assertEquals(off.value, confReply(set).show!!.set[bool.name])
+            assertEquals(true, confReply(set).show!!.backup)
+            confListed(f)
+            assertTrue(f.verb(OneiosRoot.Verb.STATUS).status.ready)
+            val before = live.readText()
+            // A value the catalog does not take: refused, the file as it was.
+            val bad = conf(f, "set", "${bool.name}=2\n")
+            assertRefused(bad, "refused conf set")
+            assertTrue(confReply(bad).answer!!.error!!.isNotBlank())
+            assertEquals(before, live.readText())
+            // A write with a line without '=': refused at that line; Save anyway writes it; Check finds it.
+            val w = conf(f, "write", "pen=auto\nbad line\n")
+            assertRefused(w, "refused conf write")
+            assertEquals(listOf(2), confReply(w).answer!!.errors.map { it.line })
+            assertEquals(before, live.readText())
+            assertOk(conf(f, "write-force", "pen=auto\nbad line\n"))
+            assertEquals("pen=auto\nbad line\n", live.readText())
+            confListed(f)
+            val c = conf(f, "check", "pen=auto\nbad line\n")
+            assertEquals(c.text, 0, c.exit)
+            assertEquals(listOf(2), confReply(c).answer!!.errors.map { it.line })
+            // Restore previous: the file before the last write.
+            assertOk(conf(f, "restore"))
+            assertEquals(before, live.readText())
+            confListed(f)
+            assertTrue(f.verb(OneiosRoot.Verb.STATUS).status.ready)
+        }
+    }
+
+    @Test
+    fun confWithATooOldToolIsThePlainFile() = each { f ->
+        confStage(f)
+        File(f.root, "conftool").mkdirs()
+        File(f.root, "conftool/mode").writeText("old\n")
+        val live = File(f.stage, "image/overlay/userland/xnuhost.conf")
+        val load = conf(f, "load")
+        assertOk(load)
+        val r = confReply(load)
+        assertFalse(r.tool)
+        assertTrue(r.noCatalog)
+        assertEquals(confText, r.show!!.text)
+        assertRefused(conf(f, "set", "sensors=off\n"), "v0.1.33 or newer")
+        // The raw editor still works, with no checks, and Restore previous takes the file before back.
+        assertOk(conf(f, "write", "pen=off\nbad line\n"))
+        assertEquals("pen=off\nbad line\n", live.readText())
+        confListed(f)
+        assertOk(conf(f, "restore"))
+        assertEquals(confText, live.readText())
+        confListed(f)
+        assertTrue(f.verb(OneiosRoot.Verb.STATUS).status.ready)
+    }
+
     private fun manifestWithKc(size: Int, sha: String) = """
         { "format": 1, "name": "oneios-image", "os": "iOS", "version": "27.0.1", "build": "24A446",
           "device": "iPhone18,2",

@@ -104,9 +104,9 @@ internal object OneiosActions {
         }
     }
 
-    /** Set up iOS 27 shows a download or an import while it runs (from iOS 27's page too). */
+    /** iOS 27's page shows a download or an import while it runs, in its checklist (opened from another screen). */
     fun showProgress(a: AppCompatActivity) {
-        if (a !is OneiosSetupActivity && OneiosJob.state.copying) a.startActivity(OneiosSetupActivity.intent(a))
+        if (a !is OneiosActivity && OneiosJob.state.copying) a.startActivity(OneiosActivity.intent(a))
     }
 
     fun download(a: AppCompatActivity, tag: String?) {

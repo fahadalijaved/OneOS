@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Edit file (OneiosConfEditActivity): the staged image's overlay/userland/xnuhost.conf in a monospace editor, the
+     tool's errors at their lines above it, and Save at the bottom; Save anyway, Check and Restore previous in the
+     overflow menu. -->
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/oneios_toolbar"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/preboot_page"
+    app:handleInsets="false"
+    app:mainRoundedCorners="top"
+    app:expandable="true"
+    app:expanded="false"
+    app:showNavButtonAsBack="true">
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/oneios_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="20dp">
+
+            <LinearLayout
+                android:id="@+id/oneios_column"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <HorizontalScrollView
+                android:id="@+id/oneios_conf_hscroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@color/preboot_card"
+                android:fillViewport="true">
+
+                <EditText
+                    android:id="@+id/oneios_conf_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="2000dp"
+                    android:minHeight="320dp"
+                    android:background="@null"
+                    android:fontFamily="monospace"
+                    android:gravity="top|start"
+                    android:importantForAutofill="no"
+                    android:inputType="textMultiLine|textNoSuggestions"
+                    android:padding="16dp"
+                    android:scrollHorizontally="true"
+                    android:textSize="13sp" />
+
+            </HorizontalScrollView>
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
+
+    <FrameLayout
+        android:id="@+id/oneios_footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="16dp"
+        app:layout_location="footer">
+
+        <Button
+            android:id="@+id/oneios_primary"
+            style="@style/OneUI.ButtonStyleColored"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="52dp"
+            android:text="@string/oneios_conf_save" />
+
+        <com.fahadali.oneos.ui.LoadingSpinner
+            android:id="@+id/oneios_primary_spinner"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:elevation="8dp"
+            android:indeterminate="true"
+            android:indeterminateTint="@android:color/white"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

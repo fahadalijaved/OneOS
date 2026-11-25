@@ -2,99 +2,67 @@ package com.fahadali.oneos.ui
 
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
-import android.view.ViewGroup
-import android.view.WindowInsets
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.appcompat.content.res.AppCompatResources
-import androidx.appcompat.widget.Toolbar
+import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.NestedScrollView
 import com.fahadali.oneos.R
-import com.fahadali.oneos.core.model.Level
 import com.fahadali.oneos.core.model.OneiosFix
-import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosSystem
 import com.fahadali.oneos.core.root.OneiosFlow
-import com.fahadali.oneos.core.root.OneiosStatus
+import com.fahadali.oneos.core.root.OneiosSteps
+import com.fahadali.oneos.session.OneiosConfJob
 import com.fahadali.oneos.session.OneiosJob
 import com.fahadali.oneos.session.OneiosToolJob
-import dev.oneuiproject.oneui.R as Icons
+import dev.oneuiproject.oneui.layout.ToolbarLayout
 
 /**
- * iOS 27 (OneiOS)'s page (docs/oneios.md, "In the app"), as an Android system's page is
- * (EnvironmentActivity, the same activity_environment layout): the artwork, what runs now (its step and seconds),
- * the setup steps while the runtime or the image set is missing ([stepper]), else the state of the iOS
- * files on this phone as check tiles (the runtime and its check, the image set and its check, iOS's
- * data, the last check before the switch), the one thing that stops the switch in plain words with
- * its fix, the runtime's and the image set's own rows, the last session and its logs, the tools, and
- * one fixed button that does what comes next: Set up iOS 27, a fix, Back to One UI, or Switch to
- * iOS 27, which asks first (OneiosSwitchConfirm) and shows the way back before One UI closes.
- * Everything it does is a job of [OneiosJob], whose root verbs are the ones before the redesign.
+ * iOS 27's page (docs/oneios.md, "UI (2026-11-25)"): One UI's large title that collapses on scroll, with one line
+ * under it (ready, the steps to do, the running step and its percentage); **On this phone**, the one place that shows
+ * the phone's iOS state (the runtime, the iOS image, the kernel, iOS's data, the last session, and what stops the
+ * switch with its fix); **Steps**, the one checklist ([OneiosSteps]: Get the runtime, Make iOS image, Update the
+ * kernel, Activate, Switch, Return, Logs), where a running step shows its phase, a real bar, its amount and Cancel,
+ * and a failed one its reason and Show log; one primary button at the bottom (the next step); everything else in the
+ * app bar's overflow menu. Every action is the same job as before the redesign ([OneiosJob], [OneiosToolJob]): the
+ * root verbs, their order and the switch's confirm (with the way back to One UI) are unchanged.
  */
 class OneiosActivity : EdgeToEdgeActivity() {
     private lateinit var picker: OneiosPicker
-    private lateinit var actionTextColors: ColorStateList
+    private lateinit var toolbar: ToolbarLayout
+    private lateinit var primaryColors: ColorStateList
     private var unsubscribe: (() -> Unit)? = null
-    private var toolUnsubscribe: (() -> Unit)? = null
+
+    /** The checklist's rows by step, rebound in place for a byte count (rebuilt only when the page's shape changes). */
+    private val rows = HashMap<OneiosSteps.Id, View>()
+    private var shape: Any? = null
+    private var busyRow: dev.oneuiproject.oneui.widget.CardItemView? = null
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            val row = busyRow ?: return
+            val s = OneiosJob.state
+            if (isDestroyed || (s.job != OneiosFlow.Job.CHECK && s.waitingFor == null)) return
+            row.summary = busyLine(s)
+            ticker.postDelayed(this, 1000)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        OneiosToolActivity.askNotifications(this, savedInstanceState)
         picker = OneiosPicker(this, savedInstanceState)
-        setContentView(R.layout.activity_environment)
-        actionTextColors = findViewById<Button>(R.id.environment_boot).textColors
-        val nativeToolbar = findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout)
-        if (nativeToolbar != null) {
-            applyEdgeToEdgeInsets(nativeToolbar, onNavigationBarInset = {})
-            findViewById<View>(R.id.environment_window).setOnApplyWindowInsetsListener { _, insets ->
-                val bottom = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()).bottom
-                findViewById<View>(R.id.environment_footer).updateBottomMarginForNavigationBar(0, bottom)
-                insets
-            }
-            nativeToolbar.setAdaptiveMarginProvider(dev.oneuiproject.oneui.widget.AdaptiveCoordinatorLayout.MARGIN_PROVIDER_ZERO)
-            nativeToolbar.setEdgeInsetHorizontal(0f)
-            nativeToolbar.findViewById<dev.oneuiproject.oneui.widget.RoundedFrameLayout>(dev.oneuiproject.oneui.design.R.id.tbl_main_content).apply {
-                roundedCorners = 0
-                fillHorizontalPadding = false
-            }
-            nativeToolbar.findViewById<View>(dev.oneuiproject.oneui.design.R.id.tbl_bottom_corners).visibility = View.GONE
-            nativeToolbar.setTitle(getString(R.string.oneios_title))
-        } else findViewById<View>(R.id.environment_window).setOnApplyWindowInsetsListener { root, insets ->
-            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            root.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
-        }
-        toolbar().apply {
-            setNavigationIcon(Icons.drawable.ic_oui_back)
-            setNavigationContentDescription(androidx.appcompat.R.string.abc_action_bar_up_description)
-            setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
-        }
-        val scroll = findViewById<NestedScrollView>(R.id.environment_scroll)
-        scroll.apply {
-            isNestedScrollingEnabled = !resources.getBoolean(R.bool.home_two_pane)
-            seslSetFadingEdgeEnabled(true)
-            seslSetFadingEdgeColor(getColor(R.color.preboot_page))
-            seslSetFadingEdgeWindowBottomAlignment(nativeToolbar != null)
-            seslSetAllowTopFadingEdgeWithoutEdgeToEdge(true)
-        }
-        findViewById<View>(R.id.environment_footer).addOnLayoutChangeListener { footer, _, _, _, _, _, _, _, _ ->
-            // As on a system's page: the last row scrolls clear of the fixed button.
-            val navigation = if (nativeToolbar != null) (footer.layoutParams as? ViewGroup.MarginLayoutParams)?.bottomMargin ?: 0 else 0
-            val clearance = footer.height + navigation + dp(16)
-            val fadeHeight = footer.height + navigation + dp(24)
-            scroll.seslForceBottomFadingEdgeClamped(fadeHeight)
-            scroll.invalidate()
-            if (scroll.paddingBottom != clearance) {
-                scroll.setPadding(scroll.paddingLeft, scroll.paddingTop, scroll.paddingRight, clearance)
-                scroll.seslSetFadingEdgeEnabled(true, dp(24), fadeHeight)
-            }
-        }
-        findViewById<OsArtworkView>(R.id.environment_artwork).bindArtwork(R.drawable.os_oneios)
-        findViewById<TextView>(R.id.environment_title).text = getString(R.string.oneios_title)
+        setContentView(R.layout.activity_oneios_screen)
+        toolbar = findViewById(R.id.oneios_toolbar)
+        OneiosScreens.setUp(this, toolbar, getString(R.string.oneios_short))
+        applyEdgeToEdgeInsets(toolbar)
+        primaryColors = findViewById<Button>(R.id.oneios_primary).textColors
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -104,14 +72,11 @@ class OneiosActivity : EdgeToEdgeActivity() {
 
     override fun onStart() {
         super.onStart()
-        // This page shows no byte count (Set up iOS 27 does): rows are built again only when something else changes.
-        unsubscribe = OneiosJob.observeBy({ it.copy(done = 0, total = 0, bytesPerSecond = 0, etaSeconds = null, file = null, message = if (it.copying) null else it.message) }) { render(it) }
-        // Update the kernel's rows (kernelUpdateRows): its step, pause and end, not its bytes.
-        toolUnsubscribe = OneiosToolJob.observeBy({ s ->
-            if (s.last != OneiosToolJob.Flow.KERNEL) null
-            else listOf(s.flow, s.starting, s.stopping, s.problem, s.kernelPhase, s.view.current, s.view.held, s.view.paused, s.view.netWaiting,
-                s.pausedByUser, s.noNetwork, s.canPause, s.plain, s.builtKc)
-        }) { render(OneiosJob.state) }
+        shape = null
+        val a = OneiosJob.observe { render() }
+        val b = OneiosToolJob.observe { render() }
+        val c = OneiosConfJob.observeBy({ it.writing }) { render() }
+        unsubscribe = { a(); b(); c() }
     }
 
     override fun onResume() {
@@ -124,393 +89,302 @@ class OneiosActivity : EdgeToEdgeActivity() {
         ticker.removeCallbacks(tick)
         unsubscribe?.invoke()
         unsubscribe = null
-        toolUnsubscribe?.invoke()
-        toolUnsubscribe = null
         super.onStop()
     }
 
-    /** The busy card's line, counted each second while a job runs ([render], [tick]). */
-    private var busyRow: dev.oneuiproject.oneui.widget.CardItemView? = null
-    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
-    private val tick = object : Runnable {
-        override fun run() {
-            val s = OneiosJob.state
-            val row = busyRow ?: return
-            if ((!s.busy && s.waitingFor == null) || isDestroyed) return
-            row.summary = busyLine(s)
-            ticker.postDelayed(this, 1000)
-        }
-    }
-
-    /** "Asking root for access… · 7 s": the step in words, and how long it has run. */
     private fun busyLine(s: OneiosJob.State): String = listOfNotNull(
         if (s.job == null && s.waitingFor != null) getString(R.string.oneios_waiting_line, s.waitingFor) else s.message,
-        s.since.takeIf { it > 0 }?.let { getString(R.string.oneios_seconds, ((android.os.SystemClock.elapsedRealtime() - it) / 1000).toInt()) },
+        s.since.takeIf { it > 0 }?.let { getString(R.string.oneios_seconds, ((SystemClock.elapsedRealtime() - it) / 1000).toInt()) },
     ).joinToString(" · ")
 
-    private fun render(s: OneiosJob.State) {
+    private fun render() {
         if (isDestroyed) return
-        val flow = s.flow
+        val s = OneiosJob.state
+        val t = OneiosToolJob.state
+        val steps = OneiosSteps.of(OneiosStepRow.input(this))
         val st = s.status
-        val idle = !s.busy
-        val column = findViewById<LinearLayout>(R.id.environment_cards)
+        // A long copy or a tool flow keeps the screen on, as Setting up does.
+        if (s.copying || t.busy) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        toolbar.setTitle(OneiosSystem.shortName(st?.image?.version))
+        toolbar.expandedSubtitle = subtitle(s, steps)
+
+        // The page's shape: everything but the numbers of a running step. Only a change of it rebuilds the rows, so a
+        // byte count never rebuilds a row under the finger.
+        val newShape = listOf(
+            steps.steps.map { listOf(it.state, it.line, it.reason, it.cancel, it.log, it.progress == null) }, steps.next,
+            st, s.job, s.waitingFor != null, s.offered, s.failure, s.last, s.flow.problem, t.busy, t.builtKc,
+            OneiosConfJob.state.writing, OneiosJob.kernelCheckLine(this),
+        )
+        if (newShape != shape) {
+            shape = newShape
+            build(s, steps)
+            invalidateOptionsMenu()
+        } else {
+            for (step in steps.steps) rows[step.id]?.let { bindStep(it, step) }
+        }
+        bindPrimary(s, t, steps)
+    }
+
+    private fun subtitle(s: OneiosJob.State, steps: OneiosSteps.View): String = steps.running?.let { r ->
+        r.progress?.percent?.let { getString(R.string.oneios_page_sub_running, title(r.id, s.status?.image?.version), it) } ?: title(r.id, s.status?.image?.version)
+    } ?: when {
+        s.status?.sessionOpen == true -> getString(R.string.oneios_page_sub_open)
+        s.flow.ready -> getString(R.string.oneios_page_sub_ready)
+        steps.todo == 1 -> getString(R.string.oneios_page_sub_todo_one)
+        steps.todo > 1 -> getString(R.string.oneios_page_sub_todo, steps.todo)
+        else -> ""
+    }
+
+    private fun build(s: OneiosJob.State, steps: OneiosSteps.View) {
+        val column = findViewById<LinearLayout>(R.id.oneios_column)
         column.removeAllViews()
-
-        // What runs now (a system page's busy card), at full size: what it is, the step in words and its seconds (the
-        // ticker counts them), Stop for a check; a download or an import has its progress on Set up iOS 27. Before
-        // 2026-11-22 this was one small caption, and a check that waited for root showed nothing else.
+        rows.clear()
         busyRow = null
-        s.job?.let { job ->
-            val busy = PrebootCards.section(column)
-            busyRow = PrebootCards.row(busy, OneiosActions.runningTitle(this, job), busyLine(s)) as dev.oneuiproject.oneui.widget.CardItemView
-            if (job == OneiosFlow.Job.CHECK) PrebootCards.row(busy, getString(R.string.oneios_stop), getString(R.string.oneios_check_stop_line)) {
-                OneiosJob.cancel()
-            }
-            ticker.removeCallbacks(tick)
-            ticker.postDelayed(tick, 1000)
-            if (s.copying) PrebootCards.row(busy, getString(R.string.systems_show_progress), chevron = true) {
-                startActivity(OneiosSetupActivity.intent(this))
-            }
-        }
-        // A check that waits for another of the app's jobs: which one, and its seconds; it starts by itself after it.
-        if (s.job == null) s.waitingFor?.let {
-            val busy = PrebootCards.section(column)
-            busyRow = PrebootCards.row(busy, getString(R.string.oneios_waiting_title), busyLine(s)) as dev.oneuiproject.oneui.widget.CardItemView
-            ticker.removeCallbacks(tick)
-            ticker.postDelayed(tick, 1000)
-        }
+        ticker.removeCallbacks(tick)
+        val st = s.status
+        val flow = s.flow
+        val idle = !s.busy
 
-        // While the runtime or the image set is missing: the steps, numbered, with what each needs and the one to do
-        // now (tap it). Once both are here: the state of the iOS files on this phone, as a system page's check tiles.
-        if (settingUp(s)) stepper(column, s, flow, idle) else tiles(column, s, flow)
-
-        // What to do now, or what stops the switch, in plain words (a system page's "what stops the switch").
+        // On this phone: the one place for the phone's iOS state, and what stops the switch with its fix.
+        val state = PrebootCards.section(column, getString(R.string.oneios_page_state))
+        if (s.job == OneiosFlow.Job.CHECK || (s.job == null && s.waitingFor != null)) {
+            busyRow = PrebootCards.row(state, getString(if (s.job == null) R.string.oneios_waiting_title else R.string.oneios_running_check), busyLine(s))
+                as dev.oneuiproject.oneui.widget.CardItemView
+            ticker.postDelayed(tick, 1000)
+            if (s.job == OneiosFlow.Job.CHECK) PrebootCards.row(state, getString(R.string.oneios_stop), getString(R.string.oneios_check_stop_line)) { OneiosJob.cancel() }
+        }
         val problem = flow.problem
         when {
-            s.offered == false -> PrebootCards.row(PrebootCards.section(column), getString(R.string.oneios_not_this_phone_title), getString(R.string.oneios_not_this_phone))
-            // (Only a next step, such as "not set up yet": the steps above say it already.)
-            problem != null && s.job == null && !(problem.isNextStep && settingUp(s)) -> {
-                val fix = OneiosFlow.Next.of(problem.fix)
-                PrebootCards.row(PrebootCards.section(column), problem.title, problem.line, chevron = problem.fix != OneiosFix.NONE, enabled = idle) {
-                    OneiosActions.run(this, fix, picker)
+            s.offered == false -> PrebootCards.row(state, getString(R.string.oneios_not_this_phone_title), getString(R.string.oneios_not_this_phone))
+            problem != null && s.job == null && !problem.isNextStep ->
+                PrebootCards.row(state, problem.title, problem.line, chevron = problem.fix != OneiosFix.NONE, enabled = idle) {
+                    OneiosActions.run(this, OneiosFlow.Next.of(problem.fix), picker)
                 }
-            }
-            flow.ready && s.job == null -> PrebootCards.row(PrebootCards.section(column), getString(R.string.oneios_ready), getString(R.string.oneios_ready_line))
+            flow.ready && s.job == null -> PrebootCards.row(state, getString(R.string.oneios_ready), getString(R.string.oneios_ready_line))
         }
+        // This phone: only when it is not the one OneiOS is tested on (the Galaxy A56), or root refused it.
+        val phone = flow.row(OneiosFlow.Step.PHONE)
+        if (phone.mark == OneiosFlow.Mark.FAILED || phone.line?.contains("untested") == true) PrebootCards.row(state, getString(R.string.oneios_page_phone), phone.line)
+        PrebootCards.row(state, getString(R.string.oneios_page_runtime), flow.runtimeLine ?: getString(R.string.oneios_page_none))
+        PrebootCards.row(state, getString(R.string.oneios_page_image), flow.imageLine ?: getString(R.string.oneios_page_none))
+        if (st?.runtime != null && st.image != null) {
+            val image = st.imageKernel?.buildId ?: getString(R.string.oneios_kernel_kc_unknown)
+            val runtime = st.runtimeKernel?.buildId ?: getString(R.string.oneios_kernel_kc_none)
+            val line = listOfNotNull(
+                getString(R.string.oneios_page_kernel_line, image, runtime),
+                getString(R.string.oneios_page_kernel_fallback).takeIf { st.imageKernel?.hasFallback == true },
+                OneiosJob.kernelCheckLine(this),
+            ).joinToString("\n")
+            PrebootCards.row(state, getString(R.string.oneios_page_kernel), line)
+        }
+        if (st?.image != null) PrebootCards.row(state, getString(R.string.oneios_page_data), flow.dataLine ?: getString(R.string.environment_unknown))
+        OneiosFlow.lastReturn(st)?.let { PrebootCards.row(state, getString(R.string.oneios_page_last), it.title + "\n" + it.line) }
 
-        // The runtime: what is staged and its check, then where a runtime comes from.
-        val runtime = PrebootCards.section(column, getString(R.string.oneios_runtime))
-        PrebootCards.row(
-            runtime,
-            flow.runtimeLine ?: getString(R.string.oneios_runtime_none_title),
-            st?.runtime?.let { getString(R.string.oneios_runtime_details, it.xnuhost, it.sessionAbi, OneiosSystem.SESSION_ABI.toString(), it.imageFormats) }
-                ?: getString(R.string.oneios_runtime_none),
-        )
-        PrebootCards.row(runtime, getString(R.string.oneios_runtime_download), getString(R.string.oneios_runtime_download_line), chevron = true, enabled = idle) {
-            OneiosActions.download(this, null)
-        }
-        // The other ways in one row: an older release by its tag, or a runtime file (OneiosActions.askRuntimeOther).
-        PrebootCards.row(runtime, getString(R.string.oneios_runtime_other), getString(R.string.oneios_runtime_other_line), chevron = true, enabled = idle) {
-            OneiosActions.askRuntimeOther(this, picker)
-        }
-
-        // The image set: what is staged and its check; it only ever comes from a file.
-        val image = PrebootCards.section(column, getString(R.string.oneios_image))
-        PrebootCards.row(
-            image,
-            flow.imageLine ?: getString(R.string.oneios_image_none_title),
-            st?.image?.let { getString(R.string.oneios_image_details, it.format, st?.runtime?.imageFormats ?: "?") }
-                ?: getString(R.string.oneios_image_none),
-        )
-        // Made on this phone from Apple's files (Make iOS image: no PC; it gets a newer runtime first when it needs
-        // one), or a set the user already has.
-        PrebootCards.row(image, getString(R.string.oneios_make_image), getString(R.string.oneios_make_image_line), chevron = true,
-            enabled = idle || OneiosToolJob.state.busy) { OneiosActions.makeImage(this) }
-        PrebootCards.row(image, getString(R.string.oneios_image_file), getString(R.string.oneios_image_file_line), chevron = true, enabled = idle) {
-            picker.pick(OneiosKind.IMAGE)
-        }
-        PrebootCards.row(image, getString(R.string.oneios_data), (flow.dataLine ?: getString(R.string.environment_unknown)) + "\n" + getString(R.string.oneios_data_line))
-
-        // The kernel: what the runtime carries, what the image boots, and Update the kernel (docs/oneios.md,
-        // "Kernel updates"). A new kernel never means rebuilding the image set, and needs no PC: the phone fetches
-        // Apple's kernelcache from Apple itself (once; it stays cached in the stage), pairs the staged xnu with it
-        // and activates the collection atomically.
-        if (st?.runtime != null) {
-            val kernel = PrebootCards.section(column, getString(R.string.oneios_kernel))
-            PrebootCards.row(
-                kernel,
-                kernelTitle(st),
-                kernelDetails(st) + OneiosJob.kernelCheckLine(this)?.let { "\n$it" }.orEmpty(),
-            )
-            if (st.image != null) {
-                PrebootCards.row(kernel, getString(R.string.oneios_kernel_check), getString(R.string.oneios_kernel_check_line), chevron = true, enabled = idle) {
-                    OneiosJob.checkKernel(this)
-                }
-                kernelUpdateRows(kernel, st, idle)
-                if (st.imageKernel?.hasFallback == true) {
-                    PrebootCards.row(kernel, getString(R.string.oneios_kernel_restore), getString(R.string.oneios_kernel_restore_line), chevron = true, enabled = idle) {
-                        OneiosActions.confirmRestoreKernel(this)
-                    }
-                }
-                // Optional, with no download: a kernelcache.macho a PC wrote (checked against the same pin).
-                PrebootCards.row(kernel, getString(R.string.oneios_kernel_kernelcache), getString(R.string.oneios_kernel_kernelcache_line), chevron = true, enabled = idle) {
-                    picker.pickKernelcache()
-                }
-            }
-        }
-
-        // The return: an open session's way back, and how the last one came back.
-        val session = PrebootCards.section(column, getString(R.string.last_title))
-        if (st?.sessionOpen == true) {
-            PrebootCards.row(session, getString(R.string.oneios_back), getString(R.string.oneios_back_line), chevron = true, enabled = idle) {
-                OneiosJob.backToOneUi(this)
-            }
-        }
-        val last = OneiosFlow.lastReturn(st)
-        PrebootCards.row(
-            session,
-            last?.title ?: getString(R.string.last_none),
-            last?.line ?: getString(R.string.oneios_last_none_line),
-        )
-        PrebootCards.row(session, getString(R.string.oneios_logs), getString(R.string.oneios_logs_line), chevron = true) {
-            startActivity(OneiosLogsActivity.intent(this))
-        }
-
-        // Tools: OneiOS's phone checks beside One UI, and oneios-tool's flows (docs/oneios.md, "oneios-tool in the app").
-        val tools = PrebootCards.section(column, getString(R.string.oneios_tools))
-        PrebootCards.row(tools, getString(R.string.oneios_checks), getString(R.string.oneios_checks_line), chevron = true) {
-            startActivity(OneiosChecksActivity.intent(this))
-        }
-        if (st?.runtime != null) {
-            PrebootCards.row(tools, getString(R.string.oneios_tool_sums), getString(R.string.oneios_tool_sums_line), chevron = true,
-                enabled = idle || OneiosToolJob.state.busy) { OneiosToolActivity.start(this, OneiosToolJob.Flow.SUMS) }
-        }
-
-        if (st?.staged == true) {
-            PrebootCards.row(PrebootCards.section(column, getString(R.string.oneios_manage)), getString(R.string.oneios_remove), getString(R.string.oneios_remove_line), chevron = true, enabled = idle) {
-                OneiosActions.confirmRemove(this)
-            }
-        }
-        bindAction(s, flow)
+        // Steps: the one checklist.
+        val card = PrebootCards.section(column, getString(R.string.oneios_page_steps))
+        for (step in steps.steps) rows[step.id] = OneiosStepRow.add(card, step, title(step.id, st?.image?.version), tap(step, idle), cancel(step), log(step))
     }
 
-    /**
-     * The runtime or the image set is not staged yet (and no session is open, and the phone takes the system): the
-     * page shows the setup steps ([stepper]) in place of the tiles, so what is missing and what comes next is the
-     * first thing on it.
-     */
-    private fun settingUp(s: OneiosJob.State): Boolean {
-        val st = s.status ?: return s.offered != false
-        return s.offered != false && !st.sessionOpen && (st.runtime == null || st.image == null)
+    private fun bindStep(v: View, step: OneiosSteps.Step) =
+        OneiosStepRow.bind(v, step, title(step.id, OneiosJob.state.status?.image?.version), tap(step, !OneiosJob.state.busy), cancel(step), log(step))
+
+    /** A step's name on the page and on the button: the docs' words (Switch names the staged system: "Switch to iOS 27"). */
+    private fun title(id: OneiosSteps.Id, version: String?): String = when (id) {
+        OneiosSteps.Id.SWITCH -> if (version == null || OneiosSystem.isIos27(version)) getString(R.string.oneios_switch) else "Switch to ${OneiosSystem.shortName(version)}"
+        OneiosSteps.Id.RETURN -> getString(R.string.oneios_back)
+        else -> id.title
     }
 
-    /**
-     * The setup steps on this page ([OneiosFlow]'s rows, as Set up iOS 27 shows them): numbered, each with its mark
-     * (done, now, waiting, failed, running) and its line; the step to do now says what it needs and is the one row
-     * that can be tapped, which does it (the same action as the fixed button). A step that failed is tappable too, for
-     * its fix.
-     */
-    private fun stepper(column: LinearLayout, s: OneiosJob.State, flow: OneiosFlow.View, idle: Boolean) {
-        val card = PrebootCards.section(column, getString(R.string.oneios_steps_title))
-        for ((n, r) in flow.rows.withIndex()) {
-            val now = r.mark == OneiosFlow.Mark.NEXT && r.step == flow.current
-            val fix = r.mark == OneiosFlow.Mark.FAILED && flow.problem?.fix?.let { it != OneiosFix.NONE } == true
-            val summary = when (r.mark) {
-                // A check says its step (root's grant, the stage, the last check) as it goes.
-                OneiosFlow.Mark.RUNNING -> listOfNotNull(if (s.job == OneiosFlow.Job.CHECK) s.message ?: r.line else r.line ?: s.message, s.progressLine).joinToString("\n")
-                OneiosFlow.Mark.NEXT -> OneiosActions.stepAbout(this, r.step) + if (now && idle) "\n" + getString(R.string.oneios_step_tap) else ""
-                OneiosFlow.Mark.PENDING -> OneiosActions.stepAbout(this, r.step)
-                else -> r.line
-            }
-            val title = getString(R.string.oneios_step_numbered, n + 1, OneiosActions.stepTitle(this, r.step))
-            val tap: ((View) -> Unit)? = when {
-                !idle -> null
-                now -> { _ -> OneiosActions.run(this, flow.next, picker) }
-                fix -> { _ -> OneiosActions.run(this, OneiosFlow.Next.of(flow.problem!!.fix), picker) }
-                else -> null
-            }
-            val row = PrebootCards.row(card, title, summary, chevron = tap != null, onClick = tap) as dev.oneuiproject.oneui.widget.CardItemView
-            row.icon = when (r.mark) {
-                OneiosFlow.Mark.RUNNING -> StepRingDrawable(this, if (s.copying && s.total > 0) (s.done.toFloat() / s.total).coerceIn(0f, 1f) else null)
-                OneiosFlow.Mark.DONE -> AppCompatResources.getDrawable(this, R.drawable.ic_setup_complete)
-                OneiosFlow.Mark.FAILED -> AppCompatResources.getDrawable(this, R.drawable.oneos_badge_warn)
-                OneiosFlow.Mark.NEXT -> AppCompatResources.getDrawable(this, R.drawable.ic_oneos_step_current)
-                OneiosFlow.Mark.PENDING -> AppCompatResources.getDrawable(this, R.drawable.ic_oneos_step_pending)
-            }
-            if (tap == null) {
-                row.isClickable = false
-                row.isFocusable = false
-            }
-            row.contentDescription = title + ", " + getString(
-                when (r.mark) {
-                    OneiosFlow.Mark.DONE -> R.string.setup_state_done
-                    OneiosFlow.Mark.FAILED -> R.string.setup_state_failed
-                    OneiosFlow.Mark.RUNNING, OneiosFlow.Mark.NEXT -> R.string.setup_state_current
-                    OneiosFlow.Mark.PENDING -> R.string.setup_state_pending
-                },
-            ) + summary?.let { ", $it" }.orEmpty()
+    /** What pressing a step does; null when it cannot be pressed now. */
+    private fun tap(step: OneiosSteps.Step, idle: Boolean): (() -> Unit)? {
+        val toolBusy = OneiosToolJob.state.busy
+        if (step.state == OneiosSteps.State.RUNNING) {
+            return if (step.cancel == OneiosSteps.Cancel.TOOL || (toolBusy && step.id == OneiosSteps.Id.IMAGE)) { { startActivity(OneiosToolActivity.intent(this)) } } else null
         }
+        if (step.id == OneiosSteps.Id.LOGS) return { startActivity(OneiosLogsActivity.intent(this)) }
+        if (!idle || toolBusy || step.state == OneiosSteps.State.WAITING) return null
+        return action(step.id, step.state)
     }
 
-    /** The state of the iOS files on this phone, as a system page's check tiles (once the runtime and the image are here). */
-    private fun tiles(column: LinearLayout, s: OneiosJob.State, flow: OneiosFlow.View) {
-        val st = s.status
-        val checks = PrebootCards.section(column, getString(R.string.oneios_state_title))
-    checks.setPadding(dp(10), dp(10), dp(10), dp(10))
-    Cards.tileGrid(
-        checks,
-        listOf(
-            Cards.Tile(Icons.drawable.ic_oui_download, getString(R.string.oneios_runtime), tileValue(st?.runtime?.version, flow.runtime, st?.runtime?.placeholder == true), level(flow.runtime)),
-            Cards.Tile(Icons.drawable.ic_oui_file_type_zip, getString(R.string.oneios_image), tileValue(st?.image?.let { "iOS ${it.version}" }, flow.image, false), level(flow.image)),
-            Cards.Tile(
-                Icons.drawable.ic_oui_folder_outline, getString(R.string.oneios_data),
-                getString(if (st == null) R.string.environment_unknown else if (OneiosFlow.dataNew(st)) R.string.oneios_data_new else R.string.oneios_data_kept),
-                if (st == null) Level.INFO else Level.OK,
-            ),
-            Cards.Tile(
-                Icons.drawable.ic_oui_security_outline, getString(R.string.oneios_last_check),
-                getString(
-                    when (flow.mark(OneiosFlow.Step.READY)) {
-                        OneiosFlow.Mark.DONE -> R.string.oneios_last_check_passed
-                        OneiosFlow.Mark.FAILED -> R.string.oneios_last_check_refused
-                        OneiosFlow.Mark.RUNNING -> R.string.oneios_checking
-                        else -> R.string.oneios_last_check_not_yet
-                    },
-                ),
-                when (flow.mark(OneiosFlow.Step.READY)) {
-                    OneiosFlow.Mark.DONE -> Level.OK
-                    OneiosFlow.Mark.FAILED -> Level.BLOCK
-                    else -> Level.INFO
-                },
-            ),
-        ),
-    )
-    }
-
-    /** The fixed button: the one thing to do now, with a spinner while a job runs (as a system page's Boot). */
-    private fun bindAction(s: OneiosJob.State, flow: OneiosFlow.View) {
-        // Only a job that runs spins the button. No status yet and nothing running: Check again (flow.next), never a
-        // spinner with no reason (before 2026-11-22 it spun until something else read the status).
-        val waiting = s.busy
-        findViewById<View>(R.id.environment_action_spinner).visibility = if (waiting) View.VISIBLE else View.GONE
-        // The staged set's own iOS: the A56's iOS 16.5 set is not "iOS 27" (issue 73). The artwork says iOS 27, so it
-        // shows only over an iOS 27 set (or none yet).
-        val version = s.status?.image?.version
-        val name = OneiosSystem.name(version)
-        findViewById<TextView>(R.id.environment_title)?.text = name
-        findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout)?.setTitle(name)
-        findViewById<View>(R.id.environment_artwork)?.visibility =
-            if (OneiosSystem.isIos27(version)) View.VISIBLE else View.GONE
-        val next = flow.next
-        findViewById<Button>(R.id.environment_boot).apply {
-            text = when {
-                next == OneiosFlow.Next.NOT_THIS_PHONE -> getString(R.string.catalog_not_available)
-                else -> OneiosActions.label(this@OneiosActivity, next) ?: "Switch to ${OneiosSystem.shortName(version)}"
+    private fun action(id: OneiosSteps.Id, state: OneiosSteps.State): (() -> Unit)? {
+        val st = OneiosJob.state.status
+        return when (id) {
+            OneiosSteps.Id.RUNTIME -> { { OneiosActions.askRuntime(this, picker) } }
+            OneiosSteps.Id.IMAGE ->
+                if (state == OneiosSteps.State.DONE) { { again(id, R.string.oneios_step_again_image) { OneiosActions.askImage(this, picker) } } }
+                else { { OneiosActions.askImage(this, picker) } }
+            OneiosSteps.Id.KERNEL -> when {
+                st?.image == null || !OneiosToolJob.canStart() -> null
+                state == OneiosSteps.State.DONE -> { { again(id, R.string.oneios_step_again_kernel) { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) } } }
+                else -> { { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) } }
             }
-            isEnabled = !waiting && next != OneiosFlow.Next.NOT_THIS_PHONE
-            setTextColor(if (waiting) ColorStateList.valueOf(Color.TRANSPARENT) else actionTextColors)
-            contentDescription = if (waiting) getString(R.string.oneios_checking) else text
-            setOnClickListener {
-                val now = OneiosJob.state
-                if (now.busy) return@setOnClickListener
-                // Not set up yet: the step to do now (Get the runtime, Get the iOS image), the same as its row in the
-                // steps above; a download or an import then shows its bytes on Set up iOS 27.
-                OneiosActions.run(this@OneiosActivity, now.flow.next, picker)
-            }
-        }
-    }
-
-    /**
-     * Update the kernel on this page (docs/oneios.md, "Kernel updates"): while it runs, what runs now (its step, a
-     * pause, the wait for a network) with Pause or Resume, Stop, and its own screen for the bytes and the time left;
-     * after it, why it stopped in plain words ([OneiosPlain.kernelUpdate]) or Activate for the kernel it built; and
-     * the Update button. This page is built again only when the step, a pause or the end changes, never for a byte
-     * count ([onStart]).
-     */
-    private fun kernelUpdateRows(kernel: LinearLayout, st: OneiosStatus, idle: Boolean) {
-        val t = OneiosToolJob.state
-        val mine = t.last == OneiosToolJob.Flow.KERNEL
-        if (mine && t.busy) {
-            val v = t.view
-            val running = v.steps.firstOrNull { it.state == OneiosTool.StepState.RUNNING }
-            val why = when {
-                t.stopping -> getString(R.string.oneios_tool_stopping)
-                v.netWaiting != null -> v.netWaiting
-                t.noNetwork -> getString(R.string.oneios_tool_no_network)
-                v.held || t.pausedByUser -> getString(R.string.oneios_tool_paused)
-                else -> v.paused
-            }
-            PrebootCards.row(
-                kernel, t.kernelPhase?.words ?: getString(R.string.oneios_tool_starting),
-                listOfNotNull(running?.text, why).joinToString(" · ").ifEmpty { getString(R.string.oneios_kernel_update_progress) }, chevron = true,
-            ) { startActivity(OneiosToolActivity.intent(this)) }
-            if (t.canPause && !t.stopping) {
-                if (t.pausedByUser) PrebootCards.row(kernel, getString(R.string.oneios_tool_resume), getString(R.string.oneios_tool_resume_line)) { OneiosToolJob.resumeByUser() }
-                else PrebootCards.row(kernel, getString(R.string.oneios_tool_pause), getString(R.string.oneios_tool_pause_line), enabled = !t.starting) { OneiosToolJob.pauseByUser() }
-            }
-            PrebootCards.row(kernel, getString(if (t.stopping) R.string.oneios_tool_stopping else R.string.oneios_tool_stop), enabled = !t.stopping) { OneiosToolJob.cancel() }
-            return
-        }
-        if (mine) {
-            t.problem?.let { PrebootCards.row(kernel, getString(R.string.oneios_tool_not_started), it, chevron = true) { startActivity(OneiosToolActivity.intent(this)) } }
-            t.plain?.let { m -> PrebootCards.row(kernel, m.title, m.line, chevron = true) { startActivity(OneiosToolActivity.intent(this)) } }
-            t.builtKc?.let { kc ->
-                PrebootCards.row(kernel, getString(R.string.oneios_kernel_activate), getString(R.string.oneios_kernel_activate_line), chevron = true, enabled = idle) {
+            OneiosSteps.Id.ACTIVATE -> OneiosToolJob.state.builtKc?.takeIf { it.matches(Regex("^[0-9a-f]{64}$")) && state == OneiosSteps.State.TODO }?.let { kc ->
+                {
                     OneiosToolJob.kernelActivating()
                     OneiosJob.activateKernel(this, kc)
                 }
             }
+            OneiosSteps.Id.SWITCH -> when (state) {
+                OneiosSteps.State.TODO -> { { OneiosSwitchConfirm.show(this) } }
+                OneiosSteps.State.FAILED -> { { OneiosActions.run(this, OneiosFlow.Next.of(OneiosJob.state.flow.problem?.fix ?: OneiosFix.CHECK_AGAIN), picker) } }
+                else -> null
+            }
+            OneiosSteps.Id.RETURN -> if (state == OneiosSteps.State.TODO) { { OneiosJob.backToOneUi(this) } } else { { startActivity(OneiosLogsActivity.intent(this)) } }
+            OneiosSteps.Id.LOGS -> { { startActivity(OneiosLogsActivity.intent(this)) } }
         }
-        PrebootCards.row(
-            kernel, getString(R.string.oneios_kernel_update),
-            getString(if (st.kb.kernelcacheSha256 != null) R.string.oneios_kernel_update_cached_line else R.string.oneios_kernel_update_line),
-            chevron = true, enabled = idle && OneiosToolJob.canStart(),
-        ) { OneiosToolActivity.start(this, OneiosToolJob.Flow.KERNEL) }
     }
 
-    private fun kernelTitle(st: OneiosStatus): String =
-        st.runtimeKernel?.let { getString(R.string.oneios_kernel_title, it.buildId) } ?: getString(R.string.oneios_kernel_none)
-
-    private fun kernelDetails(st: OneiosStatus): String {
-        val runtime = st.runtimeKernel?.let { "${it.buildId} (${it.xnu})" } ?: getString(R.string.oneios_kernel_kc_none)
-        val image = st.imageKernel?.let {
-            it.buildId + " (" + it.kcSha256.take(12) + "…)" + if (it.hasFallback) " · ${getString(R.string.oneios_kernel_kc_fallback)}" else ""
-        } ?: getString(R.string.oneios_kernel_kc_unknown)
-        val inputs = (if (st.kb.inputs == 0) getString(R.string.oneios_kernel_inputs_none)
-            else getString(R.string.oneios_kernel_inputs, st.kb.inputs)) + " · " +
-            getString(if (st.kb.kernelcacheSha256 != null) R.string.oneios_kernel_cache_yes else R.string.oneios_kernel_cache_no)
-        return getString(R.string.oneios_kernel_details, runtime, image, inputs)
+    /** A step that is done, asked first before it runs again. */
+    private fun again(id: OneiosSteps.Id, line: Int, go: () -> Unit) {
+        AlertDialog.Builder(this).setTitle(getString(R.string.oneios_step_again_title, id.title)).setMessage(line)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(id.title) { _, _ -> go() }.show()
     }
 
-    private fun tileValue(version: String?, check: OneiosFlow.Check, placeholder: Boolean): String = when {
-        version == null -> getString(R.string.oneios_tile_none)
-        placeholder -> getString(R.string.oneios_tile_value, version, getString(R.string.oneios_tile_placeholder))
-        else -> getString(
-            R.string.oneios_tile_value, version,
-            getString(
-                when (check) {
-                    OneiosFlow.Check.PASSED -> R.string.oneios_tile_checked
-                    OneiosFlow.Check.FAILED -> R.string.oneios_tile_check_failed
-                    else -> R.string.oneios_tile_not_checked
-                },
-            ),
-        )
+    private fun cancel(step: OneiosSteps.Step): (() -> Unit)? = when (step.cancel) {
+        null -> null
+        OneiosSteps.Cancel.JOB -> { { confirmCancel(step.id, R.string.oneios_step_cancel_copy) { OneiosJob.cancel() } } }
+        OneiosSteps.Cancel.TOOL -> { { confirmCancel(step.id, R.string.oneios_step_cancel_tool) { OneiosToolJob.cancel() } } }
     }
 
-    private fun level(check: OneiosFlow.Check): Level = when (check) {
-        OneiosFlow.Check.PASSED -> Level.OK
-        OneiosFlow.Check.FAILED -> Level.BLOCK
-        OneiosFlow.Check.NOT_STAGED -> Level.WARN
-        OneiosFlow.Check.NOT_CHECKED -> Level.INFO
+    private fun confirmCancel(id: OneiosSteps.Id, line: Int, go: () -> Unit) {
+        AlertDialog.Builder(this).setTitle(getString(R.string.oneios_step_cancel_title, id.title)).setMessage(line)
+            .setNegativeButton(R.string.oneios_step_keep_going, null)
+            .setPositiveButton(R.string.oneios_step_cancel) { _, _ -> go() }.show()
     }
 
-    private fun toolbar(): Toolbar =
-        findViewById<dev.oneuiproject.oneui.layout.ToolbarLayout>(R.id.environment_toolbar_layout)?.toolbar
-            ?: findViewById(R.id.environment_toolbar)
+    private fun log(step: OneiosSteps.Step): (() -> Unit)? = when (step.log) {
+        null -> null
+        OneiosSteps.Log.TOOL -> { { startActivity(OneiosToolActivity.intent(this)) } }
+        OneiosSteps.Log.SESSION -> { { startActivity(OneiosLogsActivity.intent(this)) } }
+        OneiosSteps.Log.ROOT -> { { rootAnswer() } }
+    }
 
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    /** Show log of a root job: root's (or the app's) whole words, which the step's one line puts plainly. */
+    private fun rootAnswer() {
+        val s = OneiosJob.state
+        val text = listOfNotNull(s.failure, s.flow.problem?.detail?.takeIf { it.isNotBlank() }, s.status?.notReady).distinct().joinToString("\n\n")
+            .ifBlank { getString(R.string.environment_unknown) }
+        OneiosScreens.textDialog(this, getString(R.string.oneios_page_root_answer), text)
+    }
+
+    /** The one primary button: the next step's action, Show details while a tool flow runs, or the flow's fix. */
+    private fun bindPrimary(s: OneiosJob.State, t: OneiosToolJob.State, steps: OneiosSteps.View) {
+        val b = findViewById<Button>(R.id.oneios_primary)
+        val spinner = findViewById<View>(R.id.oneios_primary_spinner)
+        val next = steps.next
+        val flowNext = s.flow.next
+        var spin = false
+        when {
+            t.busy -> set(b, getString(R.string.oneios_page_show_details)) { startActivity(OneiosToolActivity.intent(this)) }
+            s.busy -> {
+                spin = true
+                set(b, s.job?.let { OneiosActions.runningTitle(this, it) } ?: getString(R.string.oneios_page_working), enabled = false)
+            }
+            next != null -> set(b, title(next, s.status?.image?.version)) {
+                // The runtime takes the flow's own fix when it names one (Download again, Choose the runtime file).
+                if (next == OneiosSteps.Id.RUNTIME && flowNext in setOf(OneiosFlow.Next.DOWNLOAD_RUNTIME, OneiosFlow.Next.IMPORT_RUNTIME)) OneiosActions.run(this, flowNext, picker)
+                else action(next, steps.step(next).state.let { if (it == OneiosSteps.State.FAILED) OneiosSteps.State.TODO else it })?.invoke()
+            }
+            flowNext == OneiosFlow.Next.NOT_THIS_PHONE -> set(b, getString(R.string.catalog_not_available), enabled = false)
+            else -> {
+                val go = if (OneiosActions.label(this, flowNext) == null) OneiosFlow.Next.CHECK_AGAIN else flowNext
+                set(b, OneiosActions.label(this, go).orEmpty()) { OneiosActions.run(this, go, picker) }
+            }
+        }
+        spinner.visibility = if (spin) View.VISIBLE else View.GONE
+        b.setTextColor(if (spin) ColorStateList.valueOf(android.graphics.Color.TRANSPARENT) else primaryColors)
+    }
+
+    private fun set(b: Button, text: CharSequence, enabled: Boolean = true, onClick: (() -> Unit)? = null) {
+        b.text = text
+        b.contentDescription = text
+        b.isEnabled = enabled && onClick != null
+        b.setOnClickListener { onClick?.invoke() }
+    }
+
+    // --- The overflow menu: everything that is not the next step --------------------------------------------------
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        val s = OneiosJob.state
+        val st = s.status
+        val idle = !s.busy && !OneiosToolJob.state.busy
+        fun item(id: Int, title: Int, enabled: Boolean = true) = menu.add(Menu.NONE, id, Menu.NONE, title).apply {
+            setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+            isEnabled = enabled
+        }
+        if (st?.image != null) item(M_SWITCHES, R.string.oneios_switches)
+        item(M_CHECK, R.string.oneios_menu_check_again, enabled = idle)
+        if (st?.runtime != null) item(M_SUMS, R.string.oneios_tool_sums, enabled = idle)
+        item(M_CHECKS, R.string.oneios_checks)
+        item(M_LOGS, R.string.oneios_logs)
+        if (st?.image != null && st.runtime != null) item(M_KERNEL_CHECK, R.string.oneios_kernel_check, enabled = idle)
+        if (st?.imageKernel?.hasFallback == true) item(M_KERNEL_RESTORE, R.string.oneios_kernel_restore, enabled = idle)
+        item(M_RUNTIME_OTHER, R.string.oneios_runtime_other, enabled = idle)
+        item(M_IMAGE_FILE, R.string.oneios_image_file, enabled = idle)
+        if (st?.image != null && st.runtime != null) item(M_KERNELCACHE, R.string.oneios_kernel_kernelcache, enabled = idle)
+        if (st?.staged == true) item(M_REMOVE, R.string.oneios_remove, enabled = idle && !st.sessionOpen)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            M_SWITCHES -> startActivity(OneiosSwitchesActivity.intent(this))
+            M_CHECK -> OneiosJob.refresh(this)
+            M_SUMS -> OneiosToolActivity.start(this, OneiosToolJob.Flow.SUMS)
+            M_CHECKS -> startActivity(OneiosChecksActivity.intent(this))
+            M_LOGS -> startActivity(OneiosLogsActivity.intent(this))
+            M_KERNEL_CHECK -> OneiosJob.checkKernel(this)
+            M_KERNEL_RESTORE -> OneiosActions.confirmRestoreKernel(this)
+            M_RUNTIME_OTHER -> OneiosActions.askRuntimeOther(this, picker)
+            M_IMAGE_FILE -> picker.pick(OneiosKind.IMAGE)
+            M_KERNELCACHE -> picker.pickKernelcache()
+            M_REMOVE -> OneiosActions.confirmRemove(this)
+            else -> return super.onOptionsItemSelected(item)
+        }
+        return true
+    }
 
     companion object {
+        private const val M_SWITCHES = 1
+        private const val M_CHECK = 2
+        private const val M_SUMS = 3
+        private const val M_CHECKS = 4
+        private const val M_LOGS = 5
+        private const val M_KERNEL_CHECK = 6
+        private const val M_KERNEL_RESTORE = 7
+        private const val M_RUNTIME_OTHER = 8
+        private const val M_IMAGE_FILE = 9
+        private const val M_KERNELCACHE = 10
+        private const val M_REMOVE = 11
+
         fun intent(ctx: android.content.Context): Intent = Intent(ctx, OneiosActivity::class.java)
+    }
+}
+
+/** What the iOS screens of the redesign share: the app bar, a text dialog. */
+internal object OneiosScreens {
+    fun setUp(a: EdgeToEdgeActivity, toolbar: ToolbarLayout, title: CharSequence) {
+        toolbar.setTitle(title)
+        toolbar.showNavigationButtonAsBack = true
+        toolbar.setNavigationButtonOnClickListener { a.onBackPressedDispatcher.onBackPressed() }
+        a.findViewById<NestedScrollView>(R.id.oneios_scroll)?.apply {
+            seslSetFadingEdgeEnabled(true)
+            seslSetFadingEdgeColor(a.getColor(R.color.preboot_page))
+        }
+    }
+
+    /** A dialog with [text] selectable in monospace (root's or the tool's own words). */
+    fun textDialog(a: android.app.Activity, title: CharSequence, text: CharSequence) {
+        val view = android.widget.TextView(a).apply {
+            setTextIsSelectable(true)
+            typeface = android.graphics.Typeface.MONOSPACE
+            textSize = 13f
+            val p = PrebootCards.dp(this, 20)
+            setPadding(p, p / 2, p, 0)
+            setText(text)
+        }
+        val scroll = android.widget.ScrollView(a).apply { addView(view) }
+        AlertDialog.Builder(a).setTitle(title).setView(scroll).setPositiveButton(android.R.string.ok, null).show()
     }
 }

@@ -135,6 +135,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
         RemoveJob.state.busy -> "A removal"
         OneiosChecksJob.state.busy -> "The hardware checks"
         OneiosToolJob.state.busy -> "An oneios-tool flow (Make iOS image, Update the kernel, Check every file)"
+        OneiosConfJob.state.writing -> "Saving xnuhost.conf (Switches)"
         else -> null
     }
 

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The iOS screens' one layout (docs/oneios.md, "UI (2026-11-25)"): One UI's app bar with its large title that
+     collapses on scroll (oneui-design's ToolbarLayout; its overflow menu holds the secondary actions), the content as
+     rounded cards in one scrolling column (oneios_column, filled in code), and one primary action at the bottom in
+     the footer, within thumb reach. iOS 27's page, an oneios-tool flow's details and Switches use it. -->
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/oneios_toolbar"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/preboot_page"
+    app:handleInsets="false"
+    app:mainRoundedCorners="top"
+    app:expandable="true"
+    app:expanded="true"
+    app:showNavButtonAsBack="true">
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/oneios_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:id="@+id/oneios_column"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="20dp" />
+
+    </androidx.core.widget.NestedScrollView>
+
+    <FrameLayout
+        android:id="@+id/oneios_footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="16dp"
+        app:layout_location="footer">
+
+        <Button
+            android:id="@+id/oneios_primary"
+            style="@style/OneUI.ButtonStyleColored"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="52dp" />
+
+        <com.fahadali.oneos.ui.LoadingSpinner
+            android:id="@+id/oneios_primary_spinner"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:elevation="8dp"
+            android:indeterminate="true"
+            android:indeterminateTint="@android:color/white"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

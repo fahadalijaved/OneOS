@@ -288,6 +288,150 @@ root script's `kbinput`/`kbcache`/`status`/`finish kernel` with `kb-24B156` on a
 `kernels` (none is released yet); the real `assets/kb-24B156/` (not made yet); make-image of 24B156 against the real
 tool.
 
+## UI (2026-11-25)
+
+The owner (2026-11-25): "Easily enable and disable xnuhost's flags graphically, and edit the file in the app by
+hand", and "Redesign the UI to match One UI / Android design standards. Right now the oneios-tool use is very bad and
+unclear on progress and steps; it uses its own weird steps. Fix that UI-wise, an easier way, and fewer repeated UI
+elements, in the OneiOS parts of OneOS." Branch `oneios-ui`. This section is the design; the sections after it
+describe the screens as they are now.
+
+### Before: the screens and what was wrong
+
+| Screen | What it showed |
+|---|---|
+| iOS 27's page (`OneiosActivity`, a system page's layout) | the artwork; *What runs now*; while setting up a numbered five-step list (*Set up iOS 27: what is left*), else four check tiles (*On this phone*); *What stops the switch*; then sections **OneiOS runtime** (its state, *Download the latest runtime*, *Other ways to get it*), **iOS image set** (its state, *Make iOS image*, *Use an image set I have*, *iOS data*), **Phone-built kernel** (its state, *Check for a newer kernel*, *Update the kernel* with its step, Pause, Stop and Activate as rows, *Restore the kept kernel set*, *I have the kernelcache file*), **Last session** (*Back to One UI*, how it came back, *Session logs*), **Tools**, **Manage**; one fixed button |
+| Set up iOS 27 (`OneiosSetupActivity`, Setting up's layout) | the same five steps again, a hero with a step-wise bar, a title and a subtitle saying what to do, the footer's button |
+| An oneios-tool flow (`OneiosToolActivity`, the logs' layout) | rows: what runs, *Next*, a note, the space, the tool's version; the tool's up to 28 steps as rows whose summary is a word ("done", "running", "waiting"); *Not done*, *Done*, the output; then Pause, Resume, Stop, Run again, Activate, Continue as list rows |
+
+What repeated:
+
+1. **The steps, twice**: the page's *Set up iOS 27: what is left* and Set up iOS 27's own list are the same five steps
+   with the same marks, in two screens with different titles.
+2. **The state, three times**: the runtime's and the image set's version and check are in the check tiles, in their
+   sections' first rows and in the steps' lines.
+3. **The same action in up to four places**: Get the runtime is the step row, the fixed button, *Download the latest
+   runtime* and *Other ways to get it*; Make iOS image is the step row, the image section's row, Set up's footer and
+   *Use an image set I have*; Update the kernel's Pause, Stop and step are on the page and on the tool's screen.
+4. **"What runs now"** is the page's busy card, Set up's hero and the tool screen's first row.
+
+What was unclear:
+
+1. **No progress bar for oneios-tool.** Make iOS image (about 11 GB and 28 steps) and Update the kernel showed a row
+   title and a line of text; the only bar was Set up's, which split the five steps evenly, so a 30-minute image build
+   sat at "40%". The tool's own `progress` events (bytes, percent, rate, time left) were text in a summary.
+2. **A step's state was a word.** The tool's steps were list rows with "done", "running", "waiting" as their
+   summaries; "Next" was a row of its own.
+3. **Names that differ from the docs'**: the step *Get the OneiOS runtime* had the button *Get the runtime*; the step
+   *Make your iOS image* had the button *Get the iOS image* and the row *Make iOS image*; *Last check before the
+   switch* and *iOS's own data* were steps although nothing can be done at them; *Activate the phone-built kernel*.
+4. **Kernel work was outside the steps**: Update the kernel and Activate were rows in a section far down the page,
+   with no state of their own, although a new runtime needs them before its kernel boots.
+5. **Buttons as list rows**: Stop, Pause, Run again, Activate and Continue were rows among rows, with no primary
+   action; the page had one fixed button, the tool's screen none.
+6. **No failure in one line**: a failed flow put the tool's words in several rows (*Not done*, the output); the
+   reason and where to read more were not one place.
+7. **xnuhost's switches** (OneiOS `docs/switches.md`, about 50 keys) could only be changed on a PC
+   (`oneios-tool phone manifest DIR --stage`).
+
+### After: the structure
+
+The look is One UI's, from the libraries the app already has (tribalfs' `oneui-design` with Samsung's SESL forks of
+AndroidX and Material): `ToolbarLayout` with its large title that collapses on scroll (One UI's "extended app bar"),
+SESL preference categories and rounded `CardItemView`/`SwitchItemView` lists, `SeslProgressBar`, One UI's contained
+button in the footer, the overflow menu of the app bar, and the system's dark mode through the theme's
+`values-night`. **No library was added.** Stock `com.google.android.material` stays excluded
+(`app/build.gradle.kts`, since 0.4.1): SESL's `sesl.com.google.android.material` carries the same classes under the
+same package names, so the stock one would clash at the dex merge. Material 3 components were not used for that
+reason, and because the rest of OneOS is One UI's (two looks in one app would be the repetition this redesign
+removes). The spacing and type are the app's One UI ones (`PrebootCards`: 18 sp titles, 14 sp summaries, 52/73 dp
+rows, 10 dp page gutter).
+
+| Screen | Now |
+|---|---|
+| **iOS 27's page** (`OneiosActivity`, `activity_oneios.xml`) | the large title (the staged system's name) with one line under it (*Ready to switch*, *2 steps to do*, *Make iOS image · 42%*); **On this phone**, the one place that shows the phone's iOS state: the runtime, the iOS image, the kernel, iOS's data, the last session, and what stops the switch with its fix; **Steps**, the one checklist below; one primary button at the bottom (the next step's action); everything else in the app bar's overflow menu |
+| **Set up iOS 27** (`OneiosSetupActivity`) | no screen of its own any more: it opens iOS 27's page (the systems' carousel, the notification and old back stacks still name it) |
+| **An oneios-tool flow** (`OneiosToolActivity`, `activity_oneios_tool.xml`) | the flow's details: a progress card (the phase in words, a real bar, "Step 5 of 28 · 3.2 GB of 11.4 GB (28%) · 40 MB/s · about 5 min left", the room it needs, a pause or a wait for the network), the tool's steps with state icons, the failure in one line with the tool's code, the last output lines; one button at the bottom (Cancel while it runs, else Activate, Continue or Run again); Pause, Resume, Run again and Forget in the overflow |
+| **Switches** (new, `OneiosSwitchesActivity`) | below |
+| **Edit file** (new, `OneiosConfEditActivity`) | below |
+| Hardware checks, Session logs, a log, the Switch confirm, Switching | unchanged (the way back's tiles and ticks too) |
+
+**The steps** (`OneiosSteps`, `core/root`): seven, named as the docs name them, each with a state of four (done, to
+do, running, failed; "to do" is dimmed and says what comes first while an earlier step is not done) and one sentence:
+
+| Step | Done when | What it runs | Cancel |
+|---|---|---|---|
+| Get the runtime | root reports a runtime (not a placeholder) | the runtime choices (the latest release, an older one by its tag, a file) | yes: a download or an import keeps what was staged before |
+| Make iOS image | root reports an image set | the image choices (make it on this phone, a set I have) | yes: the tool's `cancel` removes what it wrote, the fetched members stay |
+| Update the kernel | the image's `kernel.kc` is the runtime's kernel build (or one is built and waits for Activate) | the tool's Update the kernel | yes, as Make iOS image |
+| Activate | the image's kernel is the runtime's and nothing waits | root's `finish kernel` | no (root's atomic swap; seconds) |
+| Switch | a session is open | the Switch confirm, then root's `switch` | no: once root starts it, One UI's framework stops (as before) |
+| Return | the last session came back (how it did is the line) | root's `return` (Back to One UI) | no |
+| Logs | (always there once a session ran) | Session logs | |
+
+A step that runs shows a progress bar, the phase in words and the amount: the bytes of a download or an import
+(`OneiosJob`), the tool's own numbers for Make iOS image and Update the kernel (its `progress` events: `percent`, else
+`done`/`total`, else the share of its steps done, with "Step k of N" from its `start` plan; `OneiosSteps.toolProgress`),
+or a moving bar with the root step's words and its seconds where root gives no numbers (a check, a switch). A failed
+step shows the one-line reason (`OneiosPlain`'s words) and **Show log**: the tool flow's details, or root's whole
+answer. The primary button is the next step's action (*Get the runtime*, *Make iOS image*, *Update the kernel*,
+*Activate*, *Switch to iOS 27*, *Back to One UI*, or a fix such as *Check again*); the buttons and the steps say the
+same words. **No oneios-tool change was needed for this**: every tool flow already sends machine-readable progress
+on `serve` (protocol 1), and the root verbs that send none are short.
+
+**Switches and Edit file** (`OneiosSwitchesActivity`, `OneiosConfEditActivity`, `OneiosConfJob`; the model
+`OneiosConf`, `core/model`): from the page's overflow (*Switches*). The list is the staged runtime's catalog
+(OneiOS's `oneios-tool switches --json --runtime <stage>/runtime`, the runtime's `lib/switches.json`, from runtime
+v0.1.33: about 50 switches), grouped by its `group`: a row's title, its `help` as the summary, a toggle for a `bool`
+and for a `choice` with an `off` value (on is the default, off is `off`), a picker for the other choices, numbers
+(with `min` and `max`) and text; a badge where `phone` is not "tested" ("not booted", "broken") and the `warning` in
+the row; a row not at its default has a dot, and **Reset** (in its picker, or a long press; *Reset all* in the
+overflow). A change runs root's `conf set` (or `conf unset` when it goes back to the default; a `boot-arg` switch
+goes into `boot-args-add=`, the tool's) on the staged image's `overlay/userland/xnuhost.conf`, and the list is read
+again from root's answer; the screen says "Takes effect at the next switch" (and "Needs Update the kernel" for a
+switch whose `restart` is `kernel`: none is today, every switch's is `session`). **Errors** of the file are shown
+first and are serious: xnuhost refuses the whole file for a line without `=`, a key it does not read or a bad value,
+and the next switch does not start iOS; **warnings** (a key given twice) stop nothing. **Edit file** shows the whole
+file in a monospace editor; Save runs `conf write` and shows its errors at their lines, marked in the text; **Save
+anyway** (`--force`) asks first and says that the next switch will not start iOS; **Restore previous** is `conf
+restore` (it swaps the file and the tool's one backup, `FILE.bak`; offered only while `conf show` says `backup`);
+**Check** is `conf check` without saving. With a runtime older than v0.1.33 there is no catalog: the screen says
+"Get the runtime (v0.1.33 or newer) to edit switches" and only Edit file works, as a plain read and write of the file
+by root, with no checks (a tool that has `conf` but no catalog in the runtime checks with its own).
+
+**How root does it** (`oneios_root.sh conf <load|show|check|set|unset|write|write-force|restore>`, new): the image's
+files are in `image.sha256`, `image.ids` and `manifest.json`, and the switch's preflight refuses a file that is not
+the one listed, so root never lets the tool write in `image/`. It copies the live file into `$STAGE/conf/` (again
+whenever the live one differs, such as after a new image set), runs the staged `bin/oneios-tool conf ...` there (only
+the file root hashed at staging, as `tool`), and when the copy changed it moves it in and rewrites the file's lines
+of `image.sha256`, `image.ids` and its `manifest.json` entry (size, SHA-256), with `manifest.json`'s own lines: the
+same rewrite as Update the kernel's activation. A kept kernel set (`kernel.prev`) gets the same lines, so *Restore
+the kept kernel set* keeps the new file listed. Writes are refused during a session.
+
+**What OneiOS's oneios-tool gives** (OneiOS main `aa8cfa4`, `tools/oneios-tool/crates/oneios-conf`; the interface
+fixed for this branch, fields may be added, never renamed): `switches --json [--runtime DIR]` (`{"version":1,
+"switches":[{"name","where","kind","values","min","max","default","off","group","title","help","phone","warning",
+"restart", ...}],"keys","key_prefixes"}`; exit 1 without `DIR/lib/switches.json`), `conf show FILE` (`{"path","text",
+"set","boot_args_add","unknown","errors":[{"line","message"}],"warnings","exists","backup"}`), `conf check FILE`
+(exit 1 with errors), `conf set FILE NAME=VALUE...` and `conf unset FILE NAME...` (all or none; a `boot-arg` switch
+goes into `boot-args-add=`), `conf write FILE` (the text on stdin; `--force`), `conf restore FILE` (swaps FILE and
+`FILE.bak`); every `conf` command takes `--json` (set, unset, write and restore then print the new `conf show`) and
+`--runtime DIR`; exit 0 done, 1 refused with `{"error"}` (the file untouched), 2 a wrong command line (also what a tool
+older than these commands answers). Root calls `conf <op> --json --runtime <stage>/runtime FILE ...` (options before
+FILE) on its copy, so `FILE.bak` lives in `$STAGE/conf/`, outside the image. **No other oneios-tool change was
+needed** for this branch.
+
+**Tested** on the Linux PC: `OneiosStepsTest` (the steps' states and the next step for every stage of a fresh phone,
+a running and a failed Make iOS image, a kernel to update and to activate, an open session; the progress from the
+tool's own event lines), `OneiosConfTest` (the catalog and `conf show` JSON, the rows' controls, values and marks, the
+change a toggle or a reset makes, root's reply parts), and `OneiosScriptTest`'s `conf*` tests (the root script's `conf`
+verb under every shell the machine has, against a stand-in tool and, with `ONEIOS_TOOL_CONF`, against a host build of
+OneiOS `aa8cfa4`'s real oneios-tool: the lists and the manifest follow a write, a kept kernel set too, the preflight
+still passes, a session refuses writes, a runtime without the commands falls back to the plain file); "Tests and
+build" below has each. `./gradlew test` and `assembleFullDebug` pass; the APK is 86,538,329 bytes, 201,845 more than
+0.5.93's 86,336,484 (both written whole). **Not run on a phone**, and the screens were compiled, not rendered (the
+build has no Robolectric, layoutlib or Paparazzi).
+
 ## In the app
 
 The iOS flow has the Android systems' screens, in their order: **pick** (Choose a system), **download or
@@ -324,7 +468,7 @@ the root manager; a refusal says *Root isn't allowed for OneOS*. Before, the pag
 for up to the whole 3 minutes of root's silence limit.
 A check that finds another of the app's jobs running (an Android system's check or setup, the hardware checks, an
 oneios-tool flow) shows *Waiting to check this phone*, which job and its seconds, looks again every 2 s and starts by
-itself when that job has ended (at most 10 minutes, then it says so). The fixed button spins only while a job runs;
+itself when that job has ended (at most 10 minutes, then it says so). The primary button spins only while a job runs;
 with no status and nothing running it says Check again. Before, such a check did nothing and the button spun with
 no reason until another action (such as Download the latest runtime) read the status.
 
@@ -356,58 +500,52 @@ preflight's order on the script's text).
 The iOS card, last in the carousel, marked Experimental, on every phone (warned off the S24 Ultra: "Scope"
 above). Its
 button reads as an Android card's: **Set up** while root has reported no runtime or no image set, **Show
-progress** while a download or an import runs (both open Set up iOS 27), else **Open** (iOS 27's page). Before
-the app has asked root anything in this run it says Open.
+progress** while a download or an import runs, else **Open**; all three open iOS 27's page (since 2026-11-25: its
+checklist is the setup). Before the app has asked root anything in this run it says Open.
 
 ### 2. Set up iOS 27 (download or import, and prepare)
 
-`OneiosSetupActivity`, Setting up's layout. The title says what to do now; the footer's main button does it;
-the steps say what is done; the line under them says what comes next ("Then: Make your iOS image").
+Since the redesign of 2026-11-25 ("UI (2026-11-25)" above) this is no screen of its own: its steps, a download's
+and an import's bytes and Stop are the checklist of iOS 27's page, Get the runtime and Make iOS image.
+`OneiosSetupActivity` only opens the page (an old back stack, a notification of an older build).
 
-| Step | Done (its line) | Next (its line; the button) |
-|---|---|---|
-| Check this phone | `Galaxy S24 Ultra · root allowed` | a refusal of root or of the phone (Allow root access; Check again) |
-| Get the OneiOS runtime | `Version 0.1.6 · 12 files, 12 MB · every file as staged` (or `placeholder, can't start iOS`, `check failed`) | "Holds xnuhost, the program that runs iOS"; **Get the runtime**: "Where should the runtime come from?", a list with a line under each: *Download the latest release* (recommended), *Download an older release* (by its tag), *Use a runtime file I have* (the picker) |
-| Make your iOS image | `iOS 27.0.1 (24A446) · 17.9 GB · every file as staged` | "This phone downloads iOS 27.0.1 from Apple and builds the image itself"; **Get the iOS image**: "Where should the iOS image come from?", *Make it on this phone* (recommended; then the download, the room it needs and this phone's free room, and Make it: the flow's own screen, "Make iOS image (no PC)") or *Use an image set I have* (the picker) |
-| iOS's own data | `New: made at the first switch` or `Kept from earlier sessions` | |
-| Last check before the switch | `Ready to switch` | the preflight's refusal in plain words, with its fix |
-
-While a copy runs, the hero shows `Downloading` or `Importing · 42% · About 2 min left` over the step-wise bar, the
-running step its ring, the file (`File 3 of 21: os.img (10.6 GB)`) and `3.2 GB of 17.9 GB (18%) · 412 MB/s · about
-2 min left`; the footer has **Stop**, asked first as in Setting up (nothing staged before is lost). The screen
-stays on, and `OneiosService`'s notification opens this screen. When every step is done the title is "iOS 27 is
-ready" and **Continue** opens iOS 27's page. A download or an import started on the page shows its progress here.
+- **Get the runtime**: "Where should the runtime come from?", a list with a line under each: *Download the latest
+  release* (recommended), *Download an older release* (by its tag), *Use a runtime file I have* (the picker).
+  Done, its line is `Version 0.1.6 · 12 files, 12 MB · every file as staged` (or `placeholder, can't start iOS`,
+  `check failed`).
+- **Make iOS image**: "Where should the iOS image come from?", *Make it on this phone* (recommended; then the
+  download, the room it needs and this phone's free room, and Make it: "Make iOS image (no PC)") or *Use an image
+  set I have* (the picker). Done: `iOS 27.0.1 (24A446) · 17.9 GB · every file as staged`.
+- While a copy runs the step shows the file (`File 3 of 21: os.img (10.6 GB)`), a bar of its bytes and `3.2 GB of
+  17.9 GB (18%) · 412 MB/s · about 2 min left`, with **Cancel**, asked first (nothing staged before is lost). The
+  screen stays on, and `OneiosService`'s notification opens the page.
+- The phone's check (root allowed, this phone) and iOS's data are lines of **On this phone**, no steps: nothing can
+  be done at them; the last check before the switch is the Switch step's state (to do, or failed with the
+  preflight's refusal in plain words and its fix).
 
 ### 3. iOS 27 (OneiOS): the system's page (switch)
 
-`OneiosActivity`, a system page's layout (`activity_environment`), the artwork on top, then:
+`OneiosActivity` (`activity_oneios_screen.xml`): One UI's large title (the staged system's name, "iOS 27") that
+collapses on scroll, with one line under it (*Ready to switch*, *2 steps to do*, *Make iOS image · 42%*, *An iOS
+session is open*), then:
 
-- **What runs now**, while a job runs: what it is, its step and the seconds on it (counted each second), **Stop** for a
-  check, and *Show progress* for a download or an import.
-- **Set up iOS 27: what is left**, while the runtime or the image set is not staged (2026-11-22): the five steps
-  numbered with their marks (done, now, waiting, failed, running) and lines; the step to do now says what it needs
-  and is the row to tap (the same action as the fixed button, which says it: Get the runtime, Get the iOS image). A
-  failed step is tappable for its fix. Once both are staged, in its place:
-- **On this phone**: four check tiles, tinted by their state: *OneiOS runtime* (`0.1.6 · checked`), *iOS image
-  set* (`iOS 27.0.1 · checked`), *iOS data* (New or Kept), *Last check* (Passed, Refused, Not run yet).
-- **What stops the switch**, one row: the plain refusal and its fix (tap it), or "Ready to switch".
-- **OneiOS runtime**: what is staged (`xnuhost at bin/xnuhost · session ABI 1 (this OneOS: 1) · boots image format
-  1`); *Download the latest runtime*; *Other ways to get it* (a list: an older release by its tag, a runtime file).
-- **iOS image set**: what is staged (`Image format 1 · the runtime boots format 1`); *Make iOS image* (on this
-  phone); *Use an image set I have*; *iOS data* and what keeps or deletes it.
-- **Phone-built kernel** ("Kernel updates" below): the runtime's kernel and the image's `kernel.kc` with its
-  build id, falling back to "unknown, staged before kernel tracking"; the prelink inputs staged of 13 and whether
-  Apple's kernelcache is on the phone; *Check for a newer kernel*; **Update the kernel** (no PC: it fetches Apple's
-  kernelcache from Apple once, then builds; while it runs the section shows its step, a pause or the wait for a
-  network, *Pause*/*Resume*, *Stop* and its progress screen; after it, why it stopped in plain words, or
-  *Activate the phone-built kernel*); *Restore the kept kernel set* while a fallback is kept; *I have the
-  kernelcache file (optional)*, only for a phone without a network.
-- **Last session** (the return): *Back to One UI* while a session is still open (root's `return`, as Volume Up +
-  Volume Down); how the last session came back (`outcome` of `status`: in place, by a restart, by the failsafe
-  with its reason); *Session logs*.
-- **Tools**: *Hardware checks*. **Manage**: *Remove the iOS files* (asked first).
-- The fixed button, one action: **Set up iOS 27** (nothing staged yet: opens Set up iOS 27), a fix's label, **Back
-  to One UI**, **Check again**, or **Switch to iOS 27**; a spinner while root answers.
+- **On this phone**, the one place for the phone's iOS state: while root is asked, what it does and its seconds
+  (with **Stop**), or *Waiting to check this phone* while another job runs; what stops the switch in plain words
+  (tap it for its fix), or "Ready to switch"; *This phone* only for a phone OneiOS is not tested on (the Galaxy
+  A56) or one root refused; *Runtime* and *iOS image* (their lines as above); *Kernel*: the image's `kernel.kc`
+  build id and the runtime's ("unknown" for a set staged before kernel tracking), the kept one before it, the last
+  *Check for a newer kernel*; *iOS data* (New: made at the first switch, or Kept); *Last session* (`outcome` of
+  `status`: in place, by a restart, by the failsafe with its reason).
+- **Steps**, the one checklist ("UI (2026-11-25)" has the table): Get the runtime, Make iOS image, Update the
+  kernel, Activate, Switch (*Switch to iOS 27*), Return (*Back to One UI*, root's `return`, as Volume Up + Volume
+  Down), Logs (Session logs). A step that is to do is the row to tap; a done step taps to run again where that makes
+  sense (Get the runtime, Make iOS image and Update the kernel, the latter two asked first); a running tool step taps
+  to the flow's details.
+- The primary button at the bottom: the next step (the steps' own words), *Show details* while an oneios-tool flow
+  runs, a spinner with the job's words while root works, or the flow's fix (*Check again*, *Download again*, ...).
+- The overflow menu: *Switches*, *Check again*, *Check every file*, *Hardware checks*, *Session logs*, *Check for a
+  newer kernel*, *Restore the kept kernel set* (while a fallback is kept), *Other ways to get the runtime*, *Use an
+  image set I have*, *I have the kernelcache file (optional)*, *Remove the iOS files* (asked first).
 
 ### 4. Switch to iOS 27? (the Switch confirm)
 
@@ -587,7 +725,8 @@ stays as the fallback; a half-updated set never activates):
   identity against the lists), so a half-updated set refuses to boot instead of booting wrong. `restore kernel`
   swaps the kept set back, with its own receipt, and sets `image.ids` again for every file it moved back
   (kc_backup's copies are other inodes; before 2026-11-25 a restored set failed the preflight's `changed since it
-  was staged` on `kernel.kc`).
+  was staged` on `kernel.kc`). A change of `overlay/userland/xnuhost.conf` made after the update (root's `conf`,
+  Switches) is written into the kept set's lists and manifest too, so the restored set still lists the live file.
 - **The Galaxy A56's GPU addon** (2026-11-25, in the same `finish kernel`): for an iOS 16.5 set only (`build=20F66`
   in `image.conf`; an iOS 27 set, 24A446, never runs it and its finish is unchanged), after the kernel is
   activated, root runs the staged runtime's `bin/oneios-tool` (only when its SHA-256 is the one in
@@ -633,8 +772,8 @@ sends requests and shows what comes back. The protocol is the tool's (OneiOS's `
 
 | Flow (screen, where) | Root | Requests | Shown |
 |---|---|---|---|
-| **Make iOS image** (Set up iOS 27's image step, its main button; the image section of iOS 27's page) | `status`, the latest runtime when the staged one has no kernel or its tool no `make-image` (`begin runtime` ... `finish runtime`, as Get the runtime), `kbinput` ×9, `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with `make-image`'s result | one `make-image` (`profile` `<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make/inputs`, `out` `<stage>/image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`, `resume`); no `fetch`, no `tweaks` | its phase in words, then the tool's 28 steps, progress and time left, the space it needs and has, a heat pause, Pause/Resume, Stop, and why it stopped in plain words with the tool's code ("Make iOS image (no PC)") |
-| **Update the kernel** (iOS 27's page, Phone-built kernel) | `status`, `kbinput` ×9, `tool work`, `kbcache <bytes> <sha256>` after the decode, `kbclean` after a stop that cannot go on; then `finish kernel <kc-sha256> <build-id>` when the user taps Activate | `fetch` (`profile` the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make-kernel/inputs`, `only` `["kernelcache"]`, `resume`) and `im4p` (`in` `.../inputs/kernelcache.release.v54`, `out` `<stage>/make-kernel/kernelcache.macho`), both only when `kb/` has no pinned kernelcache; `prelink` | on the iOS page its step, a pause, Pause/Resume and Stop, and why it stopped in plain words; on its screen the tool's steps, progress, space and words |
+| **Make iOS image** (the Make iOS image step of iOS 27's page and its primary button) | `status`, the latest runtime when the staged one has no kernel or its tool no `make-image` (`begin runtime` ... `finish runtime`, as Get the runtime), `kbinput` ×9, `begin image`, `tool work`, then `finish image <files> <format> <version> <build>` with `make-image`'s result | one `make-image` (`profile` `<stage>/runtime/lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make/inputs`, `out` `<stage>/image.new`, `sums_list`, `ids_list`, `work` `<stage>/make`, `resume`); no `fetch`, no `tweaks` | its phase in words, then the tool's 28 steps, progress and time left, the space it needs and has, a heat pause, Pause/Resume, Stop, and why it stopped in plain words with the tool's code ("Make iOS image (no PC)") |
+| **Update the kernel** (the Update the kernel step of iOS 27's page; Activate is the next step) | `status`, `kbinput` ×9, `tool work`, `kbcache <bytes> <sha256>` after the decode, `kbclean` after a stop that cannot go on; then `finish kernel <kc-sha256> <build-id>` when the user taps Activate | `fetch` (`profile` the runtime's `lib/profiles/ios-27.0.1-iPhone18-2.toml`, `indir` `<stage>/make-kernel/inputs`, `only` `["kernelcache"]`, `resume`) and `im4p` (`in` `.../inputs/kernelcache.release.v54`, `out` `<stage>/make-kernel/kernelcache.macho`), both only when `kb/` has no pinned kernelcache; `prelink` | on the iOS page its step with the phase, a bar from the tool's `progress` and Cancel, or why it stopped in plain words with Show log; on its screen the tool's steps with their state icons, progress, space, Pause/Resume (overflow) and words |
 | **Check every file** (Tools) | `tool read` | `sums` of `runtime/` and of `image/` against the lists root wrote at staging, `strict` | each file hashed again, all of them, on all cores; a difference is the tool's `refused` `mismatch` |
 | **CPU, clocks and threads** (Hardware checks, "With oneios-tool") | `tool read` | `cpu` | the tool's report lines and its `cpu` rows |
 | **Analyse the last session**, **iOS's own log: boots**, **last boot** (Session logs, "With oneios-tool") | `tool read` | `log-list` and `log` (`file` `xnuhost`); `ioslog-boots`; `ioslog-show` (`boot` `last`), on `<stage>/data/data.img` | the tool's lines and rows |
@@ -669,7 +808,7 @@ below. What the app needs from the tool is in OneiOS's `oneos/interface.md` sect
   answered its last request. When OneOS was ended in the middle (Android, a crash, a swipe: the tool gets the end of
   its input and cancels, keeping the parts of a `resume` request), the tool's screen offers "Resume: <flow>", and the
   flow's requests carry `resume` where the tool takes it (`fetch`), so the tool goes on from what it kept.
-- **Notifications**: the tool's screen and Set up iOS 27 ask for `POST_NOTIFICATIONS` once (Android 13+), as
+- **Notifications**: the tool's screen and iOS 27's page ask for `POST_NOTIFICATIONS` once (Android 13+), as
   Setting up does; the flow runs without its notification when it is refused.
 - **The end** (the flow's last request, a Stop that got no answer, or `OneiosService` stopping): the app closes the
   tool's standard input; the tool cancels what runs, says `bye` and exits. When it has not ended 10 s later the app
@@ -763,7 +902,7 @@ whole room once and refuses `space`, and anything it cannot do, before a byte is
 have downloaded about 11 GB before that check), and the keyless `tweaks` after it (`make-image` runs the root
 tweaks in its `tweaks` step; the tool now refuses that request `usage`).
 
-**Before it starts** (`OneiosActions.makeImage`, from Set up iOS 27's image step, iOS 27's page and Run again) the
+**Before it starts** (`OneiosActions.makeImage`, from the Make iOS image step of iOS 27's page, its primary button and Run again) the
 user picks the build where the phone offers more than one (iOS 27.0.1 or 27.2.1: "iOS 27.2.1 (24B156)" above), then a
 dialog says what it downloads from Apple (`OneiosTool.MAKE_IMAGE_DOWNLOAD_BYTES`, 11,382,548,957 bytes: the profile's
 13 members), the room it needs at its peak (`MAKE_IMAGE_ROOM_BYTES`, 34 GiB: the profile's `need_gib` of 30 GiB for
@@ -791,9 +930,10 @@ and the lists' lines; **the fetched members stay in `make/inputs`** for the next
 them). **When it ends well** the set is staged (root's checks, as an import's), the iOS screens get root's new
 status, and **Continue** opens iOS 27's page, where the last check and the switch are.
 
-**The fresh phone's path**, with no step that mentions a PC: install the APK → Set up iOS 27: Check this phone →
-Get the runtime (Download the latest release) → **Make your iOS image** (the step's button is Get the iOS image: Make it on
-this phone, or Use an image set I have) → iOS's own data → Last check → Switch. The image step's words, the empty image row of
+**The fresh phone's path**, with no step that mentions a PC: install the APK → iOS 27's page (root's check is On this
+phone) → Get the runtime (Download the latest release) → **Make iOS image** (Make it on this phone, or Use an image set
+I have) → Switch (the preflight is the Switch step's state) → Return → Logs. Before 2026-11-25 the steps were Check this
+phone, Get the OneiOS runtime, Make your iOS image (button: Get the iOS image), iOS's own data and Last check. The image step's words, the empty image row of
 iOS 27's page and the image refusals ("Make your iOS image", "Make iOS image again for this runtime") say Make iOS
 image now; the "How to build it" link to OneiOS's README is gone.
 
@@ -1483,6 +1623,27 @@ the two meet at the return's lock.
   the machine's shells against a fake root (`ONEIOS_TEST_ROOT`; the scripts refuse it as uid 0 and start nothing
   there): the refusal without a runtime, a runtime without xnuhost, changed files, mismatched pairs; and the
   guards on the scripts' text.
+- **Switches (2026-11-25).** The same class, with `resources/oneios/conf-tool.sh` (a POSIX-sh stand-in of
+  oneios-tool's `switches` and `conf`) as the runtime's `bin/oneios-tool`:
+  `confChangesTheImagesXnuhostConfWithItsListsAndTheSwitchStillPasses` (load gives the catalog and the file; set,
+  unset, write-force and restore change the file in place with its `image.sha256`, `image.ids` and `manifest.json`
+  lines, nothing of the tool's lands in `image/`, the preflight still passes; the tool's refusal, a write with an
+  error at its line and root's own name checks change nothing; check reads only; a session refuses every write),
+  `confKeepsTheKeptKernelSetListingTheFile` (after Update the kernel, a change is in `kernel.prev`'s lists too, and
+  `restore kernel` still passes the preflight), `confWithoutTheRuntimesCatalogChecksWithTheToolsOwn` (a runtime without
+  `lib/switches.json`: no catalog, the tool's own checks), `confWithATooOldToolIsThePlainFile` (a tool whose answer is
+  usage: no catalog, set refused, the plain file written and restored). The stand-in answers as OneiOS `aa8cfa4`'s
+  `oneios-conf` does (its argument order, `--runtime`, `FILE.bak`, the show after a change, `warnings`).
+  `confAgainstTheRealTool` (skipped unless `ONEIOS_TOOL_CONF` names a host build of OneiOS's oneios-tool with `conf`)
+  runs the same calls against the real tool with its own catalog as the runtime's `lib/switches.json`: a toggle of
+  the catalog's first conf bool, a bad value refused, a write refused at its line, Save anyway, Check, Restore
+  previous, the lists and the preflight after each. Passed on the Linux PC against a release build of OneiOS
+  `aa8cfa4` (`ONEIOS_TOOL_CONF=<oneios-tool> ./gradlew :core:root:testDebugUnitTest --tests '*OneiosScriptTest.conf*'`). `core/model` `OneiosConfTest` (the catalog and
+  `conf show` JSON with an unknown field and kinds it cannot show, the rows' controls, values and changed marks, the
+  change a toggle, a picker or Reset sends, root's reply parts, the flag words). `core/root` `OneiosStepsTest` (the
+  checklist from a fresh phone to a session and back: each step's state, the next step, a download's bytes, Make
+  iOS image's progress from the tool's own `start`/`step`/`progress` lines, a failure's reason and Show log, a kernel
+  to update and to activate, a refused preflight, an open session, the failsafe; the step names are this file's).
 - **Kernel updates.** The same class, against fake stages: `kbinput` stages the 13 allowlisted inputs (and
   refuses any other name); `finish kernel` checks the phone-built collection (complete, its SHA-256, built from
   this runtime's xnu and the staged kernelcache) and refuses a wrong one or a wrongly paired one with nothing
@@ -1769,10 +1930,11 @@ interfere: different repositories, runs and releases.
   `{"cmd":"resume","id":...}`; `paused`, `resumed`, `net` with `state`, `next`, `text`; an `error` with the id and a code such
   as `not-pausable` for a request that is no download, shown as "The tool says"). Tested against the stand-in only: the
   tool of that branch was not built here. A tool whose `hello` does not list `pause` and `resume` shows no Pause button.
-- **The redesigned iOS screens have not been compiled, opened or seen** (2026-11-15): Set up iOS 27, iOS 27's
-  page, the Switch confirm and the switching screen were written on a box without JDK 21 or the Android SDK. The
-  first build (`./gradlew test assembleFullDebug`) and a click-through on the phone are their first run; real
-  screenshots are still to be taken. `status` names no runtime size and no Data store, so the screens use the
+- **The iOS screens of 2026-11-25 (iOS 27's page with its checklist, an oneios-tool flow's details, Switches, Edit
+  file) are compiled (`./gradlew assembleFullDebug` on the Linux PC) but not opened on a phone or an emulator, and
+  not rendered** (the build has no Robolectric, layoutlib or Paparazzi); a click-through on the phone is their first
+  run, screenshots are still to be taken. The Switches screen also waits for a runtime whose oneios-tool has
+  `switches` and `conf` with its catalog (OneiOS v0.1.33 or newer); until then it offers Edit file only, as a plain file. `status` names no runtime size and no Data store, so the screens use the
   app's own record and the session state ("In the app"); a `status` line for either would be better.
 - **The boot screen has not run on the phone** (0.4.80). Unknown until it does: whether `app_process` starts
   the renderer from the iOS stage's `bin/` (the Android guests run it from their own stage, which is tested on

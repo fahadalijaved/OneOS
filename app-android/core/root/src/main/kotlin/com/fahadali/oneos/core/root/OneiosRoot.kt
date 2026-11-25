@@ -78,7 +78,15 @@ object OneiosRoot {
         TOOL("tool", Stdin.NONE),
 
         /** The backstop: ends every process of the staged bin/oneios-tool serve. */
-        UNTOOL("untool", Stdin.NONE);
+        UNTOOL("untool", Stdin.NONE),
+
+        /**
+         * xnuhost's switches (docs/oneios.md, "UI (2026-11-25)"): the staged image's overlay/userland/xnuhost.conf, read
+         * and changed through the staged bin/oneios-tool on a copy of root's, the image's lists rewritten after a change
+         * ([OneiosConf]). Its one word is the operation ([CONF_OPS]); stdin carries `set`'s and `unset`'s names, or
+         * the text of `write` and `check` (empty for the others).
+         */
+        CONF("conf", Stdin.DATA);
     }
 
     /** What the launcher's checks look at: the phone, or a fake root in the tests. */
@@ -90,6 +98,9 @@ object OneiosRoot {
 
     private val TOKEN = Regex("^[A-Za-z0-9][A-Za-z0-9._+,/-]{0,199}$")
     private val DEC = Regex("^[0-9]{1,18}$")
+
+    /** `conf`'s operations: read (load: the catalog and the file; show; check: stdin's text, nothing written) and write. */
+    val CONF_OPS: List<String> = listOf("load", "show", "check", "set", "unset", "write", "write-force", "restore")
 
     /** The switch verb's optional third word: the session mode (oneios_switch.sh, "THE SESSION MODE"). */
     val SESSION_MODES: Set<String> = setOf(OneiosSystem.MODE_HOSTED, OneiosSystem.MODE_TAKEOVER)
@@ -129,6 +140,10 @@ object OneiosRoot {
                 args.getOrNull(2)?.let { if ((it.toLongOrNull() ?: 0) !in 1..OneiosLogs.CHUNK_MAX) p += "logfile: 1 to ${OneiosLogs.CHUNK_MAX} bytes a call" }
             }
             Verb.BEGIN -> { need(1); kind(0) }
+            Verb.CONF -> {
+                need(1)
+                args.getOrNull(0)?.let { if (it !in CONF_OPS) p += "conf: '${it.take(40)}' is not one of ${CONF_OPS.joinToString(", ")}" }
+            }
             Verb.TOOL -> {
                 need(1)
                 args.getOrNull(0)?.let { if (it != "work" && it != "read") p += "tool: '${it.take(40)}' is not work or read" }

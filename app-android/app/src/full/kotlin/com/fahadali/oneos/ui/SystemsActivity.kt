@@ -606,7 +606,8 @@ class SystemsFragment : Fragment() {
                 else -> R.string.oneios_open
             }
             val open = View.OnClickListener {
-                startActivity(if (ios.copying || notSetUp) OneiosSetupActivity.intent(ctx) else OneiosActivity.intent(ctx))
+                // Set up, Show progress and Open all land on iOS 27's page since the redesign of 2026-11-25: its checklist is the setup.
+                startActivity(OneiosActivity.intent(ctx))
             }
             v.findViewById<Button>(R.id.systems_primary).apply {
                 setText(label)
