@@ -338,6 +338,15 @@ OneLineage-derived session scripts (published with WeWaffles' permission). See
   devices paired there ([pull request #298](https://github.com/fahadalijaved/OneOS/pull/298)).
 - **[@bidaighrissi1-stack](https://github.com/bidaighrissi1-stack)**: the Galaxy M36 5G profile
   ([pull request #327](https://github.com/fahadalijaved/OneOS/pull/327)).
+- **[@Energobro](https://github.com/Energobro)**: Galaxy S24 FE (Exynos) and ColorOS fixes: screen
+  recording, rounded corners and the camera cutout, audio with an EQ screen, camera, proximity, charging and
+  fingerprint ([pull request #355](https://github.com/fahadalijaved/OneOS/pull/355), 0.5.37).
+- **[@ankaserdev](https://github.com/ankaserdev)**: Bluetooth audio on the Galaxy S24 Ultra with the Pixel,
+  PixelOS, LineageOS and Infinity-X systems ([pull request #358](https://github.com/fahadalijaved/OneOS/pull/358), 0.5.38).
+- **[@jinkun1998](https://github.com/jinkun1998)**: Galaxy Z Fold4 support with OxygenOS 16 and the dual-panel
+  backlight bridge ([pull request #361](https://github.com/fahadalijaved/OneOS/pull/361), 0.5.38).
+- **[@crisazas](https://github.com/crisazas)**: the return keys no longer keep a core busy after a keyboard
+  cover is detached ([pull request #362](https://github.com/fahadalijaved/OneOS/pull/362), 0.5.38).
 - **[ducttape33](https://github.com/ducttape33)** and **[kett1m](https://github.com/kett1m)**:
   [backdownload](https://github.com/kett1m/backdownload) (GPL-3.0), which keeps Samsung's Download
   Mode reachable with a screen lock set and returns there when a switch fails.
