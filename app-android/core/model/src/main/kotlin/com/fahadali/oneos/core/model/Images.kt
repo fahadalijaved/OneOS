@@ -703,7 +703,7 @@ object Images {
         name = "One UI 8.5",
         variant = "Fold6 Port · Experimental",
         blurb = "Samsung One UI 8.5 (Android 16) from Galaxy Z Fold6, for Galaxy Z Fold4. With Google apps.",
-        downloadUrl = SHARED_FOLDER_URL,
+        downloadUrl = "https://drive.google.com/file/d/1rFK5xrfjGNv07cGO2HXvkWYHz6sYhnUT/view?usp=drive_link",
         sdk = 36,
         buildId = "F956BXXS4DZI1",
         gzName = "OneOS_OneUI8.5_Fold4.img.gz",
