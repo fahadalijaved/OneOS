@@ -1566,6 +1566,12 @@
           "tested": false
         },
         {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -3810,6 +3816,30 @@
       "label": "Galaxy Tab S9 FE",
       "model": "SM-X510",
       "codename": "gts9fewifi",
+      "chip": "s5e8835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s9-fe-5g",
+      "label": "Galaxy Tab S9 FE 5G",
+      "model": "SM-X516",
+      "codename": "gts9fe",
       "chip": "s5e8835",
       "form": "bar",
       "enabled": true,

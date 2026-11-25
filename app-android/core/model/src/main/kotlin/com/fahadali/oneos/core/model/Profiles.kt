@@ -125,6 +125,7 @@ object Profiles {
     const val ID_TAB_S12_ULTRA = "tab-s12-ultra"
     const val ID_TAB_S9_FE_PLUS = "tab-s9-fe-plus"
     const val ID_TAB_S9_FE = "tab-s9-fe"
+    const val ID_TAB_S9_FE_5G = "tab-s9-fe-5g"
     const val ID_TAB_S9_ULTRA = "tab-s9-ultra"
     const val ID_TAB_S11 = "tab-s11"
     const val ID_S_ULTRA_8550 = "s-ultra-8550"
@@ -816,7 +817,8 @@ object Profiles {
         codename = "q5q",
         socModel = "SM8550",
         form = FormFactor.FOLD,
-        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, LINEAGE_CHOICE) + ONEUI95_CHOICE,
+        // 0.5.47 (owner): OriginOS too, as on the Z Flip5 and the S23s of the same chip (untested).
+        choices = listOf(ImageChoice(Images.ID_FIND_N6, PackageSets.ID_N6_F8U, tested = false), INFINITYX_CHOICE, LINEAGE_CHOICE, ORIGINOS_CHOICE) + ONEUI95_CHOICE,
         notes = listOf(olderVendor("33 (Android 13)", "5.15")),
     ))
 
@@ -1443,6 +1445,13 @@ object Profiles {
         notes = listOf(TABLET) + A26.notes,
     )
 
+    /**
+     * Galaxy Tab S9 FE 5G (SM-X516B/N, gts9fe), from a probe report of 2026-11-25 (findings-6d47aeba, SM-X516N on
+     * One UI 8.5, s5e8835): the Wi-Fi model's hardware with a modem; the same choices (owner, 2026-11-25). The Tab
+     * S9 FE scripts key on SM-X51* or this id too (testing).
+     */
+    val TAB_S9_FE_5G = TAB_S9_FE.copy(id = ID_TAB_S9_FE_5G, label = "Galaxy Tab S9 FE 5G", modelPrefix = "SM-X516", codename = "gts9fe")
+
     /** Galaxy Tab S9 Ultra (Wi-Fi, SM-X910, gts9uwifi): the Tab S9's chip (findings of 2026-11-11 and 11-12; 0.5.43, testing). */
     val TAB_S9_ULTRA = TAB_S9.copy(id = ID_TAB_S9_ULTRA, label = "Galaxy Tab S9 Ultra", modelPrefix = "SM-X910", codename = "gts9uwifi")
 
@@ -1453,7 +1462,7 @@ object Profiles {
     )
 
     /** The Galaxy Tab profiles: tablet systems only, never One UI 9.5 on One UI 8 ([withOneUi95OnA16]). */
-    val TABLETS: List<PhoneProfile> = listOf(TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE, TAB_S9_ULTRA, TAB_S11)
+    val TABLETS: List<PhoneProfile> = listOf(TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE, TAB_S9_FE_5G, TAB_S9_ULTRA, TAB_S11)
 
     /** Every profile with the choices of a normal build ([BUILT_IN] unless this is a tester build). */
     val STABLE: List<PhoneProfile> = listOf(
@@ -1463,7 +1472,7 @@ object Profiles {
         S_ULTRA_8550, FLIP6, S_9945, S_EDGE_8750, S_FE_9945, A26, A17, A16, S_9965, A16_4G, A16_S166, A35, A54, A27, A17_5G, FLIP7_FE,
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
         A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,
-        S26_FE, S_PLUS_8450, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE, TAB_S9_ULTRA, TAB_S11,
+        S26_FE, S_PLUS_8450, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE, TAB_S9_FE_5G, TAB_S9_ULTRA, TAB_S11,
     )
 
     /**

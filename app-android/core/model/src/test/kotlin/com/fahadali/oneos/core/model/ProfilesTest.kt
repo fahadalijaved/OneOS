@@ -306,6 +306,7 @@ class ProfilesTest {
                 Profiles.ID_S_ULTRA_8550_JP, // 0.4.92: the au S23 Ultra, the S23 Ultra's list
                 Profiles.ID_S_8550_JP, // 0.4.93: the au S23, the S23's list
                 Profiles.ID_FLIP5, // 0.5.46 (owner): the S23s' chip
+                Profiles.ID_FOLD5, // 0.5.47 (owner): the same chip
             ),
             offerOrigin.map { it.id }.toSet(),
         )
@@ -334,7 +335,10 @@ class ProfilesTest {
                 // 0.5.42: the Galaxy S22+ with Snapdragon.
                 Profiles.S_PLUS_8450,
                 // 0.5.41: the Galaxy Tabs, OxygenOS 17 for tablets only (testing).
-                Profiles.TAB_S9, Profiles.TAB_S10_FE, Profiles.TAB_S10_FE_WIFI, Profiles.TAB_S12_ULTRA, Profiles.TAB_S9_FE_PLUS, Profiles.TAB_S9_FE, Profiles.TAB_S9_ULTRA, Profiles.TAB_S11,
+                Profiles.TAB_S9, Profiles.TAB_S10_FE, Profiles.TAB_S10_FE_WIFI, Profiles.TAB_S12_ULTRA, Profiles.TAB_S9_FE_PLUS, Profiles.TAB_S9_FE,
+                // 0.5.47: the Galaxy Tab S9 FE 5G (owner).
+                Profiles.TAB_S9_FE_5G,
+                Profiles.TAB_S9_ULTRA, Profiles.TAB_S11,
             ),
             Profiles.BUILT_IN,
         )
@@ -454,6 +458,13 @@ class ProfilesTest {
         assertNull(Profiles.resolve("SM-X510", "gts9fewifi", "SM8450").profile)
         assertNull(Profiles.resolve("SM-X516B", "gts9fewifi", "s5e8835").profile)
         assertTrue(Profiles.TAB_S9_FE in Profiles.TABLETS)
+        // 0.5.47: the Tab S9 FE 5G (SM-X516B/N, gts9fe; findings-6d47aeba), the Wi-Fi model's choices and notes.
+        assertEquals(Profiles.TAB_S9_FE_5G, Profiles.resolve("SM-X516N", "gts9fe", "s5e8835").profile)
+        assertEquals(Profiles.TAB_S9_FE_5G, Profiles.resolve("SM-X516B", "gts9fe", "s5e8835").profile)
+        assertEquals(listOf("tab-s9-fe-5g", "Galaxy Tab S9 FE 5G"), listOf(Profiles.TAB_S9_FE_5G.id, Profiles.TAB_S9_FE_5G.label))
+        assertEquals(listOf(Profiles.TAB_S9_FE.choices, Profiles.TAB_S9_FE.notes, Profiles.TAB_S9_FE.form),
+            listOf(Profiles.TAB_S9_FE_5G.choices, Profiles.TAB_S9_FE_5G.notes, Profiles.TAB_S9_FE_5G.form))
+        assertTrue(Profiles.TAB_S9_FE_5G in Profiles.TABLETS)
         // Owner (2026-11-25): the tablet system and One UI 9.5 only.
         assertEquals(
             listOf(
@@ -618,7 +629,7 @@ class ProfilesTest {
         // Galaxy Z Fold5 (0.4.35): the Z Flip5's platform as a fold, the Fold6's systems.
         assertEquals(Profiles.FOLD5, profile("SM-F946B", "q5q", "SM8550"))
         assertEquals(FormFactor.FOLD, Profiles.FOLD5.form)
-        assertEquals(listOf(Images.ID_FIND_N6, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_ONEUI95), Profiles.FOLD5.choices.map { it.imageId })
+        assertEquals(listOf(Images.ID_FIND_N6, Images.ID_INFINITYX, Images.ID_LINEAGE, Images.ID_ORIGINOS7, Images.ID_ONEUI95), Profiles.FOLD5.choices.map { it.imageId })
         assertEquals(listOf(Profiles.ID_NOTE_OLDER_VENDOR), Profiles.FOLD5.notes.map { it.id })
         // Galaxy Z Fold4 (SM-F936): Snapdragon 8+ Gen 1 (SM8475), One UI 8.0 stock, OxygenOS 16 only (tested).
         assertEquals(Profiles.FOLD4, profile("SM-F936B", "q4q", "SM8475"))
@@ -749,7 +760,7 @@ class ProfilesTest {
             val expected = ImageChoice(Images.ID_ONEUI95, if (p.id == Profiles.ID_FOLD8) PackageSets.ID_ONEUI95_F8 else PackageSets.ID_ONEUI95, tested = false)
             // 0.5.41: a Galaxy Tab has only its tablet system (owner: "Hide all other Heros").
             // Pull request #371: except the Tab S9 FE, which also takes One UI 9.5 (owner, 2026-11-25).
-            val onOneUi9 = (p !in Profiles.TABLETS || p == Profiles.TAB_S9_FE) && p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
+            val onOneUi9 = (p !in Profiles.TABLETS || p == Profiles.TAB_S9_FE || p == Profiles.TAB_S9_FE_5G) && p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
             if (onOneUi9) {
                 assertEquals(p.id, expected, p.choices.last().copy(tested = false))
                 assertEquals(p.id, expected, p.choice(Images.ID_ONEUI95)!!.copy(tested = false))
@@ -757,7 +768,7 @@ class ProfilesTest {
                 assertNull(p.id, p.choice(Images.ID_ONEUI95))
             }
         }
-        assertEquals(52, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
+        assertEquals(53, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
         assertEquals(listOf(Images.ID_OXYGEN16), Profiles.A06.choices.map { it.imageId })
     }
 }

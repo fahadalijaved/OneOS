@@ -865,7 +865,7 @@ fi
 # The Galaxy Tab S9 FE only (pull request #371, its Himax TDDI panel): the bridge polls the panel's dpms node and
 # runs at 0.2 s; every other phone keeps the 1 s loop.
 BLFAST=0
-case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|*:SM-X51*) BLFAST=1 ;; esac
+case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|tab-s9-fe-5g:*|*:SM-X51*) BLFAST=1 ;; esac
 if [ $BRIDGE = 1 ]; then
     cat > /data/oneos_bl_bridge.sh <<'BLEOF'
 BL=$1; MAX=$2; ON=$3; LED=$4; BL2=$5; MAX2=$6; FAST=${7:-0}
@@ -1359,7 +1359,7 @@ fi
 # for the policy service without a timeout).
 # The Galaxy Tab S9 FE only (pull request #371): real-time priority for the guest audioserver, and One UI guests keep Dolby to SoundAlive (marker file).
 rm -f /data/oneos_audio_rt
-case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|*:SM-X51*) : > /data/oneos_audio_rt ;; esac
+case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|tab-s9-fe-5g:*|*:SM-X51*) : > /data/oneos_audio_rt ;; esac
 if [ -f /data/guest_audio.flag ]; then
     echo "[Pivoted Root] Starting guest audioserver..."
     mkdir -p /data/misc/audioserver && chown 1041:1005 /data/misc/audioserver && chmod 0700 /data/misc/audioserver
@@ -1613,11 +1613,21 @@ if [ -f /data/guest_audio.flag ]; then
             # no sound for most of the session). Once that is in the crash log: no DSP hotword for the Google app
             # in this guest (RECORD_AUDIO_HOTWORD ignore, kept in its app ops; SoundTriggerHelper then starts no
             # recognition) and the app stopped so it attaches again under that rule.
-            if [ ! -f /data/oneos_hotword_off.log ] && logcat -d -b crash 2>/dev/null | grep -q "(vts_load_sound_model+"; then
+            # 0.5.47 (Galaxy A17 MediaTek dcea6a06, 0.5.46): the same on MediaTek. The Google model (115700 bytes)
+            # failed in mtk_load_sound_model (IOCTL VOW_SET_SPEAKER_MODEL ERR) and the audio HAL died right after,
+            # about every minute (22 audioserver deaths; Telegram stopped responding waiting for audio, then the
+            # guest system died). Its HAL leaves no tombstone, so the error line in the main log is the sign.
+            hw=""
+            if [ ! -f /data/oneos_hotword_off.log ]; then
+                if logcat -d -b crash 2>/dev/null | grep -q "(vts_load_sound_model+"; then hw=vts_load_sound_model
+                elif logcat -d -b main -s sound_trigger_hw_default:E 2>/dev/null | grep -q "VOW_SET_SPEAKER_MODEL ERR"; then hw=mtk_load_sound_model
+                fi
+            fi
+            if [ -n "$hw" ]; then
                 g=com.google.android.googlequicksearchbox
                 o=$(/system/bin/sh /data/oneos_genv.sh /system/bin/cmd appops set $g RECORD_AUDIO_HOTWORD ignore 2>&1 | tr -s " \n" " " | head -c 80)
                 /system/bin/sh /data/oneos_genv.sh /system/bin/am force-stop $g >/dev/null 2>&1
-                echo "$(date +%T) audio HAL died loading a voice wake-up model (vts_load_sound_model): Hey Google DSP hotword off for $g ($o)" | tee /data/oneos_hotword_off.log
+                echo "$(date +%T) audio HAL died loading a voice wake-up model ($hw): Hey Google DSP hotword off for $g ($o)" | tee /data/oneos_hotword_off.log
             fi
             # 0.4.60: no hand-over after registration. Every guest framework is not
             # Samsung, and Samsung audioserver killed it (Invalid usage 1005; 0.4.59
@@ -2220,7 +2230,8 @@ if [ "$(cat /data/oneos_fold_mode 2>/dev/null)" = layout ] && [ "${ONEOS_GUEST_F
     FOLD_CONTINUE=1
 fi
 if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$(getprop ro.product.model)" = SM-F971B ] ||
-     [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "$(getprop ro.product.model)" = SM-X510 ]; } &&
+     [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "${ONEOS_PROFILE:-}" = tab-s9-fe-5g ] ||
+     case "$(getprop ro.product.model)" in SM-X510|SM-X516*) true ;; *) false ;; esac; } &&
    grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop &&
    [ ! -e /data/.oneui95-fold8-taskbar ] && [ ! -L /data/.oneui95-fold8-taskbar ]; then
     FOLD8_TASKBAR=1
@@ -2288,7 +2299,8 @@ if [ "$FOLD_CONTINUE" = 1 ] || [ "$FOLD8_TASKBAR" = 1 ] || [ "$FOLD8_RESTORE_DEX
 fi
 # Samsung's Live Notifications developer setting belongs to the guest user.
 if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
-     [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "$(getprop ro.product.model)" = SM-X510 ]; } &&
+     [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "${ONEOS_PROFILE:-}" = tab-s9-fe-5g ] ||
+     case "$(getprop ro.product.model)" in SM-X510|SM-X516*) true ;; *) false ;; esac; } &&
    grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
     $BB sh -c '
         key=enable_notification_nowbar_test

@@ -523,7 +523,7 @@ rm -f "$STAGE/data/oneos_a17_on_a16"
 # tablet with any system; ONEUI95_TAB_S9_FE the tablet on a One UI 9.5 image.
 TAB_S9_FE_HOST=0
 case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in
-    tab-s9-fe:*|*:SM-X51*) TAB_S9_FE_HOST=1 ;;
+    tab-s9-fe:*|tab-s9-fe-5g:*|*:SM-X51*) TAB_S9_FE_HOST=1 ;;
 esac
 ONEUI95_TAB_S9_FE=0
 [ "$ONEUI95_IMAGE" = 1 ] && [ "$TAB_S9_FE_HOST" = 1 ] && ONEUI95_TAB_S9_FE=1
@@ -7739,8 +7739,17 @@ if [ "$A17_ON_A16" = 1 ]; then
     elif "$STAGE/oneos_bpf_ringbuf" sockops-create "$SOP" && [ -e "$SOP" ]; then
         echo "$SOP" > "$STAGE/bpf_sockops.created"
         echo "netd socket-ops program: none pinned on this boot; one that does nothing pinned at $SOP for the session"
+    elif [ -x /system/bin/runcon ] && /system/bin/runcon u:r:bpfloader:s0 "$STAGE/oneos_bpf_ringbuf" sockops-create "$SOP" && [ -e "$SOP" ]; then
+        # 0.5.47 (testing): the S22 Ultra Exynos 6daa8c2c refused BPF_PROG_LOAD to root (EPERM); tried again
+        # as One UI's BPF loader (its SELinux domain) when root may switch to it.
+        echo "$SOP" > "$STAGE/bpf_sockops.created"
+        echo "netd socket-ops program: pinned at $SOP as One UI's BPF loader (root alone was refused)"
     else
-        echo "!!! netd socket-ops program: could not pin $SOP; the guest's netd will abort and system_server wait for it"
+        # 0.5.47: without it the guest's netd aborts every 5 s, the guest never finishes booting and Samsung's
+        # bootchecker restarts the phone again and again (S22 Ultra Exynos 6daa8c2c: 'Infinite reset',
+        # rescue level 4), which can end in One UI's recovery screen. Stopping here returns to One UI once.
+        echo "ERROR: this phone's kernel does not let OneOS make the network program One UI 9.5's netd needs ($SOP: BPF_PROG_LOAD not permitted); not starting the guest (it would restart the phone in a loop)"
+        exit 3
     fi
 fi
 # 0.5.44 (S22 on One UI 8, 0.5.43 494048ab): One UI 8's tethering module under Android 17 opens the L4S

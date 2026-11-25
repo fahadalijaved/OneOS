@@ -703,7 +703,7 @@ fi
 # The Galaxy Tab S9 FE (pull request #371): what its support adds beyond the Wi-Fi-only telephony and the SM-X51*
 # model cases runs only here.
 HOST_TAB_S9_FE=0
-case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|*:SM-X51*) HOST_TAB_S9_FE=1 ;; esac
+case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|tab-s9-fe-5g:*|*:SM-X51*) HOST_TAB_S9_FE=1 ;; esac
 rm -f "$STAGE/host_statusbar" "$STAGE/host_no_cutout"
 if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
     cut_after "$HLINE" 'cutoutSpec={' '}'; HCS=$R

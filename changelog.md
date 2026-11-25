@@ -801,6 +801,17 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.47: **S22 Ultra (Exynos) restart loop, Galaxy A17 freezes, Galaxy Tab S9 FE 5G, OriginOS on the Z Fold5.**
+- **Galaxy S22 Ultra (Exynos) with One UI 9.5 no longer restarts the phone again and again** (testing). Its kernel
+  refused a small network program One UI 9.5 needs, so the system never finished starting and Samsung's boot checker
+  restarted the phone. OneOS now tries two more ways to make it; if the phone still refuses, OneOS stops before
+  starting and returns to One UI once, with a message, instead of the restart loop.
+- **Galaxy A17 (MediaTek) with One UI 9.5: apps such as Telegram no longer freeze** (testing). Loading the "Hey Google"
+  voice model crashed the phone's audio chip about once a minute, and apps waiting for sound stopped responding.
+  OneOS now turns off Hey Google's always-listening mode when that happens, as it already did on Exynos phones.
+- **Galaxy Tab S9 FE 5G (SM-X516B/N)** with OxygenOS 17 Pad and One UI 9.5, like the Wi-Fi model (testing).
+- **Galaxy Z Fold5: OriginOS 7** too, as on the Z Flip5 (testing).
+
 New in 0.5.46: **Send to the OneOS team is back, Galaxy Tab fixes, Galaxy Tab S9 FE, OriginOS on the Z Flip5.**
 - **Send to the OneOS team** shows again in Last session and Session logs. It was hidden in every build since 0.5.24,
   so only Share and Save were there. On Session logs, the "Send the logs to the OneOS team" line now opens it too.

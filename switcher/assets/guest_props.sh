@@ -886,7 +886,7 @@ add)
     # the display configs of the other systems). 1000 = the Fold's own.
     bm=$(grep 'DisplayDeviceInfo{' "$STAGE/display_modes_host.log" 2>/dev/null | sed -n 's/.*brightnessMaximum \([0-9.]*\).*/\1/p' | head -n 1)
     # The Galaxy Tab S9 FE's LCD (brightnessMaximum 1.176) is scaled from 1.0 (pull request #371); every other phone from 1.5.
-    case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|*:SM-X51*) bmlo=1.0 ;; *) bmlo=1.5 ;; esac
+    case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|tab-s9-fe-5g:*|*:SM-X51*) bmlo=1.0 ;; *) bmlo=1.5 ;; esac
     sc=$(awk -v m="$bm" -v lo="$bmlo" 'BEGIN { if (m + 0 >= lo + 0 && m + 0 <= 8) printf "%d", 5298.0394 / m + 0.5; else print 1000 }')
     sed -i '/^ro\.oneos\.panel_scale_milli=/d' "$NEW"
     echo "ro.oneos.panel_scale_milli=$sc" >> "$NEW"
@@ -1141,7 +1141,7 @@ add)
     # / 1080 = 600. Phones run at 1080 or less and folds are left alone. ONEOS_GUEST_QHD_BASE=0 leaves it.
     if { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; } &&
        [ "${ONEOS_GUEST_FORM:-fold}" != fold ] && [ "${ONEOS_GUEST_QHD_BASE:-1}" = 1 ] &&
-       case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|*:SM-X51*) false ;; *) true ;; esac; then
+       case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|tab-s9-fe-5g:*|*:SM-X51*) false ;; *) true ;; esac; then
         LD=ro.sf.lcd_density
         ld=$(getprop "$LD")
         # The width the guest runs the panel at. One UI's when One UI runs the whole panel. With One UI at FHD+
@@ -2043,14 +2043,14 @@ ro.miui.backdrop_sampling_enabled=true"
         *) [ "$hsep" -lt 180000 ] && oneui_version_props="$oneui_version_props ro.build.version.sep" ;;
     esac
     if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
-         [ "${ONEOS_PROFILE:-}" = tab-s9-fe ]; } &&
+         [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "${ONEOS_PROFILE:-}" = tab-s9-fe-5g ]; } &&
        grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
         # Build.VERSION.SEM_PLATFORM_INT and One UI Home read sep, not sem.
         # Use the guest's platform level with the device's own hardware identity
         # (prevents phone-only HoneyBoard / layout scaling on Fold8 and Tab S9 FE).
         oneui_version_props="$oneui_version_props ro.build.version.sep"
         oneui_image_model=0
-        if [ "${ONEOS_PROFILE:-}" = tab-s9-fe ]; then echo "guest_props: keeping Tab S9 FE model for One UI 9.5"
+        if [ "${ONEOS_PROFILE:-}" = tab-s9-fe ] || [ "${ONEOS_PROFILE:-}" = tab-s9-fe-5g ]; then echo "guest_props: keeping Tab S9 FE model for One UI 9.5"
         else echo "guest_props: keeping Fold8 model for One UI 9.5"; fi
         # SystemUI reads this debug override when its application starts.
         # Use the session property journal so the host value returns with One UI.
