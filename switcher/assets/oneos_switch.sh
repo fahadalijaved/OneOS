@@ -823,6 +823,18 @@ case "$HUD:$MDW:$MPW:$H0W" in
        fi ;;
 esac
 echo "preflight: display scale done $(date +%T)"
+# The main panel's installOrientation (0..3, multiples of 90 deg), for guest_props.sh:
+# tablets such as the Galaxy Tab S12 Ultra (SM-X940, MT6993) expose a landscape HWC
+# mode (2960x1848) with a portrait touchscreen (1848x2960) and host SurfaceFlinger
+# installOrientation 3 (ORIENTATION_270). Phone guest images default to ORIENTATION_0
+# when ro.surface_flinger.primary_display_orientation is unset, leaving both screen
+# and touch rotated/skewed.
+rm -f "$STAGE/host_install_orientation"
+HIO=$(printf '%s\n' "$MLINE" | sed -n 's/.*installOrientation \([0-3]\)[,} ].*/\1/p')
+case "$HIO" in
+    1|2|3) echo "$HIO" > "$STAGE/host_install_orientation"
+           echo "Host install orientation: $HIO (panel installed rotated $((HIO * 90)) deg)" ;;
+esac
 # The cover panel of a fold, for guest_prepare.sh (ColorOS cover density): the
 # smaller of the two default-capable internal displays, as
 # "<uniqueId> <port> <width> <height> <xdpi>". The guest's SurfaceFlinger
