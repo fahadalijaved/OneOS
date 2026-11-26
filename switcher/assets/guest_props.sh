@@ -771,6 +771,25 @@ add)
         done
         echo "guest_props: no $BTA on this phone: LE Audio off for the session:${out:- nothing was on}"
     fi
+    # Samsung Bluetooth stack VaultKeeper integration: on devices where VaultKeeper HAL or daemon
+    # is unavailable in the guest namespace, btif_storage.cc attempts getKeyIVLen 4 times and triggers
+    # BLE_START_TIMEOUT / crash loops. Disable VaultKeeper feature flag in guest properties if HAL is absent.
+    if [ "$GUEST_ONEUI" = 1 ] || grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        VK_HAL=vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default
+        if timeout 5 service check "$VK_HAL" 2>/dev/null | grep -q ": not found" || [ -z "$(getprop init.svc.vaultkeeper)" ]; then
+            for vk_prop in ro.security.vaultkeeper.feature persist.security.vaultkeeper.feature vendor.security.vaultkeeper.native; do
+                drop_new "$vk_prop"
+                hv=$(getprop "$vk_prop")
+                if [ -n "$hv" ] && [ "$hv" != "0" ] && [ "$hv" != "false" ] && "$RP" -n "$vk_prop" "0" 2>/dev/null; then
+                    echo "$vk_prop=$hv" >> "$OVR"
+                fi
+            done
+            "$RP" -n ro.security.vaultkeeper.feature 0 2>/dev/null || true
+            "$RP" -n persist.security.vaultkeeper.feature 0 2>/dev/null || true
+            echo "guest_props: VaultKeeper HAL unavailable for guest; disabled vkSupport in props for the session"
+        fi
+    fi
+
     # ColorOS's Bluetooth on a Helio G99 phone (Galaxy A16 4G, reports c6e0068a
     # of build 100 and 049d5675 of build 112: a headset connects, drops and
     # reconnects every few seconds; com.android.bluetooth died 3 and 5 times

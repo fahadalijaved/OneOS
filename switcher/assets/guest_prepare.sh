@@ -7736,7 +7736,7 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
    [ "${ONEOS_ONEUI_HOST_CAMERA:-1}" = 1 ] && [ -d "$OAC_DST" ] && [ ! -L "$OAC_DST" ] &&
    [ -f "$HCAM_DIR/SamsungCamera.apk" ] && [ ! -L "$HCAM_DIR" ] && [ ! -L "$HCAM_DIR/SamsungCamera.apk" ]; then
     case "$(getprop ro.product.model):$(getprop ro.soc.manufacturer):$(getprop ro.board.platform)" in
-        SM-F936*:*|SM-[AM]*:[Mm]ediatek:*|SM-[AM]*:MediaTek:*|SM-[AM]*:MEDIATEK:*|SM-[AM]*:*:mt[0-9]*)
+        SM-[AM]*:[Mm]ediatek:*|SM-[AM]*:MediaTek:*|SM-[AM]*:MEDIATEK:*|SM-[AM]*:*:mt[0-9]*)
             $BB umount -l "$OAC_DST" 2>/dev/null || true
             if $BB mount --bind "$HCAM_DIR" "$OAC_DST" && $BB mount -o remount,bind,ro "$OAC_DST" 2>/dev/null; [ -f "$OAC_DST/SamsungCamera.apk" ]; then
                 ONEUI_A_CAMERA=1
@@ -7820,11 +7820,16 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
     # 0.5.32: not on the phone the image was built from (S26 Ultra 9.0 host, ed9a5fe0: its One UI 9.0 cameradata
     # under the image's 9.5 camera, "get : argument is invalid - 90500" in CameraApplication.onCreate): there the
     # image's own cameradata is the camera's, of its own version.
+    # Likewise for Fold4 (SM-F936B) on Fold6 (SM-F956B) One UI 8.5 image: keeping Fold6's cameradata prevents
+    # version mismatch ("argument is invalid - 80500" in FoldUtil / LayoutGuideline).
     IMG_MODEL=$(sed -n 's/^ro.product.system.model=//p' "$ROOTFS/system/build.prop" 2>/dev/null | head -n 1)
     HOST_MODEL=$(getprop ro.product.model)
     CAMDATA_OWN=0
     case "$IMG_MODEL:$HOST_MODEL" in
         SM-?????*:SM-?????*) [ "$(echo "$IMG_MODEL" | cut -c1-7)" = "$(echo "$HOST_MODEL" | cut -c1-7)" ] && CAMDATA_OWN=1 ;;
+    esac
+    case "$IMG_MODEL:$HOST_MODEL" in
+        SM-F956*:SM-F936*) CAMDATA_OWN=1 ;;
     esac
     [ $CAMDATA_OWN = 1 ] && echo "Camera: this $HOST_MODEL is the image's own model ($IMG_MODEL): the image's /system/cameradata stays"
     if [ $CAMDATA_OWN = 0 ] && [ -d /system/cameradata ] && cp -a /system/cameradata "$STAGE/data/oneos_cameradata" 2>/dev/null; then
