@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <integer name="config_screenBrightnessSettingMinimum">8</integer>
+    <item name="config_screenBrightnessSettingMinimumFloat" format="float" type="dimen">0.03137255</item>
+    <integer name="config_screenBrightnessDim">8</integer>
+    <item name="config_screenBrightnessDimFloat" format="float" type="dimen">0.03137255</item>
+    <integer name="config_screenBrightnessExtendedMaximum">300</integer>
+</resources>

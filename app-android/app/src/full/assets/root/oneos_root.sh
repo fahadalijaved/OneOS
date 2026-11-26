@@ -138,6 +138,13 @@ APP_PACKAGE=com.fahadali.oneos
 SPLASH_COMPONENT=com.fahadali.oneos/.ui.GapSplashActivity
 OLD_SWITCHER=com.wewaffles.onelineage
 IMAGE_SDK=37
+# Experimental tester builds only (0.5.35-oneui8test1): One UI 9.5 (oneui95-s948b, SDK 37) on a phone still on
+# One UI 8.0/8.5 (SDK 36). The app's Gradle build writes a copy of this script with this line set to 1 when it is
+# made with -Poneos.a17OnA16=true (app/build.gradle.kts), and pins that copy; every other build ships it as 0 and
+# refuses the pair as before. Why the pair is tried at all: the One UI 9.5 set reads the phone's installd codes at
+# runtime by name and signature (RUNTIME_CODES), and IGateKeeperService codes 1-6 are the same in AOSP Android 16
+# and One UI 9.5; its camera codes are One UI 9.0's, so guest_prepare.sh keeps the camera off there.
+ONEOS_A17_ON_A16=0
 # 0.4.66: the images of SDK 36 (Android 16, for One UI 8 phones); every other image is IMAGE_SDK.
 IMAGES_SDK36="oxygenos16-cph2745 pixel16-bp4a hyperos16-goya oneui85-f956b"
 # SHA-256 of the method lines of switcher/patches/host_installd.txt: the
@@ -153,7 +160,7 @@ INSTALLD_OK_36="a7c17883707d9b0b85e3f75f6d83cb4522ba1d120026d29308b69da968945977
 INSTALLD_SHA_95=86a30991dbd5d91aeda1726ec860b12a2d057dd7b9ca3872f32376478078a23c
 RUNTIME_CODES="# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones"
 # Session scripts from switcher/assets plus the expected installd table.
-SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio oneos_essential_key OneOSOverlayDimen.dex OneOSPixelCorners.apk OneOSGalleryStub.apk OneOSRcdCorners.apk host_installd.txt"
+SCRIPTS="guest_runtime.sh guest_root guest_zygiskd guest_zygisk_ptrace guest_zygisk.so guest_vector.bundle guest_manager.apk oneos_switch.sh boot_status.sh OneOSBootStatus.dex oneos_boot_icon.png guest_prepare.sh guest_start.sh guest_props.sh return_to_oneui.sh libsec-ril-patch.sh check_host_apex.sh bridges.sh fold8_coloros.sh OneOSFold8Geometry.dex fold8_pixel.sh guest_google.sh zygote_exec OneOSEdmStub.dex oneos_btaudio oneos_essential_key oneos_bpf_ringbuf OneOSOverlayDimen.dex OneOSPixelCorners.apk OneOSGalleryStub.apk OneOSRcdCorners.apk OneOSTabS9FeBrightness.apk OneOSTabS9FeCamCompat.jar host_installd.txt"
 SET_COMMON="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img"
 # The Pixel sets (the Fold's 0.3.7, the S26 Ultra's 0.4.10, the Pixel 9 Pro XL's 0.4.22): services.jar with the guest vold as gvld, the signal
 # poll, Pixel's status bar RRO, the in-guest OneOS app and its own payloads.
@@ -184,10 +191,13 @@ SET_NOTHINGA="NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSBrightn
 SET_ONEUI="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar"
 # One UI 9.5 on the Z Fold8 (0.5.35, pull request #328): the same plus Josh's Fold8 files.
 SET_FOLDONEUI="Fold8OneUI95Framework.apk Fold8OneUI95Home.apk Fold8OneUI95Services.jar Fold8OneUI95Settings.apk Fold8OneUI95SystemUI.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar"
+# Tester builds: One UI 9.5 on One UI 8 (oneui95-a16): the oneui95 set and the image's own modules One UI 8 cannot lend.
+SET_ONEUIEIGHT="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar conscrypt_payload.img profiling_payload.img os.statsd_payload.img media_payload.img media.swcodec_payload.img resolv_payload.img ipsec_payload.img uwb_payload.img devicelock_payload.img scheduling_payload.img neuralnetworks_payload.img tzdata_payload.img uprobestats_payload.img samsung.lifeguard_payload.img samsung.shell_payload.img samsung.media.imagecodec.system_payload.img samsung.spqr_payload.img samsung.media.extractor_payload.img samsung.media.swcodec.system_payload.img samsung.mediacontextanalyzer_payload.img tethering_connectivity_native_a17.so framework_patched_oneui8.jar framework_patched_oneui85.jar"
 # OxygenOS 16 (0.4.67): ColorOS's common files and its own payloads; the guest vold as gvld from r2 (0.4.69).
 SET_OXYGENOS="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img conscrypt_payload.img profiling_payload.img"
 # Pixel 16 GSI (BP4A.251205.006, 0.5.34): Android 16 GSI for phones on One UI 8.0/8.5.
 SET_PIXELGSI="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk OneOSTabletQs.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img guards.txt healthfitness_payload.img i18n_payload.img libbootanimation_patched.so mediaprovider_payload.img nfcservices_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar telephonycore_payload.img wifi_payload.img"
+SET_OXYGENPAD="services_patched.jar oplus-services_patched.jar vold_patched service.incremental_patched.so OneOSGuest.apk ims-ext-common_patched.jar oplus-telephony-common_patched.jar surfaceflinger_patched guards.txt oplus-framework_patched.jar framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so OplusGestureUI_patched.apk OplusGestureUI_patched.apk.src_sha256 art_payload.img i18n_payload.img runtime_payload.img sdkext_payload.img crashrecovery_payload.img extservices_payload.img permission_payload.img wifi_payload.img appsearch_payload.img mediaprovider_payload.img adservices_payload.img rkpd_payload.img healthfitness_payload.img ondevicepersonalization_payload.img configinfrastructure_payload.img cellbroadcast_payload.img"
 # OriginOS 7 (0.4.73): vivo's own jars, libraries, launcher and feature list, the signal poll, the fold
 # cutout overlay and the image's payloads (set r17).
 SET_ORIGINOS="BBKLauncher2_patched.apk BBKLauncher2_patched.apk.src_sha256 OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img configinfrastructure_payload.img conscrypt_payload.img crashrecovery_payload.img extservices_payload.img framework-adapter_patched.jar framework-wifi_patched.jar framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libandroid_servers_patched.so libbluetooth_jni_patched.so libcamera_client_patched.so libcomposer_ext_patched.so libinputflinger_patched.so libinputservice_patched.so libsensorservice_patched.so mediaprovider_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneos-vivo-features.txt permission_payload.img profiling_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar telephonycore_payload.img tethering_payload.img vivo-framework_patched.jar vivo-service-wifi-ex-impl_patched.jar vivo-service-wifi_patched.jar vivo-services_patched.jar vivo-telephony-common-platform-ex_patched.jar vold_patched wifi_payload.img"
@@ -198,7 +208,7 @@ ENV_KEYS="ONEOS_APP ONEOS_PROFILE ONEOS_SPLASH_COMPONENT ONEOS_WALLPAPER_PROBE O
 # ImageRef.gmsHideable): the Find X9 Ultra IN build (again from 0.4.11) and
 # the Find N6 global build (0.4.38). The Pixel images have them too, but their
 # sessions present their own GmsCore, and oneos_switch.sh refuses to hide that.
-IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 pixel16-bp4a hyperos16-goya oneui85-f956b lineage24-infiniti"
+IMAGES_GMS="coloros17-findn6 coloros17-findx9u-in-1105 nothingos5-metroid oxygenos16-cph2745 oxygenos17-opd2514 pixel16-bp4a hyperos16-goya oneui85-f956b lineage24-infiniti"
 
 # <id>: <model prefix> <codename> <SoC> <form>. Enabled profiles only (the
 # S25 Ultra from 0.3.1, the Galaxy S25 from 0.3.4, the Z Fold7 from 0.4.8,
@@ -242,6 +252,17 @@ profile_info() {
         f6) echo "SM-F956 q6q SM8650 fold" ;;
         f5) echo "SM-F946 q5q SM8550 fold" ;;
         f4) echo "SM-F936 q4q SM8475 fold" ;;
+        f4) echo "SM-F936 q4q SM8475 fold" ;;
+        tab-s9) echo "SM-X710 gts9wifi SM8550 bar" ;;
+        tab-s10-fe) echo "SM-X526 gts10fe s5e8855 bar" ;;
+        tab-s10-fe-wifi) echo "SM-X520 gts10fewifi s5e8855 bar" ;;
+        tab-s12-ultra) echo "SM-X940 gts12uwifi MT6993 bar" ;;
+        tab-s9-fe-plus) echo "SM-X610 gts9fepwifi s5e8835 bar" ;;
+        tab-s9-fe) echo "SM-X510 gts9fewifi s5e8835 bar" ;;
+        tab-s9-fe-5g) echo "SM-X516 gts9fe s5e8835 bar" ;;
+        tab-s9-ultra) echo "SM-X910 gts9uwifi SM8550 bar" ;;
+        tab-s11) echo "SM-X730 gts11wifi MT6991 bar" ;;
+        tab-s11-ultra) echo "SM-X930 gts11uwifi MT6991 bar" ;;
         a07) echo "SM-A075 a07 MT6789 bar" ;;
         flip8) echo "SM-F776 b8s s5e9965 flip" ;;
         a36) echo "SM-A366 a36xq SM6475 bar" ;;
@@ -267,6 +288,7 @@ profile_info() {
         s25-fe) echo "SM-S731 r13s s5e9945 bar" ;;
         s26-fe) echo "SM-S741 r14s s5e9955 bar" ;;
         s-8450) echo "SM-S901 r0q SM8450 bar" ;;
+        s-plus-8450) echo "SM-S906 g0q SM8450 bar" ;;
         m55s) echo "SM-M558 m55xq SM7450 bar" ;;
         s-plus-9945) echo "SM-S926 e2s s5e9945 bar" ;;
         s-ultra-8550-jp) echo "SCG20 SCG20 SM8550 bar" ;;
@@ -284,6 +306,7 @@ profile_info() {
 # (Profiles: PhoneProfile.choices). From 0.3.3 a phone may take more than one
 # image; the staged image decides the set.
 profile_set() {
+    a17_on_a16_set "$1" "$2" && return 0
     case "$1 $2" in
         "f8u coloros17-findn6") echo n6-f8u ;;
         "f8u pixel11fold-yogi") echo pixel-f8u ;;
@@ -532,6 +555,7 @@ profile_set() {
         "flip5 oneui95-s948b") echo oneui95 ;;
         "flip5 hyperos-lhasa") echo hyper-f8u ;;
         "flip5 hyperos-hongkong") echo hyper-hk ;;
+        "flip5 originos7-pd2609ma") echo originos ;;
         "f6 coloros17-findn6") echo n6-f8u ;;
         "f6 infinityx41-findx9u") echo infinityx ;;
         "f6 lineage24-infiniti") echo lineage ;;
@@ -539,6 +563,7 @@ profile_set() {
         "f5 coloros17-findn6") echo n6-f8u ;;
         "f5 infinityx41-findx9u") echo infinityx ;;
         "f5 lineage24-infiniti") echo lineage ;;
+        "f5 originos7-pd2609ma") echo originos ;;
         "f5 oneui95-s948b") echo oneui95 ;;
         "a07 infinityx41-findx9u") echo infinityx ;;
         "a07 lineage24-infiniti") echo lineage ;;
@@ -625,6 +650,28 @@ profile_set() {
         "f4 pixel16-bp4a") echo pixel16 ;;
         "f4 hyperos16-goya") echo hyper16 ;;
         "f4 oneui85-f956b") echo oneui85-f6 ;;
+        # 0.5.41: Galaxy Tabs, OxygenOS 17 for tablets only (testing).
+        "tab-s9 oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s10-fe oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s10-fe-wifi oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s12-ultra oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s9-fe-plus oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s9-fe oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s9-fe-5g oxygenos17-opd2514") echo oxygen17pad ;;
+        # Galaxy Tab S9 FE (pull request #371): One UI 9.5 besides OxygenOS 17 Pad (owner, 2026-11-25).
+        "tab-s9-fe oneui95-s948b") echo oneui95 ;;
+        "tab-s9-fe-5g oneui95-s948b") echo oneui95 ;;
+        "tab-s9-ultra oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s11 oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s11-ultra oxygenos17-opd2514") echo oxygen17pad ;;
+        "tab-s9 oneui95-s948b") echo oneui95 ;;
+        "tab-s10-fe oneui95-s948b") echo oneui95 ;;
+        "tab-s10-fe-wifi oneui95-s948b") echo oneui95 ;;
+        "tab-s12-ultra oneui95-s948b") echo oneui95 ;;
+        "tab-s9-fe-plus oneui95-s948b") echo oneui95 ;;
+        "tab-s9-ultra oneui95-s948b") echo oneui95 ;;
+        "tab-s11 oneui95-s948b") echo oneui95 ;;
+        "tab-s11-ultra oneui95-s948b") echo oneui95 ;;
         "s-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-8550 oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550 oxygenos16-cph2745") echo oxygen16 ;;
@@ -711,6 +758,7 @@ profile_set() {
         "s26-fe hyperos-lhasa") echo hyper-f8u ;;
         "s26-fe hyperos-hongkong") echo hyper-hk ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-9945 originos7-pd2609ma") echo originos ;;
@@ -770,8 +818,19 @@ profile_set() {
         "m36 hyperos-hongkong") echo hyper-hk ;;
         "m36 nothingos5-asteroids") echo nothing-a ;;
         "a15-5g oxygenos16-cph2745") echo oxygen16 ;;
-        *) return 1 ;;
+        *) a17_on_a16_set "$1" "$2" ;;
     esac
+}
+
+# Tester builds (ONEOS_A17_ON_A16=1): One UI 9.5 with its One UI 8 set (oneui95-a16) on the phones whose rows above do not offer it
+# (the ones held on One UI 8.0/8.5: OxygenOS 16 only), and in place of the plain oneui95 set on the phones whose rows do
+# (oneui8test5: the A35 34c9856c on One UI 8 got the plain set; profile_set asks this list first), as
+# Profiles.withOneUi95OnA16 offers it. A list, not rows of the table, so the table stays exactly what a normal build's
+# app offers (StageAuditTest checks both).
+A17_ON_A16_PROFILES="a06 a07-5g a24 a25 a33 a53 e55 s-fe-9925 s-fe-8450 s-plus-9925 s-ultra-9925 s-ultra-8450 s-ultra-8450-jp s-8450 m55s s-9925 a16-mtk a15-5g flip8 a36 a27 s-8650 s-plus-8650 f8u f7 s-ultra-8850 s-plus-8850 s-8850 s-8850-jp s-plus-9965 s-9965 s-ultra-8750 s-plus-8750 s-8750 s-ultra-8650 s-8550 s-plus-8550 flip7 a56 a57 s-ultra-8550 flip6 s-9945 flip5 f6 f5 f4 a07 s-edge-8750 s-fe-9945 a26 a35 a54 a16-4g a16-s166 a17 a16 a17-5g a34 a15 flip7-fe a55 s25-fe s26-fe s-plus-9945 s-ultra-8550-jp s-8550-jp m35 m36 s-plus-8450 tab-s9-fe tab-s9-fe-5g tab-s9 tab-s9-ultra tab-s9-fe-plus tab-s10-fe tab-s10-fe-wifi tab-s11 tab-s11-ultra tab-s12-ultra"
+a17_on_a16_set() { # <profile> <image>
+    [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$2" = oneui95-s948b ] && in_list "$1" "$A17_ON_A16_PROFILES" || return 1
+    echo oneui95-a16
 }
 
 # <image id>: <unpacked bytes> <unpacked SHA-256>, as staged in system.raw.
@@ -800,6 +859,7 @@ image_raw() {
         pixel16-bp4a) echo "3577262080 cd2d8025c28a46b9131832676e9619fabf261b34e21abc0b2756cff675145faf" ;;
         hyperos16-goya) echo "7620681728 4e83c72a86d2401a6255f101d1d148b4d7557327321e316b031e4e428bf00b4d" ;;
         oneui85-f956b) echo "14155776000 21e4aa0f52a73276582b7ebbe95eedbf58653a4d1357490206f3c1a59b6229a7" ;;
+        oxygenos17-opd2514) echo "11920068608 3fd6ea6021333e942c985067e8d2fdf4ce6f28494cdfb182b07a76b07233c81c" ;;
         originos7-pd2609ma) echo "15998222336 9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee" ;;
         *) return 1 ;;
     esac
@@ -819,6 +879,7 @@ set_files() {
         nothing-a) echo "$SET_NOTHINGA" ;;
         oneui95) echo "$SET_ONEUI framework_patched_oneui95.jar" ;;
         oneui95-f8) echo "$SET_FOLDONEUI" ;;
+        oneui95-a16) echo "$SET_ONEUIEIGHT" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         lineage) echo "$SET_LINEAGE framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
@@ -827,6 +888,7 @@ set_files() {
         pixel16) echo "$SET_PIXELGSI" ;;
         hyper16) echo "$SET_HYPERGOYA" ;;
         oneui85-f6) echo "$SET_ONEUI85F6" ;;
+        oxygen17pad) echo "$SET_OXYGENPAD" ;;
         originos) echo "$SET_ORIGINOS framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         *) return 1 ;;
     esac
@@ -846,6 +908,7 @@ set_image() {
         nothing-a) echo nothingos5-asteroids ;;
         oneui95) echo oneui95-s948b ;;
         oneui95-f8) echo oneui95-s948b ;;
+        oneui95-a16) echo oneui95-s948b ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
         lineage) echo lineage24-infiniti ;;
@@ -854,6 +917,7 @@ set_image() {
         pixel16) echo pixel16-bp4a ;;
         hyper16) echo hyperos16-goya ;;
         oneui85-f6) echo oneui85-f956b ;;
+        oxygen17pad) echo oxygenos17-opd2514 ;;
         originos) echo originos7-pd2609ma ;;
         *) return 1 ;;
     esac
@@ -874,7 +938,7 @@ image_family() {
         lineage24-infiniti) echo lineage ;;
         hyperos-lhasa|hyperos-hongkong|hyperos16-goya) echo hyperos ;;
         nothingos5-metroid|nothingos5-asteroids) echo nothing ;;
-        oxygenos16-cph2745) echo oxygenos ;;
+        oxygenos16-cph2745|oxygenos17-opd2514) echo oxygenos ;;
         originos7-pd2609ma) echo originos ;;
         oneui95-s948b|oneui85-f956b) echo oneui ;;
         *) return 1 ;;
@@ -918,7 +982,7 @@ pair_set() { # <profile> <image>
 # Executables 0755 (as scripts/deploy-phone.sh pushes them; PackageFile.mode).
 file_mode() {
     case "$1" in
-        *.sh|guest_root|guest_zygiskd|guest_zygisk_ptrace|zygote_exec|oneos_btaudio|oneos_essential_key|surfaceflinger_patched|vold_patched) echo 0755 ;;
+        *.sh|guest_root|guest_zygiskd|guest_zygisk_ptrace|zygote_exec|oneos_btaudio|oneos_essential_key|oneos_bpf_ringbuf|surfaceflinger_patched|vold_patched) echo 0755 ;;
         *) echo 0644 ;;
     esac
 }
@@ -1098,7 +1162,8 @@ env_value() {
         ONEOS_PROFILE) echo "$3" ;;
         ONEOS_SPLASH_COMPONENT) echo "$SPLASH_COMPONENT" ;;
         ONEOS_WALLPAPER_PROBE|ONEOS_RECORD) echo 0 ;;
-        ONEOS_GUEST_FORM) if [ "$2" = fold ]; then echo fold; else echo phone; fi ;;
+        # 0.5.44: Galaxy Tabs (profiles tab-*) run ColorOS as a tablet (oplus.hardware.type.tablet).
+        ONEOS_GUEST_FORM) if [ "$2" = fold ]; then echo fold; else case "$3" in tab-*) echo tablet ;; *) echo phone ;; esac; fi ;;
         ONEOS_GUEST_FOLD) if [ "$2" = fold ]; then echo layout; else echo off; fi ;;
         ONEOS_COVER_TSP|ONEOS_GUEST_FOLD_CONTINUE|ONEOS_GUEST_UNFOLD_PORTRAIT|ONEOS_GUEST_COMPACT_WINDOW|ONEOS_GUEST_WALLPAPER_GRID)
             if [ "$2" = fold ]; then echo 1; else echo 0; fi ;;
@@ -1155,11 +1220,22 @@ check_env() { # <file> <form> <profile> <image>
 image_sdk() { # <image id>
     if in_list "$1" "$IMAGES_SDK36"; then echo 36; else echo "$IMAGE_SDK"; fi
 }
+# a17_on_a16 <image id>: the tester build's one pair, One UI 9.5 (SDK 37) on this phone's One UI 8 (SDK 36).
+a17_on_a16() {
+    [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$1" = oneui95-s948b ] && [ "$(image_sdk "$1")" = 37 ] &&
+        [ "$(getprop ro.build.version.sdk)" = 36 ]
+}
 check_table() { # <file> <image id>
     f=$1
     if [ "$(image_sdk "$2")" = 36 ]; then carried=$INSTALLD_SHA_36 ok=$INSTALLD_OK_36
     else carried=$INSTALLD_SHA ok=$INSTALLD_SHA
-        grep -qxF "$RUNTIME_CODES" "$STAGE/guards.txt" 2>/dev/null && ok="$ok $INSTALLD_SHA_95"; fi
+        if grep -qxF "$RUNTIME_CODES" "$STAGE/guards.txt" 2>/dev/null; then
+            ok="$ok $INSTALLD_SHA_95"
+            # Tester build: a set that reads the codes at runtime maps each call to One UI 8.5's or 8.0's
+            # code by name and signature and refuses one the phone lacks, as it does for One UI 9.5's table.
+            a17_on_a16 "$2" && ok="$ok $INSTALLD_OK_36"
+        fi
+    fi
     [ -f "$f" ] || refuse "host_installd.table missing"
     ge 65536 "$(stat -c %s "$f")" || refuse "host_installd.table is over 64 kB"
     [ "$(grep -v '^#' "$STAGE/host_installd.txt" 2>/dev/null | sha256sum | cut -d' ' -f1)" = "$carried" ] ||
@@ -1278,6 +1354,9 @@ do_begin() {
                 # its data is not from (scripts/deploy-phone.sh without --fresh).
                 dfam=$(data_family)
                 ifam=$(image_family "$B_IMAGE") || refuse "$B_IMAGE has no system family"
+                # 0.5.46: the ColorOS 17 Pad build is the OxygenOS family by its ids, but its ColorOS ignores
+                # OnePlus's membership app, so its data reads as ColorOS's: its own when this image made it.
+                [ "$dfam:$ifam" = coloros:oxygenos ] && [ -n "$made" ] && [ "$made" = "$B_IMAGE" ] && dfam=$ifam
                 if [ -n "$dfam" ] && [ "$dfam" != "$ifam" ]; then
                     [ "$dfam" = lineage ] && refuse "the stage holds LineageOS data, not $B_IMAGE's: move it aside"
                     refuse "the stage holds another system's guest data ($dfam), not $B_IMAGE's: move the stage aside"
@@ -1559,7 +1638,9 @@ do_launch() {
     [ "$(getprop ro.product.device)" = "$2" ] || refuse "codename $(getprop ro.product.device), profile $M_PROFILE is $2"
     [ "$(getprop ro.soc.model)" = "$3" ] || refuse "chip $(getprop ro.soc.model), profile $M_PROFILE is $3"
     isdk=$(image_sdk "$M_IMAGE")
-    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || refuse "Android SDK $(getprop ro.build.version.sdk), the image is $isdk"
+    # The tester build's One UI 9.5 on One UI 8 is the only other Android version that starts (a17_on_a16).
+    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || a17_on_a16 "$M_IMAGE" ||
+        refuse "Android SDK $(getprop ro.build.version.sdk), the image is $isdk"
     idle_or_refuse launch
     if [ -f "$STAGE/persist_session.active" ]; then
         refuse "the last session never returned: restore One UI's settings first (Last session)"

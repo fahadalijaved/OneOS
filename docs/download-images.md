@@ -391,8 +391,26 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M35 5G (SM-M356, s5e8835), not tested yet
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy A15 5G (SM-A156, MT6835), not tested yet
+  - Galaxy S22+ (Snapdragon) (SM-S906, SM8450), not tested yet
 
-## PixelOS 16.2, Doze-off GSI
+## ColorOS 17, OnePlus Pad 4 build
+
+- File: `OneOS_OxygenOS17_Pad4.img.gz` (5.82 GB)
+- SHA-256: `015852af3c161867f764b47a18008de1d581681e300fac8f358a4e4ed8717183`
+- Download: https://sourceforge.net/projects/oneos-mirror/files/images/OneOS_OxygenOS17_Pad4.img.gz/download
+- Phones:
+  - Galaxy Tab S9 (SM-X710, SM8550), not tested yet
+  - Galaxy Tab S10 FE 5G (SM-X526, s5e8855), not tested yet
+  - Galaxy Tab S10 FE (SM-X520, s5e8855), not tested yet
+  - Galaxy Tab S12 Ultra (SM-X940, MT6993), not tested yet
+  - Galaxy Tab S9 FE+ (SM-X610, s5e8835), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
+  - Galaxy Tab S9 FE 5G (SM-X516, s5e8835), not tested yet
+  - Galaxy Tab S9 Ultra (SM-X910, SM8550), not tested yet
+  - Galaxy Tab S11 (SM-X730, MT6991), not tested yet
+  - Galaxy Tab S11 Ultra (SM-X930, MT6991), not tested yet
+
+## PixelOS 16.2, Doze-off GSI (Unoptimized)
 
 - File: `OneOS_PixelOS16_Fold4.img.gz` (1.86 GB)
 - SHA-256: `848f93afe5b3d97127d359a9326a57032099440010b55986e2252deceb7a3c86`
@@ -400,7 +418,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
 - Phones:
   - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
 
-## HyperOS 3.0 Global
+## HyperOS 3.0 Global (Unoptimized)
 
 - File: `OneOS_HyperOS3_Fold4.img.gz` (3.76 GB)
 - SHA-256: `aa7b4ce41f5769d3f26d9339f1679de6b5f1f3f5581fd26348e98cdcf7a7a403`
@@ -428,6 +446,8 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S23 (SM-S911, SM8550), not tested yet
   - Galaxy S23+ (SM-S916, SM8550), not tested yet
   - Galaxy S26+ (SM-S947, SM8850), not tested yet
+  - Galaxy Z Flip5 (SM-F731, SM8550), not tested yet
+  - Galaxy Z Fold5 (SM-F946, SM8550), not tested yet
   - Galaxy S23 Ultra (SM-S918, SM8550), not tested yet
   - Galaxy S24 (Exynos) (SM-S921, s5e9945), not tested yet
   - Galaxy S25 Edge (SM-S937, SM8750), not tested yet
@@ -551,6 +571,24 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy Tab S9 (SM-X710, SM8550), not tested yet
+  - Galaxy Tab S10 FE 5G (SM-X526, s5e8855), not tested yet
+  - Galaxy Tab S10 FE (SM-X520, s5e8855), not tested yet
+  - Galaxy Tab S12 Ultra (SM-X940, MT6993), not tested yet
+  - Galaxy Tab S9 FE+ (SM-X610, s5e8835), not tested yet
+  - Galaxy Tab S9 FE (SM-X510, s5e8835), not tested yet
+  - Galaxy Tab S9 FE 5G (SM-X516, s5e8835), not tested yet
+  - Galaxy Tab S9 Ultra (SM-X910, SM8550), not tested yet
+  - Galaxy Tab S11 (SM-X730, MT6991), not tested yet
+  - Galaxy Tab S11 Ultra (SM-X930, MT6991), not tested yet
+
+## One UI 8.5, Galaxy Z Fold6 build
+
+- File: `OneOS_OneUI8.5_Fold4.img.gz` (7.95 GB)
+- SHA-256: `93fd578ffd41e3d303af380af96f675e55d2085135286e7bbdaccd2fe43688d5`
+- Download: https://drive.google.com/file/d/1rFK5xrfjGNv07cGO2HXvkWYHz6sYhnUT/view?usp=drive_link
+- Phones:
+  - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
 
 ## PixelOS 17, POCO F7 build
 

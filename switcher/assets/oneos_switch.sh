@@ -183,7 +183,7 @@ done
 GUARD_JARS="services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" ||
                                        $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
                                        $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
-                                       $2 == "telephony-common_patched.jar" || $2 == "framework_patched_oneui95.jar" { print $2 }' "$STAGE/guards.txt")"
+                                       $2 == "telephony-common_patched.jar" || $2 == "framework_patched_oneui95.jar" || $2 == "framework_patched_oneui8.jar" { print $2 }' "$STAGE/guards.txt")"
 
 if [ "$APP" = 1 ]; then
     # Every staged file (files.sha256, written by the app's root script; all
@@ -700,7 +700,11 @@ fi
 # (the statusBars inset at One UI's resolution, scaled to the panel's like the
 # hole), from a phone with one default-capable internal display only (a fold's
 # two panels are left alone).
-rm -f "$STAGE/host_statusbar"
+# The Galaxy Tab S9 FE (pull request #371): what its support adds beyond the Wi-Fi-only telephony and the SM-X51*
+# model cases runs only here.
+HOST_TAB_S9_FE=0
+case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in tab-s9-fe:*|tab-s9-fe-5g:*|*:SM-X51*) HOST_TAB_S9_FE=1 ;; esac
+rm -f "$STAGE/host_statusbar" "$STAGE/host_no_cutout"
 if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
     cut_after "$HLINE" 'cutoutSpec={' '}'; HCS=$R
     HSB=$(timeout 10 dumpsys window 2>/dev/null | sed -n "s/.*type=statusBars frame=\[0,0\]\[$HDW,\([0-9]*\)\].*/\1/p" | head -n 1)
@@ -743,6 +747,8 @@ if [ "$(printf '%s\n' "$HLINE" | grep -c .)" = 1 ]; then
           [ -n "$HMP" ] && printf '%s\n' "$HMP" | awk -F'|' '{ split($1, f, " "); print "hole=" f[4]; print "rect_px=" $2; print "hole_px=" $3 }'
         } > "$STAGE/host_statusbar"
         echo "Host status bar: cutout '${HCS:-none}', height ${HSB:-not read} px, corner radius ${HRC:-not read} px on the $HPW px panel; $(grep -E '^(hole|rect_px|hole_px)=' "$STAGE/host_statusbar" | tr '\n' ' ')"
+    elif [ "$HOST_TAB_S9_FE" = 1 ] && [ -z "$HOLES" ] && [ -z "$HCS" ]; then
+        : > "$STAGE/host_no_cutout"
     fi
 fi
 echo "preflight: display statusbar block done $(date +%T)"
@@ -1648,6 +1654,31 @@ ls -l /vendor/etc/displayconfig /vendor/odm/etc/displayconfig /vendor/odm/etc/de
       echo "== $b"; strings -a "$b" 2>/dev/null | grep -E '^/sys/|enabled|fold_state' | head -40
   done
 } > "$STAGE/diag_host/touch_nodes.txt" 2>&1
+# oneui8test13: One UI 8's camera binder numbering, for the logs. The other systems' camera patches carry One
+# UI 9.0's and 9.5's (switcher/patches/host_camera*.txt, from firmware); One UI 8's was never read, so the
+# camera stays off for One UI 9.5 on a One UI 8 phone. The Stub and Proxy classes of the four camera
+# interfaces from One UI's own framework.jar (ART's dexdump, in the background; scripts/aidl-table.py reads
+# the file). Only on Android 16 phones and once per phone build (kept in data/ across sessions).
+CTD="$STAGE/data/oneos_host_camera_dexdump.txt"
+if [ "$(getprop ro.build.version.sdk)" = 36 ] && [ -x /apex/com.android.art/bin/dexdump ] &&
+   [ "$(head -n 1 "$CTD" 2>/dev/null)" != "# $(getprop ro.build.fingerprint)" ]; then
+    ( t="$STAGE/camdex.tmp"; rm -rf "$t"; mkdir -p "$t" "$STAGE/data" || exit 0
+      echo "# $(getprop ro.build.fingerprint)" > "$CTD.new"
+      for e in $(unzip -l /system/framework/framework.jar 2>/dev/null | awk '$NF ~ /^classes[0-9]*\.dex$/ {print $NF}'); do
+          unzip -p /system/framework/framework.jar "$e" > "$t/x.dex" 2>/dev/null || continue
+          grep -a -q -F 'Landroid/hardware/ICameraService$Stub;' "$t/x.dex" 2>/dev/null || continue
+          echo "# $e" >> "$CTD.new"
+          nice -n 10 /apex/com.android.art/bin/dexdump "$t/x.dex" 2>/dev/null | awk '
+              /^Class #[0-9]+/ { if (keep) printf "%s", buf; buf = ""; keep = 0 }
+              { buf = buf $0 "\n" }
+              /Class descriptor  : .Landroid\/hardware\/(ICameraService|ICameraServiceListener|camera2\/ICameraDeviceCallbacks|camera2\/ICameraDeviceUser)\$Stub(\$Proxy)?;/ { keep = 1 }
+              END { if (keep) printf "%s", buf }' >> "$CTD.new"
+      done
+      rm -rf "$t"
+      grep -q "TRANSACTION_" "$CTD.new" && mv -f "$CTD.new" "$CTD" && cp -f "$CTD" "$STAGE/diag_host/camera_dexdump.txt" ||
+          rm -f "$CTD.new" ) </dev/null >/dev/null 2>&1 &
+fi
+[ -f "$CTD" ] && cp -f "$CTD" "$STAGE/diag_host/camera_dexdump.txt" 2>/dev/null
 # The panel's local HBM (in-house optical fingerprint spot, Galaxy A/S with an optical sensor): One UI's fingerprint
 # service leaves it at 1 (on, source off) while its keyguard waits for a finger, and the panel then draws its own
 # glowing circle over whatever is shown (A36, fresh Nothing OS, 0.5.18: from the guest's boot animation on, owner:
@@ -2008,7 +2039,16 @@ else
     if grep -q "IBluetoothAudioProviderFactory/default" "$BT_COPY" && $BB mount -o bind,ro "$BT_COPY" "$BT_FRAG"; then
         echo "$BT_FRAG" > "$STAGE/bt_bridge_vintf"
         touch /apex/apex-info-list.xml
-        (umask 027; $BB nohup "$STAGE/oneos_btaudio" > "$STAGE/oneos_btaudio.log" 2>&1 </dev/null &)
+        # The S24 Ultra with the images that play through the vendor's Bluetooth
+        # module (guest_prepare.sh, apm_s24u_module) takes the name back only when
+        # servicemanager says another process registered it (pull request #358).
+        BT_WATCH=""
+        case "$(getprop ro.product.model):$(getprop ro.soc.model)" in
+            SM-S928*:SM8650)
+                grep -q -E '^  "image": "(pixel9proxl-komodo|pixelos17-onyx|lineage24-infiniti|infinityx41-findx9u)",$' "$STAGE/.oneos_stage" 2>/dev/null &&
+                    BT_WATCH=--watch-replacements ;;
+        esac
+        (umask 027; $BB nohup "$STAGE/oneos_btaudio" $BT_WATCH > "$STAGE/oneos_btaudio.log" 2>&1 </dev/null &)
         n=0
         while [ $n -lt 25 ] && ! timeout 5 service check "$BTA_AOSP" 2>/dev/null | grep -q ": found"; do n=$((n + 1)); sleep 0.2; done
         echo "Bluetooth audio bridge: $(timeout 5 "$STAGE/oneos_btaudio" --check 2>&1) (manifest: $BT_FRAG; $(head -n 1 "$STAGE/oneos_btaudio.log" 2>/dev/null))"
@@ -2354,7 +2394,12 @@ SENSORS_HAL_RESTART=0
 SENS_DEF=0
 case "$(getprop ro.product.model)" in SM-S721*) SENS_DEF=1 ;; esac
 grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null && SENS_DEF=0
-if [ "${ONEOS_GUEST_HOVER_PROX:-$SENS_DEF}" = 1 ] && [ ! -e /sys/class/sensors/proximity_sensor ] && [ -f /vendor/lib64/sensors.inputvirtual.so ]; then
+# 0.5.41: the hover proximity sensor on the Galaxy S24 Ultra too (owner: "Proximity sensor doesnt work in s24u
+# during calls"; the S24 Ultra has no proximity sensor of its own, One UI uses the touch IC's ear detect). The patch
+# checks every byte it changes and leaves a library it does not recognise alone.
+PROX_DEF=$SENS_DEF
+case "$(getprop ro.product.model)" in SM-S928*) grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null || PROX_DEF=1 ;; esac
+if [ "${ONEOS_GUEST_HOVER_PROX:-$PROX_DEF}" = 1 ] && [ ! -e /sys/class/sensors/proximity_sensor ] && [ -f /vendor/lib64/sensors.inputvirtual.so ]; then
     apply_hover_prox_patch || echo "!!! Proximity: Hover Proximity patch was not applied; calls may keep screen on"
 fi
 if [ "${ONEOS_GUEST_CAM_SENSORS:-$SENS_DEF}" = 1 ] && ! grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null; then
@@ -2558,6 +2603,11 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && grep -q '^  "image": "infinityx41-findx9u",$
 fi
 GUEST_POSTURE_LIVE=0; [ "${ONEOS_GUEST_POSTURE:-$POSTURE_DEFAULT}" = live ] && GUEST_POSTURE_LIVE=1
 GUEST_FOLD_FORM=0; [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && GUEST_FOLD_FORM=1
+HOST_WIFI_ONLY=0
+if [ "$(getprop ro.radio.noril)" = yes ] || [ "$(getprop ro.radio.noril)" = true ] || [ "$(getprop ro.radio.noril)" = 1 ] || \
+   [ "$(getprop ro.carrier)" = wifi-only ]; then
+    HOST_WIFI_ONLY=1
+fi
 # An OxygenOS image (its stable display size resource, see "stable display size"
 # in the UI activator).
 GUEST_OXYGEN=0; grep -q '^  "image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null && GUEST_OXYGEN=1
@@ -2819,7 +2869,7 @@ while true; do
             # the A36 it alone missed about 240 frames in 30 s. Once per guest data (marker), so a user who
             # turns it back on (Developer options > Allow window-level blurs; Android 17: Accessibility > Color and
             # motion > Reduce blur effects, its developer toggle writing nothing in PixelOS 17) keeps it.
-            case \"\$(getprop ro.product.model)\" in SM-A*|SM-M*)
+            case \"\$(getprop ro.product.model)\" in SM-A*|SM-M*|SM-X51*)
                 if [ ! -f $STAGE/data/oneos_blur_default ]; then
                     $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put global disable_window_blurs 1 2>/dev/null &&
                         touch $STAGE/data/oneos_blur_default && echo \"[UI Activator] window blur off once (mid-range Galaxy; Developer options > Allow window-level blurs, or on Android 17 Accessibility > Color and motion > Reduce blur effects, turn it back on)\"
@@ -2839,6 +2889,23 @@ while true; do
             echo \"[UI Activator] navigation: hide_navigationbar_enable=\$NAVK navigation_mode=\$NAVM\"
             case \"\$NAVK:\$NAVM\" in 0:2|2:0|3:0) echo \"[UI Activator] WARNING: ColorOS nav key and AOSP navigation_mode disagree\" ;; esac
             $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable android.ext.services/android.ext.services.notification.Assistant 2>/dev/null || true
+            # 0.5.46 (Tab S9 FE+ d12ec9aa, ColorOS 17 Pad): ColorOS's setup (com.coloros.bootreg) arms an alarm on its
+            # GuidePage that powers the device off when it sits there (GuidePage\$AlarmReceiver: \"will try to shut down\",
+            # PowerManager.shutdown); it fired 13 and 16 min into two sessions and OneOS, as asked, powered the tablet off.
+            # That receiver is turned off; the setup itself stays. ONEOS_GUEST_BOOTREG_ALARM=1 keeps it.
+            if [ \"${ONEOS_GUEST_BOOTREG_ALARM:-0}\" != 1 ] &&
+               $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable 'com.coloros.bootreg/com.coloros.bootreg.settings.activity.GuidePage\$AlarmReceiver' >/dev/null 2>&1; then
+                echo \"[UI Activator] ColorOS setup: its power-off alarm (GuidePage\\\$AlarmReceiver) disabled\"
+            fi
+            # 0.5.48 (owner, S25 Ultra d55b55c3 on 0.5.44): One UI 9.5 froze the whole phone seconds after its setup's
+            # Bixby step (Bixby voice wake-up being set up); the chip's watchdog restarted it (TZBSP_ERR_FATAL_NON_SECURE_WDT).
+            # Bixby and its voice wake-up are turned off in the guest on the S25 Ultra (Snapdragon); ONEOS_GUEST_BIXBY=1 keeps them.
+            if [ \"${ONEOS_PROFILE:-}\" = s-ultra-8750 ] && [ \"${ONEOS_GUEST_BIXBY:-0}\" != 1 ]; then
+                for bx in com.samsung.android.bixby.wakeup com.samsung.android.bixby.agent; do
+                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 \$bx >/dev/null 2>&1 &&
+                        echo \"[UI Activator] S25 Ultra: \$bx turned off (Bixby voice wake-up froze this phone)\"
+                done
+            fi
             # Fallback for a staged /data that had no settings files to seed, before
             # HOME: a fresh stage has none. Pixel's two setup wizards (ColorOS has
             # none) would take that first boot and wait for Google services.
@@ -2853,7 +2920,7 @@ while true; do
             for kv in 'global device_provisioned' 'secure user_setup_complete'; do
                 [ \"\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get \$kv 2>/dev/null)\" = 1 ] || $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put \$kv 1
             done
-            for p in com.google.android.setupwizard com.google.android.pixel.setupwizard; do
+            for p in com.google.android.setupwizard com.google.android.pixel.setupwizard$([ "$HOST_TAB_S9_FE" = 1 ] && echo ' org.lineageos.setupwizard'); do
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 \$p >/dev/null 2>&1 && echo \"[UI Activator] \$p disabled (setup is done in the container)\"
             done
             fi
@@ -3019,6 +3086,7 @@ while true; do
             # output, sound much better); ONEOS_GUEST_DOLBY=0: off. Phones
             # whose effect HAL has no Dolby: it gives up after a minute, logged.
             # On One UI guests, One UI's own system_server manages DAX3/SoundBoosterPlus; running OneOSSoundFx causes double-boosting.
+            # The Galaxy Tab S9 FE's One UI guests also already run SoundAlive + Dolby_FX natively.
             if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && [ $GUEST_ONEUI = 0 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
@@ -3681,6 +3749,23 @@ while true; do
                     *) echo \"[UI Activator] Nothing brightness overlay not made: \$r\" ;;
                 esac
             fi
+            # Wi-Fi-only Galaxy (Tab S9 FE SM-X510: ro.radio.noril=yes, ro.carrier=wifi-only): vendor ships
+            # DisableVoiceCapableOverlay (config_voice_capable=false) but phone images keep config_sms_capable
+            # and config_mobile_data_capable true, so TelephonyManager.getActiveModemCount() returns 1 while
+            # PhoneGlobals skips PhoneFactory.makeDefaultPhones() (no android.hardware.telephony feature).
+            # OplusPhoneGlobals.onCreate() then calls PhoneFactory.getPhone(0) and crash-loops com.android.phone
+            # every ~600 ms (burning CPU and triggering heat_cap throttling). Setting all three capability booleans
+            # false makes getActiveModemCount() return 0 so com.android.phone starts cleanly.
+            if [ $HOST_WIFI_ONLY = 1 ]; then
+                WOON=''
+                gxo fabricate --target android --name OneOSWifiOnlyVoice android:bool/config_voice_capable 0x12 0x0 &&
+                    gxo enable --user 0 com.android.shell:OneOSWifiOnlyVoice && WOON=\"\$WOON OneOSWifiOnlyVoice\"
+                gxo fabricate --target android --name OneOSWifiOnlySms android:bool/config_sms_capable 0x12 0x0 &&
+                    gxo enable --user 0 com.android.shell:OneOSWifiOnlySms && WOON=\"\$WOON OneOSWifiOnlySms\"
+                gxo fabricate --target android --name OneOSWifiOnlyData android:bool/config_mobile_data_capable 0x12 0x0 &&
+                    gxo enable --user 0 com.android.shell:OneOSWifiOnlyData && WOON=\"\$WOON OneOSWifiOnlyData\"
+                echo \"[UI Activator] Wi-Fi-only device: telephony capability overlays on:\${WOON:- none}\"
+            fi
             # The corner radius for the guests the block below leaves out (0.4.76,
             # host_corner_radius; see where the switch saves it): ColorOS on any
             # phone, every guest on a Fold. Made after the block.
@@ -3893,6 +3978,17 @@ while true; do
                     fi
                 fi
                 echo \"[UI Activator] status bar: One UI's cutout '\${HCS:-none}', as \$CUTU: '\${CUT:-none}', rect '\${CUTR:-none}'; height \${HSB:-?} px\${SBK:+ (\$HSBG px at the \${SBK% *} px the guest runs)}, corner radius \${HRCG:-?} px (One UI \${HRC:-?} px on the panel); overlays on:\${ON:- none}\${DIMS:+ (not made:\$DIMS)}\"
+            elif [ \"${ONEOS_GUEST_HOST_CUTOUT:-1}\" = 1 ] && [ -f $STAGE/host_no_cutout ] && [ ! -L $STAGE/host_no_cutout ]; then
+                # Single internal panel with no cutout (e.g. Tab S9 FE, camera in the bezel): override the
+                # phone image's display cutout so it does not reserve a phantom notch at the top of the screen.
+                NCON=''
+                gxo fabricate --target android --name OneOSCutout android:string/config_mainBuiltInDisplayCutout string ' ' &&
+                    gxo enable --user 0 com.android.shell:OneOSCutout && NCON=\"\$NCON OneOSCutout\"
+                gxo fabricate --target android --name OneOSCutoutRect android:string/config_mainBuiltInDisplayCutoutRectApproximation string ' ' &&
+                    gxo enable --user 0 com.android.shell:OneOSCutoutRect && NCON=\"\$NCON OneOSCutoutRect\"
+                gxo fabricate --target android --name OneOSCutoutFill android:bool/config_fillMainBuiltInDisplayCutout 0x12 0x0 &&
+                    gxo enable --user 0 com.android.shell:OneOSCutoutFill && NCON=\"\$NCON OneOSCutoutFill\"
+                echo \"[UI Activator] status bar: host panel has no cutout; cleared guest cutout overlays on:\${NCON:- none}\"
             else
                 # No host cutout this session (ONEOS_GUEST_HOST_CUTOUT=0, or a
                 # phone with two panels): an earlier session's overlays go off.
@@ -3901,7 +3997,7 @@ while true; do
                     case \$o in
                         OneOSCornerRadius) [ -n \"\$CRAD\" ] && continue
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
-                        OneOSCutout|OneOSCutoutRect|OneOSStatusBarHeight|OneOSStatusBarTop|OneOSCornerPadding|OneOSNtStatusBar|OneOSNtPowerKey|OneOSIslandCenter)
+                        OneOSCutout|OneOSCutoutRect|OneOSCutoutFill|OneOSStatusBarHeight|OneOSStatusBarTop|OneOSCornerPadding|OneOSNtStatusBar|OneOSNtPowerKey|OneOSIslandCenter)
                             gxo disable --user 0 com.android.shell:\$o && OFF=\"\$OFF \$o\" ;;
                     esac
                 done
@@ -4823,14 +4919,20 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 # 0.4.87: the system buffer on its own. Read together with main, a busy
                 # camera filled the 4000 lines within the second and nothing was printed
                 # (S24 Ultra e99b8eae: 'shutdown' with the camera at full zoom, asker unknown).
-                timeout 5 logcat -d -b system -t 3000 2>/dev/null | grep -E ' OneOS|ShutdownThread|ShutdownActivity|GlobalActions|RescueParty|PowerManagerService.*[Rr]eboot|[Ss]hut ?down|[Oo]verheat|[Hh]igh ?[Tt]emp' | tail -15
+                # 0.5.45: printed nothing on the Tab S9 FE+ (0dbe56e0, ColorOS 'shutdown' 30 min in, twice): the
+                # guest's own logcat (its logd, in its mount namespace) first, the system and main buffers.
+                WHO='ShutdownThread|ShutdownActivity|GlobalActions|RescueParty|PowerManagerService.*([Rr]eboot|[Ss]hutdown|goToSleep)|[Ss]hut ?down|[Pp]ower ?[Oo]ff|[Oo]verheat|[Hh]igh ?[Tt]emp|[Ll]ow ?[Bb]att'
+                SFP=\$(pidof surfaceflinger | awk '{print \$1}')
+                a=''
+                [ -n \"\$SFP\" ] && a=\$(timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/logcat -d -b system,main -t 6000 2>/dev/null | grep -E \" OneOS|\$WHO\" | tail -n 20)
+                [ -n \"\$a\" ] || a=\$(timeout 5 logcat -d -b system -t 3000 2>/dev/null | grep -E \" OneOS|\$WHO\" | tail -n 15)
+                echo \"\${a:-who asked: no line in the guest's or One UI's log}\"
                 # The guest's thermal and battery services can ask for a shutdown
                 # without a line in the log: what they hold now, 5 s each at most.
                 # Not after the user's own return (app, keys) or a soft reboot.
                 case \"\$req\" in
                     app:*|keys:*|ksud:*) ;;
                     *)
-                        SFP=\$(pidof surfaceflinger | awk '{print \$1}')
                         if [ -n \"\$SFP\" ]; then
                             a=\$(timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys thermalservice 2>/dev/null | grep -o -E 'Thermal Status: [0-9]+|Temperature[{][^}]*mStatus=[1-6][}]' | head -n 12 | tr '\n' ' ')
                             echo \"guest thermal service: \${a:-no answer}\"
@@ -5196,7 +5298,7 @@ if [ "$RETURN_MAX" -gt 0 ]; then
         # hold is recognized. Straight from the phone's vibrator HAL (IVibrator.on(ms, null callback), transaction
         # 3), which serves One UI and the guest alike and keeps running whatever either framework does; a
         # timed_output node where the kernel has one.
-        KVIB=$(service list 2>/dev/null | sed -n 's/.*\(android\.hardware\.vibrator\.IVibrator\/[A-Za-z0-9_]*\).*/\1/p' | head -n 1)
+        KVIB=$(timeout 5 service list 2>/dev/null | sed -n 's/.*\(android\.hardware\.vibrator\.IVibrator\/[A-Za-z0-9_]*\).*/\1/p' | head -n 1)
         [ -n "$KVIB" ] || { [ -w /sys/class/timed_output/vibrator/enable ] && KVIB=timed_output; }
         echo "$KVIB" > "$KS/vibrator"
         for kd in $KDEVS; do
@@ -5205,6 +5307,32 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # builtin echo writes as the subshell, and 0 means the writer).
             ( echo 0 > /sys/fs/cgroup/cgroup.procs 2>/dev/null
               echo -1000 > /proc/self/oom_score_adj 2>/dev/null
+              # When the device goes away (a keyboard cover detached: Galaxy Tab
+              # S10 Lite's Book Cover Keyboard lists KEY_VOLUMEUP/DOWN), Android's
+              # getevent keeps its fd on the deleted node and spins on it at a
+              # full core, forever: the loop below never gets a line, so the
+              # session check never runs (two of them held two cores for 3 hours
+              # across sessions and One UI). A sidecar ends getevent once its
+              # node is gone or a later switch took over, every 5 s. It signals
+              # the one getevent that holds this device and is its sibling, a
+              # child of this subshell ($$ is the script's in a subshell: the
+              # shell's own /proc/self/stat gives the PPID), never a walk by name
+              # (see the comment above).
+              ( sleep 1
+                read -r st < /proc/self/stat; set -- $st; me=$4
+                g=''
+                for p in $(pidof getevent 2>/dev/null); do
+                    read -r st < "/proc/$p/stat" 2>/dev/null || continue; set -- $st
+                    [ "$4" = "$me" ] && [ "$(readlink "/proc/$p/fd/4" 2>/dev/null)" = "$kd" ] && { g=$p; break; }
+                done
+                [ -n "$g" ] || exit 0
+                while kill -0 "$g" 2>/dev/null; do
+                    sleep 5
+                    [ "$(cat "$KS/session" 2>/dev/null)" = "$KTOK" ] && [ -c "$kd" ] &&
+                        ! readlink "/proc/$g/fd/4" 2>/dev/null | grep -q ' (deleted)$' && continue
+                    kill "$g" 2>/dev/null
+                    exit 0
+                done ) &
               getevent -lq "$kd" 2>/dev/null | while read -r typ code val rest; do
                 # A later switch (or none: the stage's file gone) ends this
                 # reader; getevent then ends on its next write.

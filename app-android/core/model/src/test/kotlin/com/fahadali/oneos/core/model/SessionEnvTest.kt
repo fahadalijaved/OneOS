@@ -89,6 +89,18 @@ class SessionEnvTest {
     }
 
     @Test
+    fun galaxyTabsGetTheTabletForm() {
+        // 0.5.44: ColorOS for tablets needs oplus.hardware.type.tablet (guest_prepare.sh, form tablet).
+        for (p in Profiles.TABLETS) {
+            val v = SessionEnv.values(p)
+            assertEquals(p.id, "tablet", v["ONEOS_GUEST_FORM"])
+            assertEquals(SessionEnv.TABLET_FORM, v.filterKeys { it in SessionEnv.TABLET_FORM })
+            assertEquals(emptyList<String>(), SessionEnv.validate(SessionEnv.generate(p)))
+        }
+        assertEquals("phone", SessionEnv.values(Profiles.S_8750)["ONEOS_GUEST_FORM"])
+    }
+
+    @Test
     fun forbiddenKeysAreNeverEmitted() {
         for (p in Profiles.BUILT_IN.filter { it.enabled }) {
             val text = SessionEnv.generate(p)
@@ -112,7 +124,9 @@ class SessionEnvTest {
         assertFalse(allowed.containsKey("ONEOS_RETURN_KEYS"))
         assertFalse(allowed.getValue("ONEOS_RETURN_MODE").matches("reboot"))
         assertFalse(allowed.getValue("ONEOS_LOGCAT").matches("0"))
-        assertFalse(allowed.getValue("ONEOS_GUEST_FORM").matches("tablet"))
+        // 0.5.44: tablet is allowed for the Galaxy Tabs only (oneos_root.sh env_value checks the exact value per
+        // profile; a tablet form on the Find N6 fold put OPPO's pad grid off screen, run 29).
+        assertTrue(Profiles.STABLE.filter { it !in Profiles.TABLETS }.none { SessionEnv.values(it)["ONEOS_GUEST_FORM"] == "tablet" })
         assertFalse(allowed.getValue("ONEOS_SPLASH_COMPONENT").matches("com.wewaffles.onelineage/.SplashActivity"))
         assertTrue(SessionEnv.FORBIDDEN.keys.none { it in allowed })
     }
@@ -197,8 +211,8 @@ class SessionEnvTest {
         // 0.4.38: the Find N6 global build's.
         // 0.4.67: OxygenOS 16 too (Google in the image, no gmssystem payload in its set).
         // 0.5.06: LineageOS 24 too (its Google apps are One UI's, added by guest_google.sh; none from a payload).
-        // 0.5.34: Pixel 16 GSI (Google apps in the image, no gmssystem payload).
-        assertEquals(listOf(Images.FIND_N6, Images.FIND_X9U_IN_1105, Images.NOTHING_METROID, Images.OXYGEN16, Images.PIXEL16, Images.HYPEROS16, Images.LINEAGE24), Images.ALL.filter { it.gmsHideable })
+        // 0.5.34: Pixel 16 GSI, HyperOS 3.0, One UI 8.5 Fold6 (Google apps in the image, no gmssystem payload).
+        assertEquals(listOf(Images.FIND_N6, Images.FIND_X9U_IN_1105, Images.NOTHING_METROID, Images.OXYGEN16, Images.OXYGEN17_PAD, Images.PIXEL16, Images.HYPEROS16, Images.LINEAGE24, Images.ONEUI85_F6), Images.ALL.filter { it.gmsHideable })
         assertEquals(
             listOf("ONEOS_GUEST_HIDE_GMS", "ONEOS_HEAT_CAP", "ONEOS_GUEST_SEC_IMS", "ONEOS_GUEST_EDM_STUB", "ONEOS_VERBOSE_BOOT", "ONEOS_FULL_LOGS", "ONEOS_SHARE_FILES", "ONEOS_RETURN_MODE"),
             SessionEnv.ALLOWED.keys.toList().takeLast(8),

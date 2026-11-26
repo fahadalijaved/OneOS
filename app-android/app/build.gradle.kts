@@ -89,6 +89,7 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
         "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
     // Pixel 16 (Android 16 GSI BP4A): Google GSI for phones on One UI 8 (Galaxy Z Fold4).
     "pixel16" to (File(repoRoot, "out/overlays_pixel16") to listOf("tethering_payload.img")),
+    "oxygen17pad" to (File(repoRoot, "out/overlays_oxygen17pad_r1") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk", "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
     // OriginOS 7 (0.4.73, experimental): set r17 = r14 plus the vivo fold cutout overlay (the cover's lens).
     "originos" to (File(repoRoot, "out/overlays_originos_cn_r23") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
     // LineageOS 24 (0.5.06, experimental): the OnePlus 15 nightly, on every phone that offers Infinity-X. No gmssystem
@@ -96,8 +97,10 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // cellbroadcast module is left out like Infinity-X's.
     "lineage" to (File(repoRoot, "out/overlays_lineage_r11") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
     // One UI 9.5 (0.5.22, untested): the Galaxy S26 Ultra build, on the phones on One UI 9. Tethering never mounts.
-    "oneui95" to (File(repoRoot, "out/overlays_oneui95_r11") to listOf("tethering_payload.img")),
-    "oneui95-f8" to (File(repoRoot, "out/overlays_oneui95_f8_r1") to listOf("tethering_payload.img")),
+    "oneui95" to (File(repoRoot, "out/overlays_oneui95_r12") to listOf("tethering_payload.img")),
+    "oneui95-f8" to (File(repoRoot, "out/overlays_oneui95_f8_r3") to listOf("tethering_payload.img")),
+    // Tester builds (oneui8test3): One UI 9.5 on One UI 8, the r10 files plus the image's own modules One UI 8 cannot lend (tethering among them).
+    "oneui95-a16" to (File(repoRoot, "out/overlays_oneui95_a16_r9") to listOf("tethering_payload.img")),
     // PixelOS 17 (0.5.35): the POCO F7 build for the ARMv8.2 Galaxy A series.
     "pixelos" to (File(repoRoot, "out/overlays_pixelos_onyx_r5") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
 )
@@ -171,6 +174,8 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "oneos_btaudio" to File(repoRoot, "switcher/assets/oneos_btaudio"),
     // 0.5.17: Nothing OS's Essential key from a Volume Down double press, as a uinput key (switcher/native/oneos_essential_key.c).
     "oneos_essential_key" to File(repoRoot, "switcher/assets/oneos_essential_key"),
+    // oneui8test11: an empty BPF ring buffer for One UI 8's tethering module in an Android 17 guest (switcher/native/oneos_bpf_ringbuf.c).
+    "oneos_bpf_ringbuf" to File(repoRoot, "switcher/assets/oneos_bpf_ringbuf"),
     // 0.4.33: the status bar's dimension overlays on bar phones
     // (switcher/patches/OneOSOverlayDimen.java, build_overlay_dimen.sh).
     "OneOSOverlayDimen.dex" to File(repoRoot, "switcher/assets/OneOSOverlayDimen.dex"),
@@ -179,6 +184,10 @@ val sessionScripts: Map<String, File> = linkedMapOf(
     "OneOSPixelCorners.apk" to File(repoRoot, "switcher/assets/OneOSPixelCorners.apk"),
     "OneOSGalleryStub.apk" to File(repoRoot, "switcher/assets/OneOSGalleryStub.apk"),
     "OneOSRcdCorners.apk" to File(repoRoot, "switcher/assets/OneOSRcdCorners.apk"),
+    // Tab S9 FE (SM-X510) One UI 9.5 LCD brightness floor (switcher/overlays/tab_s9_fe_brightness).
+    "OneOSTabS9FeBrightness.apk" to File(repoRoot, "switcher/assets/OneOSTabS9FeBrightness.apk"),
+    // Tab S9 FE (SM-X510) One UI 9.5 host SamsungCamera OneUiVersion compat shim (switcher/overlays/tab_s9_fe_cam_compat).
+    "OneOSTabS9FeCamCompat.jar" to File(repoRoot, "switcher/assets/OneOSTabS9FeCamCompat.jar"),
     "host_installd.txt" to File(repoRoot, "switcher/patches/host_installd.txt"),
     // 0.4.66: One UI 8.5's table, staged as host_installd.txt for SDK 36 (Android 16) images.
     "host_installd_a16.txt" to File(repoRoot, "switcher/patches/host_installd_a16.txt"),
@@ -214,7 +223,30 @@ val scriptsList: String = renderShaList(sessionScripts.filterKeys { hasGuestMana
     sha256(f)
 })
 // The root script is the full edition's only (src/full); OneOS Probe has none.
-val rootScript: File = file("src/full/assets/root/oneos_root.sh")
+val rootScriptSource: File = file("src/full/assets/root/oneos_root.sh")
+
+// One UI 9.5 (Android 17) on phones still on One UI 8.0/8.5 (Android 16): tester builds from oneui8test1, every
+// build from 0.5.38 (owner, 2026-11-24: "Publish all now ... support for S22 Series"); -Poneos.a17OnA16=false builds
+// without it. The app reads BuildConfig.A17_ON_A16 (core/model Experimental), a test round's version name ends in
+// -<word> with -Poneos.a17OnA16Suffix=<word> (e.g. oneui8test14) with the normal versionCode, and the APK
+// carries a copy of src/full/assets whose oneos_root.sh says ONEOS_A17_ON_A16=1 instead of 0: root's own checks
+// (launch's SDK check, check_table, the pair rows) let that one pair through only in that copy. The copy is made
+// here, at configuration time, because the root script's pin (ROOT_SCRIPT_SHA256 below) is computed here too.
+val a17OnA16: Boolean = (findProperty("oneos.a17OnA16") as String?)?.trim() != "false"
+val a17OnA16Suffix: String? = (findProperty("oneos.a17OnA16Suffix") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+if (a17OnA16Suffix != null && !Regex("[a-z0-9]{1,24}").matches(a17OnA16Suffix)) throw GradleException("oneos.a17OnA16Suffix: '$a17OnA16Suffix' is not a short lowercase word")
+val fullAssetsSource: File = file("src/full/assets")
+val fullAssetsA17OnA16: File = layout.buildDirectory.dir("generated/oneos/a17OnA16/assets").get().asFile
+if (a17OnA16) {
+    fullAssetsA17OnA16.deleteRecursively()
+    fullAssetsSource.copyRecursively(fullAssetsA17OnA16)
+    val copy = File(fullAssetsA17OnA16, "root/oneos_root.sh")
+    val text = copy.readText()
+    val off = "\nONEOS_A17_ON_A16=0\n"
+    if (Regex(Regex.escape(off)).findAll(text).count() != 1) throw GradleException("oneos_root.sh: expected exactly one line ONEOS_A17_ON_A16=0")
+    copy.writeText(text.replace(off, "\nONEOS_A17_ON_A16=1\n"))
+}
+val rootScript: File = if (a17OnA16) File(fullAssetsA17OnA16, "root/oneos_root.sh") else rootScriptSource
 
 /**
  * Imports the package sets and the session scripts into content-addressed
@@ -539,8 +571,8 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 194
-        versionName = "0.5.37.15"
+        versionCode = 205
+        versionName = "0.5.48"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
         // Send to the OneOS team (0.4.29, both editions): the report service's
@@ -573,7 +605,10 @@ android {
             val updateRepo: String = (findProperty("oneos.updateRepo") as String?)?.trim()?.takeIf { it.isNotEmpty() }
                 ?: (if (seriesId == "fold") "jinkun1998/OneOS" else "fahadalijaved/OneOS")
             buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
-            if (seriesId != null) versionNameSuffix = "-$seriesId"
+            // One UI 9.5 on One UI 8 (above; on unless -Poneos.a17OnA16=false): read by OneOsApplication before anything else.
+            buildConfigField("boolean", "A17_ON_A16", "$a17OnA16")
+            val suffix = (seriesId?.let { "-$it" } ?: "") + (if (a17OnA16 && a17OnA16Suffix != null) "-$a17OnA16Suffix" else "")
+            if (suffix.isNotEmpty()) versionNameSuffix = suffix
             for ((id, _) in packageSets) {
                 val f = File(packagesDir, "$id.sha256")
                 val list = if (f.isFile) renderShaList(readShaList(f)) else ""
@@ -587,6 +622,8 @@ android {
             versionNameSuffix = "-probe"
         }
     }
+    // Tester build: the full edition's assets from the copy with ONEOS_A17_ON_A16=1 (above), in place of src/full/assets.
+    if (a17OnA16) sourceSets.getByName("full").assets.setSrcDirs(listOf(fullAssetsA17OnA16))
 
     signingConfigs {
         if (releaseKeys != null) {

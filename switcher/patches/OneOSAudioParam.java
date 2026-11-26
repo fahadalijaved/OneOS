@@ -22,7 +22,9 @@ import java.nio.charset.StandardCharsets;
  * order: setParameters, then getParameters), so a misread never calls another method; otherwise it exits 3.
  */
 public final class OneOSAudioParam {
-    private static final String KV = "[A-Za-z0-9_.]{1,64}=[A-Za-z0-9_.,-]{0,64}";
+    // 0.5.40: up to three pairs joined by ';' in one call (Qualcomm's voice HAL reads "vsid=...;call_state=..." together).
+    private static final String PAIR = "[A-Za-z0-9_.]{1,64}=[A-Za-z0-9_.,-]{0,64}";
+    private static final String KV = PAIR + "(;" + PAIR + "){0,2}";
     private static final String SET = "_ZN7android5media21BpAudioFlingerService13setParametersEi";
     private static final String GET = "_ZN7android5media21BpAudioFlingerService13getParametersEi";
 
@@ -31,7 +33,7 @@ public final class OneOSAudioParam {
             System.exit(toStreams(args[1], args[2]));
         }
         if (args.length != 1 || !args[0].matches(KV)) {
-            System.out.println("usage: OneOSAudioParam key=value | OneOSAudioParam --io <io>[,<io>...] key=value");
+            System.out.println("usage: OneOSAudioParam key=value[;key=value...] | OneOSAudioParam --io <io>[,<io>...] key=value");
             System.exit(2);
         }
         Class<?> as = Class.forName("android.media.AudioSystem");

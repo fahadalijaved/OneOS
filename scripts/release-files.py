@@ -46,6 +46,9 @@ GH_REPO = "fahadalijaved/OneOS-files"
 # app side, so turning it on only changes remote.txt.
 GH_ENABLED = True
 GH_TAG = "sets-1"
+# 0.5.41: sets-1 is full (950 assets). Files already in an earlier tag stay there (remote.txt names each
+# file's own tag); new files go to the last tag of this list.
+GH_TAGS = ["sets-1", "sets-2"]
 GH_MAX_ASSETS = 950
 RCLONE = os.environ.get("RCLONE", os.path.expanduser("~/bin/rclone"))
 # SourceForge (0.4.65): the upload key the owner added for the image mirror (sourceforge-mirror notes).
@@ -155,9 +158,9 @@ def main():
         else:
             print(f"no {SF_REMOTE_FILE}: SourceForge left out of remote.txt")
     if GH_ENABLED:
-        github_upload(want)
-        lines = [f"{s} gh:{GH_TAG},{sf}{','.join(ids[s])}" for s in sorted(want)]
-        head = f"the {GH_REPO} release {GH_TAG}, {'SourceForge oneos-mirror files/, ' if sf else ''}then Drive ids"
+        where = github_upload(want)
+        lines = [f"{s} gh:{where[s]},{sf}{','.join(ids[s])}" for s in sorted(want)]
+        head = f"the {GH_REPO} release named on each line ({', '.join(GH_TAGS)}), {'SourceForge oneos-mirror files/, ' if sf else ''}then Drive ids"
     else:
         lines = [f"{s} {','.join(ids[s])}" for s in sorted(want)]
         head = "Drive ids"
@@ -181,9 +184,10 @@ def gh(*args, check=True):
     return r
 
 
-def github_assets():
-    """name -> size of every asset of GH_TAG, or None when the release does not exist yet."""
-    r = gh("release", "view", GH_TAG, "--repo", GH_REPO, "--json", "assets", check=False)
+def github_assets(tag=None):
+    """name -> size of every asset of the tag, or None when the release does not exist yet."""
+    tag = tag or GH_TAG
+    r = gh("release", "view", tag, "--repo", GH_REPO, "--json", "assets", check=False)
     if r.returncode != 0:
         if "release not found" in r.stderr.lower():
             return None
@@ -192,30 +196,41 @@ def github_assets():
 
 
 def github_upload(want):
-    have = github_assets()
+    """Uploads what no tag has yet to the last tag of GH_TAGS; returns sha -> the tag that holds it."""
+    where = {}
+    for tag in GH_TAGS:
+        have = github_assets(tag) or {}
+        for s in want:
+            if s not in where and have.get(s) == os.path.getsize(want[s]):
+                where[s] = tag
+    tag = GH_TAGS[-1]
+    have = github_assets(tag)
     if have is None:
-        gh("release", "create", GH_TAG, "--repo", GH_REPO, "--title", f"OneOS set files ({GH_TAG})", "--latest=false",
+        gh("release", "create", tag, "--repo", GH_REPO, "--title", f"OneOS set files ({tag})", "--latest=false",
            "--notes", "Files the OneOS app downloads and checks by SHA-256 (each asset is named by it). "
                       "Not for manual download: the app picks what a phone's system needs.")
         have = {}
-    need = sorted(s for s in want if have.get(s) != os.path.getsize(want[s]))
+    need = sorted(s for s in want if s not in where)
     bad = [s for s in need if s in have]
     if bad:
-        sys.exit(f"{GH_REPO} {GH_TAG}: {len(bad)} assets of another size, e.g. {bad[0]}: delete them by hand")
+        sys.exit(f"{GH_REPO} {tag}: {len(bad)} assets of another size, e.g. {bad[0]}: delete them by hand")
     if len(have) + len(need) > GH_MAX_ASSETS:
-        sys.exit(f"{GH_REPO} {GH_TAG} would hold {len(have) + len(need)} assets: start the next tag (GH_TAG)")
+        sys.exit(f"{GH_REPO} {tag} would hold {len(have) + len(need)} assets: add the next tag to GH_TAGS")
     if need:
         size = sum(os.path.getsize(want[s]) for s in need)
-        print(f"{GH_REPO} {GH_TAG}: uploading {len(need)} files ({size / 1e9:.2f} GB)")
+        print(f"{GH_REPO} {tag}: uploading {len(need)} files ({size / 1e9:.2f} GB)")
         with tempfile.TemporaryDirectory(dir=os.path.join(ROOT, "out")) as tmp:
             for s in need:
                 os.link(want[s], os.path.join(tmp, s))
             for i in range(0, len(need), 10):
-                gh("release", "upload", GH_TAG, *[os.path.join(tmp, s) for s in need[i:i + 10]], "--repo", GH_REPO)
-        have = github_assets() or {}
-    short = [s for s in want if have.get(s) != os.path.getsize(want[s])]
+                gh("release", "upload", tag, *[os.path.join(tmp, s) for s in need[i:i + 10]], "--repo", GH_REPO)
+        have = github_assets(tag) or {}
+    short = [s for s in need if have.get(s) != os.path.getsize(want[s])]
     if short:
-        sys.exit(f"{GH_REPO} {GH_TAG}: {len(short)} files missing after the upload, e.g. {short[0]}")
+        sys.exit(f"{GH_REPO} {tag}: {len(short)} files missing after the upload, e.g. {short[0]}")
+    for s in need:
+        where[s] = tag
+    return where
 
 
 def sf_files():

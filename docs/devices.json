@@ -1296,6 +1296,12 @@
           "tested": false
         },
         {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -1560,6 +1566,12 @@
           "tested": false
         },
         {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
+        },
+        {
           "image": "oneui95-s948b",
           "label": "One UI 9.5, Galaxy S26 Ultra build",
           "set": "oneui95",
@@ -1585,14 +1597,20 @@
         },
         {
           "image": "pixel16-bp4a",
-          "label": "PixelOS 16.2, Doze-off GSI",
+          "label": "PixelOS 16.2, Doze-off GSI (Unoptimized)",
           "set": "pixel16",
           "tested": false
         },
         {
           "image": "hyperos16-goya",
-          "label": "HyperOS 3.0 Global",
+          "label": "HyperOS 3.0 Global (Unoptimized)",
           "set": "hyper16",
+          "tested": false
+        },
+        {
+          "image": "oneui85-f956b",
+          "label": "One UI 8.5, Galaxy Z Fold6 build",
+          "set": "oneui85-f6",
           "tested": false
         }
       ]
@@ -3693,6 +3711,264 @@
           "image": "pixelos17-onyx",
           "label": "PixelOS 17, POCO F7 build",
           "set": "pixelos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "s-plus-8450",
+      "label": "Galaxy S22+ (Snapdragon)",
+      "model": "SM-S906",
+      "codename": "g0q",
+      "chip": "SM8450",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos16-cph2745",
+          "label": "OxygenOS 16, OnePlus CPH2745 build",
+          "set": "oxygen16",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s9",
+      "label": "Galaxy Tab S9",
+      "model": "SM-X710",
+      "codename": "gts9wifi",
+      "chip": "SM8550",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s10-fe",
+      "label": "Galaxy Tab S10 FE 5G",
+      "model": "SM-X526",
+      "codename": "gts10fe",
+      "chip": "s5e8855",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s10-fe-wifi",
+      "label": "Galaxy Tab S10 FE",
+      "model": "SM-X520",
+      "codename": "gts10fewifi",
+      "chip": "s5e8855",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s12-ultra",
+      "label": "Galaxy Tab S12 Ultra",
+      "model": "SM-X940",
+      "codename": "gts12uwifi",
+      "chip": "MT6993",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s9-fe-plus",
+      "label": "Galaxy Tab S9 FE+",
+      "model": "SM-X610",
+      "codename": "gts9fepwifi",
+      "chip": "s5e8835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s9-fe",
+      "label": "Galaxy Tab S9 FE",
+      "model": "SM-X510",
+      "codename": "gts9fewifi",
+      "chip": "s5e8835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s9-fe-5g",
+      "label": "Galaxy Tab S9 FE 5G",
+      "model": "SM-X516",
+      "codename": "gts9fe",
+      "chip": "s5e8835",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s9-ultra",
+      "label": "Galaxy Tab S9 Ultra",
+      "model": "SM-X910",
+      "codename": "gts9uwifi",
+      "chip": "SM8550",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s11",
+      "label": "Galaxy Tab S11",
+      "model": "SM-X730",
+      "codename": "gts11wifi",
+      "chip": "MT6991",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": false
+        }
+      ]
+    },
+    {
+      "id": "tab-s11-ultra",
+      "label": "Galaxy Tab S11 Ultra",
+      "model": "SM-X930",
+      "codename": "gts11uwifi",
+      "chip": "MT6991",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "oxygenos17-opd2514",
+          "label": "ColorOS 17, OnePlus Pad 4 build",
+          "set": "oxygen17pad",
           "tested": false
         },
         {

@@ -29,6 +29,7 @@ class PlainTest {
         add(SwitchGates.ID_PROFILE, Level.BLOCK, SwitchGates.R_PROFILE_NONE, SwitchGates.R_PROFILE_DISABLED)
         add(SwitchGates.ID_PROFILE, Level.WARN, SwitchGates.R_PROFILE_UNTESTED)
         add(SwitchGates.ID_ANDROID, Level.BLOCK, SwitchGates.R_ANDROID_DIFFERS, SwitchGates.R_ANDROID_OLDER)
+        add(SwitchGates.ID_ANDROID, Level.WARN, SwitchGates.R_ANDROID_EXPERIMENTAL) // tester build only
         add(SwitchGates.ID_FORM, Level.BLOCK, SwitchGates.R_FORM_MISMATCH)
         add(
             SwitchGates.ID_IMAGE, Level.BLOCK,
@@ -134,7 +135,7 @@ class PlainTest {
         // The phone list comes from the profiles: every name while they fit one line (0.4.28),
         // the families once they do not (0.4.29, with the A57 and Z Flip5).
         assertEquals(
-            "OneOS works on 58 Galaxy phones so far: Z Fold, S, Z Flip, A, F and M models; the README lists them.",
+            "OneOS works on 68 Galaxy phones and tablets so far: Z Fold, S, Z Flip, A, F, M and Tab models; the README lists them.",
             of(SwitchGates.ID_PROFILE, SwitchGates.R_PROFILE_NONE).line,
         )
         assertEquals("the Galaxy Z Fold (F8U), S26 Ultra and S25", Plain.phoneList(listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_8750)))
@@ -250,6 +251,11 @@ class PlainTest {
         assertEquals("Pixel 11 Fold isn't ready. Set it up again whenever you like.", s("x", stopped = true).line)
         assertEquals("The download is damaged", s("The image: the .gz SHA-256 differs").title)
         assertEquals("The download is damaged", s("The image: unpacked to 5 bytes, not 10").title)
+        // 0.5.45: the line says what to do with the broken file, and names a download manager for Chrome's broken downloads.
+        s("The image: the .gz SHA-256 differs").line.let {
+            assertTrue(it, "Delete it, download Pixel 11 Fold again" in it && "ADM" in it)
+        }
+        assertEquals(FixAction.DOWNLOAD_AGAIN, s("The image: the .gz SHA-256 differs").action)
         assertEquals("This copy of OneOS is damaged", s("art_payload.img in the app is damaged").title)
         assertEquals("One UI changed during setup", s("installd table: host_installd.table: services.jar is not the jar the table was derived from (One UI updated?)").title)
         assertEquals("Couldn't read the download", s("IOException: cannot open the picked file").title)

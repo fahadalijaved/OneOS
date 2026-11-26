@@ -80,6 +80,53 @@ HELPER_NAME = "OneOSGuestLock.smali"
 
 LSS = "Lcom/android/server/locksettings/LockSettingsService;"
 AUTH = "Lcom/android/server/locksettings/LockSettingsStrongAuth;"
+# What a guest-lock match reports to LockSettingsStrongAuth: AOSP's reportSuccessfulStrongAuthUnlock, which
+# posts the strong-auth timeout to its handler. One UI 9.5's R8 build has no such method (its callers send the
+# message themselves); there the handler's own handleScheduleStrongAuthTimeout(I)V is called directly
+# (0.5.42, One UI 9.5 on the Galaxy A17: the guest could not set a screen lock at all).
+AUTH_UNLOCK = "reportSuccessfulStrongAuthUnlock"
+# The listeners call: AOSP's notifyLockSettingsStateListeners(ZI)V. One UI 9.5's R8 build inlined it; there the
+# patch adds its own copy of the loop (oneosNotifyLockSettingsStateListeners, the same two listener calls).
+LISTENERS = "notifyLockSettingsStateListeners"
+LISTENERS_COPY = """
+# OneOS: AOSP's notifyLockSettingsStateListeners, which this build inlined (patches/guest_local_lock.py).
+.method private oneosNotifyLockSettingsStateListeners(ZI)V
+    .locals 2
+
+    iget-object v0, p0, Lcom/android/server/locksettings/LockSettingsService;->mLockSettingsStateListeners:Ljava/util/concurrent/CopyOnWriteArrayList;
+
+    invoke-virtual {v0}, Ljava/util/concurrent/CopyOnWriteArrayList;->iterator()Ljava/util/Iterator;
+
+    move-result-object v0
+
+    :oneos_nl_loop
+    invoke-interface {v0}, Ljava/util/Iterator;->hasNext()Z
+
+    move-result v1
+
+    if-eqz v1, :oneos_nl_done
+
+    invoke-interface {v0}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+
+    move-result-object v1
+
+    check-cast v1, Lcom/android/server/locksettings/LockSettingsStateListener;
+
+    if-eqz p1, :oneos_nl_failed
+
+    invoke-interface {v1, p2}, Lcom/android/server/locksettings/LockSettingsStateListener;->onAuthenticationSucceeded(I)V
+
+    goto :oneos_nl_loop
+
+    :oneos_nl_failed
+    invoke-interface {v1, p2}, Lcom/android/server/locksettings/LockSettingsStateListener;->onAuthenticationFailed(I)V
+
+    goto :oneos_nl_loop
+
+    :oneos_nl_done
+    return-void
+.end method
+"""
 HELPER = "Lcom/android/server/locksettings/OneOSGuestLock;"
 CRED = "Lcom/android/internal/widget/LockscreenCredential;"
 VCR = "Lcom/android/internal/widget/VerifyCredentialResponse;"
@@ -438,11 +485,11 @@ def added_methods(invalidate, listeners, strong):
     :oneos_gl_matched
     iget-object v0, p0, {LSS}->mStrongAuth:{AUTH}
 
-    {strong} {{v0, p2}}, {AUTH}->reportSuccessfulStrongAuthUnlock(I)V
+    {strong} {{v0, p2}}, {AUTH}->{AUTH_UNLOCK}(I)V
 
     const/4 v0, 0x1
 
-    {listeners} {{p0, v0, p2}}, {LSS}->notifyLockSettingsStateListeners(ZI)V
+    {listeners} {{p0, v0, p2}}, {LSS}->{LISTENERS}(ZI)V
 
     # The guest lock's gatekeeper-password handle: Settings turns it into an enrollment token
     # (change 7). No handle or token of the phone's gatekeeper exists behind it.
@@ -511,7 +558,7 @@ def added_methods(invalidate, listeners, strong):
     :oneos_gl_listeners
     const/4 v4, 0x0
 
-    {listeners} {{p0, v4, p2}}, {LSS}->notifyLockSettingsStateListeners(ZI)V
+    {listeners} {{p0, v4, p2}}, {LSS}->{LISTENERS}(ZI)V
 
     return-object v7
 
@@ -550,7 +597,15 @@ def patch_lss(lines, rel, pkg_text):
     g_i, _, g_locals = method(lines, "verifyGatekeeperPasswordHandle", f"(JJI){VCR}", rel)
     f_i, f_end, _ = method(lines, "enforceFrpNotActive", "()V", rel)
     inv_i, _, _ = method(lines, "invalidateCredentialTypeCaches", "(I)V", rel)
-    lis_i, _, _ = method(lines, "notifyLockSettingsStateListeners", "(ZI)V", rel)
+    global LISTENERS
+    try:
+        lis_i, _, _ = method(lines, "notifyLockSettingsStateListeners", "(ZI)V", rel)
+        LISTENERS, lis_kind = "notifyLockSettingsStateListeners", None
+    except Skip:
+        if not any("mLockSettingsStateListeners:Ljava/util/concurrent/CopyOnWriteArrayList;" in l for l in lines) or \
+           not any("LockSettingsStateListener;->onAuthenticationSucceeded(I)V" in l for l in lines):
+            raise
+        lis_i, LISTENERS, lis_kind = None, "oneosNotifyLockSettingsStateListeners", "invoke-direct"
     req_i, _, _ = method(lines, "requireStrongAuth", "(II)V", rel)
     if " private " in lines[req_i]:
         raise Skip(f"{rel}: requireStrongAuth is private")
@@ -564,7 +619,9 @@ def patch_lss(lines, rel, pkg_text):
     if v_locals < 1:
         lines[v_i + 1] = "    .locals 1"
         v_locals = 1
-    tail = added_methods(invoke_kind(lines, inv_i), invoke_kind(lines, lis_i), "invoke-virtual")
+    tail = added_methods(invoke_kind(lines, inv_i), lis_kind or invoke_kind(lines, lis_i), "invoke-virtual")
+    if lis_kind:
+        tail = tail + LISTENERS_COPY.split("\n")
 
     # 1. The set hook goes in front of the gatekeeper guard (v0 is free at the entry).
     s_at = entry(lines, s_i)
@@ -580,7 +637,8 @@ def patch_lss(lines, rel, pkg_text):
     t_code = code(lines, t_i, t_end)
     call = re.compile(r"invoke-(?:direct|virtual) \{p0, p1\}, " + re.escape(LSS)
                       + r"->getCredentialTypeInternal\(I\)I")
-    if len(t_code) not in (3, 4) or not call.fullmatch(t_code[-3][1]):
+    # One UI 9.5: Samsung's permission check takes four instructions (iget, two const-strings, invoke).
+    if len(t_code) not in (3, 4, 7) or not call.fullmatch(t_code[-3][1]):
         raise Skip(f"{rel}: getCredentialType has another shape")
     # Infinity-X's tiny binder wrapper has .locals 0 and reuses p0 for the
     # integer result; LineageOS 24 keeps the answer in p0 too (0.5.10). The
@@ -621,7 +679,10 @@ def patch_tms(lines, rel):
     i, end, n_locals = method(lines, "notifyKeystoreOfDeviceLockState", "(IZ)V", rel)
     if n_locals < 2:
         raise Skip(f"{rel}: notifyKeystoreOfDeviceLockState has fewer than two registers")
-    if not any("Landroid/security/KeyStoreAuthorization;->onDeviceLocked(" in l for l in lines[i:end]):
+    # One UI 9.5's R8 build calls the keystore's binder proxy itself (IKeystoreAuthorization$Stub$Proxy).
+    if not any(("Landroid/security/KeyStoreAuthorization;->onDeviceLocked(" in l
+                or "Landroid/security/authorization/IKeystoreAuthorization" in l and "->onDeviceLocked(" in l)
+               for l in lines[i:end]):
         raise Skip(f"{rel}: notifyKeystoreOfDeviceLockState does not report to the keystore")
     at = entry(lines, i)
     lines[at:at] = KEYSTORE_HOOK
@@ -676,10 +737,14 @@ def main(root, helper):
         if any(have):
             fail("parts of the guest screen lock are already in this tree")
 
-        auth_head = re.search(r"^\.method (?:[a-z-]+ )*reportSuccessfulStrongAuthUnlock\(I\)V$",
-                              text[AUTH_REL], re.M)
-        if not auth_head or " private " in auth_head.group(0) or " static " in auth_head.group(0):
-            raise Skip("LockSettingsStrongAuth.reportSuccessfulStrongAuthUnlock(I)V is not callable")
+        global AUTH_UNLOCK
+        for name in ("reportSuccessfulStrongAuthUnlock", "handleScheduleStrongAuthTimeout"):
+            auth_head = re.search(r"^\.method (?:[a-z-]+ )*" + name + r"\(I\)V$", text[AUTH_REL], re.M)
+            if auth_head and " private " not in auth_head.group(0) and " static " not in auth_head.group(0):
+                AUTH_UNLOCK = name
+                break
+        else:
+            raise Skip("LockSettingsStrongAuth has neither reportSuccessfulStrongAuthUnlock(I)V nor handleScheduleStrongAuthTimeout(I)V to call")
         pkg_dir = os.path.dirname(paths[LSS_REL])
         pkg_text = "".join(read(os.path.join(pkg_dir, f)) for f in sorted(os.listdir(pkg_dir))
                            if f.endswith(".smali"))

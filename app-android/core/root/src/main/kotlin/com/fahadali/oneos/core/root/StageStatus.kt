@@ -159,7 +159,7 @@ data class StageStatus(
             kind == StageKind.LINK || kind == StageKind.FILE -> emptyList()
             !exists || empty -> listOf(RootScript.BeginMode.NEW)
             otherImageData(imageId) != null -> listOf(RootScript.BeginMode.ASIDE)
-            image != null && guest.otherSystemThan(image) -> listOf(RootScript.BeginMode.ASIDE)
+            image != null && guest.otherSystemThan(image) && !ownOplusData(image) -> listOf(RootScript.BeginMode.ASIDE)
             ours -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             partial && guest != GuestData.LINEAGEOS -> listOf(RootScript.BeginMode.KEEP, RootScript.BeginMode.ASIDE)
             guest == GuestData.COLOROS || guest == GuestData.PIXEL || guest == GuestData.INFINITYX || guest == GuestData.HYPEROS ||
@@ -168,6 +168,17 @@ data class StageStatus(
             else -> listOf(RootScript.BeginMode.ASIDE)
         }
     }
+
+    /**
+     * 0.5.46 (Tab S9 FE+, "it is the same OS yet it thinks it is another one"): the ColorOS 17 Pad build is the
+     * OxygenOS family by its ids, but ColorOS there ignores OnePlus's membership app (OplusAppConfigManager: "locate
+     * /my_stock/priv-app/OPMemberShip ... ignored"), so its data reads as ColorOS's ([GuestData.COLOROS]) and every
+     * update after the first session was refused. Such data is its own when OneOS's marker (or the plan of an
+     * update that did not finish) says this very image made it. oneos_root.sh `begin keep` has the same exception.
+     */
+    fun ownOplusData(image: ImageRef): Boolean =
+        guest == GuestData.COLOROS && image.family == SystemFamily.OXYGENOS &&
+            (marker?.takeIf { ours } ?: pendingUpdate?.takeIf { partial })?.imageId == image.id
 
     /**
      * The image whose guest data OneOS's stage holds (its marker's), when

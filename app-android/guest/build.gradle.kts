@@ -30,6 +30,11 @@ android {
         // 0.2 (OneOS 0.4.30): How's it going?, the checklist for Send to the OneOS team.
         versionCode = 15
         versionName = "0.15"
+        // 0.5.42: -Poneos.guestNoKnox=true builds the One UI 9.5 sets' copy (OneOSGuest.apk there): Samsung's
+        // android package owns com.sec.knox.provider2 in that image, so the (always disabled) Knox provider
+        // stand-in takes an authority of its own instead (scripts/build-guest-manager.sh oneui95).
+        manifestPlaceholders["knoxAuthority"] =
+            if ((findProperty("oneos.guestNoKnox") as String?)?.trim() == "true") "com.fahadali.oneos.guest.noknox" else "com.sec.knox.provider2"
     }
 
     signingConfigs {

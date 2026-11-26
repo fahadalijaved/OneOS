@@ -54,6 +54,94 @@ NOT_TO_HOST = {"notifyPkgListParamChange"}
 if os.environ.get("ONEOS_CAMERA_KEEP_COMPAT") == "1":
     NOT_TO_HOST = set()
 COMPAT = "android/content/res/CameraCompatibilityInfo.smali"
+# One UI 8 hosts (0.5.39, One UI 9.5 on the Galaxy S22: switcher/patches/host_camera_oneui8.txt):
+# getCameraInfo, connect, connectDevice, getCameraCharacteristics and getSessionCharacteristics take
+# Android 16's int rotationOverride where One UI 9.0/9.5 take a CameraCompatibilityInfo parcelable.
+# ONEOS_CAMERA_COMPAT_AS_INT=1: such a method matches when its signature with that parcelable read as
+# an int is the host's, and its Proxy writes oneosRotationOverride(info) (0 none, 1 override to
+# portrait, 2 rotation only; a static method added to ICameraService$Stub$Proxy, in the same dex: the
+# framework's first dex has no room for another method) in the parcelable's place. CameraCompatibilityInfo
+# itself is then left as it is (it never reaches the host).
+COMPAT_AS_INT = os.environ.get("ONEOS_CAMERA_COMPAT_AS_INT") == "1"
+CCI = "Landroid/content/res/CameraCompatibilityInfo;"
+OVERRIDE_HELPER = """
+.method public static oneosRotationOverride(Landroid/content/res/CameraCompatibilityInfo;)I
+    .registers 2
+
+    # OneOS: Android 16's rotationOverride for a One UI 8 cameraserver (pixel_camera_abi.py).
+    if-eqz p0, :oneos_none
+
+    invoke-static {p0}, Landroid/content/res/CameraCompatibilityInfo;->isCameraCompatModeActive(Landroid/content/res/CameraCompatibilityInfo;)Z
+
+    move-result v0
+
+    if-eqz v0, :oneos_none
+
+    invoke-virtual {p0}, Landroid/content/res/CameraCompatibilityInfo;->shouldOverrideSensorOrientation()Z
+
+    move-result v0
+
+    if-eqz v0, :oneos_rotation_only
+
+    const/4 v0, 0x1
+
+    return v0
+
+    :oneos_rotation_only
+    const/4 v0, 0x2
+
+    return v0
+
+    :oneos_none
+    const/4 v0, 0x0
+
+    return v0
+.end method
+"""
+
+
+def param_regs(sig):
+    """[(p register, type)] of an instance method's arguments (p0 is this; J and D take two)."""
+    args = sig[1:sig.index(")")]
+    out, i, reg = [], 0, 1
+    while i < len(args):
+        j = i
+        while args[j] == "[":
+            j += 1
+        if args[j] == "L":
+            j = args.index(";", j)
+        t = args[i:j + 1]
+        out.append((f"p{reg}", t))
+        reg += 2 if t in ("J", "D") else 1
+        i = j + 1
+    return out
+
+
+def compat_as_int(body, iface, name, gsig):
+    """The Proxy body writing oneosRotationOverride(info) as an int where it wrote the parcelable."""
+    regs = [r for r, t in param_regs(gsig) if t == CCI]
+    if len(regs) != 1:
+        die(f"{iface}.{name}: {len(regs)} CameraCompatibilityInfo arguments (one expected)")
+    pr = regs[0]
+    pat = re.compile(r"^(\s*)invoke-virtual \{([vp]\d+), " + pr + r", [vp]\d+\}, Landroid/os/Parcel;->writeTypedObject\(Landroid/os/Parcelable;I\)V$", re.M)
+    hits = pat.findall(body)
+    if len(hits) != 1:
+        die(f"{iface}.{name}: {len(hits)} writeTypedObject of {pr} (one expected)")
+    def rep(m):
+        ind, parcel = m.group(1), m.group(2)
+        return (f"{ind}# OneOS: One UI 8 takes an int rotationOverride here (pixel_camera_abi.py).\n"
+                f"{ind}invoke-static {{{pr}}}, L{iface.replace('.', '/')}$Stub$Proxy;->oneosRotationOverride({CCI})I\n\n"
+                f"{ind}move-result {pr}\n\n"
+                f"{ind}invoke-virtual {{{parcel}, {pr}}}, Landroid/os/Parcel;->writeInt(I)V")
+    return pat.sub(rep, body)
+
+
+def add_override_helper(text, changed):
+    """The Proxy class text with oneosRotationOverride appended (once)."""
+    if "oneosRotationOverride(" in text.split(".method public static oneosRotationOverride")[0] and ".method public static oneosRotationOverride" in text:
+        return text
+    changed.append("ICameraService$Stub$Proxy: oneosRotationOverride added (One UI 8's int rotationOverride)")
+    return text.rstrip("\n") + "\n" + OVERRIDE_HELPER
 TRANSACT = "Landroid/os/IBinder;->transact(ILandroid/os/Parcel;Landroid/os/Parcel;I)Z"
 # v registers in R8 builds (Pixel, ColorOS); p registers too in a build with
 # debug info (Infinity-X's framework.jar: "const/16 p3, 0x17").
@@ -159,10 +247,17 @@ def patch_proxy(text, iface, host, guest, changed):
             hcode, hsig = host[name]
         if hsig == "?":
             die(f"{iface}.{name}: the host table has no signature for it")
+        as_int = False
         if hsig != gsig:
-            die(f"{iface}.{name}: signature differs (host {hsig}, guest {gsig})")
-        if hcode == gcode:
+            if COMPAT_AS_INT and CCI in gsig and gsig.replace(CCI, "I") == hsig:
+                as_int = True
+            else:
+                die(f"{iface}.{name}: signature differs (host {hsig}, guest {gsig})")
+        if hcode == gcode and not as_int:
             continue
+        if as_int:
+            body = compat_as_int(body, iface, name, gsig)
+            changed.append(f"{iface}.{name}: CameraCompatibilityInfo written as One UI 8's int rotationOverride")
         lines = body.split("\n")
         ti = [i for i, l in enumerate(lines) if TRANSACT in l]
         if len(ti) != 1:
@@ -180,12 +275,13 @@ def patch_proxy(text, iface, host, guest, changed):
         val = int(lines[ci].split(",")[-1].strip(), 0)
         if val != gcode:
             die(f"{iface}.{name}: const {val} before transact, table says {gcode}")
-        # const/4 only reaches v0-v15; a p register may sit higher, so it keeps const/16.
-        width = "/4" if hcode < 8 and (code_reg.startswith("v") or CONST.match(lines[ci]).group(2) == "/4") else "/16"
-        lines[ci] = f"{CONST.match(lines[ci]).group(1)}const{width} {code_reg}, {hex(hcode)}"
+        if hcode != gcode:
+            # const/4 only reaches v0-v15; a p register may sit higher, so it keeps const/16.
+            width = "/4" if hcode < 8 and (code_reg.startswith("v") or CONST.match(lines[ci]).group(2) == "/4") else "/16"
+            lines[ci] = f"{CONST.match(lines[ci]).group(1)}const{width} {code_reg}, {hex(hcode)}"
+            changed.append(f"{iface}.{name}: {gcode} -> {hcode}")
         pieces.append(text[pos:s]); pieces.append("\n".join(lines)); pos = e
         n += 1
-        changed.append(f"{iface}.{name}: {gcode} -> {hcode}")
     pieces.append(text[pos:])
     return "".join(pieces), n
 
@@ -304,6 +400,8 @@ def main(root, table_path):
             pass
         else:
             text, n = patch_proxy(proxy_text, iface, hmethods, guest, changed)
+            if n and "->oneosRotationOverride(" in text:
+                text = add_override_helper(text, changed)
             if n:
                 open(proxy, "w").write(text)
                 dirs.add(os.path.relpath(proxy, root).split(os.sep)[0])
@@ -314,7 +412,19 @@ def main(root, table_path):
                 dirs.add(os.path.relpath(stub, root).split(os.sep)[0])
     # One UI 9.5 hosts (0.5.37) read and write the sixth field themselves (libcameracompatbilityinfo.so has
     # shouldOverrideLensFacingFrontToBack): ONEOS_CAMERA_KEEP_COMPAT=1 leaves the guest's class as it is.
-    p = None if os.environ.get("ONEOS_CAMERA_KEEP_COMPAT") == "1" else patch_compat(root, changed)
+    # ONEOS_CAMERA_COMPAT_FROM_JAR=1 (a16_camera.py for One UI 8.5 hosts, 0.5.45): the jar patched is a set's
+    # framework_patched.jar whose class make-overlays.sh already wrote without the sixth field; checked, kept.
+    if COMPAT_AS_INT:
+        p = None
+    elif os.environ.get("ONEOS_CAMERA_COMPAT_FROM_JAR") == "1":
+        text = open(find_smali(root, COMPAT)).read()
+        bodies = [text[a:b] for a, b, h in method_bodies(text) if " writeToParcel(" in h]
+        if len(bodies) != 1 or "->writeInt(" not in bodies[0] or "mShouldOverrideLensFacingFrontToBack" in bodies[0]:
+            die("CameraCompatibilityInfo: ONEOS_CAMERA_COMPAT_FROM_JAR but writeToParcel still writes the sixth field (or was not found)")
+        changed.append("CameraCompatibilityInfo: the jar's own (sixth field already not written)")
+        p = None
+    else:
+        p = None if os.environ.get("ONEOS_CAMERA_KEEP_COMPAT") == "1" else patch_compat(root, changed)
     if p:
         dirs.add(os.path.relpath(p, root).split(os.sep)[0])
     for c in changed:

@@ -136,6 +136,7 @@ object Images {
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
     const val ID_PIXEL16 = "pixel16-bp4a"
     const val ID_HYPEROS16 = "hyperos16-goya"
+    const val ID_OXYGEN17_PAD = "oxygenos17-opd2514"
     const val ID_ORIGINOS7 = "originos7-pd2609ma"
     /** Starts with "lineage": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_LINEAGE = "lineage24-infiniti"
@@ -568,6 +569,39 @@ object Images {
     )
 
     /**
+     * ColorOS 17 for tablets (0.5.41, testing; called OxygenOS 17 until 0.5.42: OnePlus ships no OxygenOS 17,
+     * the build is oplusrom 17.0, owner 2026-11-24): OnePlus's Android 17 system from the OnePlus Pad 4 OTA
+     * (OPD2514 / OP657AL1, OPD2514_11.C.08_1080_202610220019, CP2A.260605.016, security patch 2026-09-01),
+     * the only system Galaxy Tabs on One UI 9 are offered (owner, 2026-11-24). MysticGSI --no-debloat
+     * --type=oxygenos from system, system_ext, product, odm and the eight my_* partitions. The bionic
+     * linker's MOPS/SME/SVE2 routines run only when the CPU reports them.
+     */
+    val OXYGEN17_PAD = ImageRef(
+        id = ID_OXYGEN17_PAD,
+        label = "ColorOS 17, OnePlus Pad 4 build",
+        shortName = "ColorOS 17",
+        name = "ColorOS 17",
+        variant = "tablet",
+        blurb = "OnePlus's Android 17 tablet system, for Galaxy Tabs on One UI 9. Testing. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_OxygenOS17_Pad4.img.gz",
+        gzBytes = 5_823_156_363L,
+        gzSha256 = "015852af3c161867f764b47a18008de1d581681e300fac8f358a4e4ed8717183",
+        rawBytes = 11_920_068_608L,
+        rawSha256 = "3fd6ea6021333e942c985067e8d2fdf4ce6f28494cdfb182b07a76b07233c81c",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        // Still the OxygenOS family: its data has OnePlus's membership app (StageStatus.OXYGENOS_WORD,
+        // oneos_root.sh data_family), and the ids and file names stay as hosted. Only the name and the
+        // artwork (OsArtworkView, SystemsActivity) are ColorOS's.
+        family = SystemFamily.OXYGENOS,
+    )
+
+    /**
      * HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM),
      * for phones on One UI 8.0/8.5 such as Galaxy Z Fold4.
      * Full HyperOS experience with built-in Google Play services and Xiaomi apps.
@@ -760,7 +794,7 @@ object Images {
         family = SystemFamily.PIXELOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, PIXEL16, HYPEROS16, ORIGINOS7, LINEAGE24, ONEUI95, ONEUI85_F6, PIXELOS_ONYX)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, OXYGEN17_PAD, PIXEL16, HYPEROS16, ORIGINOS7, LINEAGE24, ONEUI95, ONEUI85_F6, PIXELOS_ONYX)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

@@ -92,8 +92,9 @@ object Plain {
             else -> "the Galaxy " + names.dropLast(1).joinToString(", ") + " and " + names.last()
         }
         if ("OneOS works on $list.".length <= PlainMessage.MAX_LINE) return list
-        val families = names.map { n -> listOf("Z Fold", "Z Flip").firstOrNull { n.startsWith(it) } ?: n.take(1) }.distinct()
-        return "${names.size} Galaxy phones so far: ${families.dropLast(1).joinToString(", ")} and ${families.last()} models; the README lists them"
+        val families = names.map { n -> listOf("Z Fold", "Z Flip", "Tab").firstOrNull { n.startsWith(it) } ?: n.take(1) }.distinct()
+        val kind = if ("Tab" in families) "phones and tablets" else "phones"
+        return "${names.size} Galaxy $kind so far: ${families.dropLast(1).joinToString(", ")} and ${families.last()} models; the README lists them"
     }
 
     /** [of] with the facts read from [report] and the phone's [facts]. */
@@ -155,7 +156,10 @@ object Plain {
                 )
                 else -> m("This phone isn't supported yet", "OneOS works on ${phoneList(profiles)}.", FixAction.SEND_PHONE_DETAILS)
             }
-            SwitchGates.ID_ANDROID -> if (r == SwitchGates.R_ANDROID_OLDER) {
+            // Tester build only (Experimental.a17OnA16): One UI 9.5 next to One UI 8, ticked at Switch.
+            SwitchGates.ID_ANDROID -> if (r == SwitchGates.R_ANDROID_EXPERIMENTAL) {
+                m("Experimental test build", SwitchGates.A17_ON_A16_ACK, FixAction.ACKNOWLEDGE)
+            } else if (r == SwitchGates.R_ANDROID_OLDER) {
                 // Every system of this phone is for a newer Android than its One UI: nothing to choose.
                 val want = (image?.sdk ?: phone?.choices?.mapNotNull { Images.byId(it.imageId)?.sdk }?.minOrNull())
                     ?.let { "Android ${AndroidRelease.name(it)}" } ?: "a newer Android"
@@ -274,6 +278,12 @@ object Plain {
                     "session logs from Settings › Last session.",
                 FixAction.ACKNOWLEDGE,
             )
+            Profiles.ID_NOTE_TABLET -> m(
+                "First runs on a Galaxy Tab",
+                "ColorOS 17 for tablets is new (testing). If the screen stays black, One UI comes back by itself. " +
+                    "Then share the session logs.",
+                FixAction.NONE,
+            )
             Profiles.ID_NOTE_FOLD4_ISSUES -> m(
                 "Known issues on this phone",
                 "Camera does not work, cover screen brightness is fixed and dim, and the phone may warm up.",
@@ -315,7 +325,7 @@ object Plain {
         return when (f.reason) {
             // Setting up: the picked file.
             SwitchGates.R_IMAGE_NONE -> m("Choose a system first", "Pick the system you want to set up.", FixAction.CHOOSE_SYSTEM)
-            ImageIdentifier.R_DAMAGED -> m("The download is damaged", "It may not have finished. Download $system again.", FixAction.DOWNLOAD_AGAIN)
+            ImageIdentifier.R_DAMAGED -> m("The download is damaged", damagedDownload(system), FixAction.DOWNLOAD_AGAIN)
             ImageIdentifier.R_WRONG_PHONE -> m("That file is for another phone", "Choose the file you downloaded for $yourPhone.", FixAction.CHOOSE_FILE)
             ImageIdentifier.R_UNCOMPRESSED, ImageIdentifier.R_NOT_OURS, ImageIdentifier.R_SIZE_UNKNOWN ->
                 m("That isn't a OneOS system file", "Choose the file you downloaded for $system.", FixAction.CHOOSE_FILE)
@@ -474,6 +484,13 @@ object Plain {
      * download, the app's own files, One UI changing underneath, a file that
      * could not be read, or anything else. [stopped]: the user tapped Stop.
      */
+    /**
+     * 0.5.45 (owner: testers did not see that the file itself is broken and kept asking the group): what to do with a
+     * damaged download, in words. The browser download stopped early or broke (Chrome on a slow connection, often).
+     */
+    fun damagedDownload(system: String): String =
+        "The file is incomplete. Delete it, download $system again (Chrome failing? Use ADM from the Play Store), then choose it."
+
     fun setupFailed(message: String, stopped: Boolean, image: ImageRef?): PlainMessage {
         val system = image?.name ?: Images.OTHER_SYSTEM
         val sys = Sentence.start(system)
@@ -488,7 +505,7 @@ object Plain {
             )
             "sha-256 differs" in p || "the .gz has" in p || "unpacked to" in p || "unpacks to more" in p ||
                 "not an ext4 image" in p || "corrupt" in p || "crc" in p || "unexpected end" in p ->
-                PlainMessage("The download is damaged", "It may not have finished. Download $system again.", FixAction.DOWNLOAD_AGAIN, defaultLabel(FixAction.DOWNLOAD_AGAIN))
+                PlainMessage("The download is damaged", damagedDownload(system), FixAction.DOWNLOAD_AGAIN, defaultLabel(FixAction.DOWNLOAD_AGAIN))
             "ioexception" in p || "could not read" in p || "cannot open the picked file" in p -> PlainMessage(
                 "Couldn't read the download", "Choose the file again.", FixAction.CHOOSE_FILE, defaultLabel(FixAction.CHOOSE_FILE),
             )

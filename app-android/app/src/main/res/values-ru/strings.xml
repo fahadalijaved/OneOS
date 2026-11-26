@@ -60,7 +60,7 @@
     <string name="findings_share_subject">Результаты OneOS</string>
     <string name="findings_cat_bundle">Результаты</string>
     <string name="findings_send_title">Отправить результаты команде OneOS</string>
-    <string name="findings_send_summary">«Поделиться» отправляет архив ниже. Личные данные удалены; нажмите на любой файл, чтобы увидеть, что в нём.</string>
+    <string name="findings_send_summary">Нажмите здесь: откроется Telegram с отчётом, выберите OneOSReports и отправьте. Личные данные удалены; нажмите на файл ниже, чтобы увидеть, что в нём.</string>
     <string name="findings_cat_summary">Сводка</string>
     <string name="findings_cat_privacy">Удалённые личные данные</string>
     <string name="findings_cat_files">Файлы</string>
@@ -78,7 +78,7 @@
     <string name="logs_share_chooser">Отправить журналы сеансов команде OneOS</string>
     <string name="logs_cat_bundle">Журналы сеансов</string>
     <string name="logs_send_title">Отправить журналы команде OneOS</string>
-    <string name="logs_send_summary">«Поделиться» отправляет архив ниже. Личные данные удалены при чтении журналов; нажмите на любой файл, чтобы увидеть, что в нём.</string>
+    <string name="logs_send_summary">Нажмите здесь: откроется Telegram с отчётом, выберите OneOSReports и отправьте. Личные данные удалены; нажмите на файл ниже, чтобы увидеть, что в нём.</string>
     <string name="logs_delete_title">Удалить эти журналы с телефона</string>
     <string name="logs_delete_summary">Удаляет архив и его папку из памяти OneOS. Собственные копии телефона в папке stage остаются.</string>
     <string name="logs_delete_confirm">Удалить журналы сеансов?</string>

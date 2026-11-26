@@ -16,7 +16,6 @@
     <string name="systems_badge_setting_up">Настройка</string>
     <string name="systems_use">Использовать эту</string>
     <string name="systems_download">Скачать</string>
-    <string name="systems_download_drive">Скачать с Google Drive</string>
     <string name="systems_have_file">У меня есть файл</string>
     <string name="systems_set_up">Настроить %1$s</string>
     <string name="systems_show_progress">Показать ход</string>
@@ -83,4 +82,8 @@
     <string name="setup_details_moved">Сохранено как старые копии</string>
     <string name="setup_expanded">Развёрнуто</string>
     <string name="setup_collapsed">Свёрнуто</string>
+    <string name="systems_mirror_title">Откуда скачать %1$s</string>
+    <string name="systems_mirror_sourceforge">SourceForge: ближайшее зеркало, с докачкой</string>
+    <string name="systems_mirror_drive">Google Drive: папка OneOS (часто быстрее)</string>
+    <string name="systems_mirror_gofile">gofile: папка OneOS</string>
 </resources>

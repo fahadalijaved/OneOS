@@ -74,7 +74,7 @@
     <string name="findings_share_subject">OneOS findings</string>
     <string name="findings_cat_bundle">Findings</string>
     <string name="findings_send_title">Send the findings to the OneOS team</string>
-    <string name="findings_send_summary">Share sends the zip below. Personal data was removed; tap any file to see exactly what is in it.</string>
+    <string name="findings_send_summary">Tap here: Telegram opens with the report, choose OneOSReports and send. Personal data was removed; tap any file below to see what is in it.</string>
     <string name="findings_cat_summary">Summary</string>
     <string name="findings_cat_privacy">Personal data removed</string>
     <string name="findings_cat_files">Files</string>
@@ -94,7 +94,7 @@
     <string name="logs_share_chooser">Send the session logs to the OneOS team</string>
     <string name="logs_cat_bundle">Session logs</string>
     <string name="logs_send_title">Send the logs to the OneOS team</string>
-    <string name="logs_send_summary">Share sends the zip below. Personal data was removed as the logs were read; tap any file to see exactly what is in it.</string>
+    <string name="logs_send_summary">Tap here: Telegram opens with the report, choose OneOSReports and send. Personal data was removed; tap any file below to see what is in it.</string>
     <string name="logs_delete_title">Delete these logs from this phone</string>
     <string name="logs_delete_summary">Removes the zip and its folder from OneOS\'s storage. The phone\'s own copies in the stage folder stay.</string>
     <string name="logs_delete_confirm">Delete the session logs?</string>

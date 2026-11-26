@@ -19,7 +19,7 @@ class ApkSeriesTest {
 
     @Test
     fun everySetIsInASeriesDownload() {
-        assertEquals(PackageSets.ALL.map { it.id }.toSet(), ApkSeries.entries.flatMap { it.setIds() }.toSet())
+        assertEquals(PackageSets.ALL.map { it.id }.toSet() - PackageSets.TESTER_ONLY, ApkSeries.entries.flatMap { it.setIds() }.toSet())
     }
 
     /** app-android/packages/series.txt (what app/build.gradle.kts packs) lists exactly [ApkSeries.setIds]. */

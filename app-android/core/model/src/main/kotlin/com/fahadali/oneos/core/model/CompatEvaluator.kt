@@ -32,6 +32,9 @@ object CompatEvaluator {
     }
     const val ID_ANDROID_DIFFERS = "android-version-differs"
     const val ID_ANDROID_MATCHES = "sdk-package"
+
+    /** Tester build only ([Experimental.a17OnA16]): One UI 9.5 offered next to One UI 8. */
+    const val ID_ANDROID_EXPERIMENTAL = "android-a17-on-a16"
     const val ID_PROFILE_DISABLED = "profile-disabled"
     const val ID_NO_PROFILE = "no-profile"
     const val ID_CARRIER = "carrier-volte"
@@ -54,6 +57,7 @@ object CompatEvaluator {
         images: List<ImageRef> = Images.ALL,
         sets: List<PackageSet> = PackageSets.ALL,
         app: String = "OneOS",
+        a17OnA16: Boolean = Experimental.a17OnA16,
     ): CompatReport {
         val out = mutableListOf<Finding>()
         val family = f.family
@@ -62,7 +66,9 @@ object CompatEvaluator {
         // phone's Android version (0.4.85: a One UI 8.5 phone was measured against an Android 17 image
         // it cannot run), else its first; Prepare and Switch use the image actually picked or staged.
         val offered = profile?.choices.orEmpty().mapNotNull { c -> Images.byId(c.imageId, images)?.let { c to it } }
-        val choice = offered.firstOrNull { it.second.sdk == f.sdk }?.first ?: profile?.choices?.firstOrNull()
+        val choice = offered.firstOrNull { it.second.sdk == f.sdk }?.first
+            ?: offered.firstOrNull { Experimental.a17OnA16Pair(f.sdk, it.second, a17OnA16) }?.first // tester build
+            ?: profile?.choices?.firstOrNull()
         val image = choice?.let { Images.byId(it.imageId, images) }
         val set = choice?.let { PackageSets.byId(it.packageSetId, sets) }
 
@@ -185,7 +191,9 @@ object CompatEvaluator {
             }
         } else if (oneUi.raw !in Profiles.ONE_UI_SEEN &&
             // One UI 8.0 and 8.5 are known where the phone has an Android 16 system (0.4.85).
-            !(oneUi.raw in Profiles.ONE_UI_SEEN_A16 && offered.any { it.second.sdk == f.sdk })
+            !(oneUi.raw in Profiles.ONE_UI_SEEN_A16 && offered.any { it.second.sdk == f.sdk }) &&
+            // Tester build: One UI 8.0/8.5 under its One UI 9.5 (the Android version finding below says so).
+            !(oneUi.raw in Profiles.ONE_UI_SEEN_A16 && Experimental.a17OnA16Offered(f.sdk, profile, a17OnA16, images))
         ) {
             val seen = Profiles.ONE_UI_SEEN.sorted().mapNotNull { OneUiVersion.parse(it.toString()) }
             out += Finding(
@@ -200,7 +208,15 @@ object CompatEvaluator {
         // Galaxy A56 on One UI 8.5 read "Packages for Android SDK 36" with no system it can use).
         val candidates = offered.map { it.second }.ifEmpty { images }
         val matching = candidates.filter { it.sdk == f.sdk }
-        if (matching.isEmpty()) {
+        if (matching.isEmpty() && Experimental.a17OnA16Offered(f.sdk, profile, a17OnA16, images)) {
+            // Tester build only: One UI 9.5 (Android 17) next to this phone's One UI 8 (Android 16), on trial.
+            out += Finding(
+                ID_ANDROID_EXPERIMENTAL, Level.WARN, "Experimental: One UI 9.5 on Android ${AndroidRelease.name(f.sdk)}",
+                "This phone runs Android ${f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }} (SDK ${f.sdk}); One UI 9.5 is " +
+                    "Android 17 (SDK 37). This test build lets it start next to One UI 8 anyway: the camera is off in it, " +
+                    "and parts of One UI 9.5 may not work. The phone's other systems need One UI's own Android version.",
+            )
+        } else if (matching.isEmpty()) {
             val sdks = candidates.map { it.sdk }.distinct().sorted()
             val releases = sdks.joinToString(", ") { AndroidRelease.name(it) }
             val have = "This phone runs Android ${f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }} (SDK ${f.sdk}); "

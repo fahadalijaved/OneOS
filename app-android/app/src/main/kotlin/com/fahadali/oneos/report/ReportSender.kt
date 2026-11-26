@@ -89,6 +89,14 @@ object ReportSender {
     /** Send is offered: this build has the service and the phone is not a custom ROM. */
     val offered: Boolean get() = available && refusal == null
 
+    /**
+     * 0.5.46 (owner: "the send button is greyed out, normal users get confused"): Send to the OneOS team
+     * (SendReportActivity) has posted through Telegram since 0.5.24 and needs no service, but its rows were
+     * still gated on [offered], which needs the old service's address that release builds no longer have:
+     * no Send anywhere, only Share. Offered on every stock One UI phone now.
+     */
+    val telegramSendOffered: Boolean get() = refusal == null
+
     /** [progress]: bytes sent so far of the zip's size. */
     fun send(record: ReportRecord, zip: File?, pass: String? = null, progress: (sent: Long, total: Long) -> Unit = { _, _ -> }) {
         check(available) { "this build has no report service" }

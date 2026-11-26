@@ -1,0 +1,16 @@
+# framework overlays built by scripts/make-overlays.sh with the storage, installd, power, sysrq, weaver, biometric, gatekeeper, pdb, apexd, appid15000, nousers, nativeservices, wipesecrets and ksuappid guards, and the secims carve-out (com.sec.imsservice kept in android.uid.system from /system_ext/priv-app/OneOSSecIms only)
+# installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
+# charger power from Samsung's charging_type in BatteryService (OneOSChargePower)
+# guest vold name: gvld (vold_patched, service.incremental_patched.so and services_patched.jar)
+# framework_patched.jar: the image's framework.jar with One UI's camera transaction codes (patches/pixel_camera_abi.py)
+# telephony-common_patched.jar: the SMS service centre as an international number (patches/guest_smsc_international.py); SEND_SMS error 66 (sent, no result payload) counted as sent (patches/guest_sms_invalid_response.py)
+# libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
+67e84d07f6bcb953b118ef9f29dd3f8e00e0ebb85f70a53ec65b5cd27a8d2145  services_patched.jar
+5d6f073027a5996828262f272599d21c337e8cd42200227477a040ef97288922  oplus-services_patched.jar
+4914b29ee17919158b66c923ddff5a7995a9244da28f60b6c6fbf70762b0a52b  vold_patched
+e0c49883974c10f5601950c0f54c3da29658dda1ce17c08c5af1364bbd31bdd8  service.incremental_patched.so
+7d280fe8839e711d2c7852d73e028bdcc2c57e9d35962fc1ffd1ff7fd4d394a7  framework_patched.jar
+19e921d368fafc456472795fbffc8f306734344549bf70fa83bc31c8f011a901  telephony-common_patched.jar
+fae755c0225bb9cdd3553fc26a11092fd035984c8432adbf22c3c8d70275fa30  libcamera_client_patched.so
+# oplus-framework_patched.jar: outgoing calls over IMS where the carrier asks for VoLTE provisioning (patches/oplus_ims_provision.py; Samsung's IMS answers 0), 0.5.05
+453625d5e906375d9613d1c5e82731ad8fb0445a3fc12a155d8f975b3c891bb2  oplus-framework_patched.jar
