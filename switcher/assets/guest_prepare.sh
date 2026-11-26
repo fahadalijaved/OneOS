@@ -1723,6 +1723,29 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                                 subn=${sube##*/}
                                 if [ -d "$sube" ]; then
                                     mkdir -p "$GUEST_SYSTEM_EXT/$en/$subn" 2>/dev/null
+                                    # If OV/up also has entries for this subdirectory (e.g. etc/sysconfig or etc/vintf),
+                                    # bind the individual entries from original rather than the whole directory,
+                                    # so custom files in FARM/$en/$subn are not masked.
+                                    if [ -d "$OV/up/$en/$subn" ]; then
+                                        for ssube in "$sube"/*; do
+                                            [ -e "$ssube" ] || continue
+                                            ssubn=${ssube##*/}
+                                            if [ -d "$ssube" ]; then
+                                                mkdir -p "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" 2>/dev/null
+                                            else
+                                                : > "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" 2>/dev/null
+                                            fi
+                                            $BB mount --bind "$ssube" "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" || true
+                                        done
+                                        # Also re-bind or ensure any custom files from OV/up/$en/$subn into GUEST_SYSTEM_EXT
+                                        for ssube in "$OV/up/$en/$subn"/*; do
+                                            [ -f "$ssube" ] || continue
+                                            ssubn=${ssube##*/}
+                                            : > "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" 2>/dev/null
+                                            $BB mount --bind "$ssube" "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" || true
+                                        done
+                                        continue
+                                    fi
                                 else
                                     : > "$GUEST_SYSTEM_EXT/$en/$subn" 2>/dev/null
                                 fi
