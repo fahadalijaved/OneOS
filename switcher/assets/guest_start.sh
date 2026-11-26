@@ -1598,6 +1598,26 @@ if [ -f /data/guest_audio.flag ]; then
         # 7, 23 and 27 minutes, the fifth handed over to Samsung audioserver, whose
         # product strategies carry Samsung usage 1005; a Pixel AudioService throws
         # Invalid usage 1005 and system_server died).
+        # 0.5.50 (S22 Ultra Exynos 0158cc4a, 0.5.49): the app ops rule and a force-stop were not enough. The system
+        # binds the Google app again as the voice assistant, it loaded its Hey Google model again within seconds,
+        # the Exynos 2200 voice trigger DSP (VTS) died three more times and then hung the bus: the debug watchdog
+        # reset the phone mid setup (reset BUS CHUBVTS, WDGC debug-wdt). So the Google app also loses the
+        # assistant role (no voice interaction service, no keyphrase model) and Samsung Bixby wake-up is turned
+        # off; on the Exynos 2200 (s5e9925) this is done before the first model load, at the start.
+        # ONEOS_GUEST_HOTWORD_KEEP=1 keeps all of it.
+        hotword_off() {
+            g=com.google.android.googlequicksearchbox
+            o=$(/system/bin/sh /data/oneos_genv.sh /system/bin/cmd appops set $g RECORD_AUDIO_HOTWORD ignore 2>&1 | tr -s " \n" " " | head -c 80)
+            /system/bin/sh /data/oneos_genv.sh /system/bin/cmd role remove-role-holder --user 0 android.app.role.ASSISTANT $g >/dev/null 2>&1
+            /system/bin/sh /data/oneos_genv.sh /system/bin/settings put secure voice_interaction_service "" >/dev/null 2>&1
+            /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 com.samsung.android.bixby.wakeup >/dev/null 2>&1
+            /system/bin/sh /data/oneos_genv.sh /system/bin/am force-stop $g >/dev/null 2>&1
+        }
+        if [ "${ONEOS_GUEST_HOTWORD_KEEP:-0}" != 1 ] && [ ! -f /data/oneos_hotword_off.log ] &&
+           { getprop ro.soc.model; getprop ro.hardware; getprop ro.board.platform; } 2>/dev/null | grep -qi "s5e9925"; then
+            hotword_off
+            echo "$(date +%T) Exynos 2200 (s5e9925): voice wake-up off before the first model load (assistant role, Hey Google hotword, Bixby wake-up; the VTS DSP reset the phone on 0.5.49)" | tee /data/oneos_hotword_off.log
+        fi
         miss=0; r=0; last=0
         while [ -f /data/guest_audio.flag ]; do
             sleep 3
@@ -1624,9 +1644,7 @@ if [ -f /data/guest_audio.flag ]; then
                 fi
             fi
             if [ -n "$hw" ]; then
-                g=com.google.android.googlequicksearchbox
-                o=$(/system/bin/sh /data/oneos_genv.sh /system/bin/cmd appops set $g RECORD_AUDIO_HOTWORD ignore 2>&1 | tr -s " \n" " " | head -c 80)
-                /system/bin/sh /data/oneos_genv.sh /system/bin/am force-stop $g >/dev/null 2>&1
+                hotword_off "$hw"
                 echo "$(date +%T) audio HAL died loading a voice wake-up model ($hw): Hey Google DSP hotword off for $g ($o)" | tee /data/oneos_hotword_off.log
             fi
             # 0.4.60: no hand-over after registration. Every guest framework is not

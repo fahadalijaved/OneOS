@@ -801,6 +801,14 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.50: **S22 Ultra (Exynos) One UI 9.5 setup, OriginOS camera on the Z Fold5.**
+- **Galaxy S22 Ultra (Exynos) with One UI 9.5 now starts** (the 0.5.49 fix worked), and no longer restarts the
+  phone during setup: Google's "Hey Google" crashed the Exynos 2200 voice wake-up chip until the whole phone reset.
+  On that chip OneOS now turns voice wake-up off (Hey Google and Bixby) before it can load (testing).
+- **OriginOS camera on the Z Fold5** and other folds: vivo's camera opened a fold screen its build doesn't have and
+  closed at once. It now opens with its normal layout (testing).
+- Galaxy S23 FE on One UI 8.5: the session logs record what the One UI 9.5 camera fix still needs.
+
 New in 0.5.49: **S26 series camera with every non-Samsung system, ColorOS and OriginOS notification sounds, S22 Ultra (Exynos) One UI 9.5.**
 - **Camera on One UI 9.5 phones (S26 series) with HyperOS, PixelOS, Pixel, LineageOS, Infinity-X, Nothing OS,
   ColorOS and OriginOS**: One UI 9.5 added a field to every camera request and OneOS sent the old one, so the camera
