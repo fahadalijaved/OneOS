@@ -213,7 +213,7 @@ object LogJob : BackgroundJob<LogJob.State>(State(), "oneos-logs") {
         fun text(prefix: String, suffix: String): String? = folder.walkTopDown()
             .firstOrNull { it.isFile && it.relativeTo(folder).invariantSeparatorsPath.let { p -> p.startsWith(prefix) && p.endsWith(suffix) } }
             ?.readText()
-        val bootReason = text("boot/", "reason.txt")?.lineSequence()?.firstOrNull { it.startsWith("sys.boot.reason=") }?.removePrefix("sys.boot.reason=")
+        val bootReason = ReturnOutcomes.currentBootReason(text("boot/", "reason.txt"), text("stage/", "current.json"))
         val outcome = ReturnOutcomes.parse(
             text("stage/", "_auto_return.log"),
             text("stage/", "_takeover_app.log"),

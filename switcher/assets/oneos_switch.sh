@@ -3058,6 +3058,15 @@ while true; do
                     sleep 1
                     echo \"[UI Activator] CFMS stub: \$(head -n 1 $STAGE/cfms_stub.log 2>/dev/null | tr -d '\n' || true)\"
                 fi
+                # OPPO performance stand-in (0.5.49, the same class under another name): ColorOS's codecs
+                # and audioserver waited 2 x 5 s for vendor.oplus.hardware.performance.IPerformance/default
+                # on every sound start, so notification sounds, ringtones and alarms came 10 s late or not
+                # at all (Fold5 3e146336, S23 fb94d2c9). ColorOS/OxygenOS guests; ONEOS_GUEST_PERF_STUB=0: off.
+                if [ $GUEST_OPLUS = 1 ] && [ \"${ONEOS_GUEST_PERF_STUB:-1}\" = 1 ]; then
+                    ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSCfmsStub \$PID vendor.oplus.hardware.performance.IPerformance/default vendor.oplus.hardware.performance.IPerformance > $STAGE/perf_stub.log 2>&1 </dev/null &)
+                    sleep 1
+                    echo \"[UI Activator] OPPO performance stub: \$(head -n 1 $STAGE/perf_stub.log 2>/dev/null | tr -d '\n' || true)\"
+                fi
                 # The Samsung camera service worker (patches/OneOSCameraWorker.java, in
                 # the same dex), which the One UI cameraserver also asks on every open:
                 # on the S25 Ultra firmware each connect waited 5 s for it and then

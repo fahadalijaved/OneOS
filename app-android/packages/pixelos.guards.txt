@@ -15,5 +15,6 @@
 # in-display fingerprint place: FingerprintProvider.getWorkaroundSensorProps asks OneOSUdfps (/data/system/oneos_udfps, from the phone's sysfs) first (patches/guest_udfps_location.py)
 # optical sensor: FingerprintProvider.onPointerDown/onPointerUp light the panel's local HBM and send Samsung's touch request first (patches/guest_seh_touch.py, OneOSSehTouch; /data/system/oneos_fp_lhbm)
 # 0.5.37 (pixelos_onyx_r5): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar libcamera_client_patched_oneui95.so
-475efb80307d170fc3ac68703584379c164db8c7a9d2bedd2c67b7604bd394d8  framework_patched_oneui95.jar
+fcf6b0d30e534d1eb27e80832ef266280a628c2a0bd943626220a0952a0ce089  framework_patched_oneui95.jar
 15e90ad83ab01593817039d45344081de7afbd01819efd824823d213d5ea90db  libcamera_client_patched_oneui95.so
+# 0.5.49 (pixelos_onyx_r6): framework_patched_oneui95.jar writes One UI 9.5's sixth CameraCompatibilityInfo field (switcher/patches/cci_oneui95.py; HyperOS on the S26 Ultra died on the five-field one)

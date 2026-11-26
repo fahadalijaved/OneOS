@@ -50,6 +50,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/xattr.h>
@@ -84,6 +85,18 @@ static long sys_bpf_create(int cmd, union bpf_attr *attr) {
                         cmd == BPF_PROG_LOAD ? "BPF_PROG_LOAD" : "BPF_MAP_CREATE");
     errno = e;
     return r;
+}
+
+/*
+ * 0.5.49 (S22 Ultra Exynos 25706f39, 0.5.48: still EPERM under the bpfloader name and in the bpfloader
+ * domain): kernels before 5.11 charge BPF maps and programs to the user's locked memory and answer EPERM
+ * when RLIMIT_MEMLOCK is exceeded. For root that total already holds every map and program the boot-time
+ * loader made, so a root shell with the usual small limit can create none. Android's bpfloader raises the
+ * limit first; so do we (root may). Newer kernels charge memory cgroups instead and ignore this. Testing.
+ */
+static void raise_memlock(void) {
+    struct rlimit rl = { RLIM_INFINITY, RLIM_INFINITY };
+    if (setrlimit(RLIMIT_MEMLOCK, &rl) != 0) perror("setrlimit RLIMIT_MEMLOCK");
 }
 
 /* The SELinux label of another entry in the same folder (the module's own maps). */
@@ -275,6 +288,7 @@ static int array_create(const char *path, unsigned long key, unsigned long value
 }
 
 int main(int argc, char **argv) {
+    raise_memlock();
     if (argc >= 6 && strcmp(argv[1], "array-create") == 0)
         return array_create(argv[2], strtoul(argv[3], NULL, 0), strtoul(argv[4], NULL, 0), strtoul(argv[5], NULL, 0));
     if (argc >= 4 && strcmp(argv[1], "alias") == 0) return ringbuf_alias(argv[2], argv[3]);

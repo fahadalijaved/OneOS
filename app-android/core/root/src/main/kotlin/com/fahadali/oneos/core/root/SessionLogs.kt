@@ -284,6 +284,24 @@ object ReturnOutcomes {
     private const val MODULES_FAILED = "Guest module installation failed"
     private const val SOFT_REBOOT_FAILED = "soft reboot failed, returning to One UI"
     private const val SESSION_HEADER = "=== OneOS session "
+
+    /** The boot reason shown when the phone has not restarted since the session started. */
+    const val NO_RESTART = "none (no restart since the session started)"
+
+    /**
+     * `sys.boot.reason` from `boot/reason.txt`, or [NO_RESTART] when the phone's current boot began before
+     * the session (its first `persist.sys.boot.reason.history` entry ends in that boot's epoch second;
+     * `stage/current.json` "epoch" is the session's start). 0.5.49: in-place returns showed the reason of a
+     * restart from the day before ("reboot,lpm", "bootloader"), read as failed returns.
+     */
+    fun currentBootReason(reasonTxt: String?, currentJson: String?): String? {
+        val lines = reasonTxt?.lineSequence() ?: return null
+        val reason = lines.firstOrNull { it.startsWith("sys.boot.reason=") }?.removePrefix("sys.boot.reason=")
+        val bootAt = lines.firstOrNull { it.startsWith("persist.sys.boot.reason.history=") }
+            ?.substringAfterLast(',')?.trim()?.toLongOrNull()
+        val sessionAt = currentJson?.let { Regex("\"epoch\":\\s*(\\d+)").find(it)?.groupValues?.get(1)?.toLongOrNull() }
+        return if (bootAt != null && sessionAt != null && bootAt < sessionAt) NO_RESTART else reason
+    }
     private const val LAUNCH_HEADER = "=== OneOS app launch "
 
     /** The part of an appended log after its last [header] line (all of it when there is none). */
@@ -331,7 +349,7 @@ object ReturnOutcomes {
         }
         return when {
             reason?.startsWith("shutdown,oneos-guest-shutdown") == true -> ReturnOutcome(OutcomeKind.GUEST_SHUTDOWN, null, null, reason)
-            reason != null && !reason.contains("oneos") -> ReturnOutcome(OutcomeKind.HARD_RESET, null, null, reason)
+            reason != null && reason != NO_RESTART && !reason.contains("oneos") -> ReturnOutcome(OutcomeKind.HARD_RESET, null, null, reason)
             else -> ReturnOutcome(OutcomeKind.UNKNOWN, null, null, reason)
         }
     }

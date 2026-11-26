@@ -801,6 +801,19 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.49: **S26 series camera with every non-Samsung system, ColorOS and OriginOS notification sounds, S22 Ultra (Exynos) One UI 9.5.**
+- **Camera on One UI 9.5 phones (S26 series) with HyperOS, PixelOS, Pixel, LineageOS, Infinity-X, Nothing OS,
+  ColorOS and OriginOS**: One UI 9.5 added a field to every camera request and OneOS sent the old one, so the camera
+  failed and HyperOS on the S26 Ultra stopped 7 seconds after starting (testing).
+- **ColorOS notification, ringtone and alarm sounds** (Z Fold5, S23 and others): every sound waited 10 seconds for an
+  OPPO service a Samsung phone does not have, and notifications gave up before they played. OneOS now stands in
+  for it (testing).
+- **OriginOS notification sound**: OriginOS looked for One UI's sound files, which it does not have, so no default
+  sound was set. It now uses its own (testing).
+- **Galaxy S22 Ultra (Exynos) with One UI 9.5** should now start: its kernel refused the network program because
+  of root's small locked-memory limit, which OneOS now raises like Android's own loader (testing).
+- Session logs no longer show an earlier restart as the way the session ended.
+
 New in 0.5.48: **One UI 9.5 on every Galaxy Tab, the Galaxy Tab S11 Ultra, Z Fold8 (US) first setup, S25 Ultra restarts.**
 - **One UI 9.5 on every Galaxy Tab** we support (Tab S9, S9 Ultra, S9 FE+, S10 FE 5G and Wi-Fi, S11, S12 Ultra), next
   to the tablet ColorOS/OxygenOS 17, each keeping its own tablet model (testing; the LCD and camera fixes are the
