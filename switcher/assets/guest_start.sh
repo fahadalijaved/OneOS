@@ -2380,6 +2380,7 @@ fi
 # from the phone's temperature: without it the amplifier's protection never got a reading, sysfs
 # audio/amp ready -1). The battery temperature stands in for it. Only where the amplifier node
 # exists (a Samsung smart amp); ONEOS_GUEST_SAMSUNG_AUDIO=0 leaves it out. Log: /data/oneos_sec_audio.log.
+# On One UI guests (which have their own SoundAlive/Dolby and volume leveler service), do not force volume_leveler=7.
 if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/amp ] && [ -f /data/oneos_edm_stub.dex ]; then
     ONEOS_BB="$BB" $BB sh -c '
         BB=$ONEOS_BB
@@ -2388,7 +2389,11 @@ if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/
         i=0
         while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
         sleep 10
-        for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=7; do log "$(param $kv)"; done
+        if ! grep -q "^ro.build.version.oneui=" /system/build.prop 2>/dev/null; then
+            for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=7; do log "$(param $kv)"; done
+        else
+            log "One UI guest: keeping native volume curve and SoundAlive parameters"
+        fi
         last=""
         while :; do
             t=$(cat /sys/class/power_supply/battery/temp 2>/dev/null)

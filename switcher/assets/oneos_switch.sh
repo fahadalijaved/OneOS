@@ -3018,7 +3018,8 @@ while true; do
             # On by default since 0.4.65 (F8U InfinityX run: Dolby on the music
             # output, sound much better); ONEOS_GUEST_DOLBY=0: off. Phones
             # whose effect HAL has no Dolby: it gives up after a minute, logged.
-            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
+            # On One UI guests, One UI's own system_server manages DAX3/SoundBoosterPlus; running OneOSSoundFx causes double-boosting.
+            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && [ $GUEST_ONEUI = 0 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
                 echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"
