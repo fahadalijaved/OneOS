@@ -519,14 +519,22 @@ fi
 # draws the icon only when this marker is there (oneui8test13; its font map load aborts on Android 16).
 rm -f "$STAGE/data/oneos_a17_on_a16"
 [ "$A17_ON_A16" = 1 ] && mkdir -p "$STAGE/data" && : > "$STAGE/data/oneos_a17_on_a16"
-# The Galaxy Tab S9 FE (pull request #371): everything its support adds runs only here. TAB_S9_FE_HOST is the
-# tablet with any system; ONEUI95_TAB_S9_FE the tablet on a One UI 9.5 image.
+# The Galaxy Tab S9 FE (pull request #371): hardware-specific support (LCD brightness,
+# Exynos camera compat, Himax TDDI) runs only for TAB_S9_FE_HOST / ONEUI95_TAB_S9_FE.
+# Generic Galaxy Tab One UI 9.5 identity (device_category_tablet, tablet floating
+# features, HoneyBoard category reset) runs for every Galaxy Tab (TAB_HOST / ONEUI95_TAB).
 TAB_S9_FE_HOST=0
 case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in
     tab-s9-fe:*|tab-s9-fe-5g:*|*:SM-X51*) TAB_S9_FE_HOST=1 ;;
 esac
 ONEUI95_TAB_S9_FE=0
 [ "$ONEUI95_IMAGE" = 1 ] && [ "$TAB_S9_FE_HOST" = 1 ] && ONEUI95_TAB_S9_FE=1
+TAB_HOST=0
+case "${ONEOS_PROFILE:-}:$(getprop ro.product.model)" in
+    tab-*:*|*:SM-X*) TAB_HOST=1 ;;
+esac
+ONEUI95_TAB=0
+[ "$ONEUI95_IMAGE" = 1 ] && [ "$TAB_HOST" = 1 ] && ONEUI95_TAB=1
 for d in "$GUEST_SYSTEM_EXT" "$GUEST_PRODUCT"; do
     if [ -L "$d" ] || [ ! -d "$d" ]; then
         echo "ERROR: ${d#$ROOTFS/} in the guest image is a link or missing (system_ext and product: one real folder each); not starting the guest"
@@ -3952,7 +3960,7 @@ fi
 # Infinity-X's AOSP SystemUI takes it too (0.4.33); never ColorOS's (it has
 # oplus-telephony-common.jar, and make-overlays.sh builds the RRO for its sets
 # only from SystemUIGoogle or an AOSP SystemUI).
-if [ "$ONEUI95_FOLD8" != 1 ] && [ "$ONEUI95_TAB_S9_FE" != 1 ] && [ -f "$STAGE/OneOSPixelStatusBar.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ] ||
+if [ "$ONEUI95_FOLD8" != 1 ] && [ "$ONEUI95_TAB" != 1 ] && [ -f "$STAGE/OneOSPixelStatusBar.apk" ] && { [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUIGoogle/SystemUIGoogle.apk" ] ||
      { [ -f "$GUEST_SYSTEM_EXT/priv-app/SystemUI/SystemUI.apk" ] && [ ! -f "$GUEST_SYSTEM_EXT/framework/oplus-telephony-common.jar" ]; }; }; then
     if [ "${ONEOS_GUEST_STATUSBAR_PADDING:-1}" = 1 ]; then
         mkdir -p "$STAGE/oem/overlay" &&
@@ -8668,14 +8676,14 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
     fi
     rm -f "$f8_vendor.f8" "$f8_system.f8"
 fi
-# Tab S9 FE (SM-X510) on One UI 9.5:
-# Preserve the Tab S9 FE's tablet floating features (Taskbar, brand name, navbar theme, LCD
+# Galaxy Tabs on One UI 9.5 (generalized from Tab S9 FE PR #371 to all Galaxy Tabs):
+# Preserve the tablet's floating features (Taskbar, brand name, navbar theme, LCD
 # panel flags, and tablet/S-Pen HoneyBoard SIP flags) in both floating feature files, plus the
 # 20271 AI version floor (like Fold8).
-# Note: Do NOT bind host framework-res__gts9fewifixx__auto_generated_rro_product.apk over
+# Note: Do NOT bind host framework-res__gts*__auto_generated_rro_product.apk over
 # S26 Ultra's m3qxxx product RRO: One UI 9.5's BrightnessMappingStrategy.create() requires
-# config_screenBrightnessNitsPrivacy (size 257), which One UI 9.0's Tab S9 FE RRO lacks.
-if [ "$ONEUI95_TAB_S9_FE" = 1 ]; then
+# config_screenBrightnessNitsPrivacy (size 257), which One UI 9.0's tablet RROs lack.
+if [ "$ONEUI95_TAB" = 1 ]; then
     # Declare com.samsung.feature.device_category_tablet instead of phone: HoneyBoard (and
     # other One UI 9.5 Samsung apps) gate tablet layouts/keyboard proportions on
     # PackageManager.hasSystemFeature("com.samsung.feature.device_category_tablet").
@@ -8704,7 +8712,7 @@ if [ "$ONEUI95_TAB_S9_FE" = 1 ]; then
         echo "Keyboard: cleared HoneyBoard data for One UI 9.5 tablet category"
     fi
     if [ "${ONEOS_ONEUI_FLOATING:-1}" = 1 ]; then
-        oneui95_tab_s9_fe_features() {
+        oneui95_tab_features() {
             local input="$1" output="$2"
             awk '
                 function set_feature(key, value) {
@@ -8733,7 +8741,7 @@ if [ "$ONEUI95_TAB_S9_FE" = 1 ]; then
                     if (key == "") next
                     if (key == taskbar && content == "TRUE")
                         set_feature(key, content)
-                    else if (key == brand && content ~ /^Galaxy Tab S9 FE/)
+                    else if (key == brand && content ~ /^Galaxy Tab/)
                         set_feature(key, content)
                     else if (key == navigation && content ~ /^[A-Za-z0-9_|]+$/)
                         set_feature(key, content)
@@ -8763,14 +8771,14 @@ if [ "$ONEUI95_TAB_S9_FE" = 1 ]; then
         t9_vendor="$STAGE/data/oneos_floating_feature.xml"
         t9_system="$STAGE/data/oneos_system_floating_feature.xml"
         if [ -s "$t9_vendor" ] && [ -s "$t9_system" ] &&
-           oneui95_tab_s9_fe_features "$t9_vendor" "$t9_vendor.t9" &&
-           oneui95_tab_s9_fe_features "$t9_system" "$t9_system.t9" &&
+           oneui95_tab_features "$t9_vendor" "$t9_vendor.t9" &&
+           oneui95_tab_features "$t9_system" "$t9_system.t9" &&
            chown 0:0 "$t9_vendor.t9" "$t9_system.t9" &&
            chmod 644 "$t9_vendor.t9" "$t9_system.t9"; then
             mv -f "$t9_vendor.t9" "$t9_vendor" && mv -f "$t9_system.t9" "$t9_system" &&
-                echo "Floating features: Tab S9 FE tablet, LCD, HoneyBoard SIP and AI 20271 floor applied"
+                echo "Floating features: Galaxy Tab tablet, LCD, HoneyBoard SIP and AI 20271 floor applied"
         else
-            echo "!!! Floating features: could not apply the Tab S9 FE profile to both files"
+            echo "!!! Floating features: could not apply the Galaxy Tab profile to both files"
         fi
         rm -f "$t9_vendor.t9" "$t9_system.t9"
     fi

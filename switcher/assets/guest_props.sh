@@ -432,6 +432,34 @@ add)
         echo "$CM=$CMV" >> "$NEW"
         echo "guest_props: $CM=$CMV for the session (One UI's color mode)"
     fi
+    # Host display install orientation (oneos_switch.sh, host_install_orientation):
+    # tablets such as the Galaxy Tab S12 Ultra (SM-X940, MT6993) report host
+    # installOrientation=3 (ORIENTATION_270) so SurfaceFlinger rotates the landscape
+    # HWC panel (2960x1848) to match the portrait touchscreen (1848x2960). Phone
+    # guest images default to ORIENTATION_0 when this property is unset, leaving the
+    # screen rotated and touch coordinates rotated/skewed. Blanked on return by remove.
+    # ONEOS_GUEST_DISPLAY_ORIENTATION=0 leaves it unset; 1/2/3 or ORIENTATION_* overrides.
+    PDO=ro.surface_flinger.primary_display_orientation
+    PDOI=${ONEOS_GUEST_DISPLAY_ORIENTATION:-$(cat "$STAGE/host_install_orientation" 2>/dev/null)}
+    case "$PDOI" in
+        1|ORIENTATION_90)  PDOV=ORIENTATION_90 ;;
+        2|ORIENTATION_180) PDOV=ORIENTATION_180 ;;
+        3|ORIENTATION_270) PDOV=ORIENTATION_270 ;;
+        *) PDOV="" ;;
+    esac
+    if [ -n "$PDOV" ]; then
+        if grep -qxF "$PDO" "$HOST"; then
+            hv=$(getprop "$PDO")
+            if [ "$hv" != "$PDOV" ] && "$RP" -n "$PDO" "$PDOV" 2>/dev/null; then
+                echo "$PDO=$hv" >> "$OVR"
+                echo "guest_props: $PDO=$hv overridden to $PDOV for the session (One UI's installOrientation $PDOI)"
+            fi
+        else
+            sed -i '/^ro\.surface_flinger\.primary_display_orientation=/d' "$NEW"
+            echo "$PDO=$PDOV" >> "$NEW"
+            echo "guest_props: $PDO=$PDOV for the session (One UI's installOrientation $PDOI)"
+        fi
+    fi
     # OxygenOS 16 on a MediaTek Galaxy (A34): the guest's SurfaceFlinger hung in RenderEngine's
     # GL driver load ("Threaded RenderEngine with SkiaGL Backend", then nothing; system_server's
     # watchdog then killed the session: 0.4.67 deb8690c, 6d4eaf85, 91b699cf, 1dd827e1). ColorOS
