@@ -1089,10 +1089,12 @@ object PackageSets {
             PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
             PackageFile("OneOSTabletQs.apk", FileRole.RRO),
             PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
             PackageFile("guards.txt", FileRole.GUARDS),
             PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
             PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
             PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("oneui_floating_add.txt", FileRole.GUEST_FIX),
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
         ) + ((COMMON_PAYLOADS - "crashrecovery") + listOf("bt", "cellbroadcast", "conscrypt", "profiling", "telephonycore"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },

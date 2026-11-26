@@ -22,6 +22,7 @@ class GuestArtworkView @JvmOverloads constructor(context: Context, attrs: Attrib
         clipToOutline = true
     }
     fun bind(image: String?) = bindArtwork(when {
+        image?.contains("One UI 8.5", true) == true -> R.drawable.os_oneui85
         image?.contains("One UI", true) == true -> R.drawable.os_oneui
         image?.contains("Pixel", true) == true -> R.drawable.os_pixel
         image?.contains("Hyper", true) == true -> R.drawable.os_hyperos

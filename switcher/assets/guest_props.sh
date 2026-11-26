@@ -2085,7 +2085,6 @@ ro.miui.backdrop_sampling_enabled=true"
     elif { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
          case "${ONEOS_PROFILE:-}" in tab-*) true ;; *) false ;; esac; } &&
        grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
-       grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
         # Build.VERSION.SEM_PLATFORM_INT and One UI Home read sep, not sem.
         # Use the guest's platform level with the device's own hardware identity
         # (prevents phone-only HoneyBoard / layout scaling on Fold8 and Tab S9 FE).
