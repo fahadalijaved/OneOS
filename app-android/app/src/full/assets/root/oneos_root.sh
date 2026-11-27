@@ -677,9 +677,13 @@ profile_set() {
         "s-fe-9925 oxygenos16-cph2745") echo oxygen16 ;;
         "s-fe-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-9925 nothingos5-asteroids") echo nothing-a ;;
         "s-ultra-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-9925 nothingos5-asteroids") echo nothing-a ;;
         "s-ultra-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8450 nothingos5-asteroids") echo nothing-a ;;
         "s-ultra-8450-jp oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8450-jp nothingos5-asteroids") echo nothing-a ;;
         "a07 oxygenos16-cph2745") echo oxygen16 ;;
         "a26 oxygenos16-cph2745") echo oxygen16 ;;
         "a35 oxygenos16-cph2745") echo oxygen16 ;;
@@ -748,7 +752,9 @@ profile_set() {
         "s26-fe hyperos-lhasa") echo hyper-f8u ;;
         "s26-fe hyperos-hongkong") echo hyper-hk ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-8450 nothingos5-asteroids") echo nothing-a ;;
         "s-plus-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-8450 nothingos5-asteroids") echo nothing-a ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-9945 originos7-pd2609ma") echo originos ;;
@@ -778,6 +784,7 @@ profile_set() {
         "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
         "s-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-9925 nothingos5-asteroids") echo nothing-a ;;
         "a16-mtk oxygenos16-cph2745") echo oxygen16 ;;
         # 0.4.93: the au Galaxy S23 (SCG19): the S23's rows, untested.
         "s-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
@@ -1207,6 +1214,10 @@ a17_on_a16() {
     [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$1" = oneui95-s948b ] && [ "$(image_sdk "$1")" = 37 ] &&
         [ "$(getprop ro.build.version.sdk)" = 36 ]
 }
+nothing_a17_on_a16() {
+    [ "$1" = nothingos5-asteroids ] && [ "$(image_sdk "$1")" = 37 ] &&
+        [ "$(getprop ro.build.version.sdk)" = 36 ]
+}
 check_table() { # <file> <image id>
     f=$1
     if [ "$(image_sdk "$2")" = 36 ]; then carried=$INSTALLD_SHA_36 ok=$INSTALLD_OK_36
@@ -1215,7 +1226,7 @@ check_table() { # <file> <image id>
             ok="$ok $INSTALLD_SHA_95"
             # Tester build: a set that reads the codes at runtime maps each call to One UI 8.5's or 8.0's
             # code by name and signature and refuses one the phone lacks, as it does for One UI 9.5's table.
-            a17_on_a16 "$2" && ok="$ok $INSTALLD_OK_36"
+            { a17_on_a16 "$2" || nothing_a17_on_a16 "$2"; } && ok="$ok $INSTALLD_OK_36"
         fi
     fi
     [ -f "$f" ] || refuse "host_installd.table missing"
@@ -1621,7 +1632,7 @@ do_launch() {
     [ "$(getprop ro.soc.model)" = "$3" ] || refuse "chip $(getprop ro.soc.model), profile $M_PROFILE is $3"
     isdk=$(image_sdk "$M_IMAGE")
     # The tester build's One UI 9.5 on One UI 8 is the only other Android version that starts (a17_on_a16).
-    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || a17_on_a16 "$M_IMAGE" ||
+    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || a17_on_a16 "$M_IMAGE" || nothing_a17_on_a16 "$M_IMAGE" ||
         refuse "Android SDK $(getprop ro.build.version.sdk), the image is $isdk"
     idle_or_refuse launch
     if [ -f "$STAGE/persist_session.active" ]; then

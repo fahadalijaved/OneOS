@@ -505,7 +505,13 @@ object SwitchGates {
         // this phone's One UI can run.
         val experimental = Experimental.a17OnA16Pair(f.sdk, image, a17OnA16) ||
             (image == null && f.sdk !in sdks && Experimental.a17OnA16Offered(f.sdk, profile, a17OnA16, images))
-        return if (f.sdk in sdks) {
+        val nothingOnA16 = f.sdk == 36 && image?.id == Images.ID_NOTHING_ASTEROIDS
+        return if (nothingOnA16) {
+            Finding(
+                ID_ANDROID, Level.OK, "Android 17 on Android $have",
+                "Nothing OS 5 (Android 17, SDK 37) runs on this Android $have (SDK ${f.sdk}) phone using the set's Android 17 runtime modules.",
+            )
+        } else if (f.sdk in sdks) {
             Finding(ID_ANDROID, Level.OK, "Android ${AndroidRelease.name(f.sdk)}", "SDK ${f.sdk}, the same as the image.")
         } else if (experimental) {
             Finding(
@@ -591,7 +597,7 @@ object SwitchGates {
         // One UI 8.5 phone with nothing set up, or with a stage of another file set, read "One UI was updated").
         val sdk = image?.sdk ?: input.facts.sdk.takeIf { InstalldExpected.carried(it) != null } ?: 37
         // Tester build: One UI 9.5 (SDK 37, codes read at runtime) on One UI 8 takes One UI 8's tables too.
-        val a17 = Experimental.a17OnA16Pair(input.facts.sdk, image, input.a17OnA16)
+        val a17 = Experimental.a17OnA16Pair(input.facts.sdk, image, input.a17OnA16) || (input.facts.sdk == 36 && image?.id == Images.ID_NOTHING_ASTEROIDS)
         val p = InstalldExpected.problems(input.installd, if (sdk == 36) input.expectedInstalldA16 else input.expectedInstalld, sdk, a17)
         return if (p.isEmpty()) {
             Finding(

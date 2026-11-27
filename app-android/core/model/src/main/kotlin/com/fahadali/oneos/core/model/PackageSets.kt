@@ -771,10 +771,11 @@ object PackageSets {
             PackageFile("OneOSBrightnessRange34.apk", FileRole.RRO),
             PackageFile("samcam_a.tar", FileRole.GUEST_FIX),
             PackageFile(GUEST_APP, FileRole.GUEST_APP),
-        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
-            + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD),
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem", "npumanager", "webapp", "telephonycore") + A16_EXTRA_PAYLOADS).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
+            + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD)
+            + PackageFile(A17_CONNECTIVITY_NATIVE, FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
-        approxBytes = 924_702_781L,
+        approxBytes = 1016795542L,
         hasReturnApp = true,
     )
 

@@ -2938,6 +2938,14 @@
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
           "tested": false
+        },
+        {
+          "id": "nothingos5-asteroids",
+          "name": "Nothing OS 5",
+          "android": "17",
+          "sdk": 37,
+          "set": "nothing-a",
+          "tested": false
         }
       ]
     },
@@ -2956,6 +2964,14 @@
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
           "tested": false
+        },
+        {
+          "id": "nothingos5-asteroids",
+          "name": "Nothing OS 5",
+          "android": "17",
+          "sdk": 37,
+          "set": "nothing-a",
+          "tested": false
         }
       ]
     },
@@ -2973,6 +2989,14 @@
           "image": "oxygenos16-cph2745",
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
+          "tested": false
+        },
+        {
+          "id": "nothingos5-asteroids",
+          "name": "Nothing OS 5",
+          "android": "17",
+          "sdk": 37,
+          "set": "nothing-a",
           "tested": false
         }
       ]
@@ -3118,6 +3142,14 @@
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
           "tested": false
+        },
+        {
+          "id": "nothingos5-asteroids",
+          "name": "Nothing OS 5",
+          "android": "17",
+          "sdk": 37,
+          "set": "nothing-a",
+          "tested": false
         }
       ]
     },
@@ -3153,6 +3185,14 @@
           "image": "oxygenos16-cph2745",
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
+          "tested": false
+        },
+        {
+          "id": "nothingos5-asteroids",
+          "name": "Nothing OS 5",
+          "android": "17",
+          "sdk": 37,
+          "set": "nothing-a",
           "tested": false
         }
       ]
@@ -3321,6 +3361,14 @@
           "image": "oxygenos16-cph2745",
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
+          "tested": false
+        },
+        {
+          "id": "nothingos5-asteroids",
+          "name": "Nothing OS 5",
+          "android": "17",
+          "sdk": 37,
+          "set": "nothing-a",
           "tested": false
         }
       ]
@@ -3717,6 +3765,14 @@
           "image": "oxygenos16-cph2745",
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
+          "tested": false
+        },
+        {
+          "id": "nothingos5-asteroids",
+          "name": "Nothing OS 5",
+          "android": "17",
+          "sdk": 37,
+          "set": "nothing-a",
           "tested": false
         }
       ]

@@ -2001,8 +2001,14 @@ BTA_SEH=vendor.samsung.hardware.bluetooth.audio.ISehBluetoothAudioProviderFactor
 # phone, servicemanager whether Android's factory is declared (the
 # SM8850 phones declare it themselves), and the start waits for Samsung's.
 BT_WHY=""
-BT_FRAG=$(grep -l -s "vendor.samsung.hardware.bluetooth.audio" /vendor/etc/vintf/manifest/*.xml | head -n 1)
-[ -n "$BT_FRAG" ] || BT_FRAG=$(grep -l -s "vendor.samsung.hardware.bluetooth.audio" /vendor/etc/vintf/manifest.xml)
+BT_SKU=$(getprop ro.boot.product.vendor.sku)
+BT_FRAG=""
+[ -n "$BT_SKU" ] && [ -f "/vendor/etc/vintf/manifest_${BT_SKU}.xml" ] &&
+    grep -qs "vendor.samsung.hardware.bluetooth.audio" "/vendor/etc/vintf/manifest_${BT_SKU}.xml" &&
+    BT_FRAG="/vendor/etc/vintf/manifest_${BT_SKU}.xml"
+[ -n "$BT_FRAG" ] || BT_FRAG=$(grep -l -s "vendor.samsung.hardware.bluetooth.audio" \
+    /vendor/etc/vintf/manifest/*.xml /vendor/etc/vintf/manifest.xml \
+    /odm/etc/vintf/manifest*.xml /odm/etc/vintf/manifest/*.xml 2>/dev/null | head -n 1)
 if [ "${ONEOS_GUEST_BT_AUDIO_BRIDGE:-1}" != 1 ]; then
     BT_WHY="off (ONEOS_GUEST_BT_AUDIO_BRIDGE=$ONEOS_GUEST_BT_AUDIO_BRIDGE)"
 elif [ ! -f "$STAGE/oneos_btaudio" ] || [ -L "$STAGE/oneos_btaudio" ]; then
@@ -2011,7 +2017,7 @@ elif [ -z "$BT_FRAG" ]; then
     BT_WHY="not needed (no vendor manifest declares Samsung's Bluetooth audio HAL)"
 elif chmod 755 "$STAGE/oneos_btaudio" && [ "$(timeout 5 "$STAGE/oneos_btaudio" --declared "$BTA_AOSP" 2>/dev/null)" = 1 ]; then
     BT_WHY="not needed (the vendor declares Android's factory itself)"
-elif ! grep -qs 'ISehBluetoothAudioProviderFactory' /vendor/etc/vintf/manifest/*.xml /vendor/etc/vintf/manifest.xml && grep -q 'ISehBluetoothAudioProvidersFactory' "$BT_FRAG"; then
+elif ! grep -qs 'ISehBluetoothAudioProviderFactory' "$BT_FRAG" /vendor/etc/vintf/manifest/*.xml /vendor/etc/vintf/manifest.xml && grep -q 'ISehBluetoothAudioProvidersFactory' "$BT_FRAG"; then
     # A25, A33, S23 FE: Samsung's older HIDL factory (...ProvidersFactory). The
     # bridge speaks AIDL to Samsung's AIDL one, which never registers here: no
     # 15 s wait for it.
