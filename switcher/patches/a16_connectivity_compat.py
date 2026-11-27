@@ -60,9 +60,14 @@ def query3(name, ret=STATS):
 
 
 def builder(m, src):
+    # The int for Builder(MATCH_WIFI) needs a register of its own. ColorOS 17's StatsPullAtomService (abhera,
+    # coloros22test4 logs-673d188e) keeps the builder and the result in one register (v1): new-instance v1, then
+    # const/4 v1 overwrote it and the verifier rejected the class ("tried to get class from non-reference register
+    # v1"), so system_server died. Then main() gives the method one more local ({NEWREG}).
+    tmp = m.group('tmp') if m.group('tmp') != m.group('res') else "{NEWREG}"
     return (f"    new-instance {m.group('res')}, {NTB}\n\n"
-            f"    const/4 {m.group('tmp')}, 0x4\n\n"
-            f"    invoke-direct {{{m.group('res')}, {m.group('tmp')}}}, {NTB}-><init>(I)V\n")
+            f"    const/4 {tmp}, 0x4\n\n"
+            f"    invoke-direct {{{m.group('res')}, {tmp}}}, {NTB}-><init>(I)V\n")
 
 
 def qos(name):
@@ -103,6 +108,11 @@ SITES = [
                 r"->setTransportType\(I\)" + re.escape(NTB) + r"\n\n    move-result-object (?P<res>" + R + r")\n", re.M), builder, 1),
     ("services", "com/android/server/stats/pull/StatsPullAtomService$$ExternalSyntheticLambda5.smali", query_rx("querySummary"), query3("querySummary"), 1),
     ("services", "com/android/server/stats/pull/StatsPullAtomService$$ExternalSyntheticLambda5.smali", query_rx("queryTaggedSummary"), query3("queryTaggedSummary"), 1),
+    # ColorOS 17 makes these two calls in the method itself, not in a lambda (abhera, coloros22test5 logs-6da0d5ce:
+    # NoSuchMethodError querySummary(NetworkTemplate, long, long, int) killed system_server on android.bg). One UI
+    # 9.5 has none there: 0 or 1.
+    ("services", "com/android/server/stats/pull/StatsPullAtomService.smali", query_rx("querySummary"), query3("querySummary"), (0, 1)),
+    ("services", "com/android/server/stats/pull/StatsPullAtomService.smali", query_rx("queryTaggedSummary"), query3("queryTaggedSummary"), (0, 1)),
     ("services", "com/android/server/net/NetworkPolicyManagerService$Dependencies.smali", query_rx("querySummary"), query3("querySummary"), 1),
     ("services", "com/android/server/net/NetworkPolicyManagerService$Dependencies.smali",
      query_rx("querySummaryForDevice", BUCKET), query3("querySummaryForDevice", BUCKET), 1),
@@ -113,6 +123,22 @@ SITES = [
     ("telephony", "com/android/internal/telephony/data/QosCallbackTracker$1$1.smali", qos_rx("matchesLocalPrefix"), qos("matchesLocalAddress"), 1),
     ("telephony", "com/android/internal/telephony/data/QosCallbackTracker$1$1.smali", qos_rx("matchesRemotePrefix"), qos("matchesRemoteAddress"), 1),
 ]
+
+# Android 17 replaced NetworkStatsManager's manager-wide poll switches (setPollOnOpen/setPollForce) with a flags int on
+# every query, behind the flag useNetstatsPerQueryFlags. One UI 8's module only has the switches; with the flag on, the
+# fallbacks above drop the int (0 = no poll) and the manager's default polls on every open. ColorOS 17 on the S22 Ultra
+# (abhera, coloros22test6 logs-e99d05d4): Wi-Fi on -> NetworkPolicyManagerService's queries polled, each poll
+# broadcast NETWORK_STATS_UPDATED, which queried again: 4 to 95 polls a second for 20 s, then system_server died.
+# The flag read as false at its readers, so each takes its Android 16 path (NetworkPolicyManagerService then calls
+# setPollOnOpen(false)). (jar, smali file, site, replacement, expected count: 0 or 1 where a build may not have it.)
+NSPQ = re.compile(r"^    invoke-static \{\}, Lcom/android/internal/hidden_from_bootclasspath/android/net/platform/flags/Flags;"
+                  r"->useNetstatsPerQueryFlags\(\)Z\n\n    move-result (?P<res>" + R + r")\n", re.M)
+REPLACE = [
+    ("services", "com/android/server/net/NetworkPolicyManagerService$Dependencies.smali", NSPQ, (0, 1)),
+    ("services", "com/android/server/connectivity/MultipathPolicyTracker$MultipathTracker.smali", NSPQ, (0, 1)),
+    ("services", "com/android/server/stats/pull/StatsPullAtomService.smali", NSPQ, (0, 2)),
+]
+
 
 # Which jar a decoded tree is: a class only that jar has.
 KIND = {
@@ -141,6 +167,11 @@ def main():
             continue
         d = find(root, rel)
         if d is None:
+            # ONEOS_A16CC_ABSENT_OK=1 also covers a class the build does not have (ColorOS 17 has no
+            # NetdEventListenerService$2: it makes no L4S call anywhere).
+            if os.environ.get("ONEOS_A16CC_ABSENT_OK") == "1":
+                print(f"a16_connectivity_compat: {rel} not in this {kind} jar, nothing to guard", file=sys.stderr)
+                continue
             sys.exit(f"a16_connectivity_compat: {rel} not in this {kind} jar")
         path = os.path.join(root, d, rel)
         if path not in files:
@@ -150,18 +181,57 @@ def main():
             files[path] = [d, src, 0]
         d, src, n = files[path]
         found = list(rx.finditer(src))
-        if len(found) != want:
+        # ONEOS_A16CC_ABSENT_OK=1 (0.5.51, ColorOS 17's jars for One UI 8): a site that is not there at all is a call
+        # this build does not make (ColorOS's IpConnectivityMetrics has no L4S option), so nothing to guard; any other
+        # count than expected still stops the patch.
+        if len(found) == 0 and os.environ.get("ONEOS_A16CC_ABSENT_OK") == "1":
+            print(f"a16_connectivity_compat: {rel}: no such call in this build, nothing to guard", file=sys.stderr)
+            continue
+        if len(found) not in (want if isinstance(want, tuple) else (want,)):
             sys.exit(f"a16_connectivity_compat: {rel}: {len(found)} sites, expected {want}")
+        if not found:
+            continue
         for m in reversed(found):  # from the last site back, so earlier offsets stay right
             n += 1
             tag = f"oneos_a16cc_{n}"
             fb = fallback(m, src)
+            if "{NEWREG}" in fb:
+                start = src.rfind("\n.method ", 0, m.start())
+                lm = re.compile(r"^    \.locals (\d+)$", re.M).search(src, start, m.start())
+                if start < 0 or not lm:
+                    sys.exit(f"a16_connectivity_compat: {rel}: no .locals for a site that needs a free register")
+                k = int(lm.group(1))
+                if k >= 16:
+                    sys.exit(f"a16_connectivity_compat: {rel}: .locals {k}, no free low register for the fallback")
+                fb = fb.replace("{NEWREG}", f"v{k}")
+                src = src[:lm.start()] + f"    .locals {k + 1}" + src[lm.end():]
+                shift = len(f"    .locals {k + 1}") - (lm.end() - lm.start())
+                m = rx.search(src, m.start() + shift)
             end = src.find("\n.end method\n", m.end())
             if end < 0:
                 sys.exit(f"a16_connectivity_compat: {rel}: no .end method after a site")
             src = src[:end + 1] + f"\n    :{tag}_h\n" + fb + f"\n    goto :{tag}_e\n" + src[end + 1:]
             src = (src[:m.start()] + f"    {MARK}\n    :{tag}_s\n" + m.group(0) + f"\n    :{tag}_e\n"
                    f"    .catch {CATCH} {{:{tag}_s .. :{tag}_e}} :{tag}_h\n" + src[m.end():])
+        files[path] = [d, src, n]
+    for site_kind, rel, rx, want in REPLACE:
+        if site_kind != kind:
+            continue
+        d = find(root, rel)
+        if d is None:
+            continue
+        path = os.path.join(root, d, rel)
+        if path not in files:
+            src = open(path).read()
+            if MARK in src:
+                sys.exit(f"a16_connectivity_compat: {rel} already patched")
+            files[path] = [d, src, 0]
+        d, src, n = files[path]
+        found = list(rx.finditer(src))
+        if len(found) not in want:
+            sys.exit(f"a16_connectivity_compat: {rel}: {len(found)} useNetstatsPerQueryFlags reads, expected {want}")
+        for m in reversed(found):
+            src = src[:m.start()] + f"    {MARK} (useNetstatsPerQueryFlags: false)\n    const/4 {m.group('res')}, 0x0\n" + src[m.end():]
         files[path] = [d, src, n]
     for path, (d, src, n) in files.items():
         with open(path, "w") as f:

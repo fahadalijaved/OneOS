@@ -99,6 +99,31 @@ class ExperimentalA17OnA16Test {
         }
     }
 
+    /** ColorOS 17 on the S22s (0.5.51 tester build): its own set only, a WARN like One UI 9.5; the regular X9U set is refused. */
+    @Test
+    fun colorOsOnS22UltraOnOneUi8() {
+        val cos = Profiles.withColorOsOnA16(tester)
+        val p = cos.first { it.id == Profiles.S_ULTRA_8450.id }
+        val choice = p.choice(Images.ID_FIND_X9U_IN_1105)!!
+        assertEquals(PackageSets.ID_X9U_IN_1105_A16, choice.packageSetId)
+        // Right after One UI 9.5 in the list.
+        assertEquals(p.choices.indexOfFirst { it.imageId == Images.ID_ONEUI95 } + 1, p.choices.indexOf(choice))
+        // Only the S22 series takes it.
+        assertNull(cos.first { it.id == Profiles.A35.id }.choice(Images.ID_FIND_X9U_IN_1105)?.takeIf { it.packageSetId == PackageSets.ID_X9U_IN_1105_A16 })
+        val image = Images.byId(Images.ID_FIND_X9U_IN_1105)
+        assertTrue(Experimental.a17OnA16Pair(36, image, true, PackageSets.ID_X9U_IN_1105_A16))
+        assertFalse(Experimental.a17OnA16Pair(36, image, true, PackageSets.ID_X9U_IN_1105_SULTRA))
+        assertFalse(Experimental.a17OnA16Pair(36, image, false, PackageSets.ID_X9U_IN_1105_A16))
+        for (t in listOf(a80, a85)) {
+            val r = switch(s22Ultra, t, staged(p, Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_A16), true, cos)
+            assertEquals(PackageSets.X9U_IN_1105_A16, r.set)
+            val android = r.find(SwitchGates.ID_ANDROID)!!
+            assertEquals(Level.WARN to SwitchGates.R_ANDROID_EXPERIMENTAL, android.level to android.finding.reason)
+            assertEquals(Level.OK, r.find(SwitchGates.ID_INSTALLD)!!.level)
+            assertEquals(Level.OK, r.find(SwitchGates.ID_IMAGE)!!.level)
+        }
+    }
+
     /** The S22 Ultra on One UI 8.0 with One UI 9.5 staged: refused in a normal build, a WARN and a tick in the tester build. */
     @Test
     fun s22UltraOnOneUi8() {

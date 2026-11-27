@@ -491,7 +491,12 @@ fi
 A17_ON_A16=0
 A16_CAMERA=0
 rm -f "$STAGE/a16_camera_on"
-if [ "$(getprop ro.build.version.sdk)" = 36 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
+# 0.5.51 (owner: ColorOS 17 for the S22s too): also another Android 17 image whose set brings the image's own
+# Android 17 modules for a One UI 8 phone (x9u-in-1105-a16: uprobestats_payload.img and the rest, the
+# connectivity library, One UI 8's camera codes). Other Android 17 images on Android 16 phones (OxygenOS 17 Pad
+# on the tablets) keep their own way, unchanged.
+if [ "$(getprop ro.build.version.sdk)" = 36 ] &&
+   { grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null || [ -f "$STAGE/uprobestats_payload.img" ]; } &&
    [ "$(sed -n 's/^ro.build.version.sdk=//p' "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)" = 37 ]; then
     A17_ON_A16=1
     # 0.5.39: a set with framework_patched_oneui8.jar (patches/a16_camera.py: the same jar with One UI 8's
@@ -1111,10 +1116,17 @@ samcam_prepare() {
     for pair in ai_clear_zoom:libdtsr_wrapper_v1.camera.samsung.so; do
         [ -e "/system/lib64/${pair#*:}" ] || [ -e "$SAMCAM_SRC/${pair#*:}" ] || ff_drop="$ff_drop ${pair%%:*}"
     done
-    if [ "${ONEOS_GUEST_SAMCAM_NODE_FILTER:-1}" = 1 ] && [ -n "$ff_drop" ] &&
+    # 0.5.51 (S22 Ultra Exynos One UI 8 e24e6495): One UI 8 lists image_codec.samsung.v1; the S26 Ultra camera
+    # knows only image_codec.samsung.v2, calls v1 an invalid node feature name, and then ImageCodecDummyNode
+    # threw "need to check nodeFeature(image_codec) in VENDOR_LIB_INFO" at every start (the camera closed). The
+    # entry is renamed for the guest's copy ("old=new" pairs).
+    ff_ren=""
+    grep -q 'image_codec\.samsung\.v1' "$SAMCAM_FF" 2>/dev/null && ff_ren="image_codec.samsung.v1=image_codec.samsung.v2"
+    if [ "${ONEOS_GUEST_SAMCAM_NODE_FILTER:-1}" = 1 ] && [ -n "$ff_drop$ff_ren" ] &&
        grep -q '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>' "$SAMCAM_FF" 2>/dev/null; then
-        if awk -v drop="$ff_drop" '
-            BEGIN { n = split(drop, d, " "); for (i = 1; i <= n; i++) if (d[i] != "") gone[d[i]] = 1 }
+        if awk -v drop="$ff_drop" -v ren="$ff_ren" '
+            BEGIN { n = split(drop, d, " "); for (i = 1; i <= n; i++) if (d[i] != "") gone[d[i]] = 1
+                    n = split(ren, r, " "); for (i = 1; i <= n; i++) { split(r[i], kv, "="); if (kv[1] != "") to[kv[1]] = kv[2] } }
             {
                 k = "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>"
                 if ((s = index($0, k)) > 0 && (e = index($0, "</SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>")) > s) {
@@ -1123,6 +1135,7 @@ samcam_prepare() {
                         x = a[i]; gsub(/^[ \t]+|[ \t]+$/, "", x); f = x; sub(/\..*/, "", f)
                         if (x == "") continue
                         if (f in gone) { cut = cut (cut == "" ? "" : ",") x; continue }
+                        if (x in to) { cut = cut (cut == "" ? "" : ",") x "->" to[x]; x = to[x] }
                         out = out (out == "" ? "" : ",") x
                     }
                     print substr($0, 1, s + length(k) - 1) out substr($0, e)
@@ -1134,7 +1147,7 @@ samcam_prepare() {
            grep -q '</SecFloatingFeatureSet>' "$SAMCAM_SRC/oneos-samcam-floating_feature.xml" &&
            [ -s "$STAGE/samcam_ff_cut.txt" ]; then
             SAMCAM_FF="$SAMCAM_SRC/oneos-samcam-floating_feature.xml"
-            echo "Samsung Camera: node features without their library on this phone left out: $(cat "$STAGE/samcam_ff_cut.txt")"
+            echo "Samsung Camera: node features left out (no library on this phone) or renamed for this camera: $(cat "$STAGE/samcam_ff_cut.txt")"
         else
             rm -f "$SAMCAM_SRC/oneos-samcam-floating_feature.xml"
         fi
@@ -1235,6 +1248,82 @@ samcam_bind() {
     echo "Samsung Camera in the guest: $n files and folders bound onto $2 $(date +%T)"
     return 0
 }
+# farm_dir <target> <work dir> <entry>...: <target>'s top level as a tmpfs copy
+# with the image's entries bound back and empty mount points <entry> added (a
+# name ending in / is a folder, others empty files). Echoes nothing; status 0
+# when every entry is in place, else everything it made is taken back.
+farm_dir() {
+    fd_t=$1; fd_w=$2; shift 2
+    fd_f="$fd_w/farm"; fd_o="$fd_w/orig"
+    $BB umount -l "$fd_f" 2>/dev/null; $BB umount -l "$fd_o" 2>/dev/null
+    mkdir -p "$fd_f" "$fd_o" && $BB mount -t tmpfs -o size=256k,mode=755 tmpfs "$fd_f" || return 1
+    for fd_e in "$fd_t"/* "$fd_t"/.[!.]*; do
+        [ -e "$fd_e" ] || [ -L "$fd_e" ] || continue
+        fd_n=${fd_e##*/}
+        if [ -L "$fd_e" ]; then cp -P "$fd_e" "$fd_f/$fd_n"
+        elif [ -d "$fd_e" ]; then mkdir "$fd_f/$fd_n"
+        else : > "$fd_f/$fd_n"; fi || { $BB umount -l "$fd_f"; return 1; }
+    done
+    for fd_e in "$@"; do
+        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
+    done
+    chmod 755 "$fd_f"; $BB chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
+    # 0.5.51: the copy's own folder labelled as the image's (system/lib64 is system_lib_file).
+    fd_c=$(ls -Zd "$fd_t" 2>/dev/null | awk '{print $1}')
+    case "$fd_c" in u:object_r:*) $BB chcon "$fd_c" "$fd_f" 2>/dev/null ;; esac
+    # Recursive (oneui8test9): what is already mounted inside an entry comes along with it.
+    $BB mount --rbind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }
+    # Private before the farm goes over the target: a shared bind would show the farm here too.
+    $BB mount --make-rprivate "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    $BB mount --bind "$fd_f" "$fd_t" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
+        [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
+        $BB mount --rbind "$fd_e" "$fd_t/${fd_e##*/}" || {
+            awk -v r="$fd_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
+            $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
+        }
+    done
+    $BB mount -o remount,ro "$fd_f" 2>/dev/null
+    return 0
+}
+# merge_up <layer> <target> <work dir>: what a read-only overlay "lowerdir=<layer>:<target>" would show, for the
+# android12-5.10 kernels (S22 series, S23 FE, A25, A33, A53) that refuse overlayfs on the guest's /system and
+# system_ext ("Operation not supported on transport endpoint"). Every entry of <layer> that <target> lacks gets
+# its mount point: the deepest folder of <target> that exists is made a farm (farm_dir) with the missing names in
+# it, shallow folders first. Files of <layer> with content (feature lists) are then bound onto theirs; empty ones
+# are mount points for later binds (Samsung Camera). Status 1 when anything failed; the caller takes back what
+# is mounted under <target>. 0.5.51 (owner: Samsung Camera for ColorOS on the S22s; abhera's S22 Ultra:
+# "Samsung Camera in the guest: off (overlay on .../system refused)").
+merge_up() {
+    mu_u=$1 mu_t=$2 mu_w=$3
+    $BB mkdir -p "$mu_w" || return 1
+    ( cd "$mu_u" && find . -mindepth 1 \( -type f -o -type d \) ) | sed 's|^\./||' > "$mu_w/layer" || return 1
+    : > "$mu_w/groups"; : > "$mu_w/made"
+    while read -r mu_r; do
+        [ -n "$mu_r" ] || continue
+        [ -e "$mu_t/$mu_r" ] && continue
+        case "$mu_r" in */*) mu_d=${mu_r%/*} ;; *) mu_d=. ;; esac
+        while [ "$mu_d" != . ] && [ ! -d "$mu_t/$mu_d" ]; do
+            case "$mu_d" in */*) mu_d=${mu_d%/*} ;; *) mu_d=. ;; esac
+        done
+        if [ "$mu_d" = . ]; then mu_n=$mu_r; else mu_n=${mu_r#"$mu_d"/}; fi
+        if [ -d "$mu_u/$mu_r" ]; then mu_n="$mu_n/"; else echo "$mu_r" >> "$mu_w/made"; fi
+        echo "$mu_d $mu_n" >> "$mu_w/groups"
+    done < "$mu_w/layer"
+    mu_i=0
+    for mu_d in $(awk '{ n = gsub("/", "/", $1); if ($1 == ".") n = -1; if (!s[$1]++) print n, $1 }' "$mu_w/groups" | sort -n -s -k1,1 | awk '{print $2}'); do
+        mu_i=$((mu_i + 1))
+        if [ "$mu_d" = . ]; then mu_p=$mu_t; else mu_p=$mu_t/$mu_d; fi
+        # shellcheck disable=SC2046
+        farm_dir "$mu_p" "$mu_w/f$mu_i" $(awk -v d="$mu_d" '$1 == d {print $2}' "$mu_w/groups") || return 1
+    done
+    while read -r mu_r; do
+        [ -s "$mu_u/$mu_r" ] || continue
+        $BB mount --bind "$mu_u/$mu_r" "$mu_t/$mu_r" || return 1
+    done < "$mu_w/made"
+    echo "$mu_i"
+    return 0
+}
 # Add the missing guest su mount point to an overlay before its read-only
 # system view is mounted. Modern guest images need not ship /system/xbin.
 guest_root_mountpoint() {
@@ -1283,8 +1372,15 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
                 awk -v r="$ROOTFS/system/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
                 $BB umount -l "$ROOTFS/system" 2>/dev/null || true
             fi
+        elif SMN=$(merge_up "$SOV/up" "$ROOTFS/system" "$STAGE/samcam_merge") && samcam_bind sys "$ROOTFS/system"; then
+            # android12-5.10 kernels (the S22 series on One UI 8): no overlayfs here, so the same mount points
+            # (and the layer's feature files and xbin) in bound copies of the folders that lack them.
+            SAMCAM=1
+            echo "Samsung Camera: no overlayfs on this kernel; its mount points in bound copies of $SMN folder(s) of $ROOTFS/system"
         else
-            echo "Samsung Camera in the guest: off (overlay on $ROOTFS/system refused)"
+            awk -v r="$ROOTFS/system/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
+            grep -q " $ROOTFS/system tmpfs " /proc/mounts && $BB umount -l "$ROOTFS/system"
+            echo "Samsung Camera in the guest: off (overlay on $ROOTFS/system refused, and the bound copies failed)"
         fi
     else echo "Samsung Camera in the guest: off (staged files or One UI's camera files missing)"
     fi
@@ -1357,7 +1453,12 @@ if [ "$BIO_FEATURES" = 1 ] && [ ! -e "$ROOTFS/system/etc/permissions/android.har
         if rm -rf "$BFO/up" && mkdir -p "$BFO/up" && bio_features_into "$BFO/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$BFO/up:$ROOTFS/system" "$ROOTFS/system"; then
             echo "Biometric features: fingerprint and face declared in a private /system layer"
+        elif [ -d "$BFO/up/etc/permissions" ] && BFN=$(merge_up "$BFO/up" "$ROOTFS/system" "$STAGE/bio_features_merge"); then
+            # 0.5.51: android12-5.10 kernels (the S22 series on One UI 8) refuse that overlay; the two feature
+            # files bound into a copy of etc/permissions instead.
+            echo "Biometric features: fingerprint and face declared in a bound copy of $BFN folder(s) (no overlayfs on this kernel)"
         else
+            # A failed farm_dir takes back its own mounts; copies made before it only mirror the image.
             echo "Biometric features: the private /system layer was refused; no fingerprint or face settings"
         fi
     fi
@@ -1444,41 +1545,6 @@ fi
 # Made after the whole-system overlays above (they need nothing mounted under
 # system) and before anything else is mounted under product. An image with its
 # own product/apex keeps it. ONEOS_GUEST_PRODUCT_APEX=0 leaves it out.
-# farm_dir <target> <work dir> <entry>...: <target>'s top level as a tmpfs copy
-# with the image's entries bound back and empty mount points <entry> added (a
-# name ending in / is a folder, others empty files). Echoes nothing; status 0
-# when every entry is in place, else everything it made is taken back.
-farm_dir() {
-    fd_t=$1; fd_w=$2; shift 2
-    fd_f="$fd_w/farm"; fd_o="$fd_w/orig"
-    $BB umount -l "$fd_f" 2>/dev/null; $BB umount -l "$fd_o" 2>/dev/null
-    mkdir -p "$fd_f" "$fd_o" && $BB mount -t tmpfs -o size=256k,mode=755 tmpfs "$fd_f" || return 1
-    for fd_e in "$fd_t"/* "$fd_t"/.[!.]*; do
-        [ -e "$fd_e" ] || [ -L "$fd_e" ] || continue
-        fd_n=${fd_e##*/}
-        if [ -L "$fd_e" ]; then cp -P "$fd_e" "$fd_f/$fd_n"
-        elif [ -d "$fd_e" ]; then mkdir "$fd_f/$fd_n"
-        else : > "$fd_f/$fd_n"; fi || { $BB umount -l "$fd_f"; return 1; }
-    done
-    for fd_e in "$@"; do
-        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
-    done
-    chmod 755 "$fd_f"; $BB chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
-    # Recursive (oneui8test9): what is already mounted inside an entry comes along with it.
-    $BB mount --rbind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }
-    # Private before the farm goes over the target: a shared bind would show the farm here too.
-    $BB mount --make-rprivate "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
-    $BB mount --bind "$fd_f" "$fd_t" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
-    for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
-        [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
-        $BB mount --rbind "$fd_e" "$fd_t/${fd_e##*/}" || {
-            awk -v r="$fd_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
-            $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
-        }
-    done
-    $BB mount -o remount,ro "$fd_f" 2>/dev/null
-    return 0
-}
 if [ "${ONEOS_GUEST_PRODUCT_APEX:-1}" = 1 ] && [ -d /product/apex ] && [ ! -e "$GUEST_PRODUCT/apex" ] && [ ! -L "$GUEST_PRODUCT/apex" ]; then
     if farm_dir "$GUEST_PRODUCT" "$STAGE/product_farm" apex/ && [ -d "$GUEST_PRODUCT/apex" ] &&
        $BB mount --bind /product/apex "$GUEST_PRODUCT/apex"; then
@@ -1893,6 +1959,20 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                     else
                         SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
                         echo "Samsung IMS in the guest: off (farm_dir/bind-mount onto $GUEST_SYSTEM_EXT failed)"
+                fi
+                # 0.5.51: Samsung Camera's system_ext entries (priv-app/SamsungCamera, its jars and permission
+                # files) the same way, from a layer of their own: only the camera's mount points, nothing else of
+                # the overlay's layer, so a session without the camera stays as before.
+                if [ $SAMCAM = 1 ]; then
+                    SEUP="$STAGE/samcam_se_up"
+                    $BB umount -l "$SEUP" 2>/dev/null; mkdir -p "$SEUP"
+                    if $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SEUP" && $BB mount --make-private "$SEUP" &&
+                       samcam_mountpoints "$SEUP" sysext && SEM=$(merge_up "$SEUP" "$GUEST_SYSTEM_EXT" "$STAGE/samcam_se_merge") &&
+                       samcam_bind sysext "$GUEST_SYSTEM_EXT"; then
+                        SAMCAM_BOUND=1
+                        echo "Samsung Camera: system_ext without overlayfs; its mount points in bound copies of $SEM folder(s)"
+                    else
+                        SAMCAM=0; echo "Samsung Camera in the guest: off (system_ext without overlayfs: its bound copies failed)"
                     fi
                 fi
             else
@@ -1907,7 +1987,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no writable overlay to bind onto)"; }
         # Samsung Camera's mount points are in the overlay's own layer, so the
         # read-only form takes it as well.
-        if [ $SAMCAM = 1 ]; then
+        if [ $SAMCAM = 1 ] && [ "${SAMCAM_BOUND:-0}" != 1 ]; then
             if mount | grep -q " $GUEST_SYSTEM_EXT type overlay" && samcam_bind sysext "$GUEST_SYSTEM_EXT"; then SAMCAM_BOUND=1; else
                 SAMCAM=0; echo "Samsung Camera in the guest: off (bind-mount onto $GUEST_SYSTEM_EXT failed)"
             fi
@@ -7127,6 +7207,30 @@ else
     echo "WARNING: could not copy $BB into the guest /data; guest_start.sh keeps the host's path"
 fi
 mkdir -p "$STAGE/data/user/0" "$STAGE/data/user_de/0"
+# App folders whose security label is another app id's (0.5.51, owner, A36 Nothing OS: Xgram brought over by Bring
+# apps, then removed with its data kept and installed again under a new uid; installd found the old owner and left
+# the folder as it was, it ended up owned by the new uid with the old uid's categories, and the app could not open
+# its own files: "Unable to create working directory", EACCES). A folder labelled s0:cA,cB,c512,c768 (an app's own
+# categories) with an owner whose categories are other ones gets its owner's, with all it holds. System apps
+# (s0:c512,c768) are left alone. ONEOS_GUEST_APPDATA_RELABEL=0: off.
+if [ "${ONEOS_GUEST_APPDATA_RELABEL:-1}" = 1 ]; then
+    relab=0
+    for d in "$STAGE"/data/user/0/* "$STAGE"/data/user_de/0/*; do
+        [ -d "$d" ] && [ ! -L "$d" ] || continue
+        set -- $($BB ls -ldnZ "$d" 2>/dev/null)
+        u=$3; l=$5
+        case "$u" in ''|*[!0-9]*) continue ;; esac
+        [ "$u" -ge 10000 ] && [ "$u" -lt 20000 ] || continue
+        case "$l" in u:object_r:*:s0:c[0-9]*,c[0-9]*,c512,c768) ;; *) continue ;; esac
+        a=$((u - 10000)); want="c$((a & 255)),c$((256 + (a >> 8 & 255))),c512,c768"
+        [ "${l##*:s0:}" = "$want" ] && continue
+        new="${l%:s0:*}:s0:$want"
+        if $BB chcon -R -h "$new" "$d" 2>/dev/null || chcon -R "$new" "$d" 2>/dev/null; then
+            relab=$((relab + 1)); echo "App data relabelled: ${d#$STAGE/data/} (owner $u: ${l##*:s0:} -> $want)"
+        fi
+    done
+    [ $relab = 0 ] || echo "App data: $relab folder(s) given their owner's security categories"
+fi
 mkdir -p "$STAGE/data/system/users/0" "$STAGE/data/system_de/0/spblob" "$STAGE/data/system_ce/0"
 # The fingerprint framework sets its active user before vendor code can create
 # this directory. Without it the sensor is registered but never opened.
@@ -10573,8 +10677,11 @@ fi
 # CameraAdapterUtils), often dozens of times a session, and its launcher icon is
 # the one users tap ("Camera crashed": 0.4.58 reports 45bc960f, d89cc8a5,
 # 74bcf2b6). Samsung Camera is then the camera.
-if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Aperture" ] || [ -d "$GUEST_SYSTEM_EXT/app/Aperture" ] || [ "$SAMCAM" = 1 ]; }; then
-    if [ "$SAMCAM" = 1 ]; then OCWHY="Samsung Camera is the camera"; else OCWHY="Aperture is the camera"; fi
+# ColorOS 17 on One UI 8 (A17_ON_A16, 0.5.51 testing): no Samsung Camera in that set, and OPPO's camera crashed at
+# every start on the same SDK class (abhera, S22 Ultra, coloros22test6 logs-e99d05d4: 10 times in 11 minutes). Hidden
+# there too; a camera2 app (Open Camera) from the store is the camera.
+if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Aperture" ] || [ -d "$GUEST_SYSTEM_EXT/app/Aperture" ] || [ "$SAMCAM" = 1 ] || [ "$A17_ON_A16" = 1 ]; }; then
+    if [ "$SAMCAM" = 1 ]; then OCWHY="Samsung Camera is the camera"; elif [ "$A17_ON_A16" = 1 ]; then OCWHY="One UI 8 phone: a camera2 app from the store is the camera"; else OCWHY="Aperture is the camera"; fi
     for d in "$GUEST_SYSTEM_EXT"/priv-app/OplusCamera "$ROOTFS"/system/priv-app/OplusCamera "$GUEST_PRODUCT"/priv-app/OplusCamera \
              "$ROOTFS"/my_*/app/OplusCamera "$ROOTFS"/my_*/priv-app/OplusCamera; do
         [ -d "$d" ] && [ ! -L "$d" ] || continue

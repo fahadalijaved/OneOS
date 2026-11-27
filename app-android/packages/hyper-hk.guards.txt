@@ -24,6 +24,7 @@ b97cd4d84be630d80a7ea4ad10a4cf0d8b4b9b99ba0e697f0799c5dab769ca91  framework_patc
 04c35b486f838198034e9cf92cff23985a027cedb3eb80cb4a31927fa39f4af8  vold_patched
 f786400efceda164e04bb85c2ebe9477b6f688aeb06b724af06e95b57de2ebd5  service.incremental_patched.so
 # 0.5.37 (hyperos_hk_r5): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar libcamera_client_patched_oneui95.so
-cc62ab0b54228dcd644ae7714c1280b490cc89ee89fc987afb56c72ec014f8c1  framework_patched_oneui95.jar
+0698fda5f54a0329b3fa1370324f7081afad2c57c9c416f1cf8d95620a77542f  framework_patched_oneui95.jar
 06b96b773037f25518c2c3be13af72bf09e8633b4df9c29cbefa50783a6e04e7  libcamera_client_patched_oneui95.so
 # 0.5.49 (hyperos_hk_r6): framework_patched_oneui95.jar writes One UI 9.5's sixth CameraCompatibilityInfo field (switcher/patches/cci_oneui95.py; HyperOS on the S26 Ultra died on the five-field one)
+# 0.5.51 (hyperos_hk_r7): framework_patched_oneui95.jar also reads the sixth CameraCompatibilityInfo field (switcher/patches/cci_oneui95.py; S26 Ultra PixelOS 356d83de: six written, five read, no app started)

@@ -1449,6 +1449,20 @@ ro.miui.backdrop_sampling_enabled=true"
         echo "vendor.vivoconfigstore.ready=1" >> "$NEW"
         echo "guest_props: vendor.vivoconfigstore.ready=1 (no 550 ms wait per vivo feature lookup)"
     fi
+    # vivo's camera finds its phone's settings by ro.product.model.bbk (0.5.51, Fold5 OriginOS 03202cec): VivoCamera's
+    # FeatureConfig loads FeatureConfig_meat_<project>, and that property is vivo's vendor's, so with Samsung's vendor
+    # it read "unknown", the common config had no zoom table for the back camera and the camera closed at every
+    # start (configMeatZoomSceneConfig: moduleZoomConfig is null, photo|back). The image's own project
+    # (ro.product.system.device, PD2609 for the PD2609MA build) is given when the phone has none. ONEOS_GUEST_VIVO_BBK=0: off.
+    if [ -f "$ROOTFS/system/framework/vivo-services.jar" ] && [ "${ONEOS_GUEST_VIVO_BBK:-1}" = 1 ] &&
+       [ -z "$(getprop ro.product.model.bbk)" ]; then
+        bbk=$(sed -n 's/^ro\.product\.system\.device=//p' "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1 | tr -dc 'A-Za-z0-9_')
+        if [ -n "$bbk" ]; then
+            sed -i '/^ro\.product\.model\.bbk=/d' "$NEW"
+            echo "ro.product.model.bbk=$bbk" >> "$NEW"
+            echo "guest_props: ro.product.model.bbk=$bbk (vivo's camera settings for this build)"
+        fi
+    fi
     # The garbage collector the image's ART code was compiled for (0.4.60). An
     # image's boot image (system/framework/boot.art) and its apps' odex files
     # are built for one collector: CC, with read barriers, or CMC (userfaultfd),
@@ -1640,6 +1654,14 @@ ro.miui.backdrop_sampling_enabled=true"
                 echo "$kv" >> "$NEW"
             done
             echo "guest_props: OPPO fingerprint: $fpt sensor, icon centre ${fpl}px from the bottom, size $fps (from '$UPOS' at $UDPI dpi, panel ${UPHYS:-?} px wide running at ${UMODE:-?})"
+            # vdcoolok's fingerprint wave in ColorPanoramicSystemUI.apk (scripts/patch-coloros-fp-wave.py, made on the
+            # S25 Ultra): glyph first at the wake, the full wave over home after the unlock, no black dim layer. Only
+            # for ultrasonic sensors; optical ones keep ColorOS's own highlight flow. ONEOS_GUEST_FP_WAVE=0 turns it off.
+            drop_new ro.oneos.fp_wave
+            if [ "$fpt" = ultrasonic ] && [ "${ONEOS_GUEST_FP_WAVE:-1}" = 1 ]; then
+                echo "ro.oneos.fp_wave=1" >> "$NEW"
+                echo "guest_props: ro.oneos.fp_wave=1 (ColorOS fingerprint wave, ultrasonic sensor)"
+            fi
             # The panel lights the spot itself (local HBM, as One UI's fingerprint service reads it): ColorOS's
             # lock screen then keeps its brightness instead of its dim layer (patch-coloros-keyguard-lhbm.py).
             if [ "$fpt" = optical ] && [ -e /sys/class/lcd/panel/local_hbm ] &&
@@ -1963,8 +1985,10 @@ ro.miui.backdrop_sampling_enabled=true"
     a17_nt=0
     { [ -f "$ROOTFS/system_ext/framework/nt-telephony-common.jar" ] ||
       [ -f "$ROOTFS/system/system_ext/framework/nt-telephony-common.jar" ]; } && a17_nt=1
+    # 0.5.51: also another Android 17 image whose set brings its Android 17 modules for One UI 8 (ColorOS 17 on the
+    # S22s: uprobestats_payload.img staged), as guest_prepare.sh's A17_ON_A16; OxygenOS 17 Pad on tablets unchanged.
     if [ "$a17_host" = 36 ] && [ "$a17_guest" = 37 ] &&
-       { [ "$a17_nt" = 1 ] || grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; }; then
+       { [ "$a17_nt" = 1 ] || grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null || [ -f "$STAGE/uprobestats_payload.img" ]; }; then
         for key in ro.build.version.sdk ro.build.version.sdk_full ro.build.version.release \
                    ro.build.version.release_or_codename ro.build.version.release_or_preview_display ro.build.version.codename; do
             g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)

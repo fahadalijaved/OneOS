@@ -265,7 +265,8 @@ class ProfilesTest {
             listOf(Profiles.F8U, Profiles.S_ULTRA_8850, Profiles.S_ULTRA_8750, Profiles.S_8750, Profiles.FOLD7, Profiles.S_PLUS_8750,
                 Profiles.FOLD8, Profiles.S_8850, Profiles.S_8850_JP, Profiles.S_ULTRA_8650, Profiles.S_8650, Profiles.S_8550, Profiles.S_PLUS_8550,
                 Profiles.S_PLUS_8850, Profiles.S_PLUS_9965, Profiles.FOLD6, Profiles.FLIP8, Profiles.S_ULTRA_8550, Profiles.S_9945, Profiles.S_EDGE_8750,
-                Profiles.S_9965, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP, Profiles.S_8550_JP, Profiles.S_PLUS_8650),
+                Profiles.S_9965, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP, Profiles.S_8550_JP, Profiles.S_PLUS_8650,
+                Profiles.S_8750_JP), // 0.5.51: the au S25
             Profiles.BUILT_IN.filter { it.choice(Images.ID_NOTHING_METROID) != null },
         )
         // Galaxy S23 and S23+ (0.4.11): the X9U image, untested, with the will-most-likely-not-start note.
@@ -307,6 +308,7 @@ class ProfilesTest {
                 Profiles.ID_S_8550_JP, // 0.4.93: the au S23, the S23's list
                 Profiles.ID_FLIP5, // 0.5.46 (owner): the S23s' chip
                 Profiles.ID_FOLD5, // 0.5.47 (owner): the same chip
+                Profiles.ID_S_8750_JP, // 0.5.51: the au S25, the S25's list
             ),
             offerOrigin.map { it.id }.toSet(),
         )
@@ -341,6 +343,8 @@ class ProfilesTest {
                 Profiles.TAB_S9_ULTRA, Profiles.TAB_S11,
                 // 0.5.48: the Galaxy Tab S11 Ultra (owner).
                 Profiles.TAB_S11_ULTRA,
+                // 0.5.51: the au Galaxy S25 (SCG31).
+                Profiles.S_8750_JP,
             ),
             Profiles.BUILT_IN,
         )
@@ -392,6 +396,12 @@ class ProfilesTest {
         // is matched in any case, the model number only as the phone writes it.
         assertEquals(Profiles.S_8550_JP, Profiles.resolve("SCG19", "SCG19", "SM8550").profile)
         assertEquals(Profiles.S_8550_JP, Profiles.resolve("SCG19", "scg19", "SM8550").profile)
+        // 0.5.51: the au S25 (SCG31) the same way: the S25's systems and note (vendor device pa1q).
+        assertEquals(Profiles.S_8750_JP, Profiles.resolve("SCG31", "SCG31", "SM8750").profile)
+        assertEquals(Profiles.S_8750_JP, Profiles.resolve("SCG31", "scg31", "SM8750").profile)
+        assertEquals(listOf("s-8750-jp", "Galaxy S25 (au)", FormFactor.BAR), listOf(Profiles.S_8750_JP.id, Profiles.S_8750_JP.label, Profiles.S_8750_JP.form))
+        assertEquals(listOf(Profiles.S_8750.choices, Profiles.S_8750.notes), listOf(Profiles.S_8750_JP.choices, Profiles.S_8750_JP.notes))
+        assertNull(Profiles.resolve("SCG31", "SCG31", "SM8650").profile)
         assertEquals(
             listOf("s-8550-jp", "Galaxy S23 (au)", FormFactor.BAR),
             listOf(Profiles.S_8550_JP.id, Profiles.S_8550_JP.label, Profiles.S_8550_JP.form),
@@ -574,6 +584,7 @@ class ProfilesTest {
                 Profiles.S_ULTRA_8550, Profiles.FLIP6, Profiles.S_9945, Profiles.S_EDGE_8750, Profiles.S_FE_9945, Profiles.FLIP7_FE,
                 Profiles.S25_FE, Profiles.S_PLUS_9945, Profiles.S_ULTRA_8550_JP, Profiles.S_8550_JP, Profiles.S_PLUS_8650,
                 Profiles.S26_FE, // 0.5.28: the Z Flip7's systems
+                Profiles.S_8750_JP, // 0.5.51: the au S25
             ),
             Profiles.BUILT_IN.filter { it.choice(Images.ID_PIXEL_KOMODO) != null },
         )
@@ -778,7 +789,7 @@ class ProfilesTest {
                 assertNull(p.id, p.choice(Images.ID_ONEUI95))
             }
         }
-        assertEquals(61, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null })
+        assertEquals(62, Profiles.BUILT_IN.count { it.choice(Images.ID_ONEUI95) != null }) // 0.5.51: + the au S25
         assertEquals(listOf(Images.ID_OXYGEN16), Profiles.A06.choices.map { it.imageId })
     }
 }

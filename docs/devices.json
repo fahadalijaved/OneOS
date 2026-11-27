@@ -4002,6 +4002,78 @@
           "tested": false
         }
       ]
+    },
+    {
+      "id": "s-8750-jp",
+      "label": "Galaxy S25 (au)",
+      "model": "SCG31",
+      "codename": "SCG31",
+      "chip": "SM8750",
+      "form": "bar",
+      "enabled": true,
+      "disabledReason": null,
+      "systems": [
+        {
+          "image": "coloros17-findx9u-in-1105",
+          "label": "ColorOS 17, Find X9 Ultra IN build (November update)",
+          "set": "x9u-in-1105-sultra",
+          "tested": true
+        },
+        {
+          "image": "pixel9proxl-komodo",
+          "label": "Pixel 9 Pro XL, komodo build",
+          "set": "pixel9-sultra",
+          "tested": false
+        },
+        {
+          "image": "infinityx41-findx9u",
+          "label": "Infinity-X 4.1, Find X9 Ultra build",
+          "set": "infinityx",
+          "tested": true
+        },
+        {
+          "image": "lineage24-infiniti",
+          "label": "LineageOS 24, OnePlus 15 build",
+          "set": "lineage",
+          "tested": false
+        },
+        {
+          "image": "hyperos-lhasa",
+          "label": "HyperOS, Xiaomi 18 Fold build",
+          "set": "hyper-f8u",
+          "tested": false
+        },
+        {
+          "image": "hyperos-hongkong",
+          "label": "HyperOS 4 Global",
+          "set": "hyper-hk",
+          "tested": true
+        },
+        {
+          "image": "nothingos5-metroid",
+          "label": "Nothing OS 5.0, Metroid build",
+          "set": "nothing-f8u",
+          "tested": false
+        },
+        {
+          "image": "originos7-pd2609ma",
+          "label": "OriginOS 7, vivo PD2609MA build",
+          "set": "originos",
+          "tested": false
+        },
+        {
+          "image": "pixelos17-onyx",
+          "label": "PixelOS 17, POCO F7 build",
+          "set": "pixelos",
+          "tested": false
+        },
+        {
+          "image": "oneui95-s948b",
+          "label": "One UI 9.5, Galaxy S26 Ultra build",
+          "set": "oneui95",
+          "tested": true
+        }
+      ]
     }
   ]
 }

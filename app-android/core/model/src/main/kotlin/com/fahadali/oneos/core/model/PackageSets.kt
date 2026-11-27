@@ -164,6 +164,7 @@ object PackageSets {
     const val ID_N6_F8U = "n6-f8u"
     const val ID_X9U_IN_SULTRA = "x9u-in-sultra"
     const val ID_X9U_IN_1105_SULTRA = "x9u-in-1105-sultra"
+    const val ID_X9U_IN_1105_A16 = "x9u-in-1105-a16"
     const val ID_PIXEL_F8U = "pixel-f8u"
     const val ID_PIXEL_F8 = "pixel-f8"
     const val ID_PIXEL_SULTRA = "pixel-sultra"
@@ -341,7 +342,7 @@ object PackageSets {
         // Samsung's touch request) and samcam_a.tar (the Galaxy A36's camera for this image, A and M phones).
         // 0.5.32 r8: OplusGestureUI_patched.apk, raise to wake from a Galaxy's pick-up sensor (coloros_lift_wake.py).
         // 0.5.33 r9: samcam.tar with fix_sensor_crop_tables.py (S24 FE front camera: no sensor crop table entry).
-        sourceDir = "out/overlays_x9u_in_1105_r11", // 0.5.21 r5: video rotation in samcam_a; 0.5.20 r4: OneOSFpTouch
+        sourceDir = "out/overlays_x9u_in_1105_r13", // 0.5.51 r13: vdcoolok's fingerprint wave in ColorPanoramicSystemUI (ultrasonic only); 0.5.21 r5: video rotation in samcam_a; 0.5.20 r4: OneOSFpTouch
         // 0.5.05 (r2): oplus-framework_patched.jar right after the common files, as root's set_files lists it.
         files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size) +
             PackageFile("samcam_a.tar", FileRole.GUEST_FIX) +
@@ -439,7 +440,7 @@ object PackageSets {
     val PIXEL_SULTRA = PackageSet(
         id = ID_PIXEL_SULTRA,
         imageId = Images.ID_PIXEL_KODIAK,
-        sourceDir = "out/overlays_pixel_kodiak_r22",
+        sourceDir = "out/overlays_pixel_kodiak_r23",
         files = PIXEL_FILES + PIXEL_DT2S + CAM95,
         omitted = listOf(TETHERING),
         approxBytes = 695_159_961L + 49701625L,
@@ -497,7 +498,7 @@ object PackageSets {
     val INFINITYX = PackageSet(
         id = ID_INFINITYX,
         imageId = Images.ID_INFINITYX,
-        sourceDir = "out/overlays_infinityx_r20",
+        sourceDir = "out/overlays_infinityx_r21",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -546,7 +547,7 @@ object PackageSets {
     val HYPER_F8U = PackageSet(
         id = ID_HYPER_F8U,
         imageId = Images.ID_HYPEROS_LHASA,
-        sourceDir = "out/overlays_hyperos_r32",
+        sourceDir = "out/overlays_hyperos_r33",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -597,7 +598,7 @@ object PackageSets {
     val HYPER_HK = PackageSet(
         id = ID_HYPER_HK,
         imageId = Images.ID_HYPEROS_HONGKONG,
-        sourceDir = "out/overlays_hyperos_hk_r6",
+        sourceDir = "out/overlays_hyperos_hk_r7",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -653,7 +654,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r42", // 0.5.17 r36: fingerprint from One UI, removal guard
+        sourceDir = "out/overlays_nothing_r43", // 0.5.17 r36: fingerprint from One UI, removal guard
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             // 0.4.57 (r23): also Samsung IMS's framework members (guest_secims_members.py).
@@ -850,7 +851,7 @@ object PackageSets {
     val ORIGINOS = PackageSet(
         id = ID_ORIGINOS,
         imageId = Images.ID_ORIGINOS7,
-        sourceDir = "out/overlays_originos_cn_r25",
+        sourceDir = "out/overlays_originos_cn_r26",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("vivo-services_patched.jar", FileRole.GUARD_JAR),
@@ -906,7 +907,7 @@ object PackageSets {
     val LINEAGE = PackageSet(
         id = ID_LINEAGE,
         imageId = Images.ID_LINEAGE,
-        sourceDir = "out/overlays_lineage_r12", // 0.5.21 r8: video rotation in samcam_a and samcam_bar
+        sourceDir = "out/overlays_lineage_r13", // 0.5.21 r8: video rotation in samcam_a and samcam_bar
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -1052,7 +1053,7 @@ object PackageSets {
      * too, against the One UI 9 rule (its BPF maps are One UI's loader's), as the experiment.
      */
     /** Sets only a tester build's profiles offer (no APK series packs them; a tester build packs every set). */
-    val TESTER_ONLY: Set<String> = setOf(ID_ONEUI95_A16)
+    val TESTER_ONLY: Set<String> = setOf(ID_ONEUI95_A16, ID_X9U_IN_1105_A16)
 
     val ONEUI95_A16 = ONEUI95.copy(
         id = ID_ONEUI95_A16,
@@ -1070,6 +1071,34 @@ object PackageSets {
     )
 
     /**
+     * ColorOS 17 (Find X9 Ultra IN) on the S22s held on One UI 8 (0.5.51, owner: "Since S22 can boot One UI 9.5 now, lets try
+     * ColorOS 17 for them"; [Profiles.withColorOsOnA16]), as [ONEUI95_A16] does for One UI 9.5: [X9U_IN_1105_SULTRA]'s files
+     * without One UI 9.5's camera codes, its services, framework and telephony-common guard jars also patched by
+     * a16_connectivity_compat.py, the image's own [A16_EXTRA_PAYLOADS], its connectivity_native ([A17_CONNECTIVITY_NATIVE],
+     * from its tethering module) and its framework with One UI 8's and One UI 8.5's camera codes (a16_camera.py).
+     * guest_prepare.sh runs it as A17_ON_A16 (uprobestats_payload.img staged). Tethering stays One UI's (its BPF maps).
+     */
+    val X9U_A16_OWN_PAYLOADS: List<String> = listOf("nfcservices", "npumanager", "telephonycore", "webapp")
+
+    /** Filled in when the set is built (out/overlays_x9u_in_1105_a16_r7). */
+    private const val X9U_A16_APPROX_BYTES = 1_086_796_720L
+
+    val X9U_IN_1105_A16 = X9U_IN_1105_SULTRA.copy(
+        id = ID_X9U_IN_1105_A16,
+        sourceDir = "out/overlays_x9u_in_1105_a16_r7",
+        files = (X9U_IN_1105_SULTRA.files - CAM95.toSet()) +
+            A16_EXTRA_PAYLOADS.map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) } +
+            PackageFile(A17_CONNECTIVITY_NATIVE, FileRole.GUEST_FIX) + PackageFile("framework_patched_oneui8.jar", FileRole.GUARD_JAR) +
+            PackageFile("framework_patched_oneui85.jar", FileRole.GUARD_JAR) +
+            // r2: Android's NFC and NPU manager modules (oneui95_a16_r9's): ColorOS's SystemServiceRegistry calls their
+            // initializers unguarded and One UI 8 has neither (both S22 testers: zygote died, NoClassDefFoundError).
+            // r3: ColorOS's own telephonycore and webapp too (TelephonyServicesInitializer, WebAppFrameworkInitializer behind
+            // flags ColorOS turns on; One UI 8 has neither module; abhera on coloros22test3: zygote still died).
+            X9U_A16_OWN_PAYLOADS.map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        approxBytes = X9U_A16_APPROX_BYTES,
+    )
+
+    /**
      * PixelOS 17 for the Galaxy A series (0.5.35, untested): [Images.PIXELOS_ONYX], the POCO F7 / Redmi Turbo 4 Pro build,
      * a source-built AOSP system with Google's apps that the ARMv8.2 A-series CPUs can run (Google's Pixel 9 Pro XL
      * build cannot: PAuth and RCpc2 in its linker). make-overlays.sh on that image (r1): the guard jars, the guest vold
@@ -1080,7 +1109,7 @@ object PackageSets {
     val PIXELOS = PackageSet(
         id = ID_PIXELOS,
         imageId = Images.ID_PIXELOS_ONYX,
-        sourceDir = "out/overlays_pixelos_onyx_r6",
+        sourceDir = "out/overlays_pixelos_onyx_r7",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -1110,7 +1139,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, OXYGEN17_PAD, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, ONEUI95_A16, PIXELOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, OXYGEN17_PAD, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, ONEUI95_A16, X9U_IN_1105_A16, PIXELOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

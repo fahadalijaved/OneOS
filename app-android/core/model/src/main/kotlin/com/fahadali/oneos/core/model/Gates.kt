@@ -330,7 +330,7 @@ object SwitchGates {
         f.customRom?.let { out += Gate(it) }
         out += Gate(root(f))
         out += profileGate(f, resolution, profiles, switching, choice, image, images)
-        val android = android(f, image, profile, images, input.a17OnA16)
+        val android = android(f, image, profile, images, input.a17OnA16, choice?.packageSetId)
         out += Gate(android, if (switching && android.reason == R_ANDROID_EXPERIMENTAL) A17_ON_A16_ACK else null)
         if (profile != null) {
             out += Gate(form(f, profile))
@@ -353,7 +353,7 @@ object SwitchGates {
                 },
             )
         }
-        out += Gate(installd(input, image))
+        out += Gate(installd(input, image, choice?.packageSetId))
         out += Gate(oldSwitcher(input.oldSwitcherInstalled))
         out += Gate(stageIdle(input.stage))
         space(phase, input, image, set)?.let { out += Gate(it) }
@@ -497,13 +497,13 @@ object SwitchGates {
      * is offered (0.4.85: every image of the build counted before, so a One UI 8.5 phone whose systems are
      * all Android 17 passed here and was refused by the installd gate as "One UI was updated").
      */
-    private fun android(f: DeviceFacts, image: ImageRef?, profile: PhoneProfile?, images: List<ImageRef>, a17OnA16: Boolean = false): Finding {
+    private fun android(f: DeviceFacts, image: ImageRef?, profile: PhoneProfile?, images: List<ImageRef>, a17OnA16: Boolean = false, setId: String? = null): Finding {
         val offered = profile?.choices?.mapNotNull { Images.byId(it.imageId, images) }?.map { it.sdk }?.distinct()?.sorted().orEmpty()
         val sdks = image?.let { listOf(it.sdk) } ?: offered.ifEmpty { images.map { it.sdk }.distinct().sorted() }
         val have = f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }
         // Tester build: One UI 9.5 on One UI 8 (Experimental). Chosen, or with nothing chosen yet the only system
         // this phone's One UI can run.
-        val experimental = Experimental.a17OnA16Pair(f.sdk, image, a17OnA16) ||
+        val experimental = Experimental.a17OnA16Pair(f.sdk, image, a17OnA16, setId) ||
             (image == null && f.sdk !in sdks && Experimental.a17OnA16Offered(f.sdk, profile, a17OnA16, images))
         val nothingOnA16 = f.sdk == 36 && image?.id == Images.ID_NOTHING_ASTEROIDS
         return if (nothingOnA16) {
@@ -591,13 +591,13 @@ object SwitchGates {
         }
     }
 
-    private fun installd(input: GateInput, image: ImageRef? = null): Finding {
+    private fun installd(input: GateInput, image: ImageRef? = null, setId: String? = null): Finding {
         // The chosen image's Android version decides the table (0.4.66: One UI 8.5/8.0 for SDK 36 images).
         // With no system chosen yet, the phone's own (0.4.85: Android 17's table was used, so every
         // One UI 8.5 phone with nothing set up, or with a stage of another file set, read "One UI was updated").
         val sdk = image?.sdk ?: input.facts.sdk.takeIf { InstalldExpected.carried(it) != null } ?: 37
         // Tester build: One UI 9.5 (SDK 37, codes read at runtime) on One UI 8 takes One UI 8's tables too.
-        val a17 = Experimental.a17OnA16Pair(input.facts.sdk, image, input.a17OnA16) || (input.facts.sdk == 36 && image?.id == Images.ID_NOTHING_ASTEROIDS)
+        val a17 = Experimental.a17OnA16Pair(input.facts.sdk, image, input.a17OnA16, setId) || (input.facts.sdk == 36 && image?.id == Images.ID_NOTHING_ASTEROIDS)
         val p = InstalldExpected.problems(input.installd, if (sdk == 36) input.expectedInstalldA16 else input.expectedInstalld, sdk, a17)
         return if (p.isEmpty()) {
             Finding(

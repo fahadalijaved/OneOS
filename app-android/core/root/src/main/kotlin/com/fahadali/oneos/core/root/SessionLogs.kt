@@ -253,7 +253,11 @@ data class ReturnOutcome(
             OutcomeKind.USER_RETURN -> "You held Volume Up+Down${after()}; OneOS returned to One UI."
             OutcomeKind.APP_RETURN -> "You tapped Back to One UI in $system${after()}; OneOS returned to One UI."
             OutcomeKind.GUEST_REBOOT -> "$sys asked for a restart${after()} (Restart in its power menu, or a crash); OneOS returned to One UI."
-            OutcomeKind.GUEST_SHUTDOWN -> "$sys asked to power off${after()} (power menu, low battery or heat); the phone powered off."
+            OutcomeKind.GUEST_SHUTDOWN -> if (line?.contains("'asleep:shutdown'") == true) {
+                "$sys asked to power off${after()} with its screen off; OneOS returned to One UI and kept the phone on."
+            } else {
+                "$sys asked to power off${after()} (power menu, low battery or heat); the phone powered off."
+            }
             OutcomeKind.GUEST_DEAD -> "$sys's system stopped${after()}; OneOS returned to One UI by itself."
             OutcomeKind.BLACK_SCREEN -> "The screen stayed black${after()}; OneOS returned to One UI by itself."
             OutcomeKind.SESSION_LIMIT -> "The session reached its time limit${after()}."
@@ -335,7 +339,8 @@ object ReturnOutcomes {
                     req.startsWith("keys") -> OutcomeKind.USER_RETURN
                     // The guest's OneOS app (Back to One UI): app:app or app:tile.
                     req.startsWith("app:") -> OutcomeKind.APP_RETURN
-                    req.startsWith("shutdown") -> OutcomeKind.GUEST_SHUTDOWN
+                    // 0.5.51: asleep:shutdown, a shutdown asked with the guest's screen off: the phone stayed on.
+                    req.startsWith("shutdown") || req.startsWith("asleep:shutdown") -> OutcomeKind.GUEST_SHUTDOWN
                     else -> OutcomeKind.GUEST_REBOOT
                 }
                 return ReturnOutcome(kind, t, l.trim(), reason)

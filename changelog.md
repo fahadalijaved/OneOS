@@ -801,6 +801,22 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.51: **smoother sessions with full logs, S26 black screen, ColorOS fingerprint wave.**
+- **Less heat and lag with full logs on**: full session logs record the first 10 minutes of a session, then stop;
+  **Record full logs from now** in the other system's OneOS app records until the return. With Full session logs off,
+  the background CPU sampler and sound log are skipped too.
+- **Galaxy S26 series: black screen fixed** on PixelOS and the other systems that got the 0.5.49 camera change (testing).
+- **ColorOS 17 fingerprint wave on ultrasonic sensors** (S25 Ultra and others), vdcoolok's work from pull request #152:
+  the icon at once at the wake, the wave over home after the unlock, no dark dim layer in the unlock (testing).
+- **Samsung Camera on the Galaxy S22 series, S23 FE, A25, A33 and A53** in the other systems: their kernel refused the
+  layer that adds it, so it never installed (testing).
+- Snapdragon phones (S24 Ultra): no sound for the rest of a session after Hey Google crashed the audio DSP; OneOS now
+  turns Hey Google listening off when it happens (testing).
+- Galaxy S22 Ultra (Exynos), One UI 9.5: the voice wake-up guard runs at every start (testing).
+- New phone: the au Galaxy S25 (SCG31), with the Galaxy S25's systems (untested).
+- OriginOS camera on the Z Fold5, HeyTap store stopped in the background on ColorOS and OxygenOS, a power-off request
+  with the screen off returns to One UI, and apps reinstalled after Bring apps no longer crash (testing).
+
 New in 0.5.50: **S22 Ultra (Exynos) One UI 9.5 setup, OriginOS camera on the Z Fold5.**
 - **Galaxy S22 Ultra (Exynos) with One UI 9.5 now starts** (the 0.5.49 fix worked), and no longer restarts the
   phone during setup: Google's "Hey Google" crashed the Exynos 2200 voice wake-up chip until the whole phone reset.
