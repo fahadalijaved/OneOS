@@ -59,7 +59,8 @@ def main(root):
     else:
         env["ONEOS_CAMERA_COMPAT_FROM_JAR"] = "1"
     for cmd in (["python3", "-I", os.path.join(HERE, "pixel_camera_abi.py"), root, os.path.join(HERE, f"host_camera_{host}.txt")],
-                ["python3", "-I", os.path.join(HERE, "a16_camera_batch_off.py"), root]):
+                ["python3", "-I", os.path.join(HERE, "a16_camera_batch_off.py"), root],
+                ["python3", "-I", os.path.join(HERE, "a16_camera_result_extras.py"), root]):
         r = subprocess.run(cmd, capture_output=True, text=True, env=env)
         sys.stderr.write(r.stderr)
         if r.returncode != 0:

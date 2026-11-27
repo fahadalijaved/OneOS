@@ -183,7 +183,10 @@ done
 GUARD_JARS="services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" ||
                                        $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
                                        $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
-                                       $2 == "telephony-common_patched.jar" || $2 == "framework_patched_oneui95.jar" || $2 == "framework_patched_oneui8.jar" { print $2 }' "$STAGE/guards.txt")"
+                                       $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
+                                       $2 == "telephony-common_patched.jar" || $2 == "framework_patched_oneui95.jar" || $2 == "libcamera_client_patched_oneui95.so" ||
+                                       $2 == "framework_patched_oneui8.jar" || $2 == "framework_patched_oneui85.jar" ||
+                                       $2 == "libcamera_client_patched_oneui8.so" || $2 == "libcamera_client_patched_oneui85.so" { print $2 }' "$STAGE/guards.txt")"
 
 if [ "$APP" = 1 ]; then
     # Every staged file (files.sha256, written by the app's root script; all
@@ -2745,7 +2748,7 @@ while true; do
             # never made and no photo was saved (0.4.37, Z Fold6 report 034a7e05).
             # Made here once the camera's data folder exists.
             CAMD=$STAGE/data/user/0/com.sec.android.app.camera
-            if [ -d $STAGE/samcam_build ] && [ ! -d $STAGE/data/sec/camera ] && [ -d \$CAMD ] && [ ! -L \$CAMD ] && [ ! -L $STAGE/data/sec ]; then
+            if { [ -d $STAGE/samcam_build ] || [ -f $STAGE/data/oneos_sec_camera ]; } && [ ! -d $STAGE/data/sec/camera ] && [ -d \$CAMD ] && [ ! -L \$CAMD ] && [ ! -L $STAGE/data/sec ]; then
                 CU=\$(stat -c %u \$CAMD 2>/dev/null)
                 if [ -n \"\$CU\" ] && [ \"\$CU\" -ge 10000 ]; then
                     mkdir -p $STAGE/data/sec/camera && chown 0:0 $STAGE/data/sec && chmod 771 $STAGE/data/sec &&
