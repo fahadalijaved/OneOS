@@ -1658,20 +1658,23 @@ ls -l /vendor/etc/displayconfig /vendor/odm/etc/displayconfig /vendor/odm/etc/de
 # UI 9.0's and 9.5's (switcher/patches/host_camera*.txt, from firmware); One UI 8's was never read, so the
 # camera stays off for One UI 9.5 on a One UI 8 phone. The Stub and Proxy classes of the four camera
 # interfaces from One UI's own framework.jar (ART's dexdump, in the background; scripts/aidl-table.py reads
-# the file). Only on Android 16 phones and once per phone build (kept in data/ across sessions).
+# the file). Only on Android 16 phones and once per phone build (kept in data/ across sessions). "# 2" (0.5.50):
+# also CameraCompatibilityInfo, whose field count differs between One UI versions (S23 FE 39aa3131: One UI 8.5
+# still answered every camera call with a NullPointerException after framework_patched_oneui85.jar).
 CTD="$STAGE/data/oneos_host_camera_dexdump.txt"
 if [ "$(getprop ro.build.version.sdk)" = 36 ] && [ -x /apex/com.android.art/bin/dexdump ] &&
-   [ "$(head -n 1 "$CTD" 2>/dev/null)" != "# $(getprop ro.build.fingerprint)" ]; then
+   [ "$(head -n 1 "$CTD" 2>/dev/null)" != "# 2 $(getprop ro.build.fingerprint)" ]; then
     ( t="$STAGE/camdex.tmp"; rm -rf "$t"; mkdir -p "$t" "$STAGE/data" || exit 0
-      echo "# $(getprop ro.build.fingerprint)" > "$CTD.new"
+      echo "# 2 $(getprop ro.build.fingerprint)" > "$CTD.new"
       for e in $(unzip -l /system/framework/framework.jar 2>/dev/null | awk '$NF ~ /^classes[0-9]*\.dex$/ {print $NF}'); do
           unzip -p /system/framework/framework.jar "$e" > "$t/x.dex" 2>/dev/null || continue
-          grep -a -q -F 'Landroid/hardware/ICameraService$Stub;' "$t/x.dex" 2>/dev/null || continue
+          grep -a -q -e 'Landroid/hardware/ICameraService$Stub;' -e 'Landroid/content/res/CameraCompatibilityInfo;' "$t/x.dex" 2>/dev/null || continue
           echo "# $e" >> "$CTD.new"
           nice -n 10 /apex/com.android.art/bin/dexdump "$t/x.dex" 2>/dev/null | awk '
               /^Class #[0-9]+/ { if (keep) printf "%s", buf; buf = ""; keep = 0 }
               { buf = buf $0 "\n" }
               /Class descriptor  : .Landroid\/hardware\/(ICameraService|ICameraServiceListener|camera2\/ICameraDeviceCallbacks|camera2\/ICameraDeviceUser)\$Stub(\$Proxy)?;/ { keep = 1 }
+              /Class descriptor  : .Landroid\/content\/res\/CameraCompatibilityInfo;/ { keep = 1 }
               END { if (keep) printf "%s", buf }' >> "$CTD.new"
       done
       rm -rf "$t"
@@ -3058,6 +3061,15 @@ while true; do
                     ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSCfmsStub \$PID > $STAGE/cfms_stub.log 2>&1 </dev/null &)
                     sleep 1
                     echo \"[UI Activator] CFMS stub: \$(head -n 1 $STAGE/cfms_stub.log 2>/dev/null | tr -d '\n' || true)\"
+                fi
+                # OPPO performance stand-in (0.5.49, the same class under another name): ColorOS's codecs
+                # and audioserver waited 2 x 5 s for vendor.oplus.hardware.performance.IPerformance/default
+                # on every sound start, so notification sounds, ringtones and alarms came 10 s late or not
+                # at all (Fold5 3e146336, S23 fb94d2c9). ColorOS/OxygenOS guests; ONEOS_GUEST_PERF_STUB=0: off.
+                if [ $GUEST_OPLUS = 1 ] && [ \"${ONEOS_GUEST_PERF_STUB:-1}\" = 1 ]; then
+                    ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSCfmsStub \$PID vendor.oplus.hardware.performance.IPerformance/default vendor.oplus.hardware.performance.IPerformance > $STAGE/perf_stub.log 2>&1 </dev/null &)
+                    sleep 1
+                    echo \"[UI Activator] OPPO performance stub: \$(head -n 1 $STAGE/perf_stub.log 2>/dev/null | tr -d '\n' || true)\"
                 fi
                 # The Samsung camera service worker (patches/OneOSCameraWorker.java, in
                 # the same dex), which the One UI cameraserver also asks on every open:

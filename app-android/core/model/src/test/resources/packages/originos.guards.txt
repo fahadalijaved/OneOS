@@ -16,9 +16,11 @@ d5a4946cb0d4cb0e0c812d778e3abf18cae0b469365a2d097b8128d9cf46e1ab  vivo-telephony
 4bb2db56480e1c9a167bdea6537c3acd20c14adcafeee68417f71a080f203a9a  framework-adapter_patched.jar
 67348a66e92606ca95e836bfc9e8377543b8226e967e1d07d30f9c63f963e742  vold_patched
 b4e5634d15f8c0ccd0dab35d89765f97348d7092c9af665cab63d1931636af29  service.incremental_patched.so
-06651a6c9380e5f24c5d508378520621f45fdcaaaf7cc08a9d57c3db1c0d8af5  framework_patched.jar
+1ce25f4cc744de26b47209919878b1bd514de1346ab879d3ab385c2897ebaf9c  framework_patched.jar
 654c60440e18114045ff07ff6b8d6a545c9e26993a42a9ae9545ea0470d8e835  telephony-common_patched.jar
 65ac8df891225bdf4f41b10afd7a384c7dc11ed354c70a2d2e5aff3a6f4ac800  libcamera_client_patched.so
 # 0.5.37 (originos_cn_r23): One UI 9.5 phones' camera codes (host_camera_oneui95.txt; guest_prepare.sh binds these when ro.build.version.oneui >= 90500): framework_patched_oneui95.jar libcamera_client_patched_oneui95.so
-372dff4018a6c002ab0ff5dae46e76855e05861572b30d7e6447ee6966093540  framework_patched_oneui95.jar
+3856607bbceec17a851927006cddd641a7b5a9c365ab6b40cbbf54bc1816ec1d  framework_patched_oneui95.jar
 ffbbbb92a175fc5ed72a8d9acd20421432098ae63ebf961f9fc6b56c98169935  libcamera_client_patched_oneui95.so
+# 0.5.49 (originos_cn_r24): framework_patched_oneui95.jar writes One UI 9.5's sixth CameraCompatibilityInfo field (switcher/patches/cci_oneui95.py; HyperOS on the S26 Ultra died on the five-field one)
+# originos_cn_r25: framework_patched.jar and framework_patched_oneui95.jar: vivo's camera keeps the phone's device type (switcher/patches/vivo_camera_phone.py; its fold UI is missing from the PD2609MA build)

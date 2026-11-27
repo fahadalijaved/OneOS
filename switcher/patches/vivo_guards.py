@@ -481,7 +481,11 @@ GET_TYPE = re.compile(r"^(\.method public static (?:[\w-]+ )*getDeviceType\(\)Lj
 # com.bbk.launcher2 in the CN build (PD2609MA; seventh CN run: "foldable" is not in
 # its install-compatibility deviceType "phone|flip", so it uninstalled itself and
 # exited at every start).
-LAUNCHER_PROCESSES = ("com.android.launcher3", "com.bbk.launcher2")
+# 0.5.50 (Fold5 OriginOS a36acd8a): vivo's camera (com.android.camera, VivoCamera, the PD2609MA's bar phone
+# build) asks FtDeviceInfo.getDeviceType() by reflection too (ApiHelper.isFoldAbleDevice) and with "foldable"
+# loaded com.android.camera.foldui.CameraUIController_Fold, which that build lacks: ClassNotFoundException at
+# every start (7 crashes in one session). It keeps the phone's UI the same way.
+LAUNCHER_PROCESSES = ("com.android.launcher3", "com.bbk.launcher2", "com.android.camera")
 
 
 def launcher_phone_type(root, changed):

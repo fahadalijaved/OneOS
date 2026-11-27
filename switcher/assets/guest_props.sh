@@ -1831,6 +1831,25 @@ ro.miui.backdrop_sampling_enabled=true"
             g=$(cat "$ROOTFS"/system/build.prop "$GSE"/etc/build.prop \
                 "$GPR"/etc/build.prop "$ROOTFS"/my_*/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
             h=$(getprop "$key")
+            # 0.5.49: an image without these keys (OriginOS: Fold5 6b332ef2, "Notification:
+            # ACH_Spaceline.ogg", "Couldn't open fd for content://settings/system/notification_sound")
+            # kept One UI's names, which are not among its sounds: no default notification sound or
+            # ringtone was ever set. When One UI's file is not in the guest's own folder for the key,
+            # the guest's first sound there is used for the session.
+            if [ -z "$g" ] && [ -n "$h" ]; then
+                case $key in
+                    ro.config.ringtone) sub=ringtones ;;
+                    ro.config.notification_sound) sub=notifications ;;
+                    *) sub=alarms ;;
+                esac
+                have=0; first=""
+                for d in "$ROOTFS"/system/media/audio/$sub "$GPR"/media/audio/$sub "$GSE"/media/audio/$sub "$ROOTFS"/my_*/media/audio/$sub; do
+                    [ -d "$d" ] || continue
+                    [ -e "$d/$h" ] && have=1
+                    [ -n "$first" ] || first=$(ls "$d" 2>/dev/null | grep -i -E '\.(ogg|mp3|m4a|wav|flac)$' | sort | head -n 1)
+                done
+                [ $have = 0 ] && [ -n "$first" ] && g=$first
+            fi
             [ -n "$g" ] && [ -n "$h" ] && [ "$g" != "$h" ] || continue
             echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
                 echo "guest_props: $key=$g for the session (One UI: $h)"

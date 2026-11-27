@@ -344,7 +344,7 @@ object PackageSets {
         // Samsung's touch request) and samcam_a.tar (the Galaxy A36's camera for this image, A and M phones).
         // 0.5.32 r8: OplusGestureUI_patched.apk, raise to wake from a Galaxy's pick-up sensor (coloros_lift_wake.py).
         // 0.5.33 r9: samcam.tar with fix_sensor_crop_tables.py (S24 FE front camera: no sensor crop table entry).
-        sourceDir = "out/overlays_x9u_in_1105_r10", // 0.5.21 r5: video rotation in samcam_a; 0.5.20 r4: OneOSFpTouch
+        sourceDir = "out/overlays_x9u_in_1105_r11", // 0.5.21 r5: video rotation in samcam_a; 0.5.20 r4: OneOSFpTouch
         // 0.5.05 (r2): oplus-framework_patched.jar right after the common files, as root's set_files lists it.
         files = COMMON + OPLUS_FRAMEWORK_IMS + X9U_IN_SULTRA.files.drop(COMMON.size) +
             PackageFile("samcam_a.tar", FileRole.GUEST_FIX) +
@@ -442,7 +442,7 @@ object PackageSets {
     val PIXEL_SULTRA = PackageSet(
         id = ID_PIXEL_SULTRA,
         imageId = Images.ID_PIXEL_KODIAK,
-        sourceDir = "out/overlays_pixel_kodiak_r21",
+        sourceDir = "out/overlays_pixel_kodiak_r22",
         files = PIXEL_FILES + PIXEL_DT2S + CAM95,
         omitted = listOf(TETHERING),
         approxBytes = 695_159_961L + 49701625L,
@@ -500,7 +500,7 @@ object PackageSets {
     val INFINITYX = PackageSet(
         id = ID_INFINITYX,
         imageId = Images.ID_INFINITYX,
-        sourceDir = "out/overlays_infinityx_r19",
+        sourceDir = "out/overlays_infinityx_r20",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -549,7 +549,7 @@ object PackageSets {
     val HYPER_F8U = PackageSet(
         id = ID_HYPER_F8U,
         imageId = Images.ID_HYPEROS_LHASA,
-        sourceDir = "out/overlays_hyperos_r31",
+        sourceDir = "out/overlays_hyperos_r32",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -600,7 +600,7 @@ object PackageSets {
     val HYPER_HK = PackageSet(
         id = ID_HYPER_HK,
         imageId = Images.ID_HYPEROS_HONGKONG,
-        sourceDir = "out/overlays_hyperos_hk_r5",
+        sourceDir = "out/overlays_hyperos_hk_r6",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
@@ -656,7 +656,7 @@ object PackageSets {
     val NOTHING_F8U = PackageSet(
         id = ID_NOTHING_F8U,
         imageId = Images.ID_NOTHING_METROID,
-        sourceDir = "out/overlays_nothing_r41", // 0.5.17 r36: fingerprint from One UI, removal guard
+        sourceDir = "out/overlays_nothing_r42", // 0.5.17 r36: fingerprint from One UI, removal guard
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             // 0.4.57 (r23): also Samsung IMS's framework members (guest_secims_members.py).
@@ -916,7 +916,7 @@ object PackageSets {
     val ORIGINOS = PackageSet(
         id = ID_ORIGINOS,
         imageId = Images.ID_ORIGINOS7,
-        sourceDir = "out/overlays_originos_cn_r23",
+        sourceDir = "out/overlays_originos_cn_r25",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("vivo-services_patched.jar", FileRole.GUARD_JAR),
@@ -972,7 +972,7 @@ object PackageSets {
     val LINEAGE = PackageSet(
         id = ID_LINEAGE,
         imageId = Images.ID_LINEAGE,
-        sourceDir = "out/overlays_lineage_r11", // 0.5.21 r8: video rotation in samcam_a and samcam_bar
+        sourceDir = "out/overlays_lineage_r12", // 0.5.21 r8: video rotation in samcam_a and samcam_bar
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
@@ -1175,7 +1175,7 @@ object PackageSets {
     val PIXELOS = PackageSet(
         id = ID_PIXELOS,
         imageId = Images.ID_PIXELOS_ONYX,
-        sourceDir = "out/overlays_pixelos_onyx_r5",
+        sourceDir = "out/overlays_pixelos_onyx_r6",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),

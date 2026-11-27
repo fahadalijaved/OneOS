@@ -235,4 +235,20 @@ class SessionLogsTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun bootReasonOfABootBeforeTheSessionIsNotShown() {
+        val reason = "sys.boot.reason=reboot,lpm\npersist.sys.boot.reason.history=reboot,lpm,1795603453\nreboot,userrequested,1795533063\n"
+        val current = "{\n  \"session\": \"ae8032612faf0fce\",\n  \"epoch\": 1795635974,\n  \"boot\": \"x\"\n}"
+        assertEquals(ReturnOutcomes.NO_RESTART, ReturnOutcomes.currentBootReason(reason, current))
+        // A restart after the session started keeps its reason.
+        val later = current.replace("1795635974", "1795600000")
+        assertEquals("reboot,lpm", ReturnOutcomes.currentBootReason(reason, later))
+        // No session start known: the reason as before.
+        assertEquals("reboot,lpm", ReturnOutcomes.currentBootReason(reason, null))
+        assertNull(ReturnOutcomes.currentBootReason(null, current))
+        // Nothing logged and no restart: not a force restart.
+        assertEquals(OutcomeKind.UNKNOWN, ReturnOutcomes.parse(null, null, ReturnOutcomes.NO_RESTART).kind)
+        assertEquals(OutcomeKind.HARD_RESET, ReturnOutcomes.parse(null, null, "reboot,lpm").kind)
+    }
 }
