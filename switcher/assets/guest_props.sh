@@ -1982,10 +1982,13 @@ ro.miui.backdrop_sampling_enabled=true"
     # has the phone's version. The minor version (sdk_full) goes with it, so the block below leaves it.
     a17_host=$(getprop ro.build.version.sdk)
     a17_guest=$(sed -n 's/^ro.build.version.sdk=//p' "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
+    a17_nt=0
+    { [ -f "$ROOTFS/system_ext/framework/nt-telephony-common.jar" ] ||
+      [ -f "$ROOTFS/system/system_ext/framework/nt-telephony-common.jar" ]; } && a17_nt=1
     # 0.5.51: also another Android 17 image whose set brings its Android 17 modules for One UI 8 (ColorOS 17 on the
     # S22s: uprobestats_payload.img staged), as guest_prepare.sh's A17_ON_A16; OxygenOS 17 Pad on tablets unchanged.
     if [ "$a17_host" = 36 ] && [ "$a17_guest" = 37 ] &&
-       { grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null || [ -f "$STAGE/uprobestats_payload.img" ]; }; then
+       { [ "$a17_nt" = 1 ] || grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null || [ -f "$STAGE/uprobestats_payload.img" ]; }; then
         for key in ro.build.version.sdk ro.build.version.sdk_full ro.build.version.release \
                    ro.build.version.release_or_codename ro.build.version.release_or_preview_display ro.build.version.codename; do
             g=$(sed -n "s/^$key=//p" "$ROOTFS/system/build.prop" 2>/dev/null | tail -n 1)
@@ -2005,7 +2008,9 @@ ro.miui.backdrop_sampling_enabled=true"
         # and removed on return. ONEOS_A17_CAMERA_SERVICE=1 leaves it unset (a manual start's test only).
         # 0.5.39: not when guest_prepare.sh bound framework_patched_oneui8.jar (One UI 8's camera codes); 0.5.45: or
         # framework_patched_oneui85.jar on One UI 8.5.
-        if [ -f "$STAGE/a16_camera_on" ]; then
+        if [ "$a17_nt" = 1 ] && [ "${ONEOS_NT_A17_CAMERA_OFF:-0}" != 1 ]; then
+            echo "guest_props: Nothing OS 5 on One UI 8: camera service left as the set has it (ONEOS_NT_A17_CAMERA_OFF=1 turns the guest's camera off)"
+        elif [ -f "$STAGE/a16_camera_on" ]; then
             echo "guest_props: experimental One UI 9.5 on One UI 8: camera on (the phone's own camera codes, guest_prepare.sh)"
         elif [ "${ONEOS_A17_CAMERA_SERVICE:-0}" != 1 ]; then
             key=config.disable_cameraservice

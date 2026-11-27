@@ -182,7 +182,7 @@ SET_HYPERHK="OneOSCameraProcessingStub.apk OneOSFoldCutout.apk OneOSGuest.apk On
 # services.jar and framework.jar need the guards; no vendor framework, no vold
 # patch (its build is unknown to the patcher) and no signal poll injection.
 SET_NOTHING="NothingGenerateRingtoneService_patched.apk NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_customringtone.tar nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam.tar samcam_bar.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched vold_patched wifi_payload.img"
-SET_NOTHINGA="NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSBrightnessRange34.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam_a.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar vold_patched wifi_payload.img"
+SET_NOTHINGA="NothingLauncher3_patched.apk OneOSBrightnessRange.apk OneOSBrightnessRange34.apk OneOSFoldCutout.apk OneOSGuest.apk OneOSNtAbout.apk OneOSNtAboutFlip.apk OneOSNtAboutFold8.apk OneOSNtAboutPhone.apk OneOSNtAboutS26U.apk OneOSNtEssentialKey.apk OneOSPhoneInjection.apk OneOSTabletQs.apk SystemUI_patched.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img ims-ext-common_patched.jar libbootanimation_preapex_patched.so libcamera_client_patched.so mediaprovider_payload.img nfcservices_payload.img nothing_product_media.tar nt-telephony-common_patched.jar ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 permission_payload.img rkpd_payload.img runtime_payload.img samcam_a.tar sdkext_payload.img service.incremental_patched.so services_patched.jar surfaceflinger_patched telephony-common_patched.jar vold_patched wifi_payload.img conscrypt_payload.img devicelock_payload.img ipsec_payload.img media.swcodec_payload.img media_payload.img neuralnetworks_payload.img npumanager_payload.img os.statsd_payload.img profiling_payload.img resolv_payload.img scheduling_payload.img telephonycore_payload.img tethering_connectivity_native_a17.so tzdata_payload.img uprobestats_payload.img uwb_payload.img webapp_payload.img"
 # One UI 9.5 (0.5.22): the Galaxy S26 Ultra build's guarded jars and camera libraries, signal poll, payloads and software floating features (set r1); no vold, no tethering.
 SET_ONEUI="OneOSFoldCutout.apk OneOSGuest.apk OneOSPhoneInjection.apk OneOSPixelStatusBar.apk adservices_payload.img appsearch_payload.img art_payload.img bt_payload.img cellbroadcast_payload.img configinfrastructure_payload.img crashrecovery_payload.img extservices_payload.img framework_patched.jar gmssystem_payload.img guards.txt healthfitness_payload.img i18n_payload.img libcamera_client_patched.so libcameracompatbilityinfo_patched.so mediaprovider_payload.img nfcservices_payload.img npumanager_payload.img ondevicepersonalization_payload.img oneos-apex-requires.txt oneos-telephony.jar oneos-telephony.sha256 oneui_floating_add.txt permission_payload.img rkpd_payload.img runtime_payload.img sdkext_payload.img services_patched.jar vold_patched service.incremental_patched.so telephony-common_patched.jar telephonycore_payload.img webapp_payload.img wifi_payload.img samcam_a_oneui.tar"
 # One UI 9.5 on the Z Fold8 (0.5.35, pull request #328): the same plus Josh's Fold8 files.
@@ -688,9 +688,13 @@ profile_set() {
         "s-fe-9925 oxygenos16-cph2745") echo oxygen16 ;;
         "s-fe-8450 oxygenos16-cph2745") echo oxygen16 ;;
         "s-plus-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-9925 nothingos5-asteroids") echo nothing-a ;;
         "s-ultra-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-9925 nothingos5-asteroids") echo nothing-a ;;
         "s-ultra-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8450 nothingos5-asteroids") echo nothing-a ;;
         "s-ultra-8450-jp oxygenos16-cph2745") echo oxygen16 ;;
+        "s-ultra-8450-jp nothingos5-asteroids") echo nothing-a ;;
         "a07 oxygenos16-cph2745") echo oxygen16 ;;
         "a26 oxygenos16-cph2745") echo oxygen16 ;;
         "a35 oxygenos16-cph2745") echo oxygen16 ;;
@@ -759,7 +763,9 @@ profile_set() {
         "s26-fe hyperos-lhasa") echo hyper-f8u ;;
         "s26-fe hyperos-hongkong") echo hyper-hk ;;
         "s-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-8450 nothingos5-asteroids") echo nothing-a ;;
         "s-plus-8450 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-plus-8450 nothingos5-asteroids") echo nothing-a ;;
         "m55s oxygenos16-cph2745") echo oxygen16 ;;
         "s-9945 nothingos5-metroid") echo nothing-f8u ;;
         "s-9945 originos7-pd2609ma") echo originos ;;
@@ -789,6 +795,7 @@ profile_set() {
         "s-ultra-8550-jp oxygenos16-cph2745") echo oxygen16 ;;
         "s-ultra-8550-jp originos7-pd2609ma") echo originos ;;
         "s-9925 oxygenos16-cph2745") echo oxygen16 ;;
+        "s-9925 nothingos5-asteroids") echo nothing-a ;;
         "a16-mtk oxygenos16-cph2745") echo oxygen16 ;;
         # 0.4.93: the au Galaxy S23 (SCG19): the S23's rows, untested.
         "s-8550-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
@@ -1232,6 +1239,10 @@ a17_on_a16() {
         *) return 1 ;;
     esac
 }
+nothing_a17_on_a16() {
+    [ "$1" = nothingos5-asteroids ] && [ "$(image_sdk "$1")" = 37 ] &&
+        [ "$(getprop ro.build.version.sdk)" = 36 ]
+}
 check_table() { # <file> <image id>
     f=$1
     if [ "$(image_sdk "$2")" = 36 ]; then carried=$INSTALLD_SHA_36 ok=$INSTALLD_OK_36
@@ -1240,7 +1251,7 @@ check_table() { # <file> <image id>
             ok="$ok $INSTALLD_SHA_95"
             # Tester build: a set that reads the codes at runtime maps each call to One UI 8.5's or 8.0's
             # code by name and signature and refuses one the phone lacks, as it does for One UI 9.5's table.
-            a17_on_a16 "$2" && ok="$ok $INSTALLD_OK_36"
+            { a17_on_a16 "$2" || nothing_a17_on_a16 "$2"; } && ok="$ok $INSTALLD_OK_36"
         fi
     fi
     [ -f "$f" ] || refuse "host_installd.table missing"
@@ -1646,7 +1657,7 @@ do_launch() {
     [ "$(getprop ro.soc.model)" = "$3" ] || refuse "chip $(getprop ro.soc.model), profile $M_PROFILE is $3"
     isdk=$(image_sdk "$M_IMAGE")
     # The tester build's One UI 9.5 on One UI 8 is the only other Android version that starts (a17_on_a16).
-    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || a17_on_a16 "$M_IMAGE" ||
+    [ "$(getprop ro.build.version.sdk)" = "$isdk" ] || a17_on_a16 "$M_IMAGE" || nothing_a17_on_a16 "$M_IMAGE" ||
         refuse "Android SDK $(getprop ro.build.version.sdk), the image is $isdk"
     idle_or_refuse launch
     if [ -f "$STAGE/persist_session.active" ]; then

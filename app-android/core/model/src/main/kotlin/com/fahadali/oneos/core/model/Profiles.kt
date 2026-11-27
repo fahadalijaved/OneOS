@@ -1238,7 +1238,7 @@ object Profiles {
         codename = "g0s",
         socModel = "s5e9925",
         form = FormFactor.BAR,
-        choices = listOf(OXYGEN16_CHOICE),
+        choices = listOf(OXYGEN16_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(EXYNOS),
     ))
 
@@ -1249,7 +1249,7 @@ object Profiles {
         codename = "b0s",
         socModel = "s5e9925",
         form = FormFactor.BAR,
-        choices = listOf(OXYGEN16_CHOICE),
+        choices = listOf(OXYGEN16_CHOICE, NOTHING_A_CHOICE),
         notes = listOf(EXYNOS),
     ))
 
@@ -1260,7 +1260,7 @@ object Profiles {
         codename = "b0q",
         socModel = "SM8450",
         form = FormFactor.BAR,
-        choices = listOf(OXYGEN16_CHOICE),
+        choices = listOf(OXYGEN16_CHOICE, NOTHING_A_CHOICE),
     ))
 
     /**
