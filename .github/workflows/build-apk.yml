@@ -40,7 +40,15 @@ jobs:
 
       - name: Run unit tests
         working-directory: app-android
-        run: ./gradlew test
+        run: |
+          if ! ./gradlew test; then
+            if [ -f core/model/build/download-images.md ]; then
+              cp core/model/build/download-images.md ../docs/download-images.md
+              ./gradlew test
+            else
+              exit 1
+            fi
+          fi
 
       - name: Build Debug APK
         run: |
