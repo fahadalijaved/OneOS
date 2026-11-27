@@ -356,9 +356,16 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy A17 5G (SM-A176, s5e8535), not tested yet
   - Galaxy A15 (SM-A155, MT6789), not tested yet
   - Galaxy A34 5G (SM-A346, MT6877), not tested yet
+  - Galaxy S22+ (SM-S906, s5e9925), not tested yet
+  - Galaxy S22 Ultra (SM-S908, s5e9925), not tested yet
+  - Galaxy S22 Ultra (Snapdragon) (SM-S908, SM8450), not tested yet
   - Galaxy A55 5G (SM-A556, s5e8845), not tested yet
+  - Galaxy S22 (Snapdragon) (SM-S901, SM8450), not tested yet
+  - Galaxy S22 Ultra (au) (SCG14, SM8450), not tested yet
+  - Galaxy S22 (Exynos) (SM-S901, s5e9925), not tested yet
   - Galaxy M35 5G (SM-M356, s5e8835), not tested yet
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
+  - Galaxy S22+ (Snapdragon) (SM-S906, SM8450), not tested yet
 
 ## OxygenOS 16, OnePlus CPH2745 build
 
