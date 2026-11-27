@@ -91,6 +91,24 @@ every step saying what to do now, what is done (versions, sizes, checks), what i
 words with its fix ("In the app"). Screens only: no root verb, argument, check or script changed. Not compiled
 or opened on a device yet.
 
+**Updates, live progress, pre-switch check clarity, and one-tap log sharing** (2026-11-28):
+1. **Automatic update checks** (`UpdateCheck`, `OneiosUpdates`, `OneiosAppReleases`): one hourly GitHub release check
+   against `akshaynexus/OneiOS` latest release at app start and screen resume answers both the runtime version and the
+   OneiOS-signed `OneOS-oneios-<version>-debug.apk` (with `.sha256` verification); kernel staleness comes from the
+   phone's own status. The main screen and iOS 27's page show one "Update available" card/banner listing runtime,
+   kernel, and app updates with one-tap install.
+2. **Real progress during Update the kernel** (`OneiosKbInput`, `OneiosKernelUpdate`, `OneiosToolJob`, `OneiosSteps`,
+   `OneiosToolActivity`, `OneiosActivity`): shows live pairing progress (`Pairing file k of N`), download bytes,
+   `oneios-tool serve prelink` step names and latest output line, and a live 1-second elapsed timer (`42 s`, `1 min 15 s`).
+3. **Clearer pre-switch check without Android check blocking** (`OneiosJob`, `oneios_root.sh`, `oneios_switch.sh`,
+   `OneiosSwitchActivity`): read-only iOS status checks no longer wait behind Android's read-only `StageCheck`;
+   `oneios_switch.sh` emits `CHECKING: ...` at every preflight stage and `oneios_root.sh` streams them live as `@@STEP`
+   lines with a live elapsed timer. Every safety check for the way back to One UI is unchanged.
+4. **One-tap Share logs & Copy GitHub issue text** (`OneiosBugReport`, `OneiosLogsJob`, `OneiosLogsActivity`,
+   `OneiosActivity`): one tap builds and shares a zip bundling `xnuhost.log`, switch/return/display/feeder logs,
+   best-effort iOS last-boot unified log (`oneios-tool serve ioslog-show`), `summary.txt`, and versions, plus a
+   one-tap "Copy GitHub issue text" button (versions + session summary; no personal data or Apple files).
+
 ## Where its pieces come from
 
 | Piece | Where from | In git or a release? |

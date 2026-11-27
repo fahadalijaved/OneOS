@@ -354,4 +354,11 @@
     <string name="oneios_conf_plain">This runtime\'s oneios-tool cannot check the file: Save writes it as it is.</string>
     <string name="oneios_conf_discard">Discard your changes?</string>
     <string name="oneios_conf_discard_run">Discard</string>
+    <string name="oneios_update_available_title">Update available</string>
+    <string name="oneios_update_available_tap">Tap to install updates.</string>
+    <string name="oneios_logs_share_bug">Share logs</string>
+    <string name="oneios_logs_share_bug_line">One zip with session logs, switch and return logs, iOS\'s last boot log, and versions.</string>
+    <string name="oneios_logs_copy_issue">Copy GitHub issue text</string>
+    <string name="oneios_logs_copy_issue_line">Versions and last session summary, ready to paste into an issue.</string>
+    <string name="oneios_logs_issue_copied">Bug report text copied to clipboard.</string>
 </resources>

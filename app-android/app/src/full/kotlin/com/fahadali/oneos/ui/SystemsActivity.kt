@@ -272,6 +272,9 @@ class SystemsFragment : Fragment() {
         // A finished check also reads the last session's logs (Readiness.tick), as Home does.
         subs += StageCheck.observe { if (!it.busy) context?.let(Readiness::tick); redraw() }
         subs += com.fahadali.oneos.session.AppUpdater.observe { updateLine() }
+        subs += com.fahadali.oneos.session.UpdateCheck.observe { updateLine() }
+        subs += com.fahadali.oneos.session.OneiosJob.observe { updateLine() }
+        subs += com.fahadali.oneos.session.OneiosToolJob.observe { updateLine() }
         subs += PrepareJob.observe { redraw() }
         subs += OldStagesJob.observe { redraw(); activity?.let { SystemManage.showResult(it) } }
         subs += com.fahadali.oneos.session.RemoveJob.observe { redraw(); activity?.let { SystemManage.showResult(it) } }
@@ -368,6 +371,39 @@ class SystemsFragment : Fragment() {
         val banner = root.findViewById<View>(R.id.systems_update_banner)
         val u = com.fahadali.oneos.session.AppUpdater.state
         val next = u.update?.takeIf { it.newerThan(com.fahadali.oneos.BuildConfig.VERSION_CODE) }
+        val iosStatus = com.fahadali.oneos.session.OneiosJob.state.status
+        val iosInput = OneiosStepRow.input(ctx)
+        val iosSteps = com.fahadali.oneos.core.root.OneiosSteps.of(iosInput)
+        val kernelState = iosSteps.step(com.fahadali.oneos.core.root.OneiosSteps.Id.KERNEL).state
+        val kernelDue = if (iosStatus?.image != null && iosStatus.runtime != null &&
+            (kernelState == com.fahadali.oneos.core.root.OneiosSteps.State.TODO || kernelState == com.fahadali.oneos.core.root.OneiosSteps.State.FAILED)
+        ) {
+            iosInput.expectedKernel ?: com.fahadali.oneos.core.model.OneiosUpdates.KERNEL_NEXT
+        } else null
+        val avail = com.fahadali.oneos.core.model.OneiosUpdates.of(
+            iosStatus?.runtime?.version,
+            com.fahadali.oneos.session.UpdateCheck.latestRuntime(ctx),
+            kernelDue,
+            com.fahadali.oneos.BuildConfig.VERSION_CODE,
+            com.fahadali.oneos.session.UpdateCheck.app,
+        )
+        val appActive = u.busy || u.phase == com.fahadali.oneos.session.AppUpdater.Phase.FAILED || u.phase == com.fahadali.oneos.session.AppUpdater.Phase.CONFIRM
+        if (avail.needsPage && !appActive && banner != null) {
+            root.findViewById<TextView>(R.id.systems_update_title).text = getString(R.string.oneios_update_available_title)
+            root.findViewById<TextView>(R.id.systems_update_text).text = avail.parts.joinToString(" · ")
+            val action = root.findViewById<TextView>(R.id.systems_update_action)
+            action.text = getString(R.string.systems_update_action)
+            action.visibility = View.VISIBLE
+            val go = View.OnClickListener { startActivity(OneiosActivity.intent(ctx)) }
+            banner.setOnClickListener(go)
+            action.setOnClickListener(go)
+            banner.isClickable = true
+            banner.contentDescription = avail.line
+            banner.visibility = View.VISIBLE
+            line.setOnClickListener(null)
+            line.visibility = View.GONE
+            return
+        }
         if (next != null && banner != null) {
             // 0.4.47 (owner: "the update bar is so small on the main page"): a banner with the version,
             // what it fixes or its progress, and an Update button; the whole card is the tap target.

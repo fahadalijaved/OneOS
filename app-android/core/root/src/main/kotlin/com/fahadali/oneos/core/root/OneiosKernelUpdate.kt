@@ -57,6 +57,9 @@ class OneiosKernelUpdate(
         /** What runs now, for the screens. */
         fun phase(phase: Phase)
 
+        /** Detail inside a non-tool phase (e.g. pairing file k of N); default no-op for tests. */
+        fun detail(text: String, done: Long = 0, total: Long = 0) {}
+
         /** A step of the update's own (not the tool's) that ended well: one line for the screen. */
         fun done(line: String)
 
@@ -109,10 +112,13 @@ class OneiosKernelUpdate(
     fun run(io: Io, cachedSha256: String?): Outcome {
         // 1. The pairing files, each the pinned one, before root is asked for anything.
         io.phase(Phase.INPUTS)
-        OneiosKbInput.put(kb, assets, { verb, args, data -> io.root(verb, args, data) }, { io.stopped }, kbDir)?.let { r ->
+        OneiosKbInput.put(kb, assets, { verb, args, data -> io.root(verb, args, data) }, { io.stopped }, kbDir) { i, n, name ->
+            io.detail("Pairing file $i of $n: $name", i.toLong(), n.toLong())
+        }?.let { r ->
             if (r === OneiosKbInput.STOPPED) return cancelled("kbinput", io)
             return stopped("kbinput", OneiosToolFlow.End.REFUSED, r.code, r.text, io, clean = false)
         }
+        io.detail("")
         io.done("The pairing files are on this phone (${kb.names.size}, each the pinned one).")
 
         // 2. Apple's kernelcache: the cached one, or fetched from Apple and decoded on this phone.

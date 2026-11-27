@@ -125,23 +125,32 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
 
     @Volatile private var connection: HttpURLConnection? = null
 
-    /** The other job of the app that runs now, in words; null when none does (only one job runs at a time). */
-    private fun blocker(): String? = when {
-        StageCheck.state.busy -> "An Android system's check"
+    /**
+     * The other job of the app that runs now, in words; null when none does.
+     *
+     * A read-only iOS status check ([readOnly] = true) touches only `/data/local/tmp/oneios`, so it never waits behind
+     * Android's read-only [StageCheck] (the owner, 2026-11-28: "the Android check is waiting, stupid, I don't know what
+     * it waits for"). Mutating jobs still wait so two root jobs never write or switch at the same time.
+     */
+    private fun blocker(readOnly: Boolean = false): String? = when {
+        !readOnly && StageCheck.state.busy -> "An Android system's check"
         PrepareJob.state.busy -> "An Android system's setup"
         LaunchJob.state.busy -> "An Android system's switch"
-        LogJob.state.busy -> "Reading the logs"
-        OldStagesJob.state.busy -> "The clean-up of old stages"
-        RemoveJob.state.busy -> "A removal"
-        OneiosChecksJob.state.busy -> "The hardware checks"
-        OneiosToolJob.state.busy -> "An oneios-tool flow (Make iOS image, Update the kernel, Check every file)"
+        LogJob.state.busy -> "Reading Android logs"
+        OldStagesJob.state.busy -> "Cleaning up old Android stages"
+        RemoveJob.state.busy -> "Removing an Android system"
+        OneiosChecksJob.state.busy -> "Hardware checks"
+        OneiosToolJob.state.busy -> OneiosToolJob.state.let { t ->
+            val what = t.kernelPhase?.words ?: t.makePhase?.words ?: t.stepDetail
+            if (what != null) "oneios-tool ($what)" else "An oneios-tool flow"
+        }
         OneiosConfJob.state.writing -> "Saving xnuhost.conf (Switches)"
         else -> null
     }
 
-    private fun othersBusy() = blocker() != null
+    private fun othersBusy(readOnly: Boolean = false) = blocker(readOnly) != null
 
-    fun canStart(): Boolean = !state.busy && !othersBusy()
+    fun canStart(readOnly: Boolean = false): Boolean = !state.busy && !othersBusy(readOnly)
 
     /** The screens hear the state again (OneiosAuto: a newer release was found, which is no state of this job). */
     fun nudge() = update(state)
@@ -216,20 +225,28 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      * left ([OneiosStatus.partial]), once: the screens show the stage while the last check still runs.
      */
     private fun readStatus(app: Context, partial: ((OneiosStatus) -> Unit)? = null): OneiosStatus {
-        // A check says each step as it comes (the screens count its seconds): root's grant, the stage, the last check.
+        // A check says each step as it comes (the screens count its seconds): root's grant, the stage, each preflight step.
         val shown = partial != null
         if (shown) say("Asking root for access…")
         var first = true
         var sent = false
+        var lastStep: String? = null
         val hook: (RootReply) -> Unit = { r ->
             if (shown && first) {
                 first = false
-                say("Root answered. Reading what is on this phone…")
+                say("Root answered. Reading staged iOS state…")
             }
             if (partial != null && !sent) OneiosStatus.partial(r.results)?.let {
                 sent = true
                 partial(it)
-                say("Checking the staged files and the phone…")
+                say("Running quick preflight check…")
+            }
+            if (shown) {
+                val step = r.steps.lastOrNull()
+                if (step != null && step != lastStep) {
+                    lastStep = step
+                    say(step)
+                }
             }
         }
         // Root prints its first line at once; nothing within ROOT_FIRST_LINE_MS is su waiting for a grant that does
@@ -351,7 +368,8 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      * the screen can say why (before, it stayed on "Checking…").
      */
     private fun job(ctx: Context, phase: Phase, kind: OneiosFlow.Job, first: String, onOk: (() -> Unit)? = null, work: (Context) -> String?) {
-        if (!canStart()) return
+        val readOnly = kind == OneiosFlow.Job.CHECK
+        if (!canStart(readOnly)) return
         val app = ctx.applicationContext
         cancelled = false
         meter.reset()
@@ -393,7 +411,7 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      */
     private fun refresh(app: Context, tries: Int) {
         if (state.busy) return
-        val other = blocker()
+        val other = blocker(readOnly = true)
         if (other == null) {
             main.removeCallbacksAndMessages(WAIT)
             job(app, Phase.CHECKING, OneiosFlow.Job.CHECK, "Checking what is on this phone…") { null }
@@ -693,24 +711,49 @@ object OneiosJob : BackgroundJob<OneiosJob.State>(State(), "oneos-oneios") {
      * [takeover]: the Android takeover's toggle (docs/oneios.md, "Android takeover"), off by default; only on a phone
      * whose profile offers it ([OneiosSystem.takeoverOfferedOn]). Root's switch then gets the mode as its third word.
      */
-    fun switch(ctx: Context, ticked: Boolean, notThisPhoneTicked: Boolean = false, takeover: Boolean = false) = job(ctx, Phase.SWITCHING, OneiosFlow.Job.SWITCH, "Checking before the switch…") { app ->
-        val profile = Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile
-        val gate = OneiosSystem.gate(profile, ticked, notThisPhoneTicked)
-        if (gate.level != Level.OK) throw Failed(if (gate.level == Level.BLOCK) gate.detail else "Tick the box first: ${gate.title}.")
-        if (takeover && !OneiosSystem.takeoverOfferedOn(profile)) throw Failed("${OneiosSystem.TAKEOVER_TITLE} is not offered on this phone.")
-        // This build's session scripts and boot screen, before every switch: an app update reaches the stage
-        // without a new import. A refusal here (no stage yet, an open session) is not the answer: root's
-        // preflight below gives that, and a stage that keeps its earlier scripts switches as it did before.
-        for (s in sessionFiles(app)) {
-            if (cancelled) throw Failed("stopped")
-            val staged = root(app, OneiosRoot.Verb.SCRIPT, listOf(s.name, s.bytes.size.toString(), s.sha256), RootShell.Feed { it.write(s.bytes) })
-            if (!staged.ok) break
+    fun switch(ctx: Context, ticked: Boolean, notThisPhoneTicked: Boolean = false, takeover: Boolean = false) {
+        if (!canStart()) {
+            val why = blocker() ?: "Another iOS job"
+            update(state.copy(last = OneiosFlow.Job.SWITCH, failed = true, failure = "$why is still running. Wait for it to finish, then switch again."))
+            return
         }
-        must(root(app, OneiosRoot.Verb.SWITCH, OneiosSystem.switchArgs(BuildConfig.VERSION_CODE, takeover), silenceMs = 180_000))
-        // The staged set's own iOS: "iOS 16.5" on the A56 (issue 73), "iOS 27.0.1" or "iOS 27.2.1" (the last status
-        // read); the phone's recommended choice when none was read.
-        val name = OneiosSystem.shortName(state.status?.image?.version ?: OneiosImageChoice.of(profile).version)
-        if (takeover) "Switching to $name (Android takeover)…" else "Switching to $name…"
+        job(ctx, Phase.SWITCHING, OneiosFlow.Job.SWITCH, "Checking phone profile and switch gates…") { app ->
+            val profile = Profiles.resolve(FactProbe(app).collect(RootProbe(app).signals())).profile
+            val gate = OneiosSystem.gate(profile, ticked, notThisPhoneTicked)
+            if (gate.level != Level.OK) throw Failed(if (gate.level == Level.BLOCK) gate.detail else "Tick the box first: ${gate.title}.")
+            if (takeover && !OneiosSystem.takeoverOfferedOn(profile)) throw Failed("${OneiosSystem.TAKEOVER_TITLE} is not offered on this phone.")
+            // This build's session scripts and boot screen, before every switch: an app update reaches the stage
+            // without a new import. A refusal here (no stage yet, an open session) is not the answer: root's
+            // preflight below gives that, and a stage that keeps its earlier scripts switches as it did before.
+            val files = sessionFiles(app)
+            for ((idx, s) in files.withIndex()) {
+                if (cancelled) throw Failed("stopped")
+                say("Staging session script ${idx + 1} of ${files.size}: ${s.name}…")
+                val staged = root(app, OneiosRoot.Verb.SCRIPT, listOf(s.name, s.bytes.size.toString(), s.sha256), RootShell.Feed { it.write(s.bytes) })
+                if (!staged.ok) break
+            }
+            say("Running pre-switch checks…")
+            var lastStep: String? = null
+            must(
+                root(
+                    app,
+                    OneiosRoot.Verb.SWITCH,
+                    OneiosSystem.switchArgs(BuildConfig.VERSION_CODE, takeover),
+                    silenceMs = 180_000,
+                    onLine = { r ->
+                        val step = r.steps.lastOrNull()
+                        if (step != null && step != lastStep) {
+                            lastStep = step
+                            say(step)
+                        }
+                    },
+                ),
+            )
+            // The staged set's own iOS: "iOS 16.5" on the A56 (issue 73), "iOS 27.0.1" or "iOS 27.2.1" (the last status
+            // read); the phone's recommended choice when none was read.
+            val name = OneiosSystem.shortName(state.status?.image?.version ?: OneiosImageChoice.of(profile).version)
+            if (takeover) "Switching to $name (Android takeover)…" else "Switching to $name…"
+        }
     }
 
     /** Back to One UI, for a session that is still open while this app runs (one that never stopped One UI, or is stuck). */

@@ -8,6 +8,7 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import com.fahadali.oneos.BuildConfig
 import com.fahadali.oneos.core.model.AppUpdate
+import com.fahadali.oneos.core.model.OneiosAppRelease
 import com.fahadali.oneos.core.model.SuState
 import com.fahadali.oneos.core.root.RootScript
 import com.fahadali.oneos.core.root.SuProbe
@@ -83,18 +84,24 @@ object AppUpdater : BackgroundJob<AppUpdater.State>(State(), "oneos-update") {
         StageCheck.state.busy || PrepareJob.state.busy || LaunchJob.state.busy || LogJob.state.busy ||
             OldStagesJob.state.busy || RemoveJob.state.busy
 
-    /** Reads update.json unless it was read in the last hours ([force]: now). */
+    /**
+     * Checks for a newer OneOS APK: the test channel keeps its own update.json; normal builds check OneiOS's latest
+     * GitHub release through [UpdateCheck] (signed with the OneiOS debug key, shared with the runtime check).
+     */
     fun check(ctx: Context, force: Boolean = false) {
         if (state.busy) return
         val app = ctx.applicationContext
+        val testUrl = AppUpdate.testUrl(testCode(app))
+        if (testUrl == null) {
+            UpdateCheck.run(app, force)
+            return
+        }
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         if (!force && state.phase != Phase.IDLE && now - prefs.getLong("checked", 0) < CHECK_EVERY_MS) return
         update(state.copy(phase = Phase.CHECKING, message = null))
         executor.execute {
-            val testUrl = AppUpdate.testUrl(testCode(app))
-            val test = testUrl != null
-            val r = runCatching { AppUpdate.parse(fetchText(testUrl ?: AppUpdate.URL), test).getOrThrow() }
+            val r = runCatching { AppUpdate.parse(fetchText(testUrl), test = true).getOrThrow() }
             prefs.edit().putLong("checked", now).apply()
             val u = r.getOrNull()
             update(
@@ -104,11 +111,47 @@ object AppUpdater : BackgroundJob<AppUpdater.State>(State(), "oneos-update") {
                     else -> State(Phase.CURRENT, u)
                 },
             )
-            // The APK an earlier update installed stayed in files/oneos-update (0.4.44): only the
-            // update on offer is kept (its part, to resume, or its download, checked again before use).
-            val keep = u?.takeIf { it.newerThan(BuildConfig.VERSION_CODE) }?.let { setOf("OneOS-${it.versionCode}.part", APK) }.orEmpty()
-            dir(app).listFiles()?.filter { it.name !in keep }?.forEach { it.delete() }
+            cleanOldApks(app, u)
         }
+    }
+
+    /**
+     * Called on [UpdateCheck]'s background thread with the latest OneiOS release's APK (null when the release has none).
+     * Fetches the small `.sha256` asset only when the APK is newer than this build.
+     */
+    internal fun offer(app: Context, release: OneiosAppRelease?) {
+        if (testCode(app) != null) return
+        if (state.phase == Phase.DOWNLOADING || state.phase == Phase.INSTALLING) return
+        if (release == null || release.versionCode <= BuildConfig.VERSION_CODE) {
+            if (state.phase == Phase.CHECKING || state.phase == Phase.IDLE || state.phase == Phase.AVAILABLE || state.phase == Phase.FAILED) {
+                update(State(Phase.CURRENT))
+            }
+            cleanOldApks(app, null)
+            return
+        }
+        val r = runCatching { release.update(UpdateCheck.sha256Of(release)) }
+        val u = r.getOrNull()
+        update(
+            if (u != null) State(Phase.AVAILABLE, u)
+            else State(Phase.FAILED, message = "Could not read ${release.assetName}.sha256: ${r.exceptionOrNull()?.message ?: "no answer"}"),
+        )
+        cleanOldApks(app, u)
+    }
+
+    internal fun markChecking(app: Context, force: Boolean) {
+        if (testCode(app) != null || state.busy) return
+        if (force || state.phase == Phase.IDLE) update(state.copy(phase = Phase.CHECKING, message = null))
+    }
+
+    internal fun offerFailed(message: String) {
+        if (state.phase == Phase.CHECKING) update(State(Phase.FAILED, message = message))
+    }
+
+    private fun cleanOldApks(app: Context, u: AppUpdate?) {
+        // The APK an earlier update installed stayed in files/oneos-update (0.4.44): only the
+        // update on offer is kept (its part, to resume, or its download, checked again before use).
+        val keep = u?.takeIf { it.newerThan(BuildConfig.VERSION_CODE) }?.let { setOf("OneOS-${it.versionCode}.part", APK) }.orEmpty()
+        dir(app).listFiles()?.filter { it.name !in keep }?.forEach { it.delete() }
     }
 
     fun canInstall(): Boolean =

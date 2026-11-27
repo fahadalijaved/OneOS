@@ -34,6 +34,7 @@ object OneiosKbInput {
         root: (verb: OneiosRoot.Verb, args: List<String>, data: ByteArray) -> String?,
         stopped: () -> Boolean,
         dir: String = OneiosTool.KB,
+        onFile: (index: Int, count: Int, name: String) -> Unit = { _, _, _ -> },
     ): Refusal? {
         val names = kb.names
         if (names.isEmpty()) return Refusal("not-found", "the app's $dir/kb.json lists no files: reinstall OneOS")
@@ -42,8 +43,9 @@ object OneiosKbInput {
             if (kb.files[name] != Hashes.sha256(bytes)) return Refusal("mismatch", "the app's $dir/$name is not the pinned one: reinstall OneOS")
         }
         val last = if (dir == OneiosTool.KB) emptyList() else listOf(dir)
-        for (name in names) {
+        for ((index, name) in names.withIndex()) {
             if (stopped()) return STOPPED
+            onFile(index + 1, names.size, name)
             val bytes = assets.getValue(name)
             root(OneiosRoot.Verb.KBINPUT, listOf(name, bytes.size.toString(), Hashes.sha256(bytes)) + last, bytes)?.let { return Refusal(null, it) }
         }

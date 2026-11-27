@@ -207,6 +207,18 @@ stage_ok() {
 kind_ok() { case "$1" in runtime|image) ;; *) usage "kind '$1' is not runtime or image" ;; esac; }
 manifest_name() { case "$1" in runtime) echo runtime.json ;; image) echo manifest.json ;; esac; }
 
+# Runs a preflight command, streaming each `CHECKING: ...` line as `@@STEP ...`
+# to the caller right away while returning the full output on stdout for
+# PREFLIGHT REFUSED / PREFLIGHT OK parsing. Zero temp files (safe for read-only status).
+run_preflight() {
+    "$@" 2>&1 | while IFS= read -r _pl; do
+        case "$_pl" in
+            "CHECKING: "*) printf '@@STEP %s\n' "${_pl#CHECKING: }" >&3 ;;
+        esac
+        printf '%s\n' "$_pl"
+    done
+}
+
 do_status() {
     [ $# -eq 0 ] || usage "status"
     if [ ! -d "$STAGE" ]; then
@@ -290,11 +302,15 @@ do_status() {
     # nothing hashed, an answer in a moment); the switch verb's preflight hashes every file as before.
     if [ -f "$STAGE/oneios_switch.sh" ] && mine "$STAGE/oneios_switch.sh"; then
         if [ -n "$T" ]; then
-            out=$(ONEIOS_CHECK_QUICK=1 ONEIOS_TEST_ROOT="$T" sh "$STAGE/oneios_switch.sh" --check 2>&1)
+            exec 3>&1
+            out=$(run_preflight env ONEIOS_CHECK_QUICK=1 ONEIOS_TEST_ROOT="$T" sh "$STAGE/oneios_switch.sh" --check)
+            exec 3>&-
         else
             find_bb
             if [ -n "$BB" ]; then
-                out=$(ONEIOS_CHECK_QUICK=1 ONEIOS_APP=1 ONEIOS_ACK_EXPERIMENTAL=1 "$BB" nsenter -t 1 -m -- /system/bin/sh "$STAGE/oneios_switch.sh" --check 2>&1 </dev/null)
+                exec 3>&1
+                out=$(run_preflight env ONEIOS_CHECK_QUICK=1 ONEIOS_APP=1 ONEIOS_ACK_EXPERIMENTAL=1 "$BB" nsenter -t 1 -m -- /system/bin/sh "$STAGE/oneios_switch.sh" --check </dev/null)
+                exec 3>&-
             else
                 out="PREFLIGHT REFUSED: no busybox at the root manager's paths"
             fi
@@ -1101,7 +1117,9 @@ do_switch() {
     done
     # The preflight first, here, so its refusal is the app's answer: one line,
     # and nothing was changed.
-    out=$(ONEIOS_APP=1 ONEIOS_ACK_EXPERIMENTAL=1 "$BB" nsenter -t 1 -m -- /system/bin/sh "$STAGE/oneios_switch.sh" --check 2>&1 </dev/null)
+    exec 3>&1
+    out=$(run_preflight env ONEIOS_APP=1 ONEIOS_ACK_EXPERIMENTAL=1 "$BB" nsenter -t 1 -m -- /system/bin/sh "$STAGE/oneios_switch.sh" --check </dev/null)
+    exec 3>&-
     why=$(printf '%s\n' "$out" | sed -n 's/^PREFLIGHT REFUSED: //p' | head -n 1 | cut -c1-400)
     [ -z "$why" ] || refuse "$why"
     printf '%s\n' "$out" | grep -q '^PREFLIGHT OK$' || refuse "the preflight gave no answer: $(printf '%s\n' "$out" | tail -n 1 | cut -c1-200)"

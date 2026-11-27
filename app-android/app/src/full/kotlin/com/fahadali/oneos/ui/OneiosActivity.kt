@@ -10,18 +10,24 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.NestedScrollView
+import com.fahadali.oneos.BuildConfig
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.OneiosFix
 import com.fahadali.oneos.core.model.OneiosKind
 import com.fahadali.oneos.core.model.OneiosSystem
+import com.fahadali.oneos.core.model.OneiosUpdates
 import com.fahadali.oneos.core.root.OneiosFlow
 import com.fahadali.oneos.core.root.OneiosSteps
+import com.fahadali.oneos.session.AppUpdater
 import com.fahadali.oneos.session.OneiosAuto
 import com.fahadali.oneos.session.OneiosConfJob
 import com.fahadali.oneos.session.OneiosJob
+import com.fahadali.oneos.session.OneiosLogsJob
 import com.fahadali.oneos.session.OneiosToolJob
+import com.fahadali.oneos.session.UpdateCheck
 import dev.oneuiproject.oneui.layout.ToolbarLayout
 
 /**
@@ -48,10 +54,16 @@ class OneiosActivity : EdgeToEdgeActivity() {
     private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
-            val row = busyRow ?: return
+            if (isDestroyed) return
             val s = OneiosJob.state
-            if (isDestroyed || (s.job != OneiosFlow.Job.CHECK && s.waitingFor == null)) return
-            row.summary = busyLine(s)
+            val checkBusy = s.job == OneiosFlow.Job.CHECK || s.waitingFor != null
+            val toolBusy = OneiosToolJob.state.busy
+            if (!checkBusy && !toolBusy) return
+            if (checkBusy) busyRow?.summary = busyLine(s)
+            if (toolBusy) {
+                val steps = OneiosSteps.of(OneiosStepRow.input(this@OneiosActivity))
+                for (step in steps.steps) if (step.state == OneiosSteps.State.RUNNING) rows[step.id]?.let { bindStep(it, step) }
+            }
             ticker.postDelayed(this, 1000)
         }
     }
@@ -79,13 +91,17 @@ class OneiosActivity : EdgeToEdgeActivity() {
         val a = OneiosJob.observe { render() }
         val b = OneiosToolJob.observe { render() }
         val c = OneiosConfJob.observeBy({ it.writing }) { render() }
-        unsubscribe = { a(); b(); c() }
+        val d = UpdateCheck.observe { render() }
+        val e = AppUpdater.observe { render() }
+        val f = OneiosLogsJob.observe { render() }
+        unsubscribe = { a(); b(); c(); d(); e(); f() }
     }
 
     override fun onResume() {
         super.onResume()
         // Not again when root answered moments ago (back from the picker, a flow, the logs): OneiosJob.refreshIfStale.
         if (!OneiosJob.state.busy) OneiosJob.refreshIfStale(this)
+        UpdateCheck.run(this)
     }
 
     override fun onStop() {
@@ -103,10 +119,25 @@ class OneiosActivity : EdgeToEdgeActivity() {
 
     private fun render() {
         if (isDestroyed) return
+        val logsState = OneiosLogsJob.state
+        logsState.shared?.let { shared ->
+            OneiosLogsJob.taken()
+            OneiosLogsActivity.share(this, shared)
+        }
+        logsState.shareProblem?.let {
+            OneiosLogsJob.taken()
+            Toast.makeText(this, getString(R.string.oneios_logs_share_failed, it), Toast.LENGTH_LONG).show()
+        }
         val s = OneiosJob.state
         val t = OneiosToolJob.state
-        val steps = OneiosSteps.of(OneiosStepRow.input(this))
+        val input = OneiosStepRow.input(this)
+        val steps = OneiosSteps.of(input)
         val st = s.status
+        val kernelState = steps.step(OneiosSteps.Id.KERNEL).state
+        val kernelDue = if (st?.image != null && st.runtime != null && (kernelState == OneiosSteps.State.TODO || kernelState == OneiosSteps.State.FAILED)) {
+            input.expectedKernel ?: OneiosUpdates.KERNEL_NEXT
+        } else null
+        val avail = OneiosUpdates.of(st?.runtime?.version, UpdateCheck.latestRuntime(this), kernelDue, BuildConfig.VERSION_CODE, UpdateCheck.app)
         // A long copy or a tool flow keeps the screen on, as Setting up does.
         if (s.copying || t.busy) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         toolbar.setTitle(OneiosSystem.shortName(st?.image?.version))
@@ -118,10 +149,11 @@ class OneiosActivity : EdgeToEdgeActivity() {
             steps.steps.map { listOf(it.state, it.line, it.reason, it.cancel, it.log, it.progress == null) }, steps.next,
             st, s.job, s.waitingFor != null, s.offered, s.failure, s.last, s.flow.problem, t.busy, t.builtKc,
             OneiosConfJob.state.writing, OneiosJob.kernelCheckLine(this),
+            avail, AppUpdater.state.phase, logsState.exporting,
         )
         if (newShape != shape) {
             shape = newShape
-            build(s, steps)
+            build(s, steps, avail)
             invalidateOptionsMenu()
         } else {
             for (step in steps.steps) rows[step.id]?.let { bindStep(it, step) }
@@ -142,7 +174,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
         else -> ""
     }
 
-    private fun build(s: OneiosJob.State, steps: OneiosSteps.View) {
+    private fun build(s: OneiosJob.State, steps: OneiosSteps.View, avail: OneiosUpdates.Available) {
         val column = findViewById<LinearLayout>(R.id.oneios_column)
         column.removeAllViews()
         rows.clear()
@@ -151,6 +183,7 @@ class OneiosActivity : EdgeToEdgeActivity() {
         val st = s.status
         val flow = s.flow
         val idle = !s.busy
+        val toolBusy = OneiosToolJob.state.busy
 
         // On this phone: the one place for the phone's iOS state, and what stops the switch with its fix.
         val state = PrebootCards.section(column, getString(R.string.oneios_page_state))
@@ -159,6 +192,18 @@ class OneiosActivity : EdgeToEdgeActivity() {
                 as dev.oneuiproject.oneui.widget.CardItemView
             ticker.postDelayed(tick, 1000)
             if (s.job == OneiosFlow.Job.CHECK) PrebootCards.row(state, getString(R.string.oneios_stop), getString(R.string.oneios_check_stop_line)) { OneiosJob.cancel() }
+        } else if (toolBusy) {
+            ticker.postDelayed(tick, 1000)
+        }
+        if (avail.any && idle && !toolBusy && st?.sessionOpen != true && !AppUpdater.state.busy) {
+            val summary = avail.parts.joinToString(" · ") + "\n" + getString(R.string.oneios_update_available_tap)
+            PrebootCards.row(state, getString(R.string.oneios_update_available_title), summary, chevron = true) {
+                when {
+                    avail.runtime != null -> OneiosActions.download(this, null)
+                    avail.kernel != null -> action(OneiosSteps.Id.KERNEL, steps.step(OneiosSteps.Id.KERNEL).state)?.invoke()
+                    else -> FixActions.confirmAppUpdate(this)
+                }
+            }
         }
         val problem = flow.problem
         when {
@@ -187,6 +232,16 @@ class OneiosActivity : EdgeToEdgeActivity() {
         if (st?.image != null) PrebootCards.row(state, getString(R.string.oneios_page_data), flow.dataLine ?: getString(R.string.environment_unknown))
         // Last session: how it came back; it opens the session logs (no step of their own).
         OneiosFlow.lastReturn(st)?.let { PrebootCards.row(state, getString(R.string.oneios_page_last), it.title + "\n" + it.line, chevron = true) { startActivity(OneiosLogsActivity.intent(this)) } }
+        // One-tap Share logs right on the main iOS page (bundles session logs, switch/return logs, iOS last-boot log and versions).
+        val exporting = OneiosLogsJob.state.exporting
+        if (exporting != null) {
+            PrebootCards.row(state, exporting)
+            PrebootCards.row(state, getString(R.string.oneios_logs_stop_share)) { OneiosLogsJob.stopShare() }
+        } else if (st?.staged == true) {
+            PrebootCards.row(state, getString(R.string.oneios_logs_share_bug), getString(R.string.oneios_logs_share_bug_line), chevron = true) {
+                OneiosLogsJob.shareBugReport(this, OneiosLogsActivity.header(this), OneiosLogsActivity.versions(this))
+            }
+        }
 
         // Steps: the one checklist.
         val card = PrebootCards.section(column, getString(R.string.oneios_page_steps))

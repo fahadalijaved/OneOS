@@ -2,10 +2,14 @@ package com.fahadali.oneos.session
 
 import android.content.Context
 import com.fahadali.oneos.BuildConfig
+import com.fahadali.oneos.core.model.OneiosBugReport
 import com.fahadali.oneos.core.model.OneiosLogFile
 import com.fahadali.oneos.core.model.OneiosLogs
+import com.fahadali.oneos.core.model.OneiosSystem
+import com.fahadali.oneos.core.model.OneiosTool
 import com.fahadali.oneos.core.root.OneiosRoot
 import com.fahadali.oneos.core.root.OneiosStatus
+import com.fahadali.oneos.core.root.OneiosToolSession
 import com.fahadali.oneos.core.root.RootReply
 import com.fahadali.oneos.core.root.RootShell
 import java.io.File
@@ -248,6 +252,160 @@ object OneiosLogsJob : BackgroundJob<OneiosLogsJob.State>(State(), "oneos-oneios
         }
     }
 
+    /**
+     * One-tap bug-report zip: lists the stage's logs if not read yet, bundles xnuhost/switch/return/helper logs,
+     * best-effort pulls iOS's last-boot unified log via `oneios-tool serve ioslog-show`, and writes versions + session
+     * summaries into `summary.txt` (and GitHub-issue Markdown into the share sheet's text). No personal data and no
+     * Apple image/kernelcache files.
+     */
+    fun shareBugReport(ctx: Context, header: List<String>, versions: OneiosBugReport.Versions) {
+        if (state.exporting != null) return
+        val app = ctx.applicationContext
+        stopExport = false
+        update(state.copy(exporting = "Collecting session logs…", shared = null, shareProblem = null))
+        executor.execute {
+            val out = runCatching {
+                val listed = state.list ?: run {
+                    val a = logVerb(app, OneiosRoot.Verb.LOGS, emptyList())
+                        ?: throw IllegalStateException("OneiOS is not set up on this phone.")
+                    check(a.ok) { a.problem }
+                    OneiosLogs.parseList(a.reply.results, a.lines).also { update(state.copy(list = it, noStage = false)) }
+                }
+                val files = listed.files
+                check(files.isNotEmpty()) { "No iOS session logs are on this phone yet." }
+                val dir = shareDir(app).apply { deleteRecursively(); mkdirs() }
+                val work = File(dir, "work").apply { mkdirs() }
+                val summary = StringBuilder()
+                header.forEach { summary.append(it).append('\n') }
+                summary.append('\n')
+                OneiosBugReport.versionLines(versions).forEach { summary.append(it).append('\n') }
+                val stamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(java.time.LocalDateTime.now())
+                val zip = File(dir, "oneios-bug-report-$stamp.zip")
+                val time = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                var lastSummary: OneiosLogs.Summary? = null
+                var lastLogName: String? = null
+                var iosLogIncluded = false
+                ZipOutputStream(zip.outputStream().buffered(1 shl 16)).use { z ->
+                    for ((i, file) in files.withIndex()) {
+                        check(!stopExport) { "Stopped." }
+                        update(state.copy(exporting = "Reading ${i + 1} of ${files.size}: ${OneiosLogs.path(file.id)}"))
+                        val f = File(work, "log")
+                        val note = whole(app, file.id, f)
+                        summary.append("\n== ${OneiosLogs.path(file.id)}: ${f.length()} bytes, last written ")
+                            .append(time.format(Instant.ofEpochSecond(file.modified).atZone(ZoneId.systemDefault())))
+                        note?.let { summary.append(" (").append(it).append(')') }
+                        summary.append('\n')
+                        if (file.session) {
+                            val s = summaryOf(app, file.id, f)
+                            if (lastSummary == null) {
+                                lastSummary = s
+                                lastLogName = OneiosLogs.path(file.id)
+                            }
+                            OneiosLogs.summaryLines(s).forEach { summary.append(it).append('\n') }
+                        }
+                        z.putNextEntry(ZipEntry(OneiosLogs.path(file.id)))
+                        f.inputStream().use { it.copyTo(z, 1 shl 16) }
+                        z.closeEntry()
+                        f.delete()
+                    }
+                    // Best-effort iOS unified log (last boot) via oneios-tool serve ioslog-show.
+                    if (!stopExport && !OneiosToolJob.state.busy) {
+                        update(state.copy(exporting = "Reading iOS's last-boot log (ioslog)…"))
+                        val iosLog = File(work, "ioslog-last-boot.txt")
+                        val lines = pullIosLastBootLog(app, iosLog)
+                        if (lines > 0 && iosLog.length() > 0) {
+                            iosLogIncluded = true
+                            summary.append("\n== ioslog-last-boot.txt: ${iosLog.length()} bytes ($lines lines)\n")
+                            z.putNextEntry(ZipEntry("ioslog-last-boot.txt"))
+                            iosLog.inputStream().use { it.copyTo(z, 1 shl 16) }
+                            z.closeEntry()
+                        }
+                        iosLog.delete()
+                    }
+                    z.putNextEntry(ZipEntry("summary.txt"))
+                    z.write(summary.toString().toByteArray())
+                    z.closeEntry()
+                }
+                work.deleteRecursively()
+                val text = OneiosBugReport.issueMarkdown(versions, lastSummary, lastLogName, iosLogIncluded)
+                Shared(zip, "application/zip", zip.name, text)
+            }
+            update(state.copy(exporting = null, shared = out.getOrNull(), shareProblem = out.exceptionOrNull()?.let { it.message ?: it.javaClass.simpleName }))
+        }
+    }
+
+    /** Builds ready-to-paste GitHub issue text (versions + last session summary) off the main thread. */
+    fun buildIssueText(ctx: Context, versions: OneiosBugReport.Versions, onDone: (Result<String>) -> Unit) {
+        val app = ctx.applicationContext
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        executor.execute {
+            val res = runCatching {
+                val listed = state.list ?: logVerb(app, OneiosRoot.Verb.LOGS, emptyList())?.takeIf { it.ok }
+                    ?.let { OneiosLogs.parseList(it.reply.results, it.lines) }
+                val latest = listed?.sessions?.firstOrNull()
+                var summary: OneiosLogs.Summary? = null
+                var logName: String? = null
+                if (latest != null) {
+                    logName = OneiosLogs.path(latest.id)
+                    val (c, _) = chunk(app, latest.id, 0, OneiosLogs.FIRST_CHUNK)
+                    if (c != null) {
+                        val returned = runCatching { returnNote(app, latest) }.getOrNull()
+                        summary = OneiosLogs.summarize(c.lines, complete = c.first, returned = returned)
+                    }
+                }
+                OneiosBugReport.issueMarkdown(versions, summary, logName, iosLogIncluded = false)
+            }
+            main.post { onDone(res) }
+        }
+    }
+
+    /**
+     * Best-effort read of iOS's last-boot unified log through `oneios-tool serve` (`ioslog-show`, read-only mode),
+     * capped at [IOSLOG_MAX_LINES] lines and [IOSLOG_MAX_BYTES] bytes. Returns lines written (0 on any skip/failure).
+     */
+    private fun pullIosLastBootLog(app: Context, out: File): Int {
+        val session = OneiosToolSession(
+            OneiosRoot.launcher(OneiosRoot.Verb.TOOL, listOf("read"), BuildConfig.ONEIOS_ROOT_SHA256, BuildConfig.ONEIOS_ROOT_BYTES),
+            silenceMs = 45_000,
+            helloMs = 15_000,
+            closeWaitMs = 5_000,
+        )
+        return try {
+            val start = session.start() as? OneiosToolSession.Start.Ready ?: return 0
+            if (OneiosTool.Cmd.IOSLOG_SHOW !in start.hello.cmds) return 0
+            var count = 0
+            var bytes = 0L
+            var truncated = false
+            out.bufferedWriter(Charsets.UTF_8).use { w ->
+                session.call(
+                    OneiosTool.Cmd.IOSLOG_SHOW,
+                    mapOf("source" to "${OneiosSystem.STAGE}/data/data.img", "boot" to "last", "format" to "text"),
+                ) { e ->
+                    if (stopExport) {
+                        session.close()
+                        return@call
+                    }
+                    if (e is OneiosTool.Event.Line && e.stream != "err" && !truncated) {
+                        if (count < IOSLOG_MAX_LINES && bytes < IOSLOG_MAX_BYTES) {
+                            w.write(e.text)
+                            w.write("\n")
+                            count += 1
+                            bytes += e.text.length + 1
+                        } else {
+                            truncated = true
+                            w.write("... (truncated at $count lines / ${bytes shr 20} MiB)\n")
+                        }
+                    }
+                }
+            }
+            count
+        } catch (_: Exception) {
+            0
+        } finally {
+            runCatching { session.close() }
+        }
+    }
+
     /** Every listed log in one zip, with a summary.txt that has each session's summary. */
     fun shareAll(ctx: Context, header: List<String>) {
         if (state.exporting != null) return
@@ -341,4 +499,6 @@ object OneiosLogsJob : BackgroundJob<OneiosLogsJob.State>(State(), "oneos-oneios
     // 1 MiB of short lines.
     private const val MAX_LINES = 600_000
     private const val MAX_LINE = 4000
+    private const val IOSLOG_MAX_LINES = 100_000
+    private const val IOSLOG_MAX_BYTES = 16L * 1024 * 1024
 }

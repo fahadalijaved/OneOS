@@ -249,4 +249,34 @@ class OneiosStepsTest {
         // While root returns, no step runs either: the button spins with the job's words.
         assertNull(steps(st, OneiosSteps.Job(OneiosFlow.Job.RETURN, "Returning to One UI…")).running)
     }
+
+    @Test
+    fun toolProgressShowsLiveDetailLastOutputLineAndElapsedTime() {
+        assertEquals("42 s", OneiosSteps.elapsedWords(42))
+        assertEquals("1 min 15 s", OneiosSteps.elapsedWords(75))
+        assertEquals("2 min 0 s", OneiosSteps.elapsedWords(120))
+
+        // Pairing file detail with determinate fraction and elapsed time.
+        val pairing = OneiosSteps.toolProgress(
+            OneiosToolFlow(),
+            phase = "Preparing the kernel inputs",
+            detail = "Pairing file 3 of 9: symbols.json",
+            detailFraction = 3f / 9f,
+            elapsedSeconds = 12,
+        )
+        assertEquals("Preparing the kernel inputs · Pairing file 3 of 9: symbols.json", pairing.phase)
+        assertEquals(3f / 9f, pairing.fraction!!, 0.0001f)
+        assertEquals("12 s", pairing.amount)
+
+        // Tool running a step with no numeric progress yet: falls back to latest output line + elapsed time.
+        val prelink = fold(
+            """{"ev":"start","id":"1","cmd":"prelink","steps":[{"step":"load","text":"Loading kexts"},{"step":"link","text":"Linking kernel"}]}""",
+            """{"ev":"step","id":"1","step":"link","n":2,"of":2,"text":"Linking kernel"}""",
+            """{"ev":"line","id":"1","stream":"stdout","text":"prelink: resolving 142 kexts"}""",
+        )
+        val p = OneiosSteps.toolProgress(prelink, phase = "Building the kernel", elapsedSeconds = 65)
+        assertEquals("Building the kernel · Step 2 of 2 · Linking kernel", p.phase)
+        assertEquals(0.5f, p.fraction!!, 0.0001f)
+        assertEquals("prelink: resolving 142 kexts · 1 min 5 s", p.amount)
+    }
 }

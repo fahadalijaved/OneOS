@@ -1,6 +1,7 @@
 package com.fahadali.oneos.ui
 
 import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -12,9 +13,11 @@ import androidx.core.content.FileProvider
 import androidx.core.widget.NestedScrollView
 import com.fahadali.oneos.BuildConfig
 import com.fahadali.oneos.R
+import com.fahadali.oneos.core.model.OneiosBugReport
 import com.fahadali.oneos.core.model.OneiosLogFile
 import com.fahadali.oneos.core.model.OneiosLogs
 import com.fahadali.oneos.core.model.Units
+import com.fahadali.oneos.session.OneiosJob
 import com.fahadali.oneos.session.OneiosLogsJob
 import dev.oneuiproject.oneui.layout.ToolbarLayout
 import java.time.Instant
@@ -81,7 +84,30 @@ class OneiosLogsActivity : EdgeToEdgeActivity() {
         val idle = !s.listing && s.exporting == null
         PrebootCards.row(PrebootCards.section(list, gap = false), getString(R.string.oneios_logs), getString(R.string.oneios_logs_about))
 
+        // Quick sharing right at the top: one tap for the full bug-report zip (including iOS's last-boot log) or GitHub issue text.
         val found = s.list
+        val quick = PrebootCards.section(list)
+        if (s.exporting != null) {
+            PrebootCards.row(quick, s.exporting)
+            PrebootCards.row(quick, getString(R.string.oneios_logs_stop_share)) { OneiosLogsJob.stopShare() }
+        } else {
+            val hasLogs = found?.files?.isNotEmpty() == true
+            PrebootCards.row(
+                quick,
+                getString(R.string.oneios_logs_share_bug),
+                getString(R.string.oneios_logs_share_bug_line),
+                chevron = true,
+                enabled = idle && hasLogs,
+            ) { OneiosLogsJob.shareBugReport(this, header(this), versions(this)) }
+            PrebootCards.row(
+                quick,
+                getString(R.string.oneios_logs_copy_issue),
+                getString(R.string.oneios_logs_copy_issue_line),
+                chevron = true,
+                enabled = idle && !s.noStage,
+            ) { copyIssueText(this) }
+        }
+
         val sessions = PrebootCards.section(list, getString(R.string.oneios_logs_sessions))
         when {
             found == null && s.problem == null -> PrebootCards.row(sessions, getString(R.string.oneios_checking))
@@ -129,13 +155,6 @@ class OneiosLogsActivity : EdgeToEdgeActivity() {
         }
 
         val actions = PrebootCards.section(list)
-        if (s.exporting != null) {
-            PrebootCards.row(actions, s.exporting)
-            PrebootCards.row(actions, getString(R.string.oneios_logs_stop_share)) { OneiosLogsJob.stopShare() }
-        } else {
-            PrebootCards.row(actions, getString(R.string.oneios_logs_share_all), getString(R.string.oneios_logs_share_all_line), chevron = true,
-                enabled = idle && found?.files?.isNotEmpty() == true) { OneiosLogsJob.shareAll(this, header(this)) }
-        }
         PrebootCards.row(actions, getString(R.string.oneios_logs_refresh), enabled = idle) { OneiosLogsJob.refresh(this) }
         scroll.post { scroll.scrollTo(0, at) }
     }
@@ -158,6 +177,37 @@ class OneiosLogsActivity : EdgeToEdgeActivity() {
             "${Build.MODEL} (${Build.DEVICE}), Android ${Build.VERSION.RELEASE}, ${Build.DISPLAY}",
             TIME.format(java.time.ZonedDateTime.now()),
         )
+
+        fun versions(ctx: Context): OneiosBugReport.Versions {
+            val st = OneiosJob.state.status
+            val build = st?.image?.build?.let { com.fahadali.oneos.core.model.OneiosImageChoice.kernelBuildOf(it) }
+            val runtimeKernel = if (st != null && build != null) OneiosJob.stagedKernel(ctx, st, build)?.buildId ?: st.runtimeKernel?.buildId else st?.runtimeKernel?.buildId
+            return OneiosBugReport.Versions(
+                appName = BuildConfig.VERSION_NAME,
+                appCode = BuildConfig.VERSION_CODE,
+                phoneModel = Build.MODEL.orEmpty(),
+                phoneDevice = Build.DEVICE.orEmpty(),
+                androidRelease = Build.VERSION.RELEASE.orEmpty(),
+                androidBuild = Build.DISPLAY.orEmpty(),
+                runtimeVersion = st?.runtime?.version,
+                imageVersion = st?.image?.version,
+                imageBuild = st?.image?.build,
+                imageKernel = st?.imageKernel?.buildId,
+                runtimeKernel = runtimeKernel,
+            )
+        }
+
+        fun copyIssueText(ctx: Context) {
+            OneiosLogsJob.buildIssueText(ctx, versions(ctx)) { res ->
+                res.onSuccess { text ->
+                    val cm = ctx.getSystemService(ClipboardManager::class.java)
+                    cm?.setPrimaryClip(ClipData.newPlainText("OneiOS bug report", text))
+                    Toast.makeText(ctx, R.string.oneios_logs_issue_copied, Toast.LENGTH_LONG).show()
+                }.onFailure { err ->
+                    Toast.makeText(ctx, ctx.getString(R.string.oneios_logs_share_failed, err.message ?: err.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
 
         /** Hands a file under files/logs to the share sheet, readable by the app that takes it and no other. */
         fun share(ctx: Context, shared: OneiosLogsJob.Shared) {

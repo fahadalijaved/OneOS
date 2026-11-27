@@ -80,6 +80,12 @@ object OneiosSteps {
         val view: OneiosToolFlow = OneiosToolFlow(),
         /** The flow's own phase in words (Make iOS image's, Update the kernel's); null: the tool's step says it. */
         val phase: String? = null,
+        /** Extra detail during starting or a root phase (e.g. "Pairing file 3 of 9: reviewed.json"). */
+        val detail: String? = null,
+        /** Fractional progress during a non-tool phase (e.g. pairing files), or null. */
+        val detailFraction: Float? = null,
+        /** Elapsed seconds of the running flow (null when idle or not shown). */
+        val elapsedSeconds: Int? = null,
         val starting: Boolean = false,
         val stopping: Boolean = false,
         /** Why it waits (paused, no network, too warm), in words; null when it does not. */
@@ -239,13 +245,26 @@ object OneiosSteps {
         return Progress(fraction, phase, amount)
     }
 
+    /** "42 s", or "1 min 15 s" for elapsed progress counters. */
+    fun elapsedWords(seconds: Int): String = if (seconds < 60) "$seconds s" else "${seconds / 60} min ${seconds % 60} s"
+
     /**
      * oneios-tool's progress, from its own events ([OneiosToolFlow]: `start`'s plan, `step`, `progress`): the bar is the
      * running step's `percent`, else its `done` of `total`, else the share of the plan's steps done; the phase is the
      * flow's own words or "Step k of N · <the step's text>"; the amount the tool's numbers (bytes, files, rate, time
-     * left). A wait (a pause, no network, heat) is said in the phase.
+     * left), or the latest tool output line while a step without byte counts (like prelink) runs, plus elapsed time.
+     * A wait (a pause, no network, heat) is said in the amount.
      */
-    fun toolProgress(view: OneiosToolFlow, phase: String? = null, held: String? = null, starting: Boolean = false, stopping: Boolean = false): Progress {
+    fun toolProgress(
+        view: OneiosToolFlow,
+        phase: String? = null,
+        held: String? = null,
+        starting: Boolean = false,
+        stopping: Boolean = false,
+        detail: String? = null,
+        detailFraction: Float? = null,
+        elapsedSeconds: Int? = null,
+    ): Progress {
         val steps = view.steps
         val at = steps.indexOfFirst { it.state == OneiosTool.StepState.RUNNING }
         val running = steps.getOrNull(at)
@@ -253,15 +272,21 @@ object OneiosSteps {
         val own = view.percent?.let { (it / 100.0).toFloat() }
             ?: view.done?.let { d -> view.total?.takeIf { it > 0 }?.let { (d.toFloat() / it) } }
         val share = if (steps.isNotEmpty() && at >= 0) at.toFloat() / steps.size else null
-        val fraction = (own ?: share)?.coerceIn(0f, 1f)
+        val fraction = (own ?: share ?: detailFraction)?.coerceIn(0f, 1f)
+        val cleanDetail = detail?.takeIf { it.isNotBlank() }
         val words = when {
             stopping -> "Stopping…"
-            starting -> "Starting oneios-tool…"
-            else -> listOfNotNull(phase, stepWords).distinct().joinToString(" · ").ifEmpty { "Working…" }
+            starting -> cleanDetail ?: "Starting oneios-tool…"
+            else -> listOfNotNull(phase, stepWords, if (stepWords == null) cleanDetail else null).distinct().joinToString(" · ").ifEmpty { "Working…" }
         }
-        val amount = listOfNotNull(held, view.progressLine).joinToString(" · ").ifEmpty { null }
+        val lastLine = if (view.progressLine == null && !starting && !stopping) {
+            view.lines.lastOrNull { it.isNotBlank() }?.trim()?.take(120)
+        } else null
+        val elapsed = elapsedSeconds?.takeIf { it >= 0 }?.let(::elapsedWords)
+        val amount = listOfNotNull(held, view.progressLine ?: lastLine, elapsed).joinToString(" · ").ifEmpty { null }
         return Progress(fraction, words, amount)
     }
 
-    private fun toolStepProgress(t: Tool): Progress = toolProgress(t.view, t.phase, t.held, t.starting, t.stopping)
+    private fun toolStepProgress(t: Tool): Progress =
+        toolProgress(t.view, t.phase, t.held, t.starting, t.stopping, t.detail, t.detailFraction, t.elapsedSeconds)
 }

@@ -37,6 +37,14 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
     private var menuKey: Any? = null
     private lateinit var toolbar: ToolbarLayout
     private lateinit var primaryColors: ColorStateList
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            if (isDestroyed || !OneiosToolJob.state.busy) return
+            render()
+            ticker.postDelayed(this, 1000)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,7 +62,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         val tool = OneiosToolJob.observeBy({ s ->
             listOf(s.flow, s.request, s.starting, s.stopping, s.problem, s.results.size, s.view.steps, s.view.end, s.view.progressLine, s.view.percent,
                 s.view.paused, s.view.held, s.view.netWaiting, s.view.note, s.pausedByUser, s.noNetwork, s.canPause, s.view.lines.size, s.view.rows.size,
-                s.kernelPhase, s.plain, s.builtKc, s.makePhase)
+                s.kernelPhase, s.plain, s.builtKc, s.makePhase, s.stepDetail, s.stepFraction)
         }) { render() }
         // Make iOS image's runtime download is OneiosJob's: its file and bytes (four times a second at most).
         val runtime = OneiosJob.observeBy({ j ->
@@ -65,6 +73,7 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
     }
 
     override fun onStop() {
+        ticker.removeCallbacks(tick)
         unsubscribe?.invoke()
         unsubscribe = null
         super.onStop()
@@ -98,7 +107,13 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         val s = OneiosToolJob.state
         toolbar.setTitle(title(s.last ?: OneiosToolJob.interrupted(this)))
         // The screen stays on while the tool works, as during an import.
-        if (s.busy) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        ticker.removeCallbacks(tick)
+        if (s.busy) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            ticker.postDelayed(tick, 1000)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
         val list = findViewById<LinearLayout>(R.id.oneios_column)
         val scroll = findViewById<NestedScrollView>(R.id.oneios_scroll)
         val at = scroll.scrollY
@@ -119,7 +134,8 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
         var subtitle: String? = null
         when {
             s.starting -> OneiosStepRow.addParts(now, OneiosSteps.State.RUNNING, getString(R.string.oneios_tool_starting),
-                progress = OneiosSteps.toolProgress(v, starting = true), line = getString(R.string.oneios_tool_starting_line))
+                progress = OneiosSteps.toolProgress(v, starting = true, detail = s.stepDetail, elapsedSeconds = s.elapsedSeconds()),
+                line = getString(R.string.oneios_tool_starting_line))
             s.problem != null -> OneiosStepRow.addParts(now, OneiosSteps.State.FAILED, getString(R.string.oneios_tool_not_started), reason = s.problem)
             // Update the kernel's and Make iOS image's stop in plain words; the tool's own words are below (Not done).
             !s.busy && s.plain != null -> OneiosStepRow.addParts(now, OneiosSteps.State.FAILED, s.plain.title, reason = s.plain.line,
@@ -129,8 +145,12 @@ class OneiosToolActivity : EdgeToEdgeActivity() {
             s.busy -> {
                 // Make iOS image's own runtime download: OneiosJob's file and bytes.
                 val p = if (s.makePhase == OneiosMakeImage.Phase.RUNTIME) OneiosJob.state.let { j ->
-                    OneiosSteps.Progress(if (j.total > 0) (j.done.toFloat() / j.total).coerceIn(0f, 1f) else null, listOfNotNull(phase, j.file ?: j.message).joinToString(" · "), j.progressLine)
-                } else OneiosSteps.toolProgress(v, phase, held, stopping = s.stopping)
+                    OneiosSteps.Progress(
+                        if (j.total > 0) (j.done.toFloat() / j.total).coerceIn(0f, 1f) else null,
+                        listOfNotNull(phase, j.file ?: j.message).joinToString(" · "),
+                        listOfNotNull(j.progressLine, s.elapsedSeconds()?.let(OneiosSteps::elapsedWords)).joinToString(" · ").ifEmpty { null },
+                    )
+                } else OneiosSteps.toolProgress(v, phase, held, stopping = s.stopping, detail = s.stepDetail, detailFraction = s.stepFraction, elapsedSeconds = s.elapsedSeconds())
                 subtitle = p.percent?.let { "$it%" }
                 OneiosStepRow.addParts(now, OneiosSteps.State.RUNNING, phase ?: running?.text ?: running?.id ?: getString(R.string.oneios_tool_working), progress = p)
             }

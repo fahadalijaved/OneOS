@@ -128,8 +128,17 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         val makeBuild: String? = null,
         /** Make iOS image: what runs now (root's step, the runtime's download, the tool's make-image); null for other flows. */
         val makePhase: OneiosMakeImage.Phase? = null,
+        /** When this flow started ([SystemClock.elapsedRealtime]), for live elapsed-time display. */
+        val startedAt: Long = 0,
+        /** Live detail for starting/root phases (e.g. "Reading staged status…", "Pairing file 3 of 9: reviewed.json"). */
+        val stepDetail: String? = null,
+        /** Fractional progress during a non-tool phase (e.g. pairing files), or null. */
+        val stepFraction: Float? = null,
     ) {
         val busy: Boolean get() = flow != null
+
+        /** Whole seconds since this flow started (null when idle or unset). */
+        fun elapsedSeconds(): Int? = if (busy && startedAt > 0) ((SystemClock.elapsedRealtime() - startedAt) / 1000).toInt().coerceAtLeast(0) else null
     }
 
     @Volatile private var session: OneiosToolSession? = null
@@ -172,7 +181,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         requestId = null
         val pick = if (flow == Flow.MAKE_IMAGE) build ?: interruptedBuild(app) else null
         remember(app, flow, pick)
-        update(State(flow = flow, last = flow, starting = true, makeBuild = pick))
+        update(State(flow = flow, last = flow, starting = true, makeBuild = pick, startedAt = SystemClock.elapsedRealtime(), stepDetail = "Reading staged status…"))
         // From the screen the user tapped: Android lets only a visible app start the service.
         OneiosService.start(app)
         executor.execute { work(app, flow, pick) }
@@ -188,12 +197,14 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
             statusProblem?.let { return problem(it) }
             // Update the kernel: what it needs before the tool starts (an image set of the pinned build, a runtime with a kernel).
             val status = OneiosStatus.parse(statusLines)
+            if (flow == Flow.KERNEL) update(state.copy(stepDetail = "Checking kernel pairing files…"))
             val kernel = if (flow == Flow.KERNEL) kernelUpdate(app, status) ?: return else null
             // Make iOS image: its own order, its tool sessions its own ([OneiosMakeImage]).
             if (flow == Flow.MAKE_IMAGE) {
                 answered = runMake(app, status, build)
                 return
             }
+            update(state.copy(stepDetail = "Starting oneios-tool…"))
             val s = OneiosToolSession(
                 OneiosRoot.launcher(OneiosRoot.Verb.TOOL, listOf(flow.mode), BuildConfig.ONEIOS_ROOT_SHA256, BuildConfig.ONEIOS_ROOT_BYTES),
                 backstop = { root(app, OneiosRoot.Verb.UNTOOL, emptyList(), 60_000) },
@@ -210,7 +221,8 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
                             return problem("the staged runtime's oneios-tool reads pairing files of format ${st.hello.kb}; this app's are format ${OneiosKb.FORMAT}: get the latest OneiOS runtime, then update the kernel")
                         }
                         update(state.copy(
-                            starting = false, canPause = st.hello.cmds.containsAll(listOf(OneiosTool.Cmd.PAUSE, OneiosTool.Cmd.RESUME)),
+                            starting = false, stepDetail = null, stepFraction = null,
+                            canPause = st.hello.cmds.containsAll(listOf(OneiosTool.Cmd.PAUSE, OneiosTool.Cmd.RESUME)),
                             toolVersion = listOfNotNull(st.hello.tool, st.hello.jobs?.let { "$it threads" }).joinToString(" · "),
                         ))
                     }
@@ -241,7 +253,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
             }
         } finally {
             if (answered) remember(app, null, null)
-            update(state.copy(flow = null, starting = false, stopping = false, pausedByUser = false))
+            update(state.copy(flow = null, starting = false, stopping = false, pausedByUser = false, stepDetail = null, stepFraction = null))
         }
     }
 
@@ -336,6 +348,7 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
         val io = object : OneiosKernelUpdate.Io {
             override fun tool(cmd: String, keys: Map<String, Any?>): OneiosToolFlow {
                 n += 1
+                update(state.copy(stepDetail = null, stepFraction = null))
                 val view = one(s, n, Request(cmd, keys))
                 if (view.end == OneiosToolFlow.End.OK) update(state.copy(results = state.results + (view.text ?: cmd)))
                 return view
@@ -344,7 +357,14 @@ object OneiosToolJob : BackgroundJob<OneiosToolJob.State>(State(), "oneos-oneios
             override fun root(verb: OneiosRoot.Verb, args: List<String>, data: ByteArray?): String? =
                 rootReply(app, verb, args, 10 * 60_000L, data).first
 
-            override fun phase(phase: OneiosKernelUpdate.Phase) = update(state.copy(kernelPhase = phase))
+            override fun phase(phase: OneiosKernelUpdate.Phase) = update(state.copy(kernelPhase = phase, stepDetail = null, stepFraction = null))
+
+            override fun detail(text: String, done: Long, total: Long) = update(
+                state.copy(
+                    stepDetail = text.takeIf { it.isNotBlank() },
+                    stepFraction = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else null,
+                ),
+            )
 
             override fun done(line: String) = update(state.copy(results = state.results + line))
 

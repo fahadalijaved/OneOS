@@ -426,10 +426,14 @@ death_notes() { # <xnuhost pid>
     fi
 }
 
+# Progress line for the app's preflight screen (oneios_root.sh turns CHECKING: into @@STEP live).
+checking() { echo "CHECKING: $*"; }
+
 # --- THE STAGE (no root tools needed; also what the tests run) -------------
 # The runtime package and the image set as oneios_root.sh staged them. A
 # missing runtime or image is the usual refusal: one line that says which.
 stage_checks() {
+    checking "Checking staged runtime files…"
     [ -d "$STAGE" ] && [ ! -L "$STAGE" ] || refuse "OneiOS is not set up on this phone ($STAGE is missing)"
     root_only "$STAGE" || refuse "$STAGE is not root's or is writable by others"
     for f in oneios_switch.sh oneios_return.sh; do
@@ -463,9 +467,15 @@ stage_checks() {
     [ "$(od -An -tx1 -N5 "$X" 2>/dev/null | tr -d ' \n')" = 7f454c4602 ] &&
         [ "$(od -An -tx1 -j18 -N2 "$X" 2>/dev/null | tr -d ' \n')" = b700 ] ||
         refuse "xnuhost is not an arm64 program"
+    if [ "$QUICK" = 1 ]; then
+        checking "Checking staged runtime list…"
+    else
+        checking "Verifying runtime file hashes…"
+    fi
     check_list runtime full
 
     # The image set: its format must be one this runtime boots.
+    checking "Checking staged iOS image…"
     IC="$STAGE/image.conf"
     [ -f "$IC" ] && [ -d "$STAGE/image" ] && [ ! -L "$STAGE/image" ] ||
         refuse "no iOS image set is staged: import the one you built with OneiOS's scripts in the OneOS app"
@@ -478,6 +488,11 @@ stage_checks() {
         *",$I_FORMAT,"*) ;;
         *) refuse "the image set is format $I_FORMAT, the runtime ${R_VERSION:-?} boots format(s) ${R_FORMATS:-none}: build the image again or take a matching runtime" ;;
     esac
+    if [ "$QUICK" = 1 ]; then
+        checking "Checking staged iOS image list…"
+    else
+        checking "Verifying iOS image hashes…"
+    fi
     check_list image ids
 }
 # <runtime|image> <full|ids>: $STAGE/<kind>.sha256 lists exactly the files of
@@ -782,6 +797,7 @@ takeover_memory() {
     fi
 }
 takeover_checks() { # <xnuhost to ask>
+    checking "Checking Android takeover mode (xnuhost --host-info)…"
     # The stop list first: a word xnuhost does not know would make it refuse the conf below, with a less clear line.
     takeover_stops_pick
     info=$("$1" --host-info $(for f in "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf"; do [ -f "$f" ] && echo "--config $f"; done) 2>&1 </dev/null)
@@ -1622,6 +1638,7 @@ if [ "$A56" = 1 ] && [ "$I_BUILD" != 20F66 ]; then
 fi
 
 # Root tools: the root manager's own busybox and resetprop, as oneos_switch.sh.
+checking "Checking root tools (busybox, resetprop)…"
 BB=""
 for c in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/busybox; do
     [ -x "$c" ] && { BB=$c; break; }
@@ -1655,6 +1672,7 @@ if [ -z "$SELF_NS" ] || [ "$SELF_NS" != "$INIT_NS" ]; then
 fi
 
 # One UI must be whole and no session of either kind may be up.
+checking "Checking One UI state and active sessions…"
 [ "$(getprop sys.boot_completed)" = 1 ] || refuse "One UI has not finished starting"
 [ "$(getprop init.svc.zygote)" = running ] && pidof system_server >/dev/null 2>&1 ||
     refuse "One UI's framework is not running (another session, or a return in progress): restart the phone first"
@@ -1675,6 +1693,7 @@ for p in $(head -n 3 /sys/fs/cgroup/oneios_session/cgroup.procs 2>/dev/null); do
 [ -z "$old" ] || refuse "processes of an earlier iOS session are still running (cgroup oneios_session: $old): restart the phone first"
 
 # The ways back: the volume keys, and enough battery to get there.
+checking "Checking volume keys, battery and free space…"
 command -v getevent >/dev/null 2>&1 || refuse "no getevent: Volume Up + Volume Down could not return to One UI"
 command -v ps >/dev/null 2>&1 || refuse "no ps: the key readers could not be told apart"
 KEYS=$(getevent -pl 2>/dev/null)

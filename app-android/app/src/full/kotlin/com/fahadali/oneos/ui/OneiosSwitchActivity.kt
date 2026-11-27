@@ -3,6 +3,7 @@ package com.fahadali.oneos.ui
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.View
 import android.view.WindowInsets
 import android.widget.Button
@@ -13,6 +14,7 @@ import androidx.appcompat.widget.Toolbar
 import com.fahadali.oneos.R
 import com.fahadali.oneos.core.model.OneiosFix
 import com.fahadali.oneos.core.root.OneiosFlow
+import com.fahadali.oneos.core.root.OneiosSteps
 import com.fahadali.oneos.session.OneiosJob
 
 /**
@@ -27,6 +29,15 @@ import com.fahadali.oneos.session.OneiosJob
 class OneiosSwitchActivity : EdgeToEdgeActivity() {
     private var unsubscribe: (() -> Unit)? = null
     private var shownResult = false
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            val s = OneiosJob.state
+            if (isDestroyed || s.job != OneiosFlow.Job.SWITCH) return
+            findViewById<TextView>(R.id.boot_status).text = switchStatusLine(s)
+            ticker.postDelayed(this, 1000)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,15 +72,24 @@ class OneiosSwitchActivity : EdgeToEdgeActivity() {
     }
 
     override fun onStop() {
+        ticker.removeCallbacks(tick)
         unsubscribe?.invoke()
         unsubscribe = null
         super.onStop()
     }
 
+    private fun switchStatusLine(s: OneiosJob.State): String {
+        val base = s.message ?: getString(R.string.oneios_running_switch)
+        val elapsed = s.since.takeIf { it > 0 }?.let { ((SystemClock.elapsedRealtime() - it) / 1000).toInt().coerceAtLeast(0) }
+        return if (elapsed != null && elapsed > 0) "$base · ${OneiosSteps.elapsedWords(elapsed)}" else base
+    }
+
     private fun bind(s: OneiosJob.State) {
         val switching = s.job == OneiosFlow.Job.SWITCH
+        ticker.removeCallbacks(tick)
+        if (switching) ticker.postDelayed(tick, 1000)
         findViewById<TextView>(R.id.boot_status).text = when {
-            switching -> s.message ?: getString(R.string.oneios_running_switch)
+            switching -> switchStatusLine(s)
             s.last == OneiosFlow.Job.SWITCH && s.failure == null -> getString(R.string.splash_shutdown)
             else -> s.message ?: getString(R.string.oneios_running_switch)
         }
