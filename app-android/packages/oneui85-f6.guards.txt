@@ -2,3 +2,4 @@
 # installd and IOemNetd codes read on the phone at runtime (OneOSInstalldCodes, OneOSOemNetdCodes): One UI 9.0 and 9.5 phones
 # charger power from Samsung's charging_type in BatteryService (OneOSChargePower)
 0d919b5c3c1daee184d1a21bd9922694c20bab32b2442f54a99b7b4ccec7910d  services_patched.jar
+5484fdaef8f9ac8fe34739d3c9b34ef6fb0e4a06be4aba32dcf194f4013e49b4  framework_patched.jar

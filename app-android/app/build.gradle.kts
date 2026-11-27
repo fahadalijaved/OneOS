@@ -78,8 +78,6 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "hyper-hk" to (File(repoRoot, "out/overlays_hyperos_hk_r5") to listOf("tethering_payload.img")),
     // HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM) on Galaxy Z Fold4.
     "hyper16" to (File(repoRoot, "out/overlays_hyperos16") to listOf("tethering_payload.img")),
-    // One UI 8.5 (Android 16, SDK 36, F956BXXS4DZI1 from Galaxy Z Fold6) on Galaxy Z Fold4.
-    "oneui85-f6" to (File(repoRoot, "out/overlays_oneui85_fold6") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
     "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r41") to listOf("tethering_payload.img")),
     "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r8") to listOf("tethering_payload.img")),
@@ -87,9 +85,9 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     // tethering (One UI's stays), no apex requirement list (no ColorOS set ships one).
     "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r3") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
         "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
+    "oxygen17pad" to (File(repoRoot, "out/overlays_oxygen17pad_r1") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk", "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
     // Pixel 16 (Android 16 GSI BP4A): Google GSI for phones on One UI 8 (Galaxy Z Fold4).
     "pixel16" to (File(repoRoot, "out/overlays_pixel16") to listOf("tethering_payload.img")),
-    "oxygen17pad" to (File(repoRoot, "out/overlays_oxygen17pad_r1") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk", "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
     // OriginOS 7 (0.4.73, experimental): set r17 = r14 plus the vivo fold cutout overlay (the cover's lens).
     "originos" to (File(repoRoot, "out/overlays_originos_cn_r23") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
     // LineageOS 24 (0.5.06, experimental): the OnePlus 15 nightly, on every phone that offers Infinity-X. No gmssystem
@@ -101,6 +99,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "oneui95-f8" to (File(repoRoot, "out/overlays_oneui95_f8_r3") to listOf("tethering_payload.img")),
     // Tester builds (oneui8test3): One UI 9.5 on One UI 8, the r10 files plus the image's own modules One UI 8 cannot lend (tethering among them).
     "oneui95-a16" to (File(repoRoot, "out/overlays_oneui95_a16_r9") to listOf("tethering_payload.img")),
+    // One UI 8.5 (Android 16, SDK 36, F956BXXS4DZI1 from Galaxy Z Fold6) on Galaxy Z Fold4.
+    "oneui85-f6" to (File(repoRoot, "out/overlays_oneui85_fold6") to listOf("tethering_payload.img", "crashrecovery_payload.img")),
     // PixelOS 17 (0.5.35): the POCO F7 build for the ARMv8.2 Galaxy A series.
     "pixelos" to (File(repoRoot, "out/overlays_pixelos_onyx_r5") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
 )

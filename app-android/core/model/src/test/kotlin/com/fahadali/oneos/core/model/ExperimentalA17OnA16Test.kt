@@ -81,8 +81,8 @@ class ExperimentalA17OnA16Test {
         val added = tester.filter { it !in Profiles.TABLETS && Profiles.byId(it.id, Profiles.STABLE)!!.choice(Images.ID_ONEUI95) == null }.map { it.id }.toSet()
         assertEquals(PackageSets.ID_ONEUI95_A16, tester.first { it.id == Profiles.A35.id }.choice(Images.ID_ONEUI95)!!.packageSetId)
         assertTrue(added.containsAll(setOf(Profiles.S_ULTRA_8450.id, Profiles.S_ULTRA_9925.id, Profiles.A06.id, Profiles.A07_5G.id)))
-        // Exactly the phones whose only system is OxygenOS 16 (One UI 8 only).
-        assertEquals(Profiles.STABLE.filter { p -> p.choices.all { it.imageId == Images.ID_OXYGEN16 } }.map { it.id }.toSet(), added)
+        // Exactly the phones whose STABLE choices don't include One UI 9.5 (One UI 8 only).
+        assertEquals(Profiles.STABLE.filter { p -> p !in Profiles.TABLETS && p.choice(Images.ID_ONEUI95) == null }.map { it.id }.toSet(), added)
     }
 
     @Test

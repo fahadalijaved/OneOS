@@ -209,7 +209,8 @@ class PackageSetsTest {
             assertEquals(s.names.size, s.names.toSet().size)
             assertTrue(s.omitted.none { it in s.names })
             assertTrue(s.names.none { it == Images.STAGE_NAME })
-            assertTrue(s.id, s.names.containsAll(commonPayloads + "guards.txt" + "services_patched.jar"))
+            val expectedPayloads = if ("crashrecovery_payload.img" in s.omitted) commonPayloads - "crashrecovery_payload.img" else commonPayloads
+            assertTrue(s.id, s.names.containsAll(expectedPayloads + "guards.txt" + "services_patched.jar"))
             assertEquals(s.id, FileRole.GUARDS, s.file("guards.txt")!!.role)
             // Executable: surfaceflinger_patched and vold_patched only (root's file_mode, deploy-phone.sh's push).
             for (f in s.files) assertEquals("${s.id} ${f.name}", if (f.name in setOf("surfaceflinger_patched", "vold_patched")) "0755" else "0644", f.mode)
