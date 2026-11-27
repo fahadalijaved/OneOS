@@ -355,9 +355,12 @@ class ProfilesTest {
         )
         // 0.4.67: the phones still on One UI 8 take OxygenOS 16 only, untested, as bar phones.
         for (p in listOf(Profiles.A06, Profiles.A07_5G, Profiles.A24, Profiles.A25, Profiles.A33, Profiles.A53, Profiles.E55,
-                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450, Profiles.M55S, Profiles.S_ULTRA_8450_JP,
-                Profiles.S_9925, Profiles.A16_MTK, Profiles.A15_5G)) {
+                Profiles.S_FE_9925, Profiles.S_FE_8450, Profiles.M55S, Profiles.A16_MTK, Profiles.A15_5G)) {
             assertEquals(p.id, listOf(ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)), p.choices)
+            assertEquals(p.id, FormFactor.BAR, p.form)
+        }
+        for (p in listOf(Profiles.S_PLUS_9925, Profiles.S_ULTRA_9925, Profiles.S_ULTRA_8450, Profiles.S_8450, Profiles.S_ULTRA_8450_JP, Profiles.S_9925, Profiles.S_PLUS_8450)) {
+            assertEquals(p.id, listOf(ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false), ImageChoice(Images.ID_NOTHING_ASTEROIDS, PackageSets.ID_NOTHING_A, tested = false)), p.choices)
             assertEquals(p.id, FormFactor.BAR, p.form)
         }
         // 0.4.74: the A34 got One UI 9 (Android 17): the A07's systems, untested, and OxygenOS 16 for One UI 8.
@@ -767,7 +770,7 @@ class ProfilesTest {
             val expected = ImageChoice(Images.ID_ONEUI95, if (p.id == Profiles.ID_FOLD8) PackageSets.ID_ONEUI95_F8 else PackageSets.ID_ONEUI95, tested = false)
             // 0.5.41: a Galaxy Tab has only its tablet system (owner: "Hide all other Heros").
             // Pull request #371: except the Tab S9 FE, which also takes One UI 9.5 (owner, 2026-11-25).
-            val onOneUi9 = true && p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
+            val onOneUi9 = p.id !in setOf(Profiles.ID_S_8450, Profiles.ID_S_PLUS_8450, Profiles.ID_S_ULTRA_8450, Profiles.ID_S_ULTRA_8450_JP, Profiles.ID_S_9925, Profiles.ID_S_PLUS_9925, Profiles.ID_S_ULTRA_9925) && p.images().any { it.sdk == 37 && it.id != Images.ID_ONEUI95 }
             if (onOneUi9) {
                 assertEquals(p.id, expected, p.choices.last().copy(tested = false))
                 assertEquals(p.id, expected, p.choice(Images.ID_ONEUI95)!!.copy(tested = false))

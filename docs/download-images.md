@@ -66,6 +66,13 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S23 (au) (SCG19, SM8550)
   - Galaxy M35 5G (SM-M356, s5e8835), not tested yet
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
+  - Galaxy S22+ (SM-S906, s5e9925), not tested yet
+  - Galaxy S22 Ultra (SM-S908, s5e9925), not tested yet
+  - Galaxy S22 Ultra (Snapdragon) (SM-S908, SM8450), not tested yet
+  - Galaxy S22 (Snapdragon) (SM-S901, SM8450), not tested yet
+  - Galaxy S22 Ultra (au) (SCG14, SM8450), not tested yet
+  - Galaxy S22 (Exynos) (SM-S901, s5e9925), not tested yet
+  - Galaxy S22+ (Snapdragon) (SM-S906, SM8450), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
 

@@ -82,7 +82,7 @@ class ExperimentalA17OnA16Test {
         assertEquals(PackageSets.ID_ONEUI95_A16, tester.first { it.id == Profiles.A35.id }.choice(Images.ID_ONEUI95)!!.packageSetId)
         assertTrue(added.containsAll(setOf(Profiles.S_ULTRA_8450.id, Profiles.S_ULTRA_9925.id, Profiles.A06.id, Profiles.A07_5G.id)))
         // Exactly the phones whose only system is OxygenOS 16 (One UI 8 only).
-        assertEquals(Profiles.STABLE.filter { p -> p.choices.all { it.imageId == Images.ID_OXYGEN16 } }.map { it.id }.toSet(), added)
+        assertEquals(Profiles.STABLE.filter { p -> p.choices.all { it.imageId == Images.ID_OXYGEN16 || it.imageId == Images.ID_NOTHING_ASTEROIDS } }.map { it.id }.toSet(), added)
     }
 
     @Test

@@ -2940,10 +2940,8 @@
           "tested": false
         },
         {
-          "id": "nothingos5-asteroids",
-          "name": "Nothing OS 5",
-          "android": "17",
-          "sdk": 37,
+          "image": "nothingos5-asteroids",
+          "label": "Nothing OS 5.0",
           "set": "nothing-a",
           "tested": false
         }
@@ -2966,10 +2964,8 @@
           "tested": false
         },
         {
-          "id": "nothingos5-asteroids",
-          "name": "Nothing OS 5",
-          "android": "17",
-          "sdk": 37,
+          "image": "nothingos5-asteroids",
+          "label": "Nothing OS 5.0",
           "set": "nothing-a",
           "tested": false
         }
@@ -2992,10 +2988,8 @@
           "tested": false
         },
         {
-          "id": "nothingos5-asteroids",
-          "name": "Nothing OS 5",
-          "android": "17",
-          "sdk": 37,
+          "image": "nothingos5-asteroids",
+          "label": "Nothing OS 5.0",
           "set": "nothing-a",
           "tested": false
         }
@@ -3144,10 +3138,8 @@
           "tested": false
         },
         {
-          "id": "nothingos5-asteroids",
-          "name": "Nothing OS 5",
-          "android": "17",
-          "sdk": 37,
+          "image": "nothingos5-asteroids",
+          "label": "Nothing OS 5.0",
           "set": "nothing-a",
           "tested": false
         }
@@ -3188,10 +3180,8 @@
           "tested": false
         },
         {
-          "id": "nothingos5-asteroids",
-          "name": "Nothing OS 5",
-          "android": "17",
-          "sdk": 37,
+          "image": "nothingos5-asteroids",
+          "label": "Nothing OS 5.0",
           "set": "nothing-a",
           "tested": false
         }
@@ -3364,10 +3354,8 @@
           "tested": false
         },
         {
-          "id": "nothingos5-asteroids",
-          "name": "Nothing OS 5",
-          "android": "17",
-          "sdk": 37,
+          "image": "nothingos5-asteroids",
+          "label": "Nothing OS 5.0",
           "set": "nothing-a",
           "tested": false
         }
@@ -3768,10 +3756,8 @@
           "tested": false
         },
         {
-          "id": "nothingos5-asteroids",
-          "name": "Nothing OS 5",
-          "android": "17",
-          "sdk": 37,
+          "image": "nothingos5-asteroids",
+          "label": "Nothing OS 5.0",
           "set": "nothing-a",
           "tested": false
         }
