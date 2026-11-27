@@ -72,6 +72,7 @@ for pair in $BRIDGES; do no_symlink "${pair#*:}"; done
 for s in data misc misc/adb misc/profiles misc/user misc/bluedroid misc/bluetooth \
          misc_ce/0 misc_de/0 system system/devicestate system/package_cache \
          system/watchdog_timestamps system_de system_ce user/0 user_de/0 \
+         sec sec/camera \
          oneos_bin oneos_bin/busybox zygote_exec oplus oplus/multimedia \
          preapps-lib media/0 anr app local/tmp resource-cache oneos_fold8 oneos_pixel_hinge oneos_hinge; do
     no_symlink "$s"
@@ -93,6 +94,7 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
                                         $2 == "framework_patched_oneui95.jar" || $2 == "libcamera_client_patched_oneui95.so" ||
                                         $2 == "framework_patched_oneui8.jar" || $2 == "framework_patched_oneui85.jar" ||
+                                        $2 == "libcamera_client_patched_oneui8.so" || $2 == "libcamera_client_patched_oneui85.so" ||
                                         $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" ||
                                         $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" ||
                                         $2 == "oplus-framework_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
@@ -508,14 +510,17 @@ if [ "$(getprop ro.build.version.sdk)" = 36 ] &&
     # NullPointerException on every getCameraCharacteristics; Samsung's video call engine restarted ~2,000 times).
     # framework_patched_oneui85.jar (host_camera_oneui85.txt) on such a phone; without it the camera stays off.
     A16_OUI=$(getprop ro.build.version.oneui); case "$A16_OUI" in ''|*[!0-9]*) A16_OUI=0 ;; esac
-    A16_JAR=framework_patched_oneui8.jar; A16_NAME="One UI 8"
-    [ "$A16_OUI" -ge 80500 ] && A16_JAR=framework_patched_oneui85.jar && A16_NAME="One UI 8.5"
+    A16_JAR=framework_patched_oneui8.jar; A16_CL=libcamera_client_patched_oneui8.so; A16_NAME="One UI 8"
+    [ "$A16_OUI" -ge 80500 ] && A16_JAR=framework_patched_oneui85.jar && A16_CL=libcamera_client_patched_oneui85.so && A16_NAME="One UI 8.5"
     if [ -f "$STAGE/$A16_JAR" ] && [ "${ONEOS_A16_CAMERA:-1}" = 1 ] &&
        awk -v j="$A16_JAR" '$2 == j { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
         A16_CAMERA=1
         CAM_FW=$A16_JAR
+        if [ -f "$STAGE/$A16_CL" ] && awk -v n="$A16_CL" '$2 == n { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
+            CAM_CL=$A16_CL
+        fi
         : > "$STAGE/a16_camera_on"
-        echo "Experimental One UI 9.5 on One UI 8 (SDK 36, One UI $A16_OUI): camera on, $A16_NAME's camera codes ($A16_JAR)"
+        echo "Experimental One UI 9.5 on One UI 8 (SDK 36, One UI $A16_OUI): camera on, $A16_NAME's camera codes ($A16_JAR, native: $CAM_CL)"
     else
         echo "Experimental One UI 9.5 on One UI 8 (SDK 36, One UI $A16_OUI): camera off (no $A16_JAR in this set)"
     fi
@@ -1555,9 +1560,15 @@ fi
 # guest_start.sh makes the folder once the guest's package manager has made the
 # app's (data/oneos_samcam; 0.4.58 report f794c15d, Galaxy S25+: "can't create
 # secureDirectory", no photo in the gallery).
-rm -f "$STAGE/data/oneos_samcam"
+rm -f "$STAGE/data/oneos_samcam" "$STAGE/data/oneos_sec_camera"
 [ $SAMCAM = 1 ] && touch "$STAGE/data/oneos_samcam"
-if [ $SAMCAM = 1 ]; then
+NEED_SEC_CAMERA=0
+if [ $SAMCAM = 1 ] || { grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
+        ! { [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 0 ]; }; }; then
+    NEED_SEC_CAMERA=1
+    mkdir -p "$STAGE/data" && touch "$STAGE/data/oneos_sec_camera"
+fi
+if [ $NEED_SEC_CAMERA = 1 ]; then
     CUID=""
     for CAMDATA in "$STAGE/data/user/0/com.sec.android.app.camera" "$STAGE/data/user_de/0/com.sec.android.app.camera" "$STAGE/data/data/com.sec.android.app.camera"; do
         [ -d "$CAMDATA" ] && [ ! -L "$CAMDATA" ] && { CUID=$(stat -c %u "$CAMDATA" 2>/dev/null); break; }
@@ -4356,6 +4367,52 @@ fi
 # transaction codes (patches/pixel_camera_abi.py). Listed in guards.txt and
 # checked above, so a stage that has the jar binds the one the set was built
 # with or does not start.
+# One UI 9.5 on One UI 8.0 (SDK 36, < 80500): when the staged framework_patched_oneui8.jar is the
+# r7 build (8048477f..., before a16_camera_result_extras.py), patch two Android 17 -> Android 16
+# callback incompatibilities in a session copy under $STAGE/session/:
+#   1. CaptureResultExtras.readFromParcel: return empty MultiResConcurrentReadersStartInfo[0] instead
+#      of reading a 15th field that One UI 8.0 cameraserver never writes (prevents consuming timestamp
+#      bytes in onCaptureStarted -> OOM/NPE/corrupted PTS, and PhysicalCaptureResultInfo[] in
+#      onResultReceived -> multi-camera fusion/portrait crashes).
+#   2. ICameraServiceListener$Stub.onTransact: remap One UI 8.0's code 9 to onCameraDeviceStateChanged
+#      (exact 7-arg match to guest's code 10) so SemCameraDeviceStateCallback receives real events.
+# SHA-256 pinned before and after (classes2.dex Adler-32/SHA-1 and ZIP CRC-32 updated; verified by
+# dexdump -c and zipfile.testzip). Placed under $STAGE/session/ so StageStatus.LEFTOVER never flags
+# it and return_to_oneui.sh cleans it up on return. ONEOS_A16_CAMERA_FW_SESSION=0 keeps the raw jar.
+oneui8_patch_framework_jar() {
+    _src=$1; _dst=$2
+    [ -f "$_src" ] && [ ! -L "$_src" ] || return 1
+    [ "$(sha256sum "$_src" 2>/dev/null | cut -c1-64)" = 8048477f623e812581e6080feb68d53f3b093d2abf57bf0b853ebbab89272704 ] || return 1
+    rm -f "$_dst" && cp "$_src" "$_dst" || return 1
+    for _ent in \
+        '9062721:\232\255\262\134' \
+        '9062785:\006\377\344\034\370\037\176\135\071\031\176\276\110\212\276\272\135\360\267\247\375\127\203\155' \
+        '14304625:\011' \
+        '14304629:\003' \
+        '14715373:\022' \
+        '14715375:\043\003\212\036\000\000\000' \
+        '14715383:\000\000\000\000\000\000' \
+        '58981173:\232\255\262\134'; do
+        $BB printf "${_ent#*:}" | $BB dd of="$_dst" bs=1 seek="${_ent%%:*}" conv=notrunc 2>/dev/null || { rm -f "$_dst"; return 1; }
+    done
+    [ "$(sha256sum "$_dst" 2>/dev/null | cut -c1-64)" = 4d165e2e53726ad3a3463196d782a725bc9eab006c08e5bab88a3eda825d330c ] || { rm -f "$_dst"; return 1; }
+    chmod 644 "$_dst" && chown 0:0 "$_dst" 2>/dev/null || true
+    $BB touch -t 202611270000 "$_dst" 2>/dev/null || true
+    $BB chcon u:object_r:system_file:s0 "$_dst" 2>/dev/null || true
+    return 0
+}
+rm -f "$STAGE/session/framework.oneui8.session.jar"
+if [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 1 ] && [ "${A16_OUI:-0}" -lt 80500 ] &&
+   [ "$CAM_FW" = framework_patched_oneui8.jar ] && [ "${ONEOS_A16_CAMERA_FW_SESSION:-1}" = 1 ] &&
+   [ ! -L "$STAGE/session" ]; then
+    mkdir -p "$STAGE/session"
+    if oneui8_patch_framework_jar "$STAGE/$CAM_FW" "$STAGE/session/framework.oneui8.session.jar"; then
+        CAM_FW="session/framework.oneui8.session.jar"
+        echo "Camera: framework_patched_oneui8.jar patched for One UI 8.0 callbacks (CaptureResultExtras A16 parcel + onCameraDeviceStateChanged code 9)"
+    else
+        echo "!!! Camera: could not build One UI 8.0 framework session patch; keeping $CAM_FW"
+    fi
+fi
 if [ -f "$STAGE/$CAM_FW" ]; then
     $BB umount -l "$ROOTFS/system/framework/framework.jar" 2>/dev/null || true
     $BB mount --bind "$STAGE/$CAM_FW" "$ROOTFS/system/framework/framework.jar"
@@ -4381,6 +4438,50 @@ fi
 # (patches/pixel_camera_native.py); guards.txt lists them, checked above.
 # libsensorservice_patched.so (vivo OriginOS): One UI's light and hinge events as
 # scalars (make-overlays.sh; system_server aborted on the first one).
+# One UI 9.5 on One UI 8.0 (SDK 36, < 80500): when the set has not yet shipped a prebuilt
+# libcamera_client_patched_oneui8.so, patch the known One UI 9.5 libcamera_client_patched.so
+# (sha256 pinned before and after, exact 43 aarch64 instructions verified by pixel_camera_native.py
+# against host_camera_oneui8.txt with ONEOS_CAMERA_COMPAT_AS_INT=1: BpCameraService int32
+# rotationOverride + codes >= 27, BpCameraDeviceUser codes >= 10, BTI-safe BnCameraServiceListener
+# jump-table ignore for code 9, and CaptureResultExtras::readFromParcel skipping A17's
+# multiResConcurrentReadersStartInfo). Placed under $STAGE/session/ so StageStatus.LEFTOVER never
+# flags it and return_to_oneui.sh cleans it up on return. ONEOS_A16_CAMERA_NATIVE=0 keeps the One UI 9.0 binary.
+oneui8_patch_camera_client() {
+    _src=$1; _dst=$2
+    [ -f "$_src" ] && [ ! -L "$_src" ] || return 1
+    [ "$(sha256sum "$_src" 2>/dev/null | cut -c1-64)" = 23d98173e40ce788bc66d4a9678d06869fe5010ade40f001128b30c17ea57e7a ] || return 1
+    rm -f "$_dst" && cp "$_src" "$_dst" || return 1
+    for _ent in \
+        '312784:\001\000\200\122' '312788:\175\232\001\224' '313768:\001\000\200\122' '313772:\207\231\001\224' \
+        '314768:\001\000\200\122' '314772:\215\230\001\224' '321260:\001\000\200\122' '321264:\066\222\001\224' \
+        '335392:\001\000\200\122' '335396:\151\204\001\224' '336428:\001\031\200\122' '338112:\141\003\200\122' \
+        '340068:\241\003\200\122' '340852:\301\003\200\122' '341716:\341\003\200\122' '342564:\001\004\200\122' \
+        '343488:\041\004\200\122' '344420:\101\004\200\122' '345264:\141\004\200\122' '346120:\201\004\200\122' \
+        '346920:\241\004\200\122' '398880:\353\377\377\027' '475920:\001\031\200\122' '476800:\101\001\200\122' \
+        '477744:\141\001\200\122' '478620:\201\001\200\122' '479464:\241\001\200\122' '480340:\301\001\200\122' \
+        '481196:\341\001\200\122' '482044:\001\002\200\122' '482888:\041\002\200\122' '483756:\101\002\200\122' \
+        '484616:\141\002\200\122' '485500:\201\002\200\122' '486388:\241\002\200\122' '487276:\301\002\200\122' \
+        '488124:\341\002\200\122' '488992:\001\003\200\122' '489836:\041\003\200\122' '490732:\101\003\200\122' \
+        '491588:\141\003\200\122' '492716:\001\031\200\122' '629324:\037\040\003\325'; do
+        $BB printf "${_ent#*:}" | $BB dd of="$_dst" bs=1 seek="${_ent%%:*}" conv=notrunc 2>/dev/null || { rm -f "$_dst"; return 1; }
+    done
+    [ "$(sha256sum "$_dst" 2>/dev/null | cut -c1-64)" = 7ac13617a41b0434b8563dc02f529d5bce97ed56b664539fdc55d9be60c1b4d2 ] || { rm -f "$_dst"; return 1; }
+    chmod 644 "$_dst" && chown 0:0 "$_dst" 2>/dev/null || true
+    $BB chcon u:object_r:system_lib_file:s0 "$_dst" 2>/dev/null || true
+    return 0
+}
+rm -f "$STAGE/session/libcamera_client.oneui8.session.so"
+if [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 1 ] && [ "${A16_OUI:-0}" -lt 80500 ] &&
+   [ "$CAM_CL" = libcamera_client_patched.so ] && [ "${ONEOS_A16_CAMERA_NATIVE:-1}" = 1 ] &&
+   [ ! -L "$STAGE/session" ]; then
+    mkdir -p "$STAGE/session"
+    if oneui8_patch_camera_client "$STAGE/$CAM_CL" "$STAGE/session/libcamera_client.oneui8.session.so"; then
+        CAM_CL="session/libcamera_client.oneui8.session.so"
+        echo "Camera: native libcamera_client patched for One UI 8.0 ABI (Camera1/NDK codes + int rotationOverride + BTI-safe listener + A16 CaptureResultExtras)"
+    else
+        echo "!!! Camera: could not build One UI 8.0 native libcamera_client session patch; keeping $CAM_CL"
+    fi
+fi
 for pair in $CAM_CL:libcamera_client.so ${CAM_CI:+$CAM_CI:libcameracompatbilityinfo.so} \
             libsensorservice_patched.so:libsensorservice.so; do
     # Experimental One UI 9.5 on One UI 8: these carry One UI 9.0's camera codes, never sent to One UI 8's cameraserver
@@ -8657,6 +8758,61 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
             rm -f "$STAGE/data/oneos_system_floating_feature.xml.tmp"
             echo "!!! Floating features: the image's /system/etc list not rewritten"
         fi
+    fi
+    # One UI 9.5 S26 Ultra camera on a One UI 8 host (e.g. Galaxy S22): the host's
+    # SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO carries image_codec.samsung.v1 (which
+    # ImageCodecDummyNode rejects because S26 Ultra's camera knows only image_codec.samsung.v2) and
+    # may name node features whose native libraries the guest image does not ship (ai_clear_zoom ->
+    # libdtsr_wrapper_v1.camera.samsung.so, super_night.mpi -> libAIQSolution_MPI.camera.samsung.so).
+    # Apply the same rewrite/drop filter to both bound floating feature files when running the image's
+    # own camera on another phone. ONEOS_GUEST_SAMCAM_NODE_FILTER=0 leaves them as One UI has them.
+    oneui_filter_vendor_lib_info() {
+        _ff=$1
+        [ "${ONEOS_GUEST_SAMCAM_NODE_FILTER:-1}" = 1 ] && [ -f "$_ff" ] &&
+            grep -q '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>' "$_ff" 2>/dev/null || return 0
+        _drop=""
+        for _pair in ai_clear_zoom:libdtsr_wrapper_v1.camera.samsung.so \
+                     super_night.mpi:libAIQSolution_MPI.camera.samsung.so; do
+            _lib=${_pair#*:}
+            [ -e "$ROOTFS/system/lib64/$_lib" ] || [ -e "/vendor/lib64/$_lib" ] || _drop="$_drop ${_pair%%:*}"
+        done
+        _ren=""
+        grep -q 'image_codec\.samsung\.v1' "$_ff" 2>/dev/null && _ren="image_codec.samsung.v1=image_codec.samsung.v2"
+        [ -n "$_drop$_ren" ] || return 0
+        _cut="$_ff.cut"
+        if awk -v drop="$_drop" -v ren="$_ren" '
+            BEGIN { n = split(drop, d, " "); for (i = 1; i <= n; i++) if (d[i] != "") gone[d[i]] = 1
+                    n = split(ren, r, " "); for (i = 1; i <= n; i++) { split(r[i], kv, "="); if (kv[1] != "") to[kv[1]] = kv[2] } }
+            {
+                k = "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>"
+                if ((s = index($0, k)) > 0 && (e = index($0, "</SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>")) > s) {
+                    v = substr($0, s + length(k), e - s - length(k)); m = split(v, a, ","); out = ""; cut = ""
+                    for (i = 1; i <= m; i++) {
+                        x = a[i]; gsub(/^[ \t]+|[ \t]+$/, "", x)
+                        if (x == "") continue
+                        np = split(x, p, "."); f = p[1]; fv = (np >= 2 ? p[1] "." p[2] : f)
+                        if ((f in gone) || (fv in gone)) { cut = cut (cut == "" ? "" : ",") x; continue }
+                        if (x in to) { cut = cut (cut == "" ? "" : ",") x "->" to[x]; x = to[x] }
+                        out = out (out == "" ? "" : ",") x
+                    }
+                    print substr($0, 1, s + length(k) - 1) out substr($0, e)
+                    if (cut != "") printf "%s\n", cut > "/dev/stderr"
+                    next
+                }
+                print
+            }' "$_ff" > "$_ff.tmp" 2> "$_cut" &&
+           grep -q '</SecFloatingFeatureSet>' "$_ff.tmp" && [ -s "$_cut" ]; then
+            mv -f "$_ff.tmp" "$_ff"
+            chown 0:0 "$_ff" 2>/dev/null || true; chmod 644 "$_ff"
+            echo "Camera: One UI floating features ($(basename "$_ff")) VENDOR_LIB_INFO adjusted: $(cat "$_cut")"
+        else
+            rm -f "$_ff.tmp"
+        fi
+        rm -f "$_cut"
+    }
+    if [ "$ONEUI_A_CAMERA" = 0 ] && [ "$CAMDATA_OWN" = 0 ]; then
+        oneui_filter_vendor_lib_info "$STAGE/data/oneos_floating_feature.xml"
+        oneui_filter_vendor_lib_info "$STAGE/data/oneos_system_floating_feature.xml"
     fi
 fi
 # The S26 Ultra donor does not describe the Fold8's cover or wide inner screen.

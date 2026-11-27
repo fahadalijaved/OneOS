@@ -158,15 +158,16 @@ def die(msg):
 def read_table(path):
     """{interface: {method: (code, signature)}}"""
     out = {}
-    for line in open(path):
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        parts = line.split(None, 3)
-        if len(parts) != 4:
-            die(f"{path}: malformed line '{line}'")
-        iface, name, code, sig = parts
-        out.setdefault(iface, {})[name] = (int(code), sig)
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(None, 3)
+            if len(parts) != 4:
+                die(f"{path}: malformed line '{line}'")
+            iface, name, code, sig = parts
+            out.setdefault(iface, {})[name] = (int(code), sig)
     return out
 
 
@@ -287,10 +288,26 @@ def patch_proxy(text, iface, host, guest, changed):
 
 
 def patch_stub_switch(text, iface, host, guest, changed):
-    """Drop a guest onTransact case whose code is another method on the host."""
-    by_code_host = {c: n for n, (c, _) in host.items()}
-    drop = {c for n, (c, _) in guest.items() if c in by_code_host and by_code_host[c] != n}
-    if not drop:
+    """Remap or drop guest onTransact cases whose code differs on the host."""
+    by_code_host = {c: (n, sig) for n, (c, sig) in host.items()}
+    by_code_guest = {c: (n, sig) for n, (c, sig) in guest.items()}
+    # Remap host code c -> guest handler when the host method at c also exists in the guest
+    # with the exact same signature at another code (e.g. One UI 8.0's code 9
+    # onCameraDeviceStateChanged vs One UI 9.5's code 10), and drop unmatched/stale codes.
+    remap = {}
+    drop = set()
+    for c, (gn, _) in by_code_guest.items():
+        if c in by_code_host:
+            hn, hsig = by_code_host[c]
+            if hn != gn:
+                if hn in guest and guest[hn][1] == hsig:
+                    remap[c] = (hn, guest[hn][0])
+                else:
+                    drop.add(c)
+        elif gn in host and host[gn][0] != c and host[gn][1] == guest[gn][1]:
+            # Moved to host[gn][0]; drop the old guest-only slot so it is not reachable by stale code.
+            drop.add(c)
+    if not drop and not remap:
         return text, 0
     bodies = [(s, e, h) for s, e, h in method_bodies(text) if " onTransact(" in h]
     if len(bodies) != 1:
@@ -303,16 +320,25 @@ def patch_stub_switch(text, iface, host, guest, changed):
     first = int(m.group(1), 0)
     labels = m.group(2).split()
     codes = {first + i: lab for i, lab in enumerate(labels)}
-    for c in sorted(drop):
+    for c in sorted(drop | set(remap)):
         if c not in codes:
             die(f"{iface}.onTransact: code {c} not in its switch")
-    keep = [(c, lab) for c, lab in sorted(codes.items()) if c not in drop]
+    for c, (hn, gc) in sorted(remap.items()):
+        if gc not in codes:
+            die(f"{iface}.onTransact: target code {gc} ({hn}) not in its switch")
+    resolved = {}
+    for c, lab in codes.items():
+        if c in remap:
+            resolved[c] = codes[remap[c][1]]
+        elif c in drop:
+            resolved[c] = ":oneos_ignored"
+        else:
+            resolved[c] = lab
+    keep = [(c, lab) for c, lab in sorted(resolved.items()) if lab != ":oneos_ignored"]
     # A packed switch must stay contiguous: dropped codes above the last kept one fall off the end;
     # a dropped code in the middle keeps its slot, pointed at the switch's own fall-through.
     last_kept = max(c for c, _ in keep)
-    new = []
-    for c in range(first, last_kept + 1):
-        new.append(codes[c] if c not in drop else ":oneos_ignored")
+    new = [resolved[c] for c in range(first, last_kept + 1)]
     table = f".packed-switch {m.group(1)}\n" + "".join(f"        {lab}\n" for lab in new) + "    .end packed-switch"
     body = body[:m.start()] + table + body[m.end():]
     if ":oneos_ignored" in table:
@@ -321,9 +347,12 @@ def patch_stub_switch(text, iface, host, guest, changed):
         if not sw:
             die(f"{iface}.onTransact: switch instruction not found")
         body = body[:sw.end()] + f"{sw.group(1)}:oneos_ignored\n" + body[sw.end():]
+    for c, (hn, gc) in sorted(remap.items()):
+        changed.append(f"{iface}.onTransact: code {c} remapped to {hn} (was guest {gc}; replaced {by_code_guest[c][0]})")
     for c in sorted(drop):
-        changed.append(f"{iface}.onTransact: code {c} ({[n for n, (cc, _) in guest.items() if cc == c][0]}) ignored; the host's {by_code_host[c]}")
-    return text[:s] + body + text[e:], len(drop)
+        why = f"the host's {by_code_host[c][0]}" if c in by_code_host else f"moved to {host[by_code_guest[c][0]][0]}"
+        changed.append(f"{iface}.onTransact: code {c} ({by_code_guest[c][0]}) ignored; {why}")
+    return text[:s] + body + text[e:], len(drop) + len(remap)
 
 
 WRITE6 = """    iget-boolean v0, p0, Landroid/content/res/CameraCompatibilityInfo;->mShouldOverrideLensFacingFrontToBack:Z

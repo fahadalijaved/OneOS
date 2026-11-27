@@ -213,8 +213,8 @@ object CompatEvaluator {
             out += Finding(
                 ID_ANDROID_EXPERIMENTAL, Level.WARN, "Experimental: One UI 9.5 on Android ${AndroidRelease.name(f.sdk)}",
                 "This phone runs Android ${f.androidRelease.ifEmpty { AndroidRelease.name(f.sdk) }} (SDK ${f.sdk}); One UI 9.5 is " +
-                    "Android 17 (SDK 37). This test build lets it start next to One UI 8 anyway: the camera is off in it, " +
-                    "and parts of One UI 9.5 may not work. The phone's other systems need One UI's own Android version.",
+                    "Android 17 (SDK 37). This build lets it start next to One UI 8 experimentally, and parts of " +
+                    "One UI 9.5 (including some camera features) may not work. The phone's other systems need One UI's own Android version.",
             )
         } else if (matching.isEmpty()) {
             val sdks = candidates.map { it.sdk }.distinct().sorted()

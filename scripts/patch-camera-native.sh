@@ -14,9 +14,15 @@ set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 [ -f "$1" ] && [ -f "$2" ] && [ -d "$3" ] || { echo "usage: $0 <libcamera_client.so> <libcameracompatbilityinfo.so> <out dir>" >&2; exit 2; }
 OUT=$(cd "$3" && pwd)
-# CAMERA_TABLE: another host table (0.5.37: switcher/patches/host_camera_oneui95.txt for One UI 9.5 phones).
+# CAMERA_TABLE: another host table (0.5.37: switcher/patches/host_camera_oneui95.txt for One UI 9.5 phones;
+# switcher/patches/host_camera_oneui8.txt with ONEOS_CAMERA_COMPAT_AS_INT=1 for One UI 8.0 phones).
+# CAMERA_SUFFIX: optional filename suffix (e.g. _oneui8, _oneui85, _oneui95) for libcamera_client_patched<suffix>.so;
+# when set, libcameracompatbilityinfo.so is left to the base set.
 TABLE="${CAMERA_TABLE:-$ROOT/switcher/patches/host_camera.txt}"
-for pair in "$1:libcamera_client_patched.so" "$2:libcameracompatbilityinfo_patched.so"; do
+SUFFIX="${CAMERA_SUFFIX:-}"
+PAIRS="$1:libcamera_client_patched${SUFFIX}.so"
+[ -z "$SUFFIX" ] && PAIRS="$PAIRS $2:libcameracompatbilityinfo_patched.so"
+for pair in $PAIRS; do
     src=${pair%%:*}; name=${pair#*:}
     rm -f "$OUT/$name"
     sed -i "/ $name\$/d" "$OUT/guards.txt" 2>/dev/null || true
