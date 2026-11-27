@@ -477,7 +477,8 @@ class SystemsFragment : Fragment() {
         val oxygen = image(com.fahadali.oneos.core.model.SystemFamily.OXYGENOS, Images.OXYGEN16)
         val origin = image(com.fahadali.oneos.core.model.SystemFamily.ORIGINOS, Images.ORIGINOS7)
         val lineage = image(com.fahadali.oneos.core.model.SystemFamily.LINEAGE, Images.LINEAGE24)
-        val oneui = image(com.fahadali.oneos.core.model.SystemFamily.ONEUI, Images.ONEUI95)
+        val oneui85 = Images.ONEUI85_F6
+        val oneui = image(com.fahadali.oneos.core.model.SystemFamily.ONEUI, Images.ONEUI95, except = Images.ID_ONEUI85_F6)
         val pixelOs = image(com.fahadali.oneos.core.model.SystemFamily.PIXELOS, Images.PIXELOS_ONYX)
         // OxygenOS 16 (Android 16, 0.4.67) only where the phone can take it (One UI 8), and first there.
         val entries = listOfNotNull(
@@ -492,8 +493,10 @@ class SystemsFragment : Fragment() {
             CatalogEntry(lineage.name, lineage, R.drawable.os_lineage, true).takeIf { available.any { it.id == lineage.id } },
             // PixelOS 17 (0.5.35), a custom ROM with a card and artwork of its own (not the Pixel card), only on the phones that offer it.
             CatalogEntry(pixelOs.name, pixelOs, R.drawable.os_pixelos, true).takeIf { available.any { it.id == pixelOs.id } },
-            // One UI 9.5 (0.5.22, untested) only on the phones on One UI 9 that offer it.
-            CatalogEntry(oneui.name, oneui, if (oneui.id == Images.ID_ONEUI85_F6) R.drawable.os_oneui85 else R.drawable.os_oneui, true).takeIf { available.any { it.id == oneui.id } },
+            // One UI 8.5 (Fold6 port) on phones that offer it (Galaxy Z Fold4).
+            CatalogEntry(oneui85.name, oneui85, R.drawable.os_oneui85, true).takeIf { available.any { it.id == oneui85.id } },
+            // One UI 9.5 (0.5.22, untested) only on the phones that offer it.
+            CatalogEntry(oneui.name, oneui, R.drawable.os_oneui, true).takeIf { available.any { it.id == oneui.id } },
             CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, true).takeIf { available.any { it.id == infinity.id } },
             CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, true).takeIf { available.any { it.id == hyper.id } },
             CatalogEntry(color.name, color, R.drawable.os_coloros, true).takeIf { available.any { it.id == color.id } },
