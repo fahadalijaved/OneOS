@@ -493,7 +493,7 @@ GUEST_ANIM_REQ="$STAGE/data/user/0/com.fahadali.oneos.guest/files/oneos_anim_lev
 ANIM_STATE="$STAGE/data/oneos_bootui/anim_level"
 rm -f "$GUEST_RETURN_REQ" "$GUEST_RESTART_REQ" "$GUEST_FULLLOGS_REQ" "$GUEST_ANIM_REQ"
 # An earlier session's mark (it would make this session's report look like full logs were on).
-rm -f "$STAGE/full_logs_mid.log"
+rm -f "$STAGE/full_logs_mid.log" "$STAGE/full_logs_keep" "$STAGE/logcat_cut"
 # One UI's protected state, recorded now and compared by return_to_oneui.sh:
 # the FRP partition, gatekeeper's files and the APEX state. The guest is kept
 # off all three (patches/guest_no_gatekeeper.py, guest_pdb_readonly.py,
@@ -1014,7 +1014,8 @@ fi
 # without sound and a game's endless static (A56 da7379d6, M55s 0e73a8d6) all
 # fell in the gap between the capture's head and its end (A56: 13:48-15:35);
 # this log had the whole A56 session but none of those tags.
-if [ "${ONEOS_LOGCAT:-1}" = 1 ]; then
+# 0.5.51 (owner: "Disable all logs when we are talking live"): off with Full session logs off as well.
+if [ "${ONEOS_LOGCAT:-1}" = 1 ] && [ "${ONEOS_FULL_LOGS:-1}" = 1 ]; then
     # Every earlier one, by its command line (0.5.20): the saved pid missed some, and the two-hour
     # timeout does not count while the phone sleeps, so readers from earlier sessions piled up (A36
     # ColorOS 11-17: five at once, logd at 100 % CPU and the guest sluggish).
@@ -1660,21 +1661,24 @@ ls -l /vendor/etc/displayconfig /vendor/odm/etc/displayconfig /vendor/odm/etc/de
 # interfaces from One UI's own framework.jar (ART's dexdump, in the background; scripts/aidl-table.py reads
 # the file). Only on Android 16 phones and once per phone build (kept in data/ across sessions). "# 2" (0.5.50):
 # also CameraCompatibilityInfo, whose field count differs between One UI versions (S23 FE 39aa3131: One UI 8.5
-# still answered every camera call with a NullPointerException after framework_patched_oneui85.jar).
+# still answered every camera call with a NullPointerException after framework_patched_oneui85.jar). "# 3"
+# (0.5.51): AttributionSourceState too, and the code (dexdump -d): One UI 8.5's CameraCompatibilityInfo and
+# getCameraCharacteristics match the guest's (103432ce), so the caller's AttributionSourceState layout is next.
 CTD="$STAGE/data/oneos_host_camera_dexdump.txt"
 if [ "$(getprop ro.build.version.sdk)" = 36 ] && [ -x /apex/com.android.art/bin/dexdump ] &&
-   [ "$(head -n 1 "$CTD" 2>/dev/null)" != "# 2 $(getprop ro.build.fingerprint)" ]; then
+   [ "$(head -n 1 "$CTD" 2>/dev/null)" != "# 3 $(getprop ro.build.fingerprint)" ]; then
     ( t="$STAGE/camdex.tmp"; rm -rf "$t"; mkdir -p "$t" "$STAGE/data" || exit 0
-      echo "# 2 $(getprop ro.build.fingerprint)" > "$CTD.new"
+      echo "# 3 $(getprop ro.build.fingerprint)" > "$CTD.new"
       for e in $(unzip -l /system/framework/framework.jar 2>/dev/null | awk '$NF ~ /^classes[0-9]*\.dex$/ {print $NF}'); do
           unzip -p /system/framework/framework.jar "$e" > "$t/x.dex" 2>/dev/null || continue
-          grep -a -q -e 'Landroid/hardware/ICameraService$Stub;' -e 'Landroid/content/res/CameraCompatibilityInfo;' "$t/x.dex" 2>/dev/null || continue
+          grep -a -q -e 'Landroid/hardware/ICameraService$Stub;' -e 'Landroid/content/res/CameraCompatibilityInfo;' -e 'Landroid/content/AttributionSourceState;' "$t/x.dex" 2>/dev/null || continue
           echo "# $e" >> "$CTD.new"
-          nice -n 10 /apex/com.android.art/bin/dexdump "$t/x.dex" 2>/dev/null | awk '
+          nice -n 10 /apex/com.android.art/bin/dexdump -d "$t/x.dex" 2>/dev/null | awk '
               /^Class #[0-9]+/ { if (keep) printf "%s", buf; buf = ""; keep = 0 }
               { buf = buf $0 "\n" }
               /Class descriptor  : .Landroid\/hardware\/(ICameraService|ICameraServiceListener|camera2\/ICameraDeviceCallbacks|camera2\/ICameraDeviceUser)\$Stub(\$Proxy)?;/ { keep = 1 }
               /Class descriptor  : .Landroid\/content\/res\/CameraCompatibilityInfo;/ { keep = 1 }
+              /Class descriptor  : .Landroid\/content\/AttributionSourceState;/ { keep = 1 }
               END { if (keep) printf "%s", buf }' >> "$CTD.new"
       done
       rm -rf "$t"
@@ -3120,6 +3124,22 @@ while true; do
                 sleep 1
                 echo \"[UI Activator] screen watch: \$(head -n 1 $STAGE/screen_watch.log 2>/dev/null || true)\"
             fi
+            # HeyTap store kept off the CPU (0.5.51, owner; Fold5 ColorOS 9edcbd87: 43 C, the store app com.heytap.mall
+            # used 1-2 whole cores for minutes after it left the screen, its web page still drawing). ColorOS and
+            # OxygenOS: every 20 s, a store process with no store activity resumed on top (or the screen off) is
+            # force-stopped; opening the store again works as usual. ONEOS_GUEST_STORE_STOP=0: off.
+            if [ $GUEST_OPLUS = 1 ] && [ \"\${ONEOS_GUEST_STORE_STOP:-1}\" = 1 ]; then
+                ( n=0
+                  while kill -0 \$PID 2>/dev/null; do
+                      sleep 20
+                      pidof com.heytap.mall >/dev/null 2>&1 || continue
+                      top=\$($BB timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys activity activities 2>/dev/null | grep -m 1 'topResumedActivity')
+                      case \"\$top\" in *com.heytap.mall/*) continue ;; esac
+                      $BB timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/am force-stop com.heytap.mall >/dev/null 2>&1
+                      n=\$((n + 1)); [ \$n -le 20 ] && echo \"\$(date +%T) HeyTap store stopped in the background (\$n)\" >> $STAGE/store_stop.log
+                  done ) </dev/null >/dev/null 2>&1 &
+                echo \"[UI Activator] HeyTap store: stopped whenever it leaves the screen (store_stop.log)\"
+            fi
             # Knox provider stand-in (0.5.17), OxygenOS only: One UI's calling service died at every start
             # there (no com.sec.knox.provider2: A15, A16, A17 reports), so no SMS and no VoLTE. The guest app's
             # KnoxProviderStub answers it; it stays off in every other system. ONEOS_GUEST_KNOX_STUB=0: off.
@@ -4512,6 +4532,8 @@ fi
 # $STAGE/cpu_top.log (collected with the stage's logs), the six busiest
 # processes over one second and the CPU totals (HyperOS run 11: 42-44 C skin
 # all session and nothing said which process kept the CPU busy).
+# 0.5.51 (owner: "Disable all logs when we are talking live"): not with Full session logs off.
+if [ "${ONEOS_FULL_LOGS:-1}" = 1 ]; then
 $BB sh -c "
     echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
     F=$STAGE/diag_series.txt
@@ -4544,6 +4566,7 @@ $BB sh -c "
         sleep \$s
     done
 " </dev/null >/dev/null 2>&1 &
+fi
 echo "Session sampler: every 30 s to $STAGE/diag_series.txt"
 
 # Heat cap (S25 Ultra af6c2b17; owner 2026-10-27: cap only when hot). One UI's
@@ -4731,12 +4754,23 @@ if [ "$GUEST_OPLUS" != 1 ] && [ "${ONEOS_GUEST_SF_PIN:-1}" != 0 ] && [ -r /sys/c
             echo \"# \$(date +%T) stopped (the return started, or no guest namespace record) after \$kicks kicks\" >> \$F
             exit 0
         fi
-        hz=\$(cut -d' ' -f1 /sys/class/lcd/panel/vrr 2>/dev/null)
-        case \"\$hz\" in ''|*[!0-9]*) hz=0 ;; esac
-        on=0
-        for b in /sys/class/backlight/*/brightness; do
-            v=\$(cat \$b 2>/dev/null); case \"\$v\" in ''|*[!0-9]*) ;; 0) ;; *) on=1 ;; esac
+        # 0.5.51 (Z Fold7 HyperOS 23d6ebee: laggy folded, fine open): the panel that is lit is the one watched.
+        # The cover's panel1 sat at 24 Hz the whole folded session while the inner panel (read before) said 120.
+        # panel goes with panel0-backlight, panel1 with panel1-backlight; without those, the old reading.
+        hz=0; on=0; vp=panel
+        for p in panel panel1; do
+            [ -r /sys/class/lcd/\$p/vrr ] || continue
+            bl=/sys/class/backlight/\${p}-backlight; [ \$p = panel ] && bl=/sys/class/backlight/panel0-backlight
+            v=\$(cat \$bl/brightness 2>/dev/null); case \"\$v\" in ''|*[!0-9]*|0) continue ;; esac
+            on=1; vp=\$p; hz=\$(cut -d' ' -f1 /sys/class/lcd/\$p/vrr 2>/dev/null); break
         done
+        if [ \$on = 0 ]; then
+            hz=\$(cut -d' ' -f1 /sys/class/lcd/panel/vrr 2>/dev/null)
+            for b in /sys/class/backlight/*/brightness; do
+                v=\$(cat \$b 2>/dev/null); case \"\$v\" in ''|*[!0-9]*) ;; 0) ;; *) on=1 ;; esac
+            done
+        fi
+        case \"\$hz\" in ''|*[!0-9]*) hz=0 ;; esac
         if [ \$on = 1 ] && [ \$hz -gt 0 ] && [ \$hz -lt 48 ]; then low=\$((low + 1)); else low=0; fi
         # 0.5.15: also a panel left at 60 Hz under a guest whose active mode is 120 (A36 Nothing OS: the guest
         # started at its 120 Hz mode, so it never asked for a change, and the panel stayed in One UI's idle 60;
@@ -4755,7 +4789,7 @@ if [ "$GUEST_OPLUS" != 1 ] && [ "${ONEOS_GUEST_SF_PIN:-1}" != 0 ] && [ -r /sys/c
             [ -n \"\$P\" ] && out=\$(timeout 30 $BB nsenter -t \$P -m /system/bin/sh /data/oneos_genv.sh /system/bin/sh /data/oneos_sf_kick.sh 2>&1 | tr '\\n' ';' | cut -c1-400)
             kicks=\$((kicks + 1)); low=0; mis=0
             sleep 1
-            echo \"\$(date +%T) panel at \$hz Hz (guest mode \$sf Hz) with the screen on: \${out:-no guest system_server}; now \$(cut -d' ' -f1 /sys/class/lcd/panel/vrr 2>/dev/null) Hz\" >> \$F
+            echo \"\$(date +%T) \$vp at \$hz Hz (guest mode \$sf Hz) with the screen on: \${out:-no guest system_server}; now \$(cut -d' ' -f1 /sys/class/lcd/\$vp/vrr 2>/dev/null) Hz\" >> \$F
         fi
         sleep 15
     done
@@ -4828,6 +4862,8 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 # Only with ONEOS_LOGCAT=1, and only once: a capture that runs is left alone.
                 if [ -f $GUEST_FULLLOGS_REQ ] && [ ! -L $GUEST_FULLLOGS_REQ ]; then
                     rm -f $GUEST_FULLLOGS_REQ
+                    # 0.5.51: asked in the guest's app, the capture runs to the end (no 10-minute stop below).
+                    : > $STAGE/full_logs_keep
                     if [ \"${ONEOS_LOGCAT:-1}\" = 1 ] && ! pgrep -f '^logcat .*$LOGS/boot.log' >/dev/null 2>&1; then
                         mkdir -p $LOGS
                         if [ -f $STAGE/logcat_capture.sh ]; then
@@ -4892,6 +4928,28 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                 exec /system/bin/sh $STAGE/return_to_oneui.sh
             fi
             if [ -n \"\$req\" ]; then
+                # 0.5.51 (owner, A36 Nothing OS: left on its setup screen, found powered off; 'shutdown' with the
+                # screen off, no line from the guarded ShutdownThread): a guest shutdown while its screen is off is
+                # nobody's Power off. It returns to One UI and the phone stays on ('asleep:shutdown' is not
+                # shutdown* for return_to_oneui.sh). Off: no panel lit (drm dpms On, a backlight above 0), or the
+                # guest asleep on its AOD (oneos_dt2w_aod = 1). The guest's logs from that moment are kept in
+                # powerctl_request.log (the shutdown line was missing from the capture). ONEOS_GUEST_SHUTDOWN_ASLEEP=off
+                # powers off as before.
+                case \"\$req\" in
+                    shutdown*)
+                        lit=0
+                        for d in /sys/class/drm/card0-*/dpms; do [ \"\$(cat \$d 2>/dev/null)\" = On ] && lit=1; done
+                        for b in /sys/class/backlight/*/brightness; do v=\$(cat \$b 2>/dev/null); case \"\$v\" in ''|*[!0-9]*|0) ;; *) lit=1 ;; esac; done
+                        [ \"\$(cat $STAGE/data/oneos_dt2w_aod 2>/dev/null)\" = 1 ] && lit=0
+                        SFP=\$(pidof surfaceflinger | awk '{print \$1}')
+                        { echo \"\$(date) guest request '\$req', screen lit=\$lit\"
+                          [ -n \"\$SFP\" ] && timeout 5 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/logcat -d -b all -t 3000 2>/dev/null
+                        } > $STAGE/powerctl_request.log 2>&1
+                        if [ \$lit = 0 ] && [ \"\${ONEOS_GUEST_SHUTDOWN_ASLEEP:-stay}\" != off ]; then
+                            req=\"asleep:\$req\"; setprop oneos.guest.powerctl \"\$req\"
+                            echo \"\$(date) the guest asked to shut down with its screen off: returning to One UI, the phone stays on\"
+                        fi ;;
+                esac
                 echo \"\$(date) guest requested '\$req' after \${total}s, returning to One UI\"
                 # Who asked: the guarded ShutdownThread logs under the tag OneOS (run
                 # 31 was Restart in ColorOS's power menu, seen only in the recording).
@@ -4943,8 +5001,20 @@ if [ "$RETURN_MAX" -gt 0 ]; then
             # boot at run 44's rates, 192 MiB at most) get a second name in
             # $LOGS/head: hard links, no copy, and no space used until the
             # rotation deletes their first name. This session's capture only.
+            # 0.5.51 (owner: people complain about heat and lag): the full capture keeps the session's first 10
+            # minutes (boot and most crashes) and then stops; logd and logcat drew about a fifth of a core all
+            # session (A36 Nothing OS: smoother at once without it). Full session logs in the guest's OneOS app
+            # (shown off again from here) records again until the end. ONEOS_FULL_LOGS_SECONDS (0: no stop).
+            if [ $LOGCAT_HEAD = 1 ] && [ ${ONEOS_FULL_LOGS_SECONDS:-600} -gt 0 ] && [ \$total -ge ${ONEOS_FULL_LOGS_SECONDS:-600} ] &&
+               [ ! -f $STAGE/full_logs_keep ] && [ ! -f $STAGE/logcat_cut ]; then
+                : > $STAGE/logcat_cut
+                for lp in \$(pgrep -f \"^logcat .*$LOGS/boot.log\" 2>/dev/null); do kill \$lp 2>/dev/null; done
+                [ -d $STAGE/data/oneos_bootui ] && echo 0 > $FULLLOGS_STATE && chmod 644 $FULLLOGS_STATE
+                echo \"\$(date) logcat capture stopped after \${total}s: the first ${ONEOS_FULL_LOGS_SECONDS:-600} s are kept (Full session logs in the guest's OneOS app records again)\"
+            fi
             # The capture ended early (0.5.20, see where it starts): started again, appending to its file.
-            if [ $LOGCAT_HEAD = 1 ] && [ -n \"\$dname\" ] && [ -f $STAGE/logcat_capture.sh ] && ! pgrep -f \"^logcat .*$LOGS/boot.log\" >/dev/null 2>&1; then
+            if [ $LOGCAT_HEAD = 1 ] && [ -n \"\$dname\" ] && [ -f $STAGE/logcat_capture.sh ] && ! pgrep -f \"^logcat .*$LOGS/boot.log\" >/dev/null 2>&1 &&
+               { [ ! -f $STAGE/logcat_cut ] || [ -f $STAGE/full_logs_keep ]; }; then
                 mkdir -p $LOGS
                 $BB setsid sh $STAGE/logcat_capture.sh </dev/null >/dev/null 2>&1 &
                 echo \"\$(date) logcat capture had ended: started again\"

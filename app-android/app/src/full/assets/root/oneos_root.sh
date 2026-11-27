@@ -229,6 +229,7 @@ profile_info() {
         s-ultra-8850) echo "SM-S948 m3q SM8850 bar" ;;
         s-ultra-8750) echo "SM-S938 pa3q SM8750 bar" ;;
         s-8750) echo "SM-S931 pa1q SM8750 bar" ;;
+        s-8750-jp) echo "SCG31 SCG31 SM8750 bar" ;;
         f7) echo "SM-F966 q7q SM8750 fold" ;;
         s-plus-8750) echo "SM-S936 pa2q SM8750 bar" ;;
         f8) echo "SM-F971 h8q SM8850 fold" ;;
@@ -316,6 +317,7 @@ profile_set() {
         "flip8 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8750 nothingos5-metroid") echo nothing-f8u ;;
         "s-8750 nothingos5-metroid") echo nothing-f8u ;;
+        "s-8750-jp nothingos5-metroid") echo nothing-f8u ;;
         "s-plus-8750 nothingos5-metroid") echo nothing-f8u ;;
         "s-ultra-8650 nothingos5-metroid") echo nothing-f8u ;;
         "f7 nothingos5-metroid") echo nothing-f8u ;;
@@ -343,6 +345,7 @@ profile_set() {
         "s-ultra-8850 pixelos17-onyx") echo pixelos ;;
         "s-ultra-8750 pixelos17-onyx") echo pixelos ;;
         "s-8750 pixelos17-onyx") echo pixelos ;;
+        "s-8750-jp pixelos17-onyx") echo pixelos ;;
         "s-plus-8750 pixelos17-onyx") echo pixelos ;;
         "s-8850 pixelos17-onyx") echo pixelos ;;
         "s-8850-jp pixelos17-onyx") echo pixelos ;;
@@ -388,7 +391,9 @@ profile_set() {
         "s-ultra-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-ultra-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
         "s-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
+        "s-8750-jp coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
+        "s-8750-jp pixel9proxl-komodo") echo pixel9-sultra ;;
         "f7 coloros17-findn6") echo n6-f8u ;;
         "s-plus-8750 coloros17-findx9u-in-1105") echo x9u-in-1105-sultra ;;
         "s-plus-8750 pixel9proxl-komodo") echo pixel9-sultra ;;
@@ -496,10 +501,15 @@ profile_set() {
         "s-plus-8750 hyperos-lhasa") echo hyper-f8u ;;
         "s-plus-8750 hyperos-hongkong") echo hyper-hk ;;
         "s-8750 infinityx41-findx9u") echo infinityx ;;
+        "s-8750-jp infinityx41-findx9u") echo infinityx ;;
         "s-8750 lineage24-infiniti") echo lineage ;;
+        "s-8750-jp lineage24-infiniti") echo lineage ;;
         "s-8750 oneui95-s948b") echo oneui95 ;;
+        "s-8750-jp oneui95-s948b") echo oneui95 ;;
         "s-8750 hyperos-lhasa") echo hyper-f8u ;;
+        "s-8750-jp hyperos-lhasa") echo hyper-f8u ;;
         "s-8750 hyperos-hongkong") echo hyper-hk ;;
+        "s-8750-jp hyperos-hongkong") echo hyper-hk ;;
         "s-ultra-8650 infinityx41-findx9u") echo infinityx ;;
         "s-ultra-8650 lineage24-infiniti") echo lineage ;;
         "s-ultra-8650 oneui95-s948b") echo oneui95 ;;
@@ -629,6 +639,7 @@ profile_set() {
         "s-plus-8850 originos7-pd2609ma") echo originos ;;
         "s-ultra-8850 originos7-pd2609ma") echo originos ;;
         "s-8750 originos7-pd2609ma") echo originos ;;
+        "s-8750-jp originos7-pd2609ma") echo originos ;;
         "s-plus-8750 originos7-pd2609ma") echo originos ;;
         "s-ultra-8750 originos7-pd2609ma") echo originos ;;
         "s-edge-8750 originos7-pd2609ma") echo originos ;;
@@ -817,8 +828,13 @@ profile_set() {
 # (oneui8test5: the A35 34c9856c on One UI 8 got the plain set; profile_set asks this list first), as
 # Profiles.withOneUi95OnA16 offers it. A list, not rows of the table, so the table stays exactly what a normal build's
 # app offers (StageAuditTest checks both).
-A17_ON_A16_PROFILES="a06 a07-5g a24 a25 a33 a53 e55 s-fe-9925 s-fe-8450 s-plus-9925 s-ultra-9925 s-ultra-8450 s-ultra-8450-jp s-8450 m55s s-9925 a16-mtk a15-5g flip8 a36 a27 s-8650 s-plus-8650 f8u f7 s-ultra-8850 s-plus-8850 s-8850 s-8850-jp s-plus-9965 s-9965 s-ultra-8750 s-plus-8750 s-8750 s-ultra-8650 s-8550 s-plus-8550 flip7 a56 a57 s-ultra-8550 flip6 s-9945 flip5 f6 f5 f4 a07 s-edge-8750 s-fe-9945 a26 a35 a54 a16-4g a16-s166 a17 a16 a17-5g a34 a15 flip7-fe a55 s25-fe s26-fe s-plus-9945 s-ultra-8550-jp s-8550-jp m35 m36 s-plus-8450 tab-s9-fe tab-s9-fe-5g tab-s9 tab-s9-ultra tab-s9-fe-plus tab-s10-fe tab-s10-fe-wifi tab-s11 tab-s11-ultra tab-s12-ultra"
+A17_ON_A16_PROFILES="a06 a07-5g a24 a25 a33 a53 e55 s-fe-9925 s-fe-8450 s-plus-9925 s-ultra-9925 s-ultra-8450 s-ultra-8450-jp s-8450 m55s s-9925 a16-mtk a15-5g flip8 a36 a27 s-8650 s-plus-8650 f8u f7 s-ultra-8850 s-plus-8850 s-8850 s-8850-jp s-plus-9965 s-9965 s-ultra-8750 s-plus-8750 s-8750 s-8750-jp s-ultra-8650 s-8550 s-plus-8550 flip7 a56 a57 s-ultra-8550 flip6 s-9945 flip5 f6 f5 f4 a07 s-edge-8750 s-fe-9945 a26 a35 a54 a16-4g a16-s166 a17 a16 a17-5g a34 a15 flip7-fe a55 s25-fe s26-fe s-plus-9945 s-ultra-8550-jp s-8550-jp m35 m36 s-plus-8450 tab-s9-fe tab-s9-fe-5g tab-s9 tab-s9-ultra tab-s9-fe-plus tab-s10-fe tab-s10-fe-wifi tab-s11 tab-s11-ultra tab-s12-ultra"
+# ColorOS 17 (Find X9 Ultra IN) on the S22s held on One UI 8 (0.5.51, owner): its One UI 8 set, as Profiles.withColorOsOnA16.
+COLOROS_A16_PROFILES="s-9925 s-8450 s-plus-9925 s-plus-8450 s-ultra-9925 s-ultra-8450 s-ultra-8450-jp"
 a17_on_a16_set() { # <profile> <image>
+    if [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$2" = coloros17-findx9u-in-1105 ] && in_list "$1" "$COLOROS_A16_PROFILES"; then
+        echo x9u-in-1105-a16; return 0
+    fi
     [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$2" = oneui95-s948b ] && in_list "$1" "$A17_ON_A16_PROFILES" || return 1
     echo oneui95-a16
 }
@@ -867,6 +883,9 @@ set_files() {
         oneui95) echo "$SET_ONEUI framework_patched_oneui95.jar" ;;
         oneui95-f8) echo "$SET_FOLDONEUI" ;;
         oneui95-a16) echo "$SET_ONEUIEIGHT" ;;
+        # ColorOS 17 on One UI 8 (0.5.51, the S22s): the X9U IN files without the One UI 9.5 camera, the image's
+        # Android 17 modules One UI 8 cannot lend, its connectivity_native, One UI 8 / 8.5 camera jars.
+        x9u-in-1105-a16) echo "$SET_COMMON oplus-framework_patched.jar cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk samcam_a.tar OplusGestureUI_patched.apk OplusGestureUI_patched.apk.src_sha256 conscrypt_payload.img profiling_payload.img os.statsd_payload.img media_payload.img media.swcodec_payload.img resolv_payload.img ipsec_payload.img uwb_payload.img devicelock_payload.img scheduling_payload.img neuralnetworks_payload.img tzdata_payload.img uprobestats_payload.img tethering_connectivity_native_a17.so framework_patched_oneui8.jar framework_patched_oneui85.jar nfcservices_payload.img npumanager_payload.img telephonycore_payload.img webapp_payload.img" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
         infinityx) echo "$SET_INFINITYX framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         lineage) echo "$SET_LINEAGE framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
@@ -893,6 +912,7 @@ set_image() {
         oneui95) echo oneui95-s948b ;;
         oneui95-f8) echo oneui95-s948b ;;
         oneui95-a16) echo oneui95-s948b ;;
+        x9u-in-1105-a16) echo coloros17-findx9u-in-1105 ;;
         pixel9-sultra) echo pixel9proxl-komodo ;;
         infinityx) echo infinityx41-findx9u ;;
         lineage) echo lineage24-infiniti ;;
@@ -1204,8 +1224,13 @@ image_sdk() { # <image id>
 }
 # a17_on_a16 <image id>: the tester build's one pair, One UI 9.5 (SDK 37) on this phone's One UI 8 (SDK 36).
 a17_on_a16() {
-    [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$1" = oneui95-s948b ] && [ "$(image_sdk "$1")" = 37 ] &&
-        [ "$(getprop ro.build.version.sdk)" = 36 ]
+    [ "$ONEOS_A17_ON_A16" = 1 ] && [ "$(image_sdk "$1")" = 37 ] && [ "$(getprop ro.build.version.sdk)" = 36 ] || return 1
+    case "$1" in
+        oneui95-s948b) return 0 ;;
+        # 0.5.51: ColorOS 17 on the S22s held on One UI 8 (a17_on_a16_set); its set reads the codes at runtime too.
+        coloros17-findx9u-in-1105) in_list "${M_PROFILE:-${P_PROFILE:-}}" "$COLOROS_A16_PROFILES" ;;
+        *) return 1 ;;
+    esac
 }
 check_table() { # <file> <image id>
     f=$1

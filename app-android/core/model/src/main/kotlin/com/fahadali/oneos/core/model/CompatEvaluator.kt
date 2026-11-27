@@ -67,7 +67,7 @@ object CompatEvaluator {
         // it cannot run), else its first; Prepare and Switch use the image actually picked or staged.
         val offered = profile?.choices.orEmpty().mapNotNull { c -> Images.byId(c.imageId, images)?.let { c to it } }
         val choice = offered.firstOrNull { it.second.sdk == f.sdk }?.first
-            ?: offered.firstOrNull { Experimental.a17OnA16Pair(f.sdk, it.second, a17OnA16) }?.first // tester build
+            ?: offered.firstOrNull { Experimental.a17OnA16Pair(f.sdk, it.second, a17OnA16, it.first.packageSetId) }?.first // tester build
             ?: profile?.choices?.firstOrNull()
         val image = choice?.let { Images.byId(it.imageId, images) }
         val set = choice?.let { PackageSets.byId(it.packageSetId, sets) }

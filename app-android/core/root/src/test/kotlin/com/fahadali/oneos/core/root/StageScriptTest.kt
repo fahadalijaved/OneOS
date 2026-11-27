@@ -2457,5 +2457,14 @@ class StageScriptTest {
             for (r in stage(fr, color, File(patches, "host_installd.txt").readText())) color.ok(r)
             refused(color.launch(), "Android SDK 36, the image is 37")
         }
+        // 0.5.51's ColorOS testing APK: ColorOS 17 on an S22 Ultra held on One UI 8 takes One UI 8.0's and 8.5's tables
+        // (tester abhera, 11-26: refused "installd table differs" at Get app installs ready).
+        val s22uColor = Profiles.withColorOsOnA16(tester).first { it.id == Profiles.S_ULTRA_8450.id }
+        for (installd in listOf(a85, a80)) eachShell(testerScript) { fr ->
+            phone(fr, "SM-S908B", "b0q", "SM8450")
+            val s = Stager(fr, s22uColor, Images.ID_FIND_X9U_IN_1105)
+            for (r in stage(fr, s, installd)) s.ok(r)
+            refused(s.launch(), "test root: every launch check passed")
+        }
     }
 }

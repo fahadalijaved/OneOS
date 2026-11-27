@@ -117,6 +117,10 @@ class SessionLogsTest {
         assertEquals(50, sfGone.afterSeconds)
         assertEquals(OutcomeKind.BOOT_TIMEOUT, o("x guest still not booted after 600s, returning to One UI\n").kind)
         assertEquals(OutcomeKind.GUEST_SHUTDOWN, o("x guest requested 'shutdown,battery' after 100s, returning to One UI\n").kind)
+        // 0.5.51: a shutdown asked with the guest's screen off returns to One UI and keeps the phone on.
+        val asleep = o("x guest requested 'asleep:shutdown' after 130s, returning to One UI\n")
+        assertEquals(OutcomeKind.GUEST_SHUTDOWN to 130, asleep.kind to asleep.afterSeconds)
+        assertTrue(asleep.detail, asleep.detail.contains("with its screen off; OneOS returned to One UI and kept the phone on."))
         assertEquals(OutcomeKind.HARD_RESET, o("", reason = "reboot,longkey").kind)
         // takeover_app.log of the launch decides first.
         val launch = "=== OneOS app launch 0123456789abcdef session 2026-10-22 ===\n"

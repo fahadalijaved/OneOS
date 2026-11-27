@@ -156,6 +156,7 @@ object Profiles {
     const val ID_S_9925 = "s-9925"
     const val ID_A16_MTK = "a16-mtk"
     const val ID_S_8550_JP = "s-8550-jp"
+    const val ID_S_8750_JP = "s-8750-jp"
     const val ID_M35 = "m35"
     const val ID_M36 = "m36"
     const val ID_A15_5G = "a15-5g"
@@ -1345,6 +1346,14 @@ object Profiles {
     val S_8550_JP = withPixelOs(S_8550.copy(id = ID_S_8550_JP, label = "Galaxy S23 (au)", modelPrefix = "SCG19", codename = "SCG19"))
 
     /**
+     * The au Galaxy S25, from 0.5.51: findings of 2026-11-27 (SCG31, ro.product.device SCG31, vendor device pa1q,
+     * SM8750, One UI 9.0, Android 17 build CP2A.260605.016, vendor API 202404, one 1080 x 2340 panel on port 147,
+     * density 480, KernelSU; its installd table is the 85 methods of host_installd.txt). The [S_8750]'s systems and
+     * note, untested.
+     */
+    val S_8750_JP = S_8750.copy(id = ID_S_8750_JP, label = "Galaxy S25 (au)", modelPrefix = "SCG31", codename = "SCG31")
+
+    /**
      * Galaxy M35 5G, from 0.4.95: findings of 2026-11-11 (SM-M356B, m35x, s5e8835 Exynos 1380, One UI 9.0,
      * Android 17, KernelSU). The [A35]'s chip and vendor, so the [A26]'s choices and notes, as the A35 5G
      * has them; untested.
@@ -1483,6 +1492,7 @@ object Profiles {
         A06, A07_5G, A15, A24, A25, A33, A34, A53, E55, S_FE_9925, S_FE_8450, S_PLUS_9925, S_ULTRA_9925, S_ULTRA_8450,
         A55, S25_FE, S_8450, M55S, S_ULTRA_8450_JP, S_PLUS_9945, S_ULTRA_8550_JP, S_9925, A16_MTK, S_8550_JP, M35, M36, A15_5G, S_PLUS_8650,
         S26_FE, S_PLUS_8450, TAB_S9, TAB_S10_FE, TAB_S10_FE_WIFI, TAB_S12_ULTRA, TAB_S9_FE_PLUS, TAB_S9_FE, TAB_S9_FE_5G, TAB_S9_ULTRA, TAB_S11, TAB_S11_ULTRA,
+        S_8750_JP,
     )
 
     /**
@@ -1506,8 +1516,34 @@ object Profiles {
         }
     }
 
-    /** The profiles this build switches: [STABLE], with [withOneUi95OnA16] in a tester build (read once, at first use). */
-    val BUILT_IN: List<PhoneProfile> = if (Experimental.a17OnA16) withOneUi95OnA16(STABLE) else STABLE
+    /** ColorOS 17 Find X9 Ultra IN on One UI 8 (0.5.51) with its One UI 8 set; untested. */
+    private val X9U_IN_1105_A16_CHOICE = ImageChoice(Images.ID_FIND_X9U_IN_1105, PackageSets.ID_X9U_IN_1105_A16, tested = false)
+
+    /** The S22s held on One UI 8 that get ColorOS 17 with its One UI 8 set (root's COLOROS_A16_PROFILES). */
+    val COLOROS_A16_PROFILES: Set<String> = setOf(ID_S_9925, ID_S_8450, ID_S_PLUS_9925, ID_S_PLUS_8450, ID_S_ULTRA_9925, ID_S_ULTRA_8450, ID_S_ULTRA_8450_JP)
+
+    /**
+     * 0.5.51 (owner: "Since S22 can boot One UI 9.5 now, lets try ColorOS 17 for them"): the S22s also offer ColorOS 17
+     * (Find X9 Ultra IN) with its One UI 8 set ([PackageSets.X9U_IN_1105_A16]), right after One UI 9.5; a phone
+     * that already lists that image keeps its own choice.
+     */
+    fun withColorOsOnA16(profiles: List<PhoneProfile>): List<PhoneProfile> = profiles.map { p ->
+        if (!p.enabled || p.id !in COLOROS_A16_PROFILES || p.choices.any { it.imageId == Images.ID_FIND_X9U_IN_1105 }) p
+        else {
+            val at = p.choices.indexOfFirst { it.imageId == Images.ID_ONEUI95 }.let { if (it < 0) p.choices.size else it + 1 }
+            p.copy(choices = p.choices.subList(0, at) + X9U_IN_1105_A16_CHOICE + p.choices.subList(at, p.choices.size))
+        }
+    }
+
+    /**
+     * The profiles this build switches: [STABLE], with [withOneUi95OnA16] in an a17OnA16 build, and [withColorOsOnA16]
+     * as well in the ColorOS testing APK (Experimental.colorOsOnA16). Read once, at first use.
+     */
+    val BUILT_IN: List<PhoneProfile> = when {
+        !Experimental.a17OnA16 -> STABLE
+        Experimental.colorOsOnA16 -> withColorOsOnA16(withOneUi95OnA16(STABLE))
+        else -> withOneUi95OnA16(STABLE)
+    }
 
     /**
      * PixelOS 17 on every bar phone on One UI 9 (0.5.35, owner: "it would work for all devices on 9.0"): the A36's

@@ -68,6 +68,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750)
 
 ## Pixel 11 Fold, yogi build
 
@@ -121,6 +122,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S23 (au) (SCG19, SM8550), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750), not tested yet
 
 ## Infinity-X 4.1, Find X9 Ultra build
 
@@ -179,6 +181,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750)
 
 ## HyperOS, Xiaomi 18 Fold build
 
@@ -234,6 +237,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750), not tested yet
 
 ## HyperOS 4 Global
 
@@ -289,6 +293,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750)
 
 ## Nothing OS 5.0, Metroid build
 
@@ -321,6 +326,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S23 Ultra (au) (SCG20, SM8550)
   - Galaxy S23 (au) (SCG19, SM8550), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750), not tested yet
 
 ## Nothing OS 5.0, A series build
 
@@ -439,6 +445,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy S23 Ultra (au) (SCG20, SM8550), not tested yet
   - Galaxy S23 (au) (SCG19, SM8550), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750), not tested yet
 
 ## LineageOS 24, OnePlus 15 build
 
@@ -497,6 +504,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750), not tested yet
 
 ## One UI 9.5, Galaxy S26 Ultra build
 
@@ -565,6 +573,7 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy Tab S9 Ultra (SM-X910, SM8550), not tested yet
   - Galaxy Tab S11 (SM-X730, MT6991), not tested yet
   - Galaxy Tab S11 Ultra (SM-X930, MT6991), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750)
 
 ## PixelOS 17, POCO F7 build
 
@@ -613,3 +622,4 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy M36 5G (SM-M366, s5e8835), not tested yet
   - Galaxy S24+ (SM-S926, SM8650), not tested yet
   - Galaxy S26 FE (SM-S741, s5e9955), not tested yet
+  - Galaxy S25 (au) (SCG31, SM8750), not tested yet

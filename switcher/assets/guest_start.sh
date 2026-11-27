@@ -1613,14 +1613,32 @@ if [ -f /data/guest_audio.flag ]; then
             /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 com.samsung.android.bixby.wakeup >/dev/null 2>&1
             /system/bin/sh /data/oneos_genv.sh /system/bin/am force-stop $g >/dev/null 2>&1
         }
-        if [ "${ONEOS_GUEST_HOTWORD_KEEP:-0}" != 1 ] && [ ! -f /data/oneos_hotword_off.log ] &&
+        # 0.5.51 (S22 Ultra Exynos 3c03380f, 0.5.50): at every start, not only while /data/oneos_hotword_off.log is
+        # missing. That file was left in the guest data by a 0.5.49 session (its rule was the app op alone), so the
+        # 0.5.50 guard never ran there: the assistant role and Bixby wake-up stayed, a model was loaded 90 s in, the
+        # VTS DSP died in vts_load_sound_model and took system_server with it. Each step is idempotent.
+        if [ "${ONEOS_GUEST_HOTWORD_KEEP:-0}" != 1 ] &&
            { getprop ro.soc.model; getprop ro.hardware; getprop ro.board.platform; } 2>/dev/null | grep -qi "s5e9925"; then
             hotword_off
-            echo "$(date +%T) Exynos 2200 (s5e9925): voice wake-up off before the first model load (assistant role, Hey Google hotword, Bixby wake-up; the VTS DSP reset the phone on 0.5.49)" | tee /data/oneos_hotword_off.log
+            echo "$(date +%T) Exynos 2200 (s5e9925): voice wake-up off before the first model load (assistant role, Hey Google hotword, Bixby wake-up; the VTS DSP reset the phone on 0.5.49)" | tee -a /data/oneos_hotword_off.log
         fi
-        miss=0; r=0; last=0
+        miss=0; r=0; last=0; qc=0
         while [ -f /data/guest_audio.flag ]; do
             sleep 3
+            # 0.5.51 (S24 Ultra Snapdragon, PixelOS, 9bc0eb07, 0.5.48: no sound): on Qualcomm the Hey Google model
+            # goes to the ADSP, and starting recognition crashed its audio domain (COSR ar_osal_pd_notifier_cb
+            # state(0) service(avs/audio) right after PAL SoundTriggerEngineGsl StartRecognition). audioserver stayed
+            # up, so the rule below never ran: the sound card went offline, came back and went down again with each
+            # new recognition, every 0.7 s (23 starts), and every stream failed (Sound card offline/standby). Every
+            # 30 s, until the off file exists: once that order is in the log, the same hotword_off.
+            qc=$((qc + 1))
+            if [ $((qc % 10)) -eq 0 ] && [ ! -f /data/oneos_hotword_off.log ] && [ "${ONEOS_GUEST_HOTWORD_KEEP:-0}" != 1 ] &&
+               logcat -d -b main -s COSR:I 2>/dev/null | grep -q "state(0) service(avs/audio)" &&
+               logcat -d -b main -s PAL:I COSR:I 2>/dev/null | grep -E "SoundTriggerEngineGsl: StartRecognition|state\(0\) service\(avs/audio\)" |
+                   grep -A1 "StartRecognition" | grep -q "state(0) service(avs/audio)"; then
+                hotword_off
+                echo "$(date +%T) Qualcomm ADSP audio domain went down right after a voice wake-up recognition start: Hey Google DSP hotword off" | tee /data/oneos_hotword_off.log
+            fi
             if ! kill -0 $as 2>/dev/null; then why="died"
             elif [ "$(owner)" != "$as" ]; then why="media.audio_policy taken"
             else miss=0; continue; fi
