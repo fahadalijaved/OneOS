@@ -1,0 +1,93 @@
+name: Build OneOS APKs
+
+on:
+  push:
+    branches: [ main, "nothingos5-*" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('app-android/**/*.gradle*', 'app-android/gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run unit tests
+        working-directory: app-android
+        run: ./gradlew test
+
+      - name: Build Debug APK
+        run: |
+          chmod +x scripts/build-guest-manager.sh app-android/gradlew
+          ./scripts/build-guest-manager.sh --debug
+          (cd app-android && ./gradlew :app:assembleFullDebug)
+
+      - name: Configure Release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          mkdir -p "$HOME/.oneos-release"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$HOME/.oneos-release/release.jks"
+            STOREPASS="$KEYSTORE_PASSWORD"
+            ALIAS="$KEY_ALIAS"
+            KEYPASS="$KEY_PASSWORD"
+          else
+            STOREPASS="oneosbuildpass"
+            ALIAS="oneos"
+            KEYPASS="oneosbuildpass"
+            keytool -genkeypair -v \
+              -keystore "$HOME/.oneos-release/release.jks" \
+              -storepass "$STOREPASS" \
+              -alias "$ALIAS" \
+              -keypass "$KEYPASS" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=OneOS Fork, OU=Dev, O=OneOS, L=NA, ST=NA, C=US"
+          fi
+          cat > "$HOME/.oneos-release/keystore.properties" <<PROPS
+          storeFile=$HOME/.oneos-release/release.jks
+          storePassword=$STOREPASS
+          keyAlias=$ALIAS
+          keyPassword=$KEYPASS
+          PROPS
+
+      - name: Build Release APK
+        run: |
+          ./scripts/build-guest-manager.sh release
+          (cd app-android && ./gradlew :app:assembleFullRelease)
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneOS-full-debug
+          path: app-android/app/build/outputs/apk/full/debug/*.apk
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneOS-full-release
+          path: app-android/app/build/outputs/apk/full/release/*.apk
