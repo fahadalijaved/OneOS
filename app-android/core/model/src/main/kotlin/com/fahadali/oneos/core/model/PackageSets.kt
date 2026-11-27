@@ -771,9 +771,9 @@ object PackageSets {
             PackageFile("OneOSBrightnessRange34.apk", FileRole.RRO),
             PackageFile("samcam_a.tar", FileRole.GUEST_FIX),
             PackageFile(GUEST_APP, FileRole.GUEST_APP),
-        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem", "npumanager", "webapp", "telephonycore") + A16_EXTRA_PAYLOADS).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
+        ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "gmssystem", "npumanager", "webapp", "telephonycore", "conscrypt", "profiling", "os.statsd", "media", "media.swcodec", "resolv", "ipsec", "uwb", "devicelock", "scheduling", "neuralnetworks", "tzdata", "uprobestats")).map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) }
             + PackageFile(CELLBROADCAST, FileRole.APEX_PAYLOAD)
-            + PackageFile(A17_CONNECTIVITY_NATIVE, FileRole.GUEST_FIX),
+            + PackageFile("tethering_connectivity_native_a17.so", FileRole.GUEST_FIX),
         omitted = listOf(TETHERING),
         approxBytes = 1016795542L,
         hasReturnApp = true,
