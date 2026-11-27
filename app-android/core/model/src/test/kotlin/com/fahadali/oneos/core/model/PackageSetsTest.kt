@@ -48,7 +48,7 @@ class PackageSetsTest {
         assertEquals("out/overlays_pixel_f8u_r21", pixel.sourceDir)
         assertEquals(
             listOf(PackageSets.N6_GLOBAL_F8, n6, PackageSets.X9U_IN_1105_SULTRA, pixel, PackageSets.PIXEL_SULTRA, PackageSets.PIXEL_F8, PackageSets.PIXEL9_SULTRA,
-                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.HYPER_HK, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.OXYGEN17_PAD, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95, PackageSets.ONEUI95_F8, PackageSets.ONEUI95_A16, PackageSets.PIXELOS),
+                PackageSets.INFINITYX, PackageSets.HYPER_F8U, PackageSets.HYPER_HK, PackageSets.HYPER16, PackageSets.NOTHING_F8U, PackageSets.NOTHING_A, PackageSets.OXYGEN16, PackageSets.OXYGEN17_PAD, PackageSets.PIXEL16, PackageSets.ORIGINOS, PackageSets.LINEAGE, PackageSets.ONEUI95, PackageSets.ONEUI95_F8, PackageSets.ONEUI95_A16, PackageSets.ONEUI85_F6, PackageSets.PIXELOS),
             PackageSets.ALL,
         )
         // PixelOS 17 (0.5.35): the Lineage-like set for the A series, with the guest vold and its own gmssystem.
@@ -209,7 +209,8 @@ class PackageSetsTest {
             assertEquals(s.names.size, s.names.toSet().size)
             assertTrue(s.omitted.none { it in s.names })
             assertTrue(s.names.none { it == Images.STAGE_NAME })
-            assertTrue(s.id, s.names.containsAll(commonPayloads + "guards.txt" + "services_patched.jar"))
+            val expectedPayloads = if ("crashrecovery_payload.img" in s.omitted) commonPayloads - "crashrecovery_payload.img" else commonPayloads
+            assertTrue(s.id, s.names.containsAll(expectedPayloads + "guards.txt" + "services_patched.jar"))
             assertEquals(s.id, FileRole.GUARDS, s.file("guards.txt")!!.role)
             // Executable: surfaceflinger_patched and vold_patched only (root's file_mode, deploy-phone.sh's push).
             for (f in s.files) assertEquals("${s.id} ${f.name}", if (f.name in setOf("surfaceflinger_patched", "vold_patched")) "0755" else "0644", f.mode)

@@ -27,7 +27,7 @@ FIELD = "Lcom/android/server/VaultKeeperService;->mServiceSupport:I"
 INSTANCE = "vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default"
 MARK = "    # OneOS: VaultKeeper unsupported without its HAL (oneui_vaultkeeper_unreachable.py)\n"
 ASSIGN = re.compile(r"^    invoke-direct \{p0\}, Lcom/android/server/VaultKeeperService;->nativeGetSystemSolution\(\)I\n"
-                    r"\n?    move-result (v\d+)\n\n?"
+                    r"(?:\s*\.line \d+\n|\s*\n)*    move-result (v\d+)\n(?:\s*\.line \d+\n|\s*\n)*"
                     r"    iput \1, p0, " + re.escape(FIELD) + r"\n", re.M)
 
 

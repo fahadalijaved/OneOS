@@ -16,3 +16,5 @@ __pycache__/
 # Generated guest manager APK; build with scripts/build-guest-manager.sh.
 switcher/assets/guest_manager.apk
 /out
+probe_dump/
+

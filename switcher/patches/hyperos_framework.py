@@ -69,6 +69,10 @@ def main():
         sys.exit(f"hyperos_framework: {CLASS} found {len(hits)} times (one expected)")
     path = hits[0]
     text = open(path).read()
+    if "isAuxExported" not in text and "roleIdList" not in text:
+        print("hyperos_framework: CameraStatus already has AOSP fields, nothing to patch", file=sys.stderr)
+        print(os.path.relpath(path, sys.argv[1]).split(os.sep)[0])
+        return
     s, e = method(text, ".method public greylist-max-o readFromParcel(Landroid/os/Parcel;)V")
     body = drop(drop(text[s:e], READ, "readBoolean isAuxExported"), READ_ROLE, "readString roleIdList")
     text = text[:s] + body + text[e:]

@@ -1594,6 +1594,24 @@
           "label": "OxygenOS 16, OnePlus CPH2745 build",
           "set": "oxygen16",
           "tested": true
+        },
+        {
+          "image": "pixel16-bp4a",
+          "label": "PixelOS 16.2, Doze-off GSI (Unoptimized)",
+          "set": "pixel16",
+          "tested": false
+        },
+        {
+          "image": "hyperos16-goya",
+          "label": "HyperOS 3.0 Global (Unoptimized)",
+          "set": "hyper16",
+          "tested": false
+        },
+        {
+          "image": "oneui85-f956b",
+          "label": "One UI 8.5, Galaxy Z Fold6 build",
+          "set": "oneui85-f6",
+          "tested": false
         }
       ]
     },

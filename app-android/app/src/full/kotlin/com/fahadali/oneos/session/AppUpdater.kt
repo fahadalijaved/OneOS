@@ -94,7 +94,10 @@ object AppUpdater : BackgroundJob<AppUpdater.State>(State(), "oneos-update") {
         executor.execute {
             val testUrl = AppUpdate.testUrl(testCode(app))
             val test = testUrl != null
-            val r = runCatching { AppUpdate.parse(fetchText(testUrl ?: AppUpdate.URL), test).getOrThrow() }
+            val updateUrl = if (BuildConfig.UPDATE_REPO != "fahadalijaved/OneOS") {
+                "https://github.com/${BuildConfig.UPDATE_REPO}/releases/latest/download/update.json"
+            } else (testUrl ?: AppUpdate.URL)
+            val r = runCatching { AppUpdate.parse(fetchText(updateUrl), test).getOrThrow() }
             prefs.edit().putLong("checked", now).apply()
             val u = r.getOrNull()
             update(

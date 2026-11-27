@@ -76,6 +76,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "hyper-f8u" to (File(repoRoot, "out/overlays_hyperos_r32") to listOf("tethering_payload.img")),
     // HyperOS 4 Global (0.5.27): Xiaomi's global build OS4.0.5.0.XFRMIXM with Google apps (gmssystem payload). Tethering never mounts.
     "hyper-hk" to (File(repoRoot, "out/overlays_hyperos_hk_r6") to listOf("tethering_payload.img")),
+    // HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM) on Galaxy Z Fold4.
+    "hyper16" to (File(repoRoot, "out/overlays_hyperos16") to listOf("tethering_payload.img")),
     // Nothing OS 5.0 (0.4.33), the Z Fold8 Ultra only: its chips need SVE/SME.
     "nothing-f8u" to (File(repoRoot, "out/overlays_nothing_r42") to listOf("tethering_payload.img")),
     "nothing-a" to (File(repoRoot, "out/overlays_nothing_a_r8") to listOf("tethering_payload.img")),
@@ -84,6 +86,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "oxygen16" to (File(repoRoot, "out/overlays_oxygen16_r3") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk",
         "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
     "oxygen17pad" to (File(repoRoot, "out/overlays_oxygen17pad_r1") to listOf("tethering_payload.img", "OneOSWallpapersFoldGrid.apk", "OneOSFoldCutout.apk", "OneOSTabletQs.apk", "oneos-apex-requires.txt")),
+    // Pixel 16 (Android 16 GSI BP4A): Google GSI for phones on One UI 8 (Galaxy Z Fold4).
+    "pixel16" to (File(repoRoot, "out/overlays_pixel16") to listOf("tethering_payload.img")),
     // OriginOS 7 (0.4.73, experimental): set r17 = r14 plus the vivo fold cutout overlay (the cover's lens).
     "originos" to (File(repoRoot, "out/overlays_originos_cn_r25") to listOf("OneOSWallpapersFoldGrid.apk", "OneOSTabletQs.apk")),
     // LineageOS 24 (0.5.06, experimental): the OnePlus 15 nightly, on every phone that offers Infinity-X. No gmssystem
@@ -95,6 +99,8 @@ val packageSets: Map<String, Pair<File, List<String>>> = linkedMapOf(
     "oneui95-f8" to (File(repoRoot, "out/overlays_oneui95_f8_r3") to listOf("tethering_payload.img")),
     // Tester builds (oneui8test3): One UI 9.5 on One UI 8, the r10 files plus the image's own modules One UI 8 cannot lend (tethering among them).
     "oneui95-a16" to (File(repoRoot, "out/overlays_oneui95_a16_r9") to listOf("tethering_payload.img")),
+    // One UI 8.5 (Android 16, SDK 36, F956BXXS4DZI1 from Galaxy Z Fold6) on Galaxy Z Fold4.
+    "oneui85-f6" to (File(repoRoot, "out/overlays_oneui85_fold6") to listOf("tethering_payload.img", "crashrecovery_payload.img")),
     // PixelOS 17 (0.5.35): the POCO F7 build for the ARMv8.2 Galaxy A series.
     "pixelos" to (File(repoRoot, "out/overlays_pixelos_onyx_r6") to listOf("tethering_payload.img", "cellbroadcast_payload.img")),
 )
@@ -329,11 +335,11 @@ abstract class OneOsFilesTask : DefaultTask() {
             if (!dst.exists()) src.copyTo(dst)
             sizes[sum] = src.length()
         }
-        // A set file: in the APK (packSets), else its size and Drive id only.
+        // A set file: in the APK (packSets or local build), else its size and Drive id only.
         fun putSet(src: File, sum: String, problems: MutableList<String>) {
             if (pack) { put(src, sum); return }
             val id = ids[sum]
-            if (id == null) { problems += "${src.name} ($sum) is not on Drive: run scripts/release-files.py"; return }
+            if (id == null) { if (src.isFile) { put(src, sum); return }; problems += "${src.name} ($sum) is not on Drive: run scripts/release-files.py"; return }
             sizes[sum] = src.length()
             remote[sum] = id
         }
@@ -565,7 +571,7 @@ android {
         // 0.5.00 (129, published 11-13): every system on the S23 family (SM8550, HIDL audio HAL) plays A2DP through
         // the vendor's Bluetooth module with offload off, as One UI does; 0.4.99's bridge got the session but the
         // offload path failed with -38 (ColorOS 7eeafc87, 5528e31a; Pixel e353ca45). Not tried yet.
-        versionCode = 193
+        versionCode = 206
         versionName = "0.5.50"
         // 0.4.56 (73), TEST CHANNEL ONLY: the Find N6 set's Theme Store logs every OkHttp request and reply (n6g_r7,
         // patches/theme_store_netlog.py) for the owner's "No Data" log; the next public build goes back to n6g_r6.
@@ -596,6 +602,9 @@ android {
             buildConfigField("long", "ROOT_SCRIPT_BYTES", "${rootBytes.size}L")
             buildConfigField("String", "SCRIPTS_SHA256", "\"${sha256(scriptsList.toByteArray())}\"")
             buildConfigField("String", "SERIES", "\"${seriesId.orEmpty()}\"")
+            val updateRepo: String = (findProperty("oneos.updateRepo") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: (if (seriesId == "fold") "jinkun1998/OneOS" else "fahadalijaved/OneOS")
+            buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
             // One UI 9.5 on One UI 8 (above; on unless -Poneos.a17OnA16=false): read by OneOsApplication before anything else.
             buildConfigField("boolean", "A17_ON_A16", "$a17OnA16")
             val suffix = (seriesId?.let { "-$it" } ?: "") + (if (a17OnA16 && a17OnA16Suffix != null) "-$a17OnA16Suffix" else "")

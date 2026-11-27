@@ -271,7 +271,7 @@ def check_updated_user_is_existing(path, i, j, lines):
     got = [n for n in range(len(body)) if body[n].strip() == f"check-cast {val}, Lcom/android/server/pm/UserManagerService$UserData;"]
     ok = False
     for n in got:
-        prev = [x.strip() for x in body[:n] if x.strip()][-2:]
+        prev = [x.strip() for x in body[:n] if x.strip() and not x.strip().startswith(".line")][-2:]
         if len(prev) == 2 and prev[1] == f"move-result-object {val}" and "Landroid/util/SparseArray;->get(I)Ljava/lang/Object;" in prev[0]:
             # nothing else writes the register between the cast and the put
             ok = not any(writes.match(body[x]) for x in range(n + 1, puts[0]))

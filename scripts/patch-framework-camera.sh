@@ -16,9 +16,9 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 [ -f "$1" ] && [ -d "$2" ] || { echo "usage: $0 <framework.jar> <out dir>" >&2; exit 2; }
 # Absolute paths: the zip step runs inside a temp dir.
 JAR=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); OUT=$(cd "$2" && pwd)
-APKTOOL=${APKTOOL:-$(ls "$ROOT"/mysticgsi/tools/apktool/*.jar | head -1)}
+APKTOOL=${APKTOOL:-$(ls "$ROOT"/mysticgsi/tools/apktool/*.jar /opt/homebrew/Cellar/apktool/*/libexec/*.jar 2>/dev/null | head -1)}
 # CAMERA_TABLE: another host table (0.5.37: switcher/patches/host_camera_oneui95.txt for One UI 9.5 phones).
-TABLE="${CAMERA_TABLE:-$ROOT/switcher/patches/host_camera.txt}"
+TABLE="${CAMERA_TABLE:-${HOST_CAMERA:-$ROOT/switcher/patches/host_camera.txt}}"
 [ -f "$TABLE" ] || { echo "$TABLE missing (scripts/aidl-table.py on One UI's framework.jar)" >&2; exit 1; }
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT

@@ -20,6 +20,13 @@ class AppUpdateTest {
         assertEquals(AppUpdate(58, "0.4.42", "https://github.com/fahadalijaved/OneOS/releases/download/v0.4.42/OneOS-0.4.42.apk", 52428800L, sha), u)
         assertTrue(u.newerThan(57))
         assertTrue(!u.newerThan(58))
+
+        val fork = json(
+            name = "\"0.5.35-fold\"",
+            apk = "\"https://github.com/jinkun1998/OneOS/releases/download/v0.5.35-fold4/OneOS-0.5.35-fold4.apk\"",
+        )
+        val uFork = AppUpdate.parse(fork).getOrThrow()
+        assertEquals("0.5.35-fold", uFork.versionName)
     }
 
     @Test

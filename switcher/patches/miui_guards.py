@@ -164,7 +164,7 @@ def return_at_entry(smali, header, kind, cls):
 OEMNETD_PROXY = "com/android/internal/net/IOemNetd$Stub$Proxy"
 OEMNETD_PROXY_KEEP = ("<init>(", "asBinder(", "getInterfaceDescriptor(", "isAlive(")
 # Xiaomi 18 Fold OS4.0.26.0.XPNCNXM: 54; OS4.0.5.0.XFRMIXM Global (hongkong, 11-19): 48. Another count stops the build.
-OEMNETD_PROXY_METHODS = (54, 48)
+OEMNETD_PROXY_METHODS = (54, 48, 37)
 OEMNETD_CLASS = "com/android/server/net/MiuiNetworkManagementService"
 # The methods that use IOemNetd (25 calls on mNetd, 3 by reflection on
 # IOemNetd$Stub), Xiaomi 18 Fold OS4.0.26.0.XPNCNXM. Another count stops the
@@ -225,10 +225,14 @@ def main(root, proinstaller=False):
     pending[path] = smali.replace(POWERCTL, POWERCTL_NEW)
     print("RescuePartyImpl: sys.powerctl -> oneos.guest.powerctl", file=sys.stderr)
     path, smali = load(VOLD_CLASS)
-    if len(VOLD_CALL.findall(smali)) != 1:
-        sys.exit(f"{VOLD_CLASS}: IVold.setDiscardIoAwareGran called {len(VOLD_CALL.findall(smali))} times, expected once")
-    pending[path] = VOLD_CALL.sub("", smali)
-    print("MiuiGcImproveImpl: IVold.setDiscardIoAwareGran dropped", file=sys.stderr)
+    calls = len(VOLD_CALL.findall(smali))
+    if calls == 1:
+        pending[path] = VOLD_CALL.sub("", smali)
+        print("MiuiGcImproveImpl: IVold.setDiscardIoAwareGran dropped", file=sys.stderr)
+    elif calls == 0:
+        print("MiuiGcImproveImpl: IVold.setDiscardIoAwareGran not present, skipped", file=sys.stderr)
+    else:
+        sys.exit(f"{VOLD_CLASS}: IVold.setDiscardIoAwareGran called {calls} times, expected at most once")
     path, smali = load(OEMNETD_CLASS)
     found = oemnetd_methods(smali)
     if len(found) != OEMNETD_METHODS:

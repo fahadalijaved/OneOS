@@ -251,9 +251,9 @@ rm -f /data/oneos_fold_mode /data/oneos_inner_display
 if [ -f "$DISPLAYCONFIG/display_layout_configuration.xml" ] && [ "${ONEOS_KEEP_FOLD_LAYOUT:-0}" != "1" ]; then
     rm -rf /data/oneos_displayconfig && mkdir -p /data/oneos_displayconfig
     for f in "$DISPLAYCONFIG"/*; do
-        [ "$(basename "$f")" = display_layout_configuration.xml ] || cp -p "$f" /data/oneos_displayconfig/
+        [ "$(basename "$f")" = display_layout_configuration.xml ] || cp -pr "$f" /data/oneos_displayconfig/
     done
-    chmod 755 /data/oneos_displayconfig && chmod 644 /data/oneos_displayconfig/*
+    chmod -R 755 /data/oneos_displayconfig
     $BB mount --bind /data/oneos_displayconfig "$DISPLAYCONFIG" && LAYOUT_HIDDEN=1 && \
         echo "[Pivoted Root] Fold layout config hidden from the guest ($(ls /data/oneos_displayconfig | wc -l) display configs kept)"
 fi
@@ -499,11 +499,11 @@ if [ "$LAYOUT_HIDDEN" = 1 ] && [ "${ONEOS_GUEST_FOLD:-layout}" != off ]; then
         # the cover, 1 half open and 2 open on the inner panel (4 and 5, both
         # panels on, left out). Run 43 had only 0 and 3, so its rear display
         # state went to the inner panel. ColorOS keeps Samsung's 0 and 3.
-        if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
-           grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
-            # Fold8's native states mark CLOSE and TENT as OUTER_PRIMARY.
+        if { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
+           grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+            # One UI 8.5/9.5 fold states: closed (0) on cover, open (3) on inner panel.
             STATES="-1:$INNER:$COVER 0:$COVER:$INNER 1:$COVER:$INNER 3:$INNER:$COVER"
-            LNOTE="Fold8 One UI 9.5: closed and tent use the cover; open uses the inner."
+            LNOTE="One UI Fold: closed and tent use the cover; open uses the inner."
         elif [ -e /system/framework/oplus-services.jar ]; then
             # Samsung's states from the phone's own device_state_configuration.xml:
             # 0 (lid closed) on the cover, every other one on the inner panel.
@@ -590,16 +590,20 @@ LAYOUT
         # The inner panel's id for the UI activator's density and fold line
         # (oneos_switch.sh, run 44).
         echo "$INNER" > /data/oneos_inner_display; chmod 644 /data/oneos_inner_display
-        # Fold8 One UI 9.5 reports 213 physical dpi for both displays even
-        # when ro.sf.lcd_density is 420. Set a guest WindowManager default
+        # Fold8 and Fold4: set guest WindowManager default density
         # for each physical panel before system_server reads its settings.
-        if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] &&
-           grep -qx 'ro.build.PDA=S948BXXU6ZZKN' /system/build.prop 2>/dev/null; then
+        if { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "${ONEOS_GUEST_FORM:-}" = fold ]; then
             f8_density=$(getprop ro.sf.lcd_density)
             case "$f8_density" in
                 [2-6][0-9][0-9]) [ "$f8_density" -ge 240 ] && [ "$f8_density" -le 640 ] || f8_density=420 ;;
                 *) f8_density=420 ;;
             esac
+            f8_inner_density="$f8_density"
+            f8_cover_density="$f8_density"
+            if [ "${ONEOS_PROFILE:-}" = f4 ]; then
+                f8_inner_density=420
+                f8_cover_density=420
+            fi
             f8_dset=/data/system/display_settings.xml
             if [ ! -L "$f8_dset" ] && [ ! -L /data/system ] &&
                f8_temp=$(mktemp -d /data/system/oneos-density.XXXXXX); then
@@ -617,9 +621,10 @@ LAYOUT
                 if [ "$f8_id_type" = 1 ]; then
                     f8_inner="port:$((INNER % 256))"; f8_cover="port:$((COVER % 256))"
                 fi
-                if awk -v inner="$f8_inner" -v cover="$f8_cover" -v density="$f8_density" '
+                if awk -v inner="$f8_inner" -v cover="$f8_cover" -v d_in="$f8_inner_density" -v d_cv="$f8_cover_density" '
                     BEGIN {
                         panels[1] = inner; panels[2] = cover
+                        pdensity[1] = d_in; pdensity[2] = d_cv
                         policy = " isHomeSupported=\"false\" shouldShowSystemDecors=\"false\""
                     }
                     /<display[[:space:]]/ {
@@ -631,13 +636,13 @@ LAYOUT
                             # The other internal panel must never start a DeX Home.
                             gsub(/[[:space:]]+(isHomeSupported|shouldShowSystemDecors)="[^"]*"/, "")
                             sub(key, key policy)
-                            if ($0 !~ /forcedDensity(Ratio)?=/)
-                                sub(key, key " forcedDensity=\"" density "\"")
+                            gsub(/[[:space:]]+forcedDensity(Ratio)?="[^"]*"/, "")
+                            sub(key, key " forcedDensity=\"" pdensity[i] "\"")
                         }
                     }
                     /<\/display-settings>/ {
                         for (i = 1; i <= 2; i++)
-                            if (!seen[i]) print "    <display name=\"" panels[i] "\"" policy " forcedDensity=\"" density "\" />"
+                            if (!seen[i]) print "    <display name=\"" panels[i] "\"" policy " forcedDensity=\"" pdensity[i] "\" />"
                         closed = 1
                     }
                     { print }
@@ -646,9 +651,9 @@ LAYOUT
                    chown 1000:1000 "$f8_output" && chmod 600 "$f8_output" &&
                    "$BB" chcon u:object_r:system_data_file:s0 "$f8_output" &&
                    mv -f "$f8_output" "$f8_dset"; then
-                    echo "[Pivoted Root] Fold8 One UI 9.5: $f8_density dpi defaults for $f8_inner and $f8_cover"
+                    echo "[Pivoted Root] Fold display density: inner $f8_inner_density dpi, cover $f8_cover_density dpi for $f8_inner and $f8_cover"
                 else
-                    echo "[Pivoted Root] Fold8 One UI 9.5: display density defaults not written"
+                    echo "[Pivoted Root] Fold display density: defaults not written"
                 fi
                 rm -f "$f8_input" "$f8_output"
                 rmdir "$f8_temp"
@@ -856,9 +861,12 @@ fi
 # ONEOS_GUEST_LED_BRIDGE=0 / ONEOS_GUEST_BL_BRIDGE=0: off.
 BRIDGE=0
 case "${ONEOS_GUEST_BL_BRIDGE:-1}" in force) BLFORCE=1 ;; *) BLFORCE=0 ;; esac
-if [ $LEDBL = 1 ]; then [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ] && BRIDGE=1
+if [ "${ONEOS_GUEST_BL_BRIDGE:-1}" != force ] && grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+    BRIDGE=0
+    echo "[Pivoted Root] Backlight: bridge off (One UI guest controls Samsung display power and brightness natively)"
+elif [ $LEDBL = 1 ]; then [ "${ONEOS_GUEST_LED_BRIDGE:-1}" = 1 ] && BRIDGE=1
 elif [ "${ONEOS_GUEST_BL_BRIDGE:-1}" != 0 ] && [ -w "$BL/brightness" ]; then
-    if [ "$BL" = /sys/class/backlight/panel ] || [ -n "$BLCOVER" ]; then
+    if [ "$BL" = /sys/class/backlight/panel ] || [ -n "$BLCOVER" ] || [ $BLFORCE = 1 ]; then
         case "$BLMAX" in ''|*[!0-9]*) ;; *) BRIDGE=1 ;; esac
     fi
 fi
@@ -915,17 +923,24 @@ elif [ "$LED" != 1 ] && { [ "$usc" != false ] || [ "$force" != true ]; }; then
     rm -f /data/oneos_bl_refused
     ( timeout 600 logcat -v brief -T 1 -s LightsService:E 2>/dev/null | grep --line-buffered -F "Failed issuing setLightState" | head -n 3 > /data/oneos_bl_refused ) &
     RMON=$!
-    n=0; i=0
+    n=0; alive=0; i=0
     while [ $i -lt 600 ]; do
         i=$((i + 1)); sleep 1
         if [ "$(wc -l < /data/oneos_bl_refused 2>/dev/null)" -ge 3 ] 2>/dev/null; then n=15; refused=1; break; fi
-        [ "$(cat $BL/brightness 2>/dev/null)" = 0 ] || { n=0; continue; }
-        # Folded (the cover lit): the inner panel is meant to be dark.
-        [ "$DUAL" = 1 ] && [ "$(cat $BL2/brightness 2>/dev/null || echo 0)" != 0 ] && { n=0; continue; }
+        cur_bl=$(cat $BL/brightness 2>/dev/null || echo 0)
+        cur_bl2=0; [ "$DUAL" = 1 ] && cur_bl2=$(cat $BL2/brightness 2>/dev/null || echo 0)
         case "$(dumpsys power 2>/dev/null | sed -n 's/^ *mWakefulness=//p' | head -n 1)" in
-            Awake) ;;
-            *) n=0; continue ;;
+            Awake)
+                if [ "$cur_bl" != 0 ] || [ "$cur_bl2" != 0 ]; then
+                    alive=$((alive + 1))
+                    [ $alive -ge 3 ] && break
+                else
+                    alive=0
+                fi
+                ;;
+            *) alive=0; n=0; continue ;;
         esac
+        [ "$cur_bl" = 0 ] || { n=0; continue; }
         f=$(timeout 3 cmd display get-brightness 0 2>/dev/null | head -n 1)
         light=$(echo "$f" | awk -v lo="${lo:-0}" -v hi="${hi:-1}" '{
             for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]*[.]?[0-9]+(E-?[0-9]+)?$/) {
@@ -1043,6 +1058,7 @@ while :; do
                                    else if (s > 255) print s
                                    else printf "%.4f", lo + s / 255.0 * (nm - lo) }') ;;
                         esac
+                        esac
                         ;;
                 esac
                 v2=$(echo "$f2" | awk -v m="$MAX2" -v n="$NORM2" -v lo="$lo" -v nm="$nm" -v hi="$hi" -v s="$SCALE" '
@@ -1087,7 +1103,19 @@ while :; do
             echo 0 > $BL/brightness 2>/dev/null
             last=0
         fi
-    elif [ "$TAKE_BL" = 1 ] && [ -n "$v" ] && [ "$v" != "$last" ]; then
+        if [ "$prev_folded" = 0 ]; then
+            # Just folded: immediately sync cover brightness to inner panel's last level
+            ib=$(cat $BL/brightness 2>/dev/null || echo 0)
+            [ "$ib" != 0 ] && echo "$ib" > $BL2/brightness 2>/dev/null && last2=$ib
+        fi
+    else
+        if [ "$prev_folded" = 1 ] && [ -w "$BL/brightness" ]; then
+            # Just unfolded: immediately sync inner panel brightness to cover panel's last level
+            cb=$(cat $BL2/brightness 2>/dev/null || echo 0)
+            [ "$cb" != 0 ] && echo "$cb" > $BL/brightness 2>/dev/null && last=$cb
+        fi
+    fi
+    if [ "$is_folded" != 1 ] && [ "$TAKE_BL" = 1 ] && [ -n "$v" ] && [ "$v" != "$last" ]; then
         echo $v > $BL/brightness && echo "$(date +%T) inner $w: $v"
         last=$v
     fi
@@ -2487,6 +2515,7 @@ fi
 # from the phone's temperature: without it the amplifier's protection never got a reading, sysfs
 # audio/amp ready -1). The battery temperature stands in for it. Only where the amplifier node
 # exists (a Samsung smart amp); ONEOS_GUEST_SAMSUNG_AUDIO=0 leaves it out. Log: /data/oneos_sec_audio.log.
+# On One UI guests (which have their own SoundAlive/Dolby and volume leveler service), do not force volume_leveler=7.
 if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/amp ] && [ -f /data/oneos_edm_stub.dex ]; then
     ONEOS_BB="$BB" $BB sh -c '
         BB=$ONEOS_BB
@@ -2495,8 +2524,8 @@ if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/
         i=0
         while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
         sleep 10
-        if [ -f /data/oneos_audio_rt ] && grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
-            log "One UI guest: leaving Dolby and volume leveler to SoundAlive"
+        if grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+            log "One UI guest: keeping native volume curve and leaving Dolby and volume leveler to SoundAlive"
         else
             for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=7; do log "$(param $kv)"; done
         fi

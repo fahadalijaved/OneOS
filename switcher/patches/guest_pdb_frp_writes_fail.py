@@ -57,7 +57,7 @@ def inlined_shape(root, d):
     # "/dev/null" path guest_pdb_readonly.py put in place of the mDataBlockFile load.
     pat = re.compile(r"^(\s*)invoke-virtual \{([vp]\d+)\}, " + re.escape(CLS)
                      + r"->enforceFactoryResetProtectionInactive\(\)V\n((?:\s*\.line \d+\n|[ \t]*\n)*"
-                     r"\s*new-instance [vp]\d+, Ljava/io/RandomAccessFile;\n(?:[ \t]*\n)*"
+                     r"\s*new-instance [vp]\d+, Ljava/io/RandomAccessFile;\n(?:\s*\.line \d+\n|[ \t]*\n)*"
                      r"[ \t]*# OneOS: the FRP partition is One UI's; the guest opens /dev/null instead\.\n"
                      r"[ \t]*const-string [vp]\d+, \"/dev/null\"\n)", re.M)
     total = 0

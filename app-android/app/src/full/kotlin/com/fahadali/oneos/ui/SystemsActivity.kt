@@ -493,16 +493,20 @@ class SystemsFragment : Fragment() {
             // PixelOS 17 (0.5.35), a custom ROM with a card and artwork of its own (not the Pixel card), only on the phones that offer it.
             CatalogEntry(pixelOs.name, pixelOs, R.drawable.os_pixelos, true).takeIf { available.any { it.id == pixelOs.id } },
             // One UI 9.5 (0.5.22, untested) only on the phones on One UI 9 that offer it.
-            CatalogEntry(oneui.name, oneui, R.drawable.os_oneui, true).takeIf { available.any { it.id == oneui.id } },
-            CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, available.any { it.id == infinity.id }),
-            CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, available.any { it.id == hyper.id }),
-            CatalogEntry(color.name, color, R.drawable.os_coloros, available.any { it.id == color.id }),
-            CatalogEntry(nothing.name, nothing, R.drawable.os_nothing, available.any { it.id == nothing.id }),
-            CatalogEntry(pixel.name, pixel, R.drawable.os_pixel, available.any { it.id == pixel.id }),
+            CatalogEntry(oneui.name, oneui, if (oneui.id == Images.ID_ONEUI85_F6) R.drawable.os_oneui85 else R.drawable.os_oneui, true).takeIf { available.any { it.id == oneui.id } },
+            CatalogEntry(infinity.name, infinity, R.drawable.os_infinity, true).takeIf { available.any { it.id == infinity.id } },
+            CatalogEntry(hyper.name, hyper, R.drawable.os_hyperos, true).takeIf { available.any { it.id == hyper.id } },
+            CatalogEntry(color.name, color, R.drawable.os_coloros, true).takeIf { available.any { it.id == color.id } },
+            CatalogEntry(nothing.name, nothing, R.drawable.os_nothing, true).takeIf { available.any { it.id == nothing.id } },
+            CatalogEntry(pixel.name, pixel, R.drawable.os_pixel, true).takeIf { available.any { it.id == pixel.id } },
         )
 
 
         currentEntries = entries
+        if (entries.isEmpty()) {
+            carousel.adapter = null
+            return
+        }
         val state = if (revealed) carousel.layoutManager?.onSaveInstanceState() else null
         carousel.adapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<CarouselHolder>() {
             override fun getItemCount() = Int.MAX_VALUE

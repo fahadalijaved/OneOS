@@ -23,7 +23,9 @@ CLS = "com/android/server/wm/WindowManagerService.smali"
 MARK = "# OneOS: PrivacyDisplayController made whatever FW_PRIVACY_DISPLAY says"
 GATE = re.compile(
     r"^( *)sget-boolean (v\d+), Lcom/samsung/android/rune/CoreRune;->FW_PRIVACY_DISPLAY:Z\n"
+    r"(?:\s*\.line \d+\n|\s*\n)*"
     r"(\s*)if-eqz \2, (:cond_\w+)\n"
+    r"(?:\s*\.line \d+\n|\s*\n)*"
     r"(\s*)new-instance v\d+, Lcom/android/server/wm/PrivacyDisplayController;\n", re.M)
 
 
@@ -36,6 +38,8 @@ def main():
     src = open(path).read()
     if MARK in src:
         print(hits[0])
+        return
+    if "Lcom/android/server/wm/PrivacyDisplayController;-><init>" not in src:
         return
     found = list(GATE.finditer(src))
     if len(found) != 1:

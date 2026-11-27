@@ -174,10 +174,13 @@ object PackageSets {
     const val ID_NOTHING_F8U = "nothing-f8u"
     const val ID_NOTHING_A = "nothing-a"
     const val ID_OXYGEN16 = "oxygen16"
+    const val ID_PIXEL16 = "pixel16"
+    const val ID_HYPER16 = "hyper16"
     const val ID_ORIGINOS = "originos"
     const val ID_LINEAGE = "lineage"
     const val ID_ONEUI95 = "oneui95"
     const val ID_ONEUI95_F8 = "oneui95-f8"
+    const val ID_ONEUI85_F6 = "oneui85-f6"
     const val ID_ONEUI95_A16 = "oneui95-a16"
     const val ID_OXYGEN17_PAD = "oxygen17pad"
     const val ID_PIXELOS = "pixelos"
@@ -807,6 +810,70 @@ object PackageSets {
     )
 
     /**
+     * PixelOS 16.2 (Android 16 QPR2 Treble GSI by Doze-off) for Galaxy Z Fold4 on One UI 8.0 (0.5.35):
+     * built from out/overlays_pixel16 using make-overlays.sh with ONEOS_NO_CAMERA_ABI=1
+     * and host_installd_a16.txt.
+     */
+    val PIXEL16 = PackageSet(
+        id = ID_PIXEL16,
+        imageId = Images.ID_PIXEL16,
+        sourceDir = "out/overlays_pixel16",
+        files = listOf(
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("libbootanimation_patched.so", FileRole.GUEST_FIX),
+        ) + (COMMON_PAYLOADS + listOf("bt", "cellbroadcast", "conscrypt", "nfcservices", "profiling", "telephonycore"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING),
+        approxBytes = 395_669_088L,
+        hasReturnApp = true,
+    )
+
+    /**
+     * HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM) for Galaxy Z Fold4 on One UI 8.0:
+     * built from out/overlays_hyperos16 using make-overlays.sh with ONEOS_NO_CAMERA_ABI=1
+     * and host_installd_a16.txt.
+     */
+    val HYPER16 = PackageSet(
+        id = ID_HYPER16,
+        imageId = Images.ID_HYPEROS16,
+        sourceDir = "out/overlays_hyperos16",
+        files = listOf(
+            PackageFile("OneOSCameraProcessingStub.apk", FileRole.RRO),
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("MISettingsFold.apk", FileRole.GUEST_FIX),
+            PackageFile("MiuiHome_Fold.apk", FileRole.GUEST_FIX),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("apprecovery.proinstaller_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("libaudiohal_aidl_patched.so", FileRole.GUEST_FIX),
+            PackageFile("libsurfaceflinger_patched.so", FileRole.GUEST_FIX),
+            PackageFile("miui-framework_patched.jar", FileRole.FRAMEWORK_JAR),
+            PackageFile("miui-services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-telephony-common_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("miui-wifi-service_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("socket_exec", FileRole.GUEST_FIX),
+            PackageFile("surfaceflinger_patched", FileRole.SURFACEFLINGER),
+            PackageFile("telephony-common_patched.jar", FileRole.GUARD_JAR),
+        ) + (COMMON_PAYLOADS + listOf("bt", "cellbroadcast", "conscrypt", "profiling"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING),
+        approxBytes = 488_225_557L,
+        hasReturnApp = true,
+    )
+
+    /**
      * OxygenOS 17 for tablets (0.5.41, testing; [Images.OXYGEN17_PAD], the Galaxy Tab profiles only): make-overlays.sh on
      * the OnePlus Pad 4 image (out/overlays_oxygen17pad_r1: the guard jars, the guest vold as gvld (the Find X9 Ultra IN
      * layout), SurfaceFlinger without the QTI composer client, One UI's camera codes, the SMS centre, OPPO's IMS
@@ -1008,6 +1075,35 @@ object PackageSets {
     )
 
     /**
+     * One UI 8.5 (Android 16, SDK 36, F956BXXS4DZI1 from Galaxy Z Fold6) for Galaxy Z Fold4:
+     * built from out/overlays_oneui85_fold6 using make-overlays.sh with ONEOS_NO_CAMERA_ABI=1
+     * and host_installd_a16.txt.
+     */
+    val ONEUI85_F6 = PackageSet(
+        id = ID_ONEUI85_F6,
+        imageId = Images.ID_ONEUI85_F6,
+        sourceDir = "out/overlays_oneui85_fold6",
+        files = listOf(
+            PackageFile("OneOSFoldCutout.apk", FileRole.RRO),
+            PackageFile("OneOSPhoneInjection.apk", FileRole.RRO),
+            PackageFile("OneOSPixelStatusBar.apk", FileRole.RRO),
+            PackageFile("OneOSTabletQs.apk", FileRole.RRO),
+            PackageFile(GUEST_APP, FileRole.GUEST_APP),
+            PackageFile("framework_patched.jar", FileRole.GUARD_JAR),
+            PackageFile("guards.txt", FileRole.GUARDS),
+            PackageFile("oneos-apex-requires.txt", FileRole.GUEST_FIX),
+            PackageFile("oneos-telephony.jar", FileRole.INJECTION_JAR),
+            PackageFile("oneos-telephony.sha256", FileRole.INJECTION_SHA256),
+            PackageFile("oneui_floating_add.txt", FileRole.GUEST_FIX),
+            PackageFile("services_patched.jar", FileRole.GUARD_JAR),
+        ) + ((COMMON_PAYLOADS - "crashrecovery") + listOf("bt", "cellbroadcast", "conscrypt", "profiling", "telephonycore"))
+            .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) },
+        omitted = listOf(TETHERING, "crashrecovery_payload.img"),
+        approxBytes = 353_874_762L,
+        hasReturnApp = true,
+    )
+
+    /**
      * The image's own modules a One UI 8 phone (Android 16) cannot lend an Android 17 guest ([ONEUI95_A16]):
      * the S22's guest zygote died preloading libandroid.so on One UI 8's tethering module
      * ("cannot locate symbol AConnectivityNative_getNetworkBlockedReason", 0827ba2a), and the framework calls
@@ -1109,7 +1205,7 @@ object PackageSets {
         hasReturnApp = true,
     )
 
-    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, NOTHING_F8U, NOTHING_A, OXYGEN16, OXYGEN17_PAD, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, ONEUI95_A16, PIXELOS)
+    val ALL: List<PackageSet> = listOf(N6_GLOBAL_F8, N6_F8U, X9U_IN_1105_SULTRA, PIXEL_F8U, PIXEL_SULTRA, PIXEL_F8, PIXEL9_SULTRA, INFINITYX, HYPER_F8U, HYPER_HK, HYPER16, NOTHING_F8U, NOTHING_A, OXYGEN16, OXYGEN17_PAD, PIXEL16, ORIGINOS, LINEAGE, ONEUI95, ONEUI95_F8, ONEUI95_A16, ONEUI85_F6, PIXELOS)
 
     fun byId(id: String, sets: List<PackageSet> = ALL): PackageSet? = sets.firstOrNull { it.id == id }
 }

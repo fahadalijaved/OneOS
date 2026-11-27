@@ -20,7 +20,7 @@ import sys
 
 CLASS = re.compile(r"^\.class (?:public |final )*Lcom/android/server/wm/BlurController;$")
 METHOD = re.compile(r"^\.method (?:public |private |final )*updateBlurEnabled\(\)V$")
-IGET = re.compile(r"^\s*iget-boolean (v\d+|p\d+), p0, Lcom/android/server/wm/BlurController;->mDisabledByThermal:Z$")
+IGET = re.compile(r"^\s*iget-boolean (v\d+|p\d+), p0, Lcom/android/server/wm/BlurController;->(?:mDisabledByThermal|mCriticalThermalStatus):Z$")
 
 
 def main(root):
@@ -44,7 +44,7 @@ def main(root):
         if not m:
             continue
         j = k + 1
-        while lines[j].strip() == "":
+        while lines[j].strip() == "" or lines[j].strip().startswith(".line"):
             j += 1
         if re.match(rf"^\s*if-nez {m.group(1)}, :cond_\w+$", lines[j]):
             hits.append((k, j))

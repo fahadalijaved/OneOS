@@ -317,11 +317,11 @@ add)
     #   under 120 Hz): SurfaceFlinger's content detection off, so whatever moves renders at the top rate and
     #   only a still screen renders at the lower rate (SurfaceFlinger's idle timer; the panel stays at its top mode). With it
     #   on, "normal" animations ran at 60 Hz (owner, A36: "OS feels kinda sluggish").
-    if [ ! -e "$ROOTFS/system/framework/oplus-services.jar" ] && [ ! -e "$ROOTFS/system/framework/miui-services.jar" ] &&
+    if [ ! -e "$ROOTFS/system/framework/oplus-services.jar" ] &&
        [ ! -e "$ROOTFS/system/system_ext/framework/nt-telephony-common.jar" ] && [ ! -e "$ROOTFS/system_ext/framework/nt-telephony-common.jar" ] &&
        ! grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
         for kv in "sys.brightness.disable_gamma_conversion=true:${ONEOS_GUEST_LINEAR_BRIGHTNESS:-1}" \
-                  "ro.surface_flinger.use_content_detection_for_refresh_rate=false:$([ -f "$STAGE/data/oneos_adaptive" ] && echo 1 || echo 0)"; do
+                  "ro.surface_flinger.use_content_detection_for_refresh_rate=false:$([ -f "$STAGE/data/oneos_adaptive" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] && echo 1 || echo 0)"; do
             [ "${kv##*:}" = 1 ] || continue
             kv=${kv%:*}; key=${kv%%=*}; value=${kv#*=}
             hv=$(getprop "$key")
@@ -771,6 +771,25 @@ add)
         done
         echo "guest_props: no $BTA on this phone: LE Audio off for the session:${out:- nothing was on}"
     fi
+    # Samsung Bluetooth stack VaultKeeper integration: on devices where VaultKeeper HAL or daemon
+    # is unavailable in the guest namespace, btif_storage.cc attempts getKeyIVLen 4 times and triggers
+    # BLE_START_TIMEOUT / crash loops. Disable VaultKeeper feature flag in guest properties if HAL is absent.
+    if [ "$GUEST_ONEUI" = 1 ] || grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        VK_HAL=vendor.samsung.hardware.security.vaultkeeper.ISehVaultKeeper/default
+        if timeout 5 service check "$VK_HAL" 2>/dev/null | grep -q ": not found" || [ -z "$(getprop init.svc.vaultkeeper)" ]; then
+            for vk_prop in ro.security.vaultkeeper.feature persist.security.vaultkeeper.feature vendor.security.vaultkeeper.native; do
+                drop_new "$vk_prop"
+                hv=$(getprop "$vk_prop")
+                if [ -n "$hv" ] && [ "$hv" != "0" ] && [ "$hv" != "false" ] && "$RP" -n "$vk_prop" "0" 2>/dev/null; then
+                    echo "$vk_prop=$hv" >> "$OVR"
+                fi
+            done
+            "$RP" -n ro.security.vaultkeeper.feature 0 2>/dev/null || true
+            "$RP" -n persist.security.vaultkeeper.feature 0 2>/dev/null || true
+            echo "guest_props: VaultKeeper HAL unavailable for guest; disabled vkSupport in props for the session"
+        fi
+    fi
+
     # ColorOS's Bluetooth on a Helio G99 phone (Galaxy A16 4G, reports c6e0068a
     # of build 100 and 049d5675 of build 112: a headset connects, drops and
     # reconnects every few seconds; com.android.bluetooth died 3 and 5 times
@@ -1045,15 +1064,21 @@ add)
     # build; not $NEW, which skips it: One UI defines ro.config.fold_disp too
     # (Samsung's "2256,2504,1080,2520"), so the run 6 check never matched.
     MDT=persist.sys.muiltdisplay_type
-    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] && grep -q '^ro\.config\.fold_disp=' "$ROOTFS"/system/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null &&
+    if [ "${ONEOS_GUEST_FORM:-fold}" = fold ] &&
         { [ -e "$ROOTFS/system/system_ext/framework/miui-services.jar" ] || [ -e "$ROOTFS/system_ext/framework/miui-services.jar" ]; }; then
         if grep -qxF "$MDT" "$HOST"; then
             echo "guest_props: $MDT is One UI's ($(getprop "$MDT")), left alone"
         else
             sed -i '/^persist\.sys\.muiltdisplay_type=/d' "$NEW"
             echo "$MDT=2" >> "$NEW"
-            echo "guest_props: $MDT=2 for the session (HyperOS fold: cover screen wallpapers)"
+            echo "guest_props: $MDT=2 for the session (HyperOS fold: cover screen wallpapers & fold layout)"
         fi
+        sed -i '/^persist\.sys\.multi_display_type=/d' "$NEW"
+        echo "persist.sys.multi_display_type=2" >> "$NEW"
+        sed -i '/^ro\.build\.characteristics=/d' "$NEW"
+        echo "ro.build.characteristics=tablet" >> "$NEW"
+        sed -i '/^ro\.config\.miui_magic_window_enable=/d' "$NEW"
+        echo "ro.config.miui_magic_window_enable=true" >> "$NEW"
     fi
     # (from vdcoolok's feat/guest-local-pin, ported 11-19)
     # HyperOS hides the whole fingerprint UI unless a vendor is named:
@@ -1237,6 +1262,11 @@ ro.miui.backdrop_sampling_enabled=true"
             sed -i '/^ro\.vendor\.radio\.modem\.provider=/d' "$NEW"
             echo "ro.vendor.radio.modem.provider=qcom" >> "$NEW"
             echo "guest_props: ro.vendor.radio.modem.provider=qcom for the session (HyperOS data calls through IRadioData, not Xiaomi's XRING extension)"
+            # Ensure multi-SIM and dual telephony configs are explicitly defined for HyperOS
+            for rp in "persist.radio.multisim.config=dsds" "telephony.active_modems.max=2" "ro.telephony.default_network=26,26"; do
+                sed -i "/^${rp%%=*}=/d" "$NEW"
+                echo "$rp" >> "$NEW"
+            done
         else
             echo "guest_props: ro.vendor.radio.modem.provider left unset: $(getprop ro.soc.manufacturer) is not a Qualcomm SoC"
         fi
@@ -1255,13 +1285,18 @@ ro.miui.backdrop_sampling_enabled=true"
     # (Qualcomm's Vulkan driver: "Unknown struct ... provided to
     # vkCmdBeginRenderPass" on every frame HyperOS draws, 16,600 a file).
     if [ -f "$ROOTFS/system/lib64/libxqos.so" ]; then
-        for tl in XQos:S perfflinger_client:S DolbyRenderer:S RadioProxyEx:S com.xiaomi.type:S AdrenoVK-0:W; do
+        for tl in XQos:S perfflinger_client:S DolbyRenderer:S RadioProxyEx:S com.xiaomi.type:S AdrenoVK-0:S Adreno-VK:S; do
             k=log.tag.${tl%:*}
             grep -qxF "$k" "$HOST" && { echo "guest_props: $k is One UI's ($(getprop "$k")), left alone"; continue; }
             sed -i "/^$(echo "$k" | sed 's/\./\\./g')=/d" "$NEW"
             echo "$k=${tl##*:}" >> "$NEW"
         done
-        echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type = S and AdrenoVK-0 = W for the session (failures and dumps on every frame or call)"
+        echo "guest_props: log.tag.XQos, perfflinger_client, DolbyRenderer, RadioProxyEx, com.xiaomi.type, AdrenoVK-0 = S for the session"
+        # Disable XRING / XQos background thrasher on foreign vendor
+        for xp in persist.sys.perf.xring=0 persist.sys.hyperos.xqos=0 persist.sys.power.xring=0; do
+            sed -i "/^${xp%%=*}=/d" "$NEW"
+            echo "$xp" >> "$NEW"
+        done
         # HyperOS Global (11-19, A36, "slightly sluggish"): logd at 35-106 % of a core. Its own debug and info
         # chatter, per 200,000 lines: MI-SF 27,000, backgroundBlur 13,400, AllInOneBase 7,900, hyper_launcher_app
         # 7,500, AllInOneConvertDataDebug 6,200, MiuiBlurUtils 5,700, hyos_spawner 4,800, flutter 4,700,
@@ -1835,8 +1870,9 @@ ro.miui.backdrop_sampling_enabled=true"
     for key in ro.audio.ihaladaptervendorextension_enabled; do
         g=$(cat "$ROOTFS"/system/build.prop "$GSE"/etc/build.prop \
             "$GPR"/etc/build.prop "$ROOTFS"/my_*/build.prop "$ROOTFS"/mi_ext/etc/build.prop 2>/dev/null | sed -n "s/^$key=//p" | tail -n 1)
+        [ -n "$g" ] || g=false
         h=$(getprop "$key")
-        [ -n "$g" ] && [ -n "$h" ] && [ "$g" != "$h" ] || continue
+        [ -n "$h" ] && [ "$g" != "$h" ] || continue
         echo "$key=$h" >> "$OVR" && "$RP" -n "$key" "$g" 2>/dev/null &&
             echo "guest_props: $key=$g for the session (One UI: $h)"
     done
@@ -2061,7 +2097,11 @@ ro.miui.backdrop_sampling_enabled=true"
         ""|*[!0-9]*) ;;
         *) [ "$hsep" -lt 180000 ] && oneui_version_props="$oneui_version_props ro.build.version.sep" ;;
     esac
-    if { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
+    if [ "${ONEOS_PROFILE:-}" = f4 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ]; then
+        oneui_version_props="$oneui_version_props ro.build.version.sep"
+        oneui_image_model=0
+        echo "guest_props: keeping Fold4 model for One UI session"
+    elif { [ "${ONEOS_PROFILE:-}" = f8 ] && [ "${ONEOS_GUEST_FORM:-}" = fold ] ||
          case "${ONEOS_PROFILE:-}" in tab-*) true ;; *) false ;; esac; } &&
        grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
         # Build.VERSION.SEM_PLATFORM_INT and One UI Home read sep, not sem.

@@ -410,6 +410,22 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy Tab S11 (SM-X730, MT6991), not tested yet
   - Galaxy Tab S11 Ultra (SM-X930, MT6991), not tested yet
 
+## PixelOS 16.2, Doze-off GSI (Unoptimized)
+
+- File: `OneOS_PixelOS16_Fold4.img.gz` (1.86 GB)
+- SHA-256: `848f93afe5b3d97127d359a9326a57032099440010b55986e2252deceb7a3c86`
+- Download: https://drive.google.com/file/d/1O6N0YagTUfHcV7cOu41Z60UspJ2OiQLV/view?usp=drivesdk
+- Phones:
+  - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
+
+## HyperOS 3.0 Global (Unoptimized)
+
+- File: `OneOS_HyperOS3_Fold4.img.gz` (3.76 GB)
+- SHA-256: `aa7b4ce41f5769d3f26d9339f1679de6b5f1f3f5581fd26348e98cdcf7a7a403`
+- Download: https://drive.google.com/file/d/1Au8daoLBcw2zl8yCtrmd3SwZCkvgHL0r/view?usp=drivesdk
+- Phones:
+  - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
+
 ## OriginOS 7, vivo PD2609MA build
 
 - File: `OneOS_OriginOS7_PD2609MA.img.gz` (8.55 GB)
@@ -565,6 +581,14 @@ Downloads: each system's own link below (the SourceForge mirror, resumable); all
   - Galaxy Tab S9 Ultra (SM-X910, SM8550), not tested yet
   - Galaxy Tab S11 (SM-X730, MT6991), not tested yet
   - Galaxy Tab S11 Ultra (SM-X930, MT6991), not tested yet
+
+## One UI 8.5, Galaxy Z Fold6 build
+
+- File: `OneOS_OneUI8.5_Fold4.img.gz` (7.95 GB)
+- SHA-256: `93fd578ffd41e3d303af380af96f675e55d2085135286e7bbdaccd2fe43688d5`
+- Download: https://drive.google.com/file/d/1rFK5xrfjGNv07cGO2HXvkWYHz6sYhnUT/view?usp=drive_link
+- Phones:
+  - Galaxy Z Fold4 (SM-F936, SM8475), not tested yet
 
 ## PixelOS 17, POCO F7 build
 

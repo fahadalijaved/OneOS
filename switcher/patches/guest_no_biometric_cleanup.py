@@ -26,7 +26,10 @@ SUFFIX = os.path.join("com", "android", "server", "biometrics", "sensors", "Inte
 CLS = "Lcom/android/server/biometrics/sensors/InternalCleanupClient;"
 BASE = "Lcom/android/server/biometrics/sensors/BaseClientMonitor;"
 CB = "Lcom/android/server/biometrics/sensors/ClientMonitorCallback;"
-HEADER = re.compile(r"^\.method (?:private |public |final )*startCleanupUnknownHalTemplates\(\)V$")
+HEADER = re.compile(
+    r"^\.method (?:private |public |final )*startCleanupUnknownHalTemplates\(\)V$|"
+    r"^\.method public static -\$\$Nest\$mstartCleanupUnknownHalTemplates\(Lcom/android/server/biometrics/sensors/InternalCleanupClient;\)V$"
+)
 
 
 def main(root):

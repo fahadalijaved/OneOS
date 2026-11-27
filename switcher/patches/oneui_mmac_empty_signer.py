@@ -23,16 +23,17 @@ import sys
 
 CLS = "com/android/server/pm/SELinuxMMAC.smali"
 MARK = "    # OneOS: a signer emptied by ignore_mac_permissions_package is dropped (oneui_mmac_empty_signer.py)\n"
+L = r"(?:\n|\s*\.line \d+\n)+"
 CALL = re.compile(r"^    invoke-static \{(v\d+)\}, Lcom/android/server/pm/SELinuxMMAC;->readSignerOrThrow\(Lorg/xmlpull/v1/XmlPullParser;\)"
-                  r"Lcom/android/server/pm/Policy;\n\n    move-result-object (v\d+)\n\n"
-                  r"(    invoke-virtual \{v\d+, \2\}, Ljava/util/ArrayList;->add\(Ljava/lang/Object;\)Z\n\n    goto (:goto_\w+)\n)", re.M)
+                  r"Lcom/android/server/pm/Policy;" + L + r"    move-result-object (v\d+)" + L +
+                  r"(    invoke-virtual \{v\d+, \2\}, Ljava/util/ArrayList;->add\(Ljava/lang/Object;\)Z" + L + r"    goto (:goto_\w+)\n)", re.M)
 # :cond_b is reached when (seinfo == null) == pkgMap.isEmpty(): both empty or both set. The seinfo register is
 # the one tested before the xor; the Policy is p0.
 SHAPE = re.compile(
-    r"^    if-nez (v\d+), (:cond_\w+)\n\n    const/4 (v\d+), 0x1\n\n    goto (:goto_\w+)\n\n    \2\n    const/4 \3, 0x0\n\n"
-    r"    \4\n    invoke-interface \{(v\d+)\}, Ljava/util/Map;->isEmpty\(\)Z\n\n    move-result \5\n\n    xor-int/2addr \3, \5\n\n"
-    r"    if-eqz \3, (:cond_\w+)\n\n    return-object p0\n\n    \6\n"
-    r"(    const-string/jumbo p0, \"Only seinfo tag XOR package tags are allowed within a signer stanza\.\"\n)", re.M)
+    r"^    if-nez (v\d+), (:cond_\w+)" + L + r"    const/4 (v\d+), 0x1" + L + r"    goto (:goto_\w+)" + L + r"    \2\n    const/4 \3, 0x0" + L +
+    r"    \4\n    invoke-interface \{(v\d+)\}, Ljava/util/Map;->isEmpty\(\)Z" + L + r"    move-result \5" + L + r"    xor-int/2addr \3, \5" + L +
+    r"    if-eqz \3, (:cond_\w+)" + L + r"    return-object p0" + L + r"    \6\n"
+    r"(    (?:const-string/jumbo p0, \"Only seinfo tag XOR package tags are allowed within a signer stanza\.\"|new-instance p0, Ljava/lang/IllegalStateException;)\n)", re.M)
 
 
 def main():

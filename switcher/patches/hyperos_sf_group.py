@@ -39,6 +39,18 @@ BUILDS = {
         # getRankedFrameRatesLocked, active mode's group: ldrb w9, [x23, #48] -> ldr w9, [x23, #48]
         (0x4A65D4, "e9c24039", "e93240b9"),
     ],
+    # HyperOS 3.0 OS3.0.5.0.WOEMIXM Global (hyper16, Android 16)
+    "4559ae51e152c47fb067fca4fd4f8238aad8ad80eb4fdc2549cd1ac70a2514a4": [
+        # constructAvailableRefreshRates()::$_2 filter: ldrb w9, [x26, #48] -> ldr w9, [x26, #48]
+        (0x3CE0A4, "49c34039", "493340b9"),
+    ],
+    # HyperOS 3.0 OS3.0.1.0.WNVCNDM China (goku, Xiaomi MIX Fold 4, Android 16)
+    "4187542b4b73b0e2b38b42866430ec9185f7ebac9f68ae42b41cb424afe145f0": [
+        # constructAvailableRefreshRates() filter: ldrb w9, [x26, #48] -> ldr w9, [x26, #48]
+        (0x3C6694, "49c34039", "493340b9"),
+        # getRankedFrameRatesLocked, active mode's group: ldrb w9, [x25, #48] -> ldr w9, [x25, #48]
+        (0x3B6844, "29c34039", "293340b9"),
+    ],
 }
 
 

@@ -184,7 +184,7 @@ def patch_inlined_write_opens(pdb_dir):
             m = load.match(l)
             if not m:
                 continue
-            nxt = [x.strip() for x in lines[i + 1:i + 12] if x.strip() and not x.strip().startswith("#")]
+            nxt = [x.strip() for x in lines[i + 1:i + 16] if x.strip() and not x.strip().startswith(("#", ".line"))]
             path_reg = m.group(2)
             kind = None
             if len(nxt) >= 2 and re.match(r'const-string(?:/jumbo)? [vp]\d+, "rw"$', nxt[0]):

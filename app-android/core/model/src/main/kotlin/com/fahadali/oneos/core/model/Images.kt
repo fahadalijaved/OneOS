@@ -72,9 +72,9 @@ data class ImageRef(
     /**
      * The image's own download on the SourceForge mirror (0.4.59, project oneos-mirror, folder
      * images/): one file, resumable, from a mirror near the user. [downloadUrl] (the Drive
-     * folder) stays the fallback.
+     * folder or file) stays the fallback.
      */
-    val mirrorUrl: String get() = "${Images.MIRROR_FILES_URL}$gzName/download"
+    val mirrorUrl: String get() = if (downloadUrl != null && downloadUrl != Images.SHARED_FOLDER_URL) downloadUrl else "${Images.MIRROR_FILES_URL}$gzName/download"
 
     /**
      * A launch may hide Google services (`ONEOS_GUEST_HIDE_GMS=1`, [SessionEnv],
@@ -134,12 +134,15 @@ object Images {
     const val ID_NOTHING_METROID = "nothingos5-metroid"
     const val ID_NOTHING_ASTEROIDS = "nothingos5-asteroids"
     const val ID_OXYGEN16 = "oxygenos16-cph2745"
+    const val ID_PIXEL16 = "pixel16-bp4a"
+    const val ID_HYPEROS16 = "hyperos16-goya"
     const val ID_OXYGEN17_PAD = "oxygenos17-opd2514"
     const val ID_ORIGINOS7 = "originos7-pd2609ma"
     /** Starts with "lineage": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_LINEAGE = "lineage24-infiniti"
     /** Starts with "oneui": switcher/assets/boot_status.sh names the boot splash from it. */
     const val ID_ONEUI95 = "oneui95-s948b"
+    const val ID_ONEUI85_F6 = "oneui85-f956b"
     const val ID_PIXELOS_ONYX = "pixelos17-onyx"
 
     /** Where root stages the unpacked image. */
@@ -538,6 +541,34 @@ object Images {
     )
 
     /**
+     * PixelOS 16.2 (Android 16 QPR2 Treble GSI by Doze-off, BP4A.251205.006),
+     * for phones on One UI 8.0/8.5 (SDK 36) such as Galaxy Z Fold4.
+     * Full Google Pixel Launcher, Pixel UI, Monet theming, Pixel wallpapers, Pixel sounds,
+     * and built-in Google Play services. Clean AOSP stack (GUEST_OPLUS=0).
+     */
+    val PIXEL16 = ImageRef(
+        id = ID_PIXEL16,
+        label = "PixelOS 16.2, Doze-off GSI (Unoptimized)",
+        shortName = "PixelOS 16",
+        name = "PixelOS 16",
+        variant = "Unoptimized · Experimental",
+        blurb = "Boots on Fold4, but unoptimized and unstable: camera, audio and dual SIM limitations exist. For testing only.",
+        downloadUrl = "https://drive.google.com/file/d/1O6N0YagTUfHcV7cOu41Z60UspJ2OiQLV/view?usp=drivesdk",
+        sdk = 36,
+        buildId = "BP4A.251205.006",
+        gzName = "OneOS_PixelOS16_Fold4.img.gz",
+        gzBytes = 1857746505L,
+        gzSha256 = "848f93afe5b3d97127d359a9326a57032099440010b55986e2252deceb7a3c86",
+        rawBytes = 3577262080L,
+        rawSha256 = "cd2d8025c28a46b9131832676e9619fabf261b34e21abc0b2756cff675145faf",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.PIXEL,
+    )
+
+    /**
      * ColorOS 17 for tablets (0.5.41, testing; called OxygenOS 17 until 0.5.42: OnePlus ships no OxygenOS 17,
      * the build is oplusrom 17.0, owner 2026-11-24): OnePlus's Android 17 system from the OnePlus Pad 4 OTA
      * (OPD2514 / OP657AL1, OPD2514_11.C.08_1080_202610220019, CP2A.260605.016, security patch 2026-09-01),
@@ -568,6 +599,34 @@ object Images {
         // oneos_root.sh data_family), and the ids and file names stay as hosted. Only the name and the
         // artwork (OsArtworkView, SystemsActivity) are ColorOS's.
         family = SystemFamily.OXYGENOS,
+    )
+
+    /**
+     * HyperOS 3.0 Global (Android 16, SDK 36, OS3.0.5.0.WOEMIXM),
+     * for phones on One UI 8.0/8.5 such as Galaxy Z Fold4.
+     * Full HyperOS experience with built-in Google Play services and Xiaomi apps.
+     */
+    val HYPEROS16 = ImageRef(
+        id = ID_HYPEROS16,
+        label = "HyperOS 3.0 Global (Unoptimized)",
+        shortName = "HyperOS 3.0",
+        name = "HyperOS 3",
+        variant = "Unoptimized · Experimental",
+        blurb = "Boots on Fold4, but unoptimized and unstable: camera, audio and dual SIM limitations exist. For testing only.",
+        downloadUrl = "https://drive.google.com/file/d/1Au8daoLBcw2zl8yCtrmd3SwZCkvgHL0r/view?usp=drivesdk",
+        sdk = 36,
+        buildId = "OS3.0.5.0.WOEMIXM",
+        gzName = "OneOS_HyperOS3_Fold4.img.gz",
+        gzBytes = 3760807029L,
+        gzSha256 = "aa7b4ce41f5769d3f26d9339f1679de6b5f1f3f5581fd26348e98cdcf7a7a403",
+        rawBytes = 7620681728L,
+        rawSha256 = "4e83c72a86d2401a6255f101d1d148b4d7557327321e316b031e4e428bf00b4d",
+        testedOn = "Galaxy Z Fold4",
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = false,
+        family = SystemFamily.HYPEROS,
     )
 
     /**
@@ -667,6 +726,34 @@ object Images {
     )
 
     /**
+     * One UI 8.5 (Android 16, SDK 36, F956BXXS4DZI1 from Galaxy Z Fold6),
+     * for Galaxy Z Fold4 on One UI 8.0/8.5. Built with OneOS Fold overlays
+     * and native foldable layout support.
+     */
+    val ONEUI85_F6 = ImageRef(
+        id = ID_ONEUI85_F6,
+        label = "One UI 8.5, Galaxy Z Fold6 build",
+        shortName = "One UI 8.5",
+        name = "One UI 8.5",
+        variant = "Fold6 Port · Experimental",
+        blurb = "Samsung One UI 8.5 (Android 16) from Galaxy Z Fold6, for Galaxy Z Fold4. With Google apps.",
+        downloadUrl = "https://drive.google.com/file/d/1rFK5xrfjGNv07cGO2HXvkWYHz6sYhnUT/view?usp=drive_link",
+        sdk = 36,
+        buildId = "F956BXXS4DZI1",
+        gzName = "OneOS_OneUI8.5_Fold4.img.gz",
+        gzBytes = 7_946_922_526L,
+        gzSha256 = "93fd578ffd41e3d303af380af96f675e55d2085135286e7bbdaccd2fe43688d5",
+        rawBytes = 14_155_776_000L,
+        rawSha256 = "21e4aa0f52a73276582b7ebbe95eedbf58653a4d1357490206f3c1a59b6229a7",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = false,
+        family = SystemFamily.ONEUI,
+    )
+
+    /**
      * 0.5.10: a stage whose guest data an image (key) made may keep it when its phone is set up with the
      * newer build of the same system (value), as an over-the-air update would: the first Find X9 Ultra IN
      * build is retired for the 1105 build (owner), and nothing else moves. Never the other way.
@@ -707,7 +794,7 @@ object Images {
         family = SystemFamily.PIXELOS,
     )
 
-    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, OXYGEN17_PAD, ORIGINOS7, LINEAGE24, ONEUI95, PIXELOS_ONYX)
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN_1105, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, HYPEROS_HONGKONG, NOTHING_METROID, NOTHING_ASTEROIDS, OXYGEN16, OXYGEN17_PAD, PIXEL16, HYPEROS16, ORIGINOS7, LINEAGE24, ONEUI95, ONEUI85_F6, PIXELOS_ONYX)
 
     fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
 

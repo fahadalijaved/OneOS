@@ -2531,6 +2531,7 @@ grep -q '^ro.build.version.oneui=' "$STAGE/rootfs/system/build.prop" 2>/dev/null
 GUEST_AOSP_SYSUI=1
 [ $GUEST_OPLUS = 1 ] && [ ! -f "$STAGE/rootfs/system/framework/org.lineageos.platform.jar" ] && GUEST_AOSP_SYSUI=0
 [ $GUEST_MIUI = 1 ] && GUEST_AOSP_SYSUI=0
+[ $GUEST_ONEUI = 1 ] && GUEST_AOSP_SYSUI=0
 # Window-level blur default for a new stage (UI activator below); only 0 or 1
 # reaches the root shell.
 GUEST_BLUR=1; [ "${ONEOS_GUEST_BLUR:-1}" = 1 ] || GUEST_BLUR=0
@@ -3096,9 +3097,9 @@ while true; do
             # On by default since 0.4.65 (F8U InfinityX run: Dolby on the music
             # output, sound much better); ONEOS_GUEST_DOLBY=0: off. Phones
             # whose effect HAL has no Dolby: it gives up after a minute, logged.
-            # The Galaxy Tab S9 FE's One UI guests already run SoundAlive + Dolby_FX
-            # natively: no second output-mix effect there unless ONEOS_GUEST_DOLBY=1.
-            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && { [ $HOST_TAB_S9_FE = 0 ] || [ -n \"${ONEOS_GUEST_DOLBY:-}\" ] || [ $GUEST_ONEUI = 0 ]; } && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
+            # On One UI guests, One UI's own system_server manages DAX3/SoundBoosterPlus; running OneOSSoundFx causes double-boosting.
+            # The Galaxy Tab S9 FE's One UI guests also already run SoundAlive + Dolby_FX natively.
+            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && [ $GUEST_ONEUI = 0 ] && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
                 echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"
@@ -3189,6 +3190,27 @@ while true; do
             # seen there.
             if [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ] && [ $GUEST_OPLUS = 1 ]; then
                 echo '[UI Activator] density and fold line: left to ColorOS'
+            elif [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ] && [ $GUEST_ONEUI = 1 ]; then
+                IN=\$(cat $STAGE/data/oneos_inner_display 2>/dev/null)
+                case \"\$IN\" in ''|*[!0-9]*) IN=none ;; esac
+                L=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys display 2>/dev/null | grep -m1 \"DisplayDeviceInfo.*uniqueId=.local:\$IN.,\")
+                W=\$(echo \"\$L\" | sed -n 's/.*uniqueId=.local:[0-9]*., \([0-9]*\) x \([0-9]*\), .*/\1/p')
+                H=\$(echo \"\$L\" | sed -n 's/.*uniqueId=.local:[0-9]*., \([0-9]*\) x \([0-9]*\), .*/\2/p')
+                if [ -n \"\$W\" ] && [ -n \"\$H\" ] && { [ \"$ONEOS_PROFILE\" = f4 ] || [ \"$ONEOS_PROFILE\" = f8 ]; }; then
+                    # Apply 420 dpi forced density on inner display so elements are not miniature
+                    ( i=0
+                      while [ \$i -lt 300 ]; do
+                          sleep 2; i=\$((i + 1))
+                          if $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm size -d 0 2>/dev/null | grep -q -x \"Physical size: \${W}x\${H}\"; then
+                              $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/wm density 420 -d 0 >/dev/null 2>&1
+                              echo \"[UI Activator] One UI fold density: forced 420 dpi on inner panel (\${W}x\${H})\"
+                              break
+                          fi
+                      done ) &
+                    echo '[UI Activator] density and fold line: One UI fold density worker started (420 dpi)'
+                else
+                    echo '[UI Activator] density and fold line: left to One UI'
+                fi
             elif [ \"\$(cat $STAGE/data/oneos_fold_mode 2>/dev/null)\" = layout ] && [ $GUEST_FOLD_FORM = 1 ]; then
                 IN=\$(cat $STAGE/data/oneos_inner_display 2>/dev/null)
                 case \"\$IN\" in ''|*[!0-9]*) IN=none ;; esac
@@ -3522,6 +3544,17 @@ while true; do
                     DST=\"pm grant BLUETOOTH_CONNECT failed: \$(echo \"\$DR\" | tr '\n' ' ' | cut -c1-200)\"
                 fi
                 echo \"[UI Activator] dialer: \$DST; now \$(timeout 20 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys package com.google.android.dialer 2>/dev/null | grep -m 1 -o 'android.permission.BLUETOOTH_CONNECT: granted=[a-z]*' || echo 'BLUETOOTH_CONNECT state not read')\"
+                # Ensure an installed dialer is set as the default dialer in Telecom (fixes missing InCallUI when overlay points to Google Dialer on AOSP dialer GSIs)
+                for dialer_pkg in com.google.android.dialer com.android.dialer; do
+                    if timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm path \"\$dialer_pkg\" >/dev/null 2>&1; then
+                        def_d=\$(timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd telecom get-default-dialer 2>/dev/null | tr -d '\r\n')
+                        if [ \"\$def_d\" != \"\$dialer_pkg\" ]; then
+                            timeout 10 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/cmd telecom set-default-dialer \"\$dialer_pkg\" >/dev/null 2>&1
+                            echo \"[UI Activator] default dialer set to \$dialer_pkg (was '\$def_d')\"
+                        fi
+                        break
+                    fi
+                done
             fi
             # Nothing's Gallery (com.nothing.gallery) opens only with read-media
             # and media management (MANAGE_MEDIA app-op) granted, which a Nothing

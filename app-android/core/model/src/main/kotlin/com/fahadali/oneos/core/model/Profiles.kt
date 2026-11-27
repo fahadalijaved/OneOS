@@ -229,6 +229,8 @@ object Profiles {
     private val ONEUI95_CHOICE = ImageChoice(Images.ID_ONEUI95, PackageSets.ID_ONEUI95, tested = false)
     /** 0.5.35: the Z Fold8's own One UI 9.5 set, with Josh's Fold8 files ([PackageSets.ONEUI95_F8]). */
     private val ONEUI95_F8_CHOICE = ImageChoice(Images.ID_ONEUI95, PackageSets.ID_ONEUI95_F8, tested = false)
+    /** Fold6 One UI 8.5 (Android 16, SDK 36) for Galaxy Z Fold4. */
+    private val ONEUI85_F6_CHOICE = ImageChoice(Images.ID_ONEUI85_F6, PackageSets.ID_ONEUI85_F6, tested = false)
     /** Tester builds: One UI 9.5 on a One UI 8 phone, with the image's own modules One UI 8 cannot lend ([PackageSets.ONEUI95_A16]). */
     private val ONEUI95_A16_CHOICE = ImageChoice(Images.ID_ONEUI95, PackageSets.ID_ONEUI95_A16, tested = false)
 
@@ -247,6 +249,8 @@ object Profiles {
      * (SM8450, the HIDL composer as well) run it. Before OriginOS in their lists, which stays last.
      */
     private val OXYGEN16_CHOICE = ImageChoice(Images.ID_OXYGEN16, PackageSets.ID_OXYGEN16, tested = false)
+    private val PIXEL16_CHOICE = ImageChoice(Images.ID_PIXEL16, PackageSets.ID_PIXEL16, tested = false)
+    private val HYPER16_CHOICE = ImageChoice(Images.ID_HYPEROS16, PackageSets.ID_HYPER16, tested = false)
     /** Galaxy Tabs (0.5.41, owner: "we will build an OS for them as testing"; only this one on a tablet). */
     private val OXYGEN17_PAD_CHOICE = ImageChoice(Images.ID_OXYGEN17_PAD, PackageSets.ID_OXYGEN17_PAD, tested = false)
 
@@ -352,11 +356,11 @@ object Profiles {
         R_MEDIATEK,
     )
 
-    /** Galaxy Z Fold4: known limitations on OxygenOS 16. */
+    /** Galaxy Z Fold4: known limitations on cross-OEM Android 16 images. */
     private val FOLD4_ISSUES = Finding(
         ID_NOTE_FOLD4_ISSUES, Level.WARN, "Known issues on Fold4",
-        "OxygenOS 16 boots on Galaxy Z Fold4 with known limitations: camera does not work, " +
-            "cover screen is dim with fixed brightness, and the phone runs warm.",
+        "Third-party OS images (OxygenOS 16, PixelOS 16, HyperOS 3.0) boot on Galaxy Z Fold4 but are unoptimized and unstable: " +
+            "camera does not work, dual SIM connectivity is limited, audio HAL issues exist, and displays may lag. For experimental testing only.",
         R_FOLD4_ISSUES,
     )
 
@@ -839,7 +843,7 @@ object Profiles {
         codename = "q4q",
         socModel = "SM8475",
         form = FormFactor.FOLD,
-        choices = listOf(OXYGEN16_CHOICE.copy(tested = true)),
+        choices = listOf(OXYGEN16_CHOICE.copy(tested = true), PIXEL16_CHOICE, HYPER16_CHOICE, ONEUI85_F6_CHOICE),
         notes = listOf(olderVendor("31 (Android 12)", "5.10"), FOLD4_ISSUES),
     )
 

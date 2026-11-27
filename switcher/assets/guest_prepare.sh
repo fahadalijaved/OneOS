@@ -1630,12 +1630,16 @@ vndk_fragment() {
 }
 SECIMS_BOUND=0
 VIVO_SE=""
-if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
+ONEUI_SEXT_WANT=0
+if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_GUEST_VIVO_SYSEXT:-1}" = 1 ]; then
+    ONEUI_SEXT_WANT=1
+fi
+if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $ONEUI_SEXT_WANT = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
         echo "Overlay on $GUEST_SYSTEM_EXT already there (an earlier prepare), left as it is"
         [ $SEC_IMS = 1 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (that overlay has no secims layer)"; }
         [ $SAMCAM = 1 ] && { SAMCAM=0; echo "Samsung Camera in the guest: off (that overlay has no mount points for it)"; }
-    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
+    elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $ONEUI_SEXT_WANT = 1 ]; then
         OV="$STAGE/system_ext_ov"
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
@@ -1771,7 +1775,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "Signal poll: off (read-only overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
-        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $TAB_CAM_COMPAT = 1 ]; }; then
+        if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $TAB_CAM_COMPAT = 1 ] || [ $ONEUI_SEXT_WANT = 1 ]; }; then
             mkdir -p "$OV/work"
             if $BB mount -t overlay overlay \
                 -o "lowerdir=$GUEST_SYSTEM_EXT,upperdir=$OV/up,workdir=$OV/work" \
@@ -1809,7 +1813,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         # (folders, empty files, links), each entry bound from the image, plus the apex mount
         # point. The overlay's other additions (bin/hwservicemanager, etc/permissions features,
         # Samsung IMS and camera mount points) are not in it; those are off as on a refusal.
-        if [ ! -d "$GUEST_SYSTEM_EXT/apex" ] && [ -d /system_ext/apex ] && ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
+        if ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
             FARM="$OV/farm"; FORIG="$OV/orig"; fok=1; fn=0
             rm -rf "$FARM" && mkdir -p "$FARM/apex" "$FORIG" || fok=0
             for e in "$GUEST_SYSTEM_EXT"/* "$GUEST_SYSTEM_EXT"/.[!.]*; do
@@ -1820,13 +1824,82 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 elif [ -d "$e" ]; then mkdir -p "$FARM/$n" || fok=0
                 else : > "$FARM/$n" || fok=0; fi
             done
+            # Ensure custom folders (app, etc) from $OV/up exist in $FARM so bind-mounts work
+            if [ -d "$OV/up" ]; then
+                for u in "$OV/up"/*; do
+                    [ -e "$u" ] || continue
+                    un=${u##*/}
+                    if [ ! -e "$FARM/$un" ]; then
+                        if [ -d "$u" ]; then mkdir -p "$FARM/$un"; else : > "$FARM/$un"; fi
+                    fi
+                done
+                # Merge subdirectories from $OV/up (e.g. app/OneOSGuest, etc/sysconfig)
+                if [ -d "$OV/up/app" ]; then
+                    mkdir -p "$FARM/app"
+                    for a in "$OV/up/app"/*; do
+                        [ -e "$a" ] || continue
+                        an=${a##*/}
+                        mkdir -p "$FARM/app/$an"
+                    done
+                fi
+                if [ -d "$OV/up/etc" ]; then
+                    mkdir -p "$FARM/etc/sysconfig" "$FARM/etc/vintf/manifest" 2>/dev/null || true
+                    for ef in "$OV/up/etc/sysconfig"/*; do
+                        [ -f "$ef" ] && cp -f "$ef" "$FARM/etc/sysconfig/" 2>/dev/null || true
+                    done
+                    for ef in "$OV/up/etc/vintf/manifest"/*; do
+                        [ -f "$ef" ] && cp -f "$ef" "$FARM/etc/vintf/manifest/" 2>/dev/null || true
+                    done
+                fi
+            fi
             if [ $fok = 1 ]; then
                 chmod 755 "$FARM" "$FARM/apex"
                 $BB chcon -R u:object_r:system_file:s0 "$FARM" 2>/dev/null || true
                 if $BB mount --bind "$GUEST_SYSTEM_EXT" "$FORIG" && $BB mount --bind "$FARM" "$GUEST_SYSTEM_EXT"; then
                     for e in "$FORIG"/* "$FORIG"/.[!.]*; do
                         [ -e "$e" ] && [ ! -L "$e" ] || continue
-                        if $BB mount --bind "$e" "$GUEST_SYSTEM_EXT/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
+                        en=${e##*/}
+                        if [ -d "$e" ] && [ -d "$OV/up/$en" ]; then
+                            # Merged directory (like app or etc): bind existing entries from original
+                            for sube in "$e"/*; do
+                                [ -e "$sube" ] || continue
+                                subn=${sube##*/}
+                                if [ -d "$sube" ]; then
+                                    mkdir -p "$GUEST_SYSTEM_EXT/$en/$subn" 2>/dev/null
+                                    # If OV/up also has entries for this subdirectory (e.g. etc/sysconfig or etc/vintf),
+                                    # bind the individual entries from original rather than the whole directory,
+                                    # so custom files in FARM/$en/$subn are not masked.
+                                    if [ -d "$OV/up/$en/$subn" ]; then
+                                        for ssube in "$sube"/*; do
+                                            [ -e "$ssube" ] || continue
+                                            ssubn=${ssube##*/}
+                                            if [ -d "$ssube" ]; then
+                                                mkdir -p "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" 2>/dev/null
+                                            else
+                                                : > "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" 2>/dev/null
+                                            fi
+                                            $BB mount --bind "$ssube" "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" || true
+                                        done
+                                        # Also re-bind or ensure any custom files from OV/up/$en/$subn into GUEST_SYSTEM_EXT
+                                        for ssube in "$OV/up/$en/$subn"/*; do
+                                            [ -f "$ssube" ] || continue
+                                            ssubn=${ssube##*/}
+                                            : > "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" 2>/dev/null
+                                            $BB mount --bind "$ssube" "$GUEST_SYSTEM_EXT/$en/$subn/$ssubn" || true
+                                        done
+                                        continue
+                                    fi
+                                else
+                                    : > "$GUEST_SYSTEM_EXT/$en/$subn" 2>/dev/null
+                                fi
+                                $BB mount --bind "$sube" "$GUEST_SYSTEM_EXT/$en/$subn" || true
+                            done
+                            fn=$((fn + 1))
+                        elif $BB mount --bind "$e" "$GUEST_SYSTEM_EXT/$en"; then
+                            fn=$((fn + 1))
+                        else
+                            fok=0; break
+                        fi
                     done
                 else
                     fok=0
@@ -5838,16 +5911,12 @@ if grep -q '^  "image": "coloros17-findn6",$' "$STAGE/.oneos_stage" &&
           { [ "${ONEOS_PROFILE:-}" = f8u ] && grep -q '^  "set": "n6-f8u",$' "$STAGE/.oneos_stage"; }; }; then
     DS_DEFAULT=fold8-hinge
     FOLD8_HINGE=1
-elif [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
-        grep -q -e '^  "set": "oneui95",$' -e '^  "set": "oneui95-f8",$' "$STAGE/.oneos_stage" &&
-        grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
-    # The 9.5 donor uses Android's DeviceStateProviderImpl. Read the Fold8's
-    # continuous sensor directly and keep the lid switch authoritative for
-    # closed. Use the Flex Restore module's entry range for tabletop.
-    DS_DEFAULT=fold8-hinge
-    FOLD8_HINGE=1
-    FOLD8_HINGE_MIN=50
-    FOLD8_HINGE_MAX=135
+elif { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "$FORM" = fold ] &&
+        grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+    # Modern One UI (8.5/9.5) foldables require AOSP/Samsung device-state properties
+    # (PROPERTY_FOLDABLE_HARDWARE_CONFIGURATION_* and PROPERTY_FOLDABLE_DISPLAY_CONFIGURATION_*).
+    # On Fold4 (f4) or Fold8 (f8), provide the clean 0 (CLOSE) and 3 (OPEN) mapping with wake trigger.
+    DS_DEFAULT=oneos
 fi
 # vivo OriginOS on a Fold (ro.vivo.device.type=foldable, guest_props.sh): vivo's
 # framework, SystemUI and launcher count 1 as OPEN and 0 as CLOSE (Samsung's 3
@@ -6045,6 +6114,28 @@ if [ -e "$GUEST_SYSTEM_EXT/framework/miui-services.jar" ] && [ -f "$HDSC" ] && [
     else
         echo "!!! HyperOS device states: the copy did not come out as expected, the image's file is left (no cover screen)"
     fi
+fi
+
+# HyperOS 3.0: bind Xiaomi MIX Fold 4 foldable apps if staged
+if [ -f "$STAGE/MISettingsFold.apk" ]; then
+    mkdir -p "$STAGE/oem/priv-app/MISettingsFold" &&
+        cp -f "$STAGE/MISettingsFold.apk" "$STAGE/oem/priv-app/MISettingsFold/MISettingsFold.apk" &&
+        chmod 755 "$STAGE/oem/priv-app/MISettingsFold" && chmod 644 "$STAGE/oem/priv-app/MISettingsFold/MISettingsFold.apk"
+    if [ -d "$GUEST_PRODUCT/priv-app/MISettings" ]; then
+        $BB mount --bind "$STAGE/oem/priv-app/MISettingsFold/MISettingsFold.apk" "$GUEST_PRODUCT/priv-app/MISettings/MISettings.apk" 2>/dev/null &&
+            echo "Bound guest foldable settings: MISettingsFold.apk -> MISettings.apk"
+    elif [ -d "$GUEST_PRODUCT/priv-app" ]; then
+        mkdir -p "$GUEST_PRODUCT/priv-app/MISettingsFold" 2>/dev/null || true
+        $BB mount --bind "$STAGE/oem/priv-app/MISettingsFold/MISettingsFold.apk" "$GUEST_PRODUCT/priv-app/MISettingsFold/MISettingsFold.apk" 2>/dev/null &&
+            echo "Bound guest foldable settings: MISettingsFold.apk"
+    fi
+fi
+if [ -f "$STAGE/MiuiHome_Fold.apk" ] && [ -d "$GUEST_PRODUCT/priv-app/MiuiHome" ]; then
+    mkdir -p "$STAGE/oem/priv-app/MiuiHome" &&
+        cp -f "$STAGE/MiuiHome_Fold.apk" "$STAGE/oem/priv-app/MiuiHome/MiuiHome.apk" &&
+        chmod 755 "$STAGE/oem/priv-app/MiuiHome" && chmod 644 "$STAGE/oem/priv-app/MiuiHome/MiuiHome.apk"
+    $BB mount --bind "$STAGE/oem/priv-app/MiuiHome/MiuiHome.apk" "$GUEST_PRODUCT/priv-app/MiuiHome/MiuiHome.apk" 2>/dev/null &&
+        echo "Bound guest foldable launcher: MiuiHome.apk (MIX Fold 4)"
 fi
 
 # SELinux labels matter just as much as modes here. Every directory below lives
@@ -8127,7 +8218,7 @@ fi
 # ONEOS_GUEST_ONEUI_KEEP_APPS=1 keeps them.
 if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null && [ "${ONEOS_GUEST_ONEUI_KEEP_APPS:-0}" != 1 ]; then
     for d in "$ROOTFS"/system/priv-app/KnoxGuard "$ROOTFS"/system/priv-app/SamsungDeviceHealthManagerService \
-             "$ROOTFS"/system/priv-app/SamsungSmartSuggestions; do
+             "$ROOTFS"/system/priv-app/SamsungSmartSuggestions "$ROOTFS"/system/app/sveservice; do
         [ -d "$d" ] && [ ! -L "$d" ] || continue
         if [ "$ONEUI95_FOLD8" = 1 ] && [ "${d##*/}" = SamsungSmartSuggestions ] &&
            [ "$(sha256sum "$ROOTFS/system/framework/framework.jar" | cut -d' ' -f1)" = "3a3e65e4a58655f3f77ddf99c7bcc44a0d45c661a245c48024f49e22d7614e86" ] &&
@@ -8461,11 +8552,16 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
     # 0.5.32: not on the phone the image was built from (S26 Ultra 9.0 host, ed9a5fe0: its One UI 9.0 cameradata
     # under the image's 9.5 camera, "get : argument is invalid - 90500" in CameraApplication.onCreate): there the
     # image's own cameradata is the camera's, of its own version.
+    # Likewise for Fold4 (SM-F936B) on Fold6 (SM-F956B) One UI 8.5 image: keeping Fold6's cameradata prevents
+    # version mismatch ("argument is invalid - 80500" in FoldUtil / LayoutGuideline).
     IMG_MODEL=$(sed -n 's/^ro.product.system.model=//p' "$ROOTFS/system/build.prop" 2>/dev/null | head -n 1)
     HOST_MODEL=$(getprop ro.product.model)
     CAMDATA_OWN=0
     case "$IMG_MODEL:$HOST_MODEL" in
         SM-?????*:SM-?????*) [ "$(echo "$IMG_MODEL" | cut -c1-7)" = "$(echo "$HOST_MODEL" | cut -c1-7)" ] && CAMDATA_OWN=1 ;;
+    esac
+    case "$IMG_MODEL:$HOST_MODEL" in
+        SM-F956*:SM-F936*) CAMDATA_OWN=1 ;;
     esac
     [ $CAMDATA_OWN = 1 ] && echo "Camera: this $HOST_MODEL is the image's own model ($IMG_MODEL): the image's /system/cameradata stays"
     if [ $CAMDATA_OWN = 0 ] && [ -d /system/cameradata ] && cp -a /system/cameradata "$STAGE/data/oneos_cameradata" 2>/dev/null; then
@@ -8480,7 +8576,7 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
         # RESOLUTION_* of its resolution table; 11-20 report 1010d28b, A17: "getResolution : argument is invalid
         # - 3408x2556", the camera never opened) become the known size of the same shape, the largest not
         # bigger (else the smallest bigger one). Only for the S948B image's app (ro.product.system.model).
-        if [ -f "$cf" ] && [ "$ONEUI_A_CAMERA" = 0 ] && grep -q '^ro.product.system.model=SM-S948' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        if [ -f "$cf" ] && [ "$ONEUI_A_CAMERA" = 0 ] && grep -q -E '^ro.product.system.model=SM-(S948|F956)' "$ROOTFS/system/build.prop" 2>/dev/null; then
             CAMRES="3264x2448 2560x1920 2048x1536 1600x1200 1280x960 640x480 1920x1080 1280x720 352x288 320x240 176x144 3264x1836 2560x1440 2048x1152 2592x1944 1440x1080 4128x3096 4128x2322 1024x576 3840x2160 5312x2988 3984x2988 2976x2976 1072x1072 2448x2448 4608x2592 1440x1440 1920x1440 2592x1458 3344x3344 1936x1936 1920x1920 1088x1088 2576x1932 960x960 4608x3456 4032x3024 4032x2268 2880x2160 3024x3024 2160x2160 1066x800 800x800 1616x1212 1600x900 720x720 3456x3456 1536x1536 720x540 540x540 3088x3088 4032x1960 3264x1592 2224x1080 3648x2052 3648x2736 2736x2736 4032x1908 3968x2232 3968x1880 2280x1080 4608x2184 2288x1080 3216x1528 2640x1288 3216x1808 2640x1488 2944x2208 2640x1980 2208x2208 1968x1968 4032x1800 4032x1816 3968x1784 2400x1080 3216x1448 4000x1800 4000x2252 4000x3000 2992x2992 9248x6936 7680x4320 12000x9000 7296x5472 5888x4416 3840x1644 1920x824 7680x3296 4000x1868 3968x1852 3216x1500 2320x1080 8160x6120 3968x1832 2336x1080 4000x1844 3216x1488 4000x1848 3392x1564 3392x1580 3392x1908 3392x2544 2544x2544 16320x12240 3840x1648 7936x4464 5472x5472 7936x3700 7936x3664 7936x3572 8160x4592 6112x6112 8160x3808 8160x3768 9248x5204 6928x6928 9248x4312 9248x4268 9248x4164 12000x6752 8992x8992 12000x5596 12000x5540 12000x5400 16320x9180 12240x12240 16320x7612 16320x7532 7680x3248 3840x1624 2560x1080 1712x720 7680x2784 3840x1392 2976x1080 1984x720 1920x808 1920x696 4000x1716 3968x1700 4000x1688 4000x1456 3840x2880 5712x4284 5712x3212 4272x4272 5712x2636 7680x2160 3968x1116 3328x936 2240x630 1920x540 4000x1124 3056x1412 3056x1720 3056x2296 2288x2288 1920x2160 3840x4320 4640x3480 4640x2612 3472x3472 4640x2142 4640x1988 3008x2256 3008x1692 2256x2256 3008x1388 4080x3060 960x540"
             if $BB awk -v known="$CAMRES" '
                 BEGIN { n = split(known, k, " "); for (i = 1; i <= n; i++) ok[k[i]] = 1 }
@@ -8560,9 +8656,9 @@ fi
 # Both floating feature files can supply defaults, so give them the same values
 # derived from the Fold8. The 20271 floor and the optional ProScan capability
 # apply to this guest only and preserve the donor's other scanner solutions.
-if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
+if { [ "${ONEOS_PROFILE:-}" = f8 ] || [ "${ONEOS_PROFILE:-}" = f4 ]; } && [ "$FORM" = fold ] &&
    [ "${ONEOS_ONEUI_FLOATING:-1}" = 1 ] &&
-   grep -qx 'ro.build.PDA=S948BXXU6ZZKN' "$ROOTFS/system/build.prop" 2>/dev/null; then
+   grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
     oneui95_fold8_features() {
         local input="$1" output="$2" scanner="$3"
         awk -v scanner="$scanner" '
@@ -8598,6 +8694,8 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
                 call_audio = "SEC_FLOATING_FEATURE_AUDIO_CONFIG_AUDIO_ERASER"
                 set_feature(call_audio, "VOICE")
                 set_feature(ai, "20271")
+                set_feature(fold, "TRUE")
+                set_feature(wide, "TRUE")
             }
             FILENAME != ARGV[3] {
                 key = read_feature($0)
@@ -8607,7 +8705,7 @@ if [ "${ONEOS_PROFILE:-}" = f8 ] && [ "$FORM" = fold ] &&
                     set_feature(key, content)
                 if (key == wallpaper && content ~ /^[A-Z0-9_,]+$/ && content ~ /(^|,)LID(,|$)/)
                     set_feature(key, content)
-                if (key == brand && content ~ /^Galaxy Z Fold8( [A-Za-z0-9 ]+)?$/)
+                if (key == brand && content ~ /^Galaxy Z Fold[0-9]( [A-Za-z0-9 ]+)?$/)
                     set_feature(key, content)
                 if ((key == statusbar || key == subdisplay) && content ~ /^[A-Za-z0-9_,]+$/)
                     set_feature(key, content)
