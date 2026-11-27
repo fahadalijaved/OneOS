@@ -1,0 +1,9 @@
+#!/system/bin/sh
+if [ -f /data/adb/modules/oneos_helper/scripts/oneos_core.sh ]; then
+  exec /data/adb/modules/oneos_helper/scripts/oneos_core.sh "$@"
+elif [ -f /data/adb/oneos_helper/oneos_core.sh ]; then
+  exec /data/adb/oneos_helper/oneos_core.sh "$@"
+else
+  echo "[!] oneos_core.sh not found!"
+  exit 1
+fi

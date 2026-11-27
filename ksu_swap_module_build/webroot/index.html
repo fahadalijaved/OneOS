@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OneOS SwBridge IO v2.0</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      padding-bottom: 24px;
+    }
+
+    /* THEME 1: ONE UI */
+    body.theme-oneui.dark {
+      --bg: #000000;
+      --card-bg: #1c1c1e;
+      --card-border: #2c2c2e;
+      --text: #f5f5f7;
+      --text-sec: #8e8e93;
+      --accent: #2e6ff2;
+      --accent-hover: #1b52c8;
+      --danger: #eb4d3d;
+      --success: #34c759;
+      --card-radius: 26px;
+      --btn-radius: 20px;
+    }
+    body.theme-oneui.light {
+      --bg: #f2f2f7;
+      --card-bg: #ffffff;
+      --card-border: #e5e5ea;
+      --text: #1c1c1e;
+      --text-sec: #636366;
+      --accent: #007aff;
+      --accent-hover: #0056b3;
+      --danger: #ff3b30;
+      --success: #34c759;
+      --card-radius: 26px;
+      --btn-radius: 20px;
+    }
+
+    /* THEME 2: MATERIAL 3 EXPRESSIVE */
+    body.theme-material.dark {
+      --bg: #141218;
+      --card-bg: #211f26;
+      --card-border: #49454f;
+      --text: #e6e1e5;
+      --text-sec: #cac4d0;
+      --accent: #d0bcff;
+      --accent-hover: #b69df8;
+      --danger: #f2b8b5;
+      --success: #a8df8e;
+      --card-radius: 28px;
+      --btn-radius: 16px;
+    }
+    body.theme-material.light {
+      --bg: #fef7ff;
+      --card-bg: #f3edf7;
+      --card-border: #cac4d0;
+      --text: #1d1b20;
+      --text-sec: #49454f;
+      --accent: #6750a4;
+      --accent-hover: #523b8f;
+      --danger: #b3261e;
+      --success: #388e3c;
+      --card-radius: 28px;
+      --btn-radius: 16px;
+    }
+
+    /* THEME 3: MIUIX */
+    body.theme-miuix.dark {
+      --bg: #0c0d0e;
+      --card-bg: #16181a;
+      --card-border: #22262a;
+      --text: #ffffff;
+      --text-sec: #7b818c;
+      --accent: #0d84ff;
+      --accent-hover: #006ee6;
+      --danger: #ff453a;
+      --success: #30d158;
+      --card-radius: 20px;
+      --btn-radius: 14px;
+    }
+    body.theme-miuix.light {
+      --bg: #f6f7f9;
+      --card-bg: #ffffff;
+      --card-border: #e3e6eb;
+      --text: #111417;
+      --text-sec: #6c727e;
+      --accent: #0076f5;
+      --accent-hover: #005ec4;
+      --danger: #fa3e3e;
+      --success: #28a745;
+      --card-radius: 20px;
+      --btn-radius: 14px;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    /* APP BAR */
+    .app-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      background-color: rgba(0, 0, 0, 0.2);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      font-size: 18px;
+    }
+
+    .app-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .container {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 500px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--card-radius);
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-sec);
+      margin-bottom: 12px;
+    }
+
+    /* ACTIONS (SwOUT / SwIN) */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .action-btn-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 12px;
+      border-radius: var(--btn-radius);
+      border: 1px solid var(--card-border);
+      background: var(--card-bg);
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 16px;
+      gap: 10px;
+      text-align: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      user-select: none;
+    }
+
+    .action-btn-card.danger {
+      background: var(--danger);
+      color: #ffffff;
+      border: none;
+    }
+    .action-btn-card.primary {
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+    }
+
+    .action-btn-card.disabled {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    .action-desc {
+      font-size: 11px;
+      font-weight: 600;
+      opacity: 0.85;
+    }
+
+    /* INPUT GROUP */
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      margin: 12px 0;
+    }
+    .input-field {
+      width: 100%;
+      padding: 14px 44px 14px 16px;
+      border-radius: var(--btn-radius);
+      border: 1px solid var(--card-border);
+      background: rgba(128, 128, 128, 0.06);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+      outline: none;
+    }
+    .toggle-pwd-btn {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      color: var(--text-sec);
+    }
+
+    .primary-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: var(--btn-radius);
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* CONSOLE */
+    .console-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .console-box {
+      background: #000000;
+      color: #34c759;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 12px;
+      border-radius: 16px;
+      height: 150px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      border: 1px solid var(--card-border);
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-card {
+      background: var(--card-bg);
+      border-radius: var(--card-radius);
+      padding: 24px;
+      width: 100%;
+      max-width: 400px;
+      border: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    select {
+      width: 100%;
+      padding: 12px;
+      border-radius: var(--btn-radius);
+      border: 1px solid var(--card-border);
+      background: rgba(128,128,128,0.08);
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+    }
+  </style>
+</head>
+<body class="theme-oneui dark">
+
+  <!-- TOP APP BAR -->
+  <div class="app-bar">
+    <div class="icon-btn" onclick="toggleThemeMode()" title="Toggle Dark/Light">🌓</div>
+    <div class="app-title">SwBridge IO v2.0</div>
+    <div class="icon-btn" onclick="openSettingsModal()" title="Settings">⚙️</div>
+  </div>
+
+  <div class="container">
+    
+    <!-- INITIAL SETUP CARD -->
+    <div class="card" id="setupCard">
+      <div class="section-title" data-i18n="setupTitle">KİLİT / ŞİFRE AYARI</div>
+      <p style="font-size: 13px; color: var(--text-sec); margin-bottom: 8px;" data-i18n="setupDesc">
+        Cihaz PIN veya şifrenizi tanımlayın. SwOUT şifreyi kaldırır, SwIN ise şifreyi geri koyar.
+      </p>
+      
+      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+        <label><input type="radio" name="authMode" value="pin" checked onchange="toggleAuthInput()"> PIN</label>
+        <label><input type="radio" name="authMode" value="password" onchange="toggleAuthInput()"> Şifre</label>
+        <label><input type="radio" name="authMode" value="none" onchange="toggleAuthInput()"> Şifresiz</label>
+      </div>
+
+      <div class="input-wrapper" id="pinInputWrapper">
+        <input type="password" id="inputPin" class="input-field" placeholder="Ekran Kilidi PIN / Şifreniz" />
+        <button class="toggle-pwd-btn" onclick="togglePinVisibility()">👁️</button>
+      </div>
+
+      <button class="primary-btn" onclick="saveInitialConfig()" data-i18n="saveConfig">Yapılandırmayı Kaydet</button>
+    </div>
+
+    <!-- MAIN ACTIONS: SwOUT & SwIN ONLY -->
+    <div class="card">
+      <div class="section-title" data-i18n="switchActions">SİSTEM GEÇİŞ KÖPRÜSÜ</div>
+      <div class="action-grid">
+        <div class="action-btn-card disabled danger" id="btnSwOUT" onclick="triggerAction('swout')">
+          <span style="font-size: 28px;">🚀</span>
+          <span>SwOUT</span>
+          <span class="action-desc" data-i18n="swoutDesc">Şifreyi Kaldır</span>
+        </div>
+        <div class="action-btn-card disabled primary" id="btnSwIN" onclick="triggerAction('swin')">
+          <span style="font-size: 28px;">🏠</span>
+          <span>SwIN</span>
+          <span class="action-desc" data-i18n="swinDesc">Şifreyi Geri Koy</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOG CONSOLE -->
+    <div class="card">
+      <div class="console-header">
+        <div class="section-title" style="margin-bottom:0;" data-i18n="systemLog">İŞLEM GÜNLÜĞÜ</div>
+        <button style="background:none; border:none; color:var(--accent); font-size:12px; font-weight:700; cursor:pointer;" onclick="clearConsole()">Temizle</button>
+      </div>
+      <div class="console-box" id="consoleLog"></div>
+    </div>
+
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-card">
+      <div class="app-title" data-i18n="settingsTitle">Ayarlar</div>
+      
+      <div>
+        <label style="font-size:12px; font-weight:700; color:var(--text-sec);" data-i18n="themeLabel">Arayüz Teması</label>
+        <select id="themeSelect" onchange="changeTheme(this.value)">
+          <option value="oneui">One UI (Samsung)</option>
+          <option value="material">Material 3 Expressive</option>
+          <option value="miuix">MiuiX (HyperOS)</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="font-size:12px; font-weight:700; color:var(--text-sec);" data-i18n="langLabel">Dil / Language</label>
+        <select id="langSelect" onchange="changeLanguage(this.value)">
+          <option value="auto">Auto / Sistem</option>
+          <option value="tr">Türkçe</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="font-size:12px; font-weight:700; color:var(--text-sec);">SwOUT Kilit Durumu</label>
+        <select id="swapoutModeSelect">
+          <option value="none">None (Tamamen Devre Dışı)</option>
+          <option value="swipe">Swipe (Kaydırarak Aç)</option>
+        </select>
+      </div>
+
+      <button class="primary-btn" onclick="closeSettingsModal()">Kapat</button>
+    </div>
+  </div>
+
+  <script>
+    const I18N = {
+      tr: {
+        setupTitle: "KİLİT / ŞİFRE AYARI",
+        setupDesc: "Cihaz PIN veya şifrenizi tanımlayın. SwOUT şifreyi kaldırır, SwIN ise şifreyi geri koyar.",
+        saveConfig: "Yapılandırmayı Kaydet",
+        switchActions: "SİSTEM GEÇİŞ KÖPRÜSÜ",
+        swoutDesc: "Şifreyi Kaldır",
+        swinDesc: "Şifreyi Geri Koy",
+        systemLog: "İŞLEM GÜNLÜĞÜ",
+        settingsTitle: "Ayarlar",
+        themeLabel: "Arayüz Teması",
+        langLabel: "Dil / Language"
+      },
+      en: {
+        setupTitle: "LOCK / PIN SETUP",
+        setupDesc: "Set your PIN/Password. SwOUT removes the lock, SwIN restores it.",
+        saveConfig: "Save Configuration",
+        switchActions: "SYSTEM SWITCH BRIDGE",
+        swoutDesc: "Remove Lock",
+        swinDesc: "Restore Lock",
+        systemLog: "ACTION CONSOLE",
+        settingsTitle: "Settings",
+        themeLabel: "UI Theme",
+        langLabel: "Language / Dil"
+      }
+    };
+
+    let currentLang = 'tr';
+    let currentTheme = 'oneui';
+    let isDark = true;
+    let isExecuting = false;
+
+    let config = {
+      configured: false,
+      auth_type: 'pin',
+      pin: '',
+      swapout_mode: 'none'
+    };
+
+    function logToConsole(msg) {
+      const el = document.getElementById('consoleLog');
+      el.textContent += msg + '\n';
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById('consoleLog').textContent = '';
+    }
+
+    async function executeShell(command) {
+      try {
+        if (window.ksu && typeof window.ksu.exec === 'function') {
+          return new Promise(resolve => {
+            const callbackName = 'cb_' + Math.random().toString(36).substring(7);
+            window[callbackName] = (errno, stdout, stderr) => {
+              delete window[callbackName];
+              resolve({ errno: errno || 0, stdout: stdout || '', stderr: stderr || '' });
+            };
+            window.ksu.exec(command, callbackName);
+          });
+        }
+      } catch(e) {}
+      return { errno: 0, stdout: 'OK', stderr: '' };
+    }
+
+    function toggleThemeMode() {
+      isDark = !isDark;
+      document.body.classList.toggle('dark', isDark);
+      document.body.classList.toggle('light', !isDark);
+    }
+
+    function changeTheme(theme) {
+      currentTheme = theme;
+      document.body.className = `theme-${theme} ${isDark ? 'dark' : 'light'}`;
+    }
+
+    function changeLanguage(lang) {
+      if (lang === 'auto') {
+        currentLang = (navigator.language || '').toLowerCase().startsWith('tr') ? 'tr' : 'en';
+      } else {
+        currentLang = lang;
+      }
+      applyTranslations();
+    }
+
+    function applyTranslations() {
+      const dict = I18N[currentLang] || I18N.en;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (dict[k]) el.textContent = dict[k];
+      });
+    }
+
+    function togglePinVisibility() {
+      const inp = document.getElementById('inputPin');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+
+    function toggleAuthInput() {
+      const mode = document.querySelector('input[name="authMode"]:checked').value;
+      document.getElementById('pinInputWrapper').style.display = (mode === 'none') ? 'none' : 'flex';
+    }
+
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.add('active');
+    }
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('active');
+    }
+
+    async function saveInitialConfig() {
+      const mode = document.querySelector('input[name="authMode"]:checked').value;
+      const val = document.getElementById('inputPin').value;
+
+      if (mode !== 'none' && !val) {
+        alert(currentLang === 'tr' ? 'Lütfen bir PIN veya şifre girin!' : 'Please enter a PIN or password!');
+        return;
+      }
+
+      config.configured = true;
+      config.auth_type = mode;
+      config.pin = val;
+      config.swapout_mode = document.getElementById('swapoutModeSelect').value;
+
+      localStorage.setItem('swbridge_config', JSON.stringify(config));
+      const jsonStr = JSON.stringify(config).replace(/"/g, '\\"');
+      await executeShell(`mkdir -p /data/adb/oneos_helper && echo "${jsonStr}" > /data/adb/oneos_helper/config.json && chmod 600 /data/adb/oneos_helper/config.json`);
+
+      updateUI();
+      logToConsole("✅ Kilit yapılandırması başarıyla kaydedildi.");
+    }
+
+    function updateUI() {
+      const btnOut = document.getElementById('btnSwOUT');
+      const btnIn = document.getElementById('btnSwIN');
+      if (config.configured) {
+        btnOut.classList.remove('disabled');
+        btnIn.classList.remove('disabled');
+      } else {
+        btnOut.classList.add('disabled');
+        btnIn.classList.add('disabled');
+      }
+    }
+
+    async function triggerAction(actionName) {
+      if (isExecuting) return;
+      isExecuting = true;
+
+      const script = "sh /data/adb/modules/oneos_helper/scripts/oneos_core.sh";
+      logToConsole(`\n>>> ${actionName.toUpperCase()}`);
+      
+      const res = await executeShell(`${script} ${actionName}`);
+      if (res.stdout) logToConsole(res.stdout);
+      if (res.stderr) logToConsole(`[STDERR] ${res.stderr}`);
+
+      isExecuting = false;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('swbridge_config');
+      if (saved) {
+        try { config = JSON.parse(saved); } catch(e) {}
+      }
+      changeLanguage('auto');
+      updateUI();
+      logToConsole("OneOS SwBridge IO v2.0 Hazır.");
+    });
+  </script>
+</body>
+</html>
