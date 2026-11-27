@@ -1959,6 +1959,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                     else
                         SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
                         echo "Samsung IMS in the guest: off (farm_dir/bind-mount onto $GUEST_SYSTEM_EXT failed)"
+                    fi
                 fi
                 # 0.5.51: Samsung Camera's system_ext entries (priv-app/SamsungCamera, its jars and permission
                 # files) the same way, from a layer of their own: only the camera's mount points, nothing else of
