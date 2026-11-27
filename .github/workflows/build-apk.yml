@@ -20,8 +20,10 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses
+        run: |
+          SDKMGR=$(command -v sdkmanager || ls /usr/local/lib/android/sdk/cmdline-tools/*/bin/sdkmanager | tail -n 1)
+          yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
