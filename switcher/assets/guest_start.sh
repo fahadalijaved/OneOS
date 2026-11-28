@@ -1621,6 +1621,12 @@ if [ -f /data/guest_audio.flag ]; then
            { getprop ro.soc.model; getprop ro.hardware; getprop ro.board.platform; } 2>/dev/null | grep -qi "s5e9925"; then
             hotword_off
             echo "$(date +%T) Exynos 2200 (s5e9925): voice wake-up off before the first model load (assistant role, Hey Google hotword, Bixby wake-up; the VTS DSP reset the phone on 0.5.49)" | tee -a /data/oneos_hotword_off.log
+        elif [ "${ONEOS_GUEST_BIXBY:-0}" != 1 ] &&
+             { getprop ro.soc.model; getprop ro.board.platform; } 2>/dev/null | grep -qiE "SM8450|taro|waipio"; then
+            for bx in com.samsung.android.bixby.wakeup com.samsung.android.bixby.agent; do
+                /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 "$bx" >/dev/null 2>&1 || true
+            done
+            echo "$(date +%T) SM8450: Bixby wake-up disabled early before UI Activator (avoids ADSP sound-model race / TZBSP_ERR_FATAL_NON_SECURE_WDT; ONEOS_GUEST_BIXBY=1 keeps it)" >> /data/oneos_hotword_off.log
         fi
         miss=0; r=0; last=0; qc=0
         while [ -f /data/guest_audio.flag ]; do

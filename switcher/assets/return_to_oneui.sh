@@ -322,8 +322,23 @@ if [ -f $S/heat_cap.active ]; then
         echo "$hw" > "$p/scaling_max_freq" 2>/dev/null
         hc="$hc ${p##*/}=$(cat "$p/scaling_max_freq" 2>/dev/null)/$hw"
     done
-    rm -f $S/heat_cap.active
-    echo "Heat cap: stopped, CPU policies at full clock:$hc"
+    GMC=/sys/kernel/gpu/gpu_max_clock
+    if [ -w "$GMC" ] && [ -f "$S/gpu_max_clock.capped" ]; then
+        gtop=$(cat "$S/gpu_max_clock.capped" 2>/dev/null)
+        case "$gtop" in ''|0|*[!0-9]*)
+            if [ -r /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies ]; then
+                gtop=$(awk '{for(i=1;i<=NF;i++)if($i~/^[0-9]+$/){v=int($i/1000000);if(v>m)m=v}}END{print m+0}' /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies)
+            elif [ -r /sys/kernel/gpu/gpu_freq_table ]; then
+                gtop=$(awk '{for(i=1;i<=NF;i++)if($i~/^[0-9]+$/&&$i>m)m=$i}END{print m+0}' /sys/kernel/gpu/gpu_freq_table)
+            fi ;;
+        esac
+        case "$gtop" in ''|0|*[!0-9]*) ;; *)
+            echo "$gtop" > "$GMC" 2>/dev/null
+            hc="$hc gpu=$(cat "$GMC" 2>/dev/null)/$gtop" ;;
+        esac
+    fi
+    rm -f "$S/heat_cap.active" "$S/gpu_max_clock.capped"
+    echo "Heat cap: stopped, CPU/GPU at full clock:$hc"
 fi
 
 # Every process still in the container's mount namespace (recorded by
@@ -581,9 +596,13 @@ for c in /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox /data/adb/magisk/bus
 done
 n=0
 while [ $n -lt 10 ] && grep -q " $STAGE_ROOT/" /proc/mounts; do
-    awk -v r="$STAGE_ROOT" 'index($2, r "/") == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do
-        umnt -l "$m" || true
-    done
+    if [ $n -lt 2 ] && [ -n "$BB" ] && echo / | "$BB" xargs -n 1 true 2>/dev/null; then
+        awk -v r="$STAGE_ROOT" 'index($2, r "/") == 1 {print $2}' /proc/mounts | sort -r | "$BB" xargs -n 64 "$BB" umount -l 2>/dev/null || true
+    else
+        awk -v r="$STAGE_ROOT" 'index($2, r "/") == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do
+            umnt -l "$m" || true
+        done
+    fi
     n=$((n + 1))
 done
 echo "Mounts left under $STAGE_ROOT: $(grep -c " $STAGE_ROOT/" /proc/mounts)"

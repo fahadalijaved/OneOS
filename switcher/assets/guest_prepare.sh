@@ -1056,9 +1056,10 @@ samcam_files() {
     # binder call (scripts/samsung-camera/scamera_util). Without it the HAL got
     # no Samsung parameters and configuring the streams failed (run 15).
     if [ -f "$SAMCAM_SRC/scamera_sdk_util.jar" ]; then echo "sys framework/scamera_sdk_util.jar $SAMCAM_SRC/scamera_sdk_util.jar"; fi
-    for d in cameradata saiv; do
-        [ -d "/system/$d" ] && echo "sys $d /system/$d"
-    done
+    if [ -d "${SAMCAM_CAMERADATA:-/system/cameradata}" ]; then
+        echo "sys cameradata ${SAMCAM_CAMERADATA:-/system/cameradata}"
+    fi
+    [ -d /system/saiv ] && echo "sys saiv /system/saiv"
 }
 samcam_prepare() {
     echo "Samsung Camera: prepare $(date +%T)"
@@ -1151,6 +1152,52 @@ samcam_prepare() {
             rm -f "$SAMCAM_SRC/oneos-samcam-floating_feature.xml"
         fi
         rm -f "$STAGE/samcam_ff_cut.txt"
+    fi
+    # Sanitize host /system/cameradata/camera-feature.xml for S26 Ultra's SamsungCamera.apk
+    # (samcam.tar / samcam_bar.tar; skipped for samcam_a.tar which knows A-series modes/sizes):
+    # strip unsupported shooting modes (LIVE_FOCUS_LITE, SHOOTING_MODE_MACRO) and clamp any
+    # picture sizes outside S26 Ultra's 170-entry RESOLUTION_* table to the nearest same-aspect size
+    # (prevents getResolution: argument is invalid on FULL 19.5:9 or older sensor sizes).
+    # Stored outside $SAMCAM_SRC so chmod 644 "$SAMCAM_SRC"/* below never strips +x on the directory.
+    # ONEOS_GUEST_SAMCAM_CAMRES=0 binds /system/cameradata raw.
+    SAMCAM_CAMERADATA=/system/cameradata
+    rm -rf "$STAGE/samcam_cameradata"
+    if [ "${ONEOS_GUEST_SAMCAM_CAMRES:-1}" = 1 ] && [ "${SAMCAM_TAR##*/}" != samcam_a.tar ] &&
+       [ -f /system/cameradata/camera-feature.xml ] &&
+       cp -a /system/cameradata "$STAGE/samcam_cameradata" 2>/dev/null; then
+        scf="$STAGE/samcam_cameradata/camera-feature.xml"
+        if [ -f "$scf" ]; then
+            sed -i -e 's/="LIVE_FOCUS_LITE"/=""/g' \
+                -e '/name="SHOOTING_MODE_MACRO"/{s/back="MACRO"/back=""/;s/enable="true"/enable="false"/}' "$scf"
+            SCAMRES="3264x2448 2560x1920 2048x1536 1600x1200 1280x960 640x480 1920x1080 1280x720 352x288 320x240 176x144 3264x1836 2560x1440 2048x1152 2592x1944 1440x1080 4128x3096 4128x2322 1024x576 3840x2160 5312x2988 3984x2988 2976x2976 1072x1072 2448x2448 4608x2592 1440x1440 1920x1440 2592x1458 3344x3344 1936x1936 1920x1920 1088x1088 2576x1932 960x960 4608x3456 4032x3024 4032x2268 2880x2160 3024x3024 2160x2160 1066x800 800x800 1616x1212 1600x900 720x720 3456x3456 1536x1536 720x540 540x540 3088x3088 4032x1960 3264x1592 2224x1080 3648x2052 3648x2736 2736x2736 4032x1908 3968x2232 3968x1880 2280x1080 4608x2184 2288x1080 3216x1528 2640x1288 3216x1808 2640x1488 2944x2208 2640x1980 2208x2208 1968x1968 4032x1800 4032x1816 3968x1784 2400x1080 3216x1448 4000x1800 4000x2252 4000x3000 2992x2992 9248x6936 7680x4320 12000x9000 7296x5472 5888x4416 3840x1644 1920x824 7680x3296 4000x1868 3968x1852 3216x1500 2320x1080 8160x6120 3968x1832 2336x1080 4000x1844 3216x1488 4000x1848 3392x1564 3392x1580 3392x1908 3392x2544 2544x2544 16320x12240 3840x1648 7936x4464 5472x5472 7936x3700 7936x3664 7936x3572 8160x4592 6112x6112 8160x3808 8160x3768 9248x5204 6928x6928 9248x4312 9248x4268 9248x4164 12000x6752 8992x8992 12000x5596 12000x5540 12000x5400 16320x9180 12240x12240 16320x7612 16320x7532 7680x3248 3840x1624 2560x1080 1712x720 7680x2784 3840x1392 2976x1080 1984x720 1920x808 1920x696 4000x1716 3968x1700 4000x1688 4000x1456 3840x2880 5712x4284 5712x3212 4272x4272 5712x2636 7680x2160 3968x1116 3328x936 2240x630 1920x540 4000x1124 3056x1412 3056x1720 3056x2296 2288x2288 1920x2160 3840x4320 4640x3480 4640x2612 3472x3472 4640x2142 4640x1988 3008x2256 3008x1692 2256x2256 3008x1388 4080x3060 960x540"
+            if $BB awk -v known="$SCAMRES" '
+                BEGIN { n = split(known, k, " "); for (i = 1; i <= n; i++) ok[k[i]] = 1 }
+                function pick(w, h,    i, a, b, kw, kh, best, ba, up, ua) {
+                    best = ""; ba = 0; up = ""; ua = 0
+                    for (i = 1; i <= n; i++) { split(k[i], a, "x"); kw = a[1] + 0; kh = a[2] + 0
+                        b = kw * h - kh * w; if (b < 0) b = -b; if (b * 100 > kh * h) continue
+                        if (kw * kh <= w * h) { if (kw * kh > ba) { ba = kw * kh; best = k[i] } }
+                        else if (ua == 0 || kw * kh < ua) { ua = kw * kh; up = k[i] } }
+                    return best != "" ? best : up }
+                { line = $0; out = ""
+                  while (match(line, /value="[0-9]+x[0-9]+"/)) {
+                      v = substr(line, RSTART + 7, RLENGTH - 8); split(v, d, "x"); r = v
+                      if (!(v in ok)) { r = pick(d[1] + 0, d[2] + 0); if (r == "") r = v; else if (r != v) changed++ }
+                      out = out substr(line, 1, RSTART - 1) "value=\"" r "\""; line = substr(line, RSTART + RLENGTH) }
+                  print out line }
+                END { print changed + 0 > "/dev/stderr" }' "$scf" > "$scf.tmp" 2> "$scf.n" && [ -s "$scf.tmp" ]; then
+                mv -f "$scf.tmp" "$scf"
+                scn=$(cat "$scf.n" 2>/dev/null)
+                [ "${scn:-0}" -gt 0 ] 2>/dev/null && echo "Samsung Camera: $scn picture sizes in camera-feature.xml clamped to S26 Ultra's resolution table"
+            else
+                rm -f "$scf.tmp"
+            fi
+            rm -f "$scf.n"
+            chown -R 0:0 "$STAGE/samcam_cameradata" 2>/dev/null || true
+            chmod -R go-w "$STAGE/samcam_cameradata" 2>/dev/null || true
+            $BB chcon -R u:object_r:system_file:s0 "$STAGE/samcam_cameradata" 2>/dev/null || true
+            SAMCAM_CAMERADATA="$STAGE/samcam_cameradata"
+        fi
     fi
     chmod 755 "$SAMCAM_SRC"; chmod 644 "$SAMCAM_SRC"/*
     [ "$SAMCAM_FF" = /system/etc/floating_feature.xml ] || $BB chcon u:object_r:system_file:s0 "$SAMCAM_FF" 2>/dev/null || true
@@ -1288,19 +1335,54 @@ farm_dir() {
     $BB mount --make-rprivate "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
     $BB mount --bind "$fd_f" "$fd_t" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
     $BB mount --make-private "$fd_t" || { $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    fd_list="$fd_w/entries.list"
+    : > "$fd_list"
+    fd_cnt=0; fd_safe=1
     for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
         [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
-        $BB mount --rbind "$fd_e" "$fd_t/${fd_e##*/}" || {
-            awk -v r="$fd_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
-            $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
-        }
+        fd_n=${fd_e##*/}
+        case "$fd_n" in *[[:space:]\'\"\\]*) fd_safe=0 ;; esac
+        printf '%s\n' "$fd_n" >> "$fd_list"
+        fd_cnt=$((fd_cnt + 1))
     done
+    fd_sh=${SAMCAM_SH:-${ONEOS_TEST_SH:-/system/bin/sh}}
+    if [ "$fd_cnt" -ge 16 ] && [ "$fd_safe" = 1 ] && [ -z "${FARM_XARGS_P:-}" ]; then
+        if printf 'a\nb\n' | $BB xargs -P 2 -n 32 "$fd_sh" -c 'exit 0' sh 2>/dev/null; then
+            FARM_XARGS_P=$($BB nproc 2>/dev/null || nproc 2>/dev/null || echo 4)
+            case "$FARM_XARGS_P" in ''|*[!0-9]*) FARM_XARGS_P=4 ;; esac
+            [ "$FARM_XARGS_P" -gt 8 ] && FARM_XARGS_P=8
+            [ "$FARM_XARGS_P" -lt 2 ] && FARM_XARGS_P=2
+        else
+            FARM_XARGS_P=1
+        fi
+    fi
+    fd_rc=0
+    if [ "$fd_cnt" -ge 16 ] && [ "$fd_safe" = 1 ] && [ "${FARM_XARGS_P:-1}" -ge 2 ]; then
+        FO="$fd_o" FT="$fd_t" BB="$BB" $BB xargs -P "$FARM_XARGS_P" -n 32 "$fd_sh" -c '
+            for n in "$@"; do
+                ${BB:+"$BB"} mount --rbind "$FO/$n" "$FT/$n" || exit 1
+            done
+        ' sh < "$fd_list" || fd_rc=1
+    else
+        for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
+            [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
+            $BB mount --rbind "$fd_e" "$fd_t/${fd_e##*/}" || { fd_rc=1; break; }
+        done
+    fi
+    rm -f "$fd_list"
+    if [ "$fd_rc" != 0 ]; then
+        awk -v r="$fd_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
+        $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
+    fi
     $BB mount -o remount,ro "$fd_f" 2>/dev/null || true
     return 0
 }
 # unfarm_dir <target> <work dir>: take back a completed farm_dir mount (and any binds under <target>).
 unfarm_dir() {
     uf_t=$1; uf_w=$2
+    if [ -n "$BB" ] && echo / | "$BB" xargs -n 1 true 2>/dev/null; then
+        awk -v r="$uf_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | "$BB" xargs -n 64 "$BB" umount -l 2>/dev/null || true
+    fi
     awk -v r="$uf_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m" 2>/dev/null || true; done
     grep -q " $uf_t tmpfs " /proc/mounts && $BB umount -l "$uf_t" 2>/dev/null || true
     $BB umount -l "$uf_w/orig" 2>/dev/null || true
@@ -2143,11 +2225,41 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         fi
         # Without overlayfs on system_ext (android12-5.10 kernels), supply my_product feature declarations
         # (Circle to Search, Gemini Power Menu, Lens, Wireless/Reverse Wireless Charging) and Samsung IMS
-        # through private farmed copies of their target subfolders.
+        # through private farmed copies of their target subfolders. When both are active, combine them
+        # into a single merge_up() pass so system_ext/etc/permissions is not farmed twice.
         if ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
             MPX="$OV/up/etc/permissions/oneos-my-product-features.xml"
-            if [ -f "$MPX" ] && [ ! -f "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" ] && [ -d "$GUEST_SYSTEM_EXT/etc" ]; then
-                mpok=0
+            mp_need=0; mpok=0
+            [ -f "$MPX" ] && [ ! -f "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" ] && [ -d "$GUEST_SYSTEM_EXT/etc" ] && mp_need=1
+            if [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ]; then
+                SIUP="$STAGE/secims_se_up"
+                $BB umount -l "$SIUP" 2>/dev/null; mkdir -p "$SIUP"
+                if $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SIUP" && $BB mount --make-private "$SIUP" &&
+                   secims_mountpoints "$SIUP" &&
+                   { [ $mp_need = 0 ] || { mkdir -p "$SIUP/etc/permissions" && cp "$MPX" "$SIUP/etc/permissions/oneos-my-product-features.xml" &&
+                     chmod 644 "$SIUP/etc/permissions/oneos-my-product-features.xml" &&
+                     { $BB chcon u:object_r:system_file:s0 "$SIUP/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true; }; }; } &&
+                   SIM=$(merge_up "$SIUP" "$GUEST_SYSTEM_EXT" "$STAGE/secims_se_merge") &&
+                   sec_ims_bind; then
+                    SECIMS_BOUND=1
+                    [ $mp_need = 1 ] && [ -s "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" ] && mpok=1
+                    echo "Samsung IMS in the guest: system_ext without overlayfs; its mount points in bound copies of $SIM folder(s)"
+                    [ $mpok = 1 ] && echo "Features from my_product: bound into system_ext/etc/permissions with Samsung IMS (single merge_up pass, no overlayfs)"
+                else
+                    if [ -s "$STAGE/secims_se_merge/bound" ]; then
+                        awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$STAGE/secims_se_merge/bound" | while read -r uf_b; do
+                            $BB umount -l "$uf_b" 2>/dev/null || true
+                        done
+                    fi
+                    if [ -s "$STAGE/secims_se_merge/farmed" ]; then
+                        awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$STAGE/secims_se_merge/farmed" | while IFS='|' read -r uf_p uf_d; do
+                            unfarm_dir "$uf_p" "$uf_d"
+                        done
+                    fi
+                    $BB umount -l "$SIUP" 2>/dev/null || true
+                fi
+            fi
+            if [ $mp_need = 1 ] && [ $mpok = 0 ]; then
                 if [ -d "$GUEST_SYSTEM_EXT/etc/permissions" ] && [ ! -L "$GUEST_SYSTEM_EXT/etc/permissions" ]; then
                     if farm_dir "$GUEST_SYSTEM_EXT/etc/permissions" "$STAGE/sysext_mpf_farm" oneos-my-product-features.xml; then
                         if $BB mount --bind "$MPX" "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml"; then
@@ -2171,23 +2283,6 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 fi
                 [ $mpok = 1 ] && echo "Features from my_product: bound into system_ext/etc/permissions (no overlayfs)" ||
                     echo "!!! Features from my_product: could not bind oneos-my-product-features.xml (no overlayfs)"
-            fi
-            if [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ]; then
-                SIUP="$STAGE/secims_se_up"
-                $BB umount -l "$SIUP" 2>/dev/null; mkdir -p "$SIUP"
-                if $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SIUP" && $BB mount --make-private "$SIUP" &&
-                   secims_mountpoints "$SIUP" && SIM=$(merge_up "$SIUP" "$GUEST_SYSTEM_EXT" "$STAGE/secims_se_merge") &&
-                   sec_ims_bind; then
-                    SECIMS_BOUND=1
-                    echo "Samsung IMS in the guest: system_ext without overlayfs; its mount points in bound copies of $SIM folder(s)"
-                else
-                    if [ -s "$STAGE/secims_se_merge/farmed" ]; then
-                        awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$STAGE/secims_se_merge/farmed" | while IFS='|' read -r uf_p uf_d; do
-                            unfarm_dir "$uf_p" "$uf_d"
-                        done
-                    fi
-                    $BB umount -l "$SIUP" 2>/dev/null || true
-                fi
             fi
         fi
         # The Samsung IMS set binds onto either overlay (the read-only one through the

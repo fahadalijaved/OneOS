@@ -4633,14 +4633,29 @@ GUEST_THERMAL_MAP=0
 [ "${ONEOS_GUEST_THERMAL_MAP:-1}" = 1 ] && { [ "$GUEST_OPLUS" = 1 ] || [ "$GUEST_ONEUI" = 1 ]; } && GUEST_THERMAL_MAP=1
 if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
     [ $HEAT_CAP = 1 ] && : > "$STAGE/heat_cap.active"
-    rm -f "$STAGE/cpufreq_max_limit.released"
+    rm -f "$STAGE/cpufreq_max_limit.released" "$STAGE/gpu_max_clock.capped"
+    HEAT_CAP_GPU=0; [ $HEAT_CAP = 1 ] && [ "${ONEOS_HEAT_CAP_GPU:-1}" = 1 ] && HEAT_CAP_GPU=1
     $BB sh -c "
     : oneos_heat_cap
     echo \$\$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null
     F=$STAGE/heat_cap.log
     CFL=/sys/devices/system/cpu/cpufreq_limit/cpufreq_max_limit
+    GMC=/sys/kernel/gpu/gpu_max_clock
+    GTMU=/sys/kernel/gpu/gpu_tmu
+    gpu_freqs() {
+        if [ -r /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies ]; then
+            awk '{for(i=1;i<=NF;i++)if(\$i~/^[0-9]+\$/)printf \"%d \", int(\$i/1000000)}' /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies
+        elif [ -r /sys/kernel/gpu/gpu_freq_table ]; then
+            awk '{for(i=1;i<=NF;i++)if(\$i~/^[0-9]+\$/)printf \"%d \", \$i}' /sys/kernel/gpu/gpu_freq_table
+        fi
+    }
+    gpu_top=0
+    if [ $HEAT_CAP_GPU = 1 ] && [ -w \$GMC ]; then
+        gpu_top=\$(gpu_freqs | awk '{for(i=1;i<=NF;i++)if(\$i>m)m=\$i}END{print m+0}')
+        case \"\$gpu_top\" in ''|0|*[!0-9]*) gpu_top=0 ;; esac
+    fi
     if [ $HEAT_CAP = 1 ]; then
-        echo \"# \$(date) OneOS heat cap: from 45, 47, 50 C skin every CPU policy at 80, 65, 50% of its top clock (2 C hysteresis); charging with the screen on, from 44, 48 C direct charger 80, 65%\" > \$F
+        echo \"# \$(date) OneOS heat cap: from 45, 47, 50 C skin (or 70, 75, 80 C GPU) CPU at 80, 65, 50%\$([ \"\$gpu_top\" -gt 0 ] && echo \" and GPU at 85, 70, 55% of \${gpu_top} MHz\") (2 C / 5 C hysteresis); charging with screen on, 44/48 C direct charger 80/65%\" > \$F
     else
         echo \"# \$(date) OneOS heat cap off (Cool down when hot): the guest thermal status only\" > \$F
     fi
@@ -4658,6 +4673,11 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
             echo \$hw > \$p/scaling_max_freq 2>/dev/null
             c=\"\$c \${p##*/}=\$(cat \$p/scaling_max_freq 2>/dev/null)/\$hw\"
         done
+        if [ \"\$gpu_top\" -gt 0 ] && [ -w \$GMC ]; then
+            echo \$gpu_top > \$GMC 2>/dev/null
+            rm -f $STAGE/gpu_max_clock.capped
+            c=\"\$c gpu=\$(cat \$GMC 2>/dev/null)/\$gpu_top\"
+        fi
         echo \"\$(date +%T) \$1: full clock:\$c\" >> \$F
     }
     lvl=0; chl=0; first=1; tl=-1; lp=''
@@ -4666,6 +4686,17 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
             [ \$lvl = 0 ] || full stopped
             echo \"# \$(date +%T) stopped (the return started, or no guest namespace record)\" >> \$F
             exit 0
+        fi
+        # Zero-fork kernel sysfs reads first: drive adaptive poll cadence and GPU temperature checks.
+        bt=\$(cat /sys/class/power_supply/battery/temp 2>/dev/null); case \"\$bt\" in ''|*[!0-9-]*) bt=0 ;; esac
+        gt=\$(cat \$GTMU 2>/dev/null); case \"\$gt\" in ''|*[!0-9]*) gt=0 ;; esac
+        bstat=\$(cat /sys/class/power_supply/battery/status 2>/dev/null)
+        scr_on=0
+        for b in /sys/class/backlight/*/brightness; do v=\$(cat \$b 2>/dev/null); case \"\$v\" in ''|0|*[!0-9]*) ;; *) scr_on=1 ;; esac; done
+        # When screen is off, not charging, cool, and unthrottled, avoid waking system_server every 10 s.
+        if [ \$first = 0 ] && [ \$lvl = 0 ] && [ \$tl -le 0 ] && [ \$scr_on = 0 ] && [ \"\$bstat\" != Charging ] && [ \"\$bt\" -lt 370 ] && [ \"\$gt\" -lt 60000 ]; then
+            sleep 30
+            continue
         fi
         P=\$(pidof system_server | awk '{print \$1}')
         sk=''
@@ -4682,18 +4713,16 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
             fi
         fi
         if [ -n \"\$sk\" ] && [ $HEAT_CAP = 1 ]; then
-            new=\$(awk -v s=\"\$sk\" -v l=\$lvl 'BEGIN { t[1] = 45; t[2] = 47; t[3] = 50; while (l < 3 && s >= t[l + 1]) l++; while (l > 0 && s < t[l] - 2) l--; print l }')
+            new=\$(awk -v s=\"\$sk\" -v g=\"\$gt\" -v l=\$lvl 'BEGIN { t[1] = 45; t[2] = 47; t[3] = 50; u[1] = 70000; u[2] = 75000; u[3] = 80000; while (l < 3 && (s >= t[l + 1] || (g > 0 && g >= u[l + 1]))) l++; while (l > 0 && s < t[l] - 2 && (g <= 0 || g < u[l] - 5000)) l--; print l }')
             # 0.5.31: charging with the screen on (owner's A36, HyperOS, 45 W: 0.6-1.6 A into the battery while in use,
             # the direct charger at 47-52 C; One UI charges much faster in use). One UI's SSRM holds the clocks back
             # while charging; here the direct charger's temperature (battery/dchg_temp, 0.1 C) sets a level too:
             # from 44 C 80%, from 48 C 65% (2 C hysteresis). The stricter of the two levels applies.
             ch=0; dt=0
-            if [ \"\$(cat /sys/class/power_supply/battery/status 2>/dev/null)\" = Charging ]; then
+            if [ \"\$bstat\" = Charging ]; then
                 dt=\$(cat /sys/class/power_supply/battery/dchg_temp 2>/dev/null)
                 case \"\$dt\" in ''|*[!0-9]*) dt=0 ;; esac
-                on=0
-                for b in /sys/class/backlight/*/brightness; do v=\$(cat \$b 2>/dev/null); case \"\$v\" in ''|0|*[!0-9]*) ;; *) on=1 ;; esac; done
-                [ \$on = 1 ] && [ \$dt -gt 0 ] && ch=\$(awk -v d=\$dt -v l=\$chl 'BEGIN { t[1] = 440; t[2] = 480; while (l < 2 && d >= t[l + 1]) l++; while (l > 0 && d < t[l] - 20) l--; print l }')
+                [ \$scr_on = 1 ] && [ \$dt -gt 0 ] && ch=\$(awk -v d=\$dt -v l=\$chl 'BEGIN { t[1] = 440; t[2] = 480; while (l < 2 && d >= t[l + 1]) l++; while (l > 0 && d < t[l] - 20) l--; print l }')
             fi
             chl=\$ch
             [ \$ch -gt \$new ] && new=\$ch && sk=\"\$sk (charging, direct charger \$((dt / 10)))\"
@@ -4702,12 +4731,16 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
                 for p in /sys/devices/system/cpu/cpufreq/policy*; do
                     [ \"\$(cat \$p/scaling_max_freq 2>/dev/null)\" = \"\$(cat \$p/cpuinfo_max_freq 2>/dev/null)\" ] || capped=1
                 done
+                if [ \"\$gpu_top\" -gt 0 ] && [ -r \$GMC ]; then
+                    gcur=\$(cat \$GMC 2>/dev/null)
+                    [ -n \"\$gcur\" ] && [ \"\$gcur\" != \"\$gpu_top\" ] && capped=1
+                fi
                 if [ -n \"\$capped\" ]; then full \"skin \$sk C, a cap from before the switch lifted\"
                 else echo \"\$(date +%T) skin \$sk C: no cap\" >> \$F; fi
             elif [ \"\$new\" = 0 ] && [ \$lvl != 0 ]; then
                 full \"skin \$sk C, level \$lvl to 0\"
             elif [ \"\$new\" != 0 ] && [ \"\$new\" != \$lvl ]; then
-                case \$new in 1) pct=80 ;; 2) pct=65 ;; *) pct=50 ;; esac
+                case \$new in 1) pct=80; gpct=85 ;; 2) pct=65; gpct=70 ;; *) pct=50; gpct=55 ;; esac
                 c=''
                 for p in /sys/devices/system/cpu/cpufreq/policy*; do
                     hw=\$(cat \$p/cpuinfo_max_freq 2>/dev/null)
@@ -4715,14 +4748,27 @@ if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
                     echo \$((hw / 100 * pct)) > \$p/scaling_max_freq 2>/dev/null
                     c=\"\$c \${p##*/}=\$(cat \$p/scaling_max_freq 2>/dev/null)/\$hw\"
                 done
-                echo \"\$(date +%T) skin \$sk C, level \$lvl to \$new: \$pct%:\$c\" >> \$F
+                if [ \"\$gpu_top\" -gt 0 ] && [ -w \$GMC ]; then
+                    gtgt=\$(gpu_freqs | awk -v top=\"\$gpu_top\" -v p=\"\$gpct\" 'BEGIN{max=top*p/100}{for(i=1;i<=NF;i++){v=\$i;if(v<=max&&v>m)m=v}}END{print m+0}')
+                    case \"\$gtgt\" in ''|0) gtgt=\$(gpu_freqs | awk '{for(i=1;i<=NF;i++)if(!m||\$i<m)m=\$i}END{print m+0}') ;; esac
+                    if [ \"\$gtgt\" -gt 0 ] 2>/dev/null && echo \$gtgt > \$GMC 2>/dev/null; then
+                        echo \"\$gpu_top\" > $STAGE/gpu_max_clock.capped
+                        c=\"\$c gpu=\$(cat \$GMC 2>/dev/null)/\$gpu_top\"
+                    fi
+                fi
+                echo \"\$(date +%T) skin \$sk C (gpu \$((gt / 1000)) C), level \$lvl to \$new: CPU \$pct% / GPU \$gpct%:\$c\" >> \$F
             fi
             lvl=\$new; first=0
         fi
-        sleep 10
+        # Poll every 20 s when cool & unthrottled to halve nsenter/dumpsys overhead; 10 s when warm/charging/throttled.
+        if [ \$lvl = 0 ] && [ \$tl -le 0 ] && [ \"\$bstat\" != Charging ] && [ \"\$bt\" -lt 370 ] && [ \"\$gt\" -lt 60000 ]; then
+            sleep 20
+        else
+            sleep 10
+        fi
     done
 " </dev/null >/dev/null 2>&1 &
-    [ $HEAT_CAP = 1 ] && echo "Heat cap: on (from 45 C skin; every 10 s to $STAGE/heat_cap.log)"
+    [ $HEAT_CAP = 1 ] && echo "Heat cap: on (from 45 C skin / 70 C GPU; CPU+GPU to $STAGE/heat_cap.log)"
     [ $HEAT_CAP = 1 ] || echo "Heat cap: off (ONEOS_HEAT_CAP=0, Cool down when hot off in Advanced)"
     [ $GUEST_THERMAL_MAP = 1 ] && echo "Guest thermal status: from the skin temperature, the HAL status from 56 C ($STAGE/heat_cap.log)"
 else
