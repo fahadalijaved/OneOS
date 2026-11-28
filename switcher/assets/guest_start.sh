@@ -2513,7 +2513,7 @@ if [ "${ONEOS_GUEST_SAMSUNG_AUDIO:-1}" = 1 ] && [ -d /sys/devices/virtual/audio/
         i=0
         while [ "$(getprop service.bootanim.exit)" != 1 ] && [ $i -lt 600 ]; do sleep 1; i=$((i + 1)); done
         sleep 10
-        if [ -f /data/oneos_audio_rt ] && grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
+        if grep -q '^ro.build.version.oneui=' /system/build.prop 2>/dev/null; then
             log "One UI guest: leaving Dolby and volume leveler to SoundAlive"
         else
             for kv in g_effect_dolby_enable=1 g_effect_dolby_profile=0 g_effect_dolby_volume_leveler=7; do log "$(param $kv)"; done

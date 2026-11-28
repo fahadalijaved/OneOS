@@ -1560,8 +1560,8 @@ NEED_VK=0
 NEED_SB=0
 SB_HIDE_EQ=0
 HSB_VER=""
-if [ "$TAB_S9_FE_HOST" = 1 ] && grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
-    if [ "${ONEOS_ONEUI_HOST_VKMANAGER:-1}" = 1 ] &&
+if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null; then
+    if [ "$TAB_S9_FE_HOST" = 1 ] && [ "${ONEOS_ONEUI_HOST_VKMANAGER:-1}" = 1 ] &&
        [ -f "$ROOTFS/system/lib64/libvkmanager.so" ] && [ -f /system/lib64/libvkmanager.so ] &&
        [ -f /system/lib64/vendor.samsung.hardware.security.vaultkeeper@2.0.so ] &&
        grep -q 'ISehVaultKeeper/default' "$ROOTFS/system/lib64/libvkmanager.so" 2>/dev/null &&
@@ -1590,7 +1590,7 @@ if [ "$NEED_VK" = 1 ] || [ "$NEED_SB" = 1 ]; then
     VKO="$STAGE/vk_lib64_ov"
     if [ ! -L "$VKO" ]; then
         mkdir -p "$VKO"
-        mount | grep -q " $VKO " || { $BB mount -t tmpfs -o size=4m,mode=755 tmpfs "$VKO" && $BB mount --make-private "$VKO" 2>/dev/null; }
+        mount | grep -q " $VKO " || { $BB mount -t tmpfs -o size=8m,mode=755 tmpfs "$VKO" && $BB mount --make-private "$VKO" 2>/dev/null; }
         if rm -rf "$VKO/up" && mkdir -p "$VKO/up" &&
            { [ "$NEED_VK" = 0 ] || cp /system/lib64/libvkmanager.so /system/lib64/vendor.samsung.hardware.security.vaultkeeper@2.0.so "$VKO/up/"; } &&
            { [ "$NEED_SB" = 0 ] || cp /system/lib64/libsamsungSoundbooster_plus_legacy.so "$HSB_VER" "$VKO/up/"; } &&
@@ -1606,7 +1606,47 @@ if [ "$NEED_VK" = 1 ] || [ "$NEED_SB" = 1 ]; then
                 [ "$NEED_SB" = 1 ] &&
                     echo "Audio: supplied One UI's libsamsungSoundbooster_plus_legacy.so + ${HSB_VER##*/} in /system/lib64$([ "$SB_HIDE_EQ" = 1 ] && echo ' (hid guest libsoundboostereq_legacy.so)')"
             else
-                echo "!!! /system/lib64 overlay refused; keeping guest libraries"
+                # Kernel 5.10 (no overlayfs on /system/lib64): farm /system/lib64 privately and bind the host libraries.
+                vk_extra=""
+                for vfile in "$VKO/up/"*.so; do
+                    [ -f "$vfile" ] && [ ! -L "$vfile" ] || continue
+                    vb=${vfile##*/}
+                    [ -e "$ROOTFS/system/lib64/$vb" ] || vk_extra="$vk_extra $vb"
+                done
+                VKF="$STAGE/vk_lib64_farm"
+                vk_ok=0
+                if farm_dir "$ROOTFS/system/lib64" "$VKF" $vk_extra; then
+                    vk_ok=1
+                    for vfile in "$VKO/up/"*.so; do
+                        [ -f "$vfile" ] && [ ! -L "$vfile" ] || continue
+                        vb=${vfile##*/}
+                        $BB umount -l "$ROOTFS/system/lib64/$vb" 2>/dev/null || true
+                        if $BB mount --bind "$vfile" "$ROOTFS/system/lib64/$vb"; then
+                            $BB mount --make-rslave "$ROOTFS/system/lib64/$vb" 2>/dev/null || true
+                            $BB mount -o remount,bind,ro "$ROOTFS/system/lib64/$vb" 2>/dev/null || true
+                        else
+                            vk_ok=0; break
+                        fi
+                    done
+                    if [ "$vk_ok" = 1 ] && [ "$SB_HIDE_EQ" = 1 ] && [ -e "$ROOTFS/system/lib64/libsoundboostereq_legacy.so" ]; then
+                        $BB umount -l "$ROOTFS/system/lib64/libsoundboostereq_legacy.so" 2>/dev/null || true
+                        $BB mount -o remount,rw "$VKF/farm" 2>/dev/null || $BB mount -o remount,bind,rw "$VKF/farm" 2>/dev/null || true
+                        rm -f "$VKF/farm/libsoundboostereq_legacy.so" 2>/dev/null || true
+                        $BB mount -o remount,ro "$VKF/farm" 2>/dev/null || true
+                    fi
+                fi
+                if [ "$vk_ok" = 1 ]; then
+                    [ "$NEED_VK" = 1 ] && VK_HIDL_OV=1 &&
+                        echo "VaultKeeper: supplied One UI's HIDL libvkmanager.so + vaultkeeper@2.0.so in /system/lib64 (no overlayfs)"
+                    [ "$NEED_SB" = 1 ] &&
+                        echo "Audio: supplied One UI's libsamsungSoundbooster_plus_legacy.so + ${HSB_VER##*/} in /system/lib64 (no overlayfs$([ "$SB_HIDE_EQ" = 1 ] && echo ', hid guest libsoundboostereq_legacy.so'))"
+                else
+                    awk -v r="$ROOTFS/system/lib64/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m" 2>/dev/null || true; done
+                    grep -q " $ROOTFS/system/lib64 tmpfs " /proc/mounts && $BB umount -l "$ROOTFS/system/lib64" 2>/dev/null || true
+                    $BB umount -l "$VKF/orig" 2>/dev/null || true
+                    $BB umount -l "$VKF/farm" 2>/dev/null || true
+                    echo "!!! /system/lib64 overlay and non-overlayfs farm refused; keeping guest libraries"
+                fi
             fi
         fi
     fi
@@ -2672,6 +2712,56 @@ case "$($BB sha256sum "$guarded_services" 2>/dev/null | cut -d' ' -f1)" in
         [ "$ONEUI95_FOLD8" = 1 ] && [ -s "$fold8_services" ] && guarded_services="$fold8_services" ;;
     *) [ "$ONEUI95_FOLD8" = 1 ] && echo "!!! Fold8 services.jar: services_patched.jar is not one the Fold8 jar was built on; the plain one" ;;
 esac
+# One UI 9.5 on Android 16 / One UI 8.0/8.5 hosts (oneui95-a16 r9): R8 folded
+# useNetstatsPerQueryFlags() to true and stripped setPollOnOpen(false) from services_patched.jar
+# (3b52be63...). On One UI 8's Android 16 tethering module, NetworkStatsManager defaults to
+# mPollOnOpen=true, so NetworkPolicyManagerService's queries trigger a NETWORK_STATS_UPDATED
+# poll storm (4 -> 95 polls/s). Patch all 4 NetStats call sites in classes2.dex
+# (NetworkPolicyManagerService$Dependencies.getNetworkTotalBytes/getNetworkUidBytes,
+# MultipathPolicyTracker$MultipathTracker.getNetworkTotalBytes, and
+# StatsPullAtomService$$ExternalSyntheticLambda5.queryNetworkStats) in-place to call
+# setPollOnOpen(false) via reflection (caught safely) and invoke Android 16's 3-arg overloads.
+# SHA-256 pinned before and after (verified by dexdump -c, d8, and zipfile.testzip). Placed under
+# $STAGE/session/ so StageStatus.LEFTOVER ignores it. ONEOS_A16_NETSTATS_SESSION=0 keeps the raw jar.
+oneui8_patch_services_jar() {
+    _src=$1; _dst=$2
+    [ -f "$_src" ] && [ ! -L "$_src" ] || return 2
+    _sha=$(sha256sum "$_src" 2>/dev/null | cut -c1-64)
+    case "$_sha" in
+        3b52be633261a02ffb915fa397841cbdfd8f76f2b1d5fb8c8bb5e30b2574f8ed)
+            _want=353f42dd499cb9f221189c0c8351671ca1a24ed56242749399df102a8bcd3a29
+            set -- \
+                '16031089:\105\133\352\146' \
+                '16031153:\204\006\231\136\064\244\012\222\364\343\064\105\142\167\266\315\234\270\245\221\071\111\274\365' \
+                '22362700:\154\117\156\117\160\145\156\040\040\040\040\040\040\040\040\040\040\040\040\040\040\040\040\040\040\040\040\040\040' \
+                '22962769:\034\001\063\002\033\002\255\356\001\000\156\020\067\367\002\000\014\002\142\003\146\307\044\020\175\075\003\000\014\003\156\060\014\366\041\003\014\001\142\002\144\307\044\020\201\075\002\000\014\002\156\060\270\367\001\002\124\161\300\056\004\202\004\244\164\006\143\011\000\000\014\007\156\020\120\011\007\000\013\010\156\020\124\011\007\000\013\012\273\250\020\010\026\007\377\377\020\007\000\000\002\000\000\000\034\000\001\000\036\000\000\000\007\000\003\000\045\000\000\000\011\000\003\000\002\000\036\002\361\163\060\204\164\060\000\000' \
+                '24170869:\124\264\236\107\034\000\063\002\033\001\255\356\001\000\156\020\067\367\001\000\014\001\142\002\146\307\044\020\175\075\002\000\014\002\156\060\014\366\020\002\014\000\142\001\144\307\044\020\201\075\001\000\014\001\156\060\270\367\100\001\007\305\004\326\004\370\164\006\143\011\004\000\014\013\156\020\120\011\013\000\013\014\156\020\124\011\013\000\013\000\273\014\020\014\015\000\032\001\273\144\033\014\375\276\000\000\042\015\013\072\160\040\113\367\035\000\156\040\123\367\015\000\156\020\136\367\015\000\014\013\161\040\060\057\274\000\026\013\000\000\020\013\000\000\002\000\000\000\034\000\001\000\036\000\000\000\003\000\003\000\041\000\000\000\004\000\007\000\045\000\000\000\011\000\003\000\003\000\036\001\204\164\057\002\361\163\057\204\164\057\000\000\021\000\006\000\007\000\004\000\000\000\000\000\130\000\000\000\042\003\315\072\160\020\253\371\003\000\124\264\236\107\034\000\063\002\033\001\255\356\001\000\156\020\067\367\001\000\014\001\142\002\146\307\044\020\175\075\002\000\014\002\156\060\014\366\020\002\014\000\142\001\144\307\044\020\201\075\001\000\014\001\156\060\270\367\100\001\007\305\004\326\004\370\164\006\141\011\004\000\014\013\156\020\131\011\013\000\012\014\070\014\016\000\042\014\060\002\160\020\114\011\014\000\156\040\130\011\313\000\156\040\257\371\303\000\050\357\021\003\015\000\032\016\273\144\033\014\375\276\000\000\042\015\013\072\160\040\113\367\355\000\156\040\123\367\015\000\156\020\136\367\015\000\014\013\161\040\060\057\274\000\021\003\000\000\000\000\000\000\000\000\000\000\007\000\000\000\034\000\001\000\043\000\000\000\003\000\003\000\046\000\000\000\004\000\007\000\052\000\000\000\021\000\003\000\003\000\043\001\204\164\075\002\361\163\075\204\164\075\000\000' \
+                '27473579:\365\377\034\000\063\002\033\003\255\356\001\000\156\020\067\367\003\000\014\003\142\004\146\307\044\020\175\075\004\000\014\004\156\060\014\366\060\004\014\000\142\003\144\307\044\020\201\075\003\000\014\003\156\060\270\367\040\003\007\243\004\304\004\346\164\006\141\011\002\000\014\012\161\020\160\247\012\000\014\014\156\020\127\011\012\000\071\013\003\000\050\024\124\222\233\204\070\002\304\377\164\006\145\011\002\000\014\011\161\020\160\247\011\000\014\012\156\020\127\011\011\000\156\040\113\037\254\000\014\014\036\001\021\014\015\000\036\001\047\000\000\000\000\000\000\000\000\000\000\000\007\000\000\000\045\000\001\000\054\000\000\000\034\000\003\000\110\000\000\000\007\000\005\000\117\000\000\000\016\000\001\000\135\000\000\000\017\000\005\000\003\000\156\000\110\176\361\163\156\204\164\156\156' \
+                '31409462:\105\133\352\146' ;;
+        *) return 2 ;;
+    esac
+    rm -f "$_dst" && cp "$_src" "$_dst" || return 1
+    for _ent in "$@"; do
+        $BB printf "${_ent#*:}" | $BB dd of="$_dst" bs=1 seek="${_ent%%:*}" conv=notrunc 2>/dev/null || { rm -f "$_dst"; return 1; }
+    done
+    [ "$(sha256sum "$_dst" 2>/dev/null | cut -c1-64)" = "$_want" ] || { rm -f "$_dst"; return 1; }
+    chmod 644 "$_dst" && chown 0:0 "$_dst" 2>/dev/null || true
+    $BB touch -t 202611280000 "$_dst" 2>/dev/null || true
+    $BB chcon u:object_r:system_file:s0 "$_dst" 2>/dev/null || true
+    return 0
+}
+rm -f "$STAGE/session/services.oneui8.session.jar"
+if [ "$A17_ON_A16" = 1 ] && [ "${ONEOS_A16_NETSTATS_SESSION:-1}" = 1 ] && [ ! -L "$STAGE/session" ]; then
+    mkdir -p "$STAGE/session"
+    oneui8_patch_services_jar "$guarded_services" "$STAGE/session/services.oneui8.session.jar"
+    _svrc=$?
+    if [ "$_svrc" = 0 ]; then
+        guarded_services="$STAGE/session/services.oneui8.session.jar"
+        echo "NetStats: services_patched.jar patched for Android 16 (setPollOnOpen(false) on all 4 R8 query sites)"
+    elif [ "$_svrc" = 1 ]; then
+        echo "!!! NetStats: could not build Android 16 services session patch; keeping ${guarded_services#"$STAGE/"}"
+    fi
+fi
 if [ -f "$guarded_services" ]; then
     $BB umount -l "$ROOTFS/system/framework/services.jar" 2>/dev/null || true
     $BB mount --bind "$guarded_services" "$ROOTFS/system/framework/services.jar"
@@ -9482,8 +9572,12 @@ fi
 # ColorOS 17 on One UI 8 (A17_ON_A16, 0.5.51 testing): no Samsung Camera in that set, and OPPO's camera crashed at
 # every start on the same SDK class (abhera, S22 Ultra, coloros22test6 logs-e99d05d4: 10 times in 11 minutes). Hidden
 # there too; a camera2 app (Open Camera) from the store is the camera.
-if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Aperture" ] || [ -d "$GUEST_SYSTEM_EXT/app/Aperture" ] || [ "$SAMCAM" = 1 ] || [ "$A17_ON_A16" = 1 ]; }; then
-    if [ "$SAMCAM" = 1 ]; then OCWHY="Samsung Camera is the camera"; elif [ "$A17_ON_A16" = 1 ]; then OCWHY="One UI 8 phone: a camera2 app from the store is the camera"; else OCWHY="Aperture is the camera"; fi
+# OxygenOS 16 (oxygen16 r3, ONEOS_NO_CAMERA_ABI=1): no camera ABI or Samsung Camera in that set,
+# and OplusCamera crashes at launch on Samsung hosts without OPPO's camera config/SDK.
+GUEST_OXYGEN_IMG=0
+grep -qs '^  "image": "oxygenos' "$STAGE/.oneos_stage" 2>/dev/null && GUEST_OXYGEN_IMG=1
+if [ "${ONEOS_GUEST_OEM_CAMERA:-0}" != 1 ] && { [ -d "$GUEST_PRODUCT/app/Aperture" ] || [ -d "$GUEST_SYSTEM_EXT/app/Aperture" ] || [ "$SAMCAM" = 1 ] || [ "$A17_ON_A16" = 1 ] || [ "$GUEST_OXYGEN_IMG" = 1 ]; }; then
+    if [ "$SAMCAM" = 1 ]; then OCWHY="Samsung Camera is the camera"; elif [ "$GUEST_OXYGEN_IMG" = 1 ]; then OCWHY="OxygenOS 16 has no camera ABI or Samsung Camera in this set"; elif [ "$A17_ON_A16" = 1 ]; then OCWHY="One UI 8 phone: a camera2 app from the store is the camera"; else OCWHY="Aperture is the camera"; fi
     for d in "$GUEST_SYSTEM_EXT"/priv-app/OplusCamera "$ROOTFS"/system/priv-app/OplusCamera "$GUEST_PRODUCT"/priv-app/OplusCamera \
              "$ROOTFS"/my_*/app/OplusCamera "$ROOTFS"/my_*/priv-app/OplusCamera; do
         [ -d "$d" ] && [ ! -L "$d" ] || continue

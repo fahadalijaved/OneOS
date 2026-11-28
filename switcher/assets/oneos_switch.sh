@@ -1848,8 +1848,9 @@ rm -f "$STAGE/data/oneos_adaptive"
 # to 60 Hz on the still screen (test 10, owner: "stopped recognizing after 1st attempt"); with rendering at
 # 120 Hz it matched every time. One UI also runs the panel at its top rate for the sensor.
 if [ "$(cat "$STAGE/adaptive_panel" 2>/dev/null)" = 1 ] && [ "${ONEOS_GUEST_ADAPTIVE:-1}" = 1 ] && [ -d "$STAGE/data" ] && [ ! -L "$STAGE/data" ]; then
-    if [ -s "$STAGE/data/system/oneos_udfps" ]; then
-        echo "Adaptive refresh: off (an in-display fingerprint sensor: rendering stays at the panel's top rate)"
+    if [ -s "$STAGE/data/system/oneos_udfps" ] &&
+       ! grep -q '<SEC_FLOATING_FEATURE_BIOAUTH_CONFIG_FINGERPRINT_FEATURES>[^<]*ultrasonic' /system/etc/floating_feature.xml 2>/dev/null; then
+        echo "Adaptive refresh: off (an optical in-display fingerprint sensor: rendering stays at the panel's top rate)"
     else
         : > "$STAGE/data/oneos_adaptive"
         echo "Adaptive refresh: on (the panel at its top rate, rendering down to the lower mode's on a still screen)"
@@ -2723,6 +2724,22 @@ while true; do
                         $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 0
                         echo \"[UI Activator] refresh rate: default High set (oplus_customize_screen_refresh_rate=\${ORR:-unset} -> $GUEST_HIGH_ORR, peak $GUEST_REFRESH)\" ;;
                 esac
+            elif [ $GUEST_ONEUI = 1 ] && [ -f $STAGE/data/oneos_adaptive ]; then
+                RRM=\$($BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings get secure refresh_rate_mode 2>/dev/null)
+                case \"\$RRM\" in
+                    0)
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate 60.0
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 0
+                        echo '[UI Activator] refresh rate: One UI guest keeping user Standard 60 Hz (refresh_rate_mode=0)' ;;
+                    *)
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate $GUEST_REFRESH
+                        $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 0
+                        echo \"[UI Activator] refresh rate: One UI guest adaptive (refresh_rate_mode=\${RRM:-unset}, peak $GUEST_REFRESH, min 0)\" ;;
+                esac
+            elif [ -f $STAGE/data/oneos_adaptive ]; then
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate $GUEST_REFRESH
+                $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate 0
+                echo \"[UI Activator] refresh rate: adaptive (peak $GUEST_REFRESH, min 0)\"
             else
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system peak_refresh_rate $GUEST_REFRESH
                 $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/settings put system min_refresh_rate $GUEST_REFRESH
@@ -3109,9 +3126,9 @@ while true; do
             # On by default since 0.4.65 (F8U InfinityX run: Dolby on the music
             # output, sound much better); ONEOS_GUEST_DOLBY=0: off. Phones
             # whose effect HAL has no Dolby: it gives up after a minute, logged.
-            # The Galaxy Tab S9 FE's One UI guests already run SoundAlive + Dolby_FX
-            # natively: no second output-mix effect there unless ONEOS_GUEST_DOLBY=1.
-            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && { [ $HOST_TAB_S9_FE = 0 ] || [ -n \"${ONEOS_GUEST_DOLBY:-}\" ] || [ $GUEST_ONEUI = 0 ]; } && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
+            # One UI guests already run SoundAlive + Dolby_FX natively: no second
+            # output-mix effect there unless ONEOS_GUEST_DOLBY=1 is explicitly set.
+            if [ \"${ONEOS_GUEST_DOLBY:-1}\" = 1 ] && { [ $GUEST_ONEUI = 0 ] || [ -n \"${ONEOS_GUEST_DOLBY:-}\" ]; } && [ -f $STAGE/OneOSEdmStub.dex ] && [ ! -L $STAGE/OneOSEdmStub.dex ]; then
                 ($BB nohup $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/env CLASSPATH=/data/oneos_edm_stub.dex /system/bin/app_process /system/bin OneOSSoundFx \$PID > $STAGE/sound_fx.log 2>&1 </dev/null &)
                 sleep 3
                 echo \"[UI Activator] sound fx: \$(head -n 3 $STAGE/sound_fx.log 2>/dev/null | tr '\n' ' ' || true)\"
@@ -4611,7 +4628,9 @@ GUEST_THERMAL_MAP=0
 [ "${ONEOS_GUEST_THERMAL_MAP:-1}" = 1 ] && grep -q '^  "image": "pixel' "$STAGE/.oneos_stage" 2>/dev/null && GUEST_THERMAL_MAP=1
 # ColorOS too (0.5.20): Samsung's HAL says SEVERE from 45 C skin, and ColorOS throttles its frames and
 # animations at SEVERE (A36 11-17, charging at 43-45 C: "superrrr laggy"; status NONE live: smooth again).
-[ "${ONEOS_GUEST_THERMAL_MAP:-1}" = 1 ] && [ "$GUEST_OPLUS" = 1 ] && GUEST_THERMAL_MAP=1
+# One UI guests too: SamsungDeviceHealthManagerService (sdhms) is hidden, so Samsung's HAL SEVERE at
+# 45 C skin throttles JobScheduler, Play updates, and animations prematurely on warm SoCs (e.g. SM8450).
+[ "${ONEOS_GUEST_THERMAL_MAP:-1}" = 1 ] && { [ "$GUEST_OPLUS" = 1 ] || [ "$GUEST_ONEUI" = 1 ]; } && GUEST_THERMAL_MAP=1
 if [ $HEAT_CAP = 1 ] || [ $GUEST_THERMAL_MAP = 1 ]; then
     [ $HEAT_CAP = 1 ] && : > "$STAGE/heat_cap.active"
     rm -f "$STAGE/cpufreq_max_limit.released"
