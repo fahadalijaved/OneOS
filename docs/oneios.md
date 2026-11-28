@@ -1326,8 +1326,9 @@ An opt-in session mode, off by default: the vehicle for the speed of OneiOS's iO
   junction trips; the cell has nothing that caps the CPU. 50-55 C is under a Li-ion cell's usual 60 C [a guess].
 - **Its stops** (takeover-stages, 2026-11-23; OneiOS's plan, stage 2b): then `takeover_stops` stops the services of
   zygote's restart list that no bridge uses, from `takeover-stops=` of the image's `xnuhost.conf` (the last line, as
-  `session-mode=`): `default` (or none given) `cameraserver mediaextractor mediametrics media.tuner perfmond
-  wificond`; `netd` and `media` only when named; `none`. Only a service whose `init.svc` says `running` and that an
+  `session-mode=`): `default` (or none given) `cameraserver mediaextractor media.tuner perfmond wificond`;
+  `mediametrics` (kept by default for `oneios-encoder`'s `AMediaCodec` / `libmediametrics`), `netd`, and `media` only
+  when named; `none`. Only a service whose `init.svc` says `running` and that an
   `.rc` of `/system`, `/system_ext`, `/product`, `/vendor`, `/odm` or `/apex/*/etc` defines without `critical`. Each
   name goes to `control/base/stopped` before its `setprop ctl.stop`; then up to 5 s for each to end, so that xnuhost's
   `ram=auto` sees the RAM they held. `switch.log`: `Android takeover: stopped NAMES (from ...; control/base/stopped)[;

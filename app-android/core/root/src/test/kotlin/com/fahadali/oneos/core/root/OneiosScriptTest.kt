@@ -2681,7 +2681,7 @@ class OneiosScriptTest {
         assertEquals(r.text, 0, r.exit)
         assertTrue(r.text, r.text.contains("Session mode: Android takeover (session-mode=takeover, from the app; device=galaxy-s24-ultra takeover=yes (matched by ro.product.model=SM-S928B))"))
         assertTrue(r.text, r.text.trim().endsWith("MODE OK takeover"))
-        assertTrue(r.text, r.text.contains("; Android's services stopped for the session: cameraserver mediaextractor mediametrics media.tuner perfmond wificond (from the default list); a CPU cap from the cell's temperature (50 C up); "))
+        assertTrue(r.text, r.text.contains("; Android's services stopped for the session: cameraserver mediaextractor media.tuner perfmond wificond (from the default list); a CPU cap from the cell's temperature (50 C up); "))
         assertEquals("--host-info", f.lines("log/host-info-args").single().trim())
         // A row that does not allow it, a runtime too old to say, a bad word.
         f.file("host-info").writeText("host-info: device=galaxy-s25-ultra takeover=no (matched by ro.product.model=SM-S938B)\n")
@@ -2935,9 +2935,9 @@ class OneiosScriptTest {
     private fun restartList(f: Fake, critical: String? = null) {
         fun rc(file: String, body: String) = f.file("system/etc/init/$file").apply { parentFile.mkdirs(); writeText(body) }
         rc("cameraserver.rc", "service cameraserver /system/bin/cameraserver\n    class main\n    user cameraserver\n")
-        rc("mediaextractor.rc", "service mediaextractor /system/bin/mediaextractor\n    class main\n")
-        // A critical option of another service in the same file is not mediametrics'.
-        rc("mediametrics.rc", "service mediametrics /system/bin/mediametrics\n    class main\n\nservice other /system/bin/other\n    critical\n")
+        // A critical option of another service in the same file is not mediaextractor's.
+        rc("mediaextractor.rc", "service mediaextractor /system/bin/mediaextractor\n    class main\n\nservice other /system/bin/other\n    critical\n")
+        rc("mediametrics.rc", "service mediametrics /system/bin/mediametrics\n    class main\n")
         rc("mediatuner.rc", "on boot\n    write /dev/null 1\n\nservice media.tuner /system/bin/mediatuner\n    class main\n    oneshot\n")
         rc("wificond.rc", "service wificond /system/bin/wificond\n    class main\n" + if (critical == "wificond") "    critical\n" else "")
         rc("netd.rc", "service netd /system/bin/netd\n    class main\n    onrestart restart zygote\n")
@@ -2958,23 +2958,24 @@ class OneiosScriptTest {
         restartList(f, critical = "wificond")
         val r = f.run("oneios_switch.sh", "--takeover-stops")
         assertEquals(r.text, 0, r.exit)
-        assertEquals(listOf("cameraserver", "mediaextractor", "mediametrics", "media.tuner"), File(f.control, "base/stopped").readLines())
-        assertEquals(listOf("ctl.stop cameraserver", "ctl.stop mediaextractor", "ctl.stop mediametrics", "ctl.stop media.tuner"), f.setprops)
+        assertEquals(listOf("cameraserver", "mediaextractor", "media.tuner"), File(f.control, "base/stopped").readLines())
+        assertEquals(listOf("ctl.stop cameraserver", "ctl.stop mediaextractor", "ctl.stop media.tuner"), f.setprops)
         assertTrue(
             r.text,
             r.text.contains(
-                "Android takeover: stopped cameraserver mediaextractor mediametrics media.tuner (from the default list; control/base/stopped); " +
+                "Android takeover: stopped cameraserver mediaextractor media.tuner (from the default list; control/base/stopped); " +
                     "not stopped: perfmond(no such service) wificond(critical in its .rc); host MemAvailable 7812 -> 7812 MiB",
             ),
         )
-        for (s in listOf("cameraserver", "mediaextractor", "mediametrics", "media.tuner")) assertEquals(s, "stopped", prop(f, "init.svc.$s"))
+        for (s in listOf("cameraserver", "mediaextractor", "media.tuner")) assertEquals(s, "stopped", prop(f, "init.svc.$s"))
         assertEquals("running", prop(f, "init.svc.wificond"))
-        assertEquals("running", prop(f, "init.svc.media"))   // media and netd only when named
+        assertEquals("running", prop(f, "init.svc.mediametrics"))   // mediametrics, media and netd only when named
+        assertEquals("running", prop(f, "init.svc.media"))
         val back = f.returns()
         assertEquals(back.text, 0, back.exit)
         f.assertInPlace(back.text)
-        assertTrue(back.text, back.text.contains("Android takeover: its stops run again: cameraserver mediaextractor mediametrics media.tuner (control/base/stopped)"))
-        for (s in listOf("cameraserver", "mediaextractor", "mediametrics", "media.tuner")) assertEquals(s, "running", prop(f, "init.svc.$s"))
+        assertTrue(back.text, back.text.contains("Android takeover: its stops run again: cameraserver mediaextractor media.tuner (control/base/stopped)"))
+        for (s in listOf("cameraserver", "mediaextractor", "media.tuner")) assertEquals(s, "running", prop(f, "init.svc.$s"))
         val log = f.setprops
         assertTrue(log.toString(), log.indexOf("ctl.start media.tuner") in 0 until log.indexOf("ctl.restart netd"))
     }

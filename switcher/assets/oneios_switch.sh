@@ -635,12 +635,12 @@ cap_policies() {
 }
 # The Android takeover's stops (OneiOS docs/plan-ios-first-session.md 4, stage 2b): services of One UI's zygote's
 # restart list that no bridge of a session uses. Every return restarts this list already (oneios_return.sh, Gate B
-# and its step 4), so a stop adds no new step to the way back. The first six are the default; netd and media only when
-# the image's xnuhost.conf names them (a Wi-Fi join and an encode without them are not yet checked on the phone).
+# and its step 4), so a stop adds no new step to the way back. The first five are the default; mediametrics (needed
+# by oneios-encoder's AMediaCodec / libmediametrics), netd, and media only when the image's xnuhost.conf names them.
 # takeover-stops= (the last such line of image/xnuhost.conf, then image/overlay/userland/xnuhost.conf): default, none,
 # or names of this list separated by commas. OneiOS's xnuhost checks the same word (config.rs TAKEOVER_STOPPABLE).
 TAKEOVER_STOPPABLE="cameraserver mediaextractor mediametrics media.tuner perfmond wificond netd media"
-TAKEOVER_DEFAULT="cameraserver mediaextractor mediametrics media.tuner perfmond wificond"
+TAKEOVER_DEFAULT="cameraserver mediaextractor media.tuner perfmond wificond"
 DISPLAY_BACK=shm
 display_back_pick() {
     v=$(cat "$STAGE/image/xnuhost.conf" "$STAGE/image/overlay/userland/xnuhost.conf" 2>/dev/null |
