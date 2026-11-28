@@ -887,7 +887,7 @@ set_files() {
         # Android 17 modules One UI 8 cannot lend, its connectivity_native, One UI 8 / 8.5 camera jars.
         x9u-in-1105-a16) echo "$SET_COMMON oplus-framework_patched.jar cellbroadcast_payload.img framework_patched.jar telephony-common_patched.jar libcamera_client_patched.so samcam.tar KeKeThemeSpace_patched.apk oplus_odm_ai.tar ColorPanoramicSystemUI.apk samcam_a.tar OplusGestureUI_patched.apk OplusGestureUI_patched.apk.src_sha256 conscrypt_payload.img profiling_payload.img os.statsd_payload.img media_payload.img media.swcodec_payload.img resolv_payload.img ipsec_payload.img uwb_payload.img devicelock_payload.img scheduling_payload.img neuralnetworks_payload.img tzdata_payload.img uprobestats_payload.img tethering_connectivity_native_a17.so framework_patched_oneui8.jar framework_patched_oneui85.jar nfcservices_payload.img npumanager_payload.img telephonycore_payload.img webapp_payload.img" ;;
         pixel9-sultra) echo "$SET_PIXEL OneOSPixelSystemUI.apk OneOSPixelLauncher.apk libcameracompatbilityinfo_patched.so" ;;
-        infinityx) echo "$SET_INFINITYX framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
+        infinityx) echo "$SET_INFINITYX framework_patched_oneui95.jar libcamera_client_patched_oneui95.so SystemUI_glyph.apk" ;;
         lineage) echo "$SET_LINEAGE framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         pixelos) echo "$SET_PIXELOS framework_patched_oneui95.jar libcamera_client_patched_oneui95.so" ;;
         oxygen16) echo "$SET_OXYGENOS" ;;

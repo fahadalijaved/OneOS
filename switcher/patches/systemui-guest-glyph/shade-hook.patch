@@ -1,0 +1,43 @@
+--- a/smali_classes2/com/android/systemui/shade/NotificationShadeWindowView.smali
++++ b/smali_classes2/com/android/systemui/shade/NotificationShadeWindowView.smali
+@@ -863,7 +863,7 @@
+ .end method
+ 
+ .method public final onAttachedToWindow()V
+-    .locals 1
++    .locals 4
+ 
+     invoke-super {p0}, Lcom/android/systemui/scene/ui/view/WindowRootView;->onAttachedToWindow()V
+ 
+@@ -871,6 +871,31 @@
+ 
+     invoke-virtual {p0, v0}, Landroid/widget/FrameLayout;->setWillNotDraw(Z)V
+ 
++    const v0, 0xe05ee01
++
++    invoke-virtual {p0, v0}, Landroid/view/View;->findViewById(I)Landroid/view/View;
++
++    move-result-object v1
++
++    if-nez v1, :cond_0
++
++    new-instance v1, Lcom/oneos/glyph/OneOSGlyphView;
++
++    invoke-virtual {p0}, Landroid/view/View;->getContext()Landroid/content/Context;
++
++    move-result-object v2
++
++    invoke-direct {v1, v2}, Lcom/oneos/glyph/OneOSGlyphView;-><init>(Landroid/content/Context;)V
++
++    new-instance v2, Landroid/widget/FrameLayout$LayoutParams;
++
++    const/4 v3, -0x1
++
++    invoke-direct {v2, v3, v3}, Landroid/widget/FrameLayout$LayoutParams;-><init>(II)V
++
++    invoke-virtual {p0, v1, v2}, Landroid/view/ViewGroup;->addView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V
++
++    :cond_0
+     return-void
+ .end method
+ 

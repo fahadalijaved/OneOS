@@ -498,7 +498,7 @@ object PackageSets {
     val INFINITYX = PackageSet(
         id = ID_INFINITYX,
         imageId = Images.ID_INFINITYX,
-        sourceDir = "out/overlays_infinityx_r21",
+        sourceDir = "out/overlays_infinityx_r22",
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("oplus-services_patched.jar", FileRole.GUARD_JAR),
@@ -519,10 +519,13 @@ object PackageSets {
             // 0.4.55 (r4): One UI's camera, the Galaxy S26 Ultra's, rewritten for this image; 0.4.57 (r5)
             // with the system's camera icon in its notifications (fix_notification_icon.py).
             PackageFile("samcam.tar", FileRole.GUEST_FIX),
+            // 0.5.52 (r22): the lock screen fingerprint ring (vdcoolok's pull request #152; OneOSGlyphView placed from
+            // ro.oneos.fp_glyph) in the image's SystemUI, and services_patched.jar with the biometric removal guard.
+            PackageFile("SystemUI_glyph.apk", FileRole.GUEST_FIX),
         ) + (COMMON_PAYLOADS + listOf("bt", "nfcservices", "telephonycore", "conscrypt", "profiling", "gmssystem"))
             .map { PackageFile("${it}_payload.img", FileRole.APEX_PAYLOAD) } + CAM95,
         omitted = listOf(TETHERING, CELLBROADCAST),
-        approxBytes = 616_237_045L + 45904223L,
+        approxBytes = 616_237_045L + 45904223L + 66_685_890L,
         hasReturnApp = true,
     )
 
@@ -906,7 +909,7 @@ object PackageSets {
     val LINEAGE = PackageSet(
         id = ID_LINEAGE,
         imageId = Images.ID_LINEAGE,
-        sourceDir = "out/overlays_lineage_r13", // 0.5.21 r8: video rotation in samcam_a and samcam_bar
+        sourceDir = "out/overlays_lineage_r14", // 0.5.21 r8: video rotation in samcam_a and samcam_bar
         files = listOf(
             PackageFile("services_patched.jar", FileRole.GUARD_JAR),
             PackageFile("framework_patched.jar", FileRole.GUARD_JAR),

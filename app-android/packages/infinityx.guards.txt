@@ -15,7 +15,7 @@
 # 0.4.63: services_patched.jar + guest_pdb_init_survives.py (the PDB start task survives a failed FRP deactivation: no init timeout)
 # 0.5.00: services_patched.jar + guest_pdb_frp_writes_fail.py (with One UI's FRP active a guest PDB write fails as an I/O error instead of killing system_server's main thread: no black screen at the first start)
 # 0.5.01: framework_patched.jar + guest_secims_ready.py (Samsung IMS hears telephony is ready for a call's callbacks once telephony attaches to the session: calls end in the guest)
-67436937b7a55f46d4bebeea887d0ea745f40d664235ceb475731dec29e5650c  services_patched.jar
+959ab84056d9579056f4cab21fb59706d2535da4876283ad56668ad83732d248  services_patched.jar
 efeff31c080f7d92c2713fe7d7df79b95c149c9db47426a702f212e86fb28389  oplus-services_patched.jar
 654dcfa788bcfde4fc539935ffbcb707a3b0c2001e31b6de27edec5afe5de404  vold_patched
 d853cfa2f60c477a5c5224cf9972665f09a733fa66e659d71f43d521589fceb7  service.incremental_patched.so
@@ -27,3 +27,4 @@ f91a0e15d5d21c7476258b058264b24cf5dc1788b555a43c64629f50bcfd0038  telephony-comm
 1b96df2d432dbe5a6030345a150f299e717c06f394821e0307dd3374e6d61bf0  libcamera_client_patched_oneui95.so
 # 0.5.49 (infinityx_r20): framework_patched_oneui95.jar writes One UI 9.5's sixth CameraCompatibilityInfo field (switcher/patches/cci_oneui95.py; HyperOS on the S26 Ultra died on the five-field one)
 # 0.5.51 (infinityx_r21): framework_patched_oneui95.jar also reads the sixth CameraCompatibilityInfo field (switcher/patches/cci_oneui95.py; S26 Ultra PixelOS 356d83de: six written, five read, no app started)
+# biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py, owner 11-28: vdcoolok's fingerprint for Infinity-X); it reaches the phone's AIDL fingerprint HAL itself, as PixelOS 17 does

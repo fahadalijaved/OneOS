@@ -7,7 +7,7 @@
 # libcamera_client_patched.so, libcameracompatbilityinfo_patched.so: the native camera client with One UI's codes (patches/pixel_camera_native.py)
 # 0.5.07 r4: services_patched.jar with patches/guest_sp_migration_tolerant.py (a synthetic password Keystore refuses no longer stops system_server; S26 Ultra b5edb256)
 # 0.5.10 r5: services_patched.jar + patches/guest_local_lock.py (the guest's own screen lock; LineageOS keeps getCredentialType's answer in p0), scripts/patch-built-jar.sh on r4's jar
-0c63e19b1ab874d4a4a654f0fd3b100e0adf24ac2ea3edeb9b7608bbd6092e7b  services_patched.jar
+16e02d7b4d5bc68b9f94e204526fa8ceb09bde624c6ee11802c6b363eb483809  services_patched.jar
 edcf391437b107dc9a86a5c1435c7aba9a572373344aa62d9c972c7ab2d36dc2  vold_patched
 0235d2312e659dfb00b7bab3e6b8189e36ccd2b61d1c298f01347e8d4615bc5d  service.incremental_patched.so
 8eeb43db3299c6735887582769f69d78fbd09a7f24c12b919d5c7017639da6db  telephony-common_patched.jar
@@ -20,3 +20,4 @@ e31517bfc6bd0c58c13a4e47722b3c75af8e482ac91279c1b65e2eb7e0afd7ad  framework_patc
 7db5428181d4ea708e0ff8524afb8148bd92f54072a59507916806a2bd846734  libcamera_client_patched_oneui95.so
 # 0.5.49 (lineage_r12): framework_patched_oneui95.jar writes One UI 9.5's sixth CameraCompatibilityInfo field (switcher/patches/cci_oneui95.py; HyperOS on the S26 Ultra died on the five-field one)
 # 0.5.51 (lineage_r13): framework_patched_oneui95.jar also reads the sixth CameraCompatibilityInfo field (switcher/patches/cci_oneui95.py; S26 Ultra PixelOS 356d83de: six written, five read, no app started)
+# biometric-remove guard: services_patched.jar never removes a fingerprint or face template (patches/guest_no_biometric_remove.py, owner 11-28: vdcoolok's fingerprint for LineageOS); it reaches the phone's AIDL fingerprint HAL itself, as PixelOS 17 does

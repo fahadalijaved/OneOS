@@ -1365,7 +1365,11 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
                 awk -v r="$ROOTFS/system/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
                 $BB umount -l "$ROOTFS/system" 2>/dev/null || true
             fi
-        elif SMN=$(merge_up "$SOV/up" "$ROOTFS/system" "$STAGE/samcam_merge") && samcam_bind sys "$ROOTFS/system"; then
+        # coloros22test10: off unless ONEOS_MERGE_UP=1. On test 9 ColorOS no longer started on the S22s (S22 Ultra
+        # tomindabuilding 23ad5f08, abhera, Exynos S22 Homak: black screen): the guest's surfaceflinger, bootanimation
+        # and vold stopped at "CANNOT LINK ... library not found" (vendor.qti.hardware.display.composer@3.0.so,
+        # libimmlistservice.so, libcommon_dcs_service.so) with these bound copies in place. Cause not found yet.
+        elif [ "${ONEOS_MERGE_UP:-0}" = 1 ] && SMN=$(merge_up "$SOV/up" "$ROOTFS/system" "$STAGE/samcam_merge") && samcam_bind sys "$ROOTFS/system"; then
             # android12-5.10 kernels (the S22 series on One UI 8): no overlayfs here, so the same mount points
             # (and the layer's feature files and xbin) in bound copies of the folders that lack them.
             SAMCAM=1
@@ -1446,7 +1450,7 @@ if [ "$BIO_FEATURES" = 1 ] && [ ! -e "$ROOTFS/system/etc/permissions/android.har
         if rm -rf "$BFO/up" && mkdir -p "$BFO/up" && bio_features_into "$BFO/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$BFO/up:$ROOTFS/system" "$ROOTFS/system"; then
             echo "Biometric features: fingerprint and face declared in a private /system layer"
-        elif [ -d "$BFO/up/etc/permissions" ] && BFN=$(merge_up "$BFO/up" "$ROOTFS/system" "$STAGE/bio_features_merge"); then
+        elif [ "${ONEOS_MERGE_UP:-0}" = 1 ] && [ -d "$BFO/up/etc/permissions" ] && BFN=$(merge_up "$BFO/up" "$ROOTFS/system" "$STAGE/bio_features_merge"); then
             # 0.5.51: android12-5.10 kernels (the S22 series on One UI 8) refuse that overlay; the two feature
             # files bound into a copy of etc/permissions instead.
             echo "Biometric features: fingerprint and face declared in a bound copy of $BFN folder(s) (no overlayfs on this kernel)"
@@ -1932,7 +1936,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 # 0.5.51: Samsung Camera's system_ext entries (priv-app/SamsungCamera, its jars and permission
                 # files) the same way, from a layer of their own: only the camera's mount points, nothing else of
                 # the overlay's layer, so a session without the camera stays as before.
-                if [ $SAMCAM = 1 ]; then
+                if [ $SAMCAM = 1 ] && [ "${ONEOS_MERGE_UP:-0}" = 1 ]; then
                     SEUP="$STAGE/samcam_se_up"
                     $BB umount -l "$SEUP" 2>/dev/null; mkdir -p "$SEUP"
                     if $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SEUP" && $BB mount --make-private "$SEUP" &&
@@ -3479,6 +3483,31 @@ if [ -f "$STAGE/SystemUI_patched.apk" ] && [ -f "$QS_APK" ]; then
         fi
     else
         echo "Quick settings density patch left out (ONEOS_GUEST_QS_DENSITY=0)"
+    fi
+fi
+# Infinity-X's lock screen draws nothing over the in-display sensor: its SystemUI builds the UDFPS overlay with a
+# null animation controller, so the sensor unlocks with no ring to press (vdcoolok's pull request #152, owner
+# 11-28: his fix for Infinity-X). SystemUI_glyph.apk is the image's SystemUI (sha256 6a99684e...) with classes2.dex
+# replaced (switcher/patches/systemui-guest-glyph): NotificationShadeWindowView adds OneOSGlyphView, a ring placed
+# from ro.oneos.fp_glyph (guest_props.sh, this phone's sensor) and shown while the keyguard is locked. Only for an
+# Infinity-X image whose SystemUI is that build; ONEOS_GUEST_GLYPH=0 leaves the image's own.
+if grep -q '^ro\.infinity\.' "$ROOTFS/system/build.prop" 2>/dev/null && [ -f "$STAGE/SystemUI_glyph.apk" ] && [ -f "$QS_APK" ] &&
+   [ ! -f "$STAGE/SystemUI_patched.apk" ]; then
+    if [ "${ONEOS_GUEST_GLYPH:-1}" != 1 ]; then
+        echo "Infinity-X fingerprint ring left out (ONEOS_GUEST_GLYPH=0)"
+    elif [ "$(sha256sum "$QS_APK" 2>/dev/null | cut -c1-64)" != 6a99684e831f9635738189d39667debe0f8b798012fa4eb622a7cb87ad9b1ddf ]; then
+        echo "Infinity-X fingerprint ring left out (this image's SystemUI is not the build SystemUI_glyph.apk was made from)"
+    else
+        chmod 644 "$STAGE/SystemUI_glyph.apk"
+        $BB chcon u:object_r:system_file:s0 "$STAGE/SystemUI_glyph.apk" 2>/dev/null || true
+        $BB umount -l "$QS_APK" 2>/dev/null || true
+        $BB mount --bind "$STAGE/SystemUI_glyph.apk" "$QS_APK" &&
+            $BB mount -o remount,bind,ro "$STAGE/SystemUI_glyph.apk" "$QS_APK" 2>/dev/null
+        if [ "$(stat -c %d:%i "$QS_APK" 2>/dev/null)" = "$(stat -c %d:%i "$STAGE/SystemUI_glyph.apk")" ]; then
+            echo "Bound SystemUI_glyph.apk -> $QS_APK (Infinity-X lock screen fingerprint ring)"
+        else
+            echo "!!! WARNING: SystemUI_glyph.apk is not in place; the Infinity-X lock screen shows no fingerprint ring"
+        fi
     fi
 fi
 

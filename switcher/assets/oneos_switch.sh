@@ -5037,6 +5037,12 @@ if [ "$RETURN_MAX" -gt 0 ]; then
                     # android.system.vold.IVold/default, the guest's is gvld (run 44).
                     { for n in vold android.system.vold.IVold/default gvld; do echo \"\$n: \$(timeout 5 dumpsys --pid \$n 2>&1 | head -n 1)\"; done
                       echo \"init.svc_debug_pid.vold: \$(getprop init.svc_debug_pid.vold)\"; } > \$D/vold_names.txt
+                    # 0.5.52: where the space goes (A35 Moumin367: ~3 GB per switch, ~25 GB gone, Free up space showed
+                    # no old copies): /data's use and the largest OneOS folders, once a session, on /data only (-x:
+                    # the image mounts are not counted), at low priority.
+                    if [ \"\$dname\" = 90 ]; then
+                        { $BB df -k /data; nice -n 19 timeout 120 $BB du -xk -d 2 /data/local/tmp 2>/dev/null | sort -rn | head -n 40; } > \$D/storage.txt 2>&1
+                    fi
                     timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys SurfaceFlinger > \$D/surfaceflinger.txt 2>&1
                     timeout 15 $BB nsenter -t \$SFP -m /system/bin/sh /data/oneos_genv.sh /system/bin/dumpsys display > \$D/display.txt 2>&1
                     for id in \$(grep -o 'Display [0-9]\\{6,\\}' \$D/surfaceflinger.txt | awk '{print \$2}' | sort -u); do

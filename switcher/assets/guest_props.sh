@@ -1643,17 +1643,37 @@ ro.miui.backdrop_sampling_enabled=true"
         # 386 for 515) the icon sat a quarter too low after the scaling below.
         UPPI=$(awk 'match($0, /resolution=[0-9]+x[0-9]+/) { split(substr($0, RSTART + 11, RLENGTH - 11), a, "x"); if (a[1] + 0 <= w) next;
             w = a[1] + 0; if (match($0, /dpi=[0-9.]+/)) d = substr($0, RSTART + 4, RLENGTH - 4) + 0 } END { if (w && d >= 100) print d }' "$STAGE/display_modes_host.log" 2>/dev/null)
-        [ -n "$UPPI" ] && UDPI=$UPPI
-        fpl=$(echo "$UPOS $UDPI ${UMODE:-0} ${UPHYS:-0}" | awk '{ n = split($1, p, ","); dpi = $2; k = ($3 > 0 && $4 > 0) ? $3 / $4 : 1;
+        # Without the modes log the display line's dpi is the running mode's: back to the panel's by the two widths
+        # (vdcoolok's S25 Ultra 9dde4045, 0.5.50: 375.8 dpi scaled twice, the centre at 414 for 552).
+        if [ -n "$UPPI" ]; then UDPI=$UPPI
+        elif [ "${UMODE:-0}" -gt 0 ] 2>/dev/null && [ "${UPHYS:-0}" -gt 0 ] 2>/dev/null && [ -n "$UDPI" ]; then
+            UDPI=$(awk -v d="$UDPI" -v m="$UMODE" -v p="$UPHYS" 'BEGIN { printf "%.5f", d * p / m }')
+        fi
+        # OPPO's SystemUI zooms both props by its own stable/base display width ("1080P in 2k -> zoomIn", "2k in 2k
+        # -> do nothing"), so they are in the pixels of the width the GUEST runs the panel at, not One UI's: with
+        # One UI at FHD+ a Snapdragon Ultra or S25+ gives the guest the whole panel (vdcoolok's S25 Ultra at FHD+,
+        # 9dde4045: guest stableWidth = baseWidth = 1440, our 1080-scaled centre sat ~10 mm under the sensor; his
+        # pull request #152 used the panel's pixels), the Exynos S24+ runs it at One UI's width. The same choice as
+        # the HyperOS base density above: the last session's width (UI activator, data/oneos_guest_width) when it
+        # is one of the two, else the whole panel, on Exynos One UI's.
+        UGW=$UMODE
+        if [ "${UMODE:-0}" -gt 0 ] 2>/dev/null && [ "${UPHYS:-0}" -gt 0 ] 2>/dev/null && [ "$UMODE" != "$UPHYS" ]; then
+            ugw=$(head -c 8 "$STAGE/data/oneos_guest_width" 2>/dev/null | tr -dc 0-9)
+            [ -L "$STAGE/data/oneos_guest_width" ] && ugw=""
+            if [ -n "$ugw" ] && { [ "$ugw" = "$UMODE" ] || [ "$ugw" = "$UPHYS" ]; }; then UGW=$ugw
+            else case "$(getprop ro.board.platform)" in s5e*|exynos*|erd*) ;; *) UGW=$UPHYS ;; esac
+            fi
+        fi
+        fpl=$(echo "$UPOS $UDPI ${UGW:-0} ${UPHYS:-0}" | awk '{ n = split($1, p, ","); dpi = $2; k = ($3 > 0 && $4 > 0) ? $3 / $4 : 1;
             if (n < 6 || dpi < 100 || p[1] <= 0) exit; printf "%d", (p[1] + p[4] / 2) * dpi / 25.4 * k + 0.5 }')
-        fps=$(echo "${UMODE:-1080}" | awk '{ printf "%d", 196 * ($1 > 0 ? $1 : 1080) / 1080 + 0.5 }')
+        fps=$(echo "${UGW:-1080}" | awk '{ printf "%d", 196 * ($1 > 0 ? $1 : 1080) / 1080 + 0.5 }')
         if [ -n "$fpt" ] && [ -n "$fpl" ]; then
             for kv in "persist.vendor.fingerprint.sensor_type=$fpt" "persist.vendor.fingerprint.optical.iconlocation=$fpl" \
                       "persist.vendor.fingerprint.optical.iconsize=$fps"; do
                 drop_new "${kv%%=*}"
                 echo "$kv" >> "$NEW"
             done
-            echo "guest_props: OPPO fingerprint: $fpt sensor, icon centre ${fpl}px from the bottom, size $fps (from '$UPOS' at $UDPI dpi, panel ${UPHYS:-?} px wide running at ${UMODE:-?})"
+            echo "guest_props: OPPO fingerprint: $fpt sensor, icon centre ${fpl}px from the bottom, size $fps (from '$UPOS' at $UDPI dpi, panel ${UPHYS:-?} px wide, One UI at ${UMODE:-?}, guest at ${UGW:-?})"
             # vdcoolok's fingerprint wave in ColorPanoramicSystemUI.apk (scripts/patch-coloros-fp-wave.py, made on the
             # S25 Ultra): glyph first at the wake, the full wave over home after the unlock, no black dim layer. Only
             # for ultrasonic sensors; optical ones keep ColorOS's own highlight flow. ONEOS_GUEST_FP_WAVE=0 turns it off.
@@ -1672,6 +1692,29 @@ ro.miui.backdrop_sampling_enabled=true"
             fi
         else
             echo "guest_props: OPPO fingerprint: no in-display sensor known (features '${fpf}', position '${UPOS}', dpi '${UDPI}')"
+        fi
+    fi
+    # Infinity-X's keyguard fingerprint ring (SystemUI_glyph.apk, OneOSGlyphView from vdcoolok's pull request #152;
+    # owner 11-28: his fix for Infinity-X): its place as ten-thousandths of the panel's width and height, from this
+    # phone's own sensor position (sysfs: bottom margin, x offset, area height in mm, as guest_prepare.sh's
+    # OneOSUdfps reads it) at the panel's density; a 5 mm radius (his S25 Ultra ring, 98 px of 1440). Fractions,
+    # so the ring lands on the sensor at any resolution the guest runs at. No in-display sensor: no ring.
+    if grep -q '^ro\.infinity\.' "$ROOTFS/system/build.prop" 2>/dev/null; then
+        GPOS=$(head -n 1 /sys/class/fingerprint/fingerprint/position 2>/dev/null)
+        GLINE=$(grep 'type INTERNAL' "$STAGE/display_host.txt" 2>/dev/null | grep 'FLAG_ALLOWED_TO_BE_DEFAULT_DISPLAY' | head -n 1)
+        GWH=$(printf '%s\n' "$GLINE" | sed -n 's/.*physicalDisplayWidth=\([0-9]*\) physicalDisplayHeight=\([0-9]*\).*/\1 \2/p')
+        GDPI=$(awk 'match($0, /resolution=[0-9]+x[0-9]+/) { split(substr($0, RSTART + 11, RLENGTH - 11), a, "x"); if (a[1] + 0 <= w) next;
+            w = a[1] + 0; if (match($0, /dpi=[0-9.]+/)) d = substr($0, RSTART + 4, RLENGTH - 4) + 0 } END { if (w && d >= 100) print d }' "$STAGE/display_modes_host.log" 2>/dev/null)
+        GFR=$(echo "$GPOS $GWH $GDPI" | awk '{ n = split($1, p, ","); w = $2; h = $3; dpi = $4;
+            if (n < 6 || w < 100 || h < 100 || dpi < 100 || p[1] <= 0) exit; ppm = dpi / 25.4;
+            x = w / 2 + p[2] * ppm; y = h - (p[1] + p[4] / 2) * ppm; r = 5 * ppm;
+            if (x > 0 && x < w && y > 0 && y < h) printf "%d %d %d", x / w * 10000 + 0.5, y / h * 10000 + 0.5, r / w * 10000 + 0.5 }')
+        drop_new ro.oneos.fp_glyph
+        if [ -n "$GFR" ]; then
+            echo "ro.oneos.fp_glyph=$GFR" >> "$NEW"
+            echo "guest_props: ro.oneos.fp_glyph=$GFR (Infinity-X fingerprint ring, from '$GPOS', panel ${GWH:-?} at ${GDPI:-?} dpi)"
+        else
+            echo "guest_props: Infinity-X fingerprint ring left out (no in-display sensor known: '$GPOS', panel '${GWH}', dpi '${GDPI}')"
         fi
     fi
     # Hardware Codec2 components on Exynos (0.5.33+ S24 FE 97db2ff1: mediaserver64 queried

@@ -801,6 +801,15 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.52: **fingerprint in Infinity-X and LineageOS, ColorOS fingerprint icon on QHD phones.**
+- **Fingerprint unlock in Infinity-X and LineageOS** with One UI's own fingerprints, and a fingerprint ring on the
+  Infinity-X lock screen placed from the phone's sensor (vdcoolok's work, pull request #152) (testing).
+- **ColorOS fingerprint icon** on the S25 Ultra and other QHD phones with One UI at FHD+ now sits on the sensor: the
+  other system runs the whole panel, and the icon was placed for One UI's resolution (testing).
+- Samsung Camera through bound copies on the older-kernel phones (S22 series, S23 FE, A25, A33, A53) is off again:
+  it stopped ColorOS from starting on the S22s.
+- Session reports record where /data's space goes.
+
 New in 0.5.51: **smoother sessions with full logs, S26 black screen, ColorOS fingerprint wave.**
 - **Less heat and lag with full logs on**: full session logs record the first 10 minutes of a session, then stop;
   **Record full logs from now** in the other system's OneOS app records until the return. With Full session logs off,
