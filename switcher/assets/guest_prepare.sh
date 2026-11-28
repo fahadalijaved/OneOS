@@ -448,7 +448,7 @@ if [ "${ONEOS_GUEST_ODM_AI:-1}" = 1 ] && [ -f "$ODM_AI_TAR" ] && [ ! -L "$ODM_AI
             echo "OPPO AI engine: odm/lib64/libaiboost.so and its delegates over the guest's /odm (read-only overlay)"
         else
             $BB mount --bind /odm "$ROOTFS/odm" && $BB mount --make-rslave "$ROOTFS/odm" 2>/dev/null
-            echo "!!! OPPO AI engine: overlay on the guest's /odm refused; One UI's /odm as before"
+            ODM_AI_FALLBACK=1
         fi
     else
         echo "!!! OPPO AI engine: oplus_odm_ai.tar is not plain lib64 files; left out"
@@ -749,12 +749,12 @@ sec_ims_stage() {
 # stays on the staged copy. The return path unmounts every mount under the stage.
 sec_ims_bind() {
     local gse="$GUEST_SYSTEM_EXT" n=0 f t d
-    mkdir -p "$gse/priv-app/OneOSSecIms" || return 1
+    [ -d "$gse/priv-app/OneOSSecIms" ] || mkdir -p "$gse/priv-app/OneOSSecIms" || return 1
     $BB mount --bind "$SECIMS/priv-app/OneOSSecIms" "$gse/priv-app/OneOSSecIms" || return 1
     $BB mount --make-rslave "$gse/priv-app/OneOSSecIms" 2>/dev/null || true
     for d in framework lib64 etc etc/permissions; do
         [ -d "$SECIMS/$d" ] || continue
-        mkdir -p "$gse/$d" || return 1
+        [ -d "$gse/$d" ] || mkdir -p "$gse/$d" || return 1
         for f in "$SECIMS/$d"/*; do
             [ -f "$f" ] || continue
             t="$gse/$d/$(basename "$f")"
@@ -1247,9 +1247,15 @@ samcam_bind() {
 # when every entry is in place, else everything it made is taken back.
 farm_dir() {
     fd_t=$1; fd_w=$2; shift 2
+    [ -d "$fd_t" ] && [ ! -L "$fd_t" ] || return 1
     fd_f="$fd_w/farm"; fd_o="$fd_w/orig"
-    $BB umount -l "$fd_f" 2>/dev/null; $BB umount -l "$fd_o" 2>/dev/null
-    mkdir -p "$fd_f" "$fd_o" && $BB mount -t tmpfs -o size=256k,mode=755 tmpfs "$fd_f" || return 1
+    $BB umount -l "$fd_f" 2>/dev/null || true; $BB umount -l "$fd_o" 2>/dev/null || true
+    mkdir -p "$fd_f" "$fd_o" && $BB mount -t tmpfs -o size=2m,mode=755 tmpfs "$fd_f" || return 1
+    # Isolate the farm tmpfs from /data's shared propagation before binding it onto
+    # $fd_t: otherwise $fd_t and every child bound into it become shared, so a later
+    # bind-to-orig/farm-to-target step (e.g. system_ext without overlayfs) propagates
+    # the empty farm straight onto orig and wipes the directory.
+    $BB mount --make-private "$fd_f" || { $BB umount -l "$fd_f"; return 1; }
     for fd_e in "$fd_t"/* "$fd_t"/.[!.]*; do
         [ -e "$fd_e" ] || [ -L "$fd_e" ] || continue
         fd_n=${fd_e##*/}
@@ -1258,17 +1264,24 @@ farm_dir() {
         else : > "$fd_f/$fd_n"; fi || { $BB umount -l "$fd_f"; return 1; }
     done
     for fd_e in "$@"; do
-        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
+        case "$fd_e" in
+            */) mkdir -p "$fd_f/${fd_e%/}" ;;
+            */*) mkdir -p "$fd_f/${fd_e%/*}" && : > "$fd_f/$fd_e" ;;
+            *) : > "$fd_f/$fd_e" ;;
+        esac || { $BB umount -l "$fd_f"; return 1; }
     done
-    chmod 755 "$fd_f"; $BB chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
-    # 0.5.51: the copy's own folder labelled as the image's (system/lib64 is system_lib_file).
+    find "$fd_f" -type d -exec chmod 755 {} + 2>/dev/null || true
+    # 0.5.51+: label the copy, its symlinks, and new mount-point stubs to match the
+    # image directory (system/lib64 -> system_lib_file, odm/lib64 -> vendor_file).
     fd_c=$(ls -Zd "$fd_t" 2>/dev/null | awk '{print $1}')
-    case "$fd_c" in u:object_r:*) $BB chcon "$fd_c" "$fd_f" 2>/dev/null ;; esac
+    case "$fd_c" in u:object_r:*) ;; *) fd_c=u:object_r:system_file:s0 ;; esac
+    $BB chcon -h -R "$fd_c" "$fd_f" 2>/dev/null || $BB chcon -R "$fd_c" "$fd_f" 2>/dev/null || true
     # Recursive (oneui8test9): what is already mounted inside an entry comes along with it.
     $BB mount --rbind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }
     # Private before the farm goes over the target: a shared bind would show the farm here too.
     $BB mount --make-rprivate "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
     $BB mount --bind "$fd_f" "$fd_t" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    $BB mount --make-private "$fd_t" || { $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
     for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
         [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
         $BB mount --rbind "$fd_e" "$fd_t/${fd_e##*/}" || {
@@ -1276,25 +1289,47 @@ farm_dir() {
             $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
         }
     done
-    $BB mount -o remount,ro "$fd_f" 2>/dev/null
+    $BB mount -o remount,ro "$fd_f" 2>/dev/null || true
     return 0
+}
+unfarm_dir() {
+    uf_t=$1; uf_w=$2
+    awk -v r="$uf_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m" 2>/dev/null || true; done
+    grep -q " $uf_t tmpfs " /proc/mounts && $BB umount -l "$uf_t" 2>/dev/null || true
+    $BB umount -l "$uf_w/orig" 2>/dev/null || true
+    $BB umount -l "$uf_w/farm" 2>/dev/null || true
 }
 # merge_up <layer> <target> <work dir>: what a read-only overlay "lowerdir=<layer>:<target>" would show, for the
 # android12-5.10 kernels (S22 series, S23 FE, A25, A33, A53) that refuse overlayfs on the guest's /system and
 # system_ext ("Operation not supported on transport endpoint"). Every entry of <layer> that <target> lacks gets
 # its mount point: the deepest folder of <target> that exists is made a farm (farm_dir) with the missing names in
 # it, shallow folders first. Files of <layer> with content (feature lists) are then bound onto theirs; empty ones
-# are mount points for later binds (Samsung Camera). Status 1 when anything failed; the caller takes back what
-# is mounted under <target>. 0.5.51 (owner: Samsung Camera for ColorOS on the S22s; abhera's S22 Ultra:
+# are mount points for later binds (Samsung Camera). Status 1 when anything failed; everything it mounted is
+# rolled back. 0.5.51 (owner: Samsung Camera for ColorOS on the S22s; abhera's S22 Ultra:
 # "Samsung Camera in the guest: off (overlay on .../system refused)").
 merge_up() {
     mu_u=$1 mu_t=$2 mu_w=$3
     $BB mkdir -p "$mu_w" || return 1
     ( cd "$mu_u" && find . -mindepth 1 \( -type f -o -type d \) ) | sed 's|^\./||' > "$mu_w/layer" || return 1
-    : > "$mu_w/groups"; : > "$mu_w/made"
+    : > "$mu_w/groups"; : > "$mu_w/made"; : > "$mu_w/farmed"; : > "$mu_w/bound"
+    mu_rollback() {
+        if [ -s "$mu_w/bound" ]; then
+            awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$mu_w/bound" | while read -r uf_b; do
+                $BB umount -l "$uf_b" 2>/dev/null
+            done
+        fi
+        if [ -s "$mu_w/farmed" ]; then
+            awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$mu_w/farmed" | while IFS='|' read -r uf_p uf_d; do
+                unfarm_dir "$uf_p" "$uf_d"
+            done
+        fi
+    }
     while read -r mu_r; do
         [ -n "$mu_r" ] || continue
-        [ -e "$mu_t/$mu_r" ] && continue
+        if [ -e "$mu_t/$mu_r" ]; then
+            [ ! -d "$mu_u/$mu_r" ] && [ -s "$mu_u/$mu_r" ] && [ -f "$mu_t/$mu_r" ] && echo "$mu_r" >> "$mu_w/made"
+            continue
+        fi
         case "$mu_r" in */*) mu_d=${mu_r%/*} ;; *) mu_d=. ;; esac
         while [ "$mu_d" != . ] && [ ! -d "$mu_t/$mu_d" ]; do
             case "$mu_d" in */*) mu_d=${mu_d%/*} ;; *) mu_d=. ;; esac
@@ -1308,15 +1343,45 @@ merge_up() {
         mu_i=$((mu_i + 1))
         if [ "$mu_d" = . ]; then mu_p=$mu_t; else mu_p=$mu_t/$mu_d; fi
         # shellcheck disable=SC2046
-        farm_dir "$mu_p" "$mu_w/f$mu_i" $(awk -v d="$mu_d" '$1 == d {print $2}' "$mu_w/groups") || return 1
+        if farm_dir "$mu_p" "$mu_w/f$mu_i" $(awk -v d="$mu_d" '$1 == d {print $2}' "$mu_w/groups"); then
+            echo "$mu_p|$mu_w/f$mu_i" >> "$mu_w/farmed"
+        else
+            mu_rollback; return 1
+        fi
     done
     while read -r mu_r; do
         [ -s "$mu_u/$mu_r" ] || continue
-        $BB mount --bind "$mu_u/$mu_r" "$mu_t/$mu_r" || return 1
+        if $BB mount --bind "$mu_u/$mu_r" "$mu_t/$mu_r"; then
+            $BB mount --make-rslave "$mu_t/$mu_r" 2>/dev/null || true
+            $BB mount -o remount,bind,ro "$mu_t/$mu_r" 2>/dev/null || true
+            echo "$mu_t/$mu_r" >> "$mu_w/bound"
+        else
+            mu_rollback; return 1
+        fi
     done < "$mu_w/made"
     echo "$mu_i"
     return 0
 }
+# android12-5.10 fallback for oplus_odm_ai.tar (deferred from section 4 until farm_dir/merge_up exist):
+# bind libaiboost.so and its aiframe/ delegates into a private farmed copy of /odm/lib64 (or /odm).
+if [ "${ODM_AI_FALLBACK:-0}" = 1 ] && [ -d "$ODM_AI/lib64" ]; then
+    if [ -d "$ROOTFS/odm/lib64" ] && [ ! -L "$ROOTFS/odm/lib64" ] &&
+       ODMN=$(merge_up "$ODM_AI/lib64" "$ROOTFS/odm/lib64" "$STAGE/odm_ai_merge"); then
+        echo "OPPO AI engine: no overlayfs on this kernel; odm/lib64/libaiboost.so and its delegates in a bound copy of /odm/lib64 ($ODMN folder(s))"
+    elif [ -d "$ROOTFS/odm" ] && [ ! -L "$ROOTFS/odm" ] && [ ! -e "$ROOTFS/odm/lib64" ] &&
+         farm_dir "$ROOTFS/odm" "$STAGE/odm_ai_merge/f0" lib64/; then
+        if $BB mount --bind "$ODM_AI/lib64" "$ROOTFS/odm/lib64"; then
+            $BB mount --make-rslave "$ROOTFS/odm/lib64" 2>/dev/null || true
+            $BB mount -o remount,bind,ro "$ROOTFS/odm/lib64" 2>/dev/null || true
+            echo "OPPO AI engine: no overlayfs on this kernel; odm/lib64 bound into a copy of /odm"
+        else
+            unfarm_dir "$ROOTFS/odm" "$STAGE/odm_ai_merge/f0"
+            echo "!!! OPPO AI engine: overlay on the guest's /odm refused, and the bound copy failed; One UI's /odm as before"
+        fi
+    else
+        echo "!!! OPPO AI engine: overlay on the guest's /odm refused, and the bound copy failed; One UI's /odm as before"
+    fi
+fi
 # Add the missing guest su mount point to an overlay before its read-only
 # system view is mounted. Modern guest images need not ship /system/xbin.
 guest_root_mountpoint() {
@@ -1417,10 +1482,11 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
         if [ $fok = 1 ]; then
             chmod 755 "$GF" "$GF/xbin"
             $BB chcon -R u:object_r:system_file:s0 "$GF" 2>/dev/null || true
-            if $BB mount --bind "$ROOTFS/system" "$GOR" && $BB mount --bind "$GF" "$ROOTFS/system"; then
+            if $BB mount --rbind "$ROOTFS/system" "$GOR" && $BB mount --make-rprivate "$GOR" &&
+               $BB mount --bind "$GF" "$ROOTFS/system" && $BB mount --make-private "$ROOTFS/system"; then
                 for e in "$GOR"/* "$GOR"/.[!.]*; do
                     [ -e "$e" ] && [ ! -L "$e" ] || continue
-                    if $BB mount --bind "$e" "$ROOTFS/system/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
+                    if $BB mount --rbind "$e" "$ROOTFS/system/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
                 done
             else
                 fok=0
@@ -1447,12 +1513,17 @@ if [ "$BIO_FEATURES" = 1 ] && [ ! -e "$ROOTFS/system/etc/permissions/android.har
         if [ -L "$BFO" ]; then echo 'ERROR: biometric features overlay is a symlink'; exit 3; fi
         mkdir -p "$BFO"
         mount | grep -q " $BFO " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$BFO"
+        $BB mount --make-private "$BFO" 2>/dev/null || true
         if rm -rf "$BFO/up" && mkdir -p "$BFO/up" && bio_features_into "$BFO/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$BFO/up:$ROOTFS/system" "$ROOTFS/system"; then
             echo "Biometric features: fingerprint and face declared in a private /system layer"
-        elif [ "${ONEOS_MERGE_UP:-0}" = 1 ] && [ -d "$BFO/up/etc/permissions" ] && BFN=$(merge_up "$BFO/up" "$ROOTFS/system" "$STAGE/bio_features_merge"); then
-            # 0.5.51: android12-5.10 kernels (the S22 series on One UI 8) refuse that overlay; the two feature
-            # files bound into a copy of etc/permissions instead.
+        elif [ -d "$BFO/up/etc/permissions" ] && [ -d "$ROOTFS/system/etc/permissions" ] && [ ! -L "$ROOTFS/system/etc/permissions" ] &&
+             BFN=$(merge_up "$BFO/up/etc/permissions" "$ROOTFS/system/etc/permissions" "$STAGE/bio_features_merge"); then
+            # android12-5.10 kernels (S22 series on One UI 8) refuse the /system overlay: farm only
+            # /system/etc/permissions directly via the private farm_dir (never touches /system root or /system/lib64).
+            echo "Biometric features: fingerprint and face declared in a bound copy of $BFN folder(s) (no overlayfs on this kernel)"
+        elif [ -d "$BFO/up/etc/permissions" ] &&
+             BFN=$(merge_up "$BFO/up" "$ROOTFS/system" "$STAGE/bio_features_merge"); then
             echo "Biometric features: fingerprint and face declared in a bound copy of $BFN folder(s) (no overlayfs on this kernel)"
         else
             # A failed farm_dir takes back its own mounts; copies made before it only mirror the image.
@@ -1709,6 +1780,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         OV="$STAGE/system_ext_ov"
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
+        $BB mount --make-private "$OV" 2>/dev/null || true
         mkdir -p "$OV/up/apex"
         # vivo's package manager never scans /oem (F8U run 13, OriginOS CN: no package
         # cache entry for anything there, so the fold cutout overlay and the OneOS app
@@ -1866,9 +1938,6 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                         echo "Samsung IMS in the guest: off (bind-mount onto the read-only $GUEST_SYSTEM_EXT failed)"
                     fi
                 fi
-            elif [ $SEC_IMS = 1 ]; then
-                SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
-                echo "Samsung IMS in the guest: off (overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
         # The android12-5.10 kernels (the S22 series, S23 FE, A25, A33, A53 on One UI 8) refuse
@@ -1877,8 +1946,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         # died on One UI's system_ext APEXes ("Unable to parse: /system_ext/apex/com.android.vndk.
         # v31.apex"). Without overlayfs: system_ext's top level copied on the stage's tmpfs
         # (folders, empty files, links), each entry bound from the image, plus the apex mount
-        # point. The overlay's other additions (bin/hwservicemanager, etc/permissions features,
-        # Samsung IMS and camera mount points) are not in it; those are off as on a refusal.
+        # point.
         if [ ! -d "$GUEST_SYSTEM_EXT/apex" ] && [ -d /system_ext/apex ] && ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
             FARM="$OV/farm"; FORIG="$OV/orig"; fok=1; fn=0
             rm -rf "$FARM" && mkdir -p "$FARM/apex" "$FORIG" || fok=0
@@ -1893,10 +1961,11 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             if [ $fok = 1 ]; then
                 chmod 755 "$FARM" "$FARM/apex"
                 $BB chcon -R u:object_r:system_file:s0 "$FARM" 2>/dev/null || true
-                if $BB mount --bind "$GUEST_SYSTEM_EXT" "$FORIG" && $BB mount --bind "$FARM" "$GUEST_SYSTEM_EXT"; then
+                if $BB mount --rbind "$GUEST_SYSTEM_EXT" "$FORIG" && $BB mount --make-rprivate "$FORIG" &&
+                   $BB mount --bind "$FARM" "$GUEST_SYSTEM_EXT" && $BB mount --make-private "$GUEST_SYSTEM_EXT"; then
                     for e in "$FORIG"/* "$FORIG"/.[!.]*; do
                         [ -e "$e" ] && [ ! -L "$e" ] || continue
-                        if $BB mount --bind "$e" "$GUEST_SYSTEM_EXT/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
+                        if $BB mount --rbind "$e" "$GUEST_SYSTEM_EXT/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
                     done
                 else
                     fok=0
@@ -1955,9 +2024,58 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "!!! system_ext without overlayfs: the bound copy failed, left as the image has it"
             fi
         fi
+        # Without overlayfs on system_ext (android12-5.10 kernels), supply my_product feature declarations
+        # (Circle to Search, Gemini Power Menu, Lens, Wireless/Reverse Wireless Charging) and Samsung IMS
+        # through private farmed copies of their target subfolders.
+        if ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
+            MPX="$OV/up/etc/permissions/oneos-my-product-features.xml"
+            if [ -f "$MPX" ] && [ ! -f "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" ] && [ -d "$GUEST_SYSTEM_EXT/etc" ]; then
+                mpok=0
+                if [ -d "$GUEST_SYSTEM_EXT/etc/permissions" ] && [ ! -L "$GUEST_SYSTEM_EXT/etc/permissions" ]; then
+                    if farm_dir "$GUEST_SYSTEM_EXT/etc/permissions" "$STAGE/sysext_mpf_farm" oneos-my-product-features.xml; then
+                        if $BB mount --bind "$MPX" "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml"; then
+                            $BB mount --make-rslave "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true
+                            $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true
+                            mpok=1
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/etc/permissions" "$STAGE/sysext_mpf_farm"
+                        fi
+                    fi
+                elif [ ! -e "$GUEST_SYSTEM_EXT/etc/permissions" ]; then
+                    if farm_dir "$GUEST_SYSTEM_EXT/etc" "$STAGE/sysext_mpf_etc_farm" permissions/oneos-my-product-features.xml; then
+                        if $BB mount --bind "$MPX" "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml"; then
+                            $BB mount --make-rslave "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true
+                            $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true
+                            mpok=1
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/etc" "$STAGE/sysext_mpf_etc_farm"
+                        fi
+                    fi
+                fi
+                [ $mpok = 1 ] && echo "Features from my_product: bound into system_ext/etc/permissions (no overlayfs)" ||
+                    echo "!!! Features from my_product: could not bind oneos-my-product-features.xml (no overlayfs)"
+            fi
+            if [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ]; then
+                SIUP="$STAGE/secims_se_up"
+                $BB umount -l "$SIUP" 2>/dev/null; mkdir -p "$SIUP"
+                if $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SIUP" && $BB mount --make-private "$SIUP" &&
+                   secims_mountpoints "$SIUP" && SIM=$(merge_up "$SIUP" "$GUEST_SYSTEM_EXT" "$STAGE/secims_se_merge") &&
+                   sec_ims_bind; then
+                    SECIMS_BOUND=1
+                    echo "Samsung IMS in the guest: system_ext without overlayfs; its mount points in bound copies of $SIM folder(s)"
+                else
+                    if [ -s "$STAGE/secims_se_merge/farmed" ]; then
+                        awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$STAGE/secims_se_merge/farmed" | while IFS='|' read -r uf_p uf_d; do
+                            unfarm_dir "$uf_p" "$uf_d"
+                        done
+                    fi
+                    $BB umount -l "$SIUP" 2>/dev/null || true
+                fi
+            fi
+        fi
         # The Samsung IMS set binds onto either overlay (the read-only one through the
-        # mount points made in its layer); an earlier prepare's overlay has none.
-        [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no writable overlay to bind onto)"; }
+        # mount points made in its layer) or the non-overlayfs farmed folders above.
+        [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no overlay or bound copy to bind onto)"; }
         # Samsung Camera's mount points are in the overlay's own layer, so the
         # read-only form takes it as well.
         if [ $SAMCAM = 1 ] && [ "${SAMCAM_BOUND:-0}" != 1 ]; then
