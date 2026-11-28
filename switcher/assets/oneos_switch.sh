@@ -2567,15 +2567,17 @@ echo "Guest refresh-rate policy: ${GUEST_REFRESH} Hz (One UI physical modes)"
 GUEST_HIGH_ORR=3
 [ "$GUEST_REFRESH" = "90.0" ] && GUEST_HIGH_ORR=1
 # ColorOS's own 60/120 Hz choice (variable refresh, min_refresh_rate 0) only where no in-display optical
-# sensor needs a steady rate (the A36's fingerprint failed on variable rates, test 10), or on the Galaxy
-# S24 FE it was tested on (pull request #355); elsewhere the rate stays pinned as before.
+# sensor needs a steady rate (the A36's optical fingerprint failed on variable rates, test 10), or on the
+# Galaxy S24 FE it was tested on (pull request #355). Ultrasonic sensors (S22..S26) do not rely on panel
+# refresh/light and already expose the ColorOS refresh-rate menu (guest_prepare.sh).
 GUEST_ORR_DYN=1
 # ro.boot.hardware back to the phone's own after the guest's zygote preloaded libqti_performance.so: only on the
 # Galaxy S24 FE (pull request #355, its Night mode); elsewhere a zygote restart inside the session would come up
 # without that library (the S26+ UnsatisfiedLinkError). ONEOS_GUEST_RESTORE_BOOT_HW=1 forces it, 0 turns it off.
 GUEST_RESTORE_HW_DEF=0
 case "$(getprop ro.product.model)" in SM-S721*) GUEST_RESTORE_HW_DEF=1 ;; esac
-if [ -s "$STAGE/data/system/oneos_udfps" ]; then
+if [ -s "$STAGE/data/system/oneos_udfps" ] &&
+   ! grep -q '<SEC_FLOATING_FEATURE_BIOAUTH_CONFIG_FINGERPRINT_FEATURES>[^<]*ultrasonic' /system/etc/floating_feature.xml 2>/dev/null; then
     case "$(getprop ro.product.model)" in SM-S721*) ;; *) GUEST_ORR_DYN=0 ;; esac
 fi
 # ONEOS_GUEST_POSTURE=live: the fold line's posture follows the guest's hinge
