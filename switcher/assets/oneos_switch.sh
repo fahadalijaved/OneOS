@@ -183,7 +183,8 @@ done
 GUARD_JARS="services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" ||
                                        $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
                                        $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
-                                       $2 == "telephony-common_patched.jar" || $2 == "framework_patched_oneui95.jar" || $2 == "framework_patched_oneui8.jar" { print $2 }' "$STAGE/guards.txt")"
+                                       $2 == "telephony-common_patched.jar" || $2 == "framework_patched_oneui95.jar" || $2 == "framework_patched_oneui8.jar" ||
+                                       $2 == "framework_patched_oneui85.jar" || $2 == "libcamera_client_patched_oneui8.so" || $2 == "libcamera_client_patched_oneui85.so" { print $2 }' "$STAGE/guards.txt")"
 
 if [ "$APP" = 1 ]; then
     # Every staged file (files.sha256, written by the app's root script; all
