@@ -1626,7 +1626,8 @@ ro.miui.backdrop_sampling_enabled=true"
     # (SystemUI: udfpsBottomPadding = location - size / 2), and .iconsize. Read once at boot, so set here.
     # The kind from One UI's floating features, the centre as guest_prepare.sh computes it for OneOSUdfps
     # (the sysfs margin plus half the area height, at the panel's physical dpi).
-    if [ "$GUEST_OPLUS" = 1 ]; then
+    if [ "$GUEST_OPLUS" = 1 ] && [ "${ONEOS_GUEST_BIOMETRICS:-1}" = 1 ] &&
+       grep -q '^# biometric-remove guard' "$STAGE/guards.txt" 2>/dev/null; then
         FF=/system/etc/floating_feature.xml
         fpf=$(sed -n 's/.*<SEC_FLOATING_FEATURE_BIOAUTH_CONFIG_FINGERPRINT_FEATURES>\([^<]*\)<.*/\1/p' "$FF" 2>/dev/null | head -n 1)
         case "$fpf" in *ultrasonic*) fpt=ultrasonic ;; *optical*) fpt=optical ;; *) fpt="" ;; esac
