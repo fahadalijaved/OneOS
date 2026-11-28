@@ -1279,6 +1279,13 @@ farm_dir() {
     $BB mount -o remount,ro "$fd_f" 2>/dev/null
     return 0
 }
+# unfarm_dir <target> <work dir>: take back a completed farm_dir mount (and any binds under <target>).
+unfarm_dir() {
+    awk -v r="$1/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r uf_m; do $BB umount -l "$uf_m"; done
+    $BB umount -l "$1" 2>/dev/null || true
+    $BB umount -l "$2/orig" 2>/dev/null || true
+    $BB umount -l "$2/farm" 2>/dev/null || true
+}
 # merge_up <layer> <target> <work dir>: what a read-only overlay "lowerdir=<layer>:<target>" would show, for the
 # android12-5.10 kernels (S22 series, S23 FE, A25, A33, A53) that refuse overlayfs on the guest's /system and
 # system_ext ("Operation not supported on transport endpoint"). Every entry of <layer> that <target> lacks gets
@@ -1684,6 +1691,8 @@ if [ -n "$VNDK_NEED" ] && cat "$ROOTFS/system/etc/vintf/manifest.xml" "$ROOTFS"/
     VNDK_NEED=""
 fi
 # The fragment in an overlay layer ($1), merged with the framework manifest by libvintf.
+# Leave VNDK_NEED set until the mount carrying this fragment actually succeeds, so a refused
+# overlay on android12-5.10 kernels still binds it via farm_dir or the system manifest fallback.
 vndk_fragment() {
     [ -n "$VNDK_NEED" ] || return 0
     mkdir -p "$1/etc/vintf/manifest" &&
@@ -1691,11 +1700,10 @@ vndk_fragment() {
             > "$1/etc/vintf/manifest/oneos-vendor-ndk.xml" || return 1
     chmod 755 "$1/etc" "$1/etc/vintf" "$1/etc/vintf/manifest"; chmod 644 "$1/etc/vintf/manifest/oneos-vendor-ndk.xml"
     $BB chcon -R u:object_r:system_file:s0 "$1/etc/vintf" 2>/dev/null || true
-    echo "VINTF: vendor-ndk $VNDK_NEED added to the guest's framework manifest (One UI's vendor matrix asks for it)"
-    VNDK_NEED=""
 }
 SECIMS_BOUND=0
 VIVO_SE=""
+INJ_NO_OV=0
 if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
         echo "Overlay on $GUEST_SYSTEM_EXT already there (an earlier prepare), left as it is"
@@ -1704,7 +1712,9 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
     elif [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
         OV="$STAGE/system_ext_ov"
         mkdir -p "$OV"
-        mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
+        if ! mount | grep -q " $OV "; then
+            $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV" && { $BB mount --make-private "$OV" 2>/dev/null || true; }
+        fi
         mkdir -p "$OV/up/apex"
         # vivo's package manager never scans /oem (F8U run 13, OriginOS CN: no package
         # cache entry for anything there, so the fold cutout overlay and the OneOS app
@@ -1831,10 +1841,11 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                     fi
                 fi
             else
-                # The apex mount point matters more: today's rw form then.
+                # The apex mount point matters more: today's rw form then (and farm_dir fallback on kernel 5.10).
+                INJ_NO_OV=1
                 INJ=0
                 rm -f "$OV/up/framework/oneos-telephony.jar"
-                echo "Signal poll: off (read-only overlay on $GUEST_SYSTEM_EXT refused)"
+                echo "Signal poll: read-only overlay on $GUEST_SYSTEM_EXT refused (will retry via farm_dir if overlayfs is unavailable)"
             fi
         fi
         if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $TAB_CAM_COMPAT = 1 ]; }; then
@@ -1873,8 +1884,9 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         # died on One UI's system_ext APEXes ("Unable to parse: /system_ext/apex/com.android.vndk.
         # v31.apex"). Without overlayfs: system_ext's top level copied on the stage's tmpfs
         # (folders, empty files, links), each entry bound from the image, plus the apex mount
-        # point. The overlay's other additions (bin/hwservicemanager, etc/permissions features,
-        # Samsung IMS and camera mount points) are not in it; those are off as on a refusal.
+        # point. Key overlay entries (VIVO_SE, oneos-guest-user-types.xml, oneos-vendor-ndk.xml,
+        # bin/hwservicemanager, framework/oneos-telephony.jar, and Samsung Camera mount points)
+        # are added through farm_dir / merge_up below.
         if [ ! -d "$GUEST_SYSTEM_EXT/apex" ] && [ -d /system_ext/apex ] && ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
             FARM="$OV/farm"; FORIG="$OV/orig"; fok=1; fn=0
             rm -rf "$FARM" && mkdir -p "$FARM/apex" "$FORIG" || fok=0
@@ -1929,6 +1941,55 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                     [ $utok = 1 ] && echo "OneOS app: user-type entry bound into system_ext/etc/sysconfig (no overlayfs)" ||
                         echo "!!! OneOS app: could not bind its user-type entry; One UI's package manager may leave it out"
                 fi
+                # VINTF vendor-ndk fragment (when etc/vintf/manifest exists in system_ext; otherwise the
+                # system/etc/vintf/manifest.xml single-file bind fallback below handles VNDK_NEED).
+                VFX="$OV/up/etc/vintf/manifest/oneos-vendor-ndk.xml"
+                if [ -n "$VNDK_NEED" ] && [ -s "$VFX" ] && [ -d "$GUEST_SYSTEM_EXT/etc/vintf/manifest" ] &&
+                   [ ! -L "$GUEST_SYSTEM_EXT/etc/vintf/manifest" ] &&
+                   [ ! -e "$GUEST_SYSTEM_EXT/etc/vintf/manifest/oneos-vendor-ndk.xml" ]; then
+                    if farm_dir "$GUEST_SYSTEM_EXT/etc/vintf/manifest" "$OV/vintf_farm" oneos-vendor-ndk.xml; then
+                        if $BB mount --bind "$VFX" "$GUEST_SYSTEM_EXT/etc/vintf/manifest/oneos-vendor-ndk.xml"; then
+                            $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/etc/vintf/manifest/oneos-vendor-ndk.xml" 2>/dev/null || true
+                            echo "VINTF: vendor-ndk $VNDK_NEED bound into system_ext/etc/vintf/manifest (no overlayfs)"
+                            VNDK_NEED=""
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/etc/vintf/manifest" "$OV/vintf_farm"
+                        fi
+                    fi
+                fi
+                # HIDL hwservicemanager marker for HIDL-only HALs on kernel 5.10 without overlayfs.
+                if [ $HWSM = 1 ] && [ -f "$OV/up/bin/hwservicemanager" ] && [ -d "$GUEST_SYSTEM_EXT/bin" ] &&
+                   [ ! -L "$GUEST_SYSTEM_EXT/bin" ] && [ ! -e "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ]; then
+                    if farm_dir "$GUEST_SYSTEM_EXT/bin" "$OV/bin_farm" hwservicemanager; then
+                        if $BB mount --bind "$OV/up/bin/hwservicemanager" "$GUEST_SYSTEM_EXT/bin/hwservicemanager"; then
+                            $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/bin/hwservicemanager" 2>/dev/null || true
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/bin" "$OV/bin_farm"
+                        fi
+                    fi
+                fi
+                # Signal poll (oneos-telephony.jar): bind read-only into a farmed system_ext/framework
+                # so InjectedComponents sees statvfs ST_RDONLY without requiring overlayfs.
+                if [ $INJ_NO_OV = 1 ] && [ -f "$STAGE/oneos-telephony.jar" ] && [ -d "$GUEST_SYSTEM_EXT/framework" ] &&
+                   [ ! -L "$GUEST_SYSTEM_EXT/framework" ] && [ ! -e "$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" ]; then
+                    mkdir -p "$OV/inj" && cp "$STAGE/oneos-telephony.jar" "$OV/inj/oneos-telephony.jar" &&
+                        chmod 755 "$OV/inj" && chmod 644 "$OV/inj/oneos-telephony.jar" &&
+                        { $BB chcon u:object_r:system_file:s0 "$OV/inj/oneos-telephony.jar" 2>/dev/null || true; }
+                    if [ -f "$OV/inj/oneos-telephony.jar" ] &&
+                       farm_dir "$GUEST_SYSTEM_EXT/framework" "$OV/fw_farm" oneos-telephony.jar; then
+                        if $BB mount --bind "$OV/inj/oneos-telephony.jar" "$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" &&
+                           $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" &&
+                           awk -v m="$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" '$2 == m && ("," $4 ",") ~ /,ro,/ { f = 1 } END { exit !f }' /proc/mounts; then
+                            INJ=1
+                            echo "Signal poll: framework/oneos-telephony.jar bound read-only via farm_dir (no overlayfs)"
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/framework" "$OV/fw_farm"
+                            rm -f "$OV/inj/oneos-telephony.jar"
+                        fi
+                    else
+                        rm -f "$OV/inj/oneos-telephony.jar"
+                    fi
+                fi
                 # 0.5.51: Samsung Camera's system_ext entries (priv-app/SamsungCamera, its jars and permission
                 # files) the same way, from a layer of their own: only the camera's mount points, nothing else of
                 # the overlay's layer, so a session without the camera stays as before.
@@ -1969,16 +2030,26 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             fi
         fi
     fi
-    # No overlay of ours on system_ext (or an earlier prepare's): the vendor-ndk version goes into
-    # a bound copy of the system framework manifest instead.
+    if [ -n "$VNDK_NEED" ] && [ -s "$GUEST_SYSTEM_EXT/etc/vintf/manifest/oneos-vendor-ndk.xml" ]; then
+        echo "VINTF: vendor-ndk $VNDK_NEED added to the guest's framework manifest (One UI's vendor matrix asks for it)"
+        VNDK_NEED=""
+    fi
+    # No overlay of ours on system_ext (or an earlier prepare's, or no system_ext/etc/vintf/manifest):
+    # the vendor-ndk version goes into a bound copy of the system framework manifest instead.
     VM="$ROOTFS/system/etc/vintf/manifest.xml"
     if [ -n "$VNDK_NEED" ] && [ -f "$VM" ] && [ ! -L "$VM" ] && grep -q '</manifest>' "$VM"; then
-        awk -v v="$VNDK_NEED" '/<\/manifest>/ && !d { print "    <vendor-ndk>"; print "        <version>" v "</version>"; print "    </vendor-ndk>"; d = 1 } { print }' \
-            "$VM" > "$STAGE/oneos_vintf_manifest.xml" &&
-            chmod 644 "$STAGE/oneos_vintf_manifest.xml" && $BB chcon u:object_r:system_file:s0 "$STAGE/oneos_vintf_manifest.xml" 2>/dev/null
-        $BB mount --bind "$STAGE/oneos_vintf_manifest.xml" "$VM" &&
+        if awk -v v="$VNDK_NEED" '/<\/manifest>/ && !d { print "    <vendor-ndk>"; print "        <version>" v "</version>"; print "    </vendor-ndk>"; d = 1 } { print }' \
+               "$VM" > "$STAGE/oneos_vintf_manifest.xml" &&
+           chmod 644 "$STAGE/oneos_vintf_manifest.xml" &&
+           { $BB chcon u:object_r:system_file:s0 "$STAGE/oneos_vintf_manifest.xml" 2>/dev/null || true; } &&
+           $BB mount --bind "$STAGE/oneos_vintf_manifest.xml" "$VM"; then
+            $BB mount -o remount,bind,ro "$VM" 2>/dev/null || true
             echo "VINTF: vendor-ndk $VNDK_NEED added to a bound copy of the guest's system manifest (One UI's vendor matrix asks for it)"
-        VNDK_NEED=""
+            VNDK_NEED=""
+        else
+            rm -f "$STAGE/oneos_vintf_manifest.xml"
+            echo "!!! VINTF: could not bind vendor-ndk $VNDK_NEED into the guest's system manifest"
+        fi
     fi
     if [ -d /system_ext/apex ]; then
         if [ -d "$GUEST_SYSTEM_EXT/apex" ]; then
@@ -1991,9 +2062,10 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
     fi
 fi
 if [ $INJ = 1 ]; then
-    if ! grep -q " $GUEST_SYSTEM_EXT overlay ro[, ]" /proc/mounts; then
+    if ! grep -q " $GUEST_SYSTEM_EXT overlay ro[, ]" /proc/mounts &&
+       ! awk -v m="$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" '$2 == m && ("," $4 ",") ~ /,ro,/ { f = 1 } END { exit !f }' /proc/mounts; then
         INJ=0
-        echo "Signal poll: off (no read-only overlay on $GUEST_SYSTEM_EXT, which the injection needs)"
+        echo "Signal poll: off (no read-only mount for $GUEST_SYSTEM_EXT/framework/oneos-telephony.jar, which the injection needs)"
     elif ! cmp -s "$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" "$STAGE/oneos-telephony.jar"; then
         INJ=0
         echo "Signal poll: off ($GUEST_SYSTEM_EXT/framework/oneos-telephony.jar missing or not the staged one)"
@@ -2088,8 +2160,9 @@ elif [ ! -d "$PETC" ] || [ -L "$PETC" ]; then
 # overlay on LineageOS's /system leaves its own overlay mount on system/product/etc, and this check took
 # it for ours: no One UI curve, LineageOS's default one (100 % at 255 lux, the panel's peak) on every
 # Galaxy (A36, 2026-11-15: full bright and full low by turns, heat). Over another mount ours stacks on top.
-elif grep -q " $PETC overlay .*lowerdir=$STAGE/product_etc_ov/up:" /proc/mounts; then
-    echo "Display config: overlay on product/etc already there (an earlier prepare), left as it is"
+elif grep -q " $PETC overlay .*lowerdir=$STAGE/product_etc_ov/up:" /proc/mounts ||
+     awk -v p="$PETC/displayconfig" '$2 == p || index($2, p "/display_port_") == 1 { f = 1 } END { exit !f }' /proc/mounts; then
+    echo "Display config: product/etc/displayconfig already mounted (an earlier prepare), left as it is"
 elif [ -e "$PETC/displayconfig/display_port_147.xml" ] || [ -e "$PETC/displayconfig/display_port_148.xml" ]; then
     echo "Display config: the image has its own display_port_147/148, left as it is"
 else
@@ -2157,10 +2230,58 @@ else
         else ddc_xml $DDC_RANGE "$m" "$@" | sed '/<proxSensor>/,/<\/proxSensor>/d'
         fi > "$DOV/up/displayconfig/display_port_$port.xml"
     done
-    chmod 755 "$DOV/up" "$DOV/up/displayconfig" && chmod 644 "$DOV/up/displayconfig/"*.xml
+    chmod 755 "$DOV/up" "$DOV/up/displayconfig" && { [ -z "$DDC_PORTS" ] || chmod 644 "$DOV/up/displayconfig/"*.xml; }
     $BB chcon -R u:object_r:system_file:s0 "$DOV/up" 2>/dev/null || true
     if $BB mount -t overlay overlay -o "ro,lowerdir=$DOV/up:$PETC" "$PETC"; then
         echo "Display config: product/etc/displayconfig/display_port_ for ports ${DDC_PORTS:-none} (One UI's nits curve, brightnessMaximum${DDC_MAX:- none}$([ $DDC_PROX = 1 ] && echo ", Samsung's IR proximity"))"
+    elif [ -n "$DDC_PORTS" ]; then
+        # android12-5.10 kernels (S22 series, S23 FE, A25, A33, A53) refuse overlayfs on product/etc
+        # (EOPNOTSUPP). Bind the generated display_port_*.xml files via farm_dir instead.
+        ddc_ok=0
+        if [ -d "$PETC/displayconfig" ] && [ ! -L "$PETC/displayconfig" ]; then
+            ddc_add=""
+            for port in $DDC_PORTS; do
+                [ -e "$PETC/displayconfig/display_port_$port.xml" ] || ddc_add="$ddc_add display_port_$port.xml"
+            done
+            ddc_ready=1
+            if [ -n "$ddc_add" ]; then
+                # shellcheck disable=SC2086
+                farm_dir "$PETC/displayconfig" "$DOV/dc_farm" $ddc_add || ddc_ready=0
+            fi
+            if [ $ddc_ready = 1 ]; then
+                ddc_ok=1
+                for port in $DDC_PORTS; do
+                    if $BB mount --bind "$DOV/up/displayconfig/display_port_$port.xml" "$PETC/displayconfig/display_port_$port.xml"; then
+                        $BB mount -o remount,bind,ro "$PETC/displayconfig/display_port_$port.xml" 2>/dev/null || true
+                    else
+                        ddc_ok=0; break
+                    fi
+                done
+                if [ $ddc_ok = 0 ]; then
+                    if [ -n "$ddc_add" ]; then
+                        unfarm_dir "$PETC/displayconfig" "$DOV/dc_farm"
+                    else
+                        for port in $DDC_PORTS; do
+                            $BB umount -l "$PETC/displayconfig/display_port_$port.xml" 2>/dev/null || true
+                        done
+                    fi
+                fi
+            fi
+        elif [ ! -e "$PETC/displayconfig" ] && [ ! -L "$PETC/displayconfig" ]; then
+            if farm_dir "$PETC" "$DOV/etc_farm" displayconfig/; then
+                if $BB mount --bind "$DOV/up/displayconfig" "$PETC/displayconfig"; then
+                    $BB mount -o remount,bind,ro "$PETC/displayconfig" 2>/dev/null || true
+                    ddc_ok=1
+                else
+                    unfarm_dir "$PETC" "$DOV/etc_farm"
+                fi
+            fi
+        fi
+        if [ $ddc_ok = 1 ]; then
+            echo "Display config: product/etc/displayconfig/display_port_ for ports ${DDC_PORTS:-none} via farm_dir (no overlayfs; One UI's nits curve, brightnessMaximum${DDC_MAX:- none}$([ $DDC_PROX = 1 ] && echo ", Samsung's IR proximity"))"
+        else
+            echo "Display config: read-only overlay and farm_dir fallback on product/etc refused, left out"
+        fi
     else
         echo "Display config: read-only overlay on product/etc refused, left out"
     fi
