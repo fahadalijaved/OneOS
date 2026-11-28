@@ -35,14 +35,16 @@ jobs:
           yes | "$SDKM" --licenses >/dev/null 2>&1 || true
           "$SDKM" --install "platforms;android-37.0" "build-tools;36.0.0"
 
-      - name: Run S22 One UI 8.0 & ColorOS 17 regression tests
+      - name: Run S22 One UI 8.0 (Wave 1 + Wave 2) regression tests
         run: |
-          sh -n switcher/assets/guest_prepare.sh switcher/assets/oneos_switch.sh switcher/assets/guest_start.sh scripts/patch-camera-native.sh
+          sh -n switcher/assets/guest_prepare.sh switcher/assets/oneos_switch.sh switcher/assets/guest_start.sh switcher/assets/guest_props.sh switcher/assets/return_to_oneui.sh scripts/patch-camera-native.sh
           python3 scripts/test-coloros17-s22-kernel510.py
           python3 scripts/test-coloros17-oneui8-camera.py
           python3 scripts/test-s22-oneui8-noncamera.py
           python3 scripts/test-oneui95-a16-camera.py
           python3 scripts/test-samsung-camera-bind.py
+          python3 scripts/test-s22-wave1-fixes.py
+          python3 scripts/test-s22-wave2-optimizations.py
 
       - name: Build guest manager APK
         env:
@@ -50,7 +52,7 @@ jobs:
           GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: sh scripts/build-guest-manager.sh --debug
 
-      - name: Run Gradle tests & assemble OneOS S22 ColorOS 17 APK
+      - name: Run Gradle tests & assemble OneOS S22 Unified Wave 1+2 APK
         env:
           GH_PACKAGES_USER: ${{ github.actor }}
           GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,7 +63,7 @@ jobs:
             :app:testFullDebugUnitTest \
             :app:assembleFullDebug \
             -Poneos.colorOsOnA16=true \
-            -Poneos.a17OnA16Suffix=s22coloros \
+            -Poneos.a17OnA16Suffix=s22wave2 \
             --no-daemon
 
       - name: Package APK and checksum
@@ -69,7 +71,7 @@ jobs:
           mkdir -p dist
           APK=$(find app-android/app/build/outputs/apk/full/debug -maxdepth 1 -name '*.apk' | head -n 1)
           test -f "$APK"
-          OUT="dist/OneOS-0.5.52-s22coloros-debug.apk"
+          OUT="dist/OneOS-0.5.52-s22wave2-debug.apk"
           cp "$APK" "$OUT"
           (cd dist && sha256sum "$(basename "$OUT")" > "$(basename "$OUT").sha256")
           ls -lh dist/
@@ -77,7 +79,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OneOS-0.5.52-s22coloros-debug
+          name: OneOS-0.5.52-s22wave2-debug
           path: dist/*
 
       - name: Attach APK to GitHub Release
@@ -90,10 +92,10 @@ jobs:
           fi
           if [ -n "$TAG" ]; then
             if gh release view "$TAG" >/dev/null 2>&1; then
-              gh release upload "$TAG" dist/OneOS-0.5.52-s22coloros-debug.apk dist/OneOS-0.5.52-s22coloros-debug.apk.sha256 --clobber
+              gh release upload "$TAG" dist/OneOS-0.5.52-s22wave2-debug.apk dist/OneOS-0.5.52-s22wave2-debug.apk.sha256 --clobber
             else
-              gh release create "$TAG" dist/OneOS-0.5.52-s22coloros-debug.apk dist/OneOS-0.5.52-s22coloros-debug.apk.sha256 \
-                --title "OneOS 0.5.52 S22 One UI 8.0 + ColorOS 17 ($TAG)" \
+              gh release create "$TAG" dist/OneOS-0.5.52-s22wave2-debug.apk dist/OneOS-0.5.52-s22wave2-debug.apk.sha256 \
+                --title "OneOS 0.5.52 — Galaxy S22 (One UI 8.0) Unified Build Wave 1+2 ($TAG)" \
                 --generate-notes
             fi
           fi
