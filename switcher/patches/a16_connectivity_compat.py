@@ -53,8 +53,28 @@ BUCKET = "Landroid/app/usage/NetworkStats$Bucket;"
 
 def query3(name, ret=STATS):
     def fb(m, src):
-        last = f"{m.group('bp')}{int(m.group('bn')) - 1}"
-        return (f"    invoke-virtual/range {{{m.group('a')} .. {last}}}, {NSM}->{name}(Landroid/net/NetworkTemplate;JJ){ret}\n\n"
+        mgr = m.group('a')
+        bp, bn = m.group('bp'), int(m.group('bn'))
+        flags = f"{bp}{bn}"
+        last = f"{bp}{bn - 1}"
+        # R8-stripped Android 17 builds (One UI 9.5) fold useNetstatsPerQueryFlags() to true and
+        # remove setPollOnOpen(false) altogether. When falling back to Android 16's 3-arg overload
+        # with flags == 0 (no poll), clear poll-on-open directly so One UI 8's NetworkStatsManager
+        # (which defaults to mPollOnOpen=true) does not broadcast NETWORK_STATS_UPDATED in a loop.
+        if mgr.startswith("v") and int(mgr[1:]) < 16 and bp == "v" and bn < 16:
+            poll_off = (f"    if-nez {flags}, :{{TAG}}_p\n\n"
+                        f"    invoke-virtual {{{mgr}, {flags}}}, {NSM}->setPollOnOpen(Z)V\n\n"
+                        f"    :{{TAG}}_p\n")
+        else:
+            if mgr[0] != bp:
+                sys.exit(f"a16_connectivity_compat: {name}: mixed register range {mgr}..{flags} cannot add locals")
+            poll_off = (f"    if-nez {flags}, :{{TAG}}_p\n\n"
+                        f"    move-object/from16 {{NEWREG_HI}}, {mgr}\n\n"
+                        f"    const/16 {{NEWREG_HI2}}, 0x0\n\n"
+                        f"    invoke-virtual/range {{{{NEWREG_HI}} .. {{NEWREG_HI2}}}}, {NSM}->setPollOnOpen(Z)V\n\n"
+                        f"    :{{TAG}}_p\n")
+        return (poll_off +
+                f"    invoke-virtual/range {{{mgr} .. {last}}}, {NSM}->{name}(Landroid/net/NetworkTemplate;JJ){ret}\n\n"
                 f"    move-result-object {m.group('res')}\n")
     return fb
 
@@ -194,18 +214,24 @@ def main():
         for m in reversed(found):  # from the last site back, so earlier offsets stay right
             n += 1
             tag = f"oneos_a16cc_{n}"
-            fb = fallback(m, src)
-            if "{NEWREG}" in fb:
+            fb = fallback(m, src).replace("{TAG}", tag)
+            if "{NEWREG}" in fb or "{NEWREG_HI}" in fb:
+                hi = "{NEWREG_HI}" in fb
+                need = 2 if "{NEWREG_HI2}" in fb else 1
+                limit = 256 if hi else 16
                 start = src.rfind("\n.method ", 0, m.start())
                 lm = re.compile(r"^    \.locals (\d+)$", re.M).search(src, start, m.start())
                 if start < 0 or not lm:
                     sys.exit(f"a16_connectivity_compat: {rel}: no .locals for a site that needs a free register")
                 k = int(lm.group(1))
-                if k >= 16:
-                    sys.exit(f"a16_connectivity_compat: {rel}: .locals {k}, no free low register for the fallback")
-                fb = fb.replace("{NEWREG}", f"v{k}")
-                src = src[:lm.start()] + f"    .locals {k + 1}" + src[lm.end():]
-                shift = len(f"    .locals {k + 1}") - (lm.end() - lm.start())
+                if k + need > limit:
+                    sys.exit(f"a16_connectivity_compat: {rel}: .locals {k}, no {need} free register(s) below {limit} for the fallback")
+                if hi:
+                    fb = fb.replace("{NEWREG_HI2}", f"v{k + 1}").replace("{NEWREG_HI}", f"v{k}")
+                else:
+                    fb = fb.replace("{NEWREG}", f"v{k}")
+                src = src[:lm.start()] + f"    .locals {k + need}" + src[lm.end():]
+                shift = len(f"    .locals {k + need}") - (lm.end() - lm.start())
                 m = rx.search(src, m.start() + shift)
             end = src.find("\n.end method\n", m.end())
             if end < 0:

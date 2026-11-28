@@ -72,6 +72,7 @@ for pair in $BRIDGES; do no_symlink "${pair#*:}"; done
 for s in data misc misc/adb misc/profiles misc/user misc/bluedroid misc/bluetooth \
          misc_ce/0 misc_de/0 system system/devicestate system/package_cache \
          system/watchdog_timestamps system_de system_ce user/0 user_de/0 \
+         sec sec/camera \
          oneos_bin oneos_bin/busybox zygote_exec oplus oplus/multimedia \
          preapps-lib media/0 anr app local/tmp resource-cache oneos_fold8 oneos_pixel_hinge oneos_hinge; do
     no_symlink "$s"
@@ -93,6 +94,7 @@ for need in services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2
                                         $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
                                         $2 == "framework_patched_oneui95.jar" || $2 == "libcamera_client_patched_oneui95.so" ||
                                         $2 == "framework_patched_oneui8.jar" || $2 == "framework_patched_oneui85.jar" ||
+                                        $2 == "libcamera_client_patched_oneui8.so" || $2 == "libcamera_client_patched_oneui85.so" ||
                                         $2 == "libsurfaceflinger_patched.so" || $2 == "telephony-common_patched.jar" ||
                                         $2 == "vivo-services_patched.jar" || $2 == "vivo-telephony-common-platform-ex_patched.jar" ||
                                         $2 == "oplus-framework_patched.jar" { print $2 }' "$STAGE/guards.txt"); do
@@ -448,7 +450,7 @@ if [ "${ONEOS_GUEST_ODM_AI:-1}" = 1 ] && [ -f "$ODM_AI_TAR" ] && [ ! -L "$ODM_AI
             echo "OPPO AI engine: odm/lib64/libaiboost.so and its delegates over the guest's /odm (read-only overlay)"
         else
             $BB mount --bind /odm "$ROOTFS/odm" && $BB mount --make-rslave "$ROOTFS/odm" 2>/dev/null
-            echo "!!! OPPO AI engine: overlay on the guest's /odm refused; One UI's /odm as before"
+            ODM_AI_FALLBACK=1
         fi
     else
         echo "!!! OPPO AI engine: oplus_odm_ai.tar is not plain lib64 files; left out"
@@ -508,16 +510,19 @@ if [ "$(getprop ro.build.version.sdk)" = 36 ] &&
     # NullPointerException on every getCameraCharacteristics; Samsung's video call engine restarted ~2,000 times).
     # framework_patched_oneui85.jar (host_camera_oneui85.txt) on such a phone; without it the camera stays off.
     A16_OUI=$(getprop ro.build.version.oneui); case "$A16_OUI" in ''|*[!0-9]*) A16_OUI=0 ;; esac
-    A16_JAR=framework_patched_oneui8.jar; A16_NAME="One UI 8"
-    [ "$A16_OUI" -ge 80500 ] && A16_JAR=framework_patched_oneui85.jar && A16_NAME="One UI 8.5"
+    A16_JAR=framework_patched_oneui8.jar; A16_CL=libcamera_client_patched_oneui8.so; A16_NAME="One UI 8"
+    [ "$A16_OUI" -ge 80500 ] && A16_JAR=framework_patched_oneui85.jar && A16_CL=libcamera_client_patched_oneui85.so && A16_NAME="One UI 8.5"
     if [ -f "$STAGE/$A16_JAR" ] && [ "${ONEOS_A16_CAMERA:-1}" = 1 ] &&
        awk -v j="$A16_JAR" '$2 == j { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
         A16_CAMERA=1
         CAM_FW=$A16_JAR
+        if [ -f "$STAGE/$A16_CL" ] && awk -v l="$A16_CL" '$2 == l { f = 1 } END { exit !f }' "$STAGE/guards.txt"; then
+            CAM_CL=$A16_CL; CAM_CI=""
+        fi
         : > "$STAGE/a16_camera_on"
-        echo "Experimental One UI 9.5 on One UI 8 (SDK 36, One UI $A16_OUI): camera on, $A16_NAME's camera codes ($A16_JAR)"
+        echo "Experimental Android 17 on One UI 8 (SDK 36, One UI $A16_OUI): camera on, $A16_NAME's camera codes ($A16_JAR, native: $CAM_CL)"
     else
-        echo "Experimental One UI 9.5 on One UI 8 (SDK 36, One UI $A16_OUI): camera off (no $A16_JAR in this set)"
+        echo "Experimental Android 17 on One UI 8 (SDK 36, One UI $A16_OUI): camera off (no $A16_JAR in this set)"
     fi
 fi
 # The boot splash (OneOSBootStatus) runs on One UI 8's runtime while the session's SDK prop says 37: it
@@ -749,12 +754,12 @@ sec_ims_stage() {
 # stays on the staged copy. The return path unmounts every mount under the stage.
 sec_ims_bind() {
     local gse="$GUEST_SYSTEM_EXT" n=0 f t d
-    mkdir -p "$gse/priv-app/OneOSSecIms" || return 1
+    [ -d "$gse/priv-app/OneOSSecIms" ] || mkdir -p "$gse/priv-app/OneOSSecIms" || return 1
     $BB mount --bind "$SECIMS/priv-app/OneOSSecIms" "$gse/priv-app/OneOSSecIms" || return 1
     $BB mount --make-rslave "$gse/priv-app/OneOSSecIms" 2>/dev/null || true
     for d in framework lib64 etc etc/permissions; do
         [ -d "$SECIMS/$d" ] || continue
-        mkdir -p "$gse/$d" || return 1
+        [ -d "$gse/$d" ] || mkdir -p "$gse/$d" || return 1
         for f in "$SECIMS/$d"/*; do
             [ -f "$f" ] || continue
             t="$gse/$d/$(basename "$f")"
@@ -1106,7 +1111,8 @@ samcam_prepare() {
     SAMCAM_FF=/system/etc/floating_feature.xml
     rm -f "$SAMCAM_SRC/oneos-samcam-floating_feature.xml"
     ff_drop=""
-    for pair in ai_clear_zoom:libdtsr_wrapper_v1.camera.samsung.so; do
+    for pair in ai_clear_zoom:libdtsr_wrapper_v1.camera.samsung.so \
+                super_night.mpi:libAIQSolution_MPI.camera.samsung.so; do
         [ -e "/system/lib64/${pair#*:}" ] || [ -e "$SAMCAM_SRC/${pair#*:}" ] || ff_drop="$ff_drop ${pair%%:*}"
     done
     # 0.5.51 (S22 Ultra Exynos One UI 8 e24e6495): One UI 8 lists image_codec.samsung.v1; the S26 Ultra camera
@@ -1127,7 +1133,7 @@ samcam_prepare() {
                     for (i = 1; i <= m; i++) {
                         x = a[i]; gsub(/^[ \t]+|[ \t]+$/, "", x); f = x; sub(/\..*/, "", f)
                         if (x == "") continue
-                        if (f in gone) { cut = cut (cut == "" ? "" : ",") x; continue }
+                        if ((f in gone) || (x in gone)) { cut = cut (cut == "" ? "" : ",") x; continue }
                         if (x in to) { cut = cut (cut == "" ? "" : ",") x "->" to[x]; x = to[x] }
                         out = out (out == "" ? "" : ",") x
                     }
@@ -1247,9 +1253,15 @@ samcam_bind() {
 # when every entry is in place, else everything it made is taken back.
 farm_dir() {
     fd_t=$1; fd_w=$2; shift 2
+    [ -d "$fd_t" ] && [ ! -L "$fd_t" ] || return 1
     fd_f="$fd_w/farm"; fd_o="$fd_w/orig"
-    $BB umount -l "$fd_f" 2>/dev/null; $BB umount -l "$fd_o" 2>/dev/null
-    mkdir -p "$fd_f" "$fd_o" && $BB mount -t tmpfs -o size=256k,mode=755 tmpfs "$fd_f" || return 1
+    $BB umount -l "$fd_f" 2>/dev/null || true; $BB umount -l "$fd_o" 2>/dev/null || true
+    mkdir -p "$fd_f" "$fd_o" && $BB mount -t tmpfs -o size=2m,mode=755 tmpfs "$fd_f" || return 1
+    # Isolate the farm tmpfs from /data's shared propagation before binding it onto
+    # $fd_t: otherwise $fd_t and every child bound into it become shared, so a later
+    # bind-to-orig/farm-to-target step (e.g. system_ext without overlayfs) propagates
+    # the empty farm straight onto orig and wipes the directory.
+    $BB mount --make-private "$fd_f" || { $BB umount -l "$fd_f"; return 1; }
     for fd_e in "$fd_t"/* "$fd_t"/.[!.]*; do
         [ -e "$fd_e" ] || [ -L "$fd_e" ] || continue
         fd_n=${fd_e##*/}
@@ -1258,17 +1270,24 @@ farm_dir() {
         else : > "$fd_f/$fd_n"; fi || { $BB umount -l "$fd_f"; return 1; }
     done
     for fd_e in "$@"; do
-        case "$fd_e" in */) mkdir -p "$fd_f/${fd_e%/}" ;; *) : > "$fd_f/$fd_e" ;; esac || { $BB umount -l "$fd_f"; return 1; }
+        case "$fd_e" in
+            */) mkdir -p "$fd_f/${fd_e%/}" ;;
+            */*) mkdir -p "$fd_f/${fd_e%/*}" && : > "$fd_f/$fd_e" ;;
+            *) : > "$fd_f/$fd_e" ;;
+        esac || { $BB umount -l "$fd_f"; return 1; }
     done
-    chmod 755 "$fd_f"; $BB chcon -R u:object_r:system_file:s0 "$fd_f" 2>/dev/null
-    # 0.5.51: the copy's own folder labelled as the image's (system/lib64 is system_lib_file).
+    find "$fd_f" -type d -exec chmod 755 {} + 2>/dev/null || true
+    # 0.5.51+: label the copy, its symlinks, and new mount-point stubs to match the
+    # image directory (system/lib64 -> system_lib_file, odm/lib64 -> vendor_file).
     fd_c=$(ls -Zd "$fd_t" 2>/dev/null | awk '{print $1}')
-    case "$fd_c" in u:object_r:*) $BB chcon "$fd_c" "$fd_f" 2>/dev/null ;; esac
+    case "$fd_c" in u:object_r:*) ;; *) fd_c=u:object_r:system_file:s0 ;; esac
+    $BB chcon -h -R "$fd_c" "$fd_f" 2>/dev/null || $BB chcon -R "$fd_c" "$fd_f" 2>/dev/null || true
     # Recursive (oneui8test9): what is already mounted inside an entry comes along with it.
     $BB mount --rbind "$fd_t" "$fd_o" || { $BB umount -l "$fd_f"; return 1; }
     # Private before the farm goes over the target: a shared bind would show the farm here too.
     $BB mount --make-rprivate "$fd_o" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
     $BB mount --bind "$fd_f" "$fd_t" || { $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
+    $BB mount --make-private "$fd_t" || { $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1; }
     for fd_e in "$fd_o"/* "$fd_o"/.[!.]*; do
         [ -e "$fd_e" ] && [ ! -L "$fd_e" ] || continue
         $BB mount --rbind "$fd_e" "$fd_t/${fd_e##*/}" || {
@@ -1276,25 +1295,48 @@ farm_dir() {
             $BB umount -l "$fd_t"; $BB umount -l "$fd_o"; $BB umount -l "$fd_f"; return 1
         }
     done
-    $BB mount -o remount,ro "$fd_f" 2>/dev/null
+    $BB mount -o remount,ro "$fd_f" 2>/dev/null || true
     return 0
+}
+# unfarm_dir <target> <work dir>: take back a completed farm_dir mount (and any binds under <target>).
+unfarm_dir() {
+    uf_t=$1; uf_w=$2
+    awk -v r="$uf_t/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m" 2>/dev/null || true; done
+    grep -q " $uf_t tmpfs " /proc/mounts && $BB umount -l "$uf_t" 2>/dev/null || true
+    $BB umount -l "$uf_w/orig" 2>/dev/null || true
+    $BB umount -l "$uf_w/farm" 2>/dev/null || true
 }
 # merge_up <layer> <target> <work dir>: what a read-only overlay "lowerdir=<layer>:<target>" would show, for the
 # android12-5.10 kernels (S22 series, S23 FE, A25, A33, A53) that refuse overlayfs on the guest's /system and
 # system_ext ("Operation not supported on transport endpoint"). Every entry of <layer> that <target> lacks gets
 # its mount point: the deepest folder of <target> that exists is made a farm (farm_dir) with the missing names in
 # it, shallow folders first. Files of <layer> with content (feature lists) are then bound onto theirs; empty ones
-# are mount points for later binds (Samsung Camera). Status 1 when anything failed; the caller takes back what
-# is mounted under <target>. 0.5.51 (owner: Samsung Camera for ColorOS on the S22s; abhera's S22 Ultra:
+# are mount points for later binds (Samsung Camera). Status 1 when anything failed; everything it mounted is
+# rolled back. 0.5.51 (owner: Samsung Camera for ColorOS on the S22s; abhera's S22 Ultra:
 # "Samsung Camera in the guest: off (overlay on .../system refused)").
 merge_up() {
     mu_u=$1 mu_t=$2 mu_w=$3
     $BB mkdir -p "$mu_w" || return 1
     ( cd "$mu_u" && find . -mindepth 1 \( -type f -o -type d \) ) | sed 's|^\./||' > "$mu_w/layer" || return 1
-    : > "$mu_w/groups"; : > "$mu_w/made"
+    : > "$mu_w/groups"; : > "$mu_w/made"; : > "$mu_w/farmed"; : > "$mu_w/bound"
+    mu_rollback() {
+        if [ -s "$mu_w/bound" ]; then
+            awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$mu_w/bound" | while read -r uf_b; do
+                $BB umount -l "$uf_b" 2>/dev/null
+            done
+        fi
+        if [ -s "$mu_w/farmed" ]; then
+            awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$mu_w/farmed" | while IFS='|' read -r uf_p uf_d; do
+                unfarm_dir "$uf_p" "$uf_d"
+            done
+        fi
+    }
     while read -r mu_r; do
         [ -n "$mu_r" ] || continue
-        [ -e "$mu_t/$mu_r" ] && continue
+        if [ -e "$mu_t/$mu_r" ]; then
+            [ ! -d "$mu_u/$mu_r" ] && [ -s "$mu_u/$mu_r" ] && [ -f "$mu_t/$mu_r" ] && echo "$mu_r" >> "$mu_w/made"
+            continue
+        fi
         case "$mu_r" in */*) mu_d=${mu_r%/*} ;; *) mu_d=. ;; esac
         while [ "$mu_d" != . ] && [ ! -d "$mu_t/$mu_d" ]; do
             case "$mu_d" in */*) mu_d=${mu_d%/*} ;; *) mu_d=. ;; esac
@@ -1308,15 +1350,45 @@ merge_up() {
         mu_i=$((mu_i + 1))
         if [ "$mu_d" = . ]; then mu_p=$mu_t; else mu_p=$mu_t/$mu_d; fi
         # shellcheck disable=SC2046
-        farm_dir "$mu_p" "$mu_w/f$mu_i" $(awk -v d="$mu_d" '$1 == d {print $2}' "$mu_w/groups") || return 1
+        if farm_dir "$mu_p" "$mu_w/f$mu_i" $(awk -v d="$mu_d" '$1 == d {print $2}' "$mu_w/groups"); then
+            echo "$mu_p|$mu_w/f$mu_i" >> "$mu_w/farmed"
+        else
+            mu_rollback; return 1
+        fi
     done
     while read -r mu_r; do
         [ -s "$mu_u/$mu_r" ] || continue
-        $BB mount --bind "$mu_u/$mu_r" "$mu_t/$mu_r" || return 1
+        if $BB mount --bind "$mu_u/$mu_r" "$mu_t/$mu_r"; then
+            $BB mount --make-rslave "$mu_t/$mu_r" 2>/dev/null || true
+            $BB mount -o remount,bind,ro "$mu_t/$mu_r" 2>/dev/null || true
+            echo "$mu_t/$mu_r" >> "$mu_w/bound"
+        else
+            mu_rollback; return 1
+        fi
     done < "$mu_w/made"
     echo "$mu_i"
     return 0
 }
+# android12-5.10 fallback for oplus_odm_ai.tar (deferred from section 4 until farm_dir/merge_up exist):
+# bind libaiboost.so and its aiframe/ delegates into a private farmed copy of /odm/lib64 (or /odm).
+if [ "${ODM_AI_FALLBACK:-0}" = 1 ] && [ -d "$ODM_AI/lib64" ]; then
+    if [ -d "$ROOTFS/odm/lib64" ] && [ ! -L "$ROOTFS/odm/lib64" ] &&
+       ODMN=$(merge_up "$ODM_AI/lib64" "$ROOTFS/odm/lib64" "$STAGE/odm_ai_merge"); then
+        echo "OPPO AI engine: no overlayfs on this kernel; odm/lib64/libaiboost.so and its delegates in a bound copy of /odm/lib64 ($ODMN folder(s))"
+    elif [ -d "$ROOTFS/odm" ] && [ ! -L "$ROOTFS/odm" ] && [ ! -e "$ROOTFS/odm/lib64" ] &&
+         farm_dir "$ROOTFS/odm" "$STAGE/odm_ai_merge/f0" lib64/; then
+        if $BB mount --bind "$ODM_AI/lib64" "$ROOTFS/odm/lib64"; then
+            $BB mount --make-rslave "$ROOTFS/odm/lib64" 2>/dev/null || true
+            $BB mount -o remount,bind,ro "$ROOTFS/odm/lib64" 2>/dev/null || true
+            echo "OPPO AI engine: no overlayfs on this kernel; odm/lib64 bound into a copy of /odm"
+        else
+            unfarm_dir "$ROOTFS/odm" "$STAGE/odm_ai_merge/f0"
+            echo "!!! OPPO AI engine: overlay on the guest's /odm refused, and the bound copy failed; One UI's /odm as before"
+        fi
+    else
+        echo "!!! OPPO AI engine: overlay on the guest's /odm refused, and the bound copy failed; One UI's /odm as before"
+    fi
+fi
 # Add the missing guest su mount point to an overlay before its read-only
 # system view is mounted. Modern guest images need not ship /system/xbin.
 guest_root_mountpoint() {
@@ -1355,6 +1427,7 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         SOV="$STAGE/system_ov"
         mkdir -p "$SOV"
         mount | grep -q " $SOV " || $BB mount -t tmpfs -o size=4m,mode=755 tmpfs "$SOV"
+        $BB mount --make-private "$SOV" 2>/dev/null || true
         rm -rf "$SOV/up" && mkdir -p "$SOV/up" && bio_features_into "$SOV/up"
         echo "Samsung Camera: overlay $(date +%T)"
         if samcam_mountpoints "$SOV/up" sys && guest_root_mountpoint "$SOV/up" &&
@@ -1365,11 +1438,10 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
                 awk -v r="$ROOTFS/system/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
                 $BB umount -l "$ROOTFS/system" 2>/dev/null || true
             fi
-        # coloros22test10: off unless ONEOS_MERGE_UP=1. On test 9 ColorOS no longer started on the S22s (S22 Ultra
-        # tomindabuilding 23ad5f08, abhera, Exynos S22 Homak: black screen): the guest's surfaceflinger, bootanimation
-        # and vold stopped at "CANNOT LINK ... library not found" (vendor.qti.hardware.display.composer@3.0.so,
-        # libimmlistservice.so, libcommon_dcs_service.so) with these bound copies in place. Cause not found yet.
-        elif [ "${ONEOS_MERGE_UP:-0}" = 1 ] && SMN=$(merge_up "$SOV/up" "$ROOTFS/system" "$STAGE/samcam_merge") && samcam_bind sys "$ROOTFS/system"; then
+        # Re-enabled by default (ONEOS_MERGE_UP=0 still opts out): coloros22test9's black screen on S22 was
+        # caused by farm_dir() leaving $fd_f/$fd_t shared under /data, so system_ext-without-overlayfs later
+        # propagated its empty $FARM straight onto $FORIG and wiped /system_ext/lib64. Both are now private.
+        elif [ "${ONEOS_MERGE_UP:-1}" = 1 ] && SMN=$(merge_up "$SOV/up" "$ROOTFS/system" "$STAGE/samcam_merge") && samcam_bind sys "$ROOTFS/system"; then
             # android12-5.10 kernels (the S22 series on One UI 8): no overlayfs here, so the same mount points
             # (and the layer's feature files and xbin) in bound copies of the folders that lack them.
             SAMCAM=1
@@ -1377,6 +1449,11 @@ elif [ -d "$SAMCAM_SRC" ] && [ "${ONEOS_GUEST_SAMSUNG_CAMERA:-1}" = 1 ]; then
         else
             awk -v r="$ROOTFS/system/" 'index($2, r) == 1 {print $2}' /proc/mounts | sort -r | while read -r m; do $BB umount -l "$m"; done
             grep -q " $ROOTFS/system tmpfs " /proc/mounts && $BB umount -l "$ROOTFS/system"
+            if [ -s "$STAGE/samcam_merge/farmed" ]; then
+                awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$STAGE/samcam_merge/farmed" | while IFS='|' read -r uf_p uf_d; do
+                    unfarm_dir "$uf_p" "$uf_d"
+                done
+            fi
             echo "Samsung Camera in the guest: off (overlay on $ROOTFS/system refused, and the bound copies failed)"
         fi
     else echo "Samsung Camera in the guest: off (staged files or One UI's camera files missing)"
@@ -1417,10 +1494,11 @@ if [ -f "$STAGE/data/oneos_root/enabled" ] && [ ! -d "$ROOTFS/system/xbin" ]; th
         if [ $fok = 1 ]; then
             chmod 755 "$GF" "$GF/xbin"
             $BB chcon -R u:object_r:system_file:s0 "$GF" 2>/dev/null || true
-            if $BB mount --bind "$ROOTFS/system" "$GOR" && $BB mount --bind "$GF" "$ROOTFS/system"; then
+            if $BB mount --rbind "$ROOTFS/system" "$GOR" && $BB mount --make-rprivate "$GOR" &&
+               $BB mount --bind "$GF" "$ROOTFS/system" && $BB mount --make-private "$ROOTFS/system"; then
                 for e in "$GOR"/* "$GOR"/.[!.]*; do
                     [ -e "$e" ] && [ ! -L "$e" ] || continue
-                    if $BB mount --bind "$e" "$ROOTFS/system/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
+                    if $BB mount --rbind "$e" "$ROOTFS/system/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
                 done
             else
                 fok=0
@@ -1447,12 +1525,17 @@ if [ "$BIO_FEATURES" = 1 ] && [ ! -e "$ROOTFS/system/etc/permissions/android.har
         if [ -L "$BFO" ]; then echo 'ERROR: biometric features overlay is a symlink'; exit 3; fi
         mkdir -p "$BFO"
         mount | grep -q " $BFO " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$BFO"
+        $BB mount --make-private "$BFO" 2>/dev/null || true
         if rm -rf "$BFO/up" && mkdir -p "$BFO/up" && bio_features_into "$BFO/up" &&
            $BB mount -t overlay overlay -o "ro,lowerdir=$BFO/up:$ROOTFS/system" "$ROOTFS/system"; then
             echo "Biometric features: fingerprint and face declared in a private /system layer"
-        elif [ "${ONEOS_MERGE_UP:-0}" = 1 ] && [ -d "$BFO/up/etc/permissions" ] && BFN=$(merge_up "$BFO/up" "$ROOTFS/system" "$STAGE/bio_features_merge"); then
-            # 0.5.51: android12-5.10 kernels (the S22 series on One UI 8) refuse that overlay; the two feature
-            # files bound into a copy of etc/permissions instead.
+        elif [ -d "$BFO/up/etc/permissions" ] && [ -d "$ROOTFS/system/etc/permissions" ] && [ ! -L "$ROOTFS/system/etc/permissions" ] &&
+             BFN=$(merge_up "$BFO/up/etc/permissions" "$ROOTFS/system/etc/permissions" "$STAGE/bio_features_merge"); then
+            # android12-5.10 kernels (S22 series on One UI 8) refuse the /system overlay: farm only
+            # /system/etc/permissions directly via the private farm_dir (never touches /system root or /system/lib64).
+            echo "Biometric features: fingerprint and face declared in a bound copy of $BFN folder(s) (no overlayfs on this kernel)"
+        elif [ -d "$BFO/up/etc/permissions" ] &&
+             BFN=$(merge_up "$BFO/up" "$ROOTFS/system" "$STAGE/bio_features_merge"); then
             echo "Biometric features: fingerprint and face declared in a bound copy of $BFN folder(s) (no overlayfs on this kernel)"
         else
             # A failed farm_dir takes back its own mounts; copies made before it only mirror the image.
@@ -1559,9 +1642,15 @@ fi
 # guest_start.sh makes the folder once the guest's package manager has made the
 # app's (data/oneos_samcam; 0.4.58 report f794c15d, Galaxy S25+: "can't create
 # secureDirectory", no photo in the gallery).
-rm -f "$STAGE/data/oneos_samcam"
+rm -f "$STAGE/data/oneos_samcam" "$STAGE/data/oneos_sec_camera"
 [ $SAMCAM = 1 ] && touch "$STAGE/data/oneos_samcam"
-if [ $SAMCAM = 1 ]; then
+NEED_SEC_CAMERA=0
+if [ $SAMCAM = 1 ] || { grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
+        ! { [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 0 ]; }; }; then
+    NEED_SEC_CAMERA=1
+    mkdir -p "$STAGE/data" && touch "$STAGE/data/oneos_sec_camera"
+fi
+if [ $NEED_SEC_CAMERA = 1 ]; then
     CUID=""
     for CAMDATA in "$STAGE/data/user/0/com.sec.android.app.camera" "$STAGE/data/user_de/0/com.sec.android.app.camera" "$STAGE/data/data/com.sec.android.app.camera"; do
         [ -d "$CAMDATA" ] && [ ! -L "$CAMDATA" ] && { CUID=$(stat -c %u "$CAMDATA" 2>/dev/null); break; }
@@ -1688,6 +1777,8 @@ if [ -n "$VNDK_NEED" ] && cat "$ROOTFS/system/etc/vintf/manifest.xml" "$ROOTFS"/
     VNDK_NEED=""
 fi
 # The fragment in an overlay layer ($1), merged with the framework manifest by libvintf.
+# Leave VNDK_NEED set until the mount carrying this fragment actually succeeds, so a refused
+# overlay on android12-5.10 kernels still binds it via farm_dir or the system manifest fallback.
 vndk_fragment() {
     [ -n "$VNDK_NEED" ] || return 0
     mkdir -p "$1/etc/vintf/manifest" &&
@@ -1695,11 +1786,10 @@ vndk_fragment() {
             > "$1/etc/vintf/manifest/oneos-vendor-ndk.xml" || return 1
     chmod 755 "$1/etc" "$1/etc/vintf" "$1/etc/vintf/manifest"; chmod 644 "$1/etc/vintf/manifest/oneos-vendor-ndk.xml"
     $BB chcon -R u:object_r:system_file:s0 "$1/etc/vintf" 2>/dev/null || true
-    echo "VINTF: vendor-ndk $VNDK_NEED added to the guest's framework manifest (One UI's vendor matrix asks for it)"
-    VNDK_NEED=""
 }
 SECIMS_BOUND=0
 VIVO_SE=""
+INJ_NO_OV=0
 if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ]; then
     if mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
         echo "Overlay on $GUEST_SYSTEM_EXT already there (an earlier prepare), left as it is"
@@ -1709,6 +1799,7 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         OV="$STAGE/system_ext_ov"
         mkdir -p "$OV"
         mount | grep -q " $OV " || $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$OV"
+        $BB mount --make-private "$OV" 2>/dev/null || true
         mkdir -p "$OV/up/apex"
         # vivo's package manager never scans /oem (F8U run 13, OriginOS CN: no package
         # cache entry for anything there, so the fold cutout overlay and the OneOS app
@@ -1835,10 +1926,11 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                     fi
                 fi
             else
-                # The apex mount point matters more: today's rw form then.
+                # The apex mount point matters more: today's rw form then (and farm_dir fallback on kernel 5.10).
+                INJ_NO_OV=1
                 INJ=0
                 rm -f "$OV/up/framework/oneos-telephony.jar"
-                echo "Signal poll: off (read-only overlay on $GUEST_SYSTEM_EXT refused)"
+                echo "Signal poll: read-only overlay on $GUEST_SYSTEM_EXT refused (will retry via farm_dir if overlayfs is unavailable)"
             fi
         fi
         if [ $INJ = 0 ] && { [ ! -d "$GUEST_SYSTEM_EXT/apex" ] || [ $HWSM = 1 ] || [ $SEC_IMS = 1 ] || [ $SAMCAM = 1 ] || [ $TAB_CAM_COMPAT = 1 ]; }; then
@@ -1866,9 +1958,6 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                         echo "Samsung IMS in the guest: off (bind-mount onto the read-only $GUEST_SYSTEM_EXT failed)"
                     fi
                 fi
-            elif [ $SEC_IMS = 1 ]; then
-                SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"
-                echo "Samsung IMS in the guest: off (overlay on $GUEST_SYSTEM_EXT refused)"
             fi
         fi
         # The android12-5.10 kernels (the S22 series, S23 FE, A25, A33, A53 on One UI 8) refuse
@@ -1877,8 +1966,9 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
         # died on One UI's system_ext APEXes ("Unable to parse: /system_ext/apex/com.android.vndk.
         # v31.apex"). Without overlayfs: system_ext's top level copied on the stage's tmpfs
         # (folders, empty files, links), each entry bound from the image, plus the apex mount
-        # point. The overlay's other additions (bin/hwservicemanager, etc/permissions features,
-        # Samsung IMS and camera mount points) are not in it; those are off as on a refusal.
+        # point. Key overlay entries (VIVO_SE, oneos-guest-user-types.xml, oneos-vendor-ndk.xml,
+        # bin/hwservicemanager, framework/oneos-telephony.jar, oneos-my-product-features.xml,
+        # Samsung IMS, and Samsung Camera mount points) are added through farm_dir / merge_up below.
         if [ ! -d "$GUEST_SYSTEM_EXT/apex" ] && [ -d /system_ext/apex ] && ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
             FARM="$OV/farm"; FORIG="$OV/orig"; fok=1; fn=0
             rm -rf "$FARM" && mkdir -p "$FARM/apex" "$FORIG" || fok=0
@@ -1893,10 +1983,11 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             if [ $fok = 1 ]; then
                 chmod 755 "$FARM" "$FARM/apex"
                 $BB chcon -R u:object_r:system_file:s0 "$FARM" 2>/dev/null || true
-                if $BB mount --bind "$GUEST_SYSTEM_EXT" "$FORIG" && $BB mount --bind "$FARM" "$GUEST_SYSTEM_EXT"; then
+                if $BB mount --rbind "$GUEST_SYSTEM_EXT" "$FORIG" && $BB mount --make-rprivate "$FORIG" &&
+                   $BB mount --bind "$FARM" "$GUEST_SYSTEM_EXT" && $BB mount --make-private "$GUEST_SYSTEM_EXT"; then
                     for e in "$FORIG"/* "$FORIG"/.[!.]*; do
                         [ -e "$e" ] && [ ! -L "$e" ] || continue
-                        if $BB mount --bind "$e" "$GUEST_SYSTEM_EXT/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
+                        if $BB mount --rbind "$e" "$GUEST_SYSTEM_EXT/${e##*/}"; then fn=$((fn + 1)); else fok=0; break; fi
                     done
                 else
                     fok=0
@@ -1933,10 +2024,59 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                     [ $utok = 1 ] && echo "OneOS app: user-type entry bound into system_ext/etc/sysconfig (no overlayfs)" ||
                         echo "!!! OneOS app: could not bind its user-type entry; One UI's package manager may leave it out"
                 fi
+                # VINTF vendor-ndk fragment (when etc/vintf/manifest exists in system_ext; otherwise the
+                # system/etc/vintf/manifest.xml single-file bind fallback below handles VNDK_NEED).
+                VFX="$OV/up/etc/vintf/manifest/oneos-vendor-ndk.xml"
+                if [ -n "$VNDK_NEED" ] && [ -s "$VFX" ] && [ -d "$GUEST_SYSTEM_EXT/etc/vintf/manifest" ] &&
+                   [ ! -L "$GUEST_SYSTEM_EXT/etc/vintf/manifest" ] &&
+                   [ ! -e "$GUEST_SYSTEM_EXT/etc/vintf/manifest/oneos-vendor-ndk.xml" ]; then
+                    if farm_dir "$GUEST_SYSTEM_EXT/etc/vintf/manifest" "$OV/vintf_farm" oneos-vendor-ndk.xml; then
+                        if $BB mount --bind "$VFX" "$GUEST_SYSTEM_EXT/etc/vintf/manifest/oneos-vendor-ndk.xml"; then
+                            $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/etc/vintf/manifest/oneos-vendor-ndk.xml" 2>/dev/null || true
+                            echo "VINTF: vendor-ndk $VNDK_NEED bound into system_ext/etc/vintf/manifest (no overlayfs)"
+                            VNDK_NEED=""
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/etc/vintf/manifest" "$OV/vintf_farm"
+                        fi
+                    fi
+                fi
+                # HIDL hwservicemanager marker for HIDL-only HALs on kernel 5.10 without overlayfs.
+                if [ $HWSM = 1 ] && [ -f "$OV/up/bin/hwservicemanager" ] && [ -d "$GUEST_SYSTEM_EXT/bin" ] &&
+                   [ ! -L "$GUEST_SYSTEM_EXT/bin" ] && [ ! -e "$GUEST_SYSTEM_EXT/bin/hwservicemanager" ]; then
+                    if farm_dir "$GUEST_SYSTEM_EXT/bin" "$OV/bin_farm" hwservicemanager; then
+                        if $BB mount --bind "$OV/up/bin/hwservicemanager" "$GUEST_SYSTEM_EXT/bin/hwservicemanager"; then
+                            $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/bin/hwservicemanager" 2>/dev/null || true
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/bin" "$OV/bin_farm"
+                        fi
+                    fi
+                fi
+                # Signal poll (oneos-telephony.jar): bind read-only into a farmed system_ext/framework
+                # so InjectedComponents sees statvfs ST_RDONLY without requiring overlayfs.
+                if [ $INJ_NO_OV = 1 ] && [ -f "$STAGE/oneos-telephony.jar" ] && [ -d "$GUEST_SYSTEM_EXT/framework" ] &&
+                   [ ! -L "$GUEST_SYSTEM_EXT/framework" ] && [ ! -e "$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" ]; then
+                    mkdir -p "$OV/inj" && cp "$STAGE/oneos-telephony.jar" "$OV/inj/oneos-telephony.jar" &&
+                        chmod 755 "$OV/inj" && chmod 644 "$OV/inj/oneos-telephony.jar" &&
+                        { $BB chcon u:object_r:system_file:s0 "$OV/inj/oneos-telephony.jar" 2>/dev/null || true; }
+                    if [ -f "$OV/inj/oneos-telephony.jar" ] &&
+                       farm_dir "$GUEST_SYSTEM_EXT/framework" "$OV/fw_farm" oneos-telephony.jar; then
+                        if $BB mount --bind "$OV/inj/oneos-telephony.jar" "$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" &&
+                           $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" &&
+                           awk -v m="$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" '$2 == m && ("," $4 ",") ~ /,ro,/ { f = 1 } END { exit !f }' /proc/mounts; then
+                            INJ=1
+                            echo "Signal poll: framework/oneos-telephony.jar bound read-only via farm_dir (no overlayfs)"
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/framework" "$OV/fw_farm"
+                            rm -f "$OV/inj/oneos-telephony.jar"
+                        fi
+                    else
+                        rm -f "$OV/inj/oneos-telephony.jar"
+                    fi
+                fi
                 # 0.5.51: Samsung Camera's system_ext entries (priv-app/SamsungCamera, its jars and permission
                 # files) the same way, from a layer of their own: only the camera's mount points, nothing else of
                 # the overlay's layer, so a session without the camera stays as before.
-                if [ $SAMCAM = 1 ] && [ "${ONEOS_MERGE_UP:-0}" = 1 ]; then
+                if [ $SAMCAM = 1 ] && [ "${ONEOS_MERGE_UP:-1}" = 1 ]; then
                     SEUP="$STAGE/samcam_se_up"
                     $BB umount -l "$SEUP" 2>/dev/null; mkdir -p "$SEUP"
                     if $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SEUP" && $BB mount --make-private "$SEUP" &&
@@ -1945,6 +2085,12 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                         SAMCAM_BOUND=1
                         echo "Samsung Camera: system_ext without overlayfs; its mount points in bound copies of $SEM folder(s)"
                     else
+                        if [ -s "$STAGE/samcam_se_merge/farmed" ]; then
+                            awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$STAGE/samcam_se_merge/farmed" | while IFS='|' read -r uf_p uf_d; do
+                                unfarm_dir "$uf_p" "$uf_d"
+                            done
+                        fi
+                        $BB umount -l "$SEUP" 2>/dev/null || true
                         SAMCAM=0; echo "Samsung Camera in the guest: off (system_ext without overlayfs: its bound copies failed)"
                     fi
                 fi
@@ -1955,9 +2101,58 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
                 echo "!!! system_ext without overlayfs: the bound copy failed, left as the image has it"
             fi
         fi
+        # Without overlayfs on system_ext (android12-5.10 kernels), supply my_product feature declarations
+        # (Circle to Search, Gemini Power Menu, Lens, Wireless/Reverse Wireless Charging) and Samsung IMS
+        # through private farmed copies of their target subfolders.
+        if ! mount | grep -q " $GUEST_SYSTEM_EXT type overlay"; then
+            MPX="$OV/up/etc/permissions/oneos-my-product-features.xml"
+            if [ -f "$MPX" ] && [ ! -f "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" ] && [ -d "$GUEST_SYSTEM_EXT/etc" ]; then
+                mpok=0
+                if [ -d "$GUEST_SYSTEM_EXT/etc/permissions" ] && [ ! -L "$GUEST_SYSTEM_EXT/etc/permissions" ]; then
+                    if farm_dir "$GUEST_SYSTEM_EXT/etc/permissions" "$STAGE/sysext_mpf_farm" oneos-my-product-features.xml; then
+                        if $BB mount --bind "$MPX" "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml"; then
+                            $BB mount --make-rslave "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true
+                            $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true
+                            mpok=1
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/etc/permissions" "$STAGE/sysext_mpf_farm"
+                        fi
+                    fi
+                elif [ ! -e "$GUEST_SYSTEM_EXT/etc/permissions" ]; then
+                    if farm_dir "$GUEST_SYSTEM_EXT/etc" "$STAGE/sysext_mpf_etc_farm" permissions/oneos-my-product-features.xml; then
+                        if $BB mount --bind "$MPX" "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml"; then
+                            $BB mount --make-rslave "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true
+                            $BB mount -o remount,bind,ro "$GUEST_SYSTEM_EXT/etc/permissions/oneos-my-product-features.xml" 2>/dev/null || true
+                            mpok=1
+                        else
+                            unfarm_dir "$GUEST_SYSTEM_EXT/etc" "$STAGE/sysext_mpf_etc_farm"
+                        fi
+                    fi
+                fi
+                [ $mpok = 1 ] && echo "Features from my_product: bound into system_ext/etc/permissions (no overlayfs)" ||
+                    echo "!!! Features from my_product: could not bind oneos-my-product-features.xml (no overlayfs)"
+            fi
+            if [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ]; then
+                SIUP="$STAGE/secims_se_up"
+                $BB umount -l "$SIUP" 2>/dev/null; mkdir -p "$SIUP"
+                if $BB mount -t tmpfs -o size=1m,mode=755 tmpfs "$SIUP" && $BB mount --make-private "$SIUP" &&
+                   secims_mountpoints "$SIUP" && SIM=$(merge_up "$SIUP" "$GUEST_SYSTEM_EXT" "$STAGE/secims_se_merge") &&
+                   sec_ims_bind; then
+                    SECIMS_BOUND=1
+                    echo "Samsung IMS in the guest: system_ext without overlayfs; its mount points in bound copies of $SIM folder(s)"
+                else
+                    if [ -s "$STAGE/secims_se_merge/farmed" ]; then
+                        awk '{ a[NR] = $0 } END { for (i = NR; i >= 1; i--) print a[i] }' "$STAGE/secims_se_merge/farmed" | while IFS='|' read -r uf_p uf_d; do
+                            unfarm_dir "$uf_p" "$uf_d"
+                        done
+                    fi
+                    $BB umount -l "$SIUP" 2>/dev/null || true
+                fi
+            fi
+        fi
         # The Samsung IMS set binds onto either overlay (the read-only one through the
-        # mount points made in its layer); an earlier prepare's overlay has none.
-        [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no writable overlay to bind onto)"; }
+        # mount points made in its layer) or the non-overlayfs farmed folders above.
+        [ $SEC_IMS = 1 ] && [ $SECIMS_BOUND = 0 ] && { SEC_IMS=0; rm -f "$STAGE/data/oneos_sec_ims"; echo "Samsung IMS in the guest: off (no overlay or bound copy to bind onto)"; }
         # Samsung Camera's mount points are in the overlay's own layer, so the
         # read-only form takes it as well.
         if [ $SAMCAM = 1 ] && [ "${SAMCAM_BOUND:-0}" != 1 ]; then
@@ -1973,16 +2168,26 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
             fi
         fi
     fi
-    # No overlay of ours on system_ext (or an earlier prepare's): the vendor-ndk version goes into
-    # a bound copy of the system framework manifest instead.
+    if [ -n "$VNDK_NEED" ] && [ -s "$GUEST_SYSTEM_EXT/etc/vintf/manifest/oneos-vendor-ndk.xml" ]; then
+        echo "VINTF: vendor-ndk $VNDK_NEED added to the guest's framework manifest (One UI's vendor matrix asks for it)"
+        VNDK_NEED=""
+    fi
+    # No overlay of ours on system_ext (or an earlier prepare's, or no system_ext/etc/vintf/manifest):
+    # the vendor-ndk version goes into a bound copy of the system framework manifest instead.
     VM="$ROOTFS/system/etc/vintf/manifest.xml"
     if [ -n "$VNDK_NEED" ] && [ -f "$VM" ] && [ ! -L "$VM" ] && grep -q '</manifest>' "$VM"; then
-        awk -v v="$VNDK_NEED" '/<\/manifest>/ && !d { print "    <vendor-ndk>"; print "        <version>" v "</version>"; print "    </vendor-ndk>"; d = 1 } { print }' \
-            "$VM" > "$STAGE/oneos_vintf_manifest.xml" &&
-            chmod 644 "$STAGE/oneos_vintf_manifest.xml" && $BB chcon u:object_r:system_file:s0 "$STAGE/oneos_vintf_manifest.xml" 2>/dev/null
-        $BB mount --bind "$STAGE/oneos_vintf_manifest.xml" "$VM" &&
+        if awk -v v="$VNDK_NEED" '/<\/manifest>/ && !d { print "    <vendor-ndk>"; print "        <version>" v "</version>"; print "    </vendor-ndk>"; d = 1 } { print }' \
+               "$VM" > "$STAGE/oneos_vintf_manifest.xml" &&
+           chmod 644 "$STAGE/oneos_vintf_manifest.xml" &&
+           { $BB chcon u:object_r:system_file:s0 "$STAGE/oneos_vintf_manifest.xml" 2>/dev/null || true; } &&
+           $BB mount --bind "$STAGE/oneos_vintf_manifest.xml" "$VM"; then
+            $BB mount -o remount,bind,ro "$VM" 2>/dev/null || true
             echo "VINTF: vendor-ndk $VNDK_NEED added to a bound copy of the guest's system manifest (One UI's vendor matrix asks for it)"
-        VNDK_NEED=""
+            VNDK_NEED=""
+        else
+            rm -f "$STAGE/oneos_vintf_manifest.xml"
+            echo "!!! VINTF: could not bind vendor-ndk $VNDK_NEED into the guest's system manifest"
+        fi
     fi
     if [ -d /system_ext/apex ]; then
         if [ -d "$GUEST_SYSTEM_EXT/apex" ]; then
@@ -1995,9 +2200,10 @@ if { [ -d /system_ext/apex ] && [ -d "$GUEST_SYSTEM_EXT" ]; } || [ $INJ = 1 ] ||
     fi
 fi
 if [ $INJ = 1 ]; then
-    if ! grep -q " $GUEST_SYSTEM_EXT overlay ro[, ]" /proc/mounts; then
+    if ! grep -q " $GUEST_SYSTEM_EXT overlay ro[, ]" /proc/mounts &&
+       ! awk -v m="$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" '$2 == m && ("," $4 ",") ~ /,ro,/ { f = 1 } END { exit !f }' /proc/mounts; then
         INJ=0
-        echo "Signal poll: off (no read-only overlay on $GUEST_SYSTEM_EXT, which the injection needs)"
+        echo "Signal poll: off (no read-only mount for $GUEST_SYSTEM_EXT/framework/oneos-telephony.jar, which the injection needs)"
     elif ! cmp -s "$GUEST_SYSTEM_EXT/framework/oneos-telephony.jar" "$STAGE/oneos-telephony.jar"; then
         INJ=0
         echo "Signal poll: off ($GUEST_SYSTEM_EXT/framework/oneos-telephony.jar missing or not the staged one)"
@@ -2092,8 +2298,9 @@ elif [ ! -d "$PETC" ] || [ -L "$PETC" ]; then
 # overlay on LineageOS's /system leaves its own overlay mount on system/product/etc, and this check took
 # it for ours: no One UI curve, LineageOS's default one (100 % at 255 lux, the panel's peak) on every
 # Galaxy (A36, 2026-11-15: full bright and full low by turns, heat). Over another mount ours stacks on top.
-elif grep -q " $PETC overlay .*lowerdir=$STAGE/product_etc_ov/up:" /proc/mounts; then
-    echo "Display config: overlay on product/etc already there (an earlier prepare), left as it is"
+elif grep -q " $PETC overlay .*lowerdir=$STAGE/product_etc_ov/up:" /proc/mounts ||
+     awk -v p="$PETC/displayconfig" '$2 == p || index($2, p "/display_port_") == 1 { f = 1 } END { exit !f }' /proc/mounts; then
+    echo "Display config: product/etc/displayconfig already mounted (an earlier prepare), left as it is"
 elif [ -e "$PETC/displayconfig/display_port_147.xml" ] || [ -e "$PETC/displayconfig/display_port_148.xml" ]; then
     echo "Display config: the image has its own display_port_147/148, left as it is"
 else
@@ -2161,10 +2368,58 @@ else
         else ddc_xml $DDC_RANGE "$m" "$@" | sed '/<proxSensor>/,/<\/proxSensor>/d'
         fi > "$DOV/up/displayconfig/display_port_$port.xml"
     done
-    chmod 755 "$DOV/up" "$DOV/up/displayconfig" && chmod 644 "$DOV/up/displayconfig/"*.xml
+    chmod 755 "$DOV/up" "$DOV/up/displayconfig" && { [ -z "$DDC_PORTS" ] || chmod 644 "$DOV/up/displayconfig/"*.xml; }
     $BB chcon -R u:object_r:system_file:s0 "$DOV/up" 2>/dev/null || true
     if $BB mount -t overlay overlay -o "ro,lowerdir=$DOV/up:$PETC" "$PETC"; then
         echo "Display config: product/etc/displayconfig/display_port_ for ports ${DDC_PORTS:-none} (One UI's nits curve, brightnessMaximum${DDC_MAX:- none}$([ $DDC_PROX = 1 ] && echo ", Samsung's IR proximity"))"
+    elif [ -n "$DDC_PORTS" ]; then
+        # android12-5.10 kernels (S22 series, S23 FE, A25, A33, A53) refuse overlayfs on product/etc
+        # (EOPNOTSUPP). Bind the generated display_port_*.xml files via farm_dir instead.
+        ddc_ok=0
+        if [ -d "$PETC/displayconfig" ] && [ ! -L "$PETC/displayconfig" ]; then
+            ddc_add=""
+            for port in $DDC_PORTS; do
+                [ -e "$PETC/displayconfig/display_port_$port.xml" ] || ddc_add="$ddc_add display_port_$port.xml"
+            done
+            ddc_ready=1
+            if [ -n "$ddc_add" ]; then
+                # shellcheck disable=SC2086
+                farm_dir "$PETC/displayconfig" "$DOV/dc_farm" $ddc_add || ddc_ready=0
+            fi
+            if [ $ddc_ready = 1 ]; then
+                ddc_ok=1
+                for port in $DDC_PORTS; do
+                    if $BB mount --bind "$DOV/up/displayconfig/display_port_$port.xml" "$PETC/displayconfig/display_port_$port.xml"; then
+                        $BB mount -o remount,bind,ro "$PETC/displayconfig/display_port_$port.xml" 2>/dev/null || true
+                    else
+                        ddc_ok=0; break
+                    fi
+                done
+                if [ $ddc_ok = 0 ]; then
+                    if [ -n "$ddc_add" ]; then
+                        unfarm_dir "$PETC/displayconfig" "$DOV/dc_farm"
+                    else
+                        for port in $DDC_PORTS; do
+                            $BB umount -l "$PETC/displayconfig/display_port_$port.xml" 2>/dev/null || true
+                        done
+                    fi
+                fi
+            fi
+        elif [ ! -e "$PETC/displayconfig" ] && [ ! -L "$PETC/displayconfig" ]; then
+            if farm_dir "$PETC" "$DOV/etc_farm" displayconfig/; then
+                if $BB mount --bind "$DOV/up/displayconfig" "$PETC/displayconfig"; then
+                    $BB mount -o remount,bind,ro "$PETC/displayconfig" 2>/dev/null || true
+                    ddc_ok=1
+                else
+                    unfarm_dir "$PETC" "$DOV/etc_farm"
+                fi
+            fi
+        fi
+        if [ $ddc_ok = 1 ]; then
+            echo "Display config: product/etc/displayconfig/display_port_ for ports ${DDC_PORTS:-none} via farm_dir (no overlayfs; One UI's nits curve, brightnessMaximum${DDC_MAX:- none}$([ $DDC_PROX = 1 ] && echo ", Samsung's IR proximity"))"
+        else
+            echo "Display config: read-only overlay and farm_dir fallback on product/etc refused, left out"
+        fi
     else
         echo "Display config: read-only overlay on product/etc refused, left out"
     fi
@@ -4385,6 +4640,68 @@ fi
 # transaction codes (patches/pixel_camera_abi.py). Listed in guards.txt and
 # checked above, so a stage that has the jar binds the one the set was built
 # with or does not start.
+# Android 17 guests (One UI 9.5 oneui95-a16 r7 and ColorOS 17 x9u-in-1105-a16 r7) on One UI 8.0
+# (SDK 36, < 80500): when the staged framework_patched_oneui8.jar predates a16_camera_result_extras.py,
+# patch Android 17 -> Android 16 callback incompatibilities in a session copy under $STAGE/session/:
+#   1. CaptureResultExtras.readFromParcel: return empty MultiResConcurrentReadersStartInfo[0] instead
+#      of reading a 15th field that One UI 8.0 cameraserver never writes (prevents consuming timestamp
+#      bytes in onCaptureStarted -> OOM/NPE/corrupted PTS, and PhysicalCaptureResultInfo[] in
+#      onResultReceived -> multi-camera fusion/portrait crashes).
+#   2. ICameraServiceListener$Stub.onTransact (One UI 9.5): remap One UI 8.0's code 9 to
+#      onCameraDeviceStateChanged (exact 7-arg match to guest's code 10).
+# SHA-256 pinned before and after (classes2.dex Adler-32/SHA-1 and ZIP CRC-32 updated; verified by
+# dexdump -c and zipfile.testzip). Placed under $STAGE/session/ so StageStatus.LEFTOVER ignores it
+# and return_to_oneui.sh cleans it up. ONEOS_A16_CAMERA_FW_SESSION=0 keeps the raw jar.
+oneui8_patch_framework_jar() {
+    _src=$1; _dst=$2
+    [ -f "$_src" ] && [ ! -L "$_src" ] || return 2
+    _sha=$(sha256sum "$_src" 2>/dev/null | cut -c1-64)
+    case "$_sha" in
+        8048477f623e812581e6080feb68d53f3b093d2abf57bf0b853ebbab89272704)
+            _want=4d165e2e53726ad3a3463196d782a725bc9eab006c08e5bab88a3eda825d330c
+            set -- \
+                '9062721:\232\255\262\134' \
+                '9062785:\006\377\344\034\370\037\176\135\071\031\176\276\110\212\276\272\135\360\267\247\375\127\203\155' \
+                '14304625:\011' \
+                '14304629:\003' \
+                '14715373:\022' \
+                '14715375:\043\003\212\036\000\000\000' \
+                '14715383:\000\000\000\000\000\000' \
+                '58981173:\232\255\262\134' ;;
+        da7da5165927a53111aaf60f069e608ef9fce3e3251065a9e05eeba6594d2d62)
+            _want=54d6d42a06c193a243ac6c22c74bbf37cdab4cc1daf667b542db04927082479f
+            set -- \
+                '10105266:\104\231\061\206' \
+                '10105330:\136\130\056\100\055\377\045\262\275\201\250\206\103\333\111\376\171\202\237\224\255\017\351\011' \
+                '15716106:\022\000\043\001\143\037\000\000\000' \
+                '15716116:\000\000\000\000\000\000' \
+                '52508459:\104\231\061\206' ;;
+        *) return 2 ;;
+    esac
+    rm -f "$_dst" && cp "$_src" "$_dst" || return 1
+    for _ent in "$@"; do
+        $BB printf "${_ent#*:}" | $BB dd of="$_dst" bs=1 seek="${_ent%%:*}" conv=notrunc 2>/dev/null || { rm -f "$_dst"; return 1; }
+    done
+    [ "$(sha256sum "$_dst" 2>/dev/null | cut -c1-64)" = "$_want" ] || { rm -f "$_dst"; return 1; }
+    chmod 644 "$_dst" && chown 0:0 "$_dst" 2>/dev/null || true
+    $BB touch -t 202611280000 "$_dst" 2>/dev/null || true
+    $BB chcon u:object_r:system_file:s0 "$_dst" 2>/dev/null || true
+    return 0
+}
+rm -f "$STAGE/session/framework.oneui8.session.jar"
+if [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 1 ] && [ "${A16_OUI:-0}" -lt 80500 ] &&
+   [ "$CAM_FW" = framework_patched_oneui8.jar ] && [ "${ONEOS_A16_CAMERA_FW_SESSION:-1}" = 1 ] &&
+   [ ! -L "$STAGE/session" ]; then
+    mkdir -p "$STAGE/session"
+    oneui8_patch_framework_jar "$STAGE/$CAM_FW" "$STAGE/session/framework.oneui8.session.jar"
+    _fwrc=$?
+    if [ "$_fwrc" = 0 ]; then
+        CAM_FW="session/framework.oneui8.session.jar"
+        echo "Camera: framework_patched_oneui8.jar patched for One UI 8.0 callbacks (CaptureResultExtras A16 parcel + listener)"
+    elif [ "$_fwrc" = 1 ]; then
+        echo "!!! Camera: could not build One UI 8.0 framework session patch; keeping $CAM_FW"
+    fi
+fi
 if [ -f "$STAGE/$CAM_FW" ]; then
     $BB umount -l "$ROOTFS/system/framework/framework.jar" 2>/dev/null || true
     $BB mount --bind "$STAGE/$CAM_FW" "$ROOTFS/system/framework/framework.jar"
@@ -4410,6 +4727,70 @@ fi
 # (patches/pixel_camera_native.py); guards.txt lists them, checked above.
 # libsensorservice_patched.so (vivo OriginOS): One UI's light and hinge events as
 # scalars (make-overlays.sh; system_server aborted on the first one).
+# Android 17 guests (One UI 9.5 oneui95-a16 r7 and ColorOS 17 x9u-in-1105-a16 r7) on One UI 8.0
+# (SDK 36, < 80500): when the set has not yet shipped a prebuilt libcamera_client_patched_oneui8.so,
+# patch the known libcamera_client_patched.so (sha256 pinned before and after, verified by
+# pixel_camera_native.py against host_camera_oneui8.txt with ONEOS_CAMERA_COMPAT_AS_INT=1:
+# BpCameraService int32 rotationOverride + A17 methods -> 200, BpCameraDeviceUser codes >= 10
+# shifted to One UI 8.0, BTI-safe BnCameraServiceListener ignore for code 9 where present, and
+# CaptureResultExtras::readFromParcel skipping A17's multiResConcurrentReadersStartInfo). Placed
+# under $STAGE/session/ so StageStatus.LEFTOVER ignores it and return_to_oneui.sh cleans it up.
+# ONEOS_A16_CAMERA_NATIVE=0 keeps the One UI 9.0 binary.
+oneui8_patch_camera_client() {
+    _src=$1; _dst=$2
+    [ -f "$_src" ] && [ ! -L "$_src" ] || return 2
+    _sha=$(sha256sum "$_src" 2>/dev/null | cut -c1-64)
+    case "$_sha" in
+        23d98173e40ce788bc66d4a9678d06869fe5010ade40f001128b30c17ea57e7a)
+            _want=7ac13617a41b0434b8563dc02f529d5bce97ed56b664539fdc55d9be60c1b4d2
+            set -- \
+                '312784:\001\000\200\122' '312788:\175\232\001\224' '313768:\001\000\200\122' '313772:\207\231\001\224' \
+                '314768:\001\000\200\122' '314772:\215\230\001\224' '321260:\001\000\200\122' '321264:\066\222\001\224' \
+                '335392:\001\000\200\122' '335396:\151\204\001\224' '336428:\001\031\200\122' '338112:\141\003\200\122' \
+                '340068:\241\003\200\122' '340852:\301\003\200\122' '341716:\341\003\200\122' '342564:\001\004\200\122' \
+                '343488:\041\004\200\122' '344420:\101\004\200\122' '345264:\141\004\200\122' '346120:\201\004\200\122' \
+                '346920:\241\004\200\122' '398880:\353\377\377\027' '475920:\001\031\200\122' '476800:\101\001\200\122' \
+                '477744:\141\001\200\122' '478620:\201\001\200\122' '479464:\241\001\200\122' '480340:\301\001\200\122' \
+                '481196:\341\001\200\122' '482044:\001\002\200\122' '482888:\041\002\200\122' '483756:\101\002\200\122' \
+                '484616:\141\002\200\122' '485500:\201\002\200\122' '486388:\241\002\200\122' '487276:\301\002\200\122' \
+                '488124:\341\002\200\122' '488992:\001\003\200\122' '489836:\041\003\200\122' '490732:\101\003\200\122' \
+                '491588:\141\003\200\122' '492716:\001\031\200\122' '629324:\037\040\003\325' ;;
+        fae755c0225bb9cdd3553fc26a11092fd035984c8432adbf22c3c8d70275fa30)
+            _want=154b51d9a0cb6e853d9e8d0de528b312e9f06cad1306b4459b6f15c29e6028c0
+            set -- \
+                '245500:\001\000\200\122' '245504:\356\072\001\224' '246488:\001\000\200\122' '246492:\367\071\001\224' \
+                '247492:\001\000\200\122' '247496:\374\070\001\224' '253056:\001\000\200\122' '253060:\215\063\001\224' \
+                '267960:\001\000\200\122' '267964:\377\044\001\224' '268996:\001\031\200\122' '346516:\001\031\200\122' \
+                '347400:\101\001\200\122' '348348:\141\001\200\122' '349212:\241\001\200\122' '350092:\301\001\200\122' \
+                '350952:\341\001\200\122' '351804:\001\002\200\122' '352652:\041\002\200\122' '353524:\101\002\200\122' \
+                '354388:\141\002\200\122' '355276:\201\002\200\122' '356168:\241\002\200\122' '357060:\301\002\200\122' \
+                '357912:\341\002\200\122' '358784:\001\003\200\122' '359632:\041\003\200\122' '360532:\101\003\200\122' \
+                '361392:\141\003\200\122' '362524:\001\031\200\122' '467404:\037\040\003\325' ;;
+        *) return 2 ;;
+    esac
+    rm -f "$_dst" && cp "$_src" "$_dst" || return 1
+    for _ent in "$@"; do
+        $BB printf "${_ent#*:}" | $BB dd of="$_dst" bs=1 seek="${_ent%%:*}" conv=notrunc 2>/dev/null || { rm -f "$_dst"; return 1; }
+    done
+    [ "$(sha256sum "$_dst" 2>/dev/null | cut -c1-64)" = "$_want" ] || { rm -f "$_dst"; return 1; }
+    chmod 644 "$_dst" && chown 0:0 "$_dst" 2>/dev/null || true
+    $BB chcon u:object_r:system_lib_file:s0 "$_dst" 2>/dev/null || true
+    return 0
+}
+rm -f "$STAGE/session/libcamera_client.oneui8.session.so"
+if [ "$A17_ON_A16" = 1 ] && [ "$A16_CAMERA" = 1 ] && [ "${A16_OUI:-0}" -lt 80500 ] &&
+   [ "$CAM_CL" = libcamera_client_patched.so ] && [ "${ONEOS_A16_CAMERA_NATIVE:-1}" = 1 ] &&
+   [ ! -L "$STAGE/session" ]; then
+    mkdir -p "$STAGE/session"
+    oneui8_patch_camera_client "$STAGE/$CAM_CL" "$STAGE/session/libcamera_client.oneui8.session.so"
+    _clrc=$?
+    if [ "$_clrc" = 0 ]; then
+        CAM_CL="session/libcamera_client.oneui8.session.so"
+        echo "Camera: native libcamera_client patched for One UI 8.0 ABI (Camera1/NDK codes + int rotationOverride + BTI-safe listener + A16 CaptureResultExtras)"
+    elif [ "$_clrc" = 1 ]; then
+        echo "!!! Camera: could not build One UI 8.0 native libcamera_client session patch; keeping $CAM_CL"
+    fi
+fi
 for pair in $CAM_CL:libcamera_client.so ${CAM_CI:+$CAM_CI:libcameracompatbilityinfo.so} \
             libsensorservice_patched.so:libsensorservice.so; do
     # Experimental One UI 9.5 on One UI 8: these carry One UI 9.0's camera codes, never sent to One UI 8's cameraserver
@@ -8686,6 +9067,61 @@ if grep -q '^ro.build.version.oneui=' "$ROOTFS/system/build.prop" 2>/dev/null &&
             rm -f "$STAGE/data/oneos_system_floating_feature.xml.tmp"
             echo "!!! Floating features: the image's /system/etc list not rewritten"
         fi
+    fi
+    # One UI 9.5 S26 Ultra camera on a One UI 8 host (e.g. Galaxy S22): the host's
+    # SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO carries image_codec.samsung.v1 (which
+    # ImageCodecDummyNode rejects because S26 Ultra's camera knows only image_codec.samsung.v2) and
+    # may name node features whose native libraries the guest image does not ship (ai_clear_zoom ->
+    # libdtsr_wrapper_v1.camera.samsung.so, super_night.mpi -> libAIQSolution_MPI.camera.samsung.so).
+    # Apply the same rewrite/drop filter to both bound floating feature files when running the image's
+    # own camera on another phone. ONEOS_GUEST_SAMCAM_NODE_FILTER=0 leaves them as One UI has them.
+    oneui_filter_vendor_lib_info() {
+        _ff=$1
+        [ "${ONEOS_GUEST_SAMCAM_NODE_FILTER:-1}" = 1 ] && [ -f "$_ff" ] &&
+            grep -q '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>' "$_ff" 2>/dev/null || return 0
+        _drop=""
+        for _pair in ai_clear_zoom:libdtsr_wrapper_v1.camera.samsung.so \
+                     super_night.mpi:libAIQSolution_MPI.camera.samsung.so; do
+            _lib=${_pair#*:}
+            [ -e "$ROOTFS/system/lib64/$_lib" ] || [ -e "/vendor/lib64/$_lib" ] || _drop="$_drop ${_pair%%:*}"
+        done
+        _ren=""
+        grep -q 'image_codec\.samsung\.v1' "$_ff" 2>/dev/null && _ren="image_codec.samsung.v1=image_codec.samsung.v2"
+        [ -n "$_drop$_ren" ] || return 0
+        _cut="$_ff.cut"
+        if awk -v drop="$_drop" -v ren="$_ren" '
+            BEGIN { n = split(drop, d, " "); for (i = 1; i <= n; i++) if (d[i] != "") gone[d[i]] = 1
+                    n = split(ren, r, " "); for (i = 1; i <= n; i++) { split(r[i], kv, "="); if (kv[1] != "") to[kv[1]] = kv[2] } }
+            {
+                k = "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>"
+                if ((s = index($0, k)) > 0 && (e = index($0, "</SEC_FLOATING_FEATURE_CAMERA_CONFIG_VENDOR_LIB_INFO>")) > s) {
+                    v = substr($0, s + length(k), e - s - length(k)); m = split(v, a, ","); out = ""; cut = ""
+                    for (i = 1; i <= m; i++) {
+                        x = a[i]; gsub(/^[ \t]+|[ \t]+$/, "", x)
+                        if (x == "") continue
+                        np = split(x, p, "."); f = p[1]; fv = (np >= 2 ? p[1] "." p[2] : f)
+                        if ((f in gone) || (fv in gone)) { cut = cut (cut == "" ? "" : ",") x; continue }
+                        if (x in to) { cut = cut (cut == "" ? "" : ",") x "->" to[x]; x = to[x] }
+                        out = out (out == "" ? "" : ",") x
+                    }
+                    print substr($0, 1, s + length(k) - 1) out substr($0, e)
+                    if (cut != "") printf "%s\n", cut > "/dev/stderr"
+                    next
+                }
+                print
+            }' "$_ff" > "$_ff.tmp" 2> "$_cut" &&
+           grep -q '</SecFloatingFeatureSet>' "$_ff.tmp" && [ -s "$_cut" ]; then
+            mv -f "$_ff.tmp" "$_ff"
+            chown 0:0 "$_ff" 2>/dev/null || true; chmod 644 "$_ff"
+            echo "Camera: One UI floating features ($(basename "$_ff")) VENDOR_LIB_INFO adjusted: $(cat "$_cut")"
+        else
+            rm -f "$_ff.tmp"
+        fi
+        rm -f "$_cut"
+    }
+    if [ "$ONEUI_A_CAMERA" = 0 ] && [ "$CAMDATA_OWN" = 0 ]; then
+        oneui_filter_vendor_lib_info "$STAGE/data/oneos_floating_feature.xml"
+        oneui_filter_vendor_lib_info "$STAGE/data/oneos_system_floating_feature.xml"
     fi
 fi
 # The S26 Ultra donor does not describe the Fold8's cover or wide inner screen.

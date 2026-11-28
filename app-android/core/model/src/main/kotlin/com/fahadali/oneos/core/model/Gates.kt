@@ -247,7 +247,7 @@ object SwitchGates {
     const val R_ANDROID_EXPERIMENTAL = "experimental-a17-on-a16"
 
     /** The tick of [R_ANDROID_EXPERIMENTAL] at Switch. */
-    const val A17_ON_A16_ACK = "I understand this is an experimental test: One UI 9.5 on One UI 8, with the camera off"
+    const val A17_ON_A16_ACK = "I understand this is an experimental test: One UI 9.5 on One UI 8, and parts of it may not work"
     const val R_FORM_MISMATCH = "mismatch"
     const val R_IMAGE_NOT_IN_BUILD = "not-in-build"
     const val R_IMAGE_OTHER_SERIES = "other-series"
@@ -510,8 +510,8 @@ object SwitchGates {
         } else if (experimental) {
             Finding(
                 ID_ANDROID, Level.WARN, "Experimental: One UI 9.5 on Android $have",
-                "This phone runs Android $have (SDK ${f.sdk}); One UI 9.5 is Android 17 (SDK 37). This test build lets it " +
-                    "start next to One UI 8 anyway: the camera is off in it, and parts of One UI 9.5 may not work.",
+                "This phone runs Android $have (SDK ${f.sdk}); One UI 9.5 is Android 17 (SDK 37). This build lets it " +
+                    "start next to One UI 8 experimentally, and parts of One UI 9.5 (including some camera features) may not work.",
                 R_ANDROID_EXPERIMENTAL,
             )
         } else if (image != null && Experimental.a17OnA16Offered(f.sdk, profile, a17OnA16, images)) {

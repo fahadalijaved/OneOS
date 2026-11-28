@@ -183,7 +183,10 @@ done
 GUARD_JARS="services_patched.jar $(awk '$2 == "oplus-services_patched.jar" || $2 == "vold_patched" || $2 == "service.incremental_patched.so" ||
                                        $2 == "miui-services_patched.jar" || $2 == "apprecovery.proinstaller_patched.jar" ||
                                        $2 == "framework_patched.jar" || $2 == "miui-wifi-service_patched.jar" || $2 == "miui-telephony-common_patched.jar" ||
-                                       $2 == "telephony-common_patched.jar" || $2 == "framework_patched_oneui95.jar" || $2 == "framework_patched_oneui8.jar" { print $2 }' "$STAGE/guards.txt")"
+                                       $2 == "libcamera_client_patched.so" || $2 == "libcameracompatbilityinfo_patched.so" ||
+                                       $2 == "telephony-common_patched.jar" || $2 == "framework_patched_oneui95.jar" || $2 == "libcamera_client_patched_oneui95.so" ||
+                                       $2 == "framework_patched_oneui8.jar" || $2 == "framework_patched_oneui85.jar" ||
+                                       $2 == "libcamera_client_patched_oneui8.so" || $2 == "libcamera_client_patched_oneui85.so" { print $2 }' "$STAGE/guards.txt")"
 
 if [ "$APP" = 1 ]; then
     # Every staged file (files.sha256, written by the app's root script; all
@@ -2567,15 +2570,17 @@ echo "Guest refresh-rate policy: ${GUEST_REFRESH} Hz (One UI physical modes)"
 GUEST_HIGH_ORR=3
 [ "$GUEST_REFRESH" = "90.0" ] && GUEST_HIGH_ORR=1
 # ColorOS's own 60/120 Hz choice (variable refresh, min_refresh_rate 0) only where no in-display optical
-# sensor needs a steady rate (the A36's fingerprint failed on variable rates, test 10), or on the Galaxy
-# S24 FE it was tested on (pull request #355); elsewhere the rate stays pinned as before.
+# sensor needs a steady rate (the A36's optical fingerprint failed on variable rates, test 10), or on the
+# Galaxy S24 FE it was tested on (pull request #355). Ultrasonic sensors (S22..S26) do not rely on panel
+# refresh/light and already expose the ColorOS refresh-rate menu (guest_prepare.sh).
 GUEST_ORR_DYN=1
 # ro.boot.hardware back to the phone's own after the guest's zygote preloaded libqti_performance.so: only on the
 # Galaxy S24 FE (pull request #355, its Night mode); elsewhere a zygote restart inside the session would come up
 # without that library (the S26+ UnsatisfiedLinkError). ONEOS_GUEST_RESTORE_BOOT_HW=1 forces it, 0 turns it off.
 GUEST_RESTORE_HW_DEF=0
 case "$(getprop ro.product.model)" in SM-S721*) GUEST_RESTORE_HW_DEF=1 ;; esac
-if [ -s "$STAGE/data/system/oneos_udfps" ]; then
+if [ -s "$STAGE/data/system/oneos_udfps" ] &&
+   ! grep -q '<SEC_FLOATING_FEATURE_BIOAUTH_CONFIG_FINGERPRINT_FEATURES>[^<]*ultrasonic' /system/etc/floating_feature.xml 2>/dev/null; then
     case "$(getprop ro.product.model)" in SM-S721*) ;; *) GUEST_ORR_DYN=0 ;; esac
 fi
 # ONEOS_GUEST_POSTURE=live: the fold line's posture follows the guest's hinge
@@ -2745,7 +2750,7 @@ while true; do
             # never made and no photo was saved (0.4.37, Z Fold6 report 034a7e05).
             # Made here once the camera's data folder exists.
             CAMD=$STAGE/data/user/0/com.sec.android.app.camera
-            if [ -d $STAGE/samcam_build ] && [ ! -d $STAGE/data/sec/camera ] && [ -d \$CAMD ] && [ ! -L \$CAMD ] && [ ! -L $STAGE/data/sec ]; then
+            if { [ -d $STAGE/samcam_build ] || [ -f $STAGE/data/oneos_sec_camera ]; } && [ ! -d $STAGE/data/sec/camera ] && [ -d \$CAMD ] && [ ! -L \$CAMD ] && [ ! -L $STAGE/data/sec ]; then
                 CU=\$(stat -c %u \$CAMD 2>/dev/null)
                 if [ -n \"\$CU\" ] && [ \"\$CU\" -ge 10000 ]; then
                     mkdir -p $STAGE/data/sec/camera && chown 0:0 $STAGE/data/sec && chmod 771 $STAGE/data/sec &&
@@ -2905,13 +2910,17 @@ while true; do
             fi
             # 0.5.48 (owner, S25 Ultra d55b55c3 on 0.5.44): One UI 9.5 froze the whole phone seconds after its setup's
             # Bixby step (Bixby voice wake-up being set up); the chip's watchdog restarted it (TZBSP_ERR_FATAL_NON_SECURE_WDT).
-            # Bixby and its voice wake-up are turned off in the guest on the S25 Ultra (Snapdragon); ONEOS_GUEST_BIXBY=1 keeps them.
-            if [ \"${ONEOS_PROFILE:-}\" = s-ultra-8750 ] && [ \"${ONEOS_GUEST_BIXBY:-0}\" != 1 ]; then
-                for bx in com.samsung.android.bixby.wakeup com.samsung.android.bixby.agent; do
-                    $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 \$bx >/dev/null 2>&1 &&
-                        echo \"[UI Activator] S25 Ultra: \$bx turned off (Bixby voice wake-up froze this phone)\"
-                done
-            fi
+            # Bixby and its voice wake-up are turned off in the guest on the S25 Ultra and SM8450 Snapdragon family
+            # (s-ultra-8750, s-8450, s-plus-8450, s-ultra-8450, s-ultra-8450-jp, s-fe-8450); ONEOS_GUEST_BIXBY=1 keeps them.
+            case \"${ONEOS_PROFILE:-}\" in
+                s-ultra-8750|s-8450|s-plus-8450|s-ultra-8450|s-ultra-8450-jp|s-fe-8450)
+                    if [ \"${ONEOS_GUEST_BIXBY:-0}\" != 1 ]; then
+                        for bx in com.samsung.android.bixby.wakeup com.samsung.android.bixby.agent; do
+                            $BB nsenter -t \$PID -m /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 \$bx >/dev/null 2>&1 &&
+                                echo \"[UI Activator] ${ONEOS_PROFILE}: \$bx turned off (Bixby voice wake-up froze Snapdragon guests)\"
+                        done
+                    fi ;;
+            esac
             # Fallback for a staged /data that had no settings files to seed, before
             # HOME: a fresh stage has none. Pixel's two setup wizards (ColorOS has
             # none) would take that first boot and wait for Google services.
