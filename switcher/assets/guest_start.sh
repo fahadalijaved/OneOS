@@ -2222,7 +2222,7 @@ fi
 # folder during boot: the folder is made then, before anyone opens the camera.
 # Without it the camera's post-processing fails ("can't create secureDirectory")
 # and the picture is lost (0.4.58 report f794c15d). Five minutes at most.
-if [ -f /data/oneos_samcam ] && [ ! -L /data/sec ]; then
+if { [ -f /data/oneos_samcam ] || [ -f /data/oneos_sec_camera ]; } && [ ! -L /data/sec ]; then
     ONEOS_BB="$BB" $BB sh -c '
         i=0
         while [ $i -lt 300 ]; do
