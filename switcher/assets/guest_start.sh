@@ -1608,7 +1608,13 @@ if [ -f /data/guest_audio.flag ]; then
         hotword_off() {
             g=com.google.android.googlequicksearchbox
             o=$(/system/bin/sh /data/oneos_genv.sh /system/bin/cmd appops set $g RECORD_AUDIO_HOTWORD ignore 2>&1 | tr -s " \n" " " | head -c 80)
-            /system/bin/sh /data/oneos_genv.sh /system/bin/cmd role remove-role-holder --user 0 android.app.role.ASSISTANT $g >/dev/null 2>&1
+            # Not in ColorOS (coloros22test10, Exynos S22 Homak 2a7d158b): there the removal makes the role controller
+            # grant the fallback assistant, whose AssistantRoleBehavior.grantAsUser calls
+            # VoiceInteractionManager.clearReadScreenContextRequestDeniedCount() on a null manager, and system_server
+            # died 70 s in (FATAL EXCEPTION IN SYSTEM PROCESS: RoleControllerService). The app op, the empty voice
+            # interaction service and Bixby wake-up off still apply there.
+            [ -e /system/framework/oplus-services.jar ] ||
+                /system/bin/sh /data/oneos_genv.sh /system/bin/cmd role remove-role-holder --user 0 android.app.role.ASSISTANT $g >/dev/null 2>&1
             /system/bin/sh /data/oneos_genv.sh /system/bin/settings put secure voice_interaction_service "" >/dev/null 2>&1
             /system/bin/sh /data/oneos_genv.sh /system/bin/pm disable-user --user 0 com.samsung.android.bixby.wakeup >/dev/null 2>&1
             /system/bin/sh /data/oneos_genv.sh /system/bin/am force-stop $g >/dev/null 2>&1

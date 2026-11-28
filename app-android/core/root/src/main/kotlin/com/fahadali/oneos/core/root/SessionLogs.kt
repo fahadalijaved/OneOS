@@ -419,6 +419,12 @@ object LogBundle {
             append("Outcome: ${input.outcome.title}\n${input.outcome.detail(Images.systemName(input.imageId?.let { Images.byId(it) }))}\n")
             append("Boot reason: ${input.outcome.bootReason ?: "unknown"}\n")
             if (input.incomplete.isNotEmpty()) append("Not collected: ${input.incomplete.joinToString(", ")}\n")
+            // 0.5.53: a report without the logcat capture said nothing about why (A57 0b20d6e7: the session ran with
+            // Full session logs off, and it read as a missing capture).
+            val env = File(folder, "stage/session.env").takeIf { it.isFile }?.readText().orEmpty()
+            if (Regex("(?m)^ONEOS_FULL_LOGS=0$").containsMatchIn(env)) {
+                append("Full session logs: off for this session (no logcat capture; turn them on before switching)\n")
+            }
             append("Files: ${files.size}; lines ${stats.lines}, dropped ${stats.droppedLines}, personal values removed ${redactor.log.total}, file names masked ${stats.maskedFiles}\n")
         }
         File(folder, SUMMARY).writeText(summary)

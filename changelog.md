@@ -801,6 +801,13 @@ battery drain fixed.**
   HyperOS files: HyperOS started its status bar and home screen before OneOS's sizes were on. Both now restart once
   when that happens.
 
+New in 0.5.53: **Infinity-X screen lock, Bring apps no longer fills storage.**
+- **Infinity-X screen lock**: a PIN, pattern or password set in Infinity-X works (kept inside Infinity-X), which also lets
+  its fingerprint unlock work (testing).
+- **Bring apps** no longer piles up copies of an app that keeps failing to install (an A35 lost over 50 GB to repeated
+  Samsung Notes copies); copies moved aside are cleared at every switch.
+- Session reports say when Full session logs were off.
+
 New in 0.5.52: **fingerprint in Infinity-X and LineageOS, ColorOS fingerprint icon on QHD phones.**
 - **Fingerprint unlock in Infinity-X and LineageOS** with One UI's own fingerprints, and a fingerprint ring on the
   Infinity-X lock screen placed from the phone's sensor (vdcoolok's work, pull request #152) (testing).

@@ -1652,6 +1652,14 @@ do_launch() {
     if [ -f "$STAGE/persist_session.active" ]; then
         refuse "the last session never returned: restore One UI's settings first (Last session)"
     fi
+    # 0.5.53: copies that bring-add moved aside during earlier sessions go now, with the guest down (A35
+    # Moumin367: one app that failed to install was brought again and again from inside the guest, and its old
+    # copies piled up in oneos_bring/.aside to over 50 GB, as only bring-collect emptied it).
+    if [ -d "$STAGE/data/oneos_bring/.aside" ] && [ ! -L "$STAGE/data" ] && [ ! -L "$STAGE/data/oneos_bring" ]; then
+        # In a subshell: purge_one's checks refuse (exit) when, say, a bridge is still up, and that must not
+        # end the launch; the folder then stays for the next run.
+        ( bring_drop "$STAGE/data/oneos_bring/.aside" ) >/dev/null 2>&1 || true
+    fi
     names="$SCRIPTS $(set_files "$M_SET")"
     check_files "$names"
     set -- $(image_raw "$M_IMAGE")

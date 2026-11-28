@@ -75,7 +75,7 @@ class PackageSetsTest {
         // Not its cellbroadcast module (0.4.28): One UI's stays, as tethering does.
         val ifx = PackageSets.INFINITYX
         assertEquals(Images.ID_INFINITYX, ifx.imageId)
-        assertEquals("out/overlays_infinityx_r22", ifx.sourceDir)
+        assertEquals("out/overlays_infinityx_r23", ifx.sourceDir)
         // 0.4.55 (r4): telephony-common_patched.jar (the SMS centre) and samcam.tar (the S26 Ultra's camera).
         assertEquals(39, ifx.files.size) // r22: + SystemUI_glyph.apk; r19: + the One UI 9.5 camera variants
         // 0.4.33: the status bar's corner padding, as on the Pixel images.
