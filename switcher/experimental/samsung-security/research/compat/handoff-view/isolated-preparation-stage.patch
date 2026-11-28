@@ -1,0 +1,77 @@
+--- a/guest_private_view_inputs.c
++++ b/guest_private_view_inputs.c
+@@ -18,7 +18,7 @@
+ #include <sys/types.h>
+ #include <unistd.h>
+ 
+-#define STAGE "/data/local/tmp/oneos"
++#define STAGE "/data/local/tmp/oneos-viewprep"
+ #define DATA_PATH STAGE "/data"
+ #define ID_CAP 1024U
+ enum { F_STAGE,F_IMAGE,F_ID,F_DATA,F_COUNT };
+@@ -97,7 +97,7 @@
+     return 0;
+ }
+ /* Cooperative lease only. Fixed protected objects, no contents/PID authority. */
+-#define GVI_GUARD "/dev/oneos-retained-view"
++#define GVI_GUARD "/dev/oneos-retained-viewprep"
+ static int guard_profile(int fd,int directory,struct stat *s) {
+     if (fstat(fd,s)<0) return -1;
+     if ((directory?!S_ISDIR(s->st_mode):!S_ISREG(s->st_mode)) ||
+@@ -119,7 +119,7 @@
+         fstatat(p->guard_parent,"view-blocked",&s,AT_SYMLINK_NOFOLLOW)<0 || !same_identity(&s,&p->guard_marker_stat) ||
+         flock(p->guard_lease,LOCK_EX|LOCK_NB)<0) { if (!errno) errno=ESTALE;return -1; }
+     root=open("/",O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if (root<0) goto done;
+-    current=walk(p,root,"dev/oneos-retained-view");if (current<0) goto done;
++    current=walk(p,root,&GVI_GUARD[1]);if (current<0) goto done;
+     if (fstat(current,&s)<0 || !same_identity(&s,&p->guard_parent_stat)) { errno=ESTALE;goto done; }
+     result=0;
+ done:
+@@ -132,7 +132,7 @@
+     struct stat s;
+     root=open("/",O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if (root<0) goto done;
+     dev=walk(p,root,"dev");if (dev<0 || root_object(dev,1,&s)<0) goto done;
+-    p->guard_parent=walk(p,root,"dev/oneos-retained-view");if (p->guard_parent<0) goto done;
++    p->guard_parent=walk(p,root,&GVI_GUARD[1]);if (p->guard_parent<0) goto done;
+     if (guard_profile(p->guard_parent,1,&s)<0) goto done;
+     p->guard_lease=openat(p->guard_parent,"lease",O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
+     if (p->guard_lease<0 || guard_profile(p->guard_lease,0,&p->guard_lease_stat)<0 ||
+@@ -276,7 +276,7 @@
+     if (read_id(p->fd[F_ID],current_id,&length)<0 || length!=p->id_length || memcmp(current_id,p->id_bytes,length) ||
+         id_matches(current_id,length,&p->initial[F_IMAGE])<0) { errno=ESTALE;return -1; }
+     slash=open("/",O_PATH|O_DIRECTORY|O_CLOEXEC);if (slash<0) goto done;
+-    stage=walk(p,slash,"data/local/tmp/oneos");if (stage<0) goto done;
++    stage=walk(p,slash,&STAGE[1]);if (stage<0) goto done;
+     data=walk(p,stage,"data");image=openat(stage,"system.raw",O_RDONLY|O_NONBLOCK|O_NOFOLLOW|O_CLOEXEC);
+     id=openat(stage,"system.raw.id",O_RDONLY|O_NONBLOCK|O_NOFOLLOW|O_CLOEXEC);
+     { int fds[F_COUNT]={stage,image,id,data};
+@@ -301,7 +301,7 @@
+     p->guard_parent=p->guard_lease=p->guard_marker=-1;
+     if (guard_acquire(p)<0) goto fail;
+     slash=open("/",O_PATH|O_DIRECTORY|O_CLOEXEC);if (slash<0) goto fail;
+-    p->fd[F_STAGE]=walk(p,slash,"data/local/tmp/oneos");if (p->fd[F_STAGE]<0) goto fail;
++    p->fd[F_STAGE]=walk(p,slash,&STAGE[1]);if (p->fd[F_STAGE]<0) goto fail;
+     p->fd[F_IMAGE]=openat(p->fd[F_STAGE],"system.raw",O_RDONLY|O_NONBLOCK|O_NOFOLLOW|O_CLOEXEC);
+     p->fd[F_ID]=openat(p->fd[F_STAGE],"system.raw.id",O_RDONLY|O_NONBLOCK|O_NOFOLLOW|O_CLOEXEC);
+     p->fd[F_DATA]=walk(p,p->fd[F_STAGE],"data");
+--- a/guest_private_view_owner.c
++++ b/guest_private_view_owner.c
+@@ -39,7 +39,8 @@
+ #define GVO_RIGHTS 7
+ #define GVO_MAGIC UINT32_C(0x47564f33)
+ #define GVO_ROOT "/mnt/gvi/root"
+-#define GVO_DATA "/data/local/tmp/oneos/data"
++#define GVO_STAGE "/data/local/tmp/oneos-viewprep"
++#define GVO_DATA GVO_STAGE "/data"
+ enum { W_PARTIAL=1, W_ERROR=2, W_CANCEL=3,W_CONFIG_OK=4,W_CONFIG_ACK=5,
+        W_CONFIG_BUSY=6,W_PRECONFIG_ERROR=7,W_CONFIG_UNKNOWN=8 };
+ enum { L_NONE=0,L_CANDIDATE,L_PENDING,L_PRE_REFUSED,L_BUSY,L_CONFIRMED,L_UNKNOWN };
+@@ -602,7 +603,7 @@
+     if (ns.st_ino==o->parent_ns_inode && ns.st_dev==o->parent_ns_dev) { errno=EXDEV;goto fail; }
+     if (mounts_read("/proc/self/mountinfo")<0 || private_table()<0 || child_still_parented(o)<0) goto fail;
+     stage=S_REOPEN;
+-    { int stage_dir=open_absolute("/data/local/tmp/oneos"),saved_open;
++    { int stage_dir=open_absolute(GVO_STAGE),saved_open;
+       if (stage_dir<0) goto fail;
+       image=openat(stage_dir,"system.raw",O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);saved_open=errno;
+       if (close_cell(&stage_dir)<0) goto fail;

@@ -1,0 +1,14 @@
+import com.appleexploit.oneos.security.authority.PreparedGuestMetricsProducer;
+
+/** Runs against separate plainly authored binary-name shape variants. */
+public final class ShapeProbe {
+    public static void main(String[] args) throws Throwable {
+        Class<?> c = Class.forName("com.android.server.display.DisplayManagerService");
+        Object service = c.getMethod("service").invoke(null);
+        try { PreparedGuestMetricsProducer.prepare(service); }
+        catch (ReflectiveOperationException expected) {
+            System.out.println("{\"pass\":true,\"shapeRefused\":true}"); return;
+        }
+        throw new AssertionError("Malformed authored receiver shape accepted");
+    }
+}

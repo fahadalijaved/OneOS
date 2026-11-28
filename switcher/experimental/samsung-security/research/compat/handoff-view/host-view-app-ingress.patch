@@ -1,0 +1,277 @@
+--- a/PreparedRetainedHostNativeBindingV2.java
++++ b/PreparedRetainedHostNativeBindingV2.java
+@@ -24,6 +24,7 @@
+ import android.system.OsConstants;
+ import android.system.StructStat;
+ import com.fahadali.oneos.core.root.RetainedHostControlProtocol;
++import com.fahadali.oneos.core.root.RetainedViewAppProtocol;
+ import java.io.FileDescriptor;
+ import java.security.MessageDigest;
+ 
+@@ -62,6 +63,7 @@
+     private IBinder broker, latestIgnoredReconnect;
+     private HashJob hashJob;
+     private Offer offer;
++    private AppView appView;
+     private RetainedHostNativeControlV2 nativeControl;
+     private Thread hashThread, beginThread;
+ 
+@@ -312,13 +314,17 @@
+         source.checkRootLinkForControl(registry, family);
+     }
+ 
++    private boolean incomingReadyLocked() {
++        return callbackClaimed && (incomingFailed || (offer != null && offer.complete));
++    }
++
+     private boolean readyLocked() {
+         if (retired) return !bindInFlight && ((receiverAttempted && !receiverRemoved)
+                 || (unlockReceiverAttempted && !unlockReceiverRemoved) || (bindAttempted && !unbindAttempted));
+         return (started && unlockNotice && !hashStarted)
+                 || (hashJob != null && hashJob.done && !hashConsumed)
+                 || (connected && bindKnown && !connectionConsumed)
+-                || (callbackClaimed && beginKnown && !incomingConsumed) || nativeNotice || launcherNotice;
++                || (incomingReadyLocked() && beginKnown && !incomingConsumed) || nativeNotice || launcherNotice;
+     }
+     private void signalMain() {
+         synchronized (lock) {
+@@ -367,7 +373,7 @@
+                     if (useConnection) beginApp();
+                     boolean useIncoming;
+                     synchronized (lock) {
+-                        useIncoming = callbackClaimed && beginKnown && !incomingConsumed;
++                        useIncoming = incomingReadyLocked() && beginKnown && !incomingConsumed;
+                         if (useIncoming) incomingConsumed = true;
+                     }
+                     if (useIncoming) acceptIncoming();
+@@ -512,7 +518,12 @@
+         synchronized (lock) { require(nativeControl == actual, "Foreign native failure"); nativeNotice = true; }
+         fail(problem); signalMain();
+     }
+-    private static final class Offer { int pid; String name; boolean complete; }
++    private static final class Offer {
++        int pid, appPid;
++        String name;
++        IBinder appBroker;
++        boolean complete;
++    }
+ 
+     private final class Connection implements ServiceConnection {
+         @Override public void onServiceConnected(ComponentName name, IBinder service) {
+@@ -595,6 +606,20 @@
+     private final class Callback extends Binder {
+         Callback() { attachInterface(null, RetainedHostControlProtocol.CALLBACK); }
+         @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
++            if (code == RetainedViewAppProtocol.APP_VIEW_PREPARE || code == RetainedViewAppProtocol.APP_VIEW_STOP
++                    || code == RetainedViewAppProtocol.APP_VIEW_STATUS) {
++                require(flags == 0 && reply != null, "Synchronous app view callback required");
++                int uid = Binder.getCallingUid();
++                int pid = Binder.getCallingPid();
++                data.enforceInterface(RetainedHostControlProtocol.CALLBACK);
++                require(data.readInt() == RetainedHostControlProtocol.VERSION, "Callback version differs");
++                data.enforceNoDataAvail();
++                int result = code == RetainedViewAppProtocol.APP_VIEW_STATUS
++                        ? appViewStatus(uid, pid) : postAppViewCommand(code, uid, pid);
++                reply.writeNoException();
++                reply.writeInt(result);
++                return true;
++            }
+             if (code != RetainedHostControlProtocol.OFFER && code != RetainedHostControlProtocol.FAILED) {
+                 return super.onTransact(code, data, reply, flags);
+             }
+@@ -612,7 +637,14 @@
+                     actual.pid = data.readInt(); actual.name = data.readString();
+                     RetainedHostControlProtocol.validateOffer(actual.pid, actual.name);
+                     data.enforceNoDataAvail();
+-                    synchronized (lock) { actual.complete = true; }
++                    int appPid = Binder.getCallingPid();
++                    synchronized (lock) {
++                        require(appPid > 0 && !retired && !appTransportLost && connected && broker != null,
++                                "Actual app offer sender unavailable");
++                        actual.appPid = appPid;
++                        actual.appBroker = broker;
++                        actual.complete = true;
++                    }
+                 } else {
+                     require(data.readInt() == RetainedHostControlProtocol.UNAVAILABLE, "Unknown startup failure");
+                     data.enforceNoDataAvail();
+@@ -624,6 +656,179 @@
+             } catch (Throwable problem) {
+                 fail(problem); signalMain(); closeDirect();
+                 throw new IllegalStateException("Direct-host offer unavailable");
++            }
++        }
++    }
++
++    // An ignored reconnect never transfers app ingress. The original native
++    // owner can still drain through its existing direct transport.
++    private boolean appViewPeerLocked() {
++        return !appTransportLost && connected && connectionConsumed && reconnectNotices == 0
++                && bindKnown && bindAccepted && beginKnown && beginQueued && incomingConsumed
++                && !incomingFailed && offer != null && offer.complete && offer.appBroker == broker;
++    }
++
++    private boolean appViewCallerLocked(int uid, int pid) {
++        return uid >= 0 && uid == appUid && pid > 0 && appViewPeerLocked() && pid == offer.appPid;
++    }
++
++    private boolean appViewLiveLocked() {
++        return !retired && failure == null && !unbindAttempted && commitConsumed
++                && state == State.HOST_LINKED_CLOSED;
++    }
++
++    private boolean appViewRetainedLocked(AppView expected) {
++        return appViewPeerLocked() && appView == expected && offer == expected.offer
++                && nativeControl == expected.control;
++    }
++
++    private int postAppViewCommand(int code, int uid, int pid) {
++        boolean prepare = code == RetainedViewAppProtocol.APP_VIEW_PREPARE;
++        Offer actualOffer;
++        RetainedHostNativeControlV2 actual;
++        synchronized (lock) {
++            if (!appViewCallerLocked(uid, pid) || !appViewLiveLocked() || nativeControl == null) {
++                return RetainedViewAppProtocol.UNAVAILABLE;
++            }
++            actualOffer = offer;
++            actual = nativeControl;
++        }
++        if (!actual.committed()) return RetainedViewAppProtocol.UNAVAILABLE;
++        AppViewCommand command;
++        synchronized (lock) {
++            if (!appViewCallerLocked(uid, pid) || !appViewLiveLocked()
++                    || offer != actualOffer || nativeControl != actual) return RetainedViewAppProtocol.UNAVAILABLE;
++            if (prepare) {
++                if (appView != null || viewCreditIssued || privateViewClosing) return RetainedViewAppProtocol.UNAVAILABLE;
++                AppView occurrence = new AppView(actualOffer, actual);
++                command = new AppViewCommand(occurrence, true);
++                appView = occurrence; // Retain this occurrence before any post or reply.
++            } else {
++                AppView occurrence = appView;
++                if (occurrence == null || !appViewRetainedLocked(occurrence) || occurrence.stopClaimed) {
++                    return RetainedViewAppProtocol.UNAVAILABLE;
++                }
++                command = new AppViewCommand(occurrence, false);
++                occurrence.stopClaimed = true;
++                occurrence.stoppedBeforeDispatch = !occurrence.prepareStarted;
++            }
++        }
++        boolean postedCommand;
++        try {
++            postedCommand = handler.post(command); // Distinct from the busy Dispatch continuation.
++        } catch (Throwable problem) {
++            refuseAppViewPost(command);
++            throw new IllegalStateException("App view delivery uncertain");
++        }
++        if (postedCommand) return RetainedViewAppProtocol.QUEUED;
++        if (refuseAppViewPost(command)) throw new IllegalStateException("App view delivery uncertain");
++        return RetainedViewAppProtocol.UNAVAILABLE;
++    }
++
++    private boolean refuseAppViewPost(AppViewCommand command) {
++        boolean entered;
++        synchronized (lock) {
++            command.cancelled = true;
++            entered = command.entered;
++            if (!entered && command.prepare) command.occurrence.prepareUnavailable = true;
++        }
++        boolean stopMayHaveSignalled = !command.prepare && closeAfterAppStop(command);
++        return entered || stopMayHaveSignalled;
++    }
++
++    private boolean closeAfterAppStop(AppViewCommand command) {
++        AppView occurrence = command.occurrence;
++        synchronized (lock) {
++            // The admitted STOP survives a later transport or source cutoff.
++            if (appView != occurrence || nativeControl != occurrence.control || !occurrence.stopClaimed
++                    || !occurrence.prepareStarted) return false;
++            if (command.closeReturned || occurrence.fallbackCloseRequested) return true;
++            occurrence.fallbackCloseRequested = true;
++        }
++        occurrence.control.requestClose(); // Signal the same worker, never send from this stack.
++        return true;
++    }
++
++    private int appViewStatus(int uid, int pid) {
++        AppView occurrence;
++        synchronized (lock) {
++            occurrence = appView;
++            if (occurrence == null || !appViewCallerLocked(uid, pid) || !appViewRetainedLocked(occurrence)) {
++                return RetainedViewAppProtocol.STATUS_UNAVAILABLE;
++            }
++            if (occurrence.stoppedBeforeDispatch) return RetainedViewAppProtocol.STATUS_STOPPED_BEFORE_DISPATCH;
++            if (!occurrence.prepareStarted) {
++                return occurrence.prepareUnavailable || !appViewLiveLocked()
++                        ? RetainedViewAppProtocol.STATUS_UNAVAILABLE : RetainedViewAppProtocol.STATUS_PENDING;
++            }
++        }
++        // Same retained owner after cutoff. No fresh source check or native command.
++        int status = occurrence.control.appViewStatus();
++        synchronized (lock) {
++            if (!appViewCallerLocked(uid, pid) || !appViewRetainedLocked(occurrence)) {
++                return RetainedViewAppProtocol.STATUS_UNAVAILABLE;
++            }
++            return status;
++        }
++    }
++
++    private static final class AppView {
++        final Offer offer;
++        final RetainedHostNativeControlV2 control;
++        boolean prepareStarted, prepareUnavailable, stopClaimed, stoppedBeforeDispatch;
++        boolean fallbackCloseRequested;
++
++        AppView(Offer offer, RetainedHostNativeControlV2 control) {
++            this.offer = offer;
++            this.control = control;
++        }
++    }
++
++    private final class AppViewCommand implements Runnable {
++        final AppView occurrence;
++        final boolean prepare;
++        boolean cancelled, entered, closeReturned;
++
++        AppViewCommand(AppView occurrence, boolean prepare) {
++            this.occurrence = occurrence;
++            this.prepare = prepare;
++        }
++
++        private boolean availableLocked() {
++            if (cancelled || entered || busy || !appViewRetainedLocked(occurrence) || !appViewLiveLocked()) {
++                return false;
++            }
++            if (prepare) return !occurrence.stopClaimed && !occurrence.prepareUnavailable
++                    && !viewCreditIssued && !privateViewClosing;
++            return occurrence.stopClaimed && occurrence.prepareStarted && viewCreditIssued && !privateViewClosing;
++        }
++
++        @Override public void run() {
++            try {
++                if (Thread.currentThread() != mainThread || Looper.getMainLooper() != main
++                        || main.getThread() != mainThread) return;
++                synchronized (lock) { if (!availableLocked()) return; }
++                if (prepare && !source.privateViewRequestAvailableForControl()) return;
++                if (!occurrence.control.committed()) return;
++                synchronized (lock) {
++                    if (!availableLocked()) return;
++                    entered = true;
++                    if (prepare) occurrence.prepareStarted = true; // The source call can dispatch before throwing.
++                }
++                if (prepare) source.requestPrivateViewForControl();
++                else {
++                    source.requestPrivateViewCloseForControl();
++                    synchronized (lock) { closeReturned = true; }
++                }
++            } catch (Throwable problem) {
++                // The existing source mutation owns failure retirement. The
++                // pre-dispatch refusal and admitted STOP remain local below.
++            } finally {
++                if (prepare) {
++                    synchronized (lock) {
++                        if (!occurrence.prepareStarted) occurrence.prepareUnavailable = true;
++                    }
++                } else closeAfterAppStop(this);
+             }
+         }
+     }

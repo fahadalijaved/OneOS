@@ -1,0 +1,16 @@
+package com.appleexploit.oneos.security.authority;
+import cellmodels.ModelControl;
+/** AUTHORED dependency MODEL matching only the actual cell's used ABI. */
+public final class PreparedGuestMetricsProducer {
+    private PreparedGuestMetricsProducer() { }
+    public static PreparedGuestMetricsProducer prepare(Object service)
+            throws ReflectiveOperationException {
+        ModelControl.producerCalls.incrementAndGet();
+        ModelControl.lastBorn = service;
+        ModelControl.run(ModelControl.producerBefore);
+        if (ModelControl.producerFault != null) {
+            throw ModelControl.raise(ModelControl.producerFault);
+        }
+        return new PreparedGuestMetricsProducer();
+    }
+}

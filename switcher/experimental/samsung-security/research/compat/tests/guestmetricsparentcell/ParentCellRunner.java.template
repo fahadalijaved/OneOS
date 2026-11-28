@@ -1,0 +1,48 @@
+package cellmodels;
+
+import java.lang.reflect.InvocationTargetException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Paths;
+
+/** JDK-only driver. Every case creates a new child with platform-only parent. */
+public final class ParentCellRunner {
+    private static final String[] CASES = {
+        "public_off", "preclaim_tombstone", "phase_before_capture", "ordinary_refusals",
+        "preparation_failure", "retire_during_prepare", "late_endpoint", "phase_during_prepare",
+        "retire_during_activation", "activation_failure", "retire_during_dispatch",
+        "retire_ack_blocked", "uncertain_primary_failure", "foreign_reentry"
+    };
+    public static void main(String[] args) throws Throwable {
+        if (args.length != 2) throw new IllegalArgumentException("exact model and cell paths required");
+        URL[] paths = {Paths.get(args[0]).toUri().toURL(), Paths.get(args[1]).toUri().toURL()};
+        int total = 0;
+        for (String name : CASES) {
+            try (URLClassLoader loader = new URLClassLoader(paths, ClassLoader.getPlatformClassLoader())) {
+                String root = "com.appleexploit.oneos.security.authority.";
+                for (String type : new String[]{"android.os.Binder", "android.os.IBinder",
+                        "android.os.Parcel", "android.os.RemoteException", "cellmodels.ModelControl",
+                        "cellmodels.ParentCellScenario", root + "PreparedGuestMetricsProducer",
+                        root + "PreparedGuestMetricsEndpoint", root + "PreparedGuestMetricsParentCell",
+                        root + "PreparedGuestMetricsParentCell$PhaseDisposition",
+                        root + "PreparedGuestMetricsParentCell$RetirementDisposition"}) {
+                    if (Class.forName(type, false, loader).getClassLoader() != loader) {
+                        throw new AssertionError("model/production realm escaped fresh child");
+                    }
+                }
+                Class<?> scenario = Class.forName("cellmodels.ParentCellScenario", true, loader);
+                final int checks;
+                try { checks = (Integer) scenario.getMethod("run", String.class).invoke(null, name); }
+                catch (InvocationTargetException failure) { throw failure.getCause(); }
+                total += checks;
+                System.out.println("{\"case\":\"" + name + "\",\"checks\":" + checks
+                        + ",\"publicOff\":" + name.equals("public_off")
+                        + ",\"syntheticPrivateConstructorForDispatchOnly\":" + name.equals("public_off")
+                        + ",\"freshLoader\":true}");
+            }
+        }
+        System.out.println("{\"status\":\"PASS_AUTHORED_MODELS_ONLY\",\"cases\":"
+                + CASES.length + ",\"checks\":" + total
+                + ",\"publicEnabledArtifactExercised\":false,\"androidExecuted\":false}");
+    }
+}

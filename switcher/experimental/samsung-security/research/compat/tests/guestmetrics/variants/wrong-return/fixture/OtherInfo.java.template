@@ -1,0 +1,1 @@
+package fixture; /* Authored correct fields, wrong binary name. */ public class OtherInfo { public int displayId,appWidth,appHeight,logicalDensityDpi; public float physicalXDpi,physicalYDpi; }

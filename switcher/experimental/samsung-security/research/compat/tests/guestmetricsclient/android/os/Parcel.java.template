@@ -1,0 +1,70 @@
+package android.os;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Authored typed-values/fault/size model. No native Parcel bytes, exception
+ * construction, pooling or cleanup is implemented or claimed to be equivalent.
+ */
+public final class Parcel {
+    public static final class Plan {
+        public final Parcel request = new Parcel(this, "request");
+        public final Parcel reply = new Parcel(this, "reply");
+        public final List<String> recycleOrder = new ArrayList<>();
+        public int obtains;
+        public Throwable firstObtainFailure, secondObtainFailure;
+        public IBinder requestTarget;
+    }
+    private static final ThreadLocal<Plan> CURRENT = new ThreadLocal<>();
+    public static void use(Plan plan) { CURRENT.set(plan); }
+    public static Parcel obtain(IBinder target) { return next(target); }
+    public static Parcel obtain() { return next(null); }
+    private static Parcel next(IBinder target) {
+        Plan p = CURRENT.get();
+        if (p == null) throw new AssertionError("No authored plan");
+        p.obtains++;
+        if (p.obtains == 1) {
+            p.requestTarget = target; raise(p.firstObtainFailure); return p.request;
+        }
+        if (p.obtains == 2) { raise(p.secondObtainFailure); return p.reply; }
+        throw new AssertionError("Unexpected extra obtain");
+    }
+    private final Plan plan;
+    private final String role;
+    public final List<Integer> ints = new ArrayList<>();
+    public String token;
+    public Integer reportedBytes;
+    public int cursor, readInts, decoderCalls, decoderPosition = -1, recycleCalls;
+    public Throwable writeFailure, decoderFailure, recycleFailure;
+    public boolean decoderReturns;
+    private Parcel(Plan plan, String role) { this.plan = plan; this.role = role; }
+    public void fill(int... values) {
+        ints.clear(); for (int v : values) ints.add(v); cursor = ints.size();
+    }
+    public void writeInterfaceToken(String value) { raise(writeFailure); token = value; }
+    public void writeInt(int value) { raise(writeFailure); ints.add(value); cursor = ints.size(); }
+    public int dataSize() { return reportedBytes != null ? reportedBytes : ints.size() * 4 + (token == null ? 0 : 128); }
+    public int dataAvail() { return (ints.size() - cursor) * 4; }
+    public void setDataPosition(int bytes) {
+        if (bytes != 0) throw new AssertionError("Only owned reset0 expected"); cursor = 0;
+    }
+    public int readInt() {
+        readInts++;
+        if (cursor >= ints.size()) throw new BadParcelableException("Authored underflow");
+        return ints.get(cursor++);
+    }
+    public void readException() {
+        decoderCalls++; decoderPosition = cursor;
+        int code = readInt(); raise(decoderFailure);
+        if (code != 0 && !decoderReturns) throw new IllegalStateException("Authored remote error");
+    }
+    public void enforceNoDataAvail() {
+        if (cursor != ints.size()) throw new BadParcelableException("Authored trailing data");
+    }
+    public void recycle() { recycleCalls++; plan.recycleOrder.add(role); raise(recycleFailure); }
+    private static void raise(Throwable t) { if (t != null) Parcel.<RuntimeException>throwAny(t); }
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void throwAny(Throwable t) throws T { throw (T) t; }
+}

@@ -1,0 +1,15 @@
+# Retained private-view model review
+
+Verdict: **PASS for saved authored models only**. Independent saved-byte review of receipt `e716a939…` confirms the baseline **32 cases / 323 checks**, the cleanup-failure discriminator, and **14 private-view cases / 197 checks**. The reviewer did not replay a workflow.
+
+The actual readiness SDK receipt `6c67ec73…` supplies 57 program definitions. The models reuse 56 of those definitions byte for byte; only the real `RetainedRootOfferSpawn` is excluded and replaced by the authored spawn model. The identical spawn fixture is also inherited by the integration world. There are no other production class substitutions or class edits. Compiler-only SDK/API libraries are absent from model runtime classpaths.
+
+The review rehashed 240 retained input snapshots and all 119 staged fixture sources. It checked the seven fixture maps (187 definitions), the 56 program definitions, Java 8 class structure and fixture ancestry/inner metadata, and the nine saved command records. All seven fixture compilations and both JVMs returned zero, with reaped processes and no reader or cleanup failures. Actual compiler source order follows manifest rows. JVM roots contain only their authored test drivers; real production classes are loaded through the explicit isolated worlds.
+
+The tests use the genuine production main-thread read-only availability observation before issuing one private-view preparation. That observation consumes no credit and is not a reservation. Specific negative operations permit an exact guard refusal only while independently proving the selected wire response or EOF, unique preparation, cutoff, no rearm, and retained uncertainty. Assertions inspect owned copies of complete scripted frames consumed by the actual reader. They do not substitute source decisions, inspect private production fields, or provide native custody. The successful stdout establishes that these assertions ran; there is no separately saved per-frame telemetry file.
+
+Four earlier failed workflows remain historical evidence. Three earned only the baseline while the post-after-COMMIT witness was invalid; the fourth earned startup and private-view cases 0–3 before exposing an overly strict negative-call return expectation. Those receipts and the source corrections remain preserved. The final pass does not relabel them as successful executions.
+
+No original Android/OEM implementation, C/GVI controller, native executable, device UI or hardware ran in these models. Kernel release, native drain, physical subject/caller provenance, genuine host/guest admission, and complete switch/return acceptance remain unproved.
+
+Primary immutable evidence: [saved-output check](../out/retained-root-view-model-review/actual/ACTUAL-OUTPUT-CHECK.json), [actual model receipt](../out/retained-root-view-tests/r-5e2224eb/receipt.json), and [actual readiness SDK receipt](../out/retained-root-view-guard-build/r-d86f158c/receipt.json). These are local review evidence, not runtime inputs or approval grants.

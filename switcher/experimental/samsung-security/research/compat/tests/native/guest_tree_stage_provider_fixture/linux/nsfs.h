@@ -1,0 +1,4 @@
+#ifndef ONEOS_GTSP_FIXTURE_NSFS_H
+#define ONEOS_GTSP_FIXTURE_NSFS_H
+#define NS_GET_NSTYPE 0xb703
+#endif

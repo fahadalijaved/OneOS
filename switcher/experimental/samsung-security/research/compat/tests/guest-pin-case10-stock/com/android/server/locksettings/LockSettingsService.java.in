@@ -1,0 +1,61 @@
+package com.android.server.locksettings;
+
+import android.os.Binder;
+import com.android.internal.widget.ICheckCredentialProgressCallback;
+import com.android.internal.widget.ILockSettings;
+import com.android.internal.widget.LockscreenCredential;
+import com.android.internal.widget.VerifyCredentialResponse;
+
+/** Authored model of the original public entry's phase and ownership boundaries. */
+public final class LockSettingsService extends ILockSettings.Stub {
+    public VerifyCredentialResponse response;
+    public Throwable permissionFailure, operationFailure;
+    public Runnable beforeClear, afterClear, duringCleanup;
+
+    public int checkCalls, permissionChecks, identityClears, operationCalls;
+    public int identityRestores, cleanupCalls;
+    public int incomingPid, incomingUid, operationPid, operationUid;
+    public LockscreenCredential lastPin;
+    public int lastUser;
+    public ICheckCredentialProgressCallback lastCallback;
+
+    /* CASE10_OVERRIDE */
+
+    @Override
+    public VerifyCredentialResponse checkCredential(LockscreenCredential pin, int user,
+            ICheckCredentialProgressCallback callback) {
+        checkCalls++;
+        lastPin = pin;
+        lastUser = user;
+        lastCallback = callback;
+        incomingPid = Binder.peekCallingPid();
+        incomingUid = Binder.peekCallingUid();
+
+        // Keep fixture identity reads independent of injected Frame getter failures.
+        if (beforeClear != null) beforeClear.run();
+        permissionChecks++;
+        throwIfPresent(permissionFailure);
+
+        long identity = Binder.clearCallingIdentity();
+        identityClears++;
+        try {
+            operationCalls++;
+            operationPid = Binder.peekCallingPid();
+            operationUid = Binder.peekCallingUid();
+            if (afterClear != null) afterClear.run();
+            throwIfPresent(operationFailure);
+            return response;
+        } finally {
+            Binder.restoreCallingIdentity(identity);
+            identityRestores++;
+            cleanupCalls++;
+            if (duringCleanup != null) duringCleanup.run();
+            LockscreenCredential.zeroizeIfFromParcel(pin);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void throwIfPresent(Throwable problem) throws T {
+        if (problem != null) throw (T) problem;
+    }
+}

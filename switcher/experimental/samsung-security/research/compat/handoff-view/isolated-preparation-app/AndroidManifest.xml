@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.fahadali.oneos.viewprep">
+    <uses-sdk android:minSdkVersion="37" android:targetSdkVersion="37" />
+    <application
+        android:allowBackup="false"
+        android:label="OneOS View Prep"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity android:name=".PrepareActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service android:name="com.fahadali.oneos.core.root.RetainedRootHostServiceV2"
+            android:directBootAware="false" android:exported="false" />
+    </application>
+</manifest>

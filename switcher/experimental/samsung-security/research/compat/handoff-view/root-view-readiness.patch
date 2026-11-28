@@ -1,0 +1,70 @@
+--- a/compat/handoff-host-module/com/appleexploit/oneos/security/authority/RetainedPinHostModule.java
++++ b/compat/handoff-host-module/com/appleexploit/oneos/security/authority/RetainedPinHostModule.java
+@@ -229,6 +229,28 @@
+         }
+     }
+ 
++    /** Main-only launch availability observation; never a reservation or view admission. */
++    boolean privateViewRequestAvailableForControl() throws Throwable {
++        Looper main = Looper.getMainLooper();
++        require(main != null && Thread.currentThread() == main.getThread());
++        HostBootstrapController expected;
++        synchronized (lock) {
++            if (failed || active != 0) return false;
++            expected = controller;
++        }
++        if (expected == null || expected.rootLink == null) return false;
++        checkConstruction(expected);
++        checkRootLinkForControl(expected.registry, expected.family);
++        PreparedRetainedHostNativeBindingV2 actual = expected.rootLink;
++        boolean available = actual.privateViewRequestAvailable();
++        checkRootLinkForControl(expected.registry, expected.family);
++        checkConstruction(expected);
++        synchronized (lock) {
++            return available && !failed && active == 0 && controller == expected
++                    && expected.rootLink == actual;
++        }
++    }
++
+     /** Genuine main control entry for a future selected launch action, not a source factory. */
+     void requestPrivateViewForControl() throws Throwable {
+         try {
+--- a/compat/handoff-host/com/appleexploit/oneos/security/authority/PreparedRetainedHostNativeBindingV2.java
++++ b/compat/handoff-host/com/appleexploit/oneos/security/authority/PreparedRetainedHostNativeBindingV2.java
+@@ -160,6 +160,36 @@
+         finally { synchronized (lock) { activeCommands--; } signalMain(); }
+     }
+ 
++    /** Pending is false; this observation neither claims nor sends the one-shot request. */
++    boolean privateViewRequestAvailable() throws Throwable {
++        require(Thread.currentThread() == mainThread && Looper.getMainLooper() == main
++                && main.getThread() == mainThread, "Original main placement differs");
++        synchronized (lock) {
++            if (busy || retired || failure != null || viewCreditIssued || privateViewClosing) return false;
++            busy = true;
++        }
++        try {
++            checkSource();
++            HashJob job;
++            RetainedHostNativeControlV2 actual;
++            synchronized (lock) {
++                job = hashJob; actual = nativeControl;
++                if (job == null || !job.done || job.problem != null || job.snapshot == null
++                        || job.identity == null || actual == null || !commitConsumed
++                        || state != State.HOST_LINKED_CLOSED) return false;
++            }
++            recheckPackage(job.snapshot, job.identity); checkSource();
++            if (!actual.committed()) return false;
++            recheckPackage(job.snapshot, job.identity); checkSource();
++            boolean committedNow = actual.committed();
++            synchronized (lock) {
++                return committedNow && !retired && failure == null && !viewCreditIssued
++                        && !privateViewClosing && hashJob == job && nativeControl == actual
++                        && commitConsumed && state == State.HOST_LINKED_CLOSED;
++            }
++        } finally { leaveMain(); }
++    }
++
+     /** One source-owned main credit; no automatic post-COMMIT preparation. */
+     void requestPrivateView() throws Throwable {
+         enterMain();

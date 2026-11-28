@@ -1,0 +1,214 @@
+import android.os.BadParcelableException;
+import android.os.IBinder;
+import android.os.Parcel;
+import android.os.RemoteException;
+import com.appleexploit.oneos.security.boot.PreparedGuestMetricsClient;
+import com.appleexploit.oneos.security.boot.PreparedGuestMetricsClient.Snapshot;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+/** Authored direct-Java logic cases; never real Binder, Parcel, SDK or OEM execution. */
+public final class ClientProbe {
+    private static int checks;
+    private static final String TOKEN = "com.appleexploit.oneos.security.IGuestDisplayMetrics.v1";
+    private interface Attempt { void run() throws Throwable; }
+    private interface Exchange { boolean run(int code, Parcel data, Parcel reply, int flags) throws RemoteException; }
+    private static final class Endpoint implements IBinder {
+        final AtomicInteger calls = new AtomicInteger();
+        final Exchange action;
+        Endpoint(Exchange action) { this.action = action; }
+        public boolean transact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
+            calls.incrementAndGet(); return action.run(code, data, reply, flags);
+        }
+    }
+    private static final class SuppressionDisabled extends RuntimeException {
+        public SuppressionDisabled() { super("authored disabled suppression", null, false, false); }
+    }
+    private static void check(boolean value, String label) {
+        checks++; if (!value) throw new AssertionError(label);
+    }
+    private static Throwable failure(Attempt a) throws Throwable {
+        try { a.run(); } catch (Throwable t) { return t; }
+        throw new AssertionError("Expected failure");
+    }
+    private static Parcel.Plan plan() { Parcel.Plan p = new Parcel.Plan(); Parcel.use(p); return p; }
+    private static boolean recycled(Parcel.Plan p) {
+        return p.request.recycleCalls == 1 && p.reply.recycleCalls == 1
+                && p.recycleOrder.equals(Arrays.asList("reply", "request"));
+    }
+    private static Endpoint packet(int... values) {
+        return new Endpoint((code, data, reply, flags) -> { reply.fill(values); return true; });
+    }
+    private static void invalid(Endpoint endpoint, Parcel.Plan p, String label) throws Throwable {
+        Throwable t = failure(() -> PreparedGuestMetricsClient.prepare(endpoint).read(7));
+        check(t instanceof BadParcelableException && recycled(p) && endpoint.calls.get() == 1, label);
+    }
+    private static int[] sample(int id) {
+        return new int[]{0, 1, id, 1, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0x7fc12345, 0x80000000};
+    }
+    public static void main(String[] args) throws Throwable {
+        Parcel.Plan p = plan();
+        check(failure(() -> PreparedGuestMetricsClient.prepare(null)) instanceof NullPointerException
+                && p.obtains == 0, "null endpoint without acquire");
+        Endpoint endpoint = new Endpoint((code, data, reply, flags) -> {
+            if (code != 1 || flags != 0 || !TOKEN.equals(data.token)
+                    || !data.ints.equals(Arrays.asList(1, 7))) throw new AssertionError("Authored request mismatch");
+            reply.fill(sample(7)); return true;
+        });
+        PreparedGuestMetricsClient client = PreparedGuestMetricsClient.prepare(endpoint);
+        check(endpoint.calls.get() == 0 && p.obtains == 0, "prepare retains without IPC or acquire");
+        Snapshot s = client.read(7);
+        check(s.isPresent() && s.displayId() == 7 && s.appWidth() == Integer.MIN_VALUE
+                && s.appHeight() == Integer.MAX_VALUE && s.logicalDensityDpi() == -1
+                && s.physicalXDpiBits() == 0x7fc12345 && s.physicalYDpiBits() == 0x80000000
+                && endpoint.calls.get() == 1 && p.requestTarget == endpoint && recycled(p),
+                "one retained endpoint exchange/raw sample/owned cleanup");
+        p.reply.ints.clear();
+        check(s.appWidth() == Integer.MIN_VALUE && s.physicalXDpiBits() == 0x7fc12345,
+                "snapshot independent of recycled packet");
+        boolean ownFields = Snapshot.class.getDeclaredFields().length == 7;
+        for (Field f : Snapshot.class.getDeclaredFields()) ownFields &= Modifier.isPrivate(f.getModifiers())
+                && Modifier.isFinal(f.getModifiers()) && (f.getType() == int.class || f.getType() == boolean.class);
+        check(ownFields, "immutable host primitive Snapshot without guest type");
+        p = plan(); Snapshot absent = PreparedGuestMetricsClient.prepare(packet(0, 1, 7, 0)).read(7);
+        check(!absent.isPresent() && absent.displayId() == 7 && recycled(p), "genuine validated absence");
+        check(failure(() -> absent.appWidth()) instanceof IllegalStateException
+                && failure(() -> absent.appHeight()) instanceof IllegalStateException
+                && failure(() -> absent.logicalDensityDpi()) instanceof IllegalStateException
+                && failure(() -> absent.physicalXDpiBits()) instanceof IllegalStateException
+                && failure(() -> absent.physicalYDpiBits()) instanceof IllegalStateException,
+                "all absent metric accessors refuse defaults");
+
+        for (int[] bits : new int[][]{{0x7f800000, 0xff800000}, {1, 0xffc54321}}) {
+            p = plan(); Snapshot v = PreparedGuestMetricsClient.prepare(packet(0, 1, -9, 1, -2, -3, -4, bits[0], bits[1])).read(-9);
+            check(v.displayId() == -9 && v.physicalXDpiBits() == bits[0] && v.physicalYDpiBits() == bits[1] && recycled(p),
+                    "unchanged negative display/raw infinity/subnormal/NaN ints");
+        }
+        p = plan(); p.request.reportedBytes = 513;
+        Endpoint noCall = packet(sample(7));
+        check(failure(() -> PreparedGuestMetricsClient.prepare(noCall).read(7)) instanceof BadParcelableException
+                && noCall.calls.get() == 0 && recycled(p), "request bound before RPC");
+        p = plan(); Endpoint declined = new Endpoint((c,d,r,f) -> { r.fill(0,1,7,0); return false; });
+        check(failure(() -> PreparedGuestMetricsClient.prepare(declined).read(7)) instanceof RemoteException
+                && p.reply.readInts == 0 && p.reply.decoderCalls == 0 && recycled(p), "false transact never parsed as absence");
+        p = plan(); RemoteException dead = new RemoteException("authored death");
+        Endpoint deadEndpoint = new Endpoint((c,d,r,f) -> { throw dead; });
+        check(failure(() -> PreparedGuestMetricsClient.prepare(deadEndpoint).read(7)) == dead
+                && deadEndpoint.calls.get() == 1 && recycled(p), "transport failure exact/no retry");
+
+        for (int size : new int[]{0, 3, 4097}) {
+            p = plan(); p.reply.reportedBytes = size; Endpoint badSize = packet(sample(7));
+            invalid(badSize, p, "total reply bound");
+            check(p.reply.readInts == 0 && p.reply.decoderCalls == 0, "bound before any decode");
+        }
+        for (int header : new int[]{-127, -128}) {
+            p = plan(); Endpoint extended = packet(header, 0, 1, 7, 0);
+            invalid(extended, p, "extended header explicitly unsupported");
+            check(p.reply.decoderCalls == 0, "extended native decoder never reached");
+        }
+        p = plan(); IllegalStateException decoded = new IllegalStateException("authored platform error");
+        p.reply.decoderFailure = decoded;
+        Endpoint errorPacket = packet(-3); // Four bytes: admission must not require success length16.
+        check(failure(() -> PreparedGuestMetricsClient.prepare(errorPacket).read(7)) == decoded
+                && p.reply.decoderCalls == 1 && p.reply.decoderPosition == 0 && recycled(p),
+                "ordinary error uses reset genuine-decoder boundary");
+        p = plan(); p.reply.decoderReturns = true;
+        invalid(packet(-3,1,7,0), p, "nonzero decoder return cannot become ABSENT");
+        check(p.reply.decoderCalls == 1, "ordinary error was delegated once");
+
+        for (int[] bad : new int[][]{
+                {0}, {0,1,7}, {0,2,7,0}, {0,1,8,0}, {0,1,7,2},
+                {0,1,7,1}, {0,1,7,0,1,2,3,4,5},
+                {0,1,7,1,1,2,3,4}, {0,1,7,1,1,2,3,4,5,6}}) {
+            p = plan(); invalid(packet(bad), p, "malformed exact envelope refused");
+        }
+
+        p = plan(); OutOfMemoryError first = new OutOfMemoryError("authored first obtain"); p.firstObtainFailure = first;
+        Endpoint unused = packet(sample(7));
+        check(failure(() -> PreparedGuestMetricsClient.prepare(unused).read(7)) == first && p.obtains == 1
+                && p.request.recycleCalls == 0 && p.reply.recycleCalls == 0 && unused.calls.get() == 0,
+                "first obtain failure owns neither packet");
+        p = plan(); OutOfMemoryError second = new OutOfMemoryError("authored second obtain"); p.secondObtainFailure = second;
+        RuntimeException cleanup = new IllegalStateException("authored first packet cleanup"); p.request.recycleFailure = cleanup;
+        check(failure(() -> PreparedGuestMetricsClient.prepare(unused).read(7)) == second && p.obtains == 2
+                && p.request.recycleCalls == 1 && p.reply.recycleCalls == 0 && second.getSuppressed()[0] == cleanup,
+                "second obtain failure still releases first and preserves primary");
+        p = plan(); RuntimeException write = new IllegalArgumentException("authored write"); p.request.writeFailure = write;
+        check(failure(() -> PreparedGuestMetricsClient.prepare(unused).read(7)) == write
+                && unused.calls.get() == 0 && recycled(p), "write failure releases both without RPC");
+        p = plan(); RemoteException primary = new RemoteException("authored primary");
+        RuntimeException rCleanup = new IllegalStateException("authored reply cleanup");
+        Error qCleanup = new AssertionError("authored request cleanup");
+        p.reply.recycleFailure = rCleanup; p.request.recycleFailure = qCleanup;
+        Endpoint primaryEndpoint = new Endpoint((c,d,r,f) -> { throw primary; });
+        check(failure(() -> PreparedGuestMetricsClient.prepare(primaryEndpoint).read(7)) == primary
+                && Arrays.equals(primary.getSuppressed(), new Throwable[]{rCleanup, qCleanup}) && recycled(p),
+                "both cleanup faults suppressed without replacing original");
+        p = plan(); RemoteException self = new RemoteException("authored same primary");
+        p.reply.recycleFailure = self; p.request.recycleFailure = self;
+        Endpoint selfEndpoint = new Endpoint((c,d,r,f) -> { throw self; });
+        check(failure(() -> PreparedGuestMetricsClient.prepare(selfEndpoint).read(7)) == self
+                && self.getSuppressed().length == 0 && recycled(p), "same-instance cleanup avoids self suppression");
+        p = plan(); SuppressionDisabled disabled = new SuppressionDisabled();
+        p.reply.recycleFailure = rCleanup; p.request.recycleFailure = qCleanup;
+        Endpoint disabledEndpoint = new Endpoint((c,d,r,f) -> { throw disabled; });
+        check(failure(() -> PreparedGuestMetricsClient.prepare(disabledEndpoint).read(7)) == disabled
+                && disabled.getSuppressed().length == 0 && recycled(p), "suppression disabled still preserves primary/both attempts");
+        p = plan(); Error firstCleanup = new AssertionError("authored no-primary reply cleanup");
+        RuntimeException nextCleanup = new IllegalStateException("authored no-primary request cleanup");
+        p.reply.recycleFailure = firstCleanup; p.request.recycleFailure = nextCleanup;
+        final Snapshot[] notPublished = new Snapshot[1];
+        check(failure(() -> notPublished[0] = PreparedGuestMetricsClient.prepare(packet(sample(7))).read(7)) == firstCleanup
+                && notPublished[0] == null && firstCleanup.getSuppressed()[0] == nextCleanup && recycled(p),
+                "cleanup failure prevents successful sample publication");
+        p = plan(); RuntimeException absentCleanup = new IllegalStateException("authored absent cleanup"); p.request.recycleFailure = absentCleanup;
+        check(failure(() -> PreparedGuestMetricsClient.prepare(packet(0,1,7,0)).read(7)) == absentCleanup && recycled(p),
+                "cleanup failure prevents ABSENT return");
+
+        final PreparedGuestMetricsClient[] nested = new PreparedGuestMetricsClient[1];
+        AtomicReference<Snapshot> inner = new AtomicReference<>(); AtomicReference<Parcel.Plan> innerPlan = new AtomicReference<>();
+        Endpoint nestedEndpoint = new Endpoint((c,d,r,f) -> {
+            int id = d.ints.get(1);
+            if (id == 7) {
+                Parcel.Plan outer = outerPlan.get(); Parcel.Plan in = new Parcel.Plan(); innerPlan.set(in); Parcel.use(in);
+                inner.set(nested[0].read(8)); Parcel.use(outer);
+            }
+            r.fill(0,1,id,1,id * 10,2,3,4,5); return true;
+        });
+        nested[0] = PreparedGuestMetricsClient.prepare(nestedEndpoint);
+        p = plan(); outerPlan.set(p); Snapshot outer = nested[0].read(7);
+        check(outer.appWidth() == 70 && inner.get().appWidth() == 80 && nestedEndpoint.calls.get() == 2
+                && recycled(p) && recycled(innerPlan.get()), "reentrant calls retain distinct local packets/results");
+
+        CountDownLatch entered = new CountDownLatch(2), release = new CountDownLatch(1);
+        Endpoint concurrentEndpoint = new Endpoint((c,d,r,f) -> {
+            entered.countDown();
+            try { if (!release.await(10, TimeUnit.SECONDS)) throw new AssertionError("authored wait"); }
+            catch (InterruptedException x) { throw new AssertionError(x); }
+            int id = d.ints.get(1); r.fill(0,1,id,1,id * 10,2,3,4,5); return true;
+        });
+        PreparedGuestMetricsClient concurrent = PreparedGuestMetricsClient.prepare(concurrentEndpoint);
+        AtomicReference<Throwable> threadFailure = new AtomicReference<>(); Thread[] threads = new Thread[2];
+        for (int n = 0; n < 2; n++) {
+            final int id = 20 + n;
+            threads[n] = new Thread(() -> { try {
+                Parcel.Plan own = plan(); Snapshot value = concurrent.read(id);
+                if (value.displayId() != id || value.appWidth() != id * 10 || !recycled(own)) throw new AssertionError("cross-call state");
+            } catch (Throwable t) { threadFailure.compareAndSet(null, t); } }); threads[n].start();
+        }
+        boolean overlapped = entered.await(5, TimeUnit.SECONDS); release.countDown();
+        for (Thread t : threads) t.join(5000);
+        check(overlapped && threadFailure.get() == null && concurrentEndpoint.calls.get() == 2
+                && !threads[0].isAlive() && !threads[1].isAlive(), "concurrent reads own independent packets/results");
+        boolean noPacketFields = true;
+        for (Field f : PreparedGuestMetricsClient.class.getDeclaredFields()) noPacketFields &= f.getType() != Parcel.class;
+        check(noPacketFields, "prepared client retains no request/reply packet");
+        System.out.println("{\"pass\":true,\"checks\":" + checks + ",\"authoredModelsOnly\":true}");
+    }
+    private static final ThreadLocal<Parcel.Plan> outerPlan = new ThreadLocal<>();
+}

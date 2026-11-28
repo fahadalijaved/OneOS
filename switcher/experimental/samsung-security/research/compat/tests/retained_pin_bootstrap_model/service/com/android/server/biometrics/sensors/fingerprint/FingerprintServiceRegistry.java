@@ -1,0 +1,1 @@
+package com.android.server.biometrics.sensors.fingerprint; public final class FingerprintServiceRegistry { public FingerprintService$1 mService; public FingerprintServiceRegistry(FingerprintService$1 s){mService=s;} public Object getProviders(){model.Forbidden.calls++;throw new AssertionError("providers forbidden");} }

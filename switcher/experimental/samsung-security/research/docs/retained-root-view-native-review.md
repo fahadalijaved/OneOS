@@ -1,0 +1,17 @@
+# Retained root view: independent native source review
+
+The separate native integration patch passes bounded source review. It connects the actual existing GVI/GVO owner to the dedicated root controller. This is source preparation, not a compiled or executed native view, guest launch or security admission.
+
+Reviewed patch: `compat/native/root-view-integration.patch`, SHA-256 `10fd059ea16782acf57bcd74f8d94ed0eb664ee6cc1601ccb9b5558e85b30977`. Its composed C/header are `d85c2162…` / `f310d60f…` over exact base `276f2dc3…` / `72f29a3e…`. Independent in-memory patch application matches the authored composed files; inverse application restores exact originals, including untouched gaps. The six existing GVI/GVO/mountinfo source/header files remained unchanged at review. No core source or target output was executed or rewritten.
+
+The controller consumes preparation once before passing its retained pointer directly to gvi_open_existing. A nonnull owner remains retained even on refusal or after-fork failure; the same root main invokes gvi_begin_view and gvi_close. Explicit SIGCHLD default with flags0 precedes GVI, and no competing waiter is introduced. Signals set flags only. A synchronous begin may fork/mount before timeout, signal or socket loss becomes visible; subsequent failure cannot imply that no child or view exists.
+
+VIEW_STATE follows the fixed 64-byte wire layout. Observations come only from an actual successful begin and are descriptive cached metadata, not current child/mount liveness. A duplicate preparation cuts off without opening another provider. No raw GVO pointer, caller PID/FD/plan, namespace entry or legacy launcher is added.
+
+Every main exit path drains the actual nonnull owner before legacy control-descriptor cleanup. HOLD, error or another uncertain result keeps the same process/provider alive indefinitely while polling the same close API; no timeout or EOF converts it into successful cleanup. A view-bearing CLOSE emits VIEW_STATE, never the old CLOSED response. Only actual terminal0 or3 settles local ownership. Terminal3 remains kernel-unconfirmed and forces exit3; it cannot become exit0 or full release.
+
+Root selected one normal final observation opportunity: after a successfully sent HOLD response, actual settlement retains the live channel for one exact next QUERY under one 30-second read/reply budget. The dedicated successful-HOLD latch also covers drain QUERY responses, but not a PREPARE refusal. There is no unsolicited final frame, retry or rearm. Invalid/EOF/signal/lost reply cannot change actual terminal state; host observation may remain UNKNOWN. A query during HOLD may delay the next close poll within the existing frame budget, not guarantee a child-death deadline.
+
+Private source gate and final readback are under `out/retained-root-view-review/native/`. Initial source/readback and beforeimages remain historical. One reviewer delta-format assertion was corrected without changing subject files; it is recorded privately, not treated as a source defect. No remaining scoped finding was identified.
+
+The [protocol](retained-root-view-protocol.md) retains the full limits: GVI staging freshness is not image authenticity; local3 is not global/kernel/native drain; native exit and app-wrapper reaping are different observations. Actual provider, launch namespace, native services, guest exec, property/display/data/security assembly and all device acceptance cases remain open. No compiler, native/OEM/SDK implementation, model, phone, network or Git workflow ran in this review.

@@ -1,0 +1,1 @@
+package com.android.server.display; /* Authored malformed PC fixture. */ public class DisplayManagerService { public static Object service(){return new BinderService();} private static class BinderService { public static android.view.DisplayInfo getDisplayInfo(int id){return null;} } }

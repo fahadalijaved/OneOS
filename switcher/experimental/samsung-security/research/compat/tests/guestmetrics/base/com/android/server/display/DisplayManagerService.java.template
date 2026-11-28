@@ -1,0 +1,14 @@
+package com.android.server.display;
+
+import android.view.DisplayInfo;
+
+/** Authored PC reflection fixture, not an OEM service or authentication authority. */
+public final class DisplayManagerService {
+    public interface Behavior { DisplayInfo get(int id) throws Throwable; }
+    public static Object service(Behavior behavior) { return new BinderService(behavior); }
+    private static final class BinderService {
+        private final Behavior behavior;
+        BinderService(Behavior behavior) { this.behavior = behavior; }
+        public DisplayInfo getDisplayInfo(int id) throws Throwable { return behavior.get(id); }
+    }
+}
